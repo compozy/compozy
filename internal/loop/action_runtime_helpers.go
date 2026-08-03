@@ -3,6 +3,8 @@ package loop
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -50,6 +52,17 @@ func actionSessionHandle(spec *dsl.SessionSpec) string {
 		}
 	}
 	return defaultActionSessionHandle
+}
+
+func actionSessionSharedKey(generation int, nodeID dsl.NodeID, itemIndex int, handle string) string {
+	identity := strings.Join([]string{
+		strconv.Itoa(generation),
+		strings.TrimSpace(string(nodeID)),
+		strconv.Itoa(itemIndex),
+		strings.TrimSpace(handle),
+	}, "\x00")
+	sum := sha256.Sum256([]byte(identity))
+	return "action:" + hex.EncodeToString(sum[:])
 }
 
 func harvestKind(node dsl.Node) string {

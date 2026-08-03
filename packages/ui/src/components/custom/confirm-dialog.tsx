@@ -48,6 +48,13 @@ interface ConfirmDialogProps {
   confirmInputProps?: React.ComponentProps<typeof Input> & DataAttributes;
   noteProps?: React.ComponentProps<"div"> & DataAttributes;
   errorProps?: React.ComponentProps<"div"> & DataAttributes;
+  /**
+   * Extra content inside the dialog body, between the note and the footer — a
+   * mode choice, a payload field, a machine trail. `children` is the Dialog's
+   * trigger slot, so anything meant to appear *inside* the dialog belongs here.
+   */
+  body?: React.ReactNode;
+  bodyProps?: React.ComponentProps<"div"> & DataAttributes;
   children?: React.ReactNode;
 }
 
@@ -83,6 +90,8 @@ function ConfirmDialog({
   confirmInputProps,
   noteProps,
   errorProps,
+  body,
+  bodyProps,
   children,
 }: ConfirmDialogProps) {
   const [typedValue, setTypedValue] = React.useState("");
@@ -105,6 +114,7 @@ function ConfirmDialog({
   const { className: descriptionClassName, ...restDescriptionProps } = descriptionProps ?? {};
   const { className: noteClassName, ...restNoteProps } = noteProps ?? {};
   const { className: errorClassName, ...restErrorProps } = errorProps ?? {};
+  const { className: bodyClassName, ...restBodyProps } = bodyProps ?? {};
   const noteVariant = noteTone === "neutral" ? "default" : noteTone;
 
   return (
@@ -139,6 +149,15 @@ function ConfirmDialog({
             >
               <AlertDescription>{note}</AlertDescription>
             </Alert>
+          </div>
+        ) : null}
+        {body ? (
+          <div
+            data-slot="confirm-dialog-body"
+            {...restBodyProps}
+            className={cn("flex flex-col gap-3 px-5 pt-4", bodyClassName)}
+          >
+            {body}
           </div>
         ) : null}
         {requiresTyping ? (

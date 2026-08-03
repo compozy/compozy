@@ -1,4 +1,18 @@
-import type { LoopDefinition, LoopRunEventFrame, LoopRunGeneration, LoopRunRecord } from "../types";
+import type {
+  LoopDefinition,
+  LoopNodeControl,
+  LoopNodeWait,
+  LoopRunEventFrame,
+  LoopRunGeneration,
+  LoopRunRecord,
+} from "../types";
+import {
+  attentionNodes,
+  type LoopNodeLifecycle,
+  projectNodeLifecycles,
+  quarantinedNodes,
+  waitingNodes,
+} from "./loop-node-lifecycle";
 import type {
   LoopApprovalFact,
   LoopApprovalRequest,
@@ -83,12 +97,30 @@ export function findTransitionAt(
   return typeof at === "string" && at !== "" ? at : undefined;
 }
 
+/**
+ * The `cause` of the newest transition onto `toStatus`. Cancel and kill both
+ * land on `canceled`, so this is the only field that tells them apart.
+ */
+export function findTransitionCause(
+  frames: readonly LoopRunEventFrame[],
+  toStatus: string
+): string | undefined {
+  const payload = findTerminalTransitionFrame(frames, toStatus)?.payload as
+    | Record<string, unknown>
+    | undefined;
+  return typeof payload?.cause === "string" && payload.cause !== "" ? payload.cause : undefined;
+}
+
 export interface LoopRunPageViewInput {
   run: LoopRunRecord;
   generations: readonly LoopRunGeneration[] | undefined;
   live: LoopRunLiveState;
   definition: LoopDefinition | undefined;
   nowMs: number;
+  /** Durable per-node control truth from the run detail. */
+  nodeControls?: readonly LoopNodeControl[];
+  /** Durable wait cells from the run detail. */
+  waits?: readonly LoopNodeWait[];
 }
 
 export interface LoopRunPageView {
@@ -117,10 +149,29 @@ export interface LoopRunPageView {
   terminalFromStatus?: string;
   /** The terminal transition's `at`; the outcome card derives true elapsed from it. */
   terminalAt?: string;
+  /** The terminal transition's `cause` — separates a cancel from a kill. */
+  terminalCause?: string;
+  /** One row per node the daemon reports control, wait, or retry state for. */
+  nodeLifecycles: LoopNodeLifecycle[];
+  /** Nodes holding an open wait cell — the Waiting panel's source. */
+  waitingNodes: LoopNodeLifecycle[];
+  /** Nodes carrying an attention flag — the Needs attention panel's source. */
+  attentionNodes: LoopNodeLifecycle[];
+  /** Set-aside nodes; each one can open its quarantine entry. */
+  quarantinedNodes: LoopNodeLifecycle[];
 }
 
 export function projectLoopRunPageView(input: LoopRunPageViewInput): LoopRunPageView {
   const { run, generations, live, definition, nowMs } = input;
+  // Node lifecycle truth joins the three durable sources the run detail returns.
+  // It gates the parked accounting in Progress, the Waiting/Needs-attention
+  // panels, and every control the page is allowed to offer.
+  const nodeLifecycles = projectNodeLifecycles({
+    controls: input.nodeControls,
+    waits: input.waits,
+    generations,
+    runGeneration: run.generation,
+  });
   // A lifecycle refetch can return tokens newer than the latest streamed tick;
   // take the max so Usage never steps backward between a tick and a poll.
   const effectiveRun =
@@ -161,7 +212,7 @@ export function projectLoopRunPageView(input: LoopRunPageViewInput): LoopRunPage
     hasWatchSource: watchNode !== null,
     elapsedLabel: formatClockDuration(elapsedSeconds),
     stepElapsedLabel,
-    progress: buildRunProgress(effectiveRun, generations, openPoints),
+    progress: buildRunProgress(effectiveRun, generations, openPoints, nodeLifecycles),
     goalIds: graph ? goalNodeIds(graph) : new Set<string>(),
     usageRows: buildRunUsage(effectiveRun, elapsedSeconds),
     usageNote: usageNote(run),
@@ -178,5 +229,10 @@ export function projectLoopRunPageView(input: LoopRunPageViewInput): LoopRunPage
       (run.status === "queued" && definition?.concurrency === "queue"),
     terminalFromStatus: findTransitionFrom(live.frames, run.status),
     terminalAt: findTransitionAt(live.frames, run.status),
+    terminalCause: findTransitionCause(live.frames, run.status),
+    nodeLifecycles,
+    waitingNodes: waitingNodes(nodeLifecycles),
+    attentionNodes: attentionNodes(nodeLifecycles),
+    quarantinedNodes: quarantinedNodes(nodeLifecycles),
   };
 }

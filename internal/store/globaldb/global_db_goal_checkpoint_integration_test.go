@@ -139,8 +139,8 @@ func TestGoalCheckpointControlIntegration(t *testing.T) {
 			ctx,
 			terminalRun.ID,
 			looppkg.StatusRunning,
-			looppkg.StatusFailed,
-			looppkg.TransitionCauseOperatorStop,
+			looppkg.StatusCanceled,
+			looppkg.TransitionCauseOperatorCancel,
 			firstAt.Add(time.Minute),
 		); err != nil {
 			t.Fatalf("CompareAndSwapLoopRunStatus() error = %v", err)

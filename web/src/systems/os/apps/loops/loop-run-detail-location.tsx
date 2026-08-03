@@ -5,7 +5,13 @@ import { useNavigate } from "@tanstack/react-router";
 
 import { Empty, Spinner, useTopbarSlot, type TopbarSlotValue } from "@compozy/ui";
 import { useLoopRunPage } from "./use-loop-run-page";
+import { useLoopNodeControls } from "./use-loop-node-controls";
 import {
+  LoopNodeControlDialog,
+  LoopNodeRowActions,
+  LoopQuarantineSheet,
+  LoopRunControlDialog,
+  type LoopRunConfirmVerb,
   LoopRunControls,
   LoopRunOverflowMenu,
   LoopRunPageBody,
@@ -72,7 +78,15 @@ interface LoopRunDetailProps {
 
 function LoopRunDetail({ workspaceId, runId, topbarIdentity, workspaceName }: LoopRunDetailProps) {
   const page = useLoopRunPage(workspaceId, runId);
+  const nodeControls = useLoopNodeControls(workspaceId, runId);
   const [inspectOpen, setInspectOpen] = useState(false);
+  // Cancel and kill are destructive and irreversible for this run, so both go
+  // through a confirm that restates the run's current status before committing.
+  const [runVerb, setRunVerb] = useState<LoopRunConfirmVerb | null>(null);
+  const quarantineNode =
+    nodeControls.quarantineNodeId === null
+      ? null
+      : (page.nodesById.get(nodeControls.quarantineNodeId) ?? null);
 
   useTopbarSlot({
     ...topbarIdentity,
@@ -84,14 +98,19 @@ function LoopRunDetail({ workspaceId, runId, topbarIdentity, workspaceName }: Lo
         <LoopRunControls
           status={page.run.status}
           pauseRequested={page.run.pause_requested}
-          isPausePending={page.isPausePending}
-          isResumePending={page.isResumePending}
-          isCancelPending={page.isCancelPending}
+          pendingVerb={page.pendingRunVerb}
           onPause={page.handlePause}
           onResume={page.handleResume}
-          onCancel={page.handleCancel}
+          onCancel={() => setRunVerb("cancel")}
         />
-        <LoopRunOverflowMenu loopName={page.run.loop_name} onInspect={() => setInspectOpen(true)} />
+        <LoopRunOverflowMenu
+          isKillPending={page.isKillPending}
+          loopName={page.run.loop_name}
+          onInspect={() => setInspectOpen(true)}
+          // Kill is offered only while the run is live; a terminal run gets the
+          // views but no verb the daemon would reject.
+          onKill={page.canKillRun ? () => setRunVerb("kill") : undefined}
+        />
       </div>
     ) : undefined,
   });
@@ -121,49 +140,102 @@ function LoopRunDetail({ workspaceId, runId, topbarIdentity, workspaceName }: Lo
     );
   }
 
+  // The dialog and the sheet are overlays, not page content — they render as
+  // siblings so the body keeps its childless presentational contract.
   return (
-    <LoopRunPageBody
-      run={page.effectiveRun}
-      definition={page.definition}
-      graph={page.graph}
-      isLive={page.isLive}
-      subject={page.subject}
-      hasWatchSource={page.hasWatchSource}
-      elapsedLabel={page.elapsedLabel}
-      stepElapsedLabel={page.stepElapsedLabel}
-      progress={page.progress}
-      story={page.story}
-      goalIds={page.goalIds}
-      goalTurns={page.goalTurns}
-      goalTurnsPaging={{
-        hasMore: page.goalTurnsQuery.hasNextPage,
-        isLoading: page.goalTurnsQuery.isFetchingNextPage,
-        onLoadMore: () => {
-          void page.goalTurnsQuery.fetchNextPage();
-        },
-      }}
-      usageRows={page.usageRows}
-      usageNote={page.usageNote}
-      approvalRequest={page.live.needsApproval}
-      approvalFallbackFacts={page.approvalFallbackFacts}
-      failure={page.live.failure}
-      latestVerdict={page.latestVerdict}
-      watchEvents={page.watchEvents}
-      watchCadence={page.watchCadence}
-      generations={page.generations}
-      frames={page.live.frames}
-      inputRows={page.inputRows}
-      startedBy={page.startedBy}
-      workspaceLabel={workspaceName ?? page.effectiveRun.workspace_id}
-      versionLabel={page.versionLabel}
-      nextNote={page.nextNote}
-      showNowCard={page.showNowCard}
-      terminalFromStatus={page.terminalFromStatus}
-      terminalAt={page.terminalAt}
-      inspect={{ open: inspectOpen, onOpenChange: setInspectOpen }}
-      pendingAction={page.pendingAction}
-      onDecision={page.handleDecision}
-      onStartNewRun={page.handleStartNewRun}
-    />
+    <>
+      <LoopRunPageBody
+        run={page.effectiveRun}
+        definition={page.definition}
+        graph={page.graph}
+        isLive={page.isLive}
+        subject={page.subject}
+        hasWatchSource={page.hasWatchSource}
+        elapsedLabel={page.elapsedLabel}
+        stepElapsedLabel={page.stepElapsedLabel}
+        progress={page.progress}
+        story={page.story}
+        goalIds={page.goalIds}
+        goalTurns={page.goalTurns}
+        goalTurnsPaging={{
+          hasMore: page.goalTurnsQuery.hasNextPage,
+          isLoading: page.goalTurnsQuery.isFetchingNextPage,
+          onLoadMore: () => {
+            void page.goalTurnsQuery.fetchNextPage();
+          },
+        }}
+        usageRows={page.usageRows}
+        usageNote={page.usageNote}
+        approvalRequest={page.live.needsApproval}
+        approvalFallbackFacts={page.approvalFallbackFacts}
+        failure={page.live.failure}
+        latestVerdict={page.latestVerdict}
+        watchEvents={page.watchEvents}
+        watchCadence={page.watchCadence}
+        generations={page.generations}
+        frames={page.live.frames}
+        inputRows={page.inputRows}
+        startedBy={page.startedBy}
+        workspaceLabel={workspaceName ?? page.effectiveRun.workspace_id}
+        versionLabel={page.versionLabel}
+        nextNote={page.nextNote}
+        showNowCard={page.showNowCard}
+        terminalFromStatus={page.terminalFromStatus}
+        terminalAt={page.terminalAt}
+        terminalCause={page.terminalCause}
+        inspect={{ open: inspectOpen, onOpenChange: setInspectOpen }}
+        pendingAction={page.pendingAction}
+        nodeLifecycles={page.nodeLifecycles}
+        nodeNowLines={page.nodeNowLines}
+        waitingNodes={page.waitingNodes}
+        attentionNodes={page.attentionNodes}
+        nodesById={page.nodesById}
+        renderNodeActions={node => (
+          <LoopNodeRowActions
+            isPending={nodeControls.isPending}
+            node={node}
+            onVerb={nodeControls.onVerb}
+            runStatus={page.run?.status}
+          />
+        )}
+        onOpenQuarantine={nodeControls.openQuarantine}
+        onDecision={page.handleDecision}
+        onStartNewRun={page.handleStartNewRun}
+      />
+      <LoopNodeControlDialog
+        error={nodeControls.answer}
+        isPending={nodeControls.isPending}
+        onConfirm={nodeControls.commit}
+        onOpenChange={open => {
+          if (!open) nodeControls.closeDialog();
+        }}
+        request={nodeControls.request}
+      />
+      <LoopRunControlDialog
+        generation={page.effectiveRun.generation}
+        isPending={page.isCancelPending || page.isKillPending}
+        onConfirm={verb => {
+          if (verb === "kill") page.handleKill();
+          else page.handleCancel();
+          setRunVerb(null);
+        }}
+        onOpenChange={open => {
+          if (!open) setRunVerb(null);
+        }}
+        runId={runId}
+        status={page.effectiveRun.status}
+        verb={runVerb}
+      />
+      <LoopQuarantineSheet
+        isRequeuePending={nodeControls.isPending}
+        node={quarantineNode}
+        onOpenChange={open => {
+          if (!open) nodeControls.closeQuarantine();
+        }}
+        onRequeue={node => nodeControls.onVerb("requeue", node)}
+        open={quarantineNode !== null}
+        runId={runId}
+      />
+    </>
   );
 }

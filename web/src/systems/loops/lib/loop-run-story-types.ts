@@ -22,7 +22,21 @@ export type LoopStoryIcon =
   | "resumed"
   | "started"
   | "stopped"
-  | "done";
+  | "done"
+  // Node lifecycle beats (Spec 1). One fixed lucide icon per concept across the
+  // domain, per DESIGN-LESSONS L7.
+  | "retry"
+  | "canceled"
+  | "killed"
+  | "quarantined"
+  | "requeued"
+  | "waiting"
+  | "attention"
+  | "attention-cleared"
+  | "effect"
+  | "suppressed"
+  | "breaker-open"
+  | "breaker-closed";
 
 export interface LoopStoryIssue {
   id: string;

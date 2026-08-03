@@ -49,10 +49,20 @@ func (b *loopActionSessionBinder) BindActionSession(
 	if !ok {
 		return looppkg.ActionSessionBinding{}, errors.New("daemon: idempotent session creation is unavailable")
 	}
+	sharedKey := strings.TrimSpace(req.SharedKey)
+	if sharedKey == "" {
+		if req.CellFence != nil {
+			return looppkg.ActionSessionBinding{}, fmt.Errorf(
+				"%w: managed action session shared_key is required",
+				looppkg.ErrValidation,
+			)
+		}
+		sharedKey = strings.TrimSpace(req.Handle)
+	}
 	key := goalpkg.BindingKey{
 		WorkspaceID: req.WorkspaceID,
 		LoopRunID:   req.LoopRunID,
-		Handle:      strings.TrimSpace(req.Handle),
+		Handle:      sharedKey,
 	}
 	if err := key.Validate(); err != nil {
 		return looppkg.ActionSessionBinding{}, err
@@ -95,6 +105,7 @@ func (b *loopActionSessionBinder) bindEphemeralActionSession(
 		LoopRunID:      req.LoopRunID,
 		SessionID:      strings.TrimSpace(created.Info().ID),
 		Handle:         strings.TrimSpace(req.Handle),
+		SharedKey:      strings.TrimSpace(req.SharedKey),
 		Isolated:       req.Isolated,
 		AppliedRuntime: appliedRuntimeFromCreateOptions(opts),
 	}, nil
@@ -235,7 +246,7 @@ func (b *loopActionSessionBinder) AdvanceActionSessionRetry(
 	key := goalpkg.BindingKey{
 		WorkspaceID: failed.WorkspaceID,
 		LoopRunID:   failed.LoopRunID,
-		Handle:      failed.Handle,
+		Handle:      failed.SharedKey,
 	}
 	advance := goalpkg.AdvanceBindingCreationFailureRequest{
 		Key: key,
@@ -340,6 +351,7 @@ func activationRequest(
 	prepared goalpkg.SessionBinding,
 ) goalpkg.ActivateBindingRequest {
 	var checkpointKey *goalpkg.TurnKey
+	var cellFence *goalpkg.BindingCellFence
 	if strings.TrimSpace(req.ExpectedCheckpointPhase) != "" {
 		checkpointKey = &goalpkg.TurnKey{
 			WorkspaceID: req.WorkspaceID,
@@ -348,10 +360,23 @@ func activationRequest(
 			NodeID:      req.NodeID,
 			ItemIndex:   req.ItemIndex,
 		}
+	} else if req.CellFence != nil {
+		cellFence = &goalpkg.BindingCellFence{
+			Key: goalpkg.TurnKey{
+				WorkspaceID: req.WorkspaceID,
+				LoopRunID:   req.LoopRunID,
+				Generation:  req.Generation,
+				NodeID:      req.NodeID,
+				ItemIndex:   req.ItemIndex,
+			},
+			Epoch:     req.CellFence.Epoch,
+			TaskRunID: strings.TrimSpace(req.CellFence.TaskRunID),
+		}
 	}
 	return goalpkg.ActivateBindingRequest{
 		Key:                  key,
 		CheckpointKey:        checkpointKey,
+		CellFence:            cellFence,
 		ExpectedBindingEpoch: prepared.BindingEpoch,
 		ExpectedControlEpoch: req.ExpectedControlEpoch,
 		GrantID:              req.ReseedGrantID,
@@ -416,7 +441,7 @@ func actionBindingFromGoal(
 		WorkspaceID:        req.WorkspaceID,
 		LoopRunID:          req.LoopRunID,
 		SessionID:          binding.SessionID,
-		Handle:             binding.Key.Handle,
+		Handle:             strings.TrimSpace(req.Handle),
 		SharedKey:          binding.Key.Handle,
 		ControlEpoch:       req.ExpectedControlEpoch,
 		BindingEpoch:       binding.BindingEpoch,

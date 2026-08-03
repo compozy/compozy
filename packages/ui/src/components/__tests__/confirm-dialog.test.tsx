@@ -130,4 +130,65 @@ describe("ConfirmDialog", () => {
     expect(await screen.findByTestId("confirm-typing")).toHaveValue("");
     expect(screen.getByTestId("confirm-action")).toBeDisabled();
   });
+
+  // `children` is the Dialog's trigger slot, so content meant for the dialog
+  // body must go through `body` — otherwise it renders outside the surface and
+  // silently disappears (the failure this slot exists to prevent).
+  it("Should render body content inside the dialog and children as the trigger", async () => {
+    const user = userEvent.setup();
+    render(
+      <UIProvider reducedMotion="always">
+        <ConfirmDialog
+          body={<p data-testid="confirm-body">Choose what happens to work already in flight.</p>}
+          cancelLabel="Cancel"
+          confirmLabel="Pause"
+          contentProps={{ "data-testid": "confirm-content" }}
+          description="Pause this lane?"
+          note="task_03 is running"
+          onConfirm={() => undefined}
+          title="Pause lane?"
+        >
+          <DialogTrigger render={<Button variant="outline">Open confirm</Button>} />
+        </ConfirmDialog>
+      </UIProvider>
+    );
+
+    // Before opening, the trigger is visible but the body is not rendered at all.
+    expect(screen.queryByTestId("confirm-body")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Open confirm" }));
+
+    const content = await screen.findByTestId("confirm-content");
+    const body = screen.getByTestId("confirm-body");
+    expect(content).toContainElement(body);
+    expect(body).toHaveTextContent("Choose what happens to work already in flight.");
+  });
+
+  it("Should place body between the note and the footer", async () => {
+    const user = userEvent.setup();
+    render(
+      <UIProvider reducedMotion="always">
+        <ConfirmDialog
+          body={<p data-testid="confirm-body">body slot</p>}
+          cancelButtonProps={{ "data-testid": "cancel-action" }}
+          cancelLabel="Cancel"
+          confirmLabel="Pause"
+          contentProps={{ "data-testid": "confirm-content" }}
+          note="current state strip"
+          noteProps={{ "data-testid": "confirm-note" }}
+          onConfirm={() => undefined}
+          title="Pause lane?"
+        >
+          <DialogTrigger render={<Button variant="outline">Open confirm</Button>} />
+        </ConfirmDialog>
+      </UIProvider>
+    );
+    await user.click(screen.getByRole("button", { name: "Open confirm" }));
+
+    const content = await screen.findByTestId("confirm-content");
+    const order = Array.from(content.querySelectorAll("[data-testid]")).map(node =>
+      node.getAttribute("data-testid")
+    );
+    expect(order.indexOf("confirm-note")).toBeLessThan(order.indexOf("confirm-body"));
+    expect(order.indexOf("confirm-body")).toBeLessThan(order.indexOf("cancel-action"));
+  });
 });

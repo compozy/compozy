@@ -1260,7 +1260,7 @@ func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
 	})
 
 	t.Run(
-		"Should atomically stop the Run and revoke its claimed Goal prompt with the authenticated actor",
+		"Should atomically cancel the Run and revoke its claimed Goal prompt with the authenticated actor",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -1280,17 +1280,19 @@ func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
 			if err != nil {
 				t.Fatalf("ClaimPreparedWorkPrompt() error = %v", err)
 			}
-			actor, err := taskpkg.DeriveHumanActorContext("operator-stop", taskpkg.OriginKindCLI, "cli")
+			actor, err := taskpkg.DeriveHumanActorContext("operator-cancel", taskpkg.OriginKindCLI, "cli")
 			if err != nil {
 				t.Fatalf("DeriveHumanActorContext() error = %v", err)
 			}
-			stoppedAt := now.Add(time.Second)
-			result, err := globalDB.StopGoalRun(ctx, looppkg.GoalRunStopRequest{
+			canceledAt := now.Add(time.Second)
+			mutation := looppkg.CancellationMutation{
 				WorkspaceID: key.WorkspaceID, RunID: key.LoopRunID,
-				ExpectedStatus: looppkg.StatusRunning, Actor: actor, StoppedAt: stoppedAt,
-			})
+				Kind: looppkg.RunCancelCancel, Reason: "operator canceled run",
+				Actor: actor, RequestedAt: canceledAt,
+			}
+			result, err := globalDB.RequestRunCancellation(ctx, mutation)
 			if err != nil {
-				t.Fatalf("StopGoalRun() error = %v", err)
+				t.Fatalf("RequestRunCancellation() error = %v", err)
 			}
 			if len(result.RevokedPromptLeases) != 1 {
 				t.Fatalf("revoked prompt leases = %#v, want one", result.RevokedPromptLeases)
@@ -1307,8 +1309,8 @@ func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
 			if err != nil {
 				t.Fatalf("GetLoopRun() error = %v", err)
 			}
-			if run.Status != looppkg.StatusFailed {
-				t.Fatalf("stopped Run status = %q, want failed", run.Status)
+			if run.Status != looppkg.StatusCanceled {
+				t.Fatalf("canceled Run status = %q, want canceled", run.Status)
 			}
 			checkpoint, err := globalDB.LoadCheckpoint(ctx, key)
 			if err != nil {
@@ -1342,7 +1344,7 @@ func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
 					PromptID: promptID, Outcome: looppkg.ActionPromptOutcomeCompleted,
 					StopReason: looppkg.ActionStopEndTurn,
 				},
-				TerminalAt: stoppedAt.Add(time.Second),
+				TerminalAt: canceledAt.Add(time.Second),
 			}); err == nil {
 				t.Fatal("FinalizeGoalPrompt(after operator Stop) error = nil")
 			}
@@ -1370,21 +1372,17 @@ func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
 				replayWG.Add(1)
 				go func() {
 					defer replayWG.Done()
-					_, replayErr := globalDB.StopGoalRun(ctx, looppkg.GoalRunStopRequest{
-						WorkspaceID:    key.WorkspaceID,
-						RunID:          key.LoopRunID,
-						ExpectedStatus: looppkg.StatusRunning,
-						Actor:          actor,
-						StoppedAt:      stoppedAt.Add(2 * time.Second),
-					})
+					replay := mutation
+					replay.RequestedAt = canceledAt.Add(2 * time.Second)
+					_, replayErr := globalDB.RequestRunCancellation(ctx, replay)
 					replayErrors <- replayErr
 				}()
 			}
 			replayWG.Wait()
 			close(replayErrors)
 			for replayErr := range replayErrors {
-				if replayErr == nil {
-					t.Fatal("StopGoalRun(concurrent replay) error = nil")
+				if replayErr != nil {
+					t.Errorf("RequestRunCancellation(concurrent replay) error = %v", replayErr)
 				}
 			}
 

@@ -450,12 +450,15 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 		if bind.Agent != "planner" || bind.Handle != "main" || bind.Isolated {
 			t.Fatalf("bind request = %#v, want shared main planner", bind)
 		}
+		if !strings.HasPrefix(bind.SharedKey, "action:") || bind.SharedKey == bind.Handle {
+			t.Fatalf("bind shared key = %q, want cell-scoped identity distinct from authored handle", bind.SharedKey)
+		}
 		if bind.ItemIndex != 2 {
 			t.Fatalf("bind item index = %d, want 2", bind.ItemIndex)
 		}
-		if bind.TargetBindingEpoch != 5 || bind.ExpectedControlEpoch != 5 ||
-			bind.ExpectedTaskRunID != "taskrun-managed-5" {
-			t.Fatalf("managed bind fence = %#v, want epoch 5 + exact continuation task", bind)
+		if bind.TargetBindingEpoch != 5 || bind.ExpectedControlEpoch != 0 || bind.CellFence == nil ||
+			bind.CellFence.Epoch != 4 || bind.CellFence.TaskRunID != "taskrun-managed-5" {
+			t.Fatalf("managed bind fence = %#v, want binding epoch 5 + exact cell owner", bind)
 		}
 		if bind.Runtime.Model != "gpt-5.4" || bind.MaxTurns != 3 || len(bind.AllowedTools) != 1 {
 			t.Fatalf("bind overrides = %#v, want model/tool/max_turns", bind)

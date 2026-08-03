@@ -34,6 +34,12 @@ export interface LoopGraphNode {
   watch?: Record<string, unknown>;
   /** Declared watch-event subscription count (event-driven watch nodes). */
   eventsCount: number;
+  /**
+   * Authored `retry.max_attempts`. Only present when the definition declares it —
+   * the run payload never carries an attempt ceiling, so "attempt 2 of 3" may be
+   * phrased only for a node whose author wrote the 3.
+   */
+  retryMaxAttempts?: number;
 }
 
 export interface LoopGraphEdge {
@@ -80,7 +86,13 @@ function projectNode(raw: unknown): LoopGraphNode | null {
     isGate: kind === "gate" || Boolean(record.criteria) || Boolean(record.verdict_policy),
     watch: asRecord(record.watch) ?? undefined,
     eventsCount: Array.isArray(record.events) ? record.events.length : 0,
+    retryMaxAttempts: asOptionalNumber(asRecord(record.retry)?.max_attempts),
   };
+}
+
+/** The authored attempt ceiling for one node, or undefined when none is declared. */
+export function nodeRetryMaxAttempts(graph: LoopGraph | null, nodeId: string): number | undefined {
+  return graph?.nodes.find(node => node.id === nodeId)?.retryMaxAttempts;
 }
 
 function projectEdge(raw: unknown): LoopGraphEdge | null {

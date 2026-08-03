@@ -1,18 +1,3 @@
-import type { GoalTurnTimelineItem } from "../../hooks/use-goal-turns";
-import {
-  applyLoopEventFrame,
-  emptyLoopRunLiveState,
-  type LoopRunLiveState,
-} from "../../lib/loop-events";
-import { projectLoopRunPageView } from "../../lib/loop-run-page-view";
-import type { LoopRunPageBodyProps } from "../run-page/loop-run-page-body";
-import type {
-  LoopDefinition,
-  LoopRunEventFrame,
-  LoopRunGeneration,
-  LoopRunRecord,
-  LoopWatchEventsState,
-} from "../../types";
 import {
   createFrameFactory,
   generationsFor,
@@ -25,22 +10,18 @@ import {
   reviewAndFixDefinition,
   reviewAndFixRun,
   roundOneFrames,
-  STORY_NOW,
 } from "./loop-run-page-fixture-world";
+import type { LoopRunStoryScenario } from "./loop-run-scenario-types";
+import type { LoopRunGeneration } from "../../types";
 
 /**
  * Production-derived run-page scenarios. Review states use the bundled
  * agent-authored Loop; watch-only states use a separate generic watch Loop.
+ * The scenario shape lives in `loop-run-scenario-types`, and the projection into
+ * page props in `loop-run-scenario-props`.
  */
 
-export interface LoopRunStoryScenario {
-  run: LoopRunRecord;
-  definition: LoopDefinition;
-  frames: LoopRunEventFrame[];
-  generations: LoopRunGeneration[];
-  watchEvents?: LoopWatchEventsState;
-  goalTurns?: GoalTurnTimelineItem[];
-}
+export type { LoopRunStoryScenario } from "./loop-run-scenario-types";
 
 export function runningScenario(): LoopRunStoryScenario {
   const frame = createFrameFactory();
@@ -444,35 +425,4 @@ export function noOpScenario(): LoopRunStoryScenario {
   };
 }
 
-/** Reduces the scenario's frames through the production reducer, like the page. */
-function reduceLiveState(frames: readonly LoopRunEventFrame[]): LoopRunLiveState {
-  return frames.reduce(applyLoopEventFrame, emptyLoopRunLiveState());
-}
-
-type ScenarioBodyProps = Omit<LoopRunPageBodyProps, "inspect">;
-
-/** Projects fixture events through the same view model used by the live page. */
-export function buildScenarioProps(scenario: LoopRunStoryScenario): ScenarioBodyProps {
-  const { run, definition, generations, watchEvents } = scenario;
-  const live = reduceLiveState(scenario.frames);
-  const { effectiveRun, ...view } = projectLoopRunPageView({
-    run,
-    generations,
-    live,
-    definition,
-    nowMs: STORY_NOW,
-  });
-  return {
-    ...view,
-    run: effectiveRun,
-    definition,
-    goalTurns: scenario.goalTurns ?? [],
-    generations,
-    watchEvents,
-    frames: live.frames,
-    workspaceLabel: "Home",
-    versionLabel: `v${run.definition_version} · pinned`,
-    onDecision: () => undefined,
-    onStartNewRun: () => undefined,
-  };
-}
+export { buildScenarioProps } from "./loop-run-scenario-props";

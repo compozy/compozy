@@ -2274,6 +2274,9 @@ test("E2E-040 (logical E2E-007): Cmd+W closes an attention-bearing session tab a
   const secondSessionID = await openSessionWindowInAuthority(runtime, workspace.id, secondSession);
   await groupWindowsInAuthority(runtime, workspace.id, tasksID, [sessionID, secondSessionID]);
   const shell = osShellSelectors(appPage);
+  const layoutUnavailable = appPage
+    .getByRole("status")
+    .filter({ hasText: /Layout reconnecting|Live layout disconnected/ });
   await expect(shell.tab(sessionID)).toBeVisible();
   await shell.tab(sessionID).click();
   const composer = shell.window(sessionID).getByTestId("composer-textarea");
@@ -2283,16 +2286,19 @@ test("E2E-040 (logical E2E-007): Cmd+W closes an attention-bearing session tab a
   await expect(
     appPage.getByRole("button", { name: "Sessions" }).locator('[data-slot="os-dock-badge"]')
   ).toBeVisible();
+  await expect(layoutUnavailable).toHaveCount(0);
   await appPage.keyboard.press("ControlOrMeta+W");
   await expect(shell.window(sessionID)).toHaveCount(0);
   await expect(
     appPage.getByRole("button", { name: "Sessions" }).locator('[data-slot="os-dock-badge"]')
   ).toBeVisible();
   await shell.tab(secondSessionID).click();
+  await expect(layoutUnavailable).toHaveCount(0);
   await appPage.keyboard.press("ControlOrMeta+W");
   await expect(shell.window(secondSessionID)).toHaveCount(0);
   await appPage.reload({ waitUntil: "domcontentloaded" });
   await expect(shell.window(tasksID)).toBeVisible();
+  await expect(layoutUnavailable).toHaveCount(0);
   await appPage.keyboard.press("ControlOrMeta+Shift+T");
   await expect(shell.window(secondSessionID)).toBeVisible();
   await appPage.keyboard.press("ControlOrMeta+Shift+T");

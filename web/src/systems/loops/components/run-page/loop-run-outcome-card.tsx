@@ -18,6 +18,12 @@ interface LoopRunOutcomeCardProps {
   fromStatus?: string;
   /** The terminal transition's `at`; drives the true frozen duration + Time-limit check. */
   terminalAt?: string;
+  /**
+   * The terminal transition's `cause` (`operator_cancel` / `operator_kill` / …).
+   * It is the only thing that distinguishes a cooperative cancel from a kill —
+   * both statuses read `canceled`.
+   */
+  cause?: string;
   /** `contract.no_progress.window` from the pinned definition (stalled card). */
   noProgressWindow?: number;
   /** Blocking-issue ids from the last check (stalled card evidence). */
@@ -96,6 +102,24 @@ function outcomeView(
         showStartNewRun: true,
       };
     }
+    // Cancel and kill both land on `canceled`; only the terminal frame's cause
+    // distinguishes a cooperative wind-down from an immediate stop. The card is
+    // deliberately calm: a deliberate end is not a failure.
+    case "canceled": {
+      const killed = props.cause === "operator_kill";
+      return {
+        sectionLabel: "Why it stopped",
+        tone: "neutral",
+        cardClass: "border border-line bg-canvas-tint",
+        titleClass: "text-fg-strong",
+        title: killed ? "Killed by you" : "Canceled by you",
+        body: killed
+          ? "Stopped immediately: in-flight work was interrupted mid-step and its reactions were skipped. Finished work is still kept."
+          : "You asked the run to stop and it wound down cleanly: in-flight lanes drained, their cleanup reactions ran, and finished work is kept.",
+        recovery: failure?.recovery,
+        showStartNewRun: true,
+      };
+    }
     case "stalled":
       return {
         sectionLabel: "Why it stopped",
@@ -122,8 +146,16 @@ function outcomeView(
  */
 export function LoopRunOutcomeCard(props: LoopRunOutcomeCardProps) {
   const [renderedAt] = useState(Date.now);
-  const { run, failure, fromStatus, terminalAt, repeatedIssueIds, onStartNewRun, isStartPending } =
-    props;
+  const {
+    run,
+    failure,
+    fromStatus,
+    terminalAt,
+    cause,
+    repeatedIssueIds,
+    onStartNewRun,
+    isStartPending,
+  } = props;
   if (run.status === "no-op") {
     return (
       <LoopRunQuietNote data-testid="loop-run-noop-note" icon={Check}>
@@ -137,9 +169,13 @@ export function LoopRunOutcomeCard(props: LoopRunOutcomeCardProps) {
   if (!view) return null;
   const best = loopRunBestLabel(run);
   const showBestPointer = (run.status === "exhausted" || run.status === "stalled") && best;
+  // One `cause` segment. The terminal frame's own cause wins when it carries
+  // one (`operator_cancel` / `operator_kill` — the only thing separating a
+  // cancel from a kill); otherwise the coordinator failure code names it.
+  const causeLabel = cause ?? failure?.code;
   const micro = [
     `status_changed · ${fromStatus ?? "?"} → ${run.status}`,
-    failure ? `cause ${failure.code}` : null,
+    causeLabel ? `cause ${causeLabel}` : null,
   ]
     .filter(Boolean)
     .join(" · ");

@@ -5,7 +5,23 @@ import { useTopbarSlot, type TopbarSlotValue } from "@compozy/ui";
 
 import { StoryTopbarHost } from "@/storybook/story-layout";
 
-import { LoopRunControls, LoopRunOverflowMenu, LoopRunPageBody, LoopStatusPill } from "../../index";
+import {
+  LoopNodeRowActions,
+  LoopRunControls,
+  LoopRunOverflowMenu,
+  LoopRunPageBody,
+  LoopStatusPill,
+} from "../../index";
+import {
+  attentionScenario,
+  canceledScenario,
+  killedScenario,
+  pausedByRuleScenario,
+  pausedNodeScenario,
+  quarantinedScenario,
+  retryingScenario,
+  waitingScenario,
+} from "./loop-run-lifecycle-fixtures";
 import {
   buildScenarioProps,
   exhaustedScenario,
@@ -60,6 +76,7 @@ function ScenarioPage({
         <LoopRunOverflowMenu
           loopName={props.run.loop_name}
           onInspect={() => setInspectOpen(true)}
+          onKill={() => {}}
         />
       </div>
     ),
@@ -67,7 +84,13 @@ function ScenarioPage({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-canvas">
-      <LoopRunPageBody {...props} inspect={{ open: inspectOpen, onOpenChange: setInspectOpen }} />
+      <LoopRunPageBody
+        {...props}
+        inspect={{ open: inspectOpen, onOpenChange: setInspectOpen }}
+        renderNodeActions={node => (
+          <LoopNodeRowActions node={node} onVerb={() => {}} runStatus={props.run.status} />
+        )}
+      />
     </div>
   );
 }
@@ -152,4 +175,46 @@ export const NoOp: Story = {
 export const InspectOpen: Story = {
   args: {},
   render: () => <LoopRunPageStory scenario={runningScenario()} inspectInitiallyOpen />,
+};
+
+// Node lifecycle states (Spec 1). These are the Visual Contract capture targets
+// for VC-R1 (Retrying) and VC-R2 (the rest).
+export const Retrying: Story = {
+  args: {},
+  render: () => <LoopRunPageStory scenario={retryingScenario()} />,
+};
+
+export const NodePaused: Story = {
+  args: {},
+  render: () => <LoopRunPageStory scenario={pausedNodeScenario()} />,
+};
+
+export const NodePausedByRule: Story = {
+  args: {},
+  render: () => <LoopRunPageStory scenario={pausedByRuleScenario()} />,
+};
+
+export const Waiting: Story = {
+  args: {},
+  render: () => <LoopRunPageStory scenario={waitingScenario()} />,
+};
+
+export const Quarantined: Story = {
+  args: {},
+  render: () => <LoopRunPageStory scenario={quarantinedScenario()} />,
+};
+
+export const NeedsAttention: Story = {
+  args: {},
+  render: () => <LoopRunPageStory scenario={attentionScenario()} />,
+};
+
+export const Canceled: Story = {
+  args: {},
+  render: () => <LoopRunPageStory scenario={canceledScenario()} />,
+};
+
+export const Killed: Story = {
+  args: {},
+  render: () => <LoopRunPageStory scenario={killedScenario()} />,
 };

@@ -39,20 +39,20 @@ func (d AttemptDisposition) Valid() bool {
 
 // NodeAttempt is one immutable attempt-ledger row.
 type NodeAttempt struct {
-	LoopRunID     RunID
-	Generation    int
-	NodeID        NodeID
-	ItemIndex     int
-	Attempt       int
-	FailureClass  *FailureClass
-	FailureCode   string
-	Cause         string
-	Hint          string
-	Target        string
-	Disposition   AttemptDisposition
-	StartedAt     time.Time
-	EndedAt       *time.Time
-	NextAttemptAt *time.Time
+	LoopRunID     RunID              `json:"loop_run_id"`
+	Generation    int                `json:"generation"`
+	NodeID        NodeID             `json:"node_id"`
+	ItemIndex     int                `json:"item_index"`
+	Attempt       int                `json:"attempt"`
+	FailureClass  *FailureClass      `json:"failure_class,omitempty"`
+	FailureCode   string             `json:"failure_code,omitempty"`
+	Cause         string             `json:"cause,omitempty"`
+	Hint          string             `json:"hint,omitempty"`
+	Target        string             `json:"target,omitempty"`
+	Disposition   AttemptDisposition `json:"disposition"`
+	StartedAt     time.Time          `json:"started_at"`
+	EndedAt       *time.Time         `json:"ended_at,omitempty"`
+	NextAttemptAt *time.Time         `json:"next_attempt_at,omitempty"`
 }
 
 func (a NodeAttempt) normalized(loopRunID RunID, generation int) NodeAttempt {
