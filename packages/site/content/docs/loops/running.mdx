@@ -13,20 +13,21 @@ plan, then watch the run stream live until it reaches one named outcome.
 The run form is generated from the Loop's [declared inputs](/docs/loops/dsl-reference#declared-inputs)
 — a typed field per input, each with a type badge, a required marker, and inline validation. An
 `agent` input renders a picker; a `boolean` renders a switch. A sticky preview beside the form shows
-"what will run" — the contract, the verification rows, the six terminal chips, and a lifecycle line
+"what will run" — the contract, the verification rows, the seven terminal chips, and a lifecycle line
 — and recomputes on every change.
 
-Three actions sit in the action bar:
+Two actions submit the form:
 
-- **Run loop** — start the run. Disabled until required inputs are filled.
+- **Start run** — start the run. Disabled until required inputs are filled.
 - **Dry run** — validate the inputs and render the first generation's plan **without starting a
   run**. It spends no budget and creates no run row. See [authoring](/docs/loops/authoring).
-- **Cancel**.
 
-An **Advanced** section exposes six per-run limit overrides — iteration cap, token budget,
-wall-clock budget, no-progress window, fan-out ceiling, and gate max revisions. Each shows the
-per-Loop default and the hard daemon ceiling, and clamps at the ceiling. A badge flips from "using
-Loop defaults" to "overrides set" when you touch one.
+**Close** lives in the top bar and leaves the form without submitting it. A folded **Limits · this
+run only** section exposes six per-run limit overrides — iteration cap, token budget, wall-clock
+budget, no-progress window, fan-out ceiling, and gate max revisions — plus the budget-exceeded
+policy. Each numeric field shows the per-Loop default and the hard daemon ceiling, and clamps at the
+ceiling. The summary changes from "loop defaults" to "overrides set" only when a value actually
+differs.
 
 <OperatorNote label="What the run form does not offer">
   There is no cost cap — cost is [display-only](/docs/loops/guardrails#cost-is-a-meter-not-a-cap).
@@ -42,8 +43,9 @@ The run page is the truthful, real-time view of one execution. It streams over S
 a control the runtime does not support.
 
 **A sticky contract header** carries the live status pill (pulsing only while `running` or
-`watching`), the generation and attempt count, the run's start metadata, the goal, and the
-**Pause** and **Stop** actions.
+`watching`), the generation and attempt count, the run's start metadata, the goal, and the valid
+**Pause**, **Resume**, or **Cancel run** action. **Kill run** is the destructive escape in the
+overflow menu and appears only while the run is live.
 
 **Five meters** track spend against limits — attempts, tokens, wall clock, cost, and breadth
 (fan-out). Bars warn-tint only near a ceiling. The cost meter is derived (tokens × price) and never
@@ -71,14 +73,40 @@ three actions:
 - **Request changes** → the run revises and continues into the next generation.
 - **Reject** → the run halts on a `blocked` terminal outcome.
 
-### Pause, resume, stop
+### Pause, resume, cancel, and kill
 
 - **Pause** is a **generation-boundary** operation, not a mid-node kill. The daemon records a pause
   intent; the in-flight generation's already-claimed nodes finish; the status flips `running →
 paused` only at the boundary. Pause is hidden or disabled outside `running`.
 - **Resume** continues a paused (or pause-requested) run.
-- **Stop** ends the run immediately with the truthful cause `operator_stop` — recorded as a `failed`
-  terminal outcome, never disguised as `done`.
+- **Cancel run** cooperatively moves through request, delivery, and drain before ending `canceled`
+  with cause `operator_cancel`.
+- **Kill run** immediately fences stale work and ends `canceled` with cause `operator_kill`. It is
+  destructive and never happens as a hidden escalation from Cancel.
+
+There is no `stop` alias. Cancel and Kill are idempotent: retrying the same accepted request returns
+the committed winner instead of starting a second cancellation path.
+
+### Node controls and inventories
+
+The run page offers only the verbs valid for a node's current state: **Pause**, **Resume**,
+**Cancel**, **Kill**, and **Requeue**. Pause supports `drain` (the default) or `cancel`; Resume
+supports `plain`, `reset_attempts`, or `immediate`, and can carry a JSON payload for a manual wait.
+Requeue is available only for quarantined work and creates a bounded successor generation.
+
+Use the workspace inventories to find durable work before acting:
+
+| State         | What it finds                                                   |
+| ------------- | --------------------------------------------------------------- |
+| `waiting`     | Durable waits and approvals that are parked.                    |
+| `quarantined` | Attempts removed from dispatch until an explicit requeue.       |
+| `attention`   | Silence, exhausted resume, or quarantined-dependency attention. |
+| `retrying`    | Attempts with a durable `next_attempt_at`.                      |
+
+`compozy loop nodes --state <state>` is workspace-scoped, cursor-paginated, defaults to 50 rows,
+and caps at 200. Filter with `--loop` or `--run-id`; structured rows carry the exact run,
+generation, node, and item identity needed by the node verbs. See
+[Failure handling](/docs/loops/failure-handling#inspect-and-recover-nodes) for the command forms.
 
 ## Runs across the workspace
 
@@ -121,20 +149,25 @@ response can therefore look like this:
 ```
 
 Origins use the closed runtime vocabulary: `initial`, `stop_when`, `reattempt`, `gate_revise`,
-`gate_next_generation`, `dod_retry`, and `ratchet_restore`. See [Ratchets](/docs/loops/ratchet) for
-how a scored best changes succession.
+`gate_next_generation`, `dod_retry`, `ratchet_restore`, and `requeue`. See
+[Ratchets](/docs/loops/ratchet) for how a scored best changes succession.
 
 ## Every surface, not just the UI
 
-| Action          | CLI                                             | HTTP                                    | Native tool                                    |
-| --------------- | ----------------------------------------------- | --------------------------------------- | ---------------------------------------------- |
-| Start / dry-run | `compozy loop run [--dry-run]`                  | `POST /loops/:name/run[?dry=true]`      | `compozy__loop_run`                            |
-| Run status      | `compozy loop status`                           | `GET /loop-runs/:id`                    | `compozy__loop_status`                         |
-| List runs       | `compozy loop runs`                             | `GET /loop-runs`                        | `compozy__loop_runs`                           |
-| Pause / resume  | `compozy loop pause` · `compozy loop resume`    | `POST /loop-runs/:id/pause` · `/resume` | `compozy__loop_pause` · `compozy__loop_resume` |
-| Approve         | `compozy loop approve --gate-id … --decision …` | `POST /loop-runs/:id/approve`           | `compozy__loop_approve`                        |
-| Cancel / kill   | `compozy loop cancel` · `compozy loop kill`     | `POST /loop-runs/:id/cancel` · `/kill`  | `compozy__loop_cancel` · `compozy__loop_kill`  |
-| List node state | `compozy loop nodes --state …`                  | `GET /loop-nodes?state=…`               | `compozy__loop_nodes`                          |
+| Action          | CLI                                             | HTTP                                      | Native tool                                    |
+| --------------- | ----------------------------------------------- | ----------------------------------------- | ---------------------------------------------- |
+| Start / dry-run | `compozy loop run [--dry-run]`                  | `POST /loops/:name/run[?dry=true]`        | `compozy__loop_run`                            |
+| Run status      | `compozy loop status`                           | `GET /loop-runs/:id`                      | `compozy__loop_status`                         |
+| List runs       | `compozy loop runs`                             | `GET /loop-runs`                          | `compozy__loop_runs`                           |
+| Pause / resume  | `compozy loop pause` · `compozy loop resume`    | `POST /loop-runs/:id/pause` · `/resume`   | `compozy__loop_pause` · `compozy__loop_resume` |
+| Approve         | `compozy loop approve --gate-id … --decision …` | `POST /loop-runs/:id/approve`             | `compozy__loop_approve`                        |
+| Cancel / kill   | `compozy loop cancel` · `compozy loop kill`     | `POST /loop-runs/:id/cancel` · `/kill`    | `compozy__loop_cancel` · `compozy__loop_kill`  |
+| List node state | `compozy loop nodes --state …`                  | `GET /loop-nodes?state=…`                 | `compozy__loop_nodes`                          |
+| Pause node      | `compozy loop node pause`                       | `POST /loop-runs/:id/nodes/:node/pause`   | `compozy__loop_node_pause`                     |
+| Resume node     | `compozy loop node resume`                      | `POST /loop-runs/:id/nodes/:node/resume`  | `compozy__loop_node_resume`                    |
+| Cancel node     | `compozy loop node cancel`                      | `POST /loop-runs/:id/nodes/:node/cancel`  | `compozy__loop_node_cancel`                    |
+| Kill node       | `compozy loop node kill`                        | `POST /loop-runs/:id/nodes/:node/kill`    | `compozy__loop_node_kill`                      |
+| Requeue node    | `compozy loop node requeue`                     | `POST /loop-runs/:id/nodes/:node/requeue` | `compozy__loop_node_requeue`                   |
 
 Live events stream from `GET /loop-runs/:id/events` (SSE). HTTP routes are workspace-scoped under
 `/api/workspaces/{workspace_id}/…`; the [Loops API](/docs/api/loops) reference lists
