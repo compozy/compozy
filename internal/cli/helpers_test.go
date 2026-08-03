@@ -156,24 +156,27 @@ type stubClient struct {
 		string,
 		ClarificationAnswerRequest,
 	) (ClarificationAnswerRecord, error)
-	promptSessionFn             func(context.Context, string, string) ([]AgentEventRecord, error)
-	sendSessionPromptFn         func(context.Context, string, SessionPromptRequest) (SessionPromptRecord, error)
-	steerSessionPromptFn        func(context.Context, string, contract.SteerPromptRequest) (SessionPromptRecord, error)
-	cancelQueuedSessionPromptFn func(context.Context, string, string) (SessionPromptRecord, error)
-	streamPromptSessionFn       func(context.Context, string, SessionPromptRequest, SSEHandler) error
-	sessionEventsFn             func(context.Context, string, SessionEventQuery) ([]SessionEventRecord, error)
-	streamSessionFn             func(context.Context, string, SessionEventQuery, string, SSEHandler) error
-	sessionHistoryFn            func(context.Context, string, SessionEventQuery) ([]TurnHistoryRecord, error)
-	createWorkspaceFn           func(context.Context, WorkspaceCreateRequest) (WorkspaceRecord, error)
-	listWorkspacesFn            func(context.Context) ([]WorkspaceRecord, error)
-	getWorkspaceFn              func(context.Context, string) (WorkspaceDetailRecord, error)
-	resolveWorkspaceRefs        bool
-	updateWorkspaceFn           func(context.Context, string, WorkspaceUpdateRequest) (WorkspaceRecord, error)
-	deleteWorkspaceFn           func(context.Context, string) error
-	listLoopsFn                 func(context.Context, string, LoopListQuery) (contract.LoopsResponse, error)
-	createLoopFn                func(context.Context, string, contract.CreateLoopRequest, agentidentity.Credentials) (contract.LoopResponse, error)
-	getLoopFn                   func(context.Context, string, string) (contract.LoopResponse, error)
-	patchLoopFn                 func(
+	promptSessionFn       func(context.Context, string, string) ([]AgentEventRecord, error)
+	sendSessionPromptFn   func(context.Context, string, SessionPromptRequest) (SessionPromptRecord, error)
+	steerSessionPromptFn  func(context.Context, string, contract.SteerPromptRequest) (SessionPromptRecord, error)
+	listSessionInputsFn   func(context.Context, string) (SessionInputListRecord, error)
+	replaceSessionInputFn func(context.Context, string, string, ReplaceSessionInputRequest) (SessionInputRecord, error)
+	promoteSessionInputFn func(context.Context, string, string, PromoteSessionInputRequest) (SessionPromptRecord, error)
+	cancelSessionInputFn  func(context.Context, string, string) (SessionPromptRecord, error)
+	streamPromptSessionFn func(context.Context, string, SessionPromptRequest, SSEHandler) error
+	sessionEventsFn       func(context.Context, string, SessionEventQuery) ([]SessionEventRecord, error)
+	streamSessionFn       func(context.Context, string, SessionEventQuery, string, SSEHandler) error
+	sessionHistoryFn      func(context.Context, string, SessionEventQuery) ([]TurnHistoryRecord, error)
+	createWorkspaceFn     func(context.Context, WorkspaceCreateRequest) (WorkspaceRecord, error)
+	listWorkspacesFn      func(context.Context) ([]WorkspaceRecord, error)
+	getWorkspaceFn        func(context.Context, string) (WorkspaceDetailRecord, error)
+	resolveWorkspaceRefs  bool
+	updateWorkspaceFn     func(context.Context, string, WorkspaceUpdateRequest) (WorkspaceRecord, error)
+	deleteWorkspaceFn     func(context.Context, string) error
+	listLoopsFn           func(context.Context, string, LoopListQuery) (contract.LoopsResponse, error)
+	createLoopFn          func(context.Context, string, contract.CreateLoopRequest, agentidentity.Credentials) (contract.LoopResponse, error)
+	getLoopFn             func(context.Context, string, string) (contract.LoopResponse, error)
+	patchLoopFn           func(
 		context.Context,
 		string,
 		string,
@@ -1634,15 +1637,46 @@ func (s *stubClient) SteerSessionPrompt(
 	return SessionPromptRecord{}, errors.New("unexpected SteerSessionPrompt call")
 }
 
-func (s *stubClient) CancelQueuedSessionPrompt(
-	ctx context.Context,
-	id string,
-	queueEntryID string,
-) (SessionPromptRecord, error) {
-	if s.cancelQueuedSessionPromptFn != nil {
-		return s.cancelQueuedSessionPromptFn(ctx, id, queueEntryID)
+func (s *stubClient) ListSessionInputs(ctx context.Context, sessionID string) (SessionInputListRecord, error) {
+	if s.listSessionInputsFn != nil {
+		return s.listSessionInputsFn(ctx, sessionID)
 	}
-	return SessionPromptRecord{}, errors.New("unexpected CancelQueuedSessionPrompt call")
+	return SessionInputListRecord{}, errors.New("unexpected ListSessionInputs call")
+}
+
+func (s *stubClient) ReplaceSessionInput(
+	ctx context.Context,
+	sessionID string,
+	inputID string,
+	request ReplaceSessionInputRequest,
+) (SessionInputRecord, error) {
+	if s.replaceSessionInputFn != nil {
+		return s.replaceSessionInputFn(ctx, sessionID, inputID, request)
+	}
+	return SessionInputRecord{}, errors.New("unexpected ReplaceSessionInput call")
+}
+
+func (s *stubClient) PromoteSessionInput(
+	ctx context.Context,
+	sessionID string,
+	inputID string,
+	request PromoteSessionInputRequest,
+) (SessionPromptRecord, error) {
+	if s.promoteSessionInputFn != nil {
+		return s.promoteSessionInputFn(ctx, sessionID, inputID, request)
+	}
+	return SessionPromptRecord{}, errors.New("unexpected PromoteSessionInput call")
+}
+
+func (s *stubClient) CancelSessionInput(
+	ctx context.Context,
+	sessionID string,
+	inputID string,
+) (SessionPromptRecord, error) {
+	if s.cancelSessionInputFn != nil {
+		return s.cancelSessionInputFn(ctx, sessionID, inputID)
+	}
+	return SessionPromptRecord{}, errors.New("unexpected CancelSessionInput call")
 }
 
 func (s *stubClient) StreamPromptSession(

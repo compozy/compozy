@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/transcript"
@@ -103,8 +102,8 @@ func (m *Manager) prepareSendPrompt(
 	}
 	req.messageID = strings.TrimSpace(opts.MessageID)
 	req.idempotencyKey = strings.TrimSpace(opts.IdempotencyKey)
+	req.expectedTurnID = strings.TrimSpace(opts.ExpectedTurnID)
 	req.runtime = cloneRuntimeSelection(opts.Runtime)
-	m.discardInterruptedPromptSalvage(req.target)
 	if err := req.validatePromptAdmissionIdentity(); err != nil {
 		return sendPromptPreparation{}, nil, err
 	}
@@ -140,6 +139,7 @@ func (m *Manager) submitPreparedPrompt(
 	return SendPromptResult{
 		Status:    promptStatusAccepted,
 		Mode:      preparation.mode,
+		Delivery:  store.SessionInputDeliveryDirect,
 		Events:    events,
 		NewTurnID: req.turnID,
 	}, nil
@@ -166,60 +166,7 @@ func (m *Manager) submitBusyPreparedPrompt(
 	}
 }
 
-// InterruptPrompt cancels the active user/session turn and fences stale queued input.
-func (m *Manager) InterruptPrompt(ctx context.Context, id string) (SendPromptResult, error) {
-	if m == nil {
-		return SendPromptResult{}, errors.New("session: manager is required")
-	}
-	if ctx == nil {
-		return SendPromptResult{}, errors.New("session: interrupt prompt context is required")
-	}
-	target := strings.TrimSpace(id)
-	if target == "" {
-		return SendPromptResult{}, errors.New("session: session id is required")
-	}
-	session, err := m.lookupPromptSession(ctx, target)
-	if err != nil {
-		return SendPromptResult{}, err
-	}
-	if !session.IsPrompting() {
-		return SendPromptResult{}, fmt.Errorf("%w: %s", ErrPromptNotInProgress, session.ID)
-	}
-	previousTurnID := session.CurrentTurnID()
-	interruptedMessage := ""
-	if session.CurrentTurnSource() == TurnSourceUser {
-		interruptedMessage = session.CurrentPromptMessage()
-	}
-	generation, canceled, err := m.advanceInputGeneration(ctx, session.ID)
-	if err != nil {
-		return SendPromptResult{}, err
-	}
-	if err := m.CancelPrompt(ctx, session.ID); err != nil {
-		return SendPromptResult{}, err
-	}
-	m.stageInterruptedPromptSalvage(session.ID, generation, interruptedMessage)
-	m.emitTranscriptMarker(
-		ctx,
-		session,
-		previousTurnID,
-		transcript.MarkerPromptInterrupted,
-		"Prompt interrupted by operator.",
-		map[string]any{
-			promptEvidenceQueueGenerationKey: generation,
-			"canceled_queue_entries":         canceled,
-		},
-	)
-	return SendPromptResult{
-		Status:                "interrupted",
-		Mode:                  BusyInputModeInterrupt,
-		PreviousTurnID:        previousTurnID,
-		QueueGeneration:       generation,
-		Interrupted:           true,
-		CanceledQueuedEntries: canceled,
-	}, nil
-}
-
-// SteerPrompt stages guidance for the active turn, falling back to queue dispatch if no tool boundary arrives.
+// SteerPrompt durably accepts guidance that replaces the fenced active turn.
 func (m *Manager) SteerPrompt(ctx context.Context, id string, opts SteerPromptOpts) (SendPromptResult, error) {
 	if m == nil {
 		return SendPromptResult{}, errors.New("session: manager is required")
@@ -233,6 +180,7 @@ func (m *Manager) SteerPrompt(ctx context.Context, id string, opts SteerPromptOp
 	}
 	req.messageID = strings.TrimSpace(opts.MessageID)
 	req.idempotencyKey = strings.TrimSpace(opts.IdempotencyKey)
+	req.expectedTurnID = strings.TrimSpace(opts.ExpectedTurnID)
 	if err := req.validatePromptAdmissionIdentity(); err != nil {
 		return SendPromptResult{}, err
 	}
@@ -246,9 +194,6 @@ func (m *Manager) SteerPrompt(ctx context.Context, id string, opts SteerPromptOp
 			return SendPromptResult{}, err
 		}
 		return m.submitAdmittedSteerCommand(ctx, session, req)
-	}
-	if salvage, ok := m.pendingInterruptedPromptSalvage(session.ID); ok {
-		return m.submitInterruptedPromptSalvage(ctx, session, req, salvage)
 	}
 	if !session.IsPrompting() {
 		return SendPromptResult{}, fmt.Errorf("%w: %s", ErrPromptNotInProgress, session.ID)
@@ -286,6 +231,7 @@ func (m *Manager) CancelQueuedPrompt(ctx context.Context, id string, queueEntryI
 	return SendPromptResult{
 		Status:          "canceled",
 		Mode:            BusyInputMode(entry.Mode),
+		Delivery:        store.SessionInputDeliveryNone,
 		QueueEntryID:    entry.ID,
 		QueueGeneration: entry.SessionGeneration,
 	}, nil
@@ -334,10 +280,10 @@ func (m *Manager) enqueueBusyPrompt(
 	return SendPromptResult{
 		Status:          "queued",
 		Mode:            BusyInputModeQueue,
+		Delivery:        entry.Delivery,
 		QueueEntryID:    entry.ID,
 		QueuePosition:   position,
 		QueueGeneration: entry.SessionGeneration,
-		Queued:          true,
 	}, nil
 }
 
@@ -349,6 +295,10 @@ func (m *Manager) stageSteerPrompt(
 	if m.inputQueue == nil {
 		return SendPromptResult{}, ErrPromptInProgress
 	}
+	targetTurnID, err := requireExpectedActiveTurn(session, req.expectedTurnID)
+	if err != nil {
+		return SendPromptResult{}, err
+	}
 	generation, err := m.currentInputGeneration(ctx, session.ID)
 	if err != nil {
 		return SendPromptResult{}, err
@@ -357,27 +307,30 @@ func (m *Manager) stageSteerPrompt(
 		ctx,
 		session.ID,
 		req.message,
+		targetTurnID,
 		generation,
 		storeRuntimeSelection(req.runtime),
 	)
 	if err != nil {
 		return SendPromptResult{}, err
 	}
+	if err := m.activateInterruptingInput(ctx, session, entry); err != nil {
+		return SendPromptResult{}, err
+	}
 	m.emitTranscriptMarker(
 		ctx,
 		session,
-		session.CurrentTurnID(),
+		targetTurnID,
 		transcript.MarkerPromptSteered,
-		"Steering input staged while the session is busy.",
+		"Steering input accepted for the active turn.",
 		queueEntryEvidence(entry.ID, entry.SessionGeneration, entry.Status, entry.Mode, 0),
 	)
 	return SendPromptResult{
-		Status:                     "staged",
-		Mode:                       BusyInputModeSteer,
-		QueueEntryID:               entry.ID,
-		QueueGeneration:            entry.SessionGeneration,
-		Staged:                     true,
-		FallbackModeIfNoToolResult: string(BusyInputModeQueue),
+		Status:          "steering",
+		Mode:            BusyInputModeSteer,
+		Delivery:        entry.Delivery,
+		QueueEntryID:    entry.ID,
+		QueueGeneration: entry.SessionGeneration,
 	}, nil
 }
 
@@ -386,22 +339,21 @@ func (m *Manager) interruptAndSubmitPrompt(
 	session *Session,
 	req promptRequest,
 ) (SendPromptResult, error) {
-	m.discardInterruptedPromptSalvage(session.ID)
-	previousTurnID := session.CurrentTurnID()
-	generation, canceled, err := m.advanceInputGeneration(ctx, session.ID)
+	previousTurnID, err := requireExpectedActiveTurn(session, req.expectedTurnID)
 	if err != nil {
 		return SendPromptResult{}, err
 	}
-	if err := m.CancelPrompt(ctx, session.ID); err != nil {
-		return SendPromptResult{}, err
-	}
-	waitCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), m.supervision.TimeoutCancelGrace)
-	defer cancel()
-	if err := waitForPromptIdle(waitCtx, session); err != nil {
-		return SendPromptResult{}, err
-	}
-	events, err := m.submitPromptRequest(ctx, req)
+	entry, canceled, err := m.inputQueue.EnqueueInterrupt(
+		ctx,
+		session.ID,
+		req.message,
+		previousTurnID,
+		storeRuntimeSelection(req.runtime),
+	)
 	if err != nil {
+		return SendPromptResult{}, err
+	}
+	if err := m.activateInterruptingInput(ctx, session, entry); err != nil {
 		return SendPromptResult{}, err
 	}
 	m.emitTranscriptMarker(
@@ -409,21 +361,20 @@ func (m *Manager) interruptAndSubmitPrompt(
 		session,
 		previousTurnID,
 		transcript.MarkerPromptInterrupted,
-		"Prompt interrupted and replaced by operator input.",
+		"Replacement input accepted and the active turn was interrupted.",
 		map[string]any{
-			promptEvidenceQueueGenerationKey: generation,
+			promptEvidenceQueueGenerationKey: entry.SessionGeneration,
 			"canceled_queue_entries":         canceled,
-			"new_turn_id":                    req.turnID,
+			"queue_entry_id":                 entry.ID,
 		},
 	)
 	return SendPromptResult{
-		Status:                promptStatusAccepted,
+		Status:                "interrupting",
 		Mode:                  BusyInputModeInterrupt,
-		Events:                events,
+		Delivery:              entry.Delivery,
+		QueueEntryID:          entry.ID,
 		PreviousTurnID:        previousTurnID,
-		NewTurnID:             req.turnID,
-		QueueGeneration:       generation,
-		Interrupted:           true,
+		QueueGeneration:       entry.SessionGeneration,
 		CanceledQueuedEntries: canceled,
 	}, nil
 }
@@ -448,13 +399,6 @@ func (m *Manager) currentInputGeneration(ctx context.Context, sessionID string) 
 	return m.inputQueue.CurrentGeneration(ctx, sessionID)
 }
 
-func (m *Manager) advanceInputGeneration(ctx context.Context, sessionID string) (int64, int, error) {
-	if m.inputQueue == nil {
-		return 0, 0, nil
-	}
-	return m.inputQueue.AdvanceGeneration(ctx, sessionID)
-}
-
 func queueEntryEvidence(entryID string, generation int64, status string, mode string, position int) map[string]any {
 	evidence := map[string]any{
 		"queue_entry_id":                 entryID,
@@ -466,25 +410,4 @@ func queueEntryEvidence(entryID string, generation int64, status string, mode st
 		evidence["queue_position"] = position
 	}
 	return evidence
-}
-
-func waitForPromptIdle(ctx context.Context, session *Session) error {
-	if ctx == nil {
-		return errors.New("session: wait prompt idle context is required")
-	}
-	if session == nil {
-		return errors.New("session: session is required")
-	}
-	ticker := time.NewTicker(10 * time.Millisecond)
-	defer ticker.Stop()
-	for {
-		if !session.IsPrompting() {
-			return nil
-		}
-		select {
-		case <-ctx.Done():
-			return fmt.Errorf("session: wait for prompt interrupt: %w", ctx.Err())
-		case <-ticker.C:
-		}
-	}
 }

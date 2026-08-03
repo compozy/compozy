@@ -11,15 +11,29 @@ import {
   useQueueSessionPrompt,
   useRepairSession,
 } from "../use-session-actions";
+import {
+  useCancelSessionInput,
+  usePromoteSessionInput,
+  useReplaceSessionInput,
+} from "../use-session-inputs";
 import { sessionKeys } from "../../lib/query-keys";
 import type { SessionTranscriptData } from "../../lib/session-transcript-query";
-import type { SessionMessage, SessionPayload, SessionsResponse } from "../../types";
+import type {
+  SessionInputPayload,
+  SessionInputsResponse,
+  SessionMessage,
+  SessionPayload,
+  SessionsResponse,
+} from "../../types";
 
 vi.mock("../../adapters/session-api", () => ({
   clearSessionConversation: vi.fn(),
+  cancelQueuedSessionPrompt: vi.fn(),
   createSession: vi.fn(),
   deleteSession: vi.fn(),
   repairSession: vi.fn(),
+  promoteSessionInputToSteer: vi.fn(),
+  replaceSessionInput: vi.fn(),
   stopSession: vi.fn(),
   resumeSession: vi.fn(),
   sendSessionPrompt: vi.fn(),
@@ -31,14 +45,27 @@ vi.mock("@/systems/workspace", () => ({
 }));
 
 import {
+  cancelQueuedSessionPrompt,
   clearSessionConversation,
   createSession,
   deleteSession,
   repairSession,
+  promoteSessionInputToSteer,
+  replaceSessionInput,
   sendSessionPrompt,
 } from "../../adapters/session-api";
-
 const WORKSPACE_ID = "ws_alpha";
+
+const queuedInput: SessionInputPayload = {
+  delivery: "after_turn",
+  enqueued_at: "2026-08-03T18:00:00Z",
+  id: "input-original",
+  mode: "queue",
+  queue_generation: 1,
+  session_id: "sess-created",
+  status: "queued",
+  text: "Original queued input",
+};
 
 function createWrapper(queryClient: QueryClient) {
   return ({ children }: { children: ReactNode }) =>
@@ -388,6 +415,7 @@ describe("session actions", () => {
 
   it("useQueueSessionPrompt builds the canonical durable request from an action identity", async () => {
     vi.mocked(sendSessionPrompt).mockResolvedValue({
+      delivery: "after_turn",
       idempotency_key: "idempotency-001",
       message_id: "message-001",
       replayed: false,
@@ -449,5 +477,116 @@ describe("session actions", () => {
     });
 
     expect(sendSessionPrompt).not.toHaveBeenCalled();
+  });
+
+  it("useReplaceSessionInput swaps the original durable id only in the owning queue", async () => {
+    const replacement: SessionInputPayload = {
+      ...queuedInput,
+      id: "input-replacement",
+      text: "Replacement queued input",
+    };
+    vi.mocked(replaceSessionInput).mockResolvedValue(replacement);
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const owningQueue: SessionInputsResponse = { inputs: [queuedInput] };
+    const otherSessionQueue: SessionInputsResponse = {
+      inputs: [{ ...queuedInput, id: "other-session-input", session_id: "sess-other" }],
+    };
+    const otherWorkspaceQueue: SessionInputsResponse = {
+      inputs: [{ ...queuedInput, id: "other-workspace-input" }],
+    };
+    queryClient.setQueryData(sessionKeys.inputQueue(WORKSPACE_ID, createdSession.id), owningQueue);
+    queryClient.setQueryData(sessionKeys.inputQueue(WORKSPACE_ID, "sess-other"), otherSessionQueue);
+    queryClient.setQueryData(
+      sessionKeys.inputQueue("ws_beta", createdSession.id),
+      otherWorkspaceQueue
+    );
+
+    const { result } = renderHook(() => useReplaceSessionInput(WORKSPACE_ID, createdSession.id), {
+      wrapper: createWrapper(queryClient),
+    });
+    await act(async () => {
+      await result.current.mutateAsync({
+        queueEntryId: queuedInput.id,
+        request: {
+          idempotency_key: "idem-edit",
+          message_id: "message-edit",
+          text: replacement.text,
+        },
+      });
+    });
+
+    expect(replaceSessionInput).toHaveBeenCalledWith(
+      WORKSPACE_ID,
+      createdSession.id,
+      queuedInput.id,
+      {
+        idempotency_key: "idem-edit",
+        message_id: "message-edit",
+        text: replacement.text,
+      }
+    );
+    expect(
+      queryClient.getQueryData(sessionKeys.inputQueue(WORKSPACE_ID, createdSession.id))
+    ).toEqual({ inputs: [replacement] });
+    expect(queryClient.getQueryData(sessionKeys.inputQueue(WORKSPACE_ID, "sess-other"))).toEqual(
+      otherSessionQueue
+    );
+    expect(queryClient.getQueryData(sessionKeys.inputQueue("ws_beta", createdSession.id))).toEqual(
+      otherWorkspaceQueue
+    );
+  });
+
+  it("queue promote and cancel remove only the acknowledged durable entry", async () => {
+    const promptResult = {
+      delivery: "interrupt_then_prompt" as const,
+      idempotency_key: "idem-mutation",
+      message_id: "message-mutation",
+      replayed: false,
+      status: "steering",
+    };
+    vi.mocked(promoteSessionInputToSteer).mockResolvedValue(promptResult);
+    vi.mocked(cancelQueuedSessionPrompt).mockResolvedValue({
+      ...promptResult,
+      delivery: "none",
+      status: "canceled",
+    });
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const retained = { ...queuedInput, id: "input-retained" };
+    queryClient.setQueryData<SessionInputsResponse>(
+      sessionKeys.inputQueue(WORKSPACE_ID, createdSession.id),
+      { inputs: [queuedInput, retained] }
+    );
+
+    const promote = renderHook(() => usePromoteSessionInput(WORKSPACE_ID, createdSession.id), {
+      wrapper: createWrapper(queryClient),
+    });
+    await act(async () => {
+      await promote.result.current.mutateAsync({
+        queueEntryId: queuedInput.id,
+        request: {
+          expected_turn_id: "turn-active",
+          idempotency_key: "idem-mutation",
+          message_id: "message-mutation",
+          text: queuedInput.text,
+        },
+      });
+    });
+    expect(
+      queryClient.getQueryData(sessionKeys.inputQueue(WORKSPACE_ID, createdSession.id))
+    ).toEqual({ inputs: [retained] });
+
+    const cancel = renderHook(() => useCancelSessionInput(WORKSPACE_ID, createdSession.id), {
+      wrapper: createWrapper(queryClient),
+    });
+    await act(async () => {
+      await cancel.result.current.mutateAsync(retained.id);
+    });
+    expect(
+      queryClient.getQueryData(sessionKeys.inputQueue(WORKSPACE_ID, createdSession.id))
+    ).toEqual({ inputs: [] });
   });
 });

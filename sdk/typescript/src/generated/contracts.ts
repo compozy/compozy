@@ -65,6 +65,10 @@ export type HostAPIMethod =
   | "sessions/create"
   | "sessions/events"
   | "sessions/health/get"
+  | "sessions/inputs/cancel"
+  | "sessions/inputs/list"
+  | "sessions/inputs/promote"
+  | "sessions/inputs/replace"
   | "sessions/list"
   | "sessions/prompt"
   | "sessions/soul/refresh"
@@ -4272,6 +4276,70 @@ export interface SessionHealthUpdateAfterPayload {
   last_error?: string;
 }
 
+export type BusyInputMode = string;
+
+export type Speed = string;
+
+export interface PromptRuntimeSelectionPayload {
+  provider: string;
+  model?: string;
+  reasoning_effort?: ReasoningEffort;
+  speed?: Speed;
+}
+
+export interface SessionInput {
+  id: string;
+  session_id: string;
+  message_id?: string;
+  idempotency_key?: string;
+  target_turn_id?: string;
+  status: string;
+  mode: BusyInputMode;
+  delivery: string;
+  text: string;
+  queue_generation: number;
+  enqueued_at: ISODateTime;
+  runtime?: PromptRuntimeSelectionPayload;
+}
+
+export interface SessionInputListResult {
+  inputs: SessionInput[];
+}
+
+export interface SessionInputPromoteParams {
+  workspace_id: string;
+  session_id: string;
+  queue_entry_id: string;
+  text: string;
+  message_id: string;
+  idempotency_key: string;
+  expected_turn_id: string;
+}
+
+export interface SessionInputReplaceParams {
+  workspace_id: string;
+  session_id: string;
+  queue_entry_id: string;
+  text: string;
+  message_id: string;
+  idempotency_key: string;
+}
+
+export interface SessionInputResult {
+  input: SessionInput;
+}
+
+export interface SessionInputTargetParams {
+  workspace_id: string;
+  session_id: string;
+  queue_entry_id: string;
+}
+
+export interface SessionInputsListParams {
+  workspace_id: string;
+  session_id: string;
+}
+
 export interface SessionInspectResponse {
   session_id: string;
   health: SessionHealthPayload;
@@ -4479,11 +4547,10 @@ export interface SessionPreStopPayload {
   updated_at: ISODateTime;
 }
 
-export type BusyInputMode = string;
-
 export interface SessionPromptResult {
   status: string;
   mode?: BusyInputMode;
+  delivery: string;
   message_id: string;
   idempotency_key: string;
   replayed: boolean;
@@ -4493,11 +4560,7 @@ export interface SessionPromptResult {
   queue_generation?: number;
   estimated_send_at?: ISODateTime;
   previous_turn_id?: string;
-  interrupted?: boolean;
-  staged?: boolean;
-  queued?: boolean;
   canceled_queued_entries?: number;
-  fallback_mode_if_no_tool_result?: string;
 }
 
 export interface SessionSoulRefreshParams {
@@ -4515,8 +4578,6 @@ export interface SessionSoulRefreshRequest {
 export type SessionRuntimeStatus = string;
 
 export type SessionRuntimeTransition = string;
-
-export type Speed = string;
 
 export type ResolutionStatus = string;
 
@@ -4638,12 +4699,7 @@ export interface SessionsListParams {
   workspace?: string;
 }
 
-export interface PromptRuntimeSelectionPayload {
-  provider: string;
-  model?: string;
-  reasoning_effort?: ReasoningEffort;
-  speed?: Speed;
-}
+export type PromptMode = string;
 
 export interface SessionsPromptParams {
   workspace_id: string;
@@ -4651,6 +4707,8 @@ export interface SessionsPromptParams {
   message: string;
   message_id: string;
   idempotency_key: string;
+  mode?: PromptMode;
+  expected_turn_id?: string;
   runtime?: PromptRuntimeSelectionPayload;
 }
 
@@ -6706,6 +6764,22 @@ export interface HostAPIMethodMap {
   };
   "sessions/prompt": {
     params: SessionsPromptParams;
+    result: SessionPromptResult;
+  };
+  "sessions/inputs/list": {
+    params: SessionInputsListParams;
+    result: SessionInputListResult;
+  };
+  "sessions/inputs/replace": {
+    params: SessionInputReplaceParams;
+    result: SessionInputResult;
+  };
+  "sessions/inputs/cancel": {
+    params: SessionInputTargetParams;
+    result: SessionPromptResult;
+  };
+  "sessions/inputs/promote": {
+    params: SessionInputPromoteParams;
     result: SessionPromptResult;
   };
   "sessions/stop": {

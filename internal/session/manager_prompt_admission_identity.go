@@ -114,11 +114,13 @@ func promptAdmissionFingerprint(
 		Model           string `json:"model"`
 		ReasoningEffort string `json:"reasoning_effort"`
 		Speed           string `json:"speed"`
+		ExpectedTurnID  string `json:"expected_turn_id,omitempty"`
 	}{
 		Version: sessionPromptFingerprintVersion, Operation: strings.TrimSpace(operation),
 		MessageID: strings.TrimSpace(req.messageID), AuthoredText: strings.TrimSpace(req.authoredMessage),
 		Mode: strings.TrimSpace(string(mode)), Provider: runtime.Provider, Model: runtime.Model,
 		ReasoningEffort: runtime.ReasoningEffort, Speed: runtime.Speed,
+		ExpectedTurnID: strings.TrimSpace(req.expectedTurnID),
 	}
 	encoded, err := json.Marshal(canonical)
 	if err != nil {
@@ -167,12 +169,11 @@ func sendPromptResultFromAdmission(admission store.SessionPromptAdmission) (Send
 	stored := admission.Result
 	result := SendPromptResult{
 		Status: stored.Status, Mode: BusyInputMode(stored.Mode),
+		Delivery:  stored.Delivery,
 		MessageID: admission.MessageID, IdempotencyKey: admission.IdempotencyKey,
 		QueueEntryID: stored.QueueEntryID, QueuePosition: stored.QueuePosition,
 		QueueGeneration: stored.QueueGeneration, PreviousTurnID: stored.PreviousTurnID,
-		NewTurnID: stored.NewTurnID, Interrupted: stored.Interrupted, Staged: stored.Staged,
-		Queued: stored.Queued, CanceledQueuedEntries: stored.CanceledQueuedEntries,
-		FallbackModeIfNoToolResult: stored.FallbackModeIfNoToolResult,
+		NewTurnID: stored.NewTurnID, CanceledQueuedEntries: stored.CanceledQueuedEntries,
 	}
 	if len(stored.Goal) > 0 {
 		var goal GoalCommandResult
@@ -186,12 +187,11 @@ func sendPromptResultFromAdmission(admission store.SessionPromptAdmission) (Send
 
 func sessionPromptAdmissionResult(result SendPromptResult) (store.SessionPromptAdmissionResult, error) {
 	stored := store.SessionPromptAdmissionResult{
-		Status: result.Status, Mode: string(result.Mode), Queued: result.Queued, Staged: result.Staged,
-		Interrupted: result.Interrupted, QueueEntryID: result.QueueEntryID,
+		Status: result.Status, Mode: string(result.Mode), Delivery: result.Delivery,
+		QueueEntryID:  result.QueueEntryID,
 		QueuePosition: result.QueuePosition, QueueGeneration: result.QueueGeneration,
 		PreviousTurnID: result.PreviousTurnID, NewTurnID: result.NewTurnID,
-		CanceledQueuedEntries:      result.CanceledQueuedEntries,
-		FallbackModeIfNoToolResult: result.FallbackModeIfNoToolResult,
+		CanceledQueuedEntries: result.CanceledQueuedEntries,
 	}
 	if result.Goal != nil {
 		encoded, err := json.Marshal(result.Goal)

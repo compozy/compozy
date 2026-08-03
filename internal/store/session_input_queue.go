@@ -11,8 +11,21 @@ import (
 const (
 	// SessionInputQueueModeQueue stores operator input to run after the active turn ends.
 	SessionInputQueueModeQueue = "queue"
-	// SessionInputQueueModeSteer stores operator guidance staged while a turn is active.
+	// SessionInputQueueModeSteer stores operator guidance that replaces the active turn.
 	SessionInputQueueModeSteer = "steer"
+	// SessionInputQueueModeInterrupt stores replacement input after an explicit interrupt.
+	SessionInputQueueModeInterrupt = "interrupt"
+)
+
+const (
+	// SessionInputDeliveryNone reports commands that do not submit replacement input.
+	SessionInputDeliveryNone = "none"
+	// SessionInputDeliveryDirect streams input immediately on an idle session.
+	SessionInputDeliveryDirect = "direct"
+	// SessionInputDeliveryAfterTurn dispatches input after the active turn settles.
+	SessionInputDeliveryAfterTurn = "after_turn"
+	// SessionInputDeliveryInterruptThenPrompt interrupts the target turn before dispatch.
+	SessionInputDeliveryInterruptThenPrompt = "interrupt_then_prompt"
 )
 
 const (
@@ -28,6 +41,10 @@ var (
 	ErrSessionInputQueueFull = errors.New("store: session input queue full")
 	// ErrSessionInputQueueEntryNotFound reports that a queued input entry does not exist for a session.
 	ErrSessionInputQueueEntryNotFound = errors.New("store: session input queue entry not found")
+	// ErrSessionInputQueueEntryNotQueued reports that a pending input has already left the mutable queue state.
+	ErrSessionInputQueueEntryNotQueued = errors.New("store: session input queue entry is not queued")
+	// ErrSessionInputMutationConflict reports reuse of a mutation identity with different input.
+	ErrSessionInputMutationConflict = errors.New("store: session input mutation identity conflict")
 )
 
 // SessionInputRuntime is the immutable runtime selection captured when busy
@@ -57,9 +74,11 @@ type SessionInputQueueEntry struct {
 	MessageID                string
 	IdempotencyKey           string
 	TurnID                   string
+	TargetTurnID             string
 	EventID                  string
 	Status                   string
 	Mode                     string
+	Delivery                 string
 	Text                     string
 	Runtime                  SessionInputRuntime
 	SessionGeneration        int64
@@ -117,8 +136,10 @@ type SessionInputQueueInsert struct {
 	MessageID         string
 	IdempotencyKey    string
 	TurnID            string
+	TargetTurnID      string
 	EventID           string
 	Mode              string
+	Delivery          string
 	Text              string
 	Runtime           SessionInputRuntime
 	SessionGeneration int64
@@ -137,8 +158,13 @@ func (r SessionInputQueueInsert) Normalize() SessionInputQueueInsert {
 	normalized.MessageID = strings.TrimSpace(normalized.MessageID)
 	normalized.IdempotencyKey = strings.TrimSpace(normalized.IdempotencyKey)
 	normalized.TurnID = strings.TrimSpace(normalized.TurnID)
+	normalized.TargetTurnID = strings.TrimSpace(normalized.TargetTurnID)
 	normalized.EventID = strings.TrimSpace(normalized.EventID)
 	normalized.Mode = strings.TrimSpace(normalized.Mode)
+	normalized.Delivery = strings.TrimSpace(normalized.Delivery)
+	if normalized.Delivery == "" {
+		normalized.Delivery = SessionInputDeliveryAfterTurn
+	}
 	normalized.Text = strings.TrimSpace(normalized.Text)
 	normalized.Runtime = normalized.Runtime.Normalize()
 	normalized.TaskRunID = strings.TrimSpace(normalized.TaskRunID)
@@ -164,11 +190,25 @@ func (r SessionInputQueueInsert) Validate() error {
 		return fmt.Errorf("store: session input queue cap must be positive: %d", normalized.QueueCap)
 	}
 	switch normalized.Mode {
-	case SessionInputQueueModeQueue, SessionInputQueueModeSteer:
-		return nil
+	case SessionInputQueueModeQueue:
+		if normalized.Delivery != SessionInputDeliveryAfterTurn {
+			return fmt.Errorf("store: queue input delivery must be %q", SessionInputDeliveryAfterTurn)
+		}
+	case SessionInputQueueModeSteer, SessionInputQueueModeInterrupt:
+		if normalized.Delivery != SessionInputDeliveryInterruptThenPrompt {
+			return fmt.Errorf(
+				"store: %s input delivery must be %q",
+				normalized.Mode,
+				SessionInputDeliveryInterruptThenPrompt,
+			)
+		}
+		if normalized.TargetTurnID == "" {
+			return fmt.Errorf("store: %s input target turn id is required", normalized.Mode)
+		}
 	default:
 		return fmt.Errorf("store: invalid session input queue mode %q", normalized.Mode)
 	}
+	return nil
 }
 
 // SessionInputQueueStore persists operator busy-input entries.
@@ -177,14 +217,26 @@ type SessionInputQueueStore interface {
 		ctx context.Context,
 		req SessionInputQueueInsert,
 	) (SessionInputQueueEntry, int, error)
+	EnqueueInterruptSessionInput(
+		ctx context.Context,
+		req SessionInputQueueInsert,
+	) (SessionInputQueueEntry, int, error)
 	StageSessionSteer(
 		ctx context.Context,
 		req SessionInputQueueInsert,
 	) (SessionInputQueueEntry, error)
-	ConsumeSessionSteer(
+	ListPendingSessionInputs(ctx context.Context, sessionID string) ([]SessionInputQueueEntry, error)
+	ReplaceSessionInput(
 		ctx context.Context,
 		sessionID string,
-		now time.Time,
+		entryID string,
+		replacement SessionInputQueueInsert,
+	) (SessionInputQueueEntry, bool, error)
+	PromoteSessionInputToSteer(
+		ctx context.Context,
+		sessionID string,
+		entryID string,
+		replacement SessionInputQueueInsert,
 	) (SessionInputQueueEntry, bool, error)
 	ClaimNextSessionInput(
 		ctx context.Context,

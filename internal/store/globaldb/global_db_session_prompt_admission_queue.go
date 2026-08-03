@@ -16,6 +16,7 @@ type admittedSessionInputResult struct {
 	entry     store.SessionInputQueueEntry
 	position  int
 	created   bool
+	canceled  int
 }
 
 // EnqueueAdmittedSessionInput atomically binds a command receipt and one queue entry.
@@ -33,11 +34,18 @@ func (g *SessionRepo) EnqueueAdmittedSessionInput(
 	if err := g.checkReady(ctx, "enqueue admitted session input"); err != nil {
 		return admission, entry, 0, false, err
 	}
+	mode := queueReq.Normalize().Mode
+	if mode == "" {
+		mode = admissionReq.Normalize().Mode
+	}
+	if mode != store.SessionInputQueueModeQueue && mode != store.SessionInputQueueModeInterrupt {
+		return admission, entry, 0, false, fmt.Errorf("store: invalid admitted queued input mode %q", mode)
+	}
 	admissionReq, queueReq, err = normalizeAdmittedSessionInput(
 		admissionReq,
 		queueReq,
-		store.SessionInputQueueModeQueue,
-		"queue",
+		mode,
+		mode,
 	)
 	if err != nil {
 		return admission, entry, 0, false, err
@@ -69,6 +77,12 @@ func enqueueAdmittedSessionInputInTransaction(
 	if err != nil || replayed {
 		return err
 	}
+	if queueReq.Mode == store.SessionInputQueueModeInterrupt {
+		queueReq, result.canceled, err = prepareInterruptSessionInput(ctx, exec, queueReq)
+		if err != nil {
+			return err
+		}
+	}
 	count, err := countPendingSessionInputs(ctx, exec, queueReq.SessionID)
 	if err != nil {
 		return err
@@ -92,7 +106,7 @@ func enqueueAdmittedSessionInputInTransaction(
 		claimed.WorkspaceID,
 		claimed.SessionID,
 		claimed.IdempotencyKey,
-		queuedPromptAdmissionResult(&inserted, result.position),
+		queuedPromptAdmissionResult(&inserted, result.position, result.canceled),
 		admissionReq.Now,
 		store.SessionPromptAdmissionReserved,
 	)
@@ -270,25 +284,30 @@ func cancelPriorAdmittedSessionSteers(
 func queuedPromptAdmissionResult(
 	entry *store.SessionInputQueueEntry,
 	position int,
+	canceled int,
 ) store.SessionPromptAdmissionResult {
+	status := "queued"
+	if entry.Mode == store.SessionInputQueueModeInterrupt {
+		status = "interrupting"
+	}
 	return store.SessionPromptAdmissionResult{
-		Status:          "queued",
-		Mode:            store.SessionInputQueueModeQueue,
-		Queued:          true,
-		QueueEntryID:    entry.ID,
-		QueuePosition:   position,
-		QueueGeneration: entry.SessionGeneration,
+		Status:                status,
+		Mode:                  entry.Mode,
+		QueueEntryID:          entry.ID,
+		QueuePosition:         position,
+		QueueGeneration:       entry.SessionGeneration,
+		Delivery:              entry.Delivery,
+		CanceledQueuedEntries: canceled,
 	}
 }
 
 func stagedPromptAdmissionResult(entry *store.SessionInputQueueEntry) store.SessionPromptAdmissionResult {
 	return store.SessionPromptAdmissionResult{
-		Status:                     "staged",
-		Mode:                       store.SessionInputQueueModeSteer,
-		Staged:                     true,
-		QueueEntryID:               entry.ID,
-		QueueGeneration:            entry.SessionGeneration,
-		FallbackModeIfNoToolResult: store.SessionInputQueueModeQueue,
+		Status:          "steering",
+		Mode:            store.SessionInputQueueModeSteer,
+		QueueEntryID:    entry.ID,
+		QueueGeneration: entry.SessionGeneration,
+		Delivery:        entry.Delivery,
 	}
 }
 

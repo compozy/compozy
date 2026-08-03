@@ -30,19 +30,16 @@ var (
 
 // SessionPromptAdmissionResult is the durable non-streaming result replayed for one admitted command.
 type SessionPromptAdmissionResult struct {
-	Status                     string          `json:"status"`
-	Mode                       string          `json:"mode,omitempty"`
-	Queued                     bool            `json:"queued,omitempty"`
-	Staged                     bool            `json:"staged,omitempty"`
-	Interrupted                bool            `json:"interrupted,omitempty"`
-	QueueEntryID               string          `json:"queue_entry_id,omitempty"`
-	QueuePosition              int             `json:"queue_position,omitempty"`
-	QueueGeneration            int64           `json:"queue_generation,omitempty"`
-	PreviousTurnID             string          `json:"previous_turn_id,omitempty"`
-	NewTurnID                  string          `json:"new_turn_id,omitempty"`
-	CanceledQueuedEntries      int             `json:"canceled_queued_entries,omitempty"`
-	FallbackModeIfNoToolResult string          `json:"fallback_mode_if_no_tool_result,omitempty"`
-	Goal                       json.RawMessage `json:"goal,omitempty"`
+	Status                string          `json:"status"`
+	Mode                  string          `json:"mode,omitempty"`
+	QueueEntryID          string          `json:"queue_entry_id,omitempty"`
+	QueuePosition         int             `json:"queue_position,omitempty"`
+	QueueGeneration       int64           `json:"queue_generation,omitempty"`
+	Delivery              string          `json:"delivery,omitempty"`
+	PreviousTurnID        string          `json:"previous_turn_id,omitempty"`
+	NewTurnID             string          `json:"new_turn_id,omitempty"`
+	CanceledQueuedEntries int             `json:"canceled_queued_entries,omitempty"`
+	Goal                  json.RawMessage `json:"goal,omitempty"`
 }
 
 // SessionPromptAdmission is the durable command receipt for one external prompt or steer request.
@@ -146,6 +143,10 @@ func (r SessionPromptAdmissionRequest) Validate() error {
 
 // SessionPromptAdmissionStore persists command receipts and their queue-linked admission decisions.
 type SessionPromptAdmissionStore interface {
+	ReplaySessionPromptAdmission(
+		ctx context.Context,
+		request SessionPromptAdmissionRequest,
+	) (SessionPromptAdmission, bool, error)
 	ClaimSessionPromptAdmission(
 		ctx context.Context,
 		request SessionPromptAdmissionRequest,

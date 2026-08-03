@@ -195,6 +195,7 @@ export function useClearSessionConversation(options: UseSessionWorkspaceOptions 
 }
 
 export interface SessionPromptActionParams {
+  expectedTurnId?: string;
   idempotencyKey?: string;
   id: string;
   messageId?: string;
@@ -266,6 +267,7 @@ function promptRequestFromAction(
       },
     ],
     ...(mode ? { mode } : {}),
+    ...(params.expectedTurnId ? { expected_turn_id: params.expectedTurnId } : {}),
     ...(params.runtime ? { runtime: params.runtime } : {}),
   };
 }
@@ -333,6 +335,7 @@ export function useSteerSessionPrompt(options: UseSessionWorkspaceOptions = {}) 
     mutationFn: params => {
       const identity = promptIdentityForAction(params);
       return steerSessionPrompt(requireWorkspace(workspaceId), params.id, {
+        expected_turn_id: params.expectedTurnId ?? "",
         idempotency_key: identity.idempotencyKey,
         message_id: identity.messageId,
         text: params.message,

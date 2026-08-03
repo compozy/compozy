@@ -1324,9 +1324,11 @@ type SessionInputQueue struct {
 	MessageID                string         `json:"message_id"`
 	IdempotencyKey           string         `json:"idempotency_key"`
 	TurnID                   string         `json:"turn_id"`
+	TargetTurnID             string         `json:"target_turn_id"`
 	EventID                  string         `json:"event_id"`
 	Status                   string         `json:"status"`
 	Mode                     string         `json:"mode"`
+	Delivery                 string         `json:"delivery"`
 	Text                     string         `json:"text"`
 	RuntimeProvider          string         `json:"runtime_provider"`
 	RuntimeModel             string         `json:"runtime_model"`

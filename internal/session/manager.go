@@ -51,7 +51,6 @@ func NewManager(opts ...Option) (*Manager, error) {
 		finalizing:            make(map[string]*sessionFinalization),
 		promptDrains:          make(map[chan struct{}]struct{}),
 		managedInputLeases:    make(map[string]managedInputLease),
-		interruptSalvages:     make(map[string]interruptedPromptSalvage),
 		promptAdmissionLocks:  make(map[string]*promptAdmissionLock),
 		compactions:           make(map[string]*sessionCompactionState),
 		startRuns:             make(map[string]*sessionStartRun),
@@ -397,7 +396,6 @@ func (m *Manager) remove(id string) {
 	delete(m.soulLocks, target)
 	m.soulLocksMu.Unlock()
 
-	m.discardInterruptedPromptSalvage(target)
 	m.emitDroppedSyntheticPrompts(m.takeQueuedSyntheticPrompts(target), ErrSessionNotFound)
 }
 
@@ -413,7 +411,6 @@ func (m *Manager) removeActive(id string) {
 	delete(m.soulLocks, target)
 	m.soulLocksMu.Unlock()
 
-	m.discardInterruptedPromptSalvage(target)
 	m.emitDroppedSyntheticPrompts(m.takeQueuedSyntheticPrompts(target), ErrSessionNotActive)
 }
 

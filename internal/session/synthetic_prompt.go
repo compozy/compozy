@@ -90,15 +90,12 @@ func (m *Manager) interruptAndSubmitSyntheticPrompt(
 	if session == nil {
 		return nil, errors.New("session: session is required")
 	}
-	interruptCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), m.supervision.TimeoutCancelGrace)
+	cancelCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), m.supervision.TimeoutCancelGrace)
 	defer cancel()
-	if err := m.CancelPrompt(interruptCtx, session.ID); err != nil {
+	if err := m.CancelPrompt(cancelCtx, session.ID); err != nil {
 		return nil, err
 	}
-	if err := waitForPromptIdle(interruptCtx, session); err != nil {
-		return nil, err
-	}
-	return m.submitPromptRequest(ctx, req)
+	return m.enqueueSyntheticPrompt(context.WithoutCancel(ctx), req), nil
 }
 
 func isRetryableSyntheticInterruptError(err error) bool {

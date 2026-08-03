@@ -1,0 +1,50 @@
+---
+title: "compozy session input edit"
+description: "Replace one queued session input"
+---
+
+## compozy session input edit
+
+Replace one queued session input
+
+```
+compozy session input edit <session-id> <input-id> <message> [flags]
+```
+
+### Examples
+
+```
+  compozy session input edit sess_1234 queue_entry_1234 "Run the focused test first."
+```
+
+### Options
+
+```
+  -h, --help                     help for edit
+      --idempotency-key string   Stable command idempotency key for an explicit retry
+      --message-id string        Stable authored message id for an explicit retry
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy session input edit <session-id> <input-id> <message> -o json
+```

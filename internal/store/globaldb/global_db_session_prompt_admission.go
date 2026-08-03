@@ -13,6 +13,21 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
+// ReplaySessionPromptAdmission returns an exact prior receipt without claiming a new identity.
+func (g *SessionRepo) ReplaySessionPromptAdmission(
+	ctx context.Context,
+	req store.SessionPromptAdmissionRequest,
+) (store.SessionPromptAdmission, bool, error) {
+	if err := g.checkReady(ctx, "replay session prompt admission"); err != nil {
+		return store.SessionPromptAdmission{}, false, err
+	}
+	req = req.Normalize()
+	if err := req.Validate(); err != nil {
+		return store.SessionPromptAdmission{}, false, err
+	}
+	return findPromptAdmissionReplay(ctx, g.db, req)
+}
+
 // ClaimSessionPromptAdmission reserves one exact external prompt command.
 func (g *SessionRepo) ClaimSessionPromptAdmission(
 	ctx context.Context,

@@ -62,6 +62,7 @@ func (h *BaseHandlers) DispatchSessionPrompt(c *gin.Context) (*PromptDispatch, b
 			MessageID:         input.MessageID,
 			IdempotencyKey:    input.IdempotencyKey,
 			Mode:              session.BusyInputMode(request.Mode),
+			ExpectedTurnID:    request.ExpectedTurnID,
 			Runtime:           PromptRuntimeSelectionFromPayload(request.Runtime),
 			DeliveryContext:   deliveryContext,
 			Caller:            caller,
@@ -161,6 +162,7 @@ func (h *BaseHandlers) DispatchSessionSteer(c *gin.Context) (session.SendPromptR
 		sessionID,
 		session.SteerPromptOpts{
 			Message: request.Text, MessageID: request.MessageID, IdempotencyKey: request.IdempotencyKey,
+			ExpectedTurnID: request.ExpectedTurnID,
 		},
 	)
 	if err != nil {

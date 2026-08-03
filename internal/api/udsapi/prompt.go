@@ -23,25 +23,24 @@ func (h *Handlers) promptSession(c *gin.Context) {
 	h.RespondPromptV1(c, dispatch)
 }
 
-func (h *Handlers) interruptSessionPrompt(c *gin.Context) {
-	sessionID, ok := h.RequireRouteSessionInWorkspace(c)
-	if !ok {
-		return
-	}
-	result, err := h.Sessions.InterruptPrompt(c.Request.Context(), sessionID)
-	if err != nil {
-		core.RespondError(c, core.StatusForSessionError(err), err, false)
-		return
-	}
-	core.RespondPromptResult(c, result, false)
-}
-
 func (h *Handlers) steerSessionPrompt(c *gin.Context) {
 	result, ok := h.DispatchSessionSteer(c)
 	if !ok {
 		return
 	}
 	core.RespondPromptResult(c, result, false)
+}
+
+func (h *Handlers) listSessionInputs(c *gin.Context) {
+	h.HandleListSessionInputs(c)
+}
+
+func (h *Handlers) replaceSessionInput(c *gin.Context) {
+	h.HandleReplaceSessionInput(c)
+}
+
+func (h *Handlers) promoteSessionInput(c *gin.Context) {
+	h.HandlePromoteSessionInput(c)
 }
 
 func (h *Handlers) cancelQueuedSessionPrompt(c *gin.Context) {

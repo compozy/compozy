@@ -29,6 +29,26 @@ var hostAPIMethodSpecs = []HostAPIMethodSpec{
 		Result: NamedType{Name: hostAPISessionPromptResultValue, Value: SessionPromptResult{}},
 	},
 	{
+		Method: HostAPIMethodSessionsInputsList,
+		Params: NamedType{Name: "SessionInputsListParams", Value: SessionInputsListParams{}},
+		Result: NamedType{Name: "SessionInputListResult", Value: SessionInputListResult{}},
+	},
+	{
+		Method: HostAPIMethodSessionsInputsReplace,
+		Params: NamedType{Name: "SessionInputReplaceParams", Value: SessionInputReplaceParams{}},
+		Result: NamedType{Name: "SessionInputResult", Value: SessionInputResult{}},
+	},
+	{
+		Method: HostAPIMethodSessionsInputsCancel,
+		Params: NamedType{Name: "SessionInputTargetParams", Value: SessionInputTargetParams{}},
+		Result: NamedType{Name: hostAPISessionPromptResultValue, Value: SessionPromptResult{}},
+	},
+	{
+		Method: HostAPIMethodSessionsInputsPromote,
+		Params: NamedType{Name: "SessionInputPromoteParams", Value: SessionInputPromoteParams{}},
+		Result: NamedType{Name: hostAPISessionPromptResultValue, Value: SessionPromptResult{}},
+	},
+	{
 		Method: HostAPIMethodSessionsStop,
 		Params: NamedType{Name: "SessionTargetParams", Value: SessionTargetParams{}},
 		Result: NamedType{Name: hostAPIEmptyResultValue, Value: EmptyResult{}},

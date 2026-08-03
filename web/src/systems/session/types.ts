@@ -49,6 +49,7 @@ export type SessionRepairResponse = OperationResponse<"repairSession", 200>;
 export type SessionRepairPayload = SessionRepairResponse["repair"];
 export type SessionRepairQuery = OperationQuery<"repairSession">;
 export interface SessionPromptRequest {
+  expected_turn_id?: string;
   idempotency_key: string;
   message_id: string;
   messages: Array<{
@@ -60,6 +61,7 @@ export interface SessionPromptRequest {
   runtime?: OperationRequestBody<"sendSessionPrompt">["runtime"];
 }
 export interface SessionSteerPromptRequest {
+  expected_turn_id: string;
   idempotency_key: string;
   message_id: string;
   text: string;
@@ -71,6 +73,10 @@ type SessionPromptEnvelope = Extract<SessionPromptResponse, { prompt: unknown }>
 export type SessionPromptPayload = SessionPromptEnvelope["prompt"];
 export type SessionGoalCommandResult = NonNullable<SessionPromptPayload["goal"]>;
 export type SessionPromptResult = SessionPromptPayload | SessionGoalCommandResult;
+export type SessionInputsResponse = OperationResponse<"listSessionInputs", 200>;
+export type SessionInputPayload = SessionInputsResponse["inputs"][number];
+export type ReplaceSessionInputRequest = OperationRequestBody<"replaceSessionInput">;
+export type PromoteSessionInputRequest = OperationRequestBody<"promoteSessionInput">;
 export type SessionGoalResponse = OperationResponse<"getSessionGoal", 200>;
 export type SessionGoalSnapshot = NonNullable<SessionGoalResponse["goal"]>;
 export type SessionGoalContext = SessionGoalSnapshot["context"];

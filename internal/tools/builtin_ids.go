@@ -68,6 +68,14 @@ const (
 	ToolIDSessionCreate ToolID = "compozy__session_create"
 	// ToolIDSessionPrompt submits one prompt with an optional runtime snapshot.
 	ToolIDSessionPrompt ToolID = "compozy__session_prompt"
+	// ToolIDSessionInputsList lists durable pending session input in dispatch order.
+	ToolIDSessionInputsList ToolID = "compozy__session_inputs_list"
+	// ToolIDSessionInputReplace atomically replaces one queued session input.
+	ToolIDSessionInputReplace ToolID = "compozy__session_input_replace"
+	// ToolIDSessionInputCancel cancels one queued session input.
+	ToolIDSessionInputCancel ToolID = "compozy__session_input_cancel"
+	// ToolIDSessionInputPromote atomically promotes queued input to steering.
+	ToolIDSessionInputPromote ToolID = "compozy__session_input_promote"
 	// ToolIDSessionStatus reads one runtime session snapshot.
 	ToolIDSessionStatus ToolID = "compozy__session_status"
 	// ToolIDSessionHistory reads grouped turn history for one session.

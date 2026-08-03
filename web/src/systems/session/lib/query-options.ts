@@ -5,6 +5,7 @@ import {
   fetchSessionClarifications,
   fetchSessionEvents,
   fetchSessionHistory,
+  fetchSessionInputs,
   fetchSessionGoal,
   fetchSessionLedger,
   fetchSessionRecap,
@@ -146,6 +147,17 @@ export function sessionClarificationsOptions(workspace: string, id: string) {
     queryKey: sessionKeys.clarifications(workspace, id),
     queryFn: ({ signal }) => fetchSessionClarifications(workspace, id, signal),
     staleTime: 5_000,
+    enabled: !!workspace && !!id,
+  });
+}
+
+/** Exact current-generation pending operator input, owned by the daemon. */
+export function sessionInputsOptions(workspace: string, id: string) {
+  return queryOptions({
+    queryKey: sessionKeys.inputQueue(workspace, id),
+    queryFn: ({ signal }) => fetchSessionInputs(workspace, id, signal),
+    refetchInterval: SESSION_LIVE_REFETCH_INTERVAL_MS,
+    staleTime: 1_000,
     enabled: !!workspace && !!id,
   });
 }

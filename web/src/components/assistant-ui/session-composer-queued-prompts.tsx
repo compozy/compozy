@@ -40,62 +40,65 @@ export function SessionComposerQueuedPrompts({
         "group-has-[[data-slot=dock]]/composer:rounded-none"
       )}
     >
-      {prompts.map((prompt, index) => (
-        <div
-          key={prompt.id}
-          data-testid="composer-queued-prompt-row"
-          className={cn(
-            "flex min-h-8 min-w-0 items-center gap-2 py-transcript-meta-gap pr-transcript-inline-gap pl-3",
-            index > 0 && "border-t border-line-soft"
-          )}
-        >
-          <ListPlus aria-hidden="true" className="size-3 shrink-0 text-faint" />
-          <span
-            className="min-w-0 flex-1 truncate text-transcript-body text-muted"
-            title={prompt.text}
+      {prompts.map((prompt, index) => {
+        const mutable = prompt.status === undefined || prompt.status === "queued";
+        return (
+          <div
+            key={prompt.id}
+            data-testid="composer-queued-prompt-row"
+            className={cn(
+              "flex min-h-8 min-w-0 items-center gap-2 py-transcript-meta-gap pr-transcript-inline-gap pl-3",
+              index > 0 && "border-t border-line-soft"
+            )}
           >
-            {queuedPromptPreview(prompt.text)}
-          </span>
-          <div className="flex shrink-0 items-center gap-px">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => onSteer(prompt)}
-              disabled={disabled}
-              data-testid="composer-queued-steer"
-              className="text-muted hover:text-fg-strong"
+            <ListPlus aria-hidden="true" className="size-3 shrink-0 text-faint" />
+            <span
+              className="min-w-0 flex-1 truncate text-transcript-body text-muted"
+              title={prompt.text}
             >
-              <CornerDownRight aria-hidden="true" className="size-3" />
-              Steer
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              onClick={() => onEdit(prompt)}
-              disabled={disabled}
-              data-testid="composer-queued-edit"
-              aria-label="Edit queued prompt"
-              className="text-faint hover:text-fg"
-            >
-              <Pencil aria-hidden="true" className="size-3" />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              onClick={() => onRemove(prompt.id)}
-              disabled={disabled}
-              data-testid="composer-queued-remove"
-              aria-label="Remove queued prompt"
-              className="text-faint hover:text-fg"
-            >
-              <Trash2 aria-hidden="true" className="size-3" />
-            </Button>
+              {queuedPromptPreview(prompt.text)}
+            </span>
+            <div className="flex shrink-0 items-center gap-px">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => onSteer(prompt)}
+                disabled={disabled || !mutable}
+                data-testid="composer-queued-steer"
+                className="text-muted hover:text-fg-strong"
+              >
+                <CornerDownRight aria-hidden="true" className="size-3" />
+                Steer
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                onClick={() => onEdit(prompt)}
+                disabled={disabled || !mutable}
+                data-testid="composer-queued-edit"
+                aria-label="Edit queued prompt"
+                className="text-faint hover:text-fg"
+              >
+                <Pencil aria-hidden="true" className="size-3" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                onClick={() => onRemove(prompt.id)}
+                disabled={disabled || !mutable}
+                data-testid="composer-queued-remove"
+                aria-label="Remove queued prompt"
+                className="text-faint hover:text-fg"
+              >
+                <Trash2 aria-hidden="true" className="size-3" />
+              </Button>
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

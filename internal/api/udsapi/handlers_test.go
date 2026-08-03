@@ -205,6 +205,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"GET /api/workspaces/:workspace_id/sessions/:session_id/health",
 			"GET /api/workspaces/:workspace_id/sessions/:session_id/history",
 			"GET /api/workspaces/:workspace_id/sessions/:session_id/inspect",
+			"GET /api/workspaces/:workspace_id/sessions/:session_id/prompt/queue",
 			"GET /api/workspaces/:workspace_id/sessions/:session_id/recap",
 			"GET /api/workspaces/:workspace_id/sessions/:session_id/usage",
 			"GET /api/workspaces/:workspace_id/sessions/:session_id/status",
@@ -385,8 +386,8 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"POST /api/workspaces/:workspace_id/sessions/:session_id/clear",
 			"POST /api/workspaces/:workspace_id/sessions/:session_id/prompt",
 			"POST /api/workspaces/:workspace_id/sessions/:session_id/prompt/cancel",
-			"POST /api/workspaces/:workspace_id/sessions/:session_id/interrupt",
 			"POST /api/workspaces/:workspace_id/sessions/:session_id/steer",
+			"POST /api/workspaces/:workspace_id/sessions/:session_id/prompt/queue/:queue_entry_id/steer",
 			"DELETE /api/workspaces/:workspace_id/sessions/:session_id/prompt/queue/:queue_entry_id",
 			"POST /api/workspaces/:workspace_id/sessions/:session_id/repair",
 			"POST /api/workspaces/:workspace_id/sessions/:session_id/attach",
@@ -451,6 +452,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"PUT /api/workspaces/:workspace_id/network/channels/:channel/subscriptions",
 			"PUT /api/tasks/:id/execution-profile",
 			"PUT /api/vault/secrets",
+			"PUT /api/workspaces/:workspace_id/sessions/:session_id/prompt/queue/:queue_entry_id",
 			"DELETE /api/workspaces/:workspace_id/loops/:name",
 			"DELETE /api/workspaces/:workspace_id/loops/:name/input-defaults/:key",
 			"DELETE /api/agents/:name",
@@ -1893,10 +1895,10 @@ func TestPromptSessionRawHandlerPreservesBusyInputMode(t *testing.T) {
 				}
 				gotOpts = opts
 				return session.SendPromptResult{
-					Status:      "interrupted",
-					Mode:        opts.Mode,
-					Interrupted: true,
-					NewTurnID:   "turn-2",
+					Status:    "interrupting",
+					Mode:      opts.Mode,
+					Delivery:  store.SessionInputDeliveryInterruptThenPrompt,
+					NewTurnID: "turn-2",
 				}, nil
 			},
 		}
@@ -1910,15 +1912,15 @@ func TestPromptSessionRawHandlerPreservesBusyInputMode(t *testing.T) {
 			"/api/workspaces/ws-workspace/sessions/sess-123/prompt?format=raw",
 			[]byte(
 				`{"message":"replace","message_id":"client-replace-1","idempotency_key":"idem-replace-1",`+
-					`"mode":"interrupt","runtime":{"provider":"codex","model":"gpt-5.4","reasoning_effort":"high","speed":"fast"}}`,
+					`"mode":"interrupt","expected_turn_id":"turn-active","runtime":{"provider":"codex","model":"gpt-5.4","reasoning_effort":"high","speed":"fast"}}`,
 			),
 		)
-		if recorder.Code != http.StatusOK {
-			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+		if recorder.Code != http.StatusAccepted {
+			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusAccepted, recorder.Body.String())
 		}
 		if gotOpts.Message != "replace" || gotOpts.MessageID != "client-replace-1" ||
 			gotOpts.IdempotencyKey != "idem-replace-1" ||
-			gotOpts.Mode != session.BusyInputModeInterrupt {
+			gotOpts.Mode != session.BusyInputModeInterrupt || gotOpts.ExpectedTurnID != "turn-active" {
 			t.Fatalf("SendPrompt() opts = %#v, want interrupt replace", gotOpts)
 		}
 		if gotOpts.Runtime == nil || gotOpts.Runtime.Provider != "codex" ||
@@ -1930,7 +1932,8 @@ func TestPromptSessionRawHandlerPreservesBusyInputMode(t *testing.T) {
 		if err := json.Unmarshal(recorder.Body.Bytes(), &decoded); err != nil {
 			t.Fatalf("json.Unmarshal(prompt result) error = %v; body=%s", err, recorder.Body.String())
 		}
-		if decoded.Prompt.Mode != contract.PromptModeInterrupt || !decoded.Prompt.Interrupted {
+		if decoded.Prompt.Mode != contract.PromptModeInterrupt ||
+			decoded.Prompt.Delivery != contract.PromptDeliveryInterruptThenPrompt {
 			t.Fatalf("decoded prompt = %#v, want interrupted mode", decoded.Prompt)
 		}
 	})
@@ -1952,10 +1955,10 @@ func TestSteerSessionPromptHandlerPropagatesDurableIdentity(t *testing.T) {
 				}
 				gotOpts = opts
 				return session.SendPromptResult{
-					Status:         "staged",
+					Status:         "steering",
 					MessageID:      opts.MessageID,
 					IdempotencyKey: opts.IdempotencyKey,
-					Staged:         true,
+					Delivery:       store.SessionInputDeliveryInterruptThenPrompt,
 					QueueEntryID:   "inq-steer",
 				}, nil
 			},
@@ -1967,7 +1970,7 @@ func TestSteerSessionPromptHandlerPropagatesDurableIdentity(t *testing.T) {
 			requestCtx,
 			http.MethodPost,
 			"/api/workspaces/ws-workspace/sessions/sess-123/steer",
-			strings.NewReader(`{"text":"focus on the race","message_id":"msg-steer","idempotency_key":"idem-steer"}`),
+			strings.NewReader(`{"text":"focus on the race","message_id":"msg-steer","idempotency_key":"idem-steer","expected_turn_id":"turn-live"}`),
 		)
 		req.Header.Set("Content-Type", "application/json")
 		recorder := httptest.NewRecorder()
@@ -1976,14 +1979,16 @@ func TestSteerSessionPromptHandlerPropagatesDurableIdentity(t *testing.T) {
 			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusAccepted, recorder.Body.String())
 		}
 		if gotOpts.Message != "focus on the race" || gotOpts.MessageID != "msg-steer" ||
-			gotOpts.IdempotencyKey != "idem-steer" {
+			gotOpts.IdempotencyKey != "idem-steer" || gotOpts.ExpectedTurnID != "turn-live" {
 			t.Fatalf("SteerPrompt() opts = %#v, want canonical identity", gotOpts)
 		}
 		var decoded contract.SendPromptResultResponse
 		if err := json.Unmarshal(recorder.Body.Bytes(), &decoded); err != nil {
 			t.Fatalf("json.Unmarshal(steer result) error = %v; body=%s", err, recorder.Body.String())
 		}
-		if !decoded.Prompt.Staged || decoded.Prompt.MessageID != "msg-steer" ||
+		if decoded.Prompt.Status != "steering" ||
+			decoded.Prompt.Delivery != contract.PromptDeliveryInterruptThenPrompt ||
+			decoded.Prompt.MessageID != "msg-steer" ||
 			decoded.Prompt.IdempotencyKey != "idem-steer" || decoded.Prompt.QueueEntryID != "inq-steer" {
 			t.Fatalf("steer response = %#v", decoded.Prompt)
 		}

@@ -19,6 +19,8 @@ export type {
   SessionApprovalResponse,
   SessionEventsResponse,
   SessionHistoryResponse,
+  SessionInputPayload,
+  SessionInputsResponse,
   SessionLedgerEvent,
   SessionLedgerMeta,
   SessionLedgerResponse,
@@ -30,6 +32,8 @@ export type {
   SessionPromptRequest,
   SessionPromptResponse,
   SessionPromptResult,
+  PromoteSessionInputRequest,
+  ReplaceSessionInputRequest,
   SessionGoalCommandResult,
   SessionGoalContext,
   SessionGoalResponse,
@@ -93,14 +97,16 @@ export {
   fetchSession,
   fetchSessionEvents,
   fetchSessionHistory,
+  fetchSessionInputs,
   fetchSessionGoal,
   fetchSessionLedger,
   fetchSessionRecap,
   fetchSessionUsage,
   fetchSessionTranscript,
   fetchSessions,
-  interruptSessionPrompt,
+  promoteSessionInputToSteer,
   repairSession,
+  replaceSessionInput,
   resumeSession,
   sendSessionPrompt,
   SessionApiError,
@@ -137,6 +143,7 @@ export {
 } from "./lib/session-deeplink-search";
 export {
   sessionClarificationsOptions,
+  sessionInputsOptions,
   sessionDetailOptions,
   sessionEventsOptions,
   sessionHistoryOptions,
@@ -147,6 +154,14 @@ export {
   sessionTranscriptOptions,
   sessionsListOptions,
 } from "./lib/query-options";
+export {
+  useCancelSessionInput,
+  usePromoteSessionInput,
+  useReplaceSessionInput,
+  useSessionInputs,
+  type PromoteSessionInputVariables,
+  type ReplaceSessionInputVariables,
+} from "./hooks/use-session-inputs";
 export {
   hasRunningSession,
   idleAttachableAgentNames,

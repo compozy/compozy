@@ -15,6 +15,9 @@ type PromptInput struct {
 
 // ExtractPromptInput validates explicit command identity and AI SDK message correlation.
 func ExtractPromptInput(req SendPromptRequest) (PromptInput, error) {
+	if err := req.ValidateBusyInputFence(); err != nil {
+		return PromptInput{}, err
+	}
 	messageID := strings.TrimSpace(req.MessageID)
 	if messageID == "" {
 		return PromptInput{}, errors.New("message_id is required")
@@ -50,6 +53,17 @@ func ExtractPromptInput(req SendPromptRequest) (PromptInput, error) {
 	return PromptInput{}, errors.New("latest user message is required")
 }
 
+// ValidateBusyInputFence requires stale-action protection for commands that replace an active turn.
+func (r SendPromptRequest) ValidateBusyInputFence() error {
+	switch r.Mode {
+	case PromptModeSteer, PromptModeInterrupt:
+		if strings.TrimSpace(r.ExpectedTurnID) == "" {
+			return errors.New("expected_turn_id is required")
+		}
+	}
+	return nil
+}
+
 func promptUIMessageText(message PromptUIMessage) string {
 	if content := strings.TrimSpace(message.Content); content != "" {
 		return content
@@ -76,6 +90,38 @@ func (r SteerPromptRequest) Validate() error {
 		return errors.New("message_id is required")
 	}
 	if strings.TrimSpace(r.IdempotencyKey) == "" {
+		return errors.New("idempotency_key is required")
+	}
+	if strings.TrimSpace(r.ExpectedTurnID) == "" {
+		return errors.New("expected_turn_id is required")
+	}
+	return nil
+}
+
+// Validate checks one atomic queued-input replacement.
+func (r ReplaceSessionInputRequest) Validate() error {
+	return validateSessionInputMutation(r.Text, r.MessageID, r.IdempotencyKey)
+}
+
+// Validate checks one atomic queue-to-steer replacement and its active-turn fence.
+func (r PromoteSessionInputRequest) Validate() error {
+	if err := validateSessionInputMutation(r.Text, r.MessageID, r.IdempotencyKey); err != nil {
+		return err
+	}
+	if strings.TrimSpace(r.ExpectedTurnID) == "" {
+		return errors.New("expected_turn_id is required")
+	}
+	return nil
+}
+
+func validateSessionInputMutation(text string, messageID string, idempotencyKey string) error {
+	if strings.TrimSpace(text) == "" {
+		return errors.New("text is required")
+	}
+	if strings.TrimSpace(messageID) == "" {
+		return errors.New("message_id is required")
+	}
+	if strings.TrimSpace(idempotencyKey) == "" {
 		return errors.New("idempotency_key is required")
 	}
 	return nil

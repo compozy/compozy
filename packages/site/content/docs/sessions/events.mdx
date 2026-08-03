@@ -214,8 +214,8 @@ replacement, or rollback fails, Compozy does not persist the authored `user_mess
 
 Compozy records the admitted local user input itself. It drops ACP-provider `user_message_chunk`
 echoes before they reach the persisted event stream or transcript, so a provider echo cannot create
-a second user message. A staged steer remains a local user event when it is consumed at its tool-result
-boundary; it is not suppressed as a provider echo.
+a second user message. Steering is a daemon-owned replacement prompt fenced to the expected active
+turn; it is not injected into a provider tool-result boundary.
 
 ## Usage cost and provenance
 

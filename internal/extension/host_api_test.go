@@ -633,13 +633,12 @@ func TestHostAPIHandlerSessionReadsProjectNestedRuntime(t *testing.T) {
 	})
 }
 
-func TestHostAPIHandlerSessionsPromptReturnsQueuedRuntimeAdmission(t *testing.T) {
+func TestHostAPIHandlerSessionsPromptReturnsInterruptRuntimeAdmission(t *testing.T) {
 	t.Parallel()
-	t.Run("Should preserve queued runtime in prompt admission", func(t *testing.T) {
+	t.Run("Should preserve the busy-input mode and expected turn in prompt admission", func(t *testing.T) {
 		t.Parallel()
 
 		const workspaceID = "ws-queued-runtime"
-		estimatedSendAt := time.Date(2026, 7, 30, 12, 5, 0, 0, time.UTC)
 		var received session.SendPromptOpts
 		handler := &HostAPIHandler{sessions: promptSessionManagerStub{
 			statusFn: func(context.Context, string) (*session.Info, error) {
@@ -651,25 +650,25 @@ func TestHostAPIHandlerSessionsPromptReturnsQueuedRuntimeAdmission(t *testing.T)
 			sendPromptFn: func(_ context.Context, _ string, opts session.SendPromptOpts) (session.SendPromptResult, error) {
 				received = opts
 				return session.SendPromptResult{
-					Status:          "queued",
-					Mode:            session.BusyInputModeQueue,
+					Status:          "interrupting",
+					Mode:            session.BusyInputModeInterrupt,
 					MessageID:       "msg-queued-runtime",
 					IdempotencyKey:  "idem-queued-runtime",
 					QueueEntryID:    "input-queued",
-					QueuePosition:   2,
 					QueueGeneration: 7,
-					EstimatedSendAt: &estimatedSendAt,
-					Queued:          true,
+					Delivery:        store.SessionInputDeliveryInterruptThenPrompt,
 				}, nil
 			},
 		}}
 
 		result, err := handler.handleSessionsPrompt(testutil.Context(t), mustMarshalRawMessage(t, map[string]any{
-			"workspace_id":    workspaceID,
-			"session_id":      "sess-queued-runtime",
-			"message":         "Continue with the queued runtime.",
-			"message_id":      "msg-queued-runtime",
-			"idempotency_key": "idem-queued-runtime",
+			"workspace_id":     workspaceID,
+			"session_id":       "sess-queued-runtime",
+			"message":          "Replace the active turn with this runtime.",
+			"message_id":       "msg-queued-runtime",
+			"idempotency_key":  "idem-queued-runtime",
+			"mode":             "interrupt",
+			"expected_turn_id": "turn-active",
 			"runtime": map[string]string{
 				"provider":         "codex",
 				"model":            "gpt-5.6",
@@ -681,6 +680,7 @@ func TestHostAPIHandlerSessionsPromptReturnsQueuedRuntimeAdmission(t *testing.T)
 			t.Fatalf("handleSessionsPrompt() error = %v", err)
 		}
 		if received.MessageID != "msg-queued-runtime" || received.IdempotencyKey != "idem-queued-runtime" ||
+			received.Mode != session.BusyInputModeInterrupt || received.ExpectedTurnID != "turn-active" ||
 			received.Runtime == nil || received.Runtime.Provider != "codex" ||
 			received.Runtime.Model != "gpt-5.6" || received.Runtime.ReasoningEffort != "high" ||
 			received.Runtime.Speed != "fast" {
@@ -689,16 +689,153 @@ func TestHostAPIHandlerSessionsPromptReturnsQueuedRuntimeAdmission(t *testing.T)
 
 		var admission hostAPISessionPromptResult
 		decodeResult(t, result, &admission)
-		if admission.Status != "queued" || admission.Mode != session.BusyInputModeQueue ||
-			!admission.Queued || admission.QueueEntryID != "input-queued" ||
-			admission.QueuePosition != 2 || admission.QueueGeneration != 7 {
-			t.Fatalf("sessions/prompt admission = %#v, want queued admission metadata", admission)
+		if admission.Status != "interrupting" || admission.Mode != session.BusyInputModeInterrupt ||
+			admission.Delivery != store.SessionInputDeliveryInterruptThenPrompt || admission.QueueEntryID != "input-queued" ||
+			admission.QueueGeneration != 7 {
+			t.Fatalf("sessions/prompt admission = %#v, want interrupt admission metadata", admission)
 		}
 		if admission.TurnID != "" {
-			t.Fatalf("sessions/prompt queued turn_id = %q, want empty before delivery", admission.TurnID)
+			t.Fatalf("sessions/prompt interrupt turn_id = %q, want empty before delivery", admission.TurnID)
 		}
-		if admission.EstimatedSendAt == nil || !admission.EstimatedSendAt.Equal(estimatedSendAt) {
-			t.Fatalf("sessions/prompt estimated_send_at = %v, want %v", admission.EstimatedSendAt, estimatedSendAt)
+	})
+}
+
+func TestHostAPIHandlerSessionInputsUseDurableManagerOperations(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should list replace cancel and promote pending input without local state", func(t *testing.T) {
+		t.Parallel()
+
+		const (
+			workspaceID = "ws-session-inputs"
+			sessionID   = "sess-session-inputs"
+			entryID     = "input-session-1"
+		)
+		enqueuedAt := time.Date(2026, 8, 3, 15, 4, 0, 0, time.UTC)
+		pending := session.PendingInput{
+			ID:              entryID,
+			SessionID:       sessionID,
+			MessageID:       "msg-original",
+			IdempotencyKey:  "idem-original",
+			TargetTurnID:    "turn-active",
+			Status:          "queued",
+			Mode:            session.BusyInputModeQueue,
+			Delivery:        store.SessionInputDeliveryAfterTurn,
+			Text:            "Run the next check.",
+			QueueGeneration: 5,
+			EnqueuedAt:      enqueuedAt,
+			Runtime: &session.RuntimeSelection{
+				Provider: "codex", Model: "gpt-5.6", ReasoningEffort: "high", Speed: "fast",
+			},
+		}
+		handler := &HostAPIHandler{sessions: promptSessionManagerStub{
+			statusFn: func(context.Context, string) (*session.Info, error) {
+				return &session.Info{ID: sessionID, WorkspaceID: workspaceID}, nil
+			},
+			listPendingInputsFn: func(_ context.Context, gotSessionID string) ([]session.PendingInput, error) {
+				if gotSessionID != sessionID {
+					t.Fatalf("ListPendingInputs() session id = %q, want %q", gotSessionID, sessionID)
+				}
+				return []session.PendingInput{pending}, nil
+			},
+			replacePendingInputFn: func(
+				_ context.Context,
+				gotSessionID string,
+				gotEntryID string,
+				opts session.ReplacePendingInputOpts,
+			) (session.PendingInput, error) {
+				if gotSessionID != sessionID || gotEntryID != entryID || opts.Text != "Use the narrow check." ||
+					opts.MessageID != "msg-replaced" || opts.IdempotencyKey != "idem-replaced" {
+					t.Fatalf("ReplacePendingInput() = (%q, %q, %#v)", gotSessionID, gotEntryID, opts)
+				}
+				updated := pending
+				updated.MessageID = opts.MessageID
+				updated.IdempotencyKey = opts.IdempotencyKey
+				updated.Text = opts.Text
+				return updated, nil
+			},
+			cancelQueuedPromptFn: func(
+				_ context.Context,
+				gotSessionID string,
+				gotEntryID string,
+			) (session.SendPromptResult, error) {
+				if gotSessionID != sessionID || gotEntryID != entryID {
+					t.Fatalf("CancelQueuedPrompt() = (%q, %q)", gotSessionID, gotEntryID)
+				}
+				return session.SendPromptResult{
+					Status: "canceled", Mode: session.BusyInputModeQueue, Delivery: store.SessionInputDeliveryNone,
+					QueueEntryID: entryID, QueueGeneration: 5,
+				}, nil
+			},
+			promotePendingInputFn: func(
+				_ context.Context,
+				gotSessionID string,
+				gotEntryID string,
+				opts session.PromotePendingInputOpts,
+			) (session.SendPromptResult, error) {
+				if gotSessionID != sessionID || gotEntryID != entryID || opts.Text != "Prioritize this." ||
+					opts.MessageID != "msg-promoted" || opts.IdempotencyKey != "idem-promoted" ||
+					opts.ExpectedTurnID != "turn-active" {
+					t.Fatalf("PromotePendingInputToSteer() = (%q, %q, %#v)", gotSessionID, gotEntryID, opts)
+				}
+				return session.SendPromptResult{
+					Status: "steering", Mode: session.BusyInputModeSteer,
+					Delivery:  store.SessionInputDeliveryInterruptThenPrompt,
+					MessageID: "msg-promoted", IdempotencyKey: "idem-promoted", QueueEntryID: entryID,
+					QueueGeneration: 6,
+				}, nil
+			},
+		}}
+
+		listResult, err := handler.handleSessionsInputsList(testutil.Context(t), mustMarshalRawMessage(t, map[string]string{
+			"workspace_id": workspaceID, "session_id": sessionID,
+		}))
+		if err != nil {
+			t.Fatalf("handleSessionsInputsList() error = %v", err)
+		}
+		listed, ok := listResult.(hostAPISessionInputListResult)
+		if !ok || len(listed.Inputs) != 1 || listed.Inputs[0].ID != entryID ||
+			listed.Inputs[0].Delivery != store.SessionInputDeliveryAfterTurn ||
+			listed.Inputs[0].Runtime == nil || listed.Inputs[0].Runtime.Provider != "codex" {
+			t.Fatalf("sessions/inputs/list result = %#v", listResult)
+		}
+
+		replaceResult, err := handler.handleSessionsInputsReplace(testutil.Context(t), mustMarshalRawMessage(t, map[string]string{
+			"workspace_id": workspaceID, "session_id": sessionID, "queue_entry_id": entryID,
+			"text": "Use the narrow check.", "message_id": "msg-replaced", "idempotency_key": "idem-replaced",
+		}))
+		if err != nil {
+			t.Fatalf("handleSessionsInputsReplace() error = %v", err)
+		}
+		replaced, ok := replaceResult.(hostAPISessionInputResult)
+		if !ok || replaced.Input.MessageID != "msg-replaced" || replaced.Input.IdempotencyKey != "idem-replaced" {
+			t.Fatalf("sessions/inputs/replace result = %#v", replaceResult)
+		}
+
+		cancelResult, err := handler.handleSessionsInputsCancel(testutil.Context(t), mustMarshalRawMessage(t, map[string]string{
+			"workspace_id": workspaceID, "session_id": sessionID, "queue_entry_id": entryID,
+		}))
+		if err != nil {
+			t.Fatalf("handleSessionsInputsCancel() error = %v", err)
+		}
+		canceled, ok := cancelResult.(hostAPISessionPromptResult)
+		if !ok || canceled.Status != "canceled" || canceled.Delivery != store.SessionInputDeliveryNone ||
+			canceled.QueueEntryID != entryID {
+			t.Fatalf("sessions/inputs/cancel result = %#v", cancelResult)
+		}
+
+		promoteResult, err := handler.handleSessionsInputsPromote(testutil.Context(t), mustMarshalRawMessage(t, map[string]string{
+			"workspace_id": workspaceID, "session_id": sessionID, "queue_entry_id": entryID,
+			"text": "Prioritize this.", "message_id": "msg-promoted", "idempotency_key": "idem-promoted",
+			"expected_turn_id": "turn-active",
+		}))
+		if err != nil {
+			t.Fatalf("handleSessionsInputsPromote() error = %v", err)
+		}
+		promoted, ok := promoteResult.(hostAPISessionPromptResult)
+		if !ok || promoted.Status != "steering" || promoted.Delivery != store.SessionInputDeliveryInterruptThenPrompt ||
+			promoted.MessageID != "msg-promoted" || promoted.IdempotencyKey != "idem-promoted" {
+			t.Fatalf("sessions/inputs/promote result = %#v", promoteResult)
 		}
 	})
 }
@@ -2556,7 +2693,9 @@ func TestHostAPIHandlerSubmitPromptRejectsMissingSessionManager(t *testing.T) {
 	t.Parallel()
 
 	var handler HostAPIHandler
-	_, err := handler.submitPrompt(testutil.Context(t), "sess-1", "hello", "msg-1", "idem-1", nil)
+	_, err := handler.submitPrompt(testutil.Context(t), "sess-1", hostAPIPromptRequest{
+		Message: "hello", MessageID: "msg-1", IdempotencyKey: "idem-1",
+	})
 	if err == nil {
 		t.Fatal("submitPrompt() error = nil, want missing session manager error")
 	}
@@ -2597,7 +2736,9 @@ func TestHostAPIHandlerSubmitPromptRejectsMissingBoundaryEvents(t *testing.T) {
 		},
 	}
 
-	_, err := handler.submitPrompt(testutil.Context(t), "sess-1", "hello", "msg-1", "idem-1", nil)
+	_, err := handler.submitPrompt(testutil.Context(t), "sess-1", hostAPIPromptRequest{
+		Message: "hello", MessageID: "msg-1", IdempotencyKey: "idem-1",
+	})
 	if err == nil {
 		t.Fatal("submitPrompt() error = nil, want missing boundary error")
 	}
@@ -2656,7 +2797,9 @@ func TestHostAPIHandlerSubmitPromptRejectsUnexpectedStubCalls(t *testing.T) {
 			t.Parallel()
 
 			handler := &HostAPIHandler{sessions: tt.sessions}
-			_, err := handler.submitPrompt(testutil.Context(t), "sess-1", "hello", "msg-1", "idem-1", nil)
+			_, err := handler.submitPrompt(testutil.Context(t), "sess-1", hostAPIPromptRequest{
+				Message: "hello", MessageID: "msg-1", IdempotencyKey: "idem-1",
+			})
 			if err == nil {
 				t.Fatalf("submitPrompt() error = nil, want %q", tt.wantErr)
 			}
@@ -6847,10 +6990,14 @@ func mustStoredPromptEvent(t *testing.T, id string, sequence int64, event acp.Ag
 }
 
 type promptSessionManagerStub struct {
-	sendPromptFn func(context.Context, string, session.SendPromptOpts) (session.SendPromptResult, error)
-	eventsFn     func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error)
-	statusFn     func(context.Context, string) (*session.Info, error)
-	listAllFn    func(context.Context) ([]*session.Info, error)
+	sendPromptFn          func(context.Context, string, session.SendPromptOpts) (session.SendPromptResult, error)
+	listPendingInputsFn   func(context.Context, string) ([]session.PendingInput, error)
+	replacePendingInputFn func(context.Context, string, string, session.ReplacePendingInputOpts) (session.PendingInput, error)
+	cancelQueuedPromptFn  func(context.Context, string, string) (session.SendPromptResult, error)
+	promotePendingInputFn func(context.Context, string, string, session.PromotePendingInputOpts) (session.SendPromptResult, error)
+	eventsFn              func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error)
+	statusFn              func(context.Context, string) (*session.Info, error)
+	listAllFn             func(context.Context) ([]*session.Info, error)
 }
 
 func (s promptSessionManagerStub) Create(context.Context, session.CreateOpts) (*session.Session, error) {
@@ -6899,6 +7046,48 @@ func (s promptSessionManagerStub) SendPrompt(
 		return session.SendPromptResult{}, errors.New("unexpected send prompt call")
 	}
 	return s.sendPromptFn(ctx, id, opts)
+}
+
+func (s promptSessionManagerStub) ListPendingInputs(ctx context.Context, id string) ([]session.PendingInput, error) {
+	if s.listPendingInputsFn == nil {
+		return nil, errors.New("unexpected list pending inputs call")
+	}
+	return s.listPendingInputsFn(ctx, id)
+}
+
+func (s promptSessionManagerStub) ReplacePendingInput(
+	ctx context.Context,
+	id string,
+	entryID string,
+	opts session.ReplacePendingInputOpts,
+) (session.PendingInput, error) {
+	if s.replacePendingInputFn == nil {
+		return session.PendingInput{}, errors.New("unexpected replace pending input call")
+	}
+	return s.replacePendingInputFn(ctx, id, entryID, opts)
+}
+
+func (s promptSessionManagerStub) CancelQueuedPrompt(
+	ctx context.Context,
+	id string,
+	entryID string,
+) (session.SendPromptResult, error) {
+	if s.cancelQueuedPromptFn == nil {
+		return session.SendPromptResult{}, errors.New("unexpected cancel queued prompt call")
+	}
+	return s.cancelQueuedPromptFn(ctx, id, entryID)
+}
+
+func (s promptSessionManagerStub) PromotePendingInputToSteer(
+	ctx context.Context,
+	id string,
+	entryID string,
+	opts session.PromotePendingInputOpts,
+) (session.SendPromptResult, error) {
+	if s.promotePendingInputFn == nil {
+		return session.SendPromptResult{}, errors.New("unexpected promote pending input call")
+	}
+	return s.promotePendingInputFn(ctx, id, entryID, opts)
 }
 
 func (s promptSessionManagerStub) ExecSandbox(

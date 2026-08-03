@@ -8,6 +8,14 @@ type hostAPISessionCreateParams = extensioncontract.SessionsCreateParams
 
 type hostAPISessionPromptParams = extensioncontract.SessionsPromptParams
 
+type hostAPISessionInputsListParams = extensioncontract.SessionInputsListParams
+
+type hostAPISessionInputTargetParams = extensioncontract.SessionInputTargetParams
+
+type hostAPISessionInputReplaceParams = extensioncontract.SessionInputReplaceParams
+
+type hostAPISessionInputPromoteParams = extensioncontract.SessionInputPromoteParams
+
 type hostAPISessionTargetParams = extensioncontract.SessionTargetParams
 
 type hostAPISessionEventsParams = extensioncontract.SessionEventsParams
@@ -37,6 +45,12 @@ type hostAPISessionEvent = extensioncontract.SessionEvent
 type hostAPISessionCreateResult = extensioncontract.SessionCreateResult
 
 type hostAPISessionPromptResult = extensioncontract.SessionPromptResult
+
+type hostAPISessionInput = extensioncontract.SessionInput
+
+type hostAPISessionInputListResult = extensioncontract.SessionInputListResult
+
+type hostAPISessionInputResult = extensioncontract.SessionInputResult
 
 type hostAPISandboxListResult = extensioncontract.SandboxListResult
 

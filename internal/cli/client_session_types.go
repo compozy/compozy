@@ -62,6 +62,18 @@ type SessionPromptRequest = contract.SendPromptRequest
 // SessionPromptResultRecord is the shared non-streaming prompt outcome payload.
 type SessionPromptResultRecord = contract.SendPromptResultPayload
 
+// SessionInputRecord is one durable pending session input.
+type SessionInputRecord = contract.SessionInputPayload
+
+// SessionInputListRecord is the daemon response for pending session input.
+type SessionInputListRecord = contract.SessionInputListResponse
+
+// ReplaceSessionInputRequest replaces the authored text and identity of queued input.
+type ReplaceSessionInputRequest = contract.ReplaceSessionInputRequest
+
+// PromoteSessionInputRequest converts queued input into fenced steering input.
+type PromoteSessionInputRequest = contract.PromoteSessionInputRequest
+
 // SessionPromptRecord wraps prompt outcomes that may either stream events or return a busy-input decision.
 type SessionPromptRecord struct {
 	Prompt SessionPromptResultRecord   `json:"prompt"`

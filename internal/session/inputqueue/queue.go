@@ -100,7 +100,15 @@ func (s *Service) Enqueue(
 	generation int64,
 	runtime store.SessionInputRuntime,
 ) (store.SessionInputQueueEntry, int, error) {
-	insert, err := s.newInsert(sessionID, text, store.SessionInputQueueModeQueue, generation, runtime)
+	insert, err := s.newInsert(
+		sessionID,
+		text,
+		store.SessionInputQueueModeQueue,
+		store.SessionInputDeliveryAfterTurn,
+		"",
+		generation,
+		runtime,
+	)
 	if err != nil {
 		return store.SessionInputQueueEntry{}, 0, err
 	}
@@ -124,6 +132,8 @@ func (s *Service) EnqueueAdmitted(
 		admission,
 		generation,
 		store.SessionInputQueueModeQueue,
+		store.SessionInputDeliveryAfterTurn,
+		"",
 	)
 	if err != nil {
 		return store.SessionPromptAdmission{}, store.SessionInputQueueEntry{}, 0, false, err
@@ -143,31 +153,86 @@ func (s *Service) EnqueueAdmitted(
 	return receipt, entry, position, created, nil
 }
 
-// StageSteer stages replacement steering guidance while a turn is active.
+// EnqueueInterrupt persists replacement input before the active turn is canceled.
+func (s *Service) EnqueueInterrupt(
+	ctx context.Context,
+	sessionID string,
+	text string,
+	targetTurnID string,
+	runtime store.SessionInputRuntime,
+) (store.SessionInputQueueEntry, int, error) {
+	insert, err := s.newInsert(
+		sessionID,
+		text,
+		store.SessionInputQueueModeInterrupt,
+		store.SessionInputDeliveryInterruptThenPrompt,
+		targetTurnID,
+		0,
+		runtime,
+	)
+	if err != nil {
+		return store.SessionInputQueueEntry{}, 0, err
+	}
+	return s.store.EnqueueInterruptSessionInput(ctx, insert)
+}
+
+// EnqueueAdmittedInterrupt atomically persists a replacement command receipt and queue entry.
+func (s *Service) EnqueueAdmittedInterrupt(
+	ctx context.Context,
+	admission store.SessionPromptAdmissionRequest,
+	targetTurnID string,
+) (store.SessionPromptAdmission, store.SessionInputQueueEntry, bool, error) {
+	admissionStore, insert, err := s.prepareAdmittedEntry(
+		admission,
+		0,
+		store.SessionInputQueueModeInterrupt,
+		store.SessionInputDeliveryInterruptThenPrompt,
+		targetTurnID,
+	)
+	if err != nil {
+		return store.SessionPromptAdmission{}, store.SessionInputQueueEntry{}, false, err
+	}
+	receipt, entry, _, created, err := admissionStore.EnqueueAdmittedSessionInput(ctx, admission, insert)
+	return receipt, entry, created, err
+}
+
+// StageSteer persists replacement steering guidance while a turn is active.
 func (s *Service) StageSteer(
 	ctx context.Context,
 	sessionID string,
 	text string,
+	targetTurnID string,
 	generation int64,
 	runtime store.SessionInputRuntime,
 ) (store.SessionInputQueueEntry, error) {
-	insert, err := s.newInsert(sessionID, text, store.SessionInputQueueModeSteer, generation, runtime)
+	insert, err := s.newInsert(
+		sessionID,
+		text,
+		store.SessionInputQueueModeSteer,
+		store.SessionInputDeliveryInterruptThenPrompt,
+		targetTurnID,
+		generation,
+		runtime,
+	)
 	if err != nil {
 		return store.SessionInputQueueEntry{}, err
 	}
 	return s.store.StageSessionSteer(ctx, insert)
 }
 
-// StageAdmittedSteer atomically persists one external receipt and its staged steer entry.
+// StageAdmittedSteer atomically persists one external receipt and its steering entry.
 func (s *Service) StageAdmittedSteer(
 	ctx context.Context,
 	admission store.SessionPromptAdmissionRequest,
+	targetTurnID string,
 	generation int64,
 ) (store.SessionPromptAdmission, store.SessionInputQueueEntry, bool, error) {
 	admissionStore, insert, err := s.prepareAdmittedEntry(
 		admission,
 		generation,
 		store.SessionInputQueueModeSteer,
+		store.SessionInputDeliveryInterruptThenPrompt,
+		targetTurnID,
 	)
 	if err != nil {
 		return store.SessionPromptAdmission{}, store.SessionInputQueueEntry{}, false, err
@@ -179,6 +244,8 @@ func (s *Service) prepareAdmittedEntry(
 	admission store.SessionPromptAdmissionRequest,
 	generation int64,
 	mode string,
+	delivery string,
+	targetTurnID string,
 ) (store.SessionPromptAdmissionStore, store.SessionInputQueueInsert, error) {
 	admissionStore, ok := s.store.(store.SessionPromptAdmissionStore)
 	if !ok {
@@ -190,6 +257,8 @@ func (s *Service) prepareAdmittedEntry(
 		admission.SessionID,
 		admission.AuthoredText,
 		mode,
+		delivery,
+		targetTurnID,
 		generation,
 		admission.Runtime,
 	)
@@ -197,14 +266,6 @@ func (s *Service) prepareAdmittedEntry(
 		return nil, store.SessionInputQueueInsert{}, err
 	}
 	return admissionStore, insert, nil
-}
-
-// ConsumeSteer atomically consumes the current staged steer entry, if any.
-func (s *Service) ConsumeSteer(
-	ctx context.Context,
-	sessionID string,
-) (store.SessionInputQueueEntry, bool, error) {
-	return s.store.ConsumeSessionSteer(ctx, strings.TrimSpace(sessionID), s.now())
 }
 
 // ClaimNext leases the next input eligible for dispatch.
@@ -256,6 +317,19 @@ func (s *Service) Get(
 	return entry, nil
 }
 
+// List returns current pending operator inputs in dispatch order.
+func (s *Service) List(
+	ctx context.Context,
+	sessionID string,
+) ([]store.SessionInputQueueEntry, error) {
+	target := strings.TrimSpace(sessionID)
+	entries, err := s.store.ListPendingSessionInputs(ctx, target)
+	if err != nil {
+		return nil, fmt.Errorf("inputqueue: list inputs for session %q: %w", target, err)
+	}
+	return entries, nil
+}
+
 // MarkSent records successful dispatch.
 func (s *Service) MarkSent(ctx context.Context, sessionID string, entryID string) error {
 	return s.store.MarkSessionInputSent(ctx, sessionID, entryID, s.now())
@@ -276,19 +350,6 @@ func (s *Service) Cancel(ctx context.Context, sessionID string, entryID string) 
 	return s.store.CancelSessionInput(ctx, sessionID, entryID, s.now())
 }
 
-// AdvanceGeneration fences older entries and returns the new generation.
-func (s *Service) AdvanceGeneration(ctx context.Context, sessionID string) (int64, int, error) {
-	generation, err := s.store.AdvanceSessionInputGeneration(ctx, sessionID, s.now())
-	if err != nil {
-		return 0, 0, err
-	}
-	canceled, err := s.store.CancelPendingSessionInputs(ctx, sessionID, generation, s.now())
-	if err != nil {
-		return 0, 0, err
-	}
-	return generation, canceled, nil
-}
-
 // CurrentGeneration reads the current persisted generation for queue fencing.
 func (s *Service) CurrentGeneration(ctx context.Context, sessionID string) (int64, error) {
 	return s.store.CurrentSessionInputGeneration(ctx, sessionID)
@@ -298,6 +359,8 @@ func (s *Service) newInsert(
 	sessionID string,
 	text string,
 	mode string,
+	delivery string,
+	targetTurnID string,
 	generation int64,
 	runtime store.SessionInputRuntime,
 ) (store.SessionInputQueueInsert, error) {
@@ -319,6 +382,8 @@ func (s *Service) newInsert(
 		ID:                strings.TrimSpace(s.newID()),
 		SessionID:         target,
 		Mode:              mode,
+		Delivery:          delivery,
+		TargetTurnID:      strings.TrimSpace(targetTurnID),
 		Text:              message,
 		Runtime:           runtime,
 		SessionGeneration: generation,

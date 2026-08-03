@@ -93,9 +93,6 @@ func (m *Manager) dispatchHumanQueuedInput(
 	session *Session,
 	entry humanQueuedInput,
 ) {
-	if entry.mode == store.SessionInputQueueModeSteer {
-		m.emitQueuedSteerFallback(session, entry)
-	}
 	req := m.newQueuedInputPromptRequest(target, entry)
 	events, err := m.submitPromptRequest(m.fallbackLifecycleContext(), req)
 	if err != nil {
@@ -103,20 +100,7 @@ func (m *Manager) dispatchHumanQueuedInput(
 		return
 	}
 	m.acceptQueuedInputDispatch(session, target, entry, req)
-	go m.drainQueuedInputEvents(target, events)
-}
-
-func (m *Manager) emitQueuedSteerFallback(session *Session, entry humanQueuedInput) {
-	evidence := queueEntryEvidence(entry.id, entry.sessionGeneration, entry.status, entry.mode, 0)
-	evidence["fallback_to_queue"] = true
-	m.emitTranscriptMarker(
-		m.fallbackLifecycleContext(),
-		session,
-		session.CurrentTurnID(),
-		transcript.MarkerPromptSteered,
-		"Staged steering input fell back to queued dispatch.",
-		evidence,
-	)
+	go m.drainQueuedInputEvents(events)
 }
 
 func (m *Manager) newQueuedInputPromptRequest(
@@ -187,11 +171,10 @@ func (m *Manager) acceptQueuedInputDispatch(
 	)
 }
 
-func (m *Manager) drainQueuedInputEvents(sessionID string, events <-chan acp.AgentEvent) {
+func (m *Manager) drainQueuedInputEvents(events <-chan acp.AgentEvent) {
 	finishDrain := m.trackPromptDrain()
 	defer finishDrain()
 	for range events {
 		continue
 	}
-	m.startNextQueuedInputPrompt(sessionID)
 }

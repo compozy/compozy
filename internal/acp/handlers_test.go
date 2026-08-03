@@ -1606,43 +1606,6 @@ func TestHandleSessionUpdateAvailableCommands(t *testing.T) {
 	})
 }
 
-func TestSteeredUserEvent(t *testing.T) {
-	t.Run("Should preserve the durable admission identity", func(t *testing.T) {
-		t.Parallel()
-
-		event := steeredUserEvent(" session-steer ", " turn-steer ", SteerInput{
-			Text:            " steer this turn ",
-			QueueEntryID:    " queue-steer ",
-			QueueGeneration: 7,
-			MessageID:       " message-steer ",
-			TurnID:          " turn-steer ",
-			EventID:         " event-steer ",
-		})
-
-		if got, want := event.Type, EventTypeUserMessage; got != want {
-			t.Fatalf("event type = %q, want %q", got, want)
-		}
-		if got, want := event.SessionID, "session-steer"; got != want {
-			t.Fatalf("session id = %q, want %q", got, want)
-		}
-		if got, want := event.TurnID, "turn-steer"; got != want {
-			t.Fatalf("turn id = %q, want %q", got, want)
-		}
-		if got, want := event.MessageIDValue(), "message-steer"; got != want {
-			t.Fatalf("message id = %q, want %q", got, want)
-		}
-		if got, want := event.EventIDValue(), "event-steer"; got != want {
-			t.Fatalf("event id = %q, want %q", got, want)
-		}
-		if got, want := event.RequestID, "queue-steer"; got != want {
-			t.Fatalf("queue entry id = %q, want %q", got, want)
-		}
-		if got, want := event.Decision, "7"; got != want {
-			t.Fatalf("queue generation = %q, want %q", got, want)
-		}
-	})
-}
-
 func TestHandleSessionUpdateMarksToolCallAsPrecheckedAfterGatewayIntercept(t *testing.T) {
 	t.Parallel()
 

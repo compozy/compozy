@@ -53,6 +53,10 @@ const (
 	hostAPISandboxListPath              = "sandbox/list"
 	hostAPIScopeKey                     = "scope"
 	hostAPISessionIDKey                 = "session_id"
+	hostAPISessionsInputsCancelPath     = "sessions/inputs/cancel"
+	hostAPISessionsInputsListPath       = "sessions/inputs/list"
+	hostAPISessionsInputsPromotePath    = "sessions/inputs/promote"
+	hostAPISessionsInputsReplacePath    = "sessions/inputs/replace"
 	hostAPISessionsListPath             = "sessions/list"
 	hostAPISessionsPromptPath           = "sessions/prompt"
 	hostAPISessionsStatusPath           = "sessions/status"
@@ -156,6 +160,23 @@ type hostAPISessionAcceptanceManager interface {
 
 type hostAPIRuntimePromptSessionManager interface {
 	SendPrompt(ctx context.Context, id string, opts session.SendPromptOpts) (session.SendPromptResult, error)
+}
+
+type hostAPIPendingInputSessionManager interface {
+	ListPendingInputs(ctx context.Context, id string) ([]session.PendingInput, error)
+	ReplacePendingInput(
+		ctx context.Context,
+		id string,
+		entryID string,
+		opts session.ReplacePendingInputOpts,
+	) (session.PendingInput, error)
+	PromotePendingInputToSteer(
+		ctx context.Context,
+		id string,
+		entryID string,
+		opts session.PromotePendingInputOpts,
+	) (session.SendPromptResult, error)
+	CancelQueuedPrompt(ctx context.Context, id string, queueEntryID string) (session.SendPromptResult, error)
 }
 
 type hostAPIBridgePromptSessionManager interface {

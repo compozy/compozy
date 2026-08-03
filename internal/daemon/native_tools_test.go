@@ -1386,6 +1386,10 @@ func TestDaemonNativeTools(t *testing.T) {
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDSessionList)
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDSessionCreate)
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDSessionPrompt)
+		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDSessionInputsList)
+		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDSessionInputReplace)
+		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDSessionInputCancel)
+		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDSessionInputPromote)
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDSessionHealth)
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDAgentHeartbeatStatus)
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDAgentHeartbeatWake)
@@ -1413,6 +1417,10 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.ToolIDSessionList,
 			toolspkg.ToolIDSessionCreate,
 			toolspkg.ToolIDSessionPrompt,
+			toolspkg.ToolIDSessionInputsList,
+			toolspkg.ToolIDSessionInputReplace,
+			toolspkg.ToolIDSessionInputCancel,
+			toolspkg.ToolIDSessionInputPromote,
 			toolspkg.ToolIDSessionHealth,
 			toolspkg.ToolIDAgentHeartbeatStatus,
 			toolspkg.ToolIDAgentHeartbeatWake,
@@ -5307,6 +5315,21 @@ func TestDaemonNativeTools(t *testing.T) {
 		var seenListQuery session.ListQuery
 		var acceptedCreate session.CreateAcceptedOpts
 		var submittedPrompt session.SendPromptOpts
+		var listedInputSessionID string
+		var replacedInput struct {
+			sessionID string
+			entryID   string
+			opts      session.ReplacePendingInputOpts
+		}
+		var canceledInput struct {
+			sessionID string
+			entryID   string
+		}
+		var promotedInput struct {
+			sessionID string
+			entryID   string
+			opts      session.PromotePendingInputOpts
+		}
 		promptEvents := make(chan acp.AgentEvent)
 		promptAccepted := make(chan struct{})
 		info := &session.Info{
@@ -5387,8 +5410,81 @@ func TestDaemonNativeTools(t *testing.T) {
 					close(promptAccepted)
 					return session.SendPromptResult{
 						Status:    "accepted",
+						Delivery:  store.SessionInputDeliveryDirect,
 						NewTurnID: "turn-native",
 						Events:    promptEvents,
+					}, nil
+				},
+				ListPendingInputsFn: func(_ context.Context, id string) ([]session.PendingInput, error) {
+					listedInputSessionID = id
+					return []session.PendingInput{{
+						ID:              "input-queued",
+						SessionID:       id,
+						MessageID:       "msg-queued",
+						IdempotencyKey:  "idem-queued",
+						TargetTurnID:    "turn-active",
+						Status:          "queued",
+						Mode:            session.BusyInputModeQueue,
+						Delivery:        store.SessionInputDeliveryAfterTurn,
+						Text:            "queued review",
+						QueueGeneration: 4,
+						EnqueuedAt:      now,
+					}}, nil
+				},
+				ReplacePendingInputFn: func(
+					_ context.Context,
+					id string,
+					entryID string,
+					opts session.ReplacePendingInputOpts,
+				) (session.PendingInput, error) {
+					replacedInput.sessionID = id
+					replacedInput.entryID = entryID
+					replacedInput.opts = opts
+					return session.PendingInput{
+						ID:              entryID,
+						SessionID:       id,
+						MessageID:       opts.MessageID,
+						IdempotencyKey:  opts.IdempotencyKey,
+						Status:          "queued",
+						Mode:            session.BusyInputModeQueue,
+						Delivery:        store.SessionInputDeliveryAfterTurn,
+						Text:            opts.Text,
+						QueueGeneration: 4,
+						EnqueuedAt:      now,
+					}, nil
+				},
+				CancelQueuedFn: func(
+					_ context.Context,
+					id string,
+					entryID string,
+				) (session.SendPromptResult, error) {
+					canceledInput.sessionID = id
+					canceledInput.entryID = entryID
+					return session.SendPromptResult{
+						Status:          "canceled",
+						Mode:            session.BusyInputModeQueue,
+						Delivery:        store.SessionInputDeliveryNone,
+						QueueEntryID:    entryID,
+						QueueGeneration: 4,
+					}, nil
+				},
+				PromotePendingInputFn: func(
+					_ context.Context,
+					id string,
+					entryID string,
+					opts session.PromotePendingInputOpts,
+				) (session.SendPromptResult, error) {
+					promotedInput.sessionID = id
+					promotedInput.entryID = entryID
+					promotedInput.opts = opts
+					return session.SendPromptResult{
+						Status:          "steering",
+						Mode:            session.BusyInputModeSteer,
+						Delivery:        store.SessionInputDeliveryInterruptThenPrompt,
+						MessageID:       opts.MessageID,
+						IdempotencyKey:  opts.IdempotencyKey,
+						QueueEntryID:    entryID,
+						QueueGeneration: 4,
 					}, nil
 				},
 				EventsFn: func(_ context.Context, id string, query store.EventQuery) ([]store.SessionEvent, error) {
@@ -5504,7 +5600,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				toolspkg.CallRequest{
 					ToolID: toolspkg.ToolIDSessionPrompt,
 					Input: json.RawMessage(
-						`{"workspace":"ws-stable","session_id":"sess-1","message":"review","message_id":"msg-native","idempotency_key":"idem-native","runtime":{"provider":"codex","model":"gpt-5.6-sol","reasoning_effort":"high","speed":"fast"}}`,
+						`{"workspace":"ws-stable","session_id":"sess-1","message":"review","message_id":"msg-native","idempotency_key":"idem-native","mode":"steer","expected_turn_id":"turn-active","runtime":{"provider":"codex","model":"gpt-5.6-sol","reasoning_effort":"high","speed":"fast"}}`,
 					),
 				},
 			)
@@ -5529,12 +5625,93 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("Registry.Call(session_prompt) error = %v", promptCallResult.err)
 		}
 		if submittedPrompt.Message != "review" || submittedPrompt.MessageID != "msg-native" ||
-			submittedPrompt.IdempotencyKey != "idem-native" || submittedPrompt.Runtime == nil ||
+			submittedPrompt.IdempotencyKey != "idem-native" || submittedPrompt.Mode != session.BusyInputModeSteer ||
+			submittedPrompt.ExpectedTurnID != "turn-active" || submittedPrompt.Runtime == nil ||
 			submittedPrompt.Runtime.Provider != "codex" || submittedPrompt.Runtime.Model != "gpt-5.6-sol" ||
 			submittedPrompt.Runtime.ReasoningEffort != "high" || submittedPrompt.Runtime.Speed != "fast" {
 			t.Fatalf("session_prompt opts = %#v", submittedPrompt)
 		}
-		requireNativeStructuredContains(t, promptCallResult.result, []byte(`"accepted"`))
+		requireNativeStructuredContains(t, promptCallResult.result, []byte(`"delivery":"direct"`))
+
+		inputsResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionInputsList,
+				Input:  json.RawMessage(`{"workspace":"ws-stable","session_id":"sess-1"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(session_inputs_list) error = %v", err)
+		}
+		if listedInputSessionID != "sess-1" {
+			t.Fatalf("ListPendingInputs session ID = %q, want sess-1", listedInputSessionID)
+		}
+		var inputsResponse contract.SessionInputListResponse
+		if err := json.Unmarshal(inputsResult.Structured, &inputsResponse); err != nil {
+			t.Fatalf("json.Unmarshal(session_inputs_list result) error = %v", err)
+		}
+		if len(inputsResponse.Inputs) != 1 || inputsResponse.Inputs[0].ID != "input-queued" ||
+			inputsResponse.Inputs[0].Delivery != contract.PromptDeliveryAfterTurn ||
+			inputsResponse.Inputs[0].QueueGeneration != 4 {
+			t.Fatalf("session_inputs_list response = %#v, want durable queued input", inputsResponse)
+		}
+
+		updatedResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionInputReplace,
+				Input: json.RawMessage(
+					`{"workspace":"ws-stable","session_id":"sess-1","queue_entry_id":"input-queued","text":"revised review","message_id":"msg-revised","idempotency_key":"idem-revised"}`,
+				),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(session_input_replace) error = %v", err)
+		}
+		if replacedInput.sessionID != "sess-1" || replacedInput.entryID != "input-queued" ||
+			replacedInput.opts.Text != "revised review" || replacedInput.opts.MessageID != "msg-revised" ||
+			replacedInput.opts.IdempotencyKey != "idem-revised" {
+			t.Fatalf("ReplacePendingInput request = %#v, want durable replacement", replacedInput)
+		}
+		requireNativeStructuredContains(t, updatedResult, []byte(`"text":"revised review"`))
+
+		canceledResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionInputCancel,
+				Input:  json.RawMessage(`{"workspace":"ws-stable","session_id":"sess-1","queue_entry_id":"input-queued"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(session_input_cancel) error = %v", err)
+		}
+		if canceledInput.sessionID != "sess-1" || canceledInput.entryID != "input-queued" {
+			t.Fatalf("CancelQueuedPrompt request = %#v, want sess-1/input-queued", canceledInput)
+		}
+		requireNativeStructuredContains(t, canceledResult, []byte(`"delivery":"none"`))
+
+		promotedResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionInputPromote,
+				Input: json.RawMessage(
+					`{"workspace":"ws-stable","session_id":"sess-1","queue_entry_id":"input-queued","text":"steer now","message_id":"msg-steer","idempotency_key":"idem-steer","expected_turn_id":"turn-active"}`,
+				),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(session_input_promote) error = %v", err)
+		}
+		if promotedInput.sessionID != "sess-1" || promotedInput.entryID != "input-queued" ||
+			promotedInput.opts.Text != "steer now" || promotedInput.opts.MessageID != "msg-steer" ||
+			promotedInput.opts.IdempotencyKey != "idem-steer" || promotedInput.opts.ExpectedTurnID != "turn-active" {
+			t.Fatalf("PromotePendingInputToSteer request = %#v, want queue-to-steer promotion", promotedInput)
+		}
+		requireNativeStructuredContains(t, promotedResult, []byte(`"delivery":"interrupt_then_prompt"`))
 
 		listResult, err := registry.Call(
 			t.Context(),
@@ -5614,6 +5791,23 @@ func TestDaemonNativeTools(t *testing.T) {
 		)
 		if err == nil {
 			t.Fatal("Registry.Call(session_status foreign workspace) error = nil, want ownership rejection")
+		}
+
+		_, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionInputReplace,
+				Input: json.RawMessage(
+					`{"workspace":"ws-foreign-stable","session_id":"sess-1","queue_entry_id":"must-not-replace","text":"foreign","message_id":"msg-foreign","idempotency_key":"idem-foreign"}`,
+				),
+			},
+		)
+		if err == nil {
+			t.Fatal("Registry.Call(session_input_replace foreign workspace) error = nil, want ownership rejection")
+		}
+		if replacedInput.entryID != "input-queued" {
+			t.Fatalf("ReplacePendingInput entry ID = %q after foreign call, want input-queued", replacedInput.entryID)
 		}
 	})
 

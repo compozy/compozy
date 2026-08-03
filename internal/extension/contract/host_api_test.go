@@ -125,8 +125,12 @@ func TestSessionsPromptContractExposesDurableIdentity(t *testing.T) {
 			raw  []byte
 			want []string
 		}{
-			"SessionsPromptParams": {raw: params, want: []string{"message_id", "idempotency_key"}},
-			"SessionPromptResult":  {raw: result, want: []string{"message_id", "idempotency_key", "replayed"}},
+			"SessionsPromptParams": {
+				raw: params, want: []string{"message_id", "idempotency_key"},
+			},
+			"SessionPromptResult": {
+				raw: result, want: []string{"status", "delivery", "message_id", "idempotency_key", "replayed"},
+			},
 		}
 		for owner, fixture := range fixtures {
 			var decoded map[string]json.RawMessage
@@ -157,6 +161,54 @@ func TestSessionsPromptContractExposesDurableIdentity(t *testing.T) {
 			return
 		}
 		t.Fatal("HostAPIMethodSpecs() missing sessions/prompt")
+	})
+}
+
+func TestSessionInputContractsExposeDurableMutations(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should register workspace-scoped pending input operations", func(t *testing.T) {
+		t.Parallel()
+
+		type expectedSpec struct {
+			paramsName string
+			paramsType reflect.Type
+			resultName string
+			resultType reflect.Type
+		}
+		want := map[HostAPIMethod]expectedSpec{
+			HostAPIMethodSessionsInputsList: {
+				paramsName: "SessionInputsListParams", paramsType: reflect.TypeFor[SessionInputsListParams](),
+				resultName: "SessionInputListResult", resultType: reflect.TypeFor[SessionInputListResult](),
+			},
+			HostAPIMethodSessionsInputsReplace: {
+				paramsName: "SessionInputReplaceParams", paramsType: reflect.TypeFor[SessionInputReplaceParams](),
+				resultName: "SessionInputResult", resultType: reflect.TypeFor[SessionInputResult](),
+			},
+			HostAPIMethodSessionsInputsCancel: {
+				paramsName: "SessionInputTargetParams", paramsType: reflect.TypeFor[SessionInputTargetParams](),
+				resultName: "SessionPromptResult", resultType: reflect.TypeFor[SessionPromptResult](),
+			},
+			HostAPIMethodSessionsInputsPromote: {
+				paramsName: "SessionInputPromoteParams", paramsType: reflect.TypeFor[SessionInputPromoteParams](),
+				resultName: "SessionPromptResult", resultType: reflect.TypeFor[SessionPromptResult](),
+			},
+		}
+
+		for _, spec := range HostAPIMethodSpecs() {
+			expected, ok := want[spec.Method]
+			if !ok {
+				continue
+			}
+			if spec.Params.Name != expected.paramsName || reflect.TypeOf(spec.Params.Value) != expected.paramsType ||
+				spec.Result.Name != expected.resultName || reflect.TypeOf(spec.Result.Value) != expected.resultType {
+				t.Fatalf("HostAPIMethodSpecs()[%q] = %#v", spec.Method, spec)
+			}
+			delete(want, spec.Method)
+		}
+		if len(want) != 0 {
+			t.Fatalf("HostAPIMethodSpecs() missing durable input operations: %#v", want)
+		}
 	})
 }
 

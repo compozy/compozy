@@ -7,11 +7,9 @@ import { useSessionTranscriptThreadState } from "@/systems/session";
 import type { SessionFailurePayload, SessionState } from "@/systems/session";
 import { useThreadScrollController } from "./hooks/use-thread-scroll-controller";
 import { useOlderTranscriptAnchor } from "./hooks/use-older-transcript-anchor";
-import { usePrefersReducedMotion } from "./hooks/use-prefers-reduced-motion";
 import { ScrollToBottomPill } from "./scroll-to-bottom-pill";
 import { ThreadContentRail, type SessionThreadContentInset } from "./session-thread-content-rail";
 import { ThreadMessages } from "./session-thread-messages";
-import { WorkingIndicator } from "./session-working-row";
 
 type ThreadViewportProps = ComponentPropsWithoutRef<typeof ThreadPrimitive.Viewport>;
 
@@ -28,7 +26,6 @@ export function ThreadViewport({
   sessionState,
   failure,
   startupFailed,
-  showPromptDispatchWorking,
   className,
   ...props
 }: ThreadViewportProps & {
@@ -39,10 +36,8 @@ export function ThreadViewport({
   sessionState?: SessionState;
   failure?: SessionFailurePayload | null;
   startupFailed: boolean;
-  showPromptDispatchWorking: boolean;
 }) {
   const viewportRef = useRef<HTMLDivElement | null>(null);
-  const reducedMotion = usePrefersReducedMotion();
   const {
     messages: transcriptMessages,
     status: transcriptStatus,
@@ -89,11 +84,6 @@ export function ThreadViewport({
             failure={failure}
             startupFailed={startupFailed}
           />
-          {showPromptDispatchWorking && messageCount > 0 ? (
-            <div className="flex w-full min-w-0 items-start pb-transcript-turn-gap pt-1">
-              <WorkingIndicator reducedMotion={reducedMotion} />
-            </div>
-          ) : null}
         </ThreadContentRail>
       </ThreadPrimitive.Viewport>
       <ScrollToBottomPill visible={showScrollToBottom} onClick={scrollToEnd} />

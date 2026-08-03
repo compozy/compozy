@@ -9,6 +9,12 @@ import {
 import { SessionClearDialog, SessionDeleteDialog } from "./session-window-dialogs";
 import { useSessionWindowController } from "./use-session-window-controller";
 
+function workingStartedAt(value: string | null | undefined): number | undefined {
+  if (!value) return undefined;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
 export function SessionWindowContent({
   agentName,
   sessionId,
@@ -54,6 +60,11 @@ export function SessionWindowContent({
           acpSessionId={session.runtime.acp_session_id}
           sessionState={session.state}
           failure={session.failure}
+          workingStartedAt={
+            controls.isSessionRunning
+              ? workingStartedAt(session.activity?.turn_started_at)
+              : undefined
+          }
           canPrompt={controls.canPrompt}
           onCancelPrompt={controls.handleStop}
           onQueuePrompt={controls.handleQueuePrompt}
@@ -62,8 +73,10 @@ export function SessionWindowContent({
           isBusyInputPending={controls.isBusyInputPending}
           isSessionRunning={controls.isSessionRunning}
           allowBusyInput={controls.allowBusyInput}
+          busyInputFenceAvailable={Boolean(session.activity?.turn_id?.trim())}
           queuedPrompts={controls.queuedPrompts}
           onRemoveQueuedPrompt={controls.handleRemoveQueuedPrompt}
+          onReplaceQueuedPrompt={controls.handleReplaceQueuedPrompt}
           onSteerQueuedPrompt={controls.handleSteerQueuedPrompt}
           runtimeControl={<SessionPromptRuntimeSelector canPrompt={controls.canPrompt} />}
         />

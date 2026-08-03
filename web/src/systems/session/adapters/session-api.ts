@@ -25,6 +25,12 @@ import {
 
 export { fetchSessions } from "./session-catalog-api";
 export { fetchSessionGoal } from "./session-goal-api";
+export {
+  cancelQueuedSessionPrompt,
+  fetchSessionInputs,
+  promoteSessionInputToSteer,
+  replaceSessionInput,
+} from "./session-input-api";
 export { buildSessionStreamUrl, fetchSessionTranscript } from "./session-transcript-api";
 export type { SessionStreamCursor } from "./session-transcript-api";
 export { SessionApiError, SessionNotFoundError } from "./session-api-errors";
@@ -167,24 +173,6 @@ export async function sendSessionPrompt(
   return result.prompt.goal ?? result.prompt;
 }
 
-export async function interruptSessionPrompt(
-  workspaceId: string,
-  id: string,
-  signal?: AbortSignal
-): Promise<SessionPromptPayload> {
-  const { data, error, response } = await apiClient.POST(
-    "/api/workspaces/{workspace_id}/sessions/{session_id}/interrupt",
-    {
-      params: { path: { workspace_id: workspaceId, session_id: id } },
-      signal,
-    }
-  );
-  if (apiRequestFailed(response, error)) {
-    throwSessionRequestError(response, error, `Failed to interrupt session "${id}"`, id);
-  }
-  return requireResponseData(data, response, `Failed to interrupt session "${id}"`).prompt;
-}
-
 export async function steerSessionPrompt(
   workspaceId: string,
   id: string,
@@ -203,40 +191,6 @@ export async function steerSessionPrompt(
     throwSessionRequestError(response, error, `Failed to steer session "${id}"`, id);
   }
   return requireResponseData(data, response, `Failed to steer session "${id}"`).prompt;
-}
-
-export async function cancelQueuedSessionPrompt(
-  workspaceId: string,
-  id: string,
-  queueEntryId: string,
-  signal?: AbortSignal
-): Promise<SessionPromptPayload> {
-  const { data, error, response } = await apiClient.DELETE(
-    "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue/{queue_entry_id}",
-    {
-      params: {
-        path: {
-          workspace_id: workspaceId,
-          session_id: id,
-          queue_entry_id: queueEntryId,
-        },
-      },
-      signal,
-    }
-  );
-  if (apiRequestFailed(response, error)) {
-    throwSessionRequestError(
-      response,
-      error,
-      `Failed to cancel queued prompt "${queueEntryId}" for session "${id}"`,
-      id
-    );
-  }
-  return requireResponseData(
-    data,
-    response,
-    `Failed to cancel queued prompt "${queueEntryId}" for session "${id}"`
-  ).prompt;
 }
 
 export async function resumeSession(
