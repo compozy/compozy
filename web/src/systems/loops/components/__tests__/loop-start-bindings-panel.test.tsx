@@ -15,9 +15,15 @@ const BINDINGS: LoopBindingRow[] = [
   },
 ];
 
+/** The rail card folds by default; open it the way an operator would. */
+function openStart() {
+  fireEvent.click(screen.getByRole("button", { name: /Start/ }));
+}
+
 describe("LoopStartBindingsPanel", () => {
   it("Should render the declared start kinds and attached automation rows", () => {
     render(<LoopStartBindingsPanel declaredKinds={DECLARED} bindings={BINDINGS} />);
+    openStart();
     const kinds = screen.getAllByTestId("loop-declared-kind").map(node => node.textContent);
     expect(kinds).toEqual(DECLARED);
     const row = screen.getByTestId("loop-binding-row");
@@ -28,6 +34,7 @@ describe("LoopStartBindingsPanel", () => {
 
   it("Should show the empty state when no automations are attached", () => {
     render(<LoopStartBindingsPanel declaredKinds={DECLARED} bindings={[]} />);
+    openStart();
     expect(screen.getByTestId("loop-bindings-empty")).toBeInTheDocument();
     expect(screen.queryByTestId("loop-binding-row")).not.toBeInTheDocument();
   });
@@ -41,6 +48,7 @@ describe("LoopStartBindingsPanel", () => {
         onAddSchedule={onAddSchedule}
       />
     );
+    openStart();
     // software-delivery declares schedule but not trigger/webhook.
     expect(screen.getByTestId("loop-add-schedule")).toBeInTheDocument();
     expect(screen.queryByTestId("loop-add-trigger")).not.toBeInTheDocument();
@@ -50,6 +58,7 @@ describe("LoopStartBindingsPanel", () => {
 
   it("Should offer Add trigger when the loop declares a trigger or webhook start", () => {
     render(<LoopStartBindingsPanel declaredKinds={["manual", "webhook"]} bindings={[]} />);
+    openStart();
     expect(screen.getByTestId("loop-add-trigger")).toBeInTheDocument();
     expect(screen.queryByTestId("loop-add-schedule")).not.toBeInTheDocument();
   });
@@ -78,6 +87,7 @@ describe("LoopStartBindingsPanel", () => {
         }}
       />
     );
+    openStart();
 
     expect(screen.getByTestId("loop-bindings-progress")).toHaveTextContent(
       "68 of 90 attached loaded"

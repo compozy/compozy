@@ -12,7 +12,7 @@ import {
 import {
   buildOverrideFields,
   clampOverrideValue,
-  hasActiveOverrides,
+  summarizeRunLimits,
   type LoopBudgetPolicy,
   type LoopOverrideDraft,
   type LoopOverrideField,
@@ -43,11 +43,12 @@ function setOverrideValue(
 }
 
 /**
- * The Advanced per-run limit overrides (§4.3): a collapsible grid of the 6 clamped
- * fields (each showing its per-loop default + daemon ceiling) plus the budget-exceeded
- * policy. Values clamp at the ceiling and the badge flips "using loop defaults" ->
- * "overrides set" the moment any field diverges from its default. There is NO cost-cap
- * field — cost is display-only (ADR-017 §9.5.2).
+ * Per-run limits (§4.3): folded by default but never silent — the summary states the
+ * generations, whether a budget is enforced, and whether the loop's saved defaults are
+ * still in play, so folding hides detail rather than truth. Open, it is the grid of 6
+ * clamped fields (each showing its per-loop default + daemon ceiling) plus the
+ * budget-exceeded policy. There is NO cost-cap field — cost is display-only
+ * (ADR-017 §9.5.2).
  */
 export function LoopRunOverrides({
   effectiveConfig,
@@ -56,7 +57,6 @@ export function LoopRunOverrides({
   onChange,
 }: LoopRunOverridesProps) {
   const fields = buildOverrideFields(effectiveConfig);
-  const overridden = hasActiveOverrides(draft, effectiveConfig);
   return (
     <Collapsible
       className="rounded-md border border-line-soft bg-canvas-tint"
@@ -64,12 +64,12 @@ export function LoopRunOverrides({
     >
       <CollapsibleTrigger className="group/collapsible-trigger flex w-full items-center gap-2.5 px-3.5 py-3 text-left text-xs font-semibold text-fg-strong">
         <ChevronRight className="size-3.5 text-muted transition-transform group-data-panel-open/collapsible-trigger:rotate-90" />
-        <span className="flex-1">Advanced · per-run limit overrides</span>
+        <span className="flex-1">Limits · this run only</span>
         <span
           className="text-form-hint font-normal text-subtle"
           data-testid="loop-run-overrides-badge"
         >
-          {overridden ? "overrides set" : "using loop defaults"}
+          {summarizeRunLimits(draft, effectiveConfig)}
         </span>
       </CollapsibleTrigger>
       <CollapsibleContent className="border-t border-line-soft px-3.5 pt-3 pb-4">

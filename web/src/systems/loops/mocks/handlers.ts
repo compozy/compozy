@@ -13,6 +13,7 @@ import type {
   LoopValidationIssue,
 } from "@/systems/loops";
 
+import { loopCategory, loopKind } from "../lib/loop-catalog";
 import {
   loopAnnotationsFixture,
   loopCatalogFixtures,
@@ -26,6 +27,42 @@ import {
 import { lintDefinition } from "./lint-definition";
 
 const catalogByName = new Map(loopCatalogFixtures.map(entry => [entry.name, entry]));
+
+/** Server-owned catalog read: the daemon filters, counts, and reports facets, not the client. */
+function readCatalogPage(url: URL) {
+  const q = (url.searchParams.get("q") ?? "").trim().toLowerCase();
+  const kind = url.searchParams.get("kind");
+  const category = url.searchParams.get("category");
+  const status = url.searchParams.get("status");
+  const loops = loopCatalogFixtures.filter(entry => {
+    if (kind && loopKind(entry).replace("-", "_") !== kind) return false;
+    if (category && loopCategory(entry) !== category) return false;
+    if (status && entry.last_run?.status !== status) return false;
+    if (q === "") return true;
+    const haystack = [entry.name, entry.contract.goal, loopCategory(entry) ?? ""]
+      .join(" ")
+      .toLowerCase();
+    return haystack.includes(q);
+  });
+  return {
+    facets: {
+      categories: tally(loopCatalogFixtures.map(entry => loopCategory(entry))),
+      kinds: tally(loopCatalogFixtures.map(entry => loopKind(entry).replace("-", "_"))),
+      statuses: tally(loopCatalogFixtures.map(entry => entry.last_run?.status ?? null)),
+    },
+    loops,
+    page: { has_more: false, limit: 50, total: loops.length },
+  };
+}
+
+function tally(values: readonly (string | null | undefined)[]): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const value of values) {
+    if (!value) continue;
+    counts[value] = (counts[value] ?? 0) + 1;
+  }
+  return counts;
+}
 
 const loopRunEventStreamEncoder = new TextEncoder();
 
@@ -58,20 +95,8 @@ function createLoopRunEventsStreamResponse(workspaceId: string, runId: string): 
 }
 
 export const handlers: HttpHandler[] = [
-  compozyApiMock.get("/api/workspaces/{workspace_id}/loops", () =>
-    HttpResponse.json({
-      facets: {
-        categories: { delivery: 1, watch: 1 },
-        kinds: { read_only: 1, workspace: 1 },
-        statuses: { running: 1, watching: 1 },
-      },
-      loops: loopCatalogFixtures,
-      page: {
-        has_more: false,
-        limit: 50,
-        total: loopCatalogFixtures.length,
-      },
-    })
+  compozyApiMock.get("/api/workspaces/{workspace_id}/loops", ({ request }) =>
+    HttpResponse.json(readCatalogPage(new URL(request.url)))
   ),
   compozyApiMock.post("/api/workspaces/{workspace_id}/loops", () =>
     HttpResponse.json({ loop: loopDetailByName.get("software-delivery")! }, { status: 201 })

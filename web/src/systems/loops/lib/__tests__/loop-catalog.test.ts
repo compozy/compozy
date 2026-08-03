@@ -3,19 +3,16 @@ import { describe, expect, it } from "vitest";
 import { loopCatalogFixtures } from "../../mocks/fixtures";
 import type { LoopCatalogEntry } from "../../types";
 import {
-  countByKind,
   groupLoopCatalog,
   hasActiveLoopFilters,
   hasHumanGate,
   isUnboundedCap,
   iterationCapLabel,
   type LoopCatalogFilter,
-  loopCategories,
   loopCategory,
   loopInputCount,
   loopKind,
   loopSourceLabel,
-  loopStatuses,
   matchesLoopFilter,
   successRateLabel,
 } from "../loop-catalog";
@@ -30,10 +27,9 @@ describe("loop-catalog", () => {
     expect(loopKind(review)).toBe("read-only");
   });
 
-  it("Should derive only categories actually present, sorted (no invented taxonomy)", () => {
+  it("Should read only the category the daemon sent (no invented taxonomy)", () => {
     expect(loopCategory(delivery)).toBe("delivery");
     expect(loopCategory(review)).toBe("Engineering");
-    expect(loopCategories(loopCatalogFixtures)).toEqual(["delivery", "Engineering"]);
     const blank: LoopCatalogEntry = {
       ...delivery,
       catalog: { ...delivery.catalog, category: "  " },
@@ -71,7 +67,7 @@ describe("loop-catalog", () => {
     expect(hasHumanGate(withHuman)).toBe(true);
   });
 
-  it("Should filter by kind, category, and last-run status and count candidates per kind", () => {
+  it("Should filter by kind, category, and last-run status", () => {
     expect(matchesLoopFilter(delivery, { kind: "workspace", category: null, status: null })).toBe(
       true
     );
@@ -94,23 +90,16 @@ describe("loop-catalog", () => {
     expect(matchesLoopFilter(delivery, { kind: "all", category: null, status: "failed" })).toBe(
       false
     );
-    expect(countByKind(loopCatalogFixtures, "all")).toBe(2);
-    expect(countByKind(loopCatalogFixtures, "read-only")).toBe(1);
-    expect(countByKind(loopCatalogFixtures, "workspace")).toBe(1);
   });
 
-  it("Should label the editability source shared by the row and card", () => {
-    expect(loopSourceLabel(delivery)).toBe("Workspace");
-    expect(loopSourceLabel(review)).toBe("Read-only");
-    expect(loopSourceLabel({ source: "marketplace" })).toBe("Read-only");
-  });
-
-  it("Should derive only last-run statuses actually present, deduped and sorted", () => {
-    expect(loopStatuses(loopCatalogFixtures)).toEqual(["running"]);
-    expect(loopStatuses([delivery, review, delivery])).toEqual(["running"]);
-    expect(loopStatuses([])).toEqual([]);
-    const withoutRun: LoopCatalogEntry = { ...delivery, last_run: undefined };
-    expect(loopStatuses([withoutRun, review])).toEqual(["running"]);
+  it("Should label provenance as Built-in or Custom without changing the source values", () => {
+    expect(loopSourceLabel(delivery)).toBe("Custom");
+    expect(loopSourceLabel(review)).toBe("Built-in");
+    expect(loopSourceLabel({ source: "marketplace" })).toBe("Built-in");
+    expect(loopSourceLabel({ source: "user" })).toBe("Built-in");
+    expect(loopSourceLabel({ source: "additional" })).toBe("Built-in");
+    expect(loopKind(delivery)).toBe("workspace");
+    expect(loopKind(review)).toBe("read-only");
   });
 
   it("Should report active filters for a query or any chip, ignoring whitespace", () => {
@@ -127,13 +116,14 @@ describe("loop-catalog", () => {
     expect(hasActiveLoopFilters("", { kind: "all", category: null, status: "running" })).toBe(true);
   });
 
-  it("Should group into read-only/workspace and drop empty groups", () => {
+  it("Should group into Built-in/Custom and drop empty groups", () => {
     const all = groupLoopCatalog(loopCatalogFixtures, {
       kind: "all",
       category: null,
       status: null,
     });
     expect(all.map(group => group.kind)).toEqual(["read-only", "workspace"]);
+    expect(all.map(group => group.label)).toEqual(["Built-in", "Custom"]);
     expect(all[0].entries).toHaveLength(1);
 
     const readOnlyOnly = groupLoopCatalog(loopCatalogFixtures, {

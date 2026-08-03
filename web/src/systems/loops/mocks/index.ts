@@ -26,4 +26,5 @@ export {
   waitNodeDetail,
   waitWarningDetail,
 } from "./fixture-editor-lifecycle";
+export { heroEffectiveLifecycle, heroRunFixtures } from "./fixture-hero-path";
 export { FAN_OUT_CEILING, lintDefinition, type MockLintIssue } from "./lint-definition";

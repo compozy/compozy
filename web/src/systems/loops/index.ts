@@ -100,27 +100,23 @@ export type {
 } from "./lib/loop-catalog";
 export {
   UNBOUNDED_CAP,
-  countByKind,
   groupLoopCatalog,
   hasActiveLoopFilters,
   hasHumanGate,
   isUnboundedCap,
   iterationCapLabel,
-  loopCategories,
   loopCategory,
   loopInputCount,
   loopKind,
-  loopStatuses,
   matchesLoopFilter,
   successRateLabel,
 } from "./lib/loop-catalog";
+export { loopFactsSegments } from "./lib/loop-catalog-presentation";
 
-// Listing filter bridge (reui Filters + URL parsers)
-export type { LoopFilterFieldKey, LoopFilterHandlers } from "./lib/loop-list-filters";
+// Listing filter bridge (status options + URL parsers)
+export type { LoopStatusFilterOption } from "./lib/loop-list-filters";
 export {
-  applyLoopFilterChips,
-  buildLoopFilterFields,
-  loopFiltersToChips,
+  loopStatusFilterOptions,
   parseLoopCategoryFilter,
   parseLoopKindFilter,
   parseLoopStatusFilter,
@@ -129,6 +125,16 @@ export {
 // Start-binding helpers
 export type { LoopBindingKind, LoopBindingRow } from "./lib/loop-bindings";
 export { bindingKindLabel, summarizeBindingKinds } from "./lib/loop-bindings";
+export type { LoopStartKinds } from "./lib/loop-start-kinds";
+export { describeStartKinds, RUN_FORM_START_KIND } from "./lib/loop-start-kinds";
+
+// Failure-contract posture (plain-language Spec 1 tiles)
+export type {
+  LoopEffectiveLifecycle,
+  LoopReliabilityIcon,
+  LoopReliabilityTile,
+} from "./lib/loop-reliability";
+export { buildLoopReliability, formatLoopDuration } from "./lib/loop-reliability";
 
 // Read-only graph projection
 export type { LoopGraph, LoopGraphEdge, LoopGraphNode, LoopNodeClass } from "./lib/loop-graph";
@@ -202,6 +208,7 @@ export {
   buildRunKpis,
   formatTokenCount,
   loopBudgetBar,
+  loopRunOriginLine,
   partitionRuns,
 } from "./lib/loop-runs-view";
 
@@ -226,6 +233,7 @@ export {
   clampOverrideValue,
   hasActiveOverrides,
   initialOverrideDraft,
+  summarizeRunLimits,
 } from "./lib/loop-overrides";
 
 // Configure-sheet model
@@ -387,6 +395,7 @@ export type { LoopStatusPillProps } from "./components/loop-status-pill";
 export { LoopCatalog } from "./components/catalog/loop-catalog";
 export { LoopCatalogCard } from "./components/catalog/loop-catalog-card";
 export { LoopCatalogFilters } from "./components/catalog/loop-catalog-filters";
+export { LoopCatalogLede } from "./components/catalog/loop-catalog-lede";
 export { MonoTag } from "./components/mono-tag";
 export { LoopDetailView } from "./components/detail/loop-detail";
 export { LoopStartBindingsPanel } from "./components/detail/loop-start-bindings-panel";
@@ -398,9 +407,12 @@ export { LoopTargetFields } from "./components/target/loop-target-fields";
 
 // Run form
 export { LoopRunForm } from "./components/run-form/loop-run-form";
+export { LoopRunActiveNotice } from "./components/run-form/loop-run-active-notice";
+export { LoopRunAfterStart } from "./components/run-form/loop-run-after-start";
 export { LoopRunInputField } from "./components/run-form/loop-run-input-field";
 export { LoopRunOverrides } from "./components/run-form/loop-run-overrides";
 export { LoopRunPreview } from "./components/run-form/loop-run-preview";
+export { LoopRunWaysToStart } from "./components/run-form/loop-run-ways-to-start";
 
 // Configure sheet
 export { LoopConfigureDialog } from "./components/configure/loop-configure-dialog";
