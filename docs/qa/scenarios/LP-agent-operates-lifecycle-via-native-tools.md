@@ -6,7 +6,7 @@ persona: Ada
 journey: J-07
 expected: An agent discovers and uses the eight Loop lifecycle tools to list workspace-scoped actionable nodes and control runs or nodes with stable structured answers, deterministic invalid-state reasons, winner provenance, and no retired stop tool.
 entry_points: compozy__loop_cancel; compozy__loop_kill; compozy__loop_nodes; compozy__loop_node_pause; compozy__loop_node_resume; compozy__loop_node_cancel; compozy__loop_node_kill; compozy__loop_node_requeue
-qa_status: pass
+qa_status: untested
 bug_ids: BUG-20260802-initial-wait-fails-run; BUG-20260802-parked-node-cancel-stalls; BUG-20260802-node-kill-leaves-run-live
 fix_status: fixed
 retest_status: pass
@@ -26,3 +26,5 @@ stable structured results. The owner workspace listed one live wait while the ne
 listed zero and could not mutate the Run. `compozy__loop_stop` was unknown. Three candidate defects
 were fixed and re-walked in the same isolated lab; the repaired runs and report above are the durable
 evidence.
+
+acceptance-walk: From an Ada-scoped session, rediscover the exact eight lifecycle tools, invoke every run and node action, and repeat incompatible losers. Compare each structured result with fresh CLI and HTTP state, prove workspace B cannot list or mutate workspace A nodes, and confirm compozy__loop_stop remains unknown.

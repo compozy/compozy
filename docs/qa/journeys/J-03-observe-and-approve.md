@@ -4,17 +4,19 @@ The evaluator's journey (PRD secondary persona, F5 human gate, ADR-005/017 §9.8
 
 ```mermaid
 flowchart TD
-    A[Entry: global Runs runs.html] --> B[KPI strip: Active / Awaiting you / Done today / Needs a look]
+    A[Entry: global Runs queue or exact approval link] --> B[KPI strip: Active / Awaiting you / Done today / Needs a look]
     B --> C{Outcome filter}
     C -->|Awaiting you = needs-approval queue| D[Open the run → run-detail]
     D --> E[Live needs-approval gate card: 'Approve merge to main?' + facts branch/diff/tests/verifier]
-    E --> F{Human decision}
+    E --> E2[Confirm the link identifies exactly one active durable wait]
+    E2 --> F{Human decision}
     F -->|Approve & resume| G[Side effect: gate approved → coordinator resumes → next generation/verify → done]
     F -->|Request changes| H[Side effect: revise next generation; run returns to running, remediation loop]
     F -->|Reject & halt| I[True end: terminal halt — NOT coerced to done]
-    G --> K[True end: terminal banner done, decision recorded]
-    E -.->|evaluator never acts| X1[Abandon: run stays LIVE in needs-approval (not terminal, zero cost); resumable when she returns]
-    E -.->|reads on phone, connection drops mid-approve| X2[Abandon: no double-approve; decision idempotent or clearly failed, gate still actionable]
+    G --> J[Fresh Web, CLI, and HTTP reads agree; later escalation steps are canceled]
+    J --> K[True end: terminal banner done, decision recorded once]
+    E2 -.->|evaluator never acts| X1[Abandon: run stays LIVE in needs-approval (not terminal, zero cost); resumable when she returns]
+    E2 -.->|reads on phone, connection drops mid-approve| X2[Abandon: no double-approve; decision idempotent or clearly failed, gate still actionable]
 ```
 
 ```yaml
@@ -28,6 +30,8 @@ journey:
       origin: in-app-nav
     - url: "web /loops/:name/runs/:id (run-detail) approval card"
       origin: in-app-nav
+    - url: "exact approval link for the active wait"
+      origin: email
     - url: "CLI: compozy loop approve <run> --decision approve|request_changes|reject --gate <id>"
       origin: direct
   actions:
@@ -39,11 +43,14 @@ journey:
       expected_observable: "Live needs-approval gate card with the merge question + facts (branch, diff, tests, verifier); status shown as WAITING, not done/failed"
     - step: 3
       verb: "Route the decision"
-      expected_observable: "Approve & resume → run resumes; Request changes → revise next generation; Reject & halt → terminal halt"
+      expected_observable: "The exact active wait accepts one decision; Approve & resume → run resumes; Request changes → revise next generation; Reject & halt → terminal halt"
+    - step: 4
+      verb: "Reload and compare the decision through structured reads"
+      expected_observable: "Web, CLI, and HTTP show the same winner, duplicate decisions are harmless, and no later escalation effect fires"
   goal:
     observable: "The routed decision takes effect: approve resumes to a truthful terminal, reject halts to a terminal that is NOT done"
     side_effects: [gate-decision-recorded, coordinator-resume-or-halt, status-change-event]
-  true_end_state: "Reload: an approved run reads done with the decision recorded; a rejected run reads its terminal halt (never done); a still-un-actioned gate reads needs-approval (live, resumable), not a terminal."
+  true_end_state: "Reload and structured read: an approved run reads done with one decision recorded; a rejected run reads its terminal halt (never done); a still-un-actioned gate reads needs-approval (live, resumable), not a terminal."
   exit:
     natural: "Evaluator lands on the terminal (approved/rejected) run, or leaves the gate live for later."
   abandonment:
@@ -53,7 +60,7 @@ journey:
     - at_step: 3
       how: "On 4G the approve request drops mid-submit."
       resume: "No double-approve / ghost decision; the gate stays actionable or fails visibly — never a silent partial approval."
-  crosses: [global-runs-index, run-detail, gate-evaluator, coordinator-resume, SSE-stream]
+  crosses: [global-runs-index, run-detail, approval-link, CLI, HTTP, UDS, gate-evaluator, coordinator-resume, SSE-stream]
 
 design_reference:
   screens:
@@ -63,16 +70,16 @@ design_reference:
     - "needs-approval renders as a LIVE waiting state, never as done or failed (ADR-013 inv5; PRD 'Truthful outcomes')."
     - "Reject & halt lands on a terminal that is NOT done (no success coercion)."
     - "Runs KPI 'Awaiting you' equals the needs-approval queue; outcome segments are data-driven (Paused/Queued appear only once such runs exist)."
-    - "A11y (Sol): the gate status and the 11 run-status pills are announced/labelled, not color-only; the approval dialog traps focus and is escapable."
+    - "A11y (Sol): the gate status and the 12 run-status pills are announced/labelled, not color-only; the approval dialog traps focus and is escapable."
 
 e2e_backbone:
   runtime:
     - "E2E-runtime-8: approve capability gate end-to-end — an agent cannot approve its own gate; operator/another agent can (also J-07)."
-    - "E2E-runtime-10: observe all 11 status states across the lifecycle, none coerced."
+    - "E2E-runtime-10: observe all 12 status states across the lifecycle, none coerced."
   web:
     - "E2E-web-7: approval gate renders Approve & resume / Request changes / Reject & halt and routes each correctly."
     - "E2E-web-10: Runs workspace-wide KPIs + outcome filter with counts + Active/Past tables + row → run detail."
-    - "E2E-web-9: all 11 states render with distinct truthful pills (no coercion)."
+    - "E2E-web-9: all 12 states render with distinct truthful pills (no coercion)."
   integration:
     - "Integration-5: route approval decisions approve→resume / request_changes→revise / reject→terminal halt (ADR-005/017 §9.8)."
   component:

@@ -6,7 +6,7 @@ persona: Marina
 journey: J-03
 expected: A human approval link identifies exactly one active gate wait, a decision atomically resumes or halts that node, duplicate decisions are harmless, ambiguity fails visibly, and a decision arriving during escalation cancels every remaining step.
 entry_points: approval link; `compozy loop approve`; HTTP/UDS approval route; Web approval card
-qa_status: blocked-verify
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -16,7 +16,4 @@ last_report:
 overlaps: LP-016
 ---
 
-QA impact 2026-08-02: Task 06 implements the durable gate wait, exact active-wait claim,
-expiry ladder, decision race handling, and coordinator reservation. A real-user walk is blocked
-until Task 07 ships the approval route and structured verbs; Task 08 owns the Web card and Task 13
-owns the end-to-end approval-link walk.
+acceptance-walk: Open the real approval link from the waiting run, drop and restore the browser network during one decision, and race a duplicate CLI or HTTP decision. Confirm the exact active wait resumes or halts once, ambiguous or stale links fail visibly, later escalation steps cancel, and the refreshed Web card agrees with structured state.

@@ -14,7 +14,9 @@ flowchart TD
     G -->|agent tries to approve its OWN gate| H[Rejected: approve capability gate, no self-approval]
     G -->|operator or ANOTHER agent approves| I[Resume → terminal]
     F --> J[Agent lists actionable nodes and applies lifecycle controls]
-    J --> K[True end: fresh native and HTTP reads agree on state, provenance, and terminal cause]
+    J --> L[Agent inspects durable waits and restarts the daemon]
+    L --> M[Agent redelivers one keyed watch event and observes loud suppression]
+    M --> K[True end: fresh native, CLI, and HTTP reads agree on state, provenance, wait identity, and terminal cause]
     E -.->|malformed/ambiguous output| X1[Abandon: agent can't parse → the non-determinism IS the bug]
     D -.->|input missing from start[] allowlist| X2[Abandon: rejected with a deterministic ReasonCode, no loop_run created]
 ```
@@ -46,10 +48,13 @@ journey:
     - step: 5
       verb: "List and control live Loop nodes"
       expected_observable: "The agent uses compozy__loop_nodes plus pause/resume/cancel/kill/requeue and run cancel/kill with stable response shapes, deterministic invalid-state reasons, winner provenance, and workspace isolation"
+    - step: 6
+      verb: "Inspect durable waits and keyed watch-event admission across restart"
+      expected_observable: "Waiting inventory survives restart, resumes exactly once, and duplicate events return a loud deterministic suppression result without creating another run"
   goal:
     observable: "The agent drives a Loop from discover → run → terminal purely via structured tools, and the terminal outcome matches the operator/HTTP view exactly"
-    side_effects: [loop_run-created, native-tool-audit]
-  true_end_state: "The agent's structured terminal outcome equals the operator's (verified by comparing structured agent operation against operator operation — PRD 'Surface coverage'); no self-approval slipped through; token redaction is hash-form-only."
+    side_effects: [loop_run-created, wait-resumed, duplicate-suppressed, native-tool-audit]
+  true_end_state: "The agent's structured terminal outcome, lifecycle provenance, and wait identity equal fresh CLI and HTTP reads; no self-approval or cross-workspace node access slipped through; token redaction is hash-form-only."
   exit:
     natural: "Agent holds a terminal outcome and its evidence, all via structured output."
   abandonment:
@@ -59,7 +64,7 @@ journey:
     - at_step: 2
       how: "The agent's start surface is not in the Loop's start[] allowlist."
       resume: "Rejected with a deterministic ReasonCode; no loop_run created (a binding outside the declaration is rejected, not silently dropped)."
-  crosses: [native-tool-registry, CLI-HTTP-UDS-parity, capability-gate, agent-status-contract, token-redaction]
+  crosses: [native-tool-registry, CLI-HTTP-UDS-parity, wait-store, watch-admission, capability-gate, agent-status-contract, workspace-isolation, token-redaction]
 
 design_reference:
   screens: []
