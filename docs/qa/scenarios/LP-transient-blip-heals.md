@@ -2,11 +2,11 @@
 id: LP-transient-blip-heals
 area: LP
 title: Heal a transient node failure without starting a repair generation
-persona: Ada
+persona: Lea
 journey: J-recover-loop-node-failure
 expected: One transport or attempt-timeout failure schedules one bounded retry, the next attempt succeeds, and public history shows no duplicate run or repair generation.
 entry_points: compozy loop validate|run|status; HTTP/UDS Loop run and event routes; compozy__loop_status
-qa_status: blocked-verify
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -16,7 +16,4 @@ last_report:
 overlaps:
 ---
 
-The isolated HTTP/SSE runtime walk passes the same-generation retry and classified prompt feedback.
-Full verification remains blocked until task_07 exposes attempt and next-attempt fields on all
-public read surfaces; task_13 will also exercise restart during backoff so the durable due-scan,
-not an in-memory timer alone, proves recovery.
+acceptance-walk: Start a Loop whose first action attempt fails with a retryable transport error, restart the isolated daemon during durable backoff, and confirm the next attempt succeeds in the same generation. Compare refreshed Web, structured CLI, and HTTP event history to prove one run, two attempts, no repair generation, and no duplicate work.

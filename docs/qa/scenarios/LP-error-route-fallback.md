@@ -2,11 +2,11 @@
 id: LP-error-route-fallback
 area: LP
 title: Follow an authored error route after retries are unavailable
-persona: Bruno
+persona: Lea
 journey: J-recover-loop-node-failure
 expected: A terminal node failure skips its success-only dependents, activates the forward fallback once, and finishes without leaking a fabricated output from the failed node.
 entry_points: compozy loop validate|run|status; HTTP/UDS Loop run and event routes; web Loop run detail
-qa_status: blocked-verify
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -16,7 +16,4 @@ last_report:
 overlaps:
 ---
 
-The isolated HTTP runtime walk confirms one fallback run, a skipped success-only path, and no
-failed payload flowing into the namespace. Full verification remains blocked until task_07
-publishes the lifecycle disposition and task_08 renders it; task_13 will independently read the
-settled run after refresh across the remaining public surfaces.
+acceptance-walk: Publish a Loop with an exhausted retry policy, one authored error route, and a success-only dependent, then trigger the failure. Confirm the fallback runs once, the success-only dependent is skipped, no failed output enters the namespace, and refreshed Web, CLI, and HTTP reads agree on the final disposition.
