@@ -307,6 +307,10 @@ type LoopNodeTerminalPayload struct {
 	OriginRef                    string          `json:"origin_ref,omitempty"`
 	TaskStatus                   string          `json:"task_status,omitempty"`
 	RunStatus                    string          `json:"run_status,omitempty"`
+	FailureClass                 string          `json:"failure_class,omitempty"`
+	Disposition                  string          `json:"disposition,omitempty"`
+	Attempt                      int             `json:"attempt,omitempty"`
+	Target                       string          `json:"target,omitempty"`
 	Error                        string          `json:"error,omitempty"`
 	Details                      json.RawMessage `json:"details,omitempty"`
 }

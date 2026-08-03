@@ -69,6 +69,40 @@ func TestCoordinatorRunnerShouldParkWaitControls(t *testing.T) {
 		t.Fatalf("wait events = %#v, want node_wait_started", payload.Events)
 	}
 
+	initialRun := controlLoopRun("looprun-initial-wait-control", nil)
+	initialRun.Generation = 0
+	initialCoordinator := controlCoordinatorRun(initialRun, 0)
+	initialRunner := newCoordinatorRunnerForControlTest(
+		t,
+		initialRun,
+		initialCoordinator,
+		nil,
+		coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{}},
+		resolved,
+	)
+	initialRunner.now = func() time.Time { return now }
+	initialPlan, err := initialRunner.Run(context.Background(), task.RunID(initialCoordinator.ID))
+	if err != nil {
+		t.Fatalf("Run(initial wait) error = %v", err)
+	}
+	if initialPlan.Terminal != nil || !initialPlan.Yield || !initialPlan.GenerationInFlight {
+		t.Fatalf(
+			"initial wait plan = terminal:%#v yield:%v live:%v, want parked in-flight yield",
+			initialPlan.Terminal,
+			initialPlan.Yield,
+			initialPlan.GenerationInFlight,
+		)
+	}
+	initialPayload := coordinatorSnapshotPayloadForTest(t, initialPlan)
+	initialOutputs := outputsByNodeAndItemForTest(initialPayload.Outputs)
+	if initialOutputs["wait_for_ack/0"].Status != generationOutputWaiting || len(initialPayload.Waits) != 1 {
+		t.Fatalf(
+			"initial wait outputs = %#v waits = %#v, want one durable waiting node",
+			initialOutputs,
+			initialPayload.Waits,
+		)
+	}
+
 	deadline := now.Add(45 * time.Minute)
 	templatedDefinition := dsl.Definition{
 		Inputs: map[string]dsl.Input{"deadline": {Type: dsl.InputTypeString, Required: true}},

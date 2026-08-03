@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import {
   approveLoopRun,
+  cancelLoopRun,
   createLoop,
   deleteLoop,
   patchLoop,
@@ -10,7 +11,6 @@ import {
   putLoopConfig,
   resumeLoopRun,
   runLoop,
-  stopLoopRun,
   validateLoop,
 } from "../adapters/loops-api";
 import { loopsKeys } from "../lib/query-keys";
@@ -194,10 +194,10 @@ export function useResumeLoopRun() {
   });
 }
 
-export function useStopLoopRun() {
+export function useCancelLoopRun() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ workspaceId, runId }: LoopRunParams) => stopLoopRun(workspaceId, runId),
+    mutationFn: ({ workspaceId, runId }: LoopRunParams) => cancelLoopRun(workspaceId, runId),
     onSettled: (_result, _error, { workspaceId, runId }) =>
       invalidateLoopRunQueries(queryClient, workspaceId, runId),
   });

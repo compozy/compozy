@@ -3,6 +3,8 @@ package daemon
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
+	"slices"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	looppkg "github.com/compozy/compozy/internal/loop"
@@ -60,6 +62,24 @@ func loopEffectiveConfigPayload(cfg looppkg.EffectiveConfig) (contract.LoopEffec
 	return out, nil
 }
 
+func loopResolvedLifecyclePayload(
+	cfg looppkg.ResolvedLifecycleConfig,
+) contract.LoopResolvedLifecycleConfig {
+	return contract.LoopResolvedLifecycleConfig{
+		RetryMaxAttempts:       cfg.RetryMaxAttempts,
+		RetryBackoffBase:       cfg.RetryBackoffBase.String(),
+		RetryBackoffMax:        cfg.RetryBackoffMax.String(),
+		RetryNonRetryable:      append([]string(nil), cfg.RetryNonRetryable...),
+		LivenessSilenceWindow:  cfg.LivenessSilenceWindow.String(),
+		ResumeDeathStreakLimit: cfg.ResumeDeathStreakLimit,
+		PredicateCostLimit:     cfg.PredicateCostLimit,
+		WaitAdmissionAttempts:  cfg.WaitAdmissionAttempts,
+		WaitAdmissionInterval:  cfg.WaitAdmissionInterval.String(),
+		AdmissionHorizon:       cfg.AdmissionHorizon.String(),
+		Sources:                maps.Clone(cfg.Sources),
+	}
+}
+
 func loopPlanNodesPayload(nodes []looppkg.PlanNodePreview) []contract.LoopPlanNodePreview {
 	out := make([]contract.LoopPlanNodePreview, 0, len(nodes))
 	for _, node := range nodes {
@@ -77,10 +97,17 @@ func loopPlanNodesPayload(nodes []looppkg.PlanNodePreview) []contract.LoopPlanNo
 	return out
 }
 
-func loopGenerationOutputsPayload(outputs []looppkg.GenerationOutput) []contract.LoopGenerationOutput {
+func loopGenerationOutputsPayload(
+	outputs []looppkg.GenerationOutput,
+	attemptSets ...[]looppkg.NodeAttempt,
+) []contract.LoopGenerationOutput {
+	attempts := []looppkg.NodeAttempt{}
+	if len(attemptSets) > 0 {
+		attempts = attemptSets[0]
+	}
 	out := make([]contract.LoopGenerationOutput, 0, len(outputs))
 	for _, output := range outputs {
-		out = append(out, contract.LoopGenerationOutput{
+		payload := contract.LoopGenerationOutput{
 			Generation:      int64(output.Generation),
 			NodeID:          output.NodeID,
 			ItemIndex:       output.ItemIndex,
@@ -89,9 +116,29 @@ func loopGenerationOutputsPayload(outputs []looppkg.GenerationOutput) []contract
 			TaskRunID:       output.TaskRunID,
 			ChildLoopRunID:  output.ChildLoopRunID,
 			ResolvedRuntime: loopResolvedRuntimePayload(output.ResolvedRuntime),
-		})
+			Attempt:         output.Attempt,
+			NextAttemptAt:   cloneTimePointer(output.NextAttemptAt),
+		}
+		if attempt := loopOutputAttempt(output, attempts); attempt != nil {
+			if attempt.FailureClass != nil {
+				payload.FailureClass = string(*attempt.FailureClass)
+			}
+			payload.Disposition = string(attempt.Disposition)
+		}
+		out = append(out, payload)
 	}
 	return out
+}
+
+func loopOutputAttempt(output looppkg.GenerationOutput, attempts []looppkg.NodeAttempt) *looppkg.NodeAttempt {
+	for index := range slices.Backward(attempts) {
+		attempt := &attempts[index]
+		if attempt.Generation == output.Generation && string(attempt.NodeID) == output.NodeID &&
+			attempt.ItemIndex == output.ItemIndex && attempt.Attempt == output.Attempt {
+			return attempt
+		}
+	}
+	return nil
 }
 
 func loopResolvedRuntimePayload(runtime *looppkg.ResolvedRuntime) *contract.LoopResolvedRuntime {

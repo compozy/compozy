@@ -1,7 +1,7 @@
 # Loops
 
-Agent operation guidance for Compozy Loops — the deterministic goal → verify → stop programs the daemon
-owns and runs. Use this reference when you author, configure, run, observe, approve, or stop a Loop
+Agent operation guidance for Compozy Loops — deterministic goal → verify → settle programs the daemon
+owns and runs. Use this reference when you author, configure, run, observe, approve, or control a Loop
 from inside Compozy. Prefer the native `compozy__loop_*` tools; fall back to `compozy loop` CLI or HTTP with
 structured output. Never guess a schema — resolve `compozy__tool_info` for the exact descriptor first.
 
@@ -16,28 +16,35 @@ structured output. Never guess a schema — resolve `compozy__tool_info` for the
 
 ## The Tool Set And CLI Verbs
 
-Toolset `compozy__loops` — 16 native tools. Thirteen definition/run controls have matching `compozy loop`
-verbs; `compozy__loop_turns` maps to `compozy loop turns`; the two session-bound Goal tools use the session
-command/native report surfaces. The CLI adds one verb (`edit`) that has no native tool.
+Toolset `compozy__loops` — 23 native tools. All 21 Loop tools have matching `compozy loop` verbs;
+the two session-bound Goal tools use the session command/native report surfaces. The CLI adds one verb
+(`edit`) that has no native tool.
 
-| Native tool               | Mode                            | CLI                      | Purpose                                                                      |
-| ------------------------- | ------------------------------- | ------------------------ | ---------------------------------------------------------------------------- |
-| `compozy__loop_list`      | read                            | `compozy loop list`      | List Loop definitions in the workspace.                                      |
-| `compozy__loop_inspect`   | read                            | `compozy loop inspect`   | Read one definition: inputs, contract, start bindings, version.              |
-| `compozy__loop_validate`  | read                            | `compozy loop validate`  | Lint + compile a definition without saving.                                  |
-| `compozy__loop_status`    | read                            | `compozy loop status`    | Read one run's status with generation detail.                                |
-| `compozy__loop_runs`      | read                            | `compozy loop runs`      | List runs in the workspace.                                                  |
-| `compozy__loop_create`    | mutating                        | `compozy loop create`    | Create/fork, or CAS-publish when `expected_version` is set.                  |
-| `compozy__loop_run`       | mutating                        | `compozy loop run`       | Start a run, or dry-run with `dry: true` / `--dry-run`.                      |
-| `compozy__loop_configure` | mutating                        | `compozy loop configure` | Write per-Loop runtime config overrides.                                     |
-| `compozy__loop_pause`     | mutating                        | `compozy loop pause`     | Request a generation-boundary pause.                                         |
-| `compozy__loop_resume`    | mutating                        | `compozy loop resume`    | Resume a paused or pause-requested run.                                      |
-| `compozy__loop_approve`   | mutating · **capability-gated** | `compozy loop approve`   | Apply one human-gate decision.                                               |
-| `compozy__loop_stop`      | destructive                     | `compozy loop stop`      | Stop one active run.                                                         |
-| `compozy__loop_delete`    | destructive                     | `compozy loop delete`    | Delete a writable definition plus its config and editor annotations.         |
-| `compozy__goal_get`       | read · session-scoped           | `/goal status`           | Read the caller session's visible Goal, including terminal-until-clear.      |
-| `compozy__goal_report`    | mutating · prompt-scoped        | —                        | Record one current-prompt `complete` or evidenced `blocked` boundary intent. |
-| `compozy__loop_turns`     | read                            | `compozy loop turns`     | Read a Run's total-order Goal turn audit with cursor and node/item filters.  |
+| Native tool                  | Mode                            | CLI                         | Purpose                                                                      |
+| ---------------------------- | ------------------------------- | --------------------------- | ---------------------------------------------------------------------------- |
+| `compozy__loop_list`         | read                            | `compozy loop list`         | List Loop definitions in the workspace.                                      |
+| `compozy__loop_inspect`      | read                            | `compozy loop inspect`      | Read one definition: inputs, contract, start bindings, version.              |
+| `compozy__loop_validate`     | read                            | `compozy loop validate`     | Lint + compile a definition without saving.                                  |
+| `compozy__loop_status`       | read                            | `compozy loop status`       | Read one run's status with generation detail.                                |
+| `compozy__loop_runs`         | read                            | `compozy loop runs`         | List runs in the workspace.                                                  |
+| `compozy__loop_create`       | mutating                        | `compozy loop create`       | Create/fork, or CAS-publish when `expected_version` is set.                  |
+| `compozy__loop_run`          | mutating                        | `compozy loop run`          | Start a run, or dry-run with `dry: true` / `--dry-run`.                      |
+| `compozy__loop_configure`    | mutating                        | `compozy loop configure`    | Write per-Loop runtime config overrides.                                     |
+| `compozy__loop_pause`        | mutating                        | `compozy loop pause`        | Request a generation-boundary pause.                                         |
+| `compozy__loop_resume`       | mutating                        | `compozy loop resume`       | Resume a paused or pause-requested run.                                      |
+| `compozy__loop_approve`      | mutating · **capability-gated** | `compozy loop approve`      | Apply one human-gate decision.                                               |
+| `compozy__loop_cancel`       | mutating                        | `compozy loop cancel`       | Request cooperative cancellation of one active run.                          |
+| `compozy__loop_kill`         | destructive                     | `compozy loop kill`         | Immediately fence and cancel one active run.                                 |
+| `compozy__loop_nodes`        | read                            | `compozy loop nodes`        | List waiting, quarantined, attention, or retrying nodes.                     |
+| `compozy__loop_node_pause`   | mutating                        | `compozy loop node pause`   | Pause one authored node.                                                     |
+| `compozy__loop_node_resume`  | mutating                        | `compozy loop node resume`  | Resume one paused node or manual wait.                                       |
+| `compozy__loop_node_cancel`  | mutating                        | `compozy loop node cancel`  | Request cooperative node cancellation.                                       |
+| `compozy__loop_node_kill`    | destructive                     | `compozy loop node kill`    | Immediately fence one authored node.                                         |
+| `compozy__loop_node_requeue` | mutating                        | `compozy loop node requeue` | Requeue one quarantined node into a successor generation.                    |
+| `compozy__loop_delete`       | destructive                     | `compozy loop delete`       | Delete a writable definition plus its config and editor annotations.         |
+| `compozy__goal_get`          | read · session-scoped           | `/goal status`              | Read the caller session's visible Goal, including terminal-until-clear.      |
+| `compozy__goal_report`       | mutating · prompt-scoped        | —                           | Record one current-prompt `complete` or evidenced `blocked` boundary intent. |
+| `compozy__loop_turns`        | read                            | `compozy loop turns`        | Read a Run's total-order Goal turn audit with cursor and node/item filters.  |
 
 There is **no `compozy__loop_edit` native tool**. Agents edit a definition through the authoring loop
 (validate → dry-run → `compozy__loop_create` with `expected_version`) or by a filesystem write. The CLI
@@ -156,17 +163,17 @@ evidence, usage, and end time remain nullable until durable evidence exists.
 
 ## Terminal Outcomes And Live States
 
-A run holds one of eleven states. Report the terminal outcome exactly — never round an error or an
+A run holds one of twelve states. Report the terminal outcome exactly — never round an error or an
 exhausted budget up to success.
 
-**Terminal (6):**
+**Terminal (7):**
 
 - `done` — the goal was verified. The only success outcome.
 - `no-op` — ran, found nothing to do. A clean watch tick is `no-op`, not a fake `done`.
 - `blocked` — an external dependency blocked progress (missing dependency/credential/resource, a
   human-gate `reject`, or a `loop.gate.pre` denial).
-- `failed` — an unrecoverable node/gate error, a `loop.generation.pre` denial, or an operator
-  `Stop` (truthful cause `operator_stop`).
+- `failed` — an unrecoverable node/gate error or a `loop.generation.pre` denial.
+- `canceled` — an operator cancel or kill, with cause `operator_cancel` or `operator_kill`.
 - `exhausted` — the iteration cap or fan-out ceiling tripped before the goal.
 - `stalled` — no progress: the no-progress window elapsed, the failure circuit breaker tripped, the
   blocker-ID signature repeated, or a watched source went silent.

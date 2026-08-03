@@ -792,6 +792,150 @@ func TestLoopCommandShouldMapCLIVerbsToClient(t *testing.T) {
 		}
 	})
 
+	t.Run("Should expose Loop lifecycle verbs and paginated node inventory as structured output", func(t *testing.T) {
+		t.Parallel()
+
+		calls := make(map[string]int)
+		mutation := contract.LoopMutationResponse{
+			OK: true, RunID: "looprun-1", NodeID: "worker", Status: "running",
+		}
+		deps := newTestDeps(t, &stubClient{
+			getWorkspaceFn: resolveTestLoopWorkspace(t),
+			cancelLoopRunFn: func(
+				_ context.Context, workspaceID string, runID string, _ agentidentity.Credentials,
+			) (contract.LoopMutationResponse, error) {
+				if workspaceID != "ws-alpha" || runID != "looprun-1" {
+					t.Fatalf("CancelLoopRun target = %s/%s", workspaceID, runID)
+				}
+				calls[loopCancelKey]++
+				response := mutation
+				response.NodeID = ""
+				return response, nil
+			},
+			killLoopRunFn: func(
+				_ context.Context, workspaceID string, runID string, _ agentidentity.Credentials,
+			) (contract.LoopMutationResponse, error) {
+				if workspaceID != "ws-alpha" || runID != "looprun-1" {
+					t.Fatalf("KillLoopRun target = %s/%s", workspaceID, runID)
+				}
+				calls[loopKillKey]++
+				response := mutation
+				response.NodeID = ""
+				return response, nil
+			},
+			pauseLoopNodeFn: func(
+				_ context.Context, workspaceID string, runID string, nodeID string,
+				request contract.LoopNodePauseRequest, _ agentidentity.Credentials,
+			) (contract.LoopMutationResponse, error) {
+				if workspaceID != "ws-alpha" || runID != "looprun-1" || nodeID != "worker" ||
+					request.Mode != "cancel" || request.Reason != "repair" {
+					t.Fatalf("PauseLoopNode request = %s/%s/%s %#v", workspaceID, runID, nodeID, request)
+				}
+				calls[loopPauseKey]++
+				return mutation, nil
+			},
+			resumeLoopNodeFn: func(
+				_ context.Context, workspaceID string, runID string, nodeID string,
+				request contract.LoopNodeResumeRequest, _ agentidentity.Credentials,
+			) (contract.LoopMutationResponse, error) {
+				if workspaceID != "ws-alpha" || runID != "looprun-1" || nodeID != "worker" ||
+					request.Mode != "immediate" || request.ItemIndex == nil || *request.ItemIndex != 2 ||
+					string(request.Payload) != `{"approved":true}` {
+					t.Fatalf("ResumeLoopNode request = %s/%s/%s %#v", workspaceID, runID, nodeID, request)
+				}
+				calls[loopResumeKey]++
+				return mutation, nil
+			},
+			cancelLoopNodeFn:  loopNodeMutationStubForTest(t, calls, loopCancelKey, mutation),
+			killLoopNodeFn:    loopNodeMutationStubForTest(t, calls, loopKillKey, mutation),
+			requeueLoopNodeFn: loopNodeMutationStubForTest(t, calls, loopRequeueKey, mutation),
+			listLoopNodesFn: func(
+				_ context.Context, workspaceID string, query LoopNodeListQuery,
+			) (contract.LoopNodeInventoryResponse, error) {
+				if workspaceID != "ws-alpha" || query.State != "waiting" || query.LoopName != "release" ||
+					query.RunID != "looprun-1" || query.Cursor != "cursor-1" || query.Limit != 2 {
+					t.Fatalf("ListLoopNodes query = %s %#v", workspaceID, query)
+				}
+				calls[loopNodesKey]++
+				return contract.LoopNodeInventoryResponse{
+					Items: []contract.LoopNodeInventoryItem{
+						{
+							State: contract.LoopNodeInventoryWaiting, LoopRunID: "looprun-1",
+							LoopName: "release", Generation: 2, NodeID: "a", StateAt: fixedTestNow,
+						},
+						{
+							State: contract.LoopNodeInventoryWaiting, LoopRunID: "looprun-1",
+							LoopName: "release", Generation: 2, NodeID: "b", ItemIndex: 1,
+							StateAt: fixedTestNow.Add(time.Second),
+						},
+					},
+					NextCursor: "cursor-2",
+				}, nil
+			},
+		})
+
+		for _, args := range [][]string{
+			{"loop", "cancel", "--workspace", "alpha", "--run-id", "looprun-1", "-o", "json"},
+			{"loop", "kill", "--workspace", "alpha", "--run-id", "looprun-1", "-o", "json"},
+			{"loop", "node", "pause", "--workspace", "alpha", "--run-id", "looprun-1", "--node", "worker", "--mode", "cancel", "--reason", "repair", "-o", "json"},
+			{"loop", "node", "resume", "--workspace", "alpha", "--run-id", "looprun-1", "--node", "worker", "--mode", "immediate", "--item", "2", "--payload", `{"approved":true}`, "-o", "json"},
+			{"loop", "node", "cancel", "--workspace", "alpha", "--run-id", "looprun-1", "--node", "worker", "--reason", "repair", "-o", "json"},
+			{"loop", "node", "kill", "--workspace", "alpha", "--run-id", "looprun-1", "--node", "worker", "--reason", "repair", "-o", "json"},
+			{"loop", "node", "requeue", "--workspace", "alpha", "--run-id", "looprun-1", "--node", "worker", "--reason", "repair", "-o", "json"},
+		} {
+			stdout, _, err := executeRootCommand(t, deps, args...)
+			if err != nil {
+				t.Fatalf("executeRootCommand(%v) error = %v", args, err)
+			}
+			var decoded contract.LoopMutationResponse
+			err = json.Unmarshal([]byte(stdout), &decoded)
+			if err != nil || !decoded.OK || decoded.RunID != "looprun-1" {
+				t.Fatalf("lifecycle output for %v = %q, decode error = %v", args, stdout, err)
+			}
+		}
+
+		inventoryArgs := []string{
+			"loop", "nodes", "--workspace", "alpha", "--state", "waiting", "--loop", "release",
+			"--run-id", "looprun-1", "--cursor", "cursor-1", "--limit", "2",
+		}
+		stdout, _, err := executeRootCommand(t, deps, append(inventoryArgs, "-o", "json")...)
+		if err != nil {
+			t.Fatalf("executeRootCommand(loop nodes json) error = %v", err)
+		}
+		var page contract.LoopNodeInventoryResponse
+		err = json.Unmarshal([]byte(stdout), &page)
+		if err != nil || len(page.Items) != 2 || page.NextCursor != "cursor-2" {
+			t.Fatalf("loop nodes JSON = %q, page=%#v, error=%v", stdout, page, err)
+		}
+		stdout, _, err = executeRootCommand(t, deps, append(inventoryArgs, "-o", "jsonl")...)
+		if err != nil {
+			t.Fatalf("executeRootCommand(loop nodes jsonl) error = %v", err)
+		}
+		lines := strings.Split(strings.TrimSpace(stdout), "\n")
+		if len(lines) != 2 {
+			t.Fatalf("loop nodes JSONL lines = %d, output=%q", len(lines), stdout)
+		}
+		for index, line := range lines {
+			var item contract.LoopNodeInventoryItem
+			if err := json.Unmarshal([]byte(line), &item); err != nil || item.NodeID != string(rune('a'+index)) {
+				t.Fatalf("loop nodes JSONL row %d = %q, item=%#v, error=%v", index, line, item, err)
+			}
+		}
+		if calls[loopCancelKey] != 2 || calls[loopKillKey] != 2 || calls[loopPauseKey] != 1 ||
+			calls[loopResumeKey] != 1 || calls[loopRequeueKey] != 1 || calls[loopNodesKey] != 2 {
+			t.Fatalf("Loop lifecycle calls = %#v", calls)
+		}
+	})
+
+	t.Run("Should reject the deleted Loop stop command", func(t *testing.T) {
+		t.Parallel()
+
+		_, _, err := executeRootCommand(t, newTestDeps(t, &stubClient{}), "loop", "stop")
+		if err == nil || !strings.Contains(err.Error(), "unknown command") {
+			t.Fatalf("executeRootCommand(loop stop) error = %v, want unknown command", err)
+		}
+	})
+
 	t.Run("Should reject positional arguments", func(t *testing.T) {
 		t.Parallel()
 
@@ -808,6 +952,36 @@ func TestLoopCommandShouldMapCLIVerbsToClient(t *testing.T) {
 			t.Fatalf("loop run positional error = %v, want positional rejection", err)
 		}
 	})
+}
+
+func loopNodeMutationStubForTest(
+	t *testing.T,
+	calls map[string]int,
+	verb string,
+	response contract.LoopMutationResponse,
+) func(
+	context.Context,
+	string,
+	string,
+	string,
+	contract.LoopNodeMutationRequest,
+	agentidentity.Credentials,
+) (contract.LoopMutationResponse, error) {
+	t.Helper()
+	return func(
+		_ context.Context,
+		workspaceID string,
+		runID string,
+		nodeID string,
+		request contract.LoopNodeMutationRequest,
+		_ agentidentity.Credentials,
+	) (contract.LoopMutationResponse, error) {
+		if workspaceID != "ws-alpha" || runID != "looprun-1" || nodeID != "worker" || request.Reason != "repair" {
+			t.Fatalf("%s Loop node request = %s/%s/%s %#v", verb, workspaceID, runID, nodeID, request)
+		}
+		calls[verb]++
+		return response, nil
+	}
 }
 
 func TestLoopListShouldPreserveServerOwnedCatalogPages(t *testing.T) {

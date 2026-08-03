@@ -49,8 +49,22 @@ func finishInitialControlPlan(
 		}
 		return *plan, nil
 	}
+	if generationOutputsWaiting(outputs) {
+		plan.Yield = true
+		plan.GenerationInFlight = true
+		return *plan, nil
+	}
 	plan.Terminal = noReadyNodesTerminal()
 	return *plan, nil
+}
+
+func generationOutputsWaiting(outputs []GenerationOutput) bool {
+	for _, output := range outputs {
+		if output.Status == generationOutputWaiting {
+			return true
+		}
+	}
+	return false
 }
 
 func generationSnapshotPayload(

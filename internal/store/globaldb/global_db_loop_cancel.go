@@ -11,7 +11,7 @@ import (
 var _ looppkg.CancellationStore = (*LoopRepo)(nil)
 
 const liveCancelOutputStatuses = "'pending','enqueued','running','retrying'," +
-	"'awaiting_child','control_pending','awaiting_goal'"
+	"'waiting','paused','awaiting_child','control_pending','awaiting_goal'"
 
 // RequestRunCancellation records first-writer Run intent and fences every live node cell.
 func (g *LoopRepo) RequestRunCancellation(
@@ -107,8 +107,15 @@ func (g *LoopRepo) AdvanceRunCancellation(
 			return fmt.Errorf("%w: Run cancellation intent changed", looppkg.ErrTransitionConflict)
 		}
 		result.Applied, err = advanceRunNodeCancelState(ctx, exec, mutation, state)
-		if err != nil || state != looppkg.CancelStateCanceled {
+		if err != nil {
 			return err
+		}
+		if state == looppkg.CancelStateDraining && result.Applied {
+			result.Coordinator, err = g.reserveCancellationCoordinator(ctx, exec, run, mutation)
+			return err
+		}
+		if state != looppkg.CancelStateCanceled {
+			return nil
 		}
 		result.RevokedPromptLeases, err = cleanupRunCancellationGoals(ctx, exec, mutation)
 		if err != nil {
@@ -175,7 +182,8 @@ func (g *LoopRepo) RequestNodeCancellation(
 		if err := finalizeNodeCancellation(ctx, exec, mutation, run); err != nil {
 			return err
 		}
-		return nil
+		result.Coordinator, err = g.reserveCancellationCoordinator(ctx, exec, run, mutation)
+		return err
 	})
 	if err != nil {
 		return looppkg.CancellationResult{}, err
@@ -210,8 +218,15 @@ func (g *LoopRepo) AdvanceNodeCancellation(
 			return nil
 		}
 		result.Applied, err = advanceOneNodeCancelState(ctx, exec, mutation, state)
-		if err != nil || state != looppkg.CancelStateCanceled {
+		if err != nil {
 			return err
+		}
+		if state == looppkg.CancelStateDraining && result.Applied {
+			result.Coordinator, err = g.reserveCancellationCoordinator(ctx, exec, run, mutation)
+			return err
+		}
+		if state != looppkg.CancelStateCanceled {
+			return nil
 		}
 		if err := finalizeNodeCancellation(ctx, exec, mutation, run); err != nil {
 			return err
@@ -427,6 +442,9 @@ func terminalizeRunCancellation(
 	mutation looppkg.CancellationMutation,
 	run looppkg.Run,
 ) error {
+	if err := claimCancellationWaits(ctx, exec, mutation); err != nil {
+		return err
+	}
 	if _, err := exec.ExecContext(ctx, `UPDATE loop_generation_outputs SET status = 'canceled',
 		next_attempt_at = NULL WHERE loop_run_id = ? AND status IN (`+liveCancelOutputStatuses+`)`, mutation.RunID); err != nil {
 		return fmt.Errorf("store: terminalize canceled Loop outputs: %w", err)
@@ -448,37 +466,4 @@ func terminalizeRunCancellation(
 		return err
 	}
 	return nil
-}
-
-func runHasLiveCancellationOutputs(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	runID looppkg.RunID,
-) (bool, error) {
-	var live int
-	err := exec.QueryRowContext(ctx, `SELECT EXISTS(
-		SELECT 1 FROM loop_generation_outputs
-		WHERE loop_run_id = ? AND status IN (`+liveCancelOutputStatuses+`)
-	)`, runID).Scan(&live)
-	if err != nil {
-		return false, fmt.Errorf("store: inspect live Loop cancellation outputs: %w", err)
-	}
-	return live == 1, nil
-}
-
-func nodeHasLiveCancellationOutputs(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	runID looppkg.RunID,
-	nodeID looppkg.NodeID,
-) (bool, error) {
-	var live int
-	err := exec.QueryRowContext(ctx, `SELECT EXISTS(
-		SELECT 1 FROM loop_generation_outputs
-		WHERE loop_run_id = ? AND node_id = ? AND status IN (`+liveCancelOutputStatuses+`)
-	)`, runID, nodeID).Scan(&live)
-	if err != nil {
-		return false, fmt.Errorf("store: inspect live Loop node cancellation outputs: %w", err)
-	}
-	return live == 1, nil
 }

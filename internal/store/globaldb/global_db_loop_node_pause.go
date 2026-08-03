@@ -3,13 +3,13 @@ package globaldb
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/compozy/compozy/internal/diagnostics"
 	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
 var _ looppkg.NodePauseStore = (*LoopRepo)(nil)
@@ -31,12 +31,21 @@ func (g *LoopRepo) PauseNode(
 		if err != nil {
 			return err
 		}
-		control, found, err := loadNodePauseControl(ctx, exec, mutation.RunID, mutation.NodeID)
+		control, found, err := loadNodePauseControl(
+			ctx, exec, mutation.WorkspaceID, mutation.RunID, mutation.NodeID,
+		)
 		if err != nil {
 			return err
 		}
 		if mutation.ExpectedRevision != nil && (!found || control.Revision != *mutation.ExpectedRevision) {
-			return fmt.Errorf("%w: node %q revision changed", looppkg.ErrTransitionConflict, mutation.NodeID)
+			actualState := nodeLifecycleActualState(control, found)
+			return loopLifecycleReasonError(
+				looppkg.ReasonCodeAlreadyDecided,
+				fmt.Errorf("%w: node %q revision changed", looppkg.ErrTransitionConflict, mutation.NodeID),
+				actualState,
+				nodeLifecycleAllowedTransitions(actualState),
+				nodeLifecycleWinner(control),
+			)
 		}
 		if found && control.Paused {
 			result.Control = control
@@ -94,15 +103,31 @@ func (g *LoopRepo) ResumeNode(
 		if err != nil {
 			return err
 		}
-		control, found, err := loadNodePauseControl(ctx, exec, mutation.RunID, mutation.NodeID)
+		control, found, err := loadNodePauseControl(
+			ctx, exec, mutation.WorkspaceID, mutation.RunID, mutation.NodeID,
+		)
 		if err != nil {
 			return err
 		}
 		if mutation.ExpectedRevision != nil && (!found || control.Revision != *mutation.ExpectedRevision) {
-			return fmt.Errorf("%w: node %q revision changed", looppkg.ErrTransitionConflict, mutation.NodeID)
+			actualState := nodeLifecycleActualState(control, found)
+			return loopLifecycleReasonError(
+				looppkg.ReasonCodeAlreadyDecided,
+				fmt.Errorf("%w: node %q revision changed", looppkg.ErrTransitionConflict, mutation.NodeID),
+				actualState,
+				nodeLifecycleAllowedTransitions(actualState),
+				nodeLifecycleWinner(control),
+			)
 		}
 		if !found || !control.Paused {
-			return fmt.Errorf("%w: node %q is not paused", looppkg.ErrInvalidTransition, mutation.NodeID)
+			actualState := nodeLifecycleActualState(control, found)
+			return loopLifecycleReasonError(
+				looppkg.ReasonCodeNodeNotPaused,
+				fmt.Errorf("%w: node %q is not paused", looppkg.ErrInvalidTransition, mutation.NodeID),
+				actualState,
+				nodeLifecycleAllowedTransitions(actualState),
+				nodeLifecycleWinner(control),
+			)
 		}
 		if err := releaseNodePause(ctx, exec, mutation, control); err != nil {
 			return err
@@ -151,11 +176,22 @@ func nodePauseRun(
 	if run.WorkspaceID != workspaceID {
 		return looppkg.Run{}, fmt.Errorf("%w: loop run %q not found", looppkg.ErrRunNotFound, runID)
 	}
-	if !run.Status.Live() || run.CancelRequested {
-		return looppkg.Run{}, fmt.Errorf(
-			"%w: loop run %q cannot change node pause state",
-			looppkg.ErrInvalidTransition,
-			runID,
+	if run.Status.Terminal() {
+		return looppkg.Run{}, loopLifecycleReasonError(
+			looppkg.ReasonCodeRunTerminal,
+			fmt.Errorf("%w: loop run %q cannot change node pause state", looppkg.ErrInvalidTransition, runID),
+			string(run.Status),
+			[]string{},
+			runLifecycleWinner(run),
+		)
+	}
+	if run.CancelRequested {
+		return looppkg.Run{}, loopLifecycleReasonError(
+			looppkg.ReasonCodeAlreadyDecided,
+			fmt.Errorf("%w: loop run %q cancellation is already pending", looppkg.ErrTransitionConflict, runID),
+			nodeLifecycleStateCancelRequested,
+			nodeLifecycleAllowedTransitions(nodeLifecycleStateCancelRequested),
+			runLifecycleWinner(run),
 		)
 	}
 	return run, nil
@@ -164,33 +200,25 @@ func nodePauseRun(
 func loadNodePauseControl(
 	ctx context.Context,
 	exec taskSQLExecutor,
+	workspaceID looppkg.WorkspaceID,
 	runID looppkg.RunID,
 	nodeID looppkg.NodeID,
 ) (looppkg.NodeControl, bool, error) {
-	var paused int64
-	var actorKind, actorID, reason, ruleID sql.NullString
-	var requestedAt sql.NullTime
-	var revision int64
-	var updatedAt time.Time
-	err := exec.QueryRowContext(ctx, `SELECT paused, pause_actor_kind, pause_actor_id, pause_reason,
-		pause_rule_id, pause_requested_at, revision, updated_at FROM loop_node_controls
-		WHERE loop_run_id = ? AND node_id = ?`, runID, nodeID).Scan(
-		&paused, &actorKind, &actorID, &reason, &ruleID, &requestedAt, &revision, &updatedAt,
-	)
-	if errors.Is(err, sql.ErrNoRows) {
-		return looppkg.NodeControl{LoopRunID: runID, NodeID: nodeID}, false, nil
-	}
+	rows, err := sqlcgen.New(exec).ListLoopNodeControls(ctx, sqlcgen.ListLoopNodeControlsParams{
+		WorkspaceID: string(workspaceID),
+		LoopRunID:   string(runID),
+	})
 	if err != nil {
 		return looppkg.NodeControl{}, false, fmt.Errorf("store: load Loop node pause: %w", err)
 	}
-	control := looppkg.NodeControl{
-		LoopRunID: runID, NodeID: nodeID, Paused: paused != 0,
-		Revision: revision, UpdatedAt: updatedAt.UTC(),
+	for _, row := range rows {
+		if looppkg.NodeID(row.NodeID) != nodeID {
+			continue
+		}
+		control, mapErr := loopNodeControlFromGenerated(row)
+		return control, true, mapErr
 	}
-	control.PauseProvenance = controlProvenance(
-		actorKind.String, actorID.String, reason.String, ruleID.String, requestedAt,
-	)
-	return control, true, nil
+	return looppkg.NodeControl{LoopRunID: runID, NodeID: nodeID}, false, nil
 }
 
 func writeNodePauseControl(

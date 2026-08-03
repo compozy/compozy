@@ -10,6 +10,7 @@ import {
   mergeGoalTurnTimeline,
   projectLoopRunPageView,
   useApproveLoopRun,
+  useCancelLoopRun,
   useGoalTurns,
   useLoop,
   useLoopRun,
@@ -18,7 +19,6 @@ import {
   usePauseLoopRun,
   useResumeLoopRun,
   useRunLoop,
-  useStopLoopRun,
 } from "@/systems/loops";
 import { loopRunPageLogic } from "./use-loop-run-page-state";
 
@@ -67,7 +67,7 @@ export function useLoopRunPage(workspaceId: string, runId: string) {
 
   const pauseMutation = usePauseLoopRun();
   const resumeMutation = useResumeLoopRun();
-  const stopMutation = useStopLoopRun();
+  const cancelMutation = useCancelLoopRun();
   const approveMutation = useApproveLoopRun();
   const runLoopMutation = useRunLoop();
 
@@ -97,13 +97,13 @@ export function useLoopRunPage(workspaceId: string, runId: string) {
     );
   };
 
-  const handleStop = () => {
-    stopMutation.mutate(
+  const handleCancel = () => {
+    cancelMutation.mutate(
       { workspaceId, runId },
       {
-        onSuccess: () => toast.success("Run stopped"),
+        onSuccess: () => toast.success("Cancellation requested"),
         onError: error =>
-          toast.error(error instanceof Error ? error.message : "Failed to stop run"),
+          toast.error(error instanceof Error ? error.message : "Failed to cancel run"),
       }
     );
   };
@@ -188,12 +188,12 @@ export function useLoopRunPage(workspaceId: string, runId: string) {
     terminalAt: view?.terminalAt,
     handlePause,
     handleResume,
-    handleStop,
+    handleCancel,
     handleDecision,
     handleStartNewRun,
     pendingAction,
     isPausePending: pauseMutation.isPending,
     isResumePending: resumeMutation.isPending,
-    isStopPending: stopMutation.isPending,
+    isCancelPending: cancelMutation.isPending,
   };
 }

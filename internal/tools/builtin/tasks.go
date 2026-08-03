@@ -97,7 +97,7 @@ var taskTools = []toolspkg.Descriptor{
 		true,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDTasks},
-		[]string{tasksTasksKey, "cancel"},
+		[]string{tasksTasksKey, descriptorKeywordCancel},
 		[]string{"cancel task", "stop task tree"},
 	),
 	nativeDescriptor(

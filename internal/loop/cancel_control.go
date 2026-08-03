@@ -42,6 +42,7 @@ func (m CancellationMutation) Validate(nodeRequired bool) error {
 // CancellationResult returns committed truth plus exact post-commit process identities.
 type CancellationResult struct {
 	Run                 Run
+	Coordinator         *task.Run
 	SessionIDs          []string
 	RevokedPromptLeases []GoalPromptLease
 	Terminal            bool

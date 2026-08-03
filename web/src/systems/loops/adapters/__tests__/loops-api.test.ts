@@ -23,7 +23,7 @@ import {
   putLoopConfig,
   resumeLoopRun,
   runLoop,
-  stopLoopRun,
+  cancelLoopRun,
   validateLoop,
 } from "@/systems/loops";
 import type { CreateLoopRequest, PatchLoopRequest } from "@/systems/loops";
@@ -241,10 +241,10 @@ describe("loops-api (request construction + error mapping)", () => {
       callIndex: 2,
     });
 
-    mockJsonResponse({ ok: true });
-    await stopLoopRun(WS, "run_1");
+    mockJsonResponse({ ok: true, run_id: "run_1" });
+    await cancelLoopRun(WS, "run_1");
     await expectFetchRequest({
-      path: "/api/workspaces/ws_1/loop-runs/run_1/stop",
+      path: "/api/workspaces/ws_1/loop-runs/run_1/cancel",
       method: "POST",
       callIndex: 3,
     });
@@ -315,7 +315,7 @@ describe("loops-api (request construction + error mapping)", () => {
     await expect(resumeLoopRun(WS, "run_1")).rejects.toMatchObject({ status: 409 });
 
     mockJsonResponse({ error: "x" }, { status: 404 });
-    await expect(stopLoopRun(WS, "run_1")).rejects.toMatchObject({ status: 404 });
+    await expect(cancelLoopRun(WS, "run_1")).rejects.toMatchObject({ status: 404 });
 
     mockJsonResponse({ error: "x" }, { status: 422 });
     await expect(
@@ -376,7 +376,10 @@ describe("loops-api (against MSW mock handlers)", () => {
       valid: true,
     });
     expect(await resumeLoopRun(WS, "looprun_running")).toEqual({ ok: true });
-    expect(await stopLoopRun(WS, "looprun_running")).toEqual({ ok: true });
+    expect(await cancelLoopRun(WS, "looprun_running")).toEqual({
+      ok: true,
+      run_id: "looprun_running",
+    });
     expect(await runLoop(WS, "software-delivery", { inputs: {} }, { dry: true })).toHaveProperty(
       "dry_run"
     );

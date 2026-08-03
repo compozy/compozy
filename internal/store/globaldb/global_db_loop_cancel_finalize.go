@@ -14,6 +14,9 @@ func finalizeNodeCancellation(
 	mutation looppkg.CancellationMutation,
 	run looppkg.Run,
 ) error {
+	if err := claimCancellationWaits(ctx, exec, mutation); err != nil {
+		return err
+	}
 	failureCode := string(looppkg.TransitionCauseOperatorCancel)
 	if mutation.Kind == looppkg.RunCancelKill {
 		failureCode = string(looppkg.TransitionCauseOperatorKill)
@@ -63,4 +66,28 @@ func finalizeNodeCancellation(
 	return insertLoopEffectIntentsWithExecutor(
 		ctx, exec, run, eventID, mutation.Effects, mutation.RequestedAt.UTC(),
 	)
+}
+
+func claimCancellationWaits(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	mutation looppkg.CancellationMutation,
+) error {
+	query := `UPDATE loop_node_waits SET claim_state = 'claimed', claimed_by_kind = ?,
+		claimed_by_id = ?, claimed_at = ?
+		WHERE loop_run_id = ? AND claim_state IN ('waiting','intervention_required')`
+	args := []any{
+		mutation.Actor.Actor.Kind.Normalize(),
+		strings.TrimSpace(mutation.Actor.Actor.Ref),
+		mutation.RequestedAt.UTC(),
+		mutation.RunID,
+	}
+	if mutation.NodeID != "" {
+		query += " AND node_id = ?"
+		args = append(args, mutation.NodeID)
+	}
+	if _, err := exec.ExecContext(ctx, query, args...); err != nil {
+		return fmt.Errorf("store: claim canceled Loop node waits: %w", err)
+	}
+	return nil
 }

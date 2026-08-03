@@ -406,13 +406,13 @@ describe("LoopRunOutcomeCard", () => {
 });
 
 describe("LoopRunControls", () => {
-  it("Should show Pause + Stop while running and fire the callback", () => {
+  it("Should show Pause + Cancel while running and fire the callback", () => {
     const onPause = vi.fn();
     render(
-      <LoopRunControls status="running" onPause={onPause} onResume={vi.fn()} onStop={vi.fn()} />
+      <LoopRunControls status="running" onPause={onPause} onResume={vi.fn()} onCancel={vi.fn()} />
     );
     expect(screen.getByTestId("loop-run-pause")).toBeInTheDocument();
-    expect(screen.getByTestId("loop-run-stop")).toBeInTheDocument();
+    expect(screen.getByTestId("loop-run-cancel")).toHaveTextContent("Cancel run");
     expect(screen.queryByTestId("loop-run-resume")).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("loop-run-pause"));
     expect(onPause).toHaveBeenCalledTimes(1);
@@ -420,12 +420,12 @@ describe("LoopRunControls", () => {
 
   it("Should show Resume while paused and render nothing for a terminal run", () => {
     const { rerender } = render(
-      <LoopRunControls status="paused" onPause={vi.fn()} onResume={vi.fn()} onStop={vi.fn()} />
+      <LoopRunControls status="paused" onPause={vi.fn()} onResume={vi.fn()} onCancel={vi.fn()} />
     );
     expect(screen.getByTestId("loop-run-resume")).toBeInTheDocument();
     expect(screen.queryByTestId("loop-run-pause")).not.toBeInTheDocument();
     rerender(
-      <LoopRunControls status="done" onPause={vi.fn()} onResume={vi.fn()} onStop={vi.fn()} />
+      <LoopRunControls status="done" onPause={vi.fn()} onResume={vi.fn()} onCancel={vi.fn()} />
     );
     expect(screen.queryByTestId("loop-run-controls")).not.toBeInTheDocument();
   });
