@@ -393,6 +393,7 @@ func TestCoordinatorRunnerShouldApplyNodeFailurePrecedence(t *testing.T) {
 			0,
 			nil,
 			GenerationHistory{},
+			nil,
 		)
 		if err == nil {
 			t.Fatal("applyTerminalNodeLifecycle() error = nil, want task lookup failure")
@@ -428,6 +429,7 @@ func TestCoordinatorRunnerShouldApplyNodeFailurePrecedence(t *testing.T) {
 			0,
 			nil,
 			GenerationHistory{},
+			nil,
 		)
 		if err != nil {
 			t.Fatalf("applyTerminalNodeLifecycle() error = %v", err)

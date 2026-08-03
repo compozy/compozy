@@ -130,7 +130,10 @@ func TestLoopActionRuntimeEnforcesActionLiveness(t *testing.T) {
 		t.Parallel()
 
 		manager, taskRecord, run := newLoopActionLivenessTestFixture()
-		runner := &loopActionLivenessTestRunner{tokensUsed: 17}
+		runner := &loopActionLivenessTestRunner{
+			reason:     string(looppkg.FailureBudgetExhausted),
+			tokensUsed: 17,
+		}
 		runtime, err := newLoopActionRuntime(
 			manager,
 			&loopActionCapacityTestStore{taskRecord: taskRecord, run: run},
@@ -153,31 +156,8 @@ func TestLoopActionRuntimeEnforcesActionLiveness(t *testing.T) {
 		if manager.failure.RunID != "" {
 			t.Fatalf("FailRunLease() = %#v, want no persisted hidden-clock failure", manager.failure)
 		}
-	})
-
-	t.Run("Should not ask for an authored reason when using the default timeout", func(t *testing.T) {
-		t.Parallel()
-
-		manager, taskRecord, run := newLoopActionLivenessTestFixture()
-		runner := &loopActionLivenessTestRunner{reason: string(looppkg.FailureBudgetExhausted)}
-		runtime, err := newLoopActionRuntime(
-			manager,
-			&loopActionCapacityTestStore{taskRecord: taskRecord, run: run},
-			runner,
-			nil,
-			discardLogger(),
-			nil,
-			40*time.Millisecond,
-		)
-		if err != nil {
-			t.Fatalf("newLoopActionRuntime() error = %v", err)
-		}
-		runtime.livenessPollInterval = func(time.Duration) time.Duration { return time.Second }
-
-		err = runtime.executeQueuedRun(context.Background(), taskRecord, run, loopActionRuntimeReasonEnqueued)
-		assertLoopActionLivenessFailure(t, manager, err, loopActionReasonNodeTimeout, 0)
 		if calls := runner.reasonCalls.Load(); calls != 0 {
-			t.Fatalf("ActionRunTimeoutReason() calls = %d, want 0 for default timeout", calls)
+			t.Fatalf("ActionRunTimeoutReason() calls = %d, want 0 without an authored timeout", calls)
 		}
 	})
 
