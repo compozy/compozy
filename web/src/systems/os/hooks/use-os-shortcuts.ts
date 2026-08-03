@@ -1,7 +1,11 @@
 import { useEffect, useEffectEvent } from "react";
 
 import { dispatchWindowManagerAction } from "../lib/window-manager-action-dispatch";
-import { resolveWindowManagerActions, shortcutMatches } from "../lib/window-manager-shortcuts";
+import {
+  primaryShortcutModifier,
+  resolveWindowManagerActions,
+  shortcutMatches,
+} from "../lib/window-manager-shortcuts";
 import { windowManagerCommandsAvailable } from "../lib/window-manager-command-availability";
 import type { WindowManagerActionId } from "../lib/window-manager-command-registry";
 import { windowManagerStore } from "../stores/window-manager-store";
@@ -67,9 +71,10 @@ export function useOsShortcuts(
     const state = projection.get();
     const config = state.windowManagerConfig;
     const editableTarget = isEditableTarget(event.target);
+    const primaryModifier = primaryShortcutModifier(navigator.platform);
     if (config !== null && windowManagerCommandsAvailable(state)) {
       const action = resolveWindowManagerActions(config.shortcuts).find(
-        candidate => candidate.chord && shortcutMatches(event, candidate.chord)
+        candidate => candidate.chord && shortcutMatches(event, candidate.chord, primaryModifier)
       );
       if (
         action &&

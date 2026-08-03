@@ -880,6 +880,28 @@ describe("useOsShortcuts", () => {
     });
   });
 
+  it("Should dispatch the primary shortcut with Control on non-Apple platforms", () => {
+    vi.spyOn(window.navigator, "platform", "get").mockReturnValue("Linux x86_64");
+    const shell = createShell();
+    const handlers: OsShortcutHandlers = {
+      onPalette: vi.fn(),
+      onNewSession: vi.fn(),
+      onDesktops: vi.fn(),
+      onEscape: vi.fn(),
+    };
+    act(() => {
+      shell.setRuntimeState({ frames: { "desktop:main": [stackedFrame()] } });
+    });
+    renderHook(() => useOsShortcuts(handlers), { wrapper: shell.wrapper });
+
+    fireEvent.keyDown(document, { key: "t", code: "KeyT", ctrlKey: true });
+
+    expect(shell.controller.openOrFocus).toHaveBeenCalledWith({
+      app: "new-tab",
+      stackTargetWindowId: "window:primary",
+    });
+  });
+
   it("Should leave editable descendants and repeated chords untouched [UT-099]", () => {
     const shell = createShell();
     const handlers: OsShortcutHandlers = {

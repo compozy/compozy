@@ -1985,7 +1985,8 @@ test("E2E-034 (logical E2E-008): a pinned tab refuses Cmd+W until unpinned", asy
   await expect(shell.tab(tasksID)).toBeVisible();
   await shell.tabMenu(tasksID).click({ button: "right" });
   await appPage.getByRole("menuitem", { name: "Close other tabs" }).click();
-  await expect(shell.tab(tasksID)).toBeVisible();
+  await expect(shell.tab(tasksID)).toHaveCount(0);
+  await expect(shell.window(tasksID)).toBeVisible();
   await expect(shell.tab(agentsID)).toHaveCount(0);
 
   const agentsReplacement = (await openDeckFixtureWindows(runtime, workspace.id, ["agents"]))[0];
@@ -2681,7 +2682,16 @@ test("E2E-023: the 12-window envelope holds for drag frames, restore, and conver
     return performance.now() - settle.last > 600;
   });
 
-  // Long-task probe during a 3s continuous drag of one window.
+  const dragged = appWindow(appPage, "vault");
+  await focusWindow(appPage, dragged);
+  const grip = await windowGrip(dragged);
+  await appPage.waitForFunction(() => {
+    const settle = Reflect.get(window, "__osSettle") as { last: number };
+    return performance.now() - settle.last > 600;
+  });
+
+  // Long-task probe during a 3s continuous drag of one window. Install it
+  // after focus settles so the envelope measures drag frames, not activation.
   await appPage.evaluate(() => {
     const tasks: number[] = [];
     Reflect.set(window, "__osLongTasks", tasks);
@@ -2689,9 +2699,6 @@ test("E2E-023: the 12-window envelope holds for drag frames, restore, and conver
       for (const entry of list.getEntries()) tasks.push(entry.duration);
     }).observe({ type: "longtask", buffered: false });
   });
-  const dragged = appWindow(appPage, "vault");
-  await focusWindow(appPage, dragged);
-  const grip = await windowGrip(dragged);
   await appPage.mouse.move(grip.x, grip.y);
   await appPage.mouse.down();
   const start = Date.now();
@@ -2830,14 +2837,15 @@ async function windowRect(page: Page, win: ReturnType<Page["locator"]>) {
 }
 
 /**
- * A guaranteed drag surface on the window head: the identity (glyph + title)
- * area is never inside the drag-cancel selectors, unlike the head center,
- * which can land on the mode tabs (`topbar-nav`) once an app publishes them.
+ * A guaranteed drag surface on the window head: the flexible spacer remains
+ * mounted while route identity is published and never overlaps interactive
+ * head controls. Title nodes can be replaced during lazy route startup.
  */
 async function windowGrip(win: ReturnType<Page["locator"]>): Promise<{ x: number; y: number }> {
-  const title = win.locator('[data-slot="topbar-title"]');
-  const box = await title.boundingBox();
-  if (!box) throw new Error("window title must be visible to start a head drag");
+  const spacer = win.locator('[data-slot="topbar-flex"]');
+  await expect(spacer).toBeVisible();
+  const box = await spacer.boundingBox();
+  if (!box) throw new Error("window head drag surface must expose a visible bounding box");
   return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
 }
 

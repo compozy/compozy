@@ -13,7 +13,9 @@ import {
   chordFromKeyboardEvent,
   findShortcutConflicts,
   parseShortcutChord,
+  primaryShortcutModifier,
   resolveWindowManagerActions,
+  shortcutMatches,
   shortcutLabel,
 } from "../window-manager-shortcuts";
 
@@ -112,5 +114,35 @@ describe("findShortcutConflicts", () => {
       unbound.length
     );
     expect(findShortcutConflicts({})).toEqual([]);
+  });
+});
+
+describe("shortcutMatches", () => {
+  it("Should map the canonical primary modifier to Command on Apple and Control elsewhere", () => {
+    const primary = parseShortcutChord("meta+KeyT");
+    const physicalControl = parseShortcutChord("control+KeyT");
+    if (!primary || !physicalControl) throw new Error("test chords must parse");
+
+    const commandT = press({ code: "KeyT", metaKey: true });
+    const controlT = press({ code: "KeyT", ctrlKey: true });
+
+    expect(primaryShortcutModifier("MacIntel")).toBe("meta");
+    expect(primaryShortcutModifier("Linux x86_64")).toBe("control");
+    expect(primaryShortcutModifier("")).toBe("meta");
+    expect(shortcutMatches(commandT, primary, "meta")).toBe(true);
+    expect(shortcutMatches(controlT, primary, "control")).toBe(true);
+    expect(shortcutMatches(commandT, primary, "control")).toBe(false);
+    expect(shortcutMatches(commandT, physicalControl, "meta")).toBe(false);
+    expect(shortcutMatches(controlT, physicalControl, "meta")).toBe(true);
+  });
+
+  it("Should preserve distinct Meta and Control requirements when a chord contains both", () => {
+    const chord = parseShortcutChord("meta+control+KeyT");
+    if (!chord) throw new Error("test chord must parse");
+
+    expect(shortcutMatches(press({ code: "KeyT", ctrlKey: true }), chord, "control")).toBe(false);
+    expect(
+      shortcutMatches(press({ code: "KeyT", ctrlKey: true, metaKey: true }), chord, "control")
+    ).toBe(true);
   });
 });

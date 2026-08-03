@@ -11,8 +11,8 @@ bug_ids:
 fix_status:
 retest_status: pass
 fix_commits:
-evidence: docs/qa/evidence/2026-08-01-window-tabs/keyboard-02-command-t-deck.png; docs/qa/evidence/2026-08-01-window-tabs/keyboard-04-dragged-network-window.png
-last_report: docs/qa/reports/2026-08-01-window-tabs.md
+evidence: docs/qa/evidence/2026-08-01-window-tabs/keyboard-02-command-t-deck.png; docs/qa/evidence/2026-08-01-window-tabs/keyboard-04-dragged-network-window.png; docs/qa/evidence/2026-08-03-pr-291-remediation/CH-window-tabs-keyboard-flow-command-t.png; docs/qa/evidence/2026-08-03-pr-291-remediation/CH-window-tabs-keyboard-flow-reload.png; docs/qa/evidence/2026-08-03-pr-291-remediation/CH-window-tabs-keyboard-flow-drag.png
+last_report: docs/qa/reports/2026-08-03-pr-291-remediation.md
 overlaps: ET-window-manager-layout-gestures; ET-web-desktop-shell-lifecycle
 ---
 
@@ -34,3 +34,14 @@ moves the whole frame and never detaches the active tab, and dropping a dragged 
 window's body no longer folds it into the deck — the occupied center swaps the two units instead
 (the deck row and the solo head stay the only merge zones). Flag only; this cycle owns live
 retesting.
+
+qa-impact: 2026-08-03 PR 291 remediation — canonical Command shortcuts now resolve to Command on
+Apple platforms and Control elsewhere, and window-head drag automation uses the stable empty head
+surface while route identity loads. Reset for a fresh keyboard, drag, reload, and sole-pinned-tab
+walk from the current build.
+
+qa-completion: 2026-08-03 isolated retest — Command-T opened the destination picker, selecting
+Settings produced one Tasks + General tab deck, and a full reload retained that deck. A real pointer
+drag moved the Home window through its stable head surface. The current Web E2E run independently
+passed the grouping-preview, grouping-commit, persisted-deck, sole-pinned-survivor, and continuous
+drag performance contracts, including every shell case that had failed on PR CI.

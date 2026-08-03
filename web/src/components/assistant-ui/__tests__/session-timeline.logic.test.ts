@@ -335,6 +335,45 @@ describe("session timeline derivation", () => {
     expect(permissionRow.part.name).toBe("data-compozy-permission");
   });
 
+  it("Should keep every text segment visible when a permission splits the response", () => {
+    const rows = deriveSessionRows(
+      [
+        text(
+          "before-permission",
+          "Streaming response started.",
+          "turn-split",
+          "2026-07-07T12:00:00Z"
+        ),
+        {
+          kind: "data",
+          id: "permission-allowed",
+          name: "data-compozy-permission",
+          data: {
+            type: "permission",
+            request_id: "turn-split:permission-allowed",
+            decision: "allow-once",
+          },
+          turnId: "turn-split",
+          timestamp: "2026-07-07T12:00:02Z",
+          state: "done",
+        },
+        text(
+          "after-permission",
+          "Session continued after approval.",
+          "turn-split",
+          "2026-07-07T12:00:03Z"
+        ),
+      ],
+      { foldSettledTurns: true }
+    );
+
+    expect(rows.map(row => row.kind)).toEqual(["text", "data", "text"]);
+    expect(rows.filter(row => row.kind === "text").map(row => row.part.text)).toEqual([
+      "Streaming response started.",
+      "Session continued after approval.",
+    ]);
+  });
+
   it("Should keep the live turn inline instead of folding it", () => {
     const rows = deriveSessionRows(
       [
