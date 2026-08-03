@@ -385,7 +385,7 @@ func TestSchedulerTaskSourceLoopCoordinatorBackstopShouldDeferWhileConsumerLease
 		Scope:            taskpkg.ScopeWorkspace,
 		WorkspaceID:      workspaceID,
 		RunKind:          taskpkg.RunKindCoordinator,
-		ClaimerSessionID: "daemon-loop-coordinator",
+		ClaimerSessionID: loopCoordinatorSessionID,
 		LeaseDuration:    taskpkg.DefaultRunLeaseDuration,
 		Now:              now,
 	}); err != nil {
@@ -841,7 +841,7 @@ func parkSchedulerWatchEventsLoopForTest(
 		Scope:            taskpkg.ScopeWorkspace,
 		WorkspaceID:      workspaceID,
 		RunKind:          taskpkg.RunKindCoordinator,
-		ClaimerSessionID: "daemon-loop-coordinator",
+		ClaimerSessionID: loopCoordinatorSessionID,
 		ClaimedBy:        &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "loop-coordinator"},
 		LeaseDuration:    time.Minute,
 		Now:              now,
