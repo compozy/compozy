@@ -397,9 +397,6 @@ func TestReleaseWorkflowConsumesExplicitPlan(t *testing.T) {
 		"GITHUB_MAKE_LATEST: ${{ needs.release-plan.outputs.github_make_latest }}",
 		"NPM_TAG: ${{ needs.release-plan.outputs.npm_tag }}",
 		"HOMEBREW_SKIP_UPLOAD: ${{ needs.release-plan.outputs.homebrew_skip_upload }}",
-		"PR_RELEASE_PREVIOUS_TAG: ${{ needs.release-plan.outputs.release_previous_tag }}",
-		"PR_RELEASE_GIT_RANGE: ${{ needs.release-plan.outputs.release_git_range }}",
-		"PR_RELEASE_INITIAL: ${{ needs.release-plan.outputs.release_initial }}",
 		"if: needs.release-plan.outputs.homebrew_skip_upload == 'false'",
 		"scripts/render-homebrew-formula.sh",
 		"repository: compozy/homebrew-compozy",
@@ -418,6 +415,8 @@ func TestReleaseWorkflowConsumesExplicitPlan(t *testing.T) {
 		"aursources:",
 		"secrets.COMPOZY_WEB_ASSETS_TOKEN || secrets.RELEASE_TOKEN",
 		"cp RELEASE_BODY.md",
+		"Publish site changelog receipt",
+		"release:site-changelog",
 		"sed -i -E",
 		`git describe --tags --abbrev=0 "${RELEASE_TAG}^"`,
 	} {

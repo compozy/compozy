@@ -4,15 +4,17 @@ const searchApi = vi.hoisted(() => ({
   calls: [] as Array<{
     mode: string;
     options: {
-      indexes: Array<{
-        id: string;
-        title: string;
-        description?: string;
-        breadcrumbs?: string[];
-        structuredData: unknown;
-        url: string;
-        tag: string;
-      }>;
+      indexes: () => Promise<
+        Array<{
+          id: string;
+          title: string;
+          description?: string;
+          breadcrumbs?: string[];
+          structuredData: unknown;
+          url: string;
+          tag: string;
+        }>
+      >;
     };
     requests: string[];
   }>,
@@ -45,12 +47,10 @@ const mockedContent = vi.hoisted(() => ({
   ],
   releases: [
     {
-      version: "v0.1.0-alpha.1",
+      version: "v0.3.0-beta.1",
       summary: "Runtime search now works from both the home shell and docs shell.",
-      added: ["Search spans runtime docs, protocol docs, blog posts, and changelog entries."],
-      changed: ["The site now uses standard Next.js runtime output instead of static export."],
-      fixed: ["The Fumadocs fetch client once again talks to a live query endpoint."],
-      breaking: [],
+      body: "### Runtime\n\nSearch spans runtime docs, protocol docs, blog posts, and changelog entries.",
+      headings: [{ id: "runtime", label: "Runtime", level: 3 }],
     },
   ],
   protocolPages: [
@@ -117,7 +117,10 @@ const mockedContent = vi.hoisted(() => ({
 
 vi.mock("@/lib/blog", () => ({
   allPosts: () => mockedContent.posts,
-  allReleases: () => mockedContent.releases,
+}));
+
+vi.mock("@/lib/changelog/github-client", () => ({
+  loadChangelogReleases: async () => ({ status: "ready", releases: mockedContent.releases }),
 }));
 
 vi.mock("@/lib/source", () => ({
@@ -137,17 +140,19 @@ vi.mock("fumadocs-core/search/server", () => ({
     searchApi.calls.push(call);
 
     return {
-      GET: (request: Request) => {
+      GET: async (request: Request) => {
         call.requests.push(request.url);
         const query = new URL(request.url).searchParams.get("query");
+        const indexes = await options.indexes();
 
         return Response.json({
           mode: "live",
           query,
-          count: options.indexes.length,
+          count: indexes.length,
         });
       },
-      staticGET: () => Response.json({ mode: "static", count: options.indexes.length }),
+      staticGET: async () =>
+        Response.json({ mode: "static", count: (await options.indexes()).length }),
     };
   },
 }));
@@ -156,143 +161,127 @@ describe("public search index", () => {
   it("indexes runtime docs, protocol docs, blog posts, and changelog entries with stable route metadata", async () => {
     const { buildPublicSearchIndexes } = await import("@/lib/public-search-index");
 
-    expect(buildPublicSearchIndexes().filter(index => index.tag !== "Marketplace")).toEqual([
-      {
-        id: "/blog/introducing-site-search",
-        title: "Introducing Site Search",
-        description:
-          "Restore Compozy search from the home shell and the docs shell with one runtime API.",
-        breadcrumbs: ["Blog"],
-        tag: "Blog",
-        structuredData: {
-          headings: [
-            { id: "why-the-search-broke", content: "Why the search broke" },
-            { id: "the-client-contract", content: "The client contract" },
-          ],
-          contents: [
-            {
-              heading: undefined,
-              content:
-                "Restore Compozy search from the home shell and the docs shell with one runtime API.\n\nSearch now spans runtime docs, protocol docs, blog entries, and changelog receipts.",
-            },
-            {
-              heading: "why-the-search-broke",
-              content: "Why the search broke",
-            },
-            {
-              heading: "the-client-contract",
-              content: "The client contract",
-            },
-          ],
+    expect((await buildPublicSearchIndexes()).filter(index => index.tag !== "Marketplace")).toEqual(
+      [
+        {
+          id: "/blog/introducing-site-search",
+          title: "Introducing Site Search",
+          description:
+            "Restore Compozy search from the home shell and the docs shell with one runtime API.",
+          breadcrumbs: ["Blog"],
+          tag: "Blog",
+          structuredData: {
+            headings: [
+              { id: "why-the-search-broke", content: "Why the search broke" },
+              { id: "the-client-contract", content: "The client contract" },
+            ],
+            contents: [
+              {
+                heading: undefined,
+                content:
+                  "Restore Compozy search from the home shell and the docs shell with one runtime API.\n\nSearch now spans runtime docs, protocol docs, blog entries, and changelog receipts.",
+              },
+              {
+                heading: "why-the-search-broke",
+                content: "Why the search broke",
+              },
+              {
+                heading: "the-client-contract",
+                content: "The client contract",
+              },
+            ],
+          },
+          url: "/blog/introducing-site-search",
         },
-        url: "/blog/introducing-site-search",
-      },
-      {
-        id: "/changelog#v0.1.0-alpha.1",
-        title: "v0.1.0-alpha.1",
-        description: "Runtime search now works from both the home shell and docs shell.",
-        breadcrumbs: ["Changelog"],
-        tag: "Changelog",
-        structuredData: {
-          headings: [
-            { id: "summary", content: "Summary" },
-            { id: "added", content: "Added" },
-            { id: "changed", content: "Changed" },
-            { id: "fixed", content: "Fixed" },
-          ],
-          contents: [
-            {
-              heading: "summary",
-              content: "Runtime search now works from both the home shell and docs shell.",
-            },
-            {
-              heading: "added",
-              content:
-                "Search spans runtime docs, protocol docs, blog posts, and changelog entries.",
-            },
-            {
-              heading: "changed",
-              content:
-                "The site now uses standard Next.js runtime output instead of static export.",
-            },
-            {
-              heading: "fixed",
-              content: "The Fumadocs fetch client once again talks to a live query endpoint.",
-            },
-          ],
+        {
+          id: "/changelog/v0.3.0-beta.1",
+          title: "v0.3.0-beta.1",
+          description: "Runtime search now works from both the home shell and docs shell.",
+          breadcrumbs: ["Changelog"],
+          tag: "Changelog",
+          structuredData: {
+            headings: [{ id: "runtime", content: "Runtime" }],
+            contents: [
+              {
+                heading: undefined,
+                content:
+                  "Runtime search now works from both the home shell and docs shell.\n\n### Runtime\n\nSearch spans runtime docs, protocol docs, blog posts, and changelog entries.",
+              },
+            ],
+          },
+          url: "/changelog/v0.3.0-beta.1",
         },
-        url: "/changelog#v0.1.0-alpha.1",
-      },
-      {
-        title: "Sessions",
-        description: "Compozy Sessions HTTP endpoints.",
-        structuredData: { headings: [{ content: "List sessions" }] },
-        id: "/docs/api/sessions",
-        url: "/docs/api/sessions",
-        breadcrumbs: ["Reference", "API reference"],
-        tag: "Reference",
-      },
-      {
-        title: "compozy session resume",
-        description: "Attach to a resumable session.",
-        structuredData: { headings: [{ content: "Options" }] },
-        id: "/docs/cli/session/resume",
-        url: "/docs/cli/session/resume",
-        breadcrumbs: ["Reference", "CLI reference", "Session"],
-        tag: "Reference",
-      },
-      {
-        title: "How to Use These Docs",
-        description: "Choose the right Compozy documentation path for your goal.",
-        structuredData: { headings: [{ content: "Choose a path" }] },
-        id: "/docs/how-to-use-these-docs",
-        url: "/docs/how-to-use-these-docs",
-        breadcrumbs: ["Docs"],
-        tag: "Docs",
-      },
-      {
-        title: "Protocol Testing",
-        description: "Test a protocol implementation against the v0 contract.",
-        structuredData: { headings: [{ content: "Test matrix" }] },
-        id: "/docs/network/protocol/guide/testing",
-        url: "/docs/network/protocol/guide/testing",
-        breadcrumbs: ["Compozy Network", "Network", "Protocol spec", "Implementation guide"],
-        tag: "Compozy Network",
-      },
-      {
-        title: "Implementation Status",
-        description: "Understand the current compozy-network/v0 reference implementation.",
-        structuredData: { headings: [{ content: "Current runtime" }] },
-        id: "/docs/network/protocol/implementation-status",
-        url: "/docs/network/protocol/implementation-status",
-        breadcrumbs: ["Compozy Network", "Network", "Protocol spec"],
-        tag: "Compozy Network",
-      },
-      {
-        title: "Sessions",
-        description: "The durable runtime unit Compozy creates, attaches, audits, and governs.",
-        structuredData: { headings: [{ content: "Browse the session catalog" }] },
-        id: "/docs/sessions",
-        url: "/docs/sessions",
-        breadcrumbs: ["Core concepts"],
-        tag: "Core concepts",
-      },
-      {
-        title: "Prepare a Project Workspace",
-        description: "Register a project workspace and run a first smoke-test session.",
-        structuredData: { headings: [{ content: "Setup" }] },
-        id: "/docs/use-cases/prepare-a-project-workspace",
-        url: "/docs/use-cases/prepare-a-project-workspace",
-        breadcrumbs: ["Guides & examples", "Use cases"],
-        tag: "Guides & examples",
-      },
-    ]);
+        {
+          title: "Sessions",
+          description: "Compozy Sessions HTTP endpoints.",
+          structuredData: { headings: [{ content: "List sessions" }] },
+          id: "/docs/api/sessions",
+          url: "/docs/api/sessions",
+          breadcrumbs: ["Reference", "API reference"],
+          tag: "Reference",
+        },
+        {
+          title: "compozy session resume",
+          description: "Attach to a resumable session.",
+          structuredData: { headings: [{ content: "Options" }] },
+          id: "/docs/cli/session/resume",
+          url: "/docs/cli/session/resume",
+          breadcrumbs: ["Reference", "CLI reference", "Session"],
+          tag: "Reference",
+        },
+        {
+          title: "How to Use These Docs",
+          description: "Choose the right Compozy documentation path for your goal.",
+          structuredData: { headings: [{ content: "Choose a path" }] },
+          id: "/docs/how-to-use-these-docs",
+          url: "/docs/how-to-use-these-docs",
+          breadcrumbs: ["Docs"],
+          tag: "Docs",
+        },
+        {
+          title: "Protocol Testing",
+          description: "Test a protocol implementation against the v0 contract.",
+          structuredData: { headings: [{ content: "Test matrix" }] },
+          id: "/docs/network/protocol/guide/testing",
+          url: "/docs/network/protocol/guide/testing",
+          breadcrumbs: ["Compozy Network", "Network", "Protocol spec", "Implementation guide"],
+          tag: "Compozy Network",
+        },
+        {
+          title: "Implementation Status",
+          description: "Understand the current compozy-network/v0 reference implementation.",
+          structuredData: { headings: [{ content: "Current runtime" }] },
+          id: "/docs/network/protocol/implementation-status",
+          url: "/docs/network/protocol/implementation-status",
+          breadcrumbs: ["Compozy Network", "Network", "Protocol spec"],
+          tag: "Compozy Network",
+        },
+        {
+          title: "Sessions",
+          description: "The durable runtime unit Compozy creates, attaches, audits, and governs.",
+          structuredData: { headings: [{ content: "Browse the session catalog" }] },
+          id: "/docs/sessions",
+          url: "/docs/sessions",
+          breadcrumbs: ["Core concepts"],
+          tag: "Core concepts",
+        },
+        {
+          title: "Prepare a Project Workspace",
+          description: "Register a project workspace and run a first smoke-test session.",
+          structuredData: { headings: [{ content: "Setup" }] },
+          id: "/docs/use-cases/prepare-a-project-workspace",
+          url: "/docs/use-cases/prepare-a-project-workspace",
+          breadcrumbs: ["Guides & examples", "Use cases"],
+          tag: "Guides & examples",
+        },
+      ]
+    );
   });
 
   it("distinguishes identical document titles by their URL-derived section", async () => {
     const { buildPublicSearchIndexes } = await import("@/lib/public-search-index");
 
-    const sessions = buildPublicSearchIndexes()
+    const sessions = (await buildPublicSearchIndexes())
       .filter(index => index.title === "Sessions")
       .map(index => ({
         breadcrumbs: index.breadcrumbs,
@@ -316,7 +305,9 @@ describe("public search index", () => {
     const { entriesForKind, MARKETPLACE_KINDS } = await import("@/lib/marketplace-catalog");
     const { bridgeProviders } = await import("@/lib/marketplace-bridges");
 
-    const marketplace = buildPublicSearchIndexes().filter(index => index.tag === "Marketplace");
+    const marketplace = (await buildPublicSearchIndexes()).filter(
+      index => index.tag === "Marketplace"
+    );
     const urls = new Set(marketplace.map(index => index.url));
 
     expect(urls.has("/marketplace")).toBe(true);

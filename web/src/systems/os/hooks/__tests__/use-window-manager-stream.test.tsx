@@ -3,10 +3,15 @@
 // serializes burst refreshes to the highest announced revision, and accepts only newer bound-client
 // presentation frames.
 // Owning layer: the WebSocket → TanStack Query/client-presentation bridge.
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { PropsWithChildren } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { fetchWorkspaces } from "@/systems/workspace/adapters/workspace-api";
+import { workspaceKeys } from "@/systems/workspace/lib/query-keys";
+import { useActiveWorkspace } from "@/systems/workspace/hooks/use-active-workspace";
+import type { WorkspacePayload } from "@/systems/workspace/types";
 
 import { fetchWindowManagerSnapshot } from "../../adapters/window-manager-api";
 import { windowManagerKeys } from "../../lib/window-manager-query";
@@ -27,6 +32,10 @@ vi.mock("../../adapters/window-manager-api", async importOriginal => {
     fetchWindowManagerSnapshot: vi.fn(),
   };
 });
+
+vi.mock("@/systems/workspace/adapters/workspace-api", () => ({
+  fetchWorkspaces: vi.fn(),
+}));
 
 class FakeSocket implements WindowManagerSocket {
   onopen: ((event: Event) => void) | null = null;
@@ -82,6 +91,17 @@ function client(presentationRevision: number, clientId = "client:web"): WindowMa
     focusOrder: [],
     stackActive: {},
     connectedAt: "2026-07-22T00:00:00Z",
+  };
+}
+
+function workspace(id: string): WorkspacePayload {
+  return {
+    id,
+    root_dir: `/workspace/${id}`,
+    add_dirs: [],
+    name: id,
+    created_at: "2026-07-22T00:00:00Z",
+    updated_at: "2026-07-22T00:00:00Z",
   };
 }
 
@@ -177,6 +197,61 @@ afterEach(() => {
 });
 
 describe("useWindowManagerStream", () => {
+  it("Should reconcile a removed workspace before opening the replacement stream", async () => {
+    const staleWorkspace = workspace("workspace:stale");
+    const currentWorkspace = workspace("workspace:current");
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    queryClient.setQueryData(workspaceKeys.list(), [staleWorkspace]);
+    vi.mocked(fetchWorkspaces).mockResolvedValue([currentWorkspace]);
+    const { factory, sockets } = createSocketFactory();
+
+    const { result } = renderHook(
+      () => {
+        const { activeWorkspaceId } = useActiveWorkspace();
+        useWindowManagerStream({
+          workspaceId: activeWorkspaceId,
+          clientId: "client:web",
+          registrationEpoch: 0,
+          currentClient: null,
+          enabled: activeWorkspaceId !== null,
+          afterRevision: 0,
+          socketFactory: factory,
+          onStatusChange: vi.fn(),
+          onSnapshot: vi.fn(),
+          onClient: vi.fn(),
+          onClientInvalidated: vi.fn(),
+          onError: vi.fn(),
+        });
+        return activeWorkspaceId;
+      },
+      { wrapper: wrapper(queryClient) }
+    );
+
+    expect(result.current).toBe(staleWorkspace.id);
+    expect(factory).toHaveBeenCalledWith(
+      "/api/workspaces/workspace%3Astale/window-manager/stream?after_revision=0&client_id=client%3Aweb"
+    );
+
+    act(() => {
+      sockets[0]?.message({
+        type: "error",
+        error: {
+          error: "window_manager_workspace_not_found",
+          code: "window_manager_workspace_not_found",
+          workspace_id: staleWorkspace.id,
+        },
+      });
+    });
+
+    await waitFor(() => expect(result.current).toBe(currentWorkspace.id));
+    expect(fetchWorkspaces).toHaveBeenCalledOnce();
+    expect(factory).toHaveBeenLastCalledWith(
+      "/api/workspaces/workspace%3Acurrent/window-manager/stream?after_revision=0&client_id=client%3Aweb"
+    );
+  });
+
   it("Should keep one socket across topology advances and reconnect with the latest cached fence", async () => {
     vi.useFakeTimers();
     const queryClient = new QueryClient();

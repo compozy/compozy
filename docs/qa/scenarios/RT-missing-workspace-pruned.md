@@ -11,8 +11,8 @@ bug_ids: BUG-20260713-missing-workspace-persists
 fix_status: fixed
 retest_status: pass
 fix_commits: 8eeb8a38
-evidence: /Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-prune-after-folder-removal.dom.txt; /Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-prune-ghost-persists-after-fallback-refresh.dom.txt; /Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/rt-missing-workspace-pruned-first-ui.dom.txt
-last_report: docs/qa/reports/2026-07-14-consumer-saas-growth.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-dev-websocket-recovery-20260803-155044-571985-lab/qa-artifacts/qa/screenshots/ch-prune-recovered-after-refresh.png; /Users/pedronauck/dev/qa-labs/compozy-dev-websocket-recovery-20260803-155044-571985-lab/qa-artifacts/qa/logs/missing-workspace-websocket.log; /Users/pedronauck/dev/qa-labs/compozy-dev-websocket-recovery-20260803-155044-571985-lab/qa-artifacts/qa/logs/workspace-list-cli.json
+last_report: docs/qa/reports/2026-08-03-dev-websocket-recovery.md
 overlaps: RT-008;RT-009
 ---
 
@@ -27,3 +27,5 @@ Linear issue Compozy-47 is the named regression target.
 QA impact 2026-07-14: workspace unregister now requires the session owner's atomic removal preparer and rejects pending session starts. Reset pending a final-worktree prune replay.
 
 2026-07-14 final-worktree control: the next public catalog reconciliation removed the missing root, preserved the healthy home workspace, and cleared the stale Web selection. Retest promoted to pass.
+
+2026-08-03 targeted recovery retest: removing the active disposable workspace switched the live Web client to the healthy home workspace, survived refresh, removed the old ID from CLI and HTTP catalogs, and returned a terminal WebSocket error frame through Vite without proxy errors.

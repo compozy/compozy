@@ -1,10 +1,10 @@
-import { allPosts, allReleases } from "@/lib/blog";
+import { allPosts } from "@/lib/blog";
+import { loadChangelogReleases } from "@/lib/changelog/github-client";
 import { DOCS_GROUP_BY_FOLDER, DOCS_ROOT_GROUP, docsGroupForUrl } from "@/lib/docs-navigation";
 import { absoluteUrl } from "@/lib/site-config";
 import { docsSource } from "@/lib/source";
 
-export const dynamic = "force-static";
-export const revalidate = false;
+export const revalidate = 300;
 
 function section(title: string, lines: string[]): string {
   if (!lines.length) return "";
@@ -20,10 +20,11 @@ function groupOrder(): string[] {
   return Array.from(new Set([DOCS_ROOT_GROUP, ...DOCS_GROUP_BY_FOLDER.values()]));
 }
 
-export function GET() {
+export async function GET() {
   const pages = docsSource.getPages();
   const posts = allPosts();
-  const currentRelease = allReleases()[0];
+  const changelog = await loadChangelogReleases();
+  const currentRelease = changelog.status === "ready" ? changelog.releases[0] : undefined;
 
   const linesByGroup = new Map<string, string[]>();
   for (const page of pages) {
@@ -39,8 +40,8 @@ export function GET() {
       ? [
           docLine(
             `Current release: ${currentRelease.version}`,
-            `/changelog#${currentRelease.version}`,
-            `${currentRelease.status} — ${currentRelease.summary}`
+            `/changelog/${encodeURIComponent(currentRelease.version)}`,
+            `${currentRelease.channel} — ${currentRelease.summary}`
           ),
         ]
       : []),

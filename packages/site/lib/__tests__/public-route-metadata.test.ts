@@ -81,6 +81,21 @@ vi.mock("@/lib/marketplace-catalog", () => ({
   entriesForKind: (kind: string) => (kind === "skills" ? [{ entry_id: "example-skill" }] : []),
 }));
 
+vi.mock("@/lib/changelog/github-client", () => ({
+  loadChangelogReleases: async () => ({
+    status: "ready",
+    releases: [
+      {
+        version: "v0.3.0-beta.1",
+        summary: "First public beta.",
+        body: "### Runtime\n\n- First public beta.",
+        publishedAt: "2026-07-01T00:00:00Z",
+        channel: "beta",
+      },
+    ],
+  }),
+}));
+
 function parseXml(xml: string): Document {
   const document = new DOMParser().parseFromString(xml, "application/xml");
   const errors = document.getElementsByTagName("parsererror");
@@ -105,8 +120,8 @@ function textOf(parent: Element, tagName: string): string {
 }
 
 describe("public route metadata", () => {
-  it("publishes canonical HTTPS sitemap entries", () => {
-    const entries = sitemap();
+  it("publishes canonical HTTPS sitemap entries", async () => {
+    const entries = await sitemap();
     const urls = entries.map(entry => entry.url);
 
     expect(urls.length).toBeGreaterThan(0);
@@ -124,6 +139,11 @@ describe("public route metadata", () => {
     expect(urls).toContain(absoluteUrl("/marketplace/bridges/"));
     expect(urls).toContain(absoluteUrl("/marketplace/bundled/dev-cycle/"));
     expect(urls).toContain(absoluteUrl("/marketplace/skills/example-skill/"));
+    expect(urls.filter(url => url.includes("/changelog"))).toEqual([
+      absoluteUrl("/changelog/"),
+      absoluteUrl("/changelog/feed.xml"),
+      absoluteUrl("/changelog/v0.3.0-beta.1/"),
+    ]);
     for (const category of BLOG_CATEGORIES) {
       expect(urls).toContain(absoluteUrl(`/blog/categories/${category}/`));
     }
@@ -140,7 +160,7 @@ describe("public route metadata", () => {
   });
 
   it("publishes llms.txt with one canonical heading per public section", async () => {
-    const response = llmsGET();
+    const response = await llmsGET();
     const body = await response.text();
     const headings = body.match(/^#{1,2} .+$/gm) ?? [];
 

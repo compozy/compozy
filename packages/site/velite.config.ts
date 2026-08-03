@@ -6,8 +6,6 @@ const wireKinds = ["greet", "whois", "say", "capability", "receipt", "trace"] as
 
 const blogCategories = ["protocol", "runtime", "engineering", "network"] as const;
 
-const releaseStatuses = ["stable", "beta", "alpha", "breaking"] as const;
-
 const prettyCodeOptions: Partial<RehypePrettyCodeOptions> = {
   theme: COMPOZY_CODE_THEMES.dark,
   keepBackground: false,
@@ -60,22 +58,6 @@ export default defineConfig({
         role: s.string().optional(),
         avatar: s.string(),
         github: s.string().url().optional(),
-      }),
-    },
-    releases: {
-      name: "Release",
-      pattern: "changelog/*.mdx",
-      schema: s.object({
-        version: s.string(),
-        date: s.isodate(),
-        status: s.enum(releaseStatuses),
-        summary: s.string().max(280),
-        added: s.array(s.string()).default([]),
-        changed: s.array(s.string()).default([]),
-        fixed: s.array(s.string()).default([]),
-        breaking: s.array(s.string()).default([]),
-        compareUrl: s.string().url().optional(),
-        body: s.mdx(),
       }),
     },
   },

@@ -1,6 +1,8 @@
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
+import { workspaceKeys } from "@/systems/workspace";
+
 import {
   buildWindowManagerStreamUrl,
   fetchWindowManagerSnapshot,
@@ -215,6 +217,9 @@ export function useWindowManagerStream({
         if (frame.type === "error") {
           if (frame.error.code === "window_manager_client_not_found") {
             recoverMissingClient();
+          }
+          if (frame.error.code === "window_manager_workspace_not_found") {
+            void queryClient.invalidateQueries({ queryKey: workspaceKeys.list(), exact: true });
           }
           publishError(frame.error);
           return;

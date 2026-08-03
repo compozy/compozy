@@ -1,15 +1,40 @@
-import Link from "next/link";
+import { Eyebrow } from "@compozy/ui";
 import { Rss } from "lucide-react";
+import Link from "next/link";
 import { ChangelogTocRail } from "@/components/blog/changelog-toc-rail";
 import { ReleaseEntry } from "@/components/blog/release-entry";
-import { allReleases } from "@/lib/blog";
+import { loadChangelogReleases } from "@/lib/changelog/github-client";
 import { changelogMetadata } from "./metadata";
-import { Eyebrow } from "@compozy/ui";
 
 export const metadata = changelogMetadata;
+export const revalidate = 300;
 
-export default function ChangelogPage() {
-  const releases = allReleases();
+function UnavailableChangelog() {
+  return (
+    <section className="mt-12 rounded-xl border border-line bg-canvas-soft p-6">
+      <Eyebrow className="text-warning">GitHub temporarily unavailable</Eyebrow>
+      <h2 className="mt-4 font-sans text-site-empty-title font-semibold tracking-tight text-fg">
+        The release archive could not be loaded.
+      </h2>
+      <p className="mt-4 max-w-[62ch] text-sm leading-7 text-muted">
+        The changelog reads directly from published GitHub Releases. Try again shortly, or open the
+        repository release archive for the canonical notes.
+      </p>
+      <a
+        href="https://github.com/compozy/compozy/releases"
+        target="_blank"
+        rel="noreferrer noopener"
+        className="mt-6 inline-flex text-sm font-medium text-accent"
+      >
+        Open GitHub Releases →
+      </a>
+    </section>
+  );
+}
+
+export default async function ChangelogPage() {
+  const result = await loadChangelogReleases();
+  const releases = result.status === "ready" ? result.releases : [];
 
   return (
     <>
@@ -18,62 +43,42 @@ export default function ChangelogPage() {
           <div className="flex items-center gap-3">
             <Eyebrow className="text-accent">CHANGELOG</Eyebrow>
             <span className="inline-block h-px w-9 bg-line" />
-            <Eyebrow className="text-muted">Release receipts</Eyebrow>
+            <Eyebrow className="text-muted">Published GitHub releases</Eyebrow>
           </div>
           <h1 className="mt-6 max-w-[24ch] font-display text-site-page-title font-normal leading-none tracking-tight text-fg">
-            Every release, on the wire.
+            Complete notes for every CompozyOS release.
           </h1>
-          <p className="mt-5 max-w-[58ch] text-lg leading-7 text-muted">
-            Compozy ships in the open and logs every change here. New behavior, breaking moves, and
-            engineering notes are sourced from the same git history that ships the binary.
+          <p className="mt-5 max-w-[62ch] text-lg leading-7 text-muted">
+            Features, fixes, breaking changes, pull requests, contributors, and verified release
+            assets—sourced from the same GitHub release that ships the binary.
           </p>
-          <div className="mt-7 flex flex-wrap items-center gap-3">
-            <Link
-              href="/blog/feed.xml"
-              className="inline-flex h-8 items-center gap-1.5 rounded-full border border-line px-3.5 font-sans text-small-body text-muted hover:text-fg"
-            >
-              <Rss size={12} aria-hidden />
-              <Eyebrow className="text-muted">RSS</Eyebrow>
-            </Link>
-          </div>
+          <Link
+            href="/changelog/feed.xml"
+            className="mt-7 inline-flex h-8 items-center gap-1.5 rounded-full border border-line px-3.5 font-sans text-small-body text-muted hover:text-fg"
+          >
+            <Rss size={12} aria-hidden />
+            <Eyebrow className="text-muted">RSS</Eyebrow>
+          </Link>
         </div>
       </section>
 
       <section className="px-4 pt-6 pb-20">
         <div className="mx-auto grid max-w-site-layout-width gap-12 lg:grid-cols-[minmax(0,1fr)_280px]">
           <div>
-            {releases.length === 0 ? (
+            {result.status === "unavailable" ? (
+              <UnavailableChangelog />
+            ) : releases.length === 0 ? (
               <section className="mt-12 rounded-xl border border-line bg-canvas-soft p-6">
-                <Eyebrow className="text-accent">Release notes pending</Eyebrow>
-                <h2 className="mt-4 max-w-[24ch] font-sans text-site-empty-title font-semibold leading-tight tracking-tight text-fg">
-                  Follow the beta while the first changelog entries are prepared.
+                <Eyebrow className="text-muted">No published releases</Eyebrow>
+                <h2 className="mt-4 font-sans text-site-empty-title font-semibold tracking-tight text-fg">
+                  Releases from v0.3.0-beta.1 onward will appear here.
                 </h2>
-                <p className="mt-4 max-w-[62ch] text-sm leading-7 text-muted">
-                  Published entries will appear here once tagged release notes land in the content
-                  layer. Until then, use the install guide for the current runtime path, read the
-                  launch post for product context, or subscribe to the RSS feed for new release
-                  notes.
-                </p>
-                <div className="mt-6 flex flex-wrap gap-3">
-                  <Link
-                    href="/docs/getting-started/installation"
-                    className="inline-flex h-9 items-center justify-center rounded-lg border border-line px-3.5 font-sans text-sm font-medium text-fg transition-colors hover:bg-hover"
-                  >
-                    Install the runtime
-                  </Link>
-                  <Link
-                    href="/blog/introducing-compozyos"
-                    className="inline-flex h-9 items-center justify-center rounded-lg border border-line px-3.5 font-sans text-sm font-medium text-fg transition-colors hover:bg-hover"
-                  >
-                    Read the launch post
-                  </Link>
-                </div>
               </section>
             ) : (
               releases.map(release => <ReleaseEntry key={release.version} release={release} />)
             )}
           </div>
-          <ChangelogTocRail releases={releases} />
+          {releases.length > 0 && <ChangelogTocRail releases={releases} />}
         </div>
       </section>
     </>

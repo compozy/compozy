@@ -314,6 +314,49 @@ func TestWindowManagerWebSocketStream(t *testing.T) {
 		}
 	})
 
+	t.Run("Should upgrade a missing workspace to a terminal error and drain", func(t *testing.T) {
+		t.Parallel()
+		fixture := newWindowManagerHandlerFixture(t)
+		server := httptest.NewServer(fixture.router)
+		t.Cleanup(server.Close)
+
+		streamURL := "ws" + strings.TrimPrefix(server.URL, "http") +
+			windowManagerTestPath("missing-workspace") + "/stream"
+		connection, response, err := websocket.DefaultDialer.DialContext(t.Context(), streamURL, nil)
+		if err != nil {
+			closeWindowManagerDialResponse(t, response)
+			t.Fatalf("DialContext() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := connection.Close(); closeErr != nil {
+				t.Errorf("websocket Close() error = %v", closeErr)
+			}
+		})
+
+		var errorFrame contract.WindowManagerErrorFrame
+		if readErr := connection.ReadJSON(&errorFrame); readErr != nil {
+			t.Fatalf("ReadJSON(error) error = %v", readErr)
+		}
+		if errorFrame.Type != contract.WindowManagerFrameError ||
+			errorFrame.Error.Code != contract.WindowManagerErrorWorkspaceNotFound ||
+			errorFrame.Error.WorkspaceID != "missing-workspace" {
+			t.Fatalf("missing-workspace error frame = %+v", errorFrame)
+		}
+		if deadlineErr := connection.SetReadDeadline(time.Now().Add(time.Second)); deadlineErr != nil {
+			t.Fatalf("SetReadDeadline() error = %v", deadlineErr)
+		}
+		_, _, readErr := connection.ReadMessage()
+		if !websocket.IsCloseError(readErr, websocket.ClosePolicyViolation) {
+			t.Fatalf("ReadMessage() error = %v, want policy-violation close", readErr)
+		}
+
+		shutdownContext, cancel := context.WithTimeout(context.WithoutCancel(t.Context()), time.Second)
+		defer cancel()
+		if shutdownErr := fixture.handlers.ShutdownWindowManagerStreams(shutdownContext); shutdownErr != nil {
+			t.Fatalf("ShutdownWindowManagerStreams() error = %v", shutdownErr)
+		}
+	})
+
 	t.Run("Should keep a missing bound client as JSON 404 without WebSocket upgrade", func(t *testing.T) {
 		t.Parallel()
 		fixture := newWindowManagerHandlerFixture(t)

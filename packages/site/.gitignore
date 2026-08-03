@@ -8,3 +8,5 @@ tsconfig.tsbuildinfo
 /content/docs/api/*.mdx
 /content/docs/api/meta.json
 !/content/docs/api/index.mdx
+.vercel
+.env*

@@ -29,6 +29,10 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/",
 }));
 
+vi.mock("@/lib/changelog/github-client", () => ({
+  loadChangelogReleases: async () => ({ status: "ready", releases: [] }),
+}));
+
 // The hero visual is a Remotion <Player>; jsdom cannot drive its frame loop and the heading
 // hierarchy does not depend on it. components/landing/__tests__/landing.test.tsx owns the
 // player's own contract.
@@ -66,7 +70,7 @@ describe("public heading hierarchy", () => {
   }, 15_000);
 
   it("keeps blog index and category archive pages to one primary heading", async () => {
-    render(<BlogIndexPage />);
+    render(await BlogIndexPage());
     expectSingleH1("How CompozyOS is built, operated, and released.");
     cleanup();
 
@@ -86,9 +90,9 @@ describe("public heading hierarchy", () => {
     expectSingleH1(post.title);
   });
 
-  it("keeps changelog and fallback pages to one primary heading", () => {
-    render(<ChangelogPage />);
-    expectSingleH1("Every release, on the wire.");
+  it("keeps changelog and fallback pages to one primary heading", async () => {
+    render(await ChangelogPage());
+    expectSingleH1("Complete notes for every CompozyOS release.");
     cleanup();
 
     render(<NotFound />);

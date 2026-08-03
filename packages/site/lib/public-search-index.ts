@@ -1,5 +1,7 @@
 import type { AdvancedIndex } from "fumadocs-core/search/server";
-import { allPosts, allReleases, type Post, type Release } from "@/lib/blog";
+import { allPosts, type Post } from "@/lib/blog";
+import { loadChangelogReleases } from "@/lib/changelog/github-client";
+import type { ChangelogRelease } from "@/lib/changelog/types";
 import { MARKETPLACE_KIND_META } from "@/components/marketplace/marketplace-kind-meta";
 import { docsGroupForUrl } from "@/lib/docs-navigation";
 import { bridgeProviders } from "@/lib/marketplace-bridges";
@@ -149,32 +151,21 @@ function buildPostIndexes(posts: Post[]): AdvancedIndex[] {
   }));
 }
 
-function buildReleaseStructuredData(release: Release): AdvancedIndex["structuredData"] {
-  const sections = [
-    { id: "summary", title: "Summary", content: release.summary },
-    { id: "added", title: "Added", content: release.added.join("\n") },
-    { id: "changed", title: "Changed", content: release.changed.join("\n") },
-    { id: "fixed", title: "Fixed", content: release.fixed.join("\n") },
-    { id: "breaking", title: "Breaking", content: release.breaking.join("\n") },
-  ].filter(section => section.content.trim().length > 0);
-
+function buildReleaseStructuredData(release: ChangelogRelease): AdvancedIndex["structuredData"] {
   return {
-    headings: sections.map(section => ({
-      id: section.id,
-      content: section.title,
+    headings: release.headings.map(heading => ({
+      id: heading.id,
+      content: heading.label,
     })),
-    contents: sections.map(section => ({
-      heading: section.id,
-      content: section.content,
-    })),
+    contents: [{ heading: undefined, content: joinContent(release.summary, release.body) }],
   };
 }
 
-function buildReleaseIndexes(releases: Release[]): AdvancedIndex[] {
+function buildReleaseIndexes(releases: ChangelogRelease[]): AdvancedIndex[] {
   return sortedByURL(
     releases.map(release => ({
       ...release,
-      url: `/changelog#${release.version}`,
+      url: `/changelog/${encodeURIComponent(release.version)}`,
     }))
   ).map(release => ({
     id: release.url,
@@ -283,11 +274,13 @@ function buildMarketplaceIndexes(): AdvancedIndex[] {
   return [overview, ...kinds, ...bridges, ...bundled];
 }
 
-export function buildPublicSearchIndexes(): AdvancedIndex[] {
+export async function buildPublicSearchIndexes(): Promise<AdvancedIndex[]> {
+  const changelog = await loadChangelogReleases();
+  const releases = changelog.status === "ready" ? changelog.releases : [];
   return [
     ...buildDocIndexes(docsSource.getPages()),
     ...buildMarketplaceIndexes(),
     ...buildPostIndexes(allPosts()),
-    ...buildReleaseIndexes(allReleases()),
+    ...buildReleaseIndexes(releases),
   ].toSorted(byURL);
 }

@@ -1,19 +1,12 @@
 import { Eyebrow } from "@compozy/ui";
-import type { Release } from "#site/content";
+import type { ChangelogRelease } from "@/lib/changelog/types";
 import Link from "next/link";
 import { DateStamp } from "./date-stamp";
-import { MonoBadge, type MonoBadgeTone } from "./mono-badge";
+import { MonoBadge } from "./mono-badge";
 
 export interface ChangelogRailProps {
-  releases: Release[];
+  releases: ChangelogRelease[];
 }
-
-const statusTone: Record<Release["status"], MonoBadgeTone> = {
-  stable: "success",
-  beta: "info",
-  alpha: "accent",
-  breaking: "danger",
-};
 
 export function ChangelogRail({ releases }: ChangelogRailProps) {
   const items = releases.slice(0, 4);
@@ -39,16 +32,19 @@ export function ChangelogRail({ releases }: ChangelogRailProps) {
               idx < items.length - 1 ? "border-b border-line" : ""
             }`}
           >
-            <Link href={`/changelog#${release.version}`} className="flex min-w-0 flex-1 gap-3">
+            <Link
+              href={`/changelog/${encodeURIComponent(release.version)}`}
+              className="flex min-w-0 flex-1 gap-3"
+            >
               <span className="w-20 shrink-0">
-                <MonoBadge tone={statusTone[release.status]}>{release.version}</MonoBadge>
+                <MonoBadge>{release.channel.toUpperCase()}</MonoBadge>
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block font-sans text-small-body leading-5 text-fg">
-                  {release.summary}
+                <span className="block font-mono text-small-body leading-5 text-fg">
+                  {release.version}
                 </span>
                 <DateStamp
-                  date={release.date}
+                  date={release.publishedAt}
                   format="compact-year"
                   className="mt-1 block text-badge"
                 />
