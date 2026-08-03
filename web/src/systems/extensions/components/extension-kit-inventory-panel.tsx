@@ -5,7 +5,7 @@ import { Button, ListingRow, MonoId, Pill, Section, Spinner } from "@compozy/ui"
 import type { ExtensionKitItem } from "../types";
 
 interface ExtensionKitInventoryPanelProps {
-  items: ExtensionKitItem[] | undefined;
+  items: readonly ExtensionKitItem[] | undefined;
   error: Error | null;
   isLoading: boolean;
   onRetry: () => void;

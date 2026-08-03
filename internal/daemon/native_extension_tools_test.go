@@ -131,7 +131,7 @@ func (s *nativeExtensionSource) Close() error {
 }
 
 func TestDaemonNativeExtensionTools(t *testing.T) {
-	t.Run("Should expose inventory and preview as unprivileged read-only calls", func(t *testing.T) {
+	t.Run("Should expose inventory and preview through native bindings", func(t *testing.T) {
 		t.Parallel()
 
 		deps, _, _, _ := newNativeExtensionToolDeps(t)
@@ -450,16 +450,11 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 				`{"install_slug":"acme/tool-ext","repository":"https://github.com/acme/tool-ext"}`,
 			),
 		}}
-		service := newDaemonExtensionService(
-			extRegistry,
-			runtime,
-			nil,
-			nil,
-			nil,
-			nil,
-			deps.HomePaths,
-			nil,
-			nil,
+		service := newDaemonExtensionService(daemonExtensionServiceDeps{
+			Registry:  extRegistry,
+			Runtime:   runtime,
+			HomePaths: deps.HomePaths,
+		},
 			withDaemonExtensionMarketplace(
 				validNativeExtensionConfig(false),
 				deps.ExtensionSources,
@@ -528,8 +523,11 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 				`{"install_slug":"acme/tool-ext","repository":"https://github.com/acme/tool-ext"}`,
 			),
 		}}
-		service := newDaemonExtensionService(
-			extRegistry, runtime, nil, nil, nil, nil, deps.HomePaths, nil, nil,
+		service := newDaemonExtensionService(daemonExtensionServiceDeps{
+			Registry:  extRegistry,
+			Runtime:   runtime,
+			HomePaths: deps.HomePaths,
+		},
 			withDaemonExtensionMarketplace(
 				validNativeExtensionConfig(true),
 				deps.ExtensionSources,
@@ -645,6 +643,30 @@ func newNativeExtensionToolDeps(
 	source := newNativeExtensionSource(t, "1.0.0", "2.0.0")
 	runtime := &fakeExtensionRuntime{}
 	extRegistry := extensionpkg.NewRegistry(db.DB())
+	runtime.getFn = func(name string) (*extensionpkg.Extension, error) {
+		info, getErr := extRegistry.Get(name)
+		if getErr != nil {
+			return nil, getErr
+		}
+		rootDir := filepath.Dir(info.ManifestPath)
+		manifest, loadErr := extensionpkg.LoadManifest(rootDir)
+		if loadErr != nil {
+			return nil, loadErr
+		}
+		return &extensionpkg.Extension{
+			Info:     *info,
+			Manifest: manifest,
+			RootDir:  rootDir,
+			Status: extensionpkg.ExtensionStatus{
+				Name:       info.Name,
+				Version:    info.Version,
+				Source:     info.Source,
+				Enabled:    info.Enabled,
+				Registered: info.Enabled,
+				Active:     info.Enabled,
+			},
+		}, nil
+	}
 	deps := daemonNativeToolsDeps{
 		HomePaths:         homePaths,
 		ExtensionRegistry: extRegistry,
@@ -656,6 +678,7 @@ func newNativeExtensionToolDeps(
 		},
 		ExtensionConfig: validNativeExtensionConfig(true),
 		ExtensionEvents: db,
+		Automation:      &fakeAutomationManager{},
 	}
 	return &deps, extRegistry, source, runtime
 }

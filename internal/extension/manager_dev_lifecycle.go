@@ -103,34 +103,23 @@ func (m *Manager) LinkDevelopment(
 	if err != nil {
 		return nil, err
 	}
-	current, _ := m.lookupInstance(key)
-	candidate, err := m.startVerifiedDevCandidate(ctx, key, verified)
+	previous, err := m.developmentLinkSnapshot(key)
 	if err != nil {
 		return nil, err
 	}
-	link, err := m.registry.LinkDev(DevLinkRequest{
-		Name:                     key.Name,
-		WorkspaceID:              key.WorkspaceID,
-		OriginPath:               verified.OriginPath,
-		GenerationHash:           verified.GenerationHash,
-		NetworkRequirementDigest: verified.NetworkRequirementDigest,
-	})
+	link, err := m.stageDevelopmentLinkLocked(key, verified)
 	if err != nil {
-		m.discardDevCandidate(ctx, candidate)
-		m.restoreInstanceAuthority(current)
 		return nil, err
 	}
-	candidate.lastGoodGeneration = verified.GenerationHash
-	m.swapDevInstance(key, candidate)
-	m.startInstanceSupervisor(candidate)
-	if current != nil {
-		m.stopReplacedDevProcess(ctx, current)
+	if developmentLinkRequiresConfirmation(link, verified.NetworkRequirementDigest) {
+		confirmationErr := &NetworkConfirmationRequiredError{CurrentDigest: verified.NetworkRequirementDigest}
+		return nil, errors.Join(confirmationErr, m.restoreDevelopmentLinkSnapshot(key, previous))
 	}
-	snapshot := m.cloneExtension(candidate)
-	snapshot.DevLink = link
-	_, publishedErr := m.registry.Get(key.Name)
-	snapshot.OverridesPublished = publishedErr == nil
-	return snapshot, nil
+	extension, err := m.activateDevelopmentLinkLocked(ctx, key, link, verified)
+	if err != nil {
+		return nil, errors.Join(err, m.restoreDevelopmentLinkSnapshot(key, previous))
+	}
+	return extension, nil
 }
 
 // ReloadExtension atomically replaces one active dev generation.

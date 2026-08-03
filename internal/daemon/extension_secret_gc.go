@@ -57,11 +57,11 @@ func (s *daemonExtensionService) gcSupersededExtensionSecrets(
 }
 
 func (s *daemonExtensionService) gcOwnedExtensionSecret(ctx context.Context, ref string) error {
-	snapshot, eligible, err := s.extensionSecretGCSnapshot(ctx, ref)
+	metadata, eligible, err := s.extensionSecretGCMetadata(ctx, ref)
 	if err != nil || !eligible {
 		return err
 	}
-	if err := s.secretVault.DeleteSecret(ctx, snapshot.ref); err != nil && !errors.Is(err, vault.ErrSecretNotFound) {
+	if err := s.secretVault.DeleteSecret(ctx, metadata.Ref); err != nil && !errors.Is(err, vault.ErrSecretNotFound) {
 		return fmt.Errorf("daemon: garbage-collect extension secret: %w", err)
 	}
 	return nil
@@ -71,38 +71,75 @@ func (s *daemonExtensionService) extensionSecretGCSnapshot(
 	ctx context.Context,
 	ref string,
 ) (extensionSecretSnapshot, bool, error) {
+	metadata, eligible, err := s.extensionSecretGCMetadata(ctx, ref)
+	if err != nil || !eligible {
+		return extensionSecretSnapshot{}, eligible, err
+	}
+	return s.snapshotExtensionOwnedSecret(ctx, metadata)
+}
+
+func (s *daemonExtensionService) extensionSecretGCMetadata(
+	ctx context.Context,
+	ref string,
+) (vault.Metadata, bool, error) {
+	ref = vault.NormalizeRef(ref)
+	if strings.TrimSpace(ref) == "" {
+		return vault.Metadata{}, false, nil
+	}
+	count, err := s.envBindings.CountEnvBindingsBySecretRef(ctx, ref)
+	if err != nil {
+		return vault.Metadata{}, false, fmt.Errorf("daemon: count extension bindings for secret ref: %w", err)
+	}
+	if count != 0 {
+		return vault.Metadata{}, false, nil
+	}
+	return s.inspectExtensionOwnedSecretMetadata(ctx, ref)
+}
+
+func (s *daemonExtensionService) extensionOwnedSecretSnapshot(
+	ctx context.Context,
+	ref string,
+) (extensionSecretSnapshot, bool, error) {
 	ref = vault.NormalizeRef(ref)
 	if strings.TrimSpace(ref) == "" {
 		return extensionSecretSnapshot{}, false, nil
 	}
-	count, err := s.envBindings.CountEnvBindingsBySecretRef(ctx, ref)
-	if err != nil {
-		return extensionSecretSnapshot{}, false, fmt.Errorf("daemon: count extension bindings for secret ref: %w", err)
+	metadata, owned, err := s.inspectExtensionOwnedSecretMetadata(ctx, ref)
+	if err != nil || !owned {
+		return extensionSecretSnapshot{}, owned, err
 	}
-	if count != 0 {
-		return extensionSecretSnapshot{}, false, nil
-	}
+	return s.snapshotExtensionOwnedSecret(ctx, metadata)
+}
+
+func (s *daemonExtensionService) inspectExtensionOwnedSecretMetadata(
+	ctx context.Context,
+	ref string,
+) (vault.Metadata, bool, error) {
 	metadata, err := s.secretVault.GetMetadata(ctx, ref)
 	if errors.Is(err, vault.ErrSecretNotFound) || (err == nil && !metadata.Present) {
-		return extensionSecretSnapshot{}, false, nil
+		return vault.Metadata{}, false, nil
 	}
 	if err != nil {
-		return extensionSecretSnapshot{}, false, fmt.Errorf(
-			"daemon: inspect extension secret for garbage collection: %w",
-			err,
-		)
+		return vault.Metadata{}, false, fmt.Errorf("daemon: inspect extension-owned secret: %w", err)
 	}
 	if strings.TrimSpace(metadata.Kind) != extensionpkg.ExtensionEnvBindingKind {
-		return extensionSecretSnapshot{}, false, nil
+		return vault.Metadata{}, false, nil
 	}
-	value, err := s.secretVault.ResolveRef(ctx, ref)
+	metadata.Ref = ref
+	return metadata, true, nil
+}
+
+func (s *daemonExtensionService) snapshotExtensionOwnedSecret(
+	ctx context.Context,
+	metadata vault.Metadata,
+) (extensionSecretSnapshot, bool, error) {
+	value, err := s.secretVault.ResolveRef(ctx, metadata.Ref)
 	if err != nil {
-		return extensionSecretSnapshot{}, false, fmt.Errorf(
-			"daemon: snapshot extension secret for garbage collection: %w",
-			err,
-		)
+		return extensionSecretSnapshot{}, false, fmt.Errorf("daemon: snapshot extension-owned secret: %w", err)
 	}
-	return extensionSecretSnapshot{ref: ref, kind: metadata.Kind, value: value, existed: true}, true, nil
+	return extensionSecretSnapshot{
+		ref: metadata.Ref, kind: metadata.Kind, value: value, existed: true,
+	}, true, nil
 }
 
 func (s *daemonExtensionService) restoreExtensionSecretSnapshots(
@@ -114,7 +151,7 @@ func (s *daemonExtensionService) restoreExtensionSecretSnapshots(
 	errList := make([]error, 0, len(snapshots))
 	for _, snapshot := range slices.Backward(snapshots) {
 		if _, err := s.secretVault.PutSecret(rollbackCtx, snapshot.ref, snapshot.kind, snapshot.value); err != nil {
-			errList = append(errList, fmt.Errorf("daemon: restore garbage-collected extension secret: %w", err))
+			errList = append(errList, fmt.Errorf("daemon: restore extension secret snapshot: %w", err))
 		}
 	}
 	return errors.Join(errList...)

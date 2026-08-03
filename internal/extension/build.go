@@ -82,7 +82,7 @@ func buildBundle(ctx context.Context, req BuildRequest, runner buildCommandRunne
 	if err != nil {
 		return nil, err
 	}
-	return publishBuildGeneration(normalized.OutputDir, normalized.SourceDir, manifest)
+	return publishBuildGeneration(ctx, normalized.OutputDir, normalized.SourceDir, manifest)
 }
 
 func normalizeBuildRequest(req BuildRequest) (BuildRequest, error) {

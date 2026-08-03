@@ -114,7 +114,7 @@ function MarketplaceKindResults({
           </Button>
         }
         data-testid={`marketplace-installed-query-empty-${kind}`}
-        description={`Nothing matches "${page.query}" in your ${config.installedNoun} ${config.label.toLowerCase()}.`}
+        description={`Nothing matches "${page.query}" in your installed ${config.label.toLowerCase()}.`}
         icon={SearchX}
         title={`No ${config.label.toLowerCase()} match this query`}
       />

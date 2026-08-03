@@ -15,13 +15,10 @@ import type { InstalledExtensionView } from "../../types";
 const CURRENT_DIGEST = "sha256:6f1c0a94d3b27e58";
 
 function networkConfirmationRefusal() {
-  return new ExtensionsApiError(
-    "network confirmation required",
-    409,
-    "daemon",
-    "extension_network_confirmation_required",
-    CURRENT_DIGEST
-  );
+  return new ExtensionsApiError("network confirmation required", 409, "daemon", {
+    code: "extension_network_confirmation_required",
+    currentDigest: CURRENT_DIGEST,
+  });
 }
 
 const mocks = vi.hoisted(() => ({
@@ -127,7 +124,7 @@ describe("useExtensionDetailState", () => {
     );
 
     await act(async () => {
-      result.current.requestUpdate();
+      await result.current.requestUpdate();
     });
 
     expect(mocks.update.mutateAsync).toHaveBeenCalledWith({
@@ -154,8 +151,8 @@ describe("useExtensionDetailState", () => {
       useExtensionDetailState("slack-notify", { updateVersion: "1.2.0" })
     );
 
-    act(() => {
-      result.current.requestUpdate();
+    await act(async () => {
+      await result.current.requestUpdate();
     });
 
     expect(mocks.update.mutate).not.toHaveBeenCalled();
@@ -182,7 +179,7 @@ describe("useExtensionDetailState", () => {
     const { result } = renderHook(() => useExtensionDetailState("dep-kit-ops"));
 
     await act(async () => {
-      result.current.requestToggle(true);
+      await result.current.requestToggle(true);
     });
 
     expect(result.current.networkConfirm).toEqual({
@@ -192,7 +189,7 @@ describe("useExtensionDetailState", () => {
     });
 
     await act(async () => {
-      result.current.submitNetworkConfirm();
+      await result.current.submitNetworkConfirm();
     });
 
     expect(mocks.toggle.mutateAsync).toHaveBeenLastCalledWith({
@@ -220,8 +217,8 @@ describe("useExtensionDetailState", () => {
       useExtensionDetailState("dep-kit-ops", { updateVersion: "1.2.0" })
     );
 
-    act(() => {
-      result.current.requestUpdate();
+    await act(async () => {
+      await result.current.requestUpdate();
     });
     await act(async () => {
       await result.current.submitUpdate();
@@ -233,9 +230,10 @@ describe("useExtensionDetailState", () => {
       digest: CURRENT_DIGEST,
       variables: { allowUnverified: true, name: "dep-kit-ops", version: "1.2.0" },
     });
+    expect(result.current.activeDialog).toBeNull();
 
     await act(async () => {
-      result.current.submitNetworkConfirm();
+      await result.current.submitNetworkConfirm();
     });
 
     expect(mocks.update.mutateAsync).toHaveBeenLastCalledWith({
@@ -254,7 +252,7 @@ describe("useExtensionDetailState", () => {
     const { result } = renderHook(() => useExtensionDetailState("dep-kit-ops"));
 
     await act(async () => {
-      result.current.requestToggle(true);
+      await result.current.requestToggle(true);
     });
     expect(result.current.networkConfirm).not.toBeNull();
 
@@ -265,7 +263,7 @@ describe("useExtensionDetailState", () => {
     expect(result.current.networkConfirm).toBeNull();
   });
 
-  it("Should leave an unrelated lifecycle failure to its own error path", async () => {
+  it("Should not open confirmation for an unrelated lifecycle failure", async () => {
     mocks.detail.data = installedView({ name: "dep-kit-ops" });
     mocks.toggle.mutateAsync.mockRejectedValueOnce(
       new ExtensionsApiError("daemon refused the toggle", 500, "daemon")
@@ -273,9 +271,13 @@ describe("useExtensionDetailState", () => {
     const { result } = renderHook(() => useExtensionDetailState("dep-kit-ops"));
 
     await act(async () => {
-      result.current.requestToggle(true);
+      await result.current.requestToggle(true);
     });
 
+    expect(mocks.toggle.mutateAsync).toHaveBeenCalledWith({
+      enabled: true,
+      name: "dep-kit-ops",
+    });
     expect(result.current.networkConfirm).toBeNull();
   });
 });

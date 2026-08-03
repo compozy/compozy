@@ -7,6 +7,23 @@ import (
 	registrypkg "github.com/compozy/compozy/internal/registry"
 )
 
+type marketplaceUpdateCommitInput struct {
+	registry        LifecycleRegistry
+	info            ExtensionInfo
+	installDir      string
+	result          *registrypkg.InstallResult
+	manifest        *Manifest
+	change          *stagedExtensionDirChange
+	slug            string
+	registryName    string
+	latestVersion   string
+	allowUnverified bool
+	installedBy     string
+	trust           *MarketplaceTrustEvidence
+	commitCandidate MarketplaceUpdateCommit
+	reload          MutationReload
+}
+
 func committedMarketplaceUpdateResult(
 	cleanup marketplaceUpdateCleanup,
 	extensionName string,
@@ -27,41 +44,46 @@ func committedMarketplaceUpdateResult(
 
 func commitMarketplaceUpdateCandidate(
 	ctx context.Context,
-	registry LifecycleRegistry,
-	info ExtensionInfo,
-	installDir string,
-	result *registrypkg.InstallResult,
-	manifest *Manifest,
-	change *stagedExtensionDirChange,
-	slug string,
-	registryName string,
-	latestVersion string,
-	allowUnverified bool,
-	installedBy string,
-	trust *MarketplaceTrustEvidence,
-	commitCandidate func(ExtensionInfo, *Manifest) error,
-	reload MutationReload,
+	input *marketplaceUpdateCommitInput,
 ) (string, error) {
-	remoteVersion := firstNonEmpty(result.Version, latestVersion, manifest.Version)
-	provenance := marketplaceUpdateProvenance(info, result, manifest, registryName, allowUnverified, installedBy, trust)
+	remoteVersion := firstNonEmpty(input.result.Version, input.latestVersion, input.manifest.Version)
+	provenance := marketplaceUpdateProvenance(
+		input.info,
+		input.result,
+		input.manifest,
+		input.registryName,
+		input.allowUnverified,
+		input.installedBy,
+		input.trust,
+	)
 	if err := installMarketplaceExtensionUpdateRecord(
-		registry,
-		manifest,
-		installDir,
-		result.Checksum,
-		slug,
-		registryName,
+		input.registry,
+		input.manifest,
+		input.installDir,
+		input.result.Checksum,
+		input.slug,
+		input.registryName,
 		remoteVersion,
 		provenance,
 	); err != nil {
-		return "", errors.Join(err, change.Rollback())
+		return "", errors.Join(err, input.change.Rollback())
 	}
-	if commitCandidate != nil {
-		if err := commitCandidate(info, manifest); err != nil {
-			return "", errors.Join(err, restoreUpdatedExtensionRecord(registry, info, installDir, change))
+	if input.commitCandidate != nil {
+		if err := input.commitCandidate(input.info, input.manifest); err != nil {
+			return "", errors.Join(
+				err,
+				restoreUpdatedExtensionRecord(input.registry, input.info, input.installDir, input.change),
+			)
 		}
 	}
-	if err := reloadMarketplaceExtensionUpdate(ctx, reload, registry, info, installDir, change); err != nil {
+	if err := reloadMarketplaceExtensionUpdate(
+		ctx,
+		input.reload,
+		input.registry,
+		input.info,
+		input.installDir,
+		input.change,
+	); err != nil {
 		return "", err
 	}
 	return remoteVersion, nil

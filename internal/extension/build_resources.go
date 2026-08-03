@@ -71,16 +71,7 @@ func collectBuildResourceDeclarations(
 		}
 		return nil
 	}
-	for _, group := range []struct {
-		label string
-		paths []string
-	}{
-		{label: "skill resource", paths: resources.Skills},
-		{label: "loop resource", paths: resources.Loops},
-		{label: "agent resource", paths: resources.Agents},
-		{label: "automation resource", paths: resources.Automation},
-		{label: "layout resource", paths: resources.Layouts},
-	} {
+	for _, group := range staticResourcePathGroups(resources) {
 		if err := appendPaths(group.label, group.paths); err != nil {
 			return nil, err
 		}
@@ -91,8 +82,7 @@ func collectBuildResourceDeclarations(
 	for left := range declarations {
 		for right := left + 1; right < len(declarations); right++ {
 			if pathsOverlap(declarations[left].destination, declarations[right].destination) ||
-				pathsOverlap(declarations[left].source, declarations[right].source) ||
-				pathsOverlap(declarations[right].source, declarations[left].source) {
+				pathsOverlap(declarations[left].source, declarations[right].source) {
 				return nil, fmt.Errorf(
 					"%w: declared resource paths %q and %q overlap",
 					ErrManifestInvalid,
@@ -123,12 +113,16 @@ func validateBuildResourceOutputSeparation(resource, output, label, declared str
 }
 
 func pathsOverlap(left, right string) bool {
-	left = filepath.Clean(left)
-	right = filepath.Clean(right)
-	if left == right {
+	return pathContains(left, right) || pathContains(right, left)
+}
+
+func pathContains(parent, child string) bool {
+	parent = filepath.Clean(parent)
+	child = filepath.Clean(child)
+	if parent == child {
 		return true
 	}
-	relative, err := filepath.Rel(left, right)
+	relative, err := filepath.Rel(parent, child)
 	return err == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))
 }
 

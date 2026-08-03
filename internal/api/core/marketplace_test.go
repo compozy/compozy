@@ -138,7 +138,11 @@ func TestMarketplaceSearchPreservesKindIsolationAndInstalledTruth(t *testing.T) 
 		if remoteSearchCalls != 0 {
 			t.Fatalf("remote skill search calls = %d, want 0 for idle browse", remoteSearchCalls)
 		}
-		wantKinds := []string{"mcp", "extension", "skill"}
+		wantKinds := []contract.MarketplaceKind{
+			contract.MarketplaceKindMCP,
+			contract.MarketplaceKindExtension,
+			contract.MarketplaceKindSkill,
+		}
 		if len(payload.Kinds) != len(wantKinds) {
 			t.Fatalf("len(kinds) = %d, want %d", len(payload.Kinds), len(wantKinds))
 		}
@@ -946,7 +950,7 @@ func TestMarketplaceDetailAndRefreshValidateStableIdentityAndKind(t *testing.T) 
 		tests := []struct {
 			name       string
 			path       string
-			kind       string
+			kind       contract.MarketplaceKind
 			entryName  string
 			managePath string
 		}{

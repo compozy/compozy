@@ -1,22 +1,89 @@
 package extensionpkg
 
 import (
+	"context"
 	"errors"
 	"fmt"
-
 	"path/filepath"
-
 	"strings"
-
 	"time"
 
 	automationpkg "github.com/compozy/compozy/internal/automation"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	looppkg "github.com/compozy/compozy/internal/loop"
-	"github.com/compozy/compozy/internal/windowmanager"
-
 	skillspkg "github.com/compozy/compozy/internal/skills"
+	"github.com/compozy/compozy/internal/windowmanager"
 )
+
+type loadedExtensionResources struct {
+	skills             []*skillspkg.Skill
+	loops              []looppkg.ResourceSpec
+	staticAgents       []StaticAgent
+	agents             []compozyconfig.AgentDef
+	automationJobs     []automationpkg.Job
+	automationTriggers []automationpkg.Trigger
+	layouts            []windowmanager.LayoutResource
+	hooks              []hookspkg.HookDecl
+}
+
+func (resources loadedExtensionResources) apply(ext *managedExtension) {
+	ext.skills = resources.skills
+	ext.loops = resources.loops
+	ext.staticAgents = resources.staticAgents
+	ext.agents = resources.agents
+	ext.automationJobs = resources.automationJobs
+	ext.automationTriggers = resources.automationTriggers
+	ext.layouts = resources.layouts
+	ext.hooks = resources.hooks
+}
+
+func (m *Manager) loadDeclarativeResources(
+	ctx context.Context,
+	ext *managedExtension,
+) (loadedExtensionResources, error) {
+	if ctx == nil {
+		return loadedExtensionResources{}, errors.New("extension: declarative resource context is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return loadedExtensionResources{}, err
+	}
+
+	var loaded loadedExtensionResources
+	var err error
+	loaded.staticAgents, err = m.loadAgentResources(ext)
+	if err != nil {
+		return loadedExtensionResources{}, fmt.Errorf("extension: load declared agents: %w", err)
+	}
+	loaded.agents = make([]compozyconfig.AgentDef, 0, len(loaded.staticAgents))
+	for _, agent := range loaded.staticAgents {
+		loaded.agents = append(loaded.agents, compozyconfig.CloneAgentDef(agent.Agent))
+	}
+	loaded.skills, err = m.loadSkillResources(ext)
+	if err != nil {
+		return loadedExtensionResources{}, fmt.Errorf("extension: load declared skills: %w", err)
+	}
+	loaded.loops, err = m.loadLoopResources(ext)
+	if err != nil {
+		return loadedExtensionResources{}, fmt.Errorf("extension: load declared loops: %w", err)
+	}
+	loaded.automationJobs, loaded.automationTriggers, err = m.loadAutomationResources(ext, loaded.staticAgents)
+	if err != nil {
+		return loadedExtensionResources{}, fmt.Errorf("extension: load declared automation: %w", err)
+	}
+	loaded.layouts, err = m.loadLayoutResources(ctx, ext)
+	if err != nil {
+		return loadedExtensionResources{}, fmt.Errorf("extension: load declared layouts: %w", err)
+	}
+	if err := ctx.Err(); err != nil {
+		return loadedExtensionResources{}, err
+	}
+	loaded.hooks, err = m.loadHookResources(ext)
+	if err != nil {
+		return loadedExtensionResources{}, fmt.Errorf("extension: load declared hooks: %w", err)
+	}
+	return loaded, nil
+}
 
 func (m *Manager) loadSkillResources(ext *managedExtension) ([]*skillspkg.Skill, error) {
 	if ext.manifest == nil || len(ext.manifest.Resources.Skills) == 0 {
@@ -132,44 +199,28 @@ func (m *Manager) loadAutomationResources(
 	if ext == nil || ext.manifest == nil {
 		return nil, nil, nil
 	}
-	jobs, triggers, err := LoadAutomationResources(ext.rootDir, ext.manifest.Resources.Automation)
+	jobs, triggers, err := LoadAutomationResources(
+		ext.rootDir,
+		ext.info.Name,
+		ext.manifest.Resources.Automation,
+	)
 	if err != nil {
 		return nil, nil, err
 	}
 	if err := validateAutomationAgentTargets(jobs, triggers, agents); err != nil {
 		return nil, nil, err
 	}
-	extensionName := strings.TrimSpace(ext.info.Name)
-	resolvedJobs := make([]automationpkg.Job, 0, len(jobs))
-	for _, job := range jobs {
-		name := extensionName + "/" + job.Name
-		resolvedJobs = append(resolvedJobs, automationpkg.Job{
-			ID:    "extension/" + extensionName + "/automation.job/" + job.Name,
-			Scope: automationpkg.AutomationScopeGlobal, Name: name, AgentName: job.Agent,
-			Prompt: job.Prompt, Schedule: &job.Schedule, Task: cloneAutomationTaskConfig(job.Task),
-			Enabled: *job.Enabled, Retry: job.Retry, FireLimit: job.FireLimit,
-			Source: automationpkg.JobSourcePackage,
-		})
-	}
-	resolvedTriggers := make([]automationpkg.Trigger, 0, len(triggers))
-	for _, trigger := range triggers {
-		name := extensionName + "/" + trigger.Name
-		resolvedTriggers = append(resolvedTriggers, automationpkg.Trigger{
-			ID:    "extension/" + extensionName + "/automation.trigger/" + trigger.Name,
-			Scope: automationpkg.AutomationScopeGlobal, Name: name, AgentName: trigger.Agent,
-			Prompt: trigger.Prompt, Event: trigger.Event, Filter: cloneStringMap(trigger.Filter),
-			Enabled: *trigger.Enabled, Retry: trigger.Retry, FireLimit: trigger.FireLimit,
-			Source: automationpkg.JobSourcePackage, EndpointSlug: trigger.EndpointSlug,
-		})
-	}
-	return resolvedJobs, resolvedTriggers, nil
+	return jobs, triggers, nil
 }
 
-func (m *Manager) loadLayoutResources(ext *managedExtension) ([]windowmanager.LayoutResource, error) {
+func (m *Manager) loadLayoutResources(
+	ctx context.Context,
+	ext *managedExtension,
+) ([]windowmanager.LayoutResource, error) {
 	if ext == nil || ext.manifest == nil {
 		return nil, nil
 	}
-	return LoadLayoutResources(ext.rootDir, ext.manifest.Resources.Layouts)
+	return LoadLayoutResources(ctx, ext.rootDir, ext.manifest.Resources.Layouts)
 }
 
 func (m *Manager) loadHookResources(ext *managedExtension) ([]hookspkg.HookDecl, error) {

@@ -3156,12 +3156,9 @@ func TestApplyAutomaticSessionTitleOwnsGeneratedIdentity(t *testing.T) {
 		case <-time.After(time.Second):
 			t.Fatal("automatic title persistence did not reach the catalog")
 		}
-		readTitleCh := make(chan string, 1)
-		go func() { readTitleCh <- session.Info().Name }()
-		select {
-		case got := <-readTitleCh:
-			t.Fatalf("session title read completed during persistence with %q, want blocked", got)
-		case <-time.After(50 * time.Millisecond):
+		if session.mu.TryRLock() {
+			session.mu.RUnlock()
+			t.Fatal("session read lock acquired during persistence, want blocked")
 		}
 
 		release()
@@ -3172,13 +3169,8 @@ func TestApplyAutomaticSessionTitleOwnsGeneratedIdentity(t *testing.T) {
 		if !result.applied {
 			t.Fatal("ApplyAutomaticSessionTitle() applied = false, want true")
 		}
-		select {
-		case got := <-readTitleCh:
-			if got != wantTitle {
-				t.Fatalf("session title after persistence = %q, want %q", got, wantTitle)
-			}
-		case <-time.After(time.Second):
-			t.Fatal("session title read remained blocked after persistence")
+		if got := session.Info().Name; got != wantTitle {
+			t.Fatalf("session title after persistence = %q, want %q", got, wantTitle)
 		}
 	})
 

@@ -12,16 +12,14 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	registrypkg "github.com/compozy/compozy/internal/registry"
-	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
-func extensionEventSummaryStore(registry Registry) store.EventSummaryStore {
-	writer, ok := registry.(store.EventSummaryStore)
-	if !ok {
+func extensionEventSummaryStore(registry Registry) extensionLifecycleEventWriter {
+	if registry == nil {
 		return nil
 	}
-	return writer
+	return registry
 }
 
 func (s *daemonExtensionService) List(ctx context.Context) ([]contract.ExtensionPayload, error) {
@@ -210,7 +208,12 @@ func (s *daemonExtensionService) payloadFromExtension(
 	if strings.TrimSpace(payload.NetworkRequirementDigest) != "" {
 		confirmation, err := s.registry.NetworkConfirmation(key)
 		if err != nil {
-			return contract.ExtensionPayload{}, err
+			return contract.ExtensionPayload{}, fmt.Errorf(
+				"daemon: load extension network confirmation for %q in workspace %q: %w",
+				key.Name,
+				key.WorkspaceID,
+				err,
+			)
 		}
 		payload.NetworkRequirementDigest = confirmation.Digest
 		payload.NetworkConfirmationRequired = confirmation.Digest != "" &&

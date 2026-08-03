@@ -158,6 +158,32 @@ func (lateBootExtensionService) Provenance(
 	return contract.ExtensionProvenancePayload{}, errors.New("unexpected Provenance call")
 }
 
+func (lateBootExtensionService) ListExtensionSecrets(
+	context.Context,
+	string,
+	taskpkg.ActorContext,
+) (contract.ExtensionSecretsPayload, error) {
+	return contract.ExtensionSecretsPayload{}, errors.New("unexpected ListExtensionSecrets call")
+}
+
+func (lateBootExtensionService) SetExtensionSecrets(
+	context.Context,
+	string,
+	contract.SetExtensionSecretsRequest,
+	taskpkg.ActorContext,
+) (contract.ExtensionSecretsPayload, error) {
+	return contract.ExtensionSecretsPayload{}, errors.New("unexpected SetExtensionSecrets call")
+}
+
+func (lateBootExtensionService) DeleteExtensionSecret(
+	context.Context,
+	string,
+	string,
+	taskpkg.ActorContext,
+) error {
+	return errors.New("unexpected DeleteExtensionSecret call")
+}
+
 func TestMarketplaceNativeSearch(t *testing.T) {
 	t.Parallel()
 

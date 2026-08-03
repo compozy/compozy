@@ -18,6 +18,7 @@ var (
 	ErrExtensionEnvBindingDangling = errors.New("extension: environment binding secret is not present")
 )
 
+// ExtensionEnvBindingKind identifies persisted extension environment bindings.
 const ExtensionEnvBindingKind = extensionenv.BindingKind
 
 // EnvBinding is one instance-scoped extension environment binding.

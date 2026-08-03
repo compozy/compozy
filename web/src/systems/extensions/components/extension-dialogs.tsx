@@ -137,14 +137,13 @@ export function RemoveExtensionDialog({
   // A dev overlay is a workspace link over the published row: unlinking it never deletes the
   // published installation.
   const isDevOverlay = extension?.dev === true;
-  const blocked = !extension;
   const capabilityCount = extension?.capabilities?.length ?? 0;
   const permissions = extension?.permissions ?? [];
   return (
     <ConfirmDialog
       cancelLabel="Cancel"
       confirmButtonProps={
-        blocked
+        !extension
           ? { disabled: true, "data-testid": "remove-extension-confirm" }
           : { "data-testid": "remove-extension-confirm" }
       }
@@ -177,7 +176,7 @@ export function RemoveExtensionDialog({
       }
       noteTone="neutral"
       onConfirm={async () => {
-        if (!extension || blocked) return;
+        if (!extension) return;
         await remove.mutateAsync({ dev: isDevOverlay, name: extension.name });
         onOpenChange(false);
         onRemoved?.();

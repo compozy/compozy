@@ -4,10 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	extensionpkg "github.com/compozy/compozy/internal/extension"
-	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func (s *daemonExtensionService) snapshotDevLink(key extensionpkg.InstanceKey) (*extensionpkg.DevLink, error) {
@@ -31,26 +29,21 @@ func (s *daemonExtensionService) rollbackDevLifecycle(
 	if snapshot == nil {
 		if err := runtime.UnlinkDevelopment(rollbackCtx, key); err != nil &&
 			!errors.Is(err, extensionpkg.ErrExtensionNotDevLinked) {
-			rollbackErr = err
+			rollbackErr = errors.Join(rollbackErr, err)
 		}
 	} else {
-		_, rollbackErr = runtime.LinkDevelopmentFromOrigin(
+		_, err := runtime.StageDevelopmentLink(
 			rollbackCtx,
-			key.WorkspaceID,
+			key,
 			snapshot.OriginPath,
 			snapshot.BundleGeneration,
 		)
-		if rollbackErr == nil {
-			rollbackErr = s.registry.RestoreNetworkConfirmation(key, extensionpkg.NetworkConfirmation{
-				Digest:      snapshot.NetworkRequirementDigest,
-				ConfirmedBy: snapshot.NetworkConfirmedBy,
-				ConfirmedAt: snapshot.NetworkConfirmedAt,
-			})
-		}
+		rollbackErr = errors.Join(rollbackErr, err)
+		rollbackErr = errors.Join(rollbackErr, s.restoreDevNetworkConfirmation(key, snapshot))
+		_, err = runtime.ActivateDevelopmentLink(rollbackCtx, key)
+		rollbackErr = errors.Join(rollbackErr, err)
 	}
-	if rollbackErr == nil {
-		rollbackErr = s.syncExtensionConsumers(rollbackCtx)
-	}
+	rollbackErr = errors.Join(rollbackErr, s.syncExtensionConsumers(rollbackCtx))
 	if rollbackErr != nil {
 		rollbackErr = fmt.Errorf(
 			"daemon: rollback development extension lifecycle %q in workspace %q: %w",
@@ -60,6 +53,29 @@ func (s *daemonExtensionService) rollbackDevLifecycle(
 		)
 	}
 	return errors.Join(cause, rollbackErr)
+}
+
+func (s *daemonExtensionService) restoreStagedDevLink(
+	key extensionpkg.InstanceKey,
+	snapshot *extensionpkg.DevLink,
+) error {
+	if snapshot == nil {
+		err := s.registry.UnlinkDev(key.Name, key.WorkspaceID)
+		if errors.Is(err, extensionpkg.ErrExtensionNotDevLinked) {
+			return nil
+		}
+		return err
+	}
+	if _, err := s.registry.LinkDev(extensionpkg.DevLinkRequest{
+		Name:                     snapshot.ExtensionName,
+		WorkspaceID:              snapshot.WorkspaceID,
+		OriginPath:               snapshot.OriginPath,
+		GenerationHash:           snapshot.BundleGeneration,
+		NetworkRequirementDigest: snapshot.NetworkRequirementDigest,
+	}); err != nil {
+		return err
+	}
+	return s.restoreDevNetworkConfirmation(key, snapshot)
 }
 
 func (s *daemonExtensionService) rollbackDevRemoval(
@@ -89,35 +105,4 @@ func (s *daemonExtensionService) restoreDevNetworkConfirmation(
 		ConfirmedBy: snapshot.NetworkConfirmedBy,
 		ConfirmedAt: snapshot.NetworkConfirmedAt,
 	})
-}
-
-func devCandidateConfirmationRequired(link *extensionpkg.DevLink, digest string) bool {
-	digest = strings.TrimSpace(digest)
-	if digest == "" {
-		return false
-	}
-	return link == nil || strings.TrimSpace(link.NetworkRequirementDigest) != digest ||
-		strings.TrimSpace(link.NetworkConfirmedBy) == "" || link.NetworkConfirmedAt.IsZero()
-}
-
-func (s *daemonExtensionService) confirmDevCandidateNetwork(
-	key extensionpkg.InstanceKey,
-	digest string,
-	expectedDigest string,
-	actor taskpkg.ActorContext,
-) (*extensionpkg.NetworkConfirmation, error) {
-	if strings.TrimSpace(expectedDigest) != strings.TrimSpace(digest) {
-		return nil, &extensionpkg.NetworkConfirmationRequiredError{CurrentDigest: strings.TrimSpace(digest)}
-	}
-	confirmedBy, err := extensionNetworkConfirmationActor(actor)
-	if err != nil {
-		return nil, err
-	}
-	confirmedAt := s.now().UTC()
-	if err := s.registry.ConfirmDevelopmentNetworkCandidate(key, digest, confirmedBy, confirmedAt); err != nil {
-		return nil, err
-	}
-	return &extensionpkg.NetworkConfirmation{
-		Digest: strings.TrimSpace(digest), ConfirmedBy: confirmedBy, ConfirmedAt: confirmedAt,
-	}, nil
 }

@@ -48,9 +48,7 @@ func (s *daemonExtensionService) rollbackGlobalExtensionLifecycle(
 		extensionpkg.GlobalInstanceKey(name),
 		snapshot.confirmation,
 	))
-	if rollbackErr == nil {
-		rollbackErr = s.reload(rollbackCtx)
-	}
+	rollbackErr = errors.Join(rollbackErr, s.reload(rollbackCtx))
 	if rollbackErr != nil {
 		rollbackErr = fmt.Errorf("daemon: rollback extension lifecycle %q: %w", name, rollbackErr)
 	}

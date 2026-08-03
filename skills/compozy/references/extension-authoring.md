@@ -144,8 +144,8 @@ and `[resources.publish]` (families plus `max_scope`). Resource paths resolve in
 root; `{{config_dir}}` is that root and `{{env:NAME}}` reads the daemon process environment.
 
 Static kit resources stay inert after install. Enable publishes the instance-owned resources; disable
-removes them. Use extension inventory to compare shipped and live resources, and preview to inspect a
-lifecycle action before mutation. Required environment variables are names in the manifest; bind them
+removes them. Use extension inventory to compare shipped and live resources, and preview to inspect
+added, changed, or removed resources before enable. Required environment variables are names in the manifest; bind them
 to Vault references through the extension secrets surface, which never returns values or references.
 When enable or update returns a Network confirmation digest, retry only with that exact digest.
 

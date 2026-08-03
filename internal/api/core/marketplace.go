@@ -27,7 +27,7 @@ var (
 	ErrMarketplaceUnavailable = errors.New("marketplace: service unavailable")
 )
 
-var marketplaceKindOrder = []string{
+var marketplaceKindOrder = []contract.MarketplaceKind{
 	contract.MarketplaceKindMCP,
 	contract.MarketplaceKindExtension,
 	contract.MarketplaceKindSkill,
@@ -166,7 +166,7 @@ func (h *BaseHandlers) MarketplaceKind(
 		return contract.MarketplaceKindResponse{}, err
 	}
 	query := strings.TrimSpace(request.Query)
-	offset, cursorFence, err := marketplaceCursorOffset(request.Cursor, kind, query, scope)
+	offset, cursorFence, err := marketplaceCursorOffset(request.Cursor, string(kind), query, scope)
 	if err != nil {
 		return contract.MarketplaceKindResponse{}, err
 	}
@@ -178,7 +178,7 @@ func (h *BaseHandlers) MarketplaceKind(
 		return contract.MarketplaceKindResponse{}, err
 	}
 	page.result.NextCursor, err = marketplaceNextCursor(
-		kind,
+		string(kind),
 		query,
 		scope,
 		page.nextFence,
@@ -301,8 +301,8 @@ func parseMarketplaceReadScope(rawScope string, rawWorkspaceID string) (marketpl
 	}
 }
 
-func parseMarketplaceKind(raw string) (string, error) {
-	kind := strings.ToLower(strings.TrimSpace(raw))
+func parseMarketplaceKind(raw string) (contract.MarketplaceKind, error) {
+	kind := contract.MarketplaceKind(strings.ToLower(strings.TrimSpace(raw)))
 	if slices.Contains(marketplaceKindOrder, kind) {
 		return kind, nil
 	}
@@ -310,7 +310,7 @@ func parseMarketplaceKind(raw string) (string, error) {
 }
 
 func parseRefreshMarketplaceKind(raw string) (marketplacepkg.Kind, error) {
-	switch strings.ToLower(strings.TrimSpace(raw)) {
+	switch contract.MarketplaceKind(strings.ToLower(strings.TrimSpace(raw))) {
 	case contract.MarketplaceKindMCP:
 		return marketplacepkg.KindMCP, nil
 	case contract.MarketplaceKindExtension:

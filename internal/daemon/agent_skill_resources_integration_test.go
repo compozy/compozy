@@ -137,48 +137,39 @@ func TestAgentSkillPublicationAndBootRebuild(t *testing.T) {
 			initialAgentCatalog,
 			initialSkillRegistry,
 			initialMCPCatalog,
-			agentSkillIntegrationSidecars{
+			&agentSkillIntegrationSidecars{
 				soulCodec: soulCodec, soulCatalog: initialSoulCatalog,
 				heartbeatCodec: heartbeatCodec, heartbeatCatalog: initialHeartbeatCatalog,
 			},
 		)
 
-		syncer := newAgentSkillSourceSyncer(
-			kernel,
-			agentStore,
-			agentCodec,
-			newAgentProjector(initialAgentCatalog),
-			skillStore,
-			skillCodec,
-			newSkillProjector(initialSkillRegistry),
-			mcpStore,
-			mcpCodec,
-			agentSkillSyncActor(),
-			discardLogger(),
-			func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
+		syncer := newAgentSkillSourceSyncer(agentSkillSourceSyncerDeps{
+			raw: kernel, agentStore: agentStore, agentCodec: agentCodec,
+			agentProjector: newAgentProjector(initialAgentCatalog),
+			soulStore:      soulStore, soulCodec: soulCodec,
+			heartbeatStore: heartbeatStore, heartbeatCodec: heartbeatCodec,
+			skillStore: skillStore, skillCodec: skillCodec,
+			skillProjector: newSkillProjector(initialSkillRegistry),
+			mcpStore:       mcpStore, mcpCodec: mcpCodec,
+			actor: agentSkillSyncActor(), logger: discardLogger(),
+			trigger: func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
 				return driver.Trigger(ctx, kind, reason)
 			},
-			daemonAgentSkillDeclarationProvider(
-				homePaths,
-				db,
-				workspaceResolver,
-				initialSkillRegistry,
-				discardLogger(),
-			),
-			extensionAgentSkillDeclarationProvider(
-				extensionRegistry,
-				func() extensionRuntime { return runtime },
-				discardLogger(),
-			),
-		)
-		concreteSyncer, ok := syncer.(*agentSkillSourceSyncer)
-		if !ok {
-			t.Fatal("newAgentSkillSourceSyncer() did not return *agentSkillSourceSyncer")
-		}
-		concreteSyncer.soulCodec = soulCodec
-		concreteSyncer.soulStore = soulStore
-		concreteSyncer.heartbeatCodec = heartbeatCodec
-		concreteSyncer.heartbeatStore = heartbeatStore
+			providers: []agentSkillDeclarationProvider{
+				daemonAgentSkillDeclarationProvider(
+					homePaths,
+					db,
+					workspaceResolver,
+					initialSkillRegistry,
+					discardLogger(),
+				),
+				extensionAgentSkillDeclarationProvider(
+					extensionRegistry,
+					func() extensionRuntime { return runtime },
+					discardLogger(),
+				),
+			},
+		})
 		if err := syncer.Sync(testutil.Context(t)); err != nil {
 			t.Fatalf("syncer.Sync() error = %v", err)
 		}
@@ -246,7 +237,7 @@ func TestAgentSkillPublicationAndBootRebuild(t *testing.T) {
 			rebuiltAgentCatalog,
 			rebuiltSkillRegistry,
 			rebuiltMCPCatalog,
-			agentSkillIntegrationSidecars{
+			&agentSkillIntegrationSidecars{
 				soulCodec: soulCodec, soulCatalog: rebuiltSoulCatalog,
 				heartbeatCodec: heartbeatCodec, heartbeatCatalog: rebuiltHeartbeatCatalog,
 			},
@@ -355,8 +346,11 @@ func TestAgentSkillPublicationAndBootRebuild(t *testing.T) {
 				t.Fatalf("owned %s after disable = %d, want 0", label, count)
 			}
 		}
-		if _, err := agentCatalog.ResolveAgent("ext-agent", &resolved); err == nil {
-			t.Fatal("ResolveAgent(ext-agent after disable) error = nil, want unavailable")
+		if _, err := agentCatalog.ResolveAgent("ext-agent", &resolved); !errors.Is(
+			err,
+			workspacepkg.ErrAgentNotAvailable,
+		) {
+			t.Fatalf("ResolveAgent(ext-agent after disable) error = %v, want ErrAgentNotAvailable", err)
 		}
 	})
 }
@@ -397,11 +391,15 @@ func TestDevCycleBundledSkillPublicationAndBootRebuild(t *testing.T) {
 		if err != nil {
 			t.Fatalf("resources.NewStore(mcp) error = %v", err)
 		}
+		sidecarStores := newAgentSkillSourceSidecarStores(t, kernel)
 
 		homePaths := agentSkillIntegrationHome(t)
 		extensionRegistry := extensionpkg.NewRegistry(db.DB())
 		if err := devcycle.EnsureManagedInstall(homePaths, extensionRegistry); err != nil {
 			t.Fatalf("devcycle.EnsureManagedInstall() error = %v", err)
+		}
+		if err := extensionRegistry.Enable(devcycle.Name); err != nil {
+			t.Fatalf("extensionRegistry.Enable(%q) error = %v", devcycle.Name, err)
 		}
 		extensionSnapshot := agentSkillIntegrationDevCycleExtension(t, extensionRegistry)
 		runtime := &agentSkillIntegrationRuntime{extension: extensionSnapshot}
@@ -441,29 +439,28 @@ func TestDevCycleBundledSkillPublicationAndBootRebuild(t *testing.T) {
 			initialAgents,
 			initialSkills,
 			initialMCP,
+			nil,
 		)
-		syncer := newAgentSkillSourceSyncer(
-			kernel,
-			agentStore,
-			agentCodec,
-			newAgentProjector(initialAgents),
-			skillStore,
-			skillCodec,
-			newSkillProjector(initialSkills),
-			mcpStore,
-			mcpCodec,
-			agentSkillSyncActor(),
-			discardLogger(),
-			func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
+		syncer := newAgentSkillSourceSyncer(agentSkillSourceSyncerDeps{
+			raw: kernel, agentStore: agentStore, agentCodec: agentCodec,
+			agentProjector: newAgentProjector(initialAgents),
+			soulStore:      sidecarStores.soulStore, soulCodec: sidecarStores.soulCodec,
+			heartbeatStore: sidecarStores.heartbeatStore, heartbeatCodec: sidecarStores.heartbeatCodec,
+			skillStore: skillStore, skillCodec: skillCodec, skillProjector: newSkillProjector(initialSkills),
+			mcpStore: mcpStore, mcpCodec: mcpCodec,
+			actor: agentSkillSyncActor(), logger: discardLogger(),
+			trigger: func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
 				return initialDriver.Trigger(ctx, kind, reason)
 			},
-			daemonAgentSkillDeclarationProvider(homePaths, db, workspaceResolver, initialSkills, discardLogger()),
-			extensionAgentSkillDeclarationProvider(
-				extensionRegistry,
-				func() extensionRuntime { return runtime },
-				discardLogger(),
-			),
-		)
+			providers: []agentSkillDeclarationProvider{
+				daemonAgentSkillDeclarationProvider(homePaths, db, workspaceResolver, initialSkills, discardLogger()),
+				extensionAgentSkillDeclarationProvider(
+					extensionRegistry,
+					func() extensionRuntime { return runtime },
+					discardLogger(),
+				),
+			},
+		})
 		if err := syncer.Sync(ctx); err != nil {
 			t.Fatalf("syncer.Sync() error = %v", err)
 		}
@@ -501,6 +498,7 @@ func TestDevCycleBundledSkillPublicationAndBootRebuild(t *testing.T) {
 			newResourceCatalog(cloneAgentDef),
 			rebuiltSkills,
 			newResourceCatalog(cloneDaemonMCPServer),
+			nil,
 		)
 		if err := bootDriver.RunBoot(ctx); err != nil {
 			t.Fatalf("bootDriver.RunBoot() error = %v", err)
@@ -637,6 +635,7 @@ func TestAgentDefinitionMutationLifecycleIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("resources.NewStore(mcp) error = %v", err)
 		}
+		sidecarStores := newAgentSkillSourceSidecarStores(t, kernel)
 		homePaths := agentSkillIntegrationHome(t)
 		resolver, err := workspacepkg.NewResolver(
 			db,
@@ -661,24 +660,23 @@ func TestAgentDefinitionMutationLifecycleIntegration(t *testing.T) {
 			agentCatalog,
 			skillRegistry,
 			mcpCatalog,
+			nil,
 		)
-		syncer := newAgentSkillSourceSyncer(
-			kernel,
-			agentStore,
-			agentCodec,
-			newAgentProjector(agentCatalog),
-			skillStore,
-			skillCodec,
-			newSkillProjector(skillRegistry),
-			mcpStore,
-			mcpCodec,
-			agentSkillSyncActor(),
-			discardLogger(),
-			func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
+		syncer := newAgentSkillSourceSyncer(agentSkillSourceSyncerDeps{
+			raw: kernel, agentStore: agentStore, agentCodec: agentCodec,
+			agentProjector: newAgentProjector(agentCatalog),
+			soulStore:      sidecarStores.soulStore, soulCodec: sidecarStores.soulCodec,
+			heartbeatStore: sidecarStores.heartbeatStore, heartbeatCodec: sidecarStores.heartbeatCodec,
+			skillStore: skillStore, skillCodec: skillCodec, skillProjector: newSkillProjector(skillRegistry),
+			mcpStore: mcpStore, mcpCodec: mcpCodec,
+			actor: agentSkillSyncActor(), logger: discardLogger(),
+			trigger: func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
 				return driver.Trigger(ctx, kind, reason)
 			},
-			daemonAgentSkillDeclarationProvider(homePaths, db, resolver, skillRegistry, discardLogger()),
-		)
+			providers: []agentSkillDeclarationProvider{
+				daemonAgentSkillDeclarationProvider(homePaths, db, resolver, skillRegistry, discardLogger()),
+			},
+		})
 		catalog := agentCatalogDependency(agentCatalog)
 		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 			TransportName:       "agent-mutation-integration",
@@ -830,6 +828,7 @@ func TestAgentDefinitionMutationLifecycleIntegration(t *testing.T) {
 			rebuiltCatalog,
 			rebuiltSkills,
 			rebuiltMCP,
+			nil,
 		)
 		if err := bootDriver.RunBoot(ctx); err != nil {
 			t.Fatalf("bootDriver.RunBoot() error = %v", err)
@@ -941,6 +940,16 @@ func (r *agentSkillIntegrationRuntime) Get(name string) (*extensionpkg.Extension
 	return r.extension, nil
 }
 
+func (r *agentSkillIntegrationRuntime) InspectPackageResources(
+	ctx context.Context,
+	name string,
+) (*extensionpkg.Extension, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return r.Get(name)
+}
+
 func (r *agentSkillIntegrationRuntime) HookDeclarations(context.Context) ([]hookspkg.HookDecl, error) {
 	return nil, nil
 }
@@ -954,7 +963,7 @@ func newAgentSkillIntegrationDriver(
 	agentCatalog *resourceCatalog[compozyconfig.AgentDef],
 	skillRegistry *skillspkg.Registry,
 	mcpCatalog *resourceCatalog[compozyconfig.MCPServer],
-	sidecars ...agentSkillIntegrationSidecars,
+	sidecars *agentSkillIntegrationSidecars,
 ) resources.ReconcileDriver {
 	t.Helper()
 
@@ -971,21 +980,21 @@ func newAgentSkillIntegrationDriver(
 		t.Fatalf("resources.NewTypedProjectorRegistration(mcp) error = %v", err)
 	}
 	registrations := []resources.ProjectorRegistration{agentRegistration, skillRegistration, mcpRegistration}
-	if len(sidecars) > 0 {
-		if sidecars[0].soulCodec != nil && sidecars[0].soulCatalog != nil {
+	if sidecars != nil {
+		if sidecars.soulCodec != nil && sidecars.soulCatalog != nil {
 			soulRegistration, registerErr := resources.NewTypedProjectorRegistration(
-				sidecars[0].soulCodec,
-				newSoulProjector(sidecars[0].soulCatalog),
+				sidecars.soulCodec,
+				newSoulProjector(sidecars.soulCatalog),
 			)
 			if registerErr != nil {
 				t.Fatalf("resources.NewTypedProjectorRegistration(soul) error = %v", registerErr)
 			}
 			registrations = append(registrations, soulRegistration)
 		}
-		if sidecars[0].heartbeatCodec != nil && sidecars[0].heartbeatCatalog != nil {
+		if sidecars.heartbeatCodec != nil && sidecars.heartbeatCatalog != nil {
 			heartbeatRegistration, registerErr := resources.NewTypedProjectorRegistration(
-				sidecars[0].heartbeatCodec,
-				newHeartbeatProjector(sidecars[0].heartbeatCatalog),
+				sidecars.heartbeatCodec,
+				newHeartbeatProjector(sidecars.heartbeatCatalog),
 			)
 			if registerErr != nil {
 				t.Fatalf("resources.NewTypedProjectorRegistration(heartbeat) error = %v", registerErr)
@@ -1023,6 +1032,41 @@ type agentSkillIntegrationSidecars struct {
 	soulCatalog      *resourceCatalog[soul.ResourceSpec]
 	heartbeatCodec   resources.KindCodec[heartbeat.ResourceSpec]
 	heartbeatCatalog *resourceCatalog[heartbeat.ResourceSpec]
+}
+
+type agentSkillSourceSidecarStores struct {
+	soulStore      resources.Store[soul.ResourceSpec]
+	soulCodec      resources.KindCodec[soul.ResourceSpec]
+	heartbeatStore resources.Store[heartbeat.ResourceSpec]
+	heartbeatCodec resources.KindCodec[heartbeat.ResourceSpec]
+}
+
+func newAgentSkillSourceSidecarStores(
+	t *testing.T,
+	kernel resources.RawStore,
+) agentSkillSourceSidecarStores {
+	t.Helper()
+
+	soulCodec, err := soul.NewResourceCodec()
+	if err != nil {
+		t.Fatalf("soul.NewResourceCodec() error = %v", err)
+	}
+	soulStore, err := resources.NewStore(kernel, soulCodec)
+	if err != nil {
+		t.Fatalf("resources.NewStore(soul) error = %v", err)
+	}
+	heartbeatCodec, err := heartbeat.NewResourceCodec()
+	if err != nil {
+		t.Fatalf("heartbeat.NewResourceCodec() error = %v", err)
+	}
+	heartbeatStore, err := resources.NewStore(kernel, heartbeatCodec)
+	if err != nil {
+		t.Fatalf("resources.NewStore(heartbeat) error = %v", err)
+	}
+	return agentSkillSourceSidecarStores{
+		soulStore: soulStore, soulCodec: soulCodec,
+		heartbeatStore: heartbeatStore, heartbeatCodec: heartbeatCodec,
+	}
 }
 
 func agentSkillIntegrationHome(t *testing.T) compozyconfig.HomePaths {

@@ -19,8 +19,9 @@ func managedDraftOwner(actor resources.MutationActor, explicit *resources.Resour
 	if explicit != nil {
 		return explicit.Normalize()
 	}
-	if actor.Owner.Normalize() != (resources.ResourceOwner{}) {
-		return actor.Owner.Normalize()
+	owner := actor.Owner.Normalize()
+	if owner != (resources.ResourceOwner{}) {
+		return owner
 	}
 	return resources.ResourceOwner{Kind: resources.ResourceOwnerKind(actor.Kind), ID: strings.TrimSpace(actor.ID)}
 }

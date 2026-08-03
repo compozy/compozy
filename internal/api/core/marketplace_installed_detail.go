@@ -207,7 +207,7 @@ func (h *BaseHandlers) installedSkillMarketplaceEntryByName(
 	return h.installedSkillMarketplaceEntry(ctx, name, scope)
 }
 
-func marketplaceInstalledEntryNotFound(kind string, entryID string) error {
+func marketplaceInstalledEntryNotFound(kind contract.MarketplaceKind, entryID string) error {
 	return errors.Join(
 		ErrMarketplaceNotFound,
 		fmt.Errorf("installed marketplace %s entry %q not found", kind, entryID),

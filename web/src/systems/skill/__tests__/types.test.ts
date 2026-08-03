@@ -41,6 +41,9 @@ describe("skill contract types", () => {
         tier: string;
       }[];
     }>();
+    expectTypeOf<
+      Extract<keyof ProvenancePayload, "installed_from_bundle">
+    >().toEqualTypeOf<never>();
 
     expectTypeOf<SkillsResponse>().toMatchTypeOf<{ skills: SkillPayload[] }>();
     expectTypeOf<SkillResponse>().toMatchTypeOf<{ skill: SkillPayload }>();

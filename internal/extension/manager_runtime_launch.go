@@ -92,7 +92,7 @@ func (m *Manager) cleanupLaunchedProcess(
 	cleanups []func(),
 	err error,
 ) error {
-	runExtensionRedactionCleanups(cleanups)
+	defer runExtensionRedactionCleanups(cleanups)
 	if process == nil {
 		return err
 	}

@@ -30,210 +30,12 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			got[descriptor.ID] = descriptor
 		}
 
-		want := []toolspkg.ToolID{
-			toolspkg.ToolIDToolList,
-			toolspkg.ToolIDToolSearch,
-			toolspkg.ToolIDToolInfo,
-			toolspkg.ToolIDToolArtifactRead,
-			toolspkg.ToolIDToolApprovalsSet,
-			toolspkg.ToolIDToolApprovalsList,
-			toolspkg.ToolIDToolApprovalsRevoke,
-			toolspkg.ToolIDClarify,
-			toolspkg.ToolIDSkillList,
-			toolspkg.ToolIDSkillSearch,
-			toolspkg.ToolIDSkillView,
-			toolspkg.ToolIDNetworkStatus,
-			toolspkg.ToolIDNetworkUsage,
-			toolspkg.ToolIDNetworkChannels,
-			toolspkg.ToolIDNetworkInbox,
-			toolspkg.ToolIDNetworkPeers,
-			toolspkg.ToolIDNetworkSend,
-			toolspkg.ToolIDNetworkChannelCreate,
-			toolspkg.ToolIDNetworkChannelUpdate,
-			toolspkg.ToolIDNetworkSubscriptions,
-			toolspkg.ToolIDNetworkSubscribe,
-			toolspkg.ToolIDNetworkMute,
-			toolspkg.ToolIDNetworkUnmute,
-			toolspkg.ToolIDNetworkThreads,
-			toolspkg.ToolIDNetworkThreadMessages,
-			toolspkg.ToolIDNetworkDirects,
-			toolspkg.ToolIDNetworkDirectResolve,
-			toolspkg.ToolIDNetworkDirectMessages,
-			toolspkg.ToolIDNetworkWork,
-			toolspkg.ToolIDSessionList,
-			toolspkg.ToolIDSessionCreate,
-			toolspkg.ToolIDSessionPrompt,
-			toolspkg.ToolIDSessionStatus,
-			toolspkg.ToolIDSessionHistory,
-			toolspkg.ToolIDSessionEvents,
-			toolspkg.ToolIDSessionDescribe,
-			toolspkg.ToolIDSessionHealth,
-			toolspkg.ToolIDAgentHeartbeatStatus,
-			toolspkg.ToolIDAgentHeartbeatWake,
-			toolspkg.ToolIDWorkspaceList,
-			toolspkg.ToolIDWorkspaceInfo,
-			toolspkg.ToolIDWorkspaceDescribe,
-			toolspkg.ToolIDAgentCreate,
-			toolspkg.ToolIDProviderModelsList,
-			toolspkg.ToolIDProviderModelsRefresh,
-			toolspkg.ToolIDProviderModelsStatus,
-			toolspkg.ToolIDProviderModelsCurate,
-			toolspkg.ToolIDMemoryList,
-			toolspkg.ToolIDMemoryShow,
-			toolspkg.ToolIDMemorySearch,
-			toolspkg.ToolIDMemoryPropose,
-			toolspkg.ToolIDMemoryNote,
-			toolspkg.ToolIDMemoryHealth,
-			toolspkg.ToolIDMemoryScopeShow,
-			toolspkg.ToolIDMemoryAdminHistory,
-			toolspkg.ToolIDMemoryReindex,
-			toolspkg.ToolIDMemoryPromote,
-			toolspkg.ToolIDMemoryReset,
-			toolspkg.ToolIDMemoryReload,
-			toolspkg.ToolIDMemoryDecisionsList,
-			toolspkg.ToolIDMemoryDecisionsShow,
-			toolspkg.ToolIDMemoryDecisionsRevert,
-			toolspkg.ToolIDMemoryRecallTrace,
-			toolspkg.ToolIDMemoryDreamStatus,
-			toolspkg.ToolIDMemoryDreamList,
-			toolspkg.ToolIDMemoryDreamShow,
-			toolspkg.ToolIDMemoryDreamTrigger,
-			toolspkg.ToolIDMemoryDreamRetry,
-			toolspkg.ToolIDMemoryDailyList,
-			toolspkg.ToolIDMemoryExtractorStatus,
-			toolspkg.ToolIDMemoryExtractorFailures,
-			toolspkg.ToolIDMemoryExtractorRetry,
-			toolspkg.ToolIDMemoryExtractorDrain,
-			toolspkg.ToolIDMemoryProviderList,
-			toolspkg.ToolIDMemoryProviderGet,
-			toolspkg.ToolIDMemoryProviderSelect,
-			toolspkg.ToolIDMemoryProviderEnable,
-			toolspkg.ToolIDMemoryProviderDisable,
-			toolspkg.ToolIDMemorySessionLedger,
-			toolspkg.ToolIDMemorySessionReplay,
-			toolspkg.ToolIDMemorySessionsPrune,
-			toolspkg.ToolIDMemorySessionsRepair,
-			toolspkg.ToolIDListLogs,
-			toolspkg.ToolIDObserveMetrics,
-			toolspkg.ToolIDObserveSearch,
-			toolspkg.ToolIDBridgesList,
-			toolspkg.ToolIDBridgesStatus,
-			toolspkg.ToolIDTaskList,
-			toolspkg.ToolIDTaskRead,
-			toolspkg.ToolIDTaskCreate,
-			toolspkg.ToolIDTaskChildCreate,
-			toolspkg.ToolIDTaskUpdate,
-			toolspkg.ToolIDTaskCancel,
-			toolspkg.ToolIDTaskBlock,
-			toolspkg.ToolIDTaskUnblock,
-			toolspkg.ToolIDTaskBlocks,
-			toolspkg.ToolIDTaskRecover,
-			toolspkg.ToolIDTaskRunList,
-			toolspkg.ToolIDTaskRunReviewRequest,
-			toolspkg.ToolIDTaskRunReviewList,
-			toolspkg.ToolIDTaskRunReviewShow,
-			toolspkg.ToolIDTaskExecutionProfileGet,
-			toolspkg.ToolIDTaskExecutionProfileSet,
-			toolspkg.ToolIDTaskExecutionProfileDelete,
-			toolspkg.ToolIDTaskNotificationSubscribe,
-			toolspkg.ToolIDTaskNotificationList,
-			toolspkg.ToolIDTaskNotificationShow,
-			toolspkg.ToolIDTaskNotificationDelete,
-			toolspkg.ToolIDTaskPromoteFromThread,
-			toolspkg.ToolIDTaskFanOutRuns,
-			toolspkg.ToolIDTaskRunClaimNext,
-			toolspkg.ToolIDTaskRunHeartbeat,
-			toolspkg.ToolIDTaskRunComplete,
-			toolspkg.ToolIDTaskRunFail,
-			toolspkg.ToolIDTaskRunRelease,
-			toolspkg.ToolIDTaskRunReviewSubmit,
-			toolspkg.ToolIDConfigShow,
-			toolspkg.ToolIDConfigList,
-			toolspkg.ToolIDConfigGet,
-			toolspkg.ToolIDConfigSet,
-			toolspkg.ToolIDConfigUnset,
-			toolspkg.ToolIDConfigDiff,
-			toolspkg.ToolIDConfigPath,
-			toolspkg.ToolIDHooksList,
-			toolspkg.ToolIDHooksInfo,
-			toolspkg.ToolIDHooksEvents,
-			toolspkg.ToolIDHooksRuns,
-			toolspkg.ToolIDHooksCreate,
-			toolspkg.ToolIDHooksUpdate,
-			toolspkg.ToolIDHooksDelete,
-			toolspkg.ToolIDHooksEnable,
-			toolspkg.ToolIDHooksDisable,
-			toolspkg.ToolIDAutomationJobsList,
-			toolspkg.ToolIDAutomationJobsGet,
-			toolspkg.ToolIDAutomationJobsCreate,
-			toolspkg.ToolIDAutomationJobsUpdate,
-			toolspkg.ToolIDAutomationJobsDelete,
-			toolspkg.ToolIDAutomationJobsEnable,
-			toolspkg.ToolIDAutomationJobsDisable,
-			toolspkg.ToolIDAutomationJobsTrigger,
-			toolspkg.ToolIDAutomationJobsHistory,
-			toolspkg.ToolIDAutomationSuggestionsList,
-			toolspkg.ToolIDAutomationSuggestionsAccept,
-			toolspkg.ToolIDAutomationSuggestionsDismiss,
-			toolspkg.ToolIDAutomationTriggersList,
-			toolspkg.ToolIDAutomationTriggersGet,
-			toolspkg.ToolIDAutomationTriggersCreate,
-			toolspkg.ToolIDAutomationTriggersUpdate,
-			toolspkg.ToolIDAutomationTriggersDelete,
-			toolspkg.ToolIDAutomationTriggersEnable,
-			toolspkg.ToolIDAutomationTriggersDisable,
-			toolspkg.ToolIDAutomationTriggersHistory,
-			toolspkg.ToolIDAutomationRunsList,
-			toolspkg.ToolIDAutomationRunsGet,
-			toolspkg.ToolIDGoalGet,
-			toolspkg.ToolIDGoalReport,
-			toolspkg.ToolIDLoopList,
-			toolspkg.ToolIDLoopInspect,
-			toolspkg.ToolIDLoopValidate,
-			toolspkg.ToolIDLoopCreate,
-			toolspkg.ToolIDLoopRun,
-			toolspkg.ToolIDLoopStatus,
-			toolspkg.ToolIDLoopRuns,
-			toolspkg.ToolIDLoopTurns,
-			toolspkg.ToolIDLoopStop,
-			toolspkg.ToolIDLoopPause,
-			toolspkg.ToolIDLoopResume,
-			toolspkg.ToolIDLoopConfigure,
-			toolspkg.ToolIDLoopApprove,
-			toolspkg.ToolIDLoopDelete,
-			toolspkg.ToolIDMarketplaceSearch,
-			toolspkg.ToolIDExtensionsInit,
-			toolspkg.ToolIDExtensionsBuild,
-			toolspkg.ToolIDExtensionsValidate,
-			toolspkg.ToolIDExtensionsDev,
-			toolspkg.ToolIDExtensionsReload,
-			toolspkg.ToolIDExtensionsLogs,
-			toolspkg.ToolIDExtensionsSearch,
-			toolspkg.ToolIDExtensionsProvenance,
-			toolspkg.ToolIDExtensionsPublish,
-			toolspkg.ToolIDExtensionsList,
-			toolspkg.ToolIDExtensionsInfo,
-			toolspkg.ToolIDExtensionsInventory,
-			toolspkg.ToolIDExtensionsPreview,
-			toolspkg.ToolIDExtensionsInstall,
-			toolspkg.ToolIDExtensionsUpdate,
-			toolspkg.ToolIDExtensionsRemove,
-			toolspkg.ToolIDExtensionsEnable,
-			toolspkg.ToolIDExtensionsDisable,
-			toolspkg.ToolIDResourcesList,
-			toolspkg.ToolIDResourcesInfo,
-			toolspkg.ToolIDResourcesSnapshot,
-		}
-		want = append(want, windowManagerExpectedToolIDs()...)
-		want = append(
-			want,
-			toolspkg.ToolIDMCPStatus,
-			toolspkg.ToolIDMCPAuthStatus,
-		)
-		if gotLen, wantLen := len(got), len(want); gotLen != wantLen {
+		expectations := nativeDescriptorExpectations()
+		if gotLen, wantLen := len(got), len(expectations); gotLen != wantLen {
 			t.Fatalf("len(NativeDescriptors()) = %d, want %d", gotLen, wantLen)
 		}
-		for _, id := range want {
+		for _, expectation := range expectations {
+			id := expectation.id
 			descriptor, ok := got[id]
 			if !ok {
 				t.Fatalf("descriptor %q missing from MVP native scope", id)
@@ -519,285 +321,63 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		}
 	})
 
-	t.Run("Should classify read mutating open world and destructive risk flags", func(t *testing.T) {
+	t.Run("Should derive descriptor presence and risk from one expectation table", func(t *testing.T) {
 		t.Parallel()
 
 		descriptors := descriptorMap(NativeDescriptors())
+		expectations := nativeDescriptorExpectations()
+		if got, want := len(descriptors), len(expectations); got != want {
+			t.Fatalf("descriptor count = %d, want %d", got, want)
+		}
+		for _, expectation := range expectations {
+			descriptor, ok := descriptors[expectation.id]
+			if !ok {
+				t.Fatalf("descriptor %q missing from native scope", expectation.id)
+			}
+			requireDescriptorRisk(
+				t,
+				descriptor,
+				expectation.risk,
+				expectation.readOnly,
+				expectation.destructive,
+				expectation.openWorld,
+			)
+		}
 
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDToolList], toolspkg.RiskRead, true, false, false)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDClarify], toolspkg.RiskRead, true, false, false)
-		requireDescriptorRisk(
-			t,
-			descriptors[toolspkg.ToolIDToolApprovalsSet],
-			toolspkg.RiskDestructive,
-			false,
-			true,
-			false,
-		)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDToolApprovalsList], toolspkg.RiskRead, true, false, false)
-		requireDescriptorRisk(
-			t,
-			descriptors[toolspkg.ToolIDToolApprovalsRevoke],
-			toolspkg.RiskDestructive,
-			false,
-			true,
-			false,
-		)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDSkillView], toolspkg.RiskRead, true, false, false)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDNetworkStatus], toolspkg.RiskRead, true, false, false)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDNetworkUsage], toolspkg.RiskRead, true, false, false)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDNetworkChannels], toolspkg.RiskRead, true, false, false)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDNetworkInbox], toolspkg.RiskRead, true, false, false)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDNetworkPeers], toolspkg.RiskRead, true, false, false)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDNetworkThreads], toolspkg.RiskRead, true, false, false)
-		requireDescriptorRisk(
-			t,
-			descriptors[toolspkg.ToolIDNetworkThreadMessages],
-			toolspkg.RiskRead,
-			true,
-			false,
-			false,
-		)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDNetworkDirects], toolspkg.RiskRead, true, false, false)
-		requireDescriptorRisk(
-			t,
-			descriptors[toolspkg.ToolIDNetworkDirectMessages],
-			toolspkg.RiskRead,
-			true,
-			false,
-			false,
-		)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDNetworkWork], toolspkg.RiskRead, true, false, false)
-		requireDescriptorRisk(
-			t,
-			descriptors[toolspkg.ToolIDNetworkChannelCreate],
-			toolspkg.RiskMutating,
-			false,
-			false,
-			false,
-		)
-		requireDescriptorRisk(
-			t,
-			descriptors[toolspkg.ToolIDNetworkChannelUpdate],
-			toolspkg.RiskMutating,
-			false,
-			false,
-			false,
-		)
-		requireDescriptorRisk(
-			t,
-			descriptors[toolspkg.ToolIDNetworkSubscriptions],
-			toolspkg.RiskRead,
-			true,
-			false,
-			false,
-		)
-		requireDescriptorRisk(
-			t,
-			descriptors[toolspkg.ToolIDNetworkSubscribe],
-			toolspkg.RiskMutating,
-			false,
-			false,
-			false,
-		)
-		requireDescriptorRisk(
-			t,
-			descriptors[toolspkg.ToolIDNetworkMute],
-			toolspkg.RiskMutating,
-			false,
-			false,
-			false,
-		)
-		requireDescriptorRisk(
-			t,
-			descriptors[toolspkg.ToolIDNetworkUnmute],
-			toolspkg.RiskDestructive,
-			false,
-			true,
-			false,
-		)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDSessionList], toolspkg.RiskRead, true, false, false)
-		sessionListDescriptor := descriptors[toolspkg.ToolIDSessionList]
-		if !strings.Contains(string(sessionListDescriptor.InputSchema), `"cursor"`) ||
-			!strings.Contains(string(sessionListDescriptor.InputSchema), `"include_health"`) ||
-			!strings.Contains(string(sessionListDescriptor.InputSchema), `"type"`) ||
-			!strings.Contains(string(sessionListDescriptor.InputSchema), `"last_activity"`) ||
-			!strings.Contains(string(sessionListDescriptor.OutputSchema), `"page"`) ||
-			!strings.Contains(string(sessionListDescriptor.OutputSchema), `"next_cursor"`) {
+		sessionList := descriptors[toolspkg.ToolIDSessionList]
+		if !strings.Contains(string(sessionList.InputSchema), `"cursor"`) ||
+			!strings.Contains(string(sessionList.InputSchema), `"include_health"`) ||
+			!strings.Contains(string(sessionList.InputSchema), `"type"`) ||
+			!strings.Contains(string(sessionList.InputSchema), `"last_activity"`) ||
+			!strings.Contains(string(sessionList.OutputSchema), `"page"`) ||
+			!strings.Contains(string(sessionList.OutputSchema), `"next_cursor"`) {
 			t.Fatalf(
 				"session list schemas = input %s output %s, want paged filters and continuation",
-				sessionListDescriptor.InputSchema,
-				sessionListDescriptor.OutputSchema,
+				sessionList.InputSchema,
+				sessionList.OutputSchema,
 			)
 		}
-		if strings.Contains(string(sessionListDescriptor.InputSchema), `"dream"`) {
-			t.Fatalf("session list input schema exposes internal dream type: %s", sessionListDescriptor.InputSchema)
+		if strings.Contains(string(sessionList.InputSchema), `"dream"`) {
+			t.Fatalf("session list input schema exposes internal dream type: %s", sessionList.InputSchema)
 		}
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDSessionStatus], toolspkg.RiskRead, true, false, false)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDSessionCreate], toolspkg.RiskMutating, false, false, false)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDSessionPrompt], toolspkg.RiskMutating, false, false, false)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDSessionHistory], toolspkg.RiskRead, true, false, false)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDSessionEvents], toolspkg.RiskRead, true, false, false)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDSessionDescribe], toolspkg.RiskRead, true, false, false)
-		bridgeListDescriptor := descriptors[toolspkg.ToolIDBridgesList]
-		if !strings.Contains(string(bridgeListDescriptor.InputSchema), `"workspace"`) ||
-			!strings.Contains(string(bridgeListDescriptor.InputSchema), `"cursor"`) ||
-			!strings.Contains(string(bridgeListDescriptor.OutputSchema), `"facets"`) ||
-			!strings.Contains(string(bridgeListDescriptor.OutputSchema), `"next_cursor"`) {
+
+		bridgeList := descriptors[toolspkg.ToolIDBridgesList]
+		if !strings.Contains(string(bridgeList.InputSchema), `"workspace"`) ||
+			!strings.Contains(string(bridgeList.InputSchema), `"cursor"`) ||
+			!strings.Contains(string(bridgeList.OutputSchema), `"facets"`) ||
+			!strings.Contains(string(bridgeList.OutputSchema), `"next_cursor"`) {
 			t.Fatalf(
 				"bridge list schemas = input %s output %s, want workspace-safe paged filters",
-				bridgeListDescriptor.InputSchema,
-				bridgeListDescriptor.OutputSchema,
+				bridgeList.InputSchema,
+				bridgeList.OutputSchema,
 			)
 		}
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDSessionHealth], toolspkg.RiskRead, true, false, false)
-		requireDescriptorRisk(
-			t,
-			descriptors[toolspkg.ToolIDAgentHeartbeatStatus],
-			toolspkg.RiskRead,
-			true,
-			false,
-			false,
-		)
-		requireDescriptorRisk(
-			t,
-			descriptors[toolspkg.ToolIDAgentHeartbeatWake],
-			toolspkg.RiskMutating,
-			false,
-			false,
-			false,
-		)
-		requireDescriptorRisk(
-			t,
-			descriptors[toolspkg.ToolIDAgentCreate],
-			toolspkg.RiskMutating,
-			false,
-			false,
-			false,
-		)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDWorkspaceList], toolspkg.RiskRead, true, false, false)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDWorkspaceInfo], toolspkg.RiskRead, true, false, false)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDWorkspaceDescribe], toolspkg.RiskRead, true, false, false)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDProviderModelsList], toolspkg.RiskRead, true, false, false)
-		requireDescriptorRisk(
-			t,
-			descriptors[toolspkg.ToolIDProviderModelsRefresh],
-			toolspkg.RiskMutating,
-			false,
-			false,
-			false,
-		)
-		requireDescriptorRisk(
-			t,
-			descriptors[toolspkg.ToolIDProviderModelsStatus],
-			toolspkg.RiskRead,
-			true,
-			false,
-			false,
-		)
-		requireDescriptorRisk(
-			t,
-			descriptors[toolspkg.ToolIDProviderModelsCurate],
-			toolspkg.RiskMutating,
-			false,
-			false,
-			false,
-		)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDMemoryList], toolspkg.RiskRead, true, false, false)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDMemoryShow], toolspkg.RiskRead, true, false, false)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDMemorySearch], toolspkg.RiskRead, true, false, false)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDMemoryPropose], toolspkg.RiskMutating, false, false, false)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDMemoryNote], toolspkg.RiskMutating, false, false, false)
-		for _, id := range []toolspkg.ToolID{
-			toolspkg.ToolIDMemoryHealth,
-			toolspkg.ToolIDMemoryScopeShow,
-			toolspkg.ToolIDMemoryAdminHistory,
-			toolspkg.ToolIDMemoryDecisionsList,
-			toolspkg.ToolIDMemoryDecisionsShow,
-			toolspkg.ToolIDMemoryRecallTrace,
-			toolspkg.ToolIDMemoryDreamStatus,
-			toolspkg.ToolIDMemoryDreamList,
-			toolspkg.ToolIDMemoryDreamShow,
-			toolspkg.ToolIDMemoryDailyList,
-			toolspkg.ToolIDMemoryExtractorStatus,
-			toolspkg.ToolIDMemoryExtractorFailures,
-			toolspkg.ToolIDMemoryProviderList,
-			toolspkg.ToolIDMemoryProviderGet,
-			toolspkg.ToolIDMemorySessionLedger,
-		} {
-			requireDescriptorRisk(t, descriptors[id], toolspkg.RiskRead, true, false, false)
-		}
-		for _, id := range []toolspkg.ToolID{
-			toolspkg.ToolIDMemoryReindex,
-			toolspkg.ToolIDMemoryPromote,
-			toolspkg.ToolIDMemoryReload,
-			toolspkg.ToolIDMemoryDreamTrigger,
-			toolspkg.ToolIDMemoryDreamRetry,
-			toolspkg.ToolIDMemoryExtractorRetry,
-			toolspkg.ToolIDMemoryExtractorDrain,
-			toolspkg.ToolIDMemoryProviderSelect,
-			toolspkg.ToolIDMemoryProviderEnable,
-			toolspkg.ToolIDMemoryProviderDisable,
-			toolspkg.ToolIDMemorySessionReplay,
-			toolspkg.ToolIDMemorySessionsRepair,
-		} {
-			requireDescriptorRisk(t, descriptors[id], toolspkg.RiskMutating, false, false, false)
-		}
-		for _, id := range []toolspkg.ToolID{
-			toolspkg.ToolIDMemoryReset,
-			toolspkg.ToolIDMemoryDecisionsRevert,
-			toolspkg.ToolIDMemorySessionsPrune,
-		} {
-			requireDescriptorRisk(t, descriptors[id], toolspkg.RiskDestructive, false, true, false)
-		}
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDListLogs], toolspkg.RiskRead, true, false, false)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDToolArtifactRead], toolspkg.RiskRead, true, false, false)
+
 		if got, want := descriptors[toolspkg.ToolIDToolArtifactRead].MaxResultBytes,
 			toolArtifactReadMaxResultBytes; got != want {
 			t.Fatalf("tool artifact read max result bytes = %d, want %d", got, want)
 		}
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDObserveMetrics], toolspkg.RiskRead, true, false, false)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDObserveSearch], toolspkg.RiskRead, true, false, false)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDBridgesList], toolspkg.RiskRead, true, false, false)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDBridgesStatus], toolspkg.RiskRead, true, false, false)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDTaskRead], toolspkg.RiskRead, true, false, false)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDTaskRunList], toolspkg.RiskRead, true, false, false)
-		requireDescriptorRisk(
-			t,
-			descriptors[toolspkg.ToolIDTaskRunReviewRequest],
-			toolspkg.RiskMutating,
-			false,
-			false,
-			false,
-		)
-		requireDescriptorRisk(
-			t,
-			descriptors[toolspkg.ToolIDTaskRunReviewList],
-			toolspkg.RiskRead,
-			true,
-			false,
-			false,
-		)
-		requireDescriptorRisk(
-			t,
-			descriptors[toolspkg.ToolIDTaskRunReviewShow],
-			toolspkg.RiskRead,
-			true,
-			false,
-			false,
-		)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDNetworkSend], toolspkg.RiskOpenWorld, false, false, true)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDExtensionsSearch], toolspkg.RiskRead, true, false, false)
-		requireDescriptorRisk(
-			t,
-			descriptors[toolspkg.ToolIDExtensionsProvenance],
-			toolspkg.RiskRead,
-			true,
-			false,
-			false,
-		)
 		publish := descriptors[toolspkg.ToolIDExtensionsPublish]
-		requireDescriptorRisk(t, publish, toolspkg.RiskOpenWorld, false, false, true)
 		if !publish.RequiresInteraction {
 			t.Fatal("extensions_publish RequiresInteraction = false, want true")
 		}
@@ -806,253 +386,10 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 				t.Fatalf("extensions_publish schema contains forbidden credential field %q", forbidden)
 			}
 		}
-		requireDescriptorRisk(
-			t,
-			descriptors[toolspkg.ToolIDNetworkDirectResolve],
-			toolspkg.RiskMutating,
-			false,
-			false,
-			false,
-		)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDTaskCreate], toolspkg.RiskMutating, false, false, false)
-		requireDescriptorRisk(
-			t,
-			descriptors[toolspkg.ToolIDTaskChildCreate],
-			toolspkg.RiskMutating,
-			false,
-			false,
-			false,
-		)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDTaskUpdate], toolspkg.RiskMutating, false, false, false)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDTaskCancel], toolspkg.RiskDestructive, false, true, false)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDTaskBlock], toolspkg.RiskMutating, false, false, false)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDTaskUnblock], toolspkg.RiskMutating, false, false, false)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDTaskBlocks], toolspkg.RiskRead, true, false, false)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDTaskRecover], toolspkg.RiskMutating, false, false, false)
-		requireDescriptorRisk(
-			t,
-			descriptors[toolspkg.ToolIDTaskExecutionProfileGet],
-			toolspkg.RiskRead,
-			true,
-			false,
-			false,
-		)
-		requireDescriptorRisk(
-			t,
-			descriptors[toolspkg.ToolIDTaskExecutionProfileSet],
-			toolspkg.RiskMutating,
-			false,
-			false,
-			false,
-		)
-		requireDescriptorRisk(
-			t,
-			descriptors[toolspkg.ToolIDTaskExecutionProfileDelete],
-			toolspkg.RiskDestructive,
-			false,
-			true,
-			false,
-		)
-		requireDescriptorRisk(
-			t,
-			descriptors[toolspkg.ToolIDTaskNotificationSubscribe],
-			toolspkg.RiskMutating,
-			false,
-			false,
-			false,
-		)
-		requireDescriptorRisk(
-			t,
-			descriptors[toolspkg.ToolIDTaskNotificationList],
-			toolspkg.RiskRead,
-			true,
-			false,
-			false,
-		)
-		requireDescriptorRisk(
-			t,
-			descriptors[toolspkg.ToolIDTaskNotificationShow],
-			toolspkg.RiskRead,
-			true,
-			false,
-			false,
-		)
-		requireDescriptorRisk(
-			t,
-			descriptors[toolspkg.ToolIDTaskNotificationDelete],
-			toolspkg.RiskDestructive,
-			false,
-			true,
-			false,
-		)
-		requireDescriptorRisk(
-			t,
-			descriptors[toolspkg.ToolIDTaskPromoteFromThread],
-			toolspkg.RiskMutating,
-			false,
-			false,
-			false,
-		)
-		requireDescriptorRisk(
-			t,
-			descriptors[toolspkg.ToolIDTaskFanOutRuns],
-			toolspkg.RiskMutating,
-			false,
-			false,
-			false,
-		)
-		requireDescriptorRisk(
-			t,
-			descriptors[toolspkg.ToolIDTaskRunClaimNext],
-			toolspkg.RiskMutating,
-			false,
-			false,
-			false,
-		)
-		requireDescriptorRisk(
-			t,
-			descriptors[toolspkg.ToolIDTaskRunHeartbeat],
-			toolspkg.RiskMutating,
-			false,
-			false,
-			false,
-		)
-		requireDescriptorRisk(
-			t,
-			descriptors[toolspkg.ToolIDTaskRunComplete],
-			toolspkg.RiskMutating,
-			false,
-			false,
-			false,
-		)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDTaskRunFail], toolspkg.RiskMutating, false, false, false)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDTaskRunRelease], toolspkg.RiskMutating, false, false, false)
-		requireDescriptorRisk(
-			t,
-			descriptors[toolspkg.ToolIDTaskRunReviewSubmit],
-			toolspkg.RiskMutating,
-			false,
-			false,
-			false,
-		)
 		if got := descriptors[toolspkg.ToolIDTaskRunReviewSubmit].Backend.NativeName; got != "submit_run_review" {
 			t.Fatalf("submit review native name = %q, want submit_run_review", got)
 		}
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDConfigShow], toolspkg.RiskRead, true, false, false)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDConfigSet], toolspkg.RiskMutating, false, false, false)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDConfigUnset], toolspkg.RiskDestructive, false, true, false)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDHooksList], toolspkg.RiskRead, true, false, false)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDHooksCreate], toolspkg.RiskMutating, false, false, false)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDHooksDelete], toolspkg.RiskDestructive, false, true, false)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDHooksDisable], toolspkg.RiskMutating, false, false, false)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDAutomationJobsList], toolspkg.RiskRead, true, false, false)
-		requireDescriptorRisk(
-			t,
-			descriptors[toolspkg.ToolIDAutomationJobsCreate],
-			toolspkg.RiskMutating,
-			false,
-			false,
-			false,
-		)
-		requireDescriptorRisk(
-			t,
-			descriptors[toolspkg.ToolIDAutomationJobsDelete],
-			toolspkg.RiskDestructive,
-			false,
-			true,
-			false,
-		)
-		requireDescriptorRisk(
-			t,
-			descriptors[toolspkg.ToolIDAutomationJobsTrigger],
-			toolspkg.RiskMutating,
-			false,
-			false,
-			false,
-		)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDAutomationRunsGet], toolspkg.RiskRead, true, false, false)
-		requireDescriptorRisk(
-			t,
-			descriptors[toolspkg.ToolIDAutomationTriggersCreate],
-			toolspkg.RiskMutating,
-			false,
-			false,
-			false,
-		)
-		requireDescriptorRisk(
-			t,
-			descriptors[toolspkg.ToolIDAutomationTriggersDelete],
-			toolspkg.RiskDestructive,
-			false,
-			true,
-			false,
-		)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDMarketplaceSearch], toolspkg.RiskRead, true, false, false)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDExtensionsList], toolspkg.RiskRead, true, false, false)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDExtensionsInfo], toolspkg.RiskRead, true, false, false)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDExtensionsInventory], toolspkg.RiskRead, true, false, false)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDExtensionsPreview], toolspkg.RiskRead, true, false, false)
-		requireDescriptorRisk(
-			t,
-			descriptors[toolspkg.ToolIDExtensionsInstall],
-			toolspkg.RiskMutating,
-			false,
-			false,
-			false,
-		)
-		requireDescriptorRisk(
-			t,
-			descriptors[toolspkg.ToolIDExtensionsUpdate],
-			toolspkg.RiskMutating,
-			false,
-			false,
-			false,
-		)
-		requireDescriptorRisk(
-			t,
-			descriptors[toolspkg.ToolIDExtensionsRemove],
-			toolspkg.RiskDestructive,
-			false,
-			true,
-			false,
-		)
-		requireDescriptorRisk(
-			t,
-			descriptors[toolspkg.ToolIDExtensionsEnable],
-			toolspkg.RiskMutating,
-			false,
-			false,
-			false,
-		)
-		requireDescriptorRisk(
-			t,
-			descriptors[toolspkg.ToolIDExtensionsDisable],
-			toolspkg.RiskMutating,
-			false,
-			false,
-			false,
-		)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDResourcesList], toolspkg.RiskRead, true, false, false)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDResourcesInfo], toolspkg.RiskRead, true, false, false)
-		requireDescriptorRisk(
-			t,
-			descriptors[toolspkg.ToolIDResourcesSnapshot],
-			toolspkg.RiskRead,
-			true,
-			false,
-			false,
-		)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDMCPStatus], toolspkg.RiskRead, true, false, false)
-		requireDescriptorRisk(
-			t,
-			descriptors[toolspkg.ToolIDMCPAuthStatus],
-			toolspkg.RiskRead,
-			true,
-			false,
-			false,
-		)
 	})
-
 	t.Run("Should expose the closed clarification contract without approval recursion", func(t *testing.T) {
 		t.Parallel()
 
@@ -1115,6 +452,52 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 					descriptor.ID,
 					descriptor.OutputSchema,
 				)
+			}
+		}
+	})
+
+	t.Run("Should publish closed extension inspection schemas and network digest inputs", func(t *testing.T) {
+		t.Parallel()
+
+		descriptors := descriptorMap(NativeDescriptors())
+		inventory := descriptors[toolspkg.ToolIDExtensionsInventory]
+		preview := descriptors[toolspkg.ToolIDExtensionsPreview]
+		assertNativeOutputSchemaAccepts(t, inventory, `{
+			"extension":"kit","enabled":true,
+			"items":[{"kind":"skill","id":"review","name":"Review","live":true}]
+		}`)
+		assertNativeOutputSchemaRejects(t, inventory, `{
+			"extension":"kit","enabled":true,
+			"items":[{"kind":"skill","id":"review","name":"Review","live":true,"extra":1}]
+		}`)
+		assertNativeOutputSchemaAccepts(t, preview, `{
+			"extension":"kit",
+			"changes":[{"kind":"skill","id":"review","name":"Review","change":"changed"}],
+			"agent_conflicts":[],"missing_env":["API_KEY"],"automation_starting":["daily"],
+			"network_requirement_digest":"","network_confirmation_required":false
+		}`)
+		assertNativeOutputSchemaRejects(t, preview, `{
+			"extension":"kit",
+			"changes":[{"kind":"skill","id":"review","name":"Review","change":"updated"}],
+			"agent_conflicts":[],"missing_env":[],"automation_starting":[],
+			"network_requirement_digest":"","network_confirmation_required":false
+		}`)
+
+		for _, id := range []toolspkg.ToolID{
+			toolspkg.ToolIDExtensionsEnable,
+			toolspkg.ToolIDExtensionsUpdate,
+		} {
+			var schema struct {
+				Properties map[string]struct {
+					Pattern string `json:"pattern"`
+				} `json:"properties"`
+			}
+			if err := json.Unmarshal(descriptors[id].InputSchema, &schema); err != nil {
+				t.Fatalf("%s input schema unmarshal error = %v", id, err)
+			}
+			if got, want := schema.Properties["confirm_network_digest"].Pattern,
+				"^[a-f0-9]{64}$"; got != want {
+				t.Fatalf("%s confirm_network_digest pattern = %q, want %q", id, got, want)
 			}
 		}
 	})
@@ -1323,6 +706,473 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			t.Fatal("NativeDescriptors() reused input schema bytes")
 		}
 	})
+}
+
+type nativeDescriptorExpectation struct {
+	id          toolspkg.ToolID
+	risk        toolspkg.RiskClass
+	readOnly    bool
+	destructive bool
+	openWorld   bool
+}
+
+func nativeDescriptorExpectations() []nativeDescriptorExpectation {
+	return []nativeDescriptorExpectation{
+		{id: "compozy__agent_create", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__agent_heartbeat_status", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__agent_heartbeat_wake", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__automation_jobs_create", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__automation_jobs_delete", risk: toolspkg.RiskDestructive,
+			readOnly: false, destructive: true, openWorld: false},
+		{id: "compozy__automation_jobs_disable", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__automation_jobs_enable", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__automation_jobs_get", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__automation_jobs_history", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__automation_jobs_list", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__automation_jobs_trigger", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__automation_jobs_update", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__automation_runs_get", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__automation_runs_list", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__automation_suggestions_accept", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__automation_suggestions_dismiss", risk: toolspkg.RiskDestructive,
+			readOnly: false, destructive: true, openWorld: false},
+		{id: "compozy__automation_suggestions_list", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__automation_triggers_create", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__automation_triggers_delete", risk: toolspkg.RiskDestructive,
+			readOnly: false, destructive: true, openWorld: false},
+		{id: "compozy__automation_triggers_disable", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__automation_triggers_enable", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__automation_triggers_get", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__automation_triggers_history", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__automation_triggers_list", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__automation_triggers_update", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__bridges_list", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__bridges_status", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__clarify", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__config_diff", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__config_get", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__config_list", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__config_path", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__config_set", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__config_show", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__config_unset", risk: toolspkg.RiskDestructive,
+			readOnly: false, destructive: true, openWorld: false},
+		{id: "compozy__desktop_clients", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__desktop_create", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__desktop_delete", risk: toolspkg.RiskDestructive,
+			readOnly: false, destructive: true, openWorld: false},
+		{id: "compozy__desktop_list", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__desktop_reorder", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__desktop_switch", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__desktop_update", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__extensions_build", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__extensions_dev", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__extensions_disable", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__extensions_enable", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__extensions_info", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__extensions_init", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__extensions_install", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__extensions_inventory", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__extensions_list", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__extensions_logs", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__extensions_preview", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__extensions_provenance", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__extensions_publish", risk: toolspkg.RiskOpenWorld,
+			readOnly: false, destructive: false, openWorld: true},
+		{id: "compozy__extensions_reload", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__extensions_remove", risk: toolspkg.RiskDestructive,
+			readOnly: false, destructive: true, openWorld: false},
+		{id: "compozy__extensions_search", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__extensions_update", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__extensions_validate", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__goal_get", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__goal_report", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__hooks_create", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__hooks_delete", risk: toolspkg.RiskDestructive,
+			readOnly: false, destructive: true, openWorld: false},
+		{id: "compozy__hooks_disable", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__hooks_enable", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__hooks_events", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__hooks_info", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__hooks_list", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__hooks_runs", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__hooks_update", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__layout_apply", risk: toolspkg.RiskDestructive,
+			readOnly: false, destructive: true, openWorld: false},
+		{id: "compozy__layout_arrange", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__layout_balance", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__layout_export", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__layout_frame_resize", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__layout_get", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__layout_preview", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__layout_redo", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__layout_resize", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__layout_undo", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__layout_validate", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__logs", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__loop_approve", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__loop_configure", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__loop_create", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__loop_delete", risk: toolspkg.RiskDestructive,
+			readOnly: false, destructive: true, openWorld: false},
+		{id: "compozy__loop_inspect", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__loop_list", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__loop_pause", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__loop_resume", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__loop_run", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__loop_runs", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__loop_status", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__loop_stop", risk: toolspkg.RiskDestructive,
+			readOnly: false, destructive: true, openWorld: false},
+		{id: "compozy__loop_turns", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__loop_validate", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__marketplace_search", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__mcp_auth_status", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__mcp_status", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__memory_admin_history", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__memory_daily_list", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__memory_decisions_list", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__memory_decisions_revert", risk: toolspkg.RiskDestructive,
+			readOnly: false, destructive: true, openWorld: false},
+		{id: "compozy__memory_decisions_show", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__memory_dream_list", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__memory_dream_retry", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__memory_dream_show", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__memory_dream_status", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__memory_dream_trigger", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__memory_extractor_drain", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__memory_extractor_failures", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__memory_extractor_retry", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__memory_extractor_status", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__memory_health", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__memory_list", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__memory_note", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__memory_promote", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__memory_propose", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__memory_provider_disable", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__memory_provider_enable", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__memory_provider_get", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__memory_provider_list", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__memory_provider_select", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__memory_recall_trace", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__memory_reindex", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__memory_reload", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__memory_reset", risk: toolspkg.RiskDestructive,
+			readOnly: false, destructive: true, openWorld: false},
+		{id: "compozy__memory_scope_show", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__memory_search", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__memory_session_ledger", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__memory_session_replay", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__memory_sessions_prune", risk: toolspkg.RiskDestructive,
+			readOnly: false, destructive: true, openWorld: false},
+		{id: "compozy__memory_sessions_repair", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__memory_show", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__network_channel_create", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__network_channel_update", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__network_channels", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__network_direct_messages", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__network_direct_resolve", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__network_directs", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__network_inbox", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__network_mute", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__network_peers", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__network_send", risk: toolspkg.RiskOpenWorld,
+			readOnly: false, destructive: false, openWorld: true},
+		{id: "compozy__network_status", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__network_subscribe", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__network_subscriptions", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__network_thread_messages", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__network_threads", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__network_unmute", risk: toolspkg.RiskDestructive,
+			readOnly: false, destructive: true, openWorld: false},
+		{id: "compozy__network_usage", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__network_work", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__observe_metrics", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__observe_search", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__provider_models_curate", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__provider_models_list", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__provider_models_refresh", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__provider_models_status", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__resources_info", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__resources_list", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__resources_snapshot", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__session_create", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__session_describe", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__session_events", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__session_health", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__session_history", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__session_list", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__session_prompt", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__session_status", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__skill_list", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__skill_search", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__skill_view", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__task_block", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__task_blocks", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__task_cancel", risk: toolspkg.RiskDestructive,
+			readOnly: false, destructive: true, openWorld: false},
+		{id: "compozy__task_child_create", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__task_create", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__task_execution_profile_delete", risk: toolspkg.RiskDestructive,
+			readOnly: false, destructive: true, openWorld: false},
+		{id: "compozy__task_execution_profile_get", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__task_execution_profile_set", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__task_fanout_runs", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__task_list", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__task_notification_delete", risk: toolspkg.RiskDestructive,
+			readOnly: false, destructive: true, openWorld: false},
+		{id: "compozy__task_notification_list", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__task_notification_show", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__task_notification_subscribe", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__task_promote_from_thread", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__task_read", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__task_recover", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__task_run_claim_next", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__task_run_complete", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__task_run_fail", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__task_run_heartbeat", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__task_run_list", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__task_run_release", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__task_run_review_list", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__task_run_review_request", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__task_run_review_show", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__task_run_review_submit", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__task_unblock", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__task_update", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__tool_approvals_list", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__tool_approvals_revoke", risk: toolspkg.RiskDestructive,
+			readOnly: false, destructive: true, openWorld: false},
+		{id: "compozy__tool_approvals_set", risk: toolspkg.RiskDestructive,
+			readOnly: false, destructive: true, openWorld: false},
+		{id: "compozy__tool_artifact_read", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__tool_info", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__tool_list", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__tool_search", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__window_activate", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__window_close", risk: toolspkg.RiskDestructive,
+			readOnly: false, destructive: true, openWorld: false},
+		{id: "compozy__window_float", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__window_focus", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__window_group", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__window_list", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__window_move", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__window_navigate", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__window_open", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__window_pin", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__window_reopen", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__window_reorder", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__window_resize", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__window_swap", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__window_zoom", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__workspace_describe", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__workspace_info", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__workspace_list", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+	}
 }
 
 func assertNativeOutputSchemaAccepts(t *testing.T, descriptor toolspkg.Descriptor, payload string) {

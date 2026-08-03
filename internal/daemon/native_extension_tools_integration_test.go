@@ -96,8 +96,11 @@ func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 				inspected.Manifest.Resources.Skills,
 			)
 		}
-		service, ok := newDaemonExtensionService(
-			extRegistry, inspectionRuntime, nil, nil, nil, nil, deps.HomePaths, nil, nil,
+		service, ok := newDaemonExtensionService(daemonExtensionServiceDeps{
+			Registry:  extRegistry,
+			Runtime:   inspectionRuntime,
+			HomePaths: deps.HomePaths,
+		},
 			withDaemonExtensionMarketplace(deps.ExtensionConfig, deps.ExtensionSources),
 			withDaemonExtensionEventWriter(deps.ExtensionEvents),
 		).(*daemonExtensionService)
@@ -452,7 +455,7 @@ func assertNativeExtensionInventoryPreviewParity(
 		t.Fatalf("service.Inventory() error = %v", err)
 	}
 	if !reflect.DeepEqual(nativeInventory, directInventory) {
-		t.Fatalf("native inventory = %#v, want route payload %#v", nativeInventory, directInventory)
+		t.Fatalf("native inventory = %#v, want core service payload %#v", nativeInventory, directInventory)
 	}
 	if len(nativeInventory.Items) != 1 || nativeInventory.Items[0].Live {
 		t.Fatalf("native inventory = %#v, want one shipped inactive item", nativeInventory)
@@ -474,9 +477,9 @@ func assertNativeExtensionInventoryPreviewParity(
 		t.Fatalf("service.Preview() error = %v", err)
 	}
 	if !reflect.DeepEqual(nativePreview, directPreview) {
-		t.Fatalf("native preview = %#v, want route payload %#v", nativePreview, directPreview)
+		t.Fatalf("native preview = %#v, want core service payload %#v", nativePreview, directPreview)
 	}
-	if len(nativePreview.WouldPublish) != 1 || !nativePreview.NetworkConfirmationRequired {
+	if len(nativePreview.Changes) != 1 || !nativePreview.NetworkConfirmationRequired {
 		t.Fatalf("native preview = %#v, want one item and network confirmation", nativePreview)
 	}
 }
@@ -613,7 +616,7 @@ func assertNativeExtensionLifecycleEvents(
 		if err := json.Unmarshal(events[0].Content, &fields); err != nil {
 			t.Fatalf("json.Unmarshal(%s event) error = %v", eventType, err)
 		}
-		if len(fields) != 3 || fields["workspace_id"] != workspaceID || fields["bundle_generation"] == "" {
+		if len(fields) != 3 || fields["workspace_id"] != workspaceID || fields["extension_generation"] == "" {
 			t.Fatalf("%s fields = %#v, want exact extension/workspace/generation keys", eventType, fields)
 		}
 	}

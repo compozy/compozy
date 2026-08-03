@@ -770,6 +770,24 @@ min_other_version = "0.5.0"
 			wantField: "capabilities.provides[0]",
 		},
 		{
+			name:          "Should reject an unknown JSON resource field",
+			daemonVersion: "0.6.0",
+			fileName:      manifestJSONFileName,
+			content: `{
+  "extension": {
+    "name": "pgvector-memory",
+    "version": "0.2.1",
+    "min_compozy_version": "0.5.0"
+  },
+  "resources": {
+    "bundles": ["bundles"]
+  }
+}
+`,
+			wantErr:   ErrManifestInvalid,
+			wantField: "resources.bundles",
+		},
+		{
 			name:          "incompatible minimum compozy version",
 			daemonVersion: "0.4.0",
 			fileName:      manifestTOMLFileName,

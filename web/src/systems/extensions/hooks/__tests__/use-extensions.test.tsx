@@ -171,14 +171,22 @@ describe("extension management queries", () => {
   });
 
   it("Should load the kit inventory under its own name-scoped key", async () => {
-    const inventory = renderHook(() => useExtensionKitInventory("dep-kit-ops"), { wrapper });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const inventoryWrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client }, children);
+    const inventory = renderHook(() => useExtensionKitInventory("dep-kit-ops"), {
+      wrapper: inventoryWrapper,
+    });
 
     await waitFor(() => expect(inventory.result.current.isSuccess).toBe(true));
-    expect(inventory.result.current.data).toEqual({
+    const expectedInventory = {
       enabled: false,
       extension: "dep-kit-ops",
       items: extensionInventoryFixtures["dep-kit-ops"],
-    });
+    };
+    expect(inventory.result.current.data).toEqual(expectedInventory);
+    expect(client.getQueryData(extensionKeys.inventory("dep-kit-ops"))).toEqual(expectedInventory);
+    expect(client.getQueryData(extensionKeys.inventory("otel-bridge"))).toBeUndefined();
     expect(mocks.getExtensionInventory).toHaveBeenCalledWith(
       "dep-kit-ops",
       expect.any(AbortSignal)

@@ -80,12 +80,7 @@ export interface ToolConfig {
   command?: ExtensionCommandSpec;
 }
 
-export interface ResourcesConfig {
-  skills?: string[];
-  loops?: string[];
-  agents?: string[];
-  automation?: string[];
-  layouts?: string[];
+export interface ResourcesConfig extends DescribeResources {
   hooks?: HookConfig[];
   tools?: Record<string, ToolConfig>;
   command_groups?: ExtensionCommandGroupSpec[];

@@ -140,13 +140,10 @@ describe("useToggleExtension", () => {
   it("Should stay silent for a network-confirmation refusal instead of toasting it", async () => {
     const { wrapper } = setup();
     mocks.enableExtension.mockRejectedValue(
-      new ExtensionsApiError(
-        "confirmation required",
-        409,
-        "daemon",
-        "extension_network_confirmation_required",
-        "sha256:6f1c0a94d3b27e58"
-      )
+      new ExtensionsApiError("confirmation required", 409, "daemon", {
+        code: "extension_network_confirmation_required",
+        currentDigest: "sha256:6f1c0a94d3b27e58",
+      })
     );
     const { result } = renderHook(() => useToggleExtension(), { wrapper });
 
@@ -251,13 +248,10 @@ describe("useUpdateExtension", () => {
   it("Should stay silent for a network-confirmation refusal instead of toasting it", async () => {
     const { wrapper } = setup();
     mocks.updateExtension.mockRejectedValue(
-      new ExtensionsApiError(
-        "confirmation required",
-        409,
-        "daemon",
-        "extension_network_confirmation_required",
-        "sha256:6f1c0a94d3b27e58"
-      )
+      new ExtensionsApiError("confirmation required", 409, "daemon", {
+        code: "extension_network_confirmation_required",
+        currentDigest: "sha256:6f1c0a94d3b27e58",
+      })
     );
     const { result } = renderHook(() => useUpdateExtension(), { wrapper });
 

@@ -580,7 +580,7 @@ func TestReconcileDriverSchedulesReverseDependenciesAfterWritesOnly(t *testing.T
 		})
 
 		if err := driver.Trigger(ctx, parentFixtureKind, ReconcileReasonWrite); err != nil {
-			t.Fatalf("Trigger(bundle) error = %v", err)
+			t.Fatalf("Trigger(parent fixture) error = %v", err)
 		}
 
 		waitForCondition(t, time.Second, func() bool {
@@ -702,7 +702,7 @@ func TestReconcileDriverSchedulesReverseDependenciesAfterWritesOnly(t *testing.T
 		})
 
 		if err := driver.Trigger(ctx, parentFixtureKind, ReconcileReasonWrite); err != nil {
-			t.Fatalf("Trigger(bundle dependency-only write) error = %v", err)
+			t.Fatalf("Trigger(parent fixture dependency-only write) error = %v", err)
 		}
 
 		select {

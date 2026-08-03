@@ -60,6 +60,15 @@ func TestResourceRecordRemovedKindsCleanupMigration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("open v39 resource fixture error = %v", err)
 		}
+		prefixClosed := false
+		t.Cleanup(func() {
+			if prefixClosed {
+				return
+			}
+			if closeErr := prefixDB.Close(); closeErr != nil {
+				t.Errorf("close v39 resource fixture cleanup error = %v", closeErr)
+			}
+		})
 		ctx := testutil.Context(t)
 		rows := []struct {
 			kind      string
@@ -124,11 +133,21 @@ func TestResourceRecordRemovedKindsCleanupMigration(t *testing.T) {
 		if err := prefixDB.Close(); err != nil {
 			t.Fatalf("close v39 resource fixture error = %v", err)
 		}
+		prefixClosed = true
 
 		upgraded, err := openGlobalMigrationUpgrade(t, path)
 		if err != nil {
 			t.Fatalf("upgrade v39 resource fixture error = %v", err)
 		}
+		upgradedClosed := false
+		t.Cleanup(func() {
+			if upgradedClosed {
+				return
+			}
+			if closeErr := upgraded.Close(testutil.Context(t)); closeErr != nil {
+				t.Errorf("close upgraded resource fixture cleanup error = %v", closeErr)
+			}
+		})
 		assertRemovedResourceRows(t, upgraded.db)
 		assertPreservedResourceHomonym(t, upgraded.db)
 		status, err := store.Status(ctx, upgraded.db, MigrationStream())
@@ -139,6 +158,7 @@ func TestResourceRecordRemovedKindsCleanupMigration(t *testing.T) {
 		if err := upgraded.Close(ctx); err != nil {
 			t.Fatalf("close upgraded resource fixture error = %v", err)
 		}
+		upgradedClosed = true
 
 		reopened, err := OpenGlobalDB(testutil.Context(t), path)
 		if err != nil {

@@ -137,7 +137,11 @@ func (s *daemonExtensionService) applyExtensionSecret(
 			extensionpkg.ExtensionEnvBindingKind,
 			*write.value,
 		); err != nil {
-			return extensionSecretMutation{}, fmt.Errorf("daemon: store extension secret %q: %w", write.envName, err)
+			rollbackErr := s.rollbackExtensionSecretMutations(ctx, key, []extensionSecretMutation{mutation})
+			return extensionSecretMutation{}, errors.Join(
+				fmt.Errorf("daemon: store extension secret %q: %w", write.envName, err),
+				rollbackErr,
+			)
 		}
 	}
 	now := s.now().UTC()

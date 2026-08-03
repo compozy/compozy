@@ -60,9 +60,14 @@ function mergeMCPServers(
 }
 
 function buildInstalledItems(input: InstalledItemsInput): MarketplaceInstalledItem[] {
-  if (input.kind === "mcp") return buildInstalledMCPItems(input);
-  if (input.kind === "skill") return buildInstalledSkillItems(input);
-  return buildInstalledExtensionItems(input);
+  switch (input.kind) {
+    case "extension":
+      return buildInstalledExtensionItems(input);
+    case "mcp":
+      return buildInstalledMCPItems(input);
+    case "skill":
+      return buildInstalledSkillItems(input);
+  }
 }
 
 function buildInstalledMCPItems(input: InstalledItemsInput): MarketplaceInstalledItem[] {

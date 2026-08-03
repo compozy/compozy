@@ -32,7 +32,11 @@ func (r *ExtensionEnvRepo) ListEnvBindings(
 		WorkspaceID:   workspace,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("store: list extension env bindings for %q: %w", name, err)
+		return nil, fmt.Errorf(
+			"store: list extension env bindings for %s: %w",
+			extensionBindingInstanceLabel(name, workspace),
+			err,
+		)
 	}
 	result := make([]extensionenv.Binding, 0, len(rows))
 	for _, row := range rows {
@@ -65,8 +69,8 @@ func (r *ExtensionEnvRepo) PutEnvBinding(ctx context.Context, binding extensione
 	})
 	if err != nil {
 		return fmt.Errorf(
-			"store: put extension env binding %q/%q: %w",
-			normalized.ExtensionName,
+			"store: put extension env binding %s env %q: %w",
+			extensionBindingInstanceLabel(normalized.ExtensionName, normalized.WorkspaceID),
 			normalized.EnvName,
 			err,
 		)
@@ -91,7 +95,12 @@ func (r *ExtensionEnvRepo) DeleteEnvBinding(ctx context.Context, extension, work
 		ExtensionName: name, WorkspaceID: workspace, EnvName: env,
 	})
 	if err != nil {
-		return fmt.Errorf("store: delete extension env binding %q/%q: %w", name, env, err)
+		return fmt.Errorf(
+			"store: delete extension env binding %s env %q: %w",
+			extensionBindingInstanceLabel(name, workspace),
+			env,
+			err,
+		)
 	}
 	return nil
 }
@@ -109,7 +118,11 @@ func (r *ExtensionEnvRepo) DeleteEnvBindings(ctx context.Context, extension, wor
 		ExtensionName: name, WorkspaceID: workspace,
 	})
 	if err != nil {
-		return fmt.Errorf("store: delete extension env bindings for %q: %w", name, err)
+		return fmt.Errorf(
+			"store: delete extension env bindings for %s: %w",
+			extensionBindingInstanceLabel(name, workspace),
+			err,
+		)
 	}
 	return nil
 }
@@ -125,7 +138,7 @@ func (r *ExtensionEnvRepo) CountEnvBindingsBySecretRef(ctx context.Context, secr
 	}
 	count, err := r.queries.CountExtensionEnvBindingsBySecretRef(ctx, ref)
 	if err != nil {
-		return 0, fmt.Errorf("store: count extension env bindings for ref %q: %w", ref, err)
+		return 0, fmt.Errorf("store: count extension env bindings by secret ref: %w", err)
 	}
 	return count, nil
 }
@@ -148,8 +161,16 @@ func (r *ExtensionEnvRepo) normalizeExtensionEnvBinding(
 	if err := vault.ValidateSecretRefNamespace(binding.SecretRef, "extensions"); err != nil {
 		return extensionenv.Binding{}, err
 	}
-	if binding.Kind == "" {
-		return extensionenv.Binding{}, errors.New("store: extension env binding kind is required")
+	if !strings.HasPrefix(binding.SecretRef, vault.ExtensionSecretOwnerPrefix(name, workspace)) {
+		return extensionenv.Binding{}, errors.New(
+			"store: extension env binding secret ref is outside its instance namespace",
+		)
+	}
+	if binding.Kind != extensionenv.BindingKind {
+		return extensionenv.Binding{}, fmt.Errorf(
+			"store: extension env binding kind must be %q",
+			extensionenv.BindingKind,
+		)
 	}
 	now := r.now().UTC()
 	if binding.CreatedAt.IsZero() {
@@ -169,14 +190,31 @@ func normalizeExtensionBindingInstance(extension, workspaceID string) (string, s
 	return name, strings.TrimSpace(workspaceID), nil
 }
 
+func extensionBindingInstanceLabel(extension, workspaceID string) string {
+	if workspaceID == "" {
+		return fmt.Sprintf("extension %q (global)", extension)
+	}
+	return fmt.Sprintf("extension %q (workspace %q)", extension, workspaceID)
+}
+
 func extensionEnvBindingFromGenerated(row sqlcgen.ExtensionEnvBinding) (extensionenv.Binding, error) {
 	createdAt, err := store.ParseTimestamp(row.CreatedAt)
 	if err != nil {
-		return extensionenv.Binding{}, fmt.Errorf("store: parse extension env binding created_at: %w", err)
+		return extensionenv.Binding{}, fmt.Errorf(
+			"store: parse extension env binding %s env %q created_at: %w",
+			extensionBindingInstanceLabel(row.ExtensionName, row.WorkspaceID),
+			row.EnvName,
+			err,
+		)
 	}
 	updatedAt, err := store.ParseTimestamp(row.UpdatedAt)
 	if err != nil {
-		return extensionenv.Binding{}, fmt.Errorf("store: parse extension env binding updated_at: %w", err)
+		return extensionenv.Binding{}, fmt.Errorf(
+			"store: parse extension env binding %s env %q updated_at: %w",
+			extensionBindingInstanceLabel(row.ExtensionName, row.WorkspaceID),
+			row.EnvName,
+			err,
+		)
 	}
 	return extensionenv.Binding{
 		ExtensionName: row.ExtensionName, WorkspaceID: row.WorkspaceID, EnvName: row.EnvName,

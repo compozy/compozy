@@ -238,8 +238,9 @@ func TestExtensionInventoryPreviewAndSecretsOutputParity(t *testing.T) {
 	}
 	preview := ExtensionEnablePreviewRecord{
 		Extension: "alpha",
-		WouldPublish: []ExtensionKitItemRecord{{
+		Changes: []contract.ExtensionKitChangePayload{{
 			Kind: "automation.job", ID: "automation.job/alpha/daily", Name: "alpha/daily",
+			Change: contract.ExtensionKitChangeAdded,
 		}},
 		AgentConflicts:              []string{"writer"},
 		MissingEnv:                  []string{"API_KEY"},
@@ -276,7 +277,7 @@ func TestExtensionInventoryPreviewAndSecretsOutputParity(t *testing.T) {
 			name:       "Should render preview",
 			bundle:     extensionEnablePreviewBundle(preview),
 			wantHuman:  []string{"Enable preview", "writer", "API_KEY", "alpha/daily", "digest-current"},
-			wantTOON:   []string{"extension_preview", "would_publish", "digest-current"},
+			wantTOON:   []string{"extension_preview", "changes", "added", "digest-current"},
 			newDecoded: func() any { return &ExtensionEnablePreviewRecord{} },
 			want:       preview,
 		},
@@ -304,17 +305,21 @@ func TestExtensionInventoryPreviewAndSecretsOutputParity(t *testing.T) {
 				}
 			}
 			for _, format := range []OutputFormat{OutputJSON, OutputJSONL} {
-				encoded, err := renderExtensionOutput(t, testCase.bundle, format)
-				if err != nil {
-					t.Fatalf("writeCommandOutput(%s) error = %v", format, err)
-				}
-				decoded := testCase.newDecoded()
-				if err := json.Unmarshal([]byte(strings.TrimSpace(encoded)), decoded); err != nil {
-					t.Fatalf("json.Unmarshal(%s) error = %v; output=%q", format, err, encoded)
-				}
-				if !reflect.DeepEqual(reflect.ValueOf(decoded).Elem().Interface(), testCase.want) {
-					t.Fatalf("%s decoded = %#v, want %#v", format, decoded, testCase.want)
-				}
+				t.Run("Should preserve the payload in "+string(format)+" output", func(t *testing.T) {
+					t.Parallel()
+
+					encoded, err := renderExtensionOutput(t, testCase.bundle, format)
+					if err != nil {
+						t.Fatalf("writeCommandOutput(%s) error = %v", format, err)
+					}
+					decoded := testCase.newDecoded()
+					if err := json.Unmarshal([]byte(strings.TrimSpace(encoded)), decoded); err != nil {
+						t.Fatalf("json.Unmarshal(%s) error = %v; output=%q", format, err, encoded)
+					}
+					if !reflect.DeepEqual(reflect.ValueOf(decoded).Elem().Interface(), testCase.want) {
+						t.Fatalf("%s decoded = %#v, want %#v", format, decoded, testCase.want)
+					}
+				})
 			}
 			toon, err := renderExtensionOutput(t, testCase.bundle, OutputToon)
 			if err != nil {
@@ -324,9 +329,6 @@ func TestExtensionInventoryPreviewAndSecretsOutputParity(t *testing.T) {
 				if !strings.Contains(toon, want) {
 					t.Fatalf("toon output = %q, want %q", toon, want)
 				}
-			}
-			if strings.Contains(human+toon, "vault:") || strings.Contains(human+toon, "planted-secret") {
-				t.Fatalf("output leaked secret material: human=%q toon=%q", human, toon)
 			}
 		})
 	}

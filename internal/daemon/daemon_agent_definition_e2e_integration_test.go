@@ -44,13 +44,8 @@ func TestDaemonE2EAgentDefinitionLifecycleParity(t *testing.T) {
 		})
 		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 		defer cancel()
-		enabled, err := harness.EnableExtension(ctx, devcycle.Name)
-		if err != nil {
-			t.Fatalf("EnableExtension(%s) error = %v", devcycle.Name, err)
-		}
-		if !enabled.Enabled {
-			t.Fatalf("EnableExtension(%s) = %#v, want enabled", devcycle.Name, enabled)
-		}
+		requireDevCycleExtensionEnabled(t, ctx, harness)
+		assertDevCycleE2ECatalogPresence(t, ctx, harness, true)
 
 		const agentName = "code_implementer"
 		var before compozycontract.AgentResponse
@@ -153,7 +148,108 @@ func TestDaemonE2EAgentDefinitionLifecycleParity(t *testing.T) {
 			!reflect.DeepEqual(afterRestart.Agent.CategoryPath, []string{"Compozy"}) {
 			t.Fatalf("post-restart extension agent = %#v, want persisted update %#v", afterRestart.Agent, updated.Agent)
 		}
+		disabled, err := restarted.DisableExtension(ctx, devcycle.Name)
+		if err != nil {
+			t.Fatalf("DisableExtension(%s) error = %v", devcycle.Name, err)
+		}
+		if disabled.Enabled {
+			t.Fatalf("DisableExtension(%s) = %#v, want disabled", devcycle.Name, disabled)
+		}
+		assertDevCycleE2ECatalogPresence(t, ctx, restarted, false)
 	})
+}
+
+func assertDevCycleE2ECatalogPresence(
+	t *testing.T,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	wantPresent bool,
+) {
+	t.Helper()
+	workspaceID := url.QueryEscape(harness.WorkspaceID)
+	var skills compozycontract.SkillsResponse
+	if err := harness.HTTPJSON(
+		ctx,
+		http.MethodGet,
+		"/api/skills?workspace="+workspaceID,
+		nil,
+		&skills,
+	); err != nil {
+		t.Fatalf("list dev-cycle skills error = %v", err)
+	}
+	skillPresent := false
+	for _, skill := range skills.Skills {
+		if skill.Name == "cy-execute-task" {
+			skillPresent = true
+		}
+	}
+
+	var loops compozycontract.LoopsResponse
+	if err := harness.HTTPJSON(
+		ctx,
+		http.MethodGet,
+		"/api/workspaces/"+workspaceID+"/loops",
+		nil,
+		&loops,
+	); err != nil {
+		t.Fatalf("list dev-cycle loops error = %v", err)
+	}
+	loopPresent := false
+	for _, loop := range loops.Loops {
+		if loop.Name == "software-delivery" {
+			loopPresent = true
+		}
+	}
+
+	var agents compozycontract.AgentsResponse
+	if err := harness.HTTPJSON(
+		ctx,
+		http.MethodGet,
+		"/api/agents?workspace="+workspaceID,
+		nil,
+		&agents,
+	); err != nil {
+		t.Fatalf("list dev-cycle agents error = %v", err)
+	}
+	agentPresent := false
+	for _, agent := range agents.Agents {
+		if agent.Name == "code_implementer" {
+			agentPresent = true
+		}
+	}
+
+	toolID, err := toolspkg.CanonicalToolID("ext", devcycle.Name, "import_tasks")
+	if err != nil {
+		t.Fatalf("CanonicalToolID(dev-cycle import_tasks) error = %v", err)
+	}
+	var tools compozycontract.ToolsResponse
+	if err := harness.HTTPJSON(
+		ctx,
+		http.MethodGet,
+		"/api/tools?workspace_id="+workspaceID,
+		nil,
+		&tools,
+	); err != nil {
+		t.Fatalf("list dev-cycle tools error = %v", err)
+	}
+	toolPresent := false
+	for _, tool := range tools.Tools {
+		if tool.Descriptor.ToolID == toolID {
+			toolPresent = true
+		}
+	}
+
+	if skillPresent != wantPresent || loopPresent != wantPresent ||
+		agentPresent != wantPresent || toolPresent != wantPresent {
+		t.Fatalf(
+			"dev-cycle catalogs skill=%t loop=%t agent=%t tool=%t, want all=%t",
+			skillPresent,
+			loopPresent,
+			agentPresent,
+			toolPresent,
+			wantPresent,
+		)
+	}
 }
 
 func TestDaemonE2EReservedAgentNameSweep(t *testing.T) {

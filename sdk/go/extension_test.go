@@ -135,8 +135,15 @@ func TestToolRegistrationValidation(t *testing.T) {
 }`)
 		extension := compozysdk.NewExtension(
 			compozysdk.ExtensionDefinition{
-				Name:       "describe-fixture",
-				Version:    "0.1.0",
+				Name:    "describe-fixture",
+				Version: "0.1.0",
+				Resources: compozysdk.DescribeResources{
+					Skills:     []string{" skills/zeta ", "skills/alpha", "skills/zeta"},
+					Loops:      []string{" loops/zeta ", "loops/alpha", "loops/zeta"},
+					Agents:     []string{" agents/zeta ", "agents/alpha", "agents/zeta"},
+					Automation: []string{" automation/zeta ", "automation/alpha", "automation/zeta"},
+					Layouts:    []string{" layouts/zeta ", "layouts/alpha", "layouts/zeta"},
+				},
 				Subprocess: compozysdk.DescribeSubprocess{Command: "./bin"},
 			},
 			compozysdk.WithStderr(io.Discard),
@@ -192,6 +199,16 @@ func TestToolRegistrationValidation(t *testing.T) {
 		if len(payload.CommandGroups) != 1 || payload.CommandGroups[0].Path != "review" ||
 			payload.CommandGroups[0].Summary != "Review commands" {
 			t.Fatalf("Describe().CommandGroups = %#v", payload.CommandGroups)
+		}
+		wantResources := compozysdk.DescribeResources{
+			Skills:     []string{"skills/alpha", "skills/zeta"},
+			Loops:      []string{"loops/alpha", "loops/zeta"},
+			Agents:     []string{"agents/alpha", "agents/zeta"},
+			Automation: []string{"automation/alpha", "automation/zeta"},
+			Layouts:    []string{"layouts/alpha", "layouts/zeta"},
+		}
+		if !reflect.DeepEqual(payload.Resources, wantResources) {
+			t.Fatalf("Describe().Resources = %#v, want %#v", payload.Resources, wantResources)
 		}
 	})
 

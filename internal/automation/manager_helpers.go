@@ -148,7 +148,8 @@ func sortTriggers(triggers []Trigger) {
 	modelpkg.SortTriggersForList(triggers)
 }
 
-func cloneJob(job Job) Job {
+// CloneJob returns a deep copy of a canonical automation job.
+func CloneJob(job Job) Job {
 	cloned := job
 	if job.Schedule != nil {
 		schedule := *job.Schedule
@@ -157,6 +158,10 @@ func cloneJob(job Job) Job {
 	cloned.Task = cloneJobTaskConfig(job.Task)
 	cloned.LoopTarget = cloneLoopTarget(job.LoopTarget)
 	return cloned
+}
+
+func cloneJob(job Job) Job {
+	return CloneJob(job)
 }
 
 func cloneJobTaskConfig(config *JobTaskConfig) *JobTaskConfig {
@@ -197,11 +202,16 @@ func sameTaskOwnership(left *taskpkg.Ownership, right *taskpkg.Ownership) bool {
 	}
 }
 
-func cloneTrigger(trigger Trigger) Trigger {
+// CloneTrigger returns a deep copy of a canonical automation trigger.
+func CloneTrigger(trigger Trigger) Trigger {
 	cloned := trigger
 	cloned.Filter = cloneFilter(trigger.Filter)
 	cloned.LoopTarget = cloneLoopTarget(trigger.LoopTarget)
 	return cloned
+}
+
+func cloneTrigger(trigger Trigger) Trigger {
+	return CloneTrigger(trigger)
 }
 
 func cloneFilter(source map[string]string) map[string]string {

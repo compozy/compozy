@@ -35,27 +35,21 @@ func (e *windowManagerAPIError) Error() string {
 	if e == nil {
 		return nilToolErrorString
 	}
-	if message := strings.TrimSpace(e.payload.Error); message != "" {
-		return message
-	}
-	return strings.TrimSpace(e.status)
+	return apiErrorMessage(e.payload.Error, e.status)
 }
 
 func (e *extensionOperationAPIError) Error() string {
 	if e == nil {
 		return nilToolErrorString
 	}
-	if message := strings.TrimSpace(e.payload.Error); message != "" {
-		return message
-	}
-	return strings.TrimSpace(e.status)
+	return apiErrorMessage(e.payload.Error, e.status)
 }
 
 func (e *extensionOperationAPIError) cliExitCode() int {
 	if e == nil {
 		return 1
 	}
-	return (&daemonAPIError{statusCode: e.statusCode}).cliExitCode()
+	return apiStatusExitCode(e.statusCode)
 }
 
 func (e *extensionOperationAPIError) extensionOperationErrorPayload() contract.ExtensionOperationErrorPayload {
@@ -77,7 +71,7 @@ func (e *windowManagerAPIError) cliExitCode() int {
 	if e == nil {
 		return 1
 	}
-	return (&daemonAPIError{statusCode: e.statusCode}).cliExitCode()
+	return apiStatusExitCode(e.statusCode)
 }
 
 func (e *windowManagerAPIError) windowManagerErrorPayload() contract.WindowManagerErrorPayload {
@@ -91,17 +85,25 @@ func (e *daemonAPIError) Error() string {
 	if e == nil {
 		return nilToolErrorString
 	}
-	if message := strings.TrimSpace(e.payload.Error); message != "" {
-		return message
-	}
-	return strings.TrimSpace(e.status)
+	return apiErrorMessage(e.payload.Error, e.status)
 }
 
 func (e *daemonAPIError) cliExitCode() int {
 	if e == nil {
 		return 1
 	}
-	switch e.statusCode {
+	return apiStatusExitCode(e.statusCode)
+}
+
+func apiErrorMessage(payloadMessage string, status string) string {
+	if message := strings.TrimSpace(payloadMessage); message != "" {
+		return message
+	}
+	return strings.TrimSpace(status)
+}
+
+func apiStatusExitCode(statusCode int) int {
+	switch statusCode {
 	case http.StatusBadRequest, http.StatusConflict:
 		return agentidentity.ExitIdentityInvalid
 	case http.StatusUnauthorized, http.StatusForbidden:

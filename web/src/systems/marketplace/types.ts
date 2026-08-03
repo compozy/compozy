@@ -1,35 +1,40 @@
-import type { OperationQuery, OperationRequestBody, OperationResponse } from "@/lib/api-contract";
+import type {
+  OperationPath,
+  OperationQuery,
+  OperationRequestBody,
+  OperationResponse,
+} from "@/lib/api-contract";
 
-export const MARKETPLACE_KINDS = ["mcp", "extension", "skill"] as const;
-export const MARKETPLACE_ROUTE_KINDS = ["skills", "mcps", "extensions"] as const;
+export type MarketplaceKind = OperationPath<"browseMarketplaceKind">["kind"];
 
-export type MarketplaceKind = (typeof MARKETPLACE_KINDS)[number];
-export type MarketplaceRouteKind = (typeof MARKETPLACE_ROUTE_KINDS)[number];
-
-const ROUTE_TO_API_KIND: Record<MarketplaceRouteKind, MarketplaceKind> = {
-  extensions: "extension",
-  mcps: "mcp",
-  skills: "skill",
-};
-
-const API_TO_ROUTE_KIND: Record<MarketplaceKind, MarketplaceRouteKind> = {
+const MARKETPLACE_ROUTE_BY_KIND = {
   extension: "extensions",
   mcp: "mcps",
   skill: "skills",
-};
+} as const satisfies Record<MarketplaceKind, string>;
+
+export type MarketplaceRouteKind = (typeof MARKETPLACE_ROUTE_BY_KIND)[MarketplaceKind];
+
+export const MARKETPLACE_KINDS = Object.keys(
+  MARKETPLACE_ROUTE_BY_KIND
+) as readonly MarketplaceKind[];
+export const MARKETPLACE_ROUTE_KINDS: readonly MarketplaceRouteKind[] =
+  Object.values(MARKETPLACE_ROUTE_BY_KIND);
+
+const ROUTE_TO_API_KIND = Object.fromEntries(
+  MARKETPLACE_KINDS.map(kind => [MARKETPLACE_ROUTE_BY_KIND[kind], kind])
+) as Record<MarketplaceRouteKind, MarketplaceKind>;
 
 export function marketplaceApiKindFor(kind: MarketplaceRouteKind): MarketplaceKind {
   return ROUTE_TO_API_KIND[kind];
 }
 
 export function marketplaceRouteKindFor(kind: MarketplaceKind): MarketplaceRouteKind {
-  return API_TO_ROUTE_KIND[kind];
+  return MARKETPLACE_ROUTE_BY_KIND[kind];
 }
 
 export function isMarketplaceRouteKind(value: unknown): value is MarketplaceRouteKind {
-  return (
-    typeof value === "string" && MARKETPLACE_ROUTE_KINDS.includes(value as MarketplaceRouteKind)
-  );
+  return typeof value === "string" && Object.hasOwn(ROUTE_TO_API_KIND, value);
 }
 
 export type MarketplaceSearchResponse = OperationResponse<"searchMarketplace", 200>;

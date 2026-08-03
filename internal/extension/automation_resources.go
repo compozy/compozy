@@ -42,42 +42,26 @@ type automationResourceDocument struct {
 }
 
 // LoadAutomationResources loads and validates extension automation TOML resources.
-func LoadAutomationResources(rootDir string, paths []string) ([]ExtensionJob, []ExtensionTrigger, error) {
+func LoadAutomationResources(
+	rootDir string,
+	extensionName string,
+	paths []string,
+) ([]automationpkg.Job, []automationpkg.Trigger, error) {
 	files, err := collectDeclaredResourceFiles(rootDir, paths, ".toml", "automation resource")
 	if err != nil {
 		return nil, nil, err
 	}
-	jobsByName := make(map[string]ExtensionJob)
-	triggersByName := make(map[string]ExtensionTrigger)
+	jobsByName := make(map[string]automationpkg.Job)
+	triggersByName := make(map[string]automationpkg.Trigger)
 	jobOrigins := make(map[string]string)
 	triggerOrigins := make(map[string]string)
 	for _, file := range files {
-		body, err := os.ReadFile(file)
+		document, err := decodeAutomationResourceDocument(file)
 		if err != nil {
-			return nil, nil, fmt.Errorf("extension: read automation resource %q: %w", file, err)
-		}
-		var document automationResourceDocument
-		metadata, err := toml.Decode(string(body), &document)
-		if err != nil {
-			return nil, nil, wrapResourceValidationError(
-				file,
-				fmt.Errorf("%w: decode automation resource: %w", ErrManifestInvalid, err),
-			)
-		}
-		if undecoded := metadata.Undecoded(); len(undecoded) > 0 {
-			return nil, nil, wrapResourceValidationError(
-				file,
-				fmt.Errorf("%w: automation resource has unknown field %q", ErrManifestInvalid, undecoded[0].String()),
-			)
+			return nil, nil, err
 		}
 		for _, job := range document.Jobs {
-			normalized, err := normalizeExtensionJob(job)
-			if err != nil {
-				return nil, nil, wrapResourceValidationError(
-					file,
-					fmt.Errorf("%w: automation resource: %w", ErrManifestInvalid, err),
-				)
-			}
+			normalized := normalizeExtensionJob(job)
 			if _, exists := jobsByName[normalized.Name]; exists {
 				return nil, nil, wrapResourceValidationError(file, fmt.Errorf(
 					"%w: duplicate automation job %q also declared in %q",
@@ -86,7 +70,14 @@ func LoadAutomationResources(rootDir string, paths []string) ([]ExtensionJob, []
 					jobOrigins[normalized.Name],
 				))
 			}
-			jobsByName[normalized.Name] = normalized
+			projected := projectExtensionJob(extensionName, normalized)
+			if err := projected.Validate("automation.jobs"); err != nil {
+				return nil, nil, wrapResourceValidationError(
+					file,
+					fmt.Errorf("%w: automation resource: %w", ErrManifestInvalid, err),
+				)
+			}
+			jobsByName[normalized.Name] = projected
 			jobOrigins[normalized.Name] = file
 		}
 		for _, trigger := range document.Triggers {
@@ -105,22 +96,51 @@ func LoadAutomationResources(rootDir string, paths []string) ([]ExtensionJob, []
 					triggerOrigins[normalized.Name],
 				))
 			}
-			triggersByName[normalized.Name] = normalized
+			projected := projectExtensionTrigger(extensionName, normalized)
+			if err := projected.Validate("automation.triggers"); err != nil {
+				return nil, nil, wrapResourceValidationError(
+					file,
+					fmt.Errorf("%w: automation resource: %w", ErrManifestInvalid, err),
+				)
+			}
+			triggersByName[normalized.Name] = projected
 			triggerOrigins[normalized.Name] = file
 		}
 	}
-	jobs := make([]ExtensionJob, 0, len(jobsByName))
+	jobs := make([]automationpkg.Job, 0, len(jobsByName))
 	for _, name := range sortedKeys(jobsByName) {
 		jobs = append(jobs, jobsByName[name])
 	}
-	triggers := make([]ExtensionTrigger, 0, len(triggersByName))
+	triggers := make([]automationpkg.Trigger, 0, len(triggersByName))
 	for _, name := range sortedKeys(triggersByName) {
 		triggers = append(triggers, triggersByName[name])
 	}
 	return jobs, triggers, nil
 }
 
-func normalizeExtensionJob(value ExtensionJob) (ExtensionJob, error) {
+func decodeAutomationResourceDocument(file string) (automationResourceDocument, error) {
+	body, err := os.ReadFile(file)
+	if err != nil {
+		return automationResourceDocument{}, fmt.Errorf("extension: read automation resource %q: %w", file, err)
+	}
+	var document automationResourceDocument
+	metadata, err := toml.Decode(string(body), &document)
+	if err != nil {
+		return automationResourceDocument{}, wrapResourceValidationError(
+			file,
+			fmt.Errorf("%w: decode automation resource: %w", ErrManifestInvalid, err),
+		)
+	}
+	if undecoded := metadata.Undecoded(); len(undecoded) > 0 {
+		return automationResourceDocument{}, wrapResourceValidationError(
+			file,
+			fmt.Errorf("%w: automation resource has unknown field %q", ErrManifestInvalid, undecoded[0].String()),
+		)
+	}
+	return document, nil
+}
+
+func normalizeExtensionJob(value ExtensionJob) ExtensionJob {
 	value.Name = strings.TrimSpace(value.Name)
 	value.Agent = strings.TrimSpace(value.Agent)
 	value.Prompt = strings.TrimSpace(value.Prompt)
@@ -135,15 +155,7 @@ func normalizeExtensionJob(value ExtensionJob) (ExtensionJob, error) {
 	if value.FireLimit.Max == 0 || strings.TrimSpace(value.FireLimit.Window) == "" {
 		value.FireLimit = automationpkg.DefaultFireLimitConfig()
 	}
-	job := automationpkg.Job{
-		Scope: automationpkg.AutomationScopeGlobal, Name: value.Name, AgentName: value.Agent,
-		Prompt: value.Prompt, Schedule: &value.Schedule, Task: value.Task, Enabled: enabled,
-		Retry: value.Retry, FireLimit: value.FireLimit, Source: automationpkg.JobSourcePackage,
-	}
-	if err := job.Validate("automation.jobs"); err != nil {
-		return ExtensionJob{}, err
-	}
-	return value, nil
+	return value
 }
 
 func normalizeExtensionTrigger(value ExtensionTrigger) (ExtensionTrigger, error) {
@@ -169,21 +181,49 @@ func normalizeExtensionTrigger(value ExtensionTrigger) (ExtensionTrigger, error)
 	if value.FireLimit.Max == 0 || strings.TrimSpace(value.FireLimit.Window) == "" {
 		value.FireLimit = automationpkg.DefaultFireLimitConfig()
 	}
-	trigger := automationpkg.Trigger{
-		Scope: automationpkg.AutomationScopeGlobal, Name: value.Name, AgentName: value.Agent,
-		Prompt: value.Prompt, Event: value.Event, Filter: cloneStringMap(value.Filter), Enabled: enabled,
-		Retry: value.Retry, FireLimit: value.FireLimit, Source: automationpkg.JobSourcePackage,
-		EndpointSlug: value.EndpointSlug,
-	}
-	if err := trigger.Validate("automation.triggers"); err != nil {
-		return ExtensionTrigger{}, err
-	}
 	return value, nil
 }
 
+func projectExtensionJob(extensionName string, value ExtensionJob) automationpkg.Job {
+	namespace := strings.TrimSpace(extensionName)
+	name := namespace + "/" + value.Name
+	return automationpkg.Job{
+		ID:        "extension/" + namespace + "/automation.job/" + value.Name,
+		Scope:     automationpkg.AutomationScopeGlobal,
+		Name:      name,
+		AgentName: value.Agent,
+		Prompt:    value.Prompt,
+		Schedule:  new(value.Schedule),
+		Task:      cloneAutomationTaskConfig(value.Task),
+		Enabled:   *value.Enabled,
+		Retry:     value.Retry,
+		FireLimit: value.FireLimit,
+		Source:    automationpkg.JobSourcePackage,
+	}
+}
+
+func projectExtensionTrigger(extensionName string, value ExtensionTrigger) automationpkg.Trigger {
+	namespace := strings.TrimSpace(extensionName)
+	name := namespace + "/" + value.Name
+	return automationpkg.Trigger{
+		ID:           "extension/" + namespace + "/automation.trigger/" + value.Name,
+		Scope:        automationpkg.AutomationScopeGlobal,
+		Name:         name,
+		AgentName:    value.Agent,
+		Prompt:       value.Prompt,
+		Event:        value.Event,
+		Filter:       cloneStringMap(value.Filter),
+		Enabled:      *value.Enabled,
+		Retry:        value.Retry,
+		FireLimit:    value.FireLimit,
+		Source:       automationpkg.JobSourcePackage,
+		EndpointSlug: value.EndpointSlug,
+	}
+}
+
 func validateAutomationAgentTargets(
-	jobs []ExtensionJob,
-	triggers []ExtensionTrigger,
+	jobs []automationpkg.Job,
+	triggers []automationpkg.Trigger,
 	agents []StaticAgent,
 ) error {
 	available := make(map[string]struct{}, len(agents))
@@ -192,23 +232,23 @@ func validateAutomationAgentTargets(
 	}
 	shipped := sortedKeys(available)
 	for _, job := range jobs {
-		if _, ok := available[job.Agent]; !ok {
+		if _, ok := available[job.AgentName]; !ok {
 			return fmt.Errorf(
 				"%w: automation job %q targets unshipped agent %q; shipped agents: %v",
 				ErrManifestInvalid,
 				job.Name,
-				job.Agent,
+				job.AgentName,
 				shipped,
 			)
 		}
 	}
 	for _, trigger := range triggers {
-		if _, ok := available[trigger.Agent]; !ok {
+		if _, ok := available[trigger.AgentName]; !ok {
 			return fmt.Errorf(
 				"%w: automation trigger %q targets unshipped agent %q; shipped agents: %v",
 				ErrManifestInvalid,
 				trigger.Name,
-				trigger.Agent,
+				trigger.AgentName,
 				shipped,
 			)
 		}

@@ -2,7 +2,6 @@ package vault
 
 import (
 	"encoding/hex"
-	"strings"
 	"testing"
 )
 
@@ -27,15 +26,12 @@ func TestExtensionSecretRefUsesInstanceQualifiedCollisionSafeNames(t *testing.T)
 
 		unsafe := "My Ext!"
 		wantSegment := "encoded-" + hex.EncodeToString([]byte(unsafe))
-		ref := ExtensionSecretRef(unsafe, "Workspace One", "API KEY")
-		for _, want := range []string{
-			wantSegment,
-			"encoded-" + hex.EncodeToString([]byte("Workspace One")),
-			"encoded-" + hex.EncodeToString([]byte("API KEY")),
-		} {
-			if !strings.Contains(ref, want) {
-				t.Fatalf("ExtensionSecretRef() = %q, want encoded segment %q", ref, want)
-			}
+		want := "vault:extensions/ws/" +
+			"encoded-" + hex.EncodeToString([]byte("Workspace One")) + "/" +
+			wantSegment + "/env/" +
+			"encoded-" + hex.EncodeToString([]byte("API KEY"))
+		if got := ExtensionSecretRef(unsafe, "Workspace One", "API KEY"); got != want {
+			t.Fatalf("ExtensionSecretRef() = %q, want %q", got, want)
 		}
 		if ExtensionSecretRef(wantSegment, "", "API_KEY") == ExtensionSecretRef(unsafe, "", "API_KEY") {
 			t.Fatalf("unsafe extension collided with reserved literal %q", wantSegment)

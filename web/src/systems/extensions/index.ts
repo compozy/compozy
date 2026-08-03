@@ -2,7 +2,7 @@ export type {
   ExtensionEnableResult,
   ExtensionEntry,
   ExtensionInstanceScope,
-  ExtensionInventory,
+  ExtensionKitInventory,
   ExtensionKitItem,
   ExtensionLogEntry,
   ExtensionProvenance,

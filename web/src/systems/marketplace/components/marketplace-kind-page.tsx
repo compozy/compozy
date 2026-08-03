@@ -222,7 +222,7 @@ function MarketplaceKindPageBody({ kind, page, searchInputRef }: MarketplaceKind
         <span className="font-mono text-mono-id tabular-nums text-muted">
           {page.installedCount}
         </span>{" "}
-        {config.installedNoun}
+        installed
         {!page.isLoading && page.updatesAvailable > 0 ? (
           <>
             <span aria-hidden="true" className="mx-1.5 text-faint">

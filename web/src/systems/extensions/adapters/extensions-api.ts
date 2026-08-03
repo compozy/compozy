@@ -4,7 +4,7 @@ import type {
   ExtensionEnableResult,
   ExtensionEntry,
   ExtensionInstanceScope,
-  ExtensionInventory,
+  ExtensionKitInventory,
   ExtensionLogEntry,
   ExtensionProvenance,
   ExtensionUpdateRequest,
@@ -23,27 +23,48 @@ function instanceQuery(
 
 export type ExtensionsApiErrorKind = "daemon" | "malformed_response" | "transport";
 
+export interface ExtensionsApiErrorMetadata {
+  readonly code?: string;
+  readonly currentDigest?: string;
+}
+
 export class ExtensionsApiError extends Error {
+  /** Daemon error code, e.g. `extension_network_confirmation_required`. */
+  public readonly code: string | undefined;
+
+  /** Digest the daemon expects consent for; the remediation for a missing or stale confirm. */
+  public readonly currentDigest: string | undefined;
+
   constructor(
     message: string,
     public readonly status: number,
     public readonly kind: ExtensionsApiErrorKind,
-    /** Daemon error code, e.g. `extension_network_confirmation_required`. */
-    public readonly code?: string,
-    /** Digest the daemon expects consent for; the remediation for a missing or stale confirm. */
-    public readonly currentDigest?: string
+    metadata: ExtensionsApiErrorMetadata = {}
   ) {
     super(message);
     this.name = "ExtensionsApiError";
+    this.code = metadata.code;
+    this.currentDigest = metadata.currentDigest;
   }
 }
 
-function errorField(error: unknown, field: string): string | undefined {
+type DaemonErrorField = "code" | "current_digest";
+
+function errorField(error: unknown, field: DaemonErrorField): string | undefined {
   if (error == null || typeof error !== "object") return undefined;
   const value = Reflect.get(error, field);
   if (typeof value !== "string") return undefined;
   const normalized = value.trim();
   return normalized === "" ? undefined : normalized;
+}
+
+function daemonErrorMetadata(error: unknown): ExtensionsApiErrorMetadata {
+  const code = errorField(error, "code");
+  const currentDigest = errorField(error, "current_digest");
+  return {
+    ...(code ? { code } : {}),
+    ...(currentDigest ? { currentDigest } : {}),
+  };
 }
 
 function responseError(fallback: string, response: Response, error: unknown): ExtensionsApiError {
@@ -52,8 +73,7 @@ function responseError(fallback: string, response: Response, error: unknown): Ex
     daemonMessage ?? (response.status ? `${fallback} (${response.status})` : fallback),
     response.status,
     daemonMessage ? "daemon" : "transport",
-    errorField(error, "code"),
-    errorField(error, "current_digest")
+    daemonErrorMetadata(error)
   );
 }
 
@@ -95,6 +115,28 @@ function requiredObject<T extends object>(
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw malformedField(fallback, field, response);
   }
+  return value;
+}
+
+function requiredString(
+  value: string | undefined,
+  response: Response,
+  fallback: string,
+  field: string
+): string {
+  if (typeof value !== "string" || value.trim() === "") {
+    throw malformedField(fallback, field, response);
+  }
+  return value;
+}
+
+function requiredBoolean(
+  value: boolean | undefined,
+  response: Response,
+  fallback: string,
+  field: string
+): boolean {
+  if (typeof value !== "boolean") throw malformedField(fallback, field, response);
   return value;
 }
 
@@ -147,9 +189,9 @@ export async function getExtensionProvenance(
 }
 
 /**
- * Enable is the only kit switch: its result enumerates the automation definitions that became
- * runnable in the committed operation, so the caller receives the whole result rather than the
- * extension row alone.
+ * Enabling activates the extension kit. Its result enumerates the automation definitions that
+ * became runnable in the committed operation, so callers receive the complete lifecycle result
+ * rather than the extension row alone.
  */
 export async function enableExtension(
   name: string,
@@ -205,15 +247,24 @@ export async function updateExtension(
 export async function getExtensionInventory(
   name: string,
   signal?: AbortSignal
-): Promise<ExtensionInventory> {
+): Promise<ExtensionKitInventory> {
   const { data, error, response } = await apiClient.GET("/api/extensions/{name}/inventory", {
     params: { path: { name } },
     signal,
   });
   const fallback = `Failed to load kit inventory for ${name}`;
   if (apiRequestFailed(response, error)) throw responseError(fallback, response, error);
-  const envelope: ExtensionInventory = responseData(data, response, fallback);
+  const envelope: ExtensionKitInventory = responseData(data, response, fallback);
   requiredArray(envelope.items, response, fallback, "items");
+  const extension = requiredString(envelope.extension, response, fallback, "extension");
+  requiredBoolean(envelope.enabled, response, fallback, "enabled");
+  if (extension !== name) {
+    throw new ExtensionsApiError(
+      `${fallback}: extension identity mismatch (${response.status})`,
+      response.status,
+      "malformed_response"
+    );
+  }
   return envelope;
 }
 

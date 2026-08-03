@@ -5,7 +5,6 @@ import (
 	"errors"
 	"slices"
 	"strings"
-	"sync"
 )
 
 var errBridgeLifecycleContextRequired = errors.New("daemon: bridge lifecycle lock context is required")
@@ -18,19 +17,8 @@ const (
 )
 
 type bridgeLifecycleLock struct {
-	gate bridgeLifecycleGate
+	gate lifecycleRWGate
 	refs int
-}
-
-// bridgeLifecycleGate is a context-aware writer-preferring read/write gate.
-// Lifecycle mutations take the writer side; control calls share the extension
-// side while remaining exclusive per bridge instance.
-type bridgeLifecycleGate struct {
-	mu             sync.Mutex
-	changed        chan struct{}
-	readers        int
-	writer         bool
-	waitingWriters int
 }
 
 type bridgeLifecycleContextKey struct{}
@@ -39,110 +27,6 @@ type bridgeLifecycleContextState struct {
 	extensions       map[string]struct{}
 	sharedExtensions map[string]struct{}
 	instances        map[string]struct{}
-}
-
-func (g *bridgeLifecycleGate) lock(ctx context.Context, shared bool) (func(), error) {
-	if ctx == nil {
-		return nil, errBridgeLifecycleContextRequired
-	}
-
-	waitingWriter := false
-	for {
-		if err := ctx.Err(); err != nil {
-			g.cancelWriterWait(waitingWriter)
-			return nil, err
-		}
-
-		g.mu.Lock()
-		unlock, acquired := g.tryAcquireLocked(shared, &waitingWriter)
-		if acquired {
-			g.mu.Unlock()
-			return unlock, nil
-		}
-		changed := g.changed
-		g.mu.Unlock()
-
-		select {
-		case <-ctx.Done():
-			g.cancelWriterWait(waitingWriter)
-			return nil, ctx.Err()
-		case <-changed:
-		}
-	}
-}
-
-func (g *bridgeLifecycleGate) lockUncancelable(shared bool) func() {
-	waitingWriter := false
-	for {
-		g.mu.Lock()
-		unlock, acquired := g.tryAcquireLocked(shared, &waitingWriter)
-		if acquired {
-			g.mu.Unlock()
-			return unlock
-		}
-		changed := g.changed
-		g.mu.Unlock()
-		<-changed
-	}
-}
-
-func (g *bridgeLifecycleGate) tryAcquireLocked(shared bool, waitingWriter *bool) (func(), bool) {
-	g.ensureChangedLocked()
-	if shared {
-		if g.writer || g.waitingWriters > 0 {
-			return nil, false
-		}
-		g.readers++
-		return g.unlockShared, true
-	}
-
-	if !*waitingWriter {
-		g.waitingWriters++
-		*waitingWriter = true
-	}
-	if g.writer || g.readers > 0 {
-		return nil, false
-	}
-	g.waitingWriters--
-	*waitingWriter = false
-	g.writer = true
-	return g.unlockExclusive, true
-}
-
-func (g *bridgeLifecycleGate) cancelWriterWait(waiting bool) {
-	if !waiting {
-		return
-	}
-	g.mu.Lock()
-	g.waitingWriters--
-	g.notifyLocked()
-	g.mu.Unlock()
-}
-
-func (g *bridgeLifecycleGate) unlockShared() {
-	g.mu.Lock()
-	g.readers--
-	g.notifyLocked()
-	g.mu.Unlock()
-}
-
-func (g *bridgeLifecycleGate) unlockExclusive() {
-	g.mu.Lock()
-	g.writer = false
-	g.notifyLocked()
-	g.mu.Unlock()
-}
-
-func (g *bridgeLifecycleGate) ensureChangedLocked() {
-	if g.changed == nil {
-		g.changed = make(chan struct{})
-	}
-}
-
-func (g *bridgeLifecycleGate) notifyLocked() {
-	g.ensureChangedLocked()
-	close(g.changed)
-	g.changed = make(chan struct{})
 }
 
 // lockInstanceLifecycle serializes lifecycle transitions for one bridge

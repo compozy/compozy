@@ -26,6 +26,11 @@ type automationRuntime interface {
 	SessionObserver() session.Notifier
 	HookTelemetrySink() hookspkg.TelemetrySink
 	MemoryObserver() automationpkg.MemoryConsolidationObserver
+	EffectivePackageAutomation(
+		context.Context,
+		[]automationpkg.Job,
+		[]automationpkg.Trigger,
+	) ([]automationpkg.Job, []automationpkg.Trigger, error)
 }
 
 type automationManagerDeps struct {

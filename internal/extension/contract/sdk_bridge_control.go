@@ -17,26 +17,32 @@ var sdkBridgeControlTypes = []NamedType{
 	{Name: "BridgeWebhookRegistrationResponse", Value: bridgepkg.BridgeWebhookRegistrationResponse{}},
 }
 
+var sdkHostControlTypes = []NamedType{
+	{Name: "HostAPIMethod", Value: HostAPIMethod("")},
+	{Name: "HookEvent", Value: hooks.HookEvent("")},
+	{Name: "DescribePayload", Value: DescribePayload{}},
+	{Name: "DescribeResources", Value: DescribeResources{}},
+	{Name: "DescribeSubprocess", Value: DescribeSubprocess{}},
+	{Name: "DescribeSDKInfo", Value: DescribeSDKInfo{}},
+	{Name: "ExtensionCommandSpec", Value: ExtensionCommandSpec{}},
+	{Name: "ExtensionCommandGroupSpec", Value: ExtensionCommandGroupSpec{}},
+	{Name: "CommandFlagType", Value: CommandFlagType("")},
+	{Name: "CommandFlag", Value: CommandFlag{}},
+	{Name: "IssueSeverity", Value: IssueSeverity("")},
+	{Name: "ValidationIssue", Value: ValidationIssue{}},
+	{Name: "ConsentArea", Value: ConsentArea{}},
+	{Name: "ExtensionManifestSummary", Value: ExtensionManifestSummary{}},
+	{Name: "ExtensionValidatePayload", Value: ExtensionValidatePayload{}},
+}
+
 // SDKRootTypes returns a defensive copy of every canonical generated SDK contract root.
 func SDKRootTypes() []NamedType {
-	types := make([]NamedType, 0, len(sdkRootTypes)+len(sdkBridgeControlTypes)+14)
+	types := make(
+		[]NamedType,
+		0,
+		len(sdkRootTypes)+len(sdkBridgeControlTypes)+len(sdkHostControlTypes),
+	)
 	types = append(types, sdkRootTypes...)
 	types = append(types, sdkBridgeControlTypes...)
-	return append(types,
-		NamedType{Name: "HostAPIMethod", Value: HostAPIMethod("")},
-		NamedType{Name: "HookEvent", Value: hooks.HookEvent("")},
-		NamedType{Name: "DescribePayload", Value: DescribePayload{}},
-		NamedType{Name: "DescribeResources", Value: DescribeResources{}},
-		NamedType{Name: "DescribeSubprocess", Value: DescribeSubprocess{}},
-		NamedType{Name: "DescribeSDKInfo", Value: DescribeSDKInfo{}},
-		NamedType{Name: "ExtensionCommandSpec", Value: ExtensionCommandSpec{}},
-		NamedType{Name: "ExtensionCommandGroupSpec", Value: ExtensionCommandGroupSpec{}},
-		NamedType{Name: "CommandFlagType", Value: CommandFlagType("")},
-		NamedType{Name: "CommandFlag", Value: CommandFlag{}},
-		NamedType{Name: "IssueSeverity", Value: IssueSeverity("")},
-		NamedType{Name: "ValidationIssue", Value: ValidationIssue{}},
-		NamedType{Name: "ConsentArea", Value: ConsentArea{}},
-		NamedType{Name: "ExtensionManifestSummary", Value: ExtensionManifestSummary{}},
-		NamedType{Name: "ExtensionValidatePayload", Value: ExtensionValidatePayload{}},
-	)
+	return append(types, sdkHostControlTypes...)
 }

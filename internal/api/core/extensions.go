@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -25,6 +26,8 @@ const (
 
 // ExtensionService exposes daemon-backed extension management to API transports.
 type ExtensionService interface {
+	ExtensionSecretsService
+
 	List(ctx context.Context) ([]contract.ExtensionPayload, error)
 	Search(ctx context.Context, req contract.ExtensionSearchRequest) (contract.ExtensionSearchResponse, error)
 	MarketplaceTrust(
@@ -331,11 +334,9 @@ func (h *BaseHandlers) mutateExtensionEnabled(c *gin.Context, enabled bool) {
 
 	if enabled {
 		var req contract.EnableExtensionRequest
-		if c.Request.ContentLength != 0 {
-			if err := c.ShouldBindJSON(&req); err != nil {
-				h.respondExtensionError(c, http.StatusBadRequest, err)
-				return
-			}
+		if err := c.ShouldBindJSON(&req); err != nil && !errors.Is(err, io.EOF) {
+			h.respondExtensionError(c, http.StatusBadRequest, err)
+			return
 		}
 		result, err := service.Enable(c.Request.Context(), name, req, actor)
 		if err != nil {

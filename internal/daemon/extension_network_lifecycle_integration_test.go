@@ -57,16 +57,13 @@ func TestDevelopmentExtensionNetworkConsentLifecycle(t *testing.T) {
 		}
 	})
 	confirmedAt := time.Date(2026, 8, 2, 21, 0, 0, 0, time.UTC)
-	service, ok := newDaemonExtensionService(
-		registry,
-		manager,
-		nil,
-		nil,
-		nil,
-		nil,
-		testHomePaths(t),
-		discardLogger(),
-		func() time.Time { return confirmedAt },
+	service, ok := newDaemonExtensionService(daemonExtensionServiceDeps{
+		Registry:  registry,
+		Runtime:   manager,
+		HomePaths: testHomePaths(t),
+		Logger:    discardLogger(),
+		Now:       func() time.Time { return confirmedAt },
+	},
 		withDaemonExtensionEventWriter(db),
 		withDaemonExtensionWorkspaceResolver(workspaceResolver),
 	).(*daemonExtensionService)
@@ -82,216 +79,286 @@ func TestDevelopmentExtensionNetworkConsentLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DeriveHumanActorContextForWorkspace() error = %v", err)
 	}
-	httpEngine := newExtensionSecretTransportEngine(service, actor, "http")
-	udsEngine := newExtensionSecretTransportEngine(service, actor, "uds")
+	httpEngine := newExtensionTransportEngine(service, actor, "http")
+	udsEngine := newExtensionTransportEngine(service, actor, "uds")
 	origin := filepath.Join(workspaceRoot, "network-dev-extension")
-	initialGeneration, _ := writeDevelopmentNetworkGeneration(
-		t,
-		origin,
-		extensionName,
-		"1.0.0",
-		nil,
-	)
-	devResponse := performSecretTransportRequest(
-		t,
-		httpEngine,
-		http.MethodPost,
-		"/extensions/dev",
-		mustSecretTransportJSON(t, contract.DevLinkExtensionRequest{
-			OriginPath: origin, GenerationHash: initialGeneration,
-		}),
-	)
-	if devResponse.Code != http.StatusCreated {
-		t.Fatalf("dev link status = %d, want %d; body=%s", devResponse.Code, http.StatusCreated, devResponse.Body)
-	}
-	if _, err := registry.Get(extensionName); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
-		t.Fatalf("registry.Get(dev-only) error = %v, want no global extension row", err)
-	}
-
-	networkGeneration, networkDigest := writeDevelopmentNetworkGeneration(
-		t,
-		origin,
-		extensionName,
-		"1.1.0",
-		[]string{"builders"},
-	)
-	refused := performSecretTransportRequest(
-		t,
-		httpEngine,
-		http.MethodPost,
-		"/extensions/"+extensionName+"/reload",
-		mustSecretTransportJSON(t, contract.ReloadExtensionRequest{GenerationHash: networkGeneration}),
-	)
-	if refused.Code != http.StatusConflict || !strings.Contains(refused.Body.String(), networkDigest) {
-		t.Fatalf("unconfirmed reload = status %d body %s, want 409 with current digest", refused.Code, refused.Body)
-	}
-	unchanged, err := registry.GetDevLink(extensionName, workspaceID)
-	if err != nil {
-		t.Fatalf("GetDevLink(after refusal) error = %v", err)
-	}
-	if unchanged.BundleGeneration != initialGeneration || unchanged.NetworkConfirmedBy != "" {
-		t.Fatalf("dev link after refusal = %#v, want unchanged initial generation", unchanged)
-	}
-
-	confirmed := performSecretTransportRequest(
-		t,
-		httpEngine,
-		http.MethodPost,
-		"/extensions/"+extensionName+"/reload",
-		mustSecretTransportJSON(t, contract.ReloadExtensionRequest{
-			GenerationHash: networkGeneration, ConfirmNetworkDigest: networkDigest,
-		}),
-	)
-	if confirmed.Code != http.StatusOK {
-		t.Fatalf("confirmed reload status = %d, want %d; body=%s", confirmed.Code, http.StatusOK, confirmed.Body)
-	}
-	var response contract.ExtensionResponse
-	if err := json.Unmarshal(confirmed.Body.Bytes(), &response); err != nil {
-		t.Fatalf("json.Unmarshal(confirmed reload) error = %v", err)
-	}
-	payload := response.Extension
-	if payload.GenerationHash != networkGeneration || payload.WorkspaceID != workspaceID {
-		t.Fatalf("confirmed reload payload = %#v", payload)
-	}
-	link, err := registry.GetDevLink(extensionName, workspaceID)
-	if err != nil {
-		t.Fatalf("GetDevLink(confirmed) error = %v", err)
-	}
-	if link.BundleGeneration != networkGeneration || link.NetworkRequirementDigest != networkDigest ||
-		link.NetworkConfirmedBy != "operator" || !link.NetworkConfirmedAt.Equal(confirmedAt) {
-		t.Fatalf("confirmed development link = %#v", link)
-	}
-
-	changedGeneration, changedDigest := writeDevelopmentNetworkGeneration(
-		t,
-		origin,
-		extensionName,
-		"1.2.0",
-		[]string{"builders", "reviewers"},
-	)
-	stale := performSecretTransportRequest(
-		t,
-		udsEngine,
-		http.MethodPost,
-		"/extensions/"+extensionName+"/reload",
-		mustSecretTransportJSON(t, contract.ReloadExtensionRequest{
-			GenerationHash: changedGeneration, ConfirmNetworkDigest: networkDigest,
-		}),
-	)
-	if stale.Code != http.StatusConflict || !strings.Contains(stale.Body.String(), changedDigest) {
-		t.Fatalf("stale UDS reload = status %d body %s, want 409 with changed digest", stale.Code, stale.Body)
-	}
-	afterStale, err := registry.GetDevLink(extensionName, workspaceID)
-	if err != nil {
-		t.Fatalf("GetDevLink(after stale digest) error = %v", err)
-	}
-	if afterStale.BundleGeneration != networkGeneration ||
-		afterStale.NetworkRequirementDigest != networkDigest ||
-		afterStale.NetworkConfirmedBy != "operator" ||
-		!afterStale.NetworkConfirmedAt.Equal(confirmedAt) {
-		t.Fatalf("dev link after stale digest = %#v, want prior confirmed tuple", afterStale)
-	}
-
-	globalRegistry, globalManifest := installNetworkLifecycleExtension(t, db, extensionName)
-	globalDigest, err := extensionpkg.NetworkParticipationRequirementDigest(globalManifest.NetworkParticipation)
-	if err != nil {
-		t.Fatalf("NetworkParticipationRequirementDigest(global) error = %v", err)
-	}
-	globalConfirmedAt := confirmedAt.Add(time.Minute)
-	if err := globalRegistry.ConfirmNetworkRequirement(
-		extensionpkg.GlobalInstanceKey(extensionName),
-		globalDigest,
-		"operator",
-		globalConfirmedAt,
-	); err != nil {
-		t.Fatalf("ConfirmNetworkRequirement(global) error = %v", err)
-	}
-
-	const workspaceTwoID = "workspace-network-dev-2"
-	workspaceTwoOrigin := filepath.Join(workspaceTwoRoot, "network-dev-extension")
-	workspaceTwoGeneration, workspaceTwoDigest := writeDevelopmentNetworkGeneration(
-		t,
-		workspaceTwoOrigin,
-		extensionName,
-		"2.0.0",
-		[]string{"builders"},
-	)
-	if _, err := registry.LinkDev(extensionpkg.DevLinkRequest{
-		Name:                     extensionName,
-		WorkspaceID:              workspaceTwoID,
-		OriginPath:               workspaceTwoOrigin,
-		GenerationHash:           workspaceTwoGeneration,
-		NetworkRequirementDigest: workspaceTwoDigest,
-	}); err != nil {
-		t.Fatalf("LinkDev(workspace two) error = %v", err)
-	}
-	workspaceTwoConfirmation, err := registry.NetworkConfirmation(extensionpkg.InstanceKey{
-		Name: extensionName, WorkspaceID: workspaceTwoID,
-	})
-	if err != nil {
-		t.Fatalf("NetworkConfirmation(workspace two) error = %v", err)
-	}
-	if workspaceTwoConfirmation.Digest != workspaceTwoDigest || workspaceTwoConfirmation.ConfirmedBy != "" ||
-		!workspaceTwoConfirmation.ConfirmedAt.IsZero() {
-		t.Fatalf("workspace two confirmation = %#v, want isolated unconfirmed tuple", workspaceTwoConfirmation)
-	}
-
-	workspaceTwoService := newDaemonExtensionService(
-		registry,
-		manager,
-		nil,
-		nil,
-		nil,
-		nil,
-		testHomePaths(t),
-		discardLogger(),
-		func() time.Time { return confirmedAt.Add(2 * time.Minute) },
-		withDaemonExtensionEventWriter(db),
-		withDaemonExtensionWorkspaceResolver(workspaceResolver),
-	)
-	workspaceTwoActor, err := taskpkg.DeriveHumanActorContextForWorkspace(
-		"operator",
-		workspaceTwoID,
-		taskpkg.OriginKindUDS,
-		"workspace two network isolation",
-	)
-	if err != nil {
-		t.Fatalf("DeriveHumanActorContextForWorkspace(workspace two) error = %v", err)
-	}
-	workspaceTwoEngine := newExtensionSecretTransportEngine(workspaceTwoService, workspaceTwoActor, "uds")
-	workspaceTwoRefusal := performSecretTransportRequest(
-		t,
-		workspaceTwoEngine,
-		http.MethodPost,
-		"/extensions/"+extensionName+"/reload",
-		mustSecretTransportJSON(t, contract.ReloadExtensionRequest{GenerationHash: workspaceTwoGeneration}),
-	)
-	if workspaceTwoRefusal.Code != http.StatusConflict ||
-		!strings.Contains(workspaceTwoRefusal.Body.String(), workspaceTwoDigest) {
-		t.Fatalf(
-			"workspace two reload = status %d body %s, want isolated 409 with digest",
-			workspaceTwoRefusal.Code,
-			workspaceTwoRefusal.Body,
+	var initialGeneration string
+	t.Run("Should link a development extension without a network requirement", func(t *testing.T) {
+		var initialDigest string
+		initialGeneration, initialDigest = writeDevelopmentNetworkGeneration(
+			t,
+			origin,
+			extensionName,
+			"1.0.0",
+			nil,
 		)
-	}
-	workspaceOneAfterIsolation, err := registry.NetworkConfirmation(extensionpkg.InstanceKey{
-		Name: extensionName, WorkspaceID: workspaceID,
+		if initialDigest != "" {
+			t.Fatalf("initial network requirement digest = %q, want empty", initialDigest)
+		}
+		devResponse := performExtensionTransportRequest(
+			t,
+			httpEngine,
+			http.MethodPost,
+			"/extensions/dev",
+			mustExtensionTransportJSON(t, contract.DevLinkExtensionRequest{
+				OriginPath: origin, GenerationHash: initialGeneration,
+			}),
+		)
+		if devResponse.Code != http.StatusCreated {
+			t.Fatalf(
+				"dev link status = %d, want %d; body=%s",
+				devResponse.Code,
+				http.StatusCreated,
+				devResponse.Body,
+			)
+		}
+		if _, err := registry.Get(extensionName); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+			t.Fatalf("registry.Get(dev-only) error = %v, want no global extension row", err)
+		}
 	})
-	if err != nil {
-		t.Fatalf("NetworkConfirmation(workspace one after isolation) error = %v", err)
-	}
-	globalAfterIsolation, err := registry.NetworkConfirmation(extensionpkg.GlobalInstanceKey(extensionName))
-	if err != nil {
-		t.Fatalf("NetworkConfirmation(global after isolation) error = %v", err)
-	}
-	if workspaceOneAfterIsolation.Digest != networkDigest || workspaceOneAfterIsolation.ConfirmedBy != "operator" ||
-		!workspaceOneAfterIsolation.ConfirmedAt.Equal(confirmedAt) {
-		t.Fatalf("workspace one confirmation after isolation = %#v", workspaceOneAfterIsolation)
-	}
-	if globalAfterIsolation.Digest != globalDigest || globalAfterIsolation.ConfirmedBy != "operator" ||
-		!globalAfterIsolation.ConfirmedAt.Equal(globalConfirmedAt) {
-		t.Fatalf("global confirmation after isolation = %#v", globalAfterIsolation)
-	}
+
+	var networkGeneration, networkDigest string
+	t.Run("Should refuse a reload that introduces unconfirmed network participation", func(t *testing.T) {
+		networkGeneration, networkDigest = writeDevelopmentNetworkGeneration(
+			t,
+			origin,
+			extensionName,
+			"1.1.0",
+			[]string{"builders"},
+		)
+		refused := performExtensionTransportRequest(
+			t,
+			httpEngine,
+			http.MethodPost,
+			"/extensions/"+extensionName+"/reload",
+			mustExtensionTransportJSON(t, contract.ReloadExtensionRequest{GenerationHash: networkGeneration}),
+		)
+		if refused.Code != http.StatusConflict || !strings.Contains(refused.Body.String(), networkDigest) {
+			t.Fatalf(
+				"unconfirmed reload = status %d body %s, want 409 with current digest",
+				refused.Code,
+				refused.Body,
+			)
+		}
+		unchanged, getErr := registry.GetDevLink(extensionName, workspaceID)
+		if getErr != nil {
+			t.Fatalf("GetDevLink(after refusal) error = %v", getErr)
+		}
+		if unchanged.BundleGeneration != initialGeneration || unchanged.NetworkConfirmedBy != "" {
+			t.Fatalf("dev link after refusal = %#v, want unchanged initial generation", unchanged)
+		}
+	})
+
+	t.Run("Should persist exact network consent on reload", func(t *testing.T) {
+		confirmed := performExtensionTransportRequest(
+			t,
+			httpEngine,
+			http.MethodPost,
+			"/extensions/"+extensionName+"/reload",
+			mustExtensionTransportJSON(t, contract.ReloadExtensionRequest{
+				GenerationHash: networkGeneration, ConfirmNetworkDigest: networkDigest,
+			}),
+		)
+		if confirmed.Code != http.StatusOK {
+			t.Fatalf(
+				"confirmed reload status = %d, want %d; body=%s",
+				confirmed.Code,
+				http.StatusOK,
+				confirmed.Body,
+			)
+		}
+		var response contract.ExtensionResponse
+		if err := json.Unmarshal(confirmed.Body.Bytes(), &response); err != nil {
+			t.Fatalf("json.Unmarshal(confirmed reload) error = %v", err)
+		}
+		payload := response.Extension
+		if payload.GenerationHash != networkGeneration || payload.WorkspaceID != workspaceID {
+			t.Fatalf("confirmed reload payload = %#v", payload)
+		}
+		link, getErr := registry.GetDevLink(extensionName, workspaceID)
+		if getErr != nil {
+			t.Fatalf("GetDevLink(confirmed) error = %v", getErr)
+		}
+		if link.BundleGeneration != networkGeneration || link.NetworkRequirementDigest != networkDigest ||
+			link.NetworkConfirmedBy != "operator" || !link.NetworkConfirmedAt.Equal(confirmedAt) {
+			t.Fatalf("confirmed development link = %#v", link)
+		}
+	})
+
+	t.Run("Should preserve confirmed state when a stale digest is supplied", func(t *testing.T) {
+		changedGeneration, changedDigest := writeDevelopmentNetworkGeneration(
+			t,
+			origin,
+			extensionName,
+			"1.2.0",
+			[]string{"builders", "reviewers"},
+		)
+		stale := performExtensionTransportRequest(
+			t,
+			udsEngine,
+			http.MethodPost,
+			"/extensions/"+extensionName+"/reload",
+			mustExtensionTransportJSON(t, contract.ReloadExtensionRequest{
+				GenerationHash: changedGeneration, ConfirmNetworkDigest: networkDigest,
+			}),
+		)
+		if stale.Code != http.StatusConflict || !strings.Contains(stale.Body.String(), changedDigest) {
+			t.Fatalf(
+				"stale UDS reload = status %d body %s, want 409 with changed digest",
+				stale.Code,
+				stale.Body,
+			)
+		}
+		afterStale, getErr := registry.GetDevLink(extensionName, workspaceID)
+		if getErr != nil {
+			t.Fatalf("GetDevLink(after stale digest) error = %v", getErr)
+		}
+		if afterStale.BundleGeneration != networkGeneration ||
+			afterStale.NetworkRequirementDigest != networkDigest ||
+			afterStale.NetworkConfirmedBy != "operator" ||
+			!afterStale.NetworkConfirmedAt.Equal(confirmedAt) {
+			t.Fatalf("dev link after stale digest = %#v, want prior confirmed tuple", afterStale)
+		}
+	})
+
+	t.Run("Should isolate confirmations between global and workspace instances", func(t *testing.T) {
+		globalRegistry, globalManifest := installNetworkLifecycleExtension(t, db, extensionName)
+		globalDigest, err := extensionpkg.NetworkParticipationRequirementDigest(globalManifest.NetworkParticipation)
+		if err != nil {
+			t.Fatalf("NetworkParticipationRequirementDigest(global) error = %v", err)
+		}
+		globalConfirmedAt := confirmedAt.Add(time.Minute)
+		if err := globalRegistry.ConfirmNetworkRequirement(
+			extensionpkg.GlobalInstanceKey(extensionName),
+			globalDigest,
+			"operator",
+			globalConfirmedAt,
+		); err != nil {
+			t.Fatalf("ConfirmNetworkRequirement(global) error = %v", err)
+		}
+
+		const workspaceTwoID = "workspace-network-dev-2"
+		workspaceTwoOrigin := filepath.Join(workspaceTwoRoot, "network-dev-extension")
+		workspaceTwoGeneration, workspaceTwoDigest := writeDevelopmentNetworkGeneration(
+			t,
+			workspaceTwoOrigin,
+			extensionName,
+			"2.0.0",
+			[]string{"builders"},
+		)
+		workspaceTwoService := newDaemonExtensionService(daemonExtensionServiceDeps{
+			Registry:  registry,
+			Runtime:   manager,
+			HomePaths: testHomePaths(t),
+			Logger:    discardLogger(),
+			Now:       func() time.Time { return confirmedAt.Add(2 * time.Minute) },
+		},
+			withDaemonExtensionEventWriter(db),
+			withDaemonExtensionWorkspaceResolver(workspaceResolver),
+		)
+		workspaceTwoActor, err := taskpkg.DeriveHumanActorContextForWorkspace(
+			"operator",
+			workspaceTwoID,
+			taskpkg.OriginKindUDS,
+			"workspace two network isolation",
+		)
+		if err != nil {
+			t.Fatalf("DeriveHumanActorContextForWorkspace(workspace two) error = %v", err)
+		}
+		workspaceTwoEngine := newExtensionTransportEngine(workspaceTwoService, workspaceTwoActor, "uds")
+		workspaceTwoDevRefusal := performExtensionTransportRequest(
+			t,
+			workspaceTwoEngine,
+			http.MethodPost,
+			"/extensions/dev",
+			mustExtensionTransportJSON(t, contract.DevLinkExtensionRequest{
+				OriginPath: workspaceTwoOrigin, GenerationHash: workspaceTwoGeneration,
+			}),
+		)
+		if workspaceTwoDevRefusal.Code != http.StatusConflict ||
+			!strings.Contains(workspaceTwoDevRefusal.Body.String(), workspaceTwoDigest) {
+			t.Fatalf(
+				"workspace two initial dev = status %d body %s, want 409 with digest",
+				workspaceTwoDevRefusal.Code,
+				workspaceTwoDevRefusal.Body,
+			)
+		}
+		if _, err := registry.GetDevLink(extensionName, workspaceTwoID); !errors.Is(
+			err,
+			extensionpkg.ErrExtensionNotDevLinked,
+		) {
+			t.Fatalf("GetDevLink(after initial refusal) error = %v, want no staged link", err)
+		}
+		workspaceTwoConfirmed := performExtensionTransportRequest(
+			t,
+			workspaceTwoEngine,
+			http.MethodPost,
+			"/extensions/dev",
+			mustExtensionTransportJSON(t, contract.DevLinkExtensionRequest{
+				OriginPath: workspaceTwoOrigin, GenerationHash: workspaceTwoGeneration,
+				ConfirmNetworkDigest: workspaceTwoDigest,
+			}),
+		)
+		if workspaceTwoConfirmed.Code != http.StatusCreated {
+			t.Fatalf(
+				"workspace two confirmed dev = status %d body %s, want 201",
+				workspaceTwoConfirmed.Code,
+				workspaceTwoConfirmed.Body,
+			)
+		}
+		workspaceTwoConfirmation, err := registry.NetworkConfirmation(extensionpkg.InstanceKey{
+			Name: extensionName, WorkspaceID: workspaceTwoID,
+		})
+		if err != nil {
+			t.Fatalf("NetworkConfirmation(workspace two) error = %v", err)
+		}
+		workspaceTwoConfirmedAt := confirmedAt.Add(2 * time.Minute)
+		if workspaceTwoConfirmation.Digest != workspaceTwoDigest ||
+			workspaceTwoConfirmation.ConfirmedBy != "operator" ||
+			!workspaceTwoConfirmation.ConfirmedAt.Equal(workspaceTwoConfirmedAt) {
+			t.Fatalf("workspace two confirmation = %#v, want isolated confirmed tuple", workspaceTwoConfirmation)
+		}
+		workspaceTwoChangedGeneration, workspaceTwoChangedDigest := writeDevelopmentNetworkGeneration(
+			t,
+			workspaceTwoOrigin,
+			extensionName,
+			"2.1.0",
+			[]string{"builders", "reviewers"},
+		)
+		workspaceTwoRefusal := performExtensionTransportRequest(
+			t,
+			workspaceTwoEngine,
+			http.MethodPost,
+			"/extensions/"+extensionName+"/reload",
+			mustExtensionTransportJSON(t, contract.ReloadExtensionRequest{GenerationHash: workspaceTwoChangedGeneration}),
+		)
+		if workspaceTwoRefusal.Code != http.StatusConflict ||
+			!strings.Contains(workspaceTwoRefusal.Body.String(), workspaceTwoChangedDigest) {
+			t.Fatalf(
+				"workspace two reload = status %d body %s, want isolated 409 with digest",
+				workspaceTwoRefusal.Code,
+				workspaceTwoRefusal.Body,
+			)
+		}
+		workspaceOneAfterIsolation, err := registry.NetworkConfirmation(extensionpkg.InstanceKey{
+			Name: extensionName, WorkspaceID: workspaceID,
+		})
+		if err != nil {
+			t.Fatalf("NetworkConfirmation(workspace one after isolation) error = %v", err)
+		}
+		globalAfterIsolation, err := registry.NetworkConfirmation(extensionpkg.GlobalInstanceKey(extensionName))
+		if err != nil {
+			t.Fatalf("NetworkConfirmation(global after isolation) error = %v", err)
+		}
+		if workspaceOneAfterIsolation.Digest != networkDigest || workspaceOneAfterIsolation.ConfirmedBy != "operator" ||
+			!workspaceOneAfterIsolation.ConfirmedAt.Equal(confirmedAt) {
+			t.Fatalf("workspace one confirmation after isolation = %#v", workspaceOneAfterIsolation)
+		}
+		if globalAfterIsolation.Digest != globalDigest || globalAfterIsolation.ConfirmedBy != "operator" ||
+			!globalAfterIsolation.ConfirmedAt.Equal(globalConfirmedAt) {
+			t.Fatalf("global confirmation after isolation = %#v", globalAfterIsolation)
+		}
+	})
 }
 
 type networkLifecycleWorkspaceResolver struct {
@@ -348,9 +415,9 @@ func TestInstalledExtensionNetworkConsentTransportLifecycle(t *testing.T) {
 		{name: "http", origin: taskpkg.OriginKindHTTP},
 		{name: "uds", origin: taskpkg.OriginKindUDS},
 	} {
-		transport := transport
 		t.Run("Should enforce digest-exact consent over "+strings.ToUpper(transport.name), func(t *testing.T) {
 			t.Parallel()
+			// Nested phases share one installed extension and remain ordered.
 
 			extensionName := "network-kit-" + transport.name
 			db := openDaemonTestGlobalDB(t)
@@ -358,16 +425,13 @@ func TestInstalledExtensionNetworkConsentTransportLifecycle(t *testing.T) {
 			runtime := &networkLifecycleRuntime{registry: registry, manifest: manifest}
 			writer := &extensionEventRecorder{}
 			confirmedAt := time.Date(2026, 8, 2, 22, 0, 0, 0, time.UTC)
-			service, ok := newDaemonExtensionService(
-				registry,
-				runtime,
-				nil,
-				nil,
-				nil,
-				nil,
-				testHomePaths(t),
-				discardLogger(),
-				func() time.Time { return confirmedAt },
+			service, ok := newDaemonExtensionService(daemonExtensionServiceDeps{
+				Registry:  registry,
+				Runtime:   runtime,
+				HomePaths: testHomePaths(t),
+				Logger:    discardLogger(),
+				Now:       func() time.Time { return confirmedAt },
+			},
 				withDaemonExtensionEventWriter(writer),
 			).(*daemonExtensionService)
 			if !ok {
@@ -381,109 +445,124 @@ func TestInstalledExtensionNetworkConsentTransportLifecycle(t *testing.T) {
 			if err != nil {
 				t.Fatalf("DeriveHumanActorContext() error = %v", err)
 			}
-			engine := newExtensionSecretTransportEngine(service, actor, transport.name)
+			engine := newExtensionTransportEngine(service, actor, transport.name)
 			digest, err := extensionpkg.NetworkParticipationRequirementDigest(manifest.NetworkParticipation)
 			if err != nil {
 				t.Fatalf("NetworkParticipationRequirementDigest() error = %v", err)
 			}
 
-			for _, request := range []contract.EnableExtensionRequest{
-				{},
-				{ConfirmNetworkDigest: strings.Repeat("0", 64)},
+			for _, testCase := range []struct {
+				name    string
+				request contract.EnableExtensionRequest
+			}{
+				{
+					name:    "Should refuse enable without a confirmation digest",
+					request: contract.EnableExtensionRequest{},
+				},
+				{
+					name:    "Should refuse enable with a stale confirmation digest",
+					request: contract.EnableExtensionRequest{ConfirmNetworkDigest: strings.Repeat("0", 64)},
+				},
 			} {
-				response := performSecretTransportRequest(
+				t.Run(testCase.name, func(t *testing.T) {
+					response := performExtensionTransportRequest(
+						t,
+						engine,
+						http.MethodPost,
+						"/extensions/"+extensionName+"/enable",
+						mustExtensionTransportJSON(t, testCase.request),
+					)
+					if response.Code != http.StatusConflict {
+						t.Fatalf(
+							"enable refusal status = %d, want %d; body=%s",
+							response.Code,
+							http.StatusConflict,
+							response.Body,
+						)
+					}
+					var operationError contract.ExtensionOperationErrorPayload
+					if err := json.Unmarshal(response.Body.Bytes(), &operationError); err != nil {
+						t.Fatalf("json.Unmarshal(enable refusal) error = %v", err)
+					}
+					if operationError.Code != "extension_network_confirmation_required" ||
+						operationError.CurrentDigest != digest {
+						t.Fatalf("enable refusal payload = %#v, want current digest %q", operationError, digest)
+					}
+					info, getErr := registry.Get(extensionName)
+					if getErr != nil {
+						t.Fatalf("registry.Get(after refusal) error = %v", getErr)
+					}
+					if info.Enabled || info.NetworkConfirmedBy != "" || !info.NetworkConfirmedAt.IsZero() {
+						t.Fatalf("registry after refusal = %#v, want disabled unconfirmed state", info)
+					}
+					if events := writer.snapshot(); len(events) != 0 {
+						t.Fatalf("consent refusal events = %#v, want none", events)
+					}
+				})
+			}
+
+			t.Run("Should persist exact consent and enable the extension", func(t *testing.T) {
+				confirmed := performExtensionTransportRequest(
 					t,
 					engine,
 					http.MethodPost,
 					"/extensions/"+extensionName+"/enable",
-					mustSecretTransportJSON(t, request),
+					mustExtensionTransportJSON(t, contract.EnableExtensionRequest{ConfirmNetworkDigest: digest}),
 				)
-				if response.Code != http.StatusConflict {
+				if confirmed.Code != http.StatusOK {
 					t.Fatalf(
-						"enable refusal status = %d, want %d; body=%s",
-						response.Code,
-						http.StatusConflict,
-						response.Body,
+						"confirmed enable status = %d, want %d; body=%s",
+						confirmed.Code,
+						http.StatusOK,
+						confirmed.Body,
 					)
 				}
-				var operationError contract.ExtensionOperationErrorPayload
-				if err := json.Unmarshal(response.Body.Bytes(), &operationError); err != nil {
-					t.Fatalf("json.Unmarshal(enable refusal) error = %v", err)
+				var result contract.ExtensionEnableResult
+				if err := json.Unmarshal(confirmed.Body.Bytes(), &result); err != nil {
+					t.Fatalf("json.Unmarshal(confirmed enable) error = %v", err)
 				}
-				if operationError.Code != "extension_network_confirmation_required" ||
-					operationError.CurrentDigest != digest {
-					t.Fatalf("enable refusal payload = %#v, want current digest %q", operationError, digest)
+				if !result.Extension.Enabled || result.Extension.Name != extensionName {
+					t.Fatalf("confirmed enable result = %#v", result)
 				}
-				info, err := registry.Get(extensionName)
+				confirmation, err := registry.NetworkConfirmation(extensionpkg.GlobalInstanceKey(extensionName))
 				if err != nil {
-					t.Fatalf("registry.Get(after refusal) error = %v", err)
+					t.Fatalf("NetworkConfirmation() error = %v", err)
 				}
-				if info.Enabled || info.NetworkConfirmedBy != "" || !info.NetworkConfirmedAt.IsZero() {
-					t.Fatalf("registry after refusal = %#v, want disabled unconfirmed state", info)
+				if confirmation.Digest != digest || confirmation.ConfirmedBy != "operator" ||
+					!confirmation.ConfirmedAt.Equal(confirmedAt) {
+					t.Fatalf("persisted confirmation = %#v", confirmation)
 				}
-			}
-			if events := writer.snapshot(); len(events) != 0 {
-				t.Fatalf("consent refusal events = %#v, want none", events)
-			}
+				if writer.batchCalls != 1 || len(writer.snapshot()) != 2 {
+					t.Fatalf(
+						"enable events = batches:%d events:%#v, want one confirmation+enable batch",
+						writer.batchCalls,
+						writer.snapshot(),
+					)
+				}
+			})
 
-			confirmed := performSecretTransportRequest(
-				t,
-				engine,
-				http.MethodPost,
-				"/extensions/"+extensionName+"/enable",
-				mustSecretTransportJSON(t, contract.EnableExtensionRequest{ConfirmNetworkDigest: digest}),
-			)
-			if confirmed.Code != http.StatusOK {
-				t.Fatalf(
-					"confirmed enable status = %d, want %d; body=%s",
-					confirmed.Code,
-					http.StatusOK,
-					confirmed.Body,
+			t.Run("Should reuse persisted consent after disable", func(t *testing.T) {
+				disabled := performExtensionTransportRequest(
+					t,
+					engine,
+					http.MethodPost,
+					"/extensions/"+extensionName+"/disable",
+					nil,
 				)
-			}
-			var result contract.ExtensionEnableResult
-			if err := json.Unmarshal(confirmed.Body.Bytes(), &result); err != nil {
-				t.Fatalf("json.Unmarshal(confirmed enable) error = %v", err)
-			}
-			if !result.Extension.Enabled || result.Extension.Name != extensionName {
-				t.Fatalf("confirmed enable result = %#v", result)
-			}
-			confirmation, err := registry.NetworkConfirmation(extensionpkg.GlobalInstanceKey(extensionName))
-			if err != nil {
-				t.Fatalf("NetworkConfirmation() error = %v", err)
-			}
-			if confirmation.Digest != digest || confirmation.ConfirmedBy != "operator" ||
-				!confirmation.ConfirmedAt.Equal(confirmedAt) {
-				t.Fatalf("persisted confirmation = %#v", confirmation)
-			}
-			if writer.batchCalls != 1 || len(writer.snapshot()) != 2 {
-				t.Fatalf(
-					"enable events = batches:%d events:%#v, want one confirmation+enable batch",
-					writer.batchCalls,
-					writer.snapshot(),
+				if disabled.Code != http.StatusOK {
+					t.Fatalf("disable status = %d, want %d; body=%s", disabled.Code, http.StatusOK, disabled.Body)
+				}
+				reenabled := performExtensionTransportRequest(
+					t,
+					engine,
+					http.MethodPost,
+					"/extensions/"+extensionName+"/enable",
+					nil,
 				)
-			}
-
-			disabled := performSecretTransportRequest(
-				t,
-				engine,
-				http.MethodPost,
-				"/extensions/"+extensionName+"/disable",
-				nil,
-			)
-			if disabled.Code != http.StatusOK {
-				t.Fatalf("disable status = %d, want %d; body=%s", disabled.Code, http.StatusOK, disabled.Body)
-			}
-			reenabled := performSecretTransportRequest(
-				t,
-				engine,
-				http.MethodPost,
-				"/extensions/"+extensionName+"/enable",
-				nil,
-			)
-			if reenabled.Code != http.StatusOK {
-				t.Fatalf("re-enable status = %d, want %d; body=%s", reenabled.Code, http.StatusOK, reenabled.Body)
-			}
+				if reenabled.Code != http.StatusOK {
+					t.Fatalf("re-enable status = %d, want %d; body=%s", reenabled.Code, http.StatusOK, reenabled.Body)
+				}
+			})
 		})
 	}
 }
@@ -497,13 +576,13 @@ func writeDevelopmentNetworkGeneration(
 ) (string, string) {
 	t.Helper()
 	manifestText := daemonTestExtensionManifest(name, daemonTestExtensionOptions{
+		version:        version,
 		runtimeCommand: daemonExtensionHelperCommand(t),
 		runtimeArgs:    daemonExtensionHelperArgs(),
 		runtimeEnv:     daemonExtensionHelperScenarioEnv("network_dev", version),
 		capabilities:   []string{},
 		permissions:    []string{},
 	})
-	manifestText = strings.Replace(manifestText, `version = "0.2.1"`, fmt.Sprintf("version = %q", version), 1)
 	if len(scopes) > 0 {
 		manifestText += fmt.Sprintf(`
 [network_participation]

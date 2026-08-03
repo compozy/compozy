@@ -1,10 +1,12 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -23,6 +25,86 @@ type extensionFixtureOptions struct {
 	capabilities []string
 	permissions  []string
 	requiresEnv  []string
+}
+
+type extensionSecretTestWriter struct {
+	writes    int
+	failAfter int
+	err       error
+}
+
+func (w *extensionSecretTestWriter) Write(data []byte) (int, error) {
+	w.writes++
+	if w.writes > w.failAfter {
+		return 0, w.err
+	}
+	return len(data), nil
+}
+
+func TestExtensionSecretReaderReadsHiddenInput(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should return a trimmed hidden value", func(t *testing.T) {
+		t.Parallel()
+
+		input := openExtensionSecretTestInput(t)
+		var output bytes.Buffer
+		reader := newExtensionSecretReader(input, &output, func(io.Reader) bool { return true })
+		reader.readPassword = func(int) ([]byte, error) { return []byte(" secret-value\r\n"), nil }
+
+		value, err := reader.Read("API_KEY")
+		if err != nil {
+			t.Fatalf("Read() error = %v", err)
+		}
+		if value != " secret-value" || output.String() != "API_KEY: \n" {
+			t.Fatalf("Read() value=%q output=%q, want trimmed hidden value and prompt", value, output.String())
+		}
+	})
+
+	t.Run("Should return a password read error", func(t *testing.T) {
+		t.Parallel()
+
+		input := openExtensionSecretTestInput(t)
+		readErr := errors.New("password read failed")
+		reader := newExtensionSecretReader(input, io.Discard, func(io.Reader) bool { return true })
+		reader.readPassword = func(int) ([]byte, error) { return nil, readErr }
+
+		_, err := reader.Read("API_KEY")
+		if !errors.Is(err, readErr) {
+			t.Fatalf("Read() error = %v, want password read failure", err)
+		}
+	})
+
+	t.Run("Should join password and newline write errors", func(t *testing.T) {
+		t.Parallel()
+
+		input := openExtensionSecretTestInput(t)
+		readErr := errors.New("password read failed")
+		newlineErr := errors.New("newline write failed")
+		output := &extensionSecretTestWriter{failAfter: 1, err: newlineErr}
+		reader := newExtensionSecretReader(input, output, func(io.Reader) bool { return true })
+		reader.readPassword = func(int) ([]byte, error) { return nil, readErr }
+
+		_, err := reader.Read("API_KEY")
+		if !errors.Is(err, readErr) || !errors.Is(err, newlineErr) {
+			t.Fatalf("Read() error = %v, want joined read and newline failures", err)
+		}
+	})
+}
+
+func openExtensionSecretTestInput(t *testing.T) *os.File {
+	t.Helper()
+
+	file, err := os.Open(os.DevNull)
+	if err != nil {
+		t.Fatalf("os.Open(os.DevNull) error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := file.Close(); err != nil {
+			t.Fatalf("close extension secret test input: %v", err)
+		}
+	})
+	return file
 }
 
 func TestExtensionInstallOfflinePersistsExtension(t *testing.T) {

@@ -30,13 +30,15 @@ type extensionValidateInput struct {
 }
 
 type extensionDevInput struct {
-	OriginPath     string `json:"origin_path"`
-	GenerationHash string `json:"generation_hash"`
+	OriginPath           string `json:"origin_path"`
+	GenerationHash       string `json:"generation_hash"`
+	ConfirmNetworkDigest string `json:"confirm_network_digest"`
 }
 
 type extensionReloadInput struct {
-	Name           string `json:"name"`
-	GenerationHash string `json:"generation_hash"`
+	Name                 string `json:"name"`
+	GenerationHash       string `json:"generation_hash"`
+	ConfirmNetworkDigest string `json:"confirm_network_digest"`
 }
 
 type extensionLogsInput struct {
@@ -120,8 +122,9 @@ func (n *daemonNativeTools) extensionDev(
 		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
 	}
 	item, err := n.extensionService().Dev(ctx, contract.DevLinkExtensionRequest{
-		OriginPath:     input.OriginPath,
-		GenerationHash: input.GenerationHash,
+		OriginPath:           input.OriginPath,
+		GenerationHash:       input.GenerationHash,
+		ConfirmNetworkDigest: input.ConfirmNetworkDigest,
 	}, actor)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
@@ -143,7 +146,8 @@ func (n *daemonNativeTools) extensionReload(
 		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
 	}
 	item, err := n.extensionService().ReloadDev(ctx, input.Name, contract.ReloadExtensionRequest{
-		GenerationHash: input.GenerationHash,
+		GenerationHash:       input.GenerationHash,
+		ConfirmNetworkDigest: input.ConfirmNetworkDigest,
 	}, actor)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)

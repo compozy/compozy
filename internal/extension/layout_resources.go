@@ -2,6 +2,7 @@ package extensionpkg
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 
@@ -10,7 +11,17 @@ import (
 )
 
 // LoadLayoutResources loads globally-scoped extension window layouts.
-func LoadLayoutResources(rootDir string, paths []string) ([]windowmanager.LayoutResource, error) {
+func LoadLayoutResources(
+	ctx context.Context,
+	rootDir string,
+	paths []string,
+) ([]windowmanager.LayoutResource, error) {
+	if ctx == nil {
+		return nil, errors.New("extension: layout resource context is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	files, err := collectDeclaredResourceFiles(rootDir, paths, ".json", "layout resource")
 	if err != nil {
 		return nil, err
@@ -20,13 +31,17 @@ func LoadLayoutResources(rootDir string, paths []string) ([]windowmanager.Layout
 		return nil, fmt.Errorf("extension: create layout resource codec: %w", err)
 	}
 	byID := make(map[string]windowmanager.LayoutResource)
+	origins := make(map[string]string)
 	for _, file := range files {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		body, err := os.ReadFile(file)
 		if err != nil {
 			return nil, fmt.Errorf("extension: read layout resource %q: %w", file, err)
 		}
 		layout, err := codec.DecodeAndValidate(
-			context.Background(),
+			ctx,
 			resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
 			body,
 		)
@@ -37,9 +52,15 @@ func LoadLayoutResources(rootDir string, paths []string) ([]windowmanager.Layout
 			)
 		}
 		if _, exists := byID[layout.ID]; exists {
-			return nil, fmt.Errorf("%w: duplicate layout resource %q", ErrManifestInvalid, layout.ID)
+			return nil, wrapResourceValidationError(file, fmt.Errorf(
+				"%w: duplicate layout resource %q also declared in %q",
+				ErrManifestInvalid,
+				layout.ID,
+				origins[layout.ID],
+			))
 		}
 		byID[layout.ID] = windowmanager.CloneLayoutResource(layout)
+		origins[layout.ID] = file
 	}
 	result := make([]windowmanager.LayoutResource, 0, len(byID))
 	for _, id := range sortedKeys(byID) {

@@ -11,8 +11,8 @@ import (
 )
 
 type extensionSecretRetirement struct {
-	bindings []extensionpkg.EnvBinding
-	secrets  []extensionSecretSnapshot
+	bindings             []extensionpkg.EnvBinding
+	ownedSecretSnapshots []extensionSecretSnapshot
 }
 
 func (s *daemonExtensionService) retireExtensionSecretBindings(
@@ -30,12 +30,12 @@ func (s *daemonExtensionService) retireExtensionSecretBindings(
 		return nil, fmt.Errorf("daemon: snapshot retiring extension bindings: %w", err)
 	}
 	retirement := &extensionSecretRetirement{bindings: slices.Clone(bindings)}
-	refsForInstance := make(map[string]int, len(bindings))
+	instanceBindingCountByRef := make(map[string]int, len(bindings))
 	for _, binding := range bindings {
-		refsForInstance[vault.NormalizeRef(binding.SecretRef)]++
+		instanceBindingCountByRef[vault.NormalizeRef(binding.SecretRef)]++
 	}
-	refs := make([]string, 0, len(refsForInstance))
-	for ref := range refsForInstance {
+	refs := make([]string, 0, len(instanceBindingCountByRef))
+	for ref := range instanceBindingCountByRef {
 		refs = append(refs, ref)
 	}
 	slices.Sort(refs)
@@ -44,26 +44,17 @@ func (s *daemonExtensionService) retireExtensionSecretBindings(
 		if countErr != nil {
 			return nil, fmt.Errorf("daemon: count retiring extension secret refs: %w", countErr)
 		}
-		if count != int64(refsForInstance[ref]) {
+		if count != int64(instanceBindingCountByRef[ref]) {
 			continue
 		}
-		metadata, metadataErr := s.secretVault.GetMetadata(ctx, ref)
-		if errors.Is(metadataErr, vault.ErrSecretNotFound) || (metadataErr == nil && !metadata.Present) {
+		snapshot, owned, snapshotErr := s.extensionOwnedSecretSnapshot(ctx, ref)
+		if snapshotErr != nil {
+			return nil, fmt.Errorf("daemon: snapshot retiring extension secret: %w", snapshotErr)
+		}
+		if !owned {
 			continue
 		}
-		if metadataErr != nil {
-			return nil, fmt.Errorf("daemon: inspect retiring extension secret: %w", metadataErr)
-		}
-		if metadata.Kind != extensionpkg.ExtensionEnvBindingKind {
-			continue
-		}
-		value, resolveErr := s.secretVault.ResolveRef(ctx, ref)
-		if resolveErr != nil {
-			return nil, fmt.Errorf("daemon: snapshot retiring extension secret: %w", resolveErr)
-		}
-		retirement.secrets = append(retirement.secrets, extensionSecretSnapshot{
-			ref: ref, kind: metadata.Kind, value: value, existed: true,
-		})
+		retirement.ownedSecretSnapshots = append(retirement.ownedSecretSnapshots, snapshot)
 	}
 	if err := s.envBindings.DeleteEnvBindings(ctx, key.Name, key.WorkspaceID); err != nil {
 		return nil, fmt.Errorf("daemon: retire extension bindings: %w", err)
@@ -80,14 +71,9 @@ func (r *extensionSecretRetirement) rollback(ctx context.Context, s *daemonExten
 	if r == nil || s == nil || s.envBindings == nil || s.secretVault == nil {
 		return nil
 	}
+	rollbackErr := s.restoreExtensionSecretSnapshots(ctx, r.ownedSecretSnapshots)
 	rollbackCtx, cancel := extensionSecretRollbackContext(ctx)
 	defer cancel()
-	var rollbackErr error
-	for _, snapshot := range r.secrets {
-		if _, err := s.secretVault.PutSecret(rollbackCtx, snapshot.ref, snapshot.kind, snapshot.value); err != nil {
-			rollbackErr = errors.Join(rollbackErr, fmt.Errorf("daemon: restore retired extension secret: %w", err))
-		}
-	}
 	for _, binding := range r.bindings {
 		if err := s.envBindings.PutEnvBinding(rollbackCtx, binding); err != nil {
 			rollbackErr = errors.Join(rollbackErr, fmt.Errorf("daemon: restore retired extension binding: %w", err))

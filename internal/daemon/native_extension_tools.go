@@ -169,7 +169,7 @@ func (n *daemonNativeTools) extensionInfo(
 	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
-	var input extensionEnableInput
+	var input extensionNameInput
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -226,11 +226,8 @@ func (n *daemonNativeTools) extensionUpdate(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	names := []string{}
-	if strings.TrimSpace(input.Name) != "" {
-		names = append(names, input.Name)
-	}
-	if input.All && len(names) > 0 {
+	name := strings.TrimSpace(input.Name)
+	if input.All && name != "" {
 		return toolspkg.ToolResult{}, nativeExtensionValidationError(
 			req.ToolID,
 			errors.New("extension update accepts name or all, not both"),
@@ -247,8 +244,8 @@ func (n *daemonNativeTools) extensionUpdate(
 		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
 	}
 
-	if len(names) == 1 {
-		item, updateErr := n.extensionService().Update(ctx, names[0], contract.UpdateExtensionRequest{
+	if name != "" {
+		item, updateErr := n.extensionService().Update(ctx, name, contract.UpdateExtensionRequest{
 			Version: input.Version, CheckOnly: input.CheckOnly, AllowUnverified: input.AllowUnverified,
 			ConfirmNetworkDigest: strings.TrimSpace(input.ConfirmNetworkDigest),
 		}, actor)
@@ -261,7 +258,6 @@ func (n *daemonNativeTools) extensionUpdate(
 		)
 	}
 	items, err := n.extensionService().UpdateBatch(ctx, contract.UpdateExtensionsRequest{
-		Names:           names,
 		All:             input.All,
 		CheckOnly:       input.CheckOnly,
 		Version:         input.Version,
@@ -305,7 +301,7 @@ func (n *daemonNativeTools) extensionRemove(
 
 func (n *daemonNativeTools) extensionEnable(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input extensionEnableInput
@@ -316,7 +312,7 @@ func (n *daemonNativeTools) extensionEnable(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	actor, err := nativeExtensionActorContext(req)
+	actor, err := nativeExtensionScopedActorContext(scope, req)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
 	}
@@ -331,7 +327,7 @@ func (n *daemonNativeTools) extensionEnable(
 
 func (n *daemonNativeTools) extensionDisable(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input extensionNameInput
@@ -342,7 +338,7 @@ func (n *daemonNativeTools) extensionDisable(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	actor, err := nativeExtensionActorContext(req)
+	actor, err := nativeExtensionScopedActorContext(scope, req)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
 	}
@@ -361,19 +357,23 @@ func (n *daemonNativeTools) extensionService() *daemonExtensionService {
 	if n.deps.ExtensionRuntime != nil {
 		runtime = n.deps.ExtensionRuntime()
 	}
-	service, ok := newDaemonExtensionService(
-		n.deps.ExtensionRegistry,
-		runtime,
-		n.deps.HookBindings,
-		n.deps.agentSkills(),
-		n.deps.ToolMCP,
-		n.deps.LoopResources,
-		n.deps.HomePaths,
-		nil,
-		nil,
+	var automation extensionAutomationPreviewer
+	if previewer, supportsPreview := n.deps.Automation.(extensionAutomationPreviewer); supportsPreview {
+		automation = previewer
+	}
+	service, ok := newDaemonExtensionService(daemonExtensionServiceDeps{
+		Registry:     n.deps.ExtensionRegistry,
+		Runtime:      runtime,
+		HookBindings: n.deps.HookBindings,
+		AgentSkill:   n.deps.agentSkills(),
+		ToolMCP:      n.deps.ToolMCP,
+		Loops:        n.deps.LoopResources,
+		HomePaths:    n.deps.HomePaths,
+	},
 		withDaemonExtensionMarketplace(n.deps.ExtensionConfig, n.deps.ExtensionSources),
 		withDaemonExtensionEventWriter(n.deps.ExtensionEvents),
 		withDaemonExtensionWorkspaceResolver(n.deps.WorkspaceResolver),
+		withDaemonExtensionAutomation(automation),
 	).(*daemonExtensionService)
 	if !ok {
 		return nil

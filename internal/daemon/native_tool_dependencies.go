@@ -74,7 +74,7 @@ type daemonNativeToolsDeps struct {
 	ExtensionRuntime           func() extensionRuntime
 	ExtensionConfig            compozyconfig.ExtensionsConfig
 	ExtensionSources           extensionMarketplaceSourceLoader
-	ExtensionEvents            store.EventSummaryStore
+	ExtensionEvents            extensionLifecycleEventWriter
 	ExtensionSecrets           extensionPublishSecretResolver
 	AgentSkills                agentSkillPublisher
 	AgentSkillsRuntime         func() agentSkillPublisher

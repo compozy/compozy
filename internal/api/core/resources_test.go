@@ -17,6 +17,16 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const fixtureResourceKind resources.ResourceKind = "fixture.resource"
+
+func fixtureResourceAPIPath(id string) string {
+	path := "/api/resources/" + string(fixtureResourceKind)
+	if id == "" {
+		return path
+	}
+	return path + "/" + id
+}
+
 type stubRawStore struct {
 	PutRawFn              func(context.Context, resources.MutationActor, resources.RawDraft) (resources.RawRecord, error)
 	DeleteRawFn           func(context.Context, resources.MutationActor, resources.ResourceKind, string, int64) error
@@ -176,16 +186,18 @@ func TestParseResourceFilterPreservesListSemantics(t *testing.T) {
 	ctx := newResourceTestContext(
 		t,
 		http.MethodGet,
-		"/api/resources/fixture.resource?scope_kind=workspace&scope_id=ws-alpha&owner_kind=daemon&owner_id=daemon-control&source_kind=daemon&source_id=system&limit=7",
+		fixtureResourceAPIPath("")+
+			"?scope_kind=workspace&scope_id=ws-alpha&owner_kind=daemon&owner_id=daemon-control"+
+			"&source_kind=daemon&source_id=system&limit=7",
 	)
-	ctx.Params = gin.Params{{Key: "kind", Value: "fixture.resource"}}
+	ctx.Params = gin.Params{{Key: "kind", Value: string(fixtureResourceKind)}}
 
 	filter, err := ParseResourceFilter(ctx)
 	if err != nil {
 		t.Fatalf("ParseResourceFilter() error = %v", err)
 	}
-	if filter.Kind != resources.ResourceKind("fixture.resource") {
-		t.Fatalf("filter.Kind = %q, want %q", filter.Kind, resources.ResourceKind("fixture.resource"))
+	if filter.Kind != fixtureResourceKind {
+		t.Fatalf("filter.Kind = %q, want %q", filter.Kind, fixtureResourceKind)
 	}
 	if filter.Limit != 7 {
 		t.Fatalf("filter.Limit = %d, want 7", filter.Limit)
@@ -207,8 +219,8 @@ func TestParseResourceFilterPreservesListSemantics(t *testing.T) {
 func TestParseResourceFilterRejectsMismatchedPathAndQueryKinds(t *testing.T) {
 	t.Parallel()
 
-	ctx := newResourceTestContext(t, http.MethodGet, "/api/resources/fixture.resource?kind=bridge.instance")
-	ctx.Params = gin.Params{{Key: "kind", Value: "fixture.resource"}}
+	ctx := newResourceTestContext(t, http.MethodGet, fixtureResourceAPIPath("")+"?kind=bridge.instance")
+	ctx.Params = gin.Params{{Key: "kind", Value: string(fixtureResourceKind)}}
 
 	_, err := ParseResourceFilter(ctx)
 	if err == nil {
@@ -229,7 +241,7 @@ func TestParseResourcePutDraftPreservesExpectedVersionAndScope(t *testing.T) {
 	spec := append([]byte(nil), wantSpec...)
 
 	draft, err := parseResourcePutDraft(
-		resources.ResourceKind("fixture.resource"),
+		fixtureResourceKind,
 		"resource-1",
 		contract.PutResourceRequest{
 			Scope:           resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: " ws-alpha "},
@@ -240,7 +252,7 @@ func TestParseResourcePutDraftPreservesExpectedVersionAndScope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parseResourcePutDraft() error = %v", err)
 	}
-	if draft.Kind != resources.ResourceKind("fixture.resource") || draft.ID != "resource-1" {
+	if draft.Kind != fixtureResourceKind || draft.ID != "resource-1" {
 		t.Fatalf("draft identity = %#v", draft)
 	}
 	if draft.Scope.Kind != resources.ResourceScopeKindWorkspace || draft.Scope.ID != "ws-alpha" {
@@ -259,7 +271,7 @@ func TestParseResourcePutDraftRejectsNegativeExpectedVersion(t *testing.T) {
 	t.Parallel()
 
 	_, err := parseResourcePutDraft(
-		resources.ResourceKind("fixture.resource"),
+		fixtureResourceKind,
 		"resource-1",
 		contract.PutResourceRequest{
 			Scope:           resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
@@ -280,7 +292,7 @@ func TestResourceRecordPayloadFromRawCopiesSpec(t *testing.T) {
 
 	now := time.Date(2026, 4, 15, 12, 0, 0, 0, time.UTC)
 	record := resources.RawRecord{
-		Kind:      resources.ResourceKind("fixture.resource"),
+		Kind:      fixtureResourceKind,
 		ID:        "resource-1",
 		Version:   3,
 		Scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
@@ -533,7 +545,7 @@ func TestBaseHandlersResourceEndpointsUseSharedSemantics(t *testing.T) {
 					gotFilter = filter
 					return []resources.RawRecord{
 						{
-							Kind:    resources.ResourceKind("fixture.resource"),
+							Kind:    fixtureResourceKind,
 							ID:      "demo",
 							Version: 1,
 							Scope:   resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
@@ -556,9 +568,9 @@ func TestBaseHandlersResourceEndpointsUseSharedSemantics(t *testing.T) {
 		ctx, recorder := newResourceRequestContext(
 			t,
 			http.MethodGet,
-			"/api/resources/fixture.resource?scope_kind=global&limit=2",
+			fixtureResourceAPIPath("")+"?scope_kind=global&limit=2",
 			nil,
-			gin.Params{{Key: "kind", Value: "fixture.resource"}},
+			gin.Params{{Key: "kind", Value: string(fixtureResourceKind)}},
 		)
 
 		handlers.ListResources(ctx)
@@ -566,7 +578,7 @@ func TestBaseHandlersResourceEndpointsUseSharedSemantics(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
 		}
-		if gotFilter.Kind != resources.ResourceKind("fixture.resource") || gotFilter.Limit != 2 {
+		if gotFilter.Kind != fixtureResourceKind || gotFilter.Limit != 2 {
 			t.Fatalf("ListResources() filter = %#v", gotFilter)
 		}
 	})
@@ -600,9 +612,9 @@ func TestBaseHandlersResourceEndpointsUseSharedSemantics(t *testing.T) {
 		ctx, recorder := newResourceRequestContext(
 			t,
 			http.MethodGet,
-			"/api/resources/fixture.resource/demo",
+			fixtureResourceAPIPath("demo"),
 			nil,
-			gin.Params{{Key: "kind", Value: "fixture.resource"}, {Key: "id", Value: "demo"}},
+			gin.Params{{Key: "kind", Value: string(fixtureResourceKind)}, {Key: "id", Value: "demo"}},
 		)
 
 		handlers.GetResource(ctx)
@@ -610,7 +622,7 @@ func TestBaseHandlersResourceEndpointsUseSharedSemantics(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
 		}
-		if gotKind != resources.ResourceKind("fixture.resource") || gotID != "demo" {
+		if gotKind != fixtureResourceKind || gotID != "demo" {
 			t.Fatalf("GetResource() args = kind:%q id:%q", gotKind, gotID)
 		}
 	})
@@ -642,9 +654,9 @@ func TestBaseHandlersResourceEndpointsUseSharedSemantics(t *testing.T) {
 		ctx, recorder := newResourceRequestContext(
 			t,
 			http.MethodPut,
-			"/api/resources/fixture.resource/demo",
+			fixtureResourceAPIPath("demo"),
 			[]byte(`{"scope":{"kind":"global"},"spec":{"enabled":true}}`),
-			gin.Params{{Key: "kind", Value: "fixture.resource"}, {Key: "id", Value: "demo"}},
+			gin.Params{{Key: "kind", Value: string(fixtureResourceKind)}, {Key: "id", Value: "demo"}},
 		)
 
 		handlers.PutResource(ctx)
@@ -652,7 +664,7 @@ func TestBaseHandlersResourceEndpointsUseSharedSemantics(t *testing.T) {
 		if recorder.Code != http.StatusCreated {
 			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusCreated, recorder.Body.String())
 		}
-		if gotDraft.Kind != resources.ResourceKind("fixture.resource") || gotDraft.ID != "demo" {
+		if gotDraft.Kind != fixtureResourceKind || gotDraft.ID != "demo" {
 			t.Fatalf("PutResource() draft = %#v", gotDraft)
 		}
 	})
@@ -675,9 +687,9 @@ func TestBaseHandlersResourceEndpointsUseSharedSemantics(t *testing.T) {
 		ctx, recorder := newResourceRequestContext(
 			t,
 			http.MethodDelete,
-			"/api/resources/fixture.resource/demo",
+			fixtureResourceAPIPath("demo"),
 			[]byte(`{"expected_version":3}`),
-			gin.Params{{Key: "kind", Value: "fixture.resource"}, {Key: "id", Value: "demo"}},
+			gin.Params{{Key: "kind", Value: string(fixtureResourceKind)}, {Key: "id", Value: "demo"}},
 		)
 
 		handlers.DeleteResource(ctx)
@@ -691,7 +703,7 @@ func TestBaseHandlersResourceEndpointsUseSharedSemantics(t *testing.T) {
 				recorder.Body.String(),
 			)
 		}
-		if gotKind != resources.ResourceKind("fixture.resource") || gotID != "demo" || gotVersion != 3 {
+		if gotKind != fixtureResourceKind || gotID != "demo" || gotVersion != 3 {
 			t.Fatalf("DeleteResource() args = kind:%q id:%q expected_version:%d", gotKind, gotID, gotVersion)
 		}
 	})
@@ -720,24 +732,24 @@ func TestBaseHandlersResourceEndpointsHandleUnavailableServicesAndBadRequests(t 
 			{
 				name:   "get",
 				method: http.MethodGet,
-				target: "/api/resources/fixture.resource/demo",
-				params: gin.Params{{Key: "kind", Value: "fixture.resource"}, {Key: "id", Value: "demo"}},
+				target: fixtureResourceAPIPath("demo"),
+				params: gin.Params{{Key: "kind", Value: string(fixtureResourceKind)}, {Key: "id", Value: "demo"}},
 				call:   (*BaseHandlers).GetResource,
 			},
 			{
 				name:   "put",
 				method: http.MethodPut,
-				target: "/api/resources/fixture.resource/demo",
+				target: fixtureResourceAPIPath("demo"),
 				body:   []byte(`{"scope":{"kind":"global"},"spec":{"enabled":true}}`),
-				params: gin.Params{{Key: "kind", Value: "fixture.resource"}, {Key: "id", Value: "demo"}},
+				params: gin.Params{{Key: "kind", Value: string(fixtureResourceKind)}, {Key: "id", Value: "demo"}},
 				call:   (*BaseHandlers).PutResource,
 			},
 			{
 				name:   "delete",
 				method: http.MethodDelete,
-				target: "/api/resources/fixture.resource/demo",
+				target: fixtureResourceAPIPath("demo"),
 				body:   []byte(`{"expected_version":1}`),
-				params: gin.Params{{Key: "kind", Value: "fixture.resource"}, {Key: "id", Value: "demo"}},
+				params: gin.Params{{Key: "kind", Value: string(fixtureResourceKind)}, {Key: "id", Value: "demo"}},
 				call:   (*BaseHandlers).DeleteResource,
 			},
 		}
@@ -783,44 +795,44 @@ func TestBaseHandlersResourceEndpointsHandleUnavailableServicesAndBadRequests(t 
 			{
 				name:   "get missing id",
 				method: http.MethodGet,
-				target: "/api/resources/fixture.resource",
-				params: gin.Params{{Key: "kind", Value: "fixture.resource"}},
+				target: fixtureResourceAPIPath(""),
+				params: gin.Params{{Key: "kind", Value: string(fixtureResourceKind)}},
 				call:   (*BaseHandlers).GetResource,
 				want:   http.StatusUnprocessableEntity,
 			},
 			{
 				name:   "put bad json",
 				method: http.MethodPut,
-				target: "/api/resources/fixture.resource/demo",
+				target: fixtureResourceAPIPath("demo"),
 				body:   []byte(`{"scope":`),
-				params: gin.Params{{Key: "kind", Value: "fixture.resource"}, {Key: "id", Value: "demo"}},
+				params: gin.Params{{Key: "kind", Value: string(fixtureResourceKind)}, {Key: "id", Value: "demo"}},
 				call:   (*BaseHandlers).PutResource,
 				want:   http.StatusBadRequest,
 			},
 			{
 				name:   "put invalid scope",
 				method: http.MethodPut,
-				target: "/api/resources/fixture.resource/demo",
+				target: fixtureResourceAPIPath("demo"),
 				body:   []byte(`{"scope":{"kind":"workspace"},"spec":{"enabled":true}}`),
-				params: gin.Params{{Key: "kind", Value: "fixture.resource"}, {Key: "id", Value: "demo"}},
+				params: gin.Params{{Key: "kind", Value: string(fixtureResourceKind)}, {Key: "id", Value: "demo"}},
 				call:   (*BaseHandlers).PutResource,
 				want:   http.StatusUnprocessableEntity,
 			},
 			{
 				name:   "delete bad json",
 				method: http.MethodDelete,
-				target: "/api/resources/fixture.resource/demo",
+				target: fixtureResourceAPIPath("demo"),
 				body:   []byte(`{"expected_version":`),
-				params: gin.Params{{Key: "kind", Value: "fixture.resource"}, {Key: "id", Value: "demo"}},
+				params: gin.Params{{Key: "kind", Value: string(fixtureResourceKind)}, {Key: "id", Value: "demo"}},
 				call:   (*BaseHandlers).DeleteResource,
 				want:   http.StatusBadRequest,
 			},
 			{
 				name:   "delete missing expected version",
 				method: http.MethodDelete,
-				target: "/api/resources/fixture.resource/demo",
+				target: fixtureResourceAPIPath("demo"),
 				body:   []byte(`{"expected_version":0}`),
-				params: gin.Params{{Key: "kind", Value: "fixture.resource"}, {Key: "id", Value: "demo"}},
+				params: gin.Params{{Key: "kind", Value: string(fixtureResourceKind)}, {Key: "id", Value: "demo"}},
 				call:   (*BaseHandlers).DeleteResource,
 				want:   http.StatusUnprocessableEntity,
 			},
@@ -867,8 +879,8 @@ func TestBaseHandlersResourceEndpointsHandleUnavailableServicesAndBadRequests(t 
 			{
 				name:   "get missing",
 				method: http.MethodGet,
-				target: "/api/resources/fixture.resource/demo",
-				params: gin.Params{{Key: "kind", Value: "fixture.resource"}, {Key: "id", Value: "demo"}},
+				target: fixtureResourceAPIPath("demo"),
+				params: gin.Params{{Key: "kind", Value: string(fixtureResourceKind)}, {Key: "id", Value: "demo"}},
 				call:   (*BaseHandlers).GetResource,
 				want:   http.StatusNotFound,
 				err:    resources.ErrNotFound,
@@ -883,9 +895,9 @@ func TestBaseHandlersResourceEndpointsHandleUnavailableServicesAndBadRequests(t 
 			{
 				name:   "put payload too large",
 				method: http.MethodPut,
-				target: "/api/resources/fixture.resource/demo",
+				target: fixtureResourceAPIPath("demo"),
 				body:   []byte(`{"scope":{"kind":"global"},"spec":{"enabled":true}}`),
-				params: gin.Params{{Key: "kind", Value: "fixture.resource"}, {Key: "id", Value: "demo"}},
+				params: gin.Params{{Key: "kind", Value: string(fixtureResourceKind)}, {Key: "id", Value: "demo"}},
 				call:   (*BaseHandlers).PutResource,
 				want:   http.StatusRequestEntityTooLarge,
 				err:    resources.ErrPayloadTooLarge,
@@ -900,9 +912,9 @@ func TestBaseHandlersResourceEndpointsHandleUnavailableServicesAndBadRequests(t 
 			{
 				name:   "delete rate limited",
 				method: http.MethodDelete,
-				target: "/api/resources/fixture.resource/demo",
+				target: fixtureResourceAPIPath("demo"),
 				body:   []byte(`{"expected_version":3}`),
-				params: gin.Params{{Key: "kind", Value: "fixture.resource"}, {Key: "id", Value: "demo"}},
+				params: gin.Params{{Key: "kind", Value: string(fixtureResourceKind)}, {Key: "id", Value: "demo"}},
 				call:   (*BaseHandlers).DeleteResource,
 				want:   http.StatusTooManyRequests,
 				err:    resources.ErrRateLimited,
@@ -955,8 +967,8 @@ func TestParseResourceFilterRequiresContext(t *testing.T) {
 func TestParseResourcePathRejectsMissingID(t *testing.T) {
 	t.Parallel()
 
-	ctx := newResourceTestContext(t, http.MethodGet, "/api/resources/fixture.resource")
-	ctx.Params = gin.Params{{Key: "kind", Value: "fixture.resource"}}
+	ctx := newResourceTestContext(t, http.MethodGet, fixtureResourceAPIPath(""))
+	ctx.Params = gin.Params{{Key: "kind", Value: string(fixtureResourceKind)}}
 
 	_, _, err := parseResourcePath(ctx)
 	if err == nil {

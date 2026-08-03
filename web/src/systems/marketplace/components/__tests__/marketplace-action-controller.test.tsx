@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 
+import { ExtensionsApiError } from "@/systems/extensions/adapters/extensions-api";
 import type { MarketplaceInstalledItem } from "../../hooks/use-marketplace-kind-page";
 import type { MarketplaceListing } from "../../types";
 import { marketplaceDetails, marketplaceListings } from "../../mocks";
@@ -164,7 +165,7 @@ function ConcurrentActionHarness({
   );
 }
 
-function InstalledResultsHarness({ item }: { item: MarketplaceInstalledItem }) {
+function InstalledExtensionResultsHarness({ item }: { item: MarketplaceInstalledItem }) {
   const controller = useMarketplaceActionController("ws-a");
   const page: MarketplaceKindResultsProps["page"] = {
     clearSearch: vi.fn(),
@@ -183,13 +184,16 @@ function InstalledResultsHarness({ item }: { item: MarketplaceInstalledItem }) {
   };
 
   return (
-    <MarketplaceKindResults
-      actions={controller}
-      config={marketplaceKindConfig("extension")}
-      kind="extension"
-      onEditMCP={vi.fn()}
-      page={page}
-    />
+    <>
+      <MarketplaceKindResults
+        actions={controller}
+        config={marketplaceKindConfig("extension")}
+        kind="extension"
+        onEditMCP={vi.fn()}
+        page={page}
+      />
+      {controller.dialogs}
+    </>
   );
 }
 
@@ -372,7 +376,7 @@ describe("useMarketplaceActionController", () => {
     expect(mocks.toastSuccess).toHaveBeenCalledWith("github removed · restart required");
   });
 
-  it("Should track installed item actions by their own installed identity", async () => {
+  it("Should track installed extension actions by their installed identity", async () => {
     const user = userEvent.setup();
     let resolveFirst: (() => void) | undefined;
     let resolveSecond: (() => void) | undefined;
@@ -422,7 +426,7 @@ describe("useMarketplaceActionController", () => {
     );
   });
 
-  it("Should disable the real installed card while its update is pending", async () => {
+  it("Should disable the installed extension card while its update is pending", async () => {
     const user = userEvent.setup();
     let resolveUpdate: (() => void) | undefined;
     mocks.updateExtension.mockReturnValueOnce(
@@ -441,7 +445,7 @@ describe("useMarketplaceActionController", () => {
 
     render(
       <QueryClientProvider client={new QueryClient()}>
-        <InstalledResultsHarness item={item} />
+        <InstalledExtensionResultsHarness item={item} />
       </QueryClientProvider>
     );
 
@@ -539,6 +543,93 @@ describe("useMarketplaceActionController", () => {
       })
     );
     expect(mocks.installExtension).not.toHaveBeenCalled();
+  });
+
+  it("Should resume a refused quick update with the exact network digest", async () => {
+    const user = userEvent.setup();
+    const digest = "sha256:quick-update";
+    mocks.updateExtension.mockRejectedValueOnce(
+      new ExtensionsApiError("network confirmation required", 409, "daemon", {
+        code: "extension_network_confirmation_required",
+        currentDigest: digest,
+      })
+    );
+    const entry: MarketplaceListing = {
+      ...marketplaceListings.extension[0]!,
+      installed: true,
+      installed_name: "manifest-otel-bridge",
+      name: "OpenTelemetry Bridge",
+      update_available: true,
+    };
+    setup(entry);
+
+    await user.click(screen.getByRole("button", { name: "Run action" }));
+    expect(await screen.findByTestId("extension-network-confirm-dialog")).toBeInTheDocument();
+    expect(mocks.updateExtension).toHaveBeenCalledWith({
+      body: { allow_unverified: false, version: "0.6.0" },
+      name: "manifest-otel-bridge",
+    });
+
+    await user.click(screen.getByTestId("extension-network-confirm-accept"));
+    await waitFor(() =>
+      expect(mocks.updateExtension).toHaveBeenLastCalledWith({
+        body: {
+          allow_unverified: false,
+          confirm_network_digest: digest,
+          version: "0.6.0",
+        },
+        name: "manifest-otel-bridge",
+      })
+    );
+    await waitFor(() =>
+      expect(screen.queryByTestId("extension-network-confirm-dialog")).not.toBeInTheDocument()
+    );
+  });
+
+  it("Should resume a refused installed-card enable with the exact network digest", async () => {
+    const user = userEvent.setup();
+    const digest = "sha256:quick-enable";
+    mocks.toggleExtension.mockRejectedValueOnce(
+      new ExtensionsApiError("network confirmation required", 409, "daemon", {
+        code: "extension_network_confirmation_required",
+        currentDigest: digest,
+      })
+    );
+    const item: MarketplaceInstalledItem = {
+      entry: {
+        ...marketplaceListings.extension[0]!,
+        installed: true,
+        installed_name: "dep-kit-ops",
+        name: "Dependency Kit Ops",
+        update_available: false,
+      },
+      extensionEnabled: false,
+    };
+
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <InstalledExtensionResultsHarness item={item} />
+      </QueryClientProvider>
+    );
+
+    await user.click(screen.getByRole("switch", { name: "Enable Dependency Kit Ops" }));
+    expect(await screen.findByTestId("extension-network-confirm-dialog")).toBeInTheDocument();
+    expect(mocks.toggleExtension).toHaveBeenCalledWith({
+      enabled: true,
+      name: "dep-kit-ops",
+    });
+
+    await user.click(screen.getByTestId("extension-network-confirm-accept"));
+    await waitFor(() =>
+      expect(mocks.toggleExtension).toHaveBeenLastCalledWith({
+        confirmNetworkDigest: digest,
+        enabled: true,
+        name: "dep-kit-ops",
+      })
+    );
+    await waitFor(() =>
+      expect(screen.queryByTestId("extension-network-confirm-dialog")).not.toBeInTheDocument()
+    );
   });
 
   it("Should surface acquisition failures and always release pending state", async () => {

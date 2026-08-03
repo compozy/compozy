@@ -49,23 +49,10 @@ func extensionSecretUnsetBundle(item extensionSecretUnsetRecord) outputBundle {
 }
 
 func staleExtensionSecretNames(item ExtensionSecretsRecord) []string {
-	if item.Bindings != nil {
-		stale := make([]string, 0, len(item.Bindings))
-		for _, binding := range item.Bindings {
-			if binding.Stale {
-				stale = append(stale, strings.TrimSpace(binding.EnvName))
-			}
-		}
-		return stale
-	}
-	declared := make(map[string]struct{}, len(item.DeclaredEnv))
-	for _, name := range item.DeclaredEnv {
-		declared[strings.TrimSpace(name)] = struct{}{}
-	}
-	stale := make([]string, 0)
-	for _, name := range item.BoundEnvKeys {
-		if _, ok := declared[strings.TrimSpace(name)]; !ok {
-			stale = append(stale, name)
+	stale := make([]string, 0, len(item.Bindings))
+	for _, binding := range item.Bindings {
+		if binding.Stale {
+			stale = append(stale, strings.TrimSpace(binding.EnvName))
 		}
 	}
 	return stale

@@ -36,10 +36,7 @@ func (s *toolMCPSourceSyncer) syncTools(ctx context.Context, desired map[string]
 			existing,
 			desiredTool.scope,
 			desiredTool.encoded,
-			managedRecordAttribution{
-				owner:  managedDraftOwner(s.actor, desiredTool.owner),
-				source: s.actor.Source.Normalize(),
-			},
+			managedRecordAttributionFor(s.actor, desiredTool.owner),
 		) {
 			delete(currentByID, id)
 			continue
@@ -97,10 +94,7 @@ func (s *toolMCPSourceSyncer) syncMCPServers(
 			existing,
 			desiredServer.scope,
 			desiredServer.encoded,
-			managedRecordAttribution{
-				owner:  managedDraftOwner(s.actor, desiredServer.owner),
-				source: s.actor.Source.Normalize(),
-			},
+			managedRecordAttributionFor(s.actor, desiredServer.owner),
 		) {
 			delete(currentByID, id)
 			continue

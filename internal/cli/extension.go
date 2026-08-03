@@ -2,6 +2,7 @@ package cli
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	extensionpkg "github.com/compozy/compozy/internal/extension"
@@ -17,23 +18,24 @@ const (
 )
 
 const (
-	extensionCapabilitiesValue = "Capabilities"
-	extensionEnabledValue      = "Enabled"
-	extensionHealthValue       = "Health"
-	extensionCapabilitiesKey   = "capabilities"
-	extensionEnabledKey        = "enabled"
-	extensionExtensionKey      = "extension"
-	extensionHealthKey         = "health"
-	extensionMissingEnvKey     = "missing_env"
-	extensionListKey           = "list"
-	extensionSearchQueryValue  = "search <query>"
-	extensionUpdateValue       = "Update"
-	extensionUpdateAvailable   = "available"
-	extensionRuntimeUnknown    = "unknown"
-	extensionDevVerb           = "dev"
-	extensionReloadVerb        = "reload"
-	cliUseEnableName           = "enable <name>"
-	cliUseDisableName          = "disable <name>"
+	extensionCapabilitiesValue      = "Capabilities"
+	extensionEnabledValue           = "Enabled"
+	extensionHealthValue            = "Health"
+	extensionCapabilitiesKey        = "capabilities"
+	extensionEnabledKey             = "enabled"
+	extensionExtensionKey           = "extension"
+	extensionHealthKey              = "health"
+	extensionMissingEnvKey          = "missing_env"
+	extensionListKey                = "list"
+	extensionSearchQueryValue       = "search <query>"
+	extensionUpdateValue            = "Update"
+	extensionUpdateAvailable        = "available"
+	extensionRuntimeUnknown         = "unknown"
+	extensionDevVerb                = "dev"
+	extensionReloadVerb             = "reload"
+	extensionConfirmNetworkFlagName = "confirm-network-requirement"
+	cliUseEnableName                = "enable <name>"
+	cliUseDisableName               = "disable <name>"
 )
 
 type preparedExtensionInstall struct {
@@ -216,7 +218,10 @@ func newExtensionUpdateCommand(deps commandDeps) *cobra.Command {
 				return errors.New("cli: update requires an extension name unless --all is set")
 			}
 			if updateAll && strings.TrimSpace(confirmNetworkDigest) != "" {
-				return errors.New("cli: --confirm-network-requirement applies only to a single extension update")
+				return fmt.Errorf(
+					"cli: --%s applies only to a single extension update",
+					extensionConfirmNetworkFlagName,
+				)
 			}
 			return nil
 		},
@@ -224,16 +229,10 @@ func newExtensionUpdateCommand(deps commandDeps) *cobra.Command {
 			if err := confirmExtensionUnverifiedInstall(cmd, allowUnverified && !checkOnly, yes); err != nil {
 				return err
 			}
-			items, err := updateMarketplaceExtensions(
-				cmd.Context(),
-				deps,
-				args,
-				updateAll,
-				checkOnly,
-				version,
-				allowUnverified,
-				confirmNetworkDigest,
-			)
+			items, err := updateMarketplaceExtensions(cmd.Context(), deps, extensionUpdateOptions{
+				Names: args, All: updateAll, CheckOnly: checkOnly, Version: version,
+				AllowUnverified: allowUnverified, ConfirmNetworkDigest: confirmNetworkDigest,
+			})
 			if err != nil {
 				return err
 			}
@@ -255,7 +254,7 @@ func newExtensionUpdateCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().BoolVar(&yes, yesFlagName, false, "Skip confirmation when using --allow-unverified")
 	cmd.Flags().StringVar(
 		&confirmNetworkDigest,
-		"confirm-network-requirement",
+		extensionConfirmNetworkFlagName,
 		"",
 		"Confirm the candidate extension network requirement digest",
 	)
@@ -280,7 +279,7 @@ func newExtensionEnableCommand(deps commandDeps) *cobra.Command {
 	}
 	command.Flags().StringVar(
 		&confirmNetworkDigest,
-		"confirm-network-requirement",
+		extensionConfirmNetworkFlagName,
 		"",
 		"Confirm the current extension network requirement digest",
 	)

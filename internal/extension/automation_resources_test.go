@@ -34,11 +34,11 @@ agent = "writer"
 prompt = "Handle the event."
 event = "task.completed"
 `)
-		jobs, triggers, err := LoadAutomationResources(rootDir, []string{"automation"})
+		jobs, triggers, err := LoadAutomationResources(rootDir, "kit", []string{"automation"})
 		if err != nil {
 			t.Fatalf("LoadAutomationResources() error = %v", err)
 		}
-		if len(jobs) != 1 || jobs[0].Name != "daily" || jobs[0].Enabled == nil || !*jobs[0].Enabled {
+		if len(jobs) != 1 || jobs[0].Name != "kit/daily" || !jobs[0].Enabled {
 			t.Fatalf("jobs = %#v, want enabled daily job", jobs)
 		}
 		if jobs[0].Schedule.Mode != "cron" || jobs[0].Schedule.Expr != "0 * * * *" {
@@ -51,8 +51,7 @@ event = "task.completed"
 			!reflect.DeepEqual(jobs[0].FireLimit, automationpkg.DefaultFireLimitConfig()) {
 			t.Fatalf("job defaults retry=%#v fire_limit=%#v", jobs[0].Retry, jobs[0].FireLimit)
 		}
-		if len(triggers) != 1 || triggers[0].Name != "on-task" || triggers[0].Enabled == nil ||
-			!*triggers[0].Enabled {
+		if len(triggers) != 1 || triggers[0].Name != "kit/on-task" || !triggers[0].Enabled {
 			t.Fatalf("triggers = %#v, want enabled on-task trigger", triggers)
 		}
 		if !reflect.DeepEqual(triggers[0].Retry, automationpkg.DefaultRetryConfig()) ||
@@ -75,11 +74,11 @@ enabled = false
 mode = "every"
 interval = "1h"
 `)
-		jobs, _, err := LoadAutomationResources(rootDir, []string{"automation/jobs.toml"})
+		jobs, _, err := LoadAutomationResources(rootDir, "kit", []string{"automation/jobs.toml"})
 		if err != nil {
 			t.Fatalf("LoadAutomationResources() error = %v", err)
 		}
-		if len(jobs) != 1 || jobs[0].Enabled == nil || *jobs[0].Enabled {
+		if len(jobs) != 1 || jobs[0].Enabled {
 			t.Fatalf("jobs = %#v, want explicitly disabled job", jobs)
 		}
 	})
@@ -126,7 +125,7 @@ expr = "not-a-cron"
 
 			rootDir := t.TempDir()
 			writeAutomationResource(t, rootDir, "automation/main.toml", tc.body)
-			_, _, err := LoadAutomationResources(rootDir, []string{"automation/main.toml"})
+			_, _, err := LoadAutomationResources(rootDir, "kit", []string{"automation/main.toml"})
 			if !errors.Is(err, ErrManifestInvalid) || !strings.Contains(err.Error(), "main.toml") ||
 				!strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("LoadAutomationResources() error = %v, want path and %q", err, tc.want)
@@ -153,7 +152,7 @@ interval = "1h"
 `
 		writeAutomationResource(t, rootDir, "automation/alpha.toml", body)
 		writeAutomationResource(t, rootDir, "automation/beta.toml", body)
-		_, _, err := LoadAutomationResources(rootDir, []string{"automation"})
+		_, _, err := LoadAutomationResources(rootDir, "kit", []string{"automation"})
 		if !errors.Is(err, ErrManifestInvalid) || !strings.Contains(err.Error(), "alpha.toml") ||
 			!strings.Contains(err.Error(), "beta.toml") || !strings.Contains(err.Error(), "daily") {
 			t.Fatalf("LoadAutomationResources() error = %v, want both files and duplicate name", err)
@@ -169,8 +168,8 @@ func TestValidateAutomationAgentTargets(t *testing.T) {
 
 		agents := []StaticAgent{{Agent: compozyconfig.AgentDef{Name: "writer"}}}
 		if err := validateAutomationAgentTargets(
-			[]ExtensionJob{{Name: "daily", Agent: "writer"}},
-			[]ExtensionTrigger{{Name: "on-task", Agent: "writer"}},
+			[]automationpkg.Job{{Name: "kit/daily", AgentName: "writer"}},
+			[]automationpkg.Trigger{{Name: "kit/on-task", AgentName: "writer"}},
 			agents,
 		); err != nil {
 			t.Fatalf("validateAutomationAgentTargets() error = %v", err)
@@ -181,7 +180,7 @@ func TestValidateAutomationAgentTargets(t *testing.T) {
 		t.Parallel()
 
 		err := validateAutomationAgentTargets(
-			[]ExtensionJob{{Name: "daily", Agent: "authored"}},
+			[]automationpkg.Job{{Name: "kit/daily", AgentName: "authored"}},
 			nil,
 			[]StaticAgent{{Agent: compozyconfig.AgentDef{Name: "writer"}}},
 		)
@@ -196,7 +195,7 @@ func TestValidateAutomationAgentTargets(t *testing.T) {
 
 		err := validateAutomationAgentTargets(
 			nil,
-			[]ExtensionTrigger{{Name: "on-task", Agent: "other-extension-agent"}},
+			[]automationpkg.Trigger{{Name: "kit/on-task", AgentName: "other-extension-agent"}},
 			[]StaticAgent{{Agent: compozyconfig.AgentDef{Name: "writer"}}},
 		)
 		if !errors.Is(err, ErrManifestInvalid) || !strings.Contains(err.Error(), "other-extension-agent") ||
@@ -209,9 +208,12 @@ func TestValidateAutomationAgentTargets(t *testing.T) {
 func TestManagerMaterializesAutomationResources(t *testing.T) {
 	t.Parallel()
 
-	rootDir := t.TempDir()
-	writeStaticAgentFixture(t, rootDir, "writer", false)
-	writeAutomationResource(t, rootDir, "automation/main.toml", `
+	t.Run("Should materialize namespaced package automation resources", func(t *testing.T) {
+		t.Parallel()
+
+		rootDir := t.TempDir()
+		writeStaticAgentFixture(t, rootDir, "writer", false)
+		writeAutomationResource(t, rootDir, "automation/main.toml", `
 [[jobs]]
 name = "disabled-job"
 agent = "writer"
@@ -227,32 +229,35 @@ agent = "writer"
 prompt = "Handle it."
 event = "task.completed"
 `)
-	managed := &managedExtension{
-		info:    ExtensionInfo{Name: "kit"},
-		rootDir: rootDir,
-		manifest: &Manifest{Resources: ResourcesConfig{
-			Agents: []string{"agents"}, Automation: []string{"automation"},
-		}},
-	}
-	manager := NewManager(nil)
-	agents, err := manager.loadAgentResources(managed)
-	if err != nil {
-		t.Fatalf("loadAgentResources() error = %v", err)
-	}
-	jobs, triggers, err := manager.loadAutomationResources(managed, agents)
-	if err != nil {
-		t.Fatalf("loadAutomationResources() error = %v", err)
-	}
-	if len(jobs) != 1 || jobs[0].Name != "kit/disabled-job" ||
-		jobs[0].ID != "extension/kit/automation.job/disabled-job" || jobs[0].Enabled ||
-		jobs[0].Scope != automationpkg.AutomationScopeGlobal || jobs[0].Source != automationpkg.JobSourcePackage {
-		t.Fatalf("materialized jobs = %#v, want disabled namespaced package job", jobs)
-	}
-	if len(triggers) != 1 || triggers[0].Name != "kit/on-task" ||
-		triggers[0].ID != "extension/kit/automation.trigger/on-task" || !triggers[0].Enabled ||
-		triggers[0].Scope != automationpkg.AutomationScopeGlobal || triggers[0].Source != automationpkg.JobSourcePackage {
-		t.Fatalf("materialized triggers = %#v, want enabled namespaced package trigger", triggers)
-	}
+		managed := &managedExtension{
+			info:    ExtensionInfo{Name: "kit"},
+			rootDir: rootDir,
+			manifest: &Manifest{Resources: ResourcesConfig{
+				Agents: []string{"agents"}, Automation: []string{"automation"},
+			}},
+		}
+		manager := NewManager(nil)
+		agents, err := manager.loadAgentResources(managed)
+		if err != nil {
+			t.Fatalf("loadAgentResources() error = %v", err)
+		}
+		jobs, triggers, err := manager.loadAutomationResources(managed, agents)
+		if err != nil {
+			t.Fatalf("loadAutomationResources() error = %v", err)
+		}
+		if len(jobs) != 1 || jobs[0].Name != "kit/disabled-job" ||
+			jobs[0].ID != "extension/kit/automation.job/disabled-job" || jobs[0].Enabled ||
+			jobs[0].Scope != automationpkg.AutomationScopeGlobal ||
+			jobs[0].Source != automationpkg.JobSourcePackage {
+			t.Fatalf("materialized jobs = %#v, want disabled namespaced package job", jobs)
+		}
+		if len(triggers) != 1 || triggers[0].Name != "kit/on-task" ||
+			triggers[0].ID != "extension/kit/automation.trigger/on-task" || !triggers[0].Enabled ||
+			triggers[0].Scope != automationpkg.AutomationScopeGlobal ||
+			triggers[0].Source != automationpkg.JobSourcePackage {
+			t.Fatalf("materialized triggers = %#v, want enabled namespaced package trigger", triggers)
+		}
+	})
 }
 
 func writeAutomationResource(t *testing.T, rootDir, relativePath, body string) {

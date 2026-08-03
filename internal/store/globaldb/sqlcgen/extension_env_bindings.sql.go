@@ -62,33 +62,17 @@ func (q *Queries) DeleteExtensionEnvBindings(ctx context.Context, arg DeleteExte
 	return result.RowsAffected()
 }
 
-const getExtensionEnvBinding = `-- name: GetExtensionEnvBinding :one
-SELECT extension_name, workspace_id, env_name, secret_ref, kind, created_at, updated_at
-FROM extension_env_bindings
-WHERE extension_name = ?1
-  AND workspace_id = ?2
-  AND env_name = ?3
+const deleteExtensionEnvBindingsByWorkspace = `-- name: DeleteExtensionEnvBindingsByWorkspace :execrows
+DELETE FROM extension_env_bindings
+WHERE workspace_id = ?1
 `
 
-type GetExtensionEnvBindingParams struct {
-	ExtensionName string `json:"extension_name"`
-	WorkspaceID   string `json:"workspace_id"`
-	EnvName       string `json:"env_name"`
-}
-
-func (q *Queries) GetExtensionEnvBinding(ctx context.Context, arg GetExtensionEnvBindingParams) (ExtensionEnvBinding, error) {
-	row := q.db.QueryRowContext(ctx, getExtensionEnvBinding, arg.ExtensionName, arg.WorkspaceID, arg.EnvName)
-	var i ExtensionEnvBinding
-	err := row.Scan(
-		&i.ExtensionName,
-		&i.WorkspaceID,
-		&i.EnvName,
-		&i.SecretRef,
-		&i.Kind,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
+func (q *Queries) DeleteExtensionEnvBindingsByWorkspace(ctx context.Context, workspaceID string) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteExtensionEnvBindingsByWorkspace, workspaceID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const listExtensionEnvBindings = `-- name: ListExtensionEnvBindings :many
@@ -125,6 +109,36 @@ func (q *Queries) ListExtensionEnvBindings(ctx context.Context, arg ListExtensio
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listExtensionEnvSecretRefsByWorkspace = `-- name: ListExtensionEnvSecretRefsByWorkspace :many
+SELECT DISTINCT secret_ref
+FROM extension_env_bindings
+WHERE workspace_id = ?1
+ORDER BY secret_ref ASC
+`
+
+func (q *Queries) ListExtensionEnvSecretRefsByWorkspace(ctx context.Context, workspaceID string) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listExtensionEnvSecretRefsByWorkspace, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var secret_ref string
+		if err := rows.Scan(&secret_ref); err != nil {
+			return nil, err
+		}
+		items = append(items, secret_ref)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err

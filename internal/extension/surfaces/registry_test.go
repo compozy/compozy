@@ -100,10 +100,23 @@ func TestAllAndPublishableKindsReturnClonedStaticRegistry(t *testing.T) {
 		t.Fatal("Lookup().LegalScopes mutated through All() clone")
 	}
 
-	publishable := PublishableKinds()
-	if len(publishable) != 8 {
-		t.Fatalf("PublishableKinds() len = %d, want 8", len(publishable))
-	}
+	t.Run("Should return the exact publishable kind identities", func(t *testing.T) {
+		t.Parallel()
+
+		want := []resources.ResourceKind{
+			resources.ResourceKind("agent"),
+			resources.ResourceKind("automation.job"),
+			resources.ResourceKind("automation.trigger"),
+			resources.ResourceKind("hook.binding"),
+			resources.ResourceKind("mcp_server"),
+			resources.ResourceKind("skill"),
+			resources.ResourceKind("tool"),
+			resources.ResourceKind("window_layout"),
+		}
+		if publishable := PublishableKinds(); !slices.Equal(publishable, want) {
+			t.Fatalf("PublishableKinds() = %#v, want %#v", publishable, want)
+		}
+	})
 }
 
 func TestResolveManifestRequestAllowsEmptyRequest(t *testing.T) {

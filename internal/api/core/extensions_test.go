@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"reflect"
 	"strings"
@@ -561,6 +562,7 @@ func TestExtensionStatusCodeMapsDomainErrors(t *testing.T) {
 		{name: "Should map a missing development link to conflict", err: extensionpkg.ErrExtensionNotDevLinked, want: http.StatusConflict},
 		{name: "Should map an invalid generation to bad request", err: extensionpkg.ErrExtensionGenerationInvalid, want: http.StatusBadRequest},
 		{name: "Should map cross-workspace access to forbidden", err: extensionpkg.ErrExtensionWorkspaceDenied, want: http.StatusForbidden},
+		{name: "Should map denied extension writes to forbidden", err: taskpkg.ErrPermissionDenied, want: http.StatusForbidden},
 		{name: "Should map unavailable marketplace sources to unavailable", err: extensionpkg.ErrMarketplaceSourceUnavailable, want: http.StatusServiceUnavailable},
 		{name: "Should map an unavailable git binary to unavailable", err: registrygit.ErrGitUnavailable, want: http.StatusServiceUnavailable},
 		{name: "Should map invalid search cursors to bad request", err: extensionpkg.ErrExtensionSearchInvalid, want: http.StatusBadRequest},
@@ -599,7 +601,11 @@ func TestExtensionKitHandlersReturnDedicatedPayloads(t *testing.T) {
 			},
 		}
 		preview := contract.ExtensionEnablePreviewPayload{
-			Extension: "kit", WouldPublish: inventory.Items, AutomationStarting: []string{"kit/daily"},
+			Extension: "kit",
+			Changes: []contract.ExtensionKitChangePayload{{
+				Kind: "agent", ID: "agent/kit/writer", Name: "writer", Change: contract.ExtensionKitChangeChanged,
+			}},
+			AutomationStarting: []string{"kit/daily"},
 		}
 		service := extensionServiceStub{
 			inventoryFn: func(_ context.Context, name string) (contract.ExtensionInventoryPayload, error) {
@@ -620,23 +626,26 @@ func TestExtensionKitHandlersReturnDedicatedPayloads(t *testing.T) {
 		engine.GET("/extensions/:name/inventory", handlers.ExtensionInventory)
 		engine.GET("/extensions/:name/preview", handlers.PreviewExtensionEnable)
 		for _, testCase := range []struct {
+			name string
 			path string
 			want any
 		}{
-			{path: "/extensions/kit/inventory", want: inventory},
-			{path: "/extensions/kit/preview", want: preview},
+			{name: "Should return the inventory payload", path: "/extensions/kit/inventory", want: inventory},
+			{name: "Should return the enable preview payload", path: "/extensions/kit/preview", want: preview},
 		} {
-			response := performRequest(t, engine, http.MethodGet, testCase.path, nil)
-			if response.Code != http.StatusOK {
-				t.Fatalf("GET %s status = %d; body=%s", testCase.path, response.Code, response.Body.String())
-			}
-			got, err := json.Marshal(testCase.want)
-			if err != nil {
-				t.Fatalf("json.Marshal(want) error = %v", err)
-			}
-			if strings.TrimSpace(response.Body.String()) != string(got) {
-				t.Fatalf("GET %s body = %s, want %s", testCase.path, response.Body.String(), got)
-			}
+			t.Run(testCase.name, func(t *testing.T) {
+				response := performRequest(t, engine, http.MethodGet, testCase.path, nil)
+				if response.Code != http.StatusOK {
+					t.Fatalf("GET %s status = %d; body=%s", testCase.path, response.Code, response.Body.String())
+				}
+				got, err := json.Marshal(testCase.want)
+				if err != nil {
+					t.Fatalf("json.Marshal(want) error = %v", err)
+				}
+				if strings.TrimSpace(response.Body.String()) != string(got) {
+					t.Fatalf("GET %s body = %s, want %s", testCase.path, response.Body.String(), got)
+				}
+			})
 		}
 	})
 
@@ -681,6 +690,42 @@ func TestExtensionKitHandlersReturnDedicatedPayloads(t *testing.T) {
 		if strings.Contains(response.Body.String(), "bundles") ||
 			strings.Contains(string(mustJSONMarshal(t, got.Extension)), "automation_started") {
 			t.Fatalf("enable response leaked removed/status-only fields: %s", response.Body.String())
+		}
+	})
+
+	t.Run("Should accept an empty enable body without Content-Length", func(t *testing.T) {
+		t.Parallel()
+
+		called := false
+		service := extensionServiceStub{enableFn: func(
+			_ context.Context,
+			name string,
+			req contract.EnableExtensionRequest,
+			_ taskpkg.ActorContext,
+		) (contract.ExtensionEnableResult, error) {
+			called = true
+			if name != "kit" || req != (contract.EnableExtensionRequest{}) {
+				t.Fatalf("Enable() name=%q req=%#v, want kit with empty request", name, req)
+			}
+			return contract.ExtensionEnableResult{Extension: contract.ExtensionPayload{Name: name, Enabled: true}}, nil
+		}}
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{Extensions: service})
+		engine := gin.New()
+		engine.POST("/extensions/:name/enable", handlers.EnableExtension)
+		request := httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodPost,
+			"/extensions/kit/enable",
+			strings.NewReader(""),
+		)
+		request.ContentLength = -1
+		response := httptest.NewRecorder()
+		engine.ServeHTTP(response, request)
+		if response.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200; body=%s", response.Code, response.Body.String())
+		}
+		if !called {
+			t.Fatal("Enable() was not called")
 		}
 	})
 }

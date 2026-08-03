@@ -1343,77 +1343,131 @@ func TestCLINetworkDirectRetryAndResumeIntegration(t *testing.T) {
 
 func TestExtensionCommandRoundTripIntegration(t *testing.T) {
 	t.Parallel()
+	t.Run("Should round-trip extension inventory preview and network consent", func(t *testing.T) {
+		t.Parallel()
 
-	h := newIntegrationHarness(t)
-	h.runner.cfg.Extensions.Trust.AllowUnverified = true
-	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
-	defer func() {
-		_, _, _ = executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json")
-		_ = h.runner.waitForExit()
-	}()
+		h := newIntegrationHarness(t)
+		h.runner.cfg.Extensions.Trust.AllowUnverified = true
+		mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
+		defer func() {
+			if _, _, err := executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json"); err != nil {
+				t.Errorf("daemon stop cleanup error = %v", err)
+			}
+			if err := h.runner.waitForExit(); err != nil {
+				t.Errorf("waitForExit() cleanup error = %v", err)
+			}
+		}()
 
-	dir := writeExtensionFixture(t, "integration-ext", extensionFixtureOptions{})
+		dir := writeExtensionFixture(t, "integration-ext", extensionFixtureOptions{})
+		writeExtensionManifest(
+			t,
+			filepath.Join(dir, "extension.toml"),
+			extensionFixtureManifest("integration-ext", extensionFixtureOptions{})+`
 
-	installOut, _, err := executeRootCommand(
-		t,
-		h.deps,
-		"extension",
-		"install",
-		dir,
-		"--allow-unverified",
-		"--yes",
-		"-o",
-		"json",
-	)
-	if err != nil {
-		t.Fatalf("extension install error = %v", err)
-	}
-	var installed ExtensionRecord
-	if err := json.Unmarshal([]byte(installOut), &installed); err != nil {
-		t.Fatalf("json.Unmarshal(extension install) error = %v", err)
-	}
-	if installed.Name != "integration-ext" || installed.State != "active" || !installed.DaemonRunning {
-		t.Fatalf("installed extension = %#v, want active daemon-backed extension", installed)
-	}
+[network_participation]
+required = true
+mode = "live"
+channel_scopes = ["team/*"]
+`,
+		)
 
-	listOut, _, err := executeRootCommand(t, h.deps, "extension", "list", "-o", "json")
-	if err != nil {
-		t.Fatalf("extension list error = %v", err)
-	}
-	var listed []ExtensionRecord
-	if err := json.Unmarshal([]byte(listOut), &listed); err != nil {
-		t.Fatalf("json.Unmarshal(extension list) error = %v", err)
-	}
-	if len(listed) != 1 || listed[0].Name != "integration-ext" || listed[0].State != "active" {
-		t.Fatalf("listed extensions = %#v, want one active extension", listed)
-	}
+		installOut, _, err := executeRootCommand(
+			t,
+			h.deps,
+			"extension",
+			"install",
+			dir,
+			"--allow-unverified",
+			"--yes",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("extension install error = %v", err)
+		}
+		var installed ExtensionRecord
+		if err := json.Unmarshal([]byte(installOut), &installed); err != nil {
+			t.Fatalf("json.Unmarshal(extension install) error = %v", err)
+		}
+		if installed.Name != "integration-ext" || installed.State != "disabled" || installed.Enabled ||
+			!installed.DaemonRunning ||
+			installed.NetworkRequirementDigest == "" || !installed.NetworkConfirmationRequired {
+			t.Fatalf("installed extension = %#v, want inert daemon-backed extension awaiting network consent", installed)
+		}
 
-	statusOut, _, err := executeRootCommand(t, h.deps, "extension", "status", "integration-ext", "-o", "json")
-	if err != nil {
-		t.Fatalf("extension status error = %v", err)
-	}
-	var status ExtensionRecord
-	if err := json.Unmarshal([]byte(statusOut), &status); err != nil {
-		t.Fatalf("json.Unmarshal(extension status) error = %v", err)
-	}
-	if status.Name != "integration-ext" || status.State != "active" {
-		t.Fatalf("extension status = %#v, want active extension", status)
-	}
+		listOut, _, err := executeRootCommand(t, h.deps, "extension", "list", "-o", "json")
+		if err != nil {
+			t.Fatalf("extension list error = %v", err)
+		}
+		var listed []ExtensionRecord
+		if err := json.Unmarshal([]byte(listOut), &listed); err != nil {
+			t.Fatalf("json.Unmarshal(extension list) error = %v", err)
+		}
+		if len(listed) != 1 || listed[0].Name != "integration-ext" || listed[0].State != "disabled" {
+			t.Fatalf("listed extensions = %#v, want one inert extension", listed)
+		}
 
-	if _, _, err := executeRootCommand(t, h.deps, "extension", "disable", "integration-ext", "-o", "json"); err != nil {
-		t.Fatalf("extension disable error = %v", err)
-	}
+		statusOut, _, err := executeRootCommand(t, h.deps, "extension", "status", "integration-ext", "-o", "json")
+		if err != nil {
+			t.Fatalf("extension status error = %v", err)
+		}
+		var status ExtensionRecord
+		if err := json.Unmarshal([]byte(statusOut), &status); err != nil {
+			t.Fatalf("json.Unmarshal(extension status) error = %v", err)
+		}
+		if status.Name != "integration-ext" || status.State != "disabled" || !status.NetworkConfirmationRequired {
+			t.Fatalf("extension status = %#v, want inert extension awaiting network consent", status)
+		}
 
-	listOut, _, err = executeRootCommand(t, h.deps, "extension", "list", "-o", "json")
-	if err != nil {
-		t.Fatalf("extension list after disable error = %v", err)
-	}
-	if err := json.Unmarshal([]byte(listOut), &listed); err != nil {
-		t.Fatalf("json.Unmarshal(extension list after disable) error = %v", err)
-	}
-	if len(listed) != 1 || listed[0].State != "disabled" || listed[0].Enabled {
-		t.Fatalf("listed after disable = %#v, want one disabled extension", listed)
-	}
+		inventoryOut := mustExecuteRoot(t, h.deps, "extension", "inventory", "integration-ext", "-o", "json")
+		var inventory ExtensionInventoryRecord
+		if err := json.Unmarshal([]byte(inventoryOut), &inventory); err != nil {
+			t.Fatalf("json.Unmarshal(extension inventory) error = %v", err)
+		}
+		if inventory.Extension != "integration-ext" || inventory.Enabled || len(inventory.Items) != 0 {
+			t.Fatalf("extension inventory = %#v, want disabled empty kit", inventory)
+		}
+
+		previewOut := mustExecuteRoot(t, h.deps, "extension", "preview", "integration-ext", "-o", "json")
+		var preview ExtensionEnablePreviewRecord
+		if err := json.Unmarshal([]byte(previewOut), &preview); err != nil {
+			t.Fatalf("json.Unmarshal(extension preview) error = %v", err)
+		}
+		if preview.Extension != "integration-ext" || preview.NetworkRequirementDigest == "" ||
+			!preview.NetworkConfirmationRequired || len(preview.Changes) != 0 {
+			t.Fatalf("extension preview = %#v, want current network digest and empty kit", preview)
+		}
+
+		_, _, enableErr := executeRootCommand(t, h.deps, "extension", "enable", "integration-ext", "-o", "json")
+		var operationErr *extensionOperationAPIError
+		if !errors.As(enableErr, &operationErr) {
+			t.Fatalf("extension enable error = %v, want structured operation error", enableErr)
+		}
+		operationPayload := operationErr.extensionOperationErrorPayload()
+		if operationPayload.Code != "extension_network_confirmation_required" ||
+			operationPayload.CurrentDigest != preview.NetworkRequirementDigest {
+			t.Fatalf("extension enable error payload = %#v, want preview digest", operationPayload)
+		}
+
+		enableOut := mustExecuteRoot(
+			t,
+			h.deps,
+			"extension",
+			"enable",
+			"integration-ext",
+			"--"+extensionConfirmNetworkFlagName,
+			preview.NetworkRequirementDigest,
+			"-o",
+			"json",
+		)
+		var enabled ExtensionEnableRecord
+		if err := json.Unmarshal([]byte(enableOut), &enabled); err != nil {
+			t.Fatalf("json.Unmarshal(extension enable) error = %v", err)
+		}
+		if !enabled.Extension.Enabled || enabled.Extension.NetworkConfirmationRequired {
+			t.Fatalf("enabled extension = %#v, want enabled with recorded network consent", enabled)
+		}
+	})
 }
 
 func TestSessionEventsFollowIntegration(t *testing.T) {
@@ -3544,9 +3598,29 @@ func (s *integrationExtensionService) Remove(
 func (s *integrationExtensionService) Enable(
 	ctx context.Context,
 	name string,
-	_ contract.EnableExtensionRequest,
+	req contract.EnableExtensionRequest,
 	_ taskpkg.ActorContext,
 ) (contract.ExtensionEnableResult, error) {
+	confirmation, err := s.registry.NetworkConfirmation(extensionpkg.GlobalInstanceKey(name))
+	if err != nil {
+		return contract.ExtensionEnableResult{}, err
+	}
+	if confirmation.Digest != "" &&
+		(strings.TrimSpace(confirmation.ConfirmedBy) == "" || confirmation.ConfirmedAt.IsZero()) {
+		if strings.TrimSpace(req.ConfirmNetworkDigest) != confirmation.Digest {
+			return contract.ExtensionEnableResult{}, &extensionpkg.NetworkConfirmationRequiredError{
+				CurrentDigest: confirmation.Digest,
+			}
+		}
+		if err := s.registry.ConfirmNetworkRequirement(
+			extensionpkg.GlobalInstanceKey(name),
+			confirmation.Digest,
+			"cli-integration",
+			time.Now().UTC(),
+		); err != nil {
+			return contract.ExtensionEnableResult{}, err
+		}
+	}
 	if err := s.registry.Enable(name); err != nil {
 		return contract.ExtensionEnableResult{}, err
 	}
@@ -3585,12 +3659,88 @@ func (s *integrationExtensionService) Status(_ context.Context, name string) (co
 	return extensionpkg.DescribeExtension(ext, true, time.Now().UTC()), nil
 }
 
-func (*integrationExtensionService) Inventory(context.Context, string) (contract.ExtensionInventoryPayload, error) {
-	return contract.ExtensionInventoryPayload{}, nil
+func (s *integrationExtensionService) Inventory(
+	ctx context.Context,
+	name string,
+) (contract.ExtensionInventoryPayload, error) {
+	if err := s.requireEmptyIntegrationExtensionKit(ctx, name); err != nil {
+		return contract.ExtensionInventoryPayload{}, err
+	}
+	status, err := s.Status(ctx, name)
+	if err != nil {
+		return contract.ExtensionInventoryPayload{}, err
+	}
+	return contract.ExtensionInventoryPayload{
+		Extension: status.Name,
+		Enabled:   status.Enabled,
+		Items:     []contract.ExtensionKitItemPayload{},
+	}, nil
 }
 
-func (*integrationExtensionService) Preview(context.Context, string) (contract.ExtensionEnablePreviewPayload, error) {
-	return contract.ExtensionEnablePreviewPayload{}, nil
+func (s *integrationExtensionService) Preview(
+	ctx context.Context,
+	name string,
+) (contract.ExtensionEnablePreviewPayload, error) {
+	if err := s.requireEmptyIntegrationExtensionKit(ctx, name); err != nil {
+		return contract.ExtensionEnablePreviewPayload{}, err
+	}
+	status, err := s.Status(ctx, name)
+	if err != nil {
+		return contract.ExtensionEnablePreviewPayload{}, err
+	}
+	return contract.ExtensionEnablePreviewPayload{
+		Extension:                   status.Name,
+		Changes:                     []contract.ExtensionKitChangePayload{},
+		AgentConflicts:              []string{},
+		MissingEnv:                  append([]string(nil), status.MissingEnv...),
+		AutomationStarting:          []string{},
+		NetworkRequirementDigest:    status.NetworkRequirementDigest,
+		NetworkConfirmationRequired: status.NetworkConfirmationRequired,
+	}, nil
+}
+
+func (s *integrationExtensionService) requireEmptyIntegrationExtensionKit(ctx context.Context, name string) error {
+	extension, err := s.manager.InspectPackageResources(ctx, name)
+	if err != nil {
+		return err
+	}
+	if extension == nil || extension.Manifest == nil {
+		return errors.New("integration extension package inspection returned no manifest")
+	}
+	resources := extension.Manifest.Resources
+	if len(extension.StaticAgents) > 0 || len(extension.Skills) > 0 || len(extension.Loops) > 0 ||
+		len(extension.AutomationJobs) > 0 || len(extension.AutomationTriggers) > 0 || len(extension.Layouts) > 0 ||
+		len(extension.Hooks) > 0 || len(resources.Tools) > 0 || len(resources.MCPServers) > 0 ||
+		len(resources.CommandGroups) > 0 {
+		return errors.New("integration extension kit resources are unsupported")
+	}
+	return nil
+}
+
+func (*integrationExtensionService) ListExtensionSecrets(
+	context.Context,
+	string,
+	taskpkg.ActorContext,
+) (contract.ExtensionSecretsPayload, error) {
+	return contract.ExtensionSecretsPayload{}, errors.New("integration extension secrets are unsupported")
+}
+
+func (*integrationExtensionService) SetExtensionSecrets(
+	context.Context,
+	string,
+	contract.SetExtensionSecretsRequest,
+	taskpkg.ActorContext,
+) (contract.ExtensionSecretsPayload, error) {
+	return contract.ExtensionSecretsPayload{}, errors.New("integration extension secrets are unsupported")
+}
+
+func (*integrationExtensionService) DeleteExtensionSecret(
+	context.Context,
+	string,
+	string,
+	taskpkg.ActorContext,
+) error {
+	return errors.New("integration extension secrets are unsupported")
 }
 
 func (s *integrationExtensionService) Provenance(

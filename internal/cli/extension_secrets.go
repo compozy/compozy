@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -13,6 +14,55 @@ import (
 )
 
 const extensionSecretValueStdinFlag = "value-stdin"
+
+type extensionSecretReader struct {
+	input        io.Reader
+	output       io.Writer
+	isTerminal   func(io.Reader) bool
+	readPassword func(int) ([]byte, error)
+}
+
+func newExtensionSecretReader(
+	input io.Reader,
+	output io.Writer,
+	isTerminal func(io.Reader) bool,
+) *extensionSecretReader {
+	return &extensionSecretReader{
+		input: input, output: output, isTerminal: isTerminal, readPassword: term.ReadPassword,
+	}
+}
+
+func (r *extensionSecretReader) Read(envName string) (string, error) {
+	if r.isTerminal == nil || !r.isTerminal(r.input) {
+		return "", errors.New("cli: --value-stdin is required when stdin is not a terminal")
+	}
+	file, ok := r.input.(*os.File)
+	if !ok {
+		return "", errors.New("cli: terminal extension secret input must be an operating-system file")
+	}
+	if _, err := fmt.Fprintf(r.output, "%s: ", envName); err != nil {
+		return "", fmt.Errorf("cli: write extension secret prompt: %w", err)
+	}
+	value, readErr := r.readPassword(int(file.Fd()))
+	_, newlineErr := fmt.Fprintln(r.output)
+	if newlineErr != nil {
+		newlineErr = fmt.Errorf("cli: write hidden-input newline: %w", newlineErr)
+	}
+	if readErr != nil {
+		return "", errors.Join(
+			fmt.Errorf("cli: read hidden extension secret %q: %w", envName, readErr),
+			newlineErr,
+		)
+	}
+	if newlineErr != nil {
+		return "", newlineErr
+	}
+	result := strings.TrimRight(string(value), "\r\n")
+	if strings.TrimSpace(result) == "" {
+		return "", fmt.Errorf("cli: extension secret %q requires a non-blank value", envName)
+	}
+	return result, nil
+}
 
 type extensionSecretUnsetRecord struct {
 	EnvName string `json:"env_name"`
@@ -178,31 +228,5 @@ func readExtensionSecretValue(
 	if valueStdin {
 		return readVaultSecretStdin(cmd)
 	}
-	input := cmd.InOrStdin()
-	if deps.inputIsTerminal == nil || !deps.inputIsTerminal(input) {
-		return "", errors.New("cli: --value-stdin is required when stdin is not a terminal")
-	}
-	file, ok := input.(*os.File)
-	if !ok {
-		return "", errors.New("cli: terminal extension secret input must be an operating-system file")
-	}
-	if _, err := fmt.Fprintf(cmd.ErrOrStderr(), "%s: ", envName); err != nil {
-		return "", fmt.Errorf("cli: write extension secret prompt: %w", err)
-	}
-	value, readErr := term.ReadPassword(int(file.Fd()))
-	_, newlineErr := fmt.Fprintln(cmd.ErrOrStderr())
-	if readErr != nil {
-		return "", errors.Join(
-			fmt.Errorf("cli: read hidden extension secret %q: %w", envName, readErr),
-			newlineErr,
-		)
-	}
-	if newlineErr != nil {
-		return "", fmt.Errorf("cli: write hidden-input newline: %w", newlineErr)
-	}
-	result := strings.TrimRight(string(value), "\r\n")
-	if strings.TrimSpace(result) == "" {
-		return "", fmt.Errorf("cli: extension secret %q requires a non-blank value", envName)
-	}
-	return result, nil
+	return newExtensionSecretReader(cmd.InOrStdin(), cmd.ErrOrStderr(), deps.inputIsTerminal).Read(envName)
 }

@@ -213,8 +213,8 @@ func applyMarketplaceExtensionUpdate(
 	installedBy string,
 	trust *MarketplaceTrustEvidence,
 	observeDigestVerification MarketplaceDigestVerificationObserver,
-	preflightCandidate func(ExtensionInfo, *Manifest) error,
-	commitCandidate func(ExtensionInfo, *Manifest) error,
+	preflightCandidate MarketplaceUpdatePreflight,
+	commitCandidate MarketplaceUpdateCommit,
 	reload MutationReload,
 	cleanup marketplaceUpdateCleanup,
 ) (out marketplaceUpdateApplyResult, err error) {
@@ -256,23 +256,22 @@ func applyMarketplaceExtensionUpdate(
 	if err != nil {
 		return marketplaceUpdateApplyResult{}, err
 	}
-	remoteVersion, err := commitMarketplaceUpdateCandidate(
-		ctx,
-		registry,
-		info,
-		installDir,
-		result,
-		manifest,
-		change,
-		slug,
-		registryName,
-		latestVersion,
-		allowUnverified,
-		installedBy,
-		trust,
-		commitCandidate,
-		reload,
-	)
+	remoteVersion, err := commitMarketplaceUpdateCandidate(ctx, &marketplaceUpdateCommitInput{
+		registry:        registry,
+		info:            info,
+		installDir:      installDir,
+		result:          result,
+		manifest:        manifest,
+		change:          change,
+		slug:            slug,
+		registryName:    registryName,
+		latestVersion:   latestVersion,
+		allowUnverified: allowUnverified,
+		installedBy:     installedBy,
+		trust:           trust,
+		commitCandidate: commitCandidate,
+		reload:          reload,
+	})
 	if err != nil {
 		return marketplaceUpdateApplyResult{}, err
 	}

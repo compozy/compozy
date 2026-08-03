@@ -22,7 +22,7 @@ CREATE TABLE extension_env_bindings (
 		workspace_id TEXT NOT NULL DEFAULT '',
 		env_name TEXT NOT NULL,
 		secret_ref TEXT NOT NULL,
-		kind TEXT NOT NULL,
+		kind TEXT NOT NULL CHECK (kind = 'extension_env'),
 		created_at TEXT NOT NULL,
 		updated_at TEXT NOT NULL,
 		PRIMARY KEY (extension_name, workspace_id, env_name)
@@ -30,3 +30,9 @@ CREATE TABLE extension_env_bindings (
 
 CREATE INDEX idx_extension_env_bindings_secret_ref
 	ON extension_env_bindings (secret_ref);
+
+CREATE TRIGGER extension_env_bindings_workspace_delete
+AFTER DELETE ON workspaces
+BEGIN
+	DELETE FROM extension_env_bindings WHERE workspace_id = OLD.id;
+END;

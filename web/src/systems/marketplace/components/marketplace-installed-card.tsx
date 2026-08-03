@@ -46,7 +46,7 @@ function MarketplaceInstalledCard({
   onToggleEnabled,
 }: MarketplaceInstalledCardProps) {
   const { entry } = item;
-  const kind = entry.kind as MarketplaceKind;
+  const kind = entry.kind;
   const confirmation = useMarketplaceInstalledCardConfirmation(() =>
     Promise.resolve(onRemove(item))
   );
@@ -168,10 +168,7 @@ function MarketplaceInstalledCard({
                   View details
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  className="text-danger"
-                  onClick={() => confirmation.openConfirmation("remove")}
-                >
+                <DropdownMenuItem className="text-danger" onClick={confirmation.openConfirmation}>
                   Remove…
                 </DropdownMenuItem>
               </DropdownMenuContent>

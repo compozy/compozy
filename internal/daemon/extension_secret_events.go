@@ -3,8 +3,6 @@ package daemon
 import (
 	"context"
 	"errors"
-	"fmt"
-	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	eventspkg "github.com/compozy/compozy/internal/events"
@@ -38,22 +36,9 @@ func (s *daemonExtensionService) recordExtensionSecretsEvent(
 	boundCount *int,
 ) error {
 	key = key.Normalize()
-	event := extensionpkg.LifecycleEvent{
+	return s.recordCanonicalExtensionLifecycleEvent(ctx, actor, extensionpkg.LifecycleEvent{
 		Type: eventType, ExtensionName: key.Name, WorkspaceID: key.WorkspaceID, BoundCount: boundCount,
-	}
-	fields, err := event.RequiredFields()
-	if err != nil {
-		return err
-	}
-	return s.writeExtensionEvent(
-		ctx,
-		eventType,
-		eventspkg.OutcomeFor(eventType),
-		fmt.Sprintf("%s for extension %s", strings.TrimSpace(eventType), key.Name),
-		fields,
-		string(actor.Actor.Kind.Normalize()),
-		strings.TrimSpace(actor.Actor.Ref),
-	)
+	})
 }
 
 func isExtensionSecretValidationRefusal(err error) bool {

@@ -1,6 +1,7 @@
 package extensionpkg
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -28,7 +29,8 @@ func wrapResourceValidationError(path string, err error) error {
 	if err == nil {
 		return nil
 	}
-	if _, ok := err.(*resourceValidationError); ok {
+	var positioned *resourceValidationError
+	if errors.As(err, &positioned) {
 		return err
 	}
 	return &resourceValidationError{Path: strings.TrimSpace(path), Err: err}

@@ -872,8 +872,8 @@ svg.ic--xs { width: 12px; height: 12px; }
 
 /* ============================================================
    09b · Marketplace listing (/marketplace/all) — kind tabs + filter
-   One surface, four kind panes; tabs mirror the runtime Marketplace
-   route (Skills · MCPs · Extensions · Bundles), hash deep-linked.
+   One surface, three kind panes; tabs mirror the runtime Marketplace
+   route (Skills · MCPs · Extensions), hash deep-linked.
    ============================================================ */
 
 /* toolbar: bottom-border tabs + filter, opposite corners */
@@ -1080,7 +1080,7 @@ svg.ic--xs { width: 12px; height: 12px; }
    Feed-flow diagram, stat strip, dev-cycle spotlight, bridge
    provider grid, detail inventory blocks. Real repo artifacts
    only; bridges carry the alpha maturity label (build-from-
-   source today), bundles keep the honest empty state.
+   source today).
    ============================================================ */
 
 /* hero title — one italic display word, editorial voice */

@@ -187,12 +187,15 @@ func TestEnableDisableExtensionHandlers(t *testing.T) {
 			EnableFn: func(
 				_ context.Context,
 				name string,
+				_ contract.EnableExtensionRequest,
 				_ taskpkg.ActorContext,
-			) (contract.ExtensionPayload, error) {
+			) (contract.ExtensionEnableResult, error) {
 				if name != "ext-a" {
 					t.Fatalf("Enable() name = %q, want ext-a", name)
 				}
-				return contract.ExtensionPayload{Name: name, Enabled: true, State: "active"}, nil
+				return contract.ExtensionEnableResult{
+					Extension: contract.ExtensionPayload{Name: name, Enabled: true, State: "active"},
+				}, nil
 			},
 			DisableFn: func(
 				_ context.Context,

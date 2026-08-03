@@ -100,6 +100,8 @@ func (m *Manager) ApplyJobResourceState(ctx context.Context, plan resources.Proj
 	}
 
 	nextJobs := jobMapFromSlice(typed.jobs)
+	m.resourceOverlayMu.Lock()
+	defer m.resourceOverlayMu.Unlock()
 	if !running {
 		if err := m.pruneJobResourceOverlays(ctx, nextJobs); err != nil {
 			return errors.Join(err, m.shutdownRuntimeComponent(ctx, "scheduler", typed.scheduler))
@@ -116,8 +118,15 @@ func (m *Manager) ApplyJobResourceState(ctx context.Context, plan resources.Proj
 		m.mu.Unlock()
 		return errors.Join(ErrManagerNotRunning, m.shutdownRuntimeComponent(ctx, "scheduler", typed.scheduler))
 	}
+	m.mu.Unlock()
 	if err := m.pruneJobResourceOverlays(ctx, nextJobs); err != nil {
 		return errors.Join(err, m.shutdownRuntimeComponent(ctx, "scheduler", typed.scheduler))
+	}
+
+	m.mu.Lock()
+	if running && !m.running {
+		m.mu.Unlock()
+		return errors.Join(ErrManagerNotRunning, m.shutdownRuntimeComponent(ctx, "scheduler", typed.scheduler))
 	}
 	oldScheduler := m.scheduler
 	m.scheduler = typed.scheduler
@@ -228,6 +237,8 @@ func (m *Manager) ApplyTriggerResourceState(ctx context.Context, plan resources.
 	}
 
 	nextTriggers := triggerMapFromSlice(typed.triggers)
+	m.resourceOverlayMu.Lock()
+	defer m.resourceOverlayMu.Unlock()
 	if !running {
 		if err := m.pruneTriggerResourceOverlays(ctx, nextTriggers); err != nil {
 			return errors.Join(err, m.shutdownRuntimeComponent(ctx, "trigger engine", typed.engine))
@@ -244,8 +255,15 @@ func (m *Manager) ApplyTriggerResourceState(ctx context.Context, plan resources.
 		m.mu.Unlock()
 		return errors.Join(ErrManagerNotRunning, m.shutdownRuntimeComponent(ctx, "trigger engine", typed.engine))
 	}
+	m.mu.Unlock()
 	if err := m.pruneTriggerResourceOverlays(ctx, nextTriggers); err != nil {
 		return errors.Join(err, m.shutdownRuntimeComponent(ctx, "trigger engine", typed.engine))
+	}
+
+	m.mu.Lock()
+	if running && !m.running {
+		m.mu.Unlock()
+		return errors.Join(ErrManagerNotRunning, m.shutdownRuntimeComponent(ctx, "trigger engine", typed.engine))
 	}
 	oldEngine := m.triggers
 	m.triggers = typed.engine

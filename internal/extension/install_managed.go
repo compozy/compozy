@@ -63,6 +63,41 @@ func ManagedInstallPathChecked(homePaths compozyconfig.HomePaths, name string) (
 	return finalDir, nil
 }
 
+// RemoveManagedInstall removes one extension directory after proving its resolved path stays
+// beneath the managed install root.
+func RemoveManagedInstall(homePaths compozyconfig.HomePaths, name string) error {
+	root := ManagedInstallRoot(homePaths)
+	target, err := ManagedInstallPathChecked(homePaths, name)
+	if err != nil {
+		return err
+	}
+	if _, err := os.Lstat(target); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return fmt.Errorf("extension: inspect managed install path %q: %w", target, err)
+	}
+	canonicalRoot, err := canonicalizeInstallPath(root)
+	if err != nil {
+		return fmt.Errorf("extension: resolve managed install root %q: %w", root, err)
+	}
+	canonicalTarget, err := canonicalizeInstallPath(target)
+	if err != nil {
+		return fmt.Errorf("extension: resolve managed install path %q: %w", target, err)
+	}
+	rel, err := filepath.Rel(canonicalRoot, canonicalTarget)
+	if err != nil {
+		return fmt.Errorf("extension: relate managed install path %q to root %q: %w", target, root, err)
+	}
+	if rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
+		return fmt.Errorf("extension: managed install path %q escapes install root", target)
+	}
+	if err := os.RemoveAll(target); err != nil {
+		return fmt.Errorf("extension: remove managed install path %q: %w", target, err)
+	}
+	return nil
+}
+
 // NewManagedInstallStagingDir creates an empty staging directory under the managed extension root.
 func NewManagedInstallStagingDir(homePaths compozyconfig.HomePaths) (string, error) {
 	root := ManagedInstallRoot(homePaths)

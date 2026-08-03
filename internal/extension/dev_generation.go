@@ -104,7 +104,7 @@ func verifyDevGeneration(originPath, generationHash string) (*verifiedDevGenerat
 	networkDigest, err := NetworkParticipationRequirementDigest(manifest.NetworkParticipation)
 	if err != nil {
 		return nil, fmt.Errorf(
-			"%w: digest generation %q network requirement: %v",
+			"%w: digest generation %q network requirement: %w",
 			ErrExtensionGenerationInvalid,
 			hash,
 			err,

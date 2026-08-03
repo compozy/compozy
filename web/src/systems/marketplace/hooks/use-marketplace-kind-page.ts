@@ -219,14 +219,11 @@ function useMarketplaceKindPage(
 
   const marketEntries = scope === "market" ? marketItems : [];
 
-  const inventoryLoading =
-    kind === "skill"
-      ? skillsQuery.isLoading
-      : kind === "extension"
-        ? extensionsQuery.isLoading
-        : kind === "mcp"
-          ? mcpGlobalQuery.isLoading || (Boolean(activeWorkspaceId) && mcpWorkspaceQuery.isLoading)
-          : false;
+  const inventoryLoadingByKind = {
+    extension: extensionsQuery.isLoading,
+    mcp: mcpGlobalQuery.isLoading || (Boolean(activeWorkspaceId) && mcpWorkspaceQuery.isLoading),
+    skill: skillsQuery.isLoading,
+  } satisfies Record<MarketplaceKind, boolean>;
 
   const marketplaceContinuationError = marketQuery.isFetchNextPageError
     ? (marketQuery.error ?? new Error("The next marketplace page could not be loaded."))
@@ -239,15 +236,12 @@ function useMarketplaceKindPage(
   const isLoading =
     scope === "market"
       ? marketQuery.isLoading
-      : marketQuery.isLoading || inventoryLoading || installedCatalogLoading;
-  const inventoryError =
-    kind === "skill"
-      ? (skillsQuery.error ?? null)
-      : kind === "extension"
-        ? (extensionsQuery.error ?? null)
-        : kind === "mcp"
-          ? (mcpGlobalQuery.error ?? mcpWorkspaceQuery.error ?? null)
-          : null;
+      : marketQuery.isLoading || inventoryLoadingByKind[kind] || installedCatalogLoading;
+  const inventoryErrorByKind = {
+    extension: extensionsQuery.error ?? null,
+    mcp: mcpGlobalQuery.error ?? mcpWorkspaceQuery.error ?? null,
+    skill: skillsQuery.error ?? null,
+  } satisfies Record<MarketplaceKind, Error | null>;
   const marketError = marketplaceContinuationError ? null : marketQuery.error;
 
   return {
@@ -284,7 +278,7 @@ function useMarketplaceKindPage(
     error:
       (scope === "market"
         ? marketError
-        : (marketplaceContinuationError ?? inventoryError ?? marketError)) ?? null,
+        : (marketplaceContinuationError ?? inventoryErrorByKind[kind] ?? marketError)) ?? null,
     refetch: () => {
       if (scope === "installed" && marketplaceContinuationError) {
         void marketQuery.fetchNextPage();

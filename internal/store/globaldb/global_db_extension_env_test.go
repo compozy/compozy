@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -14,120 +15,139 @@ import (
 )
 
 func TestExtensionEnvironmentMigration(t *testing.T) {
-	// Keep this full-history fixture serial: migration helpers share a process-wide
-	// lock, and parallel suite contention can exhaust its operation context under -race.
+	t.Run("Should preserve valid extension environment bindings and enforce their ownership kind", func(t *testing.T) {
+		// Keep this full-history fixture serial: migration helpers share a process-wide
+		// lock, and parallel suite contention can exhaust its operation context under -race.
 
-	path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-	legacy, err := sql.Open(sqliteDriverName, path)
-	if err != nil {
-		t.Fatalf("sql.Open(v38 fixture) error = %v", err)
-	}
-	if err := applyGlobalMigrationPrefix(
-		t,
-		legacy,
-		globalMigrationPrefixBefore(t, "00039_schema.sql"),
-	); err != nil {
-		t.Fatalf("Apply(v38 prefix) error = %v", err)
-	}
-	statements := []string{
-		`INSERT INTO extensions (
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		legacy, err := sql.Open(sqliteDriverName, path)
+		if err != nil {
+			t.Fatalf("sql.Open(v38 fixture) error = %v", err)
+		}
+		legacyClosed := false
+		t.Cleanup(func() {
+			if legacyClosed {
+				return
+			}
+			if closeErr := legacy.Close(); closeErr != nil {
+				t.Errorf("Close(v38 fixture cleanup) error = %v", closeErr)
+			}
+		})
+		if err := applyGlobalMigrationPrefix(
+			t,
+			legacy,
+			globalMigrationPrefixBefore(t, "00039_schema.sql"),
+		); err != nil {
+			t.Fatalf("Apply(v38 prefix) error = %v", err)
+		}
+		statements := []string{
+			`INSERT INTO extensions (
 			name, version, source, enabled, manifest_path, installed_at,
 			provides_json, permissions_json, checksum, provenance_json
 		) VALUES (
 			'kit', '1.0.0', 'local', 0, '/tmp/kit/extension.toml',
 			'2026-08-02T12:00:00Z', '[]', '[]', 'checksum-kit', '{}'
 		)`,
-		`INSERT INTO extension_dev_links (
+			`INSERT INTO extension_dev_links (
 			extension_name, workspace_id, origin_path, bundle_generation, linked_at
 		) VALUES (
 			'kit', 'ws-1', '/tmp/kit-dev',
 			'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
 			'2026-08-02T12:01:00Z'
 		)`,
-	}
-	for index, statement := range statements {
-		if _, err := legacy.ExecContext(testutil.Context(t), statement); err != nil {
-			t.Fatalf("seed v38 statement %d error = %v", index+1, err)
 		}
-	}
-	if err := legacy.Close(); err != nil {
-		t.Fatalf("Close(v38 fixture) error = %v", err)
-	}
+		for index, statement := range statements {
+			if _, err := legacy.ExecContext(testutil.Context(t), statement); err != nil {
+				t.Fatalf("seed v38 statement %d error = %v", index+1, err)
+			}
+		}
+		if err := legacy.Close(); err != nil {
+			t.Fatalf("Close(v38 fixture) error = %v", err)
+		}
+		legacyClosed = true
 
-	upgraded, err := openGlobalMigrationUpgrade(t, path)
-	if err != nil {
-		t.Fatalf("OpenGlobalDB(v38 fixture) error = %v", err)
-	}
-	closed := false
-	t.Cleanup(func() {
-		if closed {
-			return
+		upgraded, err := openGlobalMigrationUpgrade(t, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(v38 fixture) error = %v", err)
 		}
-		if closeErr := upgraded.Close(testutil.Context(t)); closeErr != nil {
-			t.Errorf("Close(upgraded fixture cleanup) error = %v", closeErr)
+		closed := false
+		t.Cleanup(func() {
+			if closed {
+				return
+			}
+			if closeErr := upgraded.Close(testutil.Context(t)); closeErr != nil {
+				t.Errorf("Close(upgraded fixture cleanup) error = %v", closeErr)
+			}
+		})
+		for table, where := range map[string]string{
+			"extensions":          "name = 'kit'",
+			"extension_dev_links": "extension_name = 'kit' AND workspace_id = 'ws-1'",
+		} {
+			var digest string
+			var confirmedBy, confirmedAt sql.NullString
+			query := `SELECT network_requirement_digest, network_confirmed_by, network_confirmed_at FROM ` +
+				table + ` WHERE ` + where
+			if err := upgraded.db.QueryRowContext(testutil.Context(t), query).Scan(
+				&digest,
+				&confirmedBy,
+				&confirmedAt,
+			); err != nil {
+				t.Fatalf("query %s confirmation defaults error = %v", table, err)
+			}
+			if digest != "" || confirmedBy.Valid || confirmedAt.Valid {
+				t.Fatalf(
+					"%s confirmation defaults = digest:%q by:%#v at:%#v, want empty/null/null",
+					table,
+					digest,
+					confirmedBy,
+					confirmedAt,
+				)
+			}
 		}
-	})
-	for table, where := range map[string]string{
-		"extensions":          "name = 'kit'",
-		"extension_dev_links": "extension_name = 'kit' AND workspace_id = 'ws-1'",
-	} {
-		var digest string
-		var confirmedBy, confirmedAt sql.NullString
-		query := `SELECT network_requirement_digest, network_confirmed_by, network_confirmed_at FROM ` +
-			table + ` WHERE ` + where
-		if err := upgraded.db.QueryRowContext(testutil.Context(t), query).Scan(
-			&digest,
-			&confirmedBy,
-			&confirmedAt,
-		); err != nil {
-			t.Fatalf("query %s confirmation defaults error = %v", table, err)
-		}
-		if digest != "" || confirmedBy.Valid || confirmedAt.Valid {
-			t.Fatalf(
-				"%s confirmation defaults = digest:%q by:%#v at:%#v, want empty/null/null",
-				table,
-				digest,
-				confirmedBy,
-				confirmedAt,
-			)
-		}
-	}
-	insertBinding := `INSERT INTO extension_env_bindings (
+		insertBinding := `INSERT INTO extension_env_bindings (
 		extension_name, workspace_id, env_name, secret_ref, kind, created_at, updated_at
 	) VALUES ('kit', 'ws-1', 'API_KEY', 'vault:extensions/ws/ws-1/kit/env/API_KEY',
 	'extension_env', '2026-08-02T12:02:00Z', '2026-08-02T12:02:00Z')`
-	if _, err := upgraded.db.ExecContext(testutil.Context(t), insertBinding); err != nil {
-		t.Fatalf("insert migrated binding error = %v", err)
-	}
-	if _, err := upgraded.db.ExecContext(testutil.Context(t), insertBinding); err == nil {
-		t.Fatal("duplicate migrated binding error = nil, want composite primary-key rejection")
-	}
-	status, err := store.Status(testutil.Context(t), upgraded.db, MigrationStream())
-	if err != nil {
-		t.Fatalf("Status(upgraded fixture) error = %v", err)
-	}
-	assertCompleteMigrationStream(t, status, MigrationStream())
+		if _, err := upgraded.db.ExecContext(testutil.Context(t), insertBinding); err != nil {
+			t.Fatalf("insert migrated binding error = %v", err)
+		}
+		if _, err := upgraded.db.ExecContext(testutil.Context(t), insertBinding); !isSQLitePrimaryKeyConstraint(err) {
+			t.Fatalf("duplicate migrated binding error = %v, want composite primary-key constraint", err)
+		}
+		invalidKindBinding := `INSERT INTO extension_env_bindings (
+		extension_name, workspace_id, env_name, secret_ref, kind, created_at, updated_at
+	) VALUES ('kit', 'ws-1', 'OTHER_KEY', 'vault:extensions/ws/ws-1/kit/env/OTHER_KEY',
+	'other', '2026-08-02T12:03:00Z', '2026-08-02T12:03:00Z')`
+		if _, err := upgraded.db.ExecContext(testutil.Context(t), invalidKindBinding); err == nil {
+			t.Fatal("invalid migrated binding kind error = nil, want CHECK rejection")
+		}
+		status, err := store.Status(testutil.Context(t), upgraded.db, MigrationStream())
+		if err != nil {
+			t.Fatalf("Status(upgraded fixture) error = %v", err)
+		}
+		assertCompleteMigrationStream(t, status, MigrationStream())
 
-	if err := upgraded.Close(testutil.Context(t)); err != nil {
-		t.Fatalf("Close(upgraded fixture) error = %v", err)
-	}
-	closed = true
-	reopened, err := OpenGlobalDB(testutil.Context(t), path)
-	if err != nil {
-		t.Fatalf("OpenGlobalDB(reopen upgraded fixture) error = %v", err)
-	}
-	t.Cleanup(func() {
-		if closeErr := reopened.Close(testutil.Context(t)); closeErr != nil {
-			t.Errorf("Close(reopened fixture) error = %v", closeErr)
+		if err := upgraded.Close(testutil.Context(t)); err != nil {
+			t.Fatalf("Close(upgraded fixture) error = %v", err)
+		}
+		closed = true
+		reopened, err := OpenGlobalDB(testutil.Context(t), path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(reopen upgraded fixture) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := reopened.Close(testutil.Context(t)); closeErr != nil {
+				t.Errorf("Close(reopened fixture) error = %v", closeErr)
+			}
+		})
+		bindings, err := reopened.ListEnvBindings(testutil.Context(t), "kit", "ws-1")
+		if err != nil {
+			t.Fatalf("ListEnvBindings(reopened) error = %v", err)
+		}
+		if len(bindings) != 1 || bindings[0].EnvName != "API_KEY" {
+			t.Fatalf("reopened bindings = %#v, want preserved API_KEY", bindings)
 		}
 	})
-	bindings, err := reopened.ListEnvBindings(testutil.Context(t), "kit", "ws-1")
-	if err != nil {
-		t.Fatalf("ListEnvBindings(reopened) error = %v", err)
-	}
-	if len(bindings) != 1 || bindings[0].EnvName != "API_KEY" {
-		t.Fatalf("reopened bindings = %#v, want preserved API_KEY", bindings)
-	}
 }
 
 func TestExtensionEnvRepoRoundTripAndInstanceIsolation(t *testing.T) {
@@ -215,6 +235,46 @@ func TestExtensionEnvRepoRoundTripAndInstanceIsolation(t *testing.T) {
 		}
 		if !reflect.DeepEqual(got, []string{"A_TOKEN", "M_TOKEN", "Z_TOKEN"}) {
 			t.Fatalf("env names = %#v, want sorted", got)
+		}
+	})
+
+	t.Run("Should reject refs owned by another extension or workspace", func(t *testing.T) {
+		t.Parallel()
+
+		db := openFreshTestGlobalDB(t)
+		for _, testCase := range []struct {
+			name string
+			ref  string
+		}{
+			{name: "another extension", ref: vault.ExtensionSecretRef("other", "ws-1", "API_KEY")},
+			{name: "another workspace", ref: vault.ExtensionSecretRef("kit", "ws-2", "API_KEY")},
+			{name: "global scope", ref: vault.ExtensionSecretRef("kit", "", "API_KEY")},
+		} {
+			t.Run("Should reject "+testCase.name, func(t *testing.T) {
+				t.Parallel()
+				err := db.PutEnvBinding(testutil.Context(t), extensionenv.Binding{
+					ExtensionName: "kit", WorkspaceID: "ws-1", EnvName: "API_KEY",
+					SecretRef: testCase.ref, Kind: extensionenv.BindingKind,
+				})
+				if err == nil || !strings.Contains(err.Error(), "outside its instance namespace") {
+					t.Fatalf("PutEnvBinding(%s) error = %v, want owner isolation failure", testCase.name, err)
+				}
+			})
+		}
+	})
+
+	t.Run("Should reject binding ownership kinds outside the extension environment contract", func(t *testing.T) {
+		t.Parallel()
+
+		db := openFreshTestGlobalDB(t)
+		err := db.PutEnvBinding(testutil.Context(t), extensionenv.Binding{
+			ExtensionName: "kit",
+			EnvName:       "API_KEY",
+			SecretRef:     vault.ExtensionSecretRef("kit", "", "API_KEY"),
+			Kind:          "other",
+		})
+		if err == nil || !strings.Contains(err.Error(), `kind must be "extension_env"`) {
+			t.Fatalf("PutEnvBinding(invalid kind) error = %v, want ownership-kind rejection", err)
 		}
 	})
 }

@@ -4143,6 +4143,13 @@ func (*watchPollerExtensionRuntime) HookDeclarations(context.Context) ([]hookspk
 	return nil, nil
 }
 
+func (*watchPollerExtensionRuntime) InspectPackageResources(
+	context.Context,
+	string,
+) (*extensionpkg.Extension, error) {
+	return nil, extensionpkg.ErrExtensionNotFound
+}
+
 func (r *watchPollerExtensionRuntime) Poll(
 	ctx context.Context,
 	req watchpkg.PollRequest,

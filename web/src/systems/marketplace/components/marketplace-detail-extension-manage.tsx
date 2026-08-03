@@ -102,7 +102,7 @@ function MarketplaceDetailExtensionManage({
           isUpdatePending={update.isPending}
           onRequestProvenance={requestProvenance}
           onRequestRemoval={requestRemoval}
-          onToggleEnabled={enabled => requestToggle(enabled)}
+          onToggleEnabled={requestToggle}
           onUpdate={requestUpdate}
           togglePending={toggle.isPending}
         />

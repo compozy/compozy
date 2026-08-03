@@ -4,13 +4,13 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/compozy/compozy/internal/store"
 )
 
+// ErrExtensionNetworkConfirmationRequired reports stale consent; NetworkConfirmationRequiredError carries its digest.
 var ErrExtensionNetworkConfirmationRequired = errors.New("extension: network participation confirmation required")
 
 // NetworkConfirmation is the confirmation tuple for one exact extension instance.
@@ -108,17 +108,7 @@ func (r *Registry) ConfirmNetworkRequirement(
 	if err != nil {
 		return fmt.Errorf("extension: persist network confirmation for %q: %w", key.runtimeID(), err)
 	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("extension: inspect network confirmation for %q: %w", key.runtimeID(), err)
-	}
-	if affected == 0 {
-		if key.IsGlobal() {
-			return &ExtensionNotFoundError{Name: key.Name}
-		}
-		return fmt.Errorf("%w: %s", ErrExtensionNotDevLinked, key.runtimeID())
-	}
-	return nil
+	return inspectNetworkConfirmationUpdate(result, key, "network confirmation")
 }
 
 // ConfirmDevelopmentNetworkCandidate records consent for one inspected dev
@@ -160,10 +150,7 @@ func (r *Registry) ConfirmDevelopmentNetworkCandidate(
 	if err != nil {
 		return fmt.Errorf("extension: persist development network candidate for %q: %w", key.runtimeID(), err)
 	}
-	if err := rowsAffectedNotFound(result, key.Name); err != nil {
-		return fmt.Errorf("%w: %s", ErrExtensionNotDevLinked, key.runtimeID())
-	}
-	return nil
+	return inspectNetworkConfirmationUpdate(result, key, "development network candidate")
 }
 
 // RestoreNetworkConfirmation restores a previously snapshotted confirmation
@@ -197,13 +184,7 @@ func (r *Registry) RestoreNetworkConfirmation(key InstanceKey, confirmation Netw
 	if err != nil {
 		return fmt.Errorf("extension: restore network confirmation for %q: %w", key.runtimeID(), err)
 	}
-	if err := rowsAffectedNotFound(result, key.Name); err != nil {
-		if key.IsGlobal() {
-			return err
-		}
-		return fmt.Errorf("%w: %s", ErrExtensionNotDevLinked, key.runtimeID())
-	}
-	return nil
+	return inspectNetworkConfirmationUpdate(result, key, "network confirmation restoration")
 }
 
 func (r *Registry) storedNetworkConfirmation(key InstanceKey) (NetworkConfirmation, error) {
@@ -256,7 +237,11 @@ func (r *Registry) currentNetworkRequirementDigest(key InstanceKey) (string, err
 		if err != nil {
 			return "", err
 		}
-		manifest, err = LoadManifest(filepath.Dir(info.ManifestPath))
+		installDir, err := InstalledExtensionDir(*info)
+		if err != nil {
+			return "", err
+		}
+		manifest, err = LoadManifest(installDir)
 		if err != nil {
 			return "", err
 		}
@@ -272,6 +257,20 @@ func (r *Registry) currentNetworkRequirementDigest(key InstanceKey) (string, err
 		manifest = verified.Manifest
 	}
 	return NetworkParticipationRequirementDigest(manifest.NetworkParticipation)
+}
+
+func inspectNetworkConfirmationUpdate(result sql.Result, key InstanceKey, operation string) error {
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("extension: inspect %s for %q: %w", operation, key.runtimeID(), err)
+	}
+	if affected != 0 {
+		return nil
+	}
+	if key.IsGlobal() {
+		return &ExtensionNotFoundError{Name: key.Name}
+	}
+	return fmt.Errorf("%w: %s", ErrExtensionNotDevLinked, key.runtimeID())
 }
 
 func nullableRegistryString(value string) any {

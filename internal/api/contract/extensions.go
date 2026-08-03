@@ -63,8 +63,9 @@ type UpdateExtensionsRequest struct {
 
 // DevLinkExtensionRequest links one immutable generation under the caller's trusted workspace.
 type DevLinkExtensionRequest struct {
-	OriginPath     string `json:"origin_path"`
-	GenerationHash string `json:"generation_hash"`
+	OriginPath           string `json:"origin_path"`
+	GenerationHash       string `json:"generation_hash"`
+	ConfirmNetworkDigest string `json:"confirm_network_digest,omitempty"`
 }
 
 // ReloadExtensionRequest swaps one dev-linked extension to an immutable generation.
@@ -197,15 +198,32 @@ type ExtensionInventoryPayload struct {
 	Items     []ExtensionKitItemPayload `json:"items"`
 }
 
+// ExtensionKitChange identifies how enable reconciliation will mutate one resource.
+type ExtensionKitChange string
+
+const (
+	ExtensionKitChangeAdded   ExtensionKitChange = "added"
+	ExtensionKitChangeChanged ExtensionKitChange = "changed"
+	ExtensionKitChangeRemoved ExtensionKitChange = "removed"
+)
+
+// ExtensionKitChangePayload is one resource delta in an enable preview.
+type ExtensionKitChangePayload struct {
+	Kind   resources.ResourceKind `json:"kind"`
+	ID     string                 `json:"id"`
+	Name   string                 `json:"name"`
+	Change ExtensionKitChange     `json:"change"`
+}
+
 // ExtensionEnablePreviewPayload is the mutation-free enable projection.
 type ExtensionEnablePreviewPayload struct {
-	Extension                   string                    `json:"extension"`
-	WouldPublish                []ExtensionKitItemPayload `json:"would_publish"`
-	AgentConflicts              []string                  `json:"agent_conflicts"`
-	MissingEnv                  []string                  `json:"missing_env"`
-	AutomationStarting          []string                  `json:"automation_starting"`
-	NetworkRequirementDigest    string                    `json:"network_requirement_digest"`
-	NetworkConfirmationRequired bool                      `json:"network_confirmation_required"`
+	Extension                   string                      `json:"extension"`
+	Changes                     []ExtensionKitChangePayload `json:"changes"`
+	AgentConflicts              []string                    `json:"agent_conflicts"`
+	MissingEnv                  []string                    `json:"missing_env"`
+	AutomationStarting          []string                    `json:"automation_starting"`
+	NetworkRequirementDigest    string                      `json:"network_requirement_digest"`
+	NetworkConfirmationRequired bool                        `json:"network_confirmation_required"`
 }
 
 // ExtensionCommandPayload is one executable command leaf projected from an active extension tool.

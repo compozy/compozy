@@ -17,7 +17,7 @@ import (
 )
 
 func appendAgentResources(
-	desired *agentSkillDesiredResources,
+	desired *agentSkillDeclarations,
 	scope resources.ResourceScope,
 	sourcePrefix string,
 	agents []compozyconfig.AgentDef,
@@ -50,7 +50,7 @@ func appendAgentResources(
 }
 
 func appendExtensionAgentResources(
-	desired *agentSkillDesiredResources,
+	desired *agentSkillDeclarations,
 	scope resources.ResourceScope,
 	extensionName string,
 	agents []extensionpkg.StaticAgent,
@@ -108,10 +108,15 @@ func appendExtensionAgentResources(
 	}
 }
 
+type skillPublicationSource struct {
+	prefix string
+	owner  *resources.ResourceOwner
+}
+
 func appendSkillResources(
-	desired *agentSkillDesiredResources,
+	desired *agentSkillDeclarations,
 	scope resources.ResourceScope,
-	sourcePrefix string,
+	source skillPublicationSource,
 	skills []*skillspkg.Skill,
 ) {
 	if desired == nil {
@@ -126,8 +131,9 @@ func appendSkillResources(
 			continue
 		}
 		desired.skills = append(desired.skills, skillPublicationInput{
-			sourceKey: sourcePrefix + "/skill/" + name,
+			sourceKey: source.prefix + "/skill/" + name,
 			scope:     scope,
+			owner:     source.owner,
 			spec:      skillspkg.SkillToResourceSpec(skill),
 		})
 		for _, server := range skill.MCPServers {
@@ -136,37 +142,12 @@ func appendSkillResources(
 				continue
 			}
 			desired.mcpServers = append(desired.mcpServers, mcpServerPublicationInput{
-				sourceKey: sourcePrefix + "/skill/" + name + "/mcp_server/" + serverName,
+				sourceKey: source.prefix + "/skill/" + name + "/mcp_server/" + serverName,
 				scope:     scope,
+				owner:     source.owner,
 				spec:      mcpServerFromSkillDecl(server),
 			})
 		}
-	}
-}
-
-func appendExtensionSkillResources(
-	desired *agentSkillDesiredResources,
-	scope resources.ResourceScope,
-	extensionName string,
-	skills []*skillspkg.Skill,
-) {
-	if desired == nil {
-		return
-	}
-	firstSkill := len(desired.skills)
-	firstMCP := len(desired.mcpServers)
-	appendSkillResources(
-		desired,
-		scope,
-		"extension/"+strings.TrimSpace(extensionName)+"/skills",
-		skills,
-	)
-	owner := extensionOwner(extensionName)
-	for idx := firstSkill; idx < len(desired.skills); idx++ {
-		desired.skills[idx].owner = owner
-	}
-	for idx := firstMCP; idx < len(desired.mcpServers); idx++ {
-		desired.mcpServers[idx].owner = owner
 	}
 }
 

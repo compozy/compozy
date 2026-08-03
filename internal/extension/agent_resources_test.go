@@ -1,6 +1,7 @@
 package extensionpkg
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -144,6 +145,35 @@ func TestLoadAgentResourcesRejectsInvalidLayoutsAndSidecars(t *testing.T) {
 			},
 			contains: []string{"escapes extension root"},
 		},
+		{
+			name: "Should reject a symlinked agent definition",
+			setup: func(t *testing.T, rootDir string) {
+				t.Helper()
+				agentDir := filepath.Join(rootDir, "agents", "writer")
+				if err := os.MkdirAll(agentDir, 0o755); err != nil {
+					t.Fatalf("os.MkdirAll(writer) error = %v", err)
+				}
+				outside := filepath.Join(t.TempDir(), "AGENT.md")
+				writeFile(t, outside, "---\nname: writer\n---\n\nOutside.\n")
+				if err := os.Symlink(outside, filepath.Join(agentDir, "AGENT.md")); err != nil {
+					t.Fatalf("os.Symlink(AGENT.md) error = %v", err)
+				}
+			},
+			contains: []string{"AGENT.md", "symlinks are not allowed"},
+		},
+		{
+			name: "Should reject a symlinked agent sidecar",
+			setup: func(t *testing.T, rootDir string) {
+				t.Helper()
+				writeStaticAgentFixture(t, rootDir, "writer", false)
+				outside := filepath.Join(t.TempDir(), "SOUL.md")
+				writeFile(t, outside, "Outside soul.\n")
+				if err := os.Symlink(outside, filepath.Join(rootDir, "agents", "writer", "SOUL.md")); err != nil {
+					t.Fatalf("os.Symlink(SOUL.md) error = %v", err)
+				}
+			},
+			contains: []string{"SOUL.md", "symlinks are not allowed"},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -153,8 +183,8 @@ func TestLoadAgentResourcesRejectsInvalidLayoutsAndSidecars(t *testing.T) {
 			rootDir := t.TempDir()
 			tc.setup(t, rootDir)
 			_, err := LoadAgentResources(rootDir, []string{"agents"})
-			if err == nil {
-				t.Fatal("LoadAgentResources() error = nil, want validation failure")
+			if !errors.Is(err, ErrManifestInvalid) {
+				t.Fatalf("LoadAgentResources() error = %v, want ErrManifestInvalid", err)
 			}
 			for _, want := range tc.contains {
 				if !strings.Contains(err.Error(), want) {

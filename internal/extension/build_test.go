@@ -15,6 +15,7 @@ import (
 
 	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 	"github.com/compozy/compozy/internal/testutil"
+	"golang.org/x/mod/modfile"
 )
 
 func TestBuildBundle(t *testing.T) {
@@ -392,7 +393,7 @@ func TestManifestFromDescribeResources(t *testing.T) {
 	})
 }
 
-func TestResourceOnlyManifestHardCut(t *testing.T) {
+func TestValidateBundle(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should validate automation and layout declarations", func(t *testing.T) {
@@ -447,14 +448,20 @@ command = "./bin"
 		if err != nil {
 			t.Fatalf("ValidateBundle() error = %v", err)
 		}
-		if manifest != nil || len(issues) != 1 || !strings.Contains(issues[0].Message, "bundles") {
-			t.Fatalf("ValidateBundle() manifest = %#v issues = %#v, want bundles unknown-field issue", manifest, issues)
+		if manifest != nil {
+			t.Fatalf("ValidateBundle() manifest = %#v, want nil", manifest)
+		}
+		if len(issues) != 1 {
+			t.Fatalf("ValidateBundle() issues = %#v, want one", issues)
+		}
+		if issues[0].Field != "resources.bundles" ||
+			!strings.Contains(issues[0].Message, `unknown manifest field "resources.bundles"`) {
+			t.Fatalf(
+				"ValidateBundle() issue = %#v, want resources.bundles unknown-field issue",
+				issues[0],
+			)
 		}
 	})
-}
-
-func TestValidateBundle(t *testing.T) {
-	t.Parallel()
 
 	t.Run("Should Return Positioned TOML Syntax Issue", func(t *testing.T) {
 		t.Parallel()
@@ -562,9 +569,25 @@ func TestScaffoldExtension(t *testing.T) {
 					}
 				}
 				if relative == "go.mod" {
-					wantRequirement := "github.com/compozy/compozy/sdk/go " + scaffoldGoSDKVersion
-					if !strings.Contains(content, wantRequirement) {
-						t.Fatalf("template %q go.mod = %q, want requirement %q", template, content, wantRequirement)
+					parsed, err := modfile.Parse(relative, data, nil)
+					if err != nil {
+						t.Fatalf("modfile.Parse(%q) error = %v", relative, err)
+					}
+					const sdkModulePath = "github.com/compozy/compozy/sdk/go"
+					var sdkVersion string
+					for _, requirement := range parsed.Require {
+						if requirement.Mod.Path == sdkModulePath {
+							sdkVersion = requirement.Mod.Version
+							break
+						}
+					}
+					if sdkVersion != scaffoldGoSDKVersion {
+						t.Fatalf(
+							"template %q go.mod SDK version = %q, want %q",
+							template,
+							sdkVersion,
+							scaffoldGoSDKVersion,
+						)
 					}
 				}
 			}

@@ -9,8 +9,10 @@ import (
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/resources"
 	skillspkg "github.com/compozy/compozy/internal/skills"
+	"github.com/compozy/compozy/internal/soul"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -58,25 +60,20 @@ func BenchmarkAgentSkillSourceSyncerSyncNoop(b *testing.B) {
 	b.ReportAllocs()
 
 	ctx := b.Context()
-	rawStore, agentStore, agentCodec, skillStore, skillCodec, mcpStore, mcpCodec := daemonBenchmarkAgentSkillStores(b)
-	desired := daemonBenchmarkAgentSkillDesiredResources(24)
-	syncer := newAgentSkillSourceSyncer(
-		rawStore,
-		agentStore,
-		agentCodec,
-		nil,
-		skillStore,
-		skillCodec,
-		nil,
-		mcpStore,
-		mcpCodec,
-		agentSkillSyncActor(),
-		discardLogger(),
-		nil,
-		func(context.Context) (agentSkillDesiredResources, error) {
+	rawStore, agentStore, agentCodec, soulStore, soulCodec, heartbeatStore, heartbeatCodec,
+		skillStore, skillCodec, mcpStore, mcpCodec := daemonBenchmarkAgentSkillStores(b)
+	desired := daemonBenchmarkAgentSkillDeclarations(24)
+	syncer := newAgentSkillSourceSyncer(agentSkillSourceSyncerDeps{
+		raw: rawStore, agentStore: agentStore, agentCodec: agentCodec,
+		soulStore: soulStore, soulCodec: soulCodec,
+		heartbeatStore: heartbeatStore, heartbeatCodec: heartbeatCodec,
+		skillStore: skillStore, skillCodec: skillCodec,
+		mcpStore: mcpStore, mcpCodec: mcpCodec,
+		actor: agentSkillSyncActor(), logger: discardLogger(),
+		providers: []agentSkillDeclarationProvider{func(context.Context) (agentSkillDeclarations, error) {
 			return desired, nil
-		},
-	)
+		}},
+	})
 	if err := syncer.Sync(ctx); err != nil {
 		b.Fatalf("initial Sync() error = %v", err)
 	}
@@ -165,8 +162,8 @@ func daemonBenchmarkAgentRecords(count int, workspaceID string) []resources.Reco
 	return records
 }
 
-func daemonBenchmarkAgentSkillDesiredResources(count int) agentSkillDesiredResources {
-	desired := agentSkillDesiredResources{
+func daemonBenchmarkAgentSkillDeclarations(count int) agentSkillDeclarations {
+	desired := agentSkillDeclarations{
 		agents:     make([]agentPublicationInput, 0, count),
 		skills:     make([]skillPublicationInput, 0, count),
 		mcpServers: make([]mcpServerPublicationInput, 0, count),
@@ -253,6 +250,10 @@ func daemonBenchmarkAgentSkillStores(
 	resources.RawStore,
 	resources.Store[compozyconfig.AgentDef],
 	resources.KindCodec[compozyconfig.AgentDef],
+	resources.Store[soul.ResourceSpec],
+	resources.KindCodec[soul.ResourceSpec],
+	resources.Store[heartbeat.ResourceSpec],
+	resources.KindCodec[heartbeat.ResourceSpec],
 	resources.Store[skillspkg.SkillResourceSpec],
 	resources.KindCodec[skillspkg.SkillResourceSpec],
 	resources.Store[compozyconfig.MCPServer],
@@ -268,6 +269,22 @@ func daemonBenchmarkAgentSkillStores(
 	agentStore, err := resources.NewStore(kernel, agentCodec)
 	if err != nil {
 		b.Fatalf("resources.NewStore(agent) error = %v", err)
+	}
+	soulCodec, err := soul.NewResourceCodec()
+	if err != nil {
+		b.Fatalf("soul.NewResourceCodec() error = %v", err)
+	}
+	soulStore, err := resources.NewStore(kernel, soulCodec)
+	if err != nil {
+		b.Fatalf("resources.NewStore(soul) error = %v", err)
+	}
+	heartbeatCodec, err := heartbeat.NewResourceCodec()
+	if err != nil {
+		b.Fatalf("heartbeat.NewResourceCodec() error = %v", err)
+	}
+	heartbeatStore, err := resources.NewStore(kernel, heartbeatCodec)
+	if err != nil {
+		b.Fatalf("resources.NewStore(heartbeat) error = %v", err)
 	}
 	skillCodec, err := skillspkg.NewResourceCodec()
 	if err != nil {
@@ -285,7 +302,8 @@ func daemonBenchmarkAgentSkillStores(
 	if err != nil {
 		b.Fatalf("resources.NewStore(mcp) error = %v", err)
 	}
-	return kernel, agentStore, agentCodec, skillStore, skillCodec, mcpStore, mcpCodec
+	return kernel, agentStore, agentCodec, soulStore, soulCodec, heartbeatStore, heartbeatCodec,
+		skillStore, skillCodec, mcpStore, mcpCodec
 }
 
 func daemonBenchmarkToolMCPStores(

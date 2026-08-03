@@ -1,18 +1,16 @@
 import { createStoreLogic, type EnqueueObject } from "@xstate/store";
 
-export type MarketplaceInstalledCardAction = "remove";
-
 export type MarketplaceInstalledCardConfirmState =
   | { phase: "closed"; requestId: number }
-  | { phase: "confirming"; requestId: number; action: MarketplaceInstalledCardAction }
-  | { phase: "pending"; requestId: number; action: MarketplaceInstalledCardAction }
-  | { phase: "failed"; requestId: number; action: MarketplaceInstalledCardAction; error: string };
+  | { phase: "confirming"; requestId: number }
+  | { phase: "pending"; requestId: number }
+  | { phase: "failed"; requestId: number; error: string };
 
 type Events = {
-  confirmationOpened: { action: MarketplaceInstalledCardAction };
+  confirmationOpened: {};
   confirmationCancelled: {};
   confirmationRequested: {
-    execute: (action: MarketplaceInstalledCardAction) => Promise<void>;
+    execute: () => Promise<void>;
   };
   confirmationSucceeded: { requestId: number };
   confirmationFailed: { requestId: number; error: string };
@@ -24,17 +22,16 @@ export function createMarketplaceInstalledCardConfirmLogic() {
   return createStoreLogic<MarketplaceInstalledCardConfirmState, Events>({
     context: { phase: "closed", requestId: 0 },
     on: {
-      confirmationOpened: (context, event) => ({
+      confirmationOpened: context => ({
         phase: "confirming",
         requestId: context.requestId + 1,
-        action: event.action,
       }),
       confirmationCancelled: context => ({ phase: "closed", requestId: context.requestId + 1 }),
       confirmationRequested: (context, event, enqueue) => {
         if (context.phase !== "confirming" && context.phase !== "failed") return;
         const requestId = context.requestId + 1;
-        enqueueExecution(enqueue, context.action, requestId, event.execute);
-        return { phase: "pending", requestId, action: context.action };
+        enqueueExecution(enqueue, requestId, event.execute);
+        return { phase: "pending", requestId };
       },
       confirmationSucceeded: (context, event) => {
         if (context.phase !== "pending" || context.requestId !== event.requestId) return;
@@ -48,15 +45,10 @@ export function createMarketplaceInstalledCardConfirmLogic() {
   });
 }
 
-function enqueueExecution(
-  enqueue: Enqueue,
-  action: MarketplaceInstalledCardAction,
-  requestId: number,
-  execute: (action: MarketplaceInstalledCardAction) => Promise<void>
-) {
+function enqueueExecution(enqueue: Enqueue, requestId: number, execute: () => Promise<void>) {
   enqueue.effect(async ({ trigger }) => {
     try {
-      await execute(action);
+      await execute();
       trigger.confirmationSucceeded({ requestId });
     } catch (error) {
       trigger.confirmationFailed({ requestId, error: errorMessage(error) });

@@ -8,7 +8,6 @@ import (
 
 func resolveDaemonResourceStore[T any](
 	state *bootState,
-	raw resources.RawStore,
 	kind resources.ResourceKind,
 	label string,
 ) (resources.KindCodec[T], resources.Store[T], error) {
@@ -16,7 +15,7 @@ func resolveDaemonResourceStore[T any](
 	if err != nil {
 		return nil, nil, fmt.Errorf("daemon: resolve %s codec: %w", label, err)
 	}
-	store, err := resources.NewStore(raw, codec)
+	store, err := resources.NewStore(state.resourceKernel, codec)
 	if err != nil {
 		return nil, nil, fmt.Errorf("daemon: create %s resource store: %w", label, err)
 	}

@@ -15,7 +15,7 @@ import (
 // name. The exclusive gate covers install flows whose authored name is not known
 // until their marketplace artifact has been verified.
 type extensionLifecycleCoordinator struct {
-	gate    *extensionLifecycleGate
+	gate    *lifecycleRWGate
 	mu      sync.Mutex
 	entries map[string]*extensionLifecycleEntry
 }
@@ -27,7 +27,7 @@ type extensionLifecycleEntry struct {
 
 func newExtensionLifecycleCoordinator() *extensionLifecycleCoordinator {
 	return &extensionLifecycleCoordinator{
-		gate:    newExtensionLifecycleGate(),
+		gate:    &lifecycleRWGate{},
 		entries: make(map[string]*extensionLifecycleEntry),
 	}
 }
@@ -50,10 +50,11 @@ func (c *extensionLifecycleCoordinator) withName(
 	if ctx == nil {
 		return errors.New("daemon: extension lifecycle context is required")
 	}
-	if err := c.gate.acquireRead(ctx); err != nil {
+	unlockGate, err := c.gate.lock(ctx, true)
+	if err != nil {
 		return fmt.Errorf("daemon: wait for shared extension lifecycle: %w", err)
 	}
-	defer c.gate.releaseRead()
+	defer unlockGate()
 	entry := c.retain(name)
 	defer c.release(name, entry)
 	select {
@@ -76,17 +77,18 @@ func (c *extensionLifecycleCoordinator) withNames(
 	if fn == nil {
 		return errors.New("daemon: extension lifecycle mutation is required")
 	}
+	if ctx == nil {
+		return errors.New("daemon: extension lifecycle context is required")
+	}
 	normalized := normalizeLifecycleNames(names)
 	if len(normalized) == 0 {
 		return fn()
 	}
-	if ctx == nil {
-		return errors.New("daemon: extension lifecycle context is required")
-	}
-	if err := c.gate.acquireRead(ctx); err != nil {
+	unlockGate, err := c.gate.lock(ctx, true)
+	if err != nil {
 		return fmt.Errorf("daemon: wait for shared extension lifecycle: %w", err)
 	}
-	defer c.gate.releaseRead()
+	defer unlockGate()
 	entries := make([]*extensionLifecycleEntry, 0, len(normalized))
 	for _, name := range normalized {
 		entries = append(entries, c.retain(name))
@@ -123,10 +125,11 @@ func (c *extensionLifecycleCoordinator) exclusive(ctx context.Context, fn func()
 	if ctx == nil {
 		return errors.New("daemon: extension lifecycle context is required")
 	}
-	if err := c.gate.acquireWrite(ctx); err != nil {
+	unlockGate, err := c.gate.lock(ctx, false)
+	if err != nil {
 		return fmt.Errorf("daemon: wait for exclusive extension lifecycle: %w", err)
 	}
-	defer c.gate.releaseWrite()
+	defer unlockGate()
 	return fn()
 }
 
@@ -156,21 +159,16 @@ func (c *extensionLifecycleCoordinator) release(name string, entry *extensionLif
 }
 
 func normalizeLifecycleNames(names []string) []string {
-	seen := make(map[string]struct{}, len(names))
 	result := make([]string, 0, len(names))
 	for _, name := range names {
 		name = strings.TrimSpace(name)
 		if name == "" {
 			continue
 		}
-		if _, ok := seen[name]; ok {
-			continue
-		}
-		seen[name] = struct{}{}
 		result = append(result, name)
 	}
 	slices.Sort(result)
-	return result
+	return slices.Compact(result)
 }
 
 func (s *daemonExtensionService) lifecycleUpdateNames(req contract.UpdateExtensionsRequest) ([]string, error) {

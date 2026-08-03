@@ -1159,9 +1159,14 @@ func TestSettingsAndExtensionMutationsReturnForbiddenOnNonLoopbackHost(t *testin
 				t.Fatal("Install should not be called when HTTP mutations are blocked")
 				return contract.ExtensionPayload{}, nil
 			},
-			EnableFn: func(context.Context, string, taskpkg.ActorContext) (contract.ExtensionPayload, error) {
+			EnableFn: func(
+				context.Context,
+				string,
+				contract.EnableExtensionRequest,
+				taskpkg.ActorContext,
+			) (contract.ExtensionEnableResult, error) {
 				t.Fatal("Enable should not be called when HTTP mutations are blocked")
-				return contract.ExtensionPayload{}, nil
+				return contract.ExtensionEnableResult{}, nil
 			},
 			DisableFn: func(context.Context, string, taskpkg.ActorContext) (contract.ExtensionPayload, error) {
 				t.Fatal("Disable should not be called when HTTP mutations are blocked")
@@ -1416,9 +1421,16 @@ func TestSettingsAndExtensionMutationsReachHandlersOnLoopbackHost(t *testing.T) 
 				installedReq = req
 				return contract.ExtensionPayload{Name: "demo", State: "registered"}, nil
 			},
-			EnableFn: func(_ context.Context, name string, _ taskpkg.ActorContext) (contract.ExtensionPayload, error) {
+			EnableFn: func(
+				_ context.Context,
+				name string,
+				_ contract.EnableExtensionRequest,
+				_ taskpkg.ActorContext,
+			) (contract.ExtensionEnableResult, error) {
 				enabledName = name
-				return contract.ExtensionPayload{Name: name, Enabled: true, State: "active"}, nil
+				return contract.ExtensionEnableResult{
+					Extension: contract.ExtensionPayload{Name: name, Enabled: true, State: "active"},
+				}, nil
 			},
 			DisableFn: func(_ context.Context, name string, _ taskpkg.ActorContext) (contract.ExtensionPayload, error) {
 				disabledName = name
@@ -3521,34 +3533,76 @@ func TestExtensionKitAndSecretsRoutesReachHTTPService(t *testing.T) {
 	)
 	engine := newTestRouter(t, handlers)
 
-	for _, testCase := range []struct{ path, want string }{
-		{path: "/api/extensions/kit/inventory", want: `"live":true`},
-		{path: "/api/extensions/kit/preview", want: `"automation_starting":["kit/daily"]`},
-		{path: "/api/extensions/kit/secrets", want: `"declared_env":["API_KEY"]`},
+	for _, testCase := range []struct {
+		name   string
+		path   string
+		assert func(*testing.T, *httptest.ResponseRecorder)
+	}{
+		{
+			name: "Should return the typed extension inventory",
+			path: "/api/extensions/kit/inventory",
+			assert: func(t *testing.T, response *httptest.ResponseRecorder) {
+				var payload contract.ExtensionInventoryPayload
+				decodeJSONResponse(t, response, &payload)
+				if payload.Extension != "kit" || len(payload.Items) != 1 ||
+					payload.Items[0].Kind != "agent" || payload.Items[0].Name != "writer" || !payload.Items[0].Live {
+					t.Fatalf("inventory payload = %#v, want live kit writer", payload)
+				}
+			},
+		},
+		{
+			name: "Should return the typed enable preview",
+			path: "/api/extensions/kit/preview",
+			assert: func(t *testing.T, response *httptest.ResponseRecorder) {
+				var payload contract.ExtensionEnablePreviewPayload
+				decodeJSONResponse(t, response, &payload)
+				if payload.Extension != "kit" || !slices.Equal(payload.AutomationStarting, []string{"kit/daily"}) {
+					t.Fatalf("preview payload = %#v, want kit/daily automation", payload)
+				}
+			},
+		},
+		{
+			name: "Should return the typed presence-only secret bindings",
+			path: "/api/extensions/kit/secrets",
+			assert: func(t *testing.T, response *httptest.ResponseRecorder) {
+				var payload contract.ExtensionSecretsPayload
+				decodeJSONResponse(t, response, &payload)
+				if !slices.Equal(payload.DeclaredEnv, []string{"API_KEY"}) || len(payload.BoundEnvKeys) != 0 {
+					t.Fatalf("secret payload = %#v, want declared API_KEY only", payload)
+				}
+			},
+		},
 	} {
-		response := performRequest(t, engine, http.MethodGet, testCase.path, nil)
-		if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), testCase.want) {
-			t.Fatalf(
-				"GET %s status=%d body=%s, want %s",
-				testCase.path,
-				response.Code,
-				response.Body.String(),
-				testCase.want,
-			)
+		t.Run(testCase.name, func(t *testing.T) {
+			response := performRequest(t, engine, http.MethodGet, testCase.path, nil)
+			if response.Code != http.StatusOK {
+				t.Fatalf("GET %s status=%d body=%s, want 200", testCase.path, response.Code, response.Body.String())
+			}
+			testCase.assert(t, response)
+		})
+	}
+	t.Run("Should set a secret without returning its value", func(t *testing.T) {
+		setResponse := performRequest(t, engine, http.MethodPut, "/api/extensions/kit/secrets", []byte(
+			`{"secrets":{"API_KEY":{"value":"planted-secret-value"}}}`,
+		))
+		if setResponse.Code != http.StatusOK {
+			t.Fatalf("PUT secrets status=%d body=%s, want 200", setResponse.Code, setResponse.Body.String())
 		}
-	}
-	setResponse := performRequest(t, engine, http.MethodPut, "/api/extensions/kit/secrets", []byte(
-		`{"secrets":{"API_KEY":{"value":"planted-secret-value"}}}`,
-	))
-	if setResponse.Code != http.StatusOK || strings.Contains(setResponse.Body.String(), "planted-secret-value") {
-		t.Fatalf("PUT secrets status=%d body=%s", setResponse.Code, setResponse.Body.String())
-	}
-	deleteResponse := performRequest(
-		t, engine, http.MethodDelete, "/api/extensions/kit/secrets/API_KEY", nil,
-	)
-	if deleteResponse.Code != http.StatusNoContent {
-		t.Fatalf("DELETE secrets status=%d body=%s", deleteResponse.Code, deleteResponse.Body.String())
-	}
+		var payload contract.ExtensionSecretsPayload
+		decodeJSONResponse(t, setResponse, &payload)
+		if !slices.Equal(payload.DeclaredEnv, []string{"API_KEY"}) ||
+			!slices.Equal(payload.BoundEnvKeys, []string{"API_KEY"}) {
+			t.Fatalf("secret mutation payload = %#v, want bound API_KEY", payload)
+		}
+	})
+	t.Run("Should delete a secret binding", func(t *testing.T) {
+		deleteResponse := performRequest(
+			t, engine, http.MethodDelete, "/api/extensions/kit/secrets/API_KEY", nil,
+		)
+		if deleteResponse.Code != http.StatusNoContent {
+			t.Fatalf("DELETE secrets status=%d body=%s", deleteResponse.Code, deleteResponse.Body.String())
+		}
+	})
 	if secretWrites != 1 || secretDeletes != 1 {
 		t.Fatalf("secret mutations writes=%d deletes=%d, want 1/1", secretWrites, secretDeletes)
 	}

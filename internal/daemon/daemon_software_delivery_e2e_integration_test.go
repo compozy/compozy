@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	devcycle "github.com/compozy/compozy/extensions/dev-cycle"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
@@ -63,30 +62,28 @@ func TestDaemonE2ESoftwareDeliveryShouldCompleteLegacyUserJourney(t *testing.T) 
 		})
 		ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 		defer cancel()
-		enabled, err := harness.EnableExtension(ctx, devcycle.Name)
-		if err != nil {
-			t.Fatalf("EnableExtension(%s) error = %v", devcycle.Name, err)
-		}
-		if !enabled.Enabled {
-			t.Fatalf("EnableExtension(%s) = %#v, want enabled", devcycle.Name, enabled)
-		}
+		requireDevCycleExtensionEnabled(t, ctx, harness)
 		configureExtensionAgentFixture(
 			t,
 			ctx,
 			harness,
-			driverPath,
-			fixturePath,
-			softwareDeliveryFixtureAgent,
-			softwareDeliveryImplementer,
+			extensionAgentFixtureConfig{
+				DriverPath:         driverPath,
+				FixturePath:        fixturePath,
+				FixtureAgentName:   softwareDeliveryFixtureAgent,
+				ExtensionAgentName: softwareDeliveryImplementer,
+			},
 		)
 		configureExtensionAgentFixture(
 			t,
 			ctx,
 			harness,
-			driverPath,
-			fixturePath,
-			softwareDeliveryReviewerFixture,
-			softwareDeliveryReviewer,
+			extensionAgentFixtureConfig{
+				DriverPath:         driverPath,
+				FixturePath:        fixturePath,
+				FixtureAgentName:   softwareDeliveryReviewerFixture,
+				ExtensionAgentName: softwareDeliveryReviewer,
+			},
 		)
 		waitForLoopCatalogEntry(t, ctx, harness, "software-delivery")
 

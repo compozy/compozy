@@ -68,11 +68,12 @@ func (s *Scheduler) startJobLoopLocked(jobID string) {
 	registration.cancel = cancel
 	s.registrations[jobID] = registration
 	s.wg.Add(1)
-	go s.runJobLoop(jobCtx, jobID)
+	go s.runJobLoop(jobCtx, cancel, jobID)
 }
 
-func (s *Scheduler) runJobLoop(ctx context.Context, jobID string) {
+func (s *Scheduler) runJobLoop(ctx context.Context, cancel context.CancelFunc, jobID string) {
 	defer s.wg.Done()
+	defer cancel()
 
 	for {
 		registration, ok := s.registrationSnapshot(jobID)

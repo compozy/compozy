@@ -1,6 +1,7 @@
 package extensionpkg
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -33,6 +34,7 @@ func prepareBuildOutput(outputDir string) error {
 }
 
 func publishBuildGeneration(
+	ctx context.Context,
 	outputDir string,
 	sourceDir string,
 	manifest *Manifest,
@@ -66,7 +68,7 @@ func publishBuildGeneration(
 	if err != nil {
 		return nil, fmt.Errorf("extension: validate staged generation: %w", err)
 	}
-	if err := validateStaticKitResources(stageDir, validated); err != nil {
+	if err := validateStaticKitResources(ctx, stageDir, validated); err != nil {
 		return nil, fmt.Errorf("extension: validate staged static resources: %w", err)
 	}
 

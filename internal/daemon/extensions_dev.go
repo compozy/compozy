@@ -42,14 +42,30 @@ func (s *daemonExtensionService) Dev(
 		if snapshotErr != nil {
 			return snapshotErr
 		}
-		ext, linkErr := runtime.LinkDevelopmentFromOrigin(
+		staged, linkErr := runtime.StageDevelopmentLink(
 			ctx,
-			workspaceID,
+			key,
 			generation.OriginPath,
 			generation.GenerationHash,
 		)
 		if linkErr != nil {
 			return linkErr
+		}
+		var confirmation *extensionpkg.NetworkConfirmation
+		if devCandidateConfirmationRequired(staged, generation.NetworkRequirementDigest) {
+			confirmation, linkErr = s.confirmDevCandidateNetwork(
+				key,
+				generation.NetworkRequirementDigest,
+				req.ConfirmNetworkDigest,
+				actor,
+			)
+			if linkErr != nil {
+				return errors.Join(linkErr, s.restoreStagedDevLink(key, snapshot))
+			}
+		}
+		ext, linkErr := runtime.ActivateDevelopmentLink(ctx, key)
+		if linkErr != nil {
+			return s.rollbackDevLifecycle(ctx, runtime, key, snapshot, linkErr)
 		}
 		if syncErr := s.syncExtensionConsumers(ctx); syncErr != nil {
 			return s.rollbackDevLifecycle(ctx, runtime, key, snapshot, syncErr)
@@ -58,10 +74,18 @@ func (s *daemonExtensionService) Dev(
 		if linkErr != nil {
 			return s.rollbackDevLifecycle(ctx, runtime, key, snapshot, linkErr)
 		}
-		linkErr = s.recordCanonicalExtensionLifecycleEvent(ctx, actor, extensionpkg.LifecycleEvent{
+		events := make([]extensionpkg.LifecycleEvent, 0, 2)
+		if confirmation != nil {
+			events = append(events, extensionpkg.LifecycleEvent{
+				Type: eventspkg.ExtensionNetworkConfirmed, ExtensionName: key.Name,
+				WorkspaceID: key.WorkspaceID, Digest: confirmation.Digest, ConfirmedBy: confirmation.ConfirmedBy,
+			})
+		}
+		events = append(events, extensionpkg.LifecycleEvent{
 			Type: eventspkg.ExtensionDevLinked, ExtensionName: item.Name,
-			WorkspaceID: item.WorkspaceID, BundleGeneration: item.GenerationHash,
+			WorkspaceID: item.WorkspaceID, ExtensionGeneration: item.GenerationHash,
 		})
+		linkErr = s.recordCanonicalExtensionLifecycleEvents(ctx, actor, events...)
 		if linkErr != nil {
 			return s.rollbackDevLifecycle(ctx, runtime, key, snapshot, linkErr)
 		}
@@ -149,11 +173,6 @@ func (s *daemonExtensionService) inspectDevReloadCandidate(
 	if !devCandidateConfirmationRequired(snapshot, generation.NetworkRequirementDigest) {
 		return generation, nil, nil
 	}
-	if strings.TrimSpace(req.ConfirmNetworkDigest) != generation.NetworkRequirementDigest {
-		return extensionpkg.DevelopmentGeneration{}, nil, &extensionpkg.NetworkConfirmationRequiredError{
-			CurrentDigest: generation.NetworkRequirementDigest,
-		}
-	}
 	confirmation, err := s.confirmDevCandidateNetwork(
 		key,
 		generation.NetworkRequirementDigest,
@@ -179,7 +198,7 @@ func (s *daemonExtensionService) applyDevReload(
 	if err != nil {
 		eventErr := s.recordCanonicalExtensionLifecycleEvent(ctx, actor, extensionpkg.LifecycleEvent{
 			Type: eventspkg.ExtensionReloadFailed, ExtensionName: key.Name,
-			WorkspaceID: key.WorkspaceID, BundleGeneration: generation.GenerationHash,
+			WorkspaceID: key.WorkspaceID, ExtensionGeneration: generation.GenerationHash,
 		})
 		return contract.ExtensionPayload{}, errors.Join(err, eventErr, s.restoreDevNetworkConfirmation(key, snapshot))
 	}
@@ -212,7 +231,7 @@ func (s *daemonExtensionService) recordDevReloadEvents(
 	}
 	events = append(events, extensionpkg.LifecycleEvent{
 		Type: eventspkg.ExtensionReloadCompleted, ExtensionName: key.Name,
-		WorkspaceID: key.WorkspaceID, BundleGeneration: generationHash,
+		WorkspaceID: key.WorkspaceID, ExtensionGeneration: generationHash,
 	})
 	return s.recordCanonicalExtensionLifecycleEvents(ctx, actor, events...)
 }
@@ -391,7 +410,7 @@ func (s *daemonExtensionService) RemoveScoped(
 		}
 		if eventErr := s.recordCanonicalExtensionLifecycleEvent(ctx, actor, extensionpkg.LifecycleEvent{
 			Type: eventspkg.ExtensionDevUnlinked, ExtensionName: name,
-			WorkspaceID: workspaceID, BundleGeneration: snapshot.BundleGeneration,
+			WorkspaceID: workspaceID, ExtensionGeneration: snapshot.BundleGeneration,
 		}); eventErr != nil {
 			return s.rollbackDevRemoval(ctx, runtime, key, snapshot, retirement, eventErr)
 		}

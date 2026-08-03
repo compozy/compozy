@@ -2,18 +2,30 @@ package contract
 
 import "time"
 
+// MarketplaceKind identifies one supported marketplace catalog.
+type MarketplaceKind string
+
 const (
-	MarketplaceKindMCP       = "mcp"
-	MarketplaceKindExtension = "extension"
-	MarketplaceKindSkill     = "skill"
+	MarketplaceKindMCP       MarketplaceKind = "mcp"
+	MarketplaceKindExtension MarketplaceKind = "extension"
+	MarketplaceKindSkill     MarketplaceKind = "skill"
 
 	MarketplaceScopeGlobal    = "global"
 	MarketplaceScopeWorkspace = "workspace"
 )
 
+// MarketplaceKindValues returns the closed marketplace catalog set.
+func MarketplaceKindValues() []string {
+	return []string{
+		string(MarketplaceKindMCP),
+		string(MarketplaceKindExtension),
+		string(MarketplaceKindSkill),
+	}
+}
+
 // MarketplaceListingPayload is the common discovery row shared by every marketplace kind.
 type MarketplaceListingPayload struct {
-	Kind             string                       `json:"kind"`
+	Kind             MarketplaceKind              `json:"kind"`
 	EntryID          string                       `json:"entry_id"`
 	Name             string                       `json:"name"`
 	Description      string                       `json:"description"`
@@ -36,7 +48,7 @@ type MarketplaceListingPayload struct {
 
 // MarketplaceKindResult is one independently resolved marketplace kind.
 type MarketplaceKindResult struct {
-	Kind       string                      `json:"kind"`
+	Kind       MarketplaceKind             `json:"kind"`
 	Total      *int                        `json:"total,omitempty"`
 	NextCursor string                      `json:"next_cursor,omitempty"`
 	Stale      bool                        `json:"stale"`
@@ -53,7 +65,7 @@ type MarketplaceSearchResponse struct {
 
 // MarketplaceKindResponse is one kind's browse response.
 type MarketplaceKindResponse struct {
-	Kind       string                      `json:"kind"`
+	Kind       MarketplaceKind             `json:"kind"`
 	Total      *int                        `json:"total,omitempty"`
 	NextCursor string                      `json:"next_cursor,omitempty"`
 	Stale      bool                        `json:"stale"`

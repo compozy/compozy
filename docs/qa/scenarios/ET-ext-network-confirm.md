@@ -9,13 +9,16 @@ entry_points: compozy extension enable|update --confirm-network-requirement <dig
 qa_status: pass
 bug_ids:
 fix_status:
-retest_status: pass
+retest_status:
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-devtool-oss-launch-20260802-195112-911343-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-08-02-bundles-removal.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-bundles-removal-review-20260803-040035-513450-lab/qa-artifacts/qa/enable-missing-consent.txt; /Users/pedronauck/dev/qa-labs/compozy-bundles-removal-review-20260803-040035-513450-lab/qa-artifacts/qa/enable-stale-consent.txt; /Users/pedronauck/dev/qa-labs/compozy-bundles-removal-review-20260803-040035-513450-lab/qa-artifacts/qa/enable-http-missing-consent.json; /Users/pedronauck/dev/qa-labs/compozy-bundles-removal-review-20260803-040035-513450-lab/qa-artifacts/qa/status-after-refusals.json; /Users/pedronauck/dev/qa-labs/compozy-bundles-removal-review-20260803-040035-513450-lab/qa-artifacts/qa/review-kit-network-confirmation.png; /Users/pedronauck/dev/qa-labs/compozy-bundles-removal-review-20260803-040035-513450-lab/qa-artifacts/qa/status-enabled.json
+last_report: docs/qa/reports/2026-08-03-bundles-removal-review.md
 overlaps: ET-network-participation-hooks; ET-web-extension-detail
 ---
 
 QA impact 2026-08-02: new lifecycle consent gate. Walk initial enable, changed-digest update refusal,
 exact retry, stale retry, unchanged digest, dev-instance reload, true operator/agent actor identity,
 and post-restart confirmation truth.
+
+QA impact 2026-08-02: the Marketplace confirmation dialog and lifecycle rollback changed; re-walk
+the refusal, exact-digest retry, and rendered confirmation state.

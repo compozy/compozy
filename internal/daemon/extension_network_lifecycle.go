@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -20,12 +21,13 @@ func (s *daemonExtensionService) configureUpdateNetworkGate(
 	if req == nil {
 		return confirmed
 	}
+	expectedDigest = strings.TrimSpace(expectedDigest)
 	req.PreflightCandidate = func(info extensionpkg.ExtensionInfo, manifest *extensionpkg.Manifest) error {
 		digest, required, err := candidateNetworkConfirmationRequirement(info, manifest)
 		if err != nil || !required {
 			return err
 		}
-		if strings.TrimSpace(expectedDigest) != digest {
+		if expectedDigest != digest {
 			return &extensionpkg.NetworkConfirmationRequiredError{CurrentDigest: digest}
 		}
 		return nil
@@ -84,12 +86,19 @@ func (s *daemonExtensionService) recordCommittedUpdateNetworkConfirmations(
 		if !ok || item.Status != extensionpkg.MarketplaceUpdateStatusUpdated {
 			continue
 		}
-		eventErr = errors.Join(eventErr, s.recordExtensionNetworkConfirmedEvent(
+		err := s.recordExtensionNetworkConfirmedEvent(
 			ctx,
 			actor,
 			extensionpkg.GlobalInstanceKey(item.Name),
 			confirmation,
-		))
+		)
+		if err != nil {
+			eventErr = errors.Join(eventErr, fmt.Errorf(
+				"daemon: record extension network confirmation %q: %w",
+				item.Name,
+				err,
+			))
+		}
 	}
 	return eventErr
 }

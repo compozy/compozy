@@ -2,6 +2,7 @@ package extensionpkg
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -33,27 +34,26 @@ type ValidationReport = apicontract.ExtensionValidatePayload
 // ValidateBundle validates a built or resource-only extension archive without executing extension code.
 func ValidateBundle(dir string) (*Manifest, []ValidationIssue, error) {
 	manifest, err := LoadManifest(dir)
-	if err == nil {
-		if err := validateStaticKitResources(dir, manifest); err != nil {
-			issue, handled, issueErr := validationIssueForError(dir, err)
-			if issueErr != nil {
-				return nil, nil, issueErr
-			}
-			if handled {
-				return nil, []ValidationIssue{issue}, nil
-			}
-			return nil, nil, err
-		}
-		return manifest, commandAmbiguityWarnings(manifest, extensionManifestPath(dir)), nil
+	if err != nil {
+		issues, validationErr := validationIssuesForError(dir, err)
+		return nil, issues, validationErr
 	}
+	if err := validateStaticKitResources(context.Background(), dir, manifest); err != nil {
+		issues, validationErr := validationIssuesForError(dir, err)
+		return nil, issues, validationErr
+	}
+	return manifest, commandAmbiguityWarnings(manifest, extensionManifestPath(dir)), nil
+}
+
+func validationIssuesForError(dir string, err error) ([]ValidationIssue, error) {
 	issue, handled, issueErr := validationIssueForError(dir, err)
 	if issueErr != nil {
-		return nil, nil, issueErr
+		return nil, issueErr
 	}
 	if handled {
-		return nil, []ValidationIssue{issue}, nil
+		return []ValidationIssue{issue}, nil
 	}
-	return nil, nil, err
+	return nil, err
 }
 
 // ValidateBundleReport adds the permission-derived consent summary to ValidateBundle.

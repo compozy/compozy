@@ -24,6 +24,85 @@ import (
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
+func TestCloneAutomationModels(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should deep clone jobs", func(t *testing.T) {
+		t.Parallel()
+
+		job := Job{
+			Schedule: &ScheduleSpec{Mode: ScheduleModeEvery, Interval: "1h"},
+			Task: &JobTaskConfig{
+				Owner: &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "triage"},
+			},
+			LoopTarget: &LoopTarget{
+				Inputs:       map[string]any{"nested": map[string]any{"value": "original"}},
+				InputMapping: map[string]string{"topic": "input.topic"},
+			},
+		}
+
+		cloned := CloneJob(job)
+		cloned.Schedule.Interval = "2h"
+		cloned.Task.Owner.Ref = "review"
+		clonedNested, ok := cloned.LoopTarget.Inputs["nested"].(map[string]any)
+		if !ok {
+			t.Fatalf(
+				"CloneJob().LoopTarget.Inputs[nested] type = %T, want map[string]any",
+				cloned.LoopTarget.Inputs["nested"],
+			)
+		}
+		clonedNested["value"] = "changed"
+		cloned.LoopTarget.InputMapping["topic"] = "input.changed"
+		sourceNested, ok := job.LoopTarget.Inputs["nested"].(map[string]any)
+		if !ok {
+			t.Fatalf(
+				"job.LoopTarget.Inputs[nested] type = %T, want map[string]any",
+				job.LoopTarget.Inputs["nested"],
+			)
+		}
+
+		if job.Schedule.Interval != "1h" || job.Task.Owner.Ref != "triage" ||
+			sourceNested["value"] != "original" ||
+			job.LoopTarget.InputMapping["topic"] != "input.topic" {
+			t.Fatalf("CloneJob() mutated source job: %#v", job)
+		}
+	})
+
+	t.Run("Should deep clone triggers", func(t *testing.T) {
+		t.Parallel()
+
+		trigger := Trigger{
+			Filter: map[string]string{"data.agent_name": "reviewer"},
+			LoopTarget: &LoopTarget{
+				Inputs: map[string]any{"items": []any{"original"}},
+			},
+		}
+
+		cloned := CloneTrigger(trigger)
+		cloned.Filter["data.agent_name"] = "writer"
+		clonedItems, ok := cloned.LoopTarget.Inputs["items"].([]any)
+		if !ok {
+			t.Fatalf(
+				"CloneTrigger().LoopTarget.Inputs[items] type = %T, want []any",
+				cloned.LoopTarget.Inputs["items"],
+			)
+		}
+		clonedItems[0] = "changed"
+		sourceItems, ok := trigger.LoopTarget.Inputs["items"].([]any)
+		if !ok {
+			t.Fatalf(
+				"trigger.LoopTarget.Inputs[items] type = %T, want []any",
+				trigger.LoopTarget.Inputs["items"],
+			)
+		}
+
+		if trigger.Filter["data.agent_name"] != "reviewer" ||
+			sourceItems[0] != "original" {
+			t.Fatalf("CloneTrigger() mutated source trigger: %#v", trigger)
+		}
+	})
+}
+
 func TestManagerStartSyncsConfigDefinitionsAndPreservesDynamicEntries(t *testing.T) {
 	t.Parallel()
 

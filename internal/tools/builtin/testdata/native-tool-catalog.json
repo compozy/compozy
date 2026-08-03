@@ -589,7 +589,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "c273507715573476c6211fb9e13174e91ed2f3ab5310afc094fb72e61da7cea1",
+    "input_schema_digest": "daa35bd9d4c970e125395839bee0ef3165db342bbd9cfaf997081b3b65e3420b",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -615,7 +615,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "9490eca5222041e4c2fd39c201b5e3233f279a117bbdca3229db23b5195bb626",
+    "input_schema_digest": "c18387fcba5734b156a03cc12f0135776b458aead29f9302b2c8efd15efa0551",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -668,7 +668,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "c70d2daf71667bd20bdb983d31b4f01657a3308970b3c3d0d7f3bcf3b5d9bf20",
-    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+    "output_schema_digest": "8c26b3ea708bc228802bb417752fd1ae202e9818e8ead391a3ab006e4a8a87e6"
   },
   {
     "tool_id": "compozy__extensions_list",
@@ -707,7 +707,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "c70d2daf71667bd20bdb983d31b4f01657a3308970b3c3d0d7f3bcf3b5d9bf20",
-    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+    "output_schema_digest": "5554ad6314dd4ff25a85fecbc502d62e0919885655c8b65583465cf41df9c211"
   },
   {
     "tool_id": "compozy__extensions_provenance",
@@ -745,7 +745,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "33310806415f57c89755c07da94caabac88352a797fd852ca5f807e8c8682b2a",
+    "input_schema_digest": "f7a1bb7ff8e7b3a655ebba01a9f024d0796ddba91be67f7e4e26a85ed2b52945",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -784,7 +784,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "62a8aaac0a8911cd414f0e0f2c9c13de41930c1ccdd9f87e8a0aa52ae679ffe0",
+    "input_schema_digest": "eaf0724ffb49c53012afbefdc460cb50758878b28f8786cd95b557d70561b79e",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {

@@ -111,14 +111,22 @@ func TestAgentSkillSourceSyncerSerializesConvergence(t *testing.T) {
 		release := make(chan struct{})
 		wantErr := errors.New("stop after provider")
 		var calls atomic.Int32
-		syncer := &agentSkillSourceSyncer{
-			providers: []agentSkillDeclarationProvider{func(context.Context) (agentSkillDesiredResources, error) {
+		rawStore, agentStore, agentCodec, soulStore, soulCodec, heartbeatStore, heartbeatCodec,
+			skillStore, skillCodec, mcpStore, mcpCodec := agentSkillSyncStores(t)
+		syncer := newAgentSkillSourceSyncer(agentSkillSourceSyncerDeps{
+			raw: rawStore, agentStore: agentStore, agentCodec: agentCodec,
+			soulStore: soulStore, soulCodec: soulCodec,
+			heartbeatStore: heartbeatStore, heartbeatCodec: heartbeatCodec,
+			skillStore: skillStore, skillCodec: skillCodec,
+			mcpStore: mcpStore, mcpCodec: mcpCodec,
+			actor: agentSkillSyncActor(), logger: discardLogger(),
+			providers: []agentSkillDeclarationProvider{func(context.Context) (agentSkillDeclarations, error) {
 				call := int(calls.Add(1))
 				entered <- call
 				<-release
-				return agentSkillDesiredResources{}, wantErr
+				return agentSkillDeclarations{}, wantErr
 			}},
-		}
+		})
 		firstDone := make(chan error, 1)
 		go func() {
 			firstDone <- syncer.Sync(context.Background())
@@ -146,6 +154,98 @@ func TestAgentSkillSourceSyncerSerializesConvergence(t *testing.T) {
 			t.Fatalf("second Sync() error = %v, want %v", err, wantErr)
 		}
 	})
+}
+
+func TestManagedResourceSyncerOrdersMutations(t *testing.T) {
+	t.Run("Should put desired and delete stale resources in lexical ID order", func(t *testing.T) {
+		t.Parallel()
+
+		codec, err := compozyconfig.NewAgentResourceCodec()
+		if err != nil {
+			t.Fatalf("compozyconfig.NewAgentResourceCodec() error = %v", err)
+		}
+		scope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
+		actor := agentSkillSyncActor()
+		store := &recordingManagedAgentStore{records: []resources.Record[compozyconfig.AgentDef]{
+			{ID: "stale-z", Version: 2, Scope: scope, Source: actor.Source},
+			{ID: "stale-a", Version: 3, Scope: scope, Source: actor.Source},
+		}}
+		desired := make(map[string]managedResourceValue[compozyconfig.AgentDef])
+		for _, id := range []string{"desired-z", "desired-a"} {
+			spec := compozyconfig.AgentDef{Name: id, Provider: "codex", Prompt: "Test deterministic sync."}
+			encoded, encodeErr := codec.Encode(spec)
+			if encodeErr != nil {
+				t.Fatalf("codec.Encode(%q) error = %v", id, encodeErr)
+			}
+			desired[id] = managedResourceValue[compozyconfig.AgentDef]{
+				id: id, scope: scope, spec: spec, encoded: encoded,
+			}
+		}
+
+		changed, err := syncManagedResources(
+			context.Background(),
+			actor,
+			store,
+			codec,
+			desired,
+			"test agent",
+		)
+		if err != nil {
+			t.Fatalf("syncManagedResources() error = %v", err)
+		}
+		if !changed {
+			t.Fatal("syncManagedResources() changed = false, want true")
+		}
+		want := []string{"put:desired-a", "put:desired-z", "delete:stale-a", "delete:stale-z"}
+		if len(store.operations) != len(want) {
+			t.Fatalf("operations = %#v, want %#v", store.operations, want)
+		}
+		for idx := range want {
+			if store.operations[idx] != want[idx] {
+				t.Fatalf("operations = %#v, want %#v", store.operations, want)
+			}
+		}
+	})
+}
+
+type recordingManagedAgentStore struct {
+	records    []resources.Record[compozyconfig.AgentDef]
+	operations []string
+}
+
+func (s *recordingManagedAgentStore) Put(
+	_ context.Context,
+	_ resources.MutationActor,
+	draft resources.Draft[compozyconfig.AgentDef],
+) (resources.Record[compozyconfig.AgentDef], error) {
+	s.operations = append(s.operations, "put:"+draft.ID)
+	return resources.Record[compozyconfig.AgentDef]{ID: draft.ID, Spec: draft.Spec}, nil
+}
+
+func (s *recordingManagedAgentStore) Delete(
+	_ context.Context,
+	_ resources.MutationActor,
+	id string,
+	_ int64,
+) error {
+	s.operations = append(s.operations, "delete:"+id)
+	return nil
+}
+
+func (s *recordingManagedAgentStore) Get(
+	_ context.Context,
+	_ resources.MutationActor,
+	_ string,
+) (resources.Record[compozyconfig.AgentDef], error) {
+	return resources.Record[compozyconfig.AgentDef]{}, errors.New("recording store: get is not supported")
+}
+
+func (s *recordingManagedAgentStore) List(
+	_ context.Context,
+	_ resources.MutationActor,
+	_ resources.ResourceFilter,
+) ([]resources.Record[compozyconfig.AgentDef], error) {
+	return s.records, nil
 }
 
 func TestResourceAgentCatalogFallsBackToResolvedWorkspaceSnapshot(t *testing.T) {
@@ -288,185 +388,189 @@ func TestResourceAgentCatalogResolveAgentValidation(t *testing.T) {
 }
 
 func TestResourceAgentCatalogResolvesExtensionOwnedArtifactsAndHeartbeatPolicy(t *testing.T) {
-	t.Parallel()
+	t.Run("Should resolve extension-owned artifacts and heartbeat policy", func(t *testing.T) {
+		t.Parallel()
 
-	scope := resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-1"}
-	owner := resources.ResourceOwner{
-		Kind: extensionResourceOwnerKind,
-		ID:   "marketing-kit",
-	}
-	agentCatalog := newResourceCatalog(cloneAgentDef)
-	agentCatalog.Replace(1, []resources.Record[compozyconfig.AgentDef]{
-		{
-			ID:    "agt-global",
-			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
-			Spec:  compozyconfig.AgentDef{Name: "marketer", Prompt: "global marketer"},
-		},
-		{
-			ID:    "agt-marketer",
+		scope := resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-1"}
+		owner := resources.ResourceOwner{
+			Kind: extensionResourceOwnerKind,
+			ID:   "marketing-kit",
+		}
+		agentCatalog := newResourceCatalog(cloneAgentDef)
+		agentCatalog.Replace(1, []resources.Record[compozyconfig.AgentDef]{
+			{
+				ID:    "agt-global",
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+				Spec:  compozyconfig.AgentDef{Name: "marketer", Prompt: "global marketer"},
+			},
+			{
+				ID:    "agt-marketer",
+				Scope: scope,
+				Owner: owner,
+				Spec:  compozyconfig.AgentDef{Name: "marketer", Prompt: "extension marketer"},
+			},
+		})
+		soulCatalog := newResourceCatalog(cloneSoulResourceSpec)
+		soulCatalog.Replace(1, []resources.Record[soul.ResourceSpec]{
+			{
+				ID:    "sol-marketer",
+				Scope: scope,
+				Owner: owner,
+				Spec: soul.ResourceSpec{
+					AgentName:       "marketer",
+					AgentResourceID: "agt-marketer",
+					SourcePath:      ".compozy/extensions/marketing-kit/agents/marketer/SOUL.md",
+					Body:            "Lead with campaign context.",
+				},
+			},
+			{
+				ID:    "sol-leak",
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+				Owner: owner,
+				Spec: soul.ResourceSpec{
+					AgentName:       "marketer",
+					AgentResourceID: "agt-global",
+					SourcePath:      ".compozy/extensions/marketing-kit/agents/marketer/SOUL.md",
+					Body:            "Do not attach this global sidecar.",
+				},
+			},
+		})
+		heartbeatCatalog := newResourceCatalog(cloneHeartbeatResourceSpec)
+		heartbeatCatalog.Replace(1, []resources.Record[heartbeat.ResourceSpec]{{
+			ID:    "hbt-marketer",
 			Scope: scope,
 			Owner: owner,
-			Spec:  compozyconfig.AgentDef{Name: "marketer", Prompt: "extension marketer"},
-		},
-	})
-	soulCatalog := newResourceCatalog(cloneSoulResourceSpec)
-	soulCatalog.Replace(1, []resources.Record[soul.ResourceSpec]{
-		{
-			ID:    "sol-marketer",
-			Scope: scope,
-			Owner: owner,
-			Spec: soul.ResourceSpec{
+			Spec: heartbeat.ResourceSpec{
 				AgentName:       "marketer",
 				AgentResourceID: "agt-marketer",
-				SourcePath:      ".compozy/extensions/marketing-kit/agents/marketer/SOUL.md",
-				Body:            "Lead with campaign context.",
+				SourcePath:      ".compozy/extensions/marketing-kit/agents/marketer/HEARTBEAT.md",
+				Body:            "Inspect campaign status and use Compozy task APIs.",
 			},
-		},
-		{
-			ID:    "sol-leak",
-			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
-			Owner: owner,
-			Spec: soul.ResourceSpec{
-				AgentName:       "marketer",
-				AgentResourceID: "agt-global",
-				SourcePath:      ".compozy/extensions/marketing-kit/agents/marketer/SOUL.md",
-				Body:            "Do not attach this global sidecar.",
-			},
-		},
-	})
-	heartbeatCatalog := newResourceCatalog(cloneHeartbeatResourceSpec)
-	heartbeatCatalog.Replace(1, []resources.Record[heartbeat.ResourceSpec]{{
-		ID:    "hbt-marketer",
-		Scope: scope,
-		Owner: owner,
-		Spec: heartbeat.ResourceSpec{
-			AgentName:       "marketer",
-			AgentResourceID: "agt-marketer",
-			SourcePath:      ".compozy/extensions/marketing-kit/agents/marketer/HEARTBEAT.md",
-			Body:            "Inspect campaign status and use Compozy task APIs.",
-		},
-	}})
+		}})
 
-	dependency := agentCatalogDependency(agentCatalog, agentSidecarCatalogs{
-		soul:      soulCatalog,
-		heartbeat: heartbeatCatalog,
-	})
-	resolved := &workspacepkg.ResolvedWorkspace{Workspace: workspacepkg.Workspace{ID: "ws-1", RootDir: t.TempDir()}}
-	artifacts, err := dependency.ResolveAgentArtifacts("marketer", resolved)
-	if err != nil {
-		t.Fatalf("ResolveAgentArtifacts(marketer) error = %v", err)
-	}
-	if !artifacts.PackageOwned {
-		t.Fatal("artifacts.PackageOwned = false, want true")
-	}
-	if got, want := artifacts.Agent.Prompt, "extension marketer"; got != want {
-		t.Fatalf("artifacts.Agent.Prompt = %q, want %q", got, want)
-	}
-	if got, want := artifacts.SoulBody, "Lead with campaign context."; got != want {
-		t.Fatalf("artifacts.SoulBody = %q, want %q", got, want)
-	}
-	if got, want := artifacts.HeartbeatBody, "Inspect campaign status and use Compozy task APIs."; got != want {
-		t.Fatalf("artifacts.HeartbeatBody = %q, want %q", got, want)
-	}
+		dependency := agentCatalogDependency(agentCatalog, agentSidecarCatalogs{
+			soul:      soulCatalog,
+			heartbeat: heartbeatCatalog,
+		})
+		resolved := &workspacepkg.ResolvedWorkspace{Workspace: workspacepkg.Workspace{ID: "ws-1", RootDir: t.TempDir()}}
+		artifacts, err := dependency.ResolveAgentArtifacts("marketer", resolved)
+		if err != nil {
+			t.Fatalf("ResolveAgentArtifacts(marketer) error = %v", err)
+		}
+		if !artifacts.PackageOwned {
+			t.Fatal("artifacts.PackageOwned = false, want true")
+		}
+		if got, want := artifacts.Agent.Prompt, "extension marketer"; got != want {
+			t.Fatalf("artifacts.Agent.Prompt = %q, want %q", got, want)
+		}
+		if got, want := artifacts.SoulBody, "Lead with campaign context."; got != want {
+			t.Fatalf("artifacts.SoulBody = %q, want %q", got, want)
+		}
+		if got, want := artifacts.HeartbeatBody, "Inspect campaign status and use Compozy task APIs."; got != want {
+			t.Fatalf("artifacts.HeartbeatBody = %q, want %q", got, want)
+		}
 
-	policy, ok, err := dependency.ResolveHeartbeatPolicy(context.Background(), heartbeat.AuthoringTarget{
-		AgentName:     "marketer",
-		WorkspaceID:   "ws-1",
-		WorkspaceRoot: resolved.RootDir,
+		policy, ok, err := dependency.ResolveHeartbeatPolicy(context.Background(), heartbeat.AuthoringTarget{
+			AgentName:     "marketer",
+			WorkspaceID:   "ws-1",
+			WorkspaceRoot: resolved.RootDir,
+		})
+		if err != nil {
+			t.Fatalf("ResolveHeartbeatPolicy(marketer) error = %v", err)
+		}
+		if !ok {
+			t.Fatal("ResolveHeartbeatPolicy(marketer) ok = false, want true")
+		}
+		if !policy.Present || !policy.Valid || !policy.Active {
+			t.Fatalf(
+				"heartbeat policy flags = present:%v valid:%v active:%v, want all true",
+				policy.Present,
+				policy.Valid,
+				policy.Active,
+			)
+		}
 	})
-	if err != nil {
-		t.Fatalf("ResolveHeartbeatPolicy(marketer) error = %v", err)
-	}
-	if !ok {
-		t.Fatal("ResolveHeartbeatPolicy(marketer) ok = false, want true")
-	}
-	if !policy.Present || !policy.Valid || !policy.Active {
-		t.Fatalf(
-			"heartbeat policy flags = present:%v valid:%v active:%v, want all true",
-			policy.Present,
-			policy.Valid,
-			policy.Active,
-		)
-	}
 }
 
 func TestResourceAgentCatalogMatchesExtensionSidecarsByOwnerScopeAndAgentID(t *testing.T) {
-	t.Parallel()
+	t.Run("Should match extension sidecars by owner scope and agent ID", func(t *testing.T) {
+		t.Parallel()
 
-	scope := resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-1"}
-	owner := resources.ResourceOwner{Kind: extensionResourceOwnerKind, ID: "kit"}
-	otherOwner := resources.ResourceOwner{Kind: extensionResourceOwnerKind, ID: "other-kit"}
-	agentCatalog := newResourceCatalog(cloneAgentDef)
-	agentCatalog.Replace(1, []resources.Record[compozyconfig.AgentDef]{
-		{
-			ID: "shared-agent-id", Scope: scope, Owner: owner,
-			Spec: compozyconfig.AgentDef{Name: "coder", Prompt: "extension coder"},
-		},
-		{
-			ID: "plain-agent", Scope: scope,
-			Spec: compozyconfig.AgentDef{Name: "plain", Prompt: "operator coder"},
-		},
-	})
-	soulCatalog := newResourceCatalog(cloneSoulResourceSpec)
-	soulCatalog.Replace(1, []resources.Record[soul.ResourceSpec]{
-		{
-			ID: "matching-soul", Scope: scope, Owner: owner,
-			Spec: soul.ResourceSpec{
-				AgentName: "coder", AgentResourceID: "shared-agent-id", Body: "matching extension soul",
+		scope := resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-1"}
+		owner := resources.ResourceOwner{Kind: extensionResourceOwnerKind, ID: "kit"}
+		otherOwner := resources.ResourceOwner{Kind: extensionResourceOwnerKind, ID: "other-kit"}
+		agentCatalog := newResourceCatalog(cloneAgentDef)
+		agentCatalog.Replace(1, []resources.Record[compozyconfig.AgentDef]{
+			{
+				ID: "shared-agent-id", Scope: scope, Owner: owner,
+				Spec: compozyconfig.AgentDef{Name: "coder", Prompt: "extension coder"},
 			},
-		},
-		{
-			ID: "wrong-owner-soul", Scope: scope, Owner: otherOwner,
-			Spec: soul.ResourceSpec{
-				AgentName: "coder", AgentResourceID: "shared-agent-id", Body: "must not attach",
+			{
+				ID: "plain-agent", Scope: scope,
+				Spec: compozyconfig.AgentDef{Name: "plain", Prompt: "operator coder"},
 			},
-		},
-		{
-			ID:    "wrong-scope-soul",
-			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}, Owner: owner,
-			Spec: soul.ResourceSpec{
-				AgentName: "coder", AgentResourceID: "shared-agent-id", Body: "must not attach either",
+		})
+		soulCatalog := newResourceCatalog(cloneSoulResourceSpec)
+		soulCatalog.Replace(1, []resources.Record[soul.ResourceSpec]{
+			{
+				ID: "matching-soul", Scope: scope, Owner: owner,
+				Spec: soul.ResourceSpec{
+					AgentName: "coder", AgentResourceID: "shared-agent-id", Body: "matching extension soul",
+				},
 			},
-		},
-	})
-	heartbeatCatalog := newResourceCatalog(cloneHeartbeatResourceSpec)
-	heartbeatCatalog.Replace(1, []resources.Record[heartbeat.ResourceSpec]{
-		{
-			ID: "wrong-id-heartbeat", Scope: scope, Owner: owner,
-			Spec: heartbeat.ResourceSpec{
-				AgentName: "coder", AgentResourceID: "another-agent-id", Body: "must not attach",
+			{
+				ID: "wrong-owner-soul", Scope: scope, Owner: otherOwner,
+				Spec: soul.ResourceSpec{
+					AgentName: "coder", AgentResourceID: "shared-agent-id", Body: "must not attach",
+				},
 			},
-		},
-		{
-			ID: "matching-heartbeat", Scope: scope, Owner: owner,
-			Spec: heartbeat.ResourceSpec{
-				AgentName: "coder", AgentResourceID: "shared-agent-id", Body: "matching heartbeat",
+			{
+				ID:    "wrong-scope-soul",
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}, Owner: owner,
+				Spec: soul.ResourceSpec{
+					AgentName: "coder", AgentResourceID: "shared-agent-id", Body: "must not attach either",
+				},
 			},
-		},
-	})
+		})
+		heartbeatCatalog := newResourceCatalog(cloneHeartbeatResourceSpec)
+		heartbeatCatalog.Replace(1, []resources.Record[heartbeat.ResourceSpec]{
+			{
+				ID: "wrong-id-heartbeat", Scope: scope, Owner: owner,
+				Spec: heartbeat.ResourceSpec{
+					AgentName: "coder", AgentResourceID: "another-agent-id", Body: "must not attach",
+				},
+			},
+			{
+				ID: "matching-heartbeat", Scope: scope, Owner: owner,
+				Spec: heartbeat.ResourceSpec{
+					AgentName: "coder", AgentResourceID: "shared-agent-id", Body: "matching heartbeat",
+				},
+			},
+		})
 
-	dependency := agentCatalogDependency(agentCatalog, agentSidecarCatalogs{
-		soul: soulCatalog, heartbeat: heartbeatCatalog,
+		dependency := agentCatalogDependency(agentCatalog, agentSidecarCatalogs{
+			soul: soulCatalog, heartbeat: heartbeatCatalog,
+		})
+		resolved := &workspacepkg.ResolvedWorkspace{Workspace: workspacepkg.Workspace{ID: "ws-1"}}
+		artifacts, err := dependency.ResolveAgentArtifacts("coder", resolved)
+		if err != nil {
+			t.Fatalf("ResolveAgentArtifacts(coder) error = %v", err)
+		}
+		if !artifacts.PackageOwned || artifacts.OwnerKind != string(extensionResourceOwnerKind) ||
+			artifacts.OwnerID != "kit" {
+			t.Fatalf("extension artifacts ownership = %#v, want package-owned extension/kit", artifacts)
+		}
+		if artifacts.SoulBody != "matching extension soul" || artifacts.HeartbeatBody != "matching heartbeat" {
+			t.Fatalf("extension artifacts sidecars = %#v, want exact owner/scope/id matches", artifacts)
+		}
+		plain, err := dependency.ResolveAgentArtifacts("plain", resolved)
+		if err != nil {
+			t.Fatalf("ResolveAgentArtifacts(plain) error = %v", err)
+		}
+		if plain.PackageOwned {
+			t.Fatalf("plain artifacts = %#v, want PackageOwned=false", plain)
+		}
 	})
-	resolved := &workspacepkg.ResolvedWorkspace{Workspace: workspacepkg.Workspace{ID: "ws-1"}}
-	artifacts, err := dependency.ResolveAgentArtifacts("coder", resolved)
-	if err != nil {
-		t.Fatalf("ResolveAgentArtifacts(coder) error = %v", err)
-	}
-	if !artifacts.PackageOwned || artifacts.OwnerKind != string(extensionResourceOwnerKind) ||
-		artifacts.OwnerID != "kit" {
-		t.Fatalf("extension artifacts ownership = %#v, want package-owned extension/kit", artifacts)
-	}
-	if artifacts.SoulBody != "matching extension soul" || artifacts.HeartbeatBody != "matching heartbeat" {
-		t.Fatalf("extension artifacts sidecars = %#v, want exact owner/scope/id matches", artifacts)
-	}
-	plain, err := dependency.ResolveAgentArtifacts("plain", resolved)
-	if err != nil {
-		t.Fatalf("ResolveAgentArtifacts(plain) error = %v", err)
-	}
-	if plain.PackageOwned {
-		t.Fatalf("plain artifacts = %#v, want PackageOwned=false", plain)
-	}
 }
 
 func TestAgentSkillSmallHelpers(t *testing.T) {
@@ -525,9 +629,10 @@ func TestAgentSkillSmallHelpers(t *testing.T) {
 func TestAgentSkillSourceSyncerReplacesCanonicalSnapshot(t *testing.T) {
 	t.Parallel()
 
-	rawStore, agentStore, agentCodec, skillStore, skillCodec, mcpStore, mcpCodec := agentSkillSyncStores(t)
+	rawStore, agentStore, agentCodec, soulStore, soulCodec, heartbeatStore, heartbeatCodec,
+		skillStore, skillCodec, mcpStore, mcpCodec := agentSkillSyncStores(t)
 	agentCatalog := newResourceCatalog(cloneAgentDef)
-	desired := agentSkillDesiredResources{
+	desired := agentSkillDeclarations{
 		agents: []agentPublicationInput{{
 			sourceKey: "test/agent/coder",
 			scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
@@ -558,26 +663,22 @@ func TestAgentSkillSourceSyncerReplacesCanonicalSnapshot(t *testing.T) {
 		}},
 	}
 	triggered := make(map[resources.ResourceKind]int)
-	syncer := newAgentSkillSourceSyncer(
-		rawStore,
-		agentStore,
-		agentCodec,
-		newAgentProjector(agentCatalog),
-		skillStore,
-		skillCodec,
-		nil,
-		mcpStore,
-		mcpCodec,
-		agentSkillSyncActor(),
-		discardLogger(),
-		func(_ context.Context, kind resources.ResourceKind, _ resources.ReconcileReason) error {
+	syncer := newAgentSkillSourceSyncer(agentSkillSourceSyncerDeps{
+		raw: rawStore, agentStore: agentStore, agentCodec: agentCodec,
+		agentProjector: newAgentProjector(agentCatalog),
+		soulStore:      soulStore, soulCodec: soulCodec,
+		heartbeatStore: heartbeatStore, heartbeatCodec: heartbeatCodec,
+		skillStore: skillStore, skillCodec: skillCodec,
+		mcpStore: mcpStore, mcpCodec: mcpCodec,
+		actor: agentSkillSyncActor(), logger: discardLogger(),
+		trigger: func(_ context.Context, kind resources.ResourceKind, _ resources.ReconcileReason) error {
 			triggered[kind]++
 			return nil
 		},
-		func(context.Context) (agentSkillDesiredResources, error) {
+		providers: []agentSkillDeclarationProvider{func(context.Context) (agentSkillDeclarations, error) {
 			return desired, nil
-		},
-	)
+		}},
+	})
 
 	if err := syncer.Sync(context.Background()); err != nil {
 		t.Fatalf("Sync() error = %v", err)
@@ -628,30 +729,25 @@ func TestAgentSkillSourceSyncerRetriesAgentProjection(t *testing.T) {
 	t.Run("Should retry projection after the durable resource write stops changing", func(t *testing.T) {
 		t.Parallel()
 
-		rawStore, agentStore, agentCodec, skillStore, skillCodec, mcpStore, mcpCodec := agentSkillSyncStores(t)
+		rawStore, agentStore, agentCodec, soulStore, soulCodec, heartbeatStore, heartbeatCodec,
+			skillStore, skillCodec, mcpStore, mcpCodec := agentSkillSyncStores(t)
 		projectionErr := errors.New("projection unavailable")
 		projector := &retryingAgentProjector{buildErrors: []error{projectionErr, nil}}
-		syncer := newAgentSkillSourceSyncer(
-			rawStore,
-			agentStore,
-			agentCodec,
-			projector,
-			skillStore,
-			skillCodec,
-			nil,
-			mcpStore,
-			mcpCodec,
-			agentSkillSyncActor(),
-			discardLogger(),
-			nil,
-			func(context.Context) (agentSkillDesiredResources, error) {
-				return agentSkillDesiredResources{agents: []agentPublicationInput{{
+		syncer := newAgentSkillSourceSyncer(agentSkillSourceSyncerDeps{
+			raw: rawStore, agentStore: agentStore, agentCodec: agentCodec, agentProjector: projector,
+			soulStore: soulStore, soulCodec: soulCodec,
+			heartbeatStore: heartbeatStore, heartbeatCodec: heartbeatCodec,
+			skillStore: skillStore, skillCodec: skillCodec,
+			mcpStore: mcpStore, mcpCodec: mcpCodec,
+			actor: agentSkillSyncActor(), logger: discardLogger(),
+			providers: []agentSkillDeclarationProvider{func(context.Context) (agentSkillDeclarations, error) {
+				return agentSkillDeclarations{agents: []agentPublicationInput{{
 					sourceKey: "test/agent/coder",
 					scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
 					spec:      compozyconfig.AgentDef{Name: "coder", Provider: "codex", Prompt: "Code."},
 				}}}, nil
-			},
-		)
+			}},
+		})
 
 		if err := syncer.Sync(context.Background()); !errors.Is(err, projectionErr) {
 			t.Fatalf("first Sync() error = %v, want projection failure", err)
@@ -711,9 +807,10 @@ func TestAgentSkillSourceSyncerSyncSkillsProjectsRegistrySynchronously(t *testin
 	t.Run("Should project synchronized marketplace skills into the registry immediately", func(t *testing.T) {
 		t.Parallel()
 
-		rawStore, agentStore, agentCodec, skillStore, skillCodec, mcpStore, mcpCodec := agentSkillSyncStores(t)
+		rawStore, agentStore, agentCodec, soulStore, soulCodec, heartbeatStore, heartbeatCodec,
+			skillStore, skillCodec, mcpStore, mcpCodec := agentSkillSyncStores(t)
 		registry := skillspkg.NewRegistry(skillspkg.RegistryConfig{}, skillspkg.WithLogger(discardLogger()))
-		desired := agentSkillDesiredResources{
+		desired := agentSkillDeclarations{
 			skills: []skillPublicationInput{{
 				sourceKey: "test/skill/review",
 				scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
@@ -726,28 +823,23 @@ func TestAgentSkillSourceSyncerSyncSkillsProjectsRegistrySynchronously(t *testin
 			}},
 		}
 		triggered := 0
-		syncer := newAgentSkillSourceSyncer(
-			rawStore,
-			agentStore,
-			agentCodec,
-			nil,
-			skillStore,
-			skillCodec,
-			newSkillProjector(registry),
-			mcpStore,
-			mcpCodec,
-			agentSkillSyncActor(),
-			discardLogger(),
-			func(_ context.Context, kind resources.ResourceKind, _ resources.ReconcileReason) error {
+		syncer := newAgentSkillSourceSyncer(agentSkillSourceSyncerDeps{
+			raw: rawStore, agentStore: agentStore, agentCodec: agentCodec,
+			soulStore: soulStore, soulCodec: soulCodec,
+			heartbeatStore: heartbeatStore, heartbeatCodec: heartbeatCodec,
+			skillStore: skillStore, skillCodec: skillCodec, skillProjector: newSkillProjector(registry),
+			mcpStore: mcpStore, mcpCodec: mcpCodec,
+			actor: agentSkillSyncActor(), logger: discardLogger(),
+			trigger: func(_ context.Context, kind resources.ResourceKind, _ resources.ReconcileReason) error {
 				if kind == skillspkg.SkillResourceKind {
 					triggered++
 				}
 				return nil
 			},
-			func(context.Context) (agentSkillDesiredResources, error) {
+			providers: []agentSkillDeclarationProvider{func(context.Context) (agentSkillDeclarations, error) {
 				return desired, nil
-			},
-		)
+			}},
+		})
 
 		if _, ok := registry.Get("review"); ok {
 			t.Fatal("registry.Get(review) ok = true before SyncSkills, want false")
@@ -771,7 +863,8 @@ func TestAgentSkillSourceSyncerSyncSkillsProjectsRegistrySynchronously(t *testin
 func TestAgentSkillSourceSyncerRepairsLegacyManagedAgentRecordsBeforeDecode(t *testing.T) {
 	t.Parallel()
 
-	rawStore, agentStore, agentCodec, skillStore, skillCodec, mcpStore, mcpCodec := agentSkillSyncStores(t)
+	rawStore, agentStore, agentCodec, soulStore, soulCodec, heartbeatStore, heartbeatCodec,
+		skillStore, skillCodec, mcpStore, mcpCodec := agentSkillSyncStores(t)
 	legacyScope := resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-legacy"}
 	if _, err := rawStore.PutRaw(
 		context.Background(),
@@ -790,21 +883,15 @@ func TestAgentSkillSourceSyncerRepairsLegacyManagedAgentRecordsBeforeDecode(t *t
 		t.Fatalf("rawStore.PutRaw(legacy agent) error = %v", err)
 	}
 
-	syncer := newAgentSkillSourceSyncer(
-		rawStore,
-		agentStore,
-		agentCodec,
-		nil,
-		skillStore,
-		skillCodec,
-		nil,
-		mcpStore,
-		mcpCodec,
-		agentSkillSyncActor(),
-		discardLogger(),
-		nil,
-		func(context.Context) (agentSkillDesiredResources, error) {
-			return agentSkillDesiredResources{
+	syncer := newAgentSkillSourceSyncer(agentSkillSourceSyncerDeps{
+		raw: rawStore, agentStore: agentStore, agentCodec: agentCodec,
+		soulStore: soulStore, soulCodec: soulCodec,
+		heartbeatStore: heartbeatStore, heartbeatCodec: heartbeatCodec,
+		skillStore: skillStore, skillCodec: skillCodec,
+		mcpStore: mcpStore, mcpCodec: mcpCodec,
+		actor: agentSkillSyncActor(), logger: discardLogger(),
+		providers: []agentSkillDeclarationProvider{func(context.Context) (agentSkillDeclarations, error) {
+			return agentSkillDeclarations{
 				agents: []agentPublicationInput{{
 					sourceKey: "daemon/general",
 					scope:     legacyScope,
@@ -814,8 +901,8 @@ func TestAgentSkillSourceSyncerRepairsLegacyManagedAgentRecordsBeforeDecode(t *t
 					},
 				}},
 			}, nil
-		},
-	)
+		}},
+	})
 
 	if err := syncer.Sync(context.Background()); err != nil {
 		t.Fatalf("Sync() error = %v", err)
@@ -866,7 +953,7 @@ func TestAppendAgentAndSkillResourcesPublishesMCPAttachments(t *testing.T) {
 		Command: "echo",
 		Args:    []string{"ok"},
 	}
-	desired := agentSkillDesiredResources{}
+	desired := agentSkillDeclarations{}
 	appendAgentResources(&desired, scope, "append", []compozyconfig.AgentDef{{
 		Name:   "coder",
 		Prompt: "Prompt",
@@ -876,7 +963,7 @@ func TestAppendAgentAndSkillResourcesPublishesMCPAttachments(t *testing.T) {
 		}},
 		Hooks: []hookspkg.HookDecl{decl},
 	}})
-	appendSkillResources(&desired, scope, "append", []*skillspkg.Skill{{
+	appendSkillResources(&desired, scope, skillPublicationSource{prefix: "append"}, []*skillspkg.Skill{{
 		Meta: skillspkg.SkillMeta{
 			Name:        "review",
 			Description: "Review skill",
@@ -935,6 +1022,10 @@ func agentSkillSyncStores(
 	resources.RawStore,
 	resources.Store[compozyconfig.AgentDef],
 	resources.KindCodec[compozyconfig.AgentDef],
+	resources.Store[soul.ResourceSpec],
+	resources.KindCodec[soul.ResourceSpec],
+	resources.Store[heartbeat.ResourceSpec],
+	resources.KindCodec[heartbeat.ResourceSpec],
 	resources.Store[skillspkg.SkillResourceSpec],
 	resources.KindCodec[skillspkg.SkillResourceSpec],
 	resources.Store[compozyconfig.MCPServer],
@@ -955,6 +1046,22 @@ func agentSkillSyncStores(
 	if err != nil {
 		t.Fatalf("resources.NewStore(agent) error = %v", err)
 	}
+	soulCodec, err := soul.NewResourceCodec()
+	if err != nil {
+		t.Fatalf("soul.NewResourceCodec() error = %v", err)
+	}
+	soulStore, err := resources.NewStore(kernel, soulCodec)
+	if err != nil {
+		t.Fatalf("resources.NewStore(soul) error = %v", err)
+	}
+	heartbeatCodec, err := heartbeat.NewResourceCodec()
+	if err != nil {
+		t.Fatalf("heartbeat.NewResourceCodec() error = %v", err)
+	}
+	heartbeatStore, err := resources.NewStore(kernel, heartbeatCodec)
+	if err != nil {
+		t.Fatalf("resources.NewStore(heartbeat) error = %v", err)
+	}
 	skillCodec, err := skillspkg.NewResourceCodec()
 	if err != nil {
 		t.Fatalf("skillspkg.NewResourceCodec() error = %v", err)
@@ -971,7 +1078,8 @@ func agentSkillSyncStores(
 	if err != nil {
 		t.Fatalf("resources.NewStore(mcp) error = %v", err)
 	}
-	return kernel, agentStore, agentCodec, skillStore, skillCodec, mcpStore, mcpCodec
+	return kernel, agentStore, agentCodec, soulStore, soulCodec, heartbeatStore, heartbeatCodec,
+		skillStore, skillCodec, mcpStore, mcpCodec
 }
 
 func assertAgentSkillStoreCounts(

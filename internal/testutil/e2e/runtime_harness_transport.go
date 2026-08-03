@@ -24,7 +24,17 @@ import (
 
 // RunInDir executes one CLI command against the isolated daemon runtime using the provided working directory.
 func (c *CLIClient) RunInDir(ctx context.Context, workdir string, args ...string) (string, string, error) {
-	return c.runInDir(ctx, workdir, nil, args...)
+	return c.runInDir(ctx, workdir, nil, nil, args...)
+}
+
+// RunInDirWithInput executes one CLI command with explicit standard input.
+func (c *CLIClient) RunInDirWithInput(
+	ctx context.Context,
+	workdir string,
+	input io.Reader,
+	args ...string,
+) (string, string, error) {
+	return c.runInDir(ctx, workdir, nil, input, args...)
 }
 
 // RunInDirWithEnv executes one CLI command with scoped environment overrides.
@@ -34,13 +44,14 @@ func (c *CLIClient) RunInDirWithEnv(
 	overrides map[string]string,
 	args ...string,
 ) (string, string, error) {
-	return c.runInDir(ctx, workdir, overrides, args...)
+	return c.runInDir(ctx, workdir, overrides, nil, args...)
 }
 
 func (c *CLIClient) runInDir(
 	ctx context.Context,
 	workdir string,
 	overrides map[string]string,
+	input io.Reader,
 	args ...string,
 ) (string, string, error) {
 	// #nosec G204 -- test helper intentionally shells out to the current compozy test binary.
@@ -58,6 +69,7 @@ func (c *CLIClient) runInDir(
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
+	cmd.Stdin = input
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 

@@ -29,6 +29,7 @@ type extensionDevClient interface {
 func newExtensionDevCommand(deps commandDeps) *cobra.Command {
 	var workspaceRef string
 	var watch bool
+	var confirmNetworkDigest string
 	command := &cobra.Command{
 		Use:   "dev [directory]",
 		Short: "Build and link an extension to the current workspace",
@@ -43,8 +44,9 @@ func newExtensionDevCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 			item, err := client.DevExtension(cmd.Context(), workspace.ID, DevLinkExtensionRequest{
-				OriginPath:     sourceDir,
-				GenerationHash: result.GenerationHash,
+				OriginPath:           sourceDir,
+				GenerationHash:       result.GenerationHash,
+				ConfirmNetworkDigest: confirmNetworkDigest,
 			})
 			if err != nil {
 				return err
@@ -60,11 +62,18 @@ func newExtensionDevCommand(deps commandDeps) *cobra.Command {
 	}
 	command.Flags().StringVar(&workspaceRef, workspaceFlagName, "", "Override workspace context")
 	command.Flags().BoolVar(&watch, "watch", false, "Build and reload when source files change")
+	command.Flags().StringVar(
+		&confirmNetworkDigest,
+		"confirm-network-requirement",
+		"",
+		"Confirm the exact network participation digest",
+	)
 	return command
 }
 
 func newExtensionReloadCommand(deps commandDeps) *cobra.Command {
 	var workspaceRef string
+	var confirmNetworkDigest string
 	command := &cobra.Command{
 		Use:   "reload <name> [directory]",
 		Short: "Build and atomically reload a dev-linked extension",
@@ -93,7 +102,10 @@ func newExtensionReloadCommand(deps commandDeps) *cobra.Command {
 				cmd.Context(),
 				workspace.ID,
 				args[0],
-				ReloadExtensionRequest{GenerationHash: result.GenerationHash},
+				ReloadExtensionRequest{
+					GenerationHash:       result.GenerationHash,
+					ConfirmNetworkDigest: confirmNetworkDigest,
+				},
 			)
 			if err != nil {
 				return err
@@ -102,6 +114,12 @@ func newExtensionReloadCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	command.Flags().StringVar(&workspaceRef, workspaceFlagName, "", "Override workspace context")
+	command.Flags().StringVar(
+		&confirmNetworkDigest,
+		"confirm-network-requirement",
+		"",
+		"Confirm the exact network participation digest",
+	)
 	return command
 }
 

@@ -96,6 +96,33 @@ describe("extensions MSW handlers", () => {
     expect(afterDisable.items.some(item => item.live)).toBe(false);
   });
 
+  it("Should refuse an unconfirmed update and accept an exact digest retry", async () => {
+    const refused = await fetch(`${API}/api/extensions/dep-kit-ops`, {
+      body: JSON.stringify({ version: "1.1.0" }),
+      headers: { "Content-Type": "application/json" },
+      method: "PUT",
+    });
+    expect(refused.status).toBe(409);
+    const refusal = (await refused.json()) as { code: string; current_digest: string };
+    expect(refusal).toMatchObject({
+      code: "extension_network_confirmation_required",
+      current_digest: "sha256:6f1c0a94d3b27e58",
+    });
+
+    const confirmed = await fetch(`${API}/api/extensions/dep-kit-ops`, {
+      body: JSON.stringify({
+        confirm_network_digest: refusal.current_digest,
+        version: "1.1.0",
+      }),
+      headers: { "Content-Type": "application/json" },
+      method: "PUT",
+    });
+    expect(confirmed.status).toBe(200);
+    await expect(confirmed.json()).resolves.toMatchObject({
+      update: { name: "dep-kit-ops", status: "current" },
+    });
+  });
+
   it("Should mirror the daemon's instance scope, log ring, and union install contract", async () => {
     const global = (await (await fetch(`${API}/api/extensions`)).json()) as {
       extensions: Array<{ name: string }>;

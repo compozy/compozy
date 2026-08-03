@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -15,7 +14,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -24,773 +22,14 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/store"
-	"github.com/compozy/compozy/internal/store/globaldb"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
-	"github.com/compozy/compozy/internal/vault"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
 
 func TestExtensionSecretTransportAbsence(t *testing.T) {
 	t.Run("Should keep extension secrets out of every transport", testExtensionSecretTransportAbsence)
-	t.Run("Should inject a global binding only after enable", testExtensionSecretBindingEnableInjection)
-	t.Run("Should isolate a development binding from the global instance", testExtensionSecretDevBindingIsolation)
-	t.Run("Should roll back a failed transport batch", testExtensionSecretTransportRollback)
-	t.Run("Should retire global and development bindings by instance", testExtensionSecretBindingRetirement)
-}
-
-func testExtensionSecretBindingRetirement(t *testing.T) {
-	// This ordered lifecycle assertion owns one global and one workspace-local instance.
-	const (
-		extensionName = "binding-retirement"
-		workspaceID   = "workspace-binding-retirement"
-		ownedGlobal   = "owned-global-secret-705a"
-		ownedDev      = "owned-dev-secret-a42f"
-		foreignValue  = "foreign-owned-secret-4bd1"
-	)
-	homePaths := testHomePaths(t)
-	db := openDaemonTestGlobalDB(t)
-	registry := extensionpkg.NewRegistry(db.DB())
-	secretVault, err := vault.NewService(
-		db.VaultRepo,
-		vault.NewFileKeyProvider(t.TempDir(), nil),
-	)
-	if err != nil {
-		t.Fatalf("vault.NewService() error = %v", err)
-	}
-	workspaceRoot := t.TempDir()
-	workspaceResolver := &daemonExtensionWorkspaceResolverStub{resolved: workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID: workspaceID, Name: "binding-retirement", RootDir: workspaceRoot,
-		},
-		WorkspaceID: workspaceID,
-	}}
-	manager := extensionpkg.NewManager(
-		registry,
-		extensionpkg.WithLogger(discardLogger()),
-		extensionpkg.WithWorkspaceResolver(workspaceResolver),
-		extensionpkg.WithSecretResolver(secretVault),
-		extensionpkg.WithEnvBindingStore(db.ExtensionEnvRepo),
-	)
-	if err := manager.Start(t.Context()); err != nil {
-		t.Fatalf("Manager.Start() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := manager.Stop(context.Background()); err != nil {
-			t.Errorf("Manager.Stop() error = %v", err)
-		}
-	})
-	service, ok := newDaemonExtensionService(
-		registry,
-		manager,
-		nil,
-		nil,
-		nil,
-		nil,
-		homePaths,
-		discardLogger(),
-		time.Now,
-		withDaemonExtensionMarketplace(
-			compozyconfig.ExtensionsConfig{Trust: compozyconfig.ExtensionsTrustConfig{AllowUnverified: true}},
-			nil,
-		),
-		withDaemonExtensionEventWriter(db),
-		withDaemonExtensionWorkspaceResolver(workspaceResolver),
-		withDaemonExtensionSecrets(db.ExtensionEnvRepo, secretVault),
-	).(*daemonExtensionService)
-	if !ok {
-		t.Fatal("newDaemonExtensionService() did not return daemonExtensionService")
-	}
-	globalActor, err := taskpkg.DeriveHumanActorContext(
-		"operator",
-		taskpkg.OriginKindHTTP,
-		"global binding retirement",
-	)
-	if err != nil {
-		t.Fatalf("DeriveHumanActorContext(global) error = %v", err)
-	}
-	devActor, err := taskpkg.DeriveHumanActorContextForWorkspace(
-		"operator",
-		workspaceID,
-		taskpkg.OriginKindHTTP,
-		"development binding retirement",
-	)
-	if err != nil {
-		t.Fatalf("DeriveHumanActorContextForWorkspace() error = %v", err)
-	}
-	fixtureDir := writeBoundSecretExtensionFixtureWithEnv(
-		t,
-		t.TempDir(),
-		extensionName,
-		[]string{"BOUND_SECRET", "OTHER_SECRET"},
-	)
-	if _, err := service.Install(t.Context(), contract.InstallExtensionRequest{
-		Source: contract.InstallExtensionSourceLocalPath, Ref: fixtureDir, AllowUnverified: true,
-	}, globalActor); err != nil {
-		t.Fatalf("Install(global) error = %v", err)
-	}
-	foreignRef := vault.ExtensionSecretRef(extensionName, "", "FOREIGN_SHARED")
-	if _, err := secretVault.PutSecret(t.Context(), foreignRef, "foreign_token", foreignValue); err != nil {
-		t.Fatalf("PutSecret(foreign) error = %v", err)
-	}
-	if _, err := service.SetExtensionSecrets(
-		t.Context(),
-		extensionName,
-		contract.SetExtensionSecretsRequest{Secrets: map[string]contract.ExtensionSecretInput{
-			"BOUND_SECRET": {Value: extensionSecretInputValue(ownedGlobal)},
-			"OTHER_SECRET": {VaultRef: &foreignRef},
-		}},
-		globalActor,
-	); err != nil {
-		t.Fatalf("SetExtensionSecrets(global) error = %v", err)
-	}
-	globalOwnedRef := vault.ExtensionSecretRef(extensionName, "", "BOUND_SECRET")
-	if _, err := service.Remove(t.Context(), extensionName, globalActor); err != nil {
-		t.Fatalf("Remove(global) error = %v", err)
-	}
-	assertExtensionBindingsRetired(t, db, secretVault, extensionName, "", globalOwnedRef, foreignRef, foreignValue)
-	if _, err := service.Install(t.Context(), contract.InstallExtensionRequest{
-		Source: contract.InstallExtensionSourceLocalPath, Ref: fixtureDir, AllowUnverified: true,
-	}, globalActor); err != nil {
-		t.Fatalf("Install(global after removal) error = %v", err)
-	}
-	reinstalledSecrets, err := service.ListExtensionSecrets(t.Context(), extensionName, globalActor)
-	if err != nil {
-		t.Fatalf("ListExtensionSecrets(reinstalled global) error = %v", err)
-	}
-	if len(reinstalledSecrets.BoundEnvKeys) != 0 || len(reinstalledSecrets.Bindings) != 0 {
-		t.Fatalf("reinstalled global bindings = %#v, want empty", reinstalledSecrets)
-	}
-
-	origin := filepath.Join(workspaceRoot, "binding-retirement-extension")
-	firstGeneration := writeBoundSecretExtensionGenerationWithEnv(
-		t,
-		origin,
-		extensionName,
-		"2.0.0",
-		[]string{"BOUND_SECRET", "OTHER_SECRET"},
-	)
-	if _, err := service.Dev(t.Context(), contract.DevLinkExtensionRequest{
-		OriginPath: origin, GenerationHash: firstGeneration,
-	}, devActor); err != nil {
-		t.Fatalf("Dev() error = %v", err)
-	}
-	devForeignRef := vault.ExtensionSecretRef(extensionName, workspaceID, "FOREIGN_SHARED")
-	if _, err := secretVault.PutSecret(t.Context(), devForeignRef, "foreign_token", foreignValue); err != nil {
-		t.Fatalf("PutSecret(dev foreign) error = %v", err)
-	}
-	if _, err := service.SetExtensionSecrets(
-		t.Context(),
-		extensionName,
-		contract.SetExtensionSecretsRequest{Secrets: map[string]contract.ExtensionSecretInput{
-			"BOUND_SECRET": {Value: extensionSecretInputValue(ownedDev)},
-			"OTHER_SECRET": {VaultRef: &devForeignRef},
-		}},
-		devActor,
-	); err != nil {
-		t.Fatalf("SetExtensionSecrets(dev) error = %v", err)
-	}
-	logsBeforeReload, err := service.ExtensionLogs(t.Context(), extensionName, 0, devActor)
-	if err != nil {
-		t.Fatalf("ExtensionLogs(before manifest drop) error = %v", err)
-	}
-	var sequenceBeforeReload int64
-	if len(logsBeforeReload) > 0 {
-		sequenceBeforeReload = logsBeforeReload[len(logsBeforeReload)-1].Sequence
-	}
-	secondGeneration := writeBoundSecretExtensionGenerationWithEnv(
-		t,
-		origin,
-		extensionName,
-		"2.1.0",
-		[]string{"OTHER_SECRET"},
-	)
-	if _, err := service.ReloadDev(t.Context(), extensionName, contract.ReloadExtensionRequest{
-		GenerationHash: secondGeneration,
-	}, devActor); err != nil {
-		t.Fatalf("ReloadDev(drop declared env) error = %v", err)
-	}
-	devSecrets, err := service.ListExtensionSecrets(t.Context(), extensionName, devActor)
-	if err != nil {
-		t.Fatalf("ListExtensionSecrets(dev after reload) error = %v", err)
-	}
-	if len(devSecrets.Bindings) != 2 || !devSecrets.Bindings[0].Stale ||
-		devSecrets.Bindings[0].EnvName != "BOUND_SECRET" || devSecrets.Bindings[1].Stale {
-		t.Fatalf("dev bindings after manifest drop = %#v, want stale BOUND_SECRET only", devSecrets.Bindings)
-	}
-	logs := waitForSecretExtensionLogsAfter(
-		t,
-		service,
-		extensionName,
-		devActor,
-		sequenceBeforeReload,
-		"runtime_secret=",
-	)
-	latest := logs[len(logs)-1]
-	if strings.Contains(latest.Message, "runtime_secret=[REDACTED]") {
-		t.Fatalf("latest dev log = %q, stale binding was injected", latest.Message)
-	}
-	devOwnedRef := vault.ExtensionSecretRef(extensionName, workspaceID, "BOUND_SECRET")
-	if _, err := service.RemoveScoped(t.Context(), extensionName, devActor); err != nil {
-		t.Fatalf("RemoveScoped(dev) error = %v", err)
-	}
-	assertExtensionBindingsRetired(
-		t,
-		db,
-		secretVault,
-		extensionName,
-		workspaceID,
-		devOwnedRef,
-		devForeignRef,
-		foreignValue,
-	)
-}
-
-func assertExtensionBindingsRetired(
-	t *testing.T,
-	db *globaldb.GlobalDB,
-	secretVault *vault.Service,
-	extensionName string,
-	workspaceID string,
-	ownedRef string,
-	foreignRef string,
-	foreignValue string,
-) {
-	t.Helper()
-	rows, err := db.ExtensionEnvRepo.ListEnvBindings(t.Context(), extensionName, workspaceID)
-	if err != nil {
-		t.Fatalf("ListEnvBindings(%q) error = %v", workspaceID, err)
-	}
-	if len(rows) != 0 {
-		t.Fatalf("bindings after retirement for workspace %q = %#v, want none", workspaceID, rows)
-	}
-	if _, err := secretVault.ResolveRef(t.Context(), ownedRef); !errors.Is(err, vault.ErrSecretNotFound) {
-		t.Fatalf("ResolveRef(owned %q) error = %v, want secret removed", ownedRef, err)
-	}
-	gotForeign, err := secretVault.ResolveRef(t.Context(), foreignRef)
-	if err != nil {
-		t.Fatalf("ResolveRef(foreign %q) error = %v", foreignRef, err)
-	}
-	if gotForeign != foreignValue {
-		t.Fatalf("foreign ref %q = %q, want preserved", foreignRef, gotForeign)
-	}
-}
-
-func testExtensionSecretDevBindingIsolation(t *testing.T) {
-	t.Parallel()
-
-	const (
-		extensionName = "dev-binding-isolation"
-		workspaceID   = "workspace-dev-binding"
-		devSecret     = "workspace-only-secret-f18a"
-		globalSecret  = "global-only-secret-c53b"
-	)
-	homePaths := testHomePaths(t)
-	db := openDaemonTestGlobalDB(t)
-	registry := extensionpkg.NewRegistry(db.DB())
-	secretVault, err := vault.NewService(
-		db.VaultRepo,
-		vault.NewFileKeyProvider(t.TempDir(), nil),
-	)
-	if err != nil {
-		t.Fatalf("vault.NewService() error = %v", err)
-	}
-	workspaceRoot := t.TempDir()
-	workspaceResolver := &daemonExtensionWorkspaceResolverStub{resolved: workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID: workspaceID, Name: "dev-binding", RootDir: workspaceRoot,
-		},
-		WorkspaceID: workspaceID,
-	}}
-	manager := extensionpkg.NewManager(
-		registry,
-		extensionpkg.WithLogger(discardLogger()),
-		extensionpkg.WithWorkspaceResolver(workspaceResolver),
-		extensionpkg.WithSecretResolver(secretVault),
-		extensionpkg.WithEnvBindingStore(db.ExtensionEnvRepo),
-	)
-	if err := manager.Start(t.Context()); err != nil {
-		t.Fatalf("Manager.Start() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := manager.Stop(context.Background()); err != nil {
-			t.Errorf("Manager.Stop() error = %v", err)
-		}
-	})
-	service, ok := newDaemonExtensionService(
-		registry,
-		manager,
-		nil,
-		nil,
-		nil,
-		nil,
-		homePaths,
-		discardLogger(),
-		time.Now,
-		withDaemonExtensionEventWriter(db),
-		withDaemonExtensionWorkspaceResolver(workspaceResolver),
-		withDaemonExtensionSecrets(db.ExtensionEnvRepo, secretVault),
-	).(*daemonExtensionService)
-	if !ok {
-		t.Fatal("newDaemonExtensionService() did not return daemonExtensionService")
-	}
-	actor, err := taskpkg.DeriveHumanActorContextForWorkspace(
-		"operator",
-		workspaceID,
-		taskpkg.OriginKindHTTP,
-		"development binding isolation",
-	)
-	if err != nil {
-		t.Fatalf("DeriveHumanActorContextForWorkspace() error = %v", err)
-	}
-	engine := newExtensionSecretTransportEngine(service, actor, "http")
-	origin := filepath.Join(workspaceRoot, "dev-binding-extension")
-	firstGeneration := writeBoundSecretExtensionGeneration(t, origin, extensionName, "1.0.0")
-	devResponse := performSecretTransportRequest(
-		t,
-		engine,
-		http.MethodPost,
-		"/extensions/dev",
-		mustSecretTransportJSON(t, contract.DevLinkExtensionRequest{
-			OriginPath: origin, GenerationHash: firstGeneration,
-		}),
-	)
-	if devResponse.Code != http.StatusCreated {
-		t.Fatalf("dev link status = %d, want %d; body=%s", devResponse.Code, http.StatusCreated, devResponse.Body)
-	}
-	boundValue := devSecret
-	setResponse := performSecretTransportRequest(
-		t,
-		engine,
-		http.MethodPut,
-		"/extensions/"+extensionName+"/secrets",
-		mustSecretTransportJSON(
-			t,
-			contract.SetExtensionSecretsRequest{Secrets: map[string]contract.ExtensionSecretInput{
-				"BOUND_SECRET": {Value: &boundValue},
-			}},
-		),
-	)
-	if setResponse.Code != http.StatusOK {
-		t.Fatalf("dev set status = %d, want %d; body=%s", setResponse.Code, http.StatusOK, setResponse.Body)
-	}
-	workspaceRows, err := db.ExtensionEnvRepo.ListEnvBindings(t.Context(), extensionName, workspaceID)
-	if err != nil {
-		t.Fatalf("ListEnvBindings(workspace) error = %v", err)
-	}
-	if len(workspaceRows) != 1 ||
-		workspaceRows[0].SecretRef != vault.ExtensionSecretRef(extensionName, workspaceID, "BOUND_SECRET") {
-		t.Fatalf("workspace bindings = %#v, want exact workspace-owned ref", workspaceRows)
-	}
-	globalRows, err := db.ExtensionEnvRepo.ListEnvBindings(t.Context(), extensionName, "")
-	if err != nil {
-		t.Fatalf("ListEnvBindings(global) error = %v", err)
-	}
-	if len(globalRows) != 0 {
-		t.Fatalf("global bindings after dev set = %#v, want none", globalRows)
-	}
-
-	secondGeneration := writeBoundSecretExtensionGeneration(t, origin, extensionName, "1.1.0")
-	reloadResponse := performSecretTransportRequest(
-		t,
-		engine,
-		http.MethodPost,
-		"/extensions/"+extensionName+"/reload",
-		mustSecretTransportJSON(t, contract.ReloadExtensionRequest{GenerationHash: secondGeneration}),
-	)
-	if reloadResponse.Code != http.StatusOK {
-		t.Fatalf(
-			"reload with workspace binding status = %d, want %d; body=%s",
-			reloadResponse.Code,
-			http.StatusOK,
-			reloadResponse.Body,
-		)
-	}
-	logs := waitForSecretExtensionLogs(t, service, extensionName, actor, "runtime_secret=")
-	boundLogsJSON := string(mustSecretTransportJSON(t, logs))
-	assertSecretsAbsent(t, "workspace-bound logs", boundLogsJSON, []string{devSecret})
-	if !strings.Contains(boundLogsJSON, "runtime_secret=[REDACTED]") {
-		t.Fatalf("workspace-bound logs = %s, want proof of injected and redacted binding", boundLogsJSON)
-	}
-	latestSequence := logs[len(logs)-1].Sequence
-
-	globalRef := vault.ExtensionSecretRef(extensionName, "", "BOUND_SECRET")
-	if _, err := secretVault.PutSecret(
-		t.Context(),
-		globalRef,
-		extensionpkg.ExtensionEnvBindingKind,
-		globalSecret,
-	); err != nil {
-		t.Fatalf("PutSecret(global sentinel) error = %v", err)
-	}
-	if err := db.ExtensionEnvRepo.PutEnvBinding(t.Context(), extensionpkg.EnvBinding{
-		ExtensionName: extensionName,
-		EnvName:       "BOUND_SECRET",
-		SecretRef:     globalRef,
-		Kind:          extensionpkg.ExtensionEnvBindingKind,
-	}); err != nil {
-		t.Fatalf("PutEnvBinding(global sentinel) error = %v", err)
-	}
-	deleteResponse := performSecretTransportRequest(
-		t,
-		engine,
-		http.MethodDelete,
-		"/extensions/"+extensionName+"/secrets/BOUND_SECRET",
-		nil,
-	)
-	if deleteResponse.Code != http.StatusNoContent {
-		t.Fatalf(
-			"delete dev binding status = %d, want %d; body=%s",
-			deleteResponse.Code,
-			http.StatusNoContent,
-			deleteResponse.Body,
-		)
-	}
-	thirdGeneration := writeBoundSecretExtensionGeneration(t, origin, extensionName, "1.2.0")
-	emptyReloadResponse := performSecretTransportRequest(
-		t,
-		engine,
-		http.MethodPost,
-		"/extensions/"+extensionName+"/reload",
-		mustSecretTransportJSON(t, contract.ReloadExtensionRequest{GenerationHash: thirdGeneration}),
-	)
-	if emptyReloadResponse.Code != http.StatusOK {
-		t.Fatalf(
-			"reload without workspace binding status = %d, want %d; body=%s",
-			emptyReloadResponse.Code,
-			http.StatusOK,
-			emptyReloadResponse.Body,
-		)
-	}
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		newLogs, logsErr := service.ExtensionLogs(t.Context(), extensionName, latestSequence, actor)
-		if logsErr != nil {
-			t.Fatalf("ExtensionLogs(after workspace binding deletion) error = %v", logsErr)
-		}
-		if len(newLogs) == 0 {
-			time.Sleep(20 * time.Millisecond)
-			continue
-		}
-		encoded := string(mustSecretTransportJSON(t, newLogs))
-		assertSecretsAbsent(t, "dev logs without workspace binding", encoded, []string{devSecret, globalSecret})
-		if strings.Contains(encoded, "runtime_secret=[REDACTED]") || !strings.Contains(encoded, "runtime_secret=") {
-			t.Fatalf("dev logs after binding deletion = %s, want empty workspace value despite global row", encoded)
-		}
-		return
-	}
-	t.Fatal("dev logs did not record the binding-free replacement generation")
-}
-
-func testExtensionSecretTransportRollback(t *testing.T) {
-	t.Parallel()
-
-	const extensionName = "binding-rollback"
-	homePaths := testHomePaths(t)
-	db := openDaemonTestGlobalDB(t)
-	registry := extensionpkg.NewRegistry(db.DB())
-	baseVault, err := vault.NewService(
-		db.VaultRepo,
-		vault.NewFileKeyProvider(t.TempDir(), nil),
-	)
-	if err != nil {
-		t.Fatalf("vault.NewService() error = %v", err)
-	}
-	failingVault := &extensionSecretFailingVault{extensionSecretVault: baseVault}
-	manager := extensionpkg.NewManager(
-		registry,
-		extensionpkg.WithLogger(discardLogger()),
-		extensionpkg.WithSecretResolver(baseVault),
-		extensionpkg.WithEnvBindingStore(db.ExtensionEnvRepo),
-	)
-	if err := manager.Start(t.Context()); err != nil {
-		t.Fatalf("Manager.Start() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := manager.Stop(context.Background()); err != nil {
-			t.Errorf("Manager.Stop() error = %v", err)
-		}
-	})
-	service := newDaemonExtensionService(
-		registry,
-		manager,
-		nil,
-		nil,
-		nil,
-		nil,
-		homePaths,
-		discardLogger(),
-		time.Now,
-		withDaemonExtensionMarketplace(
-			compozyconfig.ExtensionsConfig{Trust: compozyconfig.ExtensionsTrustConfig{AllowUnverified: true}},
-			nil,
-		),
-		withDaemonExtensionEventWriter(db),
-		withDaemonExtensionSecrets(db.ExtensionEnvRepo, failingVault),
-	)
-	actor, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindHTTP, "binding rollback")
-	if err != nil {
-		t.Fatalf("DeriveHumanActorContext() error = %v", err)
-	}
-	engine := newExtensionSecretTransportEngine(service, actor, "http")
-	fixtureDir := writeBoundSecretExtensionFixtureWithEnv(
-		t,
-		t.TempDir(),
-		extensionName,
-		[]string{"A_KEY", "B_KEY"},
-	)
-	installResponse := performSecretTransportRequest(
-		t,
-		engine,
-		http.MethodPost,
-		"/extensions",
-		mustSecretTransportJSON(t, contract.InstallExtensionRequest{
-			Source: contract.InstallExtensionSourceLocalPath, Ref: fixtureDir, AllowUnverified: true,
-		}),
-	)
-	if installResponse.Code != http.StatusCreated {
-		t.Fatalf(
-			"install status = %d, want %d; body=%s",
-			installResponse.Code,
-			http.StatusCreated,
-			installResponse.Body,
-		)
-	}
-
-	oldA, oldB := "old-a-secret", "old-b-secret"
-	oldBRef := vault.ExtensionSecretRef(extensionName, "", "B_SHARED")
-	if _, err := baseVault.PutSecret(
-		t.Context(),
-		oldBRef,
-		extensionpkg.ExtensionEnvBindingKind,
-		oldB,
-	); err != nil {
-		t.Fatalf("PutSecret(ref-form seed) error = %v", err)
-	}
-	initialResponse := performSecretTransportRequest(
-		t,
-		engine,
-		http.MethodPut,
-		"/extensions/"+extensionName+"/secrets",
-		mustSecretTransportJSON(
-			t,
-			contract.SetExtensionSecretsRequest{Secrets: map[string]contract.ExtensionSecretInput{
-				"A_KEY": {Value: &oldA},
-				"B_KEY": {VaultRef: &oldBRef},
-			}},
-		),
-	)
-	if initialResponse.Code != http.StatusOK {
-		t.Fatalf("initial set status = %d, want %d; body=%s", initialResponse.Code, http.StatusOK, initialResponse.Body)
-	}
-	initialRows, err := db.ExtensionEnvRepo.ListEnvBindings(t.Context(), extensionName, "")
-	if err != nil {
-		t.Fatalf("ListEnvBindings(initial) error = %v", err)
-	}
-	if len(initialRows) != 2 || initialRows[1].EnvName != "B_KEY" || initialRows[1].SecretRef != oldBRef {
-		t.Fatalf("initial binding rows = %#v, want value-form A and reused ref-form B", initialRows)
-	}
-	failingVault.failSecondNextPut()
-	newA, newB := "new-a-secret", "new-b-secret"
-	failureResponse := performSecretTransportRequest(
-		t,
-		engine,
-		http.MethodPut,
-		"/extensions/"+extensionName+"/secrets",
-		mustSecretTransportJSON(
-			t,
-			contract.SetExtensionSecretsRequest{Secrets: map[string]contract.ExtensionSecretInput{
-				"B_KEY": {Value: &newB},
-				"A_KEY": {Value: &newA},
-			}},
-		),
-	)
-	if failureResponse.Code != http.StatusInternalServerError {
-		t.Fatalf(
-			"failed set status = %d, want %d; body=%s",
-			failureResponse.Code,
-			http.StatusInternalServerError,
-			failureResponse.Body,
-		)
-	}
-	assertSecretsAbsent(
-		t,
-		"failed set response",
-		failureResponse.Body.String(),
-		[]string{oldA, oldB, newA, newB},
-	)
-
-	listResponse := performSecretTransportRequest(
-		t,
-		engine,
-		http.MethodGet,
-		"/extensions/"+extensionName+"/secrets",
-		nil,
-	)
-	if listResponse.Code != http.StatusOK {
-		t.Fatalf("list status = %d, want %d; body=%s", listResponse.Code, http.StatusOK, listResponse.Body)
-	}
-	var payload contract.ExtensionSecretsPayload
-	if err := json.Unmarshal(listResponse.Body.Bytes(), &payload); err != nil {
-		t.Fatalf("json.Unmarshal(list response) error = %v", err)
-	}
-	if strings.Join(payload.BoundEnvKeys, ",") != "A_KEY,B_KEY" {
-		t.Fatalf("bound env keys = %#v, want pre-call A_KEY and B_KEY", payload.BoundEnvKeys)
-	}
-	for envName, state := range map[string]struct {
-		ref  string
-		want string
-	}{
-		"A_KEY": {ref: vault.ExtensionSecretRef(extensionName, "", "A_KEY"), want: oldA},
-		"B_KEY": {ref: oldBRef, want: oldB},
-	} {
-		ref := state.ref
-		got, resolveErr := baseVault.ResolveRef(t.Context(), ref)
-		if resolveErr != nil {
-			t.Fatalf("ResolveRef(%s, %q) error = %v", envName, ref, resolveErr)
-		}
-		if got != state.want {
-			t.Fatalf("ResolveRef(%s, %q) = %q, want restored pre-call value", envName, ref, got)
-		}
-	}
-}
-
-func testExtensionSecretBindingEnableInjection(t *testing.T) {
-	t.Parallel()
-
-	const (
-		extensionName = "binding-hygiene"
-		secretValue   = "extension-binding-secret-f26a9c41"
-	)
-	homePaths := testHomePaths(t)
-	db := openDaemonTestGlobalDB(t)
-	registry := extensionpkg.NewRegistry(db.DB())
-	vaultService, err := vault.NewService(
-		db.VaultRepo,
-		vault.NewFileKeyProvider(t.TempDir(), nil),
-	)
-	if err != nil {
-		t.Fatalf("vault.NewService() error = %v", err)
-	}
-	manager := extensionpkg.NewManager(
-		registry,
-		extensionpkg.WithLogger(discardLogger()),
-		extensionpkg.WithSecretResolver(vaultService),
-		extensionpkg.WithEnvBindingStore(db.ExtensionEnvRepo),
-	)
-	if err := manager.Start(t.Context()); err != nil {
-		t.Fatalf("Manager.Start() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := manager.Stop(context.Background()); err != nil {
-			t.Errorf("Manager.Stop() error = %v", err)
-		}
-	})
-	service, ok := newDaemonExtensionService(
-		registry,
-		manager,
-		nil,
-		nil,
-		nil,
-		nil,
-		homePaths,
-		discardLogger(),
-		time.Now,
-		withDaemonExtensionMarketplace(
-			compozyconfig.ExtensionsConfig{Trust: compozyconfig.ExtensionsTrustConfig{AllowUnverified: true}},
-			nil,
-		),
-		withDaemonExtensionEventWriter(db),
-		withDaemonExtensionSecrets(db.ExtensionEnvRepo, vaultService),
-	).(*daemonExtensionService)
-	if !ok {
-		t.Fatal("newDaemonExtensionService() did not return daemonExtensionService")
-	}
-	actor, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindHTTP, "binding hygiene")
-	if err != nil {
-		t.Fatalf("DeriveHumanActorContext() error = %v", err)
-	}
-	engine := newExtensionSecretTransportEngine(service, actor, "http")
-	fixtureDir := writeBoundSecretExtensionFixture(t, t.TempDir(), extensionName)
-	installResponse := performSecretTransportRequest(
-		t,
-		engine,
-		http.MethodPost,
-		"/extensions",
-		mustSecretTransportJSON(t, contract.InstallExtensionRequest{
-			Source: contract.InstallExtensionSourceLocalPath, Ref: fixtureDir, AllowUnverified: true,
-		}),
-	)
-	if installResponse.Code != http.StatusCreated {
-		t.Fatalf(
-			"install status = %d, want %d; body=%s",
-			installResponse.Code,
-			http.StatusCreated,
-			installResponse.Body,
-		)
-	}
-	assertSecretsAbsent(t, "install response", installResponse.Body.String(), []string{secretValue})
-	var installed contract.ExtensionPayload
-	if err := json.Unmarshal(installResponse.Body.Bytes(), &installed); err != nil {
-		t.Fatalf("json.Unmarshal(install response) error = %v", err)
-	}
-	if installed.Enabled || installed.PID != 0 {
-		t.Fatalf("installed extension = %#v, want inert before secret binding and enable", installed)
-	}
-
-	boundValue := secretValue
-	setResponse := performSecretTransportRequest(
-		t,
-		engine,
-		http.MethodPut,
-		"/extensions/"+extensionName+"/secrets",
-		mustSecretTransportJSON(t, contract.SetExtensionSecretsRequest{
-			Secrets: map[string]contract.ExtensionSecretInput{
-				"BOUND_SECRET": {Value: &boundValue},
-			},
-		}),
-	)
-	if setResponse.Code != http.StatusOK {
-		t.Fatalf("set secrets status = %d, want %d; body=%s", setResponse.Code, http.StatusOK, setResponse.Body)
-	}
-	assertSecretsAbsent(t, "set secrets response", setResponse.Body.String(), []string{secretValue})
-	rows, err := db.ExtensionEnvRepo.ListEnvBindings(t.Context(), extensionName, "")
-	if err != nil {
-		t.Fatalf("ListEnvBindings() error = %v", err)
-	}
-	if len(rows) != 1 || rows[0].EnvName != "BOUND_SECRET" ||
-		!strings.HasPrefix(rows[0].SecretRef, "vault:extensions/global/") {
-		t.Fatalf("global binding rows = %#v", rows)
-	}
-
-	enableResponse := performSecretTransportRequest(
-		t,
-		engine,
-		http.MethodPost,
-		"/extensions/"+extensionName+"/enable",
-		mustSecretTransportJSON(t, contract.EnableExtensionRequest{}),
-	)
-	if enableResponse.Code != http.StatusOK {
-		t.Fatalf("enable status = %d, want %d; body=%s", enableResponse.Code, http.StatusOK, enableResponse.Body)
-	}
-	assertSecretsAbsent(t, "enable response", enableResponse.Body.String(), []string{secretValue})
-	logs := waitForSecretExtensionLogs(t, service, extensionName, actor, "runtime_secret=")
-	logsJSON := mustSecretTransportJSON(t, logs)
-	assertSecretsAbsent(t, "bound extension logs", string(logsJSON), []string{secretValue})
-	if !bytes.Contains(logsJSON, []byte("[REDACTED]")) {
-		t.Fatalf("bound extension logs = %s, want redaction marker proving injected value", logsJSON)
-	}
-	events, err := db.ListEventSummaries(t.Context(), store.EventSummaryQuery{Component: "extension"})
-	if err != nil {
-		t.Fatalf("ListEventSummaries() error = %v", err)
-	}
-	assertSecretsAbsent(
-		t,
-		"binding lifecycle events",
-		string(mustSecretTransportJSON(t, events)),
-		[]string{secretValue},
-	)
 }
 
 func testExtensionSecretTransportAbsence(t *testing.T) {
@@ -837,16 +76,13 @@ func testExtensionSecretTransportAbsence(t *testing.T) {
 		}
 	})
 
-	service, ok := newDaemonExtensionService(
-		extensionRegistry,
-		manager,
-		nil,
-		nil,
-		nil,
-		nil,
-		homePaths,
-		discardLogger(),
-		time.Now,
+	service, ok := newDaemonExtensionService(daemonExtensionServiceDeps{
+		Registry:  extensionRegistry,
+		Runtime:   manager,
+		HomePaths: homePaths,
+		Logger:    discardLogger(),
+		Now:       time.Now,
+	},
 		withDaemonExtensionMarketplace(
 			compozyconfig.ExtensionsConfig{Trust: compozyconfig.ExtensionsTrustConfig{AllowUnverified: true}},
 			nil,
@@ -867,15 +103,15 @@ func testExtensionSecretTransportAbsence(t *testing.T) {
 		t.Fatalf("DeriveHumanActorContextForWorkspace() error = %v", err)
 	}
 
-	httpEngine := newExtensionSecretTransportEngine(service, actor, "http")
-	udsEngine := newExtensionSecretTransportEngine(service, actor, "uds")
+	httpEngine := newExtensionTransportEngine(service, actor, "http")
+	udsEngine := newExtensionTransportEngine(service, actor, "uds")
 	fixtureDir := writeSecretExtensionFixture(t, t.TempDir(), extensionName, "1.0.0")
-	installBody := mustSecretTransportJSON(t, contract.InstallExtensionRequest{
+	installBody := mustExtensionTransportJSON(t, contract.InstallExtensionRequest{
 		Source:          contract.InstallExtensionSourceLocalPath,
 		Ref:             fixtureDir,
 		AllowUnverified: true,
 	})
-	installResponse := performSecretTransportRequest(
+	installResponse := performExtensionTransportRequest(
 		t,
 		httpEngine,
 		http.MethodPost,
@@ -894,12 +130,12 @@ func testExtensionSecretTransportAbsence(t *testing.T) {
 
 	origin := filepath.Join(workspaceRoot, "secret-extension")
 	firstGeneration := writeSecretExtensionGeneration(t, origin, extensionName, "1.1.0")
-	devResponse := performSecretTransportRequest(
+	devResponse := performExtensionTransportRequest(
 		t,
 		httpEngine,
 		http.MethodPost,
 		"/extensions/dev",
-		mustSecretTransportJSON(t, contract.DevLinkExtensionRequest{
+		mustExtensionTransportJSON(t, contract.DevLinkExtensionRequest{
 			OriginPath: origin, GenerationHash: firstGeneration,
 		}),
 	)
@@ -909,12 +145,12 @@ func testExtensionSecretTransportAbsence(t *testing.T) {
 	assertSecretsAbsent(t, "HTTP dev response", devResponse.Body.String(), secrets)
 
 	secondGeneration := writeSecretExtensionGeneration(t, origin, extensionName, "1.2.0")
-	reloadResponse := performSecretTransportRequest(
+	reloadResponse := performExtensionTransportRequest(
 		t,
 		udsEngine,
 		http.MethodPost,
 		"/extensions/"+extensionName+"/reload",
-		mustSecretTransportJSON(t, contract.ReloadExtensionRequest{GenerationHash: secondGeneration}),
+		mustExtensionTransportJSON(t, contract.ReloadExtensionRequest{GenerationHash: secondGeneration}),
 	)
 	if reloadResponse.Code != http.StatusOK {
 		t.Fatalf("UDS reload status = %d, want %d; body=%s", reloadResponse.Code, http.StatusOK, reloadResponse.Body)
@@ -922,14 +158,14 @@ func testExtensionSecretTransportAbsence(t *testing.T) {
 	assertSecretsAbsent(t, "UDS reload response", reloadResponse.Body.String(), secrets)
 
 	logs := waitForSecretExtensionLogs(t, service, extensionName, actor, "safe=visible")
-	logsJSON := mustSecretTransportJSON(t, logs)
+	logsJSON := mustExtensionTransportJSON(t, logs)
 	assertSecretsAbsent(t, "extension log ring", string(logsJSON), secrets)
 	if !bytes.Contains(logsJSON, []byte("[REDACTED]")) || !bytes.Contains(logsJSON, []byte("safe=visible")) {
 		t.Fatalf("extension log ring = %s, want redaction marker and safe field", logsJSON)
 	}
 
 	for transport, engine := range map[string]*gin.Engine{"HTTP": httpEngine, "UDS": udsEngine} {
-		response := performSecretTransportRequest(
+		response := performExtensionTransportRequest(
 			t,
 			engine,
 			http.MethodGet,
@@ -1006,7 +242,7 @@ func testExtensionSecretTransportAbsence(t *testing.T) {
 	if publishErr == nil {
 		t.Fatal("Registry.Call(extensions_publish failure) error = nil, want structured error")
 	}
-	structuredError := mustSecretTransportJSON(t, core.ErrorPayloadForError(publishErr))
+	structuredError := mustExtensionTransportJSON(t, core.ErrorPayloadForError(publishErr))
 	assertSecretsAbsent(t, "structured publish error", string(structuredError), secrets)
 
 	events, err := db.ListEventSummaries(t.Context(), store.EventSummaryQuery{})
@@ -1016,10 +252,10 @@ func testExtensionSecretTransportAbsence(t *testing.T) {
 	if len(events) < 3 {
 		t.Fatalf("persisted extension events = %d, want install/dev/reload", len(events))
 	}
-	assertSecretsAbsent(t, "persisted extension events", string(mustSecretTransportJSON(t, events)), secrets)
+	assertSecretsAbsent(t, "persisted extension events", string(mustExtensionTransportJSON(t, events)), secrets)
 }
 
-func newExtensionSecretTransportEngine(
+func newExtensionTransportEngine(
 	service core.ExtensionService,
 	actor taskpkg.ActorContext,
 	transport string,
@@ -1051,6 +287,7 @@ func writeSecretExtensionFixture(t *testing.T, root, name, version string) strin
 		t.Fatalf("os.MkdirAll(%q) error = %v", dir, err)
 	}
 	manifest := daemonTestExtensionManifest(name, daemonTestExtensionOptions{
+		version:        version,
 		runtimeCommand: daemonExtensionHelperCommand(t),
 		runtimeArgs:    daemonExtensionHelperArgs(),
 		runtimeEnv:     daemonExtensionHelperScenarioEnv("secret_hygiene", ""),
@@ -1059,95 +296,10 @@ func writeSecretExtensionFixture(t *testing.T, root, name, version string) strin
 			"BOUND_SECRET":         "env:EXT_RUNTIME_SECRET",
 		},
 	})
-	manifest = strings.Replace(manifest, `version = "0.2.1"`, fmt.Sprintf("version = %q", version), 1)
 	if err := os.WriteFile(filepath.Join(dir, "extension.toml"), []byte(manifest), 0o644); err != nil {
 		t.Fatalf("os.WriteFile(extension.toml) error = %v", err)
 	}
 	return dir
-}
-
-func extensionSecretInputValue(value string) *string {
-	return &value
-}
-
-func writeBoundSecretExtensionFixture(t *testing.T, root, name string) string {
-	t.Helper()
-	return writeBoundSecretExtensionFixtureWithEnv(t, root, name, []string{"BOUND_SECRET"})
-}
-
-func writeBoundSecretExtensionFixtureWithEnv(
-	t *testing.T,
-	root string,
-	name string,
-	requiredEnv []string,
-) string {
-	t.Helper()
-	dir := writeSecretExtensionFixture(t, root, name, "1.0.0")
-	manifestPath := filepath.Join(dir, "extension.toml")
-	payload, err := os.ReadFile(manifestPath)
-	if err != nil {
-		t.Fatalf("os.ReadFile(extension.toml) error = %v", err)
-	}
-	manifest := strings.Replace(
-		string(payload),
-		`min_compozy_version = "0.5.0"`,
-		fmt.Sprintf(
-			"min_compozy_version = \"0.5.0\"\nrequires_env = [%s]",
-			quotedSecretEnvNames(requiredEnv),
-		),
-		1,
-	)
-	manifest = strings.Replace(
-		manifest,
-		`[subprocess.secret_env]
-BOUND_PROVIDER_TOKEN = "env:GITHUB_TOKEN"
-BOUND_SECRET = "env:EXT_RUNTIME_SECRET"
-`,
-		"",
-		1,
-	)
-	if err := os.WriteFile(manifestPath, []byte(manifest), 0o644); err != nil {
-		t.Fatalf("os.WriteFile(extension.toml) error = %v", err)
-	}
-	return dir
-}
-
-func quotedSecretEnvNames(names []string) string {
-	quoted := make([]string, 0, len(names))
-	for _, name := range names {
-		quoted = append(quoted, fmt.Sprintf("%q", name))
-	}
-	return strings.Join(quoted, ", ")
-}
-
-type extensionSecretFailingVault struct {
-	extensionSecretVault
-
-	mu        sync.Mutex
-	putCalls  int
-	failPutAt int
-}
-
-func (v *extensionSecretFailingVault) PutSecret(
-	ctx context.Context,
-	ref string,
-	kind string,
-	value string,
-) (vault.Metadata, error) {
-	v.mu.Lock()
-	v.putCalls++
-	shouldFail := v.failPutAt > 0 && v.putCalls == v.failPutAt
-	v.mu.Unlock()
-	if shouldFail {
-		return vault.Metadata{}, errors.New("injected transport vault failure")
-	}
-	return v.extensionSecretVault.PutSecret(ctx, ref, kind, value)
-}
-
-func (v *extensionSecretFailingVault) failSecondNextPut() {
-	v.mu.Lock()
-	defer v.mu.Unlock()
-	v.failPutAt = v.putCalls + 2
 }
 
 func writeSecretExtensionGeneration(t *testing.T, origin, name, version string) string {
@@ -1156,36 +308,12 @@ func writeSecretExtensionGeneration(t *testing.T, origin, name, version string) 
 	return publishSecretExtensionGeneration(t, origin, fixture)
 }
 
-func writeBoundSecretExtensionGeneration(t *testing.T, origin, name, version string) string {
-	t.Helper()
-	return writeBoundSecretExtensionGenerationWithEnv(
-		t,
-		origin,
-		name,
-		version,
-		[]string{"BOUND_SECRET"},
-	)
-}
-
-func writeBoundSecretExtensionGenerationWithEnv(
-	t *testing.T,
-	origin string,
-	name string,
-	version string,
-	requiredEnv []string,
-) string {
-	t.Helper()
-	fixture := writeBoundSecretExtensionFixtureWithEnv(t, t.TempDir(), name, requiredEnv)
-	manifestPath := filepath.Join(fixture, "extension.toml")
-	payload, err := os.ReadFile(manifestPath)
-	if err != nil {
-		t.Fatalf("os.ReadFile(extension.toml) error = %v", err)
+func quotedSecretEnvNames(names []string) string {
+	quoted := make([]string, 0, len(names))
+	for _, name := range names {
+		quoted = append(quoted, fmt.Sprintf("%q", name))
 	}
-	manifest := strings.Replace(string(payload), `version = "1.0.0"`, fmt.Sprintf("version = %q", version), 1)
-	if err := os.WriteFile(manifestPath, []byte(manifest), 0o644); err != nil {
-		t.Fatalf("os.WriteFile(extension.toml) error = %v", err)
-	}
-	return publishSecretExtensionGeneration(t, origin, fixture)
+	return strings.Join(quoted, ", ")
 }
 
 func publishSecretExtensionGeneration(t *testing.T, origin, fixture string) string {
@@ -1216,7 +344,7 @@ func publishSecretExtensionGeneration(t *testing.T, origin, fixture string) stri
 	return hash
 }
 
-func performSecretTransportRequest(
+func performExtensionTransportRequest(
 	t *testing.T,
 	engine *gin.Engine,
 	method string,
@@ -1237,6 +365,11 @@ func performSecretTransportRequest(
 	return response
 }
 
+type secretExtensionLogMatch struct {
+	logs    []contract.ExtensionLogPayload
+	matched contract.ExtensionLogPayload
+}
+
 func waitForSecretExtensionLogs(
 	t *testing.T,
 	service *daemonExtensionService,
@@ -1245,7 +378,7 @@ func waitForSecretExtensionLogs(
 	marker string,
 ) []contract.ExtensionLogPayload {
 	t.Helper()
-	return waitForSecretExtensionLogsAfter(t, service, name, actor, 0, marker)
+	return waitForSecretExtensionLogsAfter(t, service, name, actor, 0, marker).logs
 }
 
 func waitForSecretExtensionLogsAfter(
@@ -1255,7 +388,7 @@ func waitForSecretExtensionLogsAfter(
 	actor taskpkg.ActorContext,
 	after int64,
 	marker string,
-) []contract.ExtensionLogPayload {
+) secretExtensionLogMatch {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
@@ -1265,7 +398,7 @@ func waitForSecretExtensionLogsAfter(
 		}
 		for _, entry := range logs {
 			if strings.Contains(entry.Message, marker) {
-				return logs
+				return secretExtensionLogMatch{logs: logs, matched: entry}
 			}
 		}
 		time.Sleep(20 * time.Millisecond)
@@ -1280,7 +413,7 @@ func waitForSecretExtensionLogsAfter(
 		logs,
 		logsErr,
 	)
-	return nil
+	return secretExtensionLogMatch{}
 }
 
 func readSecretExtensionSSEFrame(t *testing.T, engine *gin.Engine, name string) string {
@@ -1340,7 +473,7 @@ func newSecretEchoingPublishFailureServer(t *testing.T, secrets []string) *httpt
 	}))
 }
 
-func mustSecretTransportJSON(t *testing.T, value any) []byte {
+func mustExtensionTransportJSON(t *testing.T, value any) []byte {
 	t.Helper()
 	payload, err := json.Marshal(value)
 	if err != nil {

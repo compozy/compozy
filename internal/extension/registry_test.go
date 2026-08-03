@@ -1081,6 +1081,52 @@ min_compozy_version = "0.5.0"
 		}
 	})
 
+	t.Run("Should preserve network confirmation row inspection errors by scope", func(t *testing.T) {
+		t.Parallel()
+
+		boom := errors.New("rows affected failed")
+		tests := []struct {
+			name    string
+			result  registryTestResult
+			key     InstanceKey
+			wantErr error
+		}{
+			{
+				name:   "Should accept an updated row",
+				result: registryTestResult{rowsAffected: 1},
+				key:    InstanceKey{Name: "dev-extension", WorkspaceID: "workspace-a"},
+			},
+			{
+				name:    "Should translate a missing global row",
+				result:  registryTestResult{},
+				key:     GlobalInstanceKey("missing-global"),
+				wantErr: ErrExtensionNotFound,
+			},
+			{
+				name:    "Should translate a missing development row",
+				result:  registryTestResult{},
+				key:     InstanceKey{Name: "missing-dev", WorkspaceID: "workspace-a"},
+				wantErr: ErrExtensionNotDevLinked,
+			},
+			{
+				name:    "Should preserve a rows affected failure",
+				result:  registryTestResult{err: boom},
+				key:     InstanceKey{Name: "broken-dev", WorkspaceID: "workspace-a"},
+				wantErr: boom,
+			},
+		}
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				err := inspectNetworkConfirmationUpdate(test.result, test.key, "test update")
+				if !errors.Is(err, test.wantErr) {
+					t.Fatalf("inspectNetworkConfirmationUpdate() error = %v, want %v", err, test.wantErr)
+				}
+			})
+		}
+	})
+
 	t.Run("Should write checksum entry covers regular files symlinks and errors", func(t *testing.T) {
 		t.Parallel()
 
@@ -1235,8 +1281,15 @@ func TestRegistryNetworkConfirmationTracksCurrentArtifactDigest(t *testing.T) {
 			t.Fatalf("Enable() error = %v", err)
 		}
 		unchanged, err := env.registry.NetworkConfirmation(key)
-		if err != nil || unchanged.ConfirmedBy != "agent:session-a" {
-			t.Fatalf("NetworkConfirmation(after toggle) = %#v, %v", unchanged, err)
+		if err != nil {
+			t.Fatalf("NetworkConfirmation(after toggle) error = %v", err)
+		}
+		if unchanged.ConfirmedBy != "agent:session-a" {
+			t.Fatalf(
+				"NetworkConfirmation(after toggle).ConfirmedBy = %q, want %q",
+				unchanged.ConfirmedBy,
+				"agent:session-a",
+			)
 		}
 	})
 
@@ -1342,14 +1395,19 @@ func TestRegistryNetworkConfirmationTracksCurrentArtifactDigest(t *testing.T) {
 			!beforeActivation.NetworkConfirmedAt.Equal(confirmedAt) {
 			t.Fatalf("development confirmation before activation = %#v", beforeActivation)
 		}
-		if _, err := env.registry.LinkDev(DevLinkRequest{
+		linkedCandidate, err := env.registry.LinkDev(DevLinkRequest{
 			Name:                     key.Name,
 			WorkspaceID:              key.WorkspaceID,
 			OriginPath:               origin,
 			GenerationHash:           strings.Repeat("b", 64),
 			NetworkRequirementDigest: candidateDigest,
-		}); err != nil {
+		})
+		if err != nil {
 			t.Fatalf("LinkDev(candidate) error = %v", err)
+		}
+		if linkedCandidate.NetworkConfirmedBy != "agent:session-dev" ||
+			!linkedCandidate.NetworkConfirmedAt.Equal(confirmedAt) {
+			t.Fatalf("LinkDev(candidate) = %#v, want preserved confirmation tuple", linkedCandidate)
 		}
 		afterActivation, err := env.registry.GetDevLink(key.Name, key.WorkspaceID)
 		if err != nil {
@@ -1358,6 +1416,21 @@ func TestRegistryNetworkConfirmationTracksCurrentArtifactDigest(t *testing.T) {
 		if afterActivation.NetworkConfirmedBy != "agent:session-dev" ||
 			!afterActivation.NetworkConfirmedAt.Equal(confirmedAt) {
 			t.Fatalf("development confirmation after activation = %#v, want preserved tuple", afterActivation)
+		}
+	})
+
+	t.Run("Should reject a development candidate without a linked row", func(t *testing.T) {
+		t.Parallel()
+
+		env := newRegistryTestEnv(t)
+		err := env.registry.ConfirmDevelopmentNetworkCandidate(
+			InstanceKey{Name: "missing-dev", WorkspaceID: "workspace-a"},
+			strings.Repeat("3", 64),
+			"agent:session-dev",
+			env.installedAt,
+		)
+		if !errors.Is(err, ErrExtensionNotDevLinked) {
+			t.Fatalf("ConfirmDevelopmentNetworkCandidate() error = %v, want ErrExtensionNotDevLinked", err)
 		}
 	})
 }

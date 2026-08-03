@@ -16,7 +16,6 @@ import (
 	"testing"
 	"time"
 
-	devcycle "github.com/compozy/compozy/extensions/dev-cycle"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
@@ -57,13 +56,7 @@ func TestDaemonE2EReviewAndFixShouldRemediateAgentAuthoredArtifacts(t *testing.T
 	})
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
-	enabled, err := harness.EnableExtension(ctx, devcycle.Name)
-	if err != nil {
-		t.Fatalf("EnableExtension(%s) error = %v", devcycle.Name, err)
-	}
-	if !enabled.Enabled {
-		t.Fatalf("EnableExtension(%s) = %#v, want enabled", devcycle.Name, enabled)
-	}
+	requireDevCycleExtensionEnabled(t, ctx, harness)
 	for _, agent := range []struct {
 		name    string
 		fixture string
@@ -71,7 +64,12 @@ func TestDaemonE2EReviewAndFixShouldRemediateAgentAuthoredArtifacts(t *testing.T
 		{name: "reviewer", fixture: "review_and_fix_reviewer"},
 		{name: "review_fixer", fixture: "review_and_fix_fixer"},
 	} {
-		configureExtensionAgentFixture(t, ctx, harness, driverPath, fixturePath, agent.fixture, agent.name)
+		configureExtensionAgentFixture(t, ctx, harness, extensionAgentFixtureConfig{
+			DriverPath:         driverPath,
+			FixturePath:        fixturePath,
+			FixtureAgentName:   agent.fixture,
+			ExtensionAgentName: agent.name,
+		})
 	}
 
 	waitForLoopCatalogEntry(t, ctx, harness, reviewAndFixLoopName)

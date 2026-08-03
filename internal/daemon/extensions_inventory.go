@@ -1,8 +1,8 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -12,17 +12,15 @@ import (
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
-	"github.com/compozy/compozy/internal/heartbeat"
-	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/resources"
-	skillspkg "github.com/compozy/compozy/internal/skills"
-	"github.com/compozy/compozy/internal/soul"
-	toolspkg "github.com/compozy/compozy/internal/tools"
-	"github.com/compozy/compozy/internal/windowmanager"
 )
 
-type extensionPackageInspector interface {
-	InspectPackageResources(context.Context, string) (*extensionpkg.Extension, error)
+type extensionAutomationPreviewer interface {
+	EffectivePackageAutomation(
+		context.Context,
+		[]automationpkg.Job,
+		[]automationpkg.Trigger,
+	) ([]automationpkg.Job, []automationpkg.Trigger, error)
 }
 
 func (s *daemonExtensionService) Inventory(
@@ -43,7 +41,7 @@ func (s *daemonExtensionService) Inventory(
 	if !ext.Info.Enabled {
 		live = nil
 	}
-	items := mergeExtensionKitInventory(desired, live)
+	items := s.mergeExtensionKitInventory(ctx, desired, live)
 	return contract.ExtensionInventoryPayload{
 		Extension: ext.Info.Name,
 		Enabled:   ext.Info.Enabled,
@@ -77,164 +75,130 @@ func (s *daemonExtensionService) previewExtension(
 	if err != nil {
 		return contract.ExtensionEnablePreviewPayload{}, err
 	}
+	networkDigest, networkConfirmationRequired, err := candidateNetworkConfirmationRequirement(ext.Info, ext.Manifest)
+	if err != nil {
+		return contract.ExtensionEnablePreviewPayload{}, err
+	}
 	conflicts, err := s.extensionAgentConflicts(ctx, ext)
 	if err != nil {
 		return contract.ExtensionEnablePreviewPayload{}, err
 	}
-	automationStarting := []string(nil)
-	if !ext.Info.Enabled {
-		automationStarting, err = s.previewExtensionAutomation(ctx, ext)
-		if err != nil {
-			return contract.ExtensionEnablePreviewPayload{}, err
-		}
+	changes, err := s.extensionKitChanges(ctx, desired, live)
+	if err != nil {
+		return contract.ExtensionEnablePreviewPayload{}, err
+	}
+	automationStarting, err := s.previewExtensionAutomation(ctx, ext, changes)
+	if err != nil {
+		return contract.ExtensionEnablePreviewPayload{}, err
 	}
 	return contract.ExtensionEnablePreviewPayload{
 		Extension:                   ext.Info.Name,
-		WouldPublish:                contractExtensionKitItems(mergeExtensionKitInventory(desired, live)),
+		Changes:                     changes,
 		AgentConflicts:              conflicts,
 		MissingEnv:                  slices.Clone(status.MissingEnv),
 		AutomationStarting:          automationStarting,
-		NetworkRequirementDigest:    status.NetworkRequirementDigest,
-		NetworkConfirmationRequired: status.NetworkConfirmationRequired,
+		NetworkRequirementDigest:    networkDigest,
+		NetworkConfirmationRequired: networkConfirmationRequired,
 	}, nil
+}
+
+func (s *daemonExtensionService) extensionKitChanges(
+	ctx context.Context,
+	desired []extensionpkg.KitItem,
+	live []resources.RawRecord,
+) ([]contract.ExtensionKitChangePayload, error) {
+	desiredByKey := make(map[extensionKitItemKey]extensionpkg.KitItem, len(desired))
+	for _, item := range desired {
+		desiredByKey[newExtensionKitItemKey(item.Kind, item.Name)] = item
+	}
+	liveByKey := make(map[extensionKitItemKey]resources.RawRecord, len(live))
+	for _, record := range live {
+		name := s.extensionResourceName(ctx, record)
+		liveByKey[newExtensionKitItemKey(record.Kind, name)] = record
+	}
+	changes := make([]contract.ExtensionKitChangePayload, 0, len(desiredByKey)+len(liveByKey))
+	for key, item := range desiredByKey {
+		record, exists := liveByKey[key]
+		if !exists {
+			changes = append(changes, contract.ExtensionKitChangePayload{
+				Kind: item.Kind, ID: item.ID, Name: item.Name, Change: contract.ExtensionKitChangeAdded,
+			})
+			continue
+		}
+		delete(liveByKey, key)
+		unchanged, err := s.extensionKitSpecMatches(ctx, item, record)
+		if err != nil {
+			return nil, err
+		}
+		if unchanged {
+			continue
+		}
+		changes = append(changes, contract.ExtensionKitChangePayload{
+			Kind: item.Kind, ID: item.ID, Name: item.Name, Change: contract.ExtensionKitChangeChanged,
+		})
+	}
+	for _, record := range liveByKey {
+		changes = append(changes, contract.ExtensionKitChangePayload{
+			Kind: record.Kind, ID: record.ID, Name: s.extensionResourceName(ctx, record),
+			Change: contract.ExtensionKitChangeRemoved,
+		})
+	}
+	slices.SortFunc(changes, func(left, right contract.ExtensionKitChangePayload) int {
+		if byKind := strings.Compare(string(left.Kind), string(right.Kind)); byKind != 0 {
+			return byKind
+		}
+		if byName := strings.Compare(left.Name, right.Name); byName != 0 {
+			return byName
+		}
+		return strings.Compare(string(left.Change), string(right.Change))
+	})
+	return changes, nil
+}
+
+func (s *daemonExtensionService) extensionKitSpecMatches(
+	ctx context.Context,
+	desired extensionpkg.KitItem,
+	live resources.RawRecord,
+) (bool, error) {
+	desiredSpec, desiredValidated, err := resources.ValidateAndCanonicalizeIfRegistered(
+		ctx,
+		s.resourceCodecs,
+		desired.Kind,
+		live.Scope,
+		desired.SpecJSON,
+	)
+	if err != nil {
+		return false, fmt.Errorf("daemon: canonicalize desired extension resource %q: %w", desired.ID, err)
+	}
+	liveSpec, liveValidated, err := resources.ValidateAndCanonicalizeIfRegistered(
+		ctx,
+		s.resourceCodecs,
+		live.Kind,
+		live.Scope,
+		live.SpecJSON,
+	)
+	if err != nil {
+		return false, fmt.Errorf("daemon: canonicalize live extension resource %q: %w", live.ID, err)
+	}
+	if !desiredValidated || !liveValidated {
+		return false, fmt.Errorf("daemon: extension resource codec for kind %q is required", desired.Kind)
+	}
+	return bytes.Equal(desiredSpec, liveSpec), nil
 }
 
 func (s *daemonExtensionService) desiredExtensionKit(
 	ctx context.Context,
 	name string,
 ) (*extensionpkg.Extension, []extensionpkg.KitItem, error) {
-	inspector, ok := s.runtime.(extensionPackageInspector)
-	var ext *extensionpkg.Extension
-	var err error
-	if ok && inspector != nil {
-		ext, err = inspector.InspectPackageResources(ctx, strings.TrimSpace(name))
-	} else {
-		ext, err = loadExtensionSnapshot(s.registry, s.runtime, s.logger, name)
-	}
+	ext, err := s.runtime.InspectPackageResources(ctx, strings.TrimSpace(name))
 	if err != nil {
 		return nil, nil, err
 	}
-	items, err := extensionKitItems(ext)
+	items, err := projectExtensionKitItems(ctx, ext, s.resourceCodecs, s.getenv)
 	if err != nil {
 		return nil, nil, err
 	}
 	return ext, items, nil
-}
-
-func extensionKitItems(ext *extensionpkg.Extension) ([]extensionpkg.KitItem, error) {
-	if ext == nil || ext.Manifest == nil {
-		return nil, errors.New("daemon: inspected extension manifest is required")
-	}
-	collector := newExtensionKitItemCollector(ext.Info.Name)
-	collector.appendAgents(ext)
-	collector.appendSkills(ext)
-	if err := collector.appendTools(ext); err != nil {
-		return nil, err
-	}
-	collector.appendRemainingResources(ext)
-	return collector.result(), nil
-}
-
-type extensionKitItemCollector struct {
-	extensionName string
-	items         map[string]extensionpkg.KitItem
-}
-
-func newExtensionKitItemCollector(extensionName string) *extensionKitItemCollector {
-	return &extensionKitItemCollector{
-		extensionName: strings.TrimSpace(extensionName),
-		items:         make(map[string]extensionpkg.KitItem),
-	}
-}
-
-func (c *extensionKitItemCollector) append(kind resources.ResourceKind, id, name string) {
-	name = strings.TrimSpace(name)
-	if name == "" {
-		return
-	}
-	key := extensionKitItemKey(kind, name)
-	candidate := extensionpkg.KitItem{Kind: kind, ID: strings.TrimSpace(id), Name: name}
-	if current, ok := c.items[key]; !ok || candidate.ID < current.ID {
-		c.items[key] = candidate
-	}
-}
-
-func (c *extensionKitItemCollector) appendAgents(ext *extensionpkg.Extension) {
-	for _, staticAgent := range ext.StaticAgents {
-		name := strings.TrimSpace(staticAgent.Agent.Name)
-		base := "extension/" + c.extensionName + "/agent/" + name
-		c.append(compozyconfig.AgentResourceKind, base, name)
-		if staticAgent.Soul != nil {
-			c.append(soul.ResourceKind, base+"/soul", name)
-		}
-		if staticAgent.Heartbeat != nil {
-			c.append(heartbeat.ResourceKind, base+"/heartbeat", name)
-		}
-		for _, server := range staticAgent.Agent.MCPServers {
-			serverName := strings.TrimSpace(server.Name)
-			c.append(compozyconfig.MCPServerResourceKind, base+"/mcp_server/"+serverName, serverName)
-		}
-	}
-}
-
-func (c *extensionKitItemCollector) appendSkills(ext *extensionpkg.Extension) {
-	for _, skill := range ext.Skills {
-		if skill == nil {
-			continue
-		}
-		name := strings.TrimSpace(skill.Meta.Name)
-		base := "extension/" + c.extensionName + "/skills/skill/" + name
-		c.append(skillspkg.SkillResourceKind, base, name)
-		for _, server := range skill.MCPServers {
-			serverName := strings.TrimSpace(server.Name)
-			c.append(compozyconfig.MCPServerResourceKind, base+"/mcp_server/"+serverName, serverName)
-		}
-	}
-}
-
-func (c *extensionKitItemCollector) appendTools(ext *extensionpkg.Extension) error {
-	tools, err := extensionpkg.ResolveManifestToolResources(ext.Manifest)
-	if err != nil {
-		return fmt.Errorf("daemon: resolve extension kit tools: %w", err)
-	}
-	for _, tool := range tools {
-		name := strings.TrimSpace(tool.ID.String())
-		c.append(toolspkg.ToolResourceKind, "extension/"+c.extensionName+"/tool/"+name, name)
-	}
-	return nil
-}
-
-func (c *extensionKitItemCollector) appendRemainingResources(ext *extensionpkg.Extension) {
-	for _, spec := range ext.Loops {
-		name := strings.TrimSpace(spec.Name)
-		c.append(looppkg.ResourceKind, "extension/"+c.extensionName+"/loops/"+name, name)
-	}
-	for name := range ext.Manifest.Resources.MCPServers {
-		c.append(compozyconfig.MCPServerResourceKind, "extension/"+c.extensionName+"/mcp_server/"+name, name)
-	}
-	for _, hook := range ext.Hooks {
-		name := strings.TrimSpace(hook.Name)
-		c.append(hookBindingResourceKind, "extension/"+c.extensionName+"/hook.binding/"+name, name)
-	}
-	for _, job := range ext.AutomationJobs {
-		c.append(automationpkg.JobResourceKind, job.ID, job.Name)
-	}
-	for _, trigger := range ext.AutomationTriggers {
-		c.append(automationpkg.TriggerResourceKind, trigger.ID, trigger.Name)
-	}
-	for _, layout := range ext.Layouts {
-		name := strings.TrimSpace(layout.ID)
-		c.append(windowmanager.WindowLayoutResourceKind, "extension/"+c.extensionName+"/window_layout/"+name, name)
-	}
-}
-
-func (c *extensionKitItemCollector) result() []extensionpkg.KitItem {
-	result := make([]extensionpkg.KitItem, 0, len(c.items))
-	for _, item := range c.items {
-		result = append(result, item)
-	}
-	sortExtensionKitItems(result)
-	return result
 }
 
 func (s *daemonExtensionService) extensionOwnedResourceRecords(
@@ -252,23 +216,24 @@ func (s *daemonExtensionService) extensionOwnedResourceRecords(
 	return records, nil
 }
 
-func mergeExtensionKitInventory(
+func (s *daemonExtensionService) mergeExtensionKitInventory(
+	ctx context.Context,
 	desired []extensionpkg.KitItem,
 	live []resources.RawRecord,
 ) []extensionpkg.KitItem {
-	byKey := make(map[string]extensionpkg.KitItem, len(desired)+len(live))
-	ids := make(map[string]string, len(desired))
+	byKey := make(map[extensionKitItemKey]extensionpkg.KitItem, len(desired)+len(live))
+	ids := make(map[string]extensionKitItemKey, len(desired))
 	for _, item := range desired {
-		key := extensionKitItemKey(item.Kind, item.Name)
+		key := newExtensionKitItemKey(item.Kind, item.Name)
 		byKey[key] = item
 		ids[item.ID] = key
 	}
 	for _, record := range live {
-		key := ids[record.ID]
+		key, matchedID := ids[record.ID]
 		name := ""
-		if key == "" {
-			name = rawExtensionResourceName(record)
-			key = extensionKitItemKey(record.Kind, name)
+		if !matchedID {
+			name = s.extensionResourceName(ctx, record)
+			key = newExtensionKitItemKey(record.Kind, name)
 		}
 		item := byKey[key]
 		if item.Name == "" {
@@ -286,21 +251,13 @@ func mergeExtensionKitInventory(
 	return result
 }
 
-func rawExtensionResourceName(record resources.RawRecord) string {
-	var payload map[string]any
-	if err := json.Unmarshal(record.SpecJSON, &payload); err == nil {
-		for _, key := range []string{bootNameKey, "agent_name", "id"} {
-			if value, ok := payload[key].(string); ok && strings.TrimSpace(value) != "" {
-				return strings.TrimSpace(value)
-			}
-		}
-	}
-	parts := strings.Split(strings.TrimSpace(record.ID), "/")
-	return strings.TrimSpace(parts[len(parts)-1])
+type extensionKitItemKey struct {
+	kind resources.ResourceKind
+	name string
 }
 
-func extensionKitItemKey(kind resources.ResourceKind, name string) string {
-	return string(kind) + "\x00" + strings.TrimSpace(name)
+func newExtensionKitItemKey(kind resources.ResourceKind, name string) extensionKitItemKey {
+	return extensionKitItemKey{kind: kind, name: strings.TrimSpace(name)}
 }
 
 func sortExtensionKitItems(items []extensionpkg.KitItem) {
@@ -348,7 +305,7 @@ func (s *daemonExtensionService) extensionAgentConflicts(
 			if record.Owner.Normalize() == owner {
 				continue
 			}
-			name := rawExtensionResourceName(record)
+			name := s.extensionResourceName(ctx, record)
 			if _, ok := shipped[name]; ok {
 				conflicts[name] = struct{}{}
 			}
@@ -365,50 +322,37 @@ func (s *daemonExtensionService) extensionAgentConflicts(
 func (s *daemonExtensionService) previewExtensionAutomation(
 	ctx context.Context,
 	ext *extensionpkg.Extension,
+	changes []contract.ExtensionKitChangePayload,
 ) ([]string, error) {
+	if s.automation == nil {
+		return nil, errors.New("daemon: extension automation previewer is required")
+	}
 	jobs := slices.Clone(ext.AutomationJobs)
 	triggers := slices.Clone(ext.AutomationTriggers)
-	if previewer, ok := s.automation.(extensionAutomationPreviewer); ok && previewer != nil {
-		var err error
-		jobs, triggers, err = previewer.EffectivePackageAutomation(ctx, jobs, triggers)
-		if err != nil {
-			return nil, fmt.Errorf("daemon: apply automation overlays for extension preview: %w", err)
+	jobs, triggers, err := s.automation.EffectivePackageAutomation(ctx, jobs, triggers)
+	if err != nil {
+		return nil, fmt.Errorf("daemon: apply automation overlays for extension preview: %w", err)
+	}
+	changedAutomation := make(map[extensionKitItemKey]struct{}, len(changes))
+	for _, change := range changes {
+		if change.Change == contract.ExtensionKitChangeRemoved {
+			continue
 		}
-	} else if s.automation != nil {
-		currentJobs, err := s.automation.Jobs(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("daemon: list automation jobs for extension preview: %w", err)
-		}
-		currentTriggers, err := s.automation.Triggers(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("daemon: list automation triggers for extension preview: %w", err)
-		}
-		overrides := make(map[string]bool, len(currentJobs)+len(currentTriggers))
-		for _, job := range currentJobs {
-			overrides[job.ID] = job.Enabled
-		}
-		for _, trigger := range currentTriggers {
-			overrides[trigger.ID] = trigger.Enabled
-		}
-		for index := range jobs {
-			if enabled, exists := overrides[jobs[index].ID]; exists {
-				jobs[index].Enabled = enabled
-			}
-		}
-		for index := range triggers {
-			if enabled, exists := overrides[triggers[index].ID]; exists {
-				triggers[index].Enabled = enabled
-			}
+		switch change.Kind {
+		case automationpkg.JobResourceKind, automationpkg.TriggerResourceKind:
+			changedAutomation[newExtensionKitItemKey(change.Kind, change.Name)] = struct{}{}
 		}
 	}
 	starting := make([]string, 0, len(jobs)+len(triggers))
 	for _, job := range jobs {
-		if job.Enabled {
+		_, changed := changedAutomation[newExtensionKitItemKey(automationpkg.JobResourceKind, job.Name)]
+		if job.Enabled && (!ext.Info.Enabled || changed) {
 			starting = append(starting, job.Name)
 		}
 	}
 	for _, trigger := range triggers {
-		if trigger.Enabled {
+		_, changed := changedAutomation[newExtensionKitItemKey(automationpkg.TriggerResourceKind, trigger.Name)]
+		if trigger.Enabled && (!ext.Info.Enabled || changed) {
 			starting = append(starting, trigger.Name)
 		}
 	}

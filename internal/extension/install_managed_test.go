@@ -85,6 +85,63 @@ func TestManagedInstallHelpers(t *testing.T) {
 	}
 }
 
+func TestRemoveManagedInstallContainment(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should remove a contained managed install", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		target, err := ManagedInstallPathChecked(homePaths, "test-ext")
+		if err != nil {
+			t.Fatalf("ManagedInstallPathChecked() error = %v", err)
+		}
+		if err := os.MkdirAll(target, 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(target) error = %v", err)
+		}
+		if err := RemoveManagedInstall(homePaths, "test-ext"); err != nil {
+			t.Fatalf("RemoveManagedInstall() error = %v", err)
+		}
+		if _, err := os.Lstat(target); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("os.Lstat(target) error = %v, want not exists", err)
+		}
+	})
+
+	t.Run("Should reject a managed install symlink that resolves outside the root", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		root := ManagedInstallRoot(homePaths)
+		if err := os.MkdirAll(root, 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(root) error = %v", err)
+		}
+		outside := t.TempDir()
+		sentinel := filepath.Join(outside, "sentinel")
+		if err := os.WriteFile(sentinel, []byte("preserve"), 0o600); err != nil {
+			t.Fatalf("os.WriteFile(sentinel) error = %v", err)
+		}
+		target, err := ManagedInstallPathChecked(homePaths, "test-ext")
+		if err != nil {
+			t.Fatalf("ManagedInstallPathChecked() error = %v", err)
+		}
+		if err := os.Symlink(outside, target); err != nil {
+			t.Fatalf("os.Symlink(outside, target) error = %v", err)
+		}
+		if err := RemoveManagedInstall(homePaths, "test-ext"); err == nil {
+			t.Fatal("RemoveManagedInstall() error = nil, want containment refusal")
+		}
+		if got, err := os.ReadFile(sentinel); err != nil || string(got) != "preserve" {
+			t.Fatalf("os.ReadFile(sentinel) = %q, %v; want preserved", got, err)
+		}
+	})
+}
+
 func TestInstallLocalManagedRejectsUnsafeManifestName(t *testing.T) {
 	t.Parallel()
 
@@ -348,59 +405,88 @@ func TestCopyInstallTreeRejectsRuntimeDependencySymlinkOutsideSourceRoot(t *test
 	}
 }
 
-func TestInstallLocalManagedUsesInstalledChecksumForMaterializedSymlinks(t *testing.T) {
+func TestInstallLocalManaged(t *testing.T) {
 	t.Parallel()
 
-	sourceDir := filepath.Join(t.TempDir(), "source")
-	if err := os.MkdirAll(filepath.Join(sourceDir, "node_modules"), 0o755); err != nil {
-		t.Fatalf("os.MkdirAll(source) error = %v", err)
-	}
+	t.Run("Should use the installed checksum for materialized symlinks", func(t *testing.T) {
+		t.Parallel()
 
-	internalFile := filepath.Join(sourceDir, "vendor", "external.js")
-	if err := os.MkdirAll(filepath.Dir(internalFile), 0o755); err != nil {
-		t.Fatalf("os.MkdirAll(vendor) error = %v", err)
-	}
-	if err := os.WriteFile(internalFile, []byte("export const value = 1;\n"), 0o644); err != nil {
-		t.Fatalf("os.WriteFile(internal) error = %v", err)
-	}
-	if err := os.Symlink(internalFile, filepath.Join(sourceDir, "node_modules", "external.js")); err != nil {
-		t.Skipf("os.Symlink(file) unavailable: %v", err)
-	}
+		sourceDir := filepath.Join(t.TempDir(), "source")
+		if err := os.MkdirAll(filepath.Join(sourceDir, "node_modules"), 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(source) error = %v", err)
+		}
 
-	sourceChecksum, err := ComputeDirectoryChecksum(sourceDir)
-	if err != nil {
-		t.Fatalf("ComputeDirectoryChecksum(source) error = %v", err)
-	}
+		internalFile := filepath.Join(sourceDir, "vendor", "external.js")
+		if err := os.MkdirAll(filepath.Dir(internalFile), 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(vendor) error = %v", err)
+		}
+		if err := os.WriteFile(internalFile, []byte("export const value = 1;\n"), 0o644); err != nil {
+			t.Fatalf("os.WriteFile(internal) error = %v", err)
+		}
+		if err := os.Symlink(internalFile, filepath.Join(sourceDir, "node_modules", "external.js")); err != nil {
+			t.Skipf("os.Symlink(file) unavailable: %v", err)
+		}
 
-	homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
-	if err != nil {
-		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-	}
-	registry := &recordingManagedInstallRegistry{}
-	manifest := &Manifest{Name: "symlink-ext"}
+		sourceChecksum, err := ComputeDirectoryChecksum(sourceDir)
+		if err != nil {
+			t.Fatalf("ComputeDirectoryChecksum(source) error = %v", err)
+		}
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		registry := &recordingManagedInstallRegistry{}
+		manifest := &Manifest{Name: "symlink-ext"}
 
-	if err := InstallLocalManaged(homePaths, registry, manifest, sourceDir, sourceChecksum); err != nil {
-		t.Fatalf("InstallLocalManaged() error = %v", err)
-	}
+		if err := InstallLocalManaged(homePaths, registry, manifest, sourceDir, sourceChecksum); err != nil {
+			t.Fatalf("InstallLocalManaged() error = %v", err)
+		}
 
-	finalDir := ManagedInstallPath(homePaths, manifest.Name)
-	finalChecksum, err := ComputeDirectoryChecksum(finalDir)
-	if err != nil {
-		t.Fatalf("ComputeDirectoryChecksum(final) error = %v", err)
-	}
-	if got := registry.installedChecksum; got != finalChecksum {
-		t.Fatalf("registry installed checksum = %q, want %q", got, finalChecksum)
-	}
-	if registry.installedEnabled {
-		t.Fatal("registry installed enabled = true, want inert managed install")
-	}
-	if finalChecksum == sourceChecksum {
-		t.Fatalf(
-			"final checksum = %q, want checksum different from source symlink tree %q",
-			finalChecksum,
+		finalDir := ManagedInstallPath(homePaths, manifest.Name)
+		finalChecksum, err := ComputeDirectoryChecksum(finalDir)
+		if err != nil {
+			t.Fatalf("ComputeDirectoryChecksum(final) error = %v", err)
+		}
+		if got := registry.installedChecksum; got != finalChecksum {
+			t.Fatalf("registry installed checksum = %q, want %q", got, finalChecksum)
+		}
+		if finalChecksum == sourceChecksum {
+			t.Fatalf(
+				"final checksum = %q, want checksum different from source symlink tree %q",
+				finalChecksum,
+				sourceChecksum,
+			)
+		}
+	})
+
+	t.Run("Should keep managed installs disabled until enable", func(t *testing.T) {
+		t.Parallel()
+
+		sourceDir := t.TempDir()
+		writeFile(t, filepath.Join(sourceDir, manifestTOMLFileName), "[extension]\nname = \"inert-ext\"\n")
+		sourceChecksum, err := ComputeDirectoryChecksum(sourceDir)
+		if err != nil {
+			t.Fatalf("ComputeDirectoryChecksum(source) error = %v", err)
+		}
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		registry := &recordingManagedInstallRegistry{}
+
+		if err := InstallLocalManaged(
+			homePaths,
+			registry,
+			&Manifest{Name: "inert-ext"},
+			sourceDir,
 			sourceChecksum,
-		)
-	}
+		); err != nil {
+			t.Fatalf("InstallLocalManaged() error = %v", err)
+		}
+		if registry.installedEnabled {
+			t.Fatal("registry installed enabled = true, want false before enable")
+		}
+	})
 }
 
 func TestInstallLocalManagedNormalizesProvidedChecksum(t *testing.T) {

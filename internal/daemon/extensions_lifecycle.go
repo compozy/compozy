@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"slices"
 	"strings"
 
@@ -18,7 +17,7 @@ func (s *daemonExtensionService) Install(
 	ctx context.Context,
 	req contract.InstallExtensionRequest,
 	actor taskpkg.ActorContext,
-) (item contract.ExtensionPayload, err error) {
+) (contract.ExtensionPayload, error) {
 	if err := s.checkReady(); err != nil {
 		return contract.ExtensionPayload{}, err
 	}
@@ -28,14 +27,7 @@ func (s *daemonExtensionService) Install(
 	event := extensionpkg.LifecycleEvent{
 		Type: eventspkg.ExtensionInstallFailed, ExtensionName: req.Ref, SourceKind: string(req.Source),
 	}
-	defer func() {
-		if err == nil {
-			event.Type = eventspkg.ExtensionInstallCompleted
-			event.ExtensionName = item.Name
-			event.DigestMatched = item.DigestMatched
-		}
-		err = errors.Join(err, s.recordCanonicalExtensionLifecycleEvent(ctx, actor, event))
-	}()
+	var item contract.ExtensionPayload
 	installedBy := extensionInstalledBy(actor)
 	mutation := func() error {
 		name, err := s.installExtensionSource(ctx, req, actor, installedBy)
@@ -48,28 +40,24 @@ func (s *daemonExtensionService) Install(
 		if err := s.reload(ctx); err != nil {
 			return s.rollbackFailedInstall(ctx, name, err)
 		}
-		item, err = s.completeExtensionInstall(ctx, name)
-		return err
-	}
-	if normalizedInstallSource(req.Source) == contract.InstallExtensionSourceLocalPath {
-		manifest, loadErr := extensionpkg.LoadManifest(strings.TrimSpace(req.Ref))
-		if loadErr != nil {
-			return contract.ExtensionPayload{}, loadErr
+		item, err = s.Status(ctx, name)
+		if err != nil {
+			return s.rollbackFailedInstall(ctx, name, err)
 		}
-		err = s.lifecycle.withName(ctx, manifest.Name, mutation)
-	} else {
-		err = s.lifecycle.exclusive(ctx, mutation)
+		completedEvent := event
+		completedEvent.Type = eventspkg.ExtensionInstallCompleted
+		completedEvent.ExtensionName = item.Name
+		completedEvent.DigestMatched = item.DigestMatched
+		if err := s.recordCanonicalExtensionLifecycleEvent(ctx, actor, completedEvent); err != nil {
+			return s.rollbackFailedInstall(ctx, name, err)
+		}
+		return nil
 	}
-	return item, err
-}
-
-func (s *daemonExtensionService) completeExtensionInstall(
-	ctx context.Context,
-	name string,
-) (contract.ExtensionPayload, error) {
-	item, err := s.Status(ctx, name)
-	if err != nil {
-		return contract.ExtensionPayload{}, err
+	if err := s.lifecycle.exclusive(ctx, mutation); err != nil {
+		return contract.ExtensionPayload{}, errors.Join(
+			err,
+			s.recordCanonicalExtensionLifecycleEvent(ctx, actor, event),
+		)
 	}
 	return item, nil
 }
@@ -138,9 +126,14 @@ func (s *daemonExtensionService) updateBatchUnlocked(
 ) ([]contract.ManagedExtensionUpdatePayload, error) {
 	cfg := s.marketplaceConfig()
 	domainReq := extensionpkg.MarketplaceUpdateRequest{
-		Names: req.Names, All: req.All, CheckOnly: req.CheckOnly, Version: req.Version,
-		AllowUnverified: req.AllowUnverified, InstalledBy: extensionInstalledBy(actor),
-		PolicyAllowsUnverified: cfg.Trust.AllowUnverified, ResolveTrust: s.marketplaceTrustResolver(),
+		Names:                  req.Names,
+		All:                    req.All,
+		CheckOnly:              req.CheckOnly,
+		Version:                req.Version,
+		AllowUnverified:        req.AllowUnverified,
+		InstalledBy:            extensionInstalledBy(actor),
+		PolicyAllowsUnverified: cfg.Trust.AllowUnverified,
+		ResolveTrust:           s.marketplaceTrustResolver(),
 	}
 	domainReq.ObserveDigestVerification = func(
 		trust *extensionpkg.MarketplaceTrustEvidence,
@@ -205,6 +198,8 @@ func (s *daemonExtensionService) rollbackFailedInstall(
 	if trimmedName == "" {
 		return installErr
 	}
+	rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), extensionLifecycleRollbackTimeout)
+	defer cancel()
 
 	var rollbackErr error
 	if err := s.registry.Uninstall(trimmedName); err != nil && !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
@@ -214,12 +209,14 @@ func (s *daemonExtensionService) rollbackFailedInstall(
 		)
 	}
 
-	managedPath := extensionpkg.ManagedInstallPath(s.homePaths, trimmedName)
-	if err := os.RemoveAll(managedPath); err != nil {
-		rollbackErr = errors.Join(rollbackErr, fmt.Errorf("daemon: rollback extension files %q: %w", managedPath, err))
+	if err := extensionpkg.RemoveManagedInstall(s.homePaths, trimmedName); err != nil {
+		rollbackErr = errors.Join(
+			rollbackErr,
+			fmt.Errorf("daemon: rollback extension files %q: %w", trimmedName, err),
+		)
 	}
 
-	if err := s.reload(ctx); err != nil {
+	if err := s.reload(rollbackCtx); err != nil {
 		rollbackErr = errors.Join(rollbackErr, fmt.Errorf("daemon: reload after extension install rollback: %w", err))
 	}
 
@@ -254,6 +251,7 @@ func (s *daemonExtensionService) Enable(
 		}
 		confirmation, confirmErr := s.confirmNetworkForEnable(
 			extensionpkg.GlobalInstanceKey(name),
+			preview.NetworkRequirementDigest,
 			strings.TrimSpace(req.ConfirmNetworkDigest),
 			actor,
 		)

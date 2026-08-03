@@ -23,7 +23,7 @@
         </nav>
       </div>
       <h1 class="mk-title">All catalog <em>entries</em></h1>
-      <p class="mk-lead">Every entry in the first-party feeds — skills, MCP servers, extensions, bridge providers, and bundles — exactly as the daemon reads them. What you see here is what <code style="font-family:var(--font-mono);font-size:0.85em">compozy marketplace</code> sees.</p>
+      <p class="mk-lead">Every entry in the first-party feeds — skills, MCP servers, and extensions — exactly as the daemon reads them. What you see here is what <code style="font-family:var(--font-mono);font-size:0.85em">compozy marketplace</code> sees.</p>
     </div>
   </header>
 
@@ -34,8 +34,6 @@
       <button class="mkl-tab" role="tab" id="tab-skills" aria-controls="pane-skills" aria-selected="true" data-kind="skills" type="button">Skills<span class="mkl-tab__count">1</span></button>
       <button class="mkl-tab" role="tab" id="tab-mcps" aria-controls="pane-mcps" aria-selected="false" tabindex="-1" data-kind="mcps" type="button">MCP servers<span class="mkl-tab__count">1</span></button>
       <button class="mkl-tab" role="tab" id="tab-extensions" aria-controls="pane-extensions" aria-selected="false" tabindex="-1" data-kind="extensions" type="button">Extensions<span class="mkl-tab__count">2</span></button>
-      <button class="mkl-tab" role="tab" id="tab-bridges" aria-controls="pane-bridges" aria-selected="false" tabindex="-1" data-kind="bridges" type="button">Bridges<span class="mkl-tab__count">8</span></button>
-      <button class="mkl-tab" role="tab" id="tab-bundles" aria-controls="pane-bundles" aria-selected="false" tabindex="-1" data-kind="bundles" type="button">Bundles<span class="mkl-tab__count">0</span></button>
     </div>
     <div class="mkl-filter">
       <i data-lucide="search" class="ic"></i>
@@ -147,63 +145,6 @@
     <p class="mkl-none" hidden>No extensions match <code class="mkl-none__q"></code>.</p>
   </section>
 
-  <!-- ============ Bridges (D13 — 8 providers, alpha) ============ -->
-  <section class="mkl-pane" id="pane-bridges" role="tabpanel" aria-labelledby="tab-bridges" data-od-id="pane-bridges" hidden>
-    <p class="mkl-pane__desc">Chat and tracker platforms your agents can live in. Bridges are extensions that provide <code>bridge.adapter</code>, grouped by platform. <span class="maturity" data-level="alpha">Alpha</span> — providers build from source today; packaged installs land with the catalog feeds.</p>
-    <div class="mk-bridge-grid">
-      <article class="mk-bridge" data-od-id="list-bridge-slack">
-        <div class="mk-bridge__top"><span class="mk-tile">Sl</span><div><p class="mk-bridge__name">Slack</p><span class="mk-bridge__platform">slack · v0.1.0</span></div></div>
-        <div class="mk-bridge__meta"><span class="maturity" data-level="alpha">Alpha</span><span>2 secret slots</span></div>
-        <div class="mk-bridge__foot"><a href="#">Setup guide<i data-lucide="arrow-right" class="ic"></i></a></div>
-      </article>
-      <article class="mk-bridge" data-od-id="list-bridge-discord">
-        <div class="mk-bridge__top"><span class="mk-tile">Di</span><div><p class="mk-bridge__name">Discord</p><span class="mk-bridge__platform">discord · v0.1.0</span></div></div>
-        <div class="mk-bridge__meta"><span class="maturity" data-level="alpha">Alpha</span><span>2 secret slots</span></div>
-        <div class="mk-bridge__foot"><a href="#">Setup guide<i data-lucide="arrow-right" class="ic"></i></a></div>
-      </article>
-      <article class="mk-bridge" data-od-id="list-bridge-telegram">
-        <div class="mk-bridge__top"><span class="mk-tile">Tg</span><div><p class="mk-bridge__name">Telegram</p><span class="mk-bridge__platform">telegram · v0.1.0</span></div></div>
-        <div class="mk-bridge__meta"><span class="maturity" data-level="alpha">Alpha</span><span>2 secret slots</span></div>
-        <div class="mk-bridge__foot"><a href="#">Setup guide<i data-lucide="arrow-right" class="ic"></i></a></div>
-      </article>
-      <article class="mk-bridge" data-od-id="list-bridge-whatsapp">
-        <div class="mk-bridge__top"><span class="mk-tile">Wa</span><div><p class="mk-bridge__name">WhatsApp</p><span class="mk-bridge__platform">whatsapp · v0.1.0</span></div></div>
-        <div class="mk-bridge__meta"><span class="maturity" data-level="alpha">Alpha</span><span>3 secret slots</span></div>
-        <div class="mk-bridge__foot"><a href="#">Setup guide<i data-lucide="arrow-right" class="ic"></i></a></div>
-      </article>
-      <article class="mk-bridge" data-od-id="list-bridge-teams">
-        <div class="mk-bridge__top"><span class="mk-tile">Tm</span><div><p class="mk-bridge__name">Microsoft Teams</p><span class="mk-bridge__platform">teams · v0.1.0</span></div></div>
-        <div class="mk-bridge__meta"><span class="maturity" data-level="alpha">Alpha</span><span>3 secret slots</span></div>
-        <div class="mk-bridge__foot"><a href="#">Setup guide<i data-lucide="arrow-right" class="ic"></i></a></div>
-      </article>
-      <article class="mk-bridge" data-od-id="list-bridge-gchat">
-        <div class="mk-bridge__top"><span class="mk-tile">Gc</span><div><p class="mk-bridge__name">Google Chat</p><span class="mk-bridge__platform">gchat · v0.1.0</span></div></div>
-        <div class="mk-bridge__meta"><span class="maturity" data-level="alpha">Alpha</span><span>2 secret slots</span></div>
-        <div class="mk-bridge__foot"><a href="#">Setup guide<i data-lucide="arrow-right" class="ic"></i></a></div>
-      </article>
-      <article class="mk-bridge" data-od-id="list-bridge-github">
-        <div class="mk-bridge__top"><span class="mk-tile">Gh</span><div><p class="mk-bridge__name">GitHub</p><span class="mk-bridge__platform">github · v0.1.0</span></div></div>
-        <div class="mk-bridge__meta"><span class="maturity" data-level="alpha">Alpha</span><span>4 secret slots</span></div>
-        <div class="mk-bridge__foot"><a href="#">Setup guide<i data-lucide="arrow-right" class="ic"></i></a></div>
-      </article>
-      <article class="mk-bridge" data-od-id="list-bridge-linear">
-        <div class="mk-bridge__top"><span class="mk-tile">Ln</span><div><p class="mk-bridge__name">Linear</p><span class="mk-bridge__platform">linear · v0.1.0</span></div></div>
-        <div class="mk-bridge__meta"><span class="maturity" data-level="alpha">Alpha</span><span>4 secret slots</span></div>
-        <div class="mk-bridge__foot"><a href="#">Setup guide<i data-lucide="arrow-right" class="ic"></i></a></div>
-      </article>
-    </div>
-    <p class="mkl-none" hidden>No bridges match <code class="mkl-none__q"></code>.</p>
-  </section>
-
-  <!-- ============ Bundles (feed ships no entries today) ============ -->
-  <section class="mkl-pane" id="pane-bundles" role="tabpanel" aria-labelledby="tab-bundles" data-od-id="pane-bundles" hidden>
-    <p class="mkl-pane__desc">An outcome packaged for a persona — agents, authored context, jobs, triggers, Compozy Network channels, and bridge presets, configured around extensions you already have installed. Activation is preview-first: <code>compozy bundle preview</code> shows the full projection before anything is written.</p>
-    <div class="mk-empty" data-od-id="bundles-empty">
-      <p class="mk-empty__title">No bundles published yet</p>
-      <p class="mk-empty__desc">Extensions can already declare bundle profiles, but the catalog feeds ship no bundle entries today — this list renders the same <code>catalog/bundles.json</code> feed the daemon reads, and it is empty. When the first bundle lands in the feed, it appears here and in the runtime Marketplace at the same time.</p>
-    </div>
-  </section>
-
   <!-- ============ Contribute (PR flow, §7.2) ============ -->
   <section class="mk-contribute" data-od-id="contribute">
     <div>
@@ -223,7 +164,7 @@
 <script>
   czBoot({ nav: "marketplace" });
 
-  /* kind tabs — hash deep-linked (#skills | #mcps | #extensions | #bridges | #bundles) */
+  /* kind tabs — hash deep-linked (#skills | #mcps | #extensions) */
   (function () {
     var tabs = Array.prototype.slice.call(document.querySelectorAll(".mkl-tab"));
     var query = document.getElementById("mkl-query");
@@ -245,7 +186,7 @@
       var q = (query.value || "").trim().toLowerCase();
       var pane = document.querySelector(".mkl-pane:not([hidden])");
       if (!pane) return;
-      var cards = pane.querySelectorAll(".mk-card, .mk-bridge");
+      var cards = pane.querySelectorAll(".mk-card");
       var visible = 0;
       Array.prototype.forEach.call(cards, function (c) {
         var hit = !q || c.textContent.toLowerCase().indexOf(q) !== -1;

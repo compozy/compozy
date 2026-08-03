@@ -59,11 +59,10 @@ describe("tool-first canonical surface docs", () => {
       "compozy__resources",
       "compozy__mcp",
     ]);
-    expectExcludesAll(toolsets, ["compozy__memory_history"]);
+    expectExcludesAll(toolsets, ["compozy__memory_history", "compozy__bundles"]);
     expectIncludesAll(tools, [
       "task bridge notification subscription management",
       "Memory v2 operational/admin actions",
-      "extension kit inventory, enable preview, lifecycle operations, and desired-state inspection",
       "MCP server probe/status diagnostics",
     ]);
   });
@@ -134,6 +133,7 @@ describe("tool-first canonical surface docs", () => {
       "EXTENSION_SOURCE_FORBIDDEN",
       "EXTENSION_APPROVAL_REQUIRED",
     ]);
+    expectExcludesAll(extensionsInstall, ["compozy__bundles", "compozy__bundles_activate"]);
   });
 
   it("documents MCP auth as status-only on the tool surface", () => {

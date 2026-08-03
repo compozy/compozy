@@ -9,13 +9,19 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const (
+	extensionActionSecretsList  = "secrets.list"
+	extensionActionSecretsSet   = "secrets.set"
+	extensionActionSecretsUnset = "secrets.unset"
+)
+
 // ListExtensionSecrets returns declared and bound env names without secret material.
 func (h *BaseHandlers) ListExtensionSecrets(c *gin.Context) {
 	service, name, ok := h.namedExtensionSecretsService(c)
 	if !ok {
 		return
 	}
-	actor, ok := h.extensionScopedActorContext(c, "secrets.list", false)
+	actor, ok := h.extensionScopedActorContext(c, extensionActionSecretsList, false)
 	if !ok {
 		return
 	}
@@ -38,7 +44,7 @@ func (h *BaseHandlers) SetExtensionSecrets(c *gin.Context) {
 		h.respondExtensionError(c, http.StatusBadRequest, err)
 		return
 	}
-	actor, ok := h.extensionScopedActorContext(c, "secrets.set", false)
+	actor, ok := h.extensionScopedActorContext(c, extensionActionSecretsSet, false)
 	if !ok {
 		return
 	}
@@ -61,7 +67,7 @@ func (h *BaseHandlers) DeleteExtensionSecret(c *gin.Context) {
 		h.respondExtensionError(c, http.StatusBadRequest, errors.New("environment name is required"))
 		return
 	}
-	actor, ok := h.extensionScopedActorContext(c, "secrets.unset", false)
+	actor, ok := h.extensionScopedActorContext(c, extensionActionSecretsUnset, false)
 	if !ok {
 		return
 	}
@@ -79,14 +85,5 @@ func (h *BaseHandlers) namedExtensionSecretsService(
 	if !ok {
 		return nil, "", false
 	}
-	service, ok := base.(ExtensionSecretsService)
-	if !ok {
-		h.respondExtensionError(
-			c,
-			http.StatusServiceUnavailable,
-			errors.New("api: extension secrets service is not configured"),
-		)
-		return nil, "", false
-	}
-	return service, name, true
+	return base, name, true
 }

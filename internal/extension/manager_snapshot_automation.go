@@ -8,13 +8,7 @@ func cloneExtensionAutomationJobs(values []automationpkg.Job) []automationpkg.Jo
 	}
 	result := make([]automationpkg.Job, 0, len(values))
 	for _, value := range values {
-		clone := value
-		if value.Schedule != nil {
-			schedule := *value.Schedule
-			clone.Schedule = &schedule
-		}
-		clone.Task = cloneAutomationTaskConfig(value.Task)
-		result = append(result, clone)
+		result = append(result, automationpkg.CloneJob(value))
 	}
 	return result
 }
@@ -25,9 +19,7 @@ func cloneExtensionAutomationTriggers(values []automationpkg.Trigger) []automati
 	}
 	result := make([]automationpkg.Trigger, 0, len(values))
 	for _, value := range values {
-		clone := value
-		clone.Filter = cloneStringMap(value.Filter)
-		result = append(result, clone)
+		result = append(result, automationpkg.CloneTrigger(value))
 	}
 	return result
 }

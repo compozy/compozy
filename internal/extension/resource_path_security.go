@@ -51,3 +51,19 @@ func resourcePathEscapesRoot(root string, candidate string) bool {
 	}
 	return filepath.IsAbs(relative) || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator))
 }
+
+func rejectResourceTreeSymlinks(rootDir string, resourceLabel string) error {
+	return filepath.WalkDir(rootDir, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return fmt.Errorf("extension: inspect %s path %q: %w", resourceLabel, path, walkErr)
+		}
+		if entry.Type()&os.ModeSymlink == 0 {
+			return nil
+		}
+		relative, err := filepath.Rel(rootDir, path)
+		if err != nil {
+			return fmt.Errorf("extension: resolve %s path %q: %w", resourceLabel, path, err)
+		}
+		return invalidResourcePathError(resourceLabel, filepath.ToSlash(relative), "symlinks are not allowed")
+	})
+}

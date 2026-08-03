@@ -64,7 +64,7 @@ func (c *unixSocketClient) UpdateExtension(
 	if err := c.doJSON(
 		ctx,
 		http.MethodPut,
-		"/api/extensions/"+url.PathEscape(strings.TrimSpace(name)),
+		extensionPath(name, ""),
 		nil,
 		request,
 		&response,
@@ -92,7 +92,7 @@ func (c *unixSocketClient) RemoveExtension(ctx context.Context, name string) (Ma
 	if err := c.doJSON(
 		ctx,
 		http.MethodDelete,
-		"/api/extensions/"+url.PathEscape(strings.TrimSpace(name)),
+		extensionPath(name, ""),
 		nil,
 		nil,
 		&response,
@@ -108,7 +108,7 @@ func (c *unixSocketClient) EnableExtension(
 	request EnableExtensionRequest,
 ) (ExtensionEnableRecord, error) {
 	var response ExtensionEnableRecord
-	path := "/api/extensions/" + url.PathEscape(strings.TrimSpace(name)) + "/enable"
+	path := extensionPath(name, "enable")
 	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
 		return ExtensionEnableRecord{}, err
 	}
@@ -126,7 +126,7 @@ func (c *unixSocketClient) ExtensionStatus(ctx context.Context, name string) (Ex
 	if err := c.doJSON(
 		ctx,
 		http.MethodGet,
-		"/api/extensions/"+url.PathEscape(strings.TrimSpace(name)),
+		extensionPath(name, ""),
 		nil,
 		nil,
 		&response,
@@ -143,7 +143,7 @@ func (c *unixSocketClient) ExtensionProvenance(ctx context.Context, name string)
 	if err := c.doJSON(
 		ctx,
 		http.MethodGet,
-		"/api/extensions/"+url.PathEscape(strings.TrimSpace(name))+"/provenance",
+		extensionPath(name, "provenance"),
 		nil,
 		nil,
 		&response,
@@ -155,7 +155,7 @@ func (c *unixSocketClient) ExtensionProvenance(ctx context.Context, name string)
 
 func (c *unixSocketClient) ExtensionInventory(ctx context.Context, name string) (ExtensionInventoryRecord, error) {
 	var response ExtensionInventoryRecord
-	path := "/api/extensions/" + url.PathEscape(strings.TrimSpace(name)) + "/inventory"
+	path := extensionPath(name, "inventory")
 	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
 		return ExtensionInventoryRecord{}, err
 	}
@@ -167,9 +167,17 @@ func (c *unixSocketClient) PreviewExtensionEnable(
 	name string,
 ) (ExtensionEnablePreviewRecord, error) {
 	var response ExtensionEnablePreviewRecord
-	path := "/api/extensions/" + url.PathEscape(strings.TrimSpace(name)) + "/preview"
+	path := extensionPath(name, "preview")
 	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
 		return ExtensionEnablePreviewRecord{}, err
 	}
 	return response, nil
+}
+
+func extensionPath(name string, suffix string) string {
+	path := "/api/extensions/" + url.PathEscape(strings.TrimSpace(name))
+	if suffix != "" {
+		path += "/" + suffix
+	}
+	return path
 }

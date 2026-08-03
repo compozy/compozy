@@ -102,6 +102,9 @@ func TestManagerCheckBridgeUsesRestrictedTransientRuntimeAndCleansUp(t *testing.
 			launchConfig.ProcessRecord.Owner.ExtensionName != "telegram-adapter" {
 			t.Fatalf("process registration = %#v, want transient extension ownership", launchConfig.ProcessRecord)
 		}
+		if launchConfig.StderrTransform == nil {
+			t.Fatal("transient bridge control stderr transform = nil, want diagnostics redaction")
+		}
 	})
 }
 

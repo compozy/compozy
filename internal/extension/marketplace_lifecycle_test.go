@@ -145,8 +145,10 @@ func TestMarketplaceLifecycleInstallsUpdatesAndRemovesManagedExtensions(t *testi
 		if err != nil {
 			t.Fatalf("InstallMarketplaceManaged() error = %v", err)
 		}
+		if installed.Enabled {
+			t.Fatalf("installed.Enabled = true, want false")
+		}
 		if installed.Source != SourceMarketplace ||
-			installed.Enabled ||
 			dereferenceOptionalString(installed.RegistrySlug) != "acme/lifecycle-ext" ||
 			dereferenceOptionalString(installed.RegistryName) != "github" ||
 			dereferenceOptionalString(installed.RemoteVersion) != "1.0.0" {

@@ -1,15 +1,23 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSelector, useStore } from "@xstate/store-react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
-import { isMCPAuthorizeAwaiting, isMCPAuthorizePending, useMCPAuthorize } from "@/systems/settings";
-import { useRemoveExtension, useToggleExtension } from "@/systems/extensions";
+import {
+  ExtensionNetworkConfirmDialog,
+  extensionNetworkConfirmation,
+  useRemoveExtension,
+  useToggleExtension,
+  type ToggleExtensionVariables,
+} from "@/systems/extensions";
 import {
   deriveMCPAuthFilter,
   deriveMCPManagementFilter,
+  isMCPAuthorizeAwaiting,
+  isMCPAuthorizePending,
   useDeleteSettingsMCPServer,
+  useMCPAuthorize,
 } from "@/systems/settings";
 import { useRemoveSkillMarketplace } from "@/systems/skill";
 
@@ -24,6 +32,7 @@ import type { MarketplaceInstalledItem } from "../hooks/use-marketplace-kind-pag
 import { marketplaceEntryOptions } from "../lib/query-options";
 import type {
   ExtensionInstallRequest,
+  ExtensionUpdateRequest,
   MarketplaceKind,
   MarketplaceListing,
   MCPInstallRequest,
@@ -59,6 +68,20 @@ interface MarketplaceActionController {
   isEntryFlashing: (entry: MarketplaceListing) => boolean;
   isAuthorizing: boolean;
 }
+
+type MarketplaceExtensionNetworkConfirm =
+  | {
+      action: "enable";
+      digest: string;
+      item: MarketplaceInstalledItem;
+      variables: ToggleExtensionVariables;
+    }
+  | {
+      action: "update";
+      digest: string;
+      entry: MarketplaceListing;
+      request: { body: ExtensionUpdateRequest; name: string };
+    };
 
 function installedName(entry: MarketplaceListing): string {
   if (!entry.installed_name) {
@@ -96,6 +119,9 @@ function useMarketplaceActionController(
   const deleteMCP = useDeleteSettingsMCPServer();
   const toggleExtension = useToggleExtension();
   const pending = useMarketplacePending();
+  const [networkConfirm, setNetworkConfirm] = useState<MarketplaceExtensionNetworkConfirm | null>(
+    null
+  );
   const controllerStore = useStore(marketplaceActionControllerLogic);
   const phase = useSelector(controllerStore, snapshot => snapshot.context);
   const dialogSelection = marketplaceDialogSelection(phase);
@@ -136,7 +162,7 @@ function useMarketplaceActionController(
     toast.success(message, {
       action: {
         label: "View installed →",
-        onClick: () => goToInstalled(entry.kind as MarketplaceKind),
+        onClick: () => goToInstalled(entry.kind),
       },
     });
   };
@@ -148,6 +174,41 @@ function useMarketplaceActionController(
     }
     pending.flash(entry);
     viewInstalledToast(entry, `${entry.name} installed`);
+  };
+
+  const runExtensionUpdate = async (
+    entry: MarketplaceListing,
+    request: { body: ExtensionUpdateRequest; name: string }
+  ): Promise<boolean> => {
+    try {
+      await updateExtension.mutateAsync(request);
+      return true;
+    } catch (error) {
+      const confirmation = extensionNetworkConfirmation(error);
+      if (!confirmation) throw error;
+      setNetworkConfirm({
+        action: "update",
+        digest: confirmation.digest,
+        entry,
+        request,
+      });
+      return false;
+    }
+  };
+
+  const runExtensionToggle = async (
+    item: MarketplaceInstalledItem,
+    variables: ToggleExtensionVariables
+  ): Promise<boolean> => {
+    try {
+      await toggleExtension.mutateAsync(variables);
+      return true;
+    } catch (error) {
+      const confirmation = variables.enabled ? extensionNetworkConfirmation(error) : null;
+      if (!confirmation) throw error;
+      setNetworkConfirm({ action: "enable", digest: confirmation.digest, item, variables });
+      return false;
+    }
   };
 
   const withPendingEntry = async (entry: MarketplaceListing, action: () => Promise<void>) => {
@@ -171,7 +232,7 @@ function useMarketplaceActionController(
       marketplaceEntryOptions({
         entryId: entry.entry_id,
         installedName: entry.installed_name,
-        kind: entry.kind as MarketplaceKind,
+        kind: entry.kind,
         workspaceId,
       })
     );
@@ -194,7 +255,6 @@ function useMarketplaceActionController(
         selection: {
           entryId: entry.entry_id,
           installedName: entry.installed_name,
-          kind: entry.kind,
         },
       });
       return;
@@ -223,10 +283,11 @@ function useMarketplaceActionController(
       }
       if (entry.kind === "extension") {
         if (entry.update_available) {
-          await updateExtension.mutateAsync({
+          const updated = await runExtensionUpdate(entry, {
             body: { allow_unverified: false, version: entry.version },
             name: installedName(entry),
           });
+          if (!updated) return;
           const displayVersion = formatMarketplaceVersion(entry.version);
           toast.success(
             displayVersion ? `${entry.name} updated to ${displayVersion}` : `${entry.name} updated`
@@ -262,13 +323,13 @@ function useMarketplaceActionController(
       execute: entry =>
         pending.trackEntry(entry, async () => {
           if (entry.update_available) {
-            await updateExtension.mutateAsync({
+            return runExtensionUpdate(entry, {
               body: { allow_unverified: true, version: entry.version },
               name: installedName(entry),
             });
-            return;
           }
           await installExtension.mutateAsync(curatedInstallRequest(entry, true));
+          return true;
         }),
     });
   };
@@ -314,25 +375,75 @@ function useMarketplaceActionController(
   const handleToggleEnabled = (item: MarketplaceInstalledItem, enabled: boolean) => {
     const name = installedName(item.entry);
     void withPendingItem(item, async () => {
-      await toggleExtension.mutateAsync({ enabled, name });
+      await runExtensionToggle(item, { enabled, name });
+    });
+  };
+
+  const submitNetworkConfirm = () => {
+    const pendingConfirmation = networkConfirm;
+    if (!pendingConfirmation) return;
+    if (pendingConfirmation.action === "update") {
+      void withPendingEntry(pendingConfirmation.entry, async () => {
+        const updated = await runExtensionUpdate(pendingConfirmation.entry, {
+          ...pendingConfirmation.request,
+          body: {
+            ...pendingConfirmation.request.body,
+            confirm_network_digest: pendingConfirmation.digest,
+          },
+        });
+        if (!updated) return;
+        setNetworkConfirm(null);
+        handleExtensionTrusted(pendingConfirmation.entry);
+      });
+      return;
+    }
+    void withPendingItem(pendingConfirmation.item, async () => {
+      const enabled = await runExtensionToggle(pendingConfirmation.item, {
+        ...pendingConfirmation.variables,
+        confirmNetworkDigest: pendingConfirmation.digest,
+      });
+      if (enabled) setNetworkConfirm(null);
     });
   };
 
   const dialogs = (
-    <MarketplaceActionDialogs
-      authorize={authorize}
-      authScope={authFilter?.scope ?? "global"}
-      authServer={authServerEntry}
-      mcpDetail={phase.status === "mcpInstall" ? dialogDetail : null}
-      onConfirmTrust={confirmUnverifiedExtension}
-      onInstallMCP={installSelectedMCP}
-      onMCPClose={() => controllerStore.trigger.dialogDismissed()}
-      onTrustClose={() => controllerStore.trigger.dialogDismissed()}
-      trustEntry={trustEntry(phase)}
-      trustError={trustError(phase)}
-      trustPending={phase.status === "extensionTrustSubmitting"}
-      workspaceId={workspaceId}
-    />
+    <>
+      <MarketplaceActionDialogs
+        authorize={authorize}
+        authScope={authFilter?.scope ?? "global"}
+        authServer={authServerEntry}
+        mcpDetail={phase.status === "mcpInstall" ? dialogDetail : null}
+        onConfirmTrust={confirmUnverifiedExtension}
+        onInstallMCP={installSelectedMCP}
+        onMCPClose={() => controllerStore.trigger.dialogDismissed()}
+        onTrustClose={() => controllerStore.trigger.dialogDismissed()}
+        trustEntry={trustEntry(phase)}
+        trustError={trustError(phase)}
+        trustPending={phase.status === "extensionTrustSubmitting"}
+        workspaceId={workspaceId}
+      />
+      {networkConfirm ? (
+        <ExtensionNetworkConfirmDialog
+          action={networkConfirm.action}
+          digest={networkConfirm.digest}
+          extensionName={
+            networkConfirm.action === "update"
+              ? networkConfirm.entry.name
+              : networkConfirm.item.entry.name
+          }
+          onConfirm={submitNetworkConfirm}
+          onOpenChange={open => {
+            if (!open) setNetworkConfirm(null);
+          }}
+          open
+          pending={
+            networkConfirm.action === "update"
+              ? updateExtension.isPending
+              : toggleExtension.isPending
+          }
+        />
+      ) : null}
+    </>
   );
 
   return {

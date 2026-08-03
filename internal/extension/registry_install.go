@@ -127,6 +127,9 @@ func registryInstallInfo(
 	config installConfig,
 ) (ExtensionInfo, error) {
 	installedAt := r.now().UTC()
+	if config.installedAt != nil {
+		installedAt = config.installedAt.UTC()
+	}
 	capabilities := normalizeCapabilitiesConfig(resolvedManifest.Capabilities)
 	permissions := normalizePermissionsConfig(resolvedManifest.Permissions)
 	fallbackProvenance := ExtensionProvenance{

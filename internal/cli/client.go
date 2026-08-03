@@ -123,23 +123,9 @@ type DaemonClient interface {
 		threadID string,
 		request PromoteNetworkThreadTaskRequest,
 	) (PromoteNetworkThreadTaskRecord, error)
-	ListExtensions(ctx context.Context) ([]ExtensionRecord, error)
-	ListExtensionsScoped(ctx context.Context, workspaceRef string) ([]ExtensionRecord, error)
-	SearchExtensions(ctx context.Context, request ExtensionSearchRequest) (ExtensionSearchRecord, error)
-	ListExtensionCommands(ctx context.Context, extension string, workspaceID string) (ExtensionCommandsRecord, error)
+	extensionClientAPI
 	MarketplaceClient
 	MCPSettingsClient
-	InstallExtension(ctx context.Context, request InstallExtensionRequest) (ExtensionRecord, error)
-	UpdateExtension(ctx context.Context, name string, request UpdateExtensionRequest) (ExtensionUpdateRecord, error)
-	UpdateExtensions(ctx context.Context, request UpdateExtensionsRequest) ([]ExtensionUpdateRecord, error)
-	RemoveExtension(ctx context.Context, name string) (ManagedExtensionRemoveRecord, error)
-	EnableExtension(ctx context.Context, name string, request EnableExtensionRequest) (ExtensionEnableRecord, error)
-	DisableExtension(ctx context.Context, name string) (ExtensionRecord, error)
-	ExtensionStatus(ctx context.Context, name string) (ExtensionRecord, error)
-	ExtensionStatusScoped(ctx context.Context, workspaceRef, name string) (ExtensionRecord, error)
-	ExtensionProvenance(ctx context.Context, name string) (ExtensionProvenanceRecord, error)
-	ExtensionInventory(ctx context.Context, name string) (ExtensionInventoryRecord, error)
-	PreviewExtensionEnable(ctx context.Context, name string) (ExtensionEnablePreviewRecord, error)
 	bridgeClientAPI
 	ListNotificationPresets(ctx context.Context, query NotificationPresetQuery) (NotificationPresetListRecord, error)
 	GetNotificationPreset(ctx context.Context, name string) (NotificationPresetRecord, error)

@@ -232,4 +232,16 @@ describe("extensions management failures", () => {
       status: 200,
     });
   });
+
+  it("Should reject kit inventory for a different extension identity", async () => {
+    mockJsonResponse({ enabled: false, extension: "otel-bridge", items: [] });
+
+    const error = await getExtensionInventory("dep-kit-ops").catch(reason => reason);
+    expect(error).toBeInstanceOf(ExtensionsApiError);
+    expect(error).toMatchObject({
+      kind: "malformed_response",
+      message: "Failed to load kit inventory for dep-kit-ops: extension identity mismatch (200)",
+      status: 200,
+    });
+  });
 });

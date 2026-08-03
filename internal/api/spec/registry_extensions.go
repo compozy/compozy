@@ -139,7 +139,10 @@ func listExtensionSecretsOperationSpec() OperationSpec {
 		Summary:     "List declared and bound extension environment names",
 		Tags:        []string{specExtensionsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters:  []ParameterSpec{pathParam("name", "Extension name")},
+		Parameters: []ParameterSpec{
+			pathParam("name", "Extension name"),
+			queryParam("workspace", specExtensionWorkspaceParamDescription, false),
+		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.ExtensionSecretsPayload{}},
 			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
@@ -156,7 +159,10 @@ func setExtensionSecretsOperationSpec() OperationSpec {
 		Summary:     "Set or bind extension environment secrets",
 		Tags:        []string{specExtensionsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters:  []ParameterSpec{pathParam("name", "Extension name")},
+		Parameters: []ParameterSpec{
+			pathParam("name", "Extension name"),
+			queryParam("workspace", specExtensionWorkspaceParamDescription, false),
+		},
 		RequestBody: contract.SetExtensionSecretsRequest{},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.ExtensionSecretsPayload{}},
@@ -182,6 +188,7 @@ func deleteExtensionSecretOperationSpec() OperationSpec {
 		Parameters: []ParameterSpec{
 			pathParam("name", "Extension name"),
 			pathParam("env_name", "Declared environment name"),
+			queryParam("workspace", specExtensionWorkspaceParamDescription, false),
 		},
 		Responses: []ResponseSpec{
 			{Status: 204, Description: "No Content"},

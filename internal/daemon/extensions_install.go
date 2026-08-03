@@ -18,7 +18,7 @@ func (s *daemonExtensionService) installExtensionSource(
 	actor taskpkg.ActorContext,
 	installedBy string,
 ) (string, error) {
-	req.Source = contract.InstallExtensionSource(strings.ToLower(strings.TrimSpace(string(req.Source))))
+	req.Source = normalizedInstallSource(req.Source)
 	req.Ref = strings.TrimSpace(req.Ref)
 	if req.Ref == "" {
 		return "", errors.New("daemon: extension install ref is required")

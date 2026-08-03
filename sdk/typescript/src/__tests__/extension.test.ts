@@ -15,7 +15,7 @@ import {
 import { canonicalJSON, schemaDigest } from "../schema-digest.js";
 import { TestHarness } from "../testing/harness.js";
 import { createMockTransportPair } from "../testing/mock-transport.js";
-import type { InitializeRequest, JSONValue } from "../types.js";
+import type { DescribePayload, InitializeRequest, JSONValue } from "../types.js";
 
 interface SchemaDigestFixture {
   name: string;
@@ -384,6 +384,13 @@ describe("Extension", () => {
         description: "Describe fixture",
         subprocess: { command: "node", args: ["index.js"] },
         permissions: { requires: ["sessions/list"] },
+        resources: {
+          skills: [" skills/zeta ", "skills/alpha", "skills/zeta"],
+          loops: [" loops/zeta ", "loops/alpha", "loops/zeta"],
+          agents: [" agents/zeta ", "agents/alpha", "agents/zeta"],
+          automation: [" automation/zeta ", "automation/alpha", "automation/zeta"],
+          layouts: [" layouts/zeta ", "layouts/alpha", "layouts/zeta"],
+        },
         supported_hook_events: ["prompt.post_assemble"],
       },
       { describeProcess: harness.captureDescribeProcess() }
@@ -414,7 +421,15 @@ describe("Extension", () => {
     const result = harness.getDescribeResult();
     expect(result.exitCode).toBe(0);
     expect(result.stdout.trim().split("\n")).toHaveLength(1);
-    expect(JSON.parse(result.stdout)).toMatchObject({
+    const payload = JSON.parse(result.stdout) as DescribePayload;
+    expect(payload.resources).toEqual({
+      skills: ["skills/alpha", "skills/zeta"],
+      loops: ["loops/alpha", "loops/zeta"],
+      agents: ["agents/alpha", "agents/zeta"],
+      automation: ["automation/alpha", "automation/zeta"],
+      layouts: ["layouts/alpha", "layouts/zeta"],
+    });
+    expect(payload).toMatchObject({
       name: "describe-fixture",
       version: "0.1.0",
       description: "Describe fixture",

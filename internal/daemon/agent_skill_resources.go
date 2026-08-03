@@ -40,7 +40,7 @@ func (f agentSkillPublisherFunc) SyncSkills(ctx context.Context) error {
 	return f.Sync(ctx)
 }
 
-type agentSkillDeclarationProvider func(context.Context) (agentSkillDesiredResources, error)
+type agentSkillDeclarationProvider func(context.Context) (agentSkillDeclarations, error)
 
 type agentPublicationInput struct {
 	sourceKey string
@@ -76,7 +76,7 @@ type heartbeatPublicationInput struct {
 	body           string
 }
 
-type agentSkillDesiredResources struct {
+type agentSkillDeclarations struct {
 	agents     []agentPublicationInput
 	souls      []soulPublicationInput
 	heartbeats []heartbeatPublicationInput

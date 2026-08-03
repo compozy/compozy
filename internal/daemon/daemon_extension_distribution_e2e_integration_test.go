@@ -64,8 +64,10 @@ func testDaemonE2EExtensionDistributionAcrossIsolatedHomes(t *testing.T) {
 	)
 	configureExtensionAuthoringSDKReplaceWithoutShell(t, sourceDir, repoRoot)
 	rewriteExtensionAuthoringGeneration(t, sourceDir, "No results for ", "published-v1:", "published-v1")
+	configureExtensionKitE2ESource(t, sourceDir)
 	var firstBuild extensionpkg.BuildResult
 	runExtensionAuthoringCLI(t, ctx, publisher, &firstBuild, "extension", "build", sourceDir, "-o", "json")
+	firstNetworkDigest := addExtensionKitE2ENetworkRequirement(t, firstBuild.GenerationDir, "builders")
 	var firstPublish extensionpkg.PublishResult
 	runExtensionAuthoringCLI(
 		t,
@@ -98,22 +100,26 @@ func testDaemonE2EExtensionDistributionAcrossIsolatedHomes(t *testing.T) {
 	if installed.Enabled {
 		t.Fatalf("installed extension = %#v, want inert before explicit enable", installed)
 	}
+	setExtensionKitE2ESecret(t, ctx, consumer, "hello")
 	var enabled compozycontract.ExtensionEnableResult
 	runExtensionAuthoringCLI(
 		t,
 		ctx,
 		consumer,
 		&enabled,
-		"extension", "enable", "hello", "-o", "json",
+		"extension", "enable", "hello", "--confirm-network-requirement", firstNetworkDigest, "-o", "json",
 	)
-	if !enabled.Extension.Enabled {
-		t.Fatalf("extension enable result = %#v, want enabled extension", enabled)
+	if !enabled.Extension.Enabled || len(enabled.AutomationStarted) != 2 {
+		t.Fatalf("extension enable result = %#v, want enabled extension and started job plus trigger", enabled)
 	}
+	assertDistributionExtensionInventory(t, ctx, consumer, "hello", true, "daily", true)
 	assertDistributionExtensionInvocation(t, ctx, consumer, "published-v1:alpha")
 
+	writeExtensionKitE2EAutomation(t, sourceDir, "hourly")
 	rewriteExtensionAuthoringGeneration(t, sourceDir, "published-v1:", "published-v2:", "published-v2")
 	var secondBuild extensionpkg.BuildResult
 	runExtensionAuthoringCLI(t, ctx, publisher, &secondBuild, "extension", "build", sourceDir, "-o", "json")
+	secondNetworkDigest := addExtensionKitE2ENetworkRequirement(t, secondBuild.GenerationDir, "reviewers")
 	var secondPublish extensionpkg.PublishResult
 	runExtensionAuthoringCLI(
 		t,
@@ -127,19 +133,50 @@ func testDaemonE2EExtensionDistributionAcrossIsolatedHomes(t *testing.T) {
 		t.Fatalf("second publish digest = %q, want changed generation digest", secondPublish.DigestSHA256)
 	}
 
+	stdout, stderr, updateErr := consumer.CLI.RunInDir(
+		ctx,
+		consumer.WorkspaceRoot,
+		"extension", "update", "hello", "--allow-unverified", "--yes", "-o", "json",
+	)
+	if updateErr == nil || !strings.Contains(stderr, secondNetworkDigest) {
+		t.Fatalf(
+			"unconfirmed extension update error = %v; stdout=%s stderr=%s, want refusal with candidate digest %q",
+			updateErr,
+			stdout,
+			stderr,
+			secondNetworkDigest,
+		)
+	}
+	unchanged, err := consumer.GetExtension(ctx, "hello")
+	if err != nil || unchanged.Version != "0.1.0" {
+		t.Fatalf("extension after refused update = %#v, error = %v, want original manifest version", unchanged, err)
+	}
+
 	var updates []compozycontract.ManagedExtensionUpdatePayload
 	runExtensionAuthoringCLI(
 		t,
 		ctx,
 		consumer,
 		&updates,
-		"extension", "update", "hello", "--allow-unverified", "--yes", "-o", "json",
+		"extension", "update", "hello", "--allow-unverified", "--yes",
+		"--confirm-network-requirement", secondNetworkDigest, "-o", "json",
 	)
 	if len(updates) != 1 || updates[0].Status != extensionpkg.MarketplaceUpdateStatusUpdated ||
 		updates[0].LatestVersion != "v0.2.0" {
 		t.Fatalf("extension update result = %#v, want one update to v0.2.0", updates)
 	}
+	assertDistributionExtensionInventory(t, ctx, consumer, "hello", true, "hourly", true)
 	assertDistributionExtensionInvocation(t, ctx, consumer, "published-v2:alpha")
+
+	var disabled compozycontract.ExtensionPayload
+	runExtensionAuthoringCLI(t, ctx, consumer, &disabled, "extension", "disable", "hello", "-o", "json")
+	if disabled.Enabled {
+		t.Fatalf("extension disable result = %#v, want disabled", disabled)
+	}
+	assertDistributionExtensionInventory(t, ctx, consumer, "hello", false, "hourly", false)
+	assertDistributionAutomationRemoved(t, ctx, consumer, "hello")
+
+	assertDistributionNativeKitJourney(t, ctx, binaryPath, configSeed, secondNetworkDigest)
 
 	var removed compozycontract.ManagedExtensionRemovePayload
 	runExtensionAuthoringCLI(
@@ -185,6 +222,181 @@ func assertDistributionExtensionInvocation(
 	if len(response.Result.Content) != 1 || response.Result.Content[0].Text != want {
 		t.Fatalf("extension result = %#v, want %q", response.Result.Content, want)
 	}
+}
+
+func assertDistributionExtensionInventory(
+	t *testing.T,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	extensionName string,
+	wantEnabled bool,
+	wantJobName string,
+	wantLive bool,
+) {
+	t.Helper()
+	var inventory compozycontract.ExtensionInventoryPayload
+	runExtensionAuthoringCLI(
+		t,
+		ctx,
+		harness,
+		&inventory,
+		"extension", "inventory", extensionName, "-o", "json",
+	)
+	if inventory.Extension != extensionName || inventory.Enabled != wantEnabled || len(inventory.Items) < 7 {
+		t.Fatalf(
+			"extension inventory = %#v, want %q enabled=%t with the full shipped kit",
+			inventory,
+			extensionName,
+			wantEnabled,
+		)
+	}
+	wantKinds := map[string]bool{
+		"skill": false, "loop": false, "agent": false, "automation.job": false,
+		"automation.trigger": false, "window_layout": false, "tool": false,
+	}
+	foundJob := false
+	for _, item := range inventory.Items {
+		if item.Live != wantLive {
+			t.Fatalf("inventory item = %#v, want live=%t", item, wantLive)
+		}
+		if _, tracked := wantKinds[string(item.Kind)]; tracked {
+			wantKinds[string(item.Kind)] = true
+		}
+		if string(item.Kind) == "automation.job" && strings.Contains(item.Name, wantJobName) {
+			foundJob = true
+		}
+	}
+	for kind, found := range wantKinds {
+		if !found {
+			t.Fatalf("extension inventory = %#v, want shipped kind %q", inventory.Items, kind)
+		}
+	}
+	if !foundJob {
+		t.Fatalf("extension inventory = %#v, want job containing %q", inventory.Items, wantJobName)
+	}
+}
+
+func assertDistributionAutomationRemoved(
+	t *testing.T,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	extensionName string,
+) {
+	t.Helper()
+	var jobs compozycontract.JobsResponse
+	if err := harness.HTTPJSON(ctx, http.MethodGet, "/api/automation/jobs", nil, &jobs); err != nil {
+		t.Fatalf("list automation jobs after disable error = %v", err)
+	}
+	for _, job := range jobs.Jobs {
+		if strings.Contains(job.ID, "extension/"+extensionName+"/") {
+			t.Fatalf("automation job remained live after extension disable: %#v", job)
+		}
+	}
+	var triggers compozycontract.TriggersResponse
+	if err := harness.HTTPJSON(ctx, http.MethodGet, "/api/automation/triggers", nil, &triggers); err != nil {
+		t.Fatalf("list automation triggers after disable error = %v", err)
+	}
+	for _, trigger := range triggers.Triggers {
+		if strings.Contains(trigger.ID, "extension/"+extensionName+"/") {
+			t.Fatalf("automation trigger remained live after extension disable: %#v", trigger)
+		}
+	}
+}
+
+func assertDistributionNativeKitJourney(
+	t *testing.T,
+	ctx context.Context,
+	binaryPath string,
+	configSeed e2etest.ConfigSeedOptions,
+	networkDigest string,
+) {
+	t.Helper()
+	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+		BinaryPath: binaryPath,
+		ConfigSeed: configSeed,
+	})
+	transcript := make([]json.RawMessage, 0, 4)
+	transcript = append(transcript, invokeDistributionNativeTool(
+		t,
+		ctx,
+		harness,
+		toolspkg.ToolIDExtensionsInstall,
+		map[string]any{"source": "github", "ref": "acme/hello", "allow_unverified": true},
+	))
+	setExtensionKitE2ESecret(t, ctx, harness, "hello")
+	preview := invokeDistributionNativeTool(
+		t,
+		ctx,
+		harness,
+		toolspkg.ToolIDExtensionsPreview,
+		map[string]any{"name": "hello"},
+	)
+	if !strings.Contains(string(preview), `"network_confirmation_required":true`) ||
+		!strings.Contains(string(preview), networkDigest) ||
+		!strings.Contains(string(preview), `"change":"added"`) {
+		t.Fatalf("extensions_preview structured output = %s, want candidate digest and added kit resources", preview)
+	}
+	transcript = append(transcript, preview)
+	transcript = append(transcript, invokeDistributionNativeTool(
+		t,
+		ctx,
+		harness,
+		toolspkg.ToolIDExtensionsEnable,
+		map[string]any{"name": "hello", "confirm_network_digest": networkDigest},
+	))
+	inventory := invokeDistributionNativeTool(
+		t,
+		ctx,
+		harness,
+		toolspkg.ToolIDExtensionsInventory,
+		map[string]any{"name": "hello"},
+	)
+	if !strings.Contains(string(inventory), `"enabled":true`) ||
+		!strings.Contains(string(inventory), `"kind":"automation.job"`) ||
+		!strings.Contains(string(inventory), `"live":true`) {
+		t.Fatalf("extensions_inventory structured output = %s, want live kit inventory", inventory)
+	}
+	transcript = append(transcript, inventory)
+	for _, output := range transcript {
+		if strings.Contains(string(output), extensionKitE2ESecret) {
+			t.Fatalf("native extension tool transcript leaked the operator secret: %s", output)
+		}
+	}
+	invokeDistributionNativeTool(
+		t,
+		ctx,
+		harness,
+		toolspkg.ToolIDExtensionsDisable,
+		map[string]any{"name": "hello"},
+	)
+}
+
+func invokeDistributionNativeTool(
+	t *testing.T,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	toolID toolspkg.ToolID,
+	input any,
+) json.RawMessage {
+	t.Helper()
+	rawInput, err := json.Marshal(input)
+	if err != nil {
+		t.Fatalf("json.Marshal(%s input) error = %v", toolID, err)
+	}
+	var response compozycontract.ToolInvokeResponse
+	if err := harness.HTTPJSON(
+		ctx,
+		http.MethodPost,
+		"/api/tools/"+url.PathEscape(string(toolID))+"/invoke",
+		compozycontract.ToolInvokeRequest{WorkspaceID: harness.WorkspaceID, Input: rawInput},
+		&response,
+	); err != nil {
+		t.Fatalf("invoke native tool %q error = %v", toolID, err)
+	}
+	if !json.Valid(response.Result.Structured) || response.Result.Preview == "" {
+		t.Fatalf("native tool %q result = %#v, want structured JSON and preview", toolID, response.Result)
+	}
+	return append(json.RawMessage(nil), response.Result.Structured...)
 }
 
 func configureExtensionAuthoringSDKReplaceWithoutShell(t *testing.T, sourceDir, repoRoot string) {

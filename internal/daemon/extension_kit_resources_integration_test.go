@@ -1,5 +1,10 @@
 //go:build integration
 
+// Suite: Extension kit resource lifecycle integration
+// Invariant: An enabled extension publishes one owner-attributed automation/layout kit, and update or disable converges every consumer.
+// Boundary IN: daemon source sync, resource reconciliation, automation scheduling, and layout projection.
+// Boundary OUT: HTTP, UDS, CLI, native-tool transport parity, and non-kit extension capabilities.
+
 package daemon
 
 import (
@@ -436,8 +441,8 @@ func newExtensionKitIntegrationDriver(
 		t.Fatalf("resources.NewReconcileDriver() error = %v", err)
 	}
 	t.Cleanup(func() {
-		if err := driver.Close(context.Background()); err != nil {
-			t.Fatalf("driver.Close() error = %v", err)
+		if err := driver.Close(testutil.Context(t)); err != nil {
+			t.Errorf("driver.Close() error = %v", err)
 		}
 	})
 	return driver
@@ -458,6 +463,13 @@ func (r *extensionKitIntegrationRuntime) Get(name string) (*extensionpkg.Extensi
 		return nil, extensionpkg.ErrExtensionNotFound
 	}
 	return r.extension, nil
+}
+
+func (r *extensionKitIntegrationRuntime) InspectPackageResources(
+	_ context.Context,
+	name string,
+) (*extensionpkg.Extension, error) {
+	return r.Get(name)
 }
 
 func installExtensionKitIntegrationFixture(

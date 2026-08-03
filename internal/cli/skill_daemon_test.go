@@ -256,7 +256,7 @@ func TestSkillMarketplaceCommandsUseDaemonWhenRunning(t *testing.T) {
 				scope MarketplaceReadScope,
 			) (MarketplaceEntryRecord, error) {
 				called = true
-				if kind != contract.MarketplaceKindSkill || entryID != "skill_review" {
+				if kind != string(contract.MarketplaceKindSkill) || entryID != "skill_review" {
 					t.Fatalf("MarketplaceInfo(%q, %q), want skill skill_review", kind, entryID)
 				}
 				if installedName != "" {

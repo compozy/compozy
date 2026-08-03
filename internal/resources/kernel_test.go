@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/url"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -762,6 +763,66 @@ func TestNewKernelAndAuxiliaryTypesValidation(t *testing.T) {
 	if err := (ResourceOwner{}).Validate("owner"); !errors.Is(err, ErrValidation) {
 		t.Fatalf("ResourceOwner.Validate() error = %v, want ErrValidation", err)
 	}
+
+	t.Run("Should normalize optional resource attribution pairs", func(t *testing.T) {
+		t.Parallel()
+
+		scope, ok, err := ParseResourceScopePair(" workspace ", " ws-alpha ", "filter.scope")
+		if err != nil {
+			t.Fatalf("ParseResourceScopePair() error = %v", err)
+		}
+		if !ok || scope != (ResourceScope{Kind: ResourceScopeKindWorkspace, ID: "ws-alpha"}) {
+			t.Fatalf("ParseResourceScopePair() = %#v, %t, want normalized workspace scope", scope, ok)
+		}
+		owner, ok, err := ParseResourceOwnerPair(" daemon ", " control ", "filter.owner")
+		if err != nil {
+			t.Fatalf("ParseResourceOwnerPair() error = %v", err)
+		}
+		if !ok || owner != (ResourceOwner{Kind: "daemon", ID: "control"}) {
+			t.Fatalf("ParseResourceOwnerPair() = %#v, %t, want normalized daemon owner", owner, ok)
+		}
+		source, ok, err := ParseResourceSourcePair(" extension ", " ext-alpha ", "filter.source")
+		if err != nil {
+			t.Fatalf("ParseResourceSourcePair() error = %v", err)
+		}
+		if !ok || source != (ResourceSource{Kind: "extension", ID: "ext-alpha"}) {
+			t.Fatalf("ParseResourceSourcePair() = %#v, %t, want normalized extension source", source, ok)
+		}
+	})
+
+	t.Run("Should omit resource attribution pairs only when both fields are blank", func(t *testing.T) {
+		t.Parallel()
+
+		scope, scopeOK, scopeErr := ParseResourceScopePair(" ", " ", "filter.scope")
+		if scopeErr != nil || scopeOK || scope != (ResourceScope{}) {
+			t.Fatalf("ParseResourceScopePair(blank) = %#v, %t, %v, want absent", scope, scopeOK, scopeErr)
+		}
+		owner, ownerOK, ownerErr := ParseResourceOwnerPair(" ", " ", "filter.owner")
+		if ownerErr != nil || ownerOK || owner != (ResourceOwner{}) {
+			t.Fatalf("ParseResourceOwnerPair(blank) = %#v, %t, %v, want absent", owner, ownerOK, ownerErr)
+		}
+		source, sourceOK, sourceErr := ParseResourceSourcePair(" ", " ", "filter.source")
+		if sourceErr != nil || sourceOK || source != (ResourceSource{}) {
+			t.Fatalf("ParseResourceSourcePair(blank) = %#v, %t, %v, want absent", source, sourceOK, sourceErr)
+		}
+	})
+
+	t.Run("Should preserve the caller path when a resource attribution pair is invalid", func(t *testing.T) {
+		t.Parallel()
+
+		_, _, scopeErr := ParseResourceScopePair("workspace", " ", "native.scope")
+		if !errors.Is(scopeErr, ErrInvalidScopeBinding) || !strings.Contains(scopeErr.Error(), "native.scope.id") {
+			t.Fatalf("ParseResourceScopePair(invalid) error = %v, want native.scope.id binding error", scopeErr)
+		}
+		_, _, ownerErr := ParseResourceOwnerPair("daemon", " ", "native.owner")
+		if !errors.Is(ownerErr, ErrValidation) || !strings.Contains(ownerErr.Error(), "native.owner.id") {
+			t.Fatalf("ParseResourceOwnerPair(invalid) error = %v, want native.owner.id validation error", ownerErr)
+		}
+		_, _, sourceErr := ParseResourceSourcePair("daemon", " ", "native.source")
+		if !errors.Is(sourceErr, ErrValidation) || !strings.Contains(sourceErr.Error(), "native.source.id") {
+			t.Fatalf("ParseResourceSourcePair(invalid) error = %v, want native.source.id validation error", sourceErr)
+		}
+	})
 }
 
 func TestKernelValidationAndAuthorityEdgeCases(t *testing.T) {

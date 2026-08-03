@@ -33,7 +33,10 @@ type LifecycleRegistry interface {
 	Install(manifest *Manifest, path string, checksum string, opts ...InstallOption) error
 	Disable(name string) error
 	Uninstall(name string) error
+	RestoreNetworkConfirmation(InstanceKey, NetworkConfirmation) error
 }
+
+var _ LifecycleRegistry = (*Registry)(nil)
 
 // MarketplaceSourceLoader resolves configured marketplace sources. The
 // optional source filter is an already-normalized operator/tool input.
@@ -45,6 +48,12 @@ var ErrMarketplaceSourceUnavailable = errors.New("extension: marketplace source 
 // MutationReload is called after a registry/on-disk mutation and before the
 // lifecycle helper commits any staged filesystem backup.
 type MutationReload func(context.Context) error
+
+// MarketplaceUpdatePreflight validates a candidate before it replaces the installed files.
+type MarketplaceUpdatePreflight func(ExtensionInfo, *Manifest) error
+
+// MarketplaceUpdateCommit runs after registry persistence; failure restores the prior installation.
+type MarketplaceUpdateCommit func(ExtensionInfo, *Manifest) error
 
 // MarketplaceInstallRequest describes one marketplace-backed extension install.
 type MarketplaceInstallRequest struct {
@@ -80,8 +89,8 @@ type MarketplaceUpdateRequest struct {
 	ResolveTrust              MarketplaceTrustResolver
 	ArtifactHTTPClient        *http.Client
 	ObserveDigestVerification MarketplaceDigestVerificationObserver
-	PreflightCandidate        func(ExtensionInfo, *Manifest) error
-	CommitCandidate           func(ExtensionInfo, *Manifest) error
+	PreflightCandidate        MarketplaceUpdatePreflight
+	CommitCandidate           MarketplaceUpdateCommit
 	commitChange              func(*stagedExtensionDirChange) error
 	removeStaging             func(string) error
 }

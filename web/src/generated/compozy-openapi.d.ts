@@ -26861,7 +26861,8 @@ export interface operations {
                 installed: boolean;
                 installed_name?: string;
                 installed_version?: string;
-                kind: string;
+                /** @enum {string} */
+                kind: "mcp" | "extension" | "skill";
                 manage_path?: string;
                 name: string;
                 /** Format: date-time */
@@ -27103,7 +27104,8 @@ export interface operations {
                 installed: boolean;
                 installed_name?: string;
                 installed_version?: string;
-                kind: string;
+                /** @enum {string} */
+                kind: "mcp" | "extension" | "skill";
                 manage_path?: string;
                 name: string;
                 /** Format: date-time */
@@ -27476,6 +27478,7 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
+          confirm_network_digest?: string;
           generation_hash: string;
           origin_path: string;
         };
@@ -27525,7 +27528,8 @@ export interface operations {
                 installed: boolean;
                 installed_name?: string;
                 installed_version?: string;
-                kind: string;
+                /** @enum {string} */
+                kind: "mcp" | "extension" | "skill";
                 manage_path?: string;
                 name: string;
                 /** Format: date-time */
@@ -27787,7 +27791,8 @@ export interface operations {
                 installed: boolean;
                 installed_name?: string;
                 installed_version?: string;
-                kind: string;
+                /** @enum {string} */
+                kind: "mcp" | "extension" | "skill";
                 manage_path?: string;
                 name: string;
                 /** Format: date-time */
@@ -28468,7 +28473,8 @@ export interface operations {
                 installed: boolean;
                 installed_name?: string;
                 installed_version?: string;
-                kind: string;
+                /** @enum {string} */
+                kind: "mcp" | "extension" | "skill";
                 manage_path?: string;
                 name: string;
                 /** Format: date-time */
@@ -28760,7 +28766,8 @@ export interface operations {
                 installed: boolean;
                 installed_name?: string;
                 installed_version?: string;
-                kind: string;
+                /** @enum {string} */
+                kind: "mcp" | "extension" | "skill";
                 manage_path?: string;
                 name: string;
                 /** Format: date-time */
@@ -29236,16 +29243,16 @@ export interface operations {
           "application/json": {
             agent_conflicts: string[];
             automation_starting: string[];
+            changes: {
+              change: string;
+              id: string;
+              kind: string;
+              name: string;
+            }[];
             extension: string;
             missing_env: string[];
             network_confirmation_required: boolean;
             network_requirement_digest: string;
-            would_publish: {
-              id: string;
-              kind: string;
-              live: boolean;
-              name: string;
-            }[];
           };
         };
       };
@@ -29516,7 +29523,8 @@ export interface operations {
                 installed: boolean;
                 installed_name?: string;
                 installed_version?: string;
-                kind: string;
+                /** @enum {string} */
+                kind: "mcp" | "extension" | "skill";
                 manage_path?: string;
                 name: string;
                 /** Format: date-time */
@@ -29752,7 +29760,10 @@ export interface operations {
   };
   listExtensionSecrets: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Operator workspace reference; omit for the global instance */
+        workspace?: string;
+      };
       header?: never;
       path: {
         /** @description Extension name */
@@ -29832,7 +29843,10 @@ export interface operations {
   };
   setExtensionSecrets: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Operator workspace reference; omit for the global instance */
+        workspace?: string;
+      };
       header?: never;
       path: {
         /** @description Extension name */
@@ -29954,7 +29968,10 @@ export interface operations {
   };
   deleteExtensionSecret: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Operator workspace reference; omit for the global instance */
+        workspace?: string;
+      };
       header?: never;
       path: {
         /** @description Extension name */
@@ -30978,7 +30995,8 @@ export interface operations {
                 installed: boolean;
                 installed_name?: string;
                 installed_version?: string;
-                kind: string;
+                /** @enum {string} */
+                kind: "mcp" | "extension" | "skill";
                 manage_path?: string;
                 name: string;
                 /** Format: date-time */
@@ -31011,7 +31029,8 @@ export interface operations {
                 updated_at?: string | null;
                 version?: string;
               }[];
-              kind: string;
+              /** @enum {string} */
+              kind: "mcp" | "extension" | "skill";
               next_cursor?: string;
               stale: boolean;
               total?: number | null;
@@ -31138,7 +31157,8 @@ export interface operations {
               installed: boolean;
               installed_name?: string;
               installed_version?: string;
-              kind: string;
+              /** @enum {string} */
+              kind: "mcp" | "extension" | "skill";
               manage_path?: string;
               name: string;
               /** Format: date-time */
@@ -31171,7 +31191,8 @@ export interface operations {
               updated_at?: string | null;
               version?: string;
             }[];
-            kind: string;
+            /** @enum {string} */
+            kind: "mcp" | "extension" | "skill";
             next_cursor?: string;
             stale: boolean;
             total?: number | null;
@@ -31317,7 +31338,8 @@ export interface operations {
               installed: boolean;
               installed_name?: string;
               installed_version?: string;
-              kind: string;
+              /** @enum {string} */
+              kind: "mcp" | "extension" | "skill";
               manage_path?: string;
               name: string;
               /** Format: date-time */

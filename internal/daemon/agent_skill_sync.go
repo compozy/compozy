@@ -15,42 +15,54 @@ import (
 	"github.com/compozy/compozy/internal/soul"
 )
 
-func newAgentSkillSourceSyncer(
-	raw resources.RawStore,
-	agentStore resources.Store[compozyconfig.AgentDef],
-	agentCodec resources.KindCodec[compozyconfig.AgentDef],
-	agentProjector resources.TypedProjector[compozyconfig.AgentDef],
-	skillStore resources.Store[skillspkg.SkillResourceSpec],
-	skillCodec resources.KindCodec[skillspkg.SkillResourceSpec],
-	skillProjector resources.TypedProjector[skillspkg.SkillResourceSpec],
-	mcpStore resources.Store[compozyconfig.MCPServer],
-	mcpCodec resources.KindCodec[compozyconfig.MCPServer],
-	actor resources.MutationActor,
-	logger *slog.Logger,
-	trigger func(context.Context, resources.ResourceKind, resources.ReconcileReason) error,
-	providers ...agentSkillDeclarationProvider,
-) agentSkillPublisher {
-	if raw == nil || agentStore == nil || agentCodec == nil || skillStore == nil || skillCodec == nil ||
-		mcpStore == nil || mcpCodec == nil {
+type agentSkillSourceSyncerDeps struct {
+	raw            resources.RawStore
+	agentStore     resources.Store[compozyconfig.AgentDef]
+	agentCodec     resources.KindCodec[compozyconfig.AgentDef]
+	agentProjector resources.TypedProjector[compozyconfig.AgentDef]
+	soulStore      resources.Store[soul.ResourceSpec]
+	soulCodec      resources.KindCodec[soul.ResourceSpec]
+	heartbeatStore resources.Store[heartbeat.ResourceSpec]
+	heartbeatCodec resources.KindCodec[heartbeat.ResourceSpec]
+	skillStore     resources.Store[skillspkg.SkillResourceSpec]
+	skillCodec     resources.KindCodec[skillspkg.SkillResourceSpec]
+	skillProjector resources.TypedProjector[skillspkg.SkillResourceSpec]
+	mcpStore       resources.Store[compozyconfig.MCPServer]
+	mcpCodec       resources.KindCodec[compozyconfig.MCPServer]
+	actor          resources.MutationActor
+	logger         *slog.Logger
+	trigger        func(context.Context, resources.ResourceKind, resources.ReconcileReason) error
+	providers      []agentSkillDeclarationProvider
+}
+
+func newAgentSkillSourceSyncer(deps agentSkillSourceSyncerDeps) *agentSkillSourceSyncer {
+	if deps.raw == nil || deps.agentStore == nil || deps.agentCodec == nil ||
+		deps.soulStore == nil || deps.soulCodec == nil ||
+		deps.heartbeatStore == nil || deps.heartbeatCodec == nil ||
+		deps.skillStore == nil || deps.skillCodec == nil || deps.mcpStore == nil || deps.mcpCodec == nil {
 		return nil
 	}
-	if logger == nil {
-		logger = slog.Default()
+	if deps.logger == nil {
+		deps.logger = slog.Default()
 	}
 	return &agentSkillSourceSyncer{
-		raw:            raw,
-		agentStore:     agentStore,
-		agentCodec:     agentCodec,
-		agentProjector: agentProjector,
-		skillStore:     skillStore,
-		skillCodec:     skillCodec,
-		skillProjector: skillProjector,
-		mcpStore:       mcpStore,
-		mcpCodec:       mcpCodec,
-		actor:          actor,
-		logger:         logger,
-		trigger:        trigger,
-		providers:      append([]agentSkillDeclarationProvider(nil), providers...),
+		raw:            deps.raw,
+		agentStore:     deps.agentStore,
+		agentCodec:     deps.agentCodec,
+		agentProjector: deps.agentProjector,
+		soulStore:      deps.soulStore,
+		soulCodec:      deps.soulCodec,
+		heartbeatStore: deps.heartbeatStore,
+		heartbeatCodec: deps.heartbeatCodec,
+		skillStore:     deps.skillStore,
+		skillCodec:     deps.skillCodec,
+		skillProjector: deps.skillProjector,
+		mcpStore:       deps.mcpStore,
+		mcpCodec:       deps.mcpCodec,
+		actor:          deps.actor,
+		logger:         deps.logger,
+		trigger:        deps.trigger,
+		providers:      append([]agentSkillDeclarationProvider(nil), deps.providers...),
 	}
 }
 
@@ -80,7 +92,7 @@ func (s *agentSkillSourceSyncer) Sync(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	changes, err := s.syncDesiredAgentSkillResources(ctx, desired)
+	changes, err := s.syncIndexedAgentSkillResources(ctx, desired)
 	if err != nil {
 		return err
 	}
@@ -95,9 +107,9 @@ type agentSkillSyncChanges struct {
 	mcpServers bool
 }
 
-func (s *agentSkillSourceSyncer) syncDesiredAgentSkillResources(
+func (s *agentSkillSourceSyncer) syncIndexedAgentSkillResources(
 	ctx context.Context,
-	desired desiredAgentSkillResources,
+	desired indexedAgentSkillResources,
 ) (agentSkillSyncChanges, error) {
 	var changes agentSkillSyncChanges
 	s.stageAgentTransientSpecs(desired.agents)

@@ -17,64 +17,88 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type extensionErrorKind uint8
+
+const (
+	extensionErrorUnknown extensionErrorKind = iota
+	extensionErrorNotFound
+	extensionErrorConflict
+	extensionErrorUnprocessable
+	extensionErrorBadRequest
+	extensionErrorForbidden
+	extensionErrorUnavailable
+	extensionErrorNetworkConfirmationRequired
+	extensionErrorAgentConflict
+	extensionErrorEnvBindingUndeclared
+	extensionErrorEnvBindingDangling
+	extensionErrorEnvBindingInvalid
+)
+
 // ExtensionStatusCode maps extension-domain errors onto transport status codes.
 func ExtensionStatusCode(err error) int {
-	switch {
-	case err == nil:
+	if err == nil {
 		return http.StatusOK
-	case isExtensionNotFoundError(err):
+	}
+	switch classifyExtensionError(err) {
+	case extensionErrorNotFound:
 		return http.StatusNotFound
-	case isExtensionConflictError(err):
+	case extensionErrorConflict, extensionErrorNetworkConfirmationRequired, extensionErrorAgentConflict:
 		return http.StatusConflict
-	case isExtensionUnprocessableError(err):
+	case extensionErrorUnprocessable:
 		return http.StatusUnprocessableEntity
-	case isExtensionBadRequestError(err):
+	case extensionErrorBadRequest, extensionErrorEnvBindingUndeclared,
+		extensionErrorEnvBindingDangling, extensionErrorEnvBindingInvalid:
 		return http.StatusBadRequest
-	case errors.Is(err, extensionpkg.ErrExtensionWorkspaceDenied):
+	case extensionErrorForbidden:
 		return http.StatusForbidden
-	case isExtensionUnavailableError(err):
+	case extensionErrorUnavailable:
 		return http.StatusServiceUnavailable
 	default:
 		return http.StatusInternalServerError
 	}
 }
 
-func isExtensionNotFoundError(err error) bool {
-	return errors.Is(err, extensionpkg.ErrExtensionNotFound) ||
-		errors.Is(err, marketplacepkg.ErrEntryNotFound) ||
-		errors.Is(err, registrypkg.ErrPackageNotFound)
-}
-
-func isExtensionConflictError(err error) bool {
-	return errors.Is(err, extensionpkg.ErrExtensionExists) ||
-		errors.Is(err, extensionpkg.ErrExtensionNotDevLinked) ||
-		errors.Is(err, extensionpkg.ErrExtensionDevOriginMissing) ||
-		errors.Is(err, extensionpkg.ErrExtensionNetworkConfirmationRequired) ||
-		errors.Is(err, extensionpkg.ErrExtensionAgentConflict)
-}
-
-func isExtensionUnprocessableError(err error) bool {
-	return errors.Is(err, extensionpkg.ErrExtensionChecksumUnverified) ||
-		errors.Is(err, extensionpkg.ErrExtensionUnverifiedPolicyBlocked)
-}
-
-func isExtensionBadRequestError(err error) bool {
-	return errors.Is(err, extensionpkg.ErrExtensionChecksumMismatch) ||
-		errors.Is(err, extensionpkg.ErrExtensionArchiveDigestMismatch) ||
-		errors.Is(err, extensionpkg.ErrManifestInvalid) ||
-		errors.Is(err, extensionpkg.ErrManifestIncompatible) ||
-		errors.Is(err, extensionpkg.ErrManifestNotFound) ||
-		errors.Is(err, extensionpkg.ErrExtensionGenerationInvalid) ||
-		errors.Is(err, extensionpkg.ErrExtensionSearchInvalid) ||
-		errors.Is(err, extensionpkg.ErrExtensionEnvBindingInvalid) ||
-		errors.Is(err, extensionpkg.ErrExtensionEnvBindingUndeclared) ||
-		errors.Is(err, extensionpkg.ErrExtensionEnvBindingDangling) ||
-		errors.Is(err, os.ErrNotExist)
-}
-
-func isExtensionUnavailableError(err error) bool {
-	return errors.Is(err, extensionpkg.ErrMarketplaceSourceUnavailable) ||
-		errors.Is(err, registrygit.ErrGitUnavailable)
+func classifyExtensionError(err error) extensionErrorKind {
+	switch {
+	case errors.Is(err, extensionpkg.ErrExtensionNetworkConfirmationRequired):
+		return extensionErrorNetworkConfirmationRequired
+	case errors.Is(err, extensionpkg.ErrExtensionAgentConflict):
+		return extensionErrorAgentConflict
+	case errors.Is(err, extensionpkg.ErrExtensionEnvBindingUndeclared):
+		return extensionErrorEnvBindingUndeclared
+	case errors.Is(err, extensionpkg.ErrExtensionEnvBindingDangling):
+		return extensionErrorEnvBindingDangling
+	case errors.Is(err, extensionpkg.ErrExtensionEnvBindingInvalid):
+		return extensionErrorEnvBindingInvalid
+	case errors.Is(err, extensionpkg.ErrExtensionNotFound),
+		errors.Is(err, marketplacepkg.ErrEntryNotFound),
+		errors.Is(err, registrypkg.ErrPackageNotFound):
+		return extensionErrorNotFound
+	case errors.Is(err, extensionpkg.ErrExtensionExists),
+		errors.Is(err, extensionpkg.ErrExtensionNotDevLinked),
+		errors.Is(err, extensionpkg.ErrExtensionDevOriginMissing):
+		return extensionErrorConflict
+	case errors.Is(err, extensionpkg.ErrExtensionChecksumUnverified),
+		errors.Is(err, extensionpkg.ErrExtensionUnverifiedPolicyBlocked):
+		return extensionErrorUnprocessable
+	case errors.Is(err, extensionpkg.ErrExtensionChecksumMismatch),
+		errors.Is(err, extensionpkg.ErrExtensionArchiveDigestMismatch),
+		errors.Is(err, extensionpkg.ErrManifestInvalid),
+		errors.Is(err, extensionpkg.ErrManifestIncompatible),
+		errors.Is(err, extensionpkg.ErrManifestNotFound),
+		errors.Is(err, extensionpkg.ErrExtensionGenerationInvalid),
+		errors.Is(err, extensionpkg.ErrExtensionSearchInvalid),
+		errors.Is(err, os.ErrNotExist):
+		return extensionErrorBadRequest
+	case errors.Is(err, extensionpkg.ErrExtensionWorkspaceDenied),
+		errors.Is(err, taskpkg.ErrPermissionDenied):
+		return extensionErrorForbidden
+	case errors.Is(err, extensionpkg.ErrMarketplaceSourceUnavailable),
+		errors.Is(err, registrygit.ErrGitUnavailable):
+		return extensionErrorUnavailable
+	default:
+		return extensionErrorUnknown
+	}
 }
 
 func (h *BaseHandlers) respondExtensionError(c *gin.Context, status int, err error) {

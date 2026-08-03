@@ -3,7 +3,6 @@ package extensionpkg
 import (
 	"context"
 	"errors"
-	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -61,27 +60,42 @@ func TestManagerResolveInstanceEnvMap(t *testing.T) {
 			return env
 		}
 
-		global := resolve(t, InstanceKey{Name: " demo "})
-		globalAgain := resolve(t, InstanceKey{Name: "demo"})
-		if !reflect.DeepEqual(global, globalAgain) {
-			t.Fatalf("resolveInstanceEnvMap() ordering changed: first=%#v second=%#v", global, globalAgain)
+		wantEnv := func(shared, bound string) []string {
+			return []string{
+				"PATH=/manifest/bin",
+				"HOME=",
+				"USER=",
+				"LOGNAME=",
+				"TMPDIR=",
+				"TMP=",
+				"TEMP=",
+				"LANG=",
+				"LC_ALL=",
+				"SHELL=",
+				"SystemRoot=",
+				"ComSpec=",
+				"PATHEXT=",
+				"USERPROFILE=",
+				"SHARED=" + shared,
+				"AUTHORED_ONLY=authored-secret",
+				"BOUND_ONLY=" + bound,
+			}
 		}
-		globalMap := envListToMap(t, global)
-		assertEnvResolutionValues(t, globalMap, "/manifest/bin", "authored-secret", "global-bound", "global-wins")
+
+		global := resolve(t, InstanceKey{Name: " demo "})
+		wantGlobal := wantEnv("global-wins", "global-bound")
+		if !slices.Equal(global, wantGlobal) {
+			t.Fatalf("resolveInstanceEnvMap(global) = %#v, want %#v", global, wantGlobal)
+		}
 
 		workspace := resolve(t, InstanceKey{Name: "demo", WorkspaceID: " ws-1 "})
-		workspaceMap := envListToMap(t, workspace)
-		assertEnvResolutionValues(
-			t,
-			workspaceMap,
-			"/manifest/bin",
-			"authored-secret",
-			"workspace-bound",
-			"workspace-wins",
-		)
+		wantWorkspace := wantEnv("workspace-wins", "workspace-bound")
+		if !slices.Equal(workspace, wantWorkspace) {
+			t.Fatalf("resolveInstanceEnvMap(workspace) = %#v, want %#v", workspace, wantWorkspace)
+		}
 
-		wantCalls := []string{"demo\x00", "demo\x00", "demo\x00ws-1"}
-		if !reflect.DeepEqual(store.calls, wantCalls) {
+		wantCalls := []string{"demo\x00", "demo\x00ws-1"}
+		if !slices.Equal(store.calls, wantCalls) {
 			t.Fatalf("ListEnvBindings() calls = %#v, want %#v", store.calls, wantCalls)
 		}
 	})
@@ -118,8 +132,8 @@ func TestManagerResolveInstanceEnvMap(t *testing.T) {
 		if cleanups != nil {
 			t.Fatalf("resolveInstanceEnvMap() cleanups = %#v, want nil after unwind", cleanups)
 		}
-		if !strings.Contains(err.Error(), "B_BROKEN") || !strings.Contains(err.Error(), "vault:missing") {
-			t.Fatalf("resolveInstanceEnvMap() error = %q, want env name and ref", err)
+		if !strings.Contains(err.Error(), "B_BROKEN") || strings.Contains(err.Error(), "vault:missing") {
+			t.Fatalf("resolveInstanceEnvMap() error = %q, want env name without Vault ref", err)
 		}
 		if got := diagnostics.Redact("resolved value " + secret); !strings.Contains(got, secret) {
 			t.Fatalf("dynamic redaction remained registered after failure: %q", got)
@@ -162,46 +176,6 @@ func TestManagerResolveInstanceEnvMap(t *testing.T) {
 			t.Fatalf("resolveInstanceEnvMap() injected stale binding: %#v", decoded)
 		}
 	})
-}
-
-func assertEnvResolutionValues(
-	t *testing.T,
-	got map[string]string,
-	path string,
-	authored string,
-	boundOnly string,
-	shared string,
-) {
-	t.Helper()
-	want := map[string]string{
-		"PATH":          path,
-		"AUTHORED_ONLY": authored,
-		"BOUND_ONLY":    boundOnly,
-		"SHARED":        shared,
-	}
-	for key, value := range want {
-		if got[key] != value {
-			t.Fatalf("%s = %q, want %q (env=%#v)", key, got[key], value, got)
-		}
-	}
-	if !slices.IsSortedFunc(envResolutionCustomKeys(got), strings.Compare) {
-		t.Fatalf("custom env keys are not deterministic: %#v", got)
-	}
-}
-
-func envResolutionCustomKeys(env map[string]string) []string {
-	baseline := make(map[string]struct{}, len(safeSubprocessEnvKeys))
-	for _, key := range safeSubprocessEnvKeys {
-		baseline[key] = struct{}{}
-	}
-	keys := make([]string, 0, len(env))
-	for key := range env {
-		if _, exists := baseline[key]; !exists {
-			keys = append(keys, key)
-		}
-	}
-	slices.Sort(keys)
-	return keys
 }
 
 type envResolutionBindingStore struct {

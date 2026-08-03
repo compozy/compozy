@@ -23,8 +23,9 @@ func extensionOperationErrorPayload(
 	message := ErrorPayloadForStatus(status, err, maskInternal).Error
 	name := strings.TrimSpace(c.Param("name"))
 
-	switch {
-	case errors.Is(err, extensionpkg.ErrExtensionNetworkConfirmationRequired):
+	kind := classifyExtensionError(err)
+	switch kind {
+	case extensionErrorNetworkConfirmationRequired:
 		var confirmationErr *extensionpkg.NetworkConfirmationRequiredError
 		if errors.As(err, &confirmationErr) && confirmationErr != nil {
 			payload.CurrentDigest = strings.TrimSpace(confirmationErr.CurrentDigest)
@@ -37,7 +38,7 @@ func extensionOperationErrorPayload(
 			message,
 			extensionNetworkRetryCommand(name, payload.CurrentDigest),
 		)
-	case errors.Is(err, extensionpkg.ErrExtensionAgentConflict):
+	case extensionErrorAgentConflict:
 		var conflictErr *extensionpkg.AgentConflictError
 		if errors.As(err, &conflictErr) && conflictErr != nil {
 			payload.Agents = slices.Clone(conflictErr.Agents)
@@ -51,16 +52,14 @@ func extensionOperationErrorPayload(
 			message,
 			"",
 		)
-	case errors.Is(err, extensionpkg.ErrExtensionEnvBindingUndeclared),
-		errors.Is(err, extensionpkg.ErrExtensionEnvBindingDangling),
-		errors.Is(err, extensionpkg.ErrExtensionEnvBindingInvalid):
+	case extensionErrorEnvBindingUndeclared, extensionErrorEnvBindingDangling, extensionErrorEnvBindingInvalid:
 		var bindingErr *extensionpkg.EnvBindingValidationError
 		if errors.As(err, &bindingErr) && bindingErr != nil {
 			payload.EnvName = strings.TrimSpace(bindingErr.EnvName)
 			payload.DeclaredEnv = slices.Clone(bindingErr.Declared)
 			slices.Sort(payload.DeclaredEnv)
 		}
-		payload.Code = extensionEnvBindingErrorCode(err)
+		payload.Code = extensionEnvBindingErrorCode(kind)
 		payload.Diagnostic = extensionOperationDiagnostic(
 			"extension.env_binding_invalid",
 			payload.Code,
@@ -102,11 +101,11 @@ func extensionNetworkRetryCommand(name, digest string) string {
 	return fmt.Sprintf("compozy extension enable %s --confirm-network-requirement %s", name, digest)
 }
 
-func extensionEnvBindingErrorCode(err error) string {
-	switch {
-	case errors.Is(err, extensionpkg.ErrExtensionEnvBindingUndeclared):
+func extensionEnvBindingErrorCode(kind extensionErrorKind) string {
+	switch kind {
+	case extensionErrorEnvBindingUndeclared:
 		return diagnosticcontract.CodeExtensionEnvBindingUndeclared
-	case errors.Is(err, extensionpkg.ErrExtensionEnvBindingDangling):
+	case extensionErrorEnvBindingDangling:
 		return diagnosticcontract.CodeExtensionEnvBindingDangling
 	default:
 		return diagnosticcontract.CodeExtensionEnvBindingInvalid

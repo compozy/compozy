@@ -71,6 +71,7 @@ type Observer interface {
 // Registry is the narrowed global database surface shared by observe and workspace.
 type Registry interface {
 	observe.Registry
+	store.EventSummaryBatchWriter
 	store.SessionCatalog
 	store.NetworkAuditStore
 	store.NetworkChannelStore
@@ -166,6 +167,7 @@ type extensionRuntime interface {
 	Reload(context.Context) error
 	Get(string) (*extensionpkg.Extension, error)
 	HookDeclarations(context.Context) ([]hookspkg.HookDecl, error)
+	InspectPackageResources(context.Context, string) (*extensionpkg.Extension, error)
 }
 
 type extensionDevRuntime interface {
@@ -173,6 +175,8 @@ type extensionDevRuntime interface {
 	ListForWorkspace(string) []extensionpkg.ExtensionInfo
 	InspectDevelopmentGeneration(context.Context, string, string, string) (extensionpkg.DevelopmentGeneration, error)
 	LinkDevelopmentFromOrigin(context.Context, string, string, string) (*extensionpkg.Extension, error)
+	StageDevelopmentLink(context.Context, extensionpkg.InstanceKey, string, string) (*extensionpkg.DevLink, error)
+	ActivateDevelopmentLink(context.Context, extensionpkg.InstanceKey) (*extensionpkg.Extension, error)
 	ReloadExtension(context.Context, extensionpkg.InstanceKey, string) (*extensionpkg.Extension, error)
 	UnlinkDevelopment(context.Context, extensionpkg.InstanceKey) error
 	Logs(extensionpkg.InstanceKey, int64) ([]extensionpkg.ExtensionLogEntry, error)

@@ -71,7 +71,7 @@ func skillRecordSortKey(record resources.Record[SkillResourceSpec]) string {
 		strings.TrimSpace(record.ID)
 }
 
-func applySkillResourceOrigin(record resources.Record[SkillResourceSpec], skill *Skill) {
+func applySkillExtensionOrigin(record resources.Record[SkillResourceSpec], skill *Skill) {
 	if skill == nil {
 		return
 	}

@@ -40,6 +40,7 @@ type installConfig struct {
 	source          ExtensionSource
 	enabled         bool
 	replaceExisting bool
+	installedAt     *time.Time
 	registrySlug    *string
 	registryName    *string
 	remoteVersion   *string
@@ -68,6 +69,13 @@ func WithInstallEnabled(enabled bool) InstallOption {
 func WithInstallReplaceExisting() InstallOption {
 	return func(cfg *installConfig) {
 		cfg.replaceExisting = true
+	}
+}
+
+func withInstallInstalledAt(installedAt time.Time) InstallOption {
+	return func(cfg *installConfig) {
+		value := installedAt.UTC()
+		cfg.installedAt = &value
 	}
 }
 

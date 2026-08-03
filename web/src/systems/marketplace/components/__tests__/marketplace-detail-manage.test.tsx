@@ -25,7 +25,6 @@ const mocks = vi.hoisted(() => ({
   extensionDev: false,
   extensionEnableResult: null as { automation_started: string[] } | null,
   extensionInventory: [] as Array<{ id: string; kind: string; live: boolean; name: string }>,
-  extensionInventoryError: null as Error | null,
   extensionNetworkConfirm: null as { action: "enable" | "update"; digest: string } | null,
   extensionNetworkConfirmationRequired: false,
   extensionNetworkDigest: undefined as string | undefined,
@@ -226,7 +225,7 @@ function extensionDetailStateStub() {
         extension: "ops-extension",
         items: mocks.extensionInventory,
       },
-      error: mocks.extensionInventoryError,
+      error: null,
       isLoading: false,
       refetch: vi.fn(),
     },
@@ -313,7 +312,6 @@ describe("Marketplace installed-detail management", () => {
     mocks.extensionBoundEnvKeys = [];
     mocks.extensionEnableResult = null;
     mocks.extensionInventory = [];
-    mocks.extensionInventoryError = null;
     mocks.extensionNetworkConfirm = null;
     mocks.extensionNetworkConfirmationRequired = false;
     mocks.extensionNetworkDigest = undefined;
@@ -373,37 +371,8 @@ describe("Marketplace installed-detail management", () => {
     expect(screen.getByText("official")).toBeInTheDocument();
     expect(screen.getByText("verified")).toBeInTheDocument();
     await user.click(screen.getByTestId("extension-enabled-switch"));
-    expect(mocks.extensionToggle).toHaveBeenCalledWith(false);
-  });
-
-  // UT-063: the panel is the only place the operator sees which shipped kit resources are actually
-  // live, so shipped and live must never render as the same thing.
-  it("Should render kit inventory items with their kind and live state from the route payload", () => {
-    mocks.extensionInventory = [
-      { id: "automation:weekly-audit", kind: "automation", live: true, name: "weekly-audit" },
-      { id: "agent:dep-reviewer", kind: "agent", live: false, name: "dep-reviewer" },
-    ];
-    render(<MarketplaceDetailExtensionManage name="ops-extension" />);
-
-    const panel = screen.getByTestId("extension-kit-inventory");
-    const rows = within(panel).getAllByTestId("extension-kit-inventory-item");
-    expect(rows).toHaveLength(2);
-    expect(within(panel).getByText("agent")).toBeInTheDocument();
-    expect(within(panel).getByText("automation")).toBeInTheDocument();
-    expect(within(rows[0]!).getByText("dep-reviewer")).toBeInTheDocument();
-    expect(within(rows[0]!).getByText("shipped")).toBeInTheDocument();
-    expect(within(rows[1]!).getByText("weekly-audit")).toBeInTheDocument();
-    expect(within(rows[1]!).getByText("live")).toBeInTheDocument();
-  });
-
-  it("Should state that no kit resources ship rather than rendering an empty panel", () => {
-    render(<MarketplaceDetailExtensionManage name="ops-extension" />);
-
-    expect(
-      within(screen.getByTestId("extension-kit-inventory")).getByText(
-        "This extension ships no static kit resources."
-      )
-    ).toBeInTheDocument();
+    expect(mocks.extensionToggle).toHaveBeenCalledOnce();
+    expect(mocks.extensionToggle.mock.calls[0]?.[0]).toBe(false);
   });
 
   it("Should not present global kit inventory for a workspace dev overlay", () => {

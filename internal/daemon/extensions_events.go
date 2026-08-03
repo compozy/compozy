@@ -22,6 +22,11 @@ type extensionLifecycleEventStoreSink struct {
 	actorID   string
 }
 
+type extensionLifecycleEventWriter interface {
+	store.EventSummaryStore
+	store.EventSummaryBatchWriter
+}
+
 var _ extensionpkg.LifecycleEventSink = extensionLifecycleEventStoreSink{}
 
 func (s extensionLifecycleEventStoreSink) RecordExtensionLifecycleEvent(
@@ -72,12 +77,18 @@ func (s *daemonExtensionService) recordCanonicalExtensionLifecycleEvent(
 	actor taskpkg.ActorContext,
 	event extensionpkg.LifecycleEvent,
 ) error {
-	return (extensionLifecycleEventStoreSink{
+	return s.canonicalLifecycleEventSink(actor).RecordExtensionLifecycleEvent(ctx, event)
+}
+
+func (s *daemonExtensionService) canonicalLifecycleEventSink(
+	actor taskpkg.ActorContext,
+) extensionLifecycleEventStoreSink {
+	return extensionLifecycleEventStoreSink{
 		writer:    s.eventWriter,
 		now:       s.now,
 		actorKind: string(actor.Actor.Kind.Normalize()),
 		actorID:   strings.TrimSpace(actor.Actor.Ref),
-	}).RecordExtensionLifecycleEvent(ctx, event)
+	}
 }
 
 func (s *daemonExtensionService) recordCanonicalExtensionLifecycleEvents(
@@ -88,12 +99,7 @@ func (s *daemonExtensionService) recordCanonicalExtensionLifecycleEvents(
 	if s.eventWriter == nil || len(events) == 0 {
 		return nil
 	}
-	sink := extensionLifecycleEventStoreSink{
-		writer:    s.eventWriter,
-		now:       s.now,
-		actorKind: string(actor.Actor.Kind.Normalize()),
-		actorID:   strings.TrimSpace(actor.Actor.Ref),
-	}
+	sink := s.canonicalLifecycleEventSink(actor)
 	summaries := make([]store.EventSummary, 0, len(events))
 	for _, event := range events {
 		summary, err := sink.summary(ctx, event)
@@ -102,16 +108,8 @@ func (s *daemonExtensionService) recordCanonicalExtensionLifecycleEvents(
 		}
 		summaries = append(summaries, summary)
 	}
-	if writer, ok := s.eventWriter.(store.EventSummaryBatchWriter); ok {
-		if err := writer.WriteEventSummaries(context.WithoutCancel(ctx), summaries); err != nil {
-			return fmt.Errorf("daemon: record extension lifecycle event batch: %w", err)
-		}
-		return nil
-	}
-	for _, summary := range summaries {
-		if err := s.eventWriter.WriteEventSummary(context.WithoutCancel(ctx), summary); err != nil {
-			return fmt.Errorf("daemon: record extension lifecycle event: %w", err)
-		}
+	if err := s.eventWriter.WriteEventSummaries(context.WithoutCancel(ctx), summaries); err != nil {
+		return fmt.Errorf("daemon: record extension lifecycle event batch: %w", err)
 	}
 	return nil
 }
@@ -157,17 +155,6 @@ func (s *daemonExtensionService) recordExtensionEvent(
 ) error {
 	payload := extensionEventPayload(item)
 	return s.recordExtensionLifecycleEvent(ctx, eventType, actor, payload)
-}
-
-func (s *daemonExtensionService) recordExtensionEnabledEvent(
-	ctx context.Context,
-	actor taskpkg.ActorContext,
-	result contract.ExtensionEnableResult,
-) error {
-	count := len(result.AutomationStarted)
-	return s.recordCanonicalExtensionLifecycleEvent(ctx, actor, extensionpkg.LifecycleEvent{
-		Type: eventspkg.ExtensionEnabled, ExtensionName: result.Extension.Name, AutomationCount: &count,
-	})
 }
 
 func (s *daemonExtensionService) recordExtensionEnableEvents(

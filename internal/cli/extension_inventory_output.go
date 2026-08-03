@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/spf13/cobra"
 )
 
@@ -19,11 +20,7 @@ func extensionInventoryBundle(payload ExtensionInventoryRecord) outputBundle {
 					{Label: "Extension", Value: payload.Extension},
 					{Label: automationEnabledValue, Value: fmt.Sprintf("%t", payload.Enabled)},
 				}),
-				renderHumanTable(
-					"Resources",
-					[]string{cliKindValue, cliNameValue, "ID", cliLiveValue},
-					extensionKitItemRows(payload.Items),
-				),
+				extensionKitResourceHumanTable("Resources", cliLiveValue, extensionKitItemRows(payload.Items)),
 			), nil
 		},
 		toon: func() (string, error) {
@@ -33,11 +30,7 @@ func extensionInventoryBundle(payload ExtensionInventoryRecord) outputBundle {
 					[]string{extensionExtensionKey, extensionEnabledKey},
 					[]string{payload.Extension, fmt.Sprintf("%t", payload.Enabled)},
 				),
-				renderToonArray(
-					cliItemsKey,
-					[]string{cliKindKey, automationNameKey, "id", cliLiveKey},
-					extensionKitItemRows(payload.Items),
-				),
+				extensionKitResourceToonArray(cliItemsKey, cliLiveKey, extensionKitItemRows(payload.Items)),
 			), nil
 		},
 	}
@@ -58,11 +51,10 @@ func extensionEnablePreviewBundle(payload ExtensionEnablePreviewRecord) outputBu
 				{Label: "Network digest", Value: payload.NetworkRequirementDigest},
 				{Label: "Confirmation required", Value: fmt.Sprintf("%t", payload.NetworkConfirmationRequired)},
 			})}
-			blocks = append(blocks, renderHumanTable(
-				"Would publish",
-				[]string{cliKindValue, cliNameValue, "ID", cliLiveValue},
-				extensionKitItemRows(payload.WouldPublish),
-			))
+			blocks = append(
+				blocks,
+				extensionKitResourceHumanTable("Resource changes", "Change", extensionKitChangeRows(payload.Changes)),
+			)
 			return renderHumanBlocks(blocks...), nil
 		},
 		toon: func() (string, error) {
@@ -82,14 +74,26 @@ func extensionEnablePreviewBundle(payload ExtensionEnablePreviewRecord) outputBu
 						fmt.Sprintf("%t", payload.NetworkConfirmationRequired),
 					},
 				),
-				renderToonArray(
-					"would_publish",
-					[]string{cliKindKey, automationNameKey, "id", cliLiveKey},
-					extensionKitItemRows(payload.WouldPublish),
-				),
+				extensionKitResourceToonArray("changes", "change", extensionKitChangeRows(payload.Changes)),
 			), nil
 		},
 	}
+}
+
+func extensionKitResourceHumanTable(title string, stateHeader string, rows [][]string) string {
+	return renderHumanTable(title, []string{cliKindValue, cliNameValue, "ID", stateHeader}, rows)
+}
+
+func extensionKitResourceToonArray(name string, stateKey string, rows [][]string) string {
+	return renderToonArray(name, []string{cliKindKey, automationNameKey, "id", stateKey}, rows)
+}
+
+func extensionKitChangeRows(items []contract.ExtensionKitChangePayload) [][]string {
+	rows := make([][]string, 0, len(items))
+	for _, item := range items {
+		rows = append(rows, []string{string(item.Kind), item.Name, item.ID, string(item.Change)})
+	}
+	return rows
 }
 
 func extensionKitItemRows(items []ExtensionKitItemRecord) [][]string {

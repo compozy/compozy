@@ -27,6 +27,14 @@ type StaticAgent struct {
 	Heartbeat *AgentSidecar
 }
 
+type agentSidecarKind uint8
+
+const (
+	agentSidecarKindUnknown agentSidecarKind = iota
+	agentSidecarKindSoul
+	agentSidecarKindHeartbeat
+)
+
 // LoadAgentResources loads the strict <entry>/<agent>/AGENT.md resource contract.
 func LoadAgentResources(rootDir string, paths []string) ([]StaticAgent, error) {
 	loaded := make(map[string]StaticAgent)
@@ -108,6 +116,9 @@ func loadAgentResourceEntry(rootDir, entryRoot string) ([]StaticAgent, error) {
 		if err != nil {
 			return nil, err
 		}
+		if err := rejectResourceTreeSymlinks(agentDir, "agent resource"); err != nil {
+			return nil, err
+		}
 		agent, err := loadStaticAgent(rootDir, agentDir)
 		if err != nil {
 			return nil, err
@@ -127,16 +138,36 @@ func loadStaticAgent(rootDir, agentDir string) (StaticAgent, error) {
 		)
 	}
 	result := StaticAgent{Agent: compozyconfig.CloneAgentDef(agent)}
-	if result.Soul, err = loadStaticAgentSidecar(rootDir, agentDir, soul.FileName, true); err != nil {
+	if result.Soul, err = loadStaticAgentSidecar(
+		rootDir,
+		agentDir,
+		agentSidecarKindSoul,
+	); err != nil {
 		return StaticAgent{}, err
 	}
-	if result.Heartbeat, err = loadStaticAgentSidecar(rootDir, agentDir, heartbeat.FileName, false); err != nil {
+	if result.Heartbeat, err = loadStaticAgentSidecar(
+		rootDir,
+		agentDir,
+		agentSidecarKindHeartbeat,
+	); err != nil {
 		return StaticAgent{}, err
 	}
 	return result, nil
 }
 
-func loadStaticAgentSidecar(rootDir, agentDir, fileName string, isSoul bool) (*AgentSidecar, error) {
+func loadStaticAgentSidecar(
+	rootDir, agentDir string,
+	kind agentSidecarKind,
+) (*AgentSidecar, error) {
+	var fileName string
+	switch kind {
+	case agentSidecarKindSoul:
+		fileName = soul.FileName
+	case agentSidecarKindHeartbeat:
+		fileName = heartbeat.FileName
+	default:
+		return nil, fmt.Errorf("extension: unsupported agent sidecar kind %d", kind)
+	}
 	path := filepath.Join(agentDir, fileName)
 	body, err := os.ReadFile(path)
 	if err != nil {
@@ -150,13 +181,14 @@ func loadStaticAgentSidecar(rootDir, agentDir, fileName string, isSoul bool) (*A
 		return nil, err
 	}
 	sourcePath := filepath.ToSlash(relativePath)
-	if isSoul {
+	switch kind {
+	case agentSidecarKindSoul:
 		_, err = soul.Parse(context.Background(), soul.ParseRequest{
 			SourcePath: sourcePath,
 			Content:    body,
 			Config:     compozyconfig.DefaultSoulConfig(),
 		})
-	} else {
+	case agentSidecarKindHeartbeat:
 		_, err = heartbeat.Parse(context.Background(), heartbeat.ParseRequest{
 			SourcePath: sourcePath,
 			Content:    body,

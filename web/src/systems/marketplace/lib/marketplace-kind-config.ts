@@ -8,8 +8,6 @@ export interface MarketplaceKindConfig {
   singular: string;
   icon: LucideIcon;
   searchPlaceholder: string;
-  verb: string;
-  installedNoun: "installed" | "active";
   teachingEmptyTitle: string;
   teachingEmptyBody: string;
   cliHint: string;
@@ -22,8 +20,6 @@ const KIND_CONFIG: Record<MarketplaceKind, MarketplaceKindConfig> = {
     singular: "skill",
     icon: Wrench,
     searchPlaceholder: "Search skills…",
-    verb: "Install",
-    installedNoun: "installed",
     teachingEmptyTitle: "No skills installed yet",
     teachingEmptyBody: "Everything you install from the marketplace shows up here.",
     cliHint: "compozy skill install <slug>",
@@ -34,8 +30,6 @@ const KIND_CONFIG: Record<MarketplaceKind, MarketplaceKindConfig> = {
     singular: "MCP",
     icon: Plug,
     searchPlaceholder: "Search MCP servers…",
-    verb: "Install",
-    installedNoun: "installed",
     teachingEmptyTitle: "No MCPs installed yet",
     teachingEmptyBody: "Everything you install from the marketplace shows up here.",
     cliHint: "compozy mcp install <entry>",
@@ -46,8 +40,6 @@ const KIND_CONFIG: Record<MarketplaceKind, MarketplaceKindConfig> = {
     singular: "extension",
     icon: Puzzle,
     searchPlaceholder: "Search extensions…",
-    verb: "Install",
-    installedNoun: "installed",
     teachingEmptyTitle: "No extensions installed yet",
     teachingEmptyBody:
       "Install from the marketplace, a GitHub release, a git repository, or a local build.",

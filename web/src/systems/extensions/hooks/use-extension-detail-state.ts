@@ -23,6 +23,13 @@ export type ExtensionNetworkConfirm =
   | { action: "enable"; digest: string; variables: ToggleExtensionVariables }
   | { action: "update"; digest: string; variables: UpdateExtensionVariables };
 
+type ExtensionDetailDialogState =
+  | { type: "closed" }
+  | { type: "dialog"; dialog: Exclude<ExtensionDetailDialog, null> }
+  | { type: "network-confirm"; confirmation: ExtensionNetworkConfirm };
+
+const CLOSED_DIALOG_STATE: ExtensionDetailDialogState = { type: "closed" };
+
 /**
  * Detail-screen UI state is local to the mounted extension route. Queries and
  * mutations keep their existing TanStack Query ownership.
@@ -38,8 +45,9 @@ export function useExtensionDetailState(
   const toggle = useToggleExtension();
   const update = useUpdateExtension();
   const navigate = useNavigate();
-  const [activeDialog, setActiveDialog] = useState<ExtensionDetailDialog>(null);
-  const [networkConfirm, setNetworkConfirm] = useState<ExtensionNetworkConfirm | null>(null);
+  const [dialogState, setDialogState] = useState<ExtensionDetailDialogState>(CLOSED_DIALOG_STATE);
+  const activeDialog = dialogState.type === "dialog" ? dialogState.dialog : null;
+  const networkConfirm = dialogState.type === "network-confirm" ? dialogState.confirmation : null;
   const extension = detail.data?.extension ?? null;
   const instanceWorkspaceId = extension?.workspace_id?.trim() || null;
   const inventory = useExtensionKitInventory(
@@ -65,72 +73,85 @@ export function useExtensionDetailState(
   const runToggle = async (variables: ToggleExtensionVariables) => {
     try {
       await toggle.mutateAsync(variables);
-      setNetworkConfirm(null);
+      setDialogState(current =>
+        current.type === "network-confirm" ? CLOSED_DIALOG_STATE : current
+      );
     } catch (error) {
       const confirmation = extensionNetworkConfirmation(error);
       if (!confirmation) return;
-      setNetworkConfirm({ action: "enable", digest: confirmation.digest, variables });
+      setDialogState({
+        type: "network-confirm",
+        confirmation: { action: "enable", digest: confirmation.digest, variables },
+      });
     }
   };
 
   const runUpdate = async (variables: UpdateExtensionVariables) => {
     try {
       await update.mutateAsync(variables);
-      setNetworkConfirm(null);
-      setActiveDialog(null);
+      setDialogState(CLOSED_DIALOG_STATE);
     } catch (error) {
       const confirmation = extensionNetworkConfirmation(error);
       if (!confirmation) return;
-      setNetworkConfirm({ action: "update", digest: confirmation.digest, variables });
+      setDialogState({
+        type: "network-confirm",
+        confirmation: { action: "update", digest: confirmation.digest, variables },
+      });
     }
   };
 
   return {
     activeDialog,
     detail,
-    dismissDialog: () => setActiveDialog(null),
-    dismissNetworkConfirm: () => setNetworkConfirm(null),
+    dismissDialog: () =>
+      setDialogState(current => (current.type === "dialog" ? CLOSED_DIALOG_STATE : current)),
+    dismissNetworkConfirm: () =>
+      setDialogState(current =>
+        current.type === "network-confirm" ? CLOSED_DIALOG_STATE : current
+      ),
     /** The last enable result in this session; automation the operator started is theirs to see. */
     enableResult: toggle.data && "automation_started" in toggle.data ? toggle.data : null,
     inventory,
     logs,
     navigate,
     networkConfirm,
-    requestProvenance: () => setActiveDialog("provenance"),
-    requestRemoval: () => setActiveDialog("remove"),
-    requestToggle: (enabled: boolean) => {
+    requestProvenance: () => setDialogState({ type: "dialog", dialog: "provenance" }),
+    requestRemoval: () => setDialogState({ type: "dialog", dialog: "remove" }),
+    requestToggle: async (enabled: boolean) => {
       if (!extension) return;
-      void runToggle({ enabled, name: extension.name });
+      await runToggle({ enabled, name: extension.name });
     },
     /**
      * An unverified installation still needs an explicit per-update decision, so the consent
      * dialog opens instead of silently sending `allow_unverified`.
      */
-    requestUpdate: () => {
+    requestUpdate: async () => {
       if (!extension) return;
       if (extensionTrustFacts(extension).checksumVerified) {
         const variables = updateVariables(false);
-        if (variables) void runUpdate(variables);
+        if (variables) await runUpdate(variables);
         return;
       }
-      setActiveDialog("update");
+      setDialogState({ type: "dialog", dialog: "update" });
     },
     /** Resumes the refused mutation with its original variables plus the ratified digest. */
-    submitNetworkConfirm: () => {
+    submitNetworkConfirm: async () => {
       if (!networkConfirm) return;
       if (networkConfirm.action === "enable") {
-        void runToggle({
+        await runToggle({
           ...networkConfirm.variables,
           confirmNetworkDigest: networkConfirm.digest,
         });
         return;
       }
-      void runUpdate({ ...networkConfirm.variables, confirmNetworkDigest: networkConfirm.digest });
+      await runUpdate({
+        ...networkConfirm.variables,
+        confirmNetworkDigest: networkConfirm.digest,
+      });
     },
-    submitUpdate: () => {
+    submitUpdate: async () => {
       const variables = updateVariables(true);
-      if (variables) return runUpdate(variables);
-      return Promise.resolve();
+      if (variables) await runUpdate(variables);
     },
     toggle,
     update,

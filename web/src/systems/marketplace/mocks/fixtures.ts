@@ -1,10 +1,11 @@
-import type {
-  MarketplaceEntryResponse,
-  MarketplaceKind,
-  MarketplaceKindResponse,
-  MarketplaceListing,
-  MarketplaceSearchResponse,
-} from "@/systems/marketplace";
+import {
+  MARKETPLACE_KINDS,
+  type MarketplaceEntryResponse,
+  type MarketplaceKind,
+  type MarketplaceKindResponse,
+  type MarketplaceListing,
+  type MarketplaceSearchResponse,
+} from "../types";
 
 const warningUnsigned = {
   category: "supply_chain",
@@ -189,7 +190,7 @@ export const marketplaceListings: Record<MarketplaceKind, MarketplaceListing[]> 
 
 export const marketplaceSearchFixture: MarketplaceSearchResponse = {
   query: "",
-  kinds: (["skill", "extension", "mcp"] as const).map(kind => ({
+  kinds: MARKETPLACE_KINDS.map(kind => ({
     items: marketplaceListings[kind],
     kind,
     stale: false,

@@ -108,6 +108,7 @@ func (m *Manager) bridgeControlLaunchConfig(
 		Dir:             extension.rootDir,
 		Env:             env,
 		Logger:          m.logger,
+		StderrTransform: diagnostics.Redact,
 		ShutdownTimeout: shutdownTimeout,
 		PostSignalGrace: m.subprocessSignalGrace,
 		ProcessRegistry: m.processRegistry,

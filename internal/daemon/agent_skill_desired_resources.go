@@ -8,10 +8,10 @@ import (
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
-
+	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/resources"
-
 	skillspkg "github.com/compozy/compozy/internal/skills"
+	"github.com/compozy/compozy/internal/soul"
 )
 
 type desiredAgentResource struct {
@@ -30,16 +30,16 @@ type desiredSkillResource struct {
 	encoded []byte
 }
 
-type desiredAgentSkillResources struct {
+type indexedAgentSkillResources struct {
 	agents     map[string]desiredAgentResource
-	souls      map[string]desiredSoulResource
-	heartbeats map[string]desiredHeartbeatResource
+	souls      map[string]managedResourceValue[soul.ResourceSpec]
+	heartbeats map[string]managedResourceValue[heartbeat.ResourceSpec]
 	skills     map[string]desiredSkillResource
 	mcpServers map[string]desiredMCPServerResource
 }
 
-func (s *agentSkillSourceSyncer) desiredResources(ctx context.Context) (desiredAgentSkillResources, error) {
-	desired := newDesiredAgentSkillResources()
+func (s *agentSkillSourceSyncer) desiredResources(ctx context.Context) (indexedAgentSkillResources, error) {
+	desired := newIndexedAgentSkillResources()
 	agentIDsBySourceKey := make(map[string]string)
 
 	for _, provider := range s.providers {
@@ -58,11 +58,11 @@ func (s *agentSkillSourceSyncer) desiredResources(ctx context.Context) (desiredA
 	return desired, nil
 }
 
-func newDesiredAgentSkillResources() desiredAgentSkillResources {
-	return desiredAgentSkillResources{
+func newIndexedAgentSkillResources() indexedAgentSkillResources {
+	return indexedAgentSkillResources{
 		agents:     make(map[string]desiredAgentResource),
-		souls:      make(map[string]desiredSoulResource),
-		heartbeats: make(map[string]desiredHeartbeatResource),
+		souls:      make(map[string]managedResourceValue[soul.ResourceSpec]),
+		heartbeats: make(map[string]managedResourceValue[heartbeat.ResourceSpec]),
 		skills:     make(map[string]desiredSkillResource),
 		mcpServers: make(map[string]desiredMCPServerResource),
 	}
@@ -70,9 +70,9 @@ func newDesiredAgentSkillResources() desiredAgentSkillResources {
 
 func (s *agentSkillSourceSyncer) appendDesiredResources(
 	ctx context.Context,
-	desired *desiredAgentSkillResources,
+	desired *indexedAgentSkillResources,
 	agentIDsBySourceKey map[string]string,
-	items agentSkillDesiredResources,
+	items agentSkillDeclarations,
 ) error {
 	if err := s.appendDesiredAgents(ctx, desired, agentIDsBySourceKey, items); err != nil {
 		return err
@@ -88,9 +88,9 @@ func (s *agentSkillSourceSyncer) appendDesiredResources(
 
 func (s *agentSkillSourceSyncer) appendDesiredAgents(
 	ctx context.Context,
-	desired *desiredAgentSkillResources,
+	desired *indexedAgentSkillResources,
 	agentIDsBySourceKey map[string]string,
-	items agentSkillDesiredResources,
+	items agentSkillDeclarations,
 ) error {
 	for _, item := range items.agents {
 		spec, encoded, err := validateAndEncodeAgent(ctx, s.agentCodec, item.scope, item.spec)
@@ -109,8 +109,8 @@ func (s *agentSkillSourceSyncer) appendDesiredAgents(
 
 func (s *agentSkillSourceSyncer) appendDesiredSkills(
 	ctx context.Context,
-	desired *desiredAgentSkillResources,
-	items agentSkillDesiredResources,
+	desired *indexedAgentSkillResources,
+	items agentSkillDeclarations,
 ) error {
 	for _, item := range items.skills {
 		spec, encoded, err := validateAndEncodeSkill(ctx, s.skillCodec, item.scope, item.spec)
@@ -127,8 +127,8 @@ func (s *agentSkillSourceSyncer) appendDesiredSkills(
 
 func (s *agentSkillSourceSyncer) appendDesiredMCPServers(
 	ctx context.Context,
-	desired *desiredAgentSkillResources,
-	items agentSkillDesiredResources,
+	desired *indexedAgentSkillResources,
+	items agentSkillDeclarations,
 ) error {
 	for _, item := range items.mcpServers {
 		spec, encoded, err := validateAndEncodeMCPServer(ctx, s.mcpCodec, item.scope, item.spec)
@@ -185,10 +185,7 @@ func (s *agentSkillSourceSyncer) syncAgents(
 			existing,
 			desiredAgent.scope,
 			desiredAgent.encoded,
-			managedRecordAttribution{
-				owner:  managedDraftOwner(s.actor, desiredAgent.owner),
-				source: s.actor.Source.Normalize(),
-			},
+			managedRecordAttributionFor(s.actor, desiredAgent.owner),
 		) {
 			delete(currentByID, id)
 			continue
@@ -242,10 +239,7 @@ func (s *agentSkillSourceSyncer) syncSkills(
 			existing,
 			desiredSkill.scope,
 			desiredSkill.encoded,
-			managedRecordAttribution{
-				owner:  managedDraftOwner(s.actor, desiredSkill.owner),
-				source: s.actor.Source.Normalize(),
-			},
+			managedRecordAttributionFor(s.actor, desiredSkill.owner),
 		) {
 			delete(currentByID, id)
 			continue
@@ -299,10 +293,7 @@ func (s *agentSkillSourceSyncer) syncMCPServers(
 			existing,
 			desiredServer.scope,
 			desiredServer.encoded,
-			managedRecordAttribution{
-				owner:  managedDraftOwner(s.actor, desiredServer.owner),
-				source: s.actor.Source.Normalize(),
-			},
+			managedRecordAttributionFor(s.actor, desiredServer.owner),
 		) {
 			delete(currentByID, id)
 			continue
@@ -335,6 +326,16 @@ func (s *agentSkillSourceSyncer) syncMCPServers(
 type managedRecordAttribution struct {
 	owner  resources.ResourceOwner
 	source resources.ResourceSource
+}
+
+func managedRecordAttributionFor(
+	actor resources.MutationActor,
+	explicitOwner *resources.ResourceOwner,
+) managedRecordAttribution {
+	return managedRecordAttribution{
+		owner:  managedDraftOwner(actor, explicitOwner),
+		source: actor.Source.Normalize(),
+	}
 }
 
 func sameManagedRawRecord(

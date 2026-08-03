@@ -105,7 +105,12 @@ func (s *hookBindingSourceSyncer) Sync(ctx context.Context) error {
 	changed := false
 	for id, desiredBinding := range desired {
 		existing, ok := currentByID[id]
-		if ok && s.sameBinding(existing, desiredBinding.scope, desiredBinding.spec) {
+		if ok && s.sameBinding(
+			existing,
+			desiredBinding.scope,
+			desiredBinding.owner,
+			desiredBinding.spec,
+		) {
 			delete(currentByID, id)
 			continue
 		}
@@ -187,7 +192,7 @@ func (s *hookBindingSourceSyncer) bindingID(
 	owner *resources.ResourceOwner,
 ) (string, error) {
 	if owner != nil {
-		return "extension/" + owner.ID + "/hook.binding/" + strings.TrimSpace(spec.Name), nil
+		return extensionHookBindingID(owner.ID, spec.Name), nil
 	}
 	encoded, err := s.codec.Encode(spec)
 	if err != nil {
@@ -222,12 +227,12 @@ func hookCloneDeclarations(decls []hookspkg.HookDecl) []hookspkg.HookDecl {
 func (s *hookBindingSourceSyncer) sameBinding(
 	record resources.Record[hookspkg.HookDecl],
 	scope resources.ResourceScope,
+	owner *resources.ResourceOwner,
 	spec hookspkg.HookDecl,
 ) bool {
 	if record.Scope != scope {
 		return false
 	}
-	owner := extensionHookOwner(spec)
 	if owner != nil && record.Owner.Normalize() != owner.Normalize() {
 		return false
 	}
@@ -241,6 +246,10 @@ func (s *hookBindingSourceSyncer) sameBinding(
 		return false
 	}
 	return bytes.Equal(currentEncoded, desiredEncoded)
+}
+
+func extensionHookBindingID(extensionName string, hookName string) string {
+	return "extension/" + strings.TrimSpace(extensionName) + "/hook.binding/" + strings.TrimSpace(hookName)
 }
 
 func extensionHookOwner(spec hookspkg.HookDecl) *resources.ResourceOwner {

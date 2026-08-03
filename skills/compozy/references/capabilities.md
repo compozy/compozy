@@ -63,7 +63,7 @@ UI-only management is incomplete.
 
 An extension kit is the static resource set shipped by one extension: skills, agents, Loops, automation jobs and triggers, layouts, and MCP sidecars. The manifest owns the paths. Installation keeps the kit inert; enabling the extension publishes its resources, and disabling it removes only resources owned by that extension instance.
 
-Inspect the shipped-versus-live view with `compozy extension inventory <name> -o json`, `GET /api/extensions/{name}/inventory`, or `compozy__extensions_inventory`. Preview the effect of enable, update, or disable with `compozy extension preview <name> --action <enable|update|disable> -o json`, its HTTP/UDS route, or `compozy__extensions_preview`. Inventory and preview are reads; they never publish resources.
+Inspect the shipped-versus-live view with `compozy extension inventory <name> -o json`, `GET /api/extensions/{name}/inventory`, or `compozy__extensions_inventory`. Preview enable with `compozy extension preview <name> -o json`, its HTTP/UDS route, or `compozy__extensions_preview`; the result names added, changed, and removed resources. Inventory and preview are reads; they never publish resources.
 
 Extensions declare required environment variable names. Bind an existing Vault reference with `compozy extension secrets set <name> <key> --vault-ref <ref>`, or enter a value through stdin or a hidden prompt. List and unset bindings through CLI or HTTP/UDS. Reads expose bound key names only, never values or Vault references. Bindings are scoped to the extension instance.
 

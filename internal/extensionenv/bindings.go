@@ -6,6 +6,7 @@ import (
 	"time"
 )
 
+// BindingKind identifies Vault entries owned by extension environment bindings.
 const BindingKind = "extension_env"
 
 // Binding is one extension-instance environment binding.

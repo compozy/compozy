@@ -13,6 +13,13 @@ import (
 	"github.com/compozy/compozy/internal/vault"
 )
 
+type extensionSecretVault interface {
+	PutSecret(context.Context, string, string, string) (vault.Metadata, error)
+	ResolveRef(context.Context, string) (string, error)
+	GetMetadata(context.Context, string) (vault.Metadata, error)
+	DeleteSecret(context.Context, string) error
+}
+
 func (s *daemonExtensionService) ListExtensionSecrets(
 	ctx context.Context,
 	name string,
@@ -28,7 +35,7 @@ func (s *daemonExtensionService) ListExtensionSecrets(
 	if err != nil {
 		return contract.ExtensionSecretsPayload{}, err
 	}
-	return s.ExtensionSecrets(ctx, key)
+	return s.extensionSecretsForInstance(ctx, key)
 }
 
 func (s *daemonExtensionService) SetExtensionSecrets(
@@ -40,18 +47,23 @@ func (s *daemonExtensionService) SetExtensionSecrets(
 	if err := validateExtensionWriteActor(actor); err != nil {
 		return contract.ExtensionSecretsPayload{}, err
 	}
-	key, err := s.extensionSecretInstanceKey(ctx, name, actor)
-	if err != nil {
-		return contract.ExtensionSecretsPayload{}, err
-	}
-	payload, err := s.SetSecrets(ctx, key, req)
-	if err != nil {
-		if !isExtensionSecretValidationRefusal(err) {
-			err = errors.Join(err, s.recordExtensionSecretsFailedEvent(ctx, actor, key))
+	var payload contract.ExtensionSecretsPayload
+	err := s.lifecycle.withName(ctx, name, func() error {
+		key, keyErr := s.extensionSecretInstanceKey(ctx, name, actor)
+		if keyErr != nil {
+			return keyErr
 		}
-		return contract.ExtensionSecretsPayload{}, err
-	}
-	return payload, s.recordExtensionSecretsUpdatedEvent(ctx, actor, key, payload)
+		var setErr error
+		payload, setErr = s.setExtensionSecretsForInstance(ctx, key, req)
+		if setErr != nil {
+			if !isExtensionSecretValidationRefusal(setErr) {
+				setErr = errors.Join(setErr, s.recordExtensionSecretsFailedEvent(ctx, actor, key))
+			}
+			return setErr
+		}
+		return s.recordExtensionSecretsUpdatedEvent(ctx, actor, key, payload)
+	})
+	return payload, err
 }
 
 func (s *daemonExtensionService) DeleteExtensionSecret(
@@ -63,21 +75,23 @@ func (s *daemonExtensionService) DeleteExtensionSecret(
 	if err := validateExtensionWriteActor(actor); err != nil {
 		return err
 	}
-	key, err := s.extensionSecretInstanceKey(ctx, name, actor)
-	if err != nil {
-		return err
-	}
-	if err := s.DeleteSecret(ctx, key, envName); err != nil {
-		if !isExtensionSecretValidationRefusal(err) {
-			err = errors.Join(err, s.recordExtensionSecretsFailedEvent(ctx, actor, key))
+	return s.lifecycle.withName(ctx, name, func() error {
+		key, keyErr := s.extensionSecretInstanceKey(ctx, name, actor)
+		if keyErr != nil {
+			return keyErr
 		}
-		return err
-	}
-	payload, err := s.ExtensionSecrets(ctx, key)
-	if err != nil {
-		return errors.Join(err, s.recordExtensionSecretsFailedEvent(ctx, actor, key))
-	}
-	return s.recordExtensionSecretsUpdatedEvent(ctx, actor, key, payload)
+		if deleteErr := s.deleteExtensionSecretForInstance(ctx, key, envName); deleteErr != nil {
+			if !isExtensionSecretValidationRefusal(deleteErr) {
+				deleteErr = errors.Join(deleteErr, s.recordExtensionSecretsFailedEvent(ctx, actor, key))
+			}
+			return deleteErr
+		}
+		payload, payloadErr := s.extensionSecretsForInstance(ctx, key)
+		if payloadErr != nil {
+			return errors.Join(payloadErr, s.recordExtensionSecretsFailedEvent(ctx, actor, key))
+		}
+		return s.recordExtensionSecretsUpdatedEvent(ctx, actor, key, payload)
+	})
 }
 
 func (s *daemonExtensionService) extensionSecretInstanceKey(
@@ -111,8 +125,8 @@ func (s *daemonExtensionService) extensionSecretInstanceKey(
 	return globalKey, nil
 }
 
-// ExtensionSecrets reports declared names and bound-key presence for exactly one instance.
-func (s *daemonExtensionService) ExtensionSecrets(
+// extensionSecretsForInstance reports declared names and bound-key presence for exactly one instance.
+func (s *daemonExtensionService) extensionSecretsForInstance(
 	ctx context.Context,
 	key extensionpkg.InstanceKey,
 ) (contract.ExtensionSecretsPayload, error) {
@@ -148,8 +162,8 @@ func (s *daemonExtensionService) ExtensionSecrets(
 	}, nil
 }
 
-// SetSecrets transactionally updates declared bindings for exactly one instance.
-func (s *daemonExtensionService) SetSecrets(
+// setExtensionSecretsForInstance transactionally updates declared bindings for exactly one instance.
+func (s *daemonExtensionService) setExtensionSecretsForInstance(
 	ctx context.Context,
 	key extensionpkg.InstanceKey,
 	req contract.SetExtensionSecretsRequest,
@@ -180,11 +194,11 @@ func (s *daemonExtensionService) SetSecrets(
 		rollbackErr := s.rollbackExtensionSecretMutations(ctx, key, mutations)
 		return contract.ExtensionSecretsPayload{}, errors.Join(err, rollbackErr)
 	}
-	return s.ExtensionSecrets(ctx, key)
+	return s.extensionSecretsForInstance(ctx, key)
 }
 
-// DeleteSecret removes one binding and garbage-collects its unreferenced owned ref.
-func (s *daemonExtensionService) DeleteSecret(
+// deleteExtensionSecretForInstance removes one binding and garbage-collects its unreferenced owned ref.
+func (s *daemonExtensionService) deleteExtensionSecretForInstance(
 	ctx context.Context,
 	key extensionpkg.InstanceKey,
 	envName string,

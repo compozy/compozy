@@ -144,12 +144,25 @@ func (m *Manager) resolveBoundEnvMap(
 		value, err := m.resolveSecretRef(ctx, ref)
 		if err != nil {
 			runExtensionRedactionCleanups(cleanups)
-			return nil, nil, fmt.Errorf("extension: resolve subprocess env binding %s (%s): %w", name, ref, err)
+			return nil, nil, &boundEnvResolutionError{envName: name, cause: err}
 		}
 		values[name] = value
 		cleanups = append(cleanups, diagnostics.RegisterDynamicSecret(value))
 	}
 	return values, cleanups, nil
+}
+
+type boundEnvResolutionError struct {
+	envName string
+	cause   error
+}
+
+func (e *boundEnvResolutionError) Error() string {
+	return fmt.Sprintf("extension: resolve subprocess env binding %s", strings.TrimSpace(e.envName))
+}
+
+func (e *boundEnvResolutionError) Unwrap() error {
+	return e.cause
 }
 
 func (m *Manager) resolveSecretEnvMap(

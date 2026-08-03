@@ -63,6 +63,7 @@ func (r *Registry) LinkDev(req DevLinkRequest) (*DevLink, error) {
 		)
 	}
 	linkedAt := r.now().UTC()
+	networkRequirementDigest := strings.TrimSpace(req.NetworkRequirementDigest)
 	_, err = r.db.ExecContext(registryContext(), `
 		INSERT INTO extension_dev_links (
 			extension_name, workspace_id, origin_path, bundle_generation, linked_at,
@@ -83,18 +84,11 @@ func (r *Registry) LinkDev(req DevLinkRequest) (*DevLink, error) {
 				ELSE NULL
 			END,
 			network_requirement_digest = excluded.network_requirement_digest
-	`, name, workspaceID, originPath, generation, linkedAt, strings.TrimSpace(req.NetworkRequirementDigest))
+	`, name, workspaceID, originPath, generation, linkedAt, networkRequirementDigest)
 	if err != nil {
 		return nil, fmt.Errorf("extension: link development extension %q: %w", name, err)
 	}
-	return &DevLink{
-		ExtensionName:            name,
-		WorkspaceID:              workspaceID,
-		OriginPath:               originPath,
-		BundleGeneration:         generation,
-		LinkedAt:                 linkedAt,
-		NetworkRequirementDigest: strings.TrimSpace(req.NetworkRequirementDigest),
-	}, nil
+	return r.GetDevLink(name, workspaceID)
 }
 
 // UnlinkDev removes only the workspace overlay row.

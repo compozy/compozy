@@ -18,6 +18,7 @@ func (s *Session) Info() *Info {
 	return s.infoLocked()
 }
 
+// infoLocked returns a session snapshot; the caller must hold s.mu for reading or writing.
 func (s *Session) infoLocked() *Info {
 	acpCaps := cloneCaps(s.ACPCaps)
 	if s.process != nil {

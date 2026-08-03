@@ -7,7 +7,6 @@ import type { MarketplaceListing } from "../types";
 export type MarketplaceDialogSelection = {
   entryId: string;
   installedName?: string | null;
-  kind: "mcp";
 };
 
 export type MarketplaceActionControllerPhase =
@@ -43,7 +42,7 @@ type MarketplaceActionControllerEventPayloadMap = {
   dialogDismissed: {};
   extensionTrustConfirmed: {
     describeFailure: (error: unknown) => string;
-    execute: (entry: MarketplaceListing) => Promise<void>;
+    execute: (entry: MarketplaceListing) => Promise<boolean>;
     notifySuccess: (entry: MarketplaceListing) => void;
   };
   extensionTrustFailed: { error: string; requestId: number };
@@ -156,8 +155,11 @@ function enqueueExtensionTrust(
 ) {
   enqueue.effect(async ({ trigger }) => {
     try {
-      await event.execute(entry);
-      trigger.extensionTrustSucceeded({ notifySuccess: event.notifySuccess, requestId });
+      const notify = await event.execute(entry);
+      trigger.extensionTrustSucceeded({
+        notifySuccess: notify ? event.notifySuccess : () => undefined,
+        requestId,
+      });
     } catch (error) {
       trigger.extensionTrustFailed({ error: event.describeFailure(error), requestId });
     }

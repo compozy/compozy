@@ -1,12 +1,12 @@
 package extensionpkg
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
@@ -302,26 +302,30 @@ func rejectUnknownManifestResourcesJSON(data []byte) error {
 	if err := json.Unmarshal(data, &root); err != nil {
 		return nil
 	}
-	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(root[manifestResourcesKey], &fields); err != nil {
+	resourcesData, ok := root[manifestResourcesKey]
+	if !ok {
 		return nil
 	}
-	allowed := map[string]struct{}{
-		manifestSkillsKey: {}, manifestLoopsKey: {}, manifestAgentsKey: {}, manifestAutomationKey: {},
-		manifestLayoutsKey: {}, manifestHooksKey: {}, manifestToolsKey: {}, manifestCommandGroupsKey: {},
-		manifestMCPServersKey: {}, manifestPublishKey: {},
-	}
-	unknown := make([]string, 0)
-	for field := range fields {
-		if _, ok := allowed[field]; !ok {
-			unknown = append(unknown, field)
+	decoder := json.NewDecoder(bytes.NewReader(resourcesData))
+	decoder.DisallowUnknownFields()
+	var resources ResourcesConfig
+	if err := decoder.Decode(&resources); err != nil {
+		field, found := jsonUnknownField(err)
+		if found {
+			return unknownManifestFieldError(manifestResourcesKey + "." + field)
 		}
 	}
-	if len(unknown) == 0 {
-		return nil
+	return nil
+}
+
+func jsonUnknownField(err error) (string, bool) {
+	const prefix = `json: unknown field "`
+	field, found := strings.CutPrefix(err.Error(), prefix)
+	if !found {
+		return "", false
 	}
-	sort.Strings(unknown)
-	return unknownManifestFieldError(manifestResourcesKey + "." + unknown[0])
+	field, found = strings.CutSuffix(field, `"`)
+	return field, found && field != ""
 }
 
 func unknownManifestFieldError(field string) error {

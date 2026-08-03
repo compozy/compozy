@@ -17,13 +17,6 @@ WHERE extension_name = sqlc.arg(extension_name)
   AND workspace_id = sqlc.arg(workspace_id)
 ORDER BY env_name ASC;
 
--- name: GetExtensionEnvBinding :one
-SELECT extension_name, workspace_id, env_name, secret_ref, kind, created_at, updated_at
-FROM extension_env_bindings
-WHERE extension_name = sqlc.arg(extension_name)
-  AND workspace_id = sqlc.arg(workspace_id)
-  AND env_name = sqlc.arg(env_name);
-
 -- name: CountExtensionEnvBindingsBySecretRef :one
 SELECT COUNT(*)
 FROM extension_env_bindings
@@ -39,3 +32,13 @@ WHERE extension_name = sqlc.arg(extension_name)
 DELETE FROM extension_env_bindings
 WHERE extension_name = sqlc.arg(extension_name)
   AND workspace_id = sqlc.arg(workspace_id);
+
+-- name: ListExtensionEnvSecretRefsByWorkspace :many
+SELECT DISTINCT secret_ref
+FROM extension_env_bindings
+WHERE workspace_id = sqlc.arg(workspace_id)
+ORDER BY secret_ref ASC;
+
+-- name: DeleteExtensionEnvBindingsByWorkspace :execrows
+DELETE FROM extension_env_bindings
+WHERE workspace_id = sqlc.arg(workspace_id);

@@ -6,8 +6,8 @@ export type ExtensionProvenance = OperationResponse<"getExtensionProvenance", 20
 export type ExtensionUpdateRequest = OperationRequestBody<"updateExtension">;
 export type ExtensionLogEntry = OperationResponse<"getExtensionLogs", 200>["logs"][number];
 export type ExtensionEnableResult = OperationResponse<"enableExtension", 200>;
-export type ExtensionInventory = OperationResponse<"getExtensionInventory", 200>;
-export type ExtensionKitItem = ExtensionInventory["items"][number];
+export type ExtensionKitInventory = OperationResponse<"getExtensionInventory", 200>;
+export type ExtensionKitItem = ExtensionKitInventory["items"][number];
 
 /** Selects one daemon extension instance; an absent workspace addresses the global published row. */
 export interface ExtensionInstanceScope {

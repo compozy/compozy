@@ -22,7 +22,7 @@ func (c *unixSocketClient) ListExtensionSecrets(
 	err := c.doJSON(
 		ctx,
 		http.MethodGet,
-		extensionSecretsPath(name),
+		extensionPath(name, "secrets"),
 		extensionSecretsQuery(workspaceRef),
 		nil,
 		&response,
@@ -40,7 +40,7 @@ func (c *unixSocketClient) SetExtensionSecrets(
 	err := c.doJSON(
 		ctx,
 		http.MethodPut,
-		extensionSecretsPath(name),
+		extensionPath(name, "secrets"),
 		extensionSecretsQuery(workspaceRef),
 		request,
 		&response,
@@ -57,21 +57,17 @@ func (c *unixSocketClient) DeleteExtensionSecret(
 	return c.doJSON(
 		ctx,
 		http.MethodDelete,
-		extensionSecretsPath(name)+"/"+url.PathEscape(strings.TrimSpace(envName)),
+		extensionPath(name, "secrets")+"/"+url.PathEscape(strings.TrimSpace(envName)),
 		extensionSecretsQuery(workspaceRef),
 		nil,
 		nil,
 	)
 }
 
-func extensionSecretsPath(name string) string {
-	return "/api/extensions/" + url.PathEscape(strings.TrimSpace(name)) + "/secrets"
-}
-
 func extensionSecretsQuery(workspaceRef string) url.Values {
 	query := make(url.Values)
 	if workspace := strings.TrimSpace(workspaceRef); workspace != "" {
-		query.Set(workspaceFlagName, workspace)
+		query.Set(extensionWorkspaceQueryKey, workspace)
 	}
 	return query
 }

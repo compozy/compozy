@@ -23,6 +23,7 @@ import (
 var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 	withGoalSchemaEnumValues(map[reflect.Type][]string{
 		reflect.TypeFor[contract.IssueSeverity]():                    contract.IssueSeverityValues(),
+		reflect.TypeFor[contract.MarketplaceKind]():                  contract.MarketplaceKindValues(),
 		reflect.TypeFor[contract.DrainState]():                       drainStateValues(),
 		reflect.TypeFor[automationpkg.Scope]():                       automationScopeValues(),
 		reflect.TypeFor[automationpkg.JobSource]():                   automationSourceValues(),

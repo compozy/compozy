@@ -13,7 +13,7 @@ import (
 
 func (h *BaseHandlers) marketplaceEntry(
 	ctx context.Context,
-	kind string,
+	kind contract.MarketplaceKind,
 	entryID string,
 	installedName string,
 	scope marketplaceReadScope,
@@ -66,7 +66,7 @@ func (h *BaseHandlers) curatedMarketplaceEntry(
 			ErrMarketplaceNotFound, fmt.Errorf("marketplace %s entry %q not found", kind, entryID),
 		)
 	}
-	installed, err := h.marketplaceInstallIndex(ctx, string(kind), scope)
+	installed, err := h.marketplaceInstallIndex(ctx, contract.MarketplaceKind(kind), scope)
 	if err != nil {
 		return contract.MarketplaceEntryResponse{}, err
 	}

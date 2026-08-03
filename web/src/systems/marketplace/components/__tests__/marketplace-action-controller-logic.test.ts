@@ -11,8 +11,8 @@ describe("marketplaceActionControllerLogic", () => {
   it("Should keep a trust dialog mounted and notify after its accepted install settles", async () => {
     const store = marketplaceActionControllerLogic.createStore();
     const entry = marketplaceListings.extension[0]!;
-    let resolveInstall!: () => void;
-    const install = new Promise<void>(resolve => {
+    let resolveInstall!: (notify: boolean) => void;
+    const install = new Promise<boolean>(resolve => {
       resolveInstall = resolve;
     });
     const notifySuccess = vi.fn();
@@ -30,9 +30,24 @@ describe("marketplaceActionControllerLogic", () => {
       entry,
     });
 
-    resolveInstall();
+    resolveInstall(true);
     await vi.waitFor(() => expect(store.getSnapshot().context.status).toBe("idle"));
     expect(notifySuccess).toHaveBeenCalledWith(entry);
+  });
+
+  it("Should close trust consent without a success notice when network consent takes over", async () => {
+    const store = marketplaceActionControllerLogic.createStore();
+    const entry = marketplaceListings.extension[1]!;
+    const notifySuccess = vi.fn();
+    store.trigger.extensionTrustRequested({ entry });
+    store.trigger.extensionTrustConfirmed({
+      describeFailure: String,
+      execute: async () => false,
+      notifySuccess,
+    });
+
+    await vi.waitFor(() => expect(store.getSnapshot().context.status).toBe("idle"));
+    expect(notifySuccess).not.toHaveBeenCalled();
   });
 
   it("Should fence stale detail and trust completions after a newer dialog request", () => {
@@ -45,13 +60,13 @@ describe("marketplaceActionControllerLogic", () => {
     store.trigger.detailRequested({
       describeFailure: String,
       load: () => new Promise<never>(() => undefined),
-      selection: { entryId: firstEntry.entry_id, kind: "mcp" },
+      selection: { entryId: firstEntry.entry_id },
     });
     const firstDetail = store.getSnapshot().context;
     store.trigger.detailRequested({
       describeFailure: String,
       load: () => new Promise<never>(() => undefined),
-      selection: { entryId: secondEntry.entry_id, kind: "mcp" },
+      selection: { entryId: secondEntry.entry_id },
     });
     const secondDetail = store.getSnapshot().context;
     if (firstDetail.status !== "detailLoading" || secondDetail.status !== "detailLoading") {
@@ -66,7 +81,7 @@ describe("marketplaceActionControllerLogic", () => {
 
     store.trigger.detailLoaded({ requestId: secondDetail.requestId });
     expect(store.getSnapshot().context).toMatchObject({
-      selection: { entryId: secondEntry.entry_id, kind: "mcp" },
+      selection: { entryId: secondEntry.entry_id },
       status: "mcpInstall",
     });
 

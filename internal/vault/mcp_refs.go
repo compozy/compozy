@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-var mcpSafeSegmentPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]*$`)
+var vaultSafeSegmentPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]*$`)
 
 const (
 	// MCPGlobalScope identifies daemon-global MCP credentials.
@@ -18,8 +18,8 @@ const (
 	// MCPSharedRefPrefix identifies MCP secrets explicitly shared across owners.
 	MCPSharedRefPrefix = "vault:mcp/shared/"
 
-	mcpEncodedSegmentPrefix  = "encoded-"
-	mcpOAuthSecretPathPrefix = "oauth/"
+	vaultEncodedSegmentPrefix = "encoded-"
+	mcpOAuthSecretPathPrefix  = "oauth/"
 )
 
 // ValidateMCPSecretRefAccess permits only the target server's owned refs or the explicit shared namespace.
@@ -103,7 +103,7 @@ func MCPServerSegment(serverName string) (string, error) {
 	if normalized == "" || strings.Contains(normalized, "/") || strings.ContainsRune(normalized, '\x00') {
 		return "", fmt.Errorf("vault: invalid MCP secret owner %q", normalized)
 	}
-	return collisionSafeMCPSegment(normalized), nil
+	return collisionSafeVaultSegment(normalized), nil
 }
 
 // MCPWorkspaceSegment returns a collision-safe Vault path segment for a
@@ -114,12 +114,12 @@ func MCPWorkspaceSegment(workspaceID string) (string, error) {
 	if normalized == "" {
 		return "", errors.New("vault: workspace_id is required for workspace MCP secrets")
 	}
-	return collisionSafeMCPSegment(normalized), nil
+	return collisionSafeVaultSegment(normalized), nil
 }
 
-func collisionSafeMCPSegment(normalized string) string {
-	if !strings.HasPrefix(normalized, mcpEncodedSegmentPrefix) && mcpSafeSegmentPattern.MatchString(normalized) {
+func collisionSafeVaultSegment(normalized string) string {
+	if !strings.HasPrefix(normalized, vaultEncodedSegmentPrefix) && vaultSafeSegmentPattern.MatchString(normalized) {
 		return normalized
 	}
-	return mcpEncodedSegmentPrefix + hex.EncodeToString([]byte(normalized))
+	return vaultEncodedSegmentPrefix + hex.EncodeToString([]byte(normalized))
 }

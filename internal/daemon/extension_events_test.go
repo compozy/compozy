@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"reflect"
 	"strings"
 	"testing"
@@ -22,81 +23,107 @@ func TestExtensionEventCallSitesUseCanonicalSafePayloads(t *testing.T) {
 	t.Run("Should emit exact secret and network keys plus the enable result count", func(t *testing.T) {
 		t.Parallel()
 
-		writer := &extensionEventRecorder{}
-		service := &daemonExtensionService{
-			eventWriter: writer,
-			now:         func() time.Time { return time.Date(2026, 8, 2, 16, 0, 0, 0, time.UTC) },
-		}
-		actor, err := taskpkg.DeriveHumanActorContext("operator-1", taskpkg.OriginKindCLI, "cli")
-		if err != nil {
-			t.Fatalf("DeriveHumanActorContext() error = %v", err)
-		}
 		secret := "vault:extensions/global/kit/env/secret-material-must-not-leak"
-		if err := service.recordExtensionSecretsUpdatedEvent(
-			context.Background(),
-			actor,
-			extensionpkg.GlobalInstanceKey("kit"),
-			contract.ExtensionSecretsPayload{BoundEnvKeys: []string{secret}},
-		); err != nil {
-			t.Fatalf("recordExtensionSecretsUpdatedEvent() error = %v", err)
-		}
-		if err := service.recordExtensionSecretsFailedEvent(
-			context.Background(),
-			actor,
-			extensionpkg.InstanceKey{Name: "kit", WorkspaceID: "ws-1"},
-		); err != nil {
-			t.Fatalf("recordExtensionSecretsFailedEvent() error = %v", err)
-		}
-		if err := service.recordExtensionNetworkConfirmedEvent(
-			context.Background(),
-			actor,
-			extensionpkg.InstanceKey{Name: "kit", WorkspaceID: "ws-1"},
-			extensionpkg.NetworkConfirmation{Digest: "digest-1", ConfirmedBy: "operator"},
-		); err != nil {
-			t.Fatalf("recordExtensionNetworkConfirmedEvent() error = %v", err)
-		}
-		if err := service.recordExtensionEnabledEvent(
-			context.Background(),
-			actor,
-			contract.ExtensionEnableResult{
-				Extension:         contract.ExtensionPayload{Name: "kit", LastError: secret},
-				AutomationStarted: []string{"kit/alpha", "kit/beta"},
+		cases := []struct {
+			name      string
+			eventType string
+			emit      func(*daemonExtensionService, taskpkg.ActorContext) error
+			want      map[string]any
+		}{
+			{
+				name:      "Should emit the secrets-updated projection",
+				eventType: eventspkg.ExtensionSecretsUpdated,
+				emit: func(service *daemonExtensionService, actor taskpkg.ActorContext) error {
+					return service.recordExtensionSecretsUpdatedEvent(
+						t.Context(),
+						actor,
+						extensionpkg.GlobalInstanceKey("kit"),
+						contract.ExtensionSecretsPayload{BoundEnvKeys: []string{secret}},
+					)
+				},
+				want: map[string]any{
+					"extension_name": "kit", "workspace_id": "", "bound_count": float64(1),
+				},
 			},
-		); err != nil {
-			t.Fatalf("recordExtensionEnabledEvent() error = %v", err)
-		}
-
-		got := writer.snapshot()
-		if len(got) != 4 {
-			t.Fatalf("event count = %d, want 4", len(got))
-		}
-		wantExact := map[string]map[string]any{
-			eventspkg.ExtensionSecretsUpdated: {
-				"extension_name": "kit", "workspace_id": "", "bound_count": float64(1),
+			{
+				name:      "Should emit the secrets-failed projection",
+				eventType: eventspkg.ExtensionSecretsUpdateFailed,
+				emit: func(service *daemonExtensionService, actor taskpkg.ActorContext) error {
+					return service.recordExtensionSecretsFailedEvent(
+						t.Context(), actor, extensionpkg.InstanceKey{Name: "kit", WorkspaceID: "ws-1"},
+					)
+				},
+				want: map[string]any{"extension_name": "kit", "workspace_id": "ws-1"},
 			},
-			eventspkg.ExtensionSecretsUpdateFailed: {
-				"extension_name": "kit", "workspace_id": "ws-1",
+			{
+				name:      "Should emit the network-confirmed projection",
+				eventType: eventspkg.ExtensionNetworkConfirmed,
+				emit: func(service *daemonExtensionService, actor taskpkg.ActorContext) error {
+					return service.recordExtensionNetworkConfirmedEvent(
+						t.Context(),
+						actor,
+						extensionpkg.InstanceKey{Name: "kit", WorkspaceID: "ws-1"},
+						extensionpkg.NetworkConfirmation{Digest: "digest-1", ConfirmedBy: "operator"},
+					)
+				},
+				want: map[string]any{
+					"extension_name": "kit", "workspace_id": "ws-1", "digest": "digest-1", "confirmed_by": "operator",
+				},
 			},
-			eventspkg.ExtensionNetworkConfirmed: {
-				"extension_name": "kit", "workspace_id": "ws-1", "digest": "digest-1", "confirmed_by": "operator",
+			{
+				name:      "Should emit the enable-result projection",
+				eventType: eventspkg.ExtensionEnabled,
+				emit: func(service *daemonExtensionService, actor taskpkg.ActorContext) error {
+					return service.recordExtensionEnableEvents(
+						t.Context(),
+						actor,
+						extensionpkg.GlobalInstanceKey("kit"),
+						nil,
+						contract.ExtensionEnableResult{
+							Extension:         contract.ExtensionPayload{Name: "kit", LastError: secret},
+							AutomationStarted: []string{"kit/alpha", "kit/beta"},
+						},
+					)
+				},
+				want: map[string]any{
+					"extension_name": "kit", "automation_started_count": float64(2),
+				},
 			},
 		}
-		for _, summary := range got {
-			if strings.Contains(string(summary.Content), secret) {
-				t.Fatalf("event %s leaked secret material: %s", summary.Type, summary.Content)
-			}
-			var fields map[string]any
-			if err := json.Unmarshal(summary.Content, &fields); err != nil {
-				t.Fatalf("json.Unmarshal(%s) error = %v", summary.Type, err)
-			}
-			if want, exact := wantExact[summary.Type]; exact && !reflect.DeepEqual(fields, want) {
-				t.Fatalf("event %s fields = %#v, want %#v", summary.Type, fields, want)
-			}
-			if summary.Type == eventspkg.ExtensionEnabled {
-				if fields["automation_started_count"] != float64(2) {
-					t.Fatalf("extension.enabled fields = %#v, want automation_started_count=2", fields)
+		for _, testCase := range cases {
+			t.Run(testCase.name, func(t *testing.T) {
+				t.Parallel()
+				writer := &extensionEventRecorder{}
+				service := &daemonExtensionService{
+					eventWriter: writer,
+					now:         func() time.Time { return time.Date(2026, 8, 2, 16, 0, 0, 0, time.UTC) },
 				}
-			}
+				actor, err := taskpkg.DeriveHumanActorContext("operator-1", taskpkg.OriginKindCLI, "cli")
+				if err != nil {
+					t.Fatalf("DeriveHumanActorContext() error = %v", err)
+				}
+				if err := testCase.emit(service, actor); err != nil {
+					t.Fatalf("emit() error = %v", err)
+				}
+				got := writer.snapshot()
+				if len(got) != 1 {
+					t.Fatalf("event count = %d, want 1", len(got))
+				}
+				summary := got[0]
+				if summary.Type != testCase.eventType {
+					t.Fatalf("event type = %q, want %q", summary.Type, testCase.eventType)
+				}
+				if strings.Contains(string(summary.Content), secret) {
+					t.Fatalf("event %s leaked secret material: %s", summary.Type, summary.Content)
+				}
+				var fields map[string]any
+				if err := json.Unmarshal(summary.Content, &fields); err != nil {
+					t.Fatalf("json.Unmarshal(%s) error = %v", summary.Type, err)
+				}
+				if !reflect.DeepEqual(fields, testCase.want) {
+					t.Fatalf("event %s fields = %#v, want %#v", summary.Type, fields, testCase.want)
+				}
+			})
 		}
 	})
 
@@ -121,6 +148,9 @@ func TestExtensionEventCallSitesUseCanonicalSafePayloads(t *testing.T) {
 		)
 		if err == nil {
 			t.Fatal("SetExtensionSecrets() error = nil, want validation refusal")
+		}
+		if !errors.Is(err, extensionpkg.ErrExtensionEnvBindingUndeclared) {
+			t.Fatalf("SetExtensionSecrets() error = %v, want ErrExtensionEnvBindingUndeclared", err)
 		}
 		if events := writer.snapshot(); len(events) != 0 {
 			t.Fatalf("validation refusal events = %#v, want none", events)

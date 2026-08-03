@@ -190,24 +190,33 @@ func TestDaemonE2EDevCycleEnrollmentShouldPublishAndToggleLoops(t *testing.T) {
 		if err := d.bootExtensions(ctx, state, cleanup); err != nil {
 			t.Fatalf("bootExtensions() error = %v", err)
 		}
-		actor, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "compozy extension enable")
-		if err != nil {
-			t.Fatalf("DeriveHumanActorContext(enable) error = %v", err)
+		enableDevCycle := func() {
+			t.Helper()
+
+			actor, err := taskpkg.DeriveHumanActorContext(
+				"operator",
+				taskpkg.OriginKindCLI,
+				"compozy extension enable",
+			)
+			if err != nil {
+				t.Fatalf("DeriveHumanActorContext(enable) error = %v", err)
+			}
+			if _, err := state.deps.Extensions.Enable(
+				ctx,
+				devcycle.Name,
+				contract.EnableExtensionRequest{},
+				actor,
+			); err != nil {
+				t.Fatalf("Extensions.Enable(%s) error = %v", devcycle.Name, err)
+			}
 		}
-		if _, err := state.deps.Extensions.Enable(
-			ctx,
-			devcycle.Name,
-			contract.EnableExtensionRequest{},
-			actor,
-		); err != nil {
-			t.Fatalf("Extensions.Enable(%s) error = %v", devcycle.Name, err)
-		}
+		enableDevCycle()
 		if err := state.resourceReconcile.RunBoot(ctx); err != nil {
-			t.Fatalf("RunBoot(after bootExtensions) error = %v", err)
+			t.Fatalf("RunBoot(after initial enable) error = %v", err)
 		}
 		assertDevCycleLoopCatalog(t, state.loopCatalog, true)
 
-		actor, err = taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "compozy extension disable")
+		actor, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "compozy extension disable")
 		if err != nil {
 			t.Fatalf("DeriveHumanActorContext(disable) error = %v", err)
 		}
@@ -219,18 +228,7 @@ func TestDaemonE2EDevCycleEnrollmentShouldPublishAndToggleLoops(t *testing.T) {
 		}
 		assertDevCycleLoopCatalog(t, state.loopCatalog, false)
 
-		actor, err = taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "compozy extension enable")
-		if err != nil {
-			t.Fatalf("DeriveHumanActorContext(enable) error = %v", err)
-		}
-		if _, err := state.deps.Extensions.Enable(
-			ctx,
-			devcycle.Name,
-			contract.EnableExtensionRequest{},
-			actor,
-		); err != nil {
-			t.Fatalf("Extensions.Enable(%s) error = %v", devcycle.Name, err)
-		}
+		enableDevCycle()
 		if err := state.resourceReconcile.RunBoot(ctx); err != nil {
 			t.Fatalf("RunBoot(after enable) error = %v", err)
 		}
@@ -374,6 +372,7 @@ func newDevCycleLoopE2EState(
 		registry:       db,
 		sessions:       &fakeSessionManager{},
 		observer:       &fakeObserver{},
+		automation:     &fakeAutomationManager{},
 		resourceKernel: kernel,
 		resourceCodecs: codecs,
 		loopCatalog:    newResourceCatalog(looppkg.CloneResourceSpec),

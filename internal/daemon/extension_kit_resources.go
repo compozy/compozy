@@ -40,19 +40,19 @@ func (d *Daemon) newExtensionKitResourcePublisher(
 		return nil, nil
 	}
 	jobCodec, jobStore, err := resolveDaemonResourceStore[automationpkg.Job](
-		state, state.resourceKernel, automationpkg.JobResourceKind, "extension automation job",
+		state, automationpkg.JobResourceKind, "extension automation job",
 	)
 	if err != nil {
 		return nil, err
 	}
 	triggerCodec, triggerStore, err := resolveDaemonResourceStore[automationpkg.Trigger](
-		state, state.resourceKernel, automationpkg.TriggerResourceKind, "extension automation trigger",
+		state, automationpkg.TriggerResourceKind, "extension automation trigger",
 	)
 	if err != nil {
 		return nil, err
 	}
 	layoutCodec, layoutStore, err := resolveDaemonResourceStore[windowmanager.LayoutResource](
-		state, state.resourceKernel, windowmanager.WindowLayoutResourceKind, "extension window layout",
+		state, windowmanager.WindowLayoutResourceKind, "extension window layout",
 	)
 	if err != nil {
 		return nil, err
@@ -97,9 +97,6 @@ func (s *extensionKitSourceSyncer) Sync(ctx context.Context) error {
 	}
 	jobChanged, err := syncManagedResources(
 		ctx, s.actor, s.jobs, s.jobCodec, jobs,
-		func(value managedResourceValue[automationpkg.Job]) managedResourceValue[automationpkg.Job] {
-			return value
-		},
 		"extension automation job",
 	)
 	if err != nil {
@@ -107,9 +104,6 @@ func (s *extensionKitSourceSyncer) Sync(ctx context.Context) error {
 	}
 	triggerChanged, err := syncManagedResources(
 		ctx, s.actor, s.triggers, s.triggerCodec, triggers,
-		func(value managedResourceValue[automationpkg.Trigger]) managedResourceValue[automationpkg.Trigger] {
-			return value
-		},
 		"extension automation trigger",
 	)
 	if err != nil {
@@ -121,9 +115,6 @@ func (s *extensionKitSourceSyncer) Sync(ctx context.Context) error {
 		s.layouts,
 		s.layoutCodec,
 		layouts,
-		func(value managedResourceValue[windowmanager.LayoutResource]) managedResourceValue[windowmanager.LayoutResource] {
-			return value
-		},
 		"extension window layout",
 	)
 	if err != nil {
@@ -157,7 +148,11 @@ func (s *extensionKitSourceSyncer) desired(
 	jobs := make(map[string]managedResourceValue[automationpkg.Job])
 	triggers := make(map[string]managedResourceValue[automationpkg.Trigger])
 	layouts := make(map[string]managedResourceValue[windowmanager.LayoutResource])
-	if s.registry == nil || s.runtime == nil || s.runtime() == nil {
+	if s.registry == nil || s.runtime == nil {
+		return jobs, triggers, layouts, nil
+	}
+	manager := s.runtime()
+	if manager == nil {
 		return jobs, triggers, layouts, nil
 	}
 	infos, err := s.registry.List()
@@ -172,56 +167,96 @@ func (s *extensionKitSourceSyncer) desired(
 		if !info.Enabled {
 			continue
 		}
-		ext, err := loadExtensionSnapshot(s.registry, s.runtime(), s.logger, info.Name)
+		ext, err := loadExtensionSnapshot(s.registry, manager, s.logger, info.Name)
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("daemon: load extension %q for kit sync: %w", info.Name, err)
 		}
 		if ext == nil || ext.Manifest == nil || !ext.Status.Registered {
 			continue
 		}
-		owner := extensionOwner(ext.Info.Name)
-		for _, job := range ext.AutomationJobs {
-			value, encoded, err := validateAndEncodeResource(ctx, s.jobCodec, globalScope, job)
-			if err != nil {
-				return nil, nil, nil, fmt.Errorf(
-					"daemon: validate extension %q job %q: %w",
-					ext.Info.Name,
-					job.Name,
-					err,
-				)
-			}
-			id := "extension/" + ext.Info.Name + "/automation.job/" + strings.TrimPrefix(job.Name, ext.Info.Name+"/")
-			jobs[id] = managedResourceValue[automationpkg.Job]{
-				id: id, scope: globalScope, owner: owner, spec: value, encoded: encoded,
-			}
-		}
-		for _, trigger := range ext.AutomationTriggers {
-			value, encoded, err := validateAndEncodeResource(ctx, s.triggerCodec, globalScope, trigger)
-			if err != nil {
-				return nil, nil, nil, fmt.Errorf(
-					"daemon: validate extension %q trigger %q: %w", ext.Info.Name, trigger.Name, err,
-				)
-			}
-			id := "extension/" + ext.Info.Name + "/automation.trigger/" +
-				strings.TrimPrefix(trigger.Name, ext.Info.Name+"/")
-			triggers[id] = managedResourceValue[automationpkg.Trigger]{
-				id: id, scope: globalScope, owner: owner, spec: value, encoded: encoded,
-			}
-		}
-		for _, layout := range ext.Layouts {
-			id := "extension/" + ext.Info.Name + "/window_layout/" + strings.TrimSpace(layout.ID)
-			materialized := windowmanager.CloneLayoutResource(layout)
-			materialized.ID = id
-			value, encoded, err := validateAndEncodeResource(ctx, s.layoutCodec, globalScope, materialized)
-			if err != nil {
-				return nil, nil, nil, fmt.Errorf(
-					"daemon: validate extension %q layout %q: %w", ext.Info.Name, layout.ID, err,
-				)
-			}
-			layouts[id] = managedResourceValue[windowmanager.LayoutResource]{
-				id: id, scope: globalScope, owner: owner, spec: value, encoded: encoded,
-			}
+		if err := s.collectDesiredExtensionKitResources(
+			ctx,
+			ext,
+			globalScope,
+			jobs,
+			triggers,
+			layouts,
+		); err != nil {
+			return nil, nil, nil, err
 		}
 	}
 	return jobs, triggers, layouts, nil
+}
+
+func (s *extensionKitSourceSyncer) collectDesiredExtensionKitResources(
+	ctx context.Context,
+	ext *extensionpkg.Extension,
+	scope resources.ResourceScope,
+	jobs map[string]managedResourceValue[automationpkg.Job],
+	triggers map[string]managedResourceValue[automationpkg.Trigger],
+	layouts map[string]managedResourceValue[windowmanager.LayoutResource],
+) error {
+	owner := extensionOwner(ext.Info.Name)
+	for _, job := range ext.AutomationJobs {
+		value, encoded, err := validateAndEncodeResource(ctx, s.jobCodec, scope, job)
+		if err != nil {
+			return fmt.Errorf(
+				"daemon: validate extension %q job %q: %w",
+				ext.Info.Name,
+				job.Name,
+				err,
+			)
+		}
+		id := value.ID
+		if strings.TrimSpace(id) == "" {
+			return fmt.Errorf(
+				"daemon: extension %q job %q has an empty resource ID",
+				ext.Info.Name,
+				job.Name,
+			)
+		}
+		jobs[id] = managedResourceValue[automationpkg.Job]{
+			id: id, scope: scope, owner: owner, spec: value, encoded: encoded,
+		}
+	}
+	for _, trigger := range ext.AutomationTriggers {
+		value, encoded, err := validateAndEncodeResource(ctx, s.triggerCodec, scope, trigger)
+		if err != nil {
+			return fmt.Errorf(
+				"daemon: validate extension %q trigger %q: %w",
+				ext.Info.Name,
+				trigger.Name,
+				err,
+			)
+		}
+		id := value.ID
+		if strings.TrimSpace(id) == "" {
+			return fmt.Errorf(
+				"daemon: extension %q trigger %q has an empty resource ID",
+				ext.Info.Name,
+				trigger.Name,
+			)
+		}
+		triggers[id] = managedResourceValue[automationpkg.Trigger]{
+			id: id, scope: scope, owner: owner, spec: value, encoded: encoded,
+		}
+	}
+	for _, layout := range ext.Layouts {
+		id := "extension/" + ext.Info.Name + "/window_layout/" + strings.TrimSpace(layout.ID)
+		materialized := windowmanager.CloneLayoutResource(layout)
+		materialized.ID = id
+		value, encoded, err := validateAndEncodeResource(ctx, s.layoutCodec, scope, materialized)
+		if err != nil {
+			return fmt.Errorf(
+				"daemon: validate extension %q layout %q: %w",
+				ext.Info.Name,
+				layout.ID,
+				err,
+			)
+		}
+		layouts[id] = managedResourceValue[windowmanager.LayoutResource]{
+			id: id, scope: scope, owner: owner, spec: value, encoded: encoded,
+		}
+	}
+	return nil
 }

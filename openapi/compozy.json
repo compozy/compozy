@@ -61674,6 +61674,11 @@
                                 "type": "string"
                               },
                               "kind": {
+                                "enum": [
+                                  "mcp",
+                                  "extension",
+                                  "skill"
+                                ],
                                 "type": "string"
                               },
                               "manage_path": {
@@ -62435,6 +62440,11 @@
                               "type": "string"
                             },
                             "kind": {
+                              "enum": [
+                                "mcp",
+                                "extension",
+                                "skill"
+                              ],
                               "type": "string"
                             },
                             "manage_path": {
@@ -63538,6 +63548,9 @@
             "application/json": {
               "schema": {
                 "properties": {
+                  "confirm_network_digest": {
+                    "type": "string"
+                  },
                   "generation_hash": {
                     "type": "string"
                   },
@@ -63683,6 +63696,11 @@
                               "type": "string"
                             },
                             "kind": {
+                              "enum": [
+                                "mcp",
+                                "extension",
+                                "skill"
+                              ],
                               "type": "string"
                             },
                             "manage_path": {
@@ -64929,6 +64947,11 @@
                               "type": "string"
                             },
                             "kind": {
+                              "enum": [
+                                "mcp",
+                                "extension",
+                                "skill"
+                              ],
                               "type": "string"
                             },
                             "manage_path": {
@@ -66394,6 +66417,11 @@
                               "type": "string"
                             },
                             "kind": {
+                              "enum": [
+                                "mcp",
+                                "extension",
+                                "skill"
+                              ],
                               "type": "string"
                             },
                             "manage_path": {
@@ -67284,6 +67312,11 @@
                               "type": "string"
                             },
                             "kind": {
+                              "enum": [
+                                "mcp",
+                                "extension",
+                                "skill"
+                              ],
                               "type": "string"
                             },
                             "manage_path": {
@@ -68617,6 +68650,32 @@
                       },
                       "type": "array"
                     },
+                    "changes": {
+                      "items": {
+                        "properties": {
+                          "change": {
+                            "type": "string"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "change",
+                          "id",
+                          "kind",
+                          "name"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
                     "extension": {
                       "type": "string"
                     },
@@ -68631,42 +68690,16 @@
                     },
                     "network_requirement_digest": {
                       "type": "string"
-                    },
-                    "would_publish": {
-                      "items": {
-                        "properties": {
-                          "id": {
-                            "type": "string"
-                          },
-                          "kind": {
-                            "type": "string"
-                          },
-                          "live": {
-                            "type": "boolean"
-                          },
-                          "name": {
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "id",
-                          "kind",
-                          "live",
-                          "name"
-                        ],
-                        "type": "object"
-                      },
-                      "type": "array"
                     }
                   },
                   "required": [
                     "agent_conflicts",
                     "automation_starting",
+                    "changes",
                     "extension",
                     "missing_env",
                     "network_confirmation_required",
-                    "network_requirement_digest",
-                    "would_publish"
+                    "network_requirement_digest"
                   ],
                   "type": "object"
                 }
@@ -69395,6 +69428,11 @@
                               "type": "string"
                             },
                             "kind": {
+                              "enum": [
+                                "mcp",
+                                "extension",
+                                "skill"
+                              ],
                               "type": "string"
                             },
                             "manage_path": {
@@ -70156,6 +70194,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "Operator workspace reference; omit for the global instance",
+            "in": "query",
+            "name": "workspace",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -70352,6 +70398,14 @@
             "in": "path",
             "name": "name",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Operator workspace reference; omit for the global instance",
+            "in": "query",
+            "name": "workspace",
             "schema": {
               "type": "string"
             }
@@ -70680,6 +70734,14 @@
             "in": "path",
             "name": "env_name",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Operator workspace reference; omit for the global instance",
+            "in": "query",
+            "name": "workspace",
             "schema": {
               "type": "string"
             }
@@ -73202,6 +73264,11 @@
                                   "type": "string"
                                 },
                                 "kind": {
+                                  "enum": [
+                                    "mcp",
+                                    "extension",
+                                    "skill"
+                                  ],
                                   "type": "string"
                                 },
                                 "manage_path": {
@@ -73322,6 +73389,11 @@
                             "type": "array"
                           },
                           "kind": {
+                            "enum": [
+                              "mcp",
+                              "extension",
+                              "skill"
+                            ],
                             "type": "string"
                           },
                           "next_cursor": {
@@ -73666,6 +73738,11 @@
                             "type": "string"
                           },
                           "kind": {
+                            "enum": [
+                              "mcp",
+                              "extension",
+                              "skill"
+                            ],
                             "type": "string"
                           },
                           "manage_path": {
@@ -73786,6 +73863,11 @@
                       "type": "array"
                     },
                     "kind": {
+                      "enum": [
+                        "mcp",
+                        "extension",
+                        "skill"
+                      ],
                       "type": "string"
                     },
                     "next_cursor": {
@@ -74167,6 +74249,11 @@
                           "type": "string"
                         },
                         "kind": {
+                          "enum": [
+                            "mcp",
+                            "extension",
+                            "skill"
+                          ],
                           "type": "string"
                         },
                         "manage_path": {

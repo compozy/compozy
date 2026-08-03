@@ -2635,7 +2635,7 @@ func TestUnixSocketClientExtensionMethods(t *testing.T) {
 					case req.Method == http.MethodGet && req.URL.Path == "/api/extensions/ext-a/preview":
 						return newHTTPResponse(
 							http.StatusOK,
-							`{"extension":"ext-a","would_publish":[],"agent_conflicts":[],"missing_env":["API_KEY"],"automation_starting":["ext-a/daily"],"network_requirement_digest":"digest","network_confirmation_required":true}`,
+							`{"extension":"ext-a","changes":[],"agent_conflicts":[],"missing_env":["API_KEY"],"automation_starting":["ext-a/daily"],"network_requirement_digest":"digest","network_confirmation_required":true}`,
 						), nil
 					case req.Method == http.MethodGet && req.URL.Path == "/api/extensions/ext-a/secrets" &&
 						req.URL.Query().Get(workspaceFlagName) == "ws-alpha":
@@ -2735,15 +2735,19 @@ func TestUnixSocketClientExtensionMethods(t *testing.T) {
 		}
 	})
 
-	t.Run("Should read inventory and preview payloads", func(t *testing.T) {
+	t.Run("Should read the extension inventory payload", func(t *testing.T) {
 		t.Parallel()
 
-		client := newClient(t)
-		inventory, err := client.ExtensionInventory(t.Context(), " ext-a ")
+		inventory, err := newClient(t).ExtensionInventory(t.Context(), " ext-a ")
 		if err != nil || len(inventory.Items) != 1 || inventory.Items[0].Name != "writer" || !inventory.Items[0].Live {
 			t.Fatalf("ExtensionInventory() = %#v, %v", inventory, err)
 		}
-		preview, err := client.PreviewExtensionEnable(t.Context(), " ext-a ")
+	})
+
+	t.Run("Should read the extension enable preview payload", func(t *testing.T) {
+		t.Parallel()
+
+		preview, err := newClient(t).PreviewExtensionEnable(t.Context(), " ext-a ")
 		if err != nil || preview.NetworkRequirementDigest != "digest" ||
 			!preview.NetworkConfirmationRequired || !reflect.DeepEqual(preview.AutomationStarting, []string{"ext-a/daily"}) {
 			t.Fatalf("PreviewExtensionEnable() = %#v, %v", preview, err)

@@ -165,22 +165,39 @@ export const handlers: HttpHandler[] = [
     };
     return HttpResponse.json({ extension: disabled });
   }),
-  compozyApiMock.put("/api/extensions/{name}", ({ params }) => {
+  /** Mirrors the candidate gate used by update: the current digest stands in for the next release. */
+  compozyApiMock.put("/api/extensions/{name}", async ({ params, request, response }) => {
     const name = String(params.name);
     const extension = extensionByName(name);
-    return extension
-      ? HttpResponse.json({
-          update: {
-            current_version: extension.version,
-            latest_version: extension.version,
-            name,
-            path: `/var/lib/compozy/extensions/${name}`,
-            registry: "compozy",
-            slug: extension.provenance?.slug ?? name,
-            status: "current",
-          },
-        })
-      : HttpResponse.json({ error: `Extension not found: ${name}` }, { status: 404 });
+    if (!extension) {
+      return HttpResponse.json({ error: `Extension not found: ${name}` }, { status: 404 });
+    }
+    const body = (await request.json().catch(() => ({}))) as { confirm_network_digest?: string };
+    const digest = extension.network_requirement_digest;
+    if (
+      extension.network_confirmation_required &&
+      digest &&
+      body.confirm_network_digest !== digest
+    ) {
+      return response(409).json({
+        code: "extension_network_confirmation_required",
+        current_digest: digest,
+        error: `${name} update changes Live network participation that has not been confirmed`,
+      });
+    }
+    const updated = { ...extension, network_confirmation_required: false };
+    extensionsState = extensionsState.map(item => (item.name === name ? updated : item));
+    return HttpResponse.json({
+      update: {
+        current_version: extension.version,
+        latest_version: extension.version,
+        name,
+        path: `/var/lib/compozy/extensions/${name}`,
+        registry: "compozy",
+        slug: extension.provenance?.slug ?? name,
+        status: "current",
+      },
+    });
   }),
   compozyApiMock.delete("/api/extensions/{name}", ({ params, request }) => {
     const name = String(params.name);

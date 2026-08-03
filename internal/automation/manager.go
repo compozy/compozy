@@ -236,6 +236,7 @@ type Manager struct {
 	projectedTriggers map[string]Trigger
 	jobRevision       int64
 	triggerRevision   int64
+	resourceOverlayMu sync.Mutex
 
 	taskActorMu       sync.RWMutex
 	sessionTaskActors map[string]taskpkg.ActorContext

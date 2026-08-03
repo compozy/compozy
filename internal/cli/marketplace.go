@@ -215,7 +215,7 @@ func marketplaceListingsBundle(jsonValue any, items []MarketplaceListingRecord) 
 		},
 		func(item MarketplaceListingRecord) []string {
 			return []string{
-				item.Kind,
+				string(item.Kind),
 				item.EntryID,
 				item.Name,
 				stringOrDash(item.Version),
@@ -225,7 +225,7 @@ func marketplaceListingsBundle(jsonValue any, items []MarketplaceListingRecord) 
 		},
 		func(item MarketplaceListingRecord) []string {
 			return []string{
-				item.Kind,
+				string(item.Kind),
 				item.EntryID,
 				item.Name,
 				item.Version,
@@ -254,7 +254,7 @@ type marketplaceKindPageRecord struct {
 func marketplaceKindBundle(response MarketplaceKindRecord) outputBundle {
 	bundle := marketplaceListingsBundle(response, response.Items)
 	page := marketplaceKindPageRecord{
-		Type: listPageRecordType, Kind: response.Kind, Returned: len(response.Items),
+		Type: listPageRecordType, Kind: string(response.Kind), Returned: len(response.Items),
 		Total: response.Total, NextCursor: response.NextCursor, Stale: response.Stale,
 		ErrorClass: response.ErrorClass, Error: response.Error,
 	}
@@ -328,7 +328,7 @@ func marketplaceEntryBundle(response MarketplaceEntryRecord) outputBundle {
 		},
 		human: func() (string, error) {
 			return renderHumanSection("Marketplace Entry", []keyValue{
-				{Label: cliKindValue, Value: entry.Kind},
+				{Label: cliKindValue, Value: string(entry.Kind)},
 				{Label: "Entry ID", Value: entry.EntryID},
 				{Label: automationNameValue, Value: entry.Name},
 				{Label: "Description", Value: entry.Description},
@@ -350,7 +350,7 @@ func marketplaceEntryBundle(response MarketplaceEntryRecord) outputBundle {
 					marketplaceInstalledKey,
 				},
 				[]string{
-					entry.Kind,
+					string(entry.Kind),
 					entry.EntryID,
 					entry.Name,
 					entry.Description,

@@ -301,7 +301,11 @@ func ParseResourceFilter(c *gin.Context) (resources.ResourceFilter, error) {
 		}
 	}
 
-	scope, hasScope, err := parseResourceScopeQuery(c.Query("scope_kind"), c.Query("scope_id"), "filter.scope")
+	scope, hasScope, err := resources.ParseResourceScopePair(
+		c.Query("scope_kind"),
+		c.Query("scope_id"),
+		"filter.scope",
+	)
 	if err != nil {
 		return resources.ResourceFilter{}, err
 	}
@@ -309,7 +313,11 @@ func ParseResourceFilter(c *gin.Context) (resources.ResourceFilter, error) {
 		filter.Scope = &scope
 	}
 
-	owner, hasOwner, err := parseResourceOwnerQuery(c.Query("owner_kind"), c.Query("owner_id"), "filter.owner")
+	owner, hasOwner, err := resources.ParseResourceOwnerPair(
+		c.Query("owner_kind"),
+		c.Query("owner_id"),
+		"filter.owner",
+	)
 	if err != nil {
 		return resources.ResourceFilter{}, err
 	}
@@ -317,7 +325,11 @@ func ParseResourceFilter(c *gin.Context) (resources.ResourceFilter, error) {
 		filter.Owner = &owner
 	}
 
-	source, hasSource, err := parseResourceSourceQuery(c.Query("source_kind"), c.Query("source_id"), "filter.source")
+	source, hasSource, err := resources.ParseResourceSourcePair(
+		c.Query("source_kind"),
+		c.Query("source_id"),
+		"filter.source",
+	)
 	if err != nil {
 		return resources.ResourceFilter{}, err
 	}
@@ -402,67 +414,4 @@ func parseResourcePutDraft(
 		ExpectedVersion: req.ExpectedVersion,
 		SpecJSON:        append([]byte(nil), req.Spec...),
 	}, nil
-}
-
-func parseResourceScopeQuery(
-	rawKind string,
-	rawID string,
-	path string,
-) (resources.ResourceScope, bool, error) {
-	scopeKind := strings.TrimSpace(rawKind)
-	scopeID := strings.TrimSpace(rawID)
-	if scopeKind == "" && scopeID == "" {
-		return resources.ResourceScope{}, false, nil
-	}
-
-	scope := resources.ResourceScope{
-		Kind: resources.ResourceScopeKind(scopeKind),
-		ID:   scopeID,
-	}.Normalize()
-	if err := scope.Validate(path); err != nil {
-		return resources.ResourceScope{}, false, err
-	}
-	return scope, true, nil
-}
-
-func parseResourceOwnerQuery(
-	rawKind string,
-	rawID string,
-	path string,
-) (resources.ResourceOwner, bool, error) {
-	ownerKind := strings.TrimSpace(rawKind)
-	ownerID := strings.TrimSpace(rawID)
-	if ownerKind == "" && ownerID == "" {
-		return resources.ResourceOwner{}, false, nil
-	}
-
-	owner := resources.ResourceOwner{
-		Kind: resources.ResourceOwnerKind(ownerKind),
-		ID:   ownerID,
-	}.Normalize()
-	if err := owner.Validate(path); err != nil {
-		return resources.ResourceOwner{}, false, err
-	}
-	return owner, true, nil
-}
-
-func parseResourceSourceQuery(
-	rawKind string,
-	rawID string,
-	path string,
-) (resources.ResourceSource, bool, error) {
-	sourceKind := strings.TrimSpace(rawKind)
-	sourceID := strings.TrimSpace(rawID)
-	if sourceKind == "" && sourceID == "" {
-		return resources.ResourceSource{}, false, nil
-	}
-
-	source := resources.ResourceSource{
-		Kind: resources.ResourceSourceKind(sourceKind),
-		ID:   sourceID,
-	}.Normalize()
-	if err := source.Validate(path); err != nil {
-		return resources.ResourceSource{}, false, err
-	}
-	return source, true, nil
 }

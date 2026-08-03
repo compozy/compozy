@@ -218,15 +218,12 @@ func validateDraftOwner(actor MutationActor, draft RawDraft) error {
 	if draft.Owner == nil || actor.Kind != MutationActorKindExtension {
 		return nil
 	}
-	if draft.Owner.Normalize() != actor.Owner.Normalize() {
-		return fmt.Errorf(
-			"%w: extension actors cannot assign owner %q/%q",
-			ErrPermissionDenied,
-			draft.Owner.Kind,
-			draft.Owner.ID,
-		)
-	}
-	return nil
+	return fmt.Errorf(
+		"%w: extension actors cannot assign owner %q/%q",
+		ErrPermissionDenied,
+		draft.Owner.Kind,
+		draft.Owner.ID,
+	)
 }
 
 func actorOwnerProvided(owner ResourceOwner) bool {

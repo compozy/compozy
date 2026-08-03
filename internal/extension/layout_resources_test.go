@@ -1,6 +1,7 @@
 package extensionpkg
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"os"
@@ -22,7 +23,7 @@ func TestLoadLayoutResources(t *testing.T) {
 			t.Fatalf("os.MkdirAll(layouts) error = %v", err)
 		}
 		writeLayoutJSONFile(t, filepath.Join(rootDir, "layouts", "two-up.json"), testLayoutResource("two-up"))
-		layouts, err := LoadLayoutResources(rootDir, []string{"layouts/two-up.json"})
+		layouts, err := LoadLayoutResources(t.Context(), rootDir, []string{"layouts/two-up.json"})
 		if err != nil {
 			t.Fatalf("LoadLayoutResources() error = %v", err)
 		}
@@ -31,6 +32,42 @@ func TestLoadLayoutResources(t *testing.T) {
 		}
 		if layouts[0].Document.WorkspaceID != "" {
 			t.Fatalf("Document.WorkspaceID = %q, want global scope", layouts[0].Document.WorkspaceID)
+		}
+	})
+
+	t.Run("Should stop layout validation when the caller is canceled", func(t *testing.T) {
+		t.Parallel()
+
+		rootDir := t.TempDir()
+		path := filepath.Join(rootDir, "layouts", "two-up.json")
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(layouts) error = %v", err)
+		}
+		writeLayoutJSONFile(t, path, testLayoutResource("two-up"))
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+
+		_, err := LoadLayoutResources(ctx, rootDir, []string{"layouts/two-up.json"})
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("LoadLayoutResources() error = %v, want context.Canceled", err)
+		}
+	})
+
+	t.Run("Should name both files declaring a duplicate layout", func(t *testing.T) {
+		t.Parallel()
+
+		rootDir := t.TempDir()
+		layoutsDir := filepath.Join(rootDir, "layouts")
+		if err := os.MkdirAll(layoutsDir, 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(layouts) error = %v", err)
+		}
+		writeLayoutJSONFile(t, filepath.Join(layoutsDir, "alpha.json"), testLayoutResource("two-up"))
+		writeLayoutJSONFile(t, filepath.Join(layoutsDir, "beta.json"), testLayoutResource("two-up"))
+
+		_, err := LoadLayoutResources(t.Context(), rootDir, []string{"layouts"})
+		if !errors.Is(err, ErrManifestInvalid) || !strings.Contains(err.Error(), "alpha.json") ||
+			!strings.Contains(err.Error(), "beta.json") || !strings.Contains(err.Error(), "two-up") {
+			t.Fatalf("LoadLayoutResources() error = %v, want both files and duplicate ID", err)
 		}
 	})
 }
@@ -126,7 +163,7 @@ func TestLoadLayoutResourcesRejectsInvalidInputs(t *testing.T) {
 
 			rootDir := t.TempDir()
 			declared := tc.setup(t, rootDir)
-			_, err := LoadLayoutResources(rootDir, []string{declared})
+			_, err := LoadLayoutResources(t.Context(), rootDir, []string{declared})
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("LoadLayoutResources() error = %v, want %q", err, tc.want)
 			}
