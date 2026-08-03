@@ -10,13 +10,15 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   PAGE_CONTENT_GUTTER,
-  Pill,
   Section,
   TopbarOverflowIcon,
   useTopbarSlot,
 } from "@compozy/ui";
 
+import { LoopPageLede } from "../loop-page-lede";
+
 import type { LoopBindingRow } from "../../lib/loop-bindings";
+import { loopSourceLabel } from "../../lib/loop-catalog";
 import type { LoopGraph } from "../../lib/loop-graph";
 import type {
   LoopAggregate30d,
@@ -30,6 +32,7 @@ import { LoopDeclaredInputs } from "./loop-declared-inputs";
 import { LoopDeleteAction } from "./loop-delete-action";
 import { LoopLimitsPanel } from "./loop-limits-panel";
 import { LoopRecentRuns } from "./loop-recent-runs";
+import { LoopReliabilityPanel } from "./loop-reliability-panel";
 import { LoopStartBindingsPanel, type LoopBindingPagination } from "./loop-start-bindings-panel";
 import { LoopStatsPanel } from "./loop-stats-panel";
 import { LoopVersionsPanel } from "./loop-versions-panel";
@@ -85,7 +88,7 @@ export function LoopDetailView({
 }: LoopDetailProps) {
   const definition = loop.definition;
   const category = loop.catalog?.category;
-  const sourceLabel = loop.source === "workspace" ? "Workspace" : "Read-only";
+  const sourceLabel = loopSourceLabel(loop);
   const writable = loop.source === "workspace";
   const declaredKinds = (definition.start ?? []).map(binding => binding.kind);
   const navigate = useNavigate();
@@ -155,29 +158,25 @@ export function LoopDetailView({
         />
       ) : null}
       <div className={cn(PAGE_CONTENT_GUTTER, "flex flex-col")}>
-        <div className="flex flex-col gap-2 pt-4" data-testid="loop-detail-header">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <Pill size="xs" tone="neutral">
-              {sourceLabel}
-            </Pill>
-            <Pill size="xs" tone="neutral">
-              v{loop.version}
-            </Pill>
-          </div>
-          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-small-body text-subtle">
-            <span className="font-mono">{definition.apiVersion}</span>
-            {category ? <span>{category}</span> : null}
-            <span>{graph.nodes.length} nodes</span>
-            {loop.description ? <span className="truncate">{loop.description}</span> : null}
-          </div>
-        </div>
+        <LoopPageLede
+          lede={loop.description}
+          meta={[
+            definition.apiVersion,
+            ...(category ? [category] : []),
+            `${graph.nodes.length} nodes`,
+          ]}
+          name={loop.name}
+          tags={[sourceLabel, `v${loop.version}`]}
+          testId="loop-detail-header"
+        />
         <div className="py-6">
-          <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_var(--width-detail-inspector-inline)]">
             <div className="flex flex-col gap-7">
               <LoopContractPanel
                 contract={definition.contract}
                 concurrency={definition.concurrency}
               />
+              <LoopReliabilityPanel effectiveLifecycle={loop.effective_lifecycle} graph={graph} />
               <Section
                 label="Body · DAG"
                 right={

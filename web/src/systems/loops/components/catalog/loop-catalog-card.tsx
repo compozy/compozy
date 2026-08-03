@@ -1,10 +1,12 @@
 import { Link } from "@tanstack/react-router";
 import { Repeat2 } from "lucide-react";
 
-import { CatalogCard, Pill } from "@compozy/ui";
+import { CatalogCard } from "@compozy/ui";
 
-import { loopCategory, loopSourceLabel } from "../../lib/loop-catalog";
+import { loopCategory, loopSourceLabel, successRateLabel } from "../../lib/loop-catalog";
+import { loopFactsSegments } from "../../lib/loop-catalog-presentation";
 import type { LoopCatalogEntry } from "../../types";
+import { LoopStatusPill } from "../loop-status-pill";
 import { LoopRunButton } from "./loop-run-button";
 
 interface LoopCatalogCardProps {
@@ -32,20 +34,29 @@ export function LoopCatalogCard({ entry, onRun }: LoopCatalogCardProps) {
             <CatalogCard.Meta>
               <span className="font-mono">{`v${entry.version}`}</span>
               <span>{sourceLabel}</span>
+              {category ? <span>{category}</span> : null}
             </CatalogCard.Meta>
           </div>
         </div>
         {entry.contract.goal ? (
           <CatalogCard.Description>{entry.contract.goal}</CatalogCard.Description>
         ) : null}
+        <p className="font-mono text-mono-id text-subtle">{loopFactsSegments(entry).join(" · ")}</p>
       </Link>
-      <CatalogCard.Actions className={category ? "justify-between" : "justify-end"}>
-        {category ? (
-          <Pill mono size="sm" tone="neutral">
-            {category}
-          </Pill>
-        ) : null}
-        <LoopRunButton loopName={entry.name} onRun={() => onRun(entry)} />
+      <CatalogCard.Actions className={entry.last_run ? "justify-between gap-3" : "justify-end"}>
+        {entry.last_run ? <LoopStatusPill status={entry.last_run.status} /> : null}
+        <div className="flex min-w-0 items-center gap-3">
+          <span
+            className="flex min-w-0 flex-col items-end"
+            data-testid={`loop-catalog-card-stat-${entry.name}`}
+          >
+            <span className="font-mono text-small-body tabular-nums text-fg">
+              {successRateLabel(entry.success_rate_30d)}
+            </span>
+            <span className="text-micro text-faint">{entry.aggregate_30d.runs} runs · 30d</span>
+          </span>
+          <LoopRunButton loopName={entry.name} onRun={() => onRun(entry)} />
+        </div>
       </CatalogCard.Actions>
     </CatalogCard>
   );

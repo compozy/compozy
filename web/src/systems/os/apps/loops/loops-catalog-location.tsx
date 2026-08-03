@@ -11,7 +11,7 @@ import {
   useTopbarSlot,
 } from "@compozy/ui";
 import { type LoopsRouteSearch, useLoopsCatalog } from "./use-loops-catalog";
-import { LoopCatalog, LoopCatalogFilters, type LoopStatusFilter } from "@/systems/loops";
+import { LoopCatalog, LoopCatalogFilters, LoopCatalogLede } from "@/systems/loops";
 
 export function LoopsCatalogLocation({ search }: { search: LoopsRouteSearch }) {
   const page = useLoopsCatalog(search);
@@ -31,14 +31,8 @@ export function LoopsCatalogLocation({ search }: { search: LoopsRouteSearch }) {
           />
           <ListingToolbar.Filters>
             <LoopCatalogFilters
-              categories={Object.keys(page.loopsQuery.facets?.categories ?? {})}
-              categoryFilter={page.filter.category}
-              kindFilter={page.filter.kind}
-              onCategoryFilterChange={page.setCategoryFilter}
-              onKindFilterChange={page.setKindFilter}
               onStatusFilterChange={page.setStatusFilter}
               statusFilter={page.filter.status}
-              statuses={Object.keys(page.loopsQuery.facets?.statuses ?? {}) as LoopStatusFilter[]}
             />
           </ListingToolbar.Filters>
         </ListingToolbar.Leading>
@@ -50,7 +44,6 @@ export function LoopsCatalogLocation({ search }: { search: LoopsRouteSearch }) {
 
   useTopbarSlot({
     glyph: <Repeat2 />,
-    count: page.workspaceId === "" || page.loopsQuery.isLoading ? undefined : loopCount,
     actions:
       page.workspaceId === "" ? undefined : (
         <div className="flex items-center gap-2" data-testid="loops-topbar-actions">
@@ -116,6 +109,7 @@ export function LoopsCatalogLocation({ search }: { search: LoopsRouteSearch }) {
 
   return (
     <ListingPage data-testid="loops-catalog">
+      <LoopCatalogLede total={loopCount} workspaceLabel={page.activeWorkspace?.name} />
       <LoopCatalog
         entries={loops}
         errorMessage={page.loopsQuery.error?.message}

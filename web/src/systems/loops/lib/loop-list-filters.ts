@@ -1,96 +1,24 @@
-import type { Filter, FilterFieldsConfig } from "@compozy/ui";
+import { LOOP_RUN_STATUSES } from "@/generated/loop-enums";
 
 import type { LoopRunStatus } from "../types";
-import {
-  type LoopCatalogFilter,
-  type LoopKindFilter,
-  type LoopStatusFilter,
-  loopKind,
-} from "./loop-catalog";
+import { type LoopKindFilter, loopKind } from "./loop-catalog";
 import { isLoopRunStatus, loopStatusLabel } from "./loop-formatters";
 
-export type LoopFilterFieldKey = "kind" | "category" | "status";
-
-export interface LoopFilterHandlers {
-  onKindChange: (next: LoopKindFilter) => void;
-  onCategoryChange: (next: string | null) => void;
-  onStatusChange: (next: LoopStatusFilter | null) => void;
+export interface LoopStatusFilterOption {
+  value: LoopRunStatus;
+  label: string;
 }
 
-const KIND_OPTIONS: { value: Exclude<LoopKindFilter, "all">; label: string }[] = [
-  { value: "read-only", label: "Read-only" },
-  { value: "workspace", label: "Workspace" },
-];
-
-export function buildLoopFilterFields(
-  categories: readonly string[],
-  statuses: readonly LoopStatusFilter[]
-): FilterFieldsConfig<string> {
-  return [
-    {
-      key: "kind",
-      label: "Kind",
-      type: "select",
-      options: KIND_OPTIONS.map(option => ({
-        value: option.value,
-        label: option.label,
-      })),
-    },
-    {
-      key: "category",
-      label: "Category",
-      type: "select",
-      options: categories.map(value => ({ value, label: value })),
-    },
-    {
-      key: "status",
-      label: "Status",
-      type: "select",
-      options: statuses.map(value => ({
-        value,
-        label: loopStatusLabel(value),
-      })),
-    },
-  ];
-}
-
-export function loopFiltersToChips(state: LoopCatalogFilter): Filter<string>[] {
-  const chips: Filter<string>[] = [];
-  if (state.kind !== "all") {
-    chips.push({
-      id: "loop-filter-kind",
-      field: "kind",
-      operator: "is",
-      values: [state.kind],
-    });
-  }
-  if (state.category) {
-    chips.push({
-      id: "loop-filter-category",
-      field: "category",
-      operator: "is",
-      values: [state.category],
-    });
-  }
-  if (state.status) {
-    chips.push({
-      id: "loop-filter-status",
-      field: "status",
-      operator: "is",
-      values: [state.status],
-    });
-  }
-  return chips;
-}
-
-export function applyLoopFilterChips(chips: Filter<string>[], handlers: LoopFilterHandlers): void {
-  const lookup = new Map<string, string | undefined>();
-  for (const chip of chips) {
-    lookup.set(chip.field, chip.values[0]);
-  }
-  handlers.onKindChange(asLoopKind(lookup.get("kind")) ?? "all");
-  handlers.onCategoryChange(asNonEmptyString(lookup.get("category")));
-  handlers.onStatusChange(asLoopStatus(lookup.get("status")));
+/**
+ * Every status the daemon can report for a Loop's latest run, in contract order.
+ *
+ * Sourced from the generated enum rather than from the catalog facets: a status the
+ * current page happens not to contain is still a legal `?status=` value, so filtering
+ * for `canceled` on a roster with no canceled run must reach the truthful empty state
+ * instead of the option silently disappearing.
+ */
+export function loopStatusFilterOptions(): LoopStatusFilterOption[] {
+  return LOOP_RUN_STATUSES.map(value => ({ value, label: loopStatusLabel(value) }));
 }
 
 export function parseLoopKindFilter(value: unknown): Exclude<LoopKindFilter, "all"> | undefined {
@@ -105,7 +33,7 @@ export function parseLoopCategoryFilter(value: unknown): string | undefined {
 
 export function parseLoopStatusFilter(value: unknown): LoopRunStatus | undefined {
   if (typeof value !== "string") return undefined;
-  return asLoopStatus(value) ?? undefined;
+  return isLoopRunStatus(value) ? value : undefined;
 }
 
 function asLoopKind(value: string | undefined): Exclude<LoopKindFilter, "all"> | null {
@@ -117,11 +45,6 @@ function asNonEmptyString(value: string | undefined): string | null {
   if (!value) return null;
   const trimmed = value.trim();
   return trimmed === "" ? null : trimmed;
-}
-
-function asLoopStatus(value: string | undefined): LoopStatusFilter | null {
-  if (!value) return null;
-  return isLoopRunStatus(value) ? value : null;
 }
 
 /** Re-export for callers that need kind classification without importing loop-catalog. */

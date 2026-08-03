@@ -74,10 +74,15 @@ function renderDetail(
   return merged;
 }
 
+/** Rail cards fold by default; open one the way an operator would. */
+function openRail(name: RegExp) {
+  fireEvent.click(screen.getByRole("button", { name }));
+}
+
 describe("LoopDetailView", () => {
   it("Should render the full definition page: header, contract, DAG, runs, and the right rail", () => {
     renderDetail();
-    expect(screen.getByText("software-delivery")).toBeInTheDocument();
+    expect(screen.getByTestId("loop-detail-header")).toHaveTextContent("software-delivery");
     expect(screen.getByTestId("loop-contract")).toBeInTheDocument();
     expect(screen.getByTestId("loop-dag")).toBeInTheDocument();
     expect(screen.getByTestId("loop-recent-runs")).toBeInTheDocument();
@@ -104,12 +109,16 @@ describe("LoopDetailView", () => {
     ]);
   });
 
-  it("Should render the six terminal outcomes and the 30d stats truthfully", () => {
+  it("Should list the six possible endings as text and fold the 30d stats behind their gist", () => {
     renderDetail();
-    expect(screen.getAllByTestId("loop-terminal-chip")).toHaveLength(6);
+    expect(screen.getByTestId("loop-terminal-endings")).toHaveTextContent(
+      "done · no-op · blocked · failed · exhausted · stalled"
+    );
+    expect(screen.queryByTestId("loop-terminal-chip")).not.toBeInTheDocument();
     const stats = screen.getByTestId("loop-stats");
+    expect(stats).toHaveTextContent("90% success · 42 runs");
+    openRail(/Last 30 days/);
     expect(stats).toHaveTextContent("Success rate");
-    expect(stats).toHaveTextContent("90%");
     expect(stats).toHaveTextContent("Total runs");
   });
 
@@ -165,6 +174,7 @@ describe("LoopDetailView", () => {
 
   it("Should render saved per-Loop limits instead of authored contract values", () => {
     renderDetail();
+    openRail(/Limits/);
     const limits = within(screen.getByTestId("loop-limits"));
 
     expect(limits.getByText("Iteration cap").parentElement).toHaveTextContent("3 / 100");

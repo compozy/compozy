@@ -75,20 +75,6 @@ function useLoopsCatalog(search: LoopsRouteSearch = {}) {
     }));
   };
 
-  const setKindFilter = (next: LoopKindFilter) => {
-    updateSearch(current => ({
-      ...current,
-      kind: next === "all" ? undefined : next,
-    }));
-  };
-
-  const setCategoryFilter = (next: string | null) => {
-    updateSearch(current => ({
-      ...current,
-      category: next ?? undefined,
-    }));
-  };
-
   const setStatusFilter = (next: LoopStatusFilter | null) => {
     updateSearch(current => ({
       ...current,
@@ -127,8 +113,6 @@ function useLoopsCatalog(search: LoopsRouteSearch = {}) {
     handleRun,
     loopsQuery,
     searchQuery,
-    setCategoryFilter,
-    setKindFilter,
     setSearchQuery,
     setStatusFilter,
     setView,

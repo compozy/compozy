@@ -1,17 +1,16 @@
+import { Fragment } from "react";
 import { Link } from "@tanstack/react-router";
 import { Repeat2 } from "lucide-react";
 
 import { ListingRow, Pill } from "@compozy/ui";
 
 import {
-  hasHumanGate,
   isUnboundedCap,
-  iterationCapLabel,
   loopCategory,
-  loopInputCount,
   loopSourceLabel,
   successRateLabel,
 } from "../../lib/loop-catalog";
+import { loopFactsSegments } from "../../lib/loop-catalog-presentation";
 import { loopRunBestLabel } from "../../lib/loop-generation-presentation";
 import type { LoopCatalogEntry } from "../../types";
 import { LoopStatusPill } from "../loop-status-pill";
@@ -24,7 +23,7 @@ interface LoopCatalogRowProps {
 
 export function LoopCatalogRow({ entry, onRun }: LoopCatalogRowProps) {
   const category = loopCategory(entry);
-  const inputCount = loopInputCount(entry);
+  const facts = loopFactsSegments(entry);
   const unbounded = isUnboundedCap(entry);
   const sourceLabel = loopSourceLabel(entry);
   const best = entry.last_run ? loopRunBestLabel(entry.last_run) : null;
@@ -59,15 +58,14 @@ export function LoopCatalogRow({ entry, onRun }: LoopCatalogRowProps) {
             <ListingRow.Description>{entry.contract.goal}</ListingRow.Description>
           ) : null}
           <ListingRow.Meta>
-            <span className="font-mono text-mono-id text-subtle">{inputCount} inputs</span>
-            <ListingRow.MetaDot />
-            <span>iteration cap {iterationCapLabel(entry.contract.iteration_cap)}</span>
-            {hasHumanGate(entry) ? (
-              <>
-                <ListingRow.MetaDot />
-                <span>human gate</span>
-              </>
-            ) : null}
+            {facts.map((fact, index) => (
+              <Fragment key={fact}>
+                {index > 0 ? <ListingRow.MetaDot /> : null}
+                <span className={index === 0 ? "font-mono text-mono-id text-subtle" : undefined}>
+                  {fact}
+                </span>
+              </Fragment>
+            ))}
           </ListingRow.Meta>
         </ListingRow.Main>
       </ListingRow.Link>
