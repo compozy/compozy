@@ -90,6 +90,106 @@ func TestGoalSessionCreationIdentityIntegration(t *testing.T) {
 func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should fence ordinary action activation by cell owner and publish cleanup for stale creation", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t, "ws-action-binding")
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 7, 11, 8, 0, 0, 0, time.UTC)
+		insertGoalSchemaLoopRun(t, globalDB, "run-action-binding", "ws-action-binding", "catalog", nil)
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`INSERT INTO loop_generations (loop_run_id, generation, parent_generation, origin, created_at)
+			 VALUES (?, 1, 0, 'initial', ?)`,
+			"run-action-binding",
+			store.FormatTimestamp(now),
+		); err != nil {
+			t.Fatalf("insert action generation error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`INSERT INTO loop_generation_outputs (
+				loop_run_id, generation, node_id, item_index, status, task_run_id, epoch
+			 ) VALUES (?, 1, 'execute', 0, 'enqueued', 'taskrun-action-live', 4)`,
+			"run-action-binding",
+		); err != nil {
+			t.Fatalf("insert action cell error = %v", err)
+		}
+
+		prepare := func(handle string, sessionID string) goal.BindingKey {
+			t.Helper()
+			key := goal.BindingKey{
+				WorkspaceID: "ws-action-binding",
+				LoopRunID:   "run-action-binding",
+				Handle:      handle,
+			}
+			identity := store.SessionCreationIdentity{
+				CreationProfileRef: "profile-" + sessionID,
+				PolicySpecDigest:   "policy-" + sessionID,
+				CreationDigest:     "creation-" + sessionID,
+			}
+			if _, err := globalDB.PrepareSessionBindingAttempt(ctx, goal.PrepareBindingAttemptRequest{
+				Key: key, BindingEpoch: 1, BindingAttemptID: "attempt-" + sessionID,
+				SessionID: sessionID, CreationProfileRef: identity.CreationProfileRef,
+				PolicySpecDigest: identity.PolicySpecDigest, CreationDigest: identity.CreationDigest,
+				CreatedAt: now,
+			}); err != nil {
+				t.Fatalf("PrepareSessionBindingAttempt(%s) error = %v", handle, err)
+			}
+			registerGoalSessionIdentityForTest(
+				t,
+				globalDB,
+				goalSessionInfoForTest(sessionID, "ws-action-binding", now),
+				identity,
+			)
+			return key
+		}
+		cellKey := goal.TurnKey{
+			WorkspaceID: "ws-action-binding",
+			LoopRunID:   "run-action-binding",
+			Generation:  1,
+			NodeID:      "execute",
+			ItemIndex:   0,
+		}
+		liveKey := prepare("main", "session-action-live")
+		live, stopped, err := globalDB.FinalizeSessionBindingCreation(ctx, goal.ActivateBindingRequest{
+			Key: liveKey, CellFence: &goal.BindingCellFence{
+				Key: cellKey, Epoch: 4, TaskRunID: "taskrun-action-live",
+			},
+			ExpectedBindingEpoch: 1,
+			ActivatedAt:          now.Add(time.Second),
+		})
+		if err != nil || stopped || live.State != goal.BindingStateActive {
+			t.Fatalf("FinalizeSessionBindingCreation(live cell) = %#v/%t, %v", live, stopped, err)
+		}
+
+		staleKey := prepare("stale", "session-action-stale")
+		_, _, err = globalDB.FinalizeSessionBindingCreation(ctx, goal.ActivateBindingRequest{
+			Key: staleKey, CellFence: &goal.BindingCellFence{
+				Key: cellKey, Epoch: 3, TaskRunID: "taskrun-action-live",
+			},
+			ExpectedBindingEpoch: 1,
+			ActivatedAt:          now.Add(2 * time.Second),
+		})
+		requireGoalReasonCode(t, err, looppkg.ReasonCodeGoalControlStale)
+		stale, err := globalDB.GetSessionBindingAttempt(ctx, staleKey, 1)
+		if err != nil {
+			t.Fatalf("GetSessionBindingAttempt(stale) error = %v", err)
+		}
+		if stale.State != goal.BindingStateFailed ||
+			stale.FailureCode != goalBindingFailureControlRevokedInFlight {
+			t.Fatalf("stale binding = %#v, want failed control-revoked", stale)
+		}
+		cleanups, err := globalDB.ClaimGoalSessionCleanup(ctx, 10)
+		if err != nil {
+			t.Fatalf("ClaimGoalSessionCleanup() error = %v", err)
+		}
+		if len(cleanups) != 1 || cleanups[0].SessionID != "session-action-stale" ||
+			cleanups[0].Cause != goal.SessionCleanupCauseControlRevoked {
+			t.Fatalf("stale action cleanups = %#v, want one control-revoked session", cleanups)
+		}
+	})
+
 	t.Run("Should release an unsettled Stop creation cleanup after database reopen", func(t *testing.T) {
 		t.Parallel()
 
@@ -117,14 +217,15 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 		); err != nil {
 			t.Fatalf("insert creating binding error = %v", err)
 		}
-		if _, err := globalDB.StopGoalRun(ctx, looppkg.GoalRunStopRequest{
-			WorkspaceID:    "ws-goal-cleanup-reopen",
-			RunID:          "run-goal-cleanup-reopen",
-			ExpectedStatus: looppkg.StatusRunning,
-			Actor:          operatorActorContextForTest("operator-stop-reopen"),
-			StoppedAt:      now.Add(time.Minute),
+		if _, err := globalDB.RequestRunCancellation(ctx, looppkg.CancellationMutation{
+			WorkspaceID: "ws-goal-cleanup-reopen",
+			RunID:       "run-goal-cleanup-reopen",
+			Kind:        looppkg.RunCancelCancel,
+			Reason:      "operator canceled run",
+			Actor:       operatorActorContextForTest("operator-cancel-reopen"),
+			RequestedAt: now.Add(time.Minute),
 		}); err != nil {
-			t.Fatalf("StopGoalRun() error = %v", err)
+			t.Fatalf("RequestRunCancellation() error = %v", err)
 		}
 		path := globalDB.Path()
 		if err := globalDB.Close(ctx); err != nil {
@@ -256,14 +357,15 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 			); err != nil {
 				t.Fatalf("insert creating binding error = %v", err)
 			}
-			if _, err := globalDB.StopGoalRun(ctx, looppkg.GoalRunStopRequest{
-				WorkspaceID:    "ws-goal-cleanup",
-				RunID:          "run-goal-creating-stop",
-				ExpectedStatus: looppkg.StatusRunning,
-				Actor:          operatorActorContextForTest("operator-stop-creating"),
-				StoppedAt:      now.Add(time.Minute),
+			if _, err := globalDB.RequestRunCancellation(ctx, looppkg.CancellationMutation{
+				WorkspaceID: "ws-goal-cleanup",
+				RunID:       "run-goal-creating-stop",
+				Kind:        looppkg.RunCancelCancel,
+				Reason:      "operator canceled run",
+				Actor:       operatorActorContextForTest("operator-cancel-creating"),
+				RequestedAt: now.Add(time.Minute),
 			}); err != nil {
-				t.Fatalf("StopGoalRun(creating binding) error = %v", err)
+				t.Fatalf("RequestRunCancellation(creating binding) error = %v", err)
 			}
 			var state, failureCode string
 			var activatedAt *time.Time
@@ -295,7 +397,7 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 				ActivatedAt:          now.Add(2 * time.Minute),
 			})
 			if err != nil || !stopped || finalized.State != goal.BindingStateFailed ||
-				finalized.FailureCode != goalBindingFailureStopCreationSettled {
+				finalized.FailureCode != goalBindingFailureControlRevokedInFlight {
 				t.Fatalf("FinalizeSessionBindingCreation(stopped) = %#v/%t, %v", finalized, stopped, err)
 			}
 			pending, err = globalDB.ClaimGoalSessionCleanup(ctx, 10)
@@ -625,9 +727,26 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 			},
 		)
 		ctx := testutil.Context(t)
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`UPDATE loop_goal_checkpoints
+			 SET control_grant_id = 1, control_grant_kind = 'reseed',
+			     control_grant_cause = 'goal_reseed_confirmation_required', control_grant_turn = 0,
+			     control_grant_scope = 'rotate-binding', control_grant_consumed = 0
+			 WHERE loop_run_id = ? AND generation = ? AND node_id = ? AND item_index = ?`,
+			string(reactivationRequest.CheckpointKey.LoopRunID),
+			reactivationRequest.CheckpointKey.Generation,
+			string(reactivationRequest.CheckpointKey.NodeID),
+			reactivationRequest.CheckpointKey.ItemIndex,
+		); err != nil {
+			t.Fatalf("seed reseed activation grant error = %v", err)
+		}
 		activation := goal.ActivateBindingRequest{
 			Key:                  key,
+			CheckpointKey:        &reactivationRequest.CheckpointKey,
 			ExpectedBindingEpoch: 2,
+			ExpectedControlEpoch: reactivationRequest.ExpectedControlEpoch,
+			GrantID:              1,
 			ActivatedAt:          now.Add(4 * time.Minute),
 		}
 		if _, err := globalDB.db.ExecContext(

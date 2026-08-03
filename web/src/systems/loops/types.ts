@@ -80,6 +80,27 @@ export type LoopRunActionResult = OperationResponse<"pauseLoopRun", 200>;
 /** Run cancel/kill operations return the shared structured lifecycle projection. */
 export type LoopRunMutationResult = OperationResponse<"cancelLoopRun", 200>;
 
+// Node lifecycle ------------------------------------------------------------
+
+/** The shared structured answer every node lifecycle verb returns (contract §API). */
+export type LoopNodeMutationResult = OperationResponse<"pauseLoopNode", 200>;
+/** Durable per-node control truth: pause/quarantine/attention/cancel + revision. */
+export type LoopNodeControl = NonNullable<LoopRunDetail["node_controls"]>[number];
+/** One durable wait cell (timer, event, approval, dependency). */
+export type LoopNodeWait = NonNullable<LoopRunDetail["waits"]>[number];
+/** Provenance attached to a pause/cancel/requeue: who asked, why, when. */
+export type LoopControlProvenance = NonNullable<LoopNodeControl["pause_provenance"]>;
+
+export type LoopNodeInventoryResponse = OperationResponse<"listLoopNodes", 200>;
+export type LoopNodeInventoryItem = LoopNodeInventoryResponse["items"][number];
+export type LoopNodeInventoryFilter = OperationQuery<"listLoopNodes">;
+/** The closed workspace inventory vocabulary (`waiting|quarantined|attention|retrying`). */
+export type LoopNodeInventoryState = LoopNodeInventoryItem["state"];
+
+export type LoopNodePauseRequest = OperationRequestBody<"pauseLoopNode">;
+export type LoopNodeResumeRequest = OperationRequestBody<"resumeLoopNode">;
+export type LoopNodeMutationRequest = OperationRequestBody<"cancelLoopNode">;
+
 // Status vocabulary ---------------------------------------------------------
 
 export type LoopRunStatus = LoopRun["status"];

@@ -228,11 +228,7 @@ func (s *service) pinnedGoalTurnIncrement(
 	run Run,
 	nodeID dsl.NodeID,
 ) (int, error) {
-	snapshot, err := s.store.GetLoopDefinitionSnapshot(ctx, run.WorkspaceID, run.DefinitionDigest)
-	if err != nil {
-		return 0, err
-	}
-	resolved, err := LoadExecutedDefinitionSnapshot(snapshot.Definition, run.DefinitionDigest)
+	resolved, err := s.pinnedResolvedDefinition(ctx, run)
 	if err != nil {
 		return 0, err
 	}

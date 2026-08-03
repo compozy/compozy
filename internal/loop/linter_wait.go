@@ -3,6 +3,7 @@ package loop
 import (
 	"strings"
 
+	"github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/loop/dsl"
 )
 
@@ -25,8 +26,24 @@ func (c *lintContext) lintWait(node dsl.Node) {
 	}
 	if params.Event != nil {
 		discriminators++
-		if strings.TrimSpace(params.Event.Kind) == "" {
+		kind := hooks.HookEvent(strings.TrimSpace(params.Event.Kind))
+		if kind == "" {
 			c.add(node.ID, CodeWaitShapeInvalid, "wait event kind is required")
+		} else if kind.Validate() != nil {
+			c.add(
+				node.ID,
+				CodeWatchEventsKindUnknown,
+				"wait event kind %q is not in the hook catalog",
+				params.Event.Kind,
+			)
+		} else if _, ok := SupportedWatchEvents()[kind]; !ok {
+			c.add(
+				node.ID,
+				CodeWatchEventsKindUnsupported,
+				"wait event kind %q is not supported; supported kinds: %s",
+				kind,
+				strings.Join(sortedSupportedWatchEventKinds(), ", "),
+			)
 		}
 	}
 	if discriminators != 1 {

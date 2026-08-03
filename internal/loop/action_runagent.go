@@ -120,18 +120,22 @@ func (e *RunAgentActionExecutor) bindRunAgentSession(
 	if err != nil {
 		return ActionSessionBinding{}, ResolvedRuntime{}, err
 	}
+	handle := actionSessionHandle(node.Session)
 	binding, err := e.binder.BindActionSession(ctx, ActionSessionBindRequest{
-		WorkspaceID:          in.WorkspaceID,
-		LoopRunID:            in.LoopRunID,
-		Generation:           in.Generation,
-		NodeID:               in.NodeID,
-		Agent:                strings.TrimSpace(spec.Agent),
-		CWD:                  strings.TrimSpace(spec.CWD),
-		Handle:               actionSessionHandle(node.Session),
-		ItemIndex:            in.ItemIndex,
-		TargetBindingEpoch:   in.CellEpoch + 1,
-		ExpectedControlEpoch: in.CellEpoch + 1,
-		ExpectedTaskRunID:    strings.TrimSpace(in.CorrelationID),
+		WorkspaceID:        in.WorkspaceID,
+		LoopRunID:          in.LoopRunID,
+		Generation:         in.Generation,
+		NodeID:             in.NodeID,
+		Agent:              strings.TrimSpace(spec.Agent),
+		CWD:                strings.TrimSpace(spec.CWD),
+		Handle:             handle,
+		SharedKey:          actionSessionSharedKey(in.Generation, in.NodeID, in.ItemIndex, handle),
+		ItemIndex:          in.ItemIndex,
+		TargetBindingEpoch: in.CellEpoch + 1,
+		CellFence: &ActionSessionCellFence{
+			Epoch:     in.CellEpoch,
+			TaskRunID: strings.TrimSpace(in.CorrelationID),
+		},
 		Isolated:             node.Session != nil && node.Session.Isolated,
 		Runtime:              resolvedRuntime.Runtime,
 		AllowedTools:         append([]string(nil), spec.AllowedTools...),

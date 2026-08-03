@@ -1518,6 +1518,16 @@ func TestLinterShouldValidateLifecycleGrammar(t *testing.T) {
 			severity: loop.SeverityError,
 		},
 		{
+			name: "Should reject a wait event outside the hook catalog before execution",
+			mutate: func(def *dsl.Definition) {
+				appendLifecycleWait(def, dsl.NodeParams{
+					"event": map[string]any{"kind": "qa.acknowledged"},
+				})
+			},
+			wantCode: loop.CodeWatchEventsKindUnknown,
+			severity: loop.SeverityError,
+		},
+		{
 			name: "Should warn when wait expiry has no path",
 			mutate: func(def *dsl.Definition) {
 				appendLifecycleWait(def, dsl.NodeParams{

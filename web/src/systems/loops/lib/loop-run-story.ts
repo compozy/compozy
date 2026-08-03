@@ -2,6 +2,7 @@ import type { LoopRunEventFrame } from "../types";
 import { loopGenerationScore } from "./loop-generation-presentation";
 import { isTerminalLoopStatus } from "./loop-formatters";
 import { goalNodeIds } from "./loop-graph";
+import { LIFECYCLE_KINDS_ENDING_ATTEMPT, lifecycleStoryRow } from "./loop-run-story-lifecycle-rows";
 import {
   asRecord,
   branchKey,
@@ -220,8 +221,19 @@ export function buildRunStory(
         if (row) rows.push(row);
         break;
       }
-      default:
+      default: {
+        // Node lifecycle kinds (Spec 1). A beat that ends the current attempt
+        // also clears the node from "Happening now", so a paused, canceled, or
+        // quarantined node never keeps reading as if it were still working.
+        const row = lifecycleStoryRow(kind, frame, payload);
+        if (!row) break;
+        if (LIFECYCLE_KINDS_ENDING_ATTEMPT.has(kind)) {
+          const nodeId = str(payload.node_id);
+          if (nodeId !== "") running.delete(runningKey(nodeId, num(payload.item_index)));
+        }
+        rows.push(row);
         break;
+      }
     }
   }
 

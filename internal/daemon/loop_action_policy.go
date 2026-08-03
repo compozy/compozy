@@ -175,5 +175,8 @@ func resolvedWorkspaceSandboxRef(resolved *workspacepkg.ResolvedWorkspace) strin
 	if sandboxRef := strings.TrimSpace(resolved.SandboxRef); sandboxRef != "" {
 		return sandboxRef
 	}
-	return strings.TrimSpace(resolved.Config.Defaults.Sandbox)
+	if sandboxRef := strings.TrimSpace(resolved.Config.Defaults.Sandbox); sandboxRef != "" {
+		return sandboxRef
+	}
+	return strings.TrimSpace(resolved.Sandbox.Profile)
 }

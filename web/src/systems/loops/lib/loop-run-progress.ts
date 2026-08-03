@@ -1,15 +1,23 @@
 import type { LoopRunGeneration, LoopRunRecord } from "../types";
 import type { LoopGateVerdict } from "./loop-events";
 import { isTerminalLoopStatus } from "./loop-formatters";
+import type { LoopNodeLifecycle } from "./loop-node-lifecycle";
+import { parkedNodeIds } from "./loop-node-lifecycle";
 
 /**
  * The group progress model (redesign spec §5.2): the latest generation's fan-out
  * branches as equal-width segments, plus the plain-language meta line. Batch
  * sizes are not first-class, so segments never carry invented weights — one
  * branch, one equal segment.
+ *
+ * Parked accounting (US-019 AC-2, US-024 AC-1): a paused, quarantined, or
+ * waiting node is *excluded from the denominator*, not counted as failing. Its
+ * clock is suspended, so "2 of 3 counted tasks done · 1 paused excluded" is the
+ * truthful reading — showing it as an unfinished group would imply work is owed
+ * that nothing is spending attempts on.
  */
 
-export type LoopProgressSegmentState = "clean" | "active" | "redo" | "failed" | "idle";
+export type LoopProgressSegmentState = "clean" | "active" | "redo" | "failed" | "parked" | "idle";
 
 export interface LoopRunProgressModel {
   /** One entry per fan-out branch; null hides the bar (no fan-out in this run). */
@@ -17,6 +25,8 @@ export interface LoopRunProgressModel {
   leftMeta: string;
   rightMeta: string;
   ariaLabel: string;
+  /** Branches excluded from the count because the daemon parked their node. */
+  parkedCount: number;
 }
 
 /** The most recent verdict across gate nodes (highest generation wins). */
@@ -51,11 +61,14 @@ function segmentState(
 interface FanOutBranches {
   /** Branch statuses ordered by ascending `item_index`. */
   statuses: string[];
+  /** True when the node owning these branches is parked by the daemon. */
+  parked: boolean;
 }
 
 /** The latest generation's widest fan-out node (>1 distinct `item_index`). */
 function latestFanOut(
-  generations: readonly LoopRunGeneration[] | undefined
+  generations: readonly LoopRunGeneration[] | undefined,
+  parked: ReadonlySet<string>
 ): FanOutBranches | null {
   if (!generations || generations.length === 0) return null;
   const latest = generations.reduce((max, gen) => Math.max(max, gen.generation), 0);
@@ -69,15 +82,17 @@ function latestFanOut(
       byNode.set(output.node_id, branches);
     }
   }
+  let widestId: string | null = null;
   let widest: Map<number, string> | null = null;
-  for (const branches of byNode.values()) {
+  for (const [nodeId, branches] of byNode) {
     if (branches.size > 1 && (!widest || branches.size > widest.size)) {
       widest = branches;
+      widestId = nodeId;
     }
   }
   if (!widest) return null;
   const statuses = [...widest.entries()].sort(([a], [b]) => a - b).map(([, s]) => s);
-  return { statuses };
+  return { statuses, parked: widestId !== null && parked.has(widestId) };
 }
 
 function openPointsClause(openPoints: number, past: boolean): string {
@@ -122,18 +137,39 @@ function leftMeta(run: LoopRunRecord, clean: number, total: number, activeCount:
   }
 }
 
+/** The single dominant reason branches were parked, for the exclusion clause. */
+function parkedNoun(nodes: readonly LoopNodeLifecycle[]): string {
+  const states = new Set<LoopNodeLifecycle["state"]>();
+  for (const node of nodes) {
+    if (node.parked) states.add(node.state);
+  }
+  if (states.size === 1) {
+    const [only] = [...states];
+    if (only === "paused") return "paused";
+    if (only === "quarantined") return "quarantined";
+    if (only === "waiting") return "waiting";
+  }
+  return "parked";
+}
+
 /**
  * Builds the Progress panel model from the latest generation's outputs and the
  * last check's open points (`gate_verdict.blocking_issues` length, null before
  * any verdict). No fan-out in the graph → the bar hides and the meta line alone
  * summarizes the round.
+ *
+ * `nodes` carries the daemon's per-node lifecycle truth. Parked branches leave
+ * the counted denominator entirely and are named in a trailing clause, so the
+ * headline count only ever describes work the run is actually spending on.
  */
 export function buildRunProgress(
   run: LoopRunRecord,
   generations: readonly LoopRunGeneration[] | undefined,
-  openPoints: number | null
+  openPoints: number | null,
+  nodes: readonly LoopNodeLifecycle[] = []
 ): LoopRunProgressModel {
-  const fanOut = latestFanOut(generations);
+  const parked = parkedNodeIds(nodes);
+  const fanOut = latestFanOut(generations, parked);
   if (!fanOut) {
     const round = `Round ${Math.max(run.generation, 1)}`;
     return {
@@ -141,18 +177,32 @@ export function buildRunProgress(
       leftMeta: round,
       rightMeta: rightMeta(run, openPoints),
       ariaLabel: round,
+      parkedCount: 0,
     };
   }
   const terminal = isTerminalLoopStatus(run.status);
   const runFailed = run.status === "failed";
-  const segments = fanOut.statuses.map(status => segmentState(status, terminal, runFailed));
+  const segments = fanOut.parked
+    ? fanOut.statuses.map<LoopProgressSegmentState>(() => "parked")
+    : fanOut.statuses.map(status => segmentState(status, terminal, runFailed));
+  const parkedCount = segments.filter(state => state === "parked").length;
+  const counted = segments.length - parkedCount;
   const cleanCount = segments.filter(state => state === "clean").length;
   const activeCount = segments.filter(state => state === "active" || state === "redo").length;
-  const left = leftMeta(run, cleanCount, segments.length, activeCount);
+  const noun = parkedNoun(nodes);
+  const left =
+    parkedCount === 0
+      ? leftMeta(run, cleanCount, segments.length, activeCount)
+      : counted === 0
+        ? // Every branch of this node is parked, so there is no counted work at
+          // all. "0 of 0 clean" would read as a failure; say what is true.
+          `Nothing counting here — all ${parkedCount} groups ${noun}`
+        : `${cleanCount} of ${counted} counted groups clean · ${parkedCount} ${noun} excluded`;
   return {
     segments,
     leftMeta: left,
     rightMeta: rightMeta(run, openPoints),
     ariaLabel: `Groups: ${left}`,
+    parkedCount,
   };
 }

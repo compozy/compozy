@@ -828,6 +828,19 @@ func TestCoordinatorQuarantineShouldPreserveDiagnosableSanitizedHistory(t *testi
 	if strings.Contains(string(raw), "planted-secret") || !strings.Contains(string(raw), "[REDACTED]") {
 		t.Fatalf("quarantine entry = %s, want planted secret redacted", raw)
 	}
+	for _, key := range []string{
+		`"loop_run_id"`, `"node_id"`, `"item_index"`, `"failure_class"`,
+		`"failure_code"`, `"started_at"`, `"ended_at"`,
+	} {
+		if !strings.Contains(string(raw), key) {
+			t.Fatalf("quarantine entry = %s, want canonical key %s", raw, key)
+		}
+	}
+	for _, legacyKey := range []string{`"LoopRunID"`, `"FailureClass"`, `"StartedAt"`} {
+		if strings.Contains(string(raw), legacyKey) {
+			t.Fatalf("quarantine entry = %s, want no Go field key %s", raw, legacyKey)
+		}
+	}
 	var entry QuarantineEntry
 	if err := json.Unmarshal(raw, &entry); err != nil {
 		t.Fatalf("json.Unmarshal(quarantine entry) error = %v", err)

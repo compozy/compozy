@@ -1,5 +1,25 @@
 import type { ComponentType, ReactNode } from "react";
-import { Activity, Bell, Check, Eye, Pause, Play, Square, TriangleAlert, X } from "lucide-react";
+import {
+  Activity,
+  Bell,
+  Ban,
+  Check,
+  CircleCheck,
+  CopyX,
+  Eye,
+  Hourglass,
+  Pause,
+  Play,
+  Radio,
+  RotateCcw,
+  Send,
+  ShieldAlert,
+  Square,
+  TriangleAlert,
+  X,
+  Zap,
+  ZapOff,
+} from "lucide-react";
 
 import {
   cn,
@@ -42,6 +62,18 @@ const ICONS: Record<LoopStoryIcon, IconComponent> = {
   started: Play,
   stopped: Square,
   done: Check,
+  retry: RotateCcw,
+  canceled: Ban,
+  killed: Zap,
+  quarantined: ShieldAlert,
+  requeued: RotateCcw,
+  waiting: Hourglass,
+  attention: TriangleAlert,
+  "attention-cleared": CircleCheck,
+  effect: Send,
+  suppressed: CopyX,
+  "breaker-open": ZapOff,
+  "breaker-closed": Radio,
 };
 
 /** Story dots color state only (§1): neutral rows stay on the faint ring. */

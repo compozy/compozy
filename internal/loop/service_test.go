@@ -3,6 +3,7 @@ package loop_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"maps"
@@ -1143,6 +1144,72 @@ func TestServiceControlMethodsShouldPreserveStatusContracts(t *testing.T) {
 		}
 		if got := store.mustRun(t, paused.ID); got.Status != loop.StatusRunning || got.PauseRequested {
 			t.Fatalf("paused after resume = %#v, want running and not requested", got)
+		}
+	})
+
+	t.Run("Should resume a wait with the pinned admission policy", func(t *testing.T) {
+		t.Parallel()
+
+		store := newFakeLoopStore()
+		resolved := compileDefinition(t, validDefinition())
+		pinnedAttempts := 7
+		effective, err := loop.ResolveEffectiveConfig(
+			resolved,
+			loop.DefaultLoopDefaults(),
+			nil,
+			loop.LoopConfig{Lifecycle: &loop.LifecycleConfig{WaitAdmissionAttempts: &pinnedAttempts}},
+		)
+		if err != nil {
+			t.Fatalf("ResolveEffectiveConfig() error = %v", err)
+		}
+		definition, digest, err := loop.BuildExecutedDefinitionSnapshot(resolved, effective)
+		if err != nil {
+			t.Fatalf("BuildExecutedDefinitionSnapshot() error = %v", err)
+		}
+		run := seedFakeRun(store, loop.StatusRunning)
+		run.Generation = 1
+		run.DefinitionVersion = resolved.DefinitionVersion
+		run.DefinitionDigest = digest
+		store.seed(run)
+		store.snapshots[string(run.WorkspaceID)+"/"+digest] = loop.DefinitionSnapshot{
+			WorkspaceID: run.WorkspaceID,
+			Digest:      digest,
+			Version:     run.DefinitionVersion,
+			Definition:  definition,
+		}
+		currentAttempts := 9
+		if err := store.UpsertLoopConfig(
+			context.Background(),
+			run.WorkspaceID,
+			run.LoopName,
+			loop.LoopConfig{Lifecycle: &loop.LifecycleConfig{WaitAdmissionAttempts: &currentAttempts}},
+		); err != nil {
+			t.Fatalf("UpsertLoopConfig() error = %v", err)
+		}
+		svc := newTestService(t, store, validDefinition())
+		lifecycle, ok := svc.(loop.NodeLifecycleService)
+		if !ok {
+			t.Fatal("Service does not implement NodeLifecycleService")
+		}
+
+		if _, err := lifecycle.ResumeNodeWait(
+			context.Background(),
+			run.WorkspaceID,
+			run.ID,
+			"release",
+			0,
+			json.RawMessage(`{}`),
+			humanActor(t),
+		); err != nil {
+			t.Fatalf("ResumeNodeWait() error = %v", err)
+		}
+		if got := store.lastWaitResumeMutation(t).AdmissionAttempts; got != pinnedAttempts {
+			t.Fatalf(
+				"AdmissionAttempts = %d, want pinned %d instead of current %d",
+				got,
+				pinnedAttempts,
+				currentAttempts,
+			)
 		}
 	})
 
@@ -2541,6 +2608,7 @@ type fakeLoopStore struct {
 	cancellationErr                  error
 	cancellationErrByRun             map[loop.RunID]error
 	generationOutputs                map[loop.RunID][]loop.GenerationOutput
+	waitResumeMutation               *loop.WaitResumeMutation
 	creates                          int
 }
 
@@ -2619,6 +2687,16 @@ func (s *fakeLoopStore) lastCancellationRequest(t *testing.T) loop.CancellationM
 		t.Fatal("cancellation request count = 0, want at least one")
 	}
 	return s.cancellationRequests[len(s.cancellationRequests)-1]
+}
+
+func (s *fakeLoopStore) lastWaitResumeMutation(t *testing.T) loop.WaitResumeMutation {
+	t.Helper()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.waitResumeMutation == nil {
+		t.Fatal("wait resume mutation = nil")
+	}
+	return *s.waitResumeMutation
 }
 
 func (s *fakeLoopStore) createCount() int {
@@ -2783,6 +2861,20 @@ func (s *fakeLoopStore) GetLoopRunByID(_ context.Context, runID loop.RunID) (loo
 		return loop.Run{}, loop.ErrRunNotFound
 	}
 	return run, nil
+}
+
+func (s *fakeLoopStore) ResumeWait(
+	_ context.Context,
+	mutation loop.WaitResumeMutation,
+) (loop.WaitResumeResult, error) {
+	if err := mutation.Validate(); err != nil {
+		return loop.WaitResumeResult{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	mutationCopy := mutation
+	s.waitResumeMutation = &mutationCopy
+	return loop.WaitResumeResult{Won: true}, nil
 }
 
 func (s *fakeLoopStore) RequestRunCancellation(

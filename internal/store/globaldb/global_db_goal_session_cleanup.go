@@ -53,7 +53,7 @@ func (g *GoalRepo) ReconcileGoalSessionCleanup(ctx context.Context) error {
 		return err
 	}
 	err := sqlcgen.New(g.db).ReconcileGoalSessionCleanup(ctx, sqlcgen.ReconcileGoalSessionCleanupParams{
-		SettledFailureCode:   goalNullableString(goalBindingFailureStopCreationSettled),
+		SettledFailureCode:   goalNullableString(goalBindingFailureControlRevokedInFlight),
 		UnsettledFailureCode: goalNullableString(goalBindingFailureStopCreationUnsettled),
 	})
 	if err != nil {

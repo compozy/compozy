@@ -57,7 +57,7 @@ func (s *service) ResumeNodeWait(
 	if err != nil {
 		return WaitResumeResult{}, err
 	}
-	snapshot, err := s.GetConfigSnapshot(ctx, ws, run.LoopName)
+	resolved, err := s.pinnedResolvedDefinition(ctx, *run)
 	if err != nil {
 		return WaitResumeResult{}, err
 	}
@@ -68,8 +68,8 @@ func (s *service) ResumeNodeWait(
 	}
 	defaults := DefaultLifecycleConfig()
 	admissionAttempts := *defaults.WaitAdmissionAttempts
-	if snapshot.Effective.Lifecycle.WaitAdmissionAttempts != nil {
-		admissionAttempts = *snapshot.Effective.Lifecycle.WaitAdmissionAttempts
+	if resolved.EffectiveConfig.Lifecycle.WaitAdmissionAttempts != nil {
+		admissionAttempts = *resolved.EffectiveConfig.Lifecycle.WaitAdmissionAttempts
 	}
 	result, err := store.ResumeWait(ctx, WaitResumeMutation{
 		WorkspaceID:       ws,
