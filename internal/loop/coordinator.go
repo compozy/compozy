@@ -339,6 +339,14 @@ func (r *CoordinatorRunner) buildExistingGenerationPlan(
 	); pending || planErr != nil {
 		return plan, pending, planErr
 	}
+	outputs, err = generationOutputRuntimeView(ctx, r.outputs, generationOutputRuntimeScope{
+		workspaceID: run.WorkspaceID,
+		runID:       run.ID,
+		generation:  run.Generation,
+	}, outputs)
+	if err != nil {
+		return task.CoordinatorCompletionPlan{}, false, err
+	}
 	plan, err := r.buildGenerationFinisherPlan(
 		ctx, taskRun, run, run.Generation, resolved, effective, fanOutWidth, outputs,
 	)

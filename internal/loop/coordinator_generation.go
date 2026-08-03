@@ -452,7 +452,10 @@ func iterationCapTerminal(run Run, generation int) *task.CoordinatorTerminal {
 
 func cloneGenerationOutputs(outputs []GenerationOutput) []GenerationOutput {
 	cloned := make([]GenerationOutput, len(outputs))
-	copy(cloned, outputs)
+	for index := range outputs {
+		cloned[index] = outputs[index]
+		cloned[index].runtimePayload = cloneRawMessage(outputs[index].runtimePayload)
+	}
 	return cloned
 }
 

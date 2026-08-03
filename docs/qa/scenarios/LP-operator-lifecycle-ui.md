@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-recover-loop-node-failure
 expected: The run detail renders node lifecycle state from daemon payloads only — attempt and next-attempt time on a retrying lane, pause provenance (who, why, when, manual vs rule) on a paused lane, wait kind and age on a waiting lane, the quarantine set-aside and its attention overlay, cancel-state on a winding-down lane, and the `canceled` terminal as a calm "Why it stopped" with no Happening-now card. Node row menus offer exactly the verbs the payload declares (running/retrying → pause, cancel, kill; paused → the three resume modes + cancel, kill; waiting → resume-with-payload + cancel, kill; quarantined → open entry, requeue + cancel, kill; terminal run → none). Pause asks drain-vs-cancel; kill and requeue confirm against the node's current state; the daemon's 409/422 answers render as information carrying actual_state, allowed_transitions, and the winning actor. The quarantine sheet shows hint-first, the classified attempt chain with episode boundaries, target, and input ref, and hides Requeue once the node leaves quarantine. Run kill lives in the single ⋯ overflow. The workspace inventories (waiting/quarantined/attention/retrying) filter by loop and run, sort by real time in state, page only while a cursor exists, and never present a loaded page as a total.
 entry_points: web /loop-runs/:id; web /loop-runs?nodes=waiting|quarantined|attention|retrying; GET /loop-nodes?state=; POST /loop-runs/:id/nodes/:node/{pause,resume,cancel,kill,requeue}; POST /loop-runs/:id/{cancel,kill}; SSE /loop-runs/:id/events
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
-retest_status:
+retest_status: pass
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-loop-operator-lifecycle-ui-20260803-044343-123901-lab/qa-artifacts/qa/screenshots/task08/03b-waiting-run-zoomed.png;/Users/pedronauck/dev/qa-labs/compozy-loop-operator-lifecycle-ui-20260803-044343-123901-lab/qa-artifacts/qa/screenshots/task08/05-wait-resumed-fresh.png;/Users/pedronauck/dev/qa-labs/compozy-loop-operator-lifecycle-ui-20260803-044343-123901-lab/qa-artifacts/qa/screenshots/task08/07-quarantine-entry.png;/Users/pedronauck/dev/qa-labs/compozy-loop-operator-lifecycle-ui-20260803-044343-123901-lab/qa-artifacts/qa/screenshots/task08/09-requeue-fresh.png;/Users/pedronauck/dev/qa-labs/compozy-loop-operator-lifecycle-ui-20260803-044343-123901-lab/qa-artifacts/qa/screenshots/task08/17-run-killed-terminal.png;/Users/pedronauck/dev/qa-labs/compozy-loop-operator-lifecycle-ui-20260803-044343-123901-lab/qa-artifacts/qa/screenshots/task08/23-retrying-run.png;/Users/pedronauck/dev/qa-labs/compozy-loop-operator-lifecycle-ui-20260803-044343-123901-lab/qa-artifacts/qa/screenshots/task08/25-paused-retrying-node.png;/Users/pedronauck/dev/qa-labs/compozy-loop-operator-lifecycle-ui-20260803-044343-123901-lab/qa-artifacts/qa/screenshots/task08/26-resumed-retrying-node.png;/Users/pedronauck/dev/qa-labs/compozy-loop-operator-lifecycle-ui-20260803-044343-123901-lab/qa-artifacts/qa/screenshots/task08/27-retrying-inventory.png
-last_report: docs/qa/reports/2026-08-03-loop-node-lifecycle-task08.md
+last_report: docs/qa/reports/2026-08-03-loop-node-lifecycle.md
 overlaps: LP-live-pause-repair-resume;LP-quarantine-diagnose-requeue;LP-waiting-inventory-escalation;LP-cancel-vs-kill;LP-run-detail-story-redesign
 ---
 

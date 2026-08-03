@@ -72,7 +72,7 @@ func skipRouteNodes(
 			continue
 		}
 		(*outputs)[index].Status = generationOutputSucceeded
-		(*outputs)[index].OutputRef = branchSkippedOutputRef
+		setGenerationOutputRef(&(*outputs)[index], branchSkippedOutputRef)
 		outputMap[key] = (*outputs)[index]
 		for _, dependent := range topology.dependents[nodeID] {
 			if allRouteDependenciesSkipped(topology, outputMap, dependent, source.ItemIndex) {

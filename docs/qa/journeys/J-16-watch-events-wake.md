@@ -34,7 +34,7 @@ journey:
   entry_points:
     - url: "web /loops/:name/editor (loop-editor: Watch events source + subscription form) › Publish › Run › web run-detail (park read-model)"
       origin: in-app-nav
-    - url: "CLI: compozy loop run  +  compozy loop runs show -o json (park read-model: subscriptions, cursors, last_wake_at)"
+    - url: "CLI: compozy loop run + compozy loop status --run-id <run-id> -o json (park read-model: subscriptions, cursors, last_wake_at)"
       origin: direct
     - url: "native compozy__loop_* (author/validate/run/observe entirely through structured surfaces)"
       origin: external-share
@@ -44,7 +44,7 @@ journey:
       expected_observable: "The kind select lists exactly the registry-supported kinds; an unsupported kind or a too-broad filter (e.g. event.post_record without a session_id constraint) is rejected by the shared Go linter, disabling Publish"
     - step: 2
       verb: "Run the loop; it reaches the watch-events node"
-      expected_observable: "The run enters the live watching state at zero cost; run-detail (web + compozy loop runs show -o json) exposes the parked read-model — subscriptions {kind, filter}, cursors, last_wake_at — and renders nothing when absent"
+      expected_observable: "The run enters the live watching state at zero cost; run-detail (web + compozy loop status --run-id <run-id> -o json) exposes the parked read-model — subscriptions {kind, filter}, cursors, last_wake_at — and renders nothing when absent"
     - step: 3
       verb: "A matching durable event commits (a task completes, an automation finishes, a network/coordinator/session event lands)"
       expected_observable: "The doorbell evaluates CEL(event, inputs); a match coalesces one wake and runs a coordinator round over the ledger batch; a non-matching or cross-workspace event never wakes the loop"

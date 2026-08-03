@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-recover-loop-node-failure
 expected: A manual or rule-driven pause parks only the selected node at a safe boundary with provenance, excludes it from scheduling and clocks, and each resume variant continues once with the requested attempt policy while healthy sibling work remains intact.
 entry_points: `compozy loop node pause|resume`; HTTP/UDS node-control routes; native tools; Web run controls
-qa_status: untested
-bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence:
-last_report:
+qa_status: pass
+bug_ids: BUG-20260803-cross-origin-coordinator-duplicate
+fix_status: fixed
+retest_status: pass
+fix_commits: Task 13 checkpoint
+evidence: looprun-97e; looprun-980; looprun-2e361; looprun-45fa; internal/store/globaldb/global_db_task_claim_test.go
+last_report: docs/qa/reports/2026-08-03-loop-node-lifecycle.md
 overlaps: LP-quarantine-diagnose-requeue; LP-cancel-vs-kill
 ---
 

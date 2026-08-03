@@ -4510,6 +4510,11 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldDeferBoundaryWhileGenera
 ) {
 	t.Parallel()
 
+	t.Run("Should preserve progress committed while the coordinator is in flight", func(t *testing.T) {
+		t.Parallel()
+		testGlobalDBCompleteCoordinatorShouldPreserveConcurrentProgress(t)
+	})
+
 	cases := []struct {
 		name      string
 		mutateRun func(*looppkg.Run)
@@ -4699,6 +4704,101 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldDeferBoundaryWhileGenera
 				t.Fatalf("generation output status/task_run_id = %q/%#v, want pending/null", status, taskRunID)
 			}
 		})
+	}
+}
+
+func testGlobalDBCompleteCoordinatorShouldPreserveConcurrentProgress(t *testing.T) {
+	t.Helper()
+
+	globalDB := openLoopTestGlobalDB(t)
+	ctx := testutil.Context(t)
+	now := time.Date(2026, 7, 4, 15, 36, 0, 0, time.UTC)
+	loopRun, err := globalDB.CreateLoopRunForStart(
+		ctx,
+		testLoopRun("looprun-coordinator-concurrent-progress", now, looppkg.StatusRunning),
+		dsl.ConcurrencyAllow,
+	)
+	if err != nil {
+		t.Fatalf("CreateLoopRunForStart() error = %v", err)
+	}
+	firstClaim := claimCoordinatorRunForTest(
+		ctx,
+		t,
+		globalDB,
+		loopRun.ID,
+		"run-coordinator-concurrent-progress",
+		now,
+	)
+	if err := globalDB.AdvanceLoopRunProgress(ctx, string(loopRun.ID), now.Add(time.Second)); err != nil {
+		t.Fatalf("AdvanceLoopRunProgress() error = %v", err)
+	}
+	actor := coordinatorActorContextForTest()
+	plan := taskpkg.CoordinatorCompletionPlan{
+		GenerationInFlight: true,
+		Yield:              true,
+		Snapshot: taskpkg.GenerationSnapshot{
+			LoopRunID:  string(loopRun.ID),
+			Generation: 1,
+		},
+	}
+	firstResult, err := globalDB.CompleteCoordinatorAndEnqueueNext(ctx, taskpkg.CoordinatorCompletion{
+		RunID:      firstClaim.Run.ID,
+		ClaimToken: firstClaim.ClaimToken,
+		Actor:      actor,
+		Plan:       plan,
+		Now:        now.Add(2 * time.Second),
+	}, looppkg.NewStoreFinalizer())
+	if err != nil {
+		t.Fatalf("CompleteCoordinatorAndEnqueueNext(first) error = %v", err)
+	}
+	if len(firstResult.EnqueuedRuns) != 1 {
+		t.Fatalf("first enqueued runs = %d, want one reconciliation successor", len(firstResult.EnqueuedRuns))
+	}
+	wakeKey := coordinatorConcurrentProgressWakeKey(string(loopRun.ID), firstClaim.Run.ID)
+	wakeRun, err := globalDB.GetTaskRunByIdempotencyKey(ctx, wakeKey, actor.Origin)
+	if err != nil {
+		t.Fatalf("GetTaskRunByIdempotencyKey(concurrent progress) error = %v", err)
+	}
+	if got, want := wakeRun.ID, firstResult.EnqueuedRuns[0].ID; got != want {
+		t.Fatalf("wake run ID = %q, want committed successor %q", got, want)
+	}
+
+	secondClaim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+		RunID:            wakeRun.ID,
+		Scope:            taskpkg.ScopeWorkspace,
+		WorkspaceID:      string(loopRun.WorkspaceID),
+		RunKind:          taskpkg.RunKindCoordinator,
+		ClaimerSessionID: "daemon-loop-concurrent-progress-successor",
+		ClaimedBy:        &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "loop"},
+		LeaseDuration:    time.Minute,
+		Now:              now.Add(3 * time.Second),
+	})
+	if err != nil {
+		t.Fatalf("ClaimNextRun(successor) error = %v", err)
+	}
+	secondResult, err := globalDB.CompleteCoordinatorAndEnqueueNext(ctx, taskpkg.CoordinatorCompletion{
+		RunID:      secondClaim.Run.ID,
+		ClaimToken: secondClaim.ClaimToken,
+		Actor:      actor,
+		Plan:       plan,
+		Now:        now.Add(4 * time.Second),
+	}, looppkg.NewStoreFinalizer())
+	if err != nil {
+		t.Fatalf("CompleteCoordinatorAndEnqueueNext(successor) error = %v", err)
+	}
+	if len(secondResult.EnqueuedRuns) != 0 {
+		t.Fatalf("successor enqueued runs = %d, want no polling wake without new progress", len(secondResult.EnqueuedRuns))
+	}
+	secondWakeKey := coordinatorConcurrentProgressWakeKey(string(loopRun.ID), secondClaim.Run.ID)
+	if _, err := globalDB.GetTaskRunByIdempotencyKey(ctx, secondWakeKey, actor.Origin); !errors.Is(
+		err,
+		taskpkg.ErrTaskRunIdempotencyNotFound,
+	) {
+		t.Fatalf(
+			"GetTaskRunByIdempotencyKey(no new progress) error = %v, want %v",
+			err,
+			taskpkg.ErrTaskRunIdempotencyNotFound,
+		)
 	}
 }
 
@@ -5904,6 +6004,119 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldCreateNodeTasksDependenc
 		t.Parallel()
 		testGlobalDBCompleteCoordinatorAndEnqueueNextShouldCreateNodeTasksDependenciesAndRuns(t)
 	})
+
+	t.Run("Should coalesce one deterministic coordinator run across internal origins", func(t *testing.T) {
+		t.Parallel()
+		testGlobalDBCompleteCoordinatorAndEnqueueNextShouldCoalesceDeterministicRun(t)
+	})
+}
+
+func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldCoalesceDeterministicRun(t *testing.T) {
+	t.Helper()
+
+	globalDB := openLoopTestGlobalDB(t)
+	ctx := testutil.Context(t)
+	now := time.Date(2026, 8, 3, 23, 15, 0, 0, time.UTC)
+	loopRun, err := globalDB.CreateLoopRunForStart(
+		ctx,
+		testLoopRun("looprun-coordinator-cross-origin", now, looppkg.StatusRunning),
+		dsl.ConcurrencyAllow,
+	)
+	if err != nil {
+		t.Fatalf("CreateLoopRunForStart() error = %v", err)
+	}
+	initial := claimCoordinatorRunForTest(ctx, t, globalDB, loopRun.ID, "cross-origin-initial", now)
+	nextRunID := loopCoordinatorRunID(loopRun.ID, 2)
+	nextKey := loopCoordinatorIdempotencyKey(loopRun.ID, 2)
+	bootActor := coordinatorActorContextForTest()
+	bootActor.Origin.Ref = "daemon.boot"
+	if _, err := globalDB.CompleteCoordinatorAndEnqueueNext(ctx, taskpkg.CoordinatorCompletion{
+		RunID: initial.Run.ID, ClaimToken: initial.ClaimToken, Actor: bootActor,
+		Plan: taskpkg.CoordinatorCompletionPlan{
+			NextCoordinator: &taskpkg.EnqueueSpec{
+				TaskID: initial.Run.TaskID, RunID: nextRunID, RunKind: taskpkg.RunKindCoordinator,
+				LoopRunID: string(loopRun.ID), IdempotencyKey: nextKey,
+			},
+			Snapshot: taskpkg.GenerationSnapshot{
+				LoopRunID: string(loopRun.ID), Generation: 1,
+				Payload: looppkg.GenerationSnapshotPayload{},
+			},
+		},
+		Now: now.Add(time.Second),
+	}, looppkg.NewStoreFinalizer()); err != nil {
+		t.Fatalf("CompleteCoordinatorAndEnqueueNext(seed deterministic run) error = %v", err)
+	}
+	nextClaim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+		RunID: nextRunID, Scope: taskpkg.ScopeWorkspace, WorkspaceID: string(loopRun.WorkspaceID),
+		RunKind: taskpkg.RunKindCoordinator, ClaimerSessionID: "daemon-loop-cross-origin-next",
+		ClaimedBy:     &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "loop"},
+		LeaseDuration: time.Minute, Now: now.Add(2 * time.Second),
+	})
+	if err != nil {
+		t.Fatalf("ClaimNextRun(deterministic run) error = %v", err)
+	}
+	if _, err := globalDB.CompleteCoordinatorAndEnqueueNext(ctx, taskpkg.CoordinatorCompletion{
+		RunID: nextClaim.Run.ID, ClaimToken: nextClaim.ClaimToken, Actor: bootActor,
+		Plan: taskpkg.CoordinatorCompletionPlan{
+			Yield: true,
+			Snapshot: taskpkg.GenerationSnapshot{
+				LoopRunID: string(loopRun.ID), Generation: 1,
+				Payload: looppkg.GenerationSnapshotPayload{},
+			},
+		},
+		Now: now.Add(3 * time.Second),
+	}, looppkg.NewStoreFinalizer()); err != nil {
+		t.Fatalf("CompleteCoordinatorAndEnqueueNext(settle deterministic run) error = %v", err)
+	}
+	hookOrigin := taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "loop.hooks"}
+	wake, added, err := globalDB.EnqueueLoopCoordinatorWake(
+		ctx,
+		string(loopRun.ID),
+		"loop.coordinator.node_terminal.cross-origin",
+		hookOrigin,
+		now.Add(4*time.Second),
+	)
+	if err != nil || !added {
+		t.Fatalf("EnqueueLoopCoordinatorWake() = %#v, %v, want added", wake, err)
+	}
+	wakeClaim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+		RunID: wake.ID, Scope: taskpkg.ScopeWorkspace, WorkspaceID: string(loopRun.WorkspaceID),
+		RunKind: taskpkg.RunKindCoordinator, ClaimerSessionID: "daemon-loop-cross-origin-wake",
+		ClaimedBy:     &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "loop"},
+		LeaseDuration: time.Minute, Now: now.Add(5 * time.Second),
+	})
+	if err != nil {
+		t.Fatalf("ClaimNextRun(wake) error = %v", err)
+	}
+	hookActor := coordinatorActorContextForTest()
+	hookActor.Origin = hookOrigin
+	result, err := globalDB.CompleteCoordinatorAndEnqueueNext(ctx, taskpkg.CoordinatorCompletion{
+		RunID: wakeClaim.Run.ID, ClaimToken: wakeClaim.ClaimToken, Actor: hookActor,
+		Plan: taskpkg.CoordinatorCompletionPlan{
+			NextCoordinator: &taskpkg.EnqueueSpec{
+				TaskID: wakeClaim.Run.TaskID, RunID: nextRunID, RunKind: taskpkg.RunKindCoordinator,
+				LoopRunID: string(loopRun.ID), IdempotencyKey: nextKey,
+			},
+			Snapshot: taskpkg.GenerationSnapshot{
+				LoopRunID: string(loopRun.ID), Generation: 1,
+				Payload: looppkg.GenerationSnapshotPayload{},
+			},
+		},
+		Now: now.Add(6 * time.Second),
+	}, looppkg.NewStoreFinalizer())
+	if err != nil {
+		t.Fatalf("CompleteCoordinatorAndEnqueueNext(replay from hook origin) error = %v", err)
+	}
+	if len(result.EnqueuedRuns) != 0 {
+		t.Fatalf("replay enqueued runs = %#v, want deterministic no-op", result.EnqueuedRuns)
+	}
+	stored, err := globalDB.GetTaskRun(ctx, nextRunID)
+	if err != nil {
+		t.Fatalf("GetTaskRun(deterministic run) error = %v", err)
+	}
+	if stored.Status != taskpkg.TaskRunStatusCompleted || stored.IdempotencyKey != nextKey {
+		t.Fatalf("deterministic run = %#v, want original completed identity", stored)
+	}
 }
 
 func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldCreateNodeTasksDependenciesAndRuns(t *testing.T) {
@@ -7010,12 +7223,57 @@ func TestGlobalDBCompleteRunLeaseShouldStoreLargeLoopOutputByRef(t *testing.T) {
 		if !outputRef.Valid || outputRef.String != wantRef {
 			t.Fatalf("output_ref = %#v, want %q", outputRef, wantRef)
 		}
-		loaded, err := getLoopOutputByRefWithExecutor(ctx, globalDB.db, wantRef)
+		owner := looppkg.GenerationOutputPayloadKey{
+			WorkspaceID: loopRun.WorkspaceID,
+			RunID:       loopRun.ID,
+			Generation:  1,
+			NodeID:      "summarize",
+			ItemIndex:   0,
+			OutputRef:   wantRef,
+		}
+		loaded, err := globalDB.GetGenerationOutputPayload(ctx, owner)
 		if err != nil {
-			t.Fatalf("getLoopOutputByRefWithExecutor() error = %v", err)
+			t.Fatalf("GetGenerationOutputPayload() error = %v", err)
 		}
 		if string(loaded) != string(resultPayload) {
 			t.Fatalf("loaded payload mismatch: got %d bytes want %d bytes", len(loaded), len(resultPayload))
+		}
+
+		wrongWorkspace := owner
+		wrongWorkspace.WorkspaceID = "ws-other"
+		wrongRun := owner
+		wrongRun.RunID = "looprun-other"
+		wrongGeneration := owner
+		wrongGeneration.Generation = 2
+		wrongNode := owner
+		wrongNode.NodeID = "other"
+		wrongItem := owner
+		wrongItem.ItemIndex = 1
+		wrongRef := owner
+		wrongRef.OutputRef = looppkg.OutputRefForPayload(json.RawMessage(`[]`))
+		mismatches := []struct {
+			name string
+			key  looppkg.GenerationOutputPayloadKey
+		}{
+			{name: "Should reject a different workspace", key: wrongWorkspace},
+			{name: "Should reject a different run", key: wrongRun},
+			{name: "Should reject a different generation", key: wrongGeneration},
+			{name: "Should reject a different node", key: wrongNode},
+			{name: "Should reject a different item", key: wrongItem},
+			{name: "Should reject a different ref", key: wrongRef},
+		}
+		for _, mismatch := range mismatches {
+			t.Run(mismatch.name, func(t *testing.T) {
+				t.Parallel()
+				_, lookupErr := globalDB.GetGenerationOutputPayload(ctx, mismatch.key)
+				if !errors.Is(lookupErr, looppkg.ErrOutputRefNotFound) {
+					t.Fatalf(
+						"GetGenerationOutputPayload() error = %v, want %v",
+						lookupErr,
+						looppkg.ErrOutputRefNotFound,
+					)
+				}
+			})
 		}
 	})
 }

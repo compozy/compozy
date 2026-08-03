@@ -5,14 +5,14 @@ title: Deliver the effect for the terminal outcome that actually committed
 persona: Lea
 journey: J-recover-loop-node-failure
 expected: Exactly the declared effect for the committed done, no-op, blocked, failed, exhausted, stalled, or canceled outcome is delivered once, and its result is observable without firing another lifecycle hook.
-entry_points: web /loops/:name/editor; web /loop-runs/:id; compozy loop runs show <run-id> -o json; HTTP/UDS Loop events; SSE
-qa_status: untested
+entry_points: web /loops/:name/editor; web /loop-runs/:id; `compozy loop status --run-id <run-id> -o json`; HTTP/UDS Loop events; SSE
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: done, failed, canceled, and routed outcomes observed; no public fixture path seeds all seven terminal outcomes with distinct effects in one real-user walk
+last_report: docs/qa/reports/2026-08-03-loop-node-lifecycle.md
 overlaps:
 ---
 

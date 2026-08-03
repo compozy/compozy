@@ -3,9 +3,11 @@ package loop
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -339,6 +341,166 @@ func TestCoordinatorRunnerShouldDriveFanOutAndCollectControls(t *testing.T) {
 		}
 		if got, want := secondPlan.NodeRuns[0].TaskID, coordinatorNodeTaskID(loopRun.ID, 1, "work", 1); got != want {
 			t.Fatalf("second queued task = %q, want %q", got, want)
+		}
+	})
+
+	t.Run(
+		"Should resolve externalized producer and fan-out payloads without replacing stored refs",
+		func(t *testing.T) {
+			t.Parallel()
+
+			largeBody := strings.Repeat("x", LoopOutputInlineLimitBytes+1)
+			producerPayload, err := json.Marshal(map[string]any{
+				"items": []any{map[string]any{"id": "A", "body": largeBody}},
+			})
+			if err != nil {
+				t.Fatalf("json.Marshal(producer payload) error = %v", err)
+			}
+			producerRef := OutputRefForPayload(producerPayload)
+			resolved := compileCoordinatorControlDefinition(t, fanOutControlDefinition(1, 1, 2))
+			loopRun := controlLoopRun("looprun-externalized-fanout", map[string]any{})
+			coordinatorRun := controlCoordinatorRun(loopRun, 1)
+			loadRun := controlWorkerRun(loopRun, "load", 0, task.TaskRunStatusCompleted)
+			payloadKey := GenerationOutputPayloadKey{
+				WorkspaceID: loopRun.WorkspaceID,
+				RunID:       loopRun.ID,
+				Generation:  1,
+				NodeID:      "load",
+				OutputRef:   producerRef,
+			}
+			outputStore := coordinatorRunnerOutputs{
+				outputs: map[int][]GenerationOutput{1: {
+					{Generation: 1, NodeID: "load", Status: generationOutputEnqueued,
+						OutputRef: producerRef, TaskRunID: loadRun.ID},
+					{Generation: 1, NodeID: "fan", Status: generationOutputPending},
+					{Generation: 1, NodeID: "collect", Status: generationOutputPending},
+				}},
+				payloads:     map[GenerationOutputPayloadKey]json.RawMessage{payloadKey: producerPayload},
+				payloadCalls: map[GenerationOutputPayloadKey]int{},
+			}
+			runner := newCoordinatorRunnerForControlTest(
+				t,
+				loopRun,
+				coordinatorRun,
+				map[string]task.Run{coordinatorRun.ID: coordinatorRun, loadRun.ID: loadRun},
+				outputStore,
+				resolved,
+			)
+
+			plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+			if err != nil {
+				t.Fatalf("Run() error = %v", err)
+			}
+			if got, want := outputStore.payloadCalls[payloadKey], 1; got != want {
+				t.Fatalf("payload lookups = %d, want %d", got, want)
+			}
+			if got, want := len(plan.NodeRuns), 1; got != want {
+				t.Fatalf("node runs = %d, want %d", got, want)
+			}
+			var metadata map[string]any
+			if err := json.Unmarshal(plan.NodeRuns[0].Metadata, &metadata); err != nil {
+				t.Fatalf("json.Unmarshal(node metadata) error = %v", err)
+			}
+			item, ok := metadata["item"].(map[string]any)
+			if !ok || item["body"] != largeBody {
+				t.Fatalf("metadata.item = %#v, want externalized producer item", metadata["item"])
+			}
+			payload := coordinatorPostReservePayloadForTest(t, plan)
+			outputs := outputsByNodeAndItemForTest(payload.Outputs)
+			if got := outputs["load/0"].OutputRef; got != producerRef {
+				t.Fatalf("load output_ref = %q, want stored ref %q", got, producerRef)
+			}
+			fanRef := outputs["fan/0"].OutputRef
+			if !OutputRefLooksContentAddressed(fanRef) || fanRef == producerRef {
+				t.Fatalf("fan output_ref = %q, want distinct content-addressed materialization", fanRef)
+			}
+			if got, want := len(payload.OutputBlobs), 1; got != want {
+				t.Fatalf("output blobs = %d, want %d fan-out materialization", got, want)
+			}
+			if payload.OutputBlobs[0].OutputRef != fanRef {
+				t.Fatalf("materialization blob ref = %q, want %q", payload.OutputBlobs[0].OutputRef, fanRef)
+			}
+		},
+	)
+
+	t.Run("Should fail loudly when an externalized producer payload is missing", func(t *testing.T) {
+		t.Parallel()
+
+		producerRef := OutputRefForPayload(json.RawMessage(`{"items":[{"id":"A"}]}`))
+		resolved := compileCoordinatorControlDefinition(t, fanOutControlDefinition(1, 1, 2))
+		loopRun := controlLoopRun("looprun-missing-fanout-payload", map[string]any{})
+		coordinatorRun := controlCoordinatorRun(loopRun, 1)
+		loadRun := controlWorkerRun(loopRun, "load", 0, task.TaskRunStatusCompleted)
+		runner := newCoordinatorRunnerForControlTest(
+			t,
+			loopRun,
+			coordinatorRun,
+			map[string]task.Run{coordinatorRun.ID: coordinatorRun, loadRun.ID: loadRun},
+			coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: {
+				{Generation: 1, NodeID: "load", Status: generationOutputEnqueued,
+					OutputRef: producerRef, TaskRunID: loadRun.ID},
+				{Generation: 1, NodeID: "fan", Status: generationOutputPending},
+				{Generation: 1, NodeID: "collect", Status: generationOutputPending},
+			}}},
+			resolved,
+		)
+
+		_, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		if !errors.Is(err, ErrOutputRefNotFound) {
+			t.Fatalf("Run() error = %v, want %v", err, ErrOutputRefNotFound)
+		}
+	})
+
+	t.Run("Should inspect an externalized result contract before declaring success", func(t *testing.T) {
+		t.Parallel()
+
+		failurePayload, err := json.Marshal(map[string]any{
+			"error": "declared failure",
+			"body":  strings.Repeat("x", LoopOutputInlineLimitBytes+1),
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal(failure payload) error = %v", err)
+		}
+		failureRef := OutputRefForPayload(failurePayload)
+		resolved := compileCoordinatorControlDefinition(t, fanOutControlDefinition(1, 1, 2))
+		loopRun := controlLoopRun("looprun-externalized-result-contract", map[string]any{})
+		coordinatorRun := controlCoordinatorRun(loopRun, 1)
+		loadRun := controlWorkerRun(loopRun, "load", 0, task.TaskRunStatusCompleted)
+		payloadKey := GenerationOutputPayloadKey{
+			WorkspaceID: loopRun.WorkspaceID,
+			RunID:       loopRun.ID,
+			Generation:  1,
+			NodeID:      "load",
+			OutputRef:   failureRef,
+		}
+		runner := newCoordinatorRunnerForControlTest(
+			t,
+			loopRun,
+			coordinatorRun,
+			map[string]task.Run{coordinatorRun.ID: coordinatorRun, loadRun.ID: loadRun},
+			coordinatorRunnerOutputs{
+				outputs: map[int][]GenerationOutput{1: {
+					{Generation: 1, NodeID: "load", Status: generationOutputEnqueued,
+						OutputRef: failureRef, TaskRunID: loadRun.ID},
+					{Generation: 1, NodeID: "fan", Status: generationOutputPending},
+					{Generation: 1, NodeID: "collect", Status: generationOutputPending},
+				}},
+				payloads: map[GenerationOutputPayloadKey]json.RawMessage{payloadKey: failurePayload},
+			},
+			resolved,
+		)
+
+		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		if err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+		outputs := outputsByNodeAndItemForTest(coordinatorSnapshotPayloadForTest(t, plan).Outputs)
+		load := outputs["load/0"]
+		if load.Status != generationOutputFailed {
+			t.Fatalf("load status = %q, want %q", load.Status, generationOutputFailed)
+		}
+		if OutputRefLooksContentAddressed(load.OutputRef) || !strings.Contains(load.OutputRef, "declared failure") {
+			t.Fatalf("load output_ref = %q, want classified inline failure", load.OutputRef)
 		}
 	})
 }

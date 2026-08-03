@@ -234,6 +234,29 @@ func TestCoordinatorRunnerShouldApplyNodeFailurePrecedence(t *testing.T) {
 			lifecycleNode("success"),
 		)
 		def.Graph.Edges = []dsl.Edge{{From: "work", To: "fallback"}, {From: "work", To: "success"}}
+		topology := newControlTopology(def.Graph)
+		initialOutputs := initialGenerationOutputs(def.Graph, topology, 1)
+		initialPlan, err := newInitialControlCoordinatorPlan(
+			Run{ID: "looprun-lifecycle-route", LoopName: "route"},
+			1,
+			def.Graph,
+			topology,
+			false,
+			initialOutputs,
+		)
+		if err != nil {
+			t.Fatalf("newInitialControlCoordinatorPlan() error = %v", err)
+		}
+		if got, want := len(initialPlan.Dependencies), 1; got != want {
+			t.Fatalf("initial route dependencies = %#v, want only the success-path dependency", initialPlan.Dependencies)
+		}
+		dependency := initialPlan.Dependencies[0]
+		if got, want := dependency.TaskID, coordinatorNodeTaskID("looprun-lifecycle-route", 1, "success", 0); got != want {
+			t.Fatalf("initial route dependency task_id = %q, want %q", got, want)
+		}
+		if got, want := dependency.DependsOnTaskID, coordinatorNodeTaskID("looprun-lifecycle-route", 1, "work", 0); got != want {
+			t.Fatalf("initial route dependency prerequisite = %q, want %q", got, want)
+		}
 		plan := runLifecycleFailurePlan(t, "route", now, def)
 		payload := coordinatorSnapshotPayloadForTest(t, plan)
 		outputs := outputsByNodeAndItemForTest(payload.Outputs)

@@ -52,6 +52,9 @@ func (s schedulerTaskSource) RunLoopCoordinatorBackstop(
 				LeaseDuration:    taskpkg.DefaultRunLeaseDuration,
 				Now:              now,
 			}, actor)
+			if errors.Is(err, taskpkg.ErrActiveRunLease) {
+				return started, nil
+			}
 			if errors.Is(err, taskpkg.ErrNoClaimableRun) ||
 				errors.Is(err, taskpkg.ErrWorkspaceActiveRunCapReached) {
 				break

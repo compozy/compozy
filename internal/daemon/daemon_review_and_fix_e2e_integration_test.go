@@ -118,7 +118,7 @@ func TestDaemonE2EReviewAndFixShouldRemediateAgentAuthoredArtifacts(t *testing.T
 		}
 	})
 
-	t.Run("Should fail schema-invalid reviewer output without a partial round", func(t *testing.T) {
+	t.Run("Should quarantine schema-invalid reviewer output without a partial round", func(t *testing.T) {
 		started := runReviewAndFixCLI(
 			t,
 			ctx,
@@ -127,13 +127,37 @@ func TestDaemonE2EReviewAndFixShouldRemediateAgentAuthoredArtifacts(t *testing.T
 			reviewInvalidTaskName,
 			reviewInvalidAgentName,
 		)
-		detail := waitForReviewLoopTerminal(t, ctx, harness, primaryWorkspaceID, started.ID)
-		if detail.Run.Status == contract.LoopRunStatusDone {
-			t.Fatalf("schema-invalid review status = %q, want failure", detail.Run.Status)
+		detail := waitForReviewLoop(
+			t,
+			ctx,
+			harness,
+			primaryWorkspaceID,
+			started.ID,
+			reviewLoopQuarantineSettled,
+			"review quarantine",
+		)
+		if detail.Run.Status != contract.LoopRunStatusRunning {
+			t.Fatalf("schema-invalid review status = %q, want running", detail.Run.Status)
 		}
-		review := requireReviewGenerationOutput(t, detail, 1, "review")
-		if review.Status != "failed" || !strings.Contains(review.OutputRef, "action_schema_invalid") {
-			t.Fatalf("schema-invalid review output = %#v, want structured schema failure", review)
+		firstReview := requireReviewGenerationOutput(t, detail, 1, "review")
+		if firstReview.Status != "failed" || !strings.Contains(firstReview.OutputRef, "action_schema_invalid") {
+			t.Fatalf("schema-invalid first review = %#v, want structured schema failure", firstReview)
+		}
+		quarantinedReview, found := findLatestReviewGenerationOutput(detail, "review")
+		if !found || quarantinedReview.Status != "quarantined" ||
+			!strings.Contains(quarantinedReview.OutputRef, "action_schema_invalid") {
+			t.Fatalf("schema-invalid latest review = %#v, want quarantined schema failure", quarantinedReview)
+		}
+		reviewControl := requireReviewNodeControl(t, detail, "review")
+		if !reviewControl.Quarantined {
+			t.Fatalf("schema-invalid review control = %#v, want quarantined", reviewControl)
+		}
+		dependentControl := requireReviewNodeControl(t, detail, "has_issues")
+		if dependentControl.AttentionFlag != "dependency_quarantined" {
+			t.Fatalf(
+				"schema-invalid dependent control = %#v, want dependency_quarantined",
+				dependentControl,
+			)
 		}
 		if _, err := os.Stat(reviewRoundPath(primaryRoot, reviewInvalidTaskName, 1)); !errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("schema-invalid review round error = %v, want no partial round", err)
@@ -209,20 +233,9 @@ func waitForReviewLoopStatus(
 	want contract.LoopRunStatus,
 ) contract.LoopRunResponse {
 	t.Helper()
-	return waitForReviewLoop(t, ctx, harness, workspaceID, runID, func(status contract.LoopRunStatus) bool {
-		return status == want
+	return waitForReviewLoop(t, ctx, harness, workspaceID, runID, func(detail contract.LoopRunResponse) bool {
+		return detail.Run.Status == want
 	}, want)
-}
-
-func waitForReviewLoopTerminal(
-	t testing.TB,
-	ctx context.Context,
-	harness *e2etest.RuntimeHarness,
-	workspaceID string,
-	runID string,
-) contract.LoopRunResponse {
-	t.Helper()
-	return waitForReviewLoop(t, ctx, harness, workspaceID, runID, loopRunStatusTerminal, "terminal")
 }
 
 func waitForReviewLoop(
@@ -231,7 +244,7 @@ func waitForReviewLoop(
 	harness *e2etest.RuntimeHarness,
 	workspaceID string,
 	runID string,
-	done func(contract.LoopRunStatus) bool,
+	done func(contract.LoopRunResponse) bool,
 	want any,
 ) contract.LoopRunResponse {
 	t.Helper()
@@ -241,7 +254,7 @@ func waitForReviewLoop(
 	var last contract.LoopRunResponse
 	for {
 		if err := harness.HTTPJSON(ctx, http.MethodGet, path, nil, &last); err == nil {
-			if done(last.Run.Status) {
+			if done(last) {
 				return last
 			}
 			if loopRunStatusTerminal(last.Run.Status) {
@@ -259,6 +272,31 @@ func waitForReviewLoop(
 		case <-ticker.C:
 		}
 	}
+}
+
+func reviewLoopQuarantineSettled(detail contract.LoopRunResponse) bool {
+	review, reviewFound := findLatestReviewGenerationOutput(detail, "review")
+	reviewControl, reviewControlFound := findReviewNodeControl(detail, "review")
+	dependentControl, dependentControlFound := findReviewNodeControl(detail, "has_issues")
+	return reviewFound && review.Status == "quarantined" &&
+		reviewControlFound && reviewControl.Quarantined &&
+		dependentControlFound && dependentControl.AttentionFlag == "dependency_quarantined"
+}
+
+func findLatestReviewGenerationOutput(
+	detail contract.LoopRunResponse,
+	nodeID string,
+) (contract.LoopGenerationOutput, bool) {
+	var latest contract.LoopGenerationOutput
+	found := false
+	for _, generation := range detail.Generations {
+		output, outputFound := findReviewGenerationOutput(detail, generation.Generation, nodeID)
+		if outputFound && (!found || output.Generation > latest.Generation) {
+			latest = output
+			found = true
+		}
+	}
+	return latest, found
 }
 
 func assertReviewAndFixRunContract(t testing.TB, detail contract.LoopRunResponse) {
@@ -356,18 +394,54 @@ func requireReviewGenerationOutput(
 	nodeID string,
 ) contract.LoopGenerationOutput {
 	t.Helper()
+	if output, found := findReviewGenerationOutput(detail, generation, nodeID); found {
+		return output
+	}
+	t.Fatalf("generation %d node %q output missing: %#v", generation, nodeID, detail.Generations)
+	return contract.LoopGenerationOutput{}
+}
+
+func findReviewGenerationOutput(
+	detail contract.LoopRunResponse,
+	generation int64,
+	nodeID string,
+) (contract.LoopGenerationOutput, bool) {
 	for _, current := range detail.Generations {
 		if current.Generation != generation {
 			continue
 		}
 		for _, output := range current.Outputs {
 			if output.NodeID == nodeID {
-				return output
+				return output, true
 			}
 		}
 	}
-	t.Fatalf("generation %d node %q output missing: %#v", generation, nodeID, detail.Generations)
-	return contract.LoopGenerationOutput{}
+	return contract.LoopGenerationOutput{}, false
+}
+
+func requireReviewNodeControl(
+	t testing.TB,
+	detail contract.LoopRunResponse,
+	nodeID string,
+) contract.LoopNodeControlPayload {
+	t.Helper()
+	if control, found := findReviewNodeControl(detail, nodeID); found {
+		return control
+	}
+	t.Fatalf("node %q control missing: %#v", nodeID, detail.NodeControls)
+	return contract.LoopNodeControlPayload{}
+}
+
+func findReviewNodeControl(
+	detail contract.LoopRunResponse,
+	nodeID string,
+) (contract.LoopNodeControlPayload, bool) {
+	for _, control := range detail.NodeControls {
+		if control.NodeID == nodeID {
+			return control, true
+		}
+	}
+	return contract.LoopNodeControlPayload{}, false
 }
 
 func assertReviewAndFixArtifacts(t testing.TB, workspaceRoot string) [][]byte {

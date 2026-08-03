@@ -58,11 +58,11 @@ func evaluateBranchNode(
 	}
 	output.Status = generationOutputSucceeded
 	if !result {
-		output.OutputRef = branchFalseOutputRef
+		setGenerationOutputRef(&output, branchFalseOutputRef)
 		skipBranchDependents(resolved.Definition.Graph, topology, node.ID, output, outputs)
 		return output, nil, nil
 	}
-	output.OutputRef = branchTrueOutputRef
+	setGenerationOutputRef(&output, branchTrueOutputRef)
 	return output, nil, nil
 }
 
@@ -94,7 +94,7 @@ func skipBranchDependents(
 		}
 		if idx, exists := indexes[key]; exists && (*outputs)[idx].Status == generationOutputPending {
 			(*outputs)[idx].Status = generationOutputSucceeded
-			(*outputs)[idx].OutputRef = branchSkippedOutputRef
+			setGenerationOutputRef(&(*outputs)[idx], branchSkippedOutputRef)
 			outputMap[key] = (*outputs)[idx]
 			queue = append(queue, topology.dependents[nodeID]...)
 			if isControlKind(node, dsl.ControlFanOut) {

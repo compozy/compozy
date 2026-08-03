@@ -90,6 +90,9 @@ func appendCoordinatorDependenciesForOutputs(
 			if !ok || isCoordinatorOwnedNodeWithGates(dependencyNode, gatesEnabled) {
 				continue
 			}
+			if isAuthoredErrorRouteDependency(dependencyNode, nodeID) {
+				continue
+			}
 			dependencyOutputs := dependencyOutputsForTaskDependency(
 				graph,
 				topology,
@@ -123,6 +126,11 @@ func appendCoordinatorDependenciesForOutputs(
 		}
 	}
 	return nil
+}
+
+func isAuthoredErrorRouteDependency(source dsl.Node, target dsl.NodeID) bool {
+	policy := nodeErrorPolicy(source)
+	return policy != nil && policy.Route == target
 }
 
 func dependencyOutputsForTaskDependency(

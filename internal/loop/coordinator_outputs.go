@@ -102,7 +102,7 @@ func keepDeferredGoalTerminalsPending(
 		}
 		output := outputs[candidate.key]
 		output.Status = generationOutputControlPending
-		output.OutputRef = ""
+		setGenerationOutputRef(&output, "")
 		outputs[candidate.key] = output
 	}
 }
@@ -183,7 +183,7 @@ func (r *CoordinatorRunner) refreshRetryingGenerationOutput(
 		output.Status = generationOutputFailed
 		output.NextAttemptAt = nil
 		if failureRef, ok := ActionFailureOutputRef(failure); ok {
-			output.OutputRef = failureRef
+			setGenerationOutputRef(&output, failureRef)
 		}
 		return output, false, nil, nil, nil
 	}
@@ -191,7 +191,7 @@ func (r *CoordinatorRunner) refreshRetryingGenerationOutput(
 	output.Attempt++
 	output.NextAttemptAt = nil
 	output.TaskRunID = ""
-	output.OutputRef = ""
+	setGenerationOutputRef(&output, "")
 	return output, false, nil, nil, nil
 }
 
@@ -225,7 +225,7 @@ func refreshGenerationOutputFromTaskStatus(
 			if reasonCode != "" {
 				failure := NewActionFailure(reasonCode, reasonCode, "")
 				if failureRef, ok := ActionFailureOutputRef(failure); ok {
-					output.OutputRef = failureRef
+					setGenerationOutputRef(&output, failureRef)
 				}
 			}
 		}
@@ -253,8 +253,9 @@ func refreshCompletedTaskRunOutput(
 		return refreshed, false, nil, terminal, err
 	}
 	payload := run.Result
-	if len(payload) == 0 && output.OutputRef != "" && !OutputRefLooksContentAddressed(output.OutputRef) {
-		payload = json.RawMessage(output.OutputRef)
+	runtimeRef := generationOutputRuntimeRef(output)
+	if len(payload) == 0 && runtimeRef != "" && !OutputRefLooksContentAddressed(runtimeRef) {
+		payload = json.RawMessage(runtimeRef)
 	}
 	node, found := graphNode(graph, dsl.NodeID(output.NodeID))
 	if found {
@@ -262,7 +263,7 @@ func refreshCompletedTaskRunOutput(
 		if inspection.Failure != nil {
 			output.Status = generationOutputFailed
 			if failureRef, ok := ActionFailureOutputRef(*inspection.Failure); ok {
-				output.OutputRef = failureRef
+				setGenerationOutputRef(&output, failureRef)
 			}
 			return output, false, nil, nil, nil
 		}
@@ -302,7 +303,7 @@ func (r *CoordinatorRunner) refreshAwaitingChildOutput(
 	childRunID := strings.TrimSpace(output.ChildLoopRunID)
 	if childRunID == "" {
 		output.Status = generationOutputFailed
-		output.OutputRef = "child_loop_missing"
+		setGenerationOutputRef(&output, "child_loop_missing")
 		return output, false, nil, nil
 	}
 	child, err := r.store.GetLoopRunByID(ctx, RunID(childRunID))
@@ -312,10 +313,10 @@ func (r *CoordinatorRunner) refreshAwaitingChildOutput(
 	if child.Status.Terminal() {
 		switch child.Status {
 		case StatusDone, StatusNoOp:
-			output.OutputRef = childLoopStatusRef(child.Status)
+			setGenerationOutputRef(&output, childLoopStatusRef(child.Status))
 			output.Status = generationOutputSucceeded
 		default:
-			output.OutputRef = childLoopFailureRef(child)
+			setGenerationOutputRef(&output, childLoopFailureRef(child))
 			output.Status = generationOutputFailed
 		}
 		return output, false, nil, nil
@@ -328,7 +329,7 @@ func (r *CoordinatorRunner) refreshAwaitingChildOutput(
 		return output, true, nil, nil
 	}
 	output.Status = generationOutputFailed
-	output.OutputRef = childLoopTimeoutReason
+	setGenerationOutputRef(&output, childLoopTimeoutReason)
 	return output, false, []task.CoordinatorStopSpec{{
 		LoopRunID:  childRunID,
 		ReasonCode: childLoopTimeoutReason,

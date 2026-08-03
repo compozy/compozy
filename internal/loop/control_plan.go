@@ -2,6 +2,7 @@ package loop
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
@@ -202,19 +203,7 @@ func evaluateControlNodeKind(
 ) (GenerationOutput, *task.CoordinatorTerminal, error) {
 	switch dsl.ControlKind(node.Kind) {
 	case dsl.ControlFanOut:
-		return evaluateFanOutNode(
-			plan,
-			eval.run,
-			eval.generation,
-			eval.resolved,
-			eval.topology,
-			eval.gateEvaluator != nil,
-			eval.fanOutWidth,
-			eval.history,
-			output,
-			node,
-			outputs,
-		)
+		return evaluateFanOutNode(eval, plan, output, node, outputs, outputBlobs)
 	case dsl.ControlCollect:
 		output.Status = generationOutputSucceeded
 		return output, nil, nil
@@ -255,7 +244,7 @@ func evaluateControlNodeKind(
 		return evaluateWaitNode(eval, plan, output, node, *outputs, outputBlobs)
 	case dsl.ControlSubLoop:
 		output.Status = generationOutputSucceeded
-		output.OutputRef = subLoopEnteredOutputRef
+		setGenerationOutputRef(&output, subLoopEnteredOutputRef)
 		return output, nil, nil
 	default:
 		return output, nil, nil
@@ -263,29 +252,31 @@ func evaluateControlNodeKind(
 }
 
 func evaluateFanOutNode(
+	eval *controlEvalContext,
 	plan *task.CoordinatorCompletionPlan,
-	run Run,
-	generation int,
-	resolved *ResolvedDefinition,
-	topology controlTopology,
-	gatesEnabled bool,
-	fanOutWidth int,
-	history GenerationHistory,
 	output GenerationOutput,
 	node dsl.Node,
 	outputs *[]GenerationOutput,
+	outputBlobs *[]GenerationOutputBlob,
 ) (GenerationOutput, *task.CoordinatorTerminal, error) {
 	namespace, err := runtimeNamespaceWithHistory(
-		run, generation, resolved.Definition.Graph, topology, *outputs, history, node.ID, 0,
+		eval.run,
+		eval.generation,
+		eval.resolved.Definition.Graph,
+		eval.topology,
+		*outputs,
+		eval.history,
+		node.ID,
+		0,
 	)
 	if err != nil {
 		return GenerationOutput{}, nil, err
 	}
-	items, err := resolveFanOutCollection(resolved, node, namespace)
+	items, err := resolveFanOutCollection(eval.resolved, node, namespace)
 	if err != nil {
 		return GenerationOutput{}, nil, err
 	}
-	materialization, terminal := buildFanOutMaterialization(node, items, fanOutWidth)
+	materialization, terminal := buildFanOutMaterialization(node, items, eval.fanOutWidth)
 	if terminal != nil {
 		return output, terminal, nil
 	}
@@ -293,15 +284,24 @@ func evaluateFanOutNode(
 	if err != nil {
 		return GenerationOutput{}, nil, err
 	}
+	storedRef, runtimePayload, err := generationOutputRefForPayload(
+		json.RawMessage(ref),
+		outputBlobs,
+		eval.now,
+	)
+	if err != nil {
+		return GenerationOutput{}, nil, err
+	}
 	output.Status = generationOutputSucceeded
-	output.OutputRef = ref
+	setGenerationOutputRef(&output, storedRef)
+	output.runtimePayload = runtimePayload
 	if err := materializeFanOutBody(
 		plan,
-		run,
-		generation,
-		resolved.Definition.Graph,
-		topology,
-		gatesEnabled,
+		eval.run,
+		eval.generation,
+		eval.resolved.Definition.Graph,
+		eval.topology,
+		eval.gateEvaluator != nil,
 		node.ID,
 		materialization,
 		outputs,

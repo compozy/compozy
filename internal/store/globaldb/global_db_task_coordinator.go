@@ -116,6 +116,13 @@ func (g *TaskRepo) completeCoordinatorAndEnqueueNextWithExecutor(
 		return taskpkg.CoordinatorCompletionResult{}, err
 	}
 	result.PlanSuperseded = superseded
+	if !superseded {
+		if err := g.reserveCoordinatorConcurrentProgressWithExecutor(
+			ctx, exec, *completion, current, &result,
+		); err != nil {
+			return taskpkg.CoordinatorCompletionResult{}, err
+		}
+	}
 
 	updated, err := g.getTaskRunWithExecutor(ctx, exec, current.ID)
 	if err != nil {

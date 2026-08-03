@@ -39,7 +39,7 @@ func evaluateInputSourceNode(
 		return GenerationOutput{}, err
 	}
 	output.Status = generationOutputSucceeded
-	output.OutputRef = ref
+	setGenerationOutputRef(&output, ref)
 	return output, nil
 }
 
