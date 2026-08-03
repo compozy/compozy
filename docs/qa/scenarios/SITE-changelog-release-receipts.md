@@ -4,9 +4,9 @@ area: SITE
 title: Site changelog mirrors complete published GitHub releases
 persona: Bruno
 journey: J-evaluate-compozy-beta
-expected: '`/changelog` lists only published GitHub releases from `v0.3.0-beta.1` onward with the exact version as each title; every version page preserves the complete release notes and real categories, links referenced pull requests, attributes unique human contributors, exposes release assets, and refreshes within five minutes.'
+expected: '`/changelog` lists only published GitHub releases from `v0.3.0-beta.1` onward with the exact version as each title; every version page preserves the complete release notes and real categories, compares from the closest lower semantic version, links referenced pull requests, attributes unique human contributors, exposes release assets, and refreshes within five minutes.'
 entry_points: compozy.com `/changelog`, `/changelog/<version>`, `/changelog/feed.xml`, GitHub Releases
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -22,7 +22,7 @@ state; the site no longer creates or commits a second MDX release receipt.
 ## Steps
 
 1. Open `/changelog` and confirm every published tag from `v0.3.0-beta.1` onward appears once, newest first, with its exact version as the linked title and the categories from its GitHub release body.
-2. Open the latest version page and compare it with the matching GitHub Release. Confirm the complete notes, headings, pull-request links, publish date, channel, and asset count match.
+2. Open the latest version page and compare it with the matching GitHub Release. Confirm the complete notes, headings, pull-request links, publish date, channel, and asset count match, then confirm the Compare action starts at the closest lower semantic version rather than a publication-date neighbor.
 3. Confirm the pull-request evidence links to merged PRs, contributor identities are unique, and bot identities are omitted.
 4. Open the release asset list and confirm its links resolve to the matching GitHub release downloads and source archives.
 5. Confirm `/changelog/feed.xml`, site search, `sitemap.xml`, `/llms.txt`, and `/llms-full.txt` expose the current release and its dedicated page URL.

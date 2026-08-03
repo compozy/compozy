@@ -1,10 +1,18 @@
 import { render, screen } from "@testing-library/react";
+import ChangelogReleasePage from "@/app/changelog/[version]/page";
 import type { ChangelogRelease } from "@/lib/changelog/types";
 import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { ChangelogRail } from "../changelog-rail";
 import { ReleaseEntry } from "../release-entry";
 import { ReleaseMarkdown } from "../release-markdown";
+
+const changelogClient = vi.hoisted(() => ({
+  loadChangelogReleases: vi.fn(),
+  loadReleasePullRequests: vi.fn(),
+}));
+
+vi.mock("@/lib/changelog/github-client", () => changelogClient);
 
 vi.mock("next/link", () => ({
   default: ({
@@ -42,6 +50,51 @@ function release(version: string, overrides: Partial<ChangelogRelease> = {}): Ch
 }
 
 describe("changelog public components", () => {
+  it("compares a release with its semantic predecessor when a backport was published later", async () => {
+    changelogClient.loadChangelogReleases.mockResolvedValueOnce({
+      status: "ready",
+      releases: [
+        release("v1.4.0", { publishedAt: "2026-08-03T00:00:00Z" }),
+        release("v1.5.0", { publishedAt: "2026-08-02T00:00:00Z" }),
+        release("v1.3.0", { publishedAt: "2026-08-01T00:00:00Z" }),
+      ],
+    });
+    changelogClient.loadReleasePullRequests.mockResolvedValueOnce({
+      status: "ready",
+      pullRequests: [],
+      contributors: [],
+      missingNumbers: [],
+    });
+
+    render(await ChangelogReleasePage({ params: Promise.resolve({ version: "v1.5.0" }) }));
+
+    expect(
+      screen
+        .getByRole("button", { name: "Compare v1.5.0 with v1.4.0 on GitHub" })
+        .getAttribute("href")
+    ).toBe("https://github.com/compozy/compozy/compare/v1.4.0...v1.5.0");
+  });
+
+  it("does not compare the oldest release with a newer version published earlier", async () => {
+    changelogClient.loadChangelogReleases.mockResolvedValueOnce({
+      status: "ready",
+      releases: [
+        release("v1.0.0", { publishedAt: "2026-08-03T00:00:00Z" }),
+        release("v1.1.0", { publishedAt: "2026-08-02T00:00:00Z" }),
+      ],
+    });
+    changelogClient.loadReleasePullRequests.mockResolvedValueOnce({
+      status: "ready",
+      pullRequests: [],
+      contributors: [],
+      missingNumbers: [],
+    });
+
+    render(await ChangelogReleasePage({ params: Promise.resolve({ version: "v1.0.0" }) }));
+
+    expect(screen.queryByRole("button", { name: /Compare .* on GitHub/ })).toBeNull();
+  });
+
   it("links recent versions to dedicated release pages and preserves the four-item limit", () => {
     render(
       <ChangelogRail

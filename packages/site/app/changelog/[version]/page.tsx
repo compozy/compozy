@@ -9,12 +9,27 @@ import { ReleaseEvidence } from "@/components/blog/release-evidence";
 import { ReleaseMarkdown } from "@/components/blog/release-markdown";
 import { MonoBadge } from "@/components/blog/mono-badge";
 import { loadChangelogReleases, loadReleasePullRequests } from "@/lib/changelog/github-client";
-import { COMPOZY_REPOSITORY } from "@/lib/changelog/types";
+import { compareReleaseTags } from "@/lib/changelog/release-markdown";
+import { COMPOZY_REPOSITORY, type ChangelogRelease } from "@/lib/changelog/types";
 import { createPageMetadata } from "@/lib/site-config";
 
 export const revalidate = 300;
 
 type PageProps = { params: Promise<{ version: string }> };
+
+function findPredecessor(
+  releases: readonly ChangelogRelease[],
+  currentVersion: string
+): ChangelogRelease | undefined {
+  return releases.reduce<ChangelogRelease | undefined>((predecessor, candidate) => {
+    const candidateToCurrent = compareReleaseTags(candidate.version, currentVersion);
+    if (candidateToCurrent === null || candidateToCurrent >= 0) return predecessor;
+    if (!predecessor) return candidate;
+
+    const candidateToPredecessor = compareReleaseTags(candidate.version, predecessor.version);
+    return candidateToPredecessor !== null && candidateToPredecessor > 0 ? candidate : predecessor;
+  }, undefined);
+}
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const [{ version }, result] = await Promise.all([params, loadChangelogReleases()]);
@@ -32,12 +47,14 @@ export default async function ChangelogReleasePage({ params }: PageProps) {
   if (result.status === "unavailable") {
     throw new Error(`GitHub changelog is unavailable: ${result.error.message}`);
   }
-  const releaseIndex = result.releases.findIndex(item => item.version === version);
-  if (releaseIndex < 0) notFound();
-  const release = result.releases[releaseIndex];
-  const predecessor = result.releases[releaseIndex + 1];
-  const compareUrl = predecessor
-    ? `${COMPOZY_REPOSITORY.url}/compare/${encodeURIComponent(predecessor.version)}...${encodeURIComponent(release.version)}`
+  const release = result.releases.find(item => item.version === version);
+  if (!release) notFound();
+  const predecessor = findPredecessor(result.releases, release.version);
+  const comparison = predecessor
+    ? {
+        predecessorVersion: predecessor.version,
+        url: `${COMPOZY_REPOSITORY.url}/compare/${encodeURIComponent(predecessor.version)}...${encodeURIComponent(release.version)}`,
+      }
     : null;
   const evidence = await loadReleasePullRequests(release.pullRequestNumbers);
 
@@ -82,20 +99,20 @@ export default async function ChangelogReleasePage({ params }: PageProps) {
             >
               View release on GitHub <ArrowUpRight className="size-4" aria-hidden />
             </Button>
-            {compareUrl && (
+            {comparison && (
               <Button
                 nativeButton={false}
                 variant="outline"
                 render={
                   <a
-                    href={compareUrl}
+                    href={comparison.url}
                     target="_blank"
                     rel="noreferrer noopener"
-                    aria-label={`Compare ${release.version} with ${predecessor.version} on GitHub`}
+                    aria-label={`Compare ${release.version} with ${comparison.predecessorVersion} on GitHub`}
                   />
                 }
               >
-                Compare with {predecessor.version}
+                Compare with {comparison.predecessorVersion}
               </Button>
             )}
           </div>
