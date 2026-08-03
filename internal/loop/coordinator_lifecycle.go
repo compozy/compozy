@@ -252,7 +252,7 @@ func applyNodeFailureDisposition(
 	switch {
 	case errorPolicy != nil && errorPolicy.Route != "":
 		output.Status = generationOutputSucceeded
-		output.OutputRef = errorRoutedOutputRefPrefix + string(errorPolicy.Route)
+		setGenerationOutputRef(&output, errorRoutedOutputRefPrefix+string(errorPolicy.Route))
 		output.NextAttemptAt = nil
 		output.Epoch++
 		advanced[index] = output
@@ -260,14 +260,14 @@ func applyNodeFailureDisposition(
 		return AttemptRouted
 	case errorPolicy != nil && errorPolicy.AllowFail:
 		output.Status = generationOutputSucceeded
-		output.OutputRef = failureAbsorbedOutputRef
+		setGenerationOutputRef(&output, failureAbsorbedOutputRef)
 		output.NextAttemptAt = nil
 		output.Epoch++
 		advanced[index] = output
 		return AttemptAbsorbed
 	default:
 		if failureRef, ok := ActionFailureOutputRef(NewActionFailure(failure.Code, failure.Cause, failure.Hint)); ok {
-			output.OutputRef = failureRef
+			setGenerationOutputRef(&output, failureRef)
 		}
 		advanced[index] = output
 		return AttemptEscalated
@@ -365,10 +365,11 @@ func applyFailureToAttempt(attempt *NodeAttempt, failure ClassifiedFailure) {
 }
 
 func classifyGenerationOutputFailure(output GenerationOutput, taskRun task.Run) ClassifiedFailure {
-	failure := actionFailureFromOutputRef(output.OutputRef)
+	runtimeRef := generationOutputRuntimeRef(output)
+	failure := actionFailureFromOutputRef(runtimeRef)
 	if failure.Code == "" {
 		failure = NewActionFailure(
-			firstNonEmpty(strings.TrimSpace(output.OutputRef), string(FailurePayloadDeclared)),
+			firstNonEmpty(strings.TrimSpace(runtimeRef), string(FailurePayloadDeclared)),
 			firstNonEmpty(strings.TrimSpace(taskRun.Error), "node execution failed"),
 			"",
 		)

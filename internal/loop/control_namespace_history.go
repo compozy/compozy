@@ -92,6 +92,14 @@ func ReadGenerationHistory(
 	if err != nil {
 		return GenerationHistory{}, fmt.Errorf("read previous generation outputs: %w", err)
 	}
+	previousOutputs, err = generationOutputRuntimeView(ctx, reader, generationOutputRuntimeScope{
+		workspaceID: run.WorkspaceID,
+		runID:       run.ID,
+		generation:  int(previousGeneration),
+	}, previousOutputs)
+	if err != nil {
+		return GenerationHistory{}, fmt.Errorf("read previous generation output payloads: %w", err)
+	}
 	previousVerdicts, err := reader.ListGateVerdicts(
 		ctx,
 		string(run.WorkspaceID),
@@ -166,6 +174,14 @@ func readBestGenerationOutputs(
 	outputs, err := reader.ListGenerationOutputs(ctx, run.WorkspaceID, run.ID, int(bestGeneration))
 	if err != nil {
 		return nil, fmt.Errorf("read best generation outputs: %w", err)
+	}
+	outputs, err = generationOutputRuntimeView(ctx, reader, generationOutputRuntimeScope{
+		workspaceID: run.WorkspaceID,
+		runID:       run.ID,
+		generation:  int(bestGeneration),
+	}, outputs)
+	if err != nil {
+		return nil, fmt.Errorf("read best generation output payloads: %w", err)
 	}
 	return outputs, nil
 }
@@ -265,7 +281,7 @@ func projectPreviousNodes(
 		}
 		projection := NodeProjection{
 			Status: output.Status,
-			Output: outputValue(output.OutputRef),
+			Output: generationOutputRuntimeValue(output),
 		}
 		if attempt, ok := failures[generationOutputKey{nodeID: nodeID, itemIndex: output.ItemIndex}]; ok {
 			failure := classifiedFailureFromAttempt(attempt)
@@ -369,7 +385,7 @@ func projectBestGeneration(run Run, outputs []GenerationOutput) (BestGeneration,
 		if nodes[nodeID] == nil {
 			nodes[nodeID] = make(map[int]BestNodeProjection)
 		}
-		nodes[nodeID][output.ItemIndex] = BestNodeProjection{Output: outputValue(output.OutputRef)}
+		nodes[nodeID][output.ItemIndex] = BestNodeProjection{Output: generationOutputRuntimeValue(output)}
 	}
 	return BestGeneration{Generation: generation, Score: *run.BestScore, Nodes: nodes}, nil
 }

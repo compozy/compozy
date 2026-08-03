@@ -172,7 +172,7 @@ func approveGateOutput(output GenerationOutput) (GenerationOutput, *task.Coordin
 		return GenerationOutput{}, nil, err
 	}
 	output.Status = generationOutputSucceeded
-	output.OutputRef = ref
+	setGenerationOutputRef(&output, ref)
 	return output, nil, nil
 }
 
@@ -185,7 +185,7 @@ func gateOutputFromVerdict(
 	if err != nil {
 		return GenerationOutput{}, nil, err
 	}
-	output.OutputRef = ref
+	setGenerationOutputRef(&output, ref)
 	switch verdict.Route.Action {
 	case gate.RouteContinue, gate.RouteDone, gate.RouteBranch:
 		output.Status = generationOutputSucceeded

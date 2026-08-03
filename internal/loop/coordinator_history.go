@@ -2,6 +2,7 @@ package loop
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/compozy/compozy/internal/loop/gate"
@@ -31,6 +32,17 @@ func (r coordinatorGenerationHistoryReader) ListGenerationOutputs(
 	generation int,
 ) ([]GenerationOutput, error) {
 	return r.outputs.ListGenerationOutputs(ctx, workspaceID, runID, generation)
+}
+
+func (r coordinatorGenerationHistoryReader) GetGenerationOutputPayload(
+	ctx context.Context,
+	key GenerationOutputPayloadKey,
+) (json.RawMessage, error) {
+	reader, ok := r.outputs.(GenerationOutputPayloadReader)
+	if !ok {
+		return nil, fmt.Errorf("%w: generation output payload reader is required", ErrValidation)
+	}
+	return reader.GetGenerationOutputPayload(ctx, key)
 }
 
 func (r coordinatorGenerationHistoryReader) ListGateVerdicts(

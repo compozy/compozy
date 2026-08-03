@@ -153,6 +153,42 @@ func (q *Queries) GetLoopDefinitionSnapshot(ctx context.Context, arg GetLoopDefi
 	return i, err
 }
 
+const getLoopGenerationOutputPayload = `-- name: GetLoopGenerationOutputPayload :one
+SELECT blob.payload_json
+FROM loop_generation_outputs AS output
+JOIN loop_runs AS run ON run.id = output.loop_run_id
+JOIN loop_output_blobs AS blob ON blob.output_ref = output.output_ref
+WHERE output.loop_run_id = ?1
+  AND output.generation = ?2
+  AND output.node_id = ?3
+  AND output.item_index = ?4
+  AND output.output_ref = ?5
+  AND run.workspace_id = ?6
+`
+
+type GetLoopGenerationOutputPayloadParams struct {
+	LoopRunID   string         `json:"loop_run_id"`
+	Generation  int64          `json:"generation"`
+	NodeID      string         `json:"node_id"`
+	ItemIndex   int64          `json:"item_index"`
+	OutputRef   sql.NullString `json:"output_ref"`
+	WorkspaceID string         `json:"workspace_id"`
+}
+
+func (q *Queries) GetLoopGenerationOutputPayload(ctx context.Context, arg GetLoopGenerationOutputPayloadParams) (string, error) {
+	row := q.db.QueryRowContext(ctx, getLoopGenerationOutputPayload,
+		arg.LoopRunID,
+		arg.Generation,
+		arg.NodeID,
+		arg.ItemIndex,
+		arg.OutputRef,
+		arg.WorkspaceID,
+	)
+	var payload_json string
+	err := row.Scan(&payload_json)
+	return payload_json, err
+}
+
 const getLoopGenerationOutputStatus = `-- name: GetLoopGenerationOutputStatus :one
 SELECT output.status FROM loop_generation_outputs AS output
 JOIN loop_runs AS run ON run.id = output.loop_run_id

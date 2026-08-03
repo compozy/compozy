@@ -1909,7 +1909,7 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 							Name:    "alpha",
 							RootDir: workspaceRoot,
 						},
-						WorkspaceID: "ws-alpha",
+						WorkspaceID: "01DURABLEWORKSPACEIDENTITY",
 						Config: compozyconfig.Config{
 							Defaults: compozyconfig.DefaultsConfig{Provider: "codex"},
 						},
@@ -1955,6 +1955,9 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 		decodeJSON(t, resp.Body.Bytes(), &payload)
 		if payload.Agent.EffectiveRuntime == nil || payload.Agent.EffectiveRuntime.Provider != "codex" {
 			t.Fatalf("created agent effective runtime = %#v, want codex", payload.Agent.EffectiveRuntime)
+		}
+		if payload.Agent.WorkspaceID != "ws-alpha" {
+			t.Fatalf("created agent workspace_id = %q, want registered id ws-alpha", payload.Agent.WorkspaceID)
 		}
 	})
 
@@ -2734,11 +2737,11 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 		if _, err := os.Stat(globalPath); err != nil {
 			t.Fatalf("os.Stat(global twin) error = %v", err)
 		}
-		if soulPurger.workspaceID != "ws-identity" || soulPurger.name != "coder" ||
+		if soulPurger.workspaceID != "ws-registry" || soulPurger.name != "coder" ||
 			soulPurger.sourcePath != workspacePath {
 			t.Fatalf("soul purge = %#v", soulPurger)
 		}
-		if heartbeatPurger.workspaceID != "ws-identity" || heartbeatPurger.sourcePath != workspacePath {
+		if heartbeatPurger.workspaceID != "ws-registry" || heartbeatPurger.sourcePath != workspacePath {
 			t.Fatalf("heartbeat purge = %#v", heartbeatPurger)
 		}
 		repeat := performRequest(t, fixture.Engine, http.MethodDelete, "/agents/coder?workspace=alpha", nil)
@@ -3064,8 +3067,8 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 		}
 		var payload contract.AgentResponse
 		decodeJSON(t, resp.Body.Bytes(), &payload)
-		if payload.Agent.Origin != contract.AgentOriginWorkspace || payload.Agent.WorkspaceID != "ws-identity" {
-			t.Fatalf("duplicate payload = %#v, want stable workspace identity", payload.Agent)
+		if payload.Agent.Origin != contract.AgentOriginWorkspace || payload.Agent.WorkspaceID != "ws-1" {
+			t.Fatalf("duplicate payload = %#v, want registered workspace id", payload.Agent)
 		}
 		targetPath := filepath.Join(
 			workspaceRoot,
@@ -3098,8 +3101,8 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 		var explicitPayload contract.AgentResponse
 		decodeJSON(t, explicitResp.Body.Bytes(), &explicitPayload)
 		if explicitPayload.Agent.Origin != contract.AgentOriginWorkspace ||
-			explicitPayload.Agent.WorkspaceID != "ws-identity" {
-			t.Fatalf("explicit duplicate payload = %#v, want stable workspace identity", explicitPayload.Agent)
+			explicitPayload.Agent.WorkspaceID != "ws-1" {
+			t.Fatalf("explicit duplicate payload = %#v, want registered workspace id", explicitPayload.Agent)
 		}
 		explicitTargetPath := filepath.Join(
 			workspaceRoot,
@@ -3432,9 +3435,12 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 			listed.Agents[0].Diagnostics[0].ErrorKind != "frontmatter.missing" {
 			t.Fatalf("workspace malformed agent diagnostics = %#v, want frontmatter.missing", listed.Agents[0])
 		}
-		if listed.Agents[0].Origin != contract.AgentOriginWorkspace || listed.Agents[0].WorkspaceID != "ws-1" ||
-			listed.Agents[1].Origin != contract.AgentOriginGlobal || listed.Agents[1].WorkspaceID != "" ||
-			listed.Agents[2].Origin != contract.AgentOriginWorkspace || listed.Agents[2].WorkspaceID != "ws-1" {
+		if listed.Agents[0].Origin != contract.AgentOriginWorkspace ||
+			listed.Agents[0].WorkspaceID != "registry-ws-1" ||
+			listed.Agents[1].Origin != contract.AgentOriginGlobal ||
+			listed.Agents[1].WorkspaceID != "" ||
+			listed.Agents[2].Origin != contract.AgentOriginWorkspace ||
+			listed.Agents[2].WorkspaceID != "registry-ws-1" {
 			t.Fatalf(
 				"workspace agent origins = %#v, want workspace diagnostics/agents and global catalog additions",
 				listed.Agents,
@@ -3455,7 +3461,7 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 			t.Fatalf("json.Unmarshal(get workspace agent) error = %v", err)
 		}
 		if got.Agent.Name != "founder" || got.Agent.Provider != "codex" ||
-			got.Agent.Origin != contract.AgentOriginWorkspace || got.Agent.WorkspaceID != "ws-1" {
+			got.Agent.Origin != contract.AgentOriginWorkspace || got.Agent.WorkspaceID != "registry-ws-1" {
 			t.Fatalf("get workspace agent = %#v, want founder/codex", got.Agent)
 		}
 
@@ -3479,8 +3485,8 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 		for _, agent := range catalog.Agents {
 			switch agent.Agent.Origin {
 			case contract.AgentOriginWorkspace:
-				if agent.Agent.WorkspaceID != "ws-1" {
-					t.Fatalf("workspace catalog agent = %#v, want durable workspace id ws-1", agent.Agent)
+				if agent.Agent.WorkspaceID != "registry-ws-1" {
+					t.Fatalf("workspace catalog agent = %#v, want registered workspace id registry-ws-1", agent.Agent)
 				}
 			case contract.AgentOriginGlobal:
 				if agent.Agent.WorkspaceID != "" {
@@ -4077,77 +4083,81 @@ func (m subprocessHealthSessionManager) SubprocessHealthSnapshots() []session.Su
 func TestDaemonDrainProjectsStatusAndDoctor(t *testing.T) {
 	t.Parallel()
 
-	manager := testutil.StubSessionManager{
-		ListAllFn: func(context.Context) ([]*session.Info, error) {
-			return []*session.Info{testutil.NewSessionInfo("sess-admitted")}, nil
-		},
-	}
-	observer := testutil.StubObserver{
-		HealthFn: func(context.Context) (observe.Health, error) {
-			return observe.Health{Status: "ok", ActiveSessions: 1, Version: "dev"}, nil
-		},
-	}
-	fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{}, nil, nil)
-	controller := &testDrainController{}
-	fixture.Handlers.DrainController = controller
+	t.Run("Should project drain state through status and doctor", func(t *testing.T) {
+		t.Parallel()
 
-	for range 2 {
-		response := performRequest(t, fixture.Engine, http.MethodPost, "/drain", nil)
-		if response.Code != http.StatusOK {
-			t.Fatalf("drain status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body.String())
+		manager := testutil.StubSessionManager{
+			ListAllFn: func(context.Context) ([]*session.Info, error) {
+				return []*session.Info{testutil.NewSessionInfo("sess-admitted")}, nil
+			},
 		}
-		var payload contract.DrainStatusResponse
-		decodeJSON(t, response.Body.Bytes(), &payload)
-		if payload.State != contract.DrainStateDraining {
-			t.Fatalf("drain state = %q, want %q", payload.State, contract.DrainStateDraining)
+		observer := testutil.StubObserver{
+			HealthFn: func(context.Context) (observe.Health, error) {
+				return observe.Health{Status: "ok", ActiveSessions: 1, Version: "dev"}, nil
+			},
 		}
-	}
+		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{}, nil, nil)
+		controller := &testDrainController{}
+		fixture.Handlers.DrainController = controller
 
-	statusResponse := performRequest(t, fixture.Engine, http.MethodGet, "/status", nil)
-	if statusResponse.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d; body=%s", statusResponse.Code, http.StatusOK, statusResponse.Body.String())
-	}
-	var statusPayload contract.StatusPayload
-	decodeJSON(t, statusResponse.Body.Bytes(), &statusPayload)
-	if statusPayload.Daemon.Status != string(contract.DrainStateDraining) {
-		t.Fatalf("daemon status = %q, want %q", statusPayload.Daemon.Status, contract.DrainStateDraining)
-	}
+		for range 2 {
+			response := performRequest(t, fixture.Engine, http.MethodPost, "/drain", nil)
+			if response.Code != http.StatusOK {
+				t.Fatalf("drain status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body.String())
+			}
+			var payload contract.DrainStatusResponse
+			decodeJSON(t, response.Body.Bytes(), &payload)
+			if payload.State != contract.DrainStateDraining {
+				t.Fatalf("drain state = %q, want %q", payload.State, contract.DrainStateDraining)
+			}
+		}
 
-	doctorResponse := performRequest(t, fixture.Engine, http.MethodGet, "/doctor?only=daemon", nil)
-	if doctorResponse.Code != http.StatusOK {
-		t.Fatalf("doctor = %d, want %d; body=%s", doctorResponse.Code, http.StatusOK, doctorResponse.Body.String())
-	}
-	var doctorPayload contract.DoctorPayload
-	decodeJSON(t, doctorResponse.Body.Bytes(), &doctorPayload)
-	itemIndex := slices.IndexFunc(doctorPayload.Items, func(item contract.DiagnosticItem) bool {
-		return item.Code == contract.CodeDaemonDraining
+		statusResponse := performRequest(t, fixture.Engine, http.MethodGet, "/status", nil)
+		if statusResponse.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", statusResponse.Code, http.StatusOK, statusResponse.Body.String())
+		}
+		var statusPayload contract.StatusPayload
+		decodeJSON(t, statusResponse.Body.Bytes(), &statusPayload)
+		if statusPayload.Daemon.Status != string(contract.DrainStateDraining) {
+			t.Fatalf("daemon status = %q, want %q", statusPayload.Daemon.Status, contract.DrainStateDraining)
+		}
+
+		doctorResponse := performRequest(t, fixture.Engine, http.MethodGet, "/doctor?only=daemon", nil)
+		if doctorResponse.Code != http.StatusOK {
+			t.Fatalf("doctor = %d, want %d; body=%s", doctorResponse.Code, http.StatusOK, doctorResponse.Body.String())
+		}
+		var doctorPayload contract.DoctorPayload
+		decodeJSON(t, doctorResponse.Body.Bytes(), &doctorPayload)
+		itemIndex := slices.IndexFunc(doctorPayload.Items, func(item contract.DiagnosticItem) bool {
+			return item.Code == contract.CodeDaemonDraining
+		})
+		if itemIndex < 0 {
+			t.Fatalf("doctor items = %#v, want daemon draining item", doctorPayload.Items)
+		}
+		item := doctorPayload.Items[itemIndex]
+		if item.Code != contract.CodeDaemonDraining || item.Severity != contract.SeverityInfo {
+			t.Fatalf("daemon diagnostic = %#v, want draining info", item)
+		}
+
+		for range 2 {
+			response := performRequest(t, fixture.Engine, http.MethodPost, "/undrain", nil)
+			if response.Code != http.StatusOK {
+				t.Fatalf("undrain status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body.String())
+			}
+			var payload contract.DrainStatusResponse
+			decodeJSON(t, response.Body.Bytes(), &payload)
+			if payload.State != contract.DrainStateActive {
+				t.Fatalf("undrain state = %q, want %q", payload.State, contract.DrainStateActive)
+			}
+		}
+
+		activeStatusResponse := performRequest(t, fixture.Engine, http.MethodGet, "/status", nil)
+		var activeStatus contract.StatusPayload
+		decodeJSON(t, activeStatusResponse.Body.Bytes(), &activeStatus)
+		if activeStatusResponse.Code != http.StatusOK || activeStatus.Daemon.Status != "running" {
+			t.Fatalf("active daemon status = %d %#v, want running", activeStatusResponse.Code, activeStatus.Daemon)
+		}
 	})
-	if itemIndex < 0 {
-		t.Fatalf("doctor items = %#v, want daemon draining item", doctorPayload.Items)
-	}
-	item := doctorPayload.Items[itemIndex]
-	if item.Code != contract.CodeDaemonDraining || item.Severity != contract.SeverityInfo {
-		t.Fatalf("daemon diagnostic = %#v, want draining info", item)
-	}
-
-	for range 2 {
-		response := performRequest(t, fixture.Engine, http.MethodPost, "/undrain", nil)
-		if response.Code != http.StatusOK {
-			t.Fatalf("undrain status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body.String())
-		}
-		var payload contract.DrainStatusResponse
-		decodeJSON(t, response.Body.Bytes(), &payload)
-		if payload.State != contract.DrainStateActive {
-			t.Fatalf("undrain state = %q, want %q", payload.State, contract.DrainStateActive)
-		}
-	}
-
-	activeStatusResponse := performRequest(t, fixture.Engine, http.MethodGet, "/status", nil)
-	var activeStatus contract.StatusPayload
-	decodeJSON(t, activeStatusResponse.Body.Bytes(), &activeStatus)
-	if activeStatusResponse.Code != http.StatusOK || activeStatus.Daemon.Status != "running" {
-		t.Fatalf("active daemon status = %d %#v, want running", activeStatusResponse.Code, activeStatus.Daemon)
-	}
 }
 
 type testDrainController struct {

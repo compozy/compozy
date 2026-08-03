@@ -172,6 +172,44 @@ func (g *LoopRepo) LookupLoopGenerationOutputStatus(
 	return strings.TrimSpace(status), true, nil
 }
 
+// GetGenerationOutputPayload loads an externalized payload through its workspace-owned cell.
+func (g *LoopRepo) GetGenerationOutputPayload(
+	ctx context.Context,
+	key looppkg.GenerationOutputPayloadKey,
+) (json.RawMessage, error) {
+	if err := g.checkReady(ctx, "get loop generation output payload"); err != nil {
+		return nil, err
+	}
+	workspaceID := strings.TrimSpace(string(key.WorkspaceID))
+	runID := strings.TrimSpace(string(key.RunID))
+	nodeID := strings.TrimSpace(string(key.NodeID))
+	outputRef := strings.TrimSpace(key.OutputRef)
+	if workspaceID == "" || runID == "" || key.Generation <= 0 || nodeID == "" || key.ItemIndex < 0 {
+		return nil, fmt.Errorf("%w: generation output payload identity is invalid", looppkg.ErrValidation)
+	}
+	if !looppkg.OutputRefLooksContentAddressed(outputRef) {
+		return nil, fmt.Errorf("%w: output_ref is invalid: %q", looppkg.ErrValidation, outputRef)
+	}
+	raw, err := g.queries.GetLoopGenerationOutputPayload(
+		ctx,
+		sqlcgen.GetLoopGenerationOutputPayloadParams{
+			LoopRunID:   runID,
+			Generation:  int64(key.Generation),
+			NodeID:      nodeID,
+			ItemIndex:   int64(key.ItemIndex),
+			OutputRef:   nullString(outputRef),
+			WorkspaceID: workspaceID,
+		},
+	)
+	if err != nil {
+		if errorsIsNoRows(err) {
+			return nil, looppkg.ErrOutputRefNotFound
+		}
+		return nil, fmt.Errorf("store: get loop generation output payload: %w", err)
+	}
+	return json.RawMessage(raw), nil
+}
+
 func getLoopOutputByRefWithExecutor(
 	ctx context.Context,
 	exec taskSQLExecutor,

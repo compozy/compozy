@@ -51,12 +51,7 @@ func (r *CoordinatorRunner) ExecuteActionRun(
 	if err != nil {
 		return task.RunResult{}, err
 	}
-	outputs, err := r.outputs.ListGenerationOutputs(
-		ctx,
-		actionCtx.loopRun.WorkspaceID,
-		actionCtx.loopRun.ID,
-		actionCtx.meta.Generation,
-	)
+	outputs, err := r.readActionGenerationOutputs(ctx, &actionCtx)
 	if err != nil {
 		return task.RunResult{}, err
 	}
@@ -104,6 +99,26 @@ func (r *CoordinatorRunner) ExecuteActionRun(
 		return task.RunResult{}, err
 	}
 	return executeActionTaskRun(ctx, executor, actionCtx.node, input)
+}
+
+func (r *CoordinatorRunner) readActionGenerationOutputs(
+	ctx context.Context,
+	actionCtx *coordinatorActionRunContext,
+) ([]GenerationOutput, error) {
+	outputs, err := r.outputs.ListGenerationOutputs(
+		ctx,
+		actionCtx.loopRun.WorkspaceID,
+		actionCtx.loopRun.ID,
+		actionCtx.meta.Generation,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return generationOutputRuntimeView(ctx, r.outputs, generationOutputRuntimeScope{
+		workspaceID: actionCtx.loopRun.WorkspaceID,
+		runID:       actionCtx.loopRun.ID,
+		generation:  actionCtx.meta.Generation,
+	}, outputs)
 }
 
 func (r *CoordinatorRunner) resolvePinnedActionExecutor(

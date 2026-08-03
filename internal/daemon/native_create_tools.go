@@ -170,7 +170,7 @@ func (n *daemonNativeTools) agentCreate(
 			errors.New("daemon: agent definition sync is unavailable"),
 		)
 	}
-	agent, runtimeConfig, err := core.CreateAgentFromRequest(
+	created, err := core.CreateAgentFromRequest(
 		ctx,
 		createReq,
 		n.deps.HomePaths,
@@ -181,6 +181,7 @@ func (n *daemonNativeTools) agentCreate(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAgentCreateToolError(req.ToolID, err)
 	}
+	agent := created.Agent
 	if err := agentSkills.Sync(ctx); err != nil {
 		syncErr := errors.Join(
 			fmt.Errorf("daemon: sync created agent definition: %w", err),
@@ -194,9 +195,9 @@ func (n *daemonNativeTools) agentCreate(
 	entry := core.AgentCatalogEntry{Def: agent, Origin: contract.AgentOriginGlobal}
 	if createReq.Scope == contract.AgentCreateScopeWorkspace {
 		entry.Origin = contract.AgentOriginWorkspace
-		entry.WorkspaceID = strings.TrimSpace(createReq.Workspace)
+		entry.WorkspaceID = created.WorkspaceID
 	}
-	payload := core.AgentPayloadFromEntryWithConfig(entry, &runtimeConfig)
+	payload := core.AgentPayloadFromEntryWithConfig(entry, &created.RuntimeConfig)
 	return structuredResult(map[string]any{daemonAgentField: payload}, "agent "+payload.Name)
 }
 

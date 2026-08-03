@@ -2,6 +2,7 @@ package globaldb
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -168,6 +169,13 @@ func (g *TaskRepo) reserveCoordinatorPlanRunsWithExecutor(
 	enqueued := make([]taskpkg.Run, 0, len(specs))
 	for _, spec := range specs {
 		reservation := coordinatorPlanRunReservation(spec, current, origin, queuedAt)
+		existing, err := g.coordinatorPlanRunReservationExists(ctx, exec, reservation)
+		if err != nil {
+			return nil, err
+		}
+		if existing {
+			continue
+		}
 		_, run, existing, err := g.reserveQueuedRunWithExecutor(ctx, exec, reservation)
 		if err != nil {
 			return nil, err
@@ -178,6 +186,35 @@ func (g *TaskRepo) reserveCoordinatorPlanRunsWithExecutor(
 		enqueued = append(enqueued, run)
 	}
 	return enqueued, nil
+}
+
+func (g *TaskRepo) coordinatorPlanRunReservationExists(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	reservation queuedRunReservationInput,
+) (bool, error) {
+	runID := strings.TrimSpace(reservation.runID)
+	if runID == "" {
+		return false, nil
+	}
+	existing, err := g.getTaskRunWithExecutor(ctx, exec, runID)
+	if errors.Is(err, taskpkg.ErrTaskRunNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if strings.TrimSpace(existing.TaskID) != strings.TrimSpace(reservation.taskID) ||
+		existing.RunKind.Normalize() != reservation.runKind.Normalize() ||
+		strings.TrimSpace(existing.LoopRunID) != strings.TrimSpace(reservation.loopRunID) ||
+		strings.TrimSpace(existing.IdempotencyKey) != strings.TrimSpace(reservation.idempotencyKey) {
+		return false, fmt.Errorf(
+			"%w: coordinator plan run %q conflicts with its existing deterministic identity",
+			taskpkg.ErrValidation,
+			runID,
+		)
+	}
+	return true, nil
 }
 
 func coordinatorPlanRunReservation(

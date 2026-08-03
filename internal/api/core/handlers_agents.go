@@ -67,7 +67,7 @@ func (h *BaseHandlers) workspaceAgentEntriesWithDiagnostics(
 	if err != nil {
 		return workspaceAgentEntries{}, err
 	}
-	workspaceID := strings.TrimSpace(resolved.WorkspaceID)
+	workspaceID := strings.TrimSpace(resolved.ID)
 	for index := range entries {
 		if entries[index].Origin == contract.AgentOriginWorkspace {
 			entries[index].WorkspaceID = workspaceID

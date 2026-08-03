@@ -223,7 +223,8 @@ func recordAheadWaitEvent(
 	output.Status = generationOutputSucceeded
 	output.TaskRunID = ""
 	output.NextAttemptAt = nil
-	output.OutputRef = OutputRefForPayload(payload)
+	setGenerationOutputRef(&output, OutputRefForPayload(payload))
+	output.runtimePayload = cloneRawMessage(payload)
 	output.Epoch++
 	claimedAt := now.UTC()
 	intent, err := buildNodeWaitIntent(node, output, params, now)

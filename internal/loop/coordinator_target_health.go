@@ -132,7 +132,7 @@ func staticTargetHealthKey(workspaceID WorkspaceID, node dsl.Node) (store.DeadEn
 	target := strings.TrimSpace(node.Kind)
 	switch dsl.ActionKind(strings.TrimSpace(node.Kind)) {
 	case dsl.ActionRunAgent:
-		family = "run-agent"
+		family = string(dsl.ActionRunAgent)
 		var params dsl.RunAgentParams
 		if err := node.Params.Decode(&params); err != nil {
 			return store.DeadEntityKey{}, false

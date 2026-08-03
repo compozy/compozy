@@ -43,7 +43,8 @@ type GenerationOutput struct {
 	Epoch            int64            `json:"epoch,omitempty"`
 	// ExpectedEpoch is the cell epoch observed by the planner. It is used only
 	// for compare-and-swap and is never stored as domain state.
-	ExpectedEpoch *int64 `json:"expected_epoch,omitempty"`
+	ExpectedEpoch  *int64 `json:"expected_epoch,omitempty"`
+	runtimePayload json.RawMessage
 }
 
 // GenerationOutputBlob is one content-addressed loop output payload required by

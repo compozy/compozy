@@ -363,6 +363,62 @@ func TestSchedulerTaskSourceLoopCoordinatorBackstopShouldDeferAtWorkspaceCapacit
 	}
 }
 
+func TestSchedulerTaskSourceLoopCoordinatorBackstopShouldDeferWhileConsumerLeaseIsActive(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	now := time.Date(2026, 8, 3, 22, 45, 0, 0, time.UTC)
+	workspaceID := "ws-backstop-active-consumer"
+	db := openDaemonTestGlobalDB(t)
+	if err := db.InsertWorkspace(ctx, workspacepkg.Workspace{
+		ID:        workspaceID,
+		RootDir:   t.TempDir(),
+		Name:      workspaceID,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}); err != nil {
+		t.Fatalf("InsertWorkspace() error = %v", err)
+	}
+	seedCoordinatorBackstopRun(t, db, now, "active-consumer", 0, workspaceID)
+	seedCoordinatorBackstopRun(t, db, now, "active-consumer", 1, workspaceID)
+	if _, err := db.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+		Scope:            taskpkg.ScopeWorkspace,
+		WorkspaceID:      workspaceID,
+		RunKind:          taskpkg.RunKindCoordinator,
+		ClaimerSessionID: "daemon-loop-coordinator",
+		LeaseDuration:    taskpkg.DefaultRunLeaseDuration,
+		Now:              now,
+	}); err != nil {
+		t.Fatalf("ClaimNextRun(active coordinator) error = %v", err)
+	}
+	manager, err := taskpkg.NewManager(
+		taskpkg.WithStore(db),
+		taskpkg.WithManagerNow(func() time.Time { return now }),
+	)
+	if err != nil {
+		t.Fatalf("task.NewManager() error = %v", err)
+	}
+	actor, err := taskpkg.DeriveDaemonActorContext("scheduler", "daemon.scheduler")
+	if err != nil {
+		t.Fatalf("DeriveDaemonActorContext() error = %v", err)
+	}
+
+	started, err := (schedulerTaskSource{manager: manager, store: db}).RunLoopCoordinatorBackstop(ctx, now, actor)
+	if err != nil {
+		t.Fatalf("RunLoopCoordinatorBackstop() error = %v", err)
+	}
+	if started != 0 {
+		t.Fatalf("started = %d, want 0 while the coordinator consumer is busy", started)
+	}
+	queued, err := db.ListTaskRunsByStatus(ctx, []taskpkg.RunStatus{taskpkg.TaskRunStatusQueued})
+	if err != nil {
+		t.Fatalf("ListTaskRunsByStatus(queued) error = %v", err)
+	}
+	if got, want := len(queued), 1; got != want {
+		t.Fatalf("queued coordinator runs = %d, want %d deferred run", got, want)
+	}
+}
+
 func TestSchedulerTaskSourceLoopCoordinatorBackstopShouldRecoverWatchEventsGap(t *testing.T) {
 	t.Parallel()
 
