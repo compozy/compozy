@@ -83,8 +83,8 @@ e2e_backbone:
   integration:
     - "Integration-5: route approval decisions approve→resume / request_changes→revise / reject→terminal halt (ADR-005/017 §9.8)."
   component:
-    - "Web-unit-5 (11 statuses → pill + pulse, reduced-motion gated); Web-unit-8 (never render a terminal coercion)."
+    - "Web-unit-5 (12 statuses → pill + pulse, reduced-motion gated); Web-unit-8 (never render a terminal coercion)."
   followups:
-    - "AB-004 — observing all 11 states (incl. no-op/blocked/queued/paused) needs seeds that actually produce each state; rich SSE emission alone does not create those run states."
+    - "AB-004 — observing all 12 states (incl. no-op/blocked/queued/paused/watching) needs seeds that actually produce each state; rich SSE emission alone does not create those run states."
     - "AB-001 — real-daemon approval flow in Playwright depends on the loop e2e seed harness."
 ```

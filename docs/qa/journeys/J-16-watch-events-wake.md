@@ -22,7 +22,7 @@ flowchart TD
     H -->|work done| I[True end: truthful terminal done — never coerced from exhausted/stalled]
     D -.->|daemon restarts while parked| X1[Recover: boot reconcile + backstop gap-check replay from the ledger cursor — wake EXACTLY once, never a claim]
     X1 --> F
-    D -.->|no matching event ever arrives| X2[Abandon: stays dormant at zero cost — watch-events has NO silence-stall; operator stop → failed operator_stop, never coerced]
+    D -.->|no matching event ever arrives| X2[Abandon: stays dormant at zero cost — watch-events has NO silence-stall; operator cancel → canceled operator_cancel, never coerced]
 ```
 
 ```yaml
@@ -60,7 +60,7 @@ journey:
   abandonment:
     - at_step: 3
       how: "No event of a subscribed kind ever arrives."
-      resume: "The run stays dormant at zero cost — watch-events has NO silence-stall (distinct from J-08); the operator stops it to failed(operator_stop) if no longer wanted."
+      resume: "The run stays dormant at zero cost — watch-events has NO silence-stall (distinct from J-08); the operator cancels it to canceled(operator_cancel) if no longer wanted."
     - at_step: 2
       how: "The daemon is restarted while the run is parked and events commit during downtime."
       resume: "Boot reconcile scans watching runs for ledger-cursor gaps and the scheduler backstop gap-check catches any missed index entry; the run wakes exactly once, never claims."
