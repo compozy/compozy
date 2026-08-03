@@ -4787,7 +4787,10 @@ func testGlobalDBCompleteCoordinatorShouldPreserveConcurrentProgress(t *testing.
 		t.Fatalf("CompleteCoordinatorAndEnqueueNext(successor) error = %v", err)
 	}
 	if len(secondResult.EnqueuedRuns) != 0 {
-		t.Fatalf("successor enqueued runs = %d, want no polling wake without new progress", len(secondResult.EnqueuedRuns))
+		t.Fatalf(
+			"successor enqueued runs = %d, want no polling wake without new progress",
+			len(secondResult.EnqueuedRuns),
+		)
 	}
 	secondWakeKey := coordinatorConcurrentProgressWakeKey(string(loopRun.ID), secondClaim.Run.ID)
 	if _, err := globalDB.GetTaskRunByIdempotencyKey(ctx, secondWakeKey, actor.Origin); !errors.Is(

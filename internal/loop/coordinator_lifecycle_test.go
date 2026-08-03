@@ -248,13 +248,18 @@ func TestCoordinatorRunnerShouldApplyNodeFailurePrecedence(t *testing.T) {
 			t.Fatalf("newInitialControlCoordinatorPlan() error = %v", err)
 		}
 		if got, want := len(initialPlan.Dependencies), 1; got != want {
-			t.Fatalf("initial route dependencies = %#v, want only the success-path dependency", initialPlan.Dependencies)
+			t.Fatalf(
+				"initial route dependencies = %#v, want only the success-path dependency",
+				initialPlan.Dependencies,
+			)
 		}
 		dependency := initialPlan.Dependencies[0]
-		if got, want := dependency.TaskID, coordinatorNodeTaskID("looprun-lifecycle-route", 1, "success", 0); got != want {
+		wantTaskID := coordinatorNodeTaskID("looprun-lifecycle-route", 1, "success", 0)
+		if got, want := dependency.TaskID, wantTaskID; got != want {
 			t.Fatalf("initial route dependency task_id = %q, want %q", got, want)
 		}
-		if got, want := dependency.DependsOnTaskID, coordinatorNodeTaskID("looprun-lifecycle-route", 1, "work", 0); got != want {
+		wantDependsOnTaskID := coordinatorNodeTaskID("looprun-lifecycle-route", 1, "work", 0)
+		if got, want := dependency.DependsOnTaskID, wantDependsOnTaskID; got != want {
 			t.Fatalf("initial route dependency prerequisite = %q, want %q", got, want)
 		}
 		plan := runLifecycleFailurePlan(t, "route", now, def)
