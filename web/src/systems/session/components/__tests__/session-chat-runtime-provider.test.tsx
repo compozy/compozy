@@ -349,7 +349,7 @@ function ClearConversationButton() {
       disabled={clearMutation.isPending}
       onClick={() => {
         clearMutation.mutate(primarySessionFixture.id, {
-          onSuccess: () => aui.thread().reset(),
+          onSuccess: () => aui.thread.reset(),
         });
       }}
     >
@@ -378,7 +378,7 @@ function RetryLatestAssistantMessageButton() {
     <button
       type="button"
       onClick={async () => {
-        await aui.thread().message({ id: latestAssistantMessageId }).reload();
+        await aui.thread.message({ id: latestAssistantMessageId }).reload();
       }}
     >
       Retry latest assistant message

@@ -1,4 +1,4 @@
-import { useEffect, useState, type ComponentProps } from "react";
+import { StrictMode, useEffect, useState, type ComponentProps } from "react";
 import type { ThreadMessage } from "@assistant-ui/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -1335,36 +1335,39 @@ describe("SessionThread streaming render-count", () => {
   });
 });
 
-// Suite: composer running-state semantics + queued-prompt strip (task 35).
-// Invariant: Enter has one defined meaning per phase, the primary button reflects
-// the phase, and queued prompts render as real, actionable rows.
-// Boundary IN: SessionComposer phase toggle, Enter interception, queued-strip wiring.
+// Suite: composer draft, running-state semantics + queued-prompt strip (task 35).
+// Invariant: Draft text survives the app's StrictMode lifecycle exactly, Enter has one
+// defined meaning per phase, and queued prompts render as real, actionable rows.
+// Boundary IN: SessionComposer draft persistence, phase toggle, Enter interception,
+// queued-strip wiring.
 // Boundary OUT: queue/steer/cancel API orchestration, covered by use-session-page-controls.test.tsx.
 
 function renderComposer(overrides: Partial<ComponentProps<typeof SessionThread>>) {
   const queryClient = createQueryClient();
   return render(
-    <QueryClientProvider client={queryClient}>
-      <SessionChatRuntimeProvider
-        sessionId={primarySessionFixture.id}
-        workspaceId={fixtureWorkspaceId()}
-      >
-        <SessionTranscriptThreadProvider
-          messages={[]}
-          status="success"
-          error={null}
-          retry={vi.fn()}
+    <StrictMode>
+      <QueryClientProvider client={queryClient}>
+        <SessionChatRuntimeProvider
+          sessionId={primarySessionFixture.id}
+          workspaceId={fixtureWorkspaceId()}
         >
-          <SessionThread
-            sessionId={primarySessionFixture.id}
-            agentName={primarySessionFixture.agent_name}
-            canPrompt
-            onCancelPrompt={vi.fn()}
-            {...overrides}
-          />
-        </SessionTranscriptThreadProvider>
-      </SessionChatRuntimeProvider>
-    </QueryClientProvider>
+          <SessionTranscriptThreadProvider
+            messages={[]}
+            status="success"
+            error={null}
+            retry={vi.fn()}
+          >
+            <SessionThread
+              sessionId={primarySessionFixture.id}
+              agentName={primarySessionFixture.agent_name}
+              canPrompt
+              onCancelPrompt={vi.fn()}
+              {...overrides}
+            />
+          </SessionTranscriptThreadProvider>
+        </SessionChatRuntimeProvider>
+      </QueryClientProvider>
+    </StrictMode>
   );
 }
 
@@ -1389,6 +1392,10 @@ describe("SessionThread composer running semantics", () => {
 
     const textarea = await screen.findByTestId("composer-textarea");
     await user.type(textarea, "keep this draft");
+    expect(textarea).toHaveValue("keep this draft");
+    expect(sessionStore.getSnapshot().context.drafts[primarySessionFixture.id]).toBe(
+      "keep this draft"
+    );
 
     firstView.unmount();
     renderComposer({ isSessionRunning: false });

@@ -64,7 +64,7 @@ export function SessionThread({
     sessionState === "stopped" && Boolean(failure) && !acpSessionId?.trim().length;
   const lifecycleCanPrompt = canPrompt && sessionState !== "starting" && !startupFailed;
   const handleCancelPrompt = () => {
-    aui.thread().cancelRun();
+    aui.thread.cancelRun();
     promptDispatch.cancelPending();
     onCancelPrompt();
   };

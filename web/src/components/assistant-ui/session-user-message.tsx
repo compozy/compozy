@@ -1,5 +1,6 @@
 import {
   type DataMessagePartProps,
+  MessagePartPrimitive,
   MessagePrimitive,
   type TextMessagePartProps,
 } from "@assistant-ui/react";
@@ -21,11 +22,6 @@ function SessionTextPart({ text, status }: TextMessagePartProps) {
 function SessionDataPart(part: DataMessagePartProps<unknown>) {
   return <SessionDataEventMarker name={part.name} />;
 }
-
-const USER_MESSAGE_PARTS = {
-  Text: SessionTextPart,
-  data: { Fallback: SessionDataPart },
-};
 
 /**
  * The one message surface in the transcript: a right-aligned, borderless block
@@ -87,7 +83,20 @@ export function UserMessage() {
     <MessagePrimitive.Root className="group/message flex w-full min-w-0 justify-end pt-1 pb-transcript-turn-gap">
       <div className="flex max-w-[80%] min-w-0 flex-col items-end gap-transcript-meta-gap">
         <UserMessageBubble>
-          <MessagePrimitive.Parts components={USER_MESSAGE_PARTS} />
+          <MessagePrimitive.Parts>
+            {({ part }) => {
+              if (part.type === "text") {
+                return <SessionTextPart {...part} />;
+              }
+              if (part.type === "image") {
+                return <MessagePartPrimitive.Image />;
+              }
+              if (part.type === "data") {
+                return part.dataRendererUI ?? <SessionDataPart {...part} />;
+              }
+              return null;
+            }}
+          </MessagePrimitive.Parts>
         </UserMessageBubble>
         <MessageActions align="end" copyLabel="Copy message" testId="user-message-actions" />
       </div>

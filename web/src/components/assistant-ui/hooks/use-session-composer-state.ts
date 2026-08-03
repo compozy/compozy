@@ -30,7 +30,7 @@ export function useSessionComposerState(sessionId: string): SessionComposerState
   const clearDraftForSession = () => sessionStore.trigger.composerDraftDiscarded({ sessionId });
 
   const clearComposer = () => {
-    aui.composer().setText("");
+    aui.composer.setText("");
     sessionStore.trigger.composerDraftDiscarded({ sessionId });
   };
 
@@ -39,12 +39,12 @@ export function useSessionComposerState(sessionId: string): SessionComposerState
   };
 
   const setComposerText = (text: string) => {
-    aui.composer().setText(text);
+    aui.composer.setText(text);
     persistComposerText(text);
   };
 
   const prefillComposer = (text: string) => {
-    const currentText = aui.composer().getState().text;
+    const currentText = aui.composer.getState().text;
     if (currentText.trim().length > 0 && currentText !== text) {
       toast.warning("Send or discard the current draft before prefilling a Goal command.");
       composerInputElementRef.current?.focus();
@@ -56,13 +56,13 @@ export function useSessionComposerState(sessionId: string): SessionComposerState
 
   useLayoutEffect(() => {
     const sameSession = hydratedSessionIdRef.current === sessionId;
-    const composerText = aui.composer().getState().text;
+    const composerText = aui.composer.getState().text;
     if (sameSession && composerText !== hydratedDraftTextRef.current) {
       return;
     }
     hydratedSessionIdRef.current = sessionId;
     hydratedDraftTextRef.current = draftText;
-    aui.composer().setText(draftText);
+    aui.composer.setText(draftText);
   }, [aui, draftText, sessionId]);
 
   useAuiEvent("composer.send", clearDraftForSession);

@@ -235,7 +235,7 @@ export function useSessionPageControls(
 
     deleteMutation.mutate(sessionId, {
       onSuccess: () => {
-        aui.thread().reset();
+        aui.thread.reset();
         toast.success("Session deleted.");
         onDeleteSuccess?.();
       },
@@ -252,7 +252,7 @@ export function useSessionPageControls(
 
     clearMutation.mutate(sessionId, {
       onSuccess: () => {
-        aui.thread().reset();
+        aui.thread.reset();
       },
     });
   };

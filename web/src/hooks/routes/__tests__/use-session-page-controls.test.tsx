@@ -52,9 +52,9 @@ const routeHookMocks = vi.hoisted(() => ({
 
 vi.mock("@assistant-ui/react", () => ({
   useAui: () => ({
-    thread: () => ({
+    thread: {
       reset: routeHookMocks.resetThread,
-    }),
+    },
   }),
   useAuiState: (selector: (state: typeof routeHookMocks.auiState) => unknown) =>
     selector(routeHookMocks.auiState),

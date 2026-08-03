@@ -1,6 +1,6 @@
 import {
+  MessageByIndexProvider,
   ReadonlyThreadProvider,
-  ThreadPrimitive,
   type ThreadMessage,
   useAuiState,
 } from "@assistant-ui/react";
@@ -17,10 +17,17 @@ import { AssistantMessage } from "./session-assistant-message";
 import { ThreadStatePane } from "./session-thread-states";
 import { UserMessage } from "./session-user-message";
 
-const SESSION_MESSAGE_COMPONENTS = {
-  UserMessage,
-  AssistantMessage,
-};
+function SessionThreadMessage() {
+  const role = useAuiState(state => state.message.role);
+
+  if (role === "user") {
+    return <UserMessage />;
+  }
+  if (role === "assistant") {
+    return <AssistantMessage />;
+  }
+  return null;
+}
 
 function ThreadMessageRows({
   messageCount,
@@ -42,7 +49,9 @@ function ThreadMessageRows({
           data-testid="thread-message-row"
           className="w-full [content-visibility:auto] [contain-intrinsic-size:auto_120px]"
         >
-          <ThreadPrimitive.MessageByIndex index={index} components={SESSION_MESSAGE_COMPONENTS} />
+          <MessageByIndexProvider index={index}>
+            <SessionThreadMessage />
+          </MessageByIndexProvider>
         </div>
       ))}
     </div>

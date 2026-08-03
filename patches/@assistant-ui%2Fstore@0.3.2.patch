@@ -1,0 +1,71 @@
+diff --git a/dist/utils/NotificationManager.js b/dist/utils/NotificationManager.js
+index 572041797dd447788048d24b29320d3e18986e16..9de86774d8da043d8140e9c6047549e73fdfe658 100644
+--- a/dist/utils/NotificationManager.js
++++ b/dist/utils/NotificationManager.js
+@@ -1,24 +1,12 @@
+-import { c } from "@assistant-ui/tap/react-shim/compiler-runtime";
+ import "@assistant-ui/tap/react-shim";
++import { useState } from "react";
+ //#region src/utils/NotificationManager.ts
+ const useNotificationManager = () => {
+-	const $ = c(3);
+-	let t0;
+-	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
+-		t0 = /* @__PURE__ */ new Map();
+-		$[0] = t0;
+-	} else t0 = $[0];
+-	const listeners = t0;
+-	let t1;
+-	if ($[1] === Symbol.for("react.memo_cache_sentinel")) {
+-		t1 = /* @__PURE__ */ new Set();
+-		$[1] = t1;
+-	} else t1 = $[1];
+-	const wildcardListeners = t1;
+-	let t2;
+-	if ($[2] === Symbol.for("react.memo_cache_sentinel")) {
++	return useState(() => {
++		const listeners = /* @__PURE__ */ new Map();
++		const wildcardListeners = /* @__PURE__ */ new Set();
+ 		const subscribers = /* @__PURE__ */ new Set();
+-		t2 = {
++		return {
+ 			on(event, callback) {
+ 				const cb = callback;
+ 				if (event === "*") {
+@@ -78,9 +66,7 @@ const useNotificationManager = () => {
+ 				}
+ 			}
+ 		};
+-		$[2] = t2;
+-	} else t2 = $[2];
+-	return t2;
++	})[0];
+ };
+ //#endregion
+ export { useNotificationManager };
+diff --git a/src/utils/NotificationManager.ts b/src/utils/NotificationManager.ts
+index df1f393e541ea25aae6d98d7861d913e1532295b..202fed60f28b4de2c257407a071f83beb6d2d370 100644
+--- a/src/utils/NotificationManager.ts
++++ b/src/utils/NotificationManager.ts
+@@ -1,4 +1,4 @@
+-import { useMemo } from "react";
++import { useState } from "react";
+ import type { ClientStack } from "./tap-client-stack-context";
+ import type {
+   AssistantEventName,
+@@ -26,7 +26,7 @@ export type NotificationManager = {
+ };
+ 
+ export const useNotificationManager = (): NotificationManager => {
+-  return useMemo(() => {
++  return useState<NotificationManager>(() => {
+     const listeners = new Map<string, Set<InternalCallback>>();
+     const wildcardListeners = new Set<InternalCallback>();
+     const subscribers = new Set<() => void>();
+@@ -109,5 +109,5 @@ export const useNotificationManager = (): NotificationManager => {
+         }
+       },
+     };
+-  }, []);
++  })[0];
+ };
