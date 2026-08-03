@@ -1,10 +1,43 @@
 import { describe, expect, it } from "vitest";
 
-import type { RawLoopNode } from "../codec";
+import type { EditorNode, RawLoopNode } from "../codec";
+import { setNodeFields } from "../loop-editor-draft";
 import { buildNodeFields, type FieldSpec } from "../loop-node-schema";
+import { waitMode, waitModeEdits } from "../loop-node-wait-fields";
+import type { LoopWaitMode } from "../loop-node-schema-types";
 
 function keys(fields: FieldSpec[]): string[] {
   return fields.map(field => ("key" in field ? field.key : "hint"));
+}
+
+/** Flattens folds so a lifecycle field can be asserted by key wherever it is nested. */
+function flatten(fields: FieldSpec[]): FieldSpec[] {
+  return fields.flatMap(field =>
+    field.type === "fold" ? [field, ...flatten(field.fields)] : [field]
+  );
+}
+
+function fieldByKey(fields: FieldSpec[], key: string): FieldSpec | undefined {
+  return flatten(fields).find(field => "key" in field && field.key === key);
+}
+
+function hasKey(fields: FieldSpec[], key: string): boolean {
+  return fieldByKey(fields, key) !== undefined;
+}
+
+function editorNode(raw: RawLoopNode): EditorNode {
+  return {
+    id: raw.id,
+    type: "loopNode",
+    position: { x: 0, y: 0 },
+    data: { raw, nodeClass: null, kind: raw.kind, hasError: false },
+  };
+}
+
+/** Applies a wait-mode switch exactly the way the inspector does, and returns the new params. */
+function switchWaitMode(raw: RawLoopNode, mode: LoopWaitMode): RawLoopNode {
+  const next = setNodeFields([editorNode(raw)], raw.id, waitModeEdits(raw, mode));
+  return next[0].data.raw;
 }
 
 describe("loop node schema", () => {
@@ -144,5 +177,138 @@ describe("loop node schema", () => {
     const raw: RawLoopNode = { id: "mystery", class: "unknown", kind: "weird" };
     const fields = buildNodeFields(raw);
     expect(keys(fields)).toEqual(["id", "kind"]);
+  });
+
+  it("WT-005: Should author every Spec 1 reliability key at its exact DSL path on an action", () => {
+    const fields = buildNodeFields({ id: "execute", class: "action", kind: "run-agent" });
+    expect(fieldByKey(fields, "deadline")).toMatchObject({ path: ["deadline"] });
+    expect(fieldByKey(fields, "max_attempts")).toMatchObject({
+      path: ["retry", "max_attempts"],
+    });
+    expect(fieldByKey(fields, "backoff_base")).toMatchObject({
+      path: ["retry", "backoff", "base"],
+    });
+    expect(fieldByKey(fields, "backoff_max")).toMatchObject({ path: ["retry", "backoff", "max"] });
+    expect(fieldByKey(fields, "non_retryable")).toMatchObject({
+      path: ["retry", "non_retryable"],
+      json: true,
+    });
+    expect(fieldByKey(fields, "result_failure_field")).toMatchObject({
+      path: ["result_contract", "failure_field"],
+    });
+    expect(fieldByKey(fields, "on_error_route")).toMatchObject({ path: ["on_error", "route"] });
+    expect(fieldByKey(fields, "on_error_allow_fail")).toMatchObject({
+      type: "switch",
+      path: ["on_error", "allow_fail"],
+    });
+    expect(fieldByKey(fields, "on_error_effects")).toMatchObject({
+      type: "effects",
+      path: ["on_error", "effects"],
+    });
+    // `retry.max` is retired (`retry_max_unsupported`) — the editor must never author it.
+    expect(JSON.stringify(fields)).not.toContain('"retry","max"');
+  });
+
+  it("WT-005: Should author the six node triggers as effect lists at their envelope keys", () => {
+    const fields = buildNodeFields({ id: "execute", class: "action", kind: "run-agent" });
+    for (const trigger of [
+      "on_retry",
+      "on_success",
+      "on_pause",
+      "on_timeout",
+      "on_cancel",
+      "on_quarantine",
+    ]) {
+      expect(fieldByKey(fields, trigger)).toMatchObject({ type: "effects", path: [trigger] });
+    }
+  });
+
+  it("WT-005: Should scope lifecycle keys to the classes whose runtime executes them", () => {
+    // A control node reacts and routes, but produces no task run: no retry, no deadline, and
+    // no result_contract (its linter branch has no declared output schema to resolve against).
+    const gate = buildNodeFields({ id: "review", class: "control", kind: "gate" });
+    expect(hasKey(gate, "on_error_route")).toBe(true);
+    expect(hasKey(gate, "on_pause")).toBe(true);
+    expect(hasKey(gate, "deadline")).toBe(false);
+    expect(hasKey(gate, "max_attempts")).toBe(false);
+    expect(hasKey(gate, "result_failure_field")).toBe(false);
+    // A gate owns the approval expiry ladder.
+    expect(fieldByKey(gate, "gate_expires_after")).toMatchObject({ path: ["expires", "after"] });
+
+    // A goal owns its own attempt budget; deadline/backoff/non_retryable are rejected there.
+    const goal = buildNodeFields({ id: "goal", class: "action", kind: "goal", params: {} });
+    expect(hasKey(goal, "on_error_route")).toBe(true);
+    expect(hasKey(goal, "result_failure_field")).toBe(true);
+    expect(hasKey(goal, "deadline")).toBe(false);
+    expect(hasKey(goal, "backoff_base")).toBe(false);
+    expect(hasKey(goal, "non_retryable")).toBe(false);
+
+    // Source kinds produce no attempt at all — the envelope stays off entirely.
+    const input = buildNodeFields({ id: "slug", class: "source", kind: "input" }, { inputs: {} });
+    expect(hasKey(input, "on_error_route")).toBe(false);
+    expect(hasKey(input, "on_retry")).toBe(false);
+  });
+
+  it("WT-005: Should expose on_parent_close only on run-loop, with the closed enum", () => {
+    const runLoop = buildNodeFields({ id: "child", class: "action", kind: "run-loop" });
+    expect(fieldByKey(runLoop, "on_parent_close")).toMatchObject({
+      type: "select",
+      path: ["on_parent_close"],
+      options: ["terminate", "cancel", "abandon"],
+    });
+    const runAgent = buildNodeFields({ id: "x", class: "action", kind: "run-agent" });
+    expect(hasKey(runAgent, "on_parent_close")).toBe(false);
+  });
+
+  it("WT-005: Should author the wait inspector at its params paths", () => {
+    const raw: RawLoopNode = {
+      id: "await_ack",
+      class: "control",
+      kind: "wait",
+      params: { for: "24h" },
+    };
+    const fields = buildNodeFields(raw);
+    expect(fieldByKey(fields, "wait_mode")).toMatchObject({ type: "wait-mode", mode: "for" });
+    expect(fieldByKey(fields, "wait_for")).toMatchObject({ path: ["params", "for"] });
+    expect(fieldByKey(fields, "wait_expect")).toMatchObject({
+      path: ["params", "expect"],
+      json: true,
+    });
+    expect(fieldByKey(fields, "wait_ahead_arrival")).toMatchObject({
+      path: ["params", "ahead_arrival"],
+      options: ["consume_on_entry", "reject"],
+    });
+    expect(fieldByKey(fields, "wait_expires_after")).toMatchObject({
+      path: ["params", "expires", "after"],
+    });
+    expect(fieldByKey(fields, "wait_expires_escalate")).toMatchObject({
+      type: "effects",
+      path: ["params", "expires", "escalate"],
+    });
+  });
+
+  it("WT-005: Should leave exactly one wait discriminator through for → until → event → for", () => {
+    // `wait_shape_invalid` fires on a second discriminator OR any stray params key, so every
+    // switch must land as ONE transition that clears both losers.
+    let raw: RawLoopNode = {
+      id: "await_ack",
+      class: "control",
+      kind: "wait",
+      params: { for: "24h" },
+    };
+    for (const mode of ["until", "event", "for"] as const) {
+      raw = switchWaitMode(raw, mode);
+      const params = raw.params as Record<string, unknown>;
+      const declared = (["for", "until", "event"] as const).filter(
+        key => params[key] !== undefined
+      );
+      expect(declared).toEqual([mode]);
+      expect(waitMode(raw)).toBe(mode);
+    }
+    // The event mode seeds a valid subscription rather than an empty object.
+    const eventRaw = switchWaitMode(raw, "event");
+    expect((eventRaw.params as Record<string, unknown>).event).toMatchObject({
+      kind: expect.any(String),
+    });
   });
 });

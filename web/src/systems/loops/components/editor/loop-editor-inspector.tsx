@@ -2,6 +2,7 @@ import { Empty } from "@compozy/ui";
 import { MousePointerClick } from "lucide-react";
 
 import type { EditorEdge, EditorNode } from "../../lib/codec";
+import type { NodeFieldEdit } from "../../lib/loop-editor-draft";
 import { buildReferenceNamespace } from "../../lib/loop-references";
 import type { FieldPath, FieldSpec } from "../../lib/loop-node-schema";
 import type { LoopDefinition } from "../../types";
@@ -19,6 +20,8 @@ interface LoopEditorInspectorProps {
   definition: Pick<LoopDefinition, "inputs" | "start">;
   disabled: boolean;
   onChange: (path: FieldPath, value: unknown) => void;
+  /** Atomic multi-key edits (the `wait` discriminator) — one draft transition, one store event. */
+  onChangeFields: (edits: NodeFieldEdit[]) => void;
 }
 
 /**
@@ -79,6 +82,7 @@ export function LoopEditorInspector({
   definition,
   disabled,
   onChange,
+  onChangeFields,
 }: LoopEditorInspectorProps) {
   const branchIds = fanoutBranchNodeIds(nodes, edges);
   const suggestions = node
@@ -139,6 +143,7 @@ export function LoopEditorInspector({
             suggestions={suggestions}
             disabled={disabled}
             onChange={onChange}
+            onChangeFields={onChangeFields}
           />
         ))}
       </div>

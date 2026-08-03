@@ -110,8 +110,12 @@ export function useCreateLoop() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ workspaceId, data }: CreateLoopParams) => createLoop(workspaceId, data),
-    onSettled: (result, _error, { workspaceId }) =>
-      invalidateLoopDefinitionQueries(queryClient, workspaceId, result?.name),
+    onSettled: (result, _error, { workspaceId, data }) =>
+      invalidateLoopDefinitionQueries(
+        queryClient,
+        workspaceId,
+        result?.name ?? data.fork_from_name
+      ),
   });
 }
 

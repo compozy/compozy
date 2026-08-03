@@ -1,8 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
+import { HttpResponse } from "msw";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { compozyApiMock } from "@/storybook/openapi-msw";
 import { createMswFetch } from "@/test/msw-fetch";
 import { handlers } from "@/systems/loops/mocks";
 import {
@@ -57,6 +59,39 @@ describe("loop mutation hooks", () => {
     });
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: ["loops", "detail", WS, "software-delivery"],
+    });
+  });
+
+  it("Should invalidate the fork target when useCreateLoop returns a conflict", async () => {
+    vi.stubGlobal(
+      "fetch",
+      createMswFetch(() => [
+        compozyApiMock.post("/api/workspaces/{workspace_id}/loops", () =>
+          HttpResponse.json({ error: "Workspace copy already exists" }, { status: 409 })
+        ),
+        ...handlers,
+      ])
+    );
+    const { invalidate, wrapper } = setup();
+    const { result } = renderHook(() => useCreateLoop(), { wrapper });
+
+    await expect(
+      result.current.mutateAsync({
+        workspaceId: WS,
+        data: { fork_from_name: "software-delivery" },
+      })
+    ).rejects.toMatchObject({ status: 409 });
+
+    await waitFor(() => {
+      expect(invalidate).toHaveBeenCalledWith({
+        queryKey: ["loops", "detail", WS, "software-delivery"],
+      });
+    });
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ["loops", "config", WS, "software-delivery"],
+    });
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ["loops", "annotations", WS, "software-delivery"],
     });
   });
 

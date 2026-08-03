@@ -28,6 +28,12 @@ interface LoopEditorCanvasProps {
   onEdgesChange: (changes: EdgeChange<EditorEdge>[]) => void;
   onConnect: (connection: Connection) => void;
   onSelectNode: (id: string | null) => void;
+  /**
+   * A non-workspace definition is immutable: no new edges, no reconnects, no delete key.
+   * Selection, panning, zoom and dragging stay on — reading the graph is not a mutation, and
+   * positions live in the annotations sidecar the daemon accepts for any source.
+   */
+  readOnly: boolean;
 }
 
 /**
@@ -45,6 +51,7 @@ export function LoopEditorCanvas({
   onEdgesChange,
   onConnect,
   onSelectNode,
+  readOnly,
 }: LoopEditorCanvasProps) {
   // Drive the accent ring from the view-model selection so every selection path (click,
   // dock reveal, palette add) is truthful — React Flow's internal `selected` only tracks clicks.
@@ -65,6 +72,9 @@ export function LoopEditorCanvas({
       onEdgesChange={onEdgesChange}
       onConnect={onConnect}
       isValidConnection={isValidConnection}
+      nodesConnectable={!readOnly}
+      edgesReconnectable={!readOnly}
+      deleteKeyCode={readOnly ? null : undefined}
       onNodeClick={(_event, node) => onSelectNode(node.id)}
       onPaneClick={() => onSelectNode(null)}
       fitView

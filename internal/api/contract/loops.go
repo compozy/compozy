@@ -360,6 +360,7 @@ type LoopContract struct {
 	Budget           LoopBudget           `json:"budget"`
 	RuntimeDefaults  *LoopRuntimeDefaults `json:"runtime_defaults,omitempty"`
 	RuntimeRules     []LoopRuntimeRule    `json:"runtime_rules,omitempty"`
+	*LoopContractLifecycleState
 }
 
 type LoopNoProgress struct {
@@ -384,7 +385,7 @@ type LoopGraphNode struct {
 	Kind          string                       `json:"kind"`
 	Session       map[string]any               `json:"session,omitempty"`
 	Timeout       string                       `json:"timeout,omitempty"`
-	Retry         map[string]any               `json:"retry,omitempty"`
+	Retry         *LoopRetrySpec               `json:"retry,omitempty"`
 	Harvest       map[string]any               `json:"harvest,omitempty"`
 	Produces      map[string]any               `json:"produces,omitempty"`
 	Params        map[string]any               `json:"params,omitempty"`
@@ -405,6 +406,7 @@ type LoopGraphNode struct {
 	Parse         string                       `json:"parse,omitempty"`
 	WatchSpec     map[string]any               `json:"watch,omitempty"`
 	Events        []LoopWatchEventSubscription `json:"events,omitempty"`
+	*LoopNodeLifecycleState
 }
 
 type LoopGateCriterion struct {

@@ -17,7 +17,7 @@ export function str(value: unknown): string {
   return "";
 }
 
-function idField(): TextFieldSpec {
+export function idField(): TextFieldSpec {
   return { type: "text", key: "id", label: "Node id", path: ["id"], mono: true };
 }
 
@@ -339,13 +339,13 @@ export function runAgentFields(raw: RawLoopNode): FieldSpec[] {
       path: ["session", "isolated"],
       subLabel: "Each task runs in its own one-shot session.",
     },
-    { type: "text", key: "timeout", label: "Timeout", path: ["timeout"], mono: true },
     {
-      type: "number",
-      key: "retry",
-      label: "Retry (max)",
-      path: ["retry", "max"],
-      hint: "Plus one FREE schema-validation retry outside this budget (ADR-021).",
+      type: "text",
+      key: "timeout",
+      label: "Timeout",
+      path: ["timeout"],
+      mono: true,
+      hint: "Per attempt. Must not exceed the deadline in Reliability (timeout_exceeds_deadline). The retry budget lives there too, plus one FREE schema-validation retry outside it (ADR-021).",
     },
     {
       type: "static",
@@ -386,6 +386,15 @@ export function runLoopFields(_raw: RawLoopNode): FieldSpec[] {
       json: true,
       optionalLabel: "optional · template-interpolated map",
       hint: "The child loop's declared inputs, each value template-interpolated over this loop's namespace.",
+    },
+    {
+      type: "select",
+      key: "on_parent_close",
+      label: "on_parent_close",
+      path: ["on_parent_close"],
+      options: ["terminate", "cancel", "abandon"],
+      clearOption: { value: "", label: "engine default (terminate)" },
+      hint: "What happens to the child when this run closes. Propagation is strictly parent → child; the key is legal only on run-loop nodes (parent_close_invalid).",
     },
     {
       type: "hint",

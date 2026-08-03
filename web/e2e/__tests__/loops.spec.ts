@@ -49,6 +49,7 @@ const loopFeedbackFixture = path.resolve(
 
 const loopLifecycleAgent = "loop-lifecycle-agent";
 const loopLifecycleName = "node-lifecycle-e2e";
+const loopAuthoringName = "editor-authoring-e2e";
 const loopRuntimeAgent = "loop-runtime-agent";
 const loopRuntimeName = "runtime-provenance-e2e";
 const loopFeedbackWorker = "loop-feedback-worker";
@@ -259,6 +260,53 @@ const loopLifecycleDefinition: LoopDefinition = {
   start: [{ kind: "http" }],
 };
 
+/**
+ * E2E-016 (US-028). The same lane as E2E-015 but published with NO reliability envelope: the
+ * browser author declares `retry` + `on_error` in the editor, publishes, and the run that
+ * follows proves the daemon executed the contract they typed.
+ */
+const loopAuthoringDefinition: LoopDefinition = {
+  apiVersion: "compozy.loop/v1",
+  kind: "Loop",
+  meta: {
+    name: loopAuthoringName,
+    description: "Author the Spec 1 failure contract in the editor, then run it.",
+    catalog: { category: "Testing" },
+  },
+  concurrency: "allow",
+  contract: {
+    goal: "Run one lane whose failure contract is authored in the editor.",
+    definition_of_done: "The lane completes after the authored retry.",
+    stop_when: "nodes.execute.status == 'succeeded'",
+    iteration_cap: 2,
+    no_progress: { window: 5, hash_fields: ["delivery_artifact"] },
+    budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: "halt" },
+    terminal_states: ["done", "failed", "blocked", "exhausted", "stalled", "canceled"],
+  },
+  graph: {
+    nodes: [
+      {
+        id: "execute",
+        class: "action",
+        kind: "run-agent",
+        // Deliberately no `retry` and no `on_error` — the editor authors both.
+        timeout: "2s",
+        params: {
+          agent: loopLifecycleAgent,
+          prompt: "retry lifecycle",
+          output_schema: {
+            type: "object",
+            required: ["summary", "value"],
+            properties: { summary: { type: "string" }, value: { type: "string" } },
+          },
+        },
+      },
+    ],
+    edges: [],
+  } as LoopDefinition["graph"],
+  start: [{ kind: "http" }],
+};
+
 test.use({
   runtimeOptions: {
     seed: {
@@ -432,6 +480,87 @@ test("Compozy migration E2E-015: run page lifecycle controls and node inventorie
     "Nothing is quarantined"
   );
   await browserArtifacts.captureScreenshot("loop-node-inventory-quarantined-empty", appPage);
+});
+
+test("Compozy migration E2E-016: author retry + on_error in the editor, publish, and run it", async ({
+  appPage,
+  browserArtifacts,
+  runtime,
+}) => {
+  if (!runtime.paths) {
+    throw new Error("Loop authoring browser test requires launch-mode runtime paths");
+  }
+  const workspace = await runtime.resolveWorkspace(runtime.paths.homeDir);
+  await useGlobalWorkspaceIfPrompted(appPage);
+  const workspacePath = `/api/workspaces/${encodeURIComponent(workspace.id)}`;
+  await runtime.requestJSON(`${workspacePath}/loops`, {
+    method: "POST",
+    body: JSON.stringify({ definition: loopAuthoringDefinition }),
+  });
+
+  await appPage.goto(runtime.url(`/loops/${encodeURIComponent(loopAuthoringName)}/editor`), {
+    waitUntil: "domcontentloaded",
+  });
+  await expect(appPage.getByTestId("loop-editor")).toBeVisible();
+
+  // Select the lane and open the folds the reliability envelope lives in.
+  await appPage.getByTestId("loop-editor-node").filter({ hasText: "execute" }).first().click();
+  await appPage.locator("summary", { hasText: "Reliability" }).click();
+
+  // Declare the retry budget and a single absorption mode — route XOR allow_fail.
+  await appPage.getByTestId("loop-field-max_attempts").fill("3");
+  await appPage.getByTestId("loop-field-backoff_base").fill("20s");
+  await appPage.getByTestId("loop-field-on_error_allow_fail").click();
+
+  // One observational effect on the retry trigger.
+  await appPage.locator("summary", { hasText: "Reactions" }).click();
+  await appPage.getByTestId("loop-field-on_retry-add").click();
+  await appPage.getByTestId("loop-field-on_retry-kind-0").fill("lane_retrying");
+
+  // The dock must be clean before Publish is legal.
+  await expect(appPage.getByTestId("loop-linter-error-count")).toHaveCount(0);
+  const publish = appPage.getByTestId("loop-editor-publish");
+  await expect(publish).toBeEnabled();
+  await publish.click();
+  await expect(appPage.getByTestId("loop-run-form")).toBeVisible();
+  await browserArtifacts.captureScreenshot("loop-editor-authored-published", appPage);
+
+  // Round-trip against the real daemon: the published definition carries what was typed.
+  const published = await runtime.requestJSON<{
+    loop: { version: number; definition: { graph: { nodes: Record<string, unknown>[] } } };
+  }>(`${workspacePath}/loops/${encodeURIComponent(loopAuthoringName)}`);
+  expect(published.loop.version).toBe(2);
+  const authored = published.loop.definition.graph.nodes.find(node => node.id === "execute");
+  expect(authored).toMatchObject({
+    retry: { max_attempts: 3, backoff: { base: "20s" } },
+    on_error: { allow_fail: true },
+    on_retry: [{ emit: { kind: "lane_retrying" } }],
+  });
+
+  // Start through the browser so this journey proves the published editor contract end to end.
+  const runButton = appPage.getByTestId("loop-run-submit-button");
+  await expect(runButton).toBeEnabled();
+  await runButton.click();
+  await expect(appPage).toHaveURL(/\/loop-runs\/[^/?#]+$/);
+  const runID = decodeURIComponent(new URL(appPage.url()).pathname.split("/").at(-1) ?? "");
+  if (runID === "") throw new Error("Loop authoring browser run did not return a run id");
+  const runPath = `${workspacePath}/loop-runs/${encodeURIComponent(runID)}`;
+  await expect
+    .poll(
+      async () => {
+        const detail = await runtime.requestJSON<LoopRunDetail>(runPath);
+        const outputs = (detail.generations ?? []).flatMap(generation => generation.outputs);
+        return outputs.some(output => Boolean(output.next_attempt_at));
+      },
+      { timeout: 45_000 }
+    )
+    .toBe(true);
+
+  await expect(appPage.getByTestId("loop-run-detail-content")).toBeVisible();
+  // The authored attempt ceiling is what phrases the lane, so "attempt N of 3" is truthful.
+  await expect(appPage.getByTestId("loop-run-now-node-execute")).toContainText("retrying");
+  await expect(appPage.getByTestId("loop-run-now-chip-execute")).toContainText("attempt");
+  await browserArtifacts.captureScreenshot("loop-editor-authored-run-retrying", appPage);
 });
 
 test("Compozy migration E2E-004: loop run renders API runtime provenance without controls", async ({

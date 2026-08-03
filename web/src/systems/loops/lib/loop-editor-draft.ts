@@ -3,10 +3,11 @@ import type { FieldPath } from "./loop-node-schema";
 
 /**
  * Immutable draft mutations over the editor graph. Every inspector edit flows through
- * `setNodeField`, which writes a value at a raw-JSON path on exactly one node, leaving
- * every other field (and node) untouched so the bijective codec still round-trips the
- * rest. Node-id renames cascade through the edges and the React Flow node id. Drafts
- * are editor-session state only — there is no server-side draft store in v1 (§9.13).
+ * `setNodeFields`, which applies one or more raw-JSON path writes to exactly one node in a
+ * single transition, leaving every other field (and node) untouched so the bijective codec
+ * still round-trips the rest. Node-id renames cascade through the edges and the React Flow
+ * node id. Drafts are editor-session state only — there is no server-side draft store in v1
+ * (§9.13).
  */
 
 /** Reads the value at a raw-JSON path (dotted/indexed), or `undefined` when absent. */
@@ -94,6 +95,62 @@ export function setAtPath<T extends object>(source: T, path: FieldPath, value: u
   return clone as T;
 }
 
+function isEmptyContainer(value: unknown): boolean {
+  if (Array.isArray(value)) return value.length === 0;
+  if (isRecord(value)) return Object.keys(value).length === 0;
+  return false;
+}
+
+/** Removes a path and prunes ancestors emptied by that removal; siblings keep parents alive. */
+export function unsetAtPath<T extends object>(source: T, path: FieldPath): T {
+  if (path.length === 0) return source;
+  const [head, ...rest] = path;
+  const existing = readContainerValue(source, head);
+  if (existing === undefined || existing === null) return source;
+  if (rest.length === 0) {
+    const clone = cloneContainer(source, head);
+    deleteContainerValue(clone, head);
+    return clone as T;
+  }
+  if (typeof existing !== "object") return source;
+  const child = unsetAtPath(existing as object, rest);
+  if (child === existing) return source;
+  const clone = cloneContainer(source, head);
+  if (isEmptyContainer(child)) {
+    deleteContainerValue(clone, head);
+  } else {
+    writeContainer(clone, head, child);
+  }
+  return clone as T;
+}
+
+/** One path write inside a draft transition; `undefined` clears (and prunes) the path. */
+export interface NodeFieldEdit {
+  path: FieldPath;
+  value: unknown;
+}
+
+/** Applies several path writes to one node in a single draft transition. */
+export function setNodeFields(
+  nodes: readonly EditorNode[],
+  nodeId: string,
+  edits: readonly NodeFieldEdit[]
+): EditorNode[] {
+  if (edits.length === 0) return [...nodes];
+  return nodes.map(node => {
+    if (node.id !== nodeId) return node;
+    const raw = edits.reduce(
+      (current, edit) =>
+        edit.value === undefined
+          ? unsetAtPath(current, edit.path)
+          : setAtPath(current, edit.path, edit.value),
+      node.data.raw
+    );
+    if (raw === node.data.raw) return node;
+    return { ...node, data: { ...node.data, raw } };
+  });
+}
+
 /** Applies one field edit to a node's raw JSON, returning a new node array. */
 export function setNodeField(
   nodes: readonly EditorNode[],
@@ -101,11 +158,7 @@ export function setNodeField(
   path: FieldPath,
   value: unknown
 ): EditorNode[] {
-  return nodes.map(node => {
-    if (node.id !== nodeId) return node;
-    const raw = setAtPath(node.data.raw, path, value);
-    return { ...node, data: { ...node.data, raw } };
-  });
+  return setNodeFields(nodes, nodeId, [{ path, value }]);
 }
 
 /** Whether a field path targets the node id (rename must cascade, not a plain set). */

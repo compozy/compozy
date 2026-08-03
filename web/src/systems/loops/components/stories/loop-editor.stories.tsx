@@ -8,6 +8,13 @@ import { StorySurface, StoryTopbarHost } from "@/storybook/story-layout";
 
 import { LoopEditor } from "../editor/loop-editor";
 import { handlers as loopHandlers } from "../../mocks";
+import {
+  PUBLISH_REJECTED_ISSUES,
+  fullLifecycleDetail,
+  lintErrorAndWarningDetail,
+  readOnlySourceDetail,
+  waitWarningDetail,
+} from "../../mocks/fixture-editor-lifecycle";
 import { loopDetailByName } from "../../mocks/fixtures";
 import type { LoopDetail } from "../../types";
 
@@ -154,4 +161,141 @@ export const PackagedFork: Story = {
 export const LongKindLabels: Story = {
   args: { workspaceId: WS, name: "software-delivery" },
   parameters: { msw: { handlers: editorHandlers(longKindDetail()) } },
+};
+
+/** Opens the named `<details>` folds and scrolls the final one into view. */
+async function revealFolds(canvasElement: HTMLElement, labels: string[], scrollOffset = 0) {
+  const summaries = Array.from(canvasElement.querySelectorAll("summary"));
+  for (const label of labels) {
+    const summary = summaries.find(element => element.textContent?.startsWith(label));
+    if (!summary) throw new Error(`fold ${label} not found`);
+    if (!(summary.parentElement as HTMLDetailsElement | null)?.open) {
+      await userEvent.click(summary);
+    }
+  }
+  const finalLabel = labels.at(-1);
+  const final = summaries.find(element => element.textContent?.startsWith(finalLabel ?? ""));
+  final?.scrollIntoView({ block: "start" });
+  const scrollParent = final?.closest(".overflow-y-auto");
+  if (scrollParent instanceof HTMLElement && scrollOffset > 0) {
+    scrollParent.scrollTop = Math.max(0, scrollParent.scrollTop - scrollOffset);
+  }
+}
+
+/** Selects one canvas node so its inspector fields render, then reveals the named folds. */
+function selectNode(id: string, folds: string[] = [], scrollOffset = 0) {
+  return async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    const canvas = within(canvasElement);
+    const cards = await canvas.findAllByTestId("loop-editor-node");
+    const card = cards.find(element => element.getAttribute("data-node-id") === id);
+    if (!card) throw new Error(`node card ${id} not found`);
+    await userEvent.click(card);
+    if (folds.length > 0) {
+      await canvas.findByTestId("loop-editor-inspector");
+      await revealFolds(canvasElement, folds, scrollOffset);
+    }
+  };
+}
+
+/** VC-E1 — a custom Loop with unpublished edits: the dirty version pill at rest. */
+export const DirtyCustom: Story = {
+  args: { workspaceId: WS, name: "software-delivery" },
+  parameters: { msw: { handlers: editorHandlers(fullLifecycleDetail) } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByTestId("loop-palette-item-collect"));
+  },
+};
+
+/** VC-E2 — the Node inspector: reliability envelope, on_error, and the six triggers. */
+export const NodeReliability: Story = {
+  args: { workspaceId: WS, name: "software-delivery" },
+  parameters: { msw: { handlers: editorHandlers(fullLifecycleDetail) } },
+  play: selectNode("execute_task", ["Reliability", "Reactions"], 72),
+};
+
+/** VC-E3 — the Contract lane's seven terminal reactions; unauthored lists stay calm. */
+export const ContractTerminals: Story = {
+  args: { workspaceId: WS, name: "software-delivery" },
+  parameters: { msw: { handlers: editorHandlers(fullLifecycleDetail) } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await canvas.findByTestId("loop-editor-contract-terminals");
+    await revealFolds(canvasElement, ["Terminal reactions"]);
+  },
+};
+
+/** VC-E4 — the wait inspector: mode XOR, expect, ahead_arrival, and the expiry fold. */
+export const WaitInspector: Story = {
+  args: { workspaceId: WS, name: "software-delivery" },
+  parameters: { msw: { handlers: editorHandlers(fullLifecycleDetail) } },
+  play: selectNode("await_deploy_ack", ["Expiry"]),
+};
+
+/** VC-E5 — the run-loop child close policy. */
+export const RunLoopParentClose: Story = {
+  args: { workspaceId: WS, name: "software-delivery" },
+  parameters: { msw: { handlers: editorHandlers(fullLifecycleDetail) } },
+  play: selectNode("release_notes"),
+};
+
+/** VC-E6 — the dock carrying one blocking error and one warning, expanded. */
+export const LintErrorAndWarning: Story = {
+  args: { workspaceId: WS, name: "software-delivery" },
+  parameters: { msw: { handlers: editorHandlers(lintErrorAndWarningDetail) } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await canvas.findByTestId("loop-linter-error-count");
+    // Select the offending node so the rail matches the reference's Node lane.
+    await selectNode("implement")({ canvasElement });
+    await userEvent.click(canvas.getByTestId("loop-linter-toggle"));
+  },
+};
+
+/** A warning-only verdict: visible, with Publish still enabled. */
+export const LintWarningOnly: Story = {
+  args: { workspaceId: WS, name: "software-delivery" },
+  parameters: { msw: { handlers: editorHandlers(waitWarningDetail) } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await canvas.findByTestId("loop-linter-warning-count");
+    await userEvent.click(canvas.getByTestId("loop-linter-toggle"));
+  },
+};
+
+/** A clean verdict: the Validation eyebrow carries no counter at all. */
+export const LintClean: Story = {
+  args: { workspaceId: WS, name: "software-delivery" },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByTestId("loop-linter-toggle"));
+  },
+};
+
+/** VC-E7 — a read-only marketplace source: every edit path closed, Fork the one verb. */
+export const ReadOnlySource: Story = {
+  args: { workspaceId: WS, name: "software-delivery" },
+  parameters: { msw: { handlers: editorHandlers(readOnlySourceDetail) } },
+};
+
+/** VC-E8 — publish rejected: the danger strip lists the daemon's issues; the version holds. */
+export const PublishRejected: Story = {
+  args: { workspaceId: WS, name: "software-delivery" },
+  parameters: {
+    msw: {
+      handlers: [
+        compozyApiMock.patch("/api/workspaces/{workspace_id}/loops/{name}", () =>
+          HttpResponse.json({ valid: false, errors: PUBLISH_REJECTED_ISSUES }, { status: 422 })
+        ),
+        ...editorHandlers(delivery),
+      ],
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByTestId("loop-palette-item-collect"));
+    const publish = await canvas.findByTestId("loop-editor-publish");
+    await userEvent.click(publish);
+    await canvas.findByTestId("loop-editor-publish-error");
+  },
 };

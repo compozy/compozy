@@ -417,6 +417,97 @@ func TestLoopDefinitionDocumentPreservesGateMetrics(t *testing.T) {
 	})
 }
 
+func TestLoopDefinitionDocumentPreservesLifecycleAuthoring(t *testing.T) {
+	t.Run("Should preserve node and contract lifecycle fields across the public DTO boundary", func(t *testing.T) {
+		t.Parallel()
+
+		definition := dsl.Definition{
+			APIVersion: dsl.APIVersion,
+			Kind:       dsl.KindLoop,
+			Meta:       dsl.Meta{Name: "lifecycle-contract"},
+			Contract: dsl.Contract{
+				Goal:             "Ship safely",
+				DefinitionOfDone: "The release is healthy",
+				ContractLifecycleState: &dsl.ContractLifecycleState{
+					TerminalStates: []dsl.TerminalState{dsl.TerminalDone, dsl.TerminalCanceled},
+					TerminalEffects: dsl.TerminalEffects{
+						OnDone:     []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: "release_done"}}},
+						OnCanceled: []dsl.EffectSpec{{Tool: "notify", With: map[string]any{"status": "canceled"}}},
+					},
+				},
+			},
+			Graph: dsl.Graph{Nodes: []dsl.Node{{
+				ID:    "deploy",
+				Class: dsl.NodeClassAction,
+				Kind:  "run-loop",
+				Retry: &dsl.RetrySpec{
+					MaxAttempts:  3,
+					Backoff:      &dsl.BackoffSpec{Base: "1s", Max: "30s"},
+					NonRetryable: []string{"payload_declared"},
+				},
+				NodeLifecycleState: &dsl.NodeLifecycleState{
+					Deadline:       "15m",
+					ResultContract: &dsl.ResultContract{FailureField: "failed", MessageField: "message"},
+					OnError: &dsl.ErrorPolicy{
+						Route:   "recover",
+						Effects: []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: "deploy_failed"}}},
+					},
+					TriggerEffects: dsl.TriggerEffects{
+						OnRetry:      []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: "deploy_retrying"}}},
+						OnSuccess:    []dsl.EffectSpec{{Tool: "notify", With: map[string]any{"status": "done"}}},
+						OnPause:      []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: "deploy_paused"}}},
+						OnTimeout:    []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: "deploy_timed_out"}}},
+						OnCancel:     []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: "deploy_canceled"}}},
+						OnQuarantine: []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: "deploy_quarantined"}}},
+					},
+					OnParentClose: dsl.ParentCloseCancel,
+				},
+			}, {
+				ID:      "recover",
+				Class:   dsl.NodeClassControl,
+				Kind:    "gate",
+				Expires: &dsl.WaitExpiry{After: "1h", Route: "deploy"},
+			}}},
+		}
+
+		document, err := contract.NewLoopDefinitionDocument(definition)
+		if err != nil {
+			t.Fatalf("NewLoopDefinitionDocument() error = %v", err)
+		}
+		var decoded dsl.Definition
+		if err := document.Decode(&decoded); err != nil {
+			t.Fatalf("LoopDefinitionDocument.Decode() error = %v", err)
+		}
+		if !reflect.DeepEqual(decoded.Contract.ContractLifecycleState, definition.Contract.ContractLifecycleState) {
+			t.Fatalf(
+				"decoded contract lifecycle = %#v, want %#v",
+				decoded.Contract.ContractLifecycleState,
+				definition.Contract.ContractLifecycleState,
+			)
+		}
+		if len(decoded.Graph.Nodes) != 2 {
+			t.Fatalf("decoded nodes = %d, want 2", len(decoded.Graph.Nodes))
+		}
+		if !reflect.DeepEqual(decoded.Graph.Nodes[0].Retry, definition.Graph.Nodes[0].Retry) {
+			t.Fatalf("decoded retry = %#v, want %#v", decoded.Graph.Nodes[0].Retry, definition.Graph.Nodes[0].Retry)
+		}
+		if !reflect.DeepEqual(decoded.Graph.Nodes[0].NodeLifecycleState, definition.Graph.Nodes[0].NodeLifecycleState) {
+			t.Fatalf(
+				"decoded node lifecycle = %#v, want %#v",
+				decoded.Graph.Nodes[0].NodeLifecycleState,
+				definition.Graph.Nodes[0].NodeLifecycleState,
+			)
+		}
+		if !reflect.DeepEqual(decoded.Graph.Nodes[1].Expires, definition.Graph.Nodes[1].Expires) {
+			t.Fatalf(
+				"decoded expiry = %#v, want %#v",
+				decoded.Graph.Nodes[1].Expires,
+				definition.Graph.Nodes[1].Expires,
+			)
+		}
+	})
+}
+
 func TestLoopDefinitionDocumentPreservesNetworkParticipation(t *testing.T) {
 	t.Run("Should preserve definition participation across the public DTO boundary", func(t *testing.T) {
 		t.Parallel()
