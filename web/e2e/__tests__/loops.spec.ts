@@ -11,6 +11,18 @@ import type {
 import { expect, test } from "../fixtures/test";
 import { useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
 
+const loopLifecycleFixture = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  "..",
+  "internal",
+  "testutil",
+  "acpmock",
+  "testdata",
+  "loop_node_lifecycle_fixture.json"
+);
+
 const loopRuntimeFixture = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "..",
@@ -35,6 +47,8 @@ const loopFeedbackFixture = path.resolve(
   "loop_generation_feedback_fixture.json"
 );
 
+const loopLifecycleAgent = "loop-lifecycle-agent";
+const loopLifecycleName = "node-lifecycle-e2e";
 const loopRuntimeAgent = "loop-runtime-agent";
 const loopRuntimeName = "runtime-provenance-e2e";
 const loopFeedbackWorker = "loop-feedback-worker";
@@ -192,10 +206,68 @@ const loopFeedbackDefinition: LoopDefinition = {
   start: [{ kind: "http" }],
 };
 
+/**
+ * E2E-015 (US-019, US-024 UI). One node whose first attempt blows its deadline,
+ * so the daemon schedules a real retry; the run page then shows the attempt, the
+ * operator pauses and resumes the lane through the UI, and the workspace
+ * inventory lists what is parked.
+ */
+const loopLifecycleDefinition: LoopDefinition = {
+  apiVersion: "compozy.loop/v1",
+  kind: "Loop",
+  meta: {
+    name: loopLifecycleName,
+    description: "Exercise node retry, pause/resume, and the node inventories.",
+    catalog: { category: "Testing" },
+  },
+  concurrency: "allow",
+  contract: {
+    goal: "Run one lane that retries after a deadline, then settle.",
+    definition_of_done: "The lane completes after its retry.",
+    stop_when: "nodes.execute.status == 'succeeded'",
+    iteration_cap: 2,
+    no_progress: { window: 5, hash_fields: ["delivery_artifact"] },
+    budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: "halt" },
+    terminal_states: ["done", "failed", "blocked", "exhausted", "stalled", "canceled"],
+  },
+  graph: {
+    nodes: [
+      {
+        id: "execute",
+        class: "action",
+        kind: "run-agent",
+        // The public LoopGraphNode contract exposes the authored per-attempt
+        // timeout. The runtime E2E proves the same 2s/3s boundary: it leaves
+        // session setup outside the failure window while still guaranteeing an
+        // attempt_timeout on attempt 1 — the one class that auto-retries — and
+        // the retry turn then heals, so the run reaches a real terminal state.
+        timeout: "2s",
+        retry: { max_attempts: 3, backoff: { base: "20s", max: "60s" } },
+        params: {
+          agent: loopLifecycleAgent,
+          prompt: "retry lifecycle",
+          output_schema: {
+            type: "object",
+            required: ["summary", "value"],
+            properties: { summary: { type: "string" }, value: { type: "string" } },
+          },
+        },
+      },
+    ],
+    edges: [],
+  } as LoopDefinition["graph"],
+  start: [{ kind: "http" }],
+};
+
 test.use({
   runtimeOptions: {
     seed: {
       mockAgents: [
+        {
+          fixturePath: loopLifecycleFixture,
+          fixtureAgent: "lifecycle_retry",
+          agentName: loopLifecycleAgent,
+        },
         {
           fixturePath: loopRuntimeFixture,
           fixtureAgent: "loop_runtime_provenance",
@@ -239,6 +311,129 @@ const runtimeSourceLabels: Record<string, string> = {
   agent: "agent definition",
 };
 
+test("Compozy migration E2E-015: run page lifecycle controls and node inventories", async ({
+  appPage,
+  browserArtifacts,
+  runtime,
+}) => {
+  if (!runtime.paths) {
+    throw new Error("Loop lifecycle browser test requires launch-mode runtime paths");
+  }
+  const workspace = await runtime.resolveWorkspace(runtime.paths.homeDir);
+  await useGlobalWorkspaceIfPrompted(appPage);
+  const workspacePath = `/api/workspaces/${encodeURIComponent(workspace.id)}`;
+  await runtime.requestJSON(`${workspacePath}/loops`, {
+    method: "POST",
+    body: JSON.stringify({ definition: loopLifecycleDefinition }),
+  });
+
+  const started = await runtime.requestJSON<RunLoopResult>(
+    `${workspacePath}/loops/${encodeURIComponent(loopLifecycleName)}/run`,
+    { method: "POST", body: JSON.stringify({}) }
+  );
+  if (!started.run) throw new Error("Loop lifecycle browser seed did not create a run");
+  const runId = started.run.id;
+  const runPath = `${workspacePath}/loop-runs/${encodeURIComponent(runId)}`;
+
+  // The daemon must actually schedule a retry — that is the fact the page reads.
+  await expect
+    .poll(
+      async () => {
+        const detail = await runtime.requestJSON<LoopRunDetail>(runPath);
+        const outputs = (detail.generations ?? []).flatMap(generation => generation.outputs);
+        if (outputs.some(output => Boolean(output.next_attempt_at))) return "retry-scheduled";
+        return JSON.stringify({
+          runStatus: detail.run.status,
+          outputs: outputs.map(output => ({
+            nodeId: output.node_id,
+            status: output.status,
+            attempt: output.attempt,
+            failureClass: output.failure_class,
+            disposition: output.disposition,
+          })),
+        });
+      },
+      { timeout: 45_000 }
+    )
+    .toBe("retry-scheduled");
+
+  await appPage.goto(runtime.url(`/loop-runs/${encodeURIComponent(runId)}`), {
+    waitUntil: "domcontentloaded",
+  });
+  await expect(appPage.getByTestId("loop-run-detail-content")).toBeVisible();
+
+  // Retrying lane: the attempt and its due time come from the payload.
+  const retryChip = appPage.getByTestId("loop-run-now-chip-execute");
+  await expect(retryChip).toBeVisible();
+  await expect(retryChip).toContainText("attempt");
+  await expect(appPage.getByTestId("loop-run-now-node-execute")).toContainText("retrying");
+
+  // Pause the lane through the row menu, choosing what happens in flight.
+  const menuTrigger = appPage.getByTestId("loop-node-menu-trigger-execute");
+  await menuTrigger.click();
+  await appPage.getByTestId("loop-node-verb-pause").click();
+  const dialog = appPage.getByTestId("loop-node-control-dialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText("execute");
+  await appPage.getByTestId("loop-node-pause-mode-drain").click();
+  await dialog.getByRole("button", { name: "Pause lane" }).click();
+
+  // Daemon truth, not UI optimism: the control row must actually be paused.
+  await expect
+    .poll(
+      async () => {
+        const detail = await runtime.requestJSON<LoopRunDetail>(runPath);
+        return (detail.node_controls ?? []).some(
+          control => control.node_id === "execute" && control.paused
+        );
+      },
+      { timeout: 20_000 }
+    )
+    .toBe(true);
+  const pausedDetail = await runtime.requestJSON<LoopRunDetail>(runPath);
+  const pausedControl = (pausedDetail.node_controls ?? []).find(
+    control => control.node_id === "execute"
+  );
+  expect(pausedControl?.pause_provenance?.actor_kind).toBeTruthy();
+
+  await expect(appPage.getByTestId("loop-run-now-node-execute")).toContainText("paused");
+  await browserArtifacts.captureScreenshot("loop-run-node-paused", appPage);
+
+  // A paused lane promotes Resume to a first-class control.
+  await appPage.getByTestId("loop-node-primary-resume-execute").click();
+  const resumeDialog = appPage.getByTestId("loop-node-control-dialog");
+  await expect(resumeDialog).toBeVisible();
+  await resumeDialog.getByRole("button", { name: "Resume lane" }).click();
+  await expect
+    .poll(
+      async () => {
+        const detail = await runtime.requestJSON<LoopRunDetail>(runPath);
+        return (detail.node_controls ?? []).some(
+          control => control.node_id === "execute" && control.paused
+        );
+      },
+      { timeout: 20_000 }
+    )
+    .toBe(false);
+
+  // The workspace inventory is a real server read, filtered and paged by the daemon.
+  await appPage.goto(runtime.url("/loop-runs?nodes=retrying"), { waitUntil: "domcontentloaded" });
+  const inventory = appPage.getByTestId("loop-node-inventory");
+  await expect(inventory).toBeVisible();
+  await expect(appPage.getByTestId("loop-node-inventory-state-retrying")).toBeVisible();
+  // The foot reports what is loaded and never claims a population total.
+  await expect(appPage.getByTestId("loop-node-inventory-foot")).toContainText("Showing");
+
+  // A state with nothing in it renders the truthful, filter-aware empty.
+  await appPage.goto(runtime.url("/loop-runs?nodes=quarantined"), {
+    waitUntil: "domcontentloaded",
+  });
+  await expect(appPage.getByTestId("loop-node-inventory-empty")).toContainText(
+    "Nothing is quarantined"
+  );
+  await browserArtifacts.captureScreenshot("loop-node-inventory-quarantined-empty", appPage);
+});
+
 test("Compozy migration E2E-004: loop run renders API runtime provenance without controls", async ({
   appPage,
   browserArtifacts,
@@ -276,11 +471,27 @@ test("Compozy migration E2E-004: loop run renders API runtime provenance without
   if (!started.run) throw new Error("Loop runtime browser seed did not create a run");
 
   const runPath = `${workspacePath}/loop-runs/${encodeURIComponent(started.run.id)}`;
-  await expect
-    .poll(async () => (await runtime.requestJSON<LoopRunDetail>(runPath)).run.status, {
-      timeout: 30_000,
-    })
-    .toMatch(/^(done|no-op|blocked|failed|exhausted|stalled)$/);
+  try {
+    await expect
+      .poll(async () => (await runtime.requestJSON<LoopRunDetail>(runPath)).run.status, {
+        timeout: 30_000,
+      })
+      .toMatch(/^(done|no-op|blocked|failed|exhausted|stalled)$/);
+  } catch (error) {
+    const [stalledDetail, daemonLog] = await Promise.all([
+      runtime.requestJSON<LoopRunDetail>(runPath),
+      readFile(runtime.paths.daemonLog, "utf8").catch(
+        readError => `Could not read daemon log: ${String(readError)}`
+      ),
+    ]);
+    throw new Error(
+      `Loop runtime did not settle:\n${JSON.stringify(stalledDetail, null, 2)}\n\nDaemon log tail:\n${daemonLog
+        .split("\n")
+        .slice(-120)
+        .join("\n")}`,
+      { cause: error }
+    );
+  }
 
   const detail = await runtime.requestJSON<LoopRunDetail>(runPath);
   if (detail.run.status !== "done") {

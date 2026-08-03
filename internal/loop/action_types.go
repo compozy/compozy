@@ -235,9 +235,11 @@ type ActionSessionBindRequest struct {
 	Agent                          string
 	CWD                            string
 	Handle                         string
+	SharedKey                      string
 	Mode                           string
 	OriginSessionID                string
 	TargetBindingEpoch             int64
+	CellFence                      *ActionSessionCellFence
 	ExpectedControlEpoch           int64
 	ExpectedCheckpointPhase        string
 	ExpectedTaskRunID              string
@@ -258,6 +260,12 @@ type ActionSessionBindRequest struct {
 	MaxTurns                       int
 	ContractBlock                  string
 	NetworkParticipation           *participation.Spec
+}
+
+// ActionSessionCellFence identifies the live ordinary-action cell allowed to activate a session binding.
+type ActionSessionCellFence struct {
+	Epoch     int64
+	TaskRunID string
 }
 
 // ActionSessionCreationError carries provider-effect certainty without importing session internals.

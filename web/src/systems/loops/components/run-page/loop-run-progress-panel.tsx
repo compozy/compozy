@@ -16,6 +16,9 @@ const SEGMENT_CLASS: Record<LoopProgressSegmentState, string> = {
   active: "bg-accent-dim",
   redo: "bg-badge-fill",
   failed: "bg-danger",
+  // Parked reads as information, not failure: the branch is excluded from the
+  // count, so it must not borrow the danger or redo colour.
+  parked: "bg-info-tint",
   idle: "bg-badge-fill",
 };
 

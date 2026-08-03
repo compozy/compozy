@@ -1,5 +1,6 @@
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 
+import { listLoopNodes } from "../adapters/loop-nodes-api";
 import {
   getLoop,
   getLoopAnnotations,
@@ -10,7 +11,7 @@ import {
   listLoops,
 } from "../adapters/loops-api";
 import { isTerminalLoopStatus } from "./loop-formatters";
-import { loopsKeys } from "./query-keys";
+import { type LoopNodeInventoryStableFilter, loopsKeys } from "./query-keys";
 import { loopCatalogRequest, normalizeLoopCatalogFilter } from "./loops-list-query";
 import type { GoalTurnFilter, LoopCatalogStableFilter, LoopRunsFilter } from "../types";
 
@@ -43,6 +44,29 @@ export function goalTurnsOptions(
       listGoalTurns(workspaceId, runId, { ...normalizedFilters, after_seq: pageParam }, signal),
     initialPageParam: 0,
     getNextPageParam: page => page.next_after_seq ?? undefined,
+  });
+}
+
+/**
+ * One inventory view. The server owns filtering, ordering (oldest in state
+ * first), and the cursor, so the page never presents a loaded slice as the whole
+ * truth — `has_more` is `next_cursor`'s presence and nothing is counted locally.
+ */
+export function loopNodeInventoryOptions(
+  workspaceId: string,
+  filters: LoopNodeInventoryStableFilter,
+  enabled = true
+) {
+  const normalizedFilters = { ...filters, limit: filters.limit ?? 50 };
+  return infiniteQueryOptions({
+    queryKey: loopsKeys.nodeInventory(workspaceId, normalizedFilters),
+    queryFn: ({ pageParam, signal }) =>
+      listLoopNodes(workspaceId, { ...normalizedFilters, cursor: pageParam }, signal),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: page => page.next_cursor || undefined,
+    staleTime: LIVE_STALE_TIME,
+    refetchInterval: LIVE_REFETCH_INTERVAL,
+    enabled: Boolean(workspaceId) && Boolean(normalizedFilters.state) && enabled,
   });
 }
 

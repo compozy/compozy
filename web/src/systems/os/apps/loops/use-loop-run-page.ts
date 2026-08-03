@@ -5,13 +5,17 @@ import { toast } from "@compozy/ui";
 import { useStoreBinding } from "@/hooks/use-store-binding";
 
 import {
+  buildNodeNowLines,
   isTerminalLoopStatus,
   type LoopGateDecision,
+  type LoopNodeLifecycle,
+  loopRunVerbs,
   mergeGoalTurnTimeline,
   projectLoopRunPageView,
   useApproveLoopRun,
   useCancelLoopRun,
   useGoalTurns,
+  useKillLoopRun,
   useLoop,
   useLoopRun,
   useLoopStream,
@@ -68,12 +72,27 @@ export function useLoopRunPage(workspaceId: string, runId: string) {
   const pauseMutation = usePauseLoopRun();
   const resumeMutation = useResumeLoopRun();
   const cancelMutation = useCancelLoopRun();
+  const killMutation = useKillLoopRun();
   const approveMutation = useApproveLoopRun();
   const runLoopMutation = useRunLoop();
 
   const nowMs = useNowTick(run?.status === "running");
-  const view = run ? projectLoopRunPageView({ run, generations, live, definition, nowMs }) : null;
+  const view = run
+    ? projectLoopRunPageView({
+        run,
+        generations,
+        live,
+        definition,
+        nowMs,
+        nodeControls: runQuery.data?.node_controls,
+        waits: runQuery.data?.waits,
+      })
+    : null;
   const effectiveRun = view?.effectiveRun ?? run;
+  const nodeLifecycles = view?.nodeLifecycles ?? [];
+  const nodesById = new Map<string, LoopNodeLifecycle>(
+    nodeLifecycles.map(node => [node.nodeId, node])
+  );
 
   const handlePause = () => {
     pauseMutation.mutate(
@@ -104,6 +123,17 @@ export function useLoopRunPage(workspaceId: string, runId: string) {
         onSuccess: () => toast.success("Cancellation requested"),
         onError: error =>
           toast.error(error instanceof Error ? error.message : "Failed to cancel run"),
+      }
+    );
+  };
+
+  const handleKill = () => {
+    killMutation.mutate(
+      { workspaceId, runId },
+      {
+        onSuccess: () => toast.success("Run killed — in-flight work was stopped immediately"),
+        onError: error =>
+          toast.error(error instanceof Error ? error.message : "Failed to kill run"),
       }
     );
   };
@@ -186,14 +216,36 @@ export function useLoopRunPage(workspaceId: string, runId: string) {
     showNowCard: view?.showNowCard ?? false,
     terminalFromStatus: view?.terminalFromStatus,
     terminalAt: view?.terminalAt,
+    terminalCause: view?.terminalCause,
+    nodeLifecycles,
+    nodesById,
+    nodeNowLines: buildNodeNowLines(nodeLifecycles, view?.graph ?? null, live.retrySchedules),
+    waitingNodes: view?.waitingNodes ?? [],
+    attentionNodes: view?.attentionNodes ?? [],
+    quarantinedNodes: view?.quarantinedNodes ?? [],
     handlePause,
     handleResume,
     handleCancel,
+    handleKill,
     handleDecision,
     handleStartNewRun,
     pendingAction,
     isPausePending: pauseMutation.isPending,
     isResumePending: resumeMutation.isPending,
     isCancelPending: cancelMutation.isPending,
+    isKillPending: killMutation.isPending,
+    /** Kill is offerable exactly while the daemon reports a live run. */
+    canKillRun: Boolean(run) && loopRunVerbs(run?.status, false).includes("kill"),
+    // The daemon settles one run verb before the next is offerable, so the
+    // controls read a single in-flight verb rather than four parallel flags.
+    pendingRunVerb: pauseMutation.isPending
+      ? ("pause" as const)
+      : resumeMutation.isPending
+        ? ("resume" as const)
+        : cancelMutation.isPending
+          ? ("cancel" as const)
+          : killMutation.isPending
+            ? ("kill" as const)
+            : undefined,
   };
 }

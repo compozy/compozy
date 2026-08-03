@@ -74,6 +74,111 @@ describe("buildRunProgress", () => {
   });
 });
 
+// WT-003: a parked node's branches leave the counted denominator entirely. The
+// bug this guards against is the natural one — treating a paused or quarantined
+// lane as unfinished work, which tells the operator they owe progress that
+// nothing is actually spending attempts on.
+describe("buildRunProgress parked accounting", () => {
+  function lifecycle(nodeId: string, state: "paused" | "quarantined" | "waiting") {
+    return {
+      nodeId,
+      label: nodeId,
+      state,
+      parked: true,
+      paused: state === "paused",
+      pauseProvenance: null,
+      quarantined: state === "quarantined",
+      quarantinedAt: null,
+      quarantineEntry: null,
+      attentionFlag: "",
+      attentionReason: "",
+      cancelState: "",
+      cancelProvenance: null,
+      lastEvidenceAt: null,
+      deathResumeStreak: 0,
+      revision: 1,
+      waits: [],
+      attempt: null,
+      nextAttemptAt: null,
+      failureClass: "",
+      disposition: "",
+      outputStatus: "",
+      generation: 2,
+    };
+  }
+
+  it("Should exclude a paused node's branches from the count and name the exclusion", () => {
+    const model = buildRunProgress(
+      run({ status: "running", generation: 2 }),
+      [fanOutGeneration(["succeeded", "succeeded", "running"])],
+      null,
+      [lifecycle("fix_batches", "paused")]
+    );
+    expect(model.segments).toEqual(["parked", "parked", "parked"]);
+    expect(model.parkedCount).toBe(3);
+    // Every branch is parked, so there is no counted work — saying "0 of 0
+    // clean" would read as failure rather than as suspension.
+    expect(model.leftMeta).toBe("Nothing counting here — all 3 groups paused");
+    // The exclusion is carried in text, not colour alone.
+    expect(model.ariaLabel).toContain("paused");
+  });
+
+  it("Should still count the branches that are not parked", () => {
+    const model = buildRunProgress(
+      run({ status: "running", generation: 2 }),
+      [
+        {
+          generation: 2,
+          parent_generation: 1,
+          origin: "gate_revise",
+          verdicts: [],
+          outputs: [
+            { node_id: "fix_batches", status: "succeeded", generation: 2, item_index: 1 },
+            { node_id: "fix_batches", status: "succeeded", generation: 2, item_index: 2 },
+            { node_id: "fix_batches", status: "running", generation: 2, item_index: 3 },
+          ],
+        },
+      ],
+      null,
+      // The parked node is a different one, so this fan-out keeps counting.
+      [lifecycle("collect_fixes", "quarantined")]
+    );
+    expect(model.parkedCount).toBe(0);
+    expect(model.leftMeta).toContain("2 of 3 groups clean");
+  });
+
+  it("Should say quarantined when quarantine is the reason the branches are parked", () => {
+    const model = buildRunProgress(
+      run({ status: "running", generation: 2 }),
+      [fanOutGeneration(["succeeded", "failed"])],
+      null,
+      [lifecycle("fix_batches", "quarantined")]
+    );
+    expect(model.leftMeta).toContain("quarantined");
+    // A quarantined branch must never read as a failure the run still owes.
+    expect(model.segments).not.toContain("failed");
+    expect(model.leftMeta).not.toContain("failed");
+  });
+
+  it("Should leave normal accounting untouched when the parked node owns no branches", () => {
+    const withoutParked = buildRunProgress(
+      run({ status: "running", generation: 2 }),
+      [fanOutGeneration(["succeeded", "succeeded", "running"])],
+      null
+    );
+    // A node parked elsewhere in the graph must not touch this bar at all.
+    const model = buildRunProgress(
+      run({ status: "running", generation: 2 }),
+      [fanOutGeneration(["succeeded", "succeeded", "running"])],
+      null,
+      [lifecycle("other_node", "paused")]
+    );
+    expect(model.parkedCount).toBe(0);
+    expect(model.segments).toEqual(["clean", "clean", "active"]);
+    expect(model.leftMeta).toBe(withoutParked.leftMeta);
+  });
+});
+
 describe("latestGateVerdict", () => {
   it("Should pick the verdict from the highest generation", () => {
     const verdicts: Record<string, LoopGateVerdict> = {

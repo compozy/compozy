@@ -198,4 +198,125 @@ describe("applyLoopEventFrame", () => {
     expect(state.frames).toHaveLength(1);
     expect(state.gateVerdicts).toEqual({});
   });
+
+  // WT-001: every one of the 15 lifecycle kinds is a story beat an operator must
+  // be able to read back after a reconnect, so all of them retain.
+  it("Should retain every one of the 15 new lifecycle kinds as a structural frame", () => {
+    const kinds: LoopRunEventKind[] = [
+      "node_retry_scheduled",
+      "node_paused",
+      "node_resumed",
+      "node_canceled",
+      "node_killed",
+      "node_quarantined",
+      "node_requeued",
+      "node_wait_started",
+      "node_wait_resumed",
+      "node_attention_flagged",
+      "node_attention_cleared",
+      "effect_results",
+      "custom_event",
+      "duplicate_suppressed",
+      "target_breaker_transition",
+    ];
+    expect(kinds).toHaveLength(15);
+    let state = emptyLoopRunLiveState();
+    kinds.forEach((kind, index) => {
+      state = applyLoopEventFrame(state, frame(kind, { node_id: "fix_batch" }, index + 1));
+    });
+    expect(state.frames.map(retained => retained.kind)).toEqual(kinds);
+  });
+
+  it("Should fold a retry schedule and drop it once the node moves on", () => {
+    let state = applyLoopEventFrame(
+      emptyLoopRunLiveState(),
+      frame(
+        "node_retry_scheduled",
+        {
+          node_id: "fix_batch",
+          item_index: 3,
+          generation: 2,
+          attempt: 2,
+          next_attempt_at: "2026-08-03T14:33:41Z",
+          failure_class: "transport",
+        },
+        1
+      )
+    );
+    expect(state.retrySchedules.fix_batch).toEqual({
+      nodeId: "fix_batch",
+      itemIndex: 3,
+      generation: 2,
+      attempt: 2,
+      nextAttemptAt: "2026-08-03T14:33:41Z",
+      failureClass: "transport",
+    });
+    // A resumed node is no longer counting down to that attempt.
+    state = applyLoopEventFrame(state, frame("node_resumed", { node_id: "fix_batch" }, 2));
+    expect(state.retrySchedules.fix_batch).toBeUndefined();
+    // Both frames still stand as history.
+    expect(state.frames).toHaveLength(2);
+  });
+
+  it("Should keep one retry schedule per node rather than merging them", () => {
+    let state = applyLoopEventFrame(
+      emptyLoopRunLiveState(),
+      frame("node_retry_scheduled", { node_id: "fix_batch", attempt: 1 }, 1)
+    );
+    state = applyLoopEventFrame(
+      state,
+      frame("node_retry_scheduled", { node_id: "publish", attempt: 3 }, 2)
+    );
+    state = applyLoopEventFrame(
+      state,
+      frame("node_retry_scheduled", { node_id: "fix_batch", attempt: 2 }, 3)
+    );
+    expect(state.retrySchedules.fix_batch.attempt).toBe(2);
+    expect(state.retrySchedules.publish.attempt).toBe(3);
+  });
+
+  it("Should accumulate effect deliveries without dropping structural history", () => {
+    let state = applyLoopEventFrame(
+      emptyLoopRunLiveState(),
+      frame("node_running", { node_id: "fix_batch" }, 1)
+    );
+    state = applyLoopEventFrame(
+      state,
+      frame(
+        "effect_results",
+        {
+          delivery_id: "d-1",
+          trigger: "on_failed",
+          node_id: "fix_batch",
+          outcome: "error",
+          cause: "channel #ops rejected the message",
+          duration_ms: 412,
+        },
+        2
+      )
+    );
+    expect(state.effectResults).toEqual([
+      {
+        deliveryId: "d-1",
+        trigger: "on_failed",
+        nodeId: "fix_batch",
+        outcome: "error",
+        code: "",
+        cause: "channel #ops rejected the message",
+        durationMs: 412,
+        at: state.frames[1].at,
+      },
+    ]);
+    expect(state.frames.map(retained => retained.kind)).toEqual(["node_running", "effect_results"]);
+  });
+
+  it("Should ignore a lifecycle frame with no node identity instead of corrupting state", () => {
+    const state = applyLoopEventFrame(
+      emptyLoopRunLiveState(),
+      frame("node_retry_scheduled", { attempt: 2 }, 1)
+    );
+    expect(state.retrySchedules).toEqual({});
+    // The frame still retains — the operator can see it arrived.
+    expect(state.frames).toHaveLength(1);
+  });
 });

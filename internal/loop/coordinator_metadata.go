@@ -34,8 +34,16 @@ func coordinatorNodeMetadataWithFanOutItem(
 		payload["item"] = item
 	}
 	actionKind := dsl.ActionKind(node.Kind)
-	if actionKind == dsl.ActionRunAgent || actionKind == dsl.ActionGoal {
-		payload["session_handle"] = actionSessionHandle(node.Session)
+	switch actionKind {
+	case dsl.ActionRunAgent:
+		handle := actionSessionHandle(node.Session)
+		payload["session_handle"] = actionSessionSharedKey(generation, node.ID, itemIndex, handle)
+	case dsl.ActionGoal:
+		handle, err := dsl.DeriveGoalHandle(node.ID, actionSessionHandle(node.Session), itemIndex)
+		if err != nil {
+			return nil, fmt.Errorf("loop: derive Goal session handle for %s: %w", node.ID, err)
+		}
+		payload["session_handle"] = handle
 	}
 	if actionKind == dsl.ActionGoal {
 		payload["goal_segment_epoch"] = initialGoalSegmentEpoch

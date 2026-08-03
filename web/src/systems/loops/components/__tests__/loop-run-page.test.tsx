@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@tanstack/react-router", async importOriginal => {
@@ -24,6 +25,12 @@ const { LoopRunNowCard } = await import("../run-page/loop-run-now-card");
 const { LoopRunNeedsYouCard } = await import("../run-page/loop-run-needs-you-card");
 const { LoopRunOutcomeCard } = await import("../run-page/loop-run-outcome-card");
 const { LoopRunControls } = await import("../run-page/loop-run-controls");
+const { LoopNodeControlMenu } = await import("../run-page/loop-node-control-menu");
+const { LoopRunOverflowMenu } = await import("../run-page/loop-run-overflow-menu");
+const { LoopRunControlDialog } = await import("../run-page/loop-run-control-dialog");
+const { LoopNodeControlDialog } = await import("../run-page/loop-node-control-dialog");
+const { loopNodeVerbs, loopNodeWaitResumeItemIndex } = await import("../../lib/loop-node-controls");
+type LoopNodeLifecycle = import("../../lib/loop-node-lifecycle").LoopNodeLifecycle;
 const { LoopRunUsageRail } = await import("../run-page/loop-run-usage-rail");
 const { LoopRunAboutRail } = await import("../run-page/loop-run-about-rail");
 const { LoopRunResolvedRuntimes } = await import("../run-page/loop-run-resolved-runtimes");
@@ -428,6 +435,351 @@ describe("LoopRunControls", () => {
       <LoopRunControls status="done" onPause={vi.fn()} onResume={vi.fn()} onCancel={vi.fn()} />
     );
     expect(screen.queryByTestId("loop-run-controls")).not.toBeInTheDocument();
+  });
+
+  // WT-004 (run half): kill is reachable only from the overflow, and a pause
+  // that has been requested but not yet landed offers no second pause.
+  it("Should replace Pause with a disabled Pausing once a pause is requested", () => {
+    render(
+      <LoopRunControls
+        status="running"
+        pauseRequested
+        onPause={vi.fn()}
+        onResume={vi.fn()}
+        onCancel={vi.fn()}
+      />
+    );
+    expect(screen.queryByTestId("loop-run-pause")).not.toBeInTheDocument();
+    expect(screen.getByTestId("loop-run-pausing")).toBeDisabled();
+    // Kill is the destructive escape and never sits in this row.
+    expect(screen.queryByTestId("loop-run-kill")).not.toBeInTheDocument();
+  });
+});
+
+// WT-004 (run confirmation): cancel and kill are destructive and irreversible
+// for the run, so neither may commit without restating the state it acts on.
+describe("LoopRunControlDialog", () => {
+  it("Should restate the run's current identity and status before killing", () => {
+    const onConfirm = vi.fn();
+    render(
+      <LoopRunControlDialog
+        generation={2}
+        onConfirm={onConfirm}
+        onOpenChange={vi.fn()}
+        runId="r-7c4e19"
+        status="running"
+        verb="kill"
+      />
+    );
+    const dialog = screen.getByTestId("loop-run-control-dialog");
+    expect(dialog).toHaveTextContent("Kill run r-7c4e19?");
+    // The strip is the guard against acting on a stale screen.
+    expect(dialog).toHaveTextContent("r-7c4e19 is running · generation 2");
+    expect(dialog).toHaveTextContent("interrupted mid-step");
+    expect(dialog).toHaveTextContent("cause operator_kill");
+    fireEvent.click(screen.getByRole("button", { name: "Kill run" }));
+    expect(onConfirm).toHaveBeenCalledWith("kill");
+  });
+
+  it("Should describe cancel as a cooperative wind-down, not an immediate stop", () => {
+    render(
+      <LoopRunControlDialog
+        generation={4}
+        onConfirm={vi.fn()}
+        onOpenChange={vi.fn()}
+        runId="r-7c4e19"
+        status="watching"
+        verb="cancel"
+      />
+    );
+    const dialog = screen.getByTestId("loop-run-control-dialog");
+    expect(dialog).toHaveTextContent("Cancel run r-7c4e19?");
+    expect(dialog).toHaveTextContent("r-7c4e19 is watching · generation 4");
+    expect(dialog).toHaveTextContent("in-flight lanes drain");
+    expect(dialog).toHaveTextContent("cause operator_cancel");
+  });
+
+  it("Should render nothing until a verb is actually pending", () => {
+    render(
+      <LoopRunControlDialog
+        generation={1}
+        onConfirm={vi.fn()}
+        onOpenChange={vi.fn()}
+        runId="r-7c4e19"
+        status="running"
+        verb={null}
+      />
+    );
+    expect(screen.queryByTestId("loop-run-control-dialog")).not.toBeInTheDocument();
+  });
+});
+
+// WT-004 (run kill): kill reaches the operator only through the surface's single
+// ⋯ overflow, and only while the run is live.
+describe("LoopRunOverflowMenu kill", () => {
+  it("Should offer Kill inside the overflow and report the click", async () => {
+    const user = userEvent.setup();
+    const onKill = vi.fn();
+    render(<LoopRunOverflowMenu loopName="review-and-fix" onInspect={vi.fn()} onKill={onKill} />);
+    const trigger = screen.getByTestId("loop-run-more");
+    fireEvent.pointerDown(trigger, { button: 0, pointerType: "mouse" });
+    await user.click(trigger);
+    await user.click(await screen.findByTestId("loop-run-kill"));
+    expect(onKill).toHaveBeenCalledTimes(1);
+  });
+
+  it("Should omit Kill entirely when the run can no longer be killed", async () => {
+    const user = userEvent.setup();
+    render(<LoopRunOverflowMenu loopName="review-and-fix" onInspect={vi.fn()} />);
+    const trigger = screen.getByTestId("loop-run-more");
+    fireEvent.pointerDown(trigger, { button: 0, pointerType: "mouse" });
+    await user.click(trigger);
+    expect(await screen.findByTestId("loop-run-inspect")).toBeInTheDocument();
+    expect(screen.queryByTestId("loop-run-kill")).not.toBeInTheDocument();
+  });
+});
+
+// WT-004: node verbs are a pure function of daemon-declared state. Testing the
+// gate directly (rather than only through a rendered menu) is what makes "no
+// verb for a state the payload doesn't declare" checkable for every state.
+describe("loopNodeVerbs", () => {
+  const node = (overrides: Partial<LoopNodeLifecycle> = {}): LoopNodeLifecycle => ({
+    nodeId: "task_03",
+    label: "task 03",
+    state: null,
+    parked: false,
+    paused: false,
+    pauseProvenance: null,
+    quarantined: false,
+    quarantinedAt: null,
+    quarantineEntry: null,
+    attentionFlag: "",
+    attentionReason: "",
+    cancelState: "",
+    cancelProvenance: null,
+    lastEvidenceAt: null,
+    deathResumeStreak: 0,
+    revision: 1,
+    waits: [],
+    attempt: null,
+    nextAttemptAt: null,
+    failureClass: "",
+    disposition: "",
+    outputStatus: "running",
+    generation: 2,
+    ...overrides,
+  });
+
+  const wait = (claimState: string, itemIndex = 0) => ({
+    nodeId: "task_03",
+    generation: 2,
+    itemIndex,
+    kind: "event",
+    claimState,
+    escalationCursor: 0,
+    admissionFailures: 0,
+    ageSeconds: 120,
+    createdAt: "2026-08-03T14:00:00Z",
+    expect: undefined,
+  });
+
+  it("Should offer pause/cancel/kill on a running node and never resume or requeue", () => {
+    expect(loopNodeVerbs(node(), "running")).toEqual(["pause", "cancel", "kill"]);
+  });
+
+  it("Should offer the three resume modes on a paused node and no requeue", () => {
+    expect(loopNodeVerbs(node({ paused: true, state: "paused" }), "running")).toEqual([
+      "resume",
+      "resume-reset-attempts",
+      "resume-immediate",
+      "cancel",
+      "kill",
+    ]);
+  });
+
+  it("Should offer requeue only on a quarantined node, and never resume", () => {
+    const verbs = loopNodeVerbs(node({ quarantined: true, state: "quarantined" }), "running");
+    expect(verbs).toEqual(["open-quarantine", "requeue", "cancel", "kill"]);
+    expect(verbs).not.toContain("resume");
+  });
+
+  it("Should offer a payload resume only while a wait is genuinely open", () => {
+    expect(loopNodeVerbs(node({ state: "waiting", waits: [wait("waiting")] }), "running")).toEqual([
+      "resume-wait",
+      "cancel",
+      "kill",
+    ]);
+    // A resumed cell no longer holds the node, so the wait verb disappears.
+    expect(loopNodeVerbs(node({ waits: [wait("resumed")] }), "running")).toEqual([
+      "pause",
+      "cancel",
+      "kill",
+    ]);
+  });
+
+  it("Should target the open wait instead of an earlier historical cell", () => {
+    const lifecycle = node({
+      state: "waiting",
+      waits: [wait("resumed", 2), wait("waiting", 7)],
+    });
+
+    expect(loopNodeWaitResumeItemIndex(lifecycle)).toBe(7);
+  });
+
+  it("Should narrow to kill while canceling and offer nothing once canceled", () => {
+    expect(loopNodeVerbs(node({ cancelState: "draining", state: "canceling" }), "running")).toEqual(
+      ["kill"]
+    );
+    expect(loopNodeVerbs(node({ cancelState: "canceled", state: "canceled" }), "running")).toEqual(
+      []
+    );
+  });
+
+  it("Should offer no verb at all once the run is terminal", () => {
+    for (const status of ["done", "failed", "canceled", "exhausted"]) {
+      expect(loopNodeVerbs(node({ paused: true, state: "paused" }), status)).toEqual([]);
+    }
+  });
+});
+
+describe("LoopNodeControlDialog", () => {
+  const node: LoopNodeLifecycle = {
+    nodeId: "task_03",
+    label: "task 03",
+    state: "paused",
+    parked: true,
+    paused: true,
+    pauseProvenance: null,
+    quarantined: false,
+    quarantinedAt: null,
+    quarantineEntry: null,
+    attentionFlag: "",
+    attentionReason: "",
+    cancelState: "",
+    cancelProvenance: null,
+    lastEvidenceAt: null,
+    deathResumeStreak: 0,
+    revision: 1,
+    waits: [],
+    attempt: null,
+    nextAttemptAt: null,
+    failureClass: "",
+    disposition: "",
+    outputStatus: "running",
+    generation: 2,
+  };
+
+  it("Should reset local form choices whenever a control request is reopened", async () => {
+    const user = userEvent.setup();
+    const props = {
+      isPending: false,
+      onConfirm: vi.fn(),
+      onOpenChange: vi.fn(),
+    };
+    const { rerender } = render(
+      <LoopNodeControlDialog {...props} request={{ verb: "pause", node }} />
+    );
+
+    await user.click(screen.getByTestId("loop-node-pause-mode-cancel"));
+    expect(screen.getByTestId("loop-node-pause-mode-cancel")).toHaveAttribute(
+      "aria-checked",
+      "true"
+    );
+
+    rerender(<LoopNodeControlDialog {...props} request={null} />);
+    rerender(<LoopNodeControlDialog {...props} request={{ verb: "pause", node }} />);
+
+    expect(screen.getByTestId("loop-node-pause-mode-drain")).toHaveAttribute(
+      "aria-checked",
+      "true"
+    );
+    expect(screen.getByTestId("loop-node-pause-mode-cancel")).toHaveAttribute(
+      "aria-checked",
+      "false"
+    );
+
+    const waitingNode: LoopNodeLifecycle = {
+      ...node,
+      state: "waiting",
+      paused: false,
+      waits: [
+        {
+          nodeId: node.nodeId,
+          generation: node.generation,
+          itemIndex: 7,
+          kind: "event",
+          claimState: "waiting",
+          escalationCursor: 0,
+          admissionFailures: 0,
+          ageSeconds: 10,
+          createdAt: "2026-08-03T14:00:00Z",
+          expect: undefined,
+        },
+      ],
+    };
+    rerender(<LoopNodeControlDialog {...props} request={null} />);
+    rerender(
+      <LoopNodeControlDialog {...props} request={{ verb: "resume-wait", node: waitingNode }} />
+    );
+    fireEvent.change(screen.getByTestId("loop-node-wait-payload"), {
+      target: { value: '{"approved":true}' },
+    });
+
+    rerender(<LoopNodeControlDialog {...props} request={null} />);
+    rerender(
+      <LoopNodeControlDialog {...props} request={{ verb: "resume-wait", node: waitingNode }} />
+    );
+
+    expect(screen.getByTestId("loop-node-wait-payload")).toHaveValue("");
+  });
+});
+
+describe("LoopNodeControlMenu", () => {
+  const quarantined: LoopNodeLifecycle = {
+    nodeId: "task_03",
+    label: "task 03",
+    state: "quarantined",
+    parked: true,
+    paused: false,
+    pauseProvenance: null,
+    quarantined: true,
+    quarantinedAt: "2026-08-03T14:52:00Z",
+    quarantineEntry: null,
+    attentionFlag: "",
+    attentionReason: "",
+    cancelState: "",
+    cancelProvenance: null,
+    lastEvidenceAt: null,
+    deathResumeStreak: 0,
+    revision: 3,
+    waits: [],
+    attempt: 4,
+    nextAttemptAt: null,
+    failureClass: "payload_declared",
+    disposition: "quarantined",
+    outputStatus: "failed",
+    generation: 2,
+  };
+
+  it("Should render only the quarantined verb set and report the chosen verb", async () => {
+    const user = userEvent.setup();
+    const onVerb = vi.fn();
+    render(<LoopNodeControlMenu node={quarantined} onVerb={onVerb} runStatus="running" />);
+    const trigger = screen.getByTestId("loop-node-menu-trigger-task_03");
+    fireEvent.pointerDown(trigger, { button: 0, pointerType: "mouse" });
+    await user.click(trigger);
+    expect(await screen.findByTestId("loop-node-verb-requeue")).toBeInTheDocument();
+    expect(screen.getByTestId("loop-node-verb-open-quarantine")).toBeInTheDocument();
+    // Resume is never offered for quarantine — requeue is the recovery verb.
+    expect(screen.queryByTestId("loop-node-verb-resume")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("loop-node-verb-pause")).not.toBeInTheDocument();
+    await user.click(screen.getByTestId("loop-node-verb-requeue"));
+    expect(onVerb).toHaveBeenCalledWith("requeue", quarantined);
+  });
+
+  it("Should render no trigger when the run is terminal", () => {
+    render(<LoopNodeControlMenu node={quarantined} onVerb={vi.fn()} runStatus="canceled" />);
+    expect(screen.queryByTestId("loop-node-menu-trigger-task_03")).not.toBeInTheDocument();
   });
 });
 
