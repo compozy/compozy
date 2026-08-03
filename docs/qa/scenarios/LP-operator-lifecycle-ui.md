@@ -3,10 +3,10 @@ id: LP-operator-lifecycle-ui
 area: LP
 title: Operate node lifecycle from the run page and the workspace node inventories
 persona: Bruno
-journey: J-04
+journey: J-recover-loop-node-failure
 expected: The run detail renders node lifecycle state from daemon payloads only — attempt and next-attempt time on a retrying lane, pause provenance (who, why, when, manual vs rule) on a paused lane, wait kind and age on a waiting lane, the quarantine set-aside and its attention overlay, cancel-state on a winding-down lane, and the `canceled` terminal as a calm "Why it stopped" with no Happening-now card. Node row menus offer exactly the verbs the payload declares (running/retrying → pause, cancel, kill; paused → the three resume modes + cancel, kill; waiting → resume-with-payload + cancel, kill; quarantined → open entry, requeue + cancel, kill; terminal run → none). Pause asks drain-vs-cancel; kill and requeue confirm against the node's current state; the daemon's 409/422 answers render as information carrying actual_state, allowed_transitions, and the winning actor. The quarantine sheet shows hint-first, the classified attempt chain with episode boundaries, target, and input ref, and hides Requeue once the node leaves quarantine. Run kill lives in the single ⋯ overflow. The workspace inventories (waiting/quarantined/attention/retrying) filter by loop and run, sort by real time in state, page only while a cursor exists, and never present a loaded page as a total.
 entry_points: web /loop-runs/:id; web /loop-runs?nodes=waiting|quarantined|attention|retrying; GET /loop-nodes?state=; POST /loop-runs/:id/nodes/:node/{pause,resume,cancel,kill,requeue}; POST /loop-runs/:id/{cancel,kill}; SSE /loop-runs/:id/events
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -30,3 +30,5 @@ part of the final release scenario pass.
 src: .compozy/tasks/loop-node-lifecycle/task_08.md
 
 QA result 2026-08-03: passed in an isolated live lab. The same public run payload drove a real timer wait and payload resume, a timeout retry with attempt and next-attempt time, drain pause with provenance, resume with the preserved schedule, quarantine inspection and requeue, workspace inventories, run kill, fresh-load/deep-link durability, keyboard navigation, 768px layout, and recoverable inventory failure. No control remained visible after its daemon-declared transition disappeared.
+
+acceptance-walk: Re-run the lifecycle story in the final isolated build with the Playwright-backed browser driver: retry, pause/resume, wait, quarantine/requeue, cancel, and kill from the run detail plus every workspace inventory. Capture checkpoint and divergence screenshots, refresh each state, and compare the payload with structured CLI and HTTP reads before accepting the UI.
