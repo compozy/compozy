@@ -6113,6 +6113,52 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 }
 
 func TestGlobalDBCompleteRunLeaseShouldCommitCoordinatorControlWithoutNodeSuccess(t *testing.T) {
+	t.Run("Should reject a coordinator control output fenced by a newer epoch", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 7, 10, 17, 0, 0, 0, time.UTC)
+		loopRun, err := globalDB.CreateLoopRunForStart(
+			ctx,
+			testLoopRun("looprun-control-stale", now, looppkg.StatusRunning),
+			dsl.ConcurrencyAllow,
+		)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		const taskRunID = "run-control-stale"
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`INSERT INTO loop_generation_outputs (
+				loop_run_id, generation, node_id, item_index, status, task_run_id, attempt, epoch
+			) VALUES (?, 1, 'converge', 0, 'running', ?, 1, 2)`,
+			string(loopRun.ID),
+			taskRunID,
+		); err != nil {
+			t.Fatalf("insert generation output error = %v", err)
+		}
+		current := taskpkg.Run{
+			ID: taskRunID, RunKind: taskpkg.RunKindWorker, LoopRunID: string(loopRun.ID),
+			Metadata: json.RawMessage(
+				`{"generation":1,"node_id":"converge","item_index":0,"attempt":1,"epoch":1}`,
+			),
+		}
+		err = recordCompletedRunLoopOutput(
+			ctx,
+			globalDB.db,
+			current,
+			taskpkg.LeaseCompletion{Result: taskpkg.RunResult{
+				CoordinatorControl: &taskpkg.CoordinatorControlResult{Kind: "loop_action", Payload: json.RawMessage(`{}`)},
+			}},
+			"",
+			nil,
+		)
+		if !errors.Is(err, looppkg.ErrStaleGenerationOutput) {
+			t.Fatalf("recordCompletedRunLoopOutput() error = %v, want ErrStaleGenerationOutput", err)
+		}
+	})
+
 	t.Run("Should preserve task completion while leaving the Goal output control pending", func(t *testing.T) {
 		t.Parallel()
 
@@ -7187,6 +7233,7 @@ func TestGlobalDBLoopGenerationOutputWritersShouldFenceStaleEpochs(t *testing.T)
 		if err != nil {
 			t.Fatalf("BeginTx() error = %v", err)
 		}
+		nextAttemptAt := now.Add(time.Second)
 		expectedEpoch := int64(4)
 		err = looppkg.NewStoreFinalizer().WriteGenerationSnapshot(
 			ctx,
@@ -7198,7 +7245,7 @@ func TestGlobalDBLoopGenerationOutputWritersShouldFenceStaleEpochs(t *testing.T)
 					NodeID:        "work",
 					Status:        "retrying",
 					Attempt:       2,
-					NextAttemptAt: new(now.Add(time.Second)),
+					NextAttemptAt: &nextAttemptAt,
 					Epoch:         6,
 					ExpectedEpoch: &expectedEpoch,
 				}}},

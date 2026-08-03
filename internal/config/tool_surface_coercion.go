@@ -12,6 +12,8 @@ import (
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 )
 
+const maxExactConfigFloatInteger = float64(1 << 53)
+
 func coerceConfigBool(value any) (bool, error) {
 	switch typed := value.(type) {
 	case bool:
@@ -64,6 +66,60 @@ func coerceConfigInt64(value any) (int64, error) {
 		return parsed, nil
 	default:
 		return 0, fmt.Errorf("config: expected integer value, got %T", value)
+	}
+}
+
+func coerceConfigUint64(value any) (uint64, error) {
+	switch typed := value.(type) {
+	case uint:
+		return uint64(typed), nil
+	case uint8:
+		return uint64(typed), nil
+	case uint16:
+		return uint64(typed), nil
+	case uint32:
+		return uint64(typed), nil
+	case uint64:
+		return typed, nil
+	case int:
+		if typed < 0 {
+			return 0, fmt.Errorf("config: unsigned integer value must be non-negative: %d", typed)
+		}
+		return uint64(typed), nil
+	case int8:
+		if typed < 0 {
+			return 0, fmt.Errorf("config: unsigned integer value must be non-negative: %d", typed)
+		}
+		return uint64(typed), nil
+	case int16:
+		if typed < 0 {
+			return 0, fmt.Errorf("config: unsigned integer value must be non-negative: %d", typed)
+		}
+		return uint64(typed), nil
+	case int32:
+		if typed < 0 {
+			return 0, fmt.Errorf("config: unsigned integer value must be non-negative: %d", typed)
+		}
+		return uint64(typed), nil
+	case int64:
+		if typed < 0 {
+			return 0, fmt.Errorf("config: unsigned integer value must be non-negative: %d", typed)
+		}
+		return uint64(typed), nil
+	case float64:
+		if math.IsNaN(typed) || math.IsInf(typed, 0) || typed < 0 || math.Trunc(typed) != typed ||
+			typed > maxExactConfigFloatInteger {
+			return 0, fmt.Errorf("config: expected unsigned integer value, got %v", typed)
+		}
+		return uint64(typed), nil
+	case string:
+		parsed, err := strconv.ParseUint(strings.TrimSpace(typed), 10, 64)
+		if err != nil {
+			return 0, fmt.Errorf("config: parse unsigned integer value %q: %w", typed, err)
+		}
+		return parsed, nil
+	default:
+		return 0, fmt.Errorf("config: expected unsigned integer value, got %T", value)
 	}
 }
 

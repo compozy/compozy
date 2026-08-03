@@ -209,39 +209,41 @@ func TestConfigSetShouldManageLoopLifecycleDefaults(t *testing.T) {
 		}
 
 		for _, value := range values {
-			setOut, _, err := executeRootCommand(
-				t,
-				deps,
-				"config",
-				"set",
-				value.path,
-				value.value,
-				"-o",
-				"json",
-			)
-			if err != nil {
-				t.Fatalf("config set %s error = %v", value.path, err)
-			}
+			t.Run("Should set and get "+value.path, func(t *testing.T) {
+				setOut, _, err := executeRootCommand(
+					t,
+					deps,
+					"config",
+					"set",
+					value.path,
+					value.value,
+					"-o",
+					"json",
+				)
+				if err != nil {
+					t.Fatalf("config set %s error = %v", value.path, err)
+				}
 
-			var setRecord configSetRecord
-			if err := json.Unmarshal([]byte(setOut), &setRecord); err != nil {
-				t.Fatalf("json.Unmarshal(config set %s) error = %v", value.path, err)
-			}
-			if setRecord.Path != value.path {
-				t.Fatalf("config set record path = %q, want %q", setRecord.Path, value.path)
-			}
+				var setRecord configSetRecord
+				if err := json.Unmarshal([]byte(setOut), &setRecord); err != nil {
+					t.Fatalf("json.Unmarshal(config set %s) error = %v", value.path, err)
+				}
+				if setRecord.Path != value.path {
+					t.Fatalf("config set record path = %q, want %q", setRecord.Path, value.path)
+				}
 
-			getOut, _, err := executeRootCommand(t, deps, "config", "get", value.path, "-o", "json")
-			if err != nil {
-				t.Fatalf("config get %s error = %v", value.path, err)
-			}
-			var valueRecord configValueRecord
-			if err := json.Unmarshal([]byte(getOut), &valueRecord); err != nil {
-				t.Fatalf("json.Unmarshal(config get %s) error = %v", value.path, err)
-			}
-			if got := fmt.Sprint(valueRecord.Value); got != value.value {
-				t.Fatalf("config get %s value = %q, want %q", value.path, got, value.value)
-			}
+				getOut, _, err := executeRootCommand(t, deps, "config", "get", value.path, "-o", "json")
+				if err != nil {
+					t.Fatalf("config get %s error = %v", value.path, err)
+				}
+				var valueRecord configValueRecord
+				if err := json.Unmarshal([]byte(getOut), &valueRecord); err != nil {
+					t.Fatalf("json.Unmarshal(config get %s) error = %v", value.path, err)
+				}
+				if got := fmt.Sprint(valueRecord.Value); got != value.value {
+					t.Fatalf("config get %s value = %q, want %q", value.path, got, value.value)
+				}
+			})
 		}
 	})
 }
@@ -1395,6 +1397,12 @@ func TestConfigRenderingAndMutationHelpers(t *testing.T) {
 				wantAllowed: true,
 			},
 			{
+				name:        "Should classify loop predicate cost as unsigned",
+				path:        "loops.defaults.delivery.predicates.cost_limit",
+				wantKind:    configSetUint64,
+				wantAllowed: true,
+			},
+			{
 				name:        "Should allow Marketplace catalog base URL",
 				path:        "marketplace.catalog.base_url",
 				wantKind:    configSetString,
@@ -1606,6 +1614,20 @@ func TestConfigRenderingAndMutationHelpers(t *testing.T) {
 		}
 		if _, err := parseConfigSetValue(configSetTable, `[]`); err == nil {
 			t.Fatal("parseConfigSetValue(array) error = nil, want object error")
+		}
+	})
+
+	t.Run("Should enforce unsigned integer bounds", func(t *testing.T) {
+		t.Parallel()
+
+		value, err := parseConfigSetValue(configSetUint64, "18446744073709551615")
+		if err != nil || value != uint64(18446744073709551615) {
+			t.Fatalf("parseConfigSetValue(max uint64) = (%#v, %v), want max uint64", value, err)
+		}
+		for _, invalid := range []string{"-1", "18446744073709551616"} {
+			if _, err := parseConfigSetValue(configSetUint64, invalid); err == nil {
+				t.Fatalf("parseConfigSetValue(%q) error = nil, want bounds error", invalid)
+			}
 		}
 	})
 

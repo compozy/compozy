@@ -19,6 +19,7 @@ func (g *LoopRepo) RequeueNode(
 	ctx context.Context,
 	mutation looppkg.NodeRequeueMutation,
 ) (looppkg.NodeRequeueResult, error) {
+	mutation = mutation.Normalize()
 	if err := g.checkReady(ctx, "requeue Loop node"); err != nil {
 		return looppkg.NodeRequeueResult{}, err
 	}

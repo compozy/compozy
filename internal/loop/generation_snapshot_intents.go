@@ -241,9 +241,9 @@ func normalizeGenerationSnapshotIntents(payload GenerationSnapshotPayload) (Gene
 	if len(payload.BoundaryEffects) > 0 {
 		boundaryEffects := make(map[Status][]RenderedEffectIntent, len(payload.BoundaryEffects))
 		for status, effects := range payload.BoundaryEffects {
-			if !status.Terminal() {
+			if !status.Terminal() && status != StatusNeedsApproval {
 				return GenerationSnapshotPayload{}, fmt.Errorf(
-					"%w: effect boundary status is not terminal: %q",
+					"%w: effect boundary status is not terminal or approval-gated: %q",
 					ErrValidation,
 					status,
 				)

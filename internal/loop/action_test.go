@@ -532,13 +532,22 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 		}, loop.ActionExecutionInput{
 			WorkspaceID: "ws-1",
 			Generation:  2,
-			RepairFailures: []loop.ActionRepairFailure{{
-				NodeID: "primary", Disposition: loop.AttemptEscalated,
-				Failure: loop.ClassifiedFailure{
-					Class: loop.FailurePayloadDeclared, Code: "payload_declared",
-					Cause: "semantic escalation", Hint: "repair the payload",
+			RepairFailures: []loop.ActionRepairFailure{
+				{
+					NodeID: "primary", Disposition: loop.AttemptEscalated,
+					Failure: loop.ClassifiedFailure{
+						Class: loop.FailurePayloadDeclared, Code: "payload_declared",
+						Cause: "semantic escalation", Hint: "repair the payload",
+					},
 				},
-			}},
+				{
+					NodeID: "absorbed", Disposition: loop.AttemptAbsorbed,
+					Failure: loop.ClassifiedFailure{
+						Class: loop.FailureTransport, Code: "absorbed_transport",
+						Cause: "unique absorbed failure must stay out of repair context",
+					},
+				},
+			},
 		})
 		if err != nil {
 			t.Fatalf("Execute() error = %v", err)
@@ -548,7 +557,8 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 			!strings.Contains(prompts[0], `"generation":2`) ||
 			!strings.Contains(prompts[0], `"disposition":"escalated"`) ||
 			!strings.Contains(prompts[0], "semantic escalation") ||
-			!strings.Contains(prompts[0], "repair the payload") {
+			!strings.Contains(prompts[0], "repair the payload") ||
+			strings.Contains(prompts[0], "unique absorbed failure") {
 			t.Fatalf("repair prompt = %#v, want classified escalated context", prompts)
 		}
 	})

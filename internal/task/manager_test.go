@@ -8694,6 +8694,20 @@ func TestManagerNonHumanIdempotencyAndExecutionGuards(t *testing.T) {
 func TestManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should fail closed when committed timers have no armer", func(t *testing.T) {
+		t.Parallel()
+
+		const timerKey = "loop.retry.run-1.1.fetch.0.a1.e1"
+		service := &Service{}
+		err := service.armCoordinatorTimers(t.Context(), []CoordinatorTimerSpec{{
+			LoopRunID: "run-1", Generation: 1, NodeID: "fetch", ItemIndex: 0,
+			Attempt: 1, IssuedEpoch: 1, FireAt: time.Now().UTC(), IdempotencyKey: timerKey,
+		}}, ActorContext{})
+		if !errors.Is(err, ErrValidation) || !strings.Contains(err.Error(), timerKey) {
+			t.Fatalf("armCoordinatorTimers() error = %v, want ErrValidation with timer key", err)
+		}
+	})
+
 	t.Run("Should execute coordinator in daemon without session", func(t *testing.T) {
 		t.Parallel()
 		testManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(t, nil, nil)

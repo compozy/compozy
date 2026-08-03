@@ -582,6 +582,37 @@ func TestSchedulerTaskSourceWatchEventsGapRecoveryShouldRequireStoreCapability(t
 func TestSchedulerTaskSourceLoopRetryDueRecovery(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should preserve the retry cursor when a page fails", func(t *testing.T) {
+		t.Parallel()
+
+		sentinel := errors.New("forced retry due page failure")
+		initial := looppkg.RetryDueCursor{
+			NextAttemptAt: time.Date(2026, 8, 2, 19, 0, 0, 0, time.UTC),
+			LoopRunID:     "looprun-initial", Generation: 2, NodeID: "fetch", ItemIndex: 1,
+		}
+		next := looppkg.RetryDueCursor{
+			NextAttemptAt: initial.NextAttemptAt.Add(time.Minute),
+			LoopRunID:     "looprun-next", Generation: 3, NodeID: "publish", ItemIndex: 2,
+		}
+		state := newLoopRetryDueScanState()
+		state.cursor = initial
+		source := schedulerTaskSource{
+			store:            retryDueErrorTaskStore{taskStore: openDaemonTestGlobalDB(t), next: next, err: sentinel},
+			loopRetryDueScan: state,
+		}
+		err := source.enqueueDueLoopRetryWakes(
+			testutil.Context(t),
+			taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "scheduler-test"},
+			initial.NextAttemptAt,
+		)
+		if !errors.Is(err, sentinel) {
+			t.Fatalf("enqueueDueLoopRetryWakes() error = %v, want sentinel", err)
+		}
+		if state.cursor != initial {
+			t.Fatalf("retry cursor = %#v, want unchanged %#v", state.cursor, initial)
+		}
+	})
+
 	t.Run("Should reserve and start an epoch-current due retry wake", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t)
@@ -717,6 +748,22 @@ func (s *recordingLoopRetryTimerStore) EnqueueLoopRetryWakeIfCurrent(
 
 type taskStoreWithoutWatchEventsGapWake struct {
 	taskStore
+}
+
+type retryDueErrorTaskStore struct {
+	taskStore
+	next looppkg.RetryDueCursor
+	err  error
+}
+
+func (s retryDueErrorTaskStore) EnqueueDueLoopRetryWakesPage(
+	context.Context,
+	taskpkg.Origin,
+	time.Time,
+	looppkg.RetryDueCursor,
+	int,
+) ([]taskpkg.Run, looppkg.RetryDueCursor, error) {
+	return nil, s.next, s.err
 }
 
 func seedCoordinatorBackstopRun(

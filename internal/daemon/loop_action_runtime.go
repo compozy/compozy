@@ -197,9 +197,12 @@ func (r *loopActionRuntime) executeQueuedRun(
 	if err != nil {
 		return err
 	}
-	timeoutReason, err := r.actionTimeoutReasonForRun(ctx, run)
-	if err != nil {
-		return err
+	timeoutReason := loopActionReasonNodeTimeout
+	if authoredTimeout {
+		timeoutReason, err = r.actionTimeoutReasonForRun(ctx, run)
+		if err != nil {
+			return err
+		}
 	}
 	leaseDuration := leaseDurationForActionTimeout(actionTimeout)
 	claim, err := r.manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{

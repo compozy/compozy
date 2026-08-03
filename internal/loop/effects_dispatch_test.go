@@ -58,7 +58,7 @@ func TestEffectDispatchRendering(t *testing.T) {
 			entry.With["item_index"] != float64(0) {
 			t.Fatalf("rendered with = %#v, want pre-bound failure and attempt", entry.With)
 		}
-		if entry.With["run_link"] != "/loop-runs/run-effect" ||
+		if entry.With["run_link"] != "/api/workspaces/ws-effect/loop-runs/run-effect" ||
 			!strings.Contains(entry.With["approval_link"].(string), "action=approval") ||
 			!strings.Contains(entry.With["approval_link"].(string), "generation=3") ||
 			!strings.Contains(entry.With["approval_link"].(string), "item_index=0") ||
@@ -122,120 +122,151 @@ func TestCoordinatorEffectsShouldAttachNodeAndTerminalTriggers(t *testing.T) {
 	failureClass := FailureTransport
 	timeoutClass := FailureAttemptTimeout
 	nextAttemptAt := time.Date(2026, 8, 2, 12, 1, 0, 0, time.UTC)
-	definition := dsl.Definition{
-		Contract: dsl.Contract{ContractLifecycleState: &dsl.ContractLifecycleState{
-			TerminalEffects: dsl.TerminalEffects{OnFailed: []dsl.EffectSpec{{
-				Emit: &dsl.EmitSpec{Kind: "loop_failed", Payload: map[string]any{
-					"scope": "{{ .effect.identity.scope }}",
-				}},
-			}}},
-		}},
-		Graph: dsl.Graph{Nodes: []dsl.Node{{
-			ID: "fetch", Class: dsl.NodeClassAction, Kind: "known__fetch",
-			NodeLifecycleState: &dsl.NodeLifecycleState{
-				TriggerEffects: dsl.TriggerEffects{
-					OnRetry:   []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: "fetch_retrying"}}},
-					OnTimeout: []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: "fetch_timed_out"}}},
-				},
-				OnError: &dsl.ErrorPolicy{AllowFail: true, Effects: []dsl.EffectSpec{{
-					Tool: "known__notify", With: map[string]any{
-						"disposition": "{{ .effect.attempt.disposition }}",
-						"scope":       "{{ .effect.identity.scope }}",
-					},
-				}}},
-			},
-		}}},
-	}
-	plan := task.CoordinatorCompletionPlan{
-		Snapshot: task.GenerationSnapshot{LoopRunID: "run-effect", Generation: 2, Payload: GenerationSnapshotPayload{
-			Attempts: []NodeAttempt{
-				{LoopRunID: "run-effect", Generation: 2, NodeID: "fetch", Attempt: 1,
-					Disposition: AttemptRetried, FailureClass: &failureClass, FailureCode: "network",
-					Cause: "down", NextAttemptAt: &nextAttemptAt, StartedAt: nextAttemptAt.Add(-time.Second)},
-				{LoopRunID: "run-effect", Generation: 2, NodeID: "fetch", Attempt: 2,
-					Disposition: AttemptAbsorbed, FailureClass: &timeoutClass, FailureCode: "deadline",
-					Cause: "still down", StartedAt: nextAttemptAt},
-			},
-			Events: []GenerationLifecycleEventIntent{{
-				Kind: GenerationLifecycleEventNodeRetryScheduled, NodeID: "fetch", Attempt: 2,
-				IssuedEpoch: 2, NextAttemptAt: &nextAttemptAt, FailureClass: failureClass,
-			}},
-		}},
-		Terminal: &task.CoordinatorTerminal{Status: string(StatusFailed)},
-	}
-	if err := attachCoordinatorEffectIntents(
-		effectTestRun(),
-		&ResolvedDefinition{Definition: definition},
-		&plan,
-	); err != nil {
-		t.Fatalf("attachCoordinatorEffectIntents() error = %v", err)
-	}
-	payload, err := GenerationSnapshotPayloadFrom(plan.Snapshot.Payload)
-	if err != nil {
-		t.Fatalf("GenerationSnapshotPayloadFrom() error = %v", err)
-	}
-	if len(payload.Events) != 2 || len(payload.Events[0].Effects) != 1 ||
-		payload.Events[1].Disposition != AttemptAbsorbed || len(payload.Events[1].Effects) != 2 ||
-		payload.Events[1].Effects[1].Trigger != EffectTriggerOnTimeout ||
-		len(payload.BoundaryEffects[StatusFailed]) != 1 {
-		t.Fatalf("effect-bearing payload = %#v, want retry, absorbed on_error, and terminal effects", payload)
-	}
-	entry := decodeRenderedEffectForTest(t, payload.Events[1].Effects[0].Entry)
-	if entry.With["disposition"] != string(AttemptAbsorbed) || entry.With["scope"] != "node" {
-		t.Fatalf("on_error with = %#v, want absorbed disposition in node scope", entry.With)
-	}
-	terminal := decodeRenderedEffectForTest(t, payload.BoundaryEffects[StatusFailed][0].Entry)
-	if terminal.Emit == nil || terminal.Emit.Payload["scope"] != "loop" {
-		t.Fatalf("terminal effect = %#v, want distinct loop scope", terminal)
-	}
 
-	quarantineEntry := json.RawMessage(`{
+	t.Run("Should attach node and terminal effects", func(t *testing.T) {
+		t.Parallel()
+
+		definition := dsl.Definition{
+			Contract: dsl.Contract{ContractLifecycleState: &dsl.ContractLifecycleState{
+				TerminalEffects: dsl.TerminalEffects{OnFailed: []dsl.EffectSpec{{
+					Emit: &dsl.EmitSpec{Kind: "loop_failed", Payload: map[string]any{
+						"scope": "{{ .effect.identity.scope }}",
+					}},
+				}}},
+			}},
+			Graph: dsl.Graph{Nodes: []dsl.Node{{
+				ID: "fetch", Class: dsl.NodeClassAction, Kind: "known__fetch",
+				NodeLifecycleState: &dsl.NodeLifecycleState{
+					TriggerEffects: dsl.TriggerEffects{
+						OnRetry:   []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: "fetch_retrying"}}},
+						OnTimeout: []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: "fetch_timed_out"}}},
+					},
+					OnError: &dsl.ErrorPolicy{AllowFail: true, Effects: []dsl.EffectSpec{{
+						Tool: "known__notify", With: map[string]any{
+							"disposition": "{{ .effect.attempt.disposition }}",
+							"scope":       "{{ .effect.identity.scope }}",
+						},
+					}}},
+				},
+			}}},
+		}
+		plan := task.CoordinatorCompletionPlan{
+			Snapshot: task.GenerationSnapshot{LoopRunID: "run-effect", Generation: 2, Payload: GenerationSnapshotPayload{
+				Attempts: []NodeAttempt{
+					{LoopRunID: "run-effect", Generation: 2, NodeID: "fetch", Attempt: 1,
+						Disposition: AttemptRetried, FailureClass: &failureClass, FailureCode: "network",
+						Cause: "down", NextAttemptAt: &nextAttemptAt, StartedAt: nextAttemptAt.Add(-time.Second)},
+					{LoopRunID: "run-effect", Generation: 2, NodeID: "fetch", Attempt: 2,
+						Disposition: AttemptAbsorbed, FailureClass: &timeoutClass, FailureCode: "deadline",
+						Cause: "still down", StartedAt: nextAttemptAt},
+				},
+				Events: []GenerationLifecycleEventIntent{{
+					Kind: GenerationLifecycleEventNodeRetryScheduled, NodeID: "fetch", Attempt: 2,
+					IssuedEpoch: 2, NextAttemptAt: &nextAttemptAt, FailureClass: failureClass,
+				}},
+			}},
+			Terminal: &task.CoordinatorTerminal{Status: string(StatusFailed)},
+		}
+		if err := attachCoordinatorEffectIntents(
+			effectTestRun(),
+			&ResolvedDefinition{Definition: definition},
+			&plan,
+		); err != nil {
+			t.Fatalf("attachCoordinatorEffectIntents() error = %v", err)
+		}
+		payload, err := GenerationSnapshotPayloadFrom(plan.Snapshot.Payload)
+		if err != nil {
+			t.Fatalf("GenerationSnapshotPayloadFrom() error = %v", err)
+		}
+		if len(payload.Events) != 2 || len(payload.Events[0].Effects) != 1 ||
+			payload.Events[1].Disposition != AttemptAbsorbed || len(payload.Events[1].Effects) != 2 ||
+			payload.Events[1].Effects[1].Trigger != EffectTriggerOnTimeout ||
+			len(payload.BoundaryEffects[StatusFailed]) != 1 {
+			t.Fatalf("effect-bearing payload = %#v, want retry, absorbed on_error, and terminal effects", payload)
+		}
+		entry := decodeRenderedEffectForTest(t, payload.Events[1].Effects[0].Entry)
+		if entry.With["disposition"] != string(AttemptAbsorbed) || entry.With["scope"] != "node" {
+			t.Fatalf("on_error with = %#v, want absorbed disposition in node scope", entry.With)
+		}
+		terminal := decodeRenderedEffectForTest(t, payload.BoundaryEffects[StatusFailed][0].Entry)
+		if terminal.Emit == nil || terminal.Emit.Payload["scope"] != "loop" {
+			t.Fatalf("terminal effect = %#v, want distinct loop scope", terminal)
+		}
+	})
+
+	t.Run("Should attach quarantine context", func(t *testing.T) {
+		t.Parallel()
+
+		quarantineEntry := json.RawMessage(`{
 		"node_id":"fetch",
 		"input_ref":"loop-run:run-effect:node:fetch:input",
 		"episodes":[{"generation":2,"quarantined_at":"2026-08-02T12:01:00Z","attempts":[]}]
 	}`)
-	quarantinePlan := task.CoordinatorCompletionPlan{
-		Snapshot: task.GenerationSnapshot{LoopRunID: "run-effect", Generation: 2, Payload: GenerationSnapshotPayload{
-			Attempts: []NodeAttempt{{
-				LoopRunID: "run-effect", Generation: 2, NodeID: "fetch", Attempt: 3,
-				Disposition: AttemptQuarantined, FailureClass: &failureClass,
-				FailureCode: "network", Cause: "down", StartedAt: nextAttemptAt,
+		quarantinePlan := task.CoordinatorCompletionPlan{
+			Snapshot: task.GenerationSnapshot{LoopRunID: "run-effect", Generation: 2, Payload: GenerationSnapshotPayload{
+				Attempts: []NodeAttempt{{
+					LoopRunID: "run-effect", Generation: 2, NodeID: "fetch", Attempt: 3,
+					Disposition: AttemptQuarantined, FailureClass: &failureClass,
+					FailureCode: "network", Cause: "down", StartedAt: nextAttemptAt,
+				}},
+				Events: []GenerationLifecycleEventIntent{{
+					Kind: GenerationLifecycleEventNodeQuarantined, NodeID: "fetch", Attempt: 3,
+					Failure:     &ClassifiedFailure{Class: FailureTransport, Code: "network", Cause: "down"},
+					Disposition: AttemptQuarantined, QuarantineEntry: quarantineEntry,
+				}},
 			}},
-			Events: []GenerationLifecycleEventIntent{{
-				Kind: GenerationLifecycleEventNodeQuarantined, NodeID: "fetch", Attempt: 3,
-				Failure:     &ClassifiedFailure{Class: FailureTransport, Code: "network", Cause: "down"},
-				Disposition: AttemptQuarantined, QuarantineEntry: quarantineEntry,
+		}
+		quarantineDefinition := dsl.Definition{Graph: dsl.Graph{Nodes: []dsl.Node{{
+			ID: "fetch", Class: dsl.NodeClassAction, Kind: "known__fetch",
+			NodeLifecycleState: &dsl.NodeLifecycleState{TriggerEffects: dsl.TriggerEffects{
+				OnQuarantine: []dsl.EffectSpec{{Emit: &dsl.EmitSpec{
+					Kind:    "fetch_quarantined",
+					Payload: map[string]any{"node_id": "{{ .effect.quarantine.node_id }}"},
+				}}},
 			}},
-		}},
-	}
-	quarantineDefinition := dsl.Definition{Graph: dsl.Graph{Nodes: []dsl.Node{{
-		ID: "fetch", Class: dsl.NodeClassAction, Kind: "known__fetch",
-		NodeLifecycleState: &dsl.NodeLifecycleState{TriggerEffects: dsl.TriggerEffects{
-			OnQuarantine: []dsl.EffectSpec{{Emit: &dsl.EmitSpec{
-				Kind:    "fetch_quarantined",
-				Payload: map[string]any{"node_id": "{{ .effect.quarantine.node_id }}"},
-			}}},
-		}},
-	}}}}
-	if err := attachCoordinatorEffectIntents(
-		effectTestRun(),
-		&ResolvedDefinition{Definition: quarantineDefinition},
-		&quarantinePlan,
-	); err != nil {
-		t.Fatalf("attachCoordinatorEffectIntents(quarantine) error = %v", err)
-	}
-	quarantinePayload, err := GenerationSnapshotPayloadFrom(quarantinePlan.Snapshot.Payload)
-	if err != nil {
-		t.Fatalf("GenerationSnapshotPayloadFrom(quarantine) error = %v", err)
-	}
-	if len(quarantinePayload.Events) != 1 || len(quarantinePayload.Events[0].Effects) != 1 ||
-		quarantinePayload.Events[0].Effects[0].Trigger != EffectTriggerOnQuarantine {
-		t.Fatalf("quarantine event = %#v, want one on_quarantine effect", quarantinePayload.Events)
-	}
-	quarantineEffect := decodeRenderedEffectForTest(t, quarantinePayload.Events[0].Effects[0].Entry)
-	if quarantineEffect.Emit == nil || quarantineEffect.Emit.Payload["node_id"] != "fetch" {
-		t.Fatalf("quarantine effect = %#v, want entry context", quarantineEffect)
-	}
+		}}}}
+		if err := attachCoordinatorEffectIntents(
+			effectTestRun(),
+			&ResolvedDefinition{Definition: quarantineDefinition},
+			&quarantinePlan,
+		); err != nil {
+			t.Fatalf("attachCoordinatorEffectIntents(quarantine) error = %v", err)
+		}
+		quarantinePayload, err := GenerationSnapshotPayloadFrom(quarantinePlan.Snapshot.Payload)
+		if err != nil {
+			t.Fatalf("GenerationSnapshotPayloadFrom(quarantine) error = %v", err)
+		}
+		if len(quarantinePayload.Events) != 1 || len(quarantinePayload.Events[0].Effects) != 1 ||
+			quarantinePayload.Events[0].Effects[0].Trigger != EffectTriggerOnQuarantine {
+			t.Fatalf("quarantine event = %#v, want one on_quarantine effect", quarantinePayload.Events)
+		}
+		quarantineEffect := decodeRenderedEffectForTest(t, quarantinePayload.Events[0].Effects[0].Entry)
+		if quarantineEffect.Emit == nil || quarantineEffect.Emit.Payload["node_id"] != "fetch" {
+			t.Fatalf("quarantine effect = %#v, want entry context", quarantineEffect)
+		}
+	})
+
+	t.Run("Should treat an undeclared quarantine effect as a no-op", func(t *testing.T) {
+		t.Parallel()
+
+		plan := task.CoordinatorCompletionPlan{
+			Snapshot: task.GenerationSnapshot{LoopRunID: "run-effect", Generation: 2, Payload: GenerationSnapshotPayload{
+				Attempts: []NodeAttempt{{
+					LoopRunID: "run-effect", Generation: 2, NodeID: "fetch", Attempt: 1,
+					Disposition: AttemptQuarantined, FailureClass: &failureClass, StartedAt: nextAttemptAt,
+				}},
+			}},
+		}
+		definition := dsl.Definition{Graph: dsl.Graph{Nodes: []dsl.Node{{
+			ID: "fetch", Class: dsl.NodeClassAction, Kind: "known__fetch",
+			NodeLifecycleState: &dsl.NodeLifecycleState{},
+		}}}}
+		if err := attachCoordinatorEffectIntents(
+			effectTestRun(), &ResolvedDefinition{Definition: definition}, &plan,
+		); err != nil {
+			t.Fatalf("attachCoordinatorEffectIntents(no quarantine effects) error = %v", err)
+		}
+	})
 }
 
 func TestCoordinatorEffectsShouldAttachEveryDeclaredTerminalOutcome(t *testing.T) {

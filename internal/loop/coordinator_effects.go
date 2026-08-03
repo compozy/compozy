@@ -117,15 +117,15 @@ func attachQuarantineEffectIntents(
 	attempt NodeAttempt,
 	payload *GenerationSnapshotPayload,
 ) error {
+	if len(node.OnQuarantine) == 0 {
+		return nil
+	}
 	failure := effectFailureFromAttempt(attempt)
 	for index := range payload.Events {
 		event := &payload.Events[index]
 		if event.Kind != GenerationLifecycleEventNodeQuarantined ||
 			event.NodeID != string(attempt.NodeID) || event.ItemIndex != attempt.ItemIndex {
 			continue
-		}
-		if len(node.OnQuarantine) == 0 {
-			return nil
 		}
 		intents, err := RenderEffectIntents(node.OnQuarantine, EffectContextRequest{
 			Run: &run, Trigger: EffectTriggerOnQuarantine, Generation: attempt.Generation,

@@ -23,11 +23,11 @@ func (r *CoordinatorRunner) buildPendingRequeuePlan(
 		return task.CoordinatorCompletionPlan{}, false, fmt.Errorf("list node controls for requeue: %w", err)
 	}
 	nextGeneration := run.Generation + 1
-	nodeID, pending, err := pendingRequeueNode(controls, nextGeneration)
+	nodeIDs, err := pendingRequeueNodes(controls, nextGeneration)
 	if err != nil {
 		return task.CoordinatorCompletionPlan{}, false, err
 	}
-	if !pending {
+	if len(nodeIDs) == 0 {
 		return task.CoordinatorCompletionPlan{}, false, nil
 	}
 	if terminal := iterationCapTerminal(run, nextGeneration); terminal != nil {
@@ -47,18 +47,22 @@ func (r *CoordinatorRunner) buildPendingRequeuePlan(
 	}
 
 	rerun := make(map[generationOutputKey]struct{})
-	for _, output := range currentOutputs {
-		if output.NodeID != string(nodeID) {
-			continue
+	for _, nodeID := range nodeIDs {
+		found := false
+		for _, output := range currentOutputs {
+			if output.NodeID != string(nodeID) {
+				continue
+			}
+			found = true
+			rerun[generationOutputKey{nodeID: output.NodeID, itemIndex: output.ItemIndex}] = struct{}{}
 		}
-		rerun[generationOutputKey{nodeID: output.NodeID, itemIndex: output.ItemIndex}] = struct{}{}
-	}
-	if len(rerun) == 0 {
-		return task.CoordinatorCompletionPlan{}, false, fmt.Errorf(
-			"%w: requeued node %q has no generation output",
-			ErrValidation,
-			nodeID,
-		)
+		if !found {
+			return task.CoordinatorCompletionPlan{}, false, fmt.Errorf(
+				"%w: requeued node %q has no generation output",
+				ErrValidation,
+				nodeID,
+			)
+		}
 	}
 	addTransitiveDependents(graph, currentOutputs, rerun)
 	nextOutputs := reattemptGenerationOutputs(graph, currentOutputs, rerun, nextGeneration)

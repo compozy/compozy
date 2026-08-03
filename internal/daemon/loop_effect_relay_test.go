@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -88,32 +89,56 @@ func TestLoopEffectRelayShouldFailApprovalAndRenderErrorsWithoutCallingTools(t *
 }
 
 func TestLoopEffectRelayShouldReexecuteAfterPostToolAckCrash(t *testing.T) {
-	t.Parallel()
+	t.Run("Should report the delivery before replaying the unacknowledged effect", func(t *testing.T) {
+		t.Parallel()
 
-	now := time.Date(2026, time.August, 2, 14, 10, 0, 0, time.UTC)
-	store := newLoopEffectStoreFake(
-		loopEffectEntryForTest("replay", 0, `{"kind":"tool","tool":"known__notify","with":{"body":"retry"}}`),
-	)
-	store.failAcks = 1
-	tools := newLoopEffectToolsFake()
-	tools.views["known__notify"] = toolspkg.ToolView{
-		Descriptor: toolspkg.Descriptor{ID: "known__notify"},
-		Decision:   toolspkg.EffectiveToolDecision{Callable: true},
-	}
-	relay := &loopEffectRelay{store: store, tools: tools, now: func() time.Time { return now }}
-	if _, err := relay.DrainPendingLoopEffects(t.Context(), looppkg.EffectDrainPage{}); err == nil {
-		t.Fatal("DrainPendingLoopEffects(first) error = nil, want simulated post-tool ack crash")
-	}
-	if _, err := relay.DrainPendingLoopEffects(t.Context(), looppkg.EffectDrainPage{}); err != nil {
-		t.Fatalf("DrainPendingLoopEffects(replay) error = %v", err)
-	}
-	if calls := tools.callsSnapshot(); len(calls) != 2 ||
-		calls[0].request.CorrelationID != calls[1].request.CorrelationID {
-		t.Fatalf("tool calls = %#v, want at-least-once replay with stable delivery correlation", calls)
-	}
-	if acks := store.acknowledgements(); len(acks) != 1 {
-		t.Fatalf("acknowledgements = %#v, want one durable winner", acks)
-	}
+		now := time.Date(2026, time.August, 2, 14, 10, 0, 0, time.UTC)
+		store := newLoopEffectStoreFake(
+			loopEffectEntryForTest("replay", 0, `{"kind":"tool","tool":"known__notify","with":{"body":"retry"}}`),
+		)
+		store.failAcks = 1
+		tools := newLoopEffectToolsFake()
+		tools.views["known__notify"] = toolspkg.ToolView{
+			Descriptor: toolspkg.Descriptor{ID: "known__notify"},
+			Decision:   toolspkg.EffectiveToolDecision{Callable: true},
+		}
+		relay := &loopEffectRelay{store: store, tools: tools, now: func() time.Time { return now }}
+		if _, err := relay.DrainPendingLoopEffects(t.Context(), looppkg.EffectDrainPage{}); err == nil {
+			t.Fatal("DrainPendingLoopEffects(first) error = nil, want simulated post-tool ack crash")
+		} else if !strings.Contains(err.Error(), "simulated ack crash") ||
+			!strings.Contains(err.Error(), store.original[0].DeliveryID) {
+			t.Fatalf("DrainPendingLoopEffects(first) error = %v, want delivery id and ack crash", err)
+		}
+		if _, err := relay.DrainPendingLoopEffects(t.Context(), looppkg.EffectDrainPage{}); err != nil {
+			t.Fatalf("DrainPendingLoopEffects(replay) error = %v", err)
+		}
+		if calls := tools.callsSnapshot(); len(calls) != 2 ||
+			calls[0].request.CorrelationID != calls[1].request.CorrelationID {
+			t.Fatalf("tool calls = %#v, want at-least-once replay with stable delivery correlation", calls)
+		}
+		if acks := store.acknowledgements(); len(acks) != 1 {
+			t.Fatalf("acknowledgements = %#v, want one durable winner", acks)
+		}
+	})
+}
+
+func TestLoopEffectRelayShouldStopAfterAFullPageWithoutAcknowledgement(t *testing.T) {
+	t.Run("Should end the pass when every acknowledgement loses its race", func(t *testing.T) {
+		t.Parallel()
+
+		store := newLoopEffectStoreFake(
+			loopEffectEntryForTest("stale-ack", 0, `{"kind":"emit","emit":{"kind":"stale"}}`),
+		)
+		store.rejectAcks = true
+		relay := &loopEffectRelay{store: store, tools: newLoopEffectToolsFake()}
+		report, err := relay.DrainPendingLoopEffects(t.Context(), looppkg.EffectDrainPage{Limit: 1})
+		if err != nil {
+			t.Fatalf("DrainPendingLoopEffects() error = %v", err)
+		}
+		if report.Read != 1 || report.Delivered != 0 || report.Failed != 0 {
+			t.Fatalf("drain report = %#v, want one read and no acknowledged outcomes", report)
+		}
+	})
 }
 
 func TestLoopEffectRelayShouldDrainPersistedWorkOnRunStart(t *testing.T) {
@@ -270,6 +295,7 @@ type loopEffectStoreFake struct {
 	original     []looppkg.EffectOutboxEntry
 	acks         []looppkg.EffectAcknowledgement
 	failAcks     int
+	rejectAcks   bool
 	acknowledged chan struct{}
 }
 
@@ -300,6 +326,9 @@ func (s *loopEffectStoreFake) AcknowledgeLoopEffect(
 	if s.failAcks > 0 {
 		s.failAcks--
 		return false, errors.New("simulated ack crash")
+	}
+	if s.rejectAcks {
+		return false, nil
 	}
 	for index, entry := range s.pending {
 		if entry.DeliveryID != ack.Entry.DeliveryID {

@@ -10,6 +10,7 @@ type AdmissionClaim struct {
 	EventKey         string
 	LoopRunID        RunID
 	ClaimedAt        time.Time
+	ExpiresAt        time.Time
 	SuppressedCount  int
 	LastSuppressedAt *time.Time
 }

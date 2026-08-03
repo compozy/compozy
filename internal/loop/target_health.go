@@ -43,14 +43,18 @@ func (r *CoordinatorRunner) admitActionTarget(
 	if err != nil || !bound {
 		return err
 	}
+	taskRunID = strings.TrimSpace(taskRunID)
+	if taskRunID == "" {
+		return fmt.Errorf("%w: target probe task run id is required", ErrValidation)
+	}
 	decision, err := r.targetHealth.BeforeProbe(ctx, key)
 	if err != nil {
 		return fmt.Errorf("loop: check target health for %q: %w", key.EntityID, err)
 	}
-	r.targetProbes.Store(strings.TrimSpace(taskRunID), targetProbeObservation{key: key, decision: decision})
 	if !decision.Allowed {
 		return targetUnavailableError(key, decision)
 	}
+	r.targetProbes.Store(taskRunID, targetProbeObservation{key: key, decision: decision})
 	return nil
 }
 

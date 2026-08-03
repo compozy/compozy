@@ -15,7 +15,7 @@ func writeGenerationAttempt(
 	generation int,
 	attempt NodeAttempt,
 ) error {
-	attempt = attempt.normalized(RunID(loopRunID), generation)
+	attempt = attempt.normalized(RunID(loopRunID))
 	if err := attempt.validate(RunID(loopRunID), generation); err != nil {
 		return err
 	}

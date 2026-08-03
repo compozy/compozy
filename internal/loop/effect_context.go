@@ -63,7 +63,7 @@ func BuildEffectContext(req EffectContextRequest) (map[string]any, error) {
 	if req.NodeID != "" {
 		scope = effectScopeNode
 	}
-	runLink := effectRunLink(req.Run.ID)
+	runLink := effectRunLink(req.Run.WorkspaceID, req.Run.ID)
 	context := effectTemplateContext{
 		Identity: effectIdentityContext{
 			Scope: scope, WorkspaceID: req.Run.WorkspaceID, LoopName: req.Run.LoopName,
@@ -112,8 +112,9 @@ func (r EffectContextRequest) validate() error {
 	return nil
 }
 
-func effectRunLink(runID RunID) string {
-	return "/loop-runs/" + url.PathEscape(strings.TrimSpace(string(runID)))
+func effectRunLink(workspaceID WorkspaceID, runID RunID) string {
+	return "/api/workspaces/" + url.PathEscape(strings.TrimSpace(string(workspaceID))) +
+		"/loop-runs/" + url.PathEscape(strings.TrimSpace(string(runID)))
 }
 
 func effectDecisionLink(runLink string, req EffectContextRequest, action string) string {

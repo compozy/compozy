@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -70,21 +69,19 @@ func insertLoopEffectIntentsWithExecutor(
 	intents []looppkg.RenderedEffectIntent,
 	at time.Time,
 ) error {
+	queries := sqlcgen.New(exec)
 	for _, intent := range intents {
 		if err := intent.Validate(); err != nil {
 			return err
 		}
 		deliveryID := looppkg.EffectDeliveryID(run.ID, sourceEventID, intent.Trigger, intent.EntryIndex)
-		_, err := exec.ExecContext(
-			ctx,
-			`INSERT INTO loop_effect_outbox (
-				loop_run_id, delivery_id, source_event_id, trigger, generation,
-				node_id, item_index, entry_index, entry_json, state, attempts, created_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, ?)`,
-			string(run.ID), deliveryID, strings.TrimSpace(sourceEventID), string(intent.Trigger),
-			intent.Generation, string(intent.NodeID), intent.ItemIndex, intent.EntryIndex,
-			string(intent.Entry), at.UTC(),
-		)
+		err := queries.InsertLoopEffectOutbox(ctx, sqlcgen.InsertLoopEffectOutboxParams{
+			LoopRunID: string(run.ID), DeliveryID: deliveryID,
+			SourceEventID: strings.TrimSpace(sourceEventID), Trigger: string(intent.Trigger),
+			Generation: int64(intent.Generation), NodeID: string(intent.NodeID),
+			ItemIndex: int64(intent.ItemIndex), EntryIndex: int64(intent.EntryIndex),
+			EntryJson: string(intent.Entry), CreatedAt: at.UTC(),
+		})
 		if err != nil {
 			return fmt.Errorf("store: insert loop effect delivery %q: %w", deliveryID, err)
 		}
@@ -96,75 +93,37 @@ func insertLoopEffectIntentsWithExecutor(
 func (g *LoopRepo) ListPendingLoopEffects(
 	ctx context.Context,
 	limit int,
-) (entries []looppkg.EffectOutboxEntry, err error) {
+) ([]looppkg.EffectOutboxEntry, error) {
 	if err := g.checkReady(ctx, "list pending loop effects"); err != nil {
 		return nil, err
 	}
 	if limit <= 0 {
 		limit = defaultLoopEffectPageSize
 	}
-	rows, err := g.db.QueryContext(
-		ctx,
-		`SELECT effect.loop_run_id, run.workspace_id, effect.delivery_id,
-			effect.source_event_id, effect.trigger, effect.generation, effect.node_id,
-			effect.item_index, effect.entry_index, effect.entry_json, effect.state,
-			effect.attempts, effect.created_at, effect.delivered_at
-		 FROM loop_effect_outbox AS effect
-		 JOIN loop_runs AS run ON run.id = effect.loop_run_id
-		 WHERE effect.state = 'pending'
-		 ORDER BY effect.created_at ASC, effect.loop_run_id ASC, effect.delivery_id ASC
-		 LIMIT ?`,
-		limit,
-	)
+	rows, err := g.queries.ListPendingLoopEffects(ctx, int64(limit))
 	if err != nil {
 		return nil, fmt.Errorf("store: list pending loop effects: %w", err)
 	}
-	defer func() {
-		if closeErr := rows.Close(); closeErr != nil {
-			err = errors.Join(err, fmt.Errorf("store: close pending loop effects rows: %w", closeErr))
-		}
-	}()
-	entries = make([]looppkg.EffectOutboxEntry, 0, limit)
-	for rows.Next() {
-		entry, scanErr := scanPendingLoopEffect(rows)
-		if scanErr != nil {
-			return nil, scanErr
+	entries := make([]looppkg.EffectOutboxEntry, 0, len(rows))
+	for _, row := range rows {
+		entry, convertErr := pendingLoopEffectEntry(row)
+		if convertErr != nil {
+			return nil, convertErr
 		}
 		entries = append(entries, entry)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("store: iterate pending loop effects: %w", err)
 	}
 	return entries, nil
 }
 
-type loopEffectScanner interface {
-	Scan(...any) error
-}
-
-func scanPendingLoopEffect(row loopEffectScanner) (looppkg.EffectOutboxEntry, error) {
-	var entry looppkg.EffectOutboxEntry
-	var loopRunID, workspaceID, trigger, state, entryJSON string
-	var generation, itemIndex, entryIndex, attempts int64
-	var deliveredAt sql.NullTime
-	if err := row.Scan(
-		&loopRunID, &workspaceID, &entry.DeliveryID, &entry.SourceEventID, &trigger,
-		&generation, &entry.NodeID, &itemIndex, &entryIndex, &entryJSON, &state,
-		&attempts, &entry.CreatedAt, &deliveredAt,
-	); err != nil {
-		return looppkg.EffectOutboxEntry{}, fmt.Errorf("store: scan pending loop effect: %w", err)
+func pendingLoopEffectEntry(row sqlcgen.ListPendingLoopEffectsRow) (looppkg.EffectOutboxEntry, error) {
+	entry := looppkg.EffectOutboxEntry{
+		LoopRunID: looppkg.RunID(row.LoopRunID), WorkspaceID: looppkg.WorkspaceID(row.WorkspaceID),
+		DeliveryID: row.DeliveryID, SourceEventID: row.SourceEventID, Trigger: row.Trigger,
+		Generation: int(row.Generation), NodeID: looppkg.NodeID(row.NodeID), ItemIndex: int(row.ItemIndex),
+		EntryIndex: int(row.EntryIndex), Entry: json.RawMessage(row.EntryJson),
+		State: looppkg.EffectOutboxState(row.State), Attempts: int(row.Attempts),
+		CreatedAt: row.CreatedAt.UTC(), DeliveredAt: loopTimePointer(row.DeliveredAt),
 	}
-	entry.LoopRunID = looppkg.RunID(loopRunID)
-	entry.WorkspaceID = looppkg.WorkspaceID(workspaceID)
-	entry.Trigger = trigger
-	entry.Generation = int(generation)
-	entry.ItemIndex = int(itemIndex)
-	entry.EntryIndex = int(entryIndex)
-	entry.Entry = json.RawMessage(entryJSON)
-	entry.State = looppkg.EffectOutboxState(state)
-	entry.Attempts = int(attempts)
-	entry.CreatedAt = entry.CreatedAt.UTC()
-	entry.DeliveredAt = loopTimePointer(deliveredAt)
 	if !entry.State.Valid() || !json.Valid(entry.Entry) {
 		return looppkg.EffectOutboxEntry{}, fmt.Errorf("store: invalid pending loop effect: %w", looppkg.ErrValidation)
 	}
@@ -184,20 +143,17 @@ func (g *LoopRepo) AcknowledgeLoopEffect(
 	}
 	acknowledged := false
 	err := g.withImmediateTransaction(ctx, "acknowledge loop effect", func(exec globalSQLExecutor) error {
-		result, err := exec.ExecContext(
+		affected, err := sqlcgen.New(exec).ClosePendingLoopEffect(
 			ctx,
-			`UPDATE loop_effect_outbox
-			 SET state = ?, attempts = attempts + 1, delivered_at = ?
-			 WHERE loop_run_id = ? AND delivery_id = ? AND state = 'pending'`,
-			string(effectOutboxStateForOutcome(ack.Outcome)), ack.At.UTC(), string(ack.Entry.LoopRunID),
-			strings.TrimSpace(ack.Entry.DeliveryID),
+			sqlcgen.ClosePendingLoopEffectParams{
+				State:       string(effectOutboxStateForOutcome(ack.Outcome)),
+				DeliveredAt: sql.NullTime{Time: ack.At.UTC(), Valid: true},
+				LoopRunID:   string(ack.Entry.LoopRunID),
+				DeliveryID:  strings.TrimSpace(ack.Entry.DeliveryID),
+			},
 		)
 		if err != nil {
 			return fmt.Errorf("store: close loop effect delivery %q: %w", ack.Entry.DeliveryID, err)
-		}
-		affected, err := result.RowsAffected()
-		if err != nil {
-			return fmt.Errorf("store: inspect loop effect delivery %q close: %w", ack.Entry.DeliveryID, err)
 		}
 		if affected == 0 {
 			return nil

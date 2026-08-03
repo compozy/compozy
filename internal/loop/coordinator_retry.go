@@ -47,10 +47,16 @@ func planNodeRetry(input *nodeRetryPlanInput) (nodeRetryPlan, error) {
 	if !nodeFailureRetryEligible(policy, input.output.Attempt, input.failure) {
 		return plan, nil
 	}
-	delay := retryDelay(policy, input.failure, input.attempts, input.randFloat64)
+	delay := retryDelay(policy, input.failure, input.output.Attempt, input.attempts, input.randFloat64)
 	now := input.now.UTC()
 	nextAttemptAt := now.Add(delay)
-	if policy.deadline != nil && input.output.FirstScheduledAt != nil {
+	if policy.deadline != nil {
+		if input.output.FirstScheduledAt == nil {
+			return nodeRetryPlan{}, fmt.Errorf(
+				"%w: retry deadline requires first_scheduled_at",
+				ErrValidation,
+			)
+		}
 		deadlineAt := input.output.FirstScheduledAt.UTC().Add(*policy.deadline)
 		if !nextAttemptAt.Before(deadlineAt) {
 			plan.failure = ClassifyNodeFailure(FailureEvidence{
@@ -123,6 +129,7 @@ func nodeFailureRetryEligible(
 func retryDelay(
 	policy nodeRetryPolicy,
 	failure ClassifiedFailure,
+	attempt int,
 	attempts []NodeAttempt,
 	randFloat64 func() float64,
 ) time.Duration {
@@ -135,7 +142,7 @@ func retryDelay(
 		RandFloat64: randFloat64,
 	})
 	return delayFor(retrypkg.DelayInput{
-		Attempt:  max(1, len(attempts)+1),
+		Attempt:  max(1, attempt),
 		Previous: previousRetryDelay(attempts),
 	})
 }

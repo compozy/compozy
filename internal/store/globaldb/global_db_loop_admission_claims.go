@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
@@ -40,7 +41,23 @@ func (g *LoopRepo) GetAdmissionClaim(
 		EventKey:         row.EventKey,
 		LoopRunID:        looppkg.RunID(row.LoopRunID),
 		ClaimedAt:        row.ClaimedAt.UTC(),
+		ExpiresAt:        row.ExpiresAt.UTC(),
 		SuppressedCount:  int(row.SuppressedCount),
 		LastSuppressedAt: loopTimePointer(row.LastSuppressedAt),
 	}, nil
+}
+
+// SweepExpiredAdmissionClaims deletes tombstones only after their pinned retention horizon.
+func (g *LoopRepo) SweepExpiredAdmissionClaims(ctx context.Context, before time.Time) (int64, error) {
+	if err := g.checkReady(ctx, "sweep expired admission claims"); err != nil {
+		return 0, err
+	}
+	if before.IsZero() {
+		return 0, fmt.Errorf("%w: admission claim sweep time is required", looppkg.ErrValidation)
+	}
+	deleted, err := g.queries.DeleteExpiredLoopAdmissionClaims(ctx, before.UTC())
+	if err != nil {
+		return 0, fmt.Errorf("store: sweep expired loop admission claims: %w", err)
+	}
+	return deleted, nil
 }

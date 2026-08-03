@@ -213,6 +213,92 @@ func TestCoordinatorRunnerShouldApplyNodeFailurePrecedence(t *testing.T) {
 			t.Fatalf("succession plan = %#v, want generation 2", plan)
 		}
 	})
+
+	t.Run("Should classify a raw output reference with a stable payload-declared code", func(t *testing.T) {
+		t.Parallel()
+
+		failure := classifyGenerationOutputFailure(
+			GenerationOutput{Status: generationOutputFailed, OutputRef: strings.Repeat("raw-reference-", 300)},
+			task.Run{Error: "worker failed"},
+		)
+		if failure.Class != FailurePayloadDeclared || failure.Code != string(FailurePayloadDeclared) ||
+			!strings.Contains(failure.Cause, "raw-reference-") || len(failure.Cause) > actionFailureTextLimit {
+			t.Fatalf("classified raw output = %#v, want bounded payload-declared failure", failure)
+		}
+	})
+
+	t.Run("Should not skip a fan-out collect before all route dependencies are skipped", func(t *testing.T) {
+		t.Parallel()
+
+		graph := dsl.Graph{
+			Nodes: []dsl.Node{
+				{ID: "fan", Class: dsl.NodeClassControl, Kind: string(dsl.ControlFanOut)},
+				{ID: "work", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform)},
+				{ID: "independent", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform)},
+				{ID: "collect", Class: dsl.NodeClassControl, Kind: string(dsl.ControlCollect)},
+			},
+			Edges: []dsl.Edge{
+				{From: "fan", To: "work"},
+				{From: "work", To: "collect"},
+				{From: "independent", To: "collect"},
+			},
+		}
+		outputs := []GenerationOutput{
+			{NodeID: "fan", Status: generationOutputPending},
+			{NodeID: "work", Status: generationOutputPending},
+			{NodeID: "independent", Status: generationOutputPending},
+			{NodeID: "collect", Status: generationOutputPending},
+		}
+		skipRouteNodes(
+			graph,
+			newControlTopology(graph),
+			GenerationOutput{NodeID: "source"},
+			[]dsl.NodeID{"fan"},
+			&outputs,
+		)
+		byNode := outputsByNodeAndItemForTest(outputs)
+		if byNode["fan/0"].OutputRef != branchSkippedOutputRef ||
+			byNode["work/0"].OutputRef != branchSkippedOutputRef ||
+			byNode["collect/0"].Status != generationOutputPending {
+			t.Fatalf("route outputs = %#v, want collect pending behind live dependency", byNode)
+		}
+	})
+
+	t.Run("Should discard a target probe when terminal task lookup fails", func(t *testing.T) {
+		t.Parallel()
+
+		const taskRunID = "taskrun-terminal-read-failure"
+		firstScheduledAt := time.Now().UTC()
+		runner := &CoordinatorRunner{
+			taskRuns:     &coordinatorRunnerTaskRunReader{runs: map[string]task.Run{}},
+			targetHealth: newRecordingTargetHealth(),
+		}
+		runner.targetProbes.Store(taskRunID, targetProbeObservation{})
+		graph := dsl.Graph{Nodes: []dsl.Node{{
+			ID: "work", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform),
+		}}}
+		_, err := runner.applyTerminalNodeLifecycle(
+			t.Context(),
+			Run{ID: "run-terminal-read-failure", WorkspaceID: "ws-1"},
+			1,
+			EffectiveConfig{},
+			graph,
+			newControlTopology(graph),
+			[]GenerationOutput{{
+				Generation: 1, NodeID: "work", Status: generationOutputFailed,
+				TaskRunID: taskRunID, Attempt: 1, FirstScheduledAt: &firstScheduledAt,
+			}},
+			0,
+			nil,
+			GenerationHistory{},
+		)
+		if err == nil {
+			t.Fatal("applyTerminalNodeLifecycle() error = nil, want task lookup failure")
+		}
+		if _, found := runner.takeTargetProbe(taskRunID); found {
+			t.Fatal("terminal task lookup failure retained target probe")
+		}
+	})
 }
 
 const toolsUnavailableCodeForTest = "tool_unavailable"

@@ -59,7 +59,7 @@ func skipRouteNodes(
 	for len(queue) > 0 {
 		nodeID := queue[0]
 		queue = queue[1:]
-		node, found := graphNode(graph, nodeID)
+		_, found := graphNode(graph, nodeID)
 		if !found {
 			continue
 		}
@@ -77,11 +77,6 @@ func skipRouteNodes(
 		for _, dependent := range topology.dependents[nodeID] {
 			if allRouteDependenciesSkipped(topology, outputMap, dependent, source.ItemIndex) {
 				queue = append(queue, dependent)
-			}
-		}
-		if isControlKind(node, dsl.ControlFanOut) {
-			for collectID := range topology.fanOutScopes[nodeID].collect {
-				queue = append(queue, collectID)
 			}
 		}
 	}

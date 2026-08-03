@@ -221,7 +221,13 @@ func refreshGenerationOutputFromTaskStatus(
 	case task.TaskRunStatusFailed, task.TaskRunStatusCanceled:
 		output.Status = generationOutputFailed
 		if output.OutputRef == "" {
-			output.OutputRef = failureReasonCode(run.Error)
+			reasonCode := failureReasonCode(run.Error)
+			if reasonCode != "" {
+				failure := NewActionFailure(reasonCode, reasonCode, "")
+				if failureRef, ok := ActionFailureOutputRef(failure); ok {
+					output.OutputRef = failureRef
+				}
+			}
 		}
 		return output, false, nil, nil, nil
 	case task.TaskRunStatusQueued:

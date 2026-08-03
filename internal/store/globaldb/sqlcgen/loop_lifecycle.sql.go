@@ -7,10 +7,53 @@ package sqlcgen
 
 import (
 	"context"
+	"database/sql"
+	"time"
 )
 
+const closePendingLoopEffect = `-- name: ClosePendingLoopEffect :execrows
+UPDATE loop_effect_outbox
+SET state = ?1, attempts = attempts + 1, delivered_at = ?2
+WHERE loop_run_id = ?3
+  AND delivery_id = ?4
+  AND state = 'pending'
+`
+
+type ClosePendingLoopEffectParams struct {
+	State       string       `json:"state"`
+	DeliveredAt sql.NullTime `json:"delivered_at"`
+	LoopRunID   string       `json:"loop_run_id"`
+	DeliveryID  string       `json:"delivery_id"`
+}
+
+func (q *Queries) ClosePendingLoopEffect(ctx context.Context, arg ClosePendingLoopEffectParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, closePendingLoopEffect,
+		arg.State,
+		arg.DeliveredAt,
+		arg.LoopRunID,
+		arg.DeliveryID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const deleteExpiredLoopAdmissionClaims = `-- name: DeleteExpiredLoopAdmissionClaims :execrows
+DELETE FROM loop_admission_claims
+WHERE expires_at <= ?1
+`
+
+func (q *Queries) DeleteExpiredLoopAdmissionClaims(ctx context.Context, expiresBefore time.Time) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteExpiredLoopAdmissionClaims, expiresBefore)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const getLoopAdmissionClaim = `-- name: GetLoopAdmissionClaim :one
-SELECT workspace_id, loop_name, source_key, event_key, loop_run_id, claimed_at, suppressed_count, last_suppressed_at FROM loop_admission_claims
+SELECT workspace_id, loop_name, source_key, event_key, loop_run_id, claimed_at, expires_at, suppressed_count, last_suppressed_at FROM loop_admission_claims
 WHERE workspace_id = ?1
   AND loop_name = ?2
   AND source_key = ?3
@@ -39,10 +82,51 @@ func (q *Queries) GetLoopAdmissionClaim(ctx context.Context, arg GetLoopAdmissio
 		&i.EventKey,
 		&i.LoopRunID,
 		&i.ClaimedAt,
+		&i.ExpiresAt,
 		&i.SuppressedCount,
 		&i.LastSuppressedAt,
 	)
 	return i, err
+}
+
+const insertLoopEffectOutbox = `-- name: InsertLoopEffectOutbox :exec
+INSERT INTO loop_effect_outbox (
+  loop_run_id, delivery_id, source_event_id, trigger, generation,
+  node_id, item_index, entry_index, entry_json, state, attempts, created_at
+) VALUES (
+  ?1, ?2, ?3, ?4,
+  ?5, ?6, ?7, ?8,
+  ?9, 'pending', 0, ?10
+)
+`
+
+type InsertLoopEffectOutboxParams struct {
+	LoopRunID     string    `json:"loop_run_id"`
+	DeliveryID    string    `json:"delivery_id"`
+	SourceEventID string    `json:"source_event_id"`
+	Trigger       string    `json:"trigger"`
+	Generation    int64     `json:"generation"`
+	NodeID        string    `json:"node_id"`
+	ItemIndex     int64     `json:"item_index"`
+	EntryIndex    int64     `json:"entry_index"`
+	EntryJson     string    `json:"entry_json"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+func (q *Queries) InsertLoopEffectOutbox(ctx context.Context, arg InsertLoopEffectOutboxParams) error {
+	_, err := q.db.ExecContext(ctx, insertLoopEffectOutbox,
+		arg.LoopRunID,
+		arg.DeliveryID,
+		arg.SourceEventID,
+		arg.Trigger,
+		arg.Generation,
+		arg.NodeID,
+		arg.ItemIndex,
+		arg.EntryIndex,
+		arg.EntryJson,
+		arg.CreatedAt,
+	)
+	return err
 }
 
 const listLoopEffectOutbox = `-- name: ListLoopEffectOutbox :many
@@ -241,6 +325,73 @@ func (q *Queries) ListLoopNodeWaits(ctx context.Context, arg ListLoopNodeWaitsPa
 			&i.AheadPayloadJson,
 			&i.IssuedEpoch,
 			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPendingLoopEffects = `-- name: ListPendingLoopEffects :many
+SELECT effect.loop_run_id, run.workspace_id, effect.delivery_id,
+       effect.source_event_id, effect.trigger, effect.generation, effect.node_id,
+       effect.item_index, effect.entry_index, effect.entry_json, effect.state,
+       effect.attempts, effect.created_at, effect.delivered_at
+FROM loop_effect_outbox AS effect
+JOIN loop_runs AS run ON run.id = effect.loop_run_id
+WHERE effect.state = 'pending'
+ORDER BY effect.created_at ASC, effect.loop_run_id ASC, effect.delivery_id ASC
+LIMIT ?1
+`
+
+type ListPendingLoopEffectsRow struct {
+	LoopRunID     string       `json:"loop_run_id"`
+	WorkspaceID   string       `json:"workspace_id"`
+	DeliveryID    string       `json:"delivery_id"`
+	SourceEventID string       `json:"source_event_id"`
+	Trigger       string       `json:"trigger"`
+	Generation    int64        `json:"generation"`
+	NodeID        string       `json:"node_id"`
+	ItemIndex     int64        `json:"item_index"`
+	EntryIndex    int64        `json:"entry_index"`
+	EntryJson     string       `json:"entry_json"`
+	State         string       `json:"state"`
+	Attempts      int64        `json:"attempts"`
+	CreatedAt     time.Time    `json:"created_at"`
+	DeliveredAt   sql.NullTime `json:"delivered_at"`
+}
+
+func (q *Queries) ListPendingLoopEffects(ctx context.Context, pageLimit int64) ([]ListPendingLoopEffectsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listPendingLoopEffects, pageLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPendingLoopEffectsRow{}
+	for rows.Next() {
+		var i ListPendingLoopEffectsRow
+		if err := rows.Scan(
+			&i.LoopRunID,
+			&i.WorkspaceID,
+			&i.DeliveryID,
+			&i.SourceEventID,
+			&i.Trigger,
+			&i.Generation,
+			&i.NodeID,
+			&i.ItemIndex,
+			&i.EntryIndex,
+			&i.EntryJson,
+			&i.State,
+			&i.Attempts,
+			&i.CreatedAt,
+			&i.DeliveredAt,
 		); err != nil {
 			return nil, err
 		}

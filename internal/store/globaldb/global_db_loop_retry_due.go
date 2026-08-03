@@ -275,13 +275,17 @@ func staleRetrySchedulePayload(
 	cell looppkg.RetryDueCell,
 	state loopRetryScheduleState,
 ) map[string]any {
+	var currentEpoch any
+	if state.epoch.Valid {
+		currentEpoch = state.epoch.Int64
+	}
 	return map[string]any{
 		loopRunEventPayloadKeyGeneration:   cell.Generation,
 		loopRunEventPayloadKeyNodeID:       cell.NodeID,
 		loopRunEventPayloadKeyItemIndex:    cell.ItemIndex,
 		watchEventsPayloadAttemptKey:       cell.Attempt,
 		loopRunEventPayloadKeyIssuedEpoch:  cell.Epoch,
-		loopRunEventPayloadKeyCurrentEpoch: state.epoch.Int64,
+		loopRunEventPayloadKeyCurrentEpoch: currentEpoch,
 		loopRunEventPayloadKeyScheduleKind: loopRetryScheduleKind,
 	}
 }

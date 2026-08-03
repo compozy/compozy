@@ -96,9 +96,9 @@ func TestGlobalDBLoopNodeRequeueShouldBeAtomic(t *testing.T) {
 		run := seedQuarantinedLoopNodeForTest(t, globalDB, now, looppkg.StatusRunning)
 		expectedRevision := int64(4)
 		result, err := globalDB.RequeueNode(ctx, looppkg.NodeRequeueMutation{
-			WorkspaceID:      run.WorkspaceID,
-			RunID:            run.ID,
-			NodeID:           "finish",
+			WorkspaceID:      looppkg.WorkspaceID(" " + string(run.WorkspaceID) + " "),
+			RunID:            looppkg.RunID(" " + string(run.ID) + " "),
+			NodeID:           " finish ",
 			Reason:           strings.Repeat("target repaired ", 2_000) + "api_key=planted-secret",
 			ExpectedRevision: &expectedRevision,
 			Actor:            operatorActorContextForTest("operator:alice"),
@@ -107,7 +107,7 @@ func TestGlobalDBLoopNodeRequeueShouldBeAtomic(t *testing.T) {
 		if err != nil {
 			t.Fatalf("RequeueNode() error = %v", err)
 		}
-		if result.Control.Quarantined || result.Control.Revision != 5 ||
+		if result.Control.NodeID != "finish" || result.Control.Quarantined || result.Control.Revision != 5 ||
 			result.Coordinator.Status != taskpkg.TaskRunStatusQueued {
 			t.Fatalf("RequeueNode() result = %#v, want cleared control and queued coordinator", result)
 		}
@@ -1199,6 +1199,57 @@ func TestGlobalDBLoopRetryDueShouldFenceAndPageSchedules(t *testing.T) {
 		}
 		if diagnostics != 1 {
 			t.Fatalf("stale schedule diagnostics = %d, want 1", diagnostics)
+		}
+	})
+
+	t.Run("Should preserve a null current epoch when the output row is missing", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 8, 2, 14, 45, 0, 0, time.UTC)
+		cell := seedLoopRetryDueCell(
+			t, globalDB, "looprun-retry-missing-output", now, now.Add(-time.Second), false, false,
+		)
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`DELETE FROM loop_generation_outputs
+			 WHERE loop_run_id = ? AND generation = ? AND node_id = ? AND item_index = ?`,
+			cell.LoopRunID,
+			cell.Generation,
+			cell.NodeID,
+			cell.ItemIndex,
+		); err != nil {
+			t.Fatalf("delete retry output error = %v", err)
+		}
+		_, added, current, err := globalDB.EnqueueLoopRetryWakeIfCurrent(
+			ctx,
+			coordinatorActorContextForTest().Origin,
+			cell,
+			now,
+		)
+		if err != nil {
+			t.Fatalf("EnqueueLoopRetryWakeIfCurrent(missing output) error = %v", err)
+		}
+		if added || current {
+			t.Fatalf("missing-output wake added=%v current=%v, want false/false", added, current)
+		}
+		var raw string
+		if err := globalDB.db.QueryRowContext(
+			ctx,
+			`SELECT payload_json FROM loop_run_events
+			 WHERE loop_run_id = ? AND kind = ? ORDER BY seq DESC LIMIT 1`,
+			cell.LoopRunID,
+			loopRunEventStaleScheduleDropped,
+		).Scan(&raw); err != nil {
+			t.Fatalf("read stale retry payload error = %v", err)
+		}
+		var payload map[string]any
+		if err := json.Unmarshal([]byte(raw), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(stale retry payload) error = %v", err)
+		}
+		if value, exists := payload[loopRunEventPayloadKeyCurrentEpoch]; !exists || value != nil {
+			t.Fatalf("current_epoch = %#v exists=%v, want explicit null", value, exists)
 		}
 	})
 }

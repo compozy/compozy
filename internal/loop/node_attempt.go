@@ -55,12 +55,9 @@ type NodeAttempt struct {
 	NextAttemptAt *time.Time
 }
 
-func (a NodeAttempt) normalized(loopRunID RunID, generation int) NodeAttempt {
+func (a NodeAttempt) normalized(loopRunID RunID) NodeAttempt {
 	if a.LoopRunID == "" {
 		a.LoopRunID = loopRunID
-	}
-	if a.Generation == 0 {
-		a.Generation = generation
 	}
 	a.NodeID = NodeID(strings.TrimSpace(string(a.NodeID)))
 	a.FailureCode = strings.TrimSpace(a.FailureCode)
@@ -82,6 +79,9 @@ func (a NodeAttempt) normalized(loopRunID RunID, generation int) NodeAttempt {
 }
 
 func (a NodeAttempt) validate(loopRunID RunID, generation int) error {
+	if a.Generation < 1 || generation < 1 {
+		return fmt.Errorf("%w: node attempt generation must be positive", ErrValidation)
+	}
 	if a.LoopRunID != loopRunID || a.Generation != generation {
 		return fmt.Errorf("%w: node attempt snapshot identity does not match generation", ErrValidation)
 	}

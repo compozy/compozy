@@ -180,6 +180,7 @@ CREATE TABLE loop_admission_claims (
 	event_key          TEXT NOT NULL,
 	loop_run_id        TEXT NOT NULL,
 	claimed_at         TIMESTAMP NOT NULL,
+	expires_at         TIMESTAMP NOT NULL,
 	suppressed_count   INTEGER NOT NULL DEFAULT 0,
 	last_suppressed_at TIMESTAMP,
 	PRIMARY KEY (workspace_id, loop_name, source_key, event_key)
@@ -535,6 +536,9 @@ CREATE INDEX idx_loop_node_waits_state ON loop_node_waits(claim_state);
 
 CREATE INDEX idx_loop_effect_outbox_pending
 	ON loop_effect_outbox(state) WHERE state = 'pending';
+
+CREATE INDEX idx_loop_admission_claims_expiry
+	ON loop_admission_claims(expires_at);
 
 CREATE INDEX idx_loop_goal_session_cleanup_pending
 			ON loop_goal_session_cleanup(id) WHERE completed_at IS NULL;

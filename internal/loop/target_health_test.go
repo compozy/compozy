@@ -80,7 +80,8 @@ func TestTargetHealthShouldCountOnlyUnhandledTransportFailures(t *testing.T) {
 		runner := &CoordinatorRunner{targetHealth: health}
 		failure := &ClassifiedFailure{Class: FailureTransport, Cause: "backend unavailable"}
 		events, err := runner.accountActionTarget(
-			ctx, run, node, task.Run{ID: "taskrun-transport"}, failure, AttemptEscalated,
+			ctx, run, node, ActionExecutionInput{WorkspaceID: run.WorkspaceID},
+			task.Run{ID: "taskrun-transport"}, failure, AttemptEscalated,
 		)
 		if err != nil {
 			t.Fatalf("accountActionTarget() error = %v", err)
@@ -123,7 +124,8 @@ func TestTargetHealthShouldCountOnlyUnhandledTransportFailures(t *testing.T) {
 			health := newRecordingTargetHealth()
 			runner := &CoordinatorRunner{targetHealth: health}
 			if _, err := runner.accountActionTarget(
-				ctx, run, node, task.Run{ID: tc.name}, tc.failure, tc.disposition,
+				ctx, run, node, ActionExecutionInput{WorkspaceID: run.WorkspaceID},
+				task.Run{ID: tc.name}, tc.failure, tc.disposition,
 			); err != nil {
 				t.Fatalf("accountActionTarget() error = %v", err)
 			}
@@ -135,6 +137,85 @@ func TestTargetHealthShouldCountOnlyUnhandledTransportFailures(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestTargetHealthShouldRetainOnlyAllowedBoundProbes(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should not retain a denied target probe", func(t *testing.T) {
+		t.Parallel()
+
+		health := newRecordingTargetHealth()
+		health.decision = deadentity.ProbeDecision{Allowed: false, Dead: true}
+		runner := &CoordinatorRunner{targetHealth: health}
+		node := dsl.Node{ID: "search", Class: dsl.NodeClassAction, Kind: "compozy__search"}
+		if err := runner.admitActionTarget(t.Context(), "taskrun-denied", node, ActionExecutionInput{
+			WorkspaceID: "ws-target",
+		}); err == nil {
+			t.Fatal("admitActionTarget() error = nil, want denied target")
+		}
+		if _, found := runner.takeTargetProbe("taskrun-denied"); found {
+			t.Fatal("denied target probe was retained")
+		}
+	})
+
+	t.Run("Should reject a blank task run id before probing", func(t *testing.T) {
+		t.Parallel()
+
+		health := newRecordingTargetHealth()
+		runner := &CoordinatorRunner{targetHealth: health}
+		node := dsl.Node{ID: "search", Class: dsl.NodeClassAction, Kind: "compozy__search"}
+		if err := runner.admitActionTarget(t.Context(), " ", node, ActionExecutionInput{
+			WorkspaceID: "ws-target",
+		}); !errors.Is(err, ErrValidation) {
+			t.Fatalf("admitActionTarget(blank id) error = %v, want ErrValidation", err)
+		}
+		if got := health.probedKeys(); len(got) != 0 {
+			t.Fatalf("probe keys = %#v, want no target probe", got)
+		}
+	})
+}
+
+func TestTargetHealthShouldReuseRenderedIdentityWithoutProbeMemory(t *testing.T) {
+	t.Run("Should reconstruct the rendered target after probe memory is cleared", func(t *testing.T) {
+		t.Parallel()
+
+		health := newRecordingTargetHealth()
+		runner := &CoordinatorRunner{targetHealth: health}
+		run := Run{ID: "looprun-rendered-target", WorkspaceID: "ws-target"}
+		node := dsl.Node{
+			ID: "agent", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent),
+			Params: dsl.NodeParams{"agent": "{{ .inputs.agent }}", "prompt": "work"},
+		}
+		input := ActionExecutionInput{
+			WorkspaceID: run.WorkspaceID,
+			Namespace:   map[string]any{"inputs": map[string]any{"agent": "planner"}},
+		}
+		const taskRunID = "taskrun-rendered-target"
+		if err := runner.admitActionTarget(t.Context(), taskRunID, node, input); err != nil {
+			t.Fatalf("admitActionTarget() error = %v", err)
+		}
+		runner.discardTargetProbe(taskRunID)
+		target, err := runner.actionTargetFor(taskRunID, run, node, input)
+		if err != nil {
+			t.Fatalf("actionTargetFor() error = %v", err)
+		}
+		if target != "planner" {
+			t.Fatalf("action target = %q, want planner", target)
+		}
+		failure := &ClassifiedFailure{Class: FailureTransport, Cause: "transport unavailable"}
+		if _, err := runner.accountActionTarget(
+			t.Context(), run, node, input, task.Run{ID: taskRunID}, failure, AttemptEscalated,
+		); err != nil {
+			t.Fatalf("accountActionTarget() error = %v", err)
+		}
+		probes := health.probedKeys()
+		failures := health.failureKeys()
+		if len(probes) != 1 || len(failures) != 1 || probes[0] != failures[0] ||
+			failures[0].EntityID != "run-agent:planner" {
+			t.Fatalf("probe/failure keys = %#v/%#v, want identical rendered identity", probes, failures)
+		}
+	})
 }
 
 func TestTargetHealthShouldEmitHalfOpenOutcomeTransitions(t *testing.T) {
@@ -177,7 +258,8 @@ func TestTargetHealthShouldEmitHalfOpenOutcomeTransitions(t *testing.T) {
 				t.Fatalf("admitActionTarget() error = %v", err)
 			}
 			events, err := runner.accountActionTarget(
-				ctx, run, node, task.Run{ID: taskRunID}, tc.failure, tc.disposition,
+				ctx, run, node, ActionExecutionInput{WorkspaceID: run.WorkspaceID},
+				task.Run{ID: taskRunID}, tc.failure, tc.disposition,
 			)
 			if err != nil {
 				t.Fatalf("accountActionTarget() error = %v", err)
@@ -231,6 +313,12 @@ func (h *recordingTargetHealth) RecordSuccess(_ context.Context, key store.DeadE
 	h.successes = append(h.successes, key)
 	h.dead = false
 	return nil
+}
+
+func (h *recordingTargetHealth) failureKeys() []store.DeadEntityKey {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return append([]store.DeadEntityKey(nil), h.failures...)
 }
 
 func (h *recordingTargetHealth) Status(context.Context, store.DeadEntityKey) (deadentity.Status, error) {

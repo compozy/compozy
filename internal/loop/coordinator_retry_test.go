@@ -1,6 +1,7 @@
 package loop
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -210,6 +211,24 @@ func TestPlanNodeRetryShouldApplyPinnedLifecyclePolicy(t *testing.T) {
 		}
 		if plan.retry || plan.failure.Class != FailureBudgetExhausted {
 			t.Fatalf("planNodeRetry() = %#v, want budget exhaustion", plan)
+		}
+	})
+
+	t.Run("Should reject a retry deadline without a persisted first schedule time", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := planNodeRetry(&nodeRetryPlanInput{
+			node: dsl.Node{
+				ID: "fetch", Class: dsl.NodeClassAction, Kind: "http",
+				NodeLifecycleState: &dsl.NodeLifecycleState{Deadline: "10s"},
+			},
+			effective: effective,
+			output:    GenerationOutput{Attempt: 1},
+			failure:   transport,
+			now:       now,
+		})
+		if !errors.Is(err, ErrValidation) {
+			t.Fatalf("planNodeRetry() error = %v, want ErrValidation", err)
 		}
 	})
 }

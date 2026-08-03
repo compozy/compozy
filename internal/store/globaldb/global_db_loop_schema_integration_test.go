@@ -343,9 +343,9 @@ func TestOpenGlobalDBBootstrapsLoopSchemaIntegration(t *testing.T) {
 			{
 				name: "admission claim",
 				query: `INSERT INTO loop_admission_claims (
-					workspace_id, loop_name, source_key, event_key, loop_run_id, claimed_at
-				) VALUES ('ws-1', 'delivery', 'source', 'event', ?, ?)`,
-				args: []any{created.ID, now},
+					workspace_id, loop_name, source_key, event_key, loop_run_id, claimed_at, expires_at
+				) VALUES ('ws-1', 'delivery', 'source', 'event', ?, ?, ?)`,
+				args: []any{created.ID, now, now.Add(7 * 24 * time.Hour)},
 			},
 		}
 		for _, insert := range inserts {
@@ -365,6 +365,15 @@ func TestOpenGlobalDBBootstrapsLoopSchemaIntegration(t *testing.T) {
 			assertLoopLifecycleRowCount(t, globalDB.db, table, string(created.ID), 0)
 		}
 		assertLoopLifecycleRowCount(t, globalDB.db, "loop_admission_claims", string(created.ID), 1)
+		deleted, err := globalDB.SweepExpiredAdmissionClaims(ctx, now.Add(6*24*time.Hour))
+		if err != nil || deleted != 0 {
+			t.Fatalf("SweepExpiredAdmissionClaims(before horizon) = (%d, %v), want (0, nil)", deleted, err)
+		}
+		deleted, err = globalDB.SweepExpiredAdmissionClaims(ctx, now.Add(7*24*time.Hour))
+		if err != nil || deleted != 1 {
+			t.Fatalf("SweepExpiredAdmissionClaims(at horizon) = (%d, %v), want (1, nil)", deleted, err)
+		}
+		assertLoopLifecycleRowCount(t, globalDB.db, "loop_admission_claims", string(created.ID), 0)
 	})
 }
 
@@ -581,7 +590,7 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 	})
 	assertTableColumns(t, globalDB.db, "loop_admission_claims", []string{
 		"workspace_id", "loop_name", "source_key", "event_key", "loop_run_id", "claimed_at",
-		"suppressed_count", "last_suppressed_at",
+		"expires_at", "suppressed_count", "last_suppressed_at",
 	})
 	assertTableColumns(t, globalDB.db, "loop_effect_outbox", []string{
 		"loop_run_id", "delivery_id", "source_event_id", "trigger", "generation", "node_id", "item_index",
@@ -673,6 +682,7 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 		"idx_loop_node_waits_state",
 	)
 	assertIndexesPresent(t, globalDB.db, "loop_effect_outbox", "idx_loop_effect_outbox_pending")
+	assertIndexesPresent(t, globalDB.db, "loop_admission_claims", "idx_loop_admission_claims_expiry")
 	assertIndexSQLContains(t, globalDB.db, "idx_loop_run_events_run_seq", "ON loop_run_events(loop_run_id, seq)")
 	assertIndexSQLContains(t, globalDB.db, "uq_loop_run_events_delivery", "WHERE delivery_key IS NOT NULL")
 	assertIndexesPresent(t, globalDB.db, "loop_gate_decisions", "idx_loop_gate_decisions_workspace_run")

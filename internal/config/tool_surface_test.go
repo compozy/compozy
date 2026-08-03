@@ -459,7 +459,7 @@ func TestToolConfigPathPolicy(t *testing.T) {
 		{
 			name: "Should allow delivery predicate cost",
 			path: "loops.defaults.delivery.predicates.cost_limit",
-			kind: ConfigValueInt,
+			kind: ConfigValueUint64,
 		},
 		{
 			name: "Should allow delivery wait attempts",
@@ -504,7 +504,7 @@ func TestToolConfigPathPolicy(t *testing.T) {
 		{
 			name: "Should allow watch predicate cost",
 			path: "loops.defaults.watch.predicates.cost_limit",
-			kind: ConfigValueInt,
+			kind: ConfigValueUint64,
 		},
 		{
 			name: "Should allow watch wait attempts",
@@ -651,75 +651,90 @@ func TestToolConfigPathPolicyShouldExposeOnlyCurrentNetworkPaths(t *testing.T) {
 }
 
 func TestNormalizeToolConfigValue(t *testing.T) {
-	t.Parallel()
+	t.Run("Should normalize supported kinds and reject malformed values", func(t *testing.T) {
+		t.Parallel()
 
-	boolValue, err := NormalizeToolConfigValue(ConfigValueBool, "true")
-	if err != nil {
-		t.Fatalf("NormalizeToolConfigValue(bool) error = %v", err)
-	}
-	if boolValue != true {
-		t.Fatalf("NormalizeToolConfigValue(bool) = %#v, want true", boolValue)
-	}
+		boolValue, err := NormalizeToolConfigValue(ConfigValueBool, "true")
+		if err != nil {
+			t.Fatalf("NormalizeToolConfigValue(bool) error = %v", err)
+		}
+		if boolValue != true {
+			t.Fatalf("NormalizeToolConfigValue(bool) = %#v, want true", boolValue)
+		}
 
-	intValue, err := NormalizeToolConfigValue(ConfigValueInt, float64(7))
-	if err != nil {
-		t.Fatalf("NormalizeToolConfigValue(int) error = %v", err)
-	}
-	if intValue != 7 {
-		t.Fatalf("NormalizeToolConfigValue(int) = %#v, want 7", intValue)
-	}
+		intValue, err := NormalizeToolConfigValue(ConfigValueInt, float64(7))
+		if err != nil {
+			t.Fatalf("NormalizeToolConfigValue(int) error = %v", err)
+		}
+		if intValue != 7 {
+			t.Fatalf("NormalizeToolConfigValue(int) = %#v, want 7", intValue)
+		}
 
-	int64Value, err := NormalizeToolConfigValue(ConfigValueInt64, "922337203685477580")
-	if err != nil {
-		t.Fatalf("NormalizeToolConfigValue(int64) error = %v", err)
-	}
-	if int64Value != int64(922337203685477580) {
-		t.Fatalf("NormalizeToolConfigValue(int64) = %#v, want int64", int64Value)
-	}
+		int64Value, err := NormalizeToolConfigValue(ConfigValueInt64, "922337203685477580")
+		if err != nil {
+			t.Fatalf("NormalizeToolConfigValue(int64) error = %v", err)
+		}
+		if int64Value != int64(922337203685477580) {
+			t.Fatalf("NormalizeToolConfigValue(int64) = %#v, want int64", int64Value)
+		}
 
-	floatValue, err := NormalizeToolConfigValue(ConfigValueFloat, "1.25")
-	if err != nil {
-		t.Fatalf("NormalizeToolConfigValue(float) error = %v", err)
-	}
-	if floatValue != 1.25 {
-		t.Fatalf("NormalizeToolConfigValue(float) = %#v, want 1.25", floatValue)
-	}
+		uint64Value, err := NormalizeToolConfigValue(ConfigValueUint64, "18446744073709551615")
+		if err != nil {
+			t.Fatalf("NormalizeToolConfigValue(uint64) error = %v", err)
+		}
+		if uint64Value != uint64(18446744073709551615) {
+			t.Fatalf("NormalizeToolConfigValue(uint64) = %#v, want max uint64", uint64Value)
+		}
+		for _, invalid := range []any{"-1", "18446744073709551616", float64(1<<53) + 2} {
+			if _, err := NormalizeToolConfigValue(ConfigValueUint64, invalid); err == nil {
+				t.Fatalf("NormalizeToolConfigValue(uint64 %#v) error = nil, want non-nil", invalid)
+			}
+		}
 
-	durationValue, err := NormalizeToolConfigValue(ConfigValueDuration, "5s")
-	if err != nil {
-		t.Fatalf("NormalizeToolConfigValue(duration) error = %v", err)
-	}
-	if durationValue != "5s" {
-		t.Fatalf("NormalizeToolConfigValue(duration) = %#v, want 5s", durationValue)
-	}
+		floatValue, err := NormalizeToolConfigValue(ConfigValueFloat, "1.25")
+		if err != nil {
+			t.Fatalf("NormalizeToolConfigValue(float) error = %v", err)
+		}
+		if floatValue != 1.25 {
+			t.Fatalf("NormalizeToolConfigValue(float) = %#v, want 1.25", floatValue)
+		}
 
-	value, err := NormalizeToolConfigValue(ConfigValueStringSlice, []any{"codex", "claude"})
-	if err != nil {
-		t.Fatalf("NormalizeToolConfigValue(string slice) error = %v", err)
-	}
-	values, ok := value.([]string)
-	if !ok || len(values) != 2 || values[0] != "codex" || values[1] != "claude" {
-		t.Fatalf("NormalizeToolConfigValue(string slice) = %#v, want two strings", value)
-	}
-	tableValue, err := NormalizeToolConfigValue(ConfigValueTable, map[string]any{
-		"auto_title": map[string]any{
-			"fallback_chain": []any{map[string]any{"provider": "codex", "model": "gpt-5-mini"}},
-		},
+		durationValue, err := NormalizeToolConfigValue(ConfigValueDuration, "5s")
+		if err != nil {
+			t.Fatalf("NormalizeToolConfigValue(duration) error = %v", err)
+		}
+		if durationValue != "5s" {
+			t.Fatalf("NormalizeToolConfigValue(duration) = %#v, want 5s", durationValue)
+		}
+
+		value, err := NormalizeToolConfigValue(ConfigValueStringSlice, []any{"codex", "claude"})
+		if err != nil {
+			t.Fatalf("NormalizeToolConfigValue(string slice) error = %v", err)
+		}
+		values, ok := value.([]string)
+		if !ok || len(values) != 2 || values[0] != "codex" || values[1] != "claude" {
+			t.Fatalf("NormalizeToolConfigValue(string slice) = %#v, want two strings", value)
+		}
+		tableValue, err := NormalizeToolConfigValue(ConfigValueTable, map[string]any{
+			"auto_title": map[string]any{
+				"fallback_chain": []any{map[string]any{"provider": "codex", "model": "gpt-5-mini"}},
+			},
+		})
+		if err != nil {
+			t.Fatalf("NormalizeToolConfigValue(table) error = %v", err)
+		}
+		table, ok := tableValue.(map[string]any)
+		if !ok || table["auto_title"] == nil {
+			t.Fatalf("NormalizeToolConfigValue(table) = %#v, want normalized object", tableValue)
+		}
+
+		if _, err := NormalizeToolConfigValue(ConfigValueDuration, "not-a-duration"); err == nil {
+			t.Fatal("NormalizeToolConfigValue(invalid duration) error = nil, want non-nil")
+		}
+		if _, err := NormalizeToolConfigValue(ConfigValueInt, float64(1.5)); err == nil {
+			t.Fatal("NormalizeToolConfigValue(non-integral int) error = nil, want non-nil")
+		}
 	})
-	if err != nil {
-		t.Fatalf("NormalizeToolConfigValue(table) error = %v", err)
-	}
-	table, ok := tableValue.(map[string]any)
-	if !ok || table["auto_title"] == nil {
-		t.Fatalf("NormalizeToolConfigValue(table) = %#v, want normalized object", tableValue)
-	}
-
-	if _, err := NormalizeToolConfigValue(ConfigValueDuration, "not-a-duration"); err == nil {
-		t.Fatal("NormalizeToolConfigValue(invalid duration) error = nil, want non-nil")
-	}
-	if _, err := NormalizeToolConfigValue(ConfigValueInt, float64(1.5)); err == nil {
-		t.Fatal("NormalizeToolConfigValue(non-integral int) error = nil, want non-nil")
-	}
 }
 
 func TestRedactedConfigMapEntriesAndDiff(t *testing.T) {

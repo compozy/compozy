@@ -158,7 +158,7 @@ func recordCompletedRunLoopOutput(
 		return nil
 	}
 	if completion.Result.CoordinatorControl != nil {
-		_, err := updateLoopNodeOutputStatusWithExecutor(
+		recorded, err := updateLoopNodeOutputStatusWithExecutor(
 			ctx,
 			exec,
 			current,
@@ -166,7 +166,17 @@ func recordCompletedRunLoopOutput(
 			looppkg.GenerationOutputStatusControlPending,
 			"",
 		)
-		return err
+		if err != nil {
+			return err
+		}
+		if !recorded {
+			return fmt.Errorf(
+				"%w: coordinator control output for task run %q was fenced",
+				looppkg.ErrStaleGenerationOutput,
+				current.ID,
+			)
+		}
+		return nil
 	}
 	return recordLoopNodeTerminalWithExecutor(
 		ctx,

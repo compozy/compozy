@@ -59,6 +59,9 @@ func (s schedulerTaskSource) enqueueDueLoopRetryWakes(
 		s.loopRetryDueScan.cursor,
 		defaultLoopRetryDueScanPageSize,
 	)
+	if err != nil {
+		return err
+	}
 	s.loopRetryDueScan.cursor = next
-	return err
+	return nil
 }

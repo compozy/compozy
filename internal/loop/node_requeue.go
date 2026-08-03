@@ -21,6 +21,14 @@ type NodeRequeueMutation struct {
 	RequestedAt      time.Time
 }
 
+// Normalize trims requeue identities before validation and persistence lookup.
+func (m NodeRequeueMutation) Normalize() NodeRequeueMutation {
+	m.WorkspaceID = WorkspaceID(strings.TrimSpace(string(m.WorkspaceID)))
+	m.RunID = RunID(strings.TrimSpace(string(m.RunID)))
+	m.NodeID = NodeID(strings.TrimSpace(string(m.NodeID)))
+	return m
+}
+
 // NodeRequeueResult returns the cleared control and committed coordinator wake.
 type NodeRequeueResult struct {
 	Control     NodeControl
@@ -66,22 +74,23 @@ func ValidateNodeRequeueMutation(m NodeRequeueMutation) error {
 	return nil
 }
 
-func pendingRequeueNode(controls []NodeControl, generation int) (NodeID, bool, error) {
+func pendingRequeueNodes(controls []NodeControl, generation int) ([]NodeID, error) {
+	nodeIDs := make([]NodeID, 0)
 	for _, control := range controls {
 		if control.Quarantined || len(control.QuarantineEntry) == 0 {
 			continue
 		}
 		entry, err := decodeQuarantineEntry(control.QuarantineEntry)
 		if err != nil {
-			return "", false, err
+			return nil, err
 		}
 		if len(entry.Requeues) == 0 {
 			continue
 		}
 		latest := entry.Requeues[len(entry.Requeues)-1]
 		if latest.Generation == generation {
-			return control.NodeID, true, nil
+			nodeIDs = append(nodeIDs, control.NodeID)
 		}
 	}
-	return "", false, nil
+	return nodeIDs, nil
 }

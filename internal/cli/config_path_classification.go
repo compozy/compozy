@@ -60,6 +60,8 @@ func classifyAgentMutableConfigPath(path []string) (configSetValueKind, bool, bo
 		kind = configSetInt
 	case compozyconfig.ConfigValueInt64:
 		kind = configSetInt64
+	case compozyconfig.ConfigValueUint64:
+		kind = configSetUint64
 	case compozyconfig.ConfigValueFloat:
 		kind = configSetFloat
 	case compozyconfig.ConfigValueDuration:

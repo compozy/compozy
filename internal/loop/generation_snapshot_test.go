@@ -141,6 +141,7 @@ func TestStoreFinalizerShouldNormalizeGenerationOutputs(t *testing.T) {
 				LoopRunID:  "loop-run-1",
 				Generation: 4,
 				Payload: GenerationSnapshotPayload{Attempts: []NodeAttempt{{
+					Generation:    4,
 					NodeID:        "worker",
 					Attempt:       2,
 					FailureClass:  &failureClass,
@@ -170,6 +171,33 @@ func TestStoreFinalizerShouldNormalizeGenerationOutputs(t *testing.T) {
 		}
 		if got, want := call.args[10], AttemptRetried; got != want {
 			t.Fatalf("attempt disposition arg = %#v, want %q", got, want)
+		}
+	})
+
+	t.Run("Should reject a non-positive node attempt generation", func(t *testing.T) {
+		t.Parallel()
+
+		tx := &generationSnapshotTx{rowsAffected: 1}
+		err := NewStoreFinalizer().WriteGenerationSnapshot(
+			context.Background(),
+			tx,
+			task.GenerationSnapshot{
+				LoopRunID:  "loop-run-1",
+				Generation: 1,
+				Payload: GenerationSnapshotPayload{Attempts: []NodeAttempt{{
+					Generation:  0,
+					NodeID:      "worker",
+					Attempt:     1,
+					Disposition: AttemptSucceeded,
+					StartedAt:   time.Now().UTC(),
+				}}},
+			},
+		)
+		if !errors.Is(err, ErrValidation) {
+			t.Fatalf("WriteGenerationSnapshot() error = %v, want ErrValidation", err)
+		}
+		if len(tx.calls) != 0 {
+			t.Fatalf("ExecContext calls = %d, want no persistence", len(tx.calls))
 		}
 	})
 }
@@ -276,6 +304,24 @@ func TestGenerationSnapshotPayloadFromShouldNormalizeTypedIntents(t *testing.T) 
 		}
 		if !errors.Is(err, ErrValidation) {
 			t.Fatalf("GenerationSnapshotPayloadFrom() error = %v, want ErrValidation", err)
+		}
+	})
+
+	t.Run("Should accept approval boundary effects", func(t *testing.T) {
+		t.Parallel()
+
+		payload, err := GenerationSnapshotPayloadFrom(GenerationSnapshotPayload{
+			BoundaryEffects: map[Status][]RenderedEffectIntent{
+				StatusNeedsApproval: {{
+					Trigger: EffectTriggerOnFailed, Generation: 1, Entry: json.RawMessage(`{}`),
+				}},
+			},
+		})
+		if err != nil {
+			t.Fatalf("GenerationSnapshotPayloadFrom(needs approval effects) error = %v", err)
+		}
+		if len(payload.BoundaryEffects[StatusNeedsApproval]) != 1 {
+			t.Fatalf("approval boundary effects = %#v, want one intent", payload.BoundaryEffects)
 		}
 	})
 }

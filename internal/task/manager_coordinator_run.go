@@ -91,8 +91,19 @@ func (m *Service) armCoordinatorTimers(
 	timers []CoordinatorTimerSpec,
 	actor ActorContext,
 ) error {
-	if len(timers) == 0 || m.coordinatorTimerArmer == nil {
+	if len(timers) == 0 {
 		return nil
+	}
+	if m.coordinatorTimerArmer == nil {
+		keys := make([]string, 0, len(timers))
+		for _, timer := range timers {
+			keys = append(keys, timer.Normalize().IdempotencyKey)
+		}
+		return fmt.Errorf(
+			"%w: coordinator timer armer is required for timers %q",
+			ErrValidation,
+			strings.Join(keys, ", "),
+		)
 	}
 	var armErrs []error
 	for _, timer := range timers {

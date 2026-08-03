@@ -63,6 +63,12 @@ func (n *Node) Normalize() {
 	if n.NodeLifecycleState == nil {
 		n.NodeLifecycleState = &NodeLifecycleState{}
 	}
+	if n.Body != nil {
+		n.Body.Normalize()
+	}
+	if n.Contract != nil {
+		n.Contract.Normalize()
+	}
 }
 
 // Schema is a JSON-schema-compatible object or the TechSpec shorthand map.

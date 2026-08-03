@@ -108,6 +108,7 @@ func (r *loopEffectRelay) DrainPendingLoopEffects(
 		if len(entries) == 0 {
 			return report, nil
 		}
+		acknowledgedOnPage := 0
 		for _, entry := range entries {
 			report.Read++
 			ack := r.executeEntry(ctx, entry)
@@ -118,11 +119,15 @@ func (r *loopEffectRelay) DrainPendingLoopEffects(
 			if !acknowledged {
 				continue
 			}
+			acknowledgedOnPage++
 			if ack.Outcome == looppkg.EffectResultOK {
 				report.Delivered++
 			} else {
 				report.Failed++
 			}
+		}
+		if acknowledgedOnPage == 0 {
+			return report, nil
 		}
 	}
 }

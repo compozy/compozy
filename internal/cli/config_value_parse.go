@@ -38,6 +38,12 @@ func parseConfigSetValue(kind configSetValueKind, raw string) (any, error) {
 			return nil, fmt.Errorf("cli: parse integer value %q: %w", raw, err)
 		}
 		return value, nil
+	case configSetUint64:
+		value, err := strconv.ParseUint(trimmed, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("cli: parse unsigned integer value %q: %w", raw, err)
+		}
+		return value, nil
 	case configSetFloat:
 		value, err := strconv.ParseFloat(trimmed, 64)
 		if err != nil {

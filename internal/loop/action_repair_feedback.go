@@ -50,10 +50,19 @@ func runAgentPromptWithRepairFeedback(
 	generation int,
 	failures []ActionRepairFailure,
 ) (string, error) {
-	if generation <= 1 || len(failures) == 0 {
+	if generation <= 1 {
 		return prompt, nil
 	}
-	payload, err := json.Marshal(actionRepairFeedback{Generation: generation, Failures: failures})
+	escalated := make([]ActionRepairFailure, 0, len(failures))
+	for _, failure := range failures {
+		if failure.Disposition == AttemptEscalated {
+			escalated = append(escalated, failure)
+		}
+	}
+	if len(escalated) == 0 {
+		return prompt, nil
+	}
+	payload, err := json.Marshal(actionRepairFeedback{Generation: generation, Failures: escalated})
 	if err != nil {
 		return "", fmt.Errorf("loop: marshal action repair feedback: %w", err)
 	}

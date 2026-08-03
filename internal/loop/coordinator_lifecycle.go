@@ -41,6 +41,13 @@ func (r *CoordinatorRunner) applyNodeLifecyclePrecedence(
 	events := make([]GenerationLifecycleEventIntent, 0)
 	graph := resolved.Definition.Graph
 	topology := newControlTopology(graph)
+	history := GenerationHistory{}
+	if r.targetHealth != nil {
+		history, err = r.readGenerationHistory(ctx, run, generation)
+		if err != nil {
+			return nil, nil, nil, false, err
+		}
+	}
 	live := false
 	for index := range advanced {
 		if advanced[index].Status == generationOutputRetrying {
@@ -48,7 +55,7 @@ func (r *CoordinatorRunner) applyNodeLifecyclePrecedence(
 			continue
 		}
 		result, applyErr := r.applyTerminalNodeLifecycle(
-			ctx, run, generation, effective, graph, topology, advanced, index, attempts,
+			ctx, run, generation, effective, graph, topology, advanced, index, attempts, history,
 		)
 		if applyErr != nil {
 			return nil, nil, nil, false, applyErr
@@ -74,12 +81,28 @@ func (r *CoordinatorRunner) applyTerminalNodeLifecycle(
 	advanced []GenerationOutput,
 	index int,
 	attempts []NodeAttempt,
+	history GenerationHistory,
 ) (nodeLifecycleResult, error) {
 	output := advanced[index]
 	node, found := lifecycleActionNode(graph, output, generation, attempts)
 	if !found {
 		return nodeLifecycleResult{}, nil
 	}
+	defer r.discardTargetProbe(output.TaskRunID)
+	namespace, err := runtimeNamespaceWithHistory(
+		run,
+		generation,
+		graph,
+		topology,
+		advanced,
+		history,
+		node.ID,
+		output.ItemIndex,
+	)
+	if err != nil {
+		return nodeLifecycleResult{}, err
+	}
+	targetInput := ActionExecutionInput{WorkspaceID: run.WorkspaceID, Namespace: namespace}
 	taskRun, err := r.taskRuns.GetTaskRun(ctx, output.TaskRunID)
 	if err != nil {
 		return nodeLifecycleResult{}, fmt.Errorf(
@@ -94,14 +117,14 @@ func (r *CoordinatorRunner) applyTerminalNodeLifecycle(
 		if errorPolicy := nodeErrorPolicy(node); errorPolicy != nil && errorPolicy.Route != "" {
 			skipErrorRouteOnSuccess(graph, topology, node, output, &advanced)
 		}
-		events, err := r.accountActionTarget(ctx, run, node, taskRun, nil, attempt.Disposition)
+		events, err := r.accountActionTarget(ctx, run, node, targetInput, taskRun, nil, attempt.Disposition)
 		if err != nil {
 			return nodeLifecycleResult{}, err
 		}
 		return nodeLifecycleResult{attempt: attempt, events: events, handled: true}, nil
 	}
 	return r.applyFailedNodeLifecycle(
-		ctx, run, effective, graph, topology, advanced, index, attempts, node, taskRun, attempt,
+		ctx, run, effective, graph, topology, advanced, index, attempts, node, targetInput, taskRun, attempt,
 	)
 }
 
@@ -132,13 +155,18 @@ func (r *CoordinatorRunner) applyFailedNodeLifecycle(
 	index int,
 	attempts []NodeAttempt,
 	node dsl.Node,
+	targetInput ActionExecutionInput,
 	taskRun task.Run,
 	attempt NodeAttempt,
 ) (nodeLifecycleResult, error) {
 	output := advanced[index]
 	failure := classifyGenerationOutputFailure(output, taskRun)
 	if failure.Target == "" {
-		failure.Target = r.actionTargetFor(taskRun.ID, run, node)
+		target, err := r.actionTargetFor(taskRun.ID, run, node, targetInput)
+		if err != nil {
+			return nodeLifecycleResult{}, err
+		}
+		failure.Target = target
 	}
 	retryPlan, err := planNodeRetry(&nodeRetryPlanInput{
 		node:        node,
@@ -164,14 +192,18 @@ func (r *CoordinatorRunner) applyFailedNodeLifecycle(
 			return nodeLifecycleResult{}, err
 		}
 		advanced[index] = output
-		events, err := r.accountActionTarget(ctx, run, node, taskRun, &failure, attempt.Disposition)
+		events, err := r.accountActionTarget(
+			ctx, run, node, targetInput, taskRun, &failure, attempt.Disposition,
+		)
 		if err != nil {
 			return nodeLifecycleResult{}, err
 		}
 		return nodeLifecycleResult{attempt: attempt, events: events, handled: true, live: true}, nil
 	}
 	attempt.Disposition = applyNodeFailureDisposition(graph, topology, node, output, advanced, index, failure)
-	events, err := r.accountActionTarget(ctx, run, node, taskRun, &failure, attempt.Disposition)
+	events, err := r.accountActionTarget(
+		ctx, run, node, targetInput, taskRun, &failure, attempt.Disposition,
+	)
 	if err != nil {
 		return nodeLifecycleResult{}, err
 	}
@@ -307,8 +339,12 @@ func classifyGenerationOutputFailure(output GenerationOutput, taskRun task.Run) 
 	failure := actionFailureFromOutputRef(output.OutputRef)
 	if failure.Code == "" {
 		failure = NewActionFailure(
-			firstNonEmpty(strings.TrimSpace(output.OutputRef), string(FailurePayloadDeclared)),
-			firstNonEmpty(strings.TrimSpace(taskRun.Error), "node execution failed"),
+			string(FailurePayloadDeclared),
+			firstNonEmpty(
+				strings.TrimSpace(output.OutputRef),
+				strings.TrimSpace(taskRun.Error),
+				"node execution failed",
+			),
 			"",
 		)
 	}
