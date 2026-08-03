@@ -900,6 +900,10 @@ describe("useOsShortcuts", () => {
       app: "new-tab",
       stackTargetWindowId: "window:primary",
     });
+
+    fireEvent.keyDown(document, { key: "[", code: "BracketLeft", ctrlKey: true });
+
+    expect(shell.controller.popWindowRoute).toHaveBeenCalledWith("window:primary");
   });
 
   it("Should leave editable descendants and repeated chords untouched [UT-099]", () => {

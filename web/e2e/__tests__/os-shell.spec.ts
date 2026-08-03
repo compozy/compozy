@@ -1348,6 +1348,7 @@ test("E2E-029: dropping onto a tiled window splits its group and the zoom menu a
       normalizedFrameForWindow(await windowManagerSnapshot(runtime, workspace.id), tasksID)
     )
     .toEqual({ x: 0.5, y: 0, width: 0.5, height: 1 });
+  await expect(tasks).toHaveAttribute("data-window-placement", "tiled");
 
   const tasksRect = await tasks.boundingBox();
   if (!tasksRect) throw new Error("snapped tasks window must be visible");
@@ -2665,30 +2666,16 @@ test("E2E-023: the 12-window envelope holds for drag frames, restore, and conver
   expect(restore).toBeLessThan(500);
 
   // The envelope measures steady-state pointer fluidity: wait until the main
-  // thread has been long-task quiet for 600ms so the 12 window bodies' initial
-  // content burst can't masquerade as drag jank. (networkidle never settles
-  // here — the shell keeps WebSocket/SSE connections open by design.)
-  await appPage.evaluate(() => {
-    const settle = { last: performance.now() };
-    Reflect.set(window, "__osSettle", settle);
-    new PerformanceObserver(list => {
-      for (const entry of list.getEntries()) {
-        settle.last = Math.max(settle.last, entry.startTime + entry.duration);
-      }
-    }).observe({ type: "longtask", buffered: true });
-  });
-  await appPage.waitForFunction(() => {
-    const settle = Reflect.get(window, "__osSettle") as { last: number };
-    return performance.now() - settle.last > 600;
-  });
+  // thread has been long-task quiet so the 12 window bodies' initial content
+  // burst can't masquerade as drag jank. (networkidle never settles here — the
+  // shell keeps WebSocket/SSE connections open by design.)
+  await installLongTaskQuietProbe(appPage);
+  await waitForLongTaskQuiet(appPage);
 
   const dragged = appWindow(appPage, "vault");
   await focusWindow(appPage, dragged);
   const grip = await windowGrip(dragged);
-  await appPage.waitForFunction(() => {
-    const settle = Reflect.get(window, "__osSettle") as { last: number };
-    return performance.now() - settle.last > 600;
-  });
+  await waitForLongTaskQuiet(appPage);
 
   // Long-task probe during a 3s continuous drag of one window. Install it
   // after focus settles so the envelope measures drag frames, not activation.
@@ -2723,7 +2710,13 @@ test("E2E-023: the 12-window envelope holds for drag frames, restore, and conver
   let worstPeerTask = 0;
   try {
     for (const peer of [peerA, peerB]) {
-      await expect(appWindow(peer, "sandbox")).toBeAttached();
+      for (const app of PERF_APPS) {
+        const id = perfWindowIDs.get(app);
+        if (!id) throw new Error(`performance fixture must retain the ${app} window ID`);
+        await expect(osShellSelectors(peer).window(id)).toBeAttached();
+      }
+      await installLongTaskQuietProbe(peer);
+      await waitForLongTaskQuiet(peer);
       await peer.evaluate(() => {
         const tasks: number[] = [];
         Reflect.set(window, "__osLongTasks", tasks);
@@ -2789,6 +2782,25 @@ async function openPeerPage(browser: Browser, runtime: BrowserRuntime): Promise<
   await page.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
   await useGlobalWorkspaceIfPrompted(page);
   return page;
+}
+
+async function installLongTaskQuietProbe(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const settle = { last: performance.now() };
+    Reflect.set(window, "__osSettle", settle);
+    new PerformanceObserver(list => {
+      for (const entry of list.getEntries()) {
+        settle.last = Math.max(settle.last, entry.startTime + entry.duration);
+      }
+    }).observe({ type: "longtask", buffered: true });
+  });
+}
+
+async function waitForLongTaskQuiet(page: Page): Promise<void> {
+  await page.waitForFunction(() => {
+    const settle = Reflect.get(window, "__osSettle") as { last: number };
+    return performance.now() - settle.last > 600;
+  });
 }
 
 async function openDockApp(page: Page, name: string, app: string) {

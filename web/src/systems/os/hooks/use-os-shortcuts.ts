@@ -27,6 +27,15 @@ function isPlainMod(event: KeyboardEvent): boolean {
   return (event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey;
 }
 
+function isPrimaryModifierPressed(
+  event: KeyboardEvent,
+  primaryModifier: ReturnType<typeof primaryShortcutModifier>
+): boolean {
+  return primaryModifier === "meta"
+    ? event.metaKey && !event.ctrlKey
+    : event.ctrlKey && !event.metaKey;
+}
+
 /** AltGr aliases ⌃⌥ on some layouts — never steal keystrokes from text entry. */
 function isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false;
@@ -103,12 +112,11 @@ export function useOsShortcuts(
         });
         return;
       }
-      // ⌘[ pops the active tab's own stack (D7). The chord is fixed: the Go
-      // rebinding allow-list deliberately excludes navigation pops.
+      // Primary+[ pops the active tab's own stack (D7). The chord is fixed:
+      // the Go rebinding allow-list deliberately excludes navigation pops.
       if (
         !editableTarget &&
-        event.metaKey &&
-        !event.ctrlKey &&
+        isPrimaryModifierPressed(event, primaryModifier) &&
         !event.altKey &&
         !event.shiftKey &&
         event.code === "BracketLeft" &&
