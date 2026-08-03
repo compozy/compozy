@@ -91,7 +91,7 @@ func fanOutBranchCount(outputs []GenerationOutput, fanOutID dsl.NodeID) (int, bo
 		if output.NodeID != string(fanOutID) || output.ItemIndex != 0 {
 			continue
 		}
-		materialization, ok, err := parseFanOutMaterialization(output.OutputRef)
+		materialization, ok, err := parseFanOutMaterialization(generationOutputRuntimeRef(output))
 		if err != nil || !ok {
 			return 0, false
 		}
@@ -178,7 +178,7 @@ func fanOutMaxParallel(outputs []GenerationOutput, fanOutID dsl.NodeID) int {
 		if output.NodeID != string(fanOutID) || output.ItemIndex != 0 {
 			continue
 		}
-		materialization, ok, err := parseFanOutMaterialization(output.OutputRef)
+		materialization, ok, err := parseFanOutMaterialization(generationOutputRuntimeRef(output))
 		if err != nil || !ok {
 			return 0
 		}

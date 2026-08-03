@@ -77,7 +77,7 @@ var phaseAWatchEvents = []WatchEventsContract{
 			"previous_session_id",
 			"recovery_action",
 			"recovery_reason",
-			"error",
+			watchEventsPayloadError,
 		},
 	},
 	{
@@ -105,7 +105,7 @@ var phaseAWatchEvents = []WatchEventsContract{
 			"task_run_id",
 			reasonMetaStatus,
 			"run_status",
-			"error",
+			watchEventsPayloadError,
 			watchEventsPayloadDetails,
 			"output_ref",
 		},

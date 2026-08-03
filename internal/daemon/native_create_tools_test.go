@@ -277,7 +277,7 @@ func TestNativeNetworkChannelUpdate(t *testing.T) {
 func TestNativeAgentCreate(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should report the operator-selected target workspace", func(t *testing.T) {
+	t.Run("Should report the registered target workspace", func(t *testing.T) {
 		t.Parallel()
 
 		homePaths := testHomePaths(t)
@@ -323,7 +323,9 @@ func TestNativeAgentCreate(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Registry.Call(agent_create target workspace) error = %v", err)
 		}
-		requireNativeStructuredContains(t, result, []byte(`"workspace_id":"identity-target"`))
+		requireNativeStructuredContains(t, result, []byte(`"workspace_id":"ws-target"`))
+		requireNativeStructuredExcludes(t, result, []byte(`"workspace_id":"identity-target"`))
+		requireNativeStructuredExcludes(t, result, []byte(`"workspace_id":"target-alias"`))
 		requireNativeStructuredExcludes(t, result, []byte(`"workspace_id":"ws-scope"`))
 	})
 
@@ -551,47 +553,51 @@ func TestNativeAgentCreate(t *testing.T) {
 func TestNativeWorkspaceDescribeIncludesOrdinaryOnboardingAgent(t *testing.T) {
 	t.Parallel()
 
-	const workspaceID = "ws-native-network"
-	registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-		Workspaces: apitest.StubWorkspaceService{
-			ResolveFn: func(ctx context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
-				if err := ctx.Err(); err != nil {
-					return workspacepkg.ResolvedWorkspace{}, err
-				}
-				if ref != workspaceID {
-					t.Fatalf("Resolve() ref = %q, want %q", ref, workspaceID)
-				}
-				return workspacepkg.ResolvedWorkspace{
-					Workspace: workspacepkg.Workspace{
-						ID:      workspaceID,
-						RootDir: t.TempDir(),
-						Name:    "native-network",
-					},
-					WorkspaceID: workspaceID,
-					Agents: []compozyconfig.AgentDef{
-						{Name: compozyconfig.DefaultAgentName, Provider: "codex", Prompt: "General."},
-						{Name: "onboarding", Provider: "codex", Prompt: "Onboarding."},
-					},
-				}, nil
-			},
-		},
-		Sessions: nativeNetworkTestSessionManager(workspaceID),
-		AgentCatalog: nativeAgentCatalogStub{agents: []compozyconfig.AgentDef{
-			{Name: "catalog-visible", Provider: "codex", Prompt: "Catalog visible."},
-			{Name: "onboarding", Provider: "codex", Prompt: "Catalog onboarding."},
-		}},
-	}, nativeApproveAllPolicyInputs())
+	t.Run("Should include ordinary onboarding alongside workspace and catalog agents", func(t *testing.T) {
+		t.Parallel()
 
-	result, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
-		ToolID: toolspkg.ToolIDWorkspaceDescribe,
-		Input:  json.RawMessage("{\"workspace\":\"ws-native-network\"}"),
+		const workspaceID = "ws-native-network"
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Workspaces: apitest.StubWorkspaceService{
+				ResolveFn: func(ctx context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+					if err := ctx.Err(); err != nil {
+						return workspacepkg.ResolvedWorkspace{}, err
+					}
+					if ref != workspaceID {
+						t.Fatalf("Resolve() ref = %q, want %q", ref, workspaceID)
+					}
+					return workspacepkg.ResolvedWorkspace{
+						Workspace: workspacepkg.Workspace{
+							ID:      workspaceID,
+							RootDir: t.TempDir(),
+							Name:    "native-network",
+						},
+						WorkspaceID: workspaceID,
+						Agents: []compozyconfig.AgentDef{
+							{Name: compozyconfig.DefaultAgentName, Provider: "codex", Prompt: "General."},
+							{Name: "onboarding", Provider: "codex", Prompt: "Onboarding."},
+						},
+					}, nil
+				},
+			},
+			Sessions: nativeNetworkTestSessionManager(workspaceID),
+			AgentCatalog: nativeAgentCatalogStub{agents: []compozyconfig.AgentDef{
+				{Name: "catalog-visible", Provider: "codex", Prompt: "Catalog visible."},
+				{Name: "onboarding", Provider: "codex", Prompt: "Catalog onboarding."},
+			}},
+		}, nativeApproveAllPolicyInputs())
+
+		result, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDWorkspaceDescribe,
+			Input:  json.RawMessage("{\"workspace\":\"ws-native-network\"}"),
+		})
+		if err != nil {
+			t.Fatalf("Registry.Call(workspace_describe) error = %v", err)
+		}
+		requireNativeStructuredContains(t, result, []byte("\"general\""))
+		requireNativeStructuredContains(t, result, []byte("\"catalog-visible\""))
+		requireNativeStructuredContains(t, result, []byte("\"onboarding\""))
 	})
-	if err != nil {
-		t.Fatalf("Registry.Call(workspace_describe) error = %v", err)
-	}
-	requireNativeStructuredContains(t, result, []byte("\"general\""))
-	requireNativeStructuredContains(t, result, []byte("\"catalog-visible\""))
-	requireNativeStructuredContains(t, result, []byte("\"onboarding\""))
 }
 
 type nativeAgentCatalogStub struct {

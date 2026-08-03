@@ -64,7 +64,7 @@ journey:
   value_statement: "Failure is bounded by budgets, breakers, and liveness — the kernel never loops forever, never double-owns a run, and never kills healthy long work."
   personas: [Ada, Bruno]
   entry_points:
-    - url: "CLI: compozy task next --wait -o json; compozy task inspect <run-id> -o json; compozy loop runs show <run-id> -o json; compozy loop nodes --state quarantined -o json; compozy loop node requeue"
+    - url: "CLI: compozy task next --wait -o json; compozy task inspect <run-id> -o json; compozy loop status --run-id <run-id> -o json; compozy loop nodes --state quarantined -o json; compozy loop node requeue --node <node-id> --run-id <run-id>"
       origin: direct
     - url: "HTTP/UDS: POST /api/agent/tasks/claim-next; task-run and loop-run listings"
       origin: direct

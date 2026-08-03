@@ -2,6 +2,7 @@ package loop
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
@@ -188,6 +189,93 @@ func TestCoordinatorActionExecutionInputShouldCarryPinnedGoalPolicy(t *testing.T
 			input.OriginPolicySpecDigest != run.Origin.PolicySpecDigest ||
 			input.OriginCreationDigest != run.Origin.CreationDigest {
 			t.Fatalf("action origin identity = %#v, want %#v", input, run.Origin)
+		}
+	})
+
+	t.Run("Should expose externalized outputs to action templates without replacing their refs", func(t *testing.T) {
+		t.Parallel()
+
+		largeSummary := strings.Repeat("summary-", LoopOutputInlineLimitBytes/8+1)
+		payload, err := json.Marshal(map[string]any{"summary": largeSummary})
+		if err != nil {
+			t.Fatalf("json.Marshal(output payload) error = %v", err)
+		}
+		outputRef := OutputRefForPayload(payload)
+		loopRun := Run{
+			ID: "looprun-action-runtime-payload", WorkspaceID: "ws-action-runtime-payload",
+			LoopName: "delivery", Status: StatusRunning, Generation: 1, Inputs: map[string]any{},
+			Origin: &RunOrigin{Kind: RunOriginSession, SessionID: "session-action-runtime-payload"},
+		}
+		coordinatorRun := controlCoordinatorRun(loopRun, 1)
+		definition := dsl.Definition{Graph: dsl.Graph{
+			Nodes: []dsl.Node{
+				{ID: "load", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform)},
+				{ID: "agent", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent),
+					Params: dsl.NodeParams{"agent": "codex", "prompt": "Use {{ .nodes.load.output.summary }}"}},
+			},
+			Edges: []dsl.Edge{{From: "load", To: "agent"}},
+		}}
+		capture := &recordingActionExecutor{}
+		actions, err := NewActionRegistry(
+			&internalActionRegistryFake{},
+			WithActionRunAgentExecutor(capture),
+		)
+		if err != nil {
+			t.Fatalf("NewActionRegistry() error = %v", err)
+		}
+		payloadKey := GenerationOutputPayloadKey{
+			WorkspaceID: loopRun.WorkspaceID,
+			RunID:       loopRun.ID,
+			Generation:  1,
+			NodeID:      "load",
+			OutputRef:   outputRef,
+		}
+		outputStore := coordinatorRunnerOutputs{
+			outputs: map[int][]GenerationOutput{1: {
+				{Generation: 1, NodeID: "load", Status: generationOutputSucceeded, OutputRef: outputRef},
+				{Generation: 1, NodeID: "agent", Status: generationOutputRunning, TaskRunID: "run-agent"},
+			}},
+			payloads: map[GenerationOutputPayloadKey]json.RawMessage{payloadKey: payload},
+		}
+		runner := newCoordinatorRunnerForTestWithDefinition(
+			t,
+			loopRun,
+			coordinatorRun,
+			nil,
+			outputStore,
+			definition,
+			WithCoordinatorActionRegistry(actions),
+		)
+		metadata, err := json.Marshal(coordinatorActionRunMetadata{
+			Generation: 1,
+			NodeID:     "agent",
+			Attempt:    1,
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal(action metadata) error = %v", err)
+		}
+		workerRun := task.Run{
+			ID: "run-agent", RunKind: task.RunKindWorker, LoopRunID: string(loopRun.ID),
+			Status: task.TaskRunStatusClaimed, Metadata: metadata,
+		}
+
+		if _, err := runner.ExecuteActionRun(context.Background(), workerRun, task.ActorContext{}); err != nil {
+			t.Fatalf("ExecuteActionRun() error = %v", err)
+		}
+		nodes, ok := capture.input.Namespace[namespaceNodesKey].(map[string]any)
+		if !ok {
+			t.Fatalf("namespace nodes = %#v, want map", capture.input.Namespace[namespaceNodesKey])
+		}
+		load, ok := nodes["load"].(map[string]any)
+		if !ok {
+			t.Fatalf("namespace load = %#v, want map", nodes["load"])
+		}
+		loaded, ok := load[namespaceOutputKey].(map[string]any)
+		if !ok || loaded["summary"] != largeSummary {
+			t.Fatalf("namespace load output = %#v, want externalized summary", load[namespaceOutputKey])
+		}
+		if got := outputStore.outputs[1][0].OutputRef; got != outputRef {
+			t.Fatalf("stored output_ref = %q, want %q", got, outputRef)
 		}
 	})
 }
@@ -2437,26 +2525,26 @@ func TestCoordinatorRunnerShouldStallOnRepeatedBlockingIssueSignature(t *testing
 			LoopRunID: string(loopRun.ID),
 			Status:    task.TaskRunStatusClaimed,
 		}
-		blockerRef := `{"blocking_issues":[{"id":"missing-reviewer"},{"id":"blocked-api"}]}`
+		blockerPayload := json.RawMessage(`{"blocking_issues":[{"id":"missing-reviewer"},{"id":"blocked-api"}]}`)
+		blockerRef := OutputRefForPayload(blockerPayload)
+		outputStore := coordinatorRunnerOutputs{
+			outputs: map[int][]GenerationOutput{
+				1: {{Generation: 1, NodeID: "load", Status: generationOutputFailed, OutputRef: blockerRef}},
+				2: {{Generation: 2, NodeID: "load", Status: generationOutputFailed, OutputRef: blockerRef}},
+			},
+			payloads: map[GenerationOutputPayloadKey]json.RawMessage{
+				{WorkspaceID: loopRun.WorkspaceID, RunID: loopRun.ID, Generation: 1,
+					NodeID: "load", OutputRef: blockerRef}: blockerPayload,
+				{WorkspaceID: loopRun.WorkspaceID, RunID: loopRun.ID, Generation: 2,
+					NodeID: "load", OutputRef: blockerRef}: blockerPayload,
+			},
+		}
 		runner := newCoordinatorRunnerForTestWithDefinition(
 			t,
 			loopRun,
 			coordinatorRun,
 			map[string]task.Run{coordinatorRun.ID: coordinatorRun},
-			coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{
-				1: {{
-					Generation: 1,
-					NodeID:     "load",
-					Status:     generationOutputFailed,
-					OutputRef:  blockerRef,
-				}},
-				2: {{
-					Generation: 2,
-					NodeID:     "load",
-					Status:     generationOutputFailed,
-					OutputRef:  blockerRef,
-				}},
-			}},
+			outputStore,
 			dsl.Definition{
 				Graph:    coordinatorTestGraph(),
 				Contract: dsl.Contract{NoProgress: dsl.NoProgress{Window: 2}},
@@ -3623,6 +3711,27 @@ type coordinatorRunnerTaskRunReader struct {
 	runs map[string]task.Run
 }
 
+type recordingActionExecutor struct {
+	input ActionExecutionInput
+}
+
+func (e *recordingActionExecutor) Execute(
+	_ context.Context,
+	_ dsl.Node,
+	input ActionExecutionInput,
+) (ActionRawResult, error) {
+	e.input = input
+	return ActionRawResult{Status: "completed"}, nil
+}
+
+func (e *recordingActionExecutor) Harvest(
+	_ context.Context,
+	_ ActionRawResult,
+	_ dsl.Node,
+) (ActionOutput, error) {
+	return ActionOutput{Structured: json.RawMessage(`{"ok":true}`)}, nil
+}
+
 func (r *coordinatorRunnerTaskRunReader) GetTaskRun(
 	_ context.Context,
 	id string,
@@ -3638,7 +3747,23 @@ func (r *coordinatorRunnerTaskRunReader) GetTaskRun(
 }
 
 type coordinatorRunnerOutputs struct {
-	outputs map[int][]GenerationOutput
+	outputs      map[int][]GenerationOutput
+	payloads     map[GenerationOutputPayloadKey]json.RawMessage
+	payloadCalls map[GenerationOutputPayloadKey]int
+}
+
+func (r coordinatorRunnerOutputs) GetGenerationOutputPayload(
+	_ context.Context,
+	key GenerationOutputPayloadKey,
+) (json.RawMessage, error) {
+	if r.payloadCalls != nil {
+		r.payloadCalls[key]++
+	}
+	payload, ok := r.payloads[key]
+	if !ok {
+		return nil, ErrOutputRefNotFound
+	}
+	return cloneRawMessage(payload), nil
 }
 
 type coordinatorNodeControlReaderStub struct {

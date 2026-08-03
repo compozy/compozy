@@ -192,6 +192,14 @@ func (r *CoordinatorRunner) stalledBlockingIssueTerminal(
 		if err != nil {
 			return nil, err
 		}
+		previous, err = generationOutputRuntimeView(ctx, r.outputs, generationOutputRuntimeScope{
+			workspaceID: workspaceID,
+			runID:       runID,
+			generation:  previousGeneration,
+		}, previous)
+		if err != nil {
+			return nil, err
+		}
 		if !sameStringSet(current, blockingIssueSignature(previous)) {
 			return nil, nil
 		}
@@ -213,7 +221,7 @@ func blockingIssueSignature(outputs []GenerationOutput) []string {
 		if output.Status != generationOutputFailed {
 			continue
 		}
-		for _, id := range blockingIssueIDs(output.OutputRef) {
+		for _, id := range blockingIssueIDs(generationOutputRuntimeRef(output)) {
 			seen[id] = struct{}{}
 		}
 	}

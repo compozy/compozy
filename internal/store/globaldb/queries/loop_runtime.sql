@@ -180,6 +180,18 @@ WHERE id = sqlc.arg(loop_run_id)
 -- name: GetLoopOutputBlob :one
 SELECT payload_json FROM loop_output_blobs WHERE output_ref = sqlc.arg(output_ref);
 
+-- name: GetLoopGenerationOutputPayload :one
+SELECT blob.payload_json
+FROM loop_generation_outputs AS output
+JOIN loop_runs AS run ON run.id = output.loop_run_id
+JOIN loop_output_blobs AS blob ON blob.output_ref = output.output_ref
+WHERE output.loop_run_id = sqlc.arg(loop_run_id)
+  AND output.generation = sqlc.arg(generation)
+  AND output.node_id = sqlc.arg(node_id)
+  AND output.item_index = sqlc.arg(item_index)
+  AND output.output_ref = sqlc.arg(output_ref)
+  AND run.workspace_id = sqlc.arg(workspace_id);
+
 -- name: SweepOrphanedLoopOutputBlobs :exec
 DELETE FROM loop_output_blobs
 WHERE NOT EXISTS (

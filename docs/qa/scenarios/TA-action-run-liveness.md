@@ -5,7 +5,7 @@ title: Keep long-running Loop nodes alive without a hidden clock
 persona: Ada
 journey: J-bound-runaway-work
 expected: A Loop node runs for days when the definition has no timeout, fresh ACP activity, an in-flight tool, or a present transport counts as life, silence only raises a self-clearing attention flag, and only an authored node timeout may end the work by duration.
-entry_points: `compozy loop runs show <run-id> -o json`; Loop node inventory and event history over CLI/HTTP/UDS; `loops.defaults.delivery.liveness.silence_window`
+entry_points: `compozy loop status --run-id <run-id> -o json`; Loop node inventory and event history over CLI/HTTP/UDS; `loops.defaults.delivery.liveness.silence_window`
 qa_status: blocked-verify
 bug_ids:
 fix_status:

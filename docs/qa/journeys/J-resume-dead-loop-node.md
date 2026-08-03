@@ -29,7 +29,7 @@ journey:
   value_statement: "Long-running Loop work survives a dead managed session without treating silence as failure or creating duplicate continuations."
   personas: [Ada, Bruno]
   entry_points:
-    - url: "CLI: compozy loop runs show; compozy loop nodes"
+    - url: "CLI: compozy loop status --run-id <run-id>; compozy loop nodes"
       origin: direct
     - url: "HTTP/UDS Loop run, node inventory, and event routes"
       origin: direct

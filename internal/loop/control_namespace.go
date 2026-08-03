@@ -68,7 +68,7 @@ func runtimeNamespaceWithHistory(
 		entry := map[string]any{}
 		if ok {
 			entry[namespaceStatusKey] = output.Status
-			entry[namespaceOutputKey] = outputValue(output.OutputRef)
+			entry[namespaceOutputKey] = generationOutputRuntimeValue(output)
 		}
 		nodes[string(node.ID)] = entry
 		if alias, ok := subLoopLocalNodeAlias(nodeID, node.ID); ok {

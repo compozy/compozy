@@ -82,21 +82,21 @@ func evaluateWatchSourceNode(
 			return GenerationOutput{}, nil, err
 		}
 		output.Status = generationOutputSucceeded
-		output.OutputRef = ref
+		setGenerationOutputRef(&output, ref)
 		return output, nil, nil
 	case watchpkg.OutcomeStalled:
 		ref, err := watchpkg.PendingOutputRef(result.Response)
 		if err != nil {
 			return GenerationOutput{}, nil, err
 		}
-		output.OutputRef = ref
+		setGenerationOutputRef(&output, ref)
 		return output, watchStalledTerminal(), nil
 	case watchpkg.OutcomeWaiting:
 		ref, err := watchpkg.PendingOutputRef(result.Response)
 		if err != nil {
 			return GenerationOutput{}, nil, err
 		}
-		output.OutputRef = ref
+		setGenerationOutputRef(&output, ref)
 		if run.Status == StatusWatching {
 			plan.Yield = true
 			return output, nil, nil

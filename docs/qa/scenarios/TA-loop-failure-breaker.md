@@ -5,7 +5,7 @@ title: Bound an unbounded failing Loop watch
 persona: Ada
 journey: J-bound-runaway-work
 expected: An unbounded watch with consecutive failed generations stops at the circuit-breaker backstop, while a healthy watch remains active and ordinary repeated node failures quarantine instead of ending the run.
-entry_points: `compozy loop runs show <run-id> -o json`; `compozy__loop_status`; Loop run events over HTTP/SSE
+entry_points: `compozy loop status --run-id <run-id> -o json`; `compozy__loop_status`; Loop run events over HTTP/SSE
 qa_status: blocked-verify
 bug_ids:
 fix_status:

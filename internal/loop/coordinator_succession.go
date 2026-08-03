@@ -148,7 +148,8 @@ func (r *CoordinatorRunner) loadPersistedRouteCauses(
 				output.Status,
 			)
 		}
-		if strings.TrimSpace(output.OutputRef) == "" {
+		runtimeRef := generationOutputRuntimeRef(output)
+		if strings.TrimSpace(runtimeRef) == "" {
 			return nil, fmt.Errorf(
 				"%w: persisted route-causing gate %q finished without an output reference",
 				ErrValidation,
@@ -156,7 +157,7 @@ func (r *CoordinatorRunner) loadPersistedRouteCauses(
 			)
 		}
 		var verdict gate.Verdict
-		if err := json.Unmarshal([]byte(output.OutputRef), &verdict); err != nil {
+		if err := json.Unmarshal([]byte(runtimeRef), &verdict); err != nil {
 			return nil, fmt.Errorf("decode persisted route-causing gate %q output: %w", record.GateID, err)
 		}
 		collector.record(gate.GateFromNode(node), record.ItemIndex, verdict)

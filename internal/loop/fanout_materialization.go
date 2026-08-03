@@ -105,7 +105,7 @@ func fanOutItem(
 		if output.NodeID != string(fanOutID) || output.ItemIndex != 0 {
 			continue
 		}
-		materialization, ok, err := parseFanOutMaterialization(output.OutputRef)
+		materialization, ok, err := parseFanOutMaterialization(generationOutputRuntimeRef(output))
 		if err != nil || !ok {
 			return nil, false, err
 		}
