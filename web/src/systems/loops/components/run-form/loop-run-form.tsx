@@ -4,38 +4,45 @@ import { Button, Eyebrow, Section } from "@compozy/ui";
 import { NetworkParticipationFields } from "@/systems/network";
 
 import { useLoopRunForm } from "../../hooks/use-loop-run-form";
-import type { LoopDetail, LoopEffectiveConfig } from "../../types";
+import { loopSourceLabel } from "../../lib/loop-catalog";
+import { LoopPageLede } from "../loop-page-lede";
+import type { LoopDetail, LoopEffectiveConfig, LoopRun } from "../../types";
+import { LoopRunActiveNotice } from "./loop-run-active-notice";
+import { LoopRunAfterStart } from "./loop-run-after-start";
 import { LoopRunInputField } from "./loop-run-input-field";
 import { LoopRunOverrides } from "./loop-run-overrides";
 import { LoopRunPreview } from "./loop-run-preview";
+import { LoopRunWaysToStart } from "./loop-run-ways-to-start";
 
 interface LoopRunFormProps {
   workspaceId: string;
   loop: LoopDetail;
   effectiveConfig: LoopEffectiveConfig;
+  /** The run of this loop that is already live, when the route resolved one. */
+  activeRun?: LoopRun | null;
   onRunStarted?: (runId: string) => void;
-  onCancel?: () => void;
 }
 
 /**
  * The hero run form (§4.3): an auto-generated typed input form from the Loop's declared
- * inputs, an Advanced per-run override grid (clamped, no cost cap), a live contract
- * preview, and the Dry run / Run actions. State + the run/dry calls live in
- * `useLoopRunForm`; this component is the presentation.
+ * inputs, a folded per-run limits grid (clamped, no cost cap), a live contract preview,
+ * and the Dry run / Start run actions. Leaving the form without starting is a route
+ * action (`Close` in the window chrome), not a third button beside the two that submit.
+ * State + the run/dry calls live in `useLoopRunForm`; this component is the presentation.
  */
 export function LoopRunForm({
   workspaceId,
   loop,
   effectiveConfig,
+  activeRun,
   onRunStarted,
-  onCancel,
 }: LoopRunFormProps) {
   const form = useLoopRunForm({ workspaceId, loop, effectiveConfig, onRunStarted });
   const inputNames = form.schema ? Object.keys(form.schema) : [];
 
   return (
     <div
-      className="grid min-h-0 flex-1 grid-cols-1 max-lg:block max-lg:overflow-y-auto lg:grid-cols-[minmax(0,1fr)_400px]"
+      className="grid min-h-0 flex-1 grid-cols-1 max-lg:block max-lg:overflow-y-auto lg:grid-cols-[minmax(0,1fr)_var(--width-detail-inspector-inline)]"
       data-testid="loop-run-form"
     >
       <form
@@ -45,10 +52,26 @@ export function LoopRunForm({
           form.handleRun();
         }}
       >
+        <LoopPageLede
+          lede="Fill the inputs, start the run. Everything else — retries, budgets, gates — is already declared on the loop."
+          meta={[
+            loop.definition.apiVersion,
+            `${inputNames.length} declared input${inputNames.length === 1 ? "" : "s"}`,
+          ]}
+          name={loop.name}
+          prefix="Run"
+          tags={[loopSourceLabel(loop), `v${loop.version}`]}
+          testId="loop-run-form-lede"
+        />
+
         <div className="max-w-prose">
           <Eyebrow className="text-muted">Contract goal</Eyebrow>
           <p className="mt-1.5 text-sm text-fg">{form.contract.goal}</p>
         </div>
+
+        {activeRun ? (
+          <LoopRunActiveNotice concurrency={loop.definition.concurrency} run={activeRun} />
+        ) : null}
 
         <Section
           label="Inputs"
@@ -94,29 +117,7 @@ export function LoopRunForm({
           onChange={form.setOverridesDraft}
         />
 
-        <p className="flex items-start gap-2 text-form-hint leading-relaxed text-subtle">
-          <Info className="mt-0.5 size-3 shrink-0 text-faint" aria-hidden="true" />
-          <span>
-            Dry run validates inputs and renders the first-generation plan without starting a run.
-            Manage automated starts in <b className="font-medium text-muted">Start bindings</b> on
-            the loop page.
-          </span>
-        </p>
-      </form>
-
-      <div className="flex min-w-0 flex-col border-t border-line-soft bg-canvas-tint lg:border-t-0 lg:border-l">
-        <div className="flex-1 overflow-y-auto px-5 py-5 max-lg:overflow-visible">
-          <LoopRunPreview
-            loopName={loop.name}
-            contract={form.contract}
-            effectiveConfig={effectiveConfig}
-            configOverrides={form.configOverrides}
-            inputs={form.schema}
-            networkParticipation={form.networkParticipation}
-            plan={form.plan}
-          />
-        </div>
-        <div className="flex items-center gap-2 border-t border-line-soft px-5 py-3.5">
+        <div className="flex flex-wrap items-center gap-2 border-t border-line-soft pt-4">
           {form.plan ? (
             <span className="flex flex-1 items-center gap-1.5 text-form-hint text-success">
               <CheckCircle2 className="size-3.5" aria-hidden="true" />
@@ -127,17 +128,6 @@ export function LoopRunForm({
               {form.valid ? "Ready to run." : "Fill the required inputs, then run."}
             </span>
           )}
-          {onCancel ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={form.busy}
-              onClick={onCancel}
-            >
-              Cancel
-            </Button>
-          ) : null}
           <Button
             type="button"
             variant="outline"
@@ -157,9 +147,30 @@ export function LoopRunForm({
             onClick={form.handleRun}
           >
             <Play className="size-3.5" aria-hidden="true" />
-            Run loop
+            Start run
           </Button>
         </div>
+
+        <p className="flex items-start gap-2 text-form-hint leading-relaxed text-subtle">
+          <Info className="mt-0.5 size-3 shrink-0 text-faint" aria-hidden="true" />
+          <span>
+            Dry run validates inputs and renders the first-generation plan without starting a run.
+          </span>
+        </p>
+      </form>
+
+      <div className="flex min-w-0 flex-col gap-3 overflow-y-auto border-t border-line-soft bg-canvas-tint px-5 py-5 max-lg:overflow-visible lg:border-t-0 lg:border-l">
+        <LoopRunPreview
+          loopName={loop.name}
+          contract={form.contract}
+          effectiveConfig={effectiveConfig}
+          configOverrides={form.configOverrides}
+          inputs={form.schema}
+          networkParticipation={form.networkParticipation}
+          plan={form.plan}
+        />
+        <LoopRunWaysToStart start={loop.definition.start} />
+        <LoopRunAfterStart />
       </div>
     </div>
   );

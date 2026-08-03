@@ -75,9 +75,9 @@ describe("loop read hooks", () => {
     ]);
     expect(result.current.total).toBe(2);
     expect(result.current.facets).toEqual({
-      categories: { delivery: 1, watch: 1 },
+      categories: { delivery: 1, Engineering: 1 },
       kinds: { read_only: 1, workspace: 1 },
-      statuses: { running: 1, watching: 1 },
+      statuses: { running: 2 },
     });
   });
 

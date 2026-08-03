@@ -1,7 +1,7 @@
-import { Section } from "@compozy/ui";
-
 import { buildLoopLimits } from "../../lib/loop-limits";
+import { resolveLoopEffectiveConfig } from "../../lib/loop-effective-config";
 import type { LoopEffectiveConfig } from "../../types";
+import { LoopRailSection } from "../loop-rail-section";
 
 interface LoopLimitsPanelProps {
   effectiveConfig: LoopEffectiveConfig;
@@ -13,9 +13,16 @@ interface LoopLimitsPanelProps {
  */
 export function LoopLimitsPanel({ effectiveConfig }: LoopLimitsPanelProps) {
   const rows = buildLoopLimits(effectiveConfig);
+  const effective = resolveLoopEffectiveConfig(effectiveConfig);
+  const budgets =
+    effective.budget_tokens > 0 || effective.budget_wall_sec > 0 ? "budgets set" : "no budgets set";
   return (
-    <Section label="Limits & budget" data-testid="loop-limits">
-      <div className="rounded-lg border border-line bg-canvas-soft">
+    <LoopRailSection
+      data-testid="loop-limits"
+      gist={`${effective.iteration_cap} generations · ${budgets}`}
+      title="Limits"
+    >
+      <>
         <div className="flex flex-col px-3.5 py-1">
           {rows.map(row => (
             <div
@@ -35,7 +42,7 @@ export function LoopLimitsPanel({ effectiveConfig }: LoopLimitsPanelProps) {
           raised. Token and wall-clock budgets are off unless set (0 = unlimited); a set budget is
           enforced. Cost is display-only, not an enforced cap.
         </p>
-      </div>
-    </Section>
+      </>
+    </LoopRailSection>
   );
 }

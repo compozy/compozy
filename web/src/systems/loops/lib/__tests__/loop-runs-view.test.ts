@@ -71,7 +71,8 @@ describe("loop-runs-view", () => {
   it("Should split live runs into Active and terminal runs into Past, honoring the outcome filter", () => {
     const { active, past } = partitionRuns(loopRunFixtures);
     expect(active).toHaveLength(5);
-    expect(past).toHaveLength(9);
+    expect(past).toHaveLength(10);
+    expect(past.some(runItem => runItem.status === "canceled")).toBe(true);
     const onlyDone = partitionRuns(loopRunFixtures, "done");
     expect(onlyDone.active).toHaveLength(0);
     expect(onlyDone.past.every(runItem => runItem.status === "done")).toBe(true);

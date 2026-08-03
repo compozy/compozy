@@ -14,8 +14,13 @@ export function loopKind(entry: Pick<LoopCatalogEntry, "source">): LoopKind {
   return entry.source === "workspace" ? "workspace" : "read-only";
 }
 
+/**
+ * Operator-facing name for a loop's provenance. `workspace` copies are the ones an
+ * operator authored here (Custom); every other source ships with the runtime or the
+ * operator's home and stays read-only until forked (Built-in).
+ */
 export function loopSourceLabel(entry: Pick<LoopCatalogEntry, "source">): string {
-  return loopKind(entry) === "workspace" ? "Workspace" : "Read-only";
+  return GROUP_LABEL[loopKind(entry)];
 }
 
 /**
@@ -26,16 +31,6 @@ export function loopSourceLabel(entry: Pick<LoopCatalogEntry, "source">): string
 export function loopCategory(entry: LoopCatalogEntry): string | null {
   const category = entry.catalog?.category?.trim();
   return category ? category : null;
-}
-
-/** Distinct categories present in the catalog, sorted for a stable filter bar. */
-export function loopCategories(entries: readonly LoopCatalogEntry[]): string[] {
-  const seen = new Set<string>();
-  for (const entry of entries) {
-    const category = loopCategory(entry);
-    if (category) seen.add(category);
-  }
-  return [...seen].sort((a, b) => a.localeCompare(b));
 }
 
 /** Declared-input count for the row meta line. */
@@ -80,16 +75,6 @@ export function matchesLoopFilter(entry: LoopCatalogEntry, filter: LoopCatalogFi
   return true;
 }
 
-/** Distinct last-run statuses present in the catalog, sorted for a stable filter bar. */
-export function loopStatuses(entries: readonly LoopCatalogEntry[]): LoopStatusFilter[] {
-  const seen = new Set<LoopStatusFilter>();
-  for (const entry of entries) {
-    const status = entry.last_run?.status;
-    if (status) seen.add(status);
-  }
-  return [...seen].sort((a, b) => a.localeCompare(b));
-}
-
 export function hasActiveLoopFilters(query: string, filter: LoopCatalogFilter): boolean {
   return (
     query.trim() !== "" ||
@@ -107,13 +92,13 @@ export interface LoopCatalogGroup {
 
 const GROUP_ORDER: readonly LoopKind[] = ["read-only", "workspace"];
 const GROUP_LABEL: Record<LoopKind, string> = {
-  "read-only": "Read-only",
-  workspace: "Workspace",
+  "read-only": "Built-in",
+  workspace: "Custom",
 };
 
 /**
- * Splits the filtered catalog into read-only and workspace groups, dropping empty
- * groups so a catalog with no copies never renders an empty workspace section.
+ * Splits the filtered catalog into built-in and custom groups, dropping empty
+ * groups so a catalog with no copies never renders an empty custom section.
  * Row order within a group is preserved from the caller's sort.
  */
 export function groupLoopCatalog(
@@ -131,10 +116,4 @@ export function groupLoopCatalog(
     byKind.get(loopKind(entry))?.entries.push(entry);
   }
   return groups.filter(group => group.entries.length > 0);
-}
-
-/** Count of rows passing a candidate kind filter (ignores category), for the segment badges. */
-export function countByKind(entries: readonly LoopCatalogEntry[], kind: LoopKindFilter): number {
-  if (kind === "all") return entries.length;
-  return entries.reduce((total, entry) => total + (loopKind(entry) === kind ? 1 : 0), 0);
 }
