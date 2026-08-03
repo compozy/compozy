@@ -1478,6 +1478,7 @@ func newWorkspaceAccessHostedSession(
 	if err != nil {
 		t.Fatalf("ReadDiagnostics(%q) error = %v", agentName, err)
 	}
+	diagnostics = acpmock.DiagnosticsForCompozySession(diagnostics, active.ID)
 	client := startHostedMCPClient(
 		t,
 		ctx,
