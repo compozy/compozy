@@ -2679,6 +2679,10 @@ test("E2E-023: the 12-window envelope holds for drag frames, restore, and conver
 
   // Long-task probe during a 3s continuous drag of one window. Install it
   // after focus settles so the envelope measures drag frames, not activation.
+  // Dispatch trusted Chromium input directly: Playwright's mouse helper takes
+  // a full DOM snapshot for every traced action, and that recorder work runs
+  // on the renderer thread that this envelope is meant to measure.
+  const dragInput = await appPage.context().newCDPSession(appPage);
   await appPage.evaluate(() => {
     const tasks: number[] = [];
     Reflect.set(window, "__osLongTasks", tasks);
@@ -2686,20 +2690,60 @@ test("E2E-023: the 12-window envelope holds for drag frames, restore, and conver
       for (const entry of list.getEntries()) tasks.push(entry.duration);
     }).observe({ type: "longtask", buffered: false });
   });
-  await appPage.mouse.move(grip.x, grip.y);
-  await appPage.mouse.down();
-  const start = Date.now();
-  let step = 0;
-  while (Date.now() - start < 3000) {
-    const angle = (step / 20) * Math.PI * 2;
-    await appPage.mouse.move(
-      grip.x + 120 + Math.cos(angle) * 90,
-      grip.y + 100 + Math.sin(angle) * 60,
-      { steps: 2 }
-    );
-    step += 1;
+  let currentX = grip.x;
+  let currentY = grip.y;
+  let pressed = false;
+  try {
+    await dragInput.send("Input.dispatchMouseEvent", {
+      type: "mouseMoved",
+      x: currentX,
+      y: currentY,
+      button: "none",
+    });
+    await dragInput.send("Input.dispatchMouseEvent", {
+      type: "mousePressed",
+      x: currentX,
+      y: currentY,
+      button: "left",
+      buttons: 1,
+      clickCount: 1,
+    });
+    pressed = true;
+    const start = Date.now();
+    let step = 0;
+    while (Date.now() - start < 3000) {
+      const angle = (step / 20) * Math.PI * 2;
+      const targetX = grip.x + 120 + Math.cos(angle) * 90;
+      const targetY = grip.y + 100 + Math.sin(angle) * 60;
+      for (const progress of [0.5, 1]) {
+        await dragInput.send("Input.dispatchMouseEvent", {
+          type: "mouseMoved",
+          x: currentX + (targetX - currentX) * progress,
+          y: currentY + (targetY - currentY) * progress,
+          button: "left",
+          buttons: 1,
+        });
+      }
+      currentX = targetX;
+      currentY = targetY;
+      step += 1;
+    }
+  } finally {
+    try {
+      if (pressed) {
+        await dragInput.send("Input.dispatchMouseEvent", {
+          type: "mouseReleased",
+          x: currentX,
+          y: currentY,
+          button: "left",
+          buttons: 0,
+          clickCount: 1,
+        });
+      }
+    } finally {
+      await dragInput.detach();
+    }
   }
-  await appPage.mouse.up();
   const longTasks = await appPage.evaluate(() => Reflect.get(window, "__osLongTasks") as number[]);
   const worstFrame = longTasks.length > 0 ? Math.max(...longTasks) : 0;
 
