@@ -29,6 +29,7 @@ describe("LoopEditorField", () => {
         suggestions={[]}
         disabled={false}
         onChange={onChange}
+        onChangeFields={vi.fn()}
       />
     );
     const input = screen.getByTestId("loop-field-max_fan_out");
@@ -54,6 +55,7 @@ describe("LoopEditorField", () => {
         disabled={false}
         field={jsonField}
         onChange={onChange}
+        onChangeFields={vi.fn()}
         raw={{ payload: { ok: true } }}
         suggestions={[]}
       />

@@ -3,7 +3,7 @@ import { type EnqueueObject, type ExtractEvents } from "@xstate/store";
 import type { EditorEdge, EditorNode } from "../lib/codec";
 import { emptyLintState, type LoopLintState } from "../lib/loop-editor-lint";
 import type { PaletteItem } from "../lib/loop-palette";
-import type { LoopDefinition, LoopDetail, ValidateLoopResult } from "../types";
+import type { LoopDefinition, LoopDetail, LoopValidationIssue, ValidateLoopResult } from "../types";
 
 export type LoopEditorView = "graph" | "dsl";
 export type LoopEditorSidebarTab = "contract" | "node";
@@ -20,6 +20,12 @@ export interface LoopEditorState {
   positionsDirty: boolean;
   positionsGeneration: number;
   publishError: string | null;
+  /**
+   * The issues a publish 422 returned, kept beside the message so the rejected strip can list
+   * the daemon's own verdict even while the dock is collapsed. Empty for a transport failure,
+   * which has no issue list to show.
+   */
+  publishRejectedIssues: LoopValidationIssue[];
   publishGeneration: number;
   scopeGeneration: number;
   selectedNodeId: string | null;
@@ -119,6 +125,7 @@ export function createLoopEditorState(scopeGeneration = 0): LoopEditorState {
     positionsDirty: false,
     positionsGeneration: 0,
     publishError: null,
+    publishRejectedIssues: [],
     publishGeneration: 0,
     scopeGeneration,
     selectedNodeId: null,

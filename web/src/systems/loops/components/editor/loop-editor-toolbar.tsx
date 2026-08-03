@@ -1,14 +1,12 @@
-import { Code2, GitFork, LayoutGrid, Maximize, Save, Share2, ZoomIn, ZoomOut } from "lucide-react";
+import { Code2, LayoutGrid, Maximize, Save, Share2, ZoomIn, ZoomOut } from "lucide-react";
 import { useReactFlow, useViewport } from "@xyflow/react";
 import type { ReactNode } from "react";
 
 import { Button, PillGroup, type PillGroupItem } from "@compozy/ui";
 
 import type { LoopEditorView } from "../../hooks/use-loop-editor-state";
-import type { LoopSource } from "../../types";
 
 interface LoopEditorToolbarProps {
-  source: LoopSource;
   busy: boolean;
   positionsDirty: boolean;
   view: LoopEditorView;
@@ -41,12 +39,16 @@ const VIEW_ITEMS: PillGroupItem<LoopEditorView>[] = [
 ];
 
 /**
- * Canvas sub-toolbar: zoom/auto-layout, Graph|DSL toggle, fork context, and Save layout.
- * Editor actions live in the shell topbar via `useTopbarSlot`. Invariant detail lives in
- * the Validation dock — not duplicated as toolbar chips.
+ * Canvas sub-toolbar: zoom/auto-layout, Graph|DSL toggle, and Save layout. Editor actions live
+ * in the shell topbar via `useTopbarSlot`; the read-only/fork notice is owned by
+ * `LoopEditorSourceStrip` (one notice, not two). Invariant detail lives in the Validation dock
+ * — not duplicated as toolbar chips.
+ *
+ * Layout stays available on a read-only definition: positions are the annotations sidecar, and
+ * `PutLoopAnnotations` has no source gate — withholding it would invent a restriction the
+ * runtime does not impose.
  */
 export function LoopEditorToolbar({
-  source,
   busy,
   positionsDirty,
   view,
@@ -56,7 +58,6 @@ export function LoopEditorToolbar({
 }: LoopEditorToolbarProps) {
   const flow = useReactFlow();
   const { zoom } = useViewport();
-  const readOnlySource = source !== "workspace";
 
   return (
     <div className="flex min-h-12 flex-none items-center gap-2.5 border-b border-line bg-canvas-soft px-3.5">
@@ -68,13 +69,6 @@ export function LoopEditorToolbar({
         size="sm"
         value={view}
       />
-
-      {readOnlySource ? (
-        <span className="flex items-center gap-1.5 text-form-hint text-subtle">
-          <GitFork aria-hidden="true" className="size-3 text-faint" />
-          Read-only {source} source · fork before publishing
-        </span>
-      ) : null}
 
       <div className="ml-auto flex items-center gap-2.5">
         <div className="flex items-center gap-0.5 rounded-md border border-line-soft bg-input-fill p-0.5">

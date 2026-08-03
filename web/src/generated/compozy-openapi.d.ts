@@ -5840,6 +5840,7 @@ export interface components {
         } & {
           [key: string]: unknown;
         })[];
+        deadline?: string;
         events?: {
           filter?: string;
           /** @enum {string} */
@@ -5867,6 +5868,26 @@ export interface components {
             | "coordinator.failed"
             | "event.post_record";
         }[];
+        expires?: {
+          after: string;
+          escalate?: (
+            | {
+                emit: {
+                  kind: string;
+                  payload?: {
+                    [key: string]: unknown;
+                  };
+                };
+              }
+            | {
+                tool: string;
+                with?: {
+                  [key: string]: unknown;
+                };
+              }
+          )[];
+          route?: string;
+        };
         filter?: string;
         harvest?: {
           [key: string]: unknown;
@@ -5877,9 +5898,127 @@ export interface components {
         max_fan_out?: number;
         max_parallel?: number;
         max_revisions?: number;
+        on_cancel?: (
+          | {
+              emit: {
+                kind: string;
+                payload?: {
+                  [key: string]: unknown;
+                };
+              };
+            }
+          | {
+              tool: string;
+              with?: {
+                [key: string]: unknown;
+              };
+            }
+        )[];
+        on_error?: {
+          allow_fail?: boolean;
+          effects?: (
+            | {
+                emit: {
+                  kind: string;
+                  payload?: {
+                    [key: string]: unknown;
+                  };
+                };
+              }
+            | {
+                tool: string;
+                with?: {
+                  [key: string]: unknown;
+                };
+              }
+          )[];
+          route?: string;
+        };
+        /** @enum {string} */
+        on_parent_close?: "terminate" | "cancel" | "abandon";
+        on_pause?: (
+          | {
+              emit: {
+                kind: string;
+                payload?: {
+                  [key: string]: unknown;
+                };
+              };
+            }
+          | {
+              tool: string;
+              with?: {
+                [key: string]: unknown;
+              };
+            }
+        )[];
+        on_quarantine?: (
+          | {
+              emit: {
+                kind: string;
+                payload?: {
+                  [key: string]: unknown;
+                };
+              };
+            }
+          | {
+              tool: string;
+              with?: {
+                [key: string]: unknown;
+              };
+            }
+        )[];
         on_result?: {
           [key: string]: unknown;
         };
+        on_retry?: (
+          | {
+              emit: {
+                kind: string;
+                payload?: {
+                  [key: string]: unknown;
+                };
+              };
+            }
+          | {
+              tool: string;
+              with?: {
+                [key: string]: unknown;
+              };
+            }
+        )[];
+        on_success?: (
+          | {
+              emit: {
+                kind: string;
+                payload?: {
+                  [key: string]: unknown;
+                };
+              };
+            }
+          | {
+              tool: string;
+              with?: {
+                [key: string]: unknown;
+              };
+            }
+        )[];
+        on_timeout?: (
+          | {
+              emit: {
+                kind: string;
+                payload?: {
+                  [key: string]: unknown;
+                };
+              };
+            }
+          | {
+              tool: string;
+              with?: {
+                [key: string]: unknown;
+              };
+            }
+        )[];
         params?: {
           [key: string]: unknown;
         };
@@ -5888,8 +6027,18 @@ export interface components {
         produces?: {
           [key: string]: unknown;
         };
+        result_contract?: {
+          failure_field: string;
+          message_field?: string;
+        };
         retry?: {
-          [key: string]: unknown;
+          backoff?: {
+            base?: string;
+            max?: string;
+          };
+          max_attempts?: number;
+          non_retryable?: string[];
+          on_failure?: string;
         };
         session?: {
           [key: string]: unknown;
@@ -86567,6 +86716,118 @@ export interface operations {
                   hash_fields?: string[];
                   window: number;
                 };
+                on_blocked?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
+                on_canceled?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
+                on_done?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
+                on_exhausted?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
+                on_failed?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
+                on_noop?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
+                on_stalled?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
                 runtime_defaults?: {
                   judge?: {
                     model?: string;
@@ -86659,6 +86920,7 @@ export interface operations {
                   } & {
                     [key: string]: unknown;
                   })[];
+                  deadline?: string;
                   events?: {
                     filter?: string;
                     /** @enum {string} */
@@ -86686,6 +86948,26 @@ export interface operations {
                       | "coordinator.failed"
                       | "event.post_record";
                   }[];
+                  expires?: {
+                    after: string;
+                    escalate?: (
+                      | {
+                          emit: {
+                            kind: string;
+                            payload?: {
+                              [key: string]: unknown;
+                            };
+                          };
+                        }
+                      | {
+                          tool: string;
+                          with?: {
+                            [key: string]: unknown;
+                          };
+                        }
+                    )[];
+                    route?: string;
+                  };
                   filter?: string;
                   harvest?: {
                     [key: string]: unknown;
@@ -86696,9 +86978,127 @@ export interface operations {
                   max_fan_out?: number;
                   max_parallel?: number;
                   max_revisions?: number;
+                  on_cancel?: (
+                    | {
+                        emit: {
+                          kind: string;
+                          payload?: {
+                            [key: string]: unknown;
+                          };
+                        };
+                      }
+                    | {
+                        tool: string;
+                        with?: {
+                          [key: string]: unknown;
+                        };
+                      }
+                  )[];
+                  on_error?: {
+                    allow_fail?: boolean;
+                    effects?: (
+                      | {
+                          emit: {
+                            kind: string;
+                            payload?: {
+                              [key: string]: unknown;
+                            };
+                          };
+                        }
+                      | {
+                          tool: string;
+                          with?: {
+                            [key: string]: unknown;
+                          };
+                        }
+                    )[];
+                    route?: string;
+                  };
+                  /** @enum {string} */
+                  on_parent_close?: "terminate" | "cancel" | "abandon";
+                  on_pause?: (
+                    | {
+                        emit: {
+                          kind: string;
+                          payload?: {
+                            [key: string]: unknown;
+                          };
+                        };
+                      }
+                    | {
+                        tool: string;
+                        with?: {
+                          [key: string]: unknown;
+                        };
+                      }
+                  )[];
+                  on_quarantine?: (
+                    | {
+                        emit: {
+                          kind: string;
+                          payload?: {
+                            [key: string]: unknown;
+                          };
+                        };
+                      }
+                    | {
+                        tool: string;
+                        with?: {
+                          [key: string]: unknown;
+                        };
+                      }
+                  )[];
                   on_result?: {
                     [key: string]: unknown;
                   };
+                  on_retry?: (
+                    | {
+                        emit: {
+                          kind: string;
+                          payload?: {
+                            [key: string]: unknown;
+                          };
+                        };
+                      }
+                    | {
+                        tool: string;
+                        with?: {
+                          [key: string]: unknown;
+                        };
+                      }
+                  )[];
+                  on_success?: (
+                    | {
+                        emit: {
+                          kind: string;
+                          payload?: {
+                            [key: string]: unknown;
+                          };
+                        };
+                      }
+                    | {
+                        tool: string;
+                        with?: {
+                          [key: string]: unknown;
+                        };
+                      }
+                  )[];
+                  on_timeout?: (
+                    | {
+                        emit: {
+                          kind: string;
+                          payload?: {
+                            [key: string]: unknown;
+                          };
+                        };
+                      }
+                    | {
+                        tool: string;
+                        with?: {
+                          [key: string]: unknown;
+                        };
+                      }
+                  )[];
                   params?: {
                     [key: string]: unknown;
                   };
@@ -86707,8 +87107,18 @@ export interface operations {
                   produces?: {
                     [key: string]: unknown;
                   };
+                  result_contract?: {
+                    failure_field: string;
+                    message_field?: string;
+                  };
                   retry?: {
-                    [key: string]: unknown;
+                    backoff?: {
+                      base?: string;
+                      max?: string;
+                    };
+                    max_attempts?: number;
+                    non_retryable?: string[];
+                    on_failure?: string;
                   };
                   session?: {
                     [key: string]: unknown;
@@ -90363,6 +90773,118 @@ export interface operations {
                   hash_fields?: string[];
                   window: number;
                 };
+                on_blocked?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
+                on_canceled?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
+                on_done?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
+                on_exhausted?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
+                on_failed?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
+                on_noop?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
+                on_stalled?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
                 runtime_defaults?: {
                   judge?: {
                     model?: string;
@@ -90655,6 +91177,118 @@ export interface operations {
                 hash_fields?: string[];
                 window: number;
               };
+              on_blocked?: (
+                | {
+                    emit: {
+                      kind: string;
+                      payload?: {
+                        [key: string]: unknown;
+                      };
+                    };
+                  }
+                | {
+                    tool: string;
+                    with?: {
+                      [key: string]: unknown;
+                    };
+                  }
+              )[];
+              on_canceled?: (
+                | {
+                    emit: {
+                      kind: string;
+                      payload?: {
+                        [key: string]: unknown;
+                      };
+                    };
+                  }
+                | {
+                    tool: string;
+                    with?: {
+                      [key: string]: unknown;
+                    };
+                  }
+              )[];
+              on_done?: (
+                | {
+                    emit: {
+                      kind: string;
+                      payload?: {
+                        [key: string]: unknown;
+                      };
+                    };
+                  }
+                | {
+                    tool: string;
+                    with?: {
+                      [key: string]: unknown;
+                    };
+                  }
+              )[];
+              on_exhausted?: (
+                | {
+                    emit: {
+                      kind: string;
+                      payload?: {
+                        [key: string]: unknown;
+                      };
+                    };
+                  }
+                | {
+                    tool: string;
+                    with?: {
+                      [key: string]: unknown;
+                    };
+                  }
+              )[];
+              on_failed?: (
+                | {
+                    emit: {
+                      kind: string;
+                      payload?: {
+                        [key: string]: unknown;
+                      };
+                    };
+                  }
+                | {
+                    tool: string;
+                    with?: {
+                      [key: string]: unknown;
+                    };
+                  }
+              )[];
+              on_noop?: (
+                | {
+                    emit: {
+                      kind: string;
+                      payload?: {
+                        [key: string]: unknown;
+                      };
+                    };
+                  }
+                | {
+                    tool: string;
+                    with?: {
+                      [key: string]: unknown;
+                    };
+                  }
+              )[];
+              on_stalled?: (
+                | {
+                    emit: {
+                      kind: string;
+                      payload?: {
+                        [key: string]: unknown;
+                      };
+                    };
+                  }
+                | {
+                    tool: string;
+                    with?: {
+                      [key: string]: unknown;
+                    };
+                  }
+              )[];
               runtime_defaults?: {
                 judge?: {
                   model?: string;
@@ -90747,6 +91381,7 @@ export interface operations {
                 } & {
                   [key: string]: unknown;
                 })[];
+                deadline?: string;
                 events?: {
                   filter?: string;
                   /** @enum {string} */
@@ -90774,6 +91409,26 @@ export interface operations {
                     | "coordinator.failed"
                     | "event.post_record";
                 }[];
+                expires?: {
+                  after: string;
+                  escalate?: (
+                    | {
+                        emit: {
+                          kind: string;
+                          payload?: {
+                            [key: string]: unknown;
+                          };
+                        };
+                      }
+                    | {
+                        tool: string;
+                        with?: {
+                          [key: string]: unknown;
+                        };
+                      }
+                  )[];
+                  route?: string;
+                };
                 filter?: string;
                 harvest?: {
                   [key: string]: unknown;
@@ -90784,9 +91439,127 @@ export interface operations {
                 max_fan_out?: number;
                 max_parallel?: number;
                 max_revisions?: number;
+                on_cancel?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
+                on_error?: {
+                  allow_fail?: boolean;
+                  effects?: (
+                    | {
+                        emit: {
+                          kind: string;
+                          payload?: {
+                            [key: string]: unknown;
+                          };
+                        };
+                      }
+                    | {
+                        tool: string;
+                        with?: {
+                          [key: string]: unknown;
+                        };
+                      }
+                  )[];
+                  route?: string;
+                };
+                /** @enum {string} */
+                on_parent_close?: "terminate" | "cancel" | "abandon";
+                on_pause?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
+                on_quarantine?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
                 on_result?: {
                   [key: string]: unknown;
                 };
+                on_retry?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
+                on_success?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
+                on_timeout?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
                 params?: {
                   [key: string]: unknown;
                 };
@@ -90795,8 +91568,18 @@ export interface operations {
                 produces?: {
                   [key: string]: unknown;
                 };
+                result_contract?: {
+                  failure_field: string;
+                  message_field?: string;
+                };
                 retry?: {
-                  [key: string]: unknown;
+                  backoff?: {
+                    base?: string;
+                    max?: string;
+                  };
+                  max_attempts?: number;
+                  non_retryable?: string[];
+                  on_failure?: string;
                 };
                 session?: {
                   [key: string]: unknown;
@@ -90939,6 +91722,118 @@ export interface operations {
                     hash_fields?: string[];
                     window: number;
                   };
+                  on_blocked?: (
+                    | {
+                        emit: {
+                          kind: string;
+                          payload?: {
+                            [key: string]: unknown;
+                          };
+                        };
+                      }
+                    | {
+                        tool: string;
+                        with?: {
+                          [key: string]: unknown;
+                        };
+                      }
+                  )[];
+                  on_canceled?: (
+                    | {
+                        emit: {
+                          kind: string;
+                          payload?: {
+                            [key: string]: unknown;
+                          };
+                        };
+                      }
+                    | {
+                        tool: string;
+                        with?: {
+                          [key: string]: unknown;
+                        };
+                      }
+                  )[];
+                  on_done?: (
+                    | {
+                        emit: {
+                          kind: string;
+                          payload?: {
+                            [key: string]: unknown;
+                          };
+                        };
+                      }
+                    | {
+                        tool: string;
+                        with?: {
+                          [key: string]: unknown;
+                        };
+                      }
+                  )[];
+                  on_exhausted?: (
+                    | {
+                        emit: {
+                          kind: string;
+                          payload?: {
+                            [key: string]: unknown;
+                          };
+                        };
+                      }
+                    | {
+                        tool: string;
+                        with?: {
+                          [key: string]: unknown;
+                        };
+                      }
+                  )[];
+                  on_failed?: (
+                    | {
+                        emit: {
+                          kind: string;
+                          payload?: {
+                            [key: string]: unknown;
+                          };
+                        };
+                      }
+                    | {
+                        tool: string;
+                        with?: {
+                          [key: string]: unknown;
+                        };
+                      }
+                  )[];
+                  on_noop?: (
+                    | {
+                        emit: {
+                          kind: string;
+                          payload?: {
+                            [key: string]: unknown;
+                          };
+                        };
+                      }
+                    | {
+                        tool: string;
+                        with?: {
+                          [key: string]: unknown;
+                        };
+                      }
+                  )[];
+                  on_stalled?: (
+                    | {
+                        emit: {
+                          kind: string;
+                          payload?: {
+                            [key: string]: unknown;
+                          };
+                        };
+                      }
+                    | {
+                        tool: string;
+                        with?: {
+                          [key: string]: unknown;
+                        };
+                      }
+                  )[];
                   runtime_defaults?: {
                     judge?: {
                       model?: string;
@@ -91031,6 +91926,7 @@ export interface operations {
                     } & {
                       [key: string]: unknown;
                     })[];
+                    deadline?: string;
                     events?: {
                       filter?: string;
                       /** @enum {string} */
@@ -91058,6 +91954,26 @@ export interface operations {
                         | "coordinator.failed"
                         | "event.post_record";
                     }[];
+                    expires?: {
+                      after: string;
+                      escalate?: (
+                        | {
+                            emit: {
+                              kind: string;
+                              payload?: {
+                                [key: string]: unknown;
+                              };
+                            };
+                          }
+                        | {
+                            tool: string;
+                            with?: {
+                              [key: string]: unknown;
+                            };
+                          }
+                      )[];
+                      route?: string;
+                    };
                     filter?: string;
                     harvest?: {
                       [key: string]: unknown;
@@ -91068,9 +91984,127 @@ export interface operations {
                     max_fan_out?: number;
                     max_parallel?: number;
                     max_revisions?: number;
+                    on_cancel?: (
+                      | {
+                          emit: {
+                            kind: string;
+                            payload?: {
+                              [key: string]: unknown;
+                            };
+                          };
+                        }
+                      | {
+                          tool: string;
+                          with?: {
+                            [key: string]: unknown;
+                          };
+                        }
+                    )[];
+                    on_error?: {
+                      allow_fail?: boolean;
+                      effects?: (
+                        | {
+                            emit: {
+                              kind: string;
+                              payload?: {
+                                [key: string]: unknown;
+                              };
+                            };
+                          }
+                        | {
+                            tool: string;
+                            with?: {
+                              [key: string]: unknown;
+                            };
+                          }
+                      )[];
+                      route?: string;
+                    };
+                    /** @enum {string} */
+                    on_parent_close?: "terminate" | "cancel" | "abandon";
+                    on_pause?: (
+                      | {
+                          emit: {
+                            kind: string;
+                            payload?: {
+                              [key: string]: unknown;
+                            };
+                          };
+                        }
+                      | {
+                          tool: string;
+                          with?: {
+                            [key: string]: unknown;
+                          };
+                        }
+                    )[];
+                    on_quarantine?: (
+                      | {
+                          emit: {
+                            kind: string;
+                            payload?: {
+                              [key: string]: unknown;
+                            };
+                          };
+                        }
+                      | {
+                          tool: string;
+                          with?: {
+                            [key: string]: unknown;
+                          };
+                        }
+                    )[];
                     on_result?: {
                       [key: string]: unknown;
                     };
+                    on_retry?: (
+                      | {
+                          emit: {
+                            kind: string;
+                            payload?: {
+                              [key: string]: unknown;
+                            };
+                          };
+                        }
+                      | {
+                          tool: string;
+                          with?: {
+                            [key: string]: unknown;
+                          };
+                        }
+                    )[];
+                    on_success?: (
+                      | {
+                          emit: {
+                            kind: string;
+                            payload?: {
+                              [key: string]: unknown;
+                            };
+                          };
+                        }
+                      | {
+                          tool: string;
+                          with?: {
+                            [key: string]: unknown;
+                          };
+                        }
+                    )[];
+                    on_timeout?: (
+                      | {
+                          emit: {
+                            kind: string;
+                            payload?: {
+                              [key: string]: unknown;
+                            };
+                          };
+                        }
+                      | {
+                          tool: string;
+                          with?: {
+                            [key: string]: unknown;
+                          };
+                        }
+                    )[];
                     params?: {
                       [key: string]: unknown;
                     };
@@ -91079,8 +92113,18 @@ export interface operations {
                     produces?: {
                       [key: string]: unknown;
                     };
+                    result_contract?: {
+                      failure_field: string;
+                      message_field?: string;
+                    };
                     retry?: {
-                      [key: string]: unknown;
+                      backoff?: {
+                        base?: string;
+                        max?: string;
+                      };
+                      max_attempts?: number;
+                      non_retryable?: string[];
+                      on_failure?: string;
                     };
                     session?: {
                       [key: string]: unknown;
@@ -91432,6 +92476,118 @@ export interface operations {
                     hash_fields?: string[];
                     window: number;
                   };
+                  on_blocked?: (
+                    | {
+                        emit: {
+                          kind: string;
+                          payload?: {
+                            [key: string]: unknown;
+                          };
+                        };
+                      }
+                    | {
+                        tool: string;
+                        with?: {
+                          [key: string]: unknown;
+                        };
+                      }
+                  )[];
+                  on_canceled?: (
+                    | {
+                        emit: {
+                          kind: string;
+                          payload?: {
+                            [key: string]: unknown;
+                          };
+                        };
+                      }
+                    | {
+                        tool: string;
+                        with?: {
+                          [key: string]: unknown;
+                        };
+                      }
+                  )[];
+                  on_done?: (
+                    | {
+                        emit: {
+                          kind: string;
+                          payload?: {
+                            [key: string]: unknown;
+                          };
+                        };
+                      }
+                    | {
+                        tool: string;
+                        with?: {
+                          [key: string]: unknown;
+                        };
+                      }
+                  )[];
+                  on_exhausted?: (
+                    | {
+                        emit: {
+                          kind: string;
+                          payload?: {
+                            [key: string]: unknown;
+                          };
+                        };
+                      }
+                    | {
+                        tool: string;
+                        with?: {
+                          [key: string]: unknown;
+                        };
+                      }
+                  )[];
+                  on_failed?: (
+                    | {
+                        emit: {
+                          kind: string;
+                          payload?: {
+                            [key: string]: unknown;
+                          };
+                        };
+                      }
+                    | {
+                        tool: string;
+                        with?: {
+                          [key: string]: unknown;
+                        };
+                      }
+                  )[];
+                  on_noop?: (
+                    | {
+                        emit: {
+                          kind: string;
+                          payload?: {
+                            [key: string]: unknown;
+                          };
+                        };
+                      }
+                    | {
+                        tool: string;
+                        with?: {
+                          [key: string]: unknown;
+                        };
+                      }
+                  )[];
+                  on_stalled?: (
+                    | {
+                        emit: {
+                          kind: string;
+                          payload?: {
+                            [key: string]: unknown;
+                          };
+                        };
+                      }
+                    | {
+                        tool: string;
+                        with?: {
+                          [key: string]: unknown;
+                        };
+                      }
+                  )[];
                   runtime_defaults?: {
                     judge?: {
                       model?: string;
@@ -91524,6 +92680,7 @@ export interface operations {
                     } & {
                       [key: string]: unknown;
                     })[];
+                    deadline?: string;
                     events?: {
                       filter?: string;
                       /** @enum {string} */
@@ -91551,6 +92708,26 @@ export interface operations {
                         | "coordinator.failed"
                         | "event.post_record";
                     }[];
+                    expires?: {
+                      after: string;
+                      escalate?: (
+                        | {
+                            emit: {
+                              kind: string;
+                              payload?: {
+                                [key: string]: unknown;
+                              };
+                            };
+                          }
+                        | {
+                            tool: string;
+                            with?: {
+                              [key: string]: unknown;
+                            };
+                          }
+                      )[];
+                      route?: string;
+                    };
                     filter?: string;
                     harvest?: {
                       [key: string]: unknown;
@@ -91561,9 +92738,127 @@ export interface operations {
                     max_fan_out?: number;
                     max_parallel?: number;
                     max_revisions?: number;
+                    on_cancel?: (
+                      | {
+                          emit: {
+                            kind: string;
+                            payload?: {
+                              [key: string]: unknown;
+                            };
+                          };
+                        }
+                      | {
+                          tool: string;
+                          with?: {
+                            [key: string]: unknown;
+                          };
+                        }
+                    )[];
+                    on_error?: {
+                      allow_fail?: boolean;
+                      effects?: (
+                        | {
+                            emit: {
+                              kind: string;
+                              payload?: {
+                                [key: string]: unknown;
+                              };
+                            };
+                          }
+                        | {
+                            tool: string;
+                            with?: {
+                              [key: string]: unknown;
+                            };
+                          }
+                      )[];
+                      route?: string;
+                    };
+                    /** @enum {string} */
+                    on_parent_close?: "terminate" | "cancel" | "abandon";
+                    on_pause?: (
+                      | {
+                          emit: {
+                            kind: string;
+                            payload?: {
+                              [key: string]: unknown;
+                            };
+                          };
+                        }
+                      | {
+                          tool: string;
+                          with?: {
+                            [key: string]: unknown;
+                          };
+                        }
+                    )[];
+                    on_quarantine?: (
+                      | {
+                          emit: {
+                            kind: string;
+                            payload?: {
+                              [key: string]: unknown;
+                            };
+                          };
+                        }
+                      | {
+                          tool: string;
+                          with?: {
+                            [key: string]: unknown;
+                          };
+                        }
+                    )[];
                     on_result?: {
                       [key: string]: unknown;
                     };
+                    on_retry?: (
+                      | {
+                          emit: {
+                            kind: string;
+                            payload?: {
+                              [key: string]: unknown;
+                            };
+                          };
+                        }
+                      | {
+                          tool: string;
+                          with?: {
+                            [key: string]: unknown;
+                          };
+                        }
+                    )[];
+                    on_success?: (
+                      | {
+                          emit: {
+                            kind: string;
+                            payload?: {
+                              [key: string]: unknown;
+                            };
+                          };
+                        }
+                      | {
+                          tool: string;
+                          with?: {
+                            [key: string]: unknown;
+                          };
+                        }
+                    )[];
+                    on_timeout?: (
+                      | {
+                          emit: {
+                            kind: string;
+                            payload?: {
+                              [key: string]: unknown;
+                            };
+                          };
+                        }
+                      | {
+                          tool: string;
+                          with?: {
+                            [key: string]: unknown;
+                          };
+                        }
+                    )[];
                     params?: {
                       [key: string]: unknown;
                     };
@@ -91572,8 +92867,18 @@ export interface operations {
                     produces?: {
                       [key: string]: unknown;
                     };
+                    result_contract?: {
+                      failure_field: string;
+                      message_field?: string;
+                    };
                     retry?: {
-                      [key: string]: unknown;
+                      backoff?: {
+                        base?: string;
+                        max?: string;
+                      };
+                      max_attempts?: number;
+                      non_retryable?: string[];
+                      on_failure?: string;
                     };
                     session?: {
                       [key: string]: unknown;
@@ -92024,6 +93329,118 @@ export interface operations {
                 hash_fields?: string[];
                 window: number;
               };
+              on_blocked?: (
+                | {
+                    emit: {
+                      kind: string;
+                      payload?: {
+                        [key: string]: unknown;
+                      };
+                    };
+                  }
+                | {
+                    tool: string;
+                    with?: {
+                      [key: string]: unknown;
+                    };
+                  }
+              )[];
+              on_canceled?: (
+                | {
+                    emit: {
+                      kind: string;
+                      payload?: {
+                        [key: string]: unknown;
+                      };
+                    };
+                  }
+                | {
+                    tool: string;
+                    with?: {
+                      [key: string]: unknown;
+                    };
+                  }
+              )[];
+              on_done?: (
+                | {
+                    emit: {
+                      kind: string;
+                      payload?: {
+                        [key: string]: unknown;
+                      };
+                    };
+                  }
+                | {
+                    tool: string;
+                    with?: {
+                      [key: string]: unknown;
+                    };
+                  }
+              )[];
+              on_exhausted?: (
+                | {
+                    emit: {
+                      kind: string;
+                      payload?: {
+                        [key: string]: unknown;
+                      };
+                    };
+                  }
+                | {
+                    tool: string;
+                    with?: {
+                      [key: string]: unknown;
+                    };
+                  }
+              )[];
+              on_failed?: (
+                | {
+                    emit: {
+                      kind: string;
+                      payload?: {
+                        [key: string]: unknown;
+                      };
+                    };
+                  }
+                | {
+                    tool: string;
+                    with?: {
+                      [key: string]: unknown;
+                    };
+                  }
+              )[];
+              on_noop?: (
+                | {
+                    emit: {
+                      kind: string;
+                      payload?: {
+                        [key: string]: unknown;
+                      };
+                    };
+                  }
+                | {
+                    tool: string;
+                    with?: {
+                      [key: string]: unknown;
+                    };
+                  }
+              )[];
+              on_stalled?: (
+                | {
+                    emit: {
+                      kind: string;
+                      payload?: {
+                        [key: string]: unknown;
+                      };
+                    };
+                  }
+                | {
+                    tool: string;
+                    with?: {
+                      [key: string]: unknown;
+                    };
+                  }
+              )[];
               runtime_defaults?: {
                 judge?: {
                   model?: string;
@@ -92116,6 +93533,7 @@ export interface operations {
                 } & {
                   [key: string]: unknown;
                 })[];
+                deadline?: string;
                 events?: {
                   filter?: string;
                   /** @enum {string} */
@@ -92143,6 +93561,26 @@ export interface operations {
                     | "coordinator.failed"
                     | "event.post_record";
                 }[];
+                expires?: {
+                  after: string;
+                  escalate?: (
+                    | {
+                        emit: {
+                          kind: string;
+                          payload?: {
+                            [key: string]: unknown;
+                          };
+                        };
+                      }
+                    | {
+                        tool: string;
+                        with?: {
+                          [key: string]: unknown;
+                        };
+                      }
+                  )[];
+                  route?: string;
+                };
                 filter?: string;
                 harvest?: {
                   [key: string]: unknown;
@@ -92153,9 +93591,127 @@ export interface operations {
                 max_fan_out?: number;
                 max_parallel?: number;
                 max_revisions?: number;
+                on_cancel?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
+                on_error?: {
+                  allow_fail?: boolean;
+                  effects?: (
+                    | {
+                        emit: {
+                          kind: string;
+                          payload?: {
+                            [key: string]: unknown;
+                          };
+                        };
+                      }
+                    | {
+                        tool: string;
+                        with?: {
+                          [key: string]: unknown;
+                        };
+                      }
+                  )[];
+                  route?: string;
+                };
+                /** @enum {string} */
+                on_parent_close?: "terminate" | "cancel" | "abandon";
+                on_pause?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
+                on_quarantine?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
                 on_result?: {
                   [key: string]: unknown;
                 };
+                on_retry?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
+                on_success?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
+                on_timeout?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
                 params?: {
                   [key: string]: unknown;
                 };
@@ -92164,8 +93720,18 @@ export interface operations {
                 produces?: {
                   [key: string]: unknown;
                 };
+                result_contract?: {
+                  failure_field: string;
+                  message_field?: string;
+                };
                 retry?: {
-                  [key: string]: unknown;
+                  backoff?: {
+                    base?: string;
+                    max?: string;
+                  };
+                  max_attempts?: number;
+                  non_retryable?: string[];
+                  on_failure?: string;
                 };
                 session?: {
                   [key: string]: unknown;
@@ -92308,6 +93874,118 @@ export interface operations {
                     hash_fields?: string[];
                     window: number;
                   };
+                  on_blocked?: (
+                    | {
+                        emit: {
+                          kind: string;
+                          payload?: {
+                            [key: string]: unknown;
+                          };
+                        };
+                      }
+                    | {
+                        tool: string;
+                        with?: {
+                          [key: string]: unknown;
+                        };
+                      }
+                  )[];
+                  on_canceled?: (
+                    | {
+                        emit: {
+                          kind: string;
+                          payload?: {
+                            [key: string]: unknown;
+                          };
+                        };
+                      }
+                    | {
+                        tool: string;
+                        with?: {
+                          [key: string]: unknown;
+                        };
+                      }
+                  )[];
+                  on_done?: (
+                    | {
+                        emit: {
+                          kind: string;
+                          payload?: {
+                            [key: string]: unknown;
+                          };
+                        };
+                      }
+                    | {
+                        tool: string;
+                        with?: {
+                          [key: string]: unknown;
+                        };
+                      }
+                  )[];
+                  on_exhausted?: (
+                    | {
+                        emit: {
+                          kind: string;
+                          payload?: {
+                            [key: string]: unknown;
+                          };
+                        };
+                      }
+                    | {
+                        tool: string;
+                        with?: {
+                          [key: string]: unknown;
+                        };
+                      }
+                  )[];
+                  on_failed?: (
+                    | {
+                        emit: {
+                          kind: string;
+                          payload?: {
+                            [key: string]: unknown;
+                          };
+                        };
+                      }
+                    | {
+                        tool: string;
+                        with?: {
+                          [key: string]: unknown;
+                        };
+                      }
+                  )[];
+                  on_noop?: (
+                    | {
+                        emit: {
+                          kind: string;
+                          payload?: {
+                            [key: string]: unknown;
+                          };
+                        };
+                      }
+                    | {
+                        tool: string;
+                        with?: {
+                          [key: string]: unknown;
+                        };
+                      }
+                  )[];
+                  on_stalled?: (
+                    | {
+                        emit: {
+                          kind: string;
+                          payload?: {
+                            [key: string]: unknown;
+                          };
+                        };
+                      }
+                    | {
+                        tool: string;
+                        with?: {
+                          [key: string]: unknown;
+                        };
+                      }
+                  )[];
                   runtime_defaults?: {
                     judge?: {
                       model?: string;
@@ -92400,6 +94078,7 @@ export interface operations {
                     } & {
                       [key: string]: unknown;
                     })[];
+                    deadline?: string;
                     events?: {
                       filter?: string;
                       /** @enum {string} */
@@ -92427,6 +94106,26 @@ export interface operations {
                         | "coordinator.failed"
                         | "event.post_record";
                     }[];
+                    expires?: {
+                      after: string;
+                      escalate?: (
+                        | {
+                            emit: {
+                              kind: string;
+                              payload?: {
+                                [key: string]: unknown;
+                              };
+                            };
+                          }
+                        | {
+                            tool: string;
+                            with?: {
+                              [key: string]: unknown;
+                            };
+                          }
+                      )[];
+                      route?: string;
+                    };
                     filter?: string;
                     harvest?: {
                       [key: string]: unknown;
@@ -92437,9 +94136,127 @@ export interface operations {
                     max_fan_out?: number;
                     max_parallel?: number;
                     max_revisions?: number;
+                    on_cancel?: (
+                      | {
+                          emit: {
+                            kind: string;
+                            payload?: {
+                              [key: string]: unknown;
+                            };
+                          };
+                        }
+                      | {
+                          tool: string;
+                          with?: {
+                            [key: string]: unknown;
+                          };
+                        }
+                    )[];
+                    on_error?: {
+                      allow_fail?: boolean;
+                      effects?: (
+                        | {
+                            emit: {
+                              kind: string;
+                              payload?: {
+                                [key: string]: unknown;
+                              };
+                            };
+                          }
+                        | {
+                            tool: string;
+                            with?: {
+                              [key: string]: unknown;
+                            };
+                          }
+                      )[];
+                      route?: string;
+                    };
+                    /** @enum {string} */
+                    on_parent_close?: "terminate" | "cancel" | "abandon";
+                    on_pause?: (
+                      | {
+                          emit: {
+                            kind: string;
+                            payload?: {
+                              [key: string]: unknown;
+                            };
+                          };
+                        }
+                      | {
+                          tool: string;
+                          with?: {
+                            [key: string]: unknown;
+                          };
+                        }
+                    )[];
+                    on_quarantine?: (
+                      | {
+                          emit: {
+                            kind: string;
+                            payload?: {
+                              [key: string]: unknown;
+                            };
+                          };
+                        }
+                      | {
+                          tool: string;
+                          with?: {
+                            [key: string]: unknown;
+                          };
+                        }
+                    )[];
                     on_result?: {
                       [key: string]: unknown;
                     };
+                    on_retry?: (
+                      | {
+                          emit: {
+                            kind: string;
+                            payload?: {
+                              [key: string]: unknown;
+                            };
+                          };
+                        }
+                      | {
+                          tool: string;
+                          with?: {
+                            [key: string]: unknown;
+                          };
+                        }
+                    )[];
+                    on_success?: (
+                      | {
+                          emit: {
+                            kind: string;
+                            payload?: {
+                              [key: string]: unknown;
+                            };
+                          };
+                        }
+                      | {
+                          tool: string;
+                          with?: {
+                            [key: string]: unknown;
+                          };
+                        }
+                    )[];
+                    on_timeout?: (
+                      | {
+                          emit: {
+                            kind: string;
+                            payload?: {
+                              [key: string]: unknown;
+                            };
+                          };
+                        }
+                      | {
+                          tool: string;
+                          with?: {
+                            [key: string]: unknown;
+                          };
+                        }
+                    )[];
                     params?: {
                       [key: string]: unknown;
                     };
@@ -92448,8 +94265,18 @@ export interface operations {
                     produces?: {
                       [key: string]: unknown;
                     };
+                    result_contract?: {
+                      failure_field: string;
+                      message_field?: string;
+                    };
                     retry?: {
-                      [key: string]: unknown;
+                      backoff?: {
+                        base?: string;
+                        max?: string;
+                      };
+                      max_attempts?: number;
+                      non_retryable?: string[];
+                      on_failure?: string;
                     };
                     session?: {
                       [key: string]: unknown;
@@ -94643,6 +96470,118 @@ export interface operations {
                   hash_fields?: string[];
                   window: number;
                 };
+                on_blocked?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
+                on_canceled?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
+                on_done?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
+                on_exhausted?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
+                on_failed?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
+                on_noop?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
+                on_stalled?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
                 runtime_defaults?: {
                   judge?: {
                     model?: string;
@@ -94939,6 +96878,118 @@ export interface operations {
                   hash_fields?: string[];
                   window: number;
                 };
+                on_blocked?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
+                on_canceled?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
+                on_done?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
+                on_exhausted?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
+                on_failed?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
+                on_noop?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
+                on_stalled?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
                 runtime_defaults?: {
                   judge?: {
                     model?: string;
@@ -95451,6 +97502,118 @@ export interface operations {
                 hash_fields?: string[];
                 window: number;
               };
+              on_blocked?: (
+                | {
+                    emit: {
+                      kind: string;
+                      payload?: {
+                        [key: string]: unknown;
+                      };
+                    };
+                  }
+                | {
+                    tool: string;
+                    with?: {
+                      [key: string]: unknown;
+                    };
+                  }
+              )[];
+              on_canceled?: (
+                | {
+                    emit: {
+                      kind: string;
+                      payload?: {
+                        [key: string]: unknown;
+                      };
+                    };
+                  }
+                | {
+                    tool: string;
+                    with?: {
+                      [key: string]: unknown;
+                    };
+                  }
+              )[];
+              on_done?: (
+                | {
+                    emit: {
+                      kind: string;
+                      payload?: {
+                        [key: string]: unknown;
+                      };
+                    };
+                  }
+                | {
+                    tool: string;
+                    with?: {
+                      [key: string]: unknown;
+                    };
+                  }
+              )[];
+              on_exhausted?: (
+                | {
+                    emit: {
+                      kind: string;
+                      payload?: {
+                        [key: string]: unknown;
+                      };
+                    };
+                  }
+                | {
+                    tool: string;
+                    with?: {
+                      [key: string]: unknown;
+                    };
+                  }
+              )[];
+              on_failed?: (
+                | {
+                    emit: {
+                      kind: string;
+                      payload?: {
+                        [key: string]: unknown;
+                      };
+                    };
+                  }
+                | {
+                    tool: string;
+                    with?: {
+                      [key: string]: unknown;
+                    };
+                  }
+              )[];
+              on_noop?: (
+                | {
+                    emit: {
+                      kind: string;
+                      payload?: {
+                        [key: string]: unknown;
+                      };
+                    };
+                  }
+                | {
+                    tool: string;
+                    with?: {
+                      [key: string]: unknown;
+                    };
+                  }
+              )[];
+              on_stalled?: (
+                | {
+                    emit: {
+                      kind: string;
+                      payload?: {
+                        [key: string]: unknown;
+                      };
+                    };
+                  }
+                | {
+                    tool: string;
+                    with?: {
+                      [key: string]: unknown;
+                    };
+                  }
+              )[];
               runtime_defaults?: {
                 judge?: {
                   model?: string;
@@ -95543,6 +97706,7 @@ export interface operations {
                 } & {
                   [key: string]: unknown;
                 })[];
+                deadline?: string;
                 events?: {
                   filter?: string;
                   /** @enum {string} */
@@ -95570,6 +97734,26 @@ export interface operations {
                     | "coordinator.failed"
                     | "event.post_record";
                 }[];
+                expires?: {
+                  after: string;
+                  escalate?: (
+                    | {
+                        emit: {
+                          kind: string;
+                          payload?: {
+                            [key: string]: unknown;
+                          };
+                        };
+                      }
+                    | {
+                        tool: string;
+                        with?: {
+                          [key: string]: unknown;
+                        };
+                      }
+                  )[];
+                  route?: string;
+                };
                 filter?: string;
                 harvest?: {
                   [key: string]: unknown;
@@ -95580,9 +97764,127 @@ export interface operations {
                 max_fan_out?: number;
                 max_parallel?: number;
                 max_revisions?: number;
+                on_cancel?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
+                on_error?: {
+                  allow_fail?: boolean;
+                  effects?: (
+                    | {
+                        emit: {
+                          kind: string;
+                          payload?: {
+                            [key: string]: unknown;
+                          };
+                        };
+                      }
+                    | {
+                        tool: string;
+                        with?: {
+                          [key: string]: unknown;
+                        };
+                      }
+                  )[];
+                  route?: string;
+                };
+                /** @enum {string} */
+                on_parent_close?: "terminate" | "cancel" | "abandon";
+                on_pause?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
+                on_quarantine?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
                 on_result?: {
                   [key: string]: unknown;
                 };
+                on_retry?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
+                on_success?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
+                on_timeout?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
                 params?: {
                   [key: string]: unknown;
                 };
@@ -95591,8 +97893,18 @@ export interface operations {
                 produces?: {
                   [key: string]: unknown;
                 };
+                result_contract?: {
+                  failure_field: string;
+                  message_field?: string;
+                };
                 retry?: {
-                  [key: string]: unknown;
+                  backoff?: {
+                    base?: string;
+                    max?: string;
+                  };
+                  max_attempts?: number;
+                  non_retryable?: string[];
+                  on_failure?: string;
                 };
                 session?: {
                   [key: string]: unknown;

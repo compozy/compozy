@@ -28,6 +28,7 @@ export function useLoopEditorState() {
     nodes: context.nodes,
     positionsDirty: context.positionsDirty,
     publishError: context.publishError,
+    publishRejectedIssues: context.publishRejectedIssues,
     selectedNodeId: context.selectedNodeId,
     selectionSeq: context.selectionSeq,
     sidebarTab: context.sidebarTab,

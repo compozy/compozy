@@ -8,6 +8,8 @@ import {
   renameNodeId,
   setAtPath,
   setNodeField,
+  setNodeFields,
+  unsetAtPath,
 } from "../loop-editor-draft";
 
 const def = loopDetailByName.get("software-delivery")!.definition;
@@ -51,6 +53,66 @@ describe("loop editor draft", () => {
     const slugBefore = nodes.find(node => node.id === "slug");
     const slugAfter = edited.find(node => node.id === "slug");
     expect(slugAfter).toBe(slugBefore);
+  });
+
+  it("WT-005: Should drop a container the clear emptied, but keep one with siblings", () => {
+    // A leftover `result_contract: {}` is a guaranteed `result_contract_invalid` and an
+    // `expires: {}` a `wait_shape_invalid`, so clearing the last key must prune its parent.
+    const emptied = unsetAtPath({ id: "x", result_contract: { failure_field: "err" } }, [
+      "result_contract",
+      "failure_field",
+    ]);
+    expect(emptied).toEqual({ id: "x" });
+    expect(emptied).not.toHaveProperty("result_contract");
+
+    const kept = unsetAtPath(
+      { id: "x", result_contract: { failure_field: "err", message_field: "err.message" } },
+      ["result_contract", "failure_field"]
+    );
+    expect(kept).toEqual({ id: "x", result_contract: { message_field: "err.message" } });
+  });
+
+  it("WT-005: Should prune every ancestor a nested clear emptied, along that path only", () => {
+    const next = unsetAtPath({ id: "x", timeout: "30m", retry: { backoff: { base: "30s" } } }, [
+      "retry",
+      "backoff",
+      "base",
+    ]);
+    expect(next).toEqual({ id: "x", timeout: "30m" });
+
+    const partial = unsetAtPath({ id: "x", retry: { max_attempts: 3, backoff: { base: "30s" } } }, [
+      "retry",
+      "backoff",
+      "base",
+    ]);
+    expect(partial).toEqual({ id: "x", retry: { max_attempts: 3 } });
+  });
+
+  it("WT-005: Should clear a whole effect list path so no zero-count list is published", () => {
+    const next = unsetAtPath({ id: "x", on_retry: [{ emit: { kind: "task_retrying" } }] }, [
+      "on_retry",
+    ]);
+    expect(next).toEqual({ id: "x" });
+    // Clearing an absent path is a no-op that returns the same reference.
+    const source = { id: "x" };
+    expect(unsetAtPath(source, ["on_retry"])).toBe(source);
+  });
+
+  it("WT-005: Should apply multi-key edits as one transition with no invalid intermediate", () => {
+    const { nodes } = definitionToGraph(def);
+    const seeded = setNodeField(nodes, "implement", ["params"], { for: "1h" });
+    const edited = setNodeFields(seeded, "implement", [
+      { path: ["params", "for"], value: undefined },
+      { path: ["params", "until"], value: "2026-09-01T00:00:00Z" },
+      { path: ["params", "event"], value: undefined },
+    ]);
+    // Exactly one discriminator survives, and the losers left no empty containers behind.
+    expect(edited.find(node => node.id === "implement")?.data.raw.params).toEqual({
+      until: "2026-09-01T00:00:00Z",
+    });
+    // Only the edited node is replaced; siblings keep their identity.
+    const slugBefore = seeded.find(node => node.id === "slug");
+    expect(edited.find(node => node.id === "slug")).toBe(slugBefore);
   });
 
   it("Should recognize the node-id path so a rename can cascade", () => {

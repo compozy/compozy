@@ -43,7 +43,9 @@ export const LOOP_PALETTE: PaletteGroup[] = [
           params: { agent: "", prompt: "" },
           session: { isolated: true },
           timeout: "30m",
-          retry: { max: 2 },
+          // `retry.max` is retired (`retry_max_unsupported`); `max_attempts` is the key the
+          // runtime resolves into the attempt budget (`lifecycle_config.go`).
+          retry: { max_attempts: 2 },
         }),
       },
       {
@@ -157,6 +159,16 @@ export const LOOP_PALETTE: PaletteGroup[] = [
         nodeClass: "control",
         idBase: "sub_loop",
         buildRaw: id => ({ id, class: "control", kind: "sub-loop" }),
+      },
+      {
+        label: "Wait",
+        kindLabel: "wait",
+        nodeClass: "control",
+        idBase: "wait",
+        hint: "A durable timer, timestamp, or event pause. The run parks here with its clocks suspended.",
+        // Seeded with exactly one discriminator — a wait declaring zero or several is
+        // `wait_shape_invalid`, so a dropped node is valid-shaped from the first render.
+        buildRaw: id => ({ id, class: "control", kind: "wait", params: { for: "1h" } }),
       },
     ],
   },

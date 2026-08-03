@@ -1,18 +1,10 @@
-import { useId, useState } from "react";
 import { AlertTriangle } from "lucide-react";
 
-import {
-  cn,
-  FieldError,
-  Input,
-  NativeSelect,
-  NativeSelectOption,
-  Switch,
-  Textarea,
-} from "@compozy/ui";
+import { cn, Input, NativeSelect, NativeSelectOption, Switch, Textarea } from "@compozy/ui";
 
 import { MonoTag } from "../mono-tag";
-import { getAtPath } from "../../lib/loop-editor-draft";
+import type { RawLoopNode } from "../../lib/codec";
+import { getAtPath, type NodeFieldEdit } from "../../lib/loop-editor-draft";
 import type {
   FieldPath,
   FieldSpec,
@@ -22,6 +14,9 @@ import type {
 } from "../../lib/loop-node-schema";
 import type { LoopReferenceSuggestion } from "../../lib/loop-references";
 import { LoopEditorCriteria } from "./loop-editor-criteria";
+import { LoopEditorEffectsField } from "./loop-editor-field-effects";
+import { LoopEditorJsonField } from "./loop-editor-json-field";
+import { LoopEditorWaitMode } from "./loop-editor-wait-mode";
 import { LoopEditorWatchEvents } from "./loop-editor-watch-events";
 import { LoopReferenceInput } from "./loop-reference-input";
 
@@ -31,6 +26,8 @@ interface LoopEditorFieldProps {
   suggestions: readonly LoopReferenceSuggestion[];
   disabled: boolean;
   onChange: (path: FieldPath, value: unknown) => void;
+  /** Multi-key atomic edits — the `wait` discriminator is the only field that needs them. */
+  onChangeFields: (edits: NodeFieldEdit[]) => void;
 }
 
 function str(value: unknown): string {
@@ -55,64 +52,6 @@ function FieldSpecLabel({ field }: { field: TextFieldSpec | NumberFieldSpec | Se
   );
 }
 
-/** A structured (object/array) field: edited as JSON text, parsed back on change so a
- *  scalar edit never coerces the field to a string. Invalid JSON is surfaced, not saved. */
-function JsonField({
-  value,
-  disabled,
-  onCommit,
-  testId,
-  ariaLabel,
-}: {
-  value: unknown;
-  disabled: boolean;
-  onCommit: (parsed: unknown) => void;
-  testId?: string;
-  ariaLabel?: string;
-}) {
-  const [text, setText] = useState(() =>
-    value === undefined ? "" : JSON.stringify(value, null, 2)
-  );
-  const [error, setError] = useState<string | null>(null);
-  const errorId = useId();
-  return (
-    <div>
-      <Textarea
-        aria-describedby={error ? errorId : undefined}
-        aria-invalid={Boolean(error)}
-        aria-label={ariaLabel}
-        className="min-h-18.5 resize-y text-form-input leading-relaxed"
-        data-testid={testId}
-        disabled={disabled}
-        value={text}
-        variant="mono"
-        onChange={event => {
-          const next = event.target.value;
-          setText(next);
-          if (next.trim() === "") {
-            setError(null);
-            onCommit(undefined);
-            return;
-          }
-          try {
-            const parsed = JSON.parse(next);
-            setError(null);
-            onCommit(parsed);
-          } catch {
-            setError("Invalid JSON — not saved");
-          }
-        }}
-      />
-      {error ? (
-        <FieldError className="mt-1.5 flex items-center gap-1.5 text-form-hint" id={errorId}>
-          <AlertTriangle aria-hidden="true" className="size-3" />
-          {error}
-        </FieldError>
-      ) : null}
-    </div>
-  );
-}
-
 function TextControl({
   field,
   raw,
@@ -124,11 +63,12 @@ function TextControl({
   const testId = `loop-field-${field.key}`;
   if (field.json) {
     return (
-      <JsonField
+      <LoopEditorJsonField
         value={value}
         disabled={disabled}
         testId={testId}
         ariaLabel={field.label}
+        placeholder={field.placeholder}
         onCommit={parsed => onChange(field.path, parsed)}
       />
     );
@@ -225,16 +165,25 @@ export function LoopEditorField(props: LoopEditorFieldProps) {
     );
   }
   if (field.type === "select") {
+    const clear = field.clearOption;
     return (
       <div>
         <FieldSpecLabel field={field} />
         <NativeSelect
           value={str(getAtPath(raw, field.path))}
           disabled={disabled}
-          onChange={event => onChange(field.path, event.target.value)}
+          onChange={event => {
+            const next = event.target.value;
+            // An optional DSL enum has no authored default, so selecting the clear option
+            // removes the key instead of pinning a value the runtime never received.
+            onChange(field.path, clear && next === clear.value ? undefined : next);
+          }}
           aria-label={field.label}
           data-testid={`loop-field-${field.key}`}
         >
+          {clear ? (
+            <NativeSelectOption value={clear.value}>{clear.label}</NativeSelectOption>
+          ) : null}
           {field.options.map(option => (
             <NativeSelectOption key={option} value={option}>
               {option}
@@ -328,6 +277,27 @@ export function LoopEditorField(props: LoopEditorFieldProps) {
           <p className="mt-1.5 text-form-hint leading-relaxed text-subtle">{field.hint}</p>
         ) : null}
       </div>
+    );
+  }
+  if (field.type === "effects") {
+    return (
+      <LoopEditorEffectsField
+        field={field}
+        raw={raw}
+        suggestions={props.suggestions}
+        disabled={disabled}
+        onChange={onChange}
+      />
+    );
+  }
+  if (field.type === "wait-mode") {
+    return (
+      <LoopEditorWaitMode
+        field={field}
+        raw={raw as RawLoopNode}
+        disabled={disabled}
+        onChangeFields={props.onChangeFields}
+      />
     );
   }
   if (field.type === "fold") {

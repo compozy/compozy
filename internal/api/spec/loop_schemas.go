@@ -15,14 +15,96 @@ func customizeLoopGraphSchema(schema *openapi3.Schema) {
 	schema.Required = []string{"edges", "nodes"}
 }
 
-func loopGraphNodeSchema() *openapi3.Schema {
+func loopEffectListSchema() *openapi3.Schema {
+	return openapi3.NewArraySchema().WithItems(loopEffectSchema())
+}
+
+func withLoopLifecycleProperties(schema *openapi3.Schema) *openapi3.Schema {
+	return schema.
+		WithProperty("deadline", openapi3.NewStringSchema()).
+		WithProperty("result_contract", loopResultContractSchema()).
+		WithProperty("on_error", loopErrorPolicySchema()).
+		WithProperty("on_retry", loopEffectListSchema()).
+		WithProperty("on_success", loopEffectListSchema()).
+		WithProperty("on_pause", loopEffectListSchema()).
+		WithProperty("on_timeout", loopEffectListSchema()).
+		WithProperty("on_cancel", loopEffectListSchema()).
+		WithProperty("on_quarantine", loopEffectListSchema()).
+		WithProperty("on_parent_close", openapi3.NewStringSchema().
+			WithEnum(enumAsAny(contract.LoopParentClosePolicyValues())...)).
+		WithProperty("expires", loopWaitExpirySchema())
+}
+
+func loopResultContractSchema() *openapi3.Schema {
 	schema := openapi3.NewObjectSchema().
+		WithProperty("failure_field", openapi3.NewStringSchema()).
+		WithProperty("message_field", openapi3.NewStringSchema()).
+		WithoutAdditionalProperties()
+	schema.Required = []string{"failure_field"}
+	return schema
+}
+
+func loopErrorPolicySchema() *openapi3.Schema {
+	return openapi3.NewObjectSchema().
+		WithProperty("route", openapi3.NewStringSchema()).
+		WithProperty("allow_fail", openapi3.NewBoolSchema()).
+		WithProperty("effects", loopEffectListSchema()).
+		WithoutAdditionalProperties()
+}
+
+func loopWaitExpirySchema() *openapi3.Schema {
+	schema := openapi3.NewObjectSchema().
+		WithProperty("after", openapi3.NewStringSchema()).
+		WithProperty("escalate", loopEffectListSchema()).
+		WithProperty("route", openapi3.NewStringSchema()).
+		WithoutAdditionalProperties()
+	schema.Required = []string{"after"}
+	return schema
+}
+
+func loopEffectSchema() *openapi3.Schema {
+	emit := openapi3.NewObjectSchema().
+		WithProperty("emit", loopEmitSchema()).
+		WithoutAdditionalProperties()
+	emit.Required = []string{"emit"}
+	tool := openapi3.NewObjectSchema().
+		WithProperty("tool", openapi3.NewStringSchema()).
+		WithProperty("with", loopFreeformObjectSchema()).
+		WithoutAdditionalProperties()
+	tool.Required = []string{"tool"}
+	return &openapi3.Schema{OneOf: []*openapi3.SchemaRef{{Value: emit}, {Value: tool}}}
+}
+
+func loopEmitSchema() *openapi3.Schema {
+	schema := openapi3.NewObjectSchema().
+		WithProperty("kind", openapi3.NewStringSchema()).
+		WithProperty("payload", loopFreeformObjectSchema()).
+		WithoutAdditionalProperties()
+	schema.Required = []string{loopKindField}
+	return schema
+}
+
+func loopRetrySchema() *openapi3.Schema {
+	backoff := openapi3.NewObjectSchema().
+		WithProperty("base", openapi3.NewStringSchema()).
+		WithProperty("max", openapi3.NewStringSchema()).
+		WithoutAdditionalProperties()
+	return openapi3.NewObjectSchema().
+		WithProperty("max_attempts", openapi3.NewIntegerSchema()).
+		WithProperty("on_failure", openapi3.NewStringSchema()).
+		WithProperty("backoff", backoff).
+		WithProperty("non_retryable", openapi3.NewArraySchema().WithItems(openapi3.NewStringSchema())).
+		WithoutAdditionalProperties()
+}
+
+func loopGraphNodeSchema() *openapi3.Schema {
+	schema := withLoopLifecycleProperties(openapi3.NewObjectSchema()).
 		WithProperty("id", openapi3.NewStringSchema()).
 		WithProperty("class", openapi3.NewStringSchema().WithEnum(enumAsAny(loopNodeClassValues())...)).
 		WithProperty(loopKindField, openapi3.NewStringSchema()).
 		WithProperty("session", loopFreeformObjectSchema()).
 		WithProperty("timeout", openapi3.NewStringSchema()).
-		WithProperty("retry", loopFreeformObjectSchema()).
+		WithProperty("retry", loopRetrySchema()).
 		WithProperty("harvest", loopFreeformObjectSchema()).
 		WithProperty("produces", loopFreeformObjectSchema()).
 		WithProperty("params", loopFreeformObjectSchema()).

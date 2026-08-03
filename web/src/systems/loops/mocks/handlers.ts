@@ -23,81 +23,11 @@ import {
   loopRunDetailByRunId,
   loopRunFixtures,
 } from "./fixtures";
+import { lintDefinition } from "./lint-definition";
 
 const catalogByName = new Map(loopCatalogFixtures.map(entry => [entry.name, entry]));
 
-const FAN_OUT_CEILING = 64;
 const loopRunEventStreamEncoder = new TextEncoder();
-
-interface MockLintIssue {
-  node_id?: string;
-  code: string;
-  message: string;
-  severity: "error" | "warning";
-}
-
-/** Detects the first node caught in an edge cycle, mirroring the daemon acyclicity check. */
-function firstCycleNode(edges: { from: string; to: string }[]): string | null {
-  const adjacency = new Map<string, string[]>();
-  for (const edge of edges) {
-    const list = adjacency.get(edge.from) ?? [];
-    list.push(edge.to);
-    adjacency.set(edge.from, list);
-  }
-  const visiting = new Set<string>();
-  const done = new Set<string>();
-  let found: string | null = null;
-  const walk = (node: string) => {
-    if (found || done.has(node)) return;
-    visiting.add(node);
-    for (const next of adjacency.get(node) ?? []) {
-      if (visiting.has(next)) {
-        found = next;
-        return;
-      }
-      walk(next);
-    }
-    visiting.delete(node);
-    done.add(node);
-  };
-  for (const node of adjacency.keys()) walk(node);
-  return found;
-}
-
-/**
- * A faithful stand-in for the shared Go linter over the posted definition: it flags any
- * fan-out node whose `max_fan_out` exceeds the daemon ceiling and any acyclicity break,
- * returning the same `{ node_id, code, message, severity }` per-node shape the daemon
- * emits (ADR-023). This makes the editor's validate → 422 → Publish gate real in tests.
- */
-function lintDefinition(graph?: { nodes?: unknown[]; edges?: unknown[] }): MockLintIssue[] {
-  const issues: MockLintIssue[] = [];
-  const nodes = Array.isArray(graph?.nodes) ? (graph!.nodes as Record<string, unknown>[]) : [];
-  for (const node of nodes) {
-    const fanOut = node.max_fan_out;
-    if (typeof fanOut === "number" && fanOut > FAN_OUT_CEILING) {
-      issues.push({
-        node_id: String(node.id),
-        code: "fan_out_ceiling_exceeded",
-        message: `max_fan_out (${fanOut}) exceeds the daemon ceiling of ${FAN_OUT_CEILING}.`,
-        severity: "error",
-      });
-    }
-  }
-  const edges = Array.isArray(graph?.edges)
-    ? (graph!.edges as { from: string; to: string }[]).filter(edge => edge?.from && edge?.to)
-    : [];
-  const cycleNode = firstCycleNode(edges);
-  if (cycleNode) {
-    issues.push({
-      node_id: cycleNode,
-      code: "cycle_detected",
-      message: `The graph is not acyclic: ${cycleNode} is part of a cycle.`,
-      severity: "error",
-    });
-  }
-  return issues;
-}
 
 function createLoopRunEventsStreamResponse(workspaceId: string, runId: string): Response {
   const frame = {
@@ -323,9 +253,9 @@ export const handlers: HttpHandler[] = [
     "/api/workspaces/{workspace_id}/loops/{name}/validate",
     async ({ request }) => {
       const body = (await request.json().catch(() => ({}))) as {
-        definition?: { graph?: { nodes?: unknown[]; edges?: unknown[] } };
+        definition?: { graph?: { nodes?: unknown[]; edges?: unknown[] }; contract?: unknown };
       };
-      const errors = lintDefinition(body.definition?.graph);
+      const errors = lintDefinition(body.definition);
       return HttpResponse.json({
         valid: errors.length === 0,
         errors: errors satisfies LoopValidationIssue[],

@@ -742,6 +742,79 @@ func TestGoalReadHandlersExposeSnapshotAndTurnContracts(t *testing.T) {
 func TestLoopHandlersExposeValidationAndConflictBodies(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should accept lifecycle authoring through PATCH and validate", func(t *testing.T) {
+		t.Parallel()
+
+		service := happyLoopService(t)
+		assertLifecycle := func(document contract.LoopDefinitionDocument) {
+			t.Helper()
+			encoded, err := json.Marshal(document)
+			if err != nil {
+				t.Fatalf("json.Marshal() error = %v", err)
+			}
+			for _, field := range []string{
+				`"deadline":"15m"`,
+				`"result_contract"`,
+				`"on_error"`,
+				`"on_parent_close":"cancel"`,
+				`"on_canceled"`,
+				`"expires"`,
+			} {
+				if !strings.Contains(string(encoded), field) {
+					t.Fatalf("decoded lifecycle document missing %s: %s", field, encoded)
+				}
+			}
+		}
+		service.patchLoopFn = func(
+			_ context.Context,
+			workspaceID string,
+			name string,
+			req contract.PatchLoopRequest,
+		) (contract.LoopResponse, error) {
+			if workspaceID != "ws-1" || name != "alpha" {
+				t.Fatalf("PatchLoop() target = %s/%s", workspaceID, name)
+			}
+			assertLifecycle(req.Definition)
+			return loopResponse(t), nil
+		}
+		service.validateLoopFn = func(
+			_ context.Context,
+			workspaceID string,
+			name string,
+			req contract.ValidateLoopRequest,
+		) (contract.LoopValidationResponse, error) {
+			if workspaceID != "ws-1" || name != "alpha" {
+				t.Fatalf("ValidateLoop() target = %s/%s", workspaceID, name)
+			}
+			assertLifecycle(req.Definition)
+			return contract.LoopValidationResponse{Valid: true}, nil
+		}
+		_, engine := newLoopHandlerFixture(t, "httpapi", service)
+
+		patchResponse := performRequest(
+			t,
+			engine,
+			http.MethodPatch,
+			"/workspaces/ws-1/loops/alpha",
+			loopLifecyclePatchRequestBody(),
+		)
+		assertLoopStatus(t, patchResponse.Code, http.StatusOK, patchResponse.Body.String())
+
+		validateResponse := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/workspaces/ws-1/loops/alpha/validate",
+			loopLifecycleValidateRequestBody(),
+		)
+		assertLoopStatus(t, validateResponse.Code, http.StatusOK, validateResponse.Body.String())
+		var validation contract.LoopValidationResponse
+		testutil.DecodeJSONResponse(t, validateResponse, &validation)
+		if !validation.Valid {
+			t.Fatalf("validate lifecycle response = %#v, want valid", validation)
+		}
+	})
+
 	t.Run("Should preserve lifecycle reason codes through HTTP and UDS", func(t *testing.T) {
 		t.Parallel()
 
@@ -1962,6 +2035,53 @@ func loopPatchRequestBody(t *testing.T, expectedVersion int) []byte {
 		ExpectedVersion: &expectedVersion,
 		Definition:      loopDefinitionDocument(t),
 	})
+}
+
+const loopLifecycleDefinitionJSON = `{
+	"apiVersion":"compozy.loop/v1",
+	"kind":"Loop",
+	"meta":{"name":"alpha","version":7,"catalog":{}},
+	"contract":{
+		"goal":"Ship safely",
+		"definition_of_done":"The release is healthy",
+		"iteration_cap":3,
+		"no_progress":{"window":2},
+		"budget":{"tokens":0,"wall_clock_sec":0},
+		"terminal_states":["done","canceled"],
+		"on_done":[{"emit":{"kind":"release_done"}}],
+		"on_canceled":[{"tool":"notify","with":{"status":"canceled"}}]
+	},
+	"graph":{
+		"nodes":[
+			{
+				"id":"deploy",
+				"class":"action",
+				"kind":"run-loop",
+				"params":{"loop":"child"},
+				"deadline":"15m",
+				"retry":{"max_attempts":3,"backoff":{"base":"1s","max":"30s"},"non_retryable":["payload_declared"]},
+				"result_contract":{"failure_field":"failed","message_field":"message"},
+				"on_error":{"route":"recover","effects":[{"emit":{"kind":"deploy_failed"}}]},
+				"on_retry":[{"emit":{"kind":"deploy_retrying"}}],
+				"on_success":[{"tool":"notify","with":{"status":"done"}}],
+				"on_pause":[{"emit":{"kind":"deploy_paused"}}],
+				"on_timeout":[{"emit":{"kind":"deploy_timed_out"}}],
+				"on_cancel":[{"emit":{"kind":"deploy_canceled"}}],
+				"on_quarantine":[{"emit":{"kind":"deploy_quarantined"}}],
+				"on_parent_close":"cancel"
+			},
+			{"id":"recover","class":"control","kind":"gate","expires":{"after":"1h","route":"deploy"}}
+		],
+		"edges":[{"from":"deploy","to":"recover"}]
+	}
+}`
+
+func loopLifecyclePatchRequestBody() []byte {
+	return []byte(`{"expected_version":7,"definition":` + loopLifecycleDefinitionJSON + `}`)
+}
+
+func loopLifecycleValidateRequestBody() []byte {
+	return []byte(`{"definition":` + loopLifecycleDefinitionJSON + `}`)
 }
 
 func loopRunPayload(id string, status looppkg.Status) *contract.LoopRunPayload {

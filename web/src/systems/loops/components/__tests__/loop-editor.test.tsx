@@ -10,11 +10,52 @@ import { renderWithTopbar } from "@/test/render-with-topbar";
 import { LoopEditor } from "../editor/loop-editor";
 import type { LoopDetail } from "../../types";
 import { handlers } from "../../mocks";
+import {
+  PUBLISH_REJECTED_ISSUES,
+  fullLifecycleDetail,
+  readOnlySourceDetail,
+  waitWarningDetail,
+} from "../../mocks/fixture-editor-lifecycle";
 import { loopDetailByName } from "../../mocks/fixtures";
 
 const deliveryDetail = loopDetailByName.get("software-delivery")!;
 
 const WS = "ws_default";
+
+/** Serves one detail fixture while keeping the real linter/publish handlers behind it. */
+function detailHandler(detail: LoopDetail) {
+  return http.get("/api/workspaces/:workspaceId/loops/:name", () =>
+    HttpResponse.json({ loop: detail })
+  );
+}
+
+type PatchedDefinition = {
+  graph: { nodes: Record<string, unknown>[] };
+  contract: Record<string, unknown>;
+};
+
+/** Captures the published definition so a round-trip can be asserted on the real PATCH body. */
+function capturePublish(response?: LoopDetail) {
+  const captured: { definition: PatchedDefinition | null; expectedVersion?: number | null } = {
+    definition: null,
+  };
+  const handler = http.patch("/api/workspaces/:workspaceId/loops/:name", async ({ request }) => {
+    const body = (await request.json()) as {
+      definition: PatchedDefinition;
+      expected_version?: number | null;
+    };
+    captured.definition = body.definition;
+    captured.expectedVersion = body.expected_version;
+    return HttpResponse.json({ loop: response ?? deliveryDetail });
+  });
+  return { captured, handler };
+}
+
+function publishedNode(captured: { definition: PatchedDefinition | null }, id: string) {
+  const node = captured.definition?.graph.nodes.find(entry => entry.id === id);
+  if (!node) throw new Error(`published node ${id} not found`);
+  return node;
+}
 
 function renderEditor(
   name = "software-delivery",
@@ -161,17 +202,19 @@ describe("LoopEditor", () => {
     fireEvent.change(fanOut, { target: { value: "80" } });
     // The daemon linter (mock) returns fan_out_ceiling_exceeded → issue + node badge + gate.
     await waitFor(() =>
-      expect(screen.getByTestId("loop-linter-count")).toHaveTextContent("1 issue")
+      expect(screen.getByTestId("loop-linter-error-count")).toHaveTextContent("1 error")
     );
     expandLinterDock();
     expect(screen.getByTestId("loop-linter-issue")).toHaveTextContent(/ceiling of 64/i);
     expect(nodeCard("implement")).toHaveAttribute("data-node-error", "true");
     expect(screen.getByTestId("loop-editor-publish")).toBeDisabled();
-    // Lowering it back under the ceiling clears the issue and re-enables Publish.
+    // Lowering it back under the ceiling clears the issue and re-enables Publish. A clean
+    // verdict renders NO counter at all (US-028 AC-4) — not "0 issues".
     fireEvent.change(fanOut, { target: { value: "32" } });
     await waitFor(() =>
-      expect(screen.getByTestId("loop-linter-count")).toHaveTextContent("0 issues")
+      expect(screen.queryByTestId("loop-linter-error-count")).not.toBeInTheDocument()
     );
+    expect(screen.queryByTestId("loop-linter-warning-count")).not.toBeInTheDocument();
     expect(screen.queryByTestId("loop-linter-issue")).not.toBeInTheDocument();
     expect(screen.getByTestId("loop-editor-publish")).not.toBeDisabled();
     expect(nodeCard("implement")).toHaveAttribute("data-node-error", "false");
@@ -289,7 +332,7 @@ describe("LoopEditor", () => {
       target: { value: "80" },
     });
     await waitFor(() =>
-      expect(screen.getByTestId("loop-linter-count")).toHaveTextContent("1 issue")
+      expect(screen.getByTestId("loop-linter-error-count")).toHaveTextContent("1 error")
     );
     fireEvent.click(screen.getByTestId("loop-editor-view-dsl"));
     expect(screen.getByTestId("loop-editor-view-dsl")).toHaveAttribute("aria-pressed", "true");
@@ -368,6 +411,204 @@ describe("LoopEditor", () => {
         }),
       })
     );
+  });
+
+  it("WT-005: carries the whole Spec 1 grammar through edit → PATCH → reopen unchanged", async () => {
+    const { captured, handler } = capturePublish();
+    renderEditor("software-delivery", [handler, detailHandler(fullLifecycleDetail)]);
+    await screen.findByTestId("loop-editor");
+    await waitFor(() => expect(screen.getAllByTestId("loop-editor-node")).toHaveLength(10));
+
+    // Reopen fidelity: the persisted envelope is what the inspector shows.
+    fireEvent.click(nodeCard("execute_task"));
+    const deadline = (await screen.findByTestId("loop-field-deadline")) as HTMLInputElement;
+    expect(deadline.value).toBe("2h");
+    expect((screen.getByTestId("loop-field-max_attempts") as HTMLInputElement).value).toBe("3");
+    expect((screen.getByTestId("loop-field-backoff_base") as HTMLInputElement).value).toBe("30s");
+    expect((screen.getByTestId("loop-field-result_failure_field") as HTMLInputElement).value).toBe(
+      "err"
+    );
+    expect(screen.getByTestId("loop-field-on_error_allow_fail")).toBeChecked();
+
+    // One real edit through the UI, then publish.
+    fireEvent.change(deadline, { target: { value: "4h" } });
+    await waitFor(() => expect(screen.getByTestId("loop-editor-dirty-chip")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId("loop-editor-publish")).not.toBeDisabled());
+    fireEvent.click(screen.getByTestId("loop-editor-publish"));
+    await waitFor(() => expect(captured.definition).not.toBeNull());
+
+    const execute = publishedNode(captured, "execute_task");
+    expect(execute).toMatchObject({
+      deadline: "4h",
+      retry: {
+        max_attempts: 3,
+        backoff: { base: "30s", max: "5m" },
+        non_retryable: ["tool_invalid_input"],
+      },
+      result_contract: { failure_field: "err", message_field: "err.message" },
+      on_error: {
+        allow_fail: true,
+        effects: [{ tool: "compozy__network_send", with: { channel: "ops" } }],
+      },
+      on_retry: [{ emit: { kind: "task_retrying" } }],
+      on_quarantine: [{ tool: "compozy__network_send", with: { channel: "ops" } }],
+    });
+    // The retired `retry.max` key is never authored.
+    expect(execute.retry).not.toHaveProperty("max");
+
+    expect(publishedNode(captured, "await_deploy_ack").params).toMatchObject({
+      event: { kind: "task_status_changed" },
+      expect: { type: "object", required: ["deploy_id"] },
+      ahead_arrival: "consume_on_entry",
+      expires: { after: "24h", route: "release_notes" },
+    });
+    expect(publishedNode(captured, "release_notes")).toMatchObject({
+      on_parent_close: "cancel",
+    });
+    expect(captured.definition?.contract).toMatchObject({
+      on_failed: [{ tool: "compozy__network_send", with: { channel: "ops" } }],
+      on_canceled: [{ emit: { kind: "delivery_canceled" } }],
+    });
+
+    expect(execute).not.toHaveProperty("on_success");
+    expect(execute).not.toHaveProperty("on_pause");
+    expect(execute).not.toHaveProperty("on_timeout");
+    expect(execute).not.toHaveProperty("on_cancel");
+    expect(captured.definition?.contract).not.toHaveProperty("on_done");
+    expect(captured.definition?.contract).not.toHaveProperty("on_noop");
+  });
+
+  it("WT-006: lets the daemon's named diagnostic gate Publish for on_error", async () => {
+    renderEditor("software-delivery", [detailHandler(fullLifecycleDetail)]);
+    await screen.findByTestId("loop-editor");
+    await waitFor(() => expect(screen.getByTestId("loop-editor-publish")).not.toBeDisabled());
+
+    // Declaring a route ALONGSIDE the already-authored allow_fail is the EC-1 contradiction.
+    fireEvent.click(nodeCard("execute_task"));
+    fireEvent.change(await screen.findByTestId("loop-field-on_error_route"), {
+      target: { value: "collect" },
+    });
+
+    // The gate is the daemon's verdict, surfaced by its own code — not a client-side rule.
+    await waitFor(() => expect(screen.getByTestId("loop-linter-error-count")).toBeInTheDocument());
+    expandLinterDock();
+    expect(screen.getByTestId("loop-linter-dock")).toHaveTextContent("error_route_conflict");
+    expect(screen.getByTestId("loop-editor-publish")).toBeDisabled();
+
+    // Resolving it to a single absorption mode clears the gate.
+    fireEvent.click(screen.getByTestId("loop-field-on_error_allow_fail"));
+    await waitFor(() =>
+      expect(screen.queryByTestId("loop-linter-error-count")).not.toBeInTheDocument()
+    );
+    expect(screen.getByTestId("loop-editor-publish")).not.toBeDisabled();
+  });
+
+  it("WT-006: builds each effect entry as emit XOR tool instead of validating it after the fact", async () => {
+    const { captured, handler } = capturePublish();
+    renderEditor("software-delivery", [handler, detailHandler(fullLifecycleDetail)]);
+    await screen.findByTestId("loop-editor");
+    fireEvent.click(nodeCard("execute_task"));
+
+    // The authored on_retry row is an emit; switching its shape must REPLACE the variant.
+    const shape = await screen.findByTestId("loop-field-on_retry-shape-0");
+    fireEvent.change(shape, { target: { value: "tool" } });
+    await waitFor(() =>
+      expect(screen.getByTestId("loop-field-on_retry-row")).toHaveAttribute("data-shape", "tool")
+    );
+
+    await waitFor(() => expect(screen.getByTestId("loop-editor-publish")).not.toBeDisabled());
+    fireEvent.click(screen.getByTestId("loop-editor-publish"));
+    await waitFor(() => expect(captured.definition).not.toBeNull());
+
+    const onRetry = publishedNode(captured, "execute_task").on_retry as Record<string, unknown>[];
+    // Exactly one variant survives — never `{emit, tool}`, which the linter rejects.
+    expect(onRetry[0]).toHaveProperty("tool");
+    expect(onRetry[0]).not.toHaveProperty("emit");
+  });
+
+  it("WT-007: keeps Publish enabled on a warning-only verdict and shows the warning", async () => {
+    renderEditor("software-delivery", [detailHandler(waitWarningDetail)]);
+    await screen.findByTestId("loop-editor");
+
+    // `wait_expiry_without_path` is a real daemon warning: visible, never a gate.
+    await waitFor(() =>
+      expect(screen.getByTestId("loop-linter-warning-count")).toHaveTextContent("1 warning")
+    );
+    expect(screen.queryByTestId("loop-linter-error-count")).not.toBeInTheDocument();
+    expect(screen.getByTestId("loop-editor-publish")).not.toBeDisabled();
+    expandLinterDock();
+    const row = screen.getByTestId("loop-linter-issue");
+    expect(row).toHaveAttribute("data-severity", "warning");
+    expect(row).toHaveTextContent("wait_expiry_without_path");
+  });
+
+  it("WT-008: keeps a read-only definition immutable through every authoring path", async () => {
+    let forkBody: { fork_from_name?: string } | null = null;
+    let forked = false;
+    const fork = http.post("/api/workspaces/:workspaceId/loops", async ({ request }) => {
+      forkBody = (await request.json()) as typeof forkBody;
+      forked = true;
+      return HttpResponse.json({ loop: deliveryDetail }, { status: 201 });
+    });
+    const detail = http.get("/api/workspaces/:workspaceId/loops/:name", () =>
+      HttpResponse.json({ loop: forked ? deliveryDetail : readOnlySourceDetail })
+    );
+    renderEditor("software-delivery", [fork, detail]);
+    await screen.findByTestId("loop-editor");
+    await waitFor(() => expect(screen.getAllByTestId("loop-editor-node")).toHaveLength(8));
+
+    expect(screen.getByTestId("loop-editor-readonly-strip")).toHaveTextContent(
+      /read-only marketplace source/i
+    );
+
+    // Every mutation path is CLOSED, not merely decorated with a notice.
+    fireEvent.click(screen.getByTestId("loop-palette-item-run-agent"));
+    const goal = screen.getByRole("textbox", { name: "Goal (optional)" }) as HTMLTextAreaElement;
+    const goalBefore = goal.value;
+    fireEvent.change(goal, { target: { value: "rewritten" } });
+    fireEvent.click(nodeCard("implement"));
+    const fanOut = (await screen.findByTestId("loop-field-max_fan_out")) as HTMLInputElement;
+    fireEvent.change(fanOut, { target: { value: "80" } });
+
+    expect(screen.getAllByTestId("loop-editor-node")).toHaveLength(8);
+    expect(goal.value).toBe(goalBefore);
+    expect(fanOut.value).toBe("64");
+    expect(screen.queryByTestId("loop-editor-dirty-chip")).not.toBeInTheDocument();
+    expect(screen.getByTestId("loop-editor-version")).toHaveTextContent("v1");
+
+    // Publish is illegal; Validate never writes, so it stays available; Fork is the one verb.
+    expect(screen.getByTestId("loop-editor-publish")).toBeDisabled();
+    expect(screen.getByTestId("loop-editor-validate")).not.toBeDisabled();
+    fireEvent.click(screen.getByTestId("loop-editor-fork"));
+    await waitFor(() => expect(forkBody).not.toBeNull());
+    expect(forkBody).toEqual({ fork_from_name: "software-delivery" });
+    await waitFor(() =>
+      expect(screen.queryByTestId("loop-editor-readonly-strip")).not.toBeInTheDocument()
+    );
+    expect(screen.getByTestId("loop-editor-publish")).not.toBeDisabled();
+  });
+
+  it("WT-008: shows every returned issue on a publish 422 and never advances the version", async () => {
+    const reject = http.patch("/api/workspaces/:workspaceId/loops/:name", () =>
+      HttpResponse.json({ valid: false, errors: PUBLISH_REJECTED_ISSUES }, { status: 422 })
+    );
+    renderEditor("software-delivery", [reject]);
+    await screen.findByTestId("loop-editor");
+    await waitFor(() => expect(screen.getByTestId("loop-editor-version")).toHaveTextContent("v4"));
+    await waitFor(() => expect(screen.getByTestId("loop-editor-publish")).not.toBeDisabled());
+    fireEvent.click(screen.getByTestId("loop-editor-publish"));
+
+    const strip = await screen.findByTestId("loop-editor-publish-error");
+    expect(strip).toHaveAttribute("role", "alert");
+    expect(strip).toHaveTextContent(/2 issues to resolve/i);
+    expect(strip).toHaveTextContent(/expected_version v4 kept/i);
+    // The strip lists the daemon's own verdict, so the fix path needs no dock expansion.
+    const issues = within(strip).getAllByTestId("loop-editor-publish-error-issue");
+    expect(issues).toHaveLength(2);
+    expect(issues[0]).toHaveTextContent("fan_out_ceiling_exceeded");
+    expect(issues[1]).toHaveTextContent("error_route_conflict");
+    // Nothing was saved: the compare-and-swap version pill is unchanged.
+    expect(screen.getByTestId("loop-editor-version")).toHaveTextContent("v4");
   });
 
   it("Should publish the first edit of a version-zero workspace Loop with explicit CAS", async () => {
