@@ -18,6 +18,20 @@ const (
 	LoopRunEventGoalStatusChanged    LoopRunEventKind = "goal_status_changed"
 	LoopRunEventRuntimeApplied       LoopRunEventKind = "runtime_applied"
 	LoopRunEventNodeRetryScheduled   LoopRunEventKind = "node_retry_scheduled"
+	LoopRunEventNodePaused           LoopRunEventKind = "node_paused"
+	LoopRunEventNodeResumed          LoopRunEventKind = "node_resumed"
+	LoopRunEventNodeCanceled         LoopRunEventKind = "node_canceled"
+	LoopRunEventNodeKilled           LoopRunEventKind = "node_killed"
+	LoopRunEventNodeQuarantined      LoopRunEventKind = "node_quarantined"
+	LoopRunEventNodeRequeued         LoopRunEventKind = "node_requeued"
+	LoopRunEventNodeWaitStarted      LoopRunEventKind = "node_wait_started"
+	LoopRunEventNodeWaitResumed      LoopRunEventKind = "node_wait_resumed"
+	LoopRunEventNodeAttentionFlagged LoopRunEventKind = "node_attention_flagged"
+	LoopRunEventNodeAttentionCleared LoopRunEventKind = "node_attention_cleared"
+	LoopRunEventEffectResults        LoopRunEventKind = "effect_results"
+	LoopRunEventCustomEvent          LoopRunEventKind = "custom_event"
+	LoopRunEventDuplicateSuppressed  LoopRunEventKind = "duplicate_suppressed"
+	LoopRunEventTargetBreaker        LoopRunEventKind = "target_breaker_transition"
 	LoopRunEventStaleScheduleDropped LoopRunEventKind = "stale_schedule_dropped"
 	LoopRunEventLateArrival          LoopRunEventKind = "late_arrival"
 )
@@ -36,6 +50,7 @@ func LoopRunStatusValues() []string {
 		string(LoopRunStatusFailed),
 		string(LoopRunStatusExhausted),
 		string(LoopRunStatusStalled),
+		string(LoopRunStatusCanceled),
 	}
 }
 
@@ -59,6 +74,7 @@ func LoopRunTerminalStatusValues() []string {
 		string(LoopRunStatusFailed),
 		string(LoopRunStatusExhausted),
 		string(LoopRunStatusStalled),
+		string(LoopRunStatusCanceled),
 	}
 }
 
@@ -79,8 +95,46 @@ func LoopRunEventKindValues() []string {
 		string(LoopRunEventGoalStatusChanged),
 		string(LoopRunEventRuntimeApplied),
 		string(LoopRunEventNodeRetryScheduled),
+		string(LoopRunEventNodePaused),
+		string(LoopRunEventNodeResumed),
+		string(LoopRunEventNodeCanceled),
+		string(LoopRunEventNodeKilled),
+		string(LoopRunEventNodeQuarantined),
+		string(LoopRunEventNodeRequeued),
+		string(LoopRunEventNodeWaitStarted),
+		string(LoopRunEventNodeWaitResumed),
+		string(LoopRunEventNodeAttentionFlagged),
+		string(LoopRunEventNodeAttentionCleared),
+		string(LoopRunEventEffectResults),
+		string(LoopRunEventCustomEvent),
+		string(LoopRunEventDuplicateSuppressed),
+		string(LoopRunEventTargetBreaker),
 		string(LoopRunEventStaleScheduleDropped),
 		string(LoopRunEventLateArrival),
+	}
+}
+
+// LoopRunTransitionCauseValues returns the closed public transition-cause vocabulary.
+func LoopRunTransitionCauseValues() []string {
+	return []string{
+		string(LoopRunTransitionCauseStart),
+		string(LoopRunTransitionCausePromote),
+		string(LoopRunTransitionCauseOperatorCancel),
+		string(LoopRunTransitionCauseOperatorKill),
+		string(LoopRunTransitionCauseGoalReplace),
+		string(LoopRunTransitionCauseGoalClear),
+		string(LoopRunTransitionCausePauseBoundary),
+		string(LoopRunTransitionCauseOperatorResume),
+		string(LoopRunTransitionCauseApproval),
+		string(LoopRunTransitionCauseWaitExpired),
+		string(LoopRunTransitionCauseGateRejected),
+		string(LoopRunTransitionCauseContract),
+		string(LoopRunTransitionCauseBudget),
+		string(LoopRunTransitionCauseIterationCap),
+		string(LoopRunTransitionCauseNoProgress),
+		string(LoopRunTransitionCauseWatchPoll),
+		string(LoopRunTransitionCauseWatchEvents),
+		string(LoopRunTransitionCauseCoordinatorFailure),
 	}
 }
 
@@ -94,6 +148,7 @@ func LoopGenerationOriginValues() []string {
 		string(LoopGenerationOriginGateNextGeneration),
 		string(LoopGenerationOriginDoDRetry),
 		string(LoopGenerationOriginRatchetRestore),
+		string(LoopGenerationOriginRequeue),
 	}
 }
 
@@ -131,5 +186,19 @@ func LoopRunLifecycleEventKindValues() []string {
 		string(LoopRunEventGoalStatusChanged),
 		string(LoopRunEventRuntimeApplied),
 		string(LoopRunEventNodeRetryScheduled),
+		string(LoopRunEventNodePaused),
+		string(LoopRunEventNodeResumed),
+		string(LoopRunEventNodeCanceled),
+		string(LoopRunEventNodeKilled),
+		string(LoopRunEventNodeQuarantined),
+		string(LoopRunEventNodeRequeued),
+		string(LoopRunEventNodeWaitStarted),
+		string(LoopRunEventNodeWaitResumed),
+		string(LoopRunEventNodeAttentionFlagged),
+		string(LoopRunEventNodeAttentionCleared),
+		string(LoopRunEventEffectResults),
+		string(LoopRunEventCustomEvent),
+		string(LoopRunEventDuplicateSuppressed),
+		string(LoopRunEventTargetBreaker),
 	}
 }

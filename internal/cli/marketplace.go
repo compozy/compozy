@@ -332,7 +332,7 @@ func marketplaceEntryBundle(response MarketplaceEntryRecord) outputBundle {
 				{Label: "Entry ID", Value: entry.EntryID},
 				{Label: automationNameValue, Value: entry.Name},
 				{Label: "Description", Value: entry.Description},
-				{Label: "Version", Value: stringOrDash(entry.Version)},
+				{Label: versionValue, Value: stringOrDash(entry.Version)},
 				{Label: authoredContextSourceValue, Value: entry.Source},
 				{Label: "Installed", Value: strconv.FormatBool(entry.Installed)},
 			}), nil

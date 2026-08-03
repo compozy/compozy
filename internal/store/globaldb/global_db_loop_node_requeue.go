@@ -4,13 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/compozy/compozy/internal/diagnostics"
 	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
 var _ looppkg.NodeRequeueStore = (*LoopRepo)(nil)
@@ -69,17 +68,21 @@ func prepareNodeRequeue(
 		)
 	}
 	if current.Status.Terminal() {
-		return preparedNodeRequeue{}, fmt.Errorf(
-			"%w: terminal loop run %q cannot requeue nodes",
-			looppkg.ErrInvalidTransition,
-			mutation.RunID,
+		return preparedNodeRequeue{}, loopLifecycleReasonError(
+			looppkg.ReasonCodeRunTerminal,
+			fmt.Errorf("%w: terminal loop run %q cannot requeue nodes", looppkg.ErrInvalidTransition, mutation.RunID),
+			string(current.Status),
+			[]string{},
+			runLifecycleWinner(current),
 		)
 	}
 	if current.IterationCap > 0 && current.Generation+1 > current.IterationCap {
-		return preparedNodeRequeue{}, fmt.Errorf(
-			"%w: loop run %q reached its iteration cap",
-			looppkg.ErrInvalidTransition,
-			mutation.RunID,
+		return preparedNodeRequeue{}, loopLifecycleReasonError(
+			looppkg.ReasonCodeInvalidStatusTransition,
+			fmt.Errorf("%w: loop run %q reached its iteration cap", looppkg.ErrInvalidTransition, mutation.RunID),
+			loopLifecycleStateIterationCap,
+			[]string{nodeLifecycleTransitionCancel, nodeLifecycleTransitionKill},
+			nil,
 		)
 	}
 	control, err := loadQuarantinedNodeControl(ctx, exec, mutation)
@@ -265,44 +268,73 @@ func loadQuarantinedNodeControl(
 	exec taskSQLExecutor,
 	mutation looppkg.NodeRequeueMutation,
 ) (requeueNodeControl, error) {
-	var quarantined int64
-	var entry sql.NullString
-	var revision int64
-	var quarantinedAt time.Time
-	err := exec.QueryRowContext(
-		ctx,
-		`SELECT quarantined, quarantine_entry_json, revision, quarantined_at
-		 FROM loop_node_controls WHERE loop_run_id = ? AND node_id = ?`,
-		mutation.RunID,
-		mutation.NodeID,
-	).Scan(&quarantined, &entry, &revision, &quarantinedAt)
+	rows, err := sqlcgen.New(exec).ListLoopNodeControls(ctx, sqlcgen.ListLoopNodeControlsParams{
+		WorkspaceID: string(mutation.WorkspaceID),
+		LoopRunID:   string(mutation.RunID),
+	})
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return requeueNodeControl{}, fmt.Errorf(
-				"%w: node %q is not quarantined",
-				looppkg.ErrInvalidTransition,
-				mutation.NodeID,
-			)
-		}
 		return requeueNodeControl{}, fmt.Errorf("store: load quarantined Loop node: %w", err)
 	}
-	if quarantined == 0 || !entry.Valid || strings.TrimSpace(entry.String) == "" {
-		return requeueNodeControl{}, fmt.Errorf(
-			"%w: node %q is not quarantined",
-			looppkg.ErrInvalidTransition,
-			mutation.NodeID,
+	control := looppkg.NodeControl{LoopRunID: mutation.RunID, NodeID: mutation.NodeID}
+	found := false
+	for _, row := range rows {
+		if looppkg.NodeID(row.NodeID) != mutation.NodeID {
+			continue
+		}
+		control, err = loopNodeControlFromGenerated(row)
+		if err != nil {
+			return requeueNodeControl{}, err
+		}
+		found = true
+		break
+	}
+	actualState := nodeLifecycleActualState(control, found)
+	if !found || !control.Quarantined || len(control.QuarantineEntry) == 0 || control.QuarantinedAt == nil {
+		winner := nodeLifecycleWinner(control)
+		code := looppkg.ReasonCodeNodeNotQuarantined
+		cause := fmt.Errorf("%w: node %q is not quarantined", looppkg.ErrInvalidTransition, mutation.NodeID)
+		if provenance := lastQuarantineRequeueProvenance(control.QuarantineEntry); provenance != nil {
+			winner = provenance
+			code = looppkg.ReasonCodeAlreadyDecided
+			cause = fmt.Errorf("%w: node %q was already requeued", looppkg.ErrTransitionConflict, mutation.NodeID)
+		}
+		return requeueNodeControl{}, loopLifecycleReasonError(
+			code,
+			cause,
+			actualState,
+			nodeLifecycleAllowedTransitions(actualState),
+			winner,
 		)
 	}
-	if mutation.ExpectedRevision != nil && revision != *mutation.ExpectedRevision {
-		return requeueNodeControl{}, fmt.Errorf(
-			"%w: node %q revision changed",
-			looppkg.ErrTransitionConflict,
-			mutation.NodeID,
+	if mutation.ExpectedRevision != nil && control.Revision != *mutation.ExpectedRevision {
+		return requeueNodeControl{}, loopLifecycleReasonError(
+			looppkg.ReasonCodeAlreadyDecided,
+			fmt.Errorf("%w: node %q revision changed", looppkg.ErrTransitionConflict, mutation.NodeID),
+			actualState,
+			nodeLifecycleAllowedTransitions(actualState),
+			nodeLifecycleWinner(control),
 		)
 	}
 	return requeueNodeControl{
-		entry: json.RawMessage(entry.String), revision: revision, quarantinedAt: quarantinedAt.UTC(),
+		entry: control.QuarantineEntry, revision: control.Revision, quarantinedAt: control.QuarantinedAt.UTC(),
 	}, nil
+}
+
+func lastQuarantineRequeueProvenance(raw json.RawMessage) *looppkg.ControlProvenance {
+	if len(raw) == 0 {
+		return nil
+	}
+	var entry looppkg.QuarantineEntry
+	if err := json.Unmarshal(raw, &entry); err != nil || len(entry.Requeues) == 0 {
+		return nil
+	}
+	winner := entry.Requeues[len(entry.Requeues)-1]
+	return &looppkg.ControlProvenance{
+		ActorKind:   winner.ActorKind,
+		ActorID:     winner.ActorID,
+		Reason:      winner.Reason,
+		RequestedAt: winner.RequestedAt,
+	}
 }
 
 func requireSingleRequeueMutation(result sql.Result, nodeID looppkg.NodeID) error {

@@ -55,6 +55,7 @@ export {
   LoopsApiError,
   approveLoopRun,
   buildLoopStreamUrl,
+  cancelLoopRun,
   createLoop,
   deleteLoop,
   getLoop,
@@ -70,7 +71,6 @@ export {
   putLoopConfig,
   resumeLoopRun,
   runLoop,
-  stopLoopRun,
   validateLoop,
 } from "./adapters/loops-api";
 
@@ -310,6 +310,7 @@ export {
 // Mutation hooks
 export {
   useApproveLoopRun,
+  useCancelLoopRun,
   useCreateLoop,
   useDeleteLoop,
   usePatchLoop,
@@ -318,7 +319,6 @@ export {
   usePutLoopConfig,
   useResumeLoopRun,
   useRunLoop,
-  useStopLoopRun,
   useValidateLoop,
 } from "./hooks/use-loop-actions";
 

@@ -63,6 +63,52 @@ func TestLoopNativeHookObserverShouldProtectDurableNodeTerminalWake(t *testing.T
 			t.Fatalf("backstop calls = %d, want %d", got, want)
 		}
 	})
+
+	t.Run("Should project lifecycle attempt evidence onto the public node terminal hook", func(t *testing.T) {
+		t.Parallel()
+
+		fixedNow := time.Date(2026, 8, 2, 18, 0, 0, 0, time.UTC)
+		loopStore := &recordingLoopHookStore{}
+		dispatcher := &recordingLoopNodeTerminalDispatcher{}
+		observer, err := newLoopNativeHookObserver(
+			loopStore,
+			dispatcher,
+			&recordingLoopBackstopRunner{},
+			func() time.Time { return fixedNow },
+		)
+		if err != nil {
+			t.Fatalf("newLoopNativeHookObserver() error = %v", err)
+		}
+
+		workerKind := taskpkg.RunKindWorker.String()
+		if err := observer.OnTaskRunTerminal(t.Context(), hookspkg.TaskRunLeasePayload{
+			PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookTaskRunCompleted, Timestamp: fixedNow},
+			TaskRunContext: hookspkg.TaskRunContext{
+				TaskID:      "task-writer",
+				RunID:       "run-writer",
+				RunKind:     &workerKind,
+				LoopRunID:   "loop-run-1",
+				WorkspaceID: "ws-1",
+				RunStatus:   taskpkg.TaskRunStatusCompleted.String(),
+				TaskStatus:  string(taskpkg.TaskStatusCompleted),
+				Attempt:     3,
+				AgentName:   "writer",
+			},
+		}); err != nil {
+			t.Fatalf("OnTaskRunTerminal() error = %v", err)
+		}
+
+		if got, want := len(dispatcher.payloads), 1; got != want {
+			t.Fatalf("node terminal dispatches = %d, want %d", got, want)
+		}
+		payload := dispatcher.payloads[0]
+		if payload.FailureClass != "" ||
+			payload.Disposition != string(looppkg.AttemptSucceeded) ||
+			payload.Attempt != 3 ||
+			payload.Target != "writer" {
+			t.Fatalf("node terminal lifecycle projection = %#v", payload)
+		}
+	})
 }
 
 func TestLoopNativeHookObserverShouldSuppressIntermediateGoalTerminal(t *testing.T) {
@@ -186,6 +232,9 @@ func TestLoopNativeHookObserverShouldEmitGoalTerminalAfterSettlement(t *testing.
 		}
 		if got, want := payload.Error, "goal_reported_blocked"; got != want {
 			t.Fatalf("error = %q, want %q", got, want)
+		}
+		if got, want := payload.Disposition, string(looppkg.AttemptEscalated); got != want {
+			t.Fatalf("disposition = %q, want %q", got, want)
 		}
 	})
 }

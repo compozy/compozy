@@ -380,7 +380,7 @@ export const handlers: HttpHandler[] = [
   compozyApiMock.post("/api/workspaces/{workspace_id}/loop-runs/{run_id}/resume", () =>
     HttpResponse.json({ ok: true })
   ),
-  compozyApiMock.post("/api/workspaces/{workspace_id}/loop-runs/{run_id}/stop", () =>
-    HttpResponse.json({ ok: true })
+  compozyApiMock.post("/api/workspaces/{workspace_id}/loop-runs/{run_id}/cancel", ({ params }) =>
+    HttpResponse.json({ ok: true, run_id: String(params.run_id) })
   ),
 ];

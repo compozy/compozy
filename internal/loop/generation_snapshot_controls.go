@@ -35,6 +35,44 @@ func writeNodeControlMutation(
 	if affected != 1 {
 		return fmt.Errorf("%w: node control %q revision changed", ErrTransitionConflict, mutation.NodeID)
 	}
+	if mutation.Kind == NodeControlMutationCancel && mutation.CancelState == CancelStateCanceled {
+		return claimCanceledNodeWaits(ctx, tx, loopRunID, mutation)
+	}
+	return nil
+}
+
+func claimCanceledNodeWaits(
+	ctx context.Context,
+	tx task.Tx,
+	loopRunID string,
+	mutation NodeControlMutation,
+) error {
+	_, err := tx.ExecContext(
+		ctx,
+		`UPDATE loop_node_waits SET
+			claim_state = 'claimed',
+			claimed_by_kind = (
+				SELECT cancel_actor_kind FROM loop_node_controls
+				WHERE loop_run_id = ? AND node_id = ?
+			),
+			claimed_by_id = (
+				SELECT cancel_actor_id FROM loop_node_controls
+				WHERE loop_run_id = ? AND node_id = ?
+			),
+			claimed_at = ?
+		WHERE loop_run_id = ? AND node_id = ?
+		  AND claim_state IN ('waiting','intervention_required')`,
+		loopRunID,
+		mutation.NodeID,
+		loopRunID,
+		mutation.NodeID,
+		mutation.At.UTC(),
+		loopRunID,
+		mutation.NodeID,
+	)
+	if err != nil {
+		return fmt.Errorf("loop: claim canceled node %q waits: %w", mutation.NodeID, err)
+	}
 	return nil
 }
 

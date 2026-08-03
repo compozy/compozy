@@ -17,7 +17,7 @@ const meta: Meta<typeof LoopStatusPill> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-// The 11 first-class loop_run statuses (ADR-013/017/021/022): 5 live, then 6 terminal.
+// The 12 first-class loop_run statuses: 5 live, then 7 terminal.
 const LIVE_STATUSES = LOOP_RUN_LIVE_STATUSES satisfies readonly LoopRunStatus[];
 const TERMINAL_STATUSES = LOOP_RUN_TERMINAL_STATUSES satisfies readonly LoopRunStatus[];
 

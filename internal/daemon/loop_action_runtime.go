@@ -187,7 +187,7 @@ func (r *loopActionRuntime) executeQueuedRun(
 	if err != nil {
 		return err
 	}
-	actionTimeout, err := r.actionTimeoutForRun(ctx, run)
+	actionTimeout, authoredTimeout, err := r.actionTimeoutSpecForRun(ctx, run)
 	if err != nil {
 		return err
 	}

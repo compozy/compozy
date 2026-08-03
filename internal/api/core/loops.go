@@ -16,7 +16,6 @@ import (
 
 const (
 	loopActionRun     = "loop_run"
-	loopActionStop    = "loop_stop"
 	loopActionPause   = "loop_pause"
 	loopActionResume  = "loop_resume"
 	loopActionApprove = "loop_approve"
@@ -267,18 +266,6 @@ func (h *BaseHandlers) GetLoopRun(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, response)
-}
-
-// StopLoopRun requests operator stop for one Loop run.
-func (h *BaseHandlers) StopLoopRun(c *gin.Context) {
-	h.mutateLoopRun(c, func(service LoopService) error {
-		workspaceID := c.Param("workspace_id")
-		actor, err := h.taskActorContextForWorkspace(c, loopActionStop, workspaceID)
-		if err != nil {
-			return err
-		}
-		return service.StopLoopRun(c.Request.Context(), workspaceID, c.Param("run_id"), actor)
-	})
 }
 
 // PauseLoopRun requests operator pause for one Loop run.

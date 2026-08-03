@@ -4366,6 +4366,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/workspaces/{workspace_id}/loop-nodes": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List workspace Loop node state */
+    get: operations["listLoopNodes"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/workspaces/{workspace_id}/loop-runs": {
     parameters: {
       query?: never;
@@ -4417,6 +4434,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/workspaces/{workspace_id}/loop-runs/{run_id}/cancel": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Cancel one Loop run */
+    post: operations["cancelLoopRun"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/workspaces/{workspace_id}/loop-runs/{run_id}/events": {
     parameters: {
       query?: never;
@@ -4428,6 +4462,108 @@ export interface paths {
     get: operations["streamLoopRunEvents"];
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/loop-runs/{run_id}/kill": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Kill one Loop run */
+    post: operations["killLoopRun"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/cancel": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Cancel one Loop node */
+    post: operations["cancelLoopNode"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/kill": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Kill one Loop node */
+    post: operations["killLoopNode"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/pause": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Pause one Loop node */
+    post: operations["pauseLoopNode"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/requeue": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Requeue one Loop node */
+    post: operations["requeueLoopNode"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/resume": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Resume one Loop node */
+    post: operations["resumeLoopNode"];
     delete?: never;
     options?: never;
     head?: never;
@@ -4462,23 +4598,6 @@ export interface paths {
     put?: never;
     /** Resume one Loop run */
     post: operations["resumeLoopRun"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/workspaces/{workspace_id}/loop-runs/{run_id}/stop": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Stop one Loop run */
-    post: operations["stopLoopRun"];
     delete?: never;
     options?: never;
     head?: never;
@@ -8211,6 +8330,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -8236,6 +8359,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -8261,6 +8388,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -8286,6 +8417,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -8393,6 +8528,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -8418,6 +8557,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -8443,6 +8586,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -8468,6 +8615,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -8493,6 +8644,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -8518,6 +8673,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -8605,6 +8764,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -8630,6 +8793,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -8655,6 +8822,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -8680,6 +8851,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -8705,6 +8880,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -8730,6 +8909,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -8755,6 +8938,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -8864,6 +9051,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -8889,6 +9080,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -8914,6 +9109,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -8939,6 +9138,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -8964,6 +9167,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -8989,6 +9196,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -9957,6 +10168,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -9982,6 +10197,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -10007,6 +10226,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -10032,6 +10255,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -10057,6 +10284,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -10124,6 +10355,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -10149,6 +10384,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -10174,6 +10413,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -10199,6 +10442,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -10224,6 +10471,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -10513,6 +10764,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -10538,6 +10793,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -10563,6 +10822,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -10588,6 +10851,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -10613,6 +10880,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -10718,6 +10989,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -10743,6 +11018,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -10768,6 +11047,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -10793,6 +11076,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -10818,6 +11105,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -10932,6 +11223,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -10957,6 +11252,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -10982,6 +11281,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -11071,6 +11374,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -11411,6 +11718,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -11436,6 +11747,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -11461,6 +11776,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -11486,6 +11805,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -11511,6 +11834,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -11536,6 +11863,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -11898,6 +12229,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -11923,6 +12258,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -11948,6 +12287,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -11973,6 +12316,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -11998,6 +12345,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -12023,6 +12374,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -12183,6 +12538,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -12208,6 +12567,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -12233,6 +12596,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -12258,6 +12625,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -12283,6 +12654,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -12308,6 +12683,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -12333,6 +12712,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -12493,6 +12876,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -12518,6 +12905,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -12543,6 +12934,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -12568,6 +12963,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -12593,6 +12992,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -12618,6 +13021,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -12643,6 +13050,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -12803,6 +13214,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -12828,6 +13243,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -12853,6 +13272,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -12878,6 +13301,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -12903,6 +13330,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -12928,6 +13359,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -12953,6 +13388,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -13112,6 +13551,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -13137,6 +13580,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -13162,6 +13609,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -13187,6 +13638,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -13212,6 +13667,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -13237,6 +13696,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -13262,6 +13725,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -13368,6 +13835,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -13498,6 +13969,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -13523,6 +13998,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -13548,6 +14027,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -13573,6 +14056,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -13598,6 +14085,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -13623,6 +14114,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -13648,6 +14143,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -13797,6 +14296,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -13822,6 +14325,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -13847,6 +14354,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -13872,6 +14383,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -13897,6 +14412,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -14006,6 +14525,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -14031,6 +14554,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -14163,6 +14690,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -14188,6 +14719,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -14213,6 +14748,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -14238,6 +14777,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -14263,6 +14806,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -14288,6 +14835,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -14313,6 +14864,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -14370,6 +14925,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -14395,6 +14954,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -14420,6 +14983,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -14445,6 +15012,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -14578,6 +15149,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -14603,6 +15178,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -14628,6 +15207,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -14653,6 +15236,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -14678,6 +15265,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -14703,6 +15294,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -14728,6 +15323,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -14916,6 +15515,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -14941,6 +15544,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -15112,6 +15719,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -15326,6 +15937,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -15351,6 +15966,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -15376,6 +15995,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -15547,6 +16170,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -15759,6 +16386,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -15784,6 +16415,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -15809,6 +16444,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -15834,6 +16473,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -15859,6 +16502,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -15933,6 +16580,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -15958,6 +16609,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -15983,6 +16638,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -16008,6 +16667,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -16223,6 +16886,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -16248,6 +16915,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -16273,6 +16944,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -16444,6 +17119,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -16636,6 +17315,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -16661,6 +17344,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -16686,6 +17373,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -16711,6 +17402,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -16904,6 +17599,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -16929,6 +17628,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -17100,6 +17803,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -17199,6 +17906,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -17224,6 +17935,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -17297,6 +18012,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -17322,6 +18041,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -17428,6 +18151,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -17453,6 +18180,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -17478,6 +18209,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -17503,6 +18238,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -17649,6 +18388,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -17674,6 +18417,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -17699,6 +18446,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -17788,6 +18539,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -17932,6 +18687,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -17957,6 +18716,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -17982,6 +18745,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -18007,6 +18774,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -18032,6 +18803,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -18120,6 +18895,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -18145,6 +18924,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -18170,6 +18953,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -18195,6 +18982,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -18341,6 +19132,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -18366,6 +19161,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -18391,6 +19190,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -18480,6 +19283,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -18591,6 +19398,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -18616,6 +19427,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -18705,6 +19520,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -18978,6 +19797,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -19003,6 +19826,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -19028,6 +19855,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -19457,6 +20288,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -19482,6 +20317,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -19507,6 +20346,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -19532,6 +20375,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -19557,6 +20404,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -19810,6 +20661,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -19835,6 +20690,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -19860,6 +20719,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -19906,6 +20769,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -19931,6 +20798,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -19956,6 +20827,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -19981,6 +20856,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -20408,6 +21287,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -20433,6 +21316,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -20458,6 +21345,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -20483,6 +21374,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -20508,6 +21403,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -20533,6 +21432,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -20677,6 +21580,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -20702,6 +21609,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -20727,6 +21638,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -20752,6 +21667,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -20887,6 +21806,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -20912,6 +21835,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -20937,6 +21864,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -20962,6 +21893,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -21107,6 +22042,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -21132,6 +22071,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -21157,6 +22100,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -21292,6 +22239,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -21317,6 +22268,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -21342,6 +22297,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -21518,6 +22477,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -21543,6 +22506,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -21568,6 +22535,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -21820,6 +22791,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -21845,6 +22820,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -21870,6 +22849,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -21895,6 +22878,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -21920,6 +22907,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -22074,6 +23065,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -22099,6 +23094,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -22124,6 +23123,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -22170,6 +23173,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -22195,6 +23202,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -22220,6 +23231,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -22245,6 +23260,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -22495,6 +23514,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -22520,6 +23543,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -22545,6 +23572,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -22570,6 +23601,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -22595,6 +23630,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -22620,6 +23659,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -22764,6 +23807,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -22789,6 +23836,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -22814,6 +23865,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -22839,6 +23894,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -23054,6 +24113,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -23079,6 +24142,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -23104,6 +24171,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -23129,6 +24200,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -23154,6 +24229,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -23377,6 +24456,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -23402,6 +24485,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -23427,6 +24514,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -23452,6 +24543,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -23570,6 +24665,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -23595,6 +24694,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -23620,6 +24723,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -23645,6 +24752,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -23670,6 +24781,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -23735,6 +24850,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -23760,6 +24879,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -23851,6 +24974,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -23876,6 +25003,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -23901,6 +25032,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -23926,6 +25061,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -24098,6 +25237,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -24123,6 +25266,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -24148,6 +25295,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -24379,6 +25530,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -24404,6 +25559,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -24429,6 +25588,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -24454,6 +25617,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -24626,6 +25793,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -24651,6 +25822,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -24676,6 +25851,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -24701,6 +25880,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -24873,6 +26056,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -24898,6 +26085,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -24923,6 +26114,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -24948,6 +26143,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -25048,6 +26247,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -25181,6 +26384,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -25206,6 +26413,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -25378,6 +26589,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -25403,6 +26618,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -25428,6 +26647,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -25453,6 +26676,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -25520,6 +26747,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -25545,6 +26776,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -25570,6 +26805,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -25629,6 +26868,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -25654,6 +26897,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -25679,6 +26926,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -25749,6 +27000,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -25774,6 +27029,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -25799,6 +27058,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -25824,6 +27087,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -25849,6 +27116,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -25897,6 +27168,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -25922,6 +27197,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -25947,6 +27226,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -26027,6 +27310,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -26052,6 +27339,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -26077,6 +27368,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -26102,6 +27397,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -26127,6 +27426,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -26201,6 +27504,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -26226,6 +27533,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -26251,6 +27562,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -26325,6 +27640,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -26350,6 +27669,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -26375,6 +27698,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -26400,6 +27727,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -26425,6 +27756,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -26481,6 +27816,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -26506,6 +27845,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -26531,6 +27874,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -26584,6 +27931,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -26609,6 +27960,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -26634,6 +27989,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -26713,6 +28072,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -26761,6 +28124,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -26786,6 +28153,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -26996,6 +28367,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -27021,6 +28396,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -27239,6 +28618,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -27264,6 +28647,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -27289,6 +28676,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -27314,6 +28705,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -27339,6 +28734,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -27419,6 +28818,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -27444,6 +28847,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -27663,6 +29070,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -27688,6 +29099,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -27713,6 +29128,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -27926,6 +29345,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -27951,6 +29374,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -27976,6 +29403,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -28072,6 +29503,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -28097,6 +29532,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -28122,6 +29561,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -28177,6 +29620,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -28202,6 +29649,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -28227,6 +29678,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -28298,6 +29753,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -28323,6 +29782,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -28348,6 +29811,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -28373,6 +29840,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -28398,6 +29869,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -28608,6 +30083,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -28633,6 +30112,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -28658,6 +30141,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -28683,6 +30170,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -28901,6 +30392,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -28926,6 +30421,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -28981,6 +30480,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -29006,6 +30509,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -29063,6 +30570,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -29088,6 +30599,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -29152,6 +30667,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -29177,6 +30696,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -29202,6 +30725,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -29263,6 +30790,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -29288,6 +30819,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -29387,6 +30922,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -29412,6 +30951,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -29437,6 +30980,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -29658,6 +31205,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -29683,6 +31234,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -29738,6 +31293,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -29796,6 +31355,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -29821,6 +31384,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -29921,6 +31488,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -29946,6 +31517,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -30027,6 +31602,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -30052,6 +31631,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -30113,6 +31696,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -30138,6 +31725,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -30163,6 +31754,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -30188,6 +31783,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -30400,6 +31999,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -30425,6 +32028,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -30450,6 +32057,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -30518,6 +32129,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -30543,6 +32158,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -30650,6 +32269,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -30675,6 +32298,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -30782,6 +32409,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -30807,6 +32438,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -30863,6 +32498,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -30888,6 +32527,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -30913,6 +32556,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -30938,6 +32585,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -31046,6 +32697,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -31071,6 +32726,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -31096,6 +32755,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -31206,6 +32869,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -31231,6 +32898,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -31256,6 +32927,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -31281,6 +32956,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -31425,6 +33104,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -31450,6 +33133,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -31475,6 +33162,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -31500,6 +33191,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -31561,6 +33256,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -35269,6 +36968,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -35294,6 +36997,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -35319,6 +37026,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -35344,6 +37055,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -35413,6 +37128,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -35438,6 +37157,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -35463,6 +37186,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -35609,6 +37336,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -35634,6 +37365,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -35659,6 +37394,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -35684,6 +37423,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -35874,6 +37617,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -35899,6 +37646,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -35924,6 +37675,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -35949,6 +37704,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -36021,6 +37780,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -36046,6 +37809,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -36071,6 +37838,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -36157,6 +37928,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -36182,6 +37957,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -36207,6 +37986,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -36232,6 +38015,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -36291,6 +38078,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -36316,6 +38107,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -36341,6 +38136,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -36366,6 +38165,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -36453,6 +38256,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -36532,6 +38339,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -36557,6 +38368,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -36582,6 +38397,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -36665,6 +38484,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -36690,6 +38513,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -36715,6 +38542,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -36740,6 +38571,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -36810,6 +38645,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -36835,6 +38674,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -36860,6 +38703,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -36947,6 +38794,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -36972,6 +38823,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -36997,6 +38852,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -37022,6 +38881,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -37047,6 +38910,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -37093,6 +38960,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -37118,6 +38989,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -37143,6 +39018,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -37168,6 +39047,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -37324,6 +39207,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -37349,6 +39236,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -37374,6 +39265,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -37399,6 +39294,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -37698,6 +39597,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -37723,6 +39626,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -37748,6 +39655,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -37773,6 +39684,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -38051,6 +39966,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -38076,6 +39995,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -38101,6 +40024,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -38126,6 +40053,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -38151,6 +40082,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -38201,6 +40136,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -38251,6 +40190,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -38276,6 +40219,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -38326,6 +40273,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -38351,6 +40302,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -38576,6 +40531,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -38640,6 +40599,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -38665,6 +40628,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -38734,6 +40701,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -38759,6 +40730,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -38784,6 +40759,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -38871,6 +40850,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -38896,6 +40879,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -38921,6 +40908,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -39009,6 +41000,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -39034,6 +41029,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -39059,6 +41058,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -39134,6 +41137,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -39159,6 +41166,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -39184,6 +41195,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -39209,6 +41224,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -39332,6 +41351,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -39357,6 +41380,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -39382,6 +41409,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -39407,6 +41438,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -39432,6 +41467,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -39457,6 +41496,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -39513,6 +41556,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -39538,6 +41585,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -39563,6 +41614,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -39588,6 +41643,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -39613,6 +41672,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -39638,6 +41701,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -39711,6 +41778,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -39736,6 +41807,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -39761,6 +41836,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -39786,6 +41865,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -39862,6 +41945,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -39887,6 +41974,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -39912,6 +42003,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -39937,6 +42032,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -39984,6 +42083,10 @@ export interface operations {
           "application/json": {
             results: {
               error?: {
+                code?: string;
+                details?: {
+                  [key: string]: string;
+                };
                 diagnostic?: {
                   category: string;
                   code: string;
@@ -40146,6 +42249,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -40171,6 +42278,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -40196,6 +42307,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -40221,6 +42336,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -40246,6 +42365,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -40293,6 +42416,10 @@ export interface operations {
           "application/json": {
             results: {
               error?: {
+                code?: string;
+                details?: {
+                  [key: string]: string;
+                };
                 diagnostic?: {
                   category: string;
                   code: string;
@@ -40455,6 +42582,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -40480,6 +42611,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -40505,6 +42640,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -40530,6 +42669,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -40555,6 +42698,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -40745,6 +42892,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -40770,6 +42921,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -40795,6 +42950,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -40820,6 +42979,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -40845,6 +43008,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -40870,6 +43037,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -40895,6 +43066,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -41383,6 +43558,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -41408,6 +43587,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -41433,6 +43616,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -41458,6 +43645,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -41781,6 +43972,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -41806,6 +44001,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -41831,6 +44030,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -41856,6 +44059,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -41881,6 +44088,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -41906,6 +44117,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -41931,6 +44146,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -42121,6 +44340,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -42146,6 +44369,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -42171,6 +44398,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -42196,6 +44427,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -42221,6 +44456,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -42246,6 +44485,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -42271,6 +44514,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -42593,6 +44840,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -42618,6 +44869,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -42643,6 +44898,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -42668,6 +44927,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -42693,6 +44956,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -42718,6 +44985,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -42743,6 +45014,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -42803,6 +45078,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -42828,6 +45107,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -42853,6 +45136,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -43366,6 +45653,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -43391,6 +45682,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -43416,6 +45711,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -43441,6 +45740,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -43516,6 +45819,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -43541,6 +45848,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -43566,6 +45877,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -43591,6 +45906,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -43658,6 +45977,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -43683,6 +46006,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -43708,6 +46035,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -43733,6 +46064,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -43800,6 +46135,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -43825,6 +46164,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -43850,6 +46193,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -43875,6 +46222,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -44176,6 +46527,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -44201,6 +46556,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -44226,6 +46585,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -44251,6 +46614,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -44276,6 +46643,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -44620,6 +46991,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -44645,6 +47020,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -44670,6 +47049,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -44695,6 +47078,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -44720,6 +47107,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -44769,6 +47160,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -44794,6 +47189,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -45074,6 +47473,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -45099,6 +47502,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -45151,6 +47558,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -45176,6 +47587,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -45227,6 +47642,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -45252,6 +47671,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -45317,6 +47740,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -45342,6 +47769,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -45441,6 +47872,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -45466,6 +47901,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -45552,6 +47991,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -45676,6 +48119,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -45701,6 +48148,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -45726,6 +48177,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -45751,6 +48206,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -45873,6 +48332,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -46019,6 +48482,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -46044,6 +48511,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -46069,6 +48540,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -46094,6 +48569,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -46351,6 +48830,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -46667,6 +49150,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -46814,6 +49301,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -46839,6 +49330,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -46864,6 +49359,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -46889,6 +49388,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -47170,6 +49673,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -47195,6 +49702,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -47220,6 +49731,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -47245,6 +49760,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -47357,6 +49876,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -47382,6 +49905,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -47407,6 +49934,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -47553,6 +50084,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -47578,6 +50113,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -47603,6 +50142,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -47841,6 +50384,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -47866,6 +50413,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -47891,6 +50442,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -47916,6 +50471,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -47941,6 +50500,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -47966,6 +50529,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -47991,6 +50558,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -48147,6 +50718,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -48172,6 +50747,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -48197,6 +50776,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -48222,6 +50805,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -48247,6 +50834,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -48366,6 +50957,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -48391,6 +50986,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -48416,6 +51015,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -48441,6 +51044,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -48466,6 +51073,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -48536,6 +51147,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -48561,6 +51176,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -48586,6 +51205,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -48611,6 +51234,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -48636,6 +51263,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -48713,6 +51344,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -48738,6 +51373,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -48763,6 +51402,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -48788,6 +51431,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -48813,6 +51460,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -48883,6 +51534,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -48908,6 +51563,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -48933,6 +51592,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -48958,6 +51621,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -48983,6 +51650,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -49053,6 +51724,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -49078,6 +51753,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -49103,6 +51782,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -49128,6 +51811,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -49153,6 +51840,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -49350,6 +52041,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -49587,6 +52282,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -49612,6 +52311,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -49637,6 +52340,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -49662,6 +52369,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -49768,6 +52479,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -49912,6 +52627,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -49937,6 +52656,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -49962,6 +52685,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -49987,6 +52714,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -50077,6 +52808,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -50204,6 +52939,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -50229,6 +52968,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -50254,6 +52997,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -50279,6 +53026,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -50322,6 +53073,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -50614,6 +53369,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -50904,6 +53663,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -50929,6 +53692,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -51145,6 +53912,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -51170,6 +53941,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -51195,6 +53970,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -51220,6 +53999,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -51332,6 +54115,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -51357,6 +54144,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -51382,6 +54173,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -51491,6 +54286,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -51516,6 +54315,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -51541,6 +54344,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -51681,6 +54488,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -51876,6 +54687,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -51901,6 +54716,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -51926,6 +54745,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -51951,6 +54774,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -52074,6 +54901,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -52195,6 +55026,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -52220,6 +55055,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -52366,6 +55205,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -52391,6 +55234,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -52416,6 +55263,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -52441,6 +55292,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -52553,6 +55408,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -52578,6 +55437,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -52603,6 +55466,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -52726,6 +55593,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -52751,6 +55622,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -52776,6 +55651,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -52801,6 +55680,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -52934,6 +55817,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -52959,6 +55846,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -52984,6 +55875,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -53009,6 +55904,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -53034,6 +55933,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -53059,6 +55962,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -53118,6 +56025,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -53143,6 +56054,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -53247,6 +56162,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -53406,6 +56325,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -53431,6 +56354,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -53456,6 +56383,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -53481,6 +56412,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -53612,6 +56547,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -53637,6 +56576,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -53662,6 +56605,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -53687,6 +56634,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -53712,6 +56663,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -53775,6 +56730,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -53800,6 +56759,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -53825,6 +56788,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -53850,6 +56817,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -53913,6 +56884,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -53938,6 +56913,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -53963,6 +56942,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -53988,6 +56971,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -54013,6 +57000,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -54068,6 +57059,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -54093,6 +57088,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -54118,6 +57117,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -54143,6 +57146,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -54168,6 +57175,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -54302,6 +57313,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -54327,6 +57342,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -54352,6 +57371,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -54377,6 +57400,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -54402,6 +57429,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -54457,6 +57488,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -54482,6 +57517,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -54507,6 +57546,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -54532,6 +57575,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -54557,6 +57604,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -54612,6 +57663,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -54637,6 +57692,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -54662,6 +57721,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -54687,6 +57750,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -54712,6 +57779,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -54767,6 +57838,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -54792,6 +57867,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -54817,6 +57896,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -54842,6 +57925,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -54867,6 +57954,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -54936,6 +58027,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -54961,6 +58056,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -54986,6 +58085,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -55011,6 +58114,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -55036,6 +58143,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -55497,6 +58608,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -55591,6 +58706,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -55616,6 +58735,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -55641,6 +58764,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -55730,6 +58857,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -55755,6 +58886,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -55780,6 +58915,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -55828,6 +58967,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -55853,6 +58996,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -55878,6 +59025,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -55903,6 +59054,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -56014,6 +59169,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -56039,6 +59198,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -56064,6 +59227,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -56327,6 +59494,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -56352,6 +59523,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -56377,6 +59552,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -56402,6 +59581,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -56427,6 +59610,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -56763,6 +59950,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -56788,6 +59979,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -56813,6 +60008,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -56838,6 +60037,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -57027,6 +60230,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -57052,6 +60259,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -57077,6 +60288,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -57102,6 +60317,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -57127,6 +60346,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -57317,6 +60540,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -57342,6 +60569,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -57367,6 +60598,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -57392,6 +60627,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -57417,6 +60656,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -57607,6 +60850,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -57632,6 +60879,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -57657,6 +60908,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -57682,6 +60937,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -57707,6 +60966,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -57855,6 +61118,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -57880,6 +61147,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -57905,6 +61176,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -57930,6 +61205,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -57955,6 +61234,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -58145,6 +61428,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -58170,6 +61457,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -58195,6 +61486,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -58220,6 +61515,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -58245,6 +61544,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -58363,6 +61666,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -58388,6 +61695,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -58413,6 +61724,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -58438,6 +61753,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -58639,6 +61958,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -58664,6 +61987,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -58689,6 +62016,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -58714,6 +62045,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -58739,6 +62074,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -58928,6 +62267,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -58953,6 +62296,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -58978,6 +62325,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -59003,6 +62354,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -59028,6 +62383,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -59386,6 +62745,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -59411,6 +62774,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -59436,6 +62803,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -59461,6 +62832,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -59486,6 +62861,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -59775,6 +63154,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -59800,6 +63183,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -59825,6 +63212,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -59850,6 +63241,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -59875,6 +63270,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -59900,6 +63299,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -60974,6 +64377,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -60999,6 +64406,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -61024,6 +64435,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -61049,6 +64464,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -61095,6 +64514,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -61120,6 +64543,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -61145,6 +64572,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -61170,6 +64601,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -61456,6 +64891,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -61481,6 +64920,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -61506,6 +64949,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -61531,6 +64978,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -61556,6 +65007,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -61962,6 +65417,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -61987,6 +65446,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -62012,6 +65475,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -62037,6 +65504,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -62062,6 +65533,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -62152,6 +65627,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -62177,6 +65656,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -62202,6 +65685,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -62227,6 +65714,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -62252,6 +65743,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -62352,6 +65847,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -62377,6 +65876,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -62402,6 +65905,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -62427,6 +65934,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -62452,6 +65963,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -62548,6 +66063,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -62573,6 +66092,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -62598,6 +66121,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -62623,6 +66150,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -62648,6 +66179,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -62861,6 +66396,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -62886,6 +66425,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -62911,6 +66454,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -62936,6 +66483,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -62961,6 +66512,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -63253,6 +66808,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -63278,6 +66837,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -63303,6 +66866,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -63328,6 +66895,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -63353,6 +66924,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -63378,6 +66953,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -64461,6 +68040,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -64486,6 +68069,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -64511,6 +68098,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -64536,6 +68127,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -64561,6 +68156,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -65637,6 +69236,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -65662,6 +69265,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -65687,6 +69294,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -65712,6 +69323,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -65879,6 +69494,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -65904,6 +69523,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -65929,6 +69552,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -65954,6 +69581,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -66243,6 +69874,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -66268,6 +69903,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -66293,6 +69932,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -66318,6 +69961,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -66343,6 +69990,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -66389,6 +70040,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -66414,6 +70069,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -66439,6 +70098,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -66464,6 +70127,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -66952,6 +70619,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -66977,6 +70648,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -67002,6 +70677,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -67027,6 +70706,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -67126,6 +70809,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -67151,6 +70838,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -67176,6 +70867,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -67201,6 +70896,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -67307,6 +71006,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -67332,6 +71035,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -67357,6 +71064,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -67382,6 +71093,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -67474,6 +71189,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -67499,6 +71218,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -67524,6 +71247,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -67572,6 +71299,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -67597,6 +71328,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -67622,6 +71357,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -67835,6 +71574,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -67860,6 +71603,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -67885,6 +71632,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -67910,6 +71661,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -67935,6 +71690,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -67960,6 +71719,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -67985,6 +71748,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -68391,6 +72158,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -68416,6 +72187,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -68441,6 +72216,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -68466,6 +72245,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -68491,6 +72274,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -68703,6 +72490,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -68728,6 +72519,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -68753,6 +72548,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -68778,6 +72577,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -68803,6 +72606,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -69008,6 +72815,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -69033,6 +72844,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -69058,6 +72873,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -69083,6 +72902,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -69108,6 +72931,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -69320,6 +73147,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -69345,6 +73176,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -69370,6 +73205,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -69395,6 +73234,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -69420,6 +73263,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -69445,6 +73292,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -69470,6 +73321,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -69588,6 +73443,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -69613,6 +73472,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -69638,6 +73501,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -69663,6 +73530,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -69862,6 +73733,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -69887,6 +73762,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -69912,6 +73791,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -69937,6 +73820,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -70187,6 +74074,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -70212,6 +74103,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -70237,6 +74132,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -70262,6 +74161,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -70287,6 +74190,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -70542,6 +74449,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -70567,6 +74478,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -70592,6 +74507,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -70617,6 +74536,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -70642,6 +74565,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -71048,6 +74975,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -71073,6 +75004,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -71098,6 +75033,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -71123,6 +75062,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -71148,6 +75091,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -71391,6 +75338,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -71416,6 +75367,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -71441,6 +75396,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -71466,6 +75425,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -71708,6 +75671,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -71733,6 +75700,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -71758,6 +75729,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -71783,6 +75758,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -72156,6 +76135,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -72181,6 +76164,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -72206,6 +76193,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -72231,6 +76222,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -72301,6 +76296,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -72326,6 +76325,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -72351,6 +76354,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -72376,6 +76383,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -72446,6 +76457,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -72471,6 +76486,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -72496,6 +76515,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -72521,6 +76544,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -72591,6 +76618,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -72616,6 +76647,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -72641,6 +76676,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -72666,6 +76705,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -72729,6 +76772,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -72754,6 +76801,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -72779,6 +76830,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -72804,6 +76859,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -72878,6 +76937,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -72903,6 +76966,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -72928,6 +76995,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -72953,6 +77024,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -73002,6 +77077,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -73027,6 +77106,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -73052,6 +77135,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -73077,6 +77164,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -73472,6 +77563,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -74038,6 +78133,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -74774,6 +78873,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -75517,6 +79620,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -77123,6 +81230,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -77574,6 +81685,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -78197,6 +82312,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -78245,6 +82364,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -78270,6 +82393,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -78331,6 +82458,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -78356,6 +82487,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -78381,6 +82516,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -78406,6 +82545,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -78471,6 +82614,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -78496,6 +82643,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -78521,6 +82672,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -78546,6 +82701,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -78592,6 +82751,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -78617,6 +82780,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -78642,6 +82809,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -78667,6 +82838,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -78692,6 +82867,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -78751,6 +82930,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -78776,6 +82959,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -78801,6 +82988,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -78826,6 +83017,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -78851,6 +83046,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -79001,6 +83200,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -79026,6 +83229,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -79051,6 +83258,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -79076,6 +83287,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -79101,6 +83316,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -79253,6 +83472,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -79278,6 +83501,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -79303,6 +83530,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -79328,6 +83559,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -79353,6 +83588,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -79411,6 +83650,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -79480,6 +83723,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -79505,6 +83752,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -79530,6 +83781,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -79595,6 +83850,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -79620,6 +83879,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -79645,6 +83908,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -80005,6 +84272,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -80030,6 +84301,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -80076,6 +84351,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -80101,6 +84380,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -80172,6 +84455,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -80197,6 +84484,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -80222,6 +84513,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -80489,6 +84784,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -80514,6 +84813,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -80539,6 +84842,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -80564,6 +84871,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -81034,6 +85345,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -81059,6 +85374,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -81084,6 +85403,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -81109,6 +85432,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -81134,6 +85461,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -81400,6 +85731,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -81425,6 +85760,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -81450,6 +85789,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -81475,6 +85818,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -81645,6 +85992,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -81670,6 +86021,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -81695,6 +86050,229 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  listLoopNodes: {
+    parameters: {
+      query: {
+        /** @description Node inventory state */
+        state: string;
+        /** @description Filter by Loop name */
+        loop?: string;
+        /** @description Filter by Loop run id */
+        run_id?: string;
+        /** @description Opaque continuation cursor */
+        cursor?: string;
+        /** @description Maximum number of records to return */
+        limit?: number;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            items: {
+              control?: {
+                attention_flag?: string;
+                attention_reason?: string;
+                cancel_provenance?: {
+                  actor_id: string;
+                  actor_kind: string;
+                  reason?: string;
+                  /** Format: date-time */
+                  requested_at: string;
+                  rule_id?: string;
+                } | null;
+                cancel_state?: string;
+                death_resume_streak: number;
+                /** Format: date-time */
+                last_evidence_at?: string | null;
+                loop_run_id: string;
+                node_id: string;
+                pause_provenance?: {
+                  actor_id: string;
+                  actor_kind: string;
+                  reason?: string;
+                  /** Format: date-time */
+                  requested_at: string;
+                  rule_id?: string;
+                } | null;
+                paused: boolean;
+                quarantine_entry?: unknown;
+                quarantined: boolean;
+                /** Format: date-time */
+                quarantined_at?: string | null;
+                /** Format: int64 */
+                revision: number;
+                /** Format: date-time */
+                updated_at: string;
+              } | null;
+              generation: number;
+              item_index: number;
+              loop_name: string;
+              loop_run_id: string;
+              node_id: string;
+              output?: {
+                attempt?: number;
+                child_loop_run_id?: string;
+                disposition?: string;
+                failure_class?: string;
+                /** Format: int64 */
+                generation?: number;
+                item_index?: number;
+                /** Format: date-time */
+                next_attempt_at?: string | null;
+                node_id: string;
+                output_ref?: string;
+                resolved_runtime?: {
+                  model?: string;
+                  provider?: string;
+                  reasoning?: string;
+                  source: {
+                    model?: string;
+                    provider?: string;
+                    reasoning?: string;
+                  };
+                } | null;
+                status: string;
+                task_run_id?: string;
+              } | null;
+              /** @enum {string} */
+              state: "waiting" | "quarantined" | "attention" | "retrying";
+              /** Format: date-time */
+              state_at: string;
+              wait?: {
+                admission_failures: number;
+                /** Format: int64 */
+                age_seconds: number;
+                claim_state: string;
+                /** Format: date-time */
+                claimed_at?: string | null;
+                claimed_by_id?: string;
+                claimed_by_kind?: string;
+                /** Format: date-time */
+                created_at: string;
+                escalation_cursor: number;
+                expect?: unknown;
+                generation: number;
+                /** Format: int64 */
+                issued_epoch: number;
+                item_index: number;
+                kind: string;
+                loop_run_id: string;
+                /** Format: date-time */
+                next_escalation_at?: string | null;
+                node_id: string;
+                /** Format: date-time */
+                resume_at?: string | null;
+              } | null;
+            }[];
+            next_cursor?: string;
+          };
+        };
+      };
+      /** @description Invalid Loop request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -81851,7 +86429,8 @@ export interface operations {
                 | "blocked"
                 | "failed"
                 | "exhausted"
-                | "stalled";
+                | "stalled"
+                | "canceled";
               /** Format: int64 */
               tokens_used: number;
               workspace_id: string;
@@ -81866,6 +86445,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -81891,6 +86474,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -81916,6 +86503,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -82234,12 +86825,18 @@ export interface operations {
                 | "gate_revise"
                 | "gate_next_generation"
                 | "dod_retry"
-                | "ratchet_restore";
+                | "ratchet_restore"
+                | "requeue";
               outputs: {
+                attempt?: number;
                 child_loop_run_id?: string;
+                disposition?: string;
+                failure_class?: string;
                 /** Format: int64 */
                 generation?: number;
                 item_index?: number;
+                /** Format: date-time */
+                next_attempt_at?: string | null;
                 node_id: string;
                 output_ref?: string;
                 resolved_runtime?: {
@@ -82307,6 +86904,41 @@ export interface operations {
                 /** Format: double */
                 score?: number | null;
               }[];
+            }[];
+            node_controls: {
+              attention_flag?: string;
+              attention_reason?: string;
+              cancel_provenance?: {
+                actor_id: string;
+                actor_kind: string;
+                reason?: string;
+                /** Format: date-time */
+                requested_at: string;
+                rule_id?: string;
+              } | null;
+              cancel_state?: string;
+              death_resume_streak: number;
+              /** Format: date-time */
+              last_evidence_at?: string | null;
+              loop_run_id: string;
+              node_id: string;
+              pause_provenance?: {
+                actor_id: string;
+                actor_kind: string;
+                reason?: string;
+                /** Format: date-time */
+                requested_at: string;
+                rule_id?: string;
+              } | null;
+              paused: boolean;
+              quarantine_entry?: unknown;
+              quarantined: boolean;
+              /** Format: date-time */
+              quarantined_at?: string | null;
+              /** Format: int64 */
+              revision: number;
+              /** Format: date-time */
+              updated_at: string;
             }[];
             run: {
               active_gate_id?: string;
@@ -82405,11 +87037,37 @@ export interface operations {
                 | "blocked"
                 | "failed"
                 | "exhausted"
-                | "stalled";
+                | "stalled"
+                | "canceled";
               /** Format: int64 */
               tokens_used: number;
               workspace_id: string;
             };
+            waits: {
+              admission_failures: number;
+              /** Format: int64 */
+              age_seconds: number;
+              claim_state: string;
+              /** Format: date-time */
+              claimed_at?: string | null;
+              claimed_by_id?: string;
+              claimed_by_kind?: string;
+              /** Format: date-time */
+              created_at: string;
+              escalation_cursor: number;
+              expect?: unknown;
+              generation: number;
+              /** Format: int64 */
+              issued_epoch: number;
+              item_index: number;
+              kind: string;
+              loop_run_id: string;
+              /** Format: date-time */
+              next_escalation_at?: string | null;
+              node_id: string;
+              /** Format: date-time */
+              resume_at?: string | null;
+            }[];
             watch_events?: {
               cursors?: {
                 [key: string]: number;
@@ -82454,6 +87112,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -82479,6 +87141,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -82504,6 +87170,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -82529,6 +87199,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -82590,6 +87264,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -82615,6 +87293,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -82640,6 +87322,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -82665,6 +87351,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -82690,6 +87380,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -82715,6 +87409,264 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  cancelLoopRun: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Loop run id */
+        run_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          [key: string]: unknown;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            control?: {
+              attention_flag?: string;
+              attention_reason?: string;
+              cancel_provenance?: {
+                actor_id: string;
+                actor_kind: string;
+                reason?: string;
+                /** Format: date-time */
+                requested_at: string;
+                rule_id?: string;
+              } | null;
+              cancel_state?: string;
+              death_resume_streak: number;
+              /** Format: date-time */
+              last_evidence_at?: string | null;
+              loop_run_id: string;
+              node_id: string;
+              pause_provenance?: {
+                actor_id: string;
+                actor_kind: string;
+                reason?: string;
+                /** Format: date-time */
+                requested_at: string;
+                rule_id?: string;
+              } | null;
+              paused: boolean;
+              quarantine_entry?: unknown;
+              quarantined: boolean;
+              /** Format: date-time */
+              quarantined_at?: string | null;
+              /** Format: int64 */
+              revision: number;
+              /** Format: date-time */
+              updated_at: string;
+            } | null;
+            node_id?: string;
+            ok: boolean;
+            provenance?: {
+              actor_id: string;
+              actor_kind: string;
+              reason?: string;
+              /** Format: date-time */
+              requested_at: string;
+              rule_id?: string;
+            } | null;
+            run_id: string;
+            status?: string;
+          };
+        };
+      };
+      /** @description Invalid Loop request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop run not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop operation rejected */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -82781,7 +87733,8 @@ export interface operations {
                     | "gate_revise"
                     | "gate_next_generation"
                     | "dod_retry"
-                    | "ratchet_restore";
+                    | "ratchet_restore"
+                    | "requeue";
                   /** Format: int64 */
                   parent_generation: number;
                   /** @enum {string} */
@@ -82846,6 +87799,20 @@ export interface operations {
                   | "goal_status_changed"
                   | "runtime_applied"
                   | "node_retry_scheduled"
+                  | "node_paused"
+                  | "node_resumed"
+                  | "node_canceled"
+                  | "node_killed"
+                  | "node_quarantined"
+                  | "node_requeued"
+                  | "node_wait_started"
+                  | "node_wait_resumed"
+                  | "node_attention_flagged"
+                  | "node_attention_cleared"
+                  | "effect_results"
+                  | "custom_event"
+                  | "duplicate_suppressed"
+                  | "target_breaker_transition"
                   | "stale_schedule_dropped"
                   | "late_arrival";
                 loop_run_id: string;
@@ -82863,6 +87830,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -82888,6 +87859,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -82913,6 +87888,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -82938,6 +87917,1547 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  killLoopRun: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Loop run id */
+        run_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          [key: string]: unknown;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            control?: {
+              attention_flag?: string;
+              attention_reason?: string;
+              cancel_provenance?: {
+                actor_id: string;
+                actor_kind: string;
+                reason?: string;
+                /** Format: date-time */
+                requested_at: string;
+                rule_id?: string;
+              } | null;
+              cancel_state?: string;
+              death_resume_streak: number;
+              /** Format: date-time */
+              last_evidence_at?: string | null;
+              loop_run_id: string;
+              node_id: string;
+              pause_provenance?: {
+                actor_id: string;
+                actor_kind: string;
+                reason?: string;
+                /** Format: date-time */
+                requested_at: string;
+                rule_id?: string;
+              } | null;
+              paused: boolean;
+              quarantine_entry?: unknown;
+              quarantined: boolean;
+              /** Format: date-time */
+              quarantined_at?: string | null;
+              /** Format: int64 */
+              revision: number;
+              /** Format: date-time */
+              updated_at: string;
+            } | null;
+            node_id?: string;
+            ok: boolean;
+            provenance?: {
+              actor_id: string;
+              actor_kind: string;
+              reason?: string;
+              /** Format: date-time */
+              requested_at: string;
+              rule_id?: string;
+            } | null;
+            run_id: string;
+            status?: string;
+          };
+        };
+      };
+      /** @description Invalid Loop request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop run not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop operation rejected */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  cancelLoopNode: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Loop run id */
+        run_id: string;
+        /** @description Loop node id */
+        node_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          reason?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            control?: {
+              attention_flag?: string;
+              attention_reason?: string;
+              cancel_provenance?: {
+                actor_id: string;
+                actor_kind: string;
+                reason?: string;
+                /** Format: date-time */
+                requested_at: string;
+                rule_id?: string;
+              } | null;
+              cancel_state?: string;
+              death_resume_streak: number;
+              /** Format: date-time */
+              last_evidence_at?: string | null;
+              loop_run_id: string;
+              node_id: string;
+              pause_provenance?: {
+                actor_id: string;
+                actor_kind: string;
+                reason?: string;
+                /** Format: date-time */
+                requested_at: string;
+                rule_id?: string;
+              } | null;
+              paused: boolean;
+              quarantine_entry?: unknown;
+              quarantined: boolean;
+              /** Format: date-time */
+              quarantined_at?: string | null;
+              /** Format: int64 */
+              revision: number;
+              /** Format: date-time */
+              updated_at: string;
+            } | null;
+            node_id?: string;
+            ok: boolean;
+            provenance?: {
+              actor_id: string;
+              actor_kind: string;
+              reason?: string;
+              /** Format: date-time */
+              requested_at: string;
+              rule_id?: string;
+            } | null;
+            run_id: string;
+            status?: string;
+          };
+        };
+      };
+      /** @description Invalid Loop request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop run not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop operation rejected */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  killLoopNode: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Loop run id */
+        run_id: string;
+        /** @description Loop node id */
+        node_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          reason?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            control?: {
+              attention_flag?: string;
+              attention_reason?: string;
+              cancel_provenance?: {
+                actor_id: string;
+                actor_kind: string;
+                reason?: string;
+                /** Format: date-time */
+                requested_at: string;
+                rule_id?: string;
+              } | null;
+              cancel_state?: string;
+              death_resume_streak: number;
+              /** Format: date-time */
+              last_evidence_at?: string | null;
+              loop_run_id: string;
+              node_id: string;
+              pause_provenance?: {
+                actor_id: string;
+                actor_kind: string;
+                reason?: string;
+                /** Format: date-time */
+                requested_at: string;
+                rule_id?: string;
+              } | null;
+              paused: boolean;
+              quarantine_entry?: unknown;
+              quarantined: boolean;
+              /** Format: date-time */
+              quarantined_at?: string | null;
+              /** Format: int64 */
+              revision: number;
+              /** Format: date-time */
+              updated_at: string;
+            } | null;
+            node_id?: string;
+            ok: boolean;
+            provenance?: {
+              actor_id: string;
+              actor_kind: string;
+              reason?: string;
+              /** Format: date-time */
+              requested_at: string;
+              rule_id?: string;
+            } | null;
+            run_id: string;
+            status?: string;
+          };
+        };
+      };
+      /** @description Invalid Loop request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop run not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop operation rejected */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  pauseLoopNode: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Loop run id */
+        run_id: string;
+        /** @description Loop node id */
+        node_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          mode: string;
+          reason?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            control?: {
+              attention_flag?: string;
+              attention_reason?: string;
+              cancel_provenance?: {
+                actor_id: string;
+                actor_kind: string;
+                reason?: string;
+                /** Format: date-time */
+                requested_at: string;
+                rule_id?: string;
+              } | null;
+              cancel_state?: string;
+              death_resume_streak: number;
+              /** Format: date-time */
+              last_evidence_at?: string | null;
+              loop_run_id: string;
+              node_id: string;
+              pause_provenance?: {
+                actor_id: string;
+                actor_kind: string;
+                reason?: string;
+                /** Format: date-time */
+                requested_at: string;
+                rule_id?: string;
+              } | null;
+              paused: boolean;
+              quarantine_entry?: unknown;
+              quarantined: boolean;
+              /** Format: date-time */
+              quarantined_at?: string | null;
+              /** Format: int64 */
+              revision: number;
+              /** Format: date-time */
+              updated_at: string;
+            } | null;
+            node_id?: string;
+            ok: boolean;
+            provenance?: {
+              actor_id: string;
+              actor_kind: string;
+              reason?: string;
+              /** Format: date-time */
+              requested_at: string;
+              rule_id?: string;
+            } | null;
+            run_id: string;
+            status?: string;
+          };
+        };
+      };
+      /** @description Invalid Loop request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop run not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop operation rejected */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  requeueLoopNode: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Loop run id */
+        run_id: string;
+        /** @description Loop node id */
+        node_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          reason?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            control?: {
+              attention_flag?: string;
+              attention_reason?: string;
+              cancel_provenance?: {
+                actor_id: string;
+                actor_kind: string;
+                reason?: string;
+                /** Format: date-time */
+                requested_at: string;
+                rule_id?: string;
+              } | null;
+              cancel_state?: string;
+              death_resume_streak: number;
+              /** Format: date-time */
+              last_evidence_at?: string | null;
+              loop_run_id: string;
+              node_id: string;
+              pause_provenance?: {
+                actor_id: string;
+                actor_kind: string;
+                reason?: string;
+                /** Format: date-time */
+                requested_at: string;
+                rule_id?: string;
+              } | null;
+              paused: boolean;
+              quarantine_entry?: unknown;
+              quarantined: boolean;
+              /** Format: date-time */
+              quarantined_at?: string | null;
+              /** Format: int64 */
+              revision: number;
+              /** Format: date-time */
+              updated_at: string;
+            } | null;
+            node_id?: string;
+            ok: boolean;
+            provenance?: {
+              actor_id: string;
+              actor_kind: string;
+              reason?: string;
+              /** Format: date-time */
+              requested_at: string;
+              rule_id?: string;
+            } | null;
+            run_id: string;
+            status?: string;
+          };
+        };
+      };
+      /** @description Invalid Loop request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop run not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop operation rejected */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  resumeLoopNode: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Loop run id */
+        run_id: string;
+        /** @description Loop node id */
+        node_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          item_index?: number | null;
+          mode: string;
+          payload?: unknown;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            control?: {
+              attention_flag?: string;
+              attention_reason?: string;
+              cancel_provenance?: {
+                actor_id: string;
+                actor_kind: string;
+                reason?: string;
+                /** Format: date-time */
+                requested_at: string;
+                rule_id?: string;
+              } | null;
+              cancel_state?: string;
+              death_resume_streak: number;
+              /** Format: date-time */
+              last_evidence_at?: string | null;
+              loop_run_id: string;
+              node_id: string;
+              pause_provenance?: {
+                actor_id: string;
+                actor_kind: string;
+                reason?: string;
+                /** Format: date-time */
+                requested_at: string;
+                rule_id?: string;
+              } | null;
+              paused: boolean;
+              quarantine_entry?: unknown;
+              quarantined: boolean;
+              /** Format: date-time */
+              quarantined_at?: string | null;
+              /** Format: int64 */
+              revision: number;
+              /** Format: date-time */
+              updated_at: string;
+            } | null;
+            node_id?: string;
+            ok: boolean;
+            provenance?: {
+              actor_id: string;
+              actor_kind: string;
+              reason?: string;
+              /** Format: date-time */
+              requested_at: string;
+              rule_id?: string;
+            } | null;
+            run_id: string;
+            status?: string;
+          };
+        };
+      };
+      /** @description Invalid Loop request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop run not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop operation rejected */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -82997,6 +89517,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -83022,6 +89546,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -83047,6 +89575,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -83072,6 +89604,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -83097,6 +89633,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -83122,6 +89662,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -83181,6 +89725,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -83206,6 +89754,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -83231,6 +89783,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -83256,6 +89812,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -83281,6 +89841,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -83306,190 +89870,10 @@ export interface operations {
         };
         content: {
           "application/json": {
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-    };
-  };
-  stopLoopRun: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        /** @description Workspace id */
-        workspace_id: string;
-        /** @description Loop run id */
-        run_id: string;
-      };
-      cookie?: never;
-    };
-    /** @description JSON request body */
-    requestBody: {
-      content: {
-        "application/json": {
-          [key: string]: unknown;
-        };
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            [key: string]: boolean;
-          };
-        };
-      };
-      /** @description Invalid Loop request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-      /** @description Loop run not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-      /** @description Loop conflict */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-      /** @description Loop operation rejected */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-      /** @description Loop service is not configured */
-      503: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -83636,6 +90020,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -83661,6 +90049,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -83811,7 +90203,8 @@ export interface operations {
                 | "blocked"
                 | "failed"
                 | "exhausted"
-                | "stalled";
+                | "stalled"
+                | "canceled";
               /** @enum {string} */
               status:
                 | "active"
@@ -83833,6 +90226,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -83858,6 +90255,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -83899,7 +90300,8 @@ export interface operations {
           | "blocked"
           | "failed"
           | "exhausted"
-          | "stalled";
+          | "stalled"
+          | "canceled";
         /** @description Stable read-only-first name order */
         sort?: "name";
         /** @description Continue after this workspace- and query-bound Loop cursor */
@@ -84045,7 +90447,8 @@ export interface operations {
                   | "blocked"
                   | "failed"
                   | "exhausted"
-                  | "stalled";
+                  | "stalled"
+                  | "canceled";
               } | null;
               name: string;
               /** @enum {string} */
@@ -84079,6 +90482,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -84104,6 +90511,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -84129,6 +90540,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -84154,6 +90569,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -84179,6 +90598,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -84764,6 +91187,21 @@ export interface operations {
                 }[];
               };
               description?: string;
+              effective_lifecycle?: {
+                admission_horizon: string;
+                liveness_silence_window: string;
+                predicate_cost_limit: number;
+                resume_death_streak_limit: number;
+                retry_backoff_base: string;
+                retry_backoff_max: string;
+                retry_max_attempts: number;
+                retry_non_retryable: string[];
+                sources: {
+                  [key: string]: string;
+                };
+                wait_admission_attempts: number;
+                wait_admission_interval: string;
+              } | null;
               name: string;
               /** @enum {string} */
               source: "marketplace" | "user" | "additional" | "workspace";
@@ -84779,6 +91217,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -84804,6 +91246,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -84829,6 +91275,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -84883,6 +91333,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -84908,6 +91362,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -85222,6 +91680,21 @@ export interface operations {
                 }[];
               };
               description?: string;
+              effective_lifecycle?: {
+                admission_horizon: string;
+                liveness_silence_window: string;
+                predicate_cost_limit: number;
+                resume_death_streak_limit: number;
+                retry_backoff_base: string;
+                retry_backoff_max: string;
+                retry_max_attempts: number;
+                retry_non_retryable: string[];
+                sources: {
+                  [key: string]: string;
+                };
+                wait_admission_attempts: number;
+                wait_admission_interval: string;
+              } | null;
               name: string;
               /** @enum {string} */
               source: "marketplace" | "user" | "additional" | "workspace";
@@ -85237,6 +91710,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -85262,6 +91739,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -85287,6 +91768,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -85312,6 +91797,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -85360,6 +91849,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -85385,6 +91878,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -85410,6 +91907,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -85435,6 +91936,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -85460,6 +91965,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -86047,6 +92556,21 @@ export interface operations {
                 }[];
               };
               description?: string;
+              effective_lifecycle?: {
+                admission_horizon: string;
+                liveness_silence_window: string;
+                predicate_cost_limit: number;
+                resume_death_streak_limit: number;
+                retry_backoff_base: string;
+                retry_backoff_max: string;
+                retry_max_attempts: number;
+                retry_non_retryable: string[];
+                sources: {
+                  [key: string]: string;
+                };
+                wait_admission_attempts: number;
+                wait_admission_interval: string;
+              } | null;
               name: string;
               /** @enum {string} */
               source: "marketplace" | "user" | "additional" | "workspace";
@@ -86062,6 +92586,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -86087,6 +92615,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -86112,6 +92644,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -86178,6 +92714,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -86203,6 +92743,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -86261,6 +92805,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -86286,6 +92834,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -86311,6 +92863,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -86336,6 +92892,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -86407,6 +92967,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -86432,6 +92996,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -86457,6 +93025,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -86482,6 +93054,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -86621,6 +93197,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -86646,6 +93226,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -86671,6 +93255,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -86696,6 +93284,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -86879,6 +93471,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -86904,6 +93500,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -86929,6 +93529,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -86954,6 +93558,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -87013,6 +93621,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -87038,6 +93650,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -87063,6 +93679,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -87088,6 +93708,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -87113,6 +93737,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -87179,6 +93807,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -87204,6 +93836,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -87229,6 +93865,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -87254,6 +93894,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -87279,6 +93923,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -87340,6 +93988,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -87365,6 +94017,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -87390,6 +94046,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -87415,6 +94075,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -87440,6 +94104,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -87506,6 +94174,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -87531,6 +94203,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -87556,6 +94232,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -87581,6 +94261,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -87606,6 +94290,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -87666,6 +94354,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -87691,6 +94383,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -87716,6 +94412,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -87741,6 +94441,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -87766,6 +94470,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -88197,7 +94905,8 @@ export interface operations {
                 | "blocked"
                 | "failed"
                 | "exhausted"
-                | "stalled";
+                | "stalled"
+                | "canceled";
               /** Format: int64 */
               tokens_used: number;
               workspace_id: string;
@@ -88492,7 +95201,8 @@ export interface operations {
                 | "blocked"
                 | "failed"
                 | "exhausted"
-                | "stalled";
+                | "stalled"
+                | "canceled";
               /** Format: int64 */
               tokens_used: number;
               workspace_id: string;
@@ -88508,6 +95218,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -88533,6 +95247,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -88558,6 +95276,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -88583,6 +95305,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -88608,6 +95334,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -88633,6 +95363,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -88658,6 +95392,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -89000,6 +95738,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -89054,6 +95796,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -89079,6 +95825,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -89331,6 +96081,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -89356,6 +96110,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -89381,6 +96139,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -89406,6 +96168,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -89431,6 +96197,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -89528,6 +96298,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -89553,6 +96327,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -89578,6 +96356,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -89603,6 +96385,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -89628,6 +96414,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -89653,6 +96443,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -89750,6 +96544,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -89775,6 +96573,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -89800,6 +96602,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -89825,6 +96631,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -89850,6 +96660,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -89875,6 +96689,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -89960,6 +96778,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -89985,6 +96807,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -90324,6 +97150,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -90349,6 +97179,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -90374,6 +97208,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -90399,6 +97237,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -90728,6 +97570,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -90753,6 +97599,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -90778,6 +97628,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -90803,6 +97657,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -91141,6 +97999,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -91166,6 +98028,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -91191,6 +98057,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -91216,6 +98086,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -91300,6 +98174,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -91325,6 +98203,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -91350,6 +98232,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -91423,6 +98309,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -91448,6 +98338,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -91473,6 +98367,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -91498,6 +98396,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -91523,6 +98425,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -91590,6 +98496,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -91615,6 +98525,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -91640,6 +98554,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -91665,6 +98583,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -91762,6 +98684,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -91787,6 +98713,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -91812,6 +98742,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -91837,6 +98771,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -91906,6 +98844,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -91931,6 +98873,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -91956,6 +98902,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -92027,6 +98977,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -92052,6 +99006,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -92077,6 +99035,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -92130,6 +99092,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -92155,6 +99121,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -92180,6 +99150,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -92275,6 +99249,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -92300,6 +99278,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -92325,6 +99307,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -92429,6 +99415,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -92454,6 +99444,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -92479,6 +99473,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -92504,6 +99502,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -92601,6 +99603,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -92626,6 +99632,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -92651,6 +99661,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -92676,6 +99690,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -92909,6 +99927,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -92934,6 +99956,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -92959,6 +99985,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -92984,6 +100014,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -93064,6 +100098,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -93089,6 +100127,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -93114,6 +100156,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -93139,6 +100185,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -93216,6 +100266,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -93241,6 +100295,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -93266,6 +100324,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -93376,6 +100438,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -93401,6 +100467,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -93426,6 +100496,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -93534,6 +100608,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -93559,6 +100637,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -93584,6 +100666,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -93609,6 +100695,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -93737,6 +100827,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -93762,6 +100856,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -93787,6 +100885,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -93812,6 +100914,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -93880,6 +100986,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -93905,6 +101015,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -93930,6 +101044,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -93955,6 +101073,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -94237,6 +101359,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -94262,6 +101388,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -94310,6 +101440,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -94335,6 +101469,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -94396,6 +101534,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -94421,6 +101563,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -94446,6 +101592,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -94741,6 +101891,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -94766,6 +101920,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -94791,6 +101949,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -94816,6 +101978,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -94841,6 +102007,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -94903,6 +102073,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -94928,6 +102102,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -94992,6 +102170,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -95017,6 +102199,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -95042,6 +102228,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -95067,6 +102257,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -95346,6 +102540,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -95371,6 +102569,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -95396,6 +102598,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -95421,6 +102627,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -95545,6 +102755,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -95570,6 +102784,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -95595,6 +102813,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -95723,7 +102945,8 @@ export interface operations {
                 | "blocked"
                 | "failed"
                 | "exhausted"
-                | "stalled";
+                | "stalled"
+                | "canceled";
               /** @enum {string} */
               status:
                 | "active"
@@ -95745,6 +102968,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -95770,6 +102997,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -95795,6 +103026,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -95820,6 +103055,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -95899,6 +103138,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -95924,6 +103167,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -95949,6 +103196,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -96076,6 +103327,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -96101,6 +103356,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -96126,6 +103385,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -96288,6 +103551,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -96313,6 +103580,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -96338,6 +103609,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -96517,7 +103792,8 @@ export interface operations {
                     | "blocked"
                     | "failed"
                     | "exhausted"
-                    | "stalled";
+                    | "stalled"
+                    | "canceled";
                   /** @enum {string} */
                   status:
                     | "active"
@@ -96555,6 +103831,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -96580,6 +103860,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -96605,6 +103889,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -96811,7 +104099,8 @@ export interface operations {
                     | "blocked"
                     | "failed"
                     | "exhausted"
-                    | "stalled";
+                    | "stalled"
+                    | "canceled";
                   /** @enum {string} */
                   status:
                     | "active"
@@ -96987,7 +104276,8 @@ export interface operations {
                     | "blocked"
                     | "failed"
                     | "exhausted"
-                    | "stalled";
+                    | "stalled"
+                    | "canceled";
                   /** @enum {string} */
                   status:
                     | "active"
@@ -97025,6 +104315,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -97051,6 +104345,10 @@ export interface operations {
         content: {
           "application/json":
             | {
+                code?: string;
+                details?: {
+                  [key: string]: string;
+                };
                 diagnostic?: {
                   category: string;
                   code: string;
@@ -97206,7 +104504,8 @@ export interface operations {
                         | "blocked"
                         | "failed"
                         | "exhausted"
-                        | "stalled";
+                        | "stalled"
+                        | "canceled";
                       /** @enum {string} */
                       status:
                         | "active"
@@ -97245,6 +104544,10 @@ export interface operations {
         content: {
           "application/json":
             | {
+                code?: string;
+                details?: {
+                  [key: string]: string;
+                };
                 diagnostic?: {
                   category: string;
                   code: string;
@@ -97400,7 +104703,8 @@ export interface operations {
                         | "blocked"
                         | "failed"
                         | "exhausted"
-                        | "stalled";
+                        | "stalled"
+                        | "canceled";
                       /** @enum {string} */
                       status:
                         | "active"
@@ -97438,6 +104742,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -97464,6 +104772,10 @@ export interface operations {
         content: {
           "application/json":
             | {
+                code?: string;
+                details?: {
+                  [key: string]: string;
+                };
                 diagnostic?: {
                   category: string;
                   code: string;
@@ -97619,7 +104931,8 @@ export interface operations {
                         | "blocked"
                         | "failed"
                         | "exhausted"
-                        | "stalled";
+                        | "stalled"
+                        | "canceled";
                       /** @enum {string} */
                       status:
                         | "active"
@@ -97657,6 +104970,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -97682,6 +104999,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -97863,7 +105184,8 @@ export interface operations {
                     | "blocked"
                     | "failed"
                     | "exhausted"
-                    | "stalled";
+                    | "stalled"
+                    | "canceled";
                   /** @enum {string} */
                   status:
                     | "active"
@@ -97901,6 +105223,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -97926,6 +105252,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -98386,6 +105716,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -98411,6 +105745,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -98436,6 +105774,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -98511,6 +105853,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -98536,6 +105882,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -98561,6 +105911,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -98674,6 +106028,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -98699,6 +106057,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -98724,6 +106086,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -98813,6 +106179,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -98917,6 +106287,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -98942,6 +106316,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -98967,6 +106345,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -99155,7 +106537,8 @@ export interface operations {
                     | "blocked"
                     | "failed"
                     | "exhausted"
-                    | "stalled";
+                    | "stalled"
+                    | "canceled";
                   /** @enum {string} */
                   status:
                     | "active"
@@ -99193,6 +106576,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -99218,6 +106605,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -99243,6 +106634,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -99268,6 +106663,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -99316,6 +106715,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -99341,6 +106744,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -99617,6 +107024,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -99642,6 +107053,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -99667,6 +107082,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -99692,6 +107111,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -100086,6 +107509,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -100657,6 +108084,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -100749,6 +108180,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -100774,6 +108209,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -100799,6 +108238,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -100824,6 +108267,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -100892,6 +108339,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -100917,6 +108368,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -101498,6 +108953,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -103613,6 +111072,10 @@ export interface operations {
         content: {
           "application/json":
             | {
+                code?: string;
+                details?: {
+                  [key: string]: string;
+                };
                 diagnostic?: {
                   category: string;
                   code: string;
@@ -103670,6 +111133,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -103696,6 +111163,10 @@ export interface operations {
         content: {
           "application/json":
             | {
+                code?: string;
+                details?: {
+                  [key: string]: string;
+                };
                 diagnostic?: {
                   category: string;
                   code: string;
@@ -103851,6 +111322,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -103876,6 +111351,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -103902,6 +111381,10 @@ export interface operations {
         content: {
           "application/json":
             | {
+                code?: string;
+                details?: {
+                  [key: string]: string;
+                };
                 diagnostic?: {
                   category: string;
                   code: string;
@@ -103959,6 +111442,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -103984,6 +111471,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -104009,6 +111500,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -104034,6 +111529,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -104059,6 +111558,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -104085,6 +111588,10 @@ export interface operations {
         content: {
           "application/json":
             | {
+                code?: string;
+                details?: {
+                  [key: string]: string;
+                };
                 diagnostic?: {
                   category: string;
                   code: string;
@@ -104173,6 +111680,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -104198,6 +111709,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -104224,6 +111739,10 @@ export interface operations {
         content: {
           "application/json":
             | {
+                code?: string;
+                details?: {
+                  [key: string]: string;
+                };
                 diagnostic?: {
                   category: string;
                   code: string;
@@ -104281,6 +111800,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -104306,6 +111829,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -104331,6 +111858,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -104356,6 +111887,10 @@ export interface operations {
         };
         content: {
           "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
             diagnostic?: {
               category: string;
               code: string;
@@ -104382,6 +111917,10 @@ export interface operations {
         content: {
           "application/json":
             | {
+                code?: string;
+                details?: {
+                  [key: string]: string;
+                };
                 diagnostic?: {
                   category: string;
                   code: string;

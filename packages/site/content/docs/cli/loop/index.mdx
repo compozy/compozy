@@ -7,6 +7,10 @@ description: "Manage Loop definitions and runs"
 
 Manage Loop definitions and runs
 
+```
+compozy loop [flags]
+```
+
 ### Options
 
 ```
@@ -22,31 +26,40 @@ Manage Loop definitions and runs
 
 ## Output Formats
 
-This command displays human-readable help and its subcommand list. The inherited `-o, --output` and `--json` flags do not serialize help output.
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
 
-| Format  | Output                   |
-| ------- | ------------------------ |
-| `human` | Help and subcommand list |
-| `json`  | Not emitted for help     |
-| `jsonl` | Not emitted for help     |
-| `toon`  | Not emitted for help     |
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy loop -o json
+```
 
 ## Subcommands
 
 | Command                                            | Description                                       |
 | -------------------------------------------------- | ------------------------------------------------- |
 | [compozy loop approve](/docs/cli/loop/approve)     | Apply one Loop human-gate decision                |
+| [compozy loop cancel](/docs/cli/loop/cancel)       | Cancel one Loop run                               |
 | [compozy loop configure](/docs/cli/loop/configure) | Write per-loop runtime config overrides           |
 | [compozy loop create](/docs/cli/loop/create)       | Create, fork, or publish one Loop definition      |
 | [compozy loop delete](/docs/cli/loop/delete)       | Delete one user-authored Loop definition          |
 | [compozy loop edit](/docs/cli/loop/edit)           | Edit and publish one Loop definition with $EDITOR |
 | [compozy loop inspect](/docs/cli/loop/inspect)     | Inspect one Loop definition                       |
+| [compozy loop kill](/docs/cli/loop/kill)           | Kill one Loop run                                 |
 | [compozy loop list](/docs/cli/loop/list)           | List Loop definitions                             |
+| [compozy loop node](/docs/cli/loop/node)           | Manage one authored Loop node                     |
+| [compozy loop nodes](/docs/cli/loop/nodes)         | List workspace Loop node state                    |
 | [compozy loop pause](/docs/cli/loop/pause)         | Pause one Loop run                                |
 | [compozy loop resume](/docs/cli/loop/resume)       | Resume one Loop run                               |
 | [compozy loop run](/docs/cli/loop/run)             | Start or dry-run one Loop                         |
 | [compozy loop runs](/docs/cli/loop/runs)           | List workspace Loop runs                          |
 | [compozy loop status](/docs/cli/loop/status)       | Inspect one Loop run                              |
-| [compozy loop stop](/docs/cli/loop/stop)           | Stop one Loop run                                 |
 | [compozy loop turns](/docs/cli/loop/turns)         | List one Loop run's Goal turn audit               |
 | [compozy loop validate](/docs/cli/loop/validate)   | Validate one Loop definition without saving       |

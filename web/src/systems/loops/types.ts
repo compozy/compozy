@@ -73,12 +73,12 @@ export type LoopValidationIssue = NonNullable<ValidateLoopResult["errors"]>[numb
 export type ApproveLoopRunRequest = OperationRequestBody<"approveLoopRun">;
 
 /**
- * Run control (pause/resume/stop/approve) responses. The OpenAPI contract defines
- * all four 200 bodies identically as a `Record<string, boolean>` verdict (e.g.
- * `{ ok: true }`); this aliases the `pauseLoopRun` shape as the single source. If a
- * future contract change diverges one of them, split this into per-operation types.
+ * Boundary controls keep their compact acknowledgement response.
  */
 export type LoopRunActionResult = OperationResponse<"pauseLoopRun", 200>;
+
+/** Run cancel/kill operations return the shared structured lifecycle projection. */
+export type LoopRunMutationResult = OperationResponse<"cancelLoopRun", 200>;
 
 // Status vocabulary ---------------------------------------------------------
 

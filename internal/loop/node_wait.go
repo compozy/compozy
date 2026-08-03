@@ -1,6 +1,7 @@
 package loop
 
 import (
+	"context"
 	"encoding/json"
 	"time"
 )
@@ -23,6 +24,11 @@ func (s WaitClaimState) Valid() bool {
 	default:
 		return false
 	}
+}
+
+// NodeWaitReader reads active durable waits for one workspace-owned run.
+type NodeWaitReader interface {
+	ListNodeWaits(context.Context, WorkspaceID, RunID) ([]NodeWait, error)
 }
 
 // NodeWait is one durable pause point for a node cell.

@@ -198,10 +198,24 @@ type stubClient struct {
 		contract.PutLoopConfigRequest,
 		agentidentity.Credentials,
 	) (contract.LoopConfigResponse, error)
-	listLoopRunsFn   func(context.Context, string, LoopRunListQuery) (contract.LoopRunsResponse, error)
-	listGoalTurnsFn  func(context.Context, string, string, GoalTurnListQuery) (contract.GoalTurnPage, error)
-	getLoopRunFn     func(context.Context, string, string) (contract.LoopRunResponse, error)
-	stopLoopRunFn    func(context.Context, string, string, agentidentity.Credentials) error
+	listLoopRunsFn    func(context.Context, string, LoopRunListQuery) (contract.LoopRunsResponse, error)
+	listGoalTurnsFn   func(context.Context, string, string, GoalTurnListQuery) (contract.GoalTurnPage, error)
+	getLoopRunFn      func(context.Context, string, string) (contract.LoopRunResponse, error)
+	cancelLoopRunFn   func(context.Context, string, string, agentidentity.Credentials) (contract.LoopMutationResponse, error)
+	killLoopRunFn     func(context.Context, string, string, agentidentity.Credentials) (contract.LoopMutationResponse, error)
+	listLoopNodesFn   func(context.Context, string, LoopNodeListQuery) (contract.LoopNodeInventoryResponse, error)
+	pauseLoopNodeFn   func(context.Context, string, string, string, contract.LoopNodePauseRequest, agentidentity.Credentials) (contract.LoopMutationResponse, error)
+	resumeLoopNodeFn  func(context.Context, string, string, string, contract.LoopNodeResumeRequest, agentidentity.Credentials) (contract.LoopMutationResponse, error)
+	cancelLoopNodeFn  func(context.Context, string, string, string, contract.LoopNodeMutationRequest, agentidentity.Credentials) (contract.LoopMutationResponse, error)
+	killLoopNodeFn    func(context.Context, string, string, string, contract.LoopNodeMutationRequest, agentidentity.Credentials) (contract.LoopMutationResponse, error)
+	requeueLoopNodeFn func(
+		context.Context,
+		string,
+		string,
+		string,
+		contract.LoopNodeMutationRequest,
+		agentidentity.Credentials,
+	) (contract.LoopMutationResponse, error)
 	pauseLoopRunFn   func(context.Context, string, string, agentidentity.Credentials) error
 	resumeLoopRunFn  func(context.Context, string, string, agentidentity.Credentials) error
 	approveLoopRunFn func(
@@ -1894,16 +1908,109 @@ func (s *stubClient) GetLoopRun(
 	return contract.LoopRunResponse{}, errors.New("unexpected GetLoopRun call")
 }
 
-func (s *stubClient) StopLoopRun(
+func (s *stubClient) CancelLoopRun(
 	ctx context.Context,
 	workspaceID string,
 	runID string,
 	credentials agentidentity.Credentials,
-) error {
-	if s.stopLoopRunFn != nil {
-		return s.stopLoopRunFn(ctx, workspaceID, runID, credentials)
+) (contract.LoopMutationResponse, error) {
+	if s.cancelLoopRunFn != nil {
+		return s.cancelLoopRunFn(ctx, workspaceID, runID, credentials)
 	}
-	return errors.New("unexpected StopLoopRun call")
+	return contract.LoopMutationResponse{}, errors.New("unexpected CancelLoopRun call")
+}
+
+func (s *stubClient) KillLoopRun(
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+	credentials agentidentity.Credentials,
+) (contract.LoopMutationResponse, error) {
+	if s.killLoopRunFn != nil {
+		return s.killLoopRunFn(ctx, workspaceID, runID, credentials)
+	}
+	return contract.LoopMutationResponse{}, errors.New("unexpected KillLoopRun call")
+}
+
+func (s *stubClient) ListLoopNodes(
+	ctx context.Context,
+	workspaceID string,
+	query LoopNodeListQuery,
+) (contract.LoopNodeInventoryResponse, error) {
+	if s.listLoopNodesFn != nil {
+		return s.listLoopNodesFn(ctx, workspaceID, query)
+	}
+	return contract.LoopNodeInventoryResponse{}, errors.New("unexpected ListLoopNodes call")
+}
+
+func (s *stubClient) PauseLoopNode(
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+	nodeID string,
+	request contract.LoopNodePauseRequest,
+	credentials agentidentity.Credentials,
+) (contract.LoopMutationResponse, error) {
+	if s.pauseLoopNodeFn != nil {
+		return s.pauseLoopNodeFn(ctx, workspaceID, runID, nodeID, request, credentials)
+	}
+	return contract.LoopMutationResponse{}, errors.New("unexpected PauseLoopNode call")
+}
+
+func (s *stubClient) ResumeLoopNode(
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+	nodeID string,
+	request contract.LoopNodeResumeRequest,
+	credentials agentidentity.Credentials,
+) (contract.LoopMutationResponse, error) {
+	if s.resumeLoopNodeFn != nil {
+		return s.resumeLoopNodeFn(ctx, workspaceID, runID, nodeID, request, credentials)
+	}
+	return contract.LoopMutationResponse{}, errors.New("unexpected ResumeLoopNode call")
+}
+
+func (s *stubClient) CancelLoopNode(
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+	nodeID string,
+	request contract.LoopNodeMutationRequest,
+	credentials agentidentity.Credentials,
+) (contract.LoopMutationResponse, error) {
+	if s.cancelLoopNodeFn != nil {
+		return s.cancelLoopNodeFn(ctx, workspaceID, runID, nodeID, request, credentials)
+	}
+	return contract.LoopMutationResponse{}, errors.New("unexpected CancelLoopNode call")
+}
+
+func (s *stubClient) KillLoopNode(
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+	nodeID string,
+	request contract.LoopNodeMutationRequest,
+	credentials agentidentity.Credentials,
+) (contract.LoopMutationResponse, error) {
+	if s.killLoopNodeFn != nil {
+		return s.killLoopNodeFn(ctx, workspaceID, runID, nodeID, request, credentials)
+	}
+	return contract.LoopMutationResponse{}, errors.New("unexpected KillLoopNode call")
+}
+
+func (s *stubClient) RequeueLoopNode(
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+	nodeID string,
+	request contract.LoopNodeMutationRequest,
+	credentials agentidentity.Credentials,
+) (contract.LoopMutationResponse, error) {
+	if s.requeueLoopNodeFn != nil {
+		return s.requeueLoopNodeFn(ctx, workspaceID, runID, nodeID, request, credentials)
+	}
+	return contract.LoopMutationResponse{}, errors.New("unexpected RequeueLoopNode call")
 }
 
 func (s *stubClient) PauseLoopRun(

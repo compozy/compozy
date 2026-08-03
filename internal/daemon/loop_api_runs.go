@@ -188,25 +188,18 @@ func (s *daemonLoopAPIService) GetLoopRun(
 	if err != nil {
 		return contract.LoopRunResponse{}, err
 	}
+	controls, waits, err := s.loopRunNodeState(ctx, ws, run.ID)
+	if err != nil {
+		return contract.LoopRunResponse{}, err
+	}
 	return contract.LoopRunResponse{
 		Run:                payload,
 		ExecutedDefinition: &executedDefinition,
 		Generations:        generations,
+		NodeControls:       controls,
+		Waits:              waits,
 		WatchEvents:        watchEvents,
 	}, nil
-}
-
-func (s *daemonLoopAPIService) StopLoopRun(
-	ctx context.Context,
-	workspaceID string,
-	runID string,
-	actor taskpkg.ActorContext,
-) error {
-	ws, err := normalizeLoopWorkspaceID(workspaceID)
-	if err != nil {
-		return err
-	}
-	return s.aggregate.CancelRun(ctx, ws, looppkg.RunID(strings.TrimSpace(runID)), "operator request", actor)
 }
 
 func (s *daemonLoopAPIService) PauseLoopRun(

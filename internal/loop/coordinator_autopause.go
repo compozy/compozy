@@ -78,12 +78,17 @@ func evaluateAutopause(
 }
 
 func autopauseTarget(node dsl.Node, failure ClassifiedFailure) (string, string) {
-	if key, ok := staticTargetHealthKey("", node); ok {
-		return targetIdentityFromKey(key)
-	}
-	family := string(node.Class)
-	if family == "" {
-		family = "unknown"
+	family := "toolcall"
+	switch dsl.ActionKind(strings.TrimSpace(node.Kind)) {
+	case dsl.ActionRunAgent:
+		family = "run-agent"
+	case dsl.ActionRunLoop:
+		family = "run-loop"
+	case dsl.ActionTransform, dsl.ActionGoal:
+		family = string(node.Class)
+		if family == "" {
+			family = "unknown"
+		}
 	}
 	return family, strings.TrimSpace(failure.Target)
 }

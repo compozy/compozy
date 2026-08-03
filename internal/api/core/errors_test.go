@@ -427,6 +427,26 @@ func TestRespondOpenAIErrorRedaction(t *testing.T) {
 func TestErrorPayloadForError(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should preserve machine-readable Loop lifecycle reason details", func(t *testing.T) {
+		t.Parallel()
+
+		payload := ErrorPayloadForError(&looppkg.ReasonError{
+			Code: looppkg.ReasonCodeAlreadyDecided,
+			Err:  looppkg.ErrTransitionConflict,
+			Meta: map[string]string{
+				looppkg.ReasonMetaActualState:        "quarantined",
+				looppkg.ReasonMetaAllowedTransitions: "requeue,cancel,kill",
+				looppkg.ReasonMetaWinnerActorID:      "operator:alice",
+			},
+		})
+		if payload.Code != string(looppkg.ReasonCodeAlreadyDecided) ||
+			payload.Details[looppkg.ReasonMetaActualState] != "quarantined" ||
+			payload.Details[looppkg.ReasonMetaAllowedTransitions] != "requeue,cancel,kill" ||
+			payload.Details[looppkg.ReasonMetaWinnerActorID] != "operator:alice" {
+			t.Fatalf("Loop lifecycle error payload = %#v", payload)
+		}
+	})
+
 	t.Run("Should redact structured diagnostic secrets in serialized payload", func(t *testing.T) {
 		t.Parallel()
 

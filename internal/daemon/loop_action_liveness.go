@@ -301,14 +301,22 @@ func (r *loopActionRuntime) actionTimeoutForRun(
 	ctx context.Context,
 	run taskpkg.Run,
 ) (time.Duration, error) {
+	timeout, authored, err := r.actionTimeoutSpecForRun(ctx, run)
+	if err != nil || authored {
+		return timeout, err
+	}
+	return 0, nil
+}
+
+func (r *loopActionRuntime) actionTimeoutSpecForRun(
+	ctx context.Context,
+	run taskpkg.Run,
+) (time.Duration, bool, error) {
 	timeout, authored, err := r.runner.ActionRunTimeout(ctx, run)
 	if err != nil {
-		return 0, err
+		return 0, false, err
 	}
-	if !authored {
-		return 0, nil
-	}
-	return timeout, nil
+	return timeout, authored, nil
 }
 
 func (r *loopActionRuntime) actionSilenceWindowForRun(
