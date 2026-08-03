@@ -81,8 +81,9 @@ Unknown TOML keys are errors. Sandbox profiles are implemented under `[sandboxes
 | `[automation]`                       | Automation scheduler defaults.                                                       | enabled, UTC, 5 concurrent jobs                                                                       |
 | `[[automation.jobs]]`                | Scheduled automation jobs.                                                           | empty list                                                                                            |
 | `[[automation.triggers]]`            | Event-driven automation triggers.                                                    | empty list                                                                                            |
-| `[loops.defaults.delivery]`          | Global/workspace seed defaults for delivery loops.                                   | iteration cap 50, no-progress window 3, gate revisions 10, fan-out 4                                  |
-| `[loops.defaults.watch]`             | Global/workspace seed defaults for watch loops.                                      | no iteration cap, no-progress window 2, fan-out 2                                                     |
+| `[loops.defaults.delivery]`          | Global/workspace seed defaults for delivery Loops, including node lifecycle policy.  | iteration cap 50, retry attempts 3, silence window 30m, fan-out 4                                     |
+| `[loops.defaults.watch]`             | Global/workspace seed defaults for `watch-source` Loops, including lifecycle policy. | no iteration cap, retry attempts 3, silence window 30m, fan-out 2                                     |
+| `[loops.breaker]`                    | Reload-scoped target breaker shared across Loop kinds.                               | 5 consecutive transport failures, 60s probe interval                                                  |
 | `[loops.inputs.<loop-name>]`         | Global/workspace defaults for declared inputs of one Loop.                           | empty map; per-key origin remains explicit                                                            |
 | `[goals]`                            | Goal defaults and durable session-event relay controls.                              | 20 turns, context ratio 0.8, relay batch 50 every 100 ms                                              |
 | `[autonomy]`                         | Task-kernel autonomy defaults (unblock-loop breaker).                                | block recurrence limit 2                                                                              |
@@ -615,6 +616,35 @@ data.stop_reason = "error"
 iteration_cap = 50
 fan_out_width = 4
 
+[loops.defaults.delivery.retry]
+# Mechanical node families inherit this policy. 0 disables; maximum 10.
+max_attempts = 3
+backoff_base = "1s"
+backoff_max = "30s"
+
+[loops.defaults.delivery.liveness]
+# 0 disables silence attention. Silence never auto-kills or auto-pauses a node.
+silence_window = "30m"
+
+[loops.defaults.delivery.resume]
+death_streak_limit = 3
+
+[loops.defaults.delivery.predicates]
+# CEL warns at 80% of this runtime cost and stops at the limit.
+cost_limit = 10000
+
+[loops.defaults.delivery.waits]
+admission_attempts = 3
+admission_retry_interval = "60s"
+
+[loops.defaults.delivery.admission]
+tombstone_horizon = "168h"
+
+[[loops.defaults.delivery.autopause]]
+# Ordered, first match wins. Rules are not agent-mutable.
+match = "class == 'transport' && attempt >= 2"
+action = "pause"
+
 [loops.defaults.delivery.no_progress]
 # Generation-hash no-progress window. Compile-time ceiling: 30.
 window = 3
@@ -645,9 +675,30 @@ wall_clock_sec = 0
 on_exceeded = "halt"
 
 [loops.defaults.watch]
-# Watch loops run until stopped unless a loop or run override sets a cap.
+# Definitions containing watch-source use watch defaults. watch-events alone does not.
 iteration_cap = 0
 fan_out_width = 2
+
+[loops.defaults.watch.retry]
+max_attempts = 3
+backoff_base = "1s"
+backoff_max = "30s"
+
+[loops.defaults.watch.liveness]
+silence_window = "30m"
+
+[loops.defaults.watch.resume]
+death_streak_limit = 3
+
+[loops.defaults.watch.predicates]
+cost_limit = 10000
+
+[loops.defaults.watch.waits]
+admission_attempts = 3
+admission_retry_interval = "60s"
+
+[loops.defaults.watch.admission]
+tombstone_horizon = "168h"
 
 [loops.defaults.watch.no_progress]
 window = 2
@@ -664,6 +715,11 @@ model = "sonnet"
 tokens = 0
 wall_clock_sec = 0
 on_exceeded = "halt"
+
+[loops.breaker]
+# Shared per workspace, target family, and target; only transport failures count.
+threshold = 5
+probe_interval = "60s"
 
 [loops.inputs.software-delivery]
 # Explicit false, zero, and valid empty strings remain present values.
@@ -1833,23 +1889,34 @@ Existing loop runs keep the config values materialized at start.
 Compile-time ceilings stay in code. Operator config can tighten fan-out, no-progress, and gate
 revision defaults, but it cannot loosen them past the hard runtime ceilings.
 
-| Field                                          | Delivery default | Watch default | Valid values                    | Description                                                                 |
-| ---------------------------------------------- | ---------------- | ------------- | ------------------------------- | --------------------------------------------------------------------------- | ------------------------------- | ------------------------------------------------- | ---- | ----- | ----- | ------------------------- |
-| `iteration_cap`                                | `50`             | `0`           | Zero or positive integer.       | Maximum loop iterations seeded for new runs. `0` means no configured cap.   |
-| `no_progress.window`                           | `3`              | `2`           | `0` through `30`.               | Generation-hash no-progress window. This is not the inactivity clock.       |
-| `gates.max_revisions`                          | `10`             | `0`           | `0` through `64`.               | Gate revision seed default. `0` means no gate-revision seed for that class. |
-| `budget.tokens`                                | `0`              | `0`           | Zero or positive integer.       | Token budget. `0` means unlimited. A set budget is enforced.                |
-| `budget.wall_clock_sec`                        | `0`              | `0`           | Zero or positive integer.       | Wall-clock budget in seconds. `0` means unlimited.                          |
-| `budget.on_exceeded`                           | `halt`           | `halt`        | `halt` or `escalate`.           | Enforcement policy once a non-zero budget is exceeded.                      |
-| `runtime_defaults.worker.provider`             | empty            | empty         | Configured provider name/alias. | Worker provider default.                                                    |
-| `runtime_defaults.worker.model`                | empty            | empty         | Non-empty model ID.             | Worker model default. Gateway IDs may contain `/`.                          |
-| `runtime_defaults.worker.reasoning`            | empty            | empty         | `none                           | minimal                                                                     | low                             | medium                                            | high | xhigh | max`. | Worker reasoning default. |
-| `runtime_defaults.judge.provider`              | empty            | empty         | Configured provider name/alias. | Judge provider default.                                                     |
-| `runtime_defaults.judge.model`                 | empty            | empty         | Non-empty model ID.             | Judge model default.                                                        |
-| `runtime_defaults.judge.reasoning`             | empty            | empty         | `none                           | minimal                                                                     | low                             | medium                                            | high | xhigh | max`. | Judge reasoning default.  |
-| `runtime_rules[].match.id                      | type             | complexity`   | none                            | none                                                                        | Exactly one non-empty selector. | Selects imported tasks; `id > type > complexity`. |
-| `runtime_rules[].runtime.{provider,model,...}` | none             | none          | At least one populated field.   | Field-merged override; later equal-specificity rules win.                   |
-| `fan_out_width`                                | `4`              | `2`           | `0` through `64`.               | Fan-out width seed default for new runs.                                    |
+| Field                                                        | Delivery | Watch   | Valid values                             | Description                                                                              |
+| ------------------------------------------------------------ | -------- | ------- | ---------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `iteration_cap`                                              | `50`     | `0`     | Zero or positive integer.                | Maximum iterations. `0` means unbounded.                                                 |
+| `no_progress.window`                                         | `3`      | `2`     | `0` through `30`.                        | Generation-hash and blocker-signature window.                                            |
+| `gates.max_revisions`                                        | `10`     | `0`     | `0` through `64`.                        | Gate revision seed; `0` supplies no seed.                                                |
+| `budget.tokens`                                              | `0`      | `0`     | Zero or positive integer.                | Token budget; `0` means unlimited.                                                       |
+| `budget.wall_clock_sec`                                      | `0`      | `0`     | Zero or positive integer.                | Active-work wall-clock budget; parked time is suspended.                                 |
+| `budget.on_exceeded`                                         | `halt`   | `halt`  | `halt` or `escalate`.                    | End `exhausted` or park for approval when a set budget is exceeded.                      |
+| `fan_out_width`                                              | `4`      | `2`     | `0` through `64`.                        | Fan-out width seed.                                                                      |
+| `retry.max_attempts`                                         | `3`      | `3`     | `0` through `10`.                        | Total attempts for mechanical families; `0` disables automatic retry.                    |
+| `retry.backoff_base`                                         | `1s`     | `1s`    | Positive Go duration.                    | Initial retry delay; must not exceed `backoff_max`.                                      |
+| `retry.backoff_max`                                          | `30s`    | `30s`   | Positive Go duration.                    | Maximum retry delay.                                                                     |
+| `liveness.silence_window`                                    | `30m`    | `30m`   | Zero or positive Go duration.            | Raises silence attention; `0` disables evaluation.                                       |
+| `resume.death_streak_limit`                                  | `3`      | `3`     | Positive integer.                        | Confirmed-death resumptions allowed without post-resume evidence.                        |
+| `predicates.cost_limit`                                      | `10000`  | `10000` | Positive integer.                        | CEL runtime cost limit; evaluation warns at 80%.                                         |
+| `waits.admission_attempts`                                   | `3`      | `3`     | Positive integer.                        | Bounded attempts to admit a wait resume.                                                 |
+| `waits.admission_retry_interval`                             | `60s`    | `60s`   | Positive Go duration.                    | Delay between admission attempts.                                                        |
+| `admission.tombstone_horizon`                                | `168h`   | `168h`  | Positive Go duration.                    | Minimum watch-admission deduplication retention.                                         |
+| `runtime_defaults.{worker,judge}.{provider,model,reasoning}` | empty    | empty   | Valid provider/model/reasoning fields.   | Worker and judge runtime defaults.                                                       |
+| `runtime_rules[]`                                            | none     | none    | One `id`, `type`, or `complexity` match. | Field-merged worker override; `id > type > complexity`, later wins on equal specificity. |
+
+Only a definition containing `watch-source` selects the watch defaults. A definition with
+`watch-events` but no `watch-source` remains on delivery defaults, including `iteration_cap = 50`,
+unless its definition or run override sets another value.
+
+`[[loops.defaults.delivery.autopause]]` and `[[loops.defaults.watch.autopause]]` append ordered
+rules. Each rule has a CEL `match` over failure facts and `action = "pause"`; the first match wins.
+These arrays are operator-owned and are not available through scalar agent config mutation.
 
 These paths are mutable through `compozy config set` and the native config tools. Writes return
 `lifecycle="restart-required"` because the daemon does not rewrite active runs after defaults change.
@@ -1862,6 +1929,21 @@ plus criterion `runtime`; task rules never apply. `model_defaults`, scalar `para
 scalar criterion `model` are rejected instead of translated. Static `loop validate` checks authored
 definition values; dry-run and submission check the effective workspace/run values before any ACP
 process starts.
+
+## `[loops.breaker]`
+
+The target breaker is one reload-scoped policy because health is shared per workspace, target
+family, and target rather than per Loop kind. Only `transport` failures count toward opening it;
+semantic or handled failures record target success.
+
+| Field            | Default | Valid values          | Description                                               |
+| ---------------- | ------- | --------------------- | --------------------------------------------------------- |
+| `threshold`      | `5`     | Positive integer.     | Consecutive transport failures before the target opens.   |
+| `probe_interval` | `60s`   | Positive Go duration. | Delay before a half-open probe may test the target again. |
+
+Both paths are available through `compozy config get|set|unset`. Breaker changes apply when the
+daemon reloads config and are not pinned per run; the per-kind lifecycle values above remain pinned
+when work is admitted.
 
 ## `[loops.inputs.<loop-name>]`
 

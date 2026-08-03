@@ -21,7 +21,7 @@ The sheet has four groups, all scoped to the checks and limits the Loop already 
   finishes.
 - **Re-attempt strategy** — `failed-only` (the default; retry only what failed) or `full-body`
   (re-run the whole body). This is where re-attempt granularity is chosen, not on the run form.
-- **Stop limits** — the same six numeric limits as the run form's Advanced panel, each clamped at
+- **Stop limits** — the same six numeric limits as the run form's folded Limits panel, each clamped at
   its daemon ceiling. Configure sets the per-Loop **default**; the run form can still override per
   run.
 
@@ -52,6 +52,11 @@ compile-time ceilings:
 2. `[loops.defaults.*]` in `config.toml`,
 3. this per-Loop configure overlay,
 4. any per-run overrides from the run form.
+
+Node reliability resolves more narrowly: authored node fields override the stored per-Loop
+lifecycle layer, which overrides the matching delivery or watch default. The resolved values are
+pinned when work is admitted, so a config reload never rewrites a running attempt. `compozy loop
+inspect -o json` reports the effective lifecycle values and a source for each field.
 
 `GET /loops/:name/config` returns the stored per-Loop override as `config` and the daemon-resolved
 first three layers as `effective_config`. A missing override is `config: null`; it is not a missing
@@ -85,6 +90,38 @@ compozy loop run --name reviews-watch --config-file loop-config.yaml --workspace
 
 Unknown fields fail before the CLI calls the daemon, so a misspelled key cannot create a partial
 override. JSON files use the same field names.
+
+## Lifecycle defaults
+
+The current Configure sheet does not edit lifecycle policy. Set these operator defaults under both
+`[loops.defaults.delivery]` and `[loops.defaults.watch]` in `config.toml`:
+
+| Group        | Keys                                             | Shipped defaults          |
+| ------------ | ------------------------------------------------ | ------------------------- |
+| `retry`      | `max_attempts`, `backoff_base`, `backoff_max`    | `3`, `1s`, `30s`          |
+| `liveness`   | `silence_window`                                 | `30m`; `0` disables flags |
+| `resume`     | `death_streak_limit`                             | `3`                       |
+| `predicates` | `cost_limit`                                     | `10000`                   |
+| `waits`      | `admission_attempts`, `admission_retry_interval` | `3`, `60s`                |
+| `admission`  | `tombstone_horizon`                              | `168h`                    |
+| `autopause`  | ordered `{ match, action = "pause" }` rules      | none                      |
+
+`[loops.breaker]` is global rather than per kind because target health is shared within a
+workspace. Its defaults are `threshold = 5` consecutive transport failures and
+`probe_interval = "60s"`. See the [config.toml reference](/docs/configuration/config-toml)
+for complete TOML.
+
+The scalar lifecycle paths and the two breaker paths are available through structured config
+get/set/unset surfaces. For example:
+
+```bash
+compozy config set loops.defaults.delivery.retry.max_attempts 4
+compozy config set loops.breaker.probe_interval 90s
+```
+
+`autopause` is deliberately file-owned: rules are ordered, append-merged, and first match wins, so
+agents cannot mutate them one scalar at a time. Node-level `retry`, `deadline`, and related DSL
+fields remain author-owned structure.
 
 <OperatorNote label="No cost cap">
   There is no USD field in Configure. Cost is

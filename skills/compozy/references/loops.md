@@ -9,7 +9,7 @@ structured output. Never guess a schema — resolve `compozy__tool_info` for the
 
 - Native tools, catalog reads, and authoring loop
 - Run history, best state, and Goal commands
-- Terminal outcomes, approvals, and succession semantics
+- Terminal outcomes, failure handling, approvals, and succession semantics
 - Reference grammar, metric criteria, and runtime selection
 - Hooks, SSE, watch sources, and watch events
 - Agent-authored review/fix and channel-result harvesting
@@ -67,7 +67,7 @@ Each run summary exposes `best_generation`/`best_score` but never embeds generat
 Use `compozy loop status` / `compozy__loop_status` for detail. The run carries its current
 `generation` plus optional `best_generation`/`best_score`; `generations[]` carries durable
 `parent_generation`, `origin`, `verdicts[]`, and outputs. Origins are `initial`, `stop_when`,
-`reattempt`, `gate_revise`, `gate_next_generation`, `dod_retry`, and `ratchet_restore`. Each verdict
+`reattempt`, `gate_revise`, `gate_next_generation`, `dod_retry`, `ratchet_restore`, and `requeue`. Each verdict
 has `gate_id`, machine `outcome`, optional `score`, and optional `route_cause_rank`. The list surfaces
 remain summaries; use status when an agent needs the lineage or gate decisions.
 
@@ -189,6 +189,37 @@ watch tick), `needs-approval` (parked on a human gate — a live pause, not term
 Native control rejections are `tool_invalid_input`: `invalid_status_transition` for an unsupported
 live state, or `terminal_loop_run` after termination. `schema_invalid` is reserved for malformed input.
 
+## Failure Contract And Node Recovery
+
+Failure handling has fixed precedence: eligible automatic retry → authored `on_error.route` or
+`allow_fail` → effects → generation-level repair or terminal policy. An unannotated failure
+escalates; absorption is never implicit. The closed classes are `transport`, `payload_declared`,
+`quality_rejection`, `authoring`, `cancellation`, `attempt_timeout`, `budget_exhausted`, and
+`target_unavailable`. Only `transport` and `attempt_timeout` are retry-eligible.
+
+`retry` carries `max_attempts`, optional `on_failure`, `backoff.{base,max}`, and `non_retryable`.
+Mechanical actions inherit family defaults; `run-agent` and `run-loop` require explicit node retry;
+`goal` does not use generic retry. `timeout` bounds one attempt and `deadline` bounds attempts plus
+backoff. `result_contract` maps an application failure payload into `payload_declared`.
+
+Effects declare exactly one `emit` or `tool` plus optional `with`. Node triggers are `on_retry`,
+`on_success`, `on_pause`, `on_timeout`, `on_cancel`, and `on_quarantine`; contract triggers cover all
+seven terminal outcomes. Effects observe committed state, fail open, and tool delivery is at least
+once with a stable `delivery_id`. Templates can read `inputs` and
+`effect.identity|failure|quarantine|attempt|links`.
+
+Use `compozy__loop_nodes` or `compozy loop nodes --state waiting|quarantined|attention|retrying` to
+find workspace-scoped cells. Pages default to 50 and cap at 200; narrow with Loop or run ID. Then use
+the exact run/node/item identity with node pause (`drain|cancel`), resume
+(`plain|reset_attempts|immediate`, optional manual-wait payload), cancel, kill, or requeue. Requeue is
+quarantine-only and creates a bounded successor generation. Cancel is cooperative; Kill fences
+immediately. Run cancel/kill both end `canceled` with distinct operator causes.
+
+Silence raises attention and never auto-kills or auto-pauses. Confirmed process/transport death may
+resume from progress through the bounded death-streak authority; parked nodes are never
+death-resumed. Paused nodes, durable waits, approval waits, and quarantined cells suspend node
+clocks and the run wall-clock work budget; token spend still counts.
+
 ## Re-attempt And Succession Semantics
 
 Node failure and gate rejection use different controls:
@@ -244,8 +275,10 @@ Guard history-dependent templates with `{{ with .previous }}` or `{{ with .best 
 
 Node classes: `action` (open), `control` (closed), `source` (closed). Reserved **action** kinds are
 `goal`, `run-agent`, `run-loop`, `transform`; every other action kind is a literal tool ID
-(`compozy__*`/`ext__*`/`mcp__*`). Control kinds: `fan-out`, `collect`, `branch`, `gate`, `sub-loop`.
-Source kinds: `input`, `file-import`, `watch-source`, `watch-events`. A gate's
+(`compozy__*`/`ext__*`/`mcp__*`). Control kinds: `fan-out`, `collect`, `branch`, `gate`, `wait`,
+`sub-loop`. A `wait` declares exactly one of `for`, `until`, or `event`, with optional `expect`,
+`ahead_arrival`, and `expires`. Source kinds: `input`, `file-import`, `watch-source`, `watch-events`.
+A gate's
 `verdict_policy: revise_until_clean` requires an `agent-judge` or `human` criterion. For a command
 criterion with `expect: stdout_contains`, set the typed `contains` field to the required stdout
 substring.
@@ -332,17 +365,23 @@ hook does not fail a run.
 Every payload carries the loop context (`loop_run_id`, `workspace_id`, `loop_name`, `generation`,
 `node_id`, and more). Generation payloads expose `parent_generation` plus the closed `origin`
 vocabulary: `initial`, `stop_when`, `reattempt`, `gate_revise`, `gate_next_generation`, `dod_retry`,
-or `ratchet_restore`. Gate payloads expose `outcome`, optional `score`, and optional
+`ratchet_restore`, or `requeue`. Gate payloads expose `outcome`, optional `score`, and optional
 `best_generation`. Manage hooks with `compozy__hooks_*`.
 
 ## Loop Run Event Stream
 
 `GET /loop-runs/:run_id/events` streams durable named SSE frames for a run. Reconnect with
-`Last-Event-ID` or `?after_sequence=` to resume after a sequence number. The daemon persists and
-streams the same enumerated event kinds the web run page consumes: `status_changed`, `node_running`,
-`node_succeeded`, `node_failed`, `generation_started`, `gate_verdict`, `runtime_applied`,
-`channel_msg`, `token_tick`, and `needs_approval`. Payloads are redacted/bounded before storage, and
-reads are scoped to the run's workspace.
+`Last-Event-ID` or `?after_sequence=` to resume after a sequence number. Payloads are redacted and
+bounded before storage; reads are scoped to the run's workspace. The closed event vocabulary is:
+
+- execution: `status_changed`, `generation_started`, `node_running`, `node_succeeded`, `node_failed`,
+  `gate_verdict`, `runtime_applied`, `channel_msg`, `token_tick`, `needs_approval`,
+  `goal_turn_started`, `goal_turn_completed`, `goal_status_changed`;
+- node lifecycle: `node_retry_scheduled`, `node_paused`, `node_resumed`, `node_canceled`,
+  `node_killed`, `node_quarantined`, `node_requeued`, `node_wait_started`, `node_wait_resumed`,
+  `node_attention_flagged`, `node_attention_cleared`;
+- observation and safety: `effect_results`, `custom_event`, `duplicate_suppressed`,
+  `target_breaker_transition`, `stale_schedule_dropped`, `late_arrival`.
 
 `generation_started` carries `generation`, `parent_generation`, `origin`, `reattempt_strategy`, and
 `loop_name`. `gate_verdict` carries the sanitized `node_id`, `generation`, `gate_id`, `item_index`,
@@ -354,7 +393,8 @@ reads are scoped to the run's workspace.
 A Loop with a `watch-source` node is a watch Loop. It holds `watching` between ticks, defaults to
 `iteration_cap: 0` (`∞`, never `exhausted`), ends a clean tick `no-op`, and ends on silence past its
 window `stalled` (reason `watch_source_silence`). Watch sources are extension-defined; the bundled
-`dev-cycle` extension does not publish one.
+`dev-cycle` extension does not publish one. Every `watch/poll` response must carry a stable
+`event_key`; missing, invalid UTF-8, or values over 256 bytes fail before admission, with no fallback.
 
 ## Agent-Authored Review and Fix
 
@@ -402,10 +442,12 @@ are subscribable — sync-eligible `pre_*` hooks are rejected. Supported familie
 or lint returns `watch_events_filter_too_broad`; its output excludes record content and exposes only
 metadata such as `record_type`, `sequence`, `turn_id`, `agent_name`, and `session_id`.
 
-A Loop with a `watch-events` node is a watch Loop: it holds `watching` between wakes, defaults to
-`iteration_cap: 0`, and **never stalls on silence** — a quiet subscription is healthy dormancy. The
+A Loop with a `watch-events` node holds `watching` between wakes and **never stalls on silence** — a
+quiet subscription is healthy dormancy. It keeps the delivery default `iteration_cap: 50` unless the
+definition sets `0`; only `watch-source` selects the unbounded watch default. The
 parked read-model (active subscriptions, per-stream cursors, `last_wake_at`) is exposed on the run
-detail (`compozy loop runs show -o json`, HTTP/UDS parity) only while the Loop is dormant on events.
+detail (`compozy loop status --run-id <id> -o json`, HTTP/UDS parity) only while the Loop is dormant
+on events.
 
 ## Harvesting A Channel Decision
 

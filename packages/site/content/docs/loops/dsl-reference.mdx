@@ -73,7 +73,7 @@ contract:
   stop_when: "" # optional CEL terminal condition
   verification: # gate criteria that decide "done"
     - { id: checks, type: command, check: "{{ .inputs.verify_command }}", expect: exit_zero }
-  terminal_states: [done, no-op, blocked, failed, exhausted, stalled]
+  terminal_states: [done, no-op, blocked, failed, exhausted, stalled, canceled]
   iteration_cap: 50 # 0 = unbounded (watch Loops)
   no_progress: { window: 3, hash_fields: [delivery_artifact, gate_verdict] }
   budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: halt } # 0 = off
@@ -87,10 +87,15 @@ contract:
 
 `verification` uses the same [gate criteria](#the-gate-contract) shape as a `gate` node. The stop
 model — `iteration_cap`, `no_progress`, and `budget` — is documented in full on the
-[guardrails](/docs/loops/guardrails) page. `terminal_states` lists the fixed six outcomes.
+[guardrails](/docs/loops/guardrails) page. `terminal_states` lists the fixed seven outcomes.
 `runtime_defaults.worker` seeds worker runtime fields; `runtime_defaults.judge` seeds judge fields.
 Each `runtime_rules` entry matches exactly one task `id`, `type`, or `complexity` and replaces only
 the runtime fields it sets.
+
+The contract may react to terminal truth with `on_done`, `on_noop`, `on_blocked`, `on_failed`,
+`on_exhausted`, `on_stalled`, and `on_canceled`. Each list contains
+[effects](/docs/loops/failure-handling#effects-observe-committed-truth); terminal effects observe the
+outcome and never rewrite it.
 
 ## The body graph
 
@@ -99,15 +104,16 @@ are acyclic — the linter rejects a cycle. Node IDs match `^[a-z][a-z0-9_]*$` �
 snake_case — which makes the same ID valid in both `{{ }}` and CEL without escaping.
 
 Every node shares an envelope — `id`, `class`, `kind` — plus optional `session`, `timeout`,
-`retry`, `harvest`, and `produces` (a JSON schema declaring the node's output so downstream
-`nodes.<id>.output.*` references validate).
+`deadline`, `retry`, `result_contract`, `on_error`, lifecycle effects, `on_parent_close`, `harvest`,
+and `produces` (a JSON schema declaring the node's output so downstream `nodes.<id>.output.*`
+references validate).
 
 ### Node classes
 
 | Class     | Openness | Kinds                                                        |
 | --------- | -------- | ------------------------------------------------------------ |
 | `action`  | **open** | `run-agent`, `run-loop`, `transform`, `goal`, or any tool ID |
-| `control` | closed   | `fan-out`, `collect`, `branch`, `gate`, `sub-loop`           |
+| `control` | closed   | `fan-out`, `collect`, `branch`, `gate`, `wait`, `sub-loop`   |
 | `source`  | closed   | `input`, `file-import`, `watch-source`, `watch-events`       |
 
 ### Action nodes
@@ -138,16 +144,60 @@ rejects the node run deterministically before an ungated session can start.
 
 ### Control nodes
 
-| Kind       | Purpose                                   | Key fields                                                                                    |
-| ---------- | ----------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `fan-out`  | Run a batch of branches over a collection | `collection`, `filter?`, `batch_size` (default 1), `max_parallel`, `max_fan_out` (ceiling 64) |
-| `collect`  | Join barrier — waits for fanned branches  | —                                                                                             |
-| `branch`   | Route on a CEL condition                  | `condition` (true/false edges)                                                                |
-| `gate`     | Verify against criteria and route         | `criteria`, `verdict_policy`, `on_result`, `max_revisions`                                    |
-| `sub-loop` | An inline nested Loop                     | `body` (graph) + `contract`                                                                   |
+| Kind       | Purpose                                   | Key fields                                                                                      |
+| ---------- | ----------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `fan-out`  | Run a batch of branches over a collection | `collection`, `filter?`, `batch_size` (default 1), `max_parallel`, `max_fan_out` (ceiling 64)   |
+| `collect`  | Join barrier — waits for fanned branches  | —                                                                                               |
+| `branch`   | Route on a CEL condition                  | `condition` (true/false edges)                                                                  |
+| `gate`     | Verify against criteria and route         | `criteria`, `verdict_policy`, `on_result`, `max_revisions`                                      |
+| `sub-loop` | An inline nested Loop                     | `body` (graph) + `contract`                                                                     |
+| `wait`     | Park on time or one durable event         | `params`: exactly one of `for`, `until`, `event`; optional `expect`, `ahead_arrival`, `expires` |
 
 `fan-out` exposes `item` and `index` to its branch scope — a single element at `batch_size: 1`, an
 array slice above it.
+
+### Node reliability fields
+
+| Field                                            | Contract                                                                         |
+| ------------------------------------------------ | -------------------------------------------------------------------------------- |
+| `timeout`                                        | Optional limit for one attempt.                                                  |
+| `deadline`                                       | Optional total limit across attempts and backoff; must be at least `timeout`.    |
+| `retry.max_attempts`                             | Total attempts including the first; `0` disables automatic retry.                |
+| `retry.on_failure`                               | Node-family retry behavior where supported.                                      |
+| `retry.backoff.{base,max}`                       | Bounded retry delay.                                                             |
+| `retry.non_retryable`                            | Failure classes this node must not retry.                                        |
+| `result_contract.{failure_field,message_field?}` | Reads application-level failure from an otherwise successful payload.            |
+| `on_error`                                       | Exactly one of `route` or `allow_fail`; optional `effects` observe the decision. |
+| `on_retry`, `on_success`, `on_pause`             | Effects for those committed node transitions.                                    |
+| `on_timeout`, `on_cancel`, `on_quarantine`       | Effects for those committed node transitions.                                    |
+| `on_parent_close`                                | Awaited `run-loop` policy: `terminate`, `cancel`, or `abandon`.                  |
+
+Automatic retry is class-gated: only `transport` and `attempt_timeout` qualify. Mechanical actions
+inherit family defaults; `run-agent` and `run-loop` require explicit node-level `retry`, and `goal`
+does not use generic node retry. See [Failure handling](/docs/loops/failure-handling) for precedence,
+classification, and delivery guarantees.
+
+### Durable wait control
+
+```yaml
+- id: wait_for_approval
+  class: control
+  kind: wait
+  params:
+    event: { kind: approval.received }
+    expect: { type: object, required: [approved] }
+    ahead_arrival: consume_on_entry
+    expires:
+      after: 72h
+      escalate:
+        - emit: { kind: approval.overdue }
+      route: timed_out
+```
+
+Choose exactly one wait source: `for` (duration), `until` (timestamp), or `event` (subscription).
+`expect` is the JSON schema for a manual or event resume payload. `ahead_arrival` is
+`consume_on_entry` or `reject`. `expires.after` is optional; expiry may enqueue `escalate` effects
+and/or route to one authored node. Without `expires`, the wait remains parked indefinitely.
 
 ### Source nodes
 

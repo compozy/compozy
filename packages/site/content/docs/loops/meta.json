@@ -6,6 +6,7 @@
         "---Operate---",
         "catalog",
         "running",
+        "failure-handling",
         "ratchet",
         "goals",
         "configure",
