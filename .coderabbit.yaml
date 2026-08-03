@@ -9,6 +9,9 @@ reviews:
   collapse_walkthrough: false
   sequence_diagrams: true
   profile: "chill"
+  auto_review:
+    base_branches:
+      - "stack/.*"
   path_filters:
     - "!docs/design/**/*"
     - "!**/*.md"
