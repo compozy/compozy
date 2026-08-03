@@ -86,10 +86,10 @@ function LoopRunDetail({ workspaceId, runId, topbarIdentity, workspaceName }: Lo
           pauseRequested={page.run.pause_requested}
           isPausePending={page.isPausePending}
           isResumePending={page.isResumePending}
-          isStopPending={page.isStopPending}
+          isCancelPending={page.isCancelPending}
           onPause={page.handlePause}
           onResume={page.handleResume}
-          onStop={page.handleStop}
+          onCancel={page.handleCancel}
         />
         <LoopRunOverflowMenu loopName={page.run.loop_name} onInspect={() => setInspectOpen(true)} />
       </div>

@@ -7,6 +7,8 @@ package sqlcgen
 
 import (
 	"context"
+	"database/sql"
+	"time"
 )
 
 const getLoopAdmissionClaim = `-- name: GetLoopAdmissionClaim :one
@@ -44,6 +46,88 @@ func (q *Queries) GetLoopAdmissionClaim(ctx context.Context, arg GetLoopAdmissio
 		&i.LastSuppressedAt,
 	)
 	return i, err
+}
+
+const listAttentionLoopNodeInventory = `-- name: ListAttentionLoopNodeInventory :many
+SELECT run.id AS loop_run_id, run.loop_name, run.generation, control.node_id,
+  0 AS item_index, control.updated_at AS state_at
+FROM loop_node_controls AS control
+JOIN loop_runs AS run ON run.id = control.loop_run_id
+WHERE run.workspace_id = ?1 AND control.attention_flag != ''
+  AND (CAST(?2 AS TEXT) = '' OR run.loop_name = CAST(?2 AS TEXT))
+  AND (CAST(?3 AS TEXT) = '' OR run.id = CAST(?3 AS TEXT))
+  AND (
+    CAST(?4 AS INTEGER) = 0
+    OR control.updated_at > ?5
+    OR (control.updated_at = ?5 AND run.id > ?6)
+    OR (control.updated_at = ?5 AND run.id = ?6
+      AND run.generation > ?7)
+    OR (control.updated_at = ?5 AND run.id = ?6
+      AND run.generation = ?7 AND control.node_id > ?8)
+  )
+ORDER BY control.updated_at ASC, run.id ASC, run.generation ASC, control.node_id ASC
+LIMIT ?9
+`
+
+type ListAttentionLoopNodeInventoryParams struct {
+	FilterWorkspaceID string    `json:"filter_workspace_id"`
+	FilterLoopName    string    `json:"filter_loop_name"`
+	FilterRunID       string    `json:"filter_run_id"`
+	HasCursor         int64     `json:"has_cursor"`
+	CursorAt          time.Time `json:"cursor_at"`
+	CursorRunID       string    `json:"cursor_run_id"`
+	CursorGeneration  int64     `json:"cursor_generation"`
+	CursorNodeID      string    `json:"cursor_node_id"`
+	PageLimit         int64     `json:"page_limit"`
+}
+
+type ListAttentionLoopNodeInventoryRow struct {
+	LoopRunID  string    `json:"loop_run_id"`
+	LoopName   string    `json:"loop_name"`
+	Generation int64     `json:"generation"`
+	NodeID     string    `json:"node_id"`
+	ItemIndex  int64     `json:"item_index"`
+	StateAt    time.Time `json:"state_at"`
+}
+
+func (q *Queries) ListAttentionLoopNodeInventory(ctx context.Context, arg ListAttentionLoopNodeInventoryParams) ([]ListAttentionLoopNodeInventoryRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAttentionLoopNodeInventory,
+		arg.FilterWorkspaceID,
+		arg.FilterLoopName,
+		arg.FilterRunID,
+		arg.HasCursor,
+		arg.CursorAt,
+		arg.CursorRunID,
+		arg.CursorGeneration,
+		arg.CursorNodeID,
+		arg.PageLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAttentionLoopNodeInventoryRow{}
+	for rows.Next() {
+		var i ListAttentionLoopNodeInventoryRow
+		if err := rows.Scan(
+			&i.LoopRunID,
+			&i.LoopName,
+			&i.Generation,
+			&i.NodeID,
+			&i.ItemIndex,
+			&i.StateAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listLoopEffectOutbox = `-- name: ListLoopEffectOutbox :many
@@ -243,6 +327,269 @@ func (q *Queries) ListLoopNodeWaits(ctx context.Context, arg ListLoopNodeWaitsPa
 			&i.AheadPayloadJson,
 			&i.IssuedEpoch,
 			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listQuarantinedLoopNodeInventory = `-- name: ListQuarantinedLoopNodeInventory :many
+SELECT run.id AS loop_run_id, run.loop_name, run.generation, control.node_id,
+  0 AS item_index, control.quarantined_at AS state_at
+FROM loop_node_controls AS control
+JOIN loop_runs AS run ON run.id = control.loop_run_id
+WHERE run.workspace_id = ?1 AND control.quarantined = 1
+  AND control.quarantined_at IS NOT NULL
+  AND (CAST(?2 AS TEXT) = '' OR run.loop_name = CAST(?2 AS TEXT))
+  AND (CAST(?3 AS TEXT) = '' OR run.id = CAST(?3 AS TEXT))
+  AND (
+    CAST(?4 AS INTEGER) = 0
+    OR control.quarantined_at > ?5
+    OR (control.quarantined_at = ?5
+      AND run.id > ?6)
+    OR (control.quarantined_at = ?5
+      AND run.id = ?6 AND run.generation > ?7)
+    OR (control.quarantined_at = ?5
+      AND run.id = ?6 AND run.generation = ?7
+      AND control.node_id > ?8)
+  )
+ORDER BY state_at ASC, run.id ASC, run.generation ASC, control.node_id ASC
+LIMIT ?9
+`
+
+type ListQuarantinedLoopNodeInventoryParams struct {
+	FilterWorkspaceID string       `json:"filter_workspace_id"`
+	FilterLoopName    string       `json:"filter_loop_name"`
+	FilterRunID       string       `json:"filter_run_id"`
+	HasCursor         int64        `json:"has_cursor"`
+	CursorAt          sql.NullTime `json:"cursor_at"`
+	CursorRunID       string       `json:"cursor_run_id"`
+	CursorGeneration  int64        `json:"cursor_generation"`
+	CursorNodeID      string       `json:"cursor_node_id"`
+	PageLimit         int64        `json:"page_limit"`
+}
+
+type ListQuarantinedLoopNodeInventoryRow struct {
+	LoopRunID  string       `json:"loop_run_id"`
+	LoopName   string       `json:"loop_name"`
+	Generation int64        `json:"generation"`
+	NodeID     string       `json:"node_id"`
+	ItemIndex  int64        `json:"item_index"`
+	StateAt    sql.NullTime `json:"state_at"`
+}
+
+func (q *Queries) ListQuarantinedLoopNodeInventory(ctx context.Context, arg ListQuarantinedLoopNodeInventoryParams) ([]ListQuarantinedLoopNodeInventoryRow, error) {
+	rows, err := q.db.QueryContext(ctx, listQuarantinedLoopNodeInventory,
+		arg.FilterWorkspaceID,
+		arg.FilterLoopName,
+		arg.FilterRunID,
+		arg.HasCursor,
+		arg.CursorAt,
+		arg.CursorRunID,
+		arg.CursorGeneration,
+		arg.CursorNodeID,
+		arg.PageLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListQuarantinedLoopNodeInventoryRow{}
+	for rows.Next() {
+		var i ListQuarantinedLoopNodeInventoryRow
+		if err := rows.Scan(
+			&i.LoopRunID,
+			&i.LoopName,
+			&i.Generation,
+			&i.NodeID,
+			&i.ItemIndex,
+			&i.StateAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRetryingLoopNodeInventory = `-- name: ListRetryingLoopNodeInventory :many
+SELECT run.id AS loop_run_id, run.loop_name, output.generation, output.node_id,
+  output.item_index, output.next_attempt_at AS state_at
+FROM loop_generation_outputs AS output
+JOIN loop_runs AS run ON run.id = output.loop_run_id
+WHERE run.workspace_id = ?1
+  AND output.status = 'retrying' AND output.next_attempt_at IS NOT NULL
+  AND (CAST(?2 AS TEXT) = '' OR run.loop_name = CAST(?2 AS TEXT))
+  AND (CAST(?3 AS TEXT) = '' OR run.id = CAST(?3 AS TEXT))
+  AND (
+    CAST(?4 AS INTEGER) = 0
+    OR output.next_attempt_at > ?5
+    OR (output.next_attempt_at = ?5 AND run.id > ?6)
+    OR (output.next_attempt_at = ?5 AND run.id = ?6
+      AND output.generation > ?7)
+    OR (output.next_attempt_at = ?5 AND run.id = ?6
+      AND output.generation = ?7 AND output.node_id > ?8)
+    OR (output.next_attempt_at = ?5 AND run.id = ?6
+      AND output.generation = ?7 AND output.node_id = ?8
+      AND output.item_index > ?9)
+  )
+ORDER BY output.next_attempt_at ASC, run.id ASC, output.generation ASC,
+  output.node_id ASC, output.item_index ASC
+LIMIT ?10
+`
+
+type ListRetryingLoopNodeInventoryParams struct {
+	FilterWorkspaceID string       `json:"filter_workspace_id"`
+	FilterLoopName    string       `json:"filter_loop_name"`
+	FilterRunID       string       `json:"filter_run_id"`
+	HasCursor         int64        `json:"has_cursor"`
+	CursorAt          sql.NullTime `json:"cursor_at"`
+	CursorRunID       string       `json:"cursor_run_id"`
+	CursorGeneration  int64        `json:"cursor_generation"`
+	CursorNodeID      string       `json:"cursor_node_id"`
+	CursorItemIndex   int64        `json:"cursor_item_index"`
+	PageLimit         int64        `json:"page_limit"`
+}
+
+type ListRetryingLoopNodeInventoryRow struct {
+	LoopRunID  string       `json:"loop_run_id"`
+	LoopName   string       `json:"loop_name"`
+	Generation int64        `json:"generation"`
+	NodeID     string       `json:"node_id"`
+	ItemIndex  int64        `json:"item_index"`
+	StateAt    sql.NullTime `json:"state_at"`
+}
+
+func (q *Queries) ListRetryingLoopNodeInventory(ctx context.Context, arg ListRetryingLoopNodeInventoryParams) ([]ListRetryingLoopNodeInventoryRow, error) {
+	rows, err := q.db.QueryContext(ctx, listRetryingLoopNodeInventory,
+		arg.FilterWorkspaceID,
+		arg.FilterLoopName,
+		arg.FilterRunID,
+		arg.HasCursor,
+		arg.CursorAt,
+		arg.CursorRunID,
+		arg.CursorGeneration,
+		arg.CursorNodeID,
+		arg.CursorItemIndex,
+		arg.PageLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRetryingLoopNodeInventoryRow{}
+	for rows.Next() {
+		var i ListRetryingLoopNodeInventoryRow
+		if err := rows.Scan(
+			&i.LoopRunID,
+			&i.LoopName,
+			&i.Generation,
+			&i.NodeID,
+			&i.ItemIndex,
+			&i.StateAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWaitingLoopNodeInventory = `-- name: ListWaitingLoopNodeInventory :many
+SELECT run.id AS loop_run_id, run.loop_name, wait_row.generation, wait_row.node_id,
+  wait_row.item_index, wait_row.created_at AS state_at
+FROM loop_node_waits AS wait_row
+JOIN loop_runs AS run ON run.id = wait_row.loop_run_id
+WHERE run.workspace_id = ?1
+  AND wait_row.claim_state IN ('waiting', 'intervention_required')
+  AND (CAST(?2 AS TEXT) = '' OR run.loop_name = CAST(?2 AS TEXT))
+  AND (CAST(?3 AS TEXT) = '' OR run.id = CAST(?3 AS TEXT))
+  AND (
+    CAST(?4 AS INTEGER) = 0
+    OR wait_row.created_at > ?5
+    OR (wait_row.created_at = ?5 AND run.id > ?6)
+    OR (wait_row.created_at = ?5 AND run.id = ?6
+      AND wait_row.generation > ?7)
+    OR (wait_row.created_at = ?5 AND run.id = ?6
+      AND wait_row.generation = ?7 AND wait_row.node_id > ?8)
+    OR (wait_row.created_at = ?5 AND run.id = ?6
+      AND wait_row.generation = ?7 AND wait_row.node_id = ?8
+      AND wait_row.item_index > ?9)
+  )
+ORDER BY wait_row.created_at ASC, run.id ASC, wait_row.generation ASC,
+  wait_row.node_id ASC, wait_row.item_index ASC
+LIMIT ?10
+`
+
+type ListWaitingLoopNodeInventoryParams struct {
+	FilterWorkspaceID string    `json:"filter_workspace_id"`
+	FilterLoopName    string    `json:"filter_loop_name"`
+	FilterRunID       string    `json:"filter_run_id"`
+	HasCursor         int64     `json:"has_cursor"`
+	CursorAt          time.Time `json:"cursor_at"`
+	CursorRunID       string    `json:"cursor_run_id"`
+	CursorGeneration  int64     `json:"cursor_generation"`
+	CursorNodeID      string    `json:"cursor_node_id"`
+	CursorItemIndex   int64     `json:"cursor_item_index"`
+	PageLimit         int64     `json:"page_limit"`
+}
+
+type ListWaitingLoopNodeInventoryRow struct {
+	LoopRunID  string    `json:"loop_run_id"`
+	LoopName   string    `json:"loop_name"`
+	Generation int64     `json:"generation"`
+	NodeID     string    `json:"node_id"`
+	ItemIndex  int64     `json:"item_index"`
+	StateAt    time.Time `json:"state_at"`
+}
+
+func (q *Queries) ListWaitingLoopNodeInventory(ctx context.Context, arg ListWaitingLoopNodeInventoryParams) ([]ListWaitingLoopNodeInventoryRow, error) {
+	rows, err := q.db.QueryContext(ctx, listWaitingLoopNodeInventory,
+		arg.FilterWorkspaceID,
+		arg.FilterLoopName,
+		arg.FilterRunID,
+		arg.HasCursor,
+		arg.CursorAt,
+		arg.CursorRunID,
+		arg.CursorGeneration,
+		arg.CursorNodeID,
+		arg.CursorItemIndex,
+		arg.PageLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWaitingLoopNodeInventoryRow{}
+	for rows.Next() {
+		var i ListWaitingLoopNodeInventoryRow
+		if err := rows.Scan(
+			&i.LoopRunID,
+			&i.LoopName,
+			&i.Generation,
+			&i.NodeID,
+			&i.ItemIndex,
+			&i.StateAt,
 		); err != nil {
 			return nil, err
 		}

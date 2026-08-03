@@ -98,6 +98,14 @@ const (
 	ReasonLoopInvalidStatusTransition ReasonCode = "invalid_status_transition"
 	// ReasonLoopTerminalRun reports a Loop control requested after the run reached a terminal status.
 	ReasonLoopTerminalRun ReasonCode = "terminal_loop_run"
+	// ReasonLoopRunTerminal reports a node lifecycle verb rejected by terminal run truth.
+	ReasonLoopRunTerminal ReasonCode = "run_terminal"
+	// ReasonLoopNodeNotPaused reports a resume request against a node that is not paused.
+	ReasonLoopNodeNotPaused ReasonCode = "node_not_paused"
+	// ReasonLoopNodeNotQuarantined reports a requeue request against a node outside quarantine.
+	ReasonLoopNodeNotQuarantined ReasonCode = "node_not_quarantined"
+	// ReasonLoopAlreadyDecided reports a lifecycle mutation that lost to a durable winner.
+	ReasonLoopAlreadyDecided ReasonCode = "already_decided"
 	// ReasonScopeMismatch reports caller-supplied scope conflicting with trusted scope.
 	ReasonScopeMismatch ReasonCode = "scope_mismatch"
 	// ReasonWorkspaceAccessDenied reports a workspace-axis policy denial.
@@ -216,6 +224,10 @@ var validReasonCodes = map[ReasonCode]struct{}{
 	ReasonLoopSourceImmutable:            {},
 	ReasonLoopInvalidStatusTransition:    {},
 	ReasonLoopTerminalRun:                {},
+	ReasonLoopRunTerminal:                {},
+	ReasonLoopNodeNotPaused:              {},
+	ReasonLoopNodeNotQuarantined:         {},
+	ReasonLoopAlreadyDecided:             {},
 	ReasonMemorySubagentWriteDenied:      {},
 	ReasonWorkspaceAccessDenied:          {},
 	ReasonHookDenied:                     {},

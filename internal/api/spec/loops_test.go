@@ -171,11 +171,62 @@ func TestLoopOpenAPIContract(t *testing.T) {
 				parameters: []string{"workspace_id", "run_id"},
 			},
 			{
-				name:       "stop run",
-				path:       "/api/workspaces/{workspace_id}/loop-runs/{run_id}/stop",
+				name:       "cancel run",
+				path:       "/api/workspaces/{workspace_id}/loop-runs/{run_id}/cancel",
 				method:     "POST",
 				statuses:   []int{200, 400, 404, 409, 422, 503, 500},
 				parameters: []string{"workspace_id", "run_id"},
+			},
+			{
+				name:       "kill run",
+				path:       "/api/workspaces/{workspace_id}/loop-runs/{run_id}/kill",
+				method:     "POST",
+				statuses:   []int{200, 400, 404, 409, 422, 503, 500},
+				parameters: []string{"workspace_id", "run_id"},
+			},
+			{
+				name:       "pause node",
+				path:       "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/pause",
+				method:     "POST",
+				statuses:   []int{200, 400, 404, 409, 422, 503, 500},
+				parameters: []string{"workspace_id", "run_id", "node_id"},
+			},
+			{
+				name:       "resume node",
+				path:       "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/resume",
+				method:     "POST",
+				statuses:   []int{200, 400, 404, 409, 422, 503, 500},
+				parameters: []string{"workspace_id", "run_id", "node_id"},
+			},
+			{
+				name:       "cancel node",
+				path:       "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/cancel",
+				method:     "POST",
+				statuses:   []int{200, 400, 404, 409, 422, 503, 500},
+				parameters: []string{"workspace_id", "run_id", "node_id"},
+			},
+			{
+				name:       "kill node",
+				path:       "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/kill",
+				method:     "POST",
+				statuses:   []int{200, 400, 404, 409, 422, 503, 500},
+				parameters: []string{"workspace_id", "run_id", "node_id"},
+			},
+			{
+				name:       "requeue node",
+				path:       "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/requeue",
+				method:     "POST",
+				statuses:   []int{200, 400, 404, 409, 422, 503, 500},
+				parameters: []string{"workspace_id", "run_id", "node_id"},
+			},
+			{
+				name:     "list nodes",
+				path:     "/api/workspaces/{workspace_id}/loop-nodes",
+				method:   "GET",
+				statuses: []int{200, 400, 503, 500},
+				parameters: []string{
+					"workspace_id", "state", "loop", "run_id", "cursor", "limit",
+				},
 			},
 			{
 				name:       "pause run",
@@ -216,11 +267,21 @@ func TestLoopOpenAPIContract(t *testing.T) {
 				assertLoopResponseStatusesExactly(t, operation, tc.statuses)
 				for _, parameter := range tc.parameters {
 					switch parameter {
-					case "workspace_id", "name", "run_id", "session_id", "key":
+					case "workspace_id", "name", "node_id", "session_id", "key":
 						assertParameter(t, operation, parameter, openapi3.ParameterInPath, true)
+					case "run_id":
+						location := openapi3.ParameterInPath
+						required := true
+						if tc.name == "list nodes" {
+							location = openapi3.ParameterInQuery
+							required = false
+						}
+						assertParameter(t, operation, parameter, location, required)
 					case "Last-Event-ID":
 						assertParameter(t, operation, parameter, openapi3.ParameterInHeader, false)
 					case "scope":
+						assertParameter(t, operation, parameter, openapi3.ParameterInQuery, true)
+					case "state":
 						assertParameter(t, operation, parameter, openapi3.ParameterInQuery, true)
 					default:
 						assertParameter(t, operation, parameter, openapi3.ParameterInQuery, false)

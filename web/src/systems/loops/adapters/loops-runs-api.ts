@@ -10,6 +10,7 @@ import type {
   ApproveLoopRunRequest,
   LoopRun,
   LoopRunActionResult,
+  LoopRunMutationResult,
   LoopRunAggregates,
   LoopRunDetail,
   LoopRunsFilter,
@@ -196,13 +197,13 @@ export async function resumeLoopRun(
   return requireResponseData(data, response, `Failed to resume loop run "${runId}"`);
 }
 
-export async function stopLoopRun(
+export async function cancelLoopRun(
   workspaceId: string,
   runId: string,
   signal?: AbortSignal
-): Promise<LoopRunActionResult> {
+): Promise<LoopRunMutationResult> {
   const { data, error, response } = await apiClient.POST(
-    "/api/workspaces/{workspace_id}/loop-runs/{run_id}/stop",
+    "/api/workspaces/{workspace_id}/loop-runs/{run_id}/cancel",
     {
       params: { path: { workspace_id: workspaceId, run_id: runId } },
       body: {},
@@ -210,9 +211,9 @@ export async function stopLoopRun(
     }
   );
   if (apiRequestFailed(response, error)) {
-    throw loopRunControlError("stop", runId, response, error);
+    throw loopRunControlError("cancel", runId, response, error);
   }
-  return requireResponseData(data, response, `Failed to stop loop run "${runId}"`);
+  return requireResponseData(data, response, `Failed to cancel loop run "${runId}"`);
 }
 
 export async function approveLoopRun(

@@ -55,7 +55,7 @@ function ScenarioPage({
           pauseRequested={props.run.pause_requested}
           onPause={() => {}}
           onResume={() => {}}
-          onStop={() => {}}
+          onCancel={() => {}}
         />
         <LoopRunOverflowMenu
           loopName={props.run.loop_name}

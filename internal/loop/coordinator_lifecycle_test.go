@@ -462,6 +462,55 @@ func TestCoordinatorRunnerShouldApplyNodeFailurePrecedence(t *testing.T) {
 		}
 	})
 
+	t.Run("Should close canceled waiting and paused nodes without a task run", func(t *testing.T) {
+		t.Parallel()
+
+		for _, status := range []string{generationOutputWaiting, generationOutputPaused} {
+			t.Run("Should close "+status+" node", func(t *testing.T) {
+				t.Parallel()
+
+				now := time.Date(2026, time.August, 3, 0, 15, 0, 0, time.UTC)
+				loopRun := controlLoopRun("looprun-lifecycle-node-cancel-"+status, nil)
+				coordinatorRun := controlCoordinatorRun(loopRun, 1)
+				outputs := &lifecycleCoordinatorStore{coordinatorRunnerOutputs: coordinatorRunnerOutputs{
+					outputs: map[int][]GenerationOutput{1: {{
+						Generation: 1, NodeID: "work", Status: status, Attempt: 1, Epoch: 2,
+					}}},
+				}}
+				control := NodeControl{
+					LoopRunID: loopRun.ID, NodeID: "work", CancelState: CancelStateDraining,
+					CancelProvenance: &ControlProvenance{
+						ActorKind: "human", ActorID: "operator-1", Reason: "cancel parked work", RequestedAt: now,
+					},
+					Revision: 3,
+				}
+				runner := newCoordinatorRunnerForTestWithDefinition(
+					t,
+					loopRun,
+					coordinatorRun,
+					nil,
+					outputs,
+					lifecycleDefinition(lifecycleNode("work")),
+					WithCoordinatorNodeAttemptReader(outputs),
+					WithCoordinatorNodeControlReader(
+						coordinatorNodeControlReaderStub{controls: []NodeControl{control}},
+					),
+				)
+				runner.now = func() time.Time { return now.Add(time.Minute) }
+
+				plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+				if err != nil {
+					t.Fatalf("Run(%s) error = %v", status, err)
+				}
+				payload := coordinatorSnapshotPayloadForTest(t, plan)
+				if len(payload.Controls) != 1 || payload.Controls[0].CancelState != CancelStateCanceled ||
+					len(payload.Events) != 1 || payload.Outputs[0].Status != generationOutputCanceled {
+					t.Fatalf("%s cancellation payload = %#v", status, payload)
+				}
+			})
+		}
+	})
+
 	t.Run("Should cancel a backoff without scheduling its next attempt", func(t *testing.T) {
 		t.Parallel()
 

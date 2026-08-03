@@ -131,7 +131,8 @@ func (r *CoordinatorRunner) cancellationOutputDrained(
 	output GenerationOutput,
 ) (bool, error) {
 	switch output.Status {
-	case generationOutputPending, generationOutputRetrying, generationOutputAwaitingChild:
+	case generationOutputPending, generationOutputRetrying, generationOutputWaiting,
+		generationOutputPaused, generationOutputAwaitingChild:
 		return true, nil
 	}
 	taskRunID := strings.TrimSpace(output.TaskRunID)
@@ -189,6 +190,8 @@ func cancellationOutputLive(status string) bool {
 		generationOutputEnqueued,
 		generationOutputRunning,
 		generationOutputRetrying,
+		generationOutputWaiting,
+		generationOutputPaused,
 		generationOutputAwaitingChild,
 		generationOutputControlPending,
 		generationOutputAwaitingGoal:

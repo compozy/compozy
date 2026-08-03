@@ -1955,6 +1955,7 @@ func TestServiceCancellationShouldRecordCanceledTerminalTruth(t *testing.T) {
 			Emit: &dsl.EmitSpec{Kind: "must_not_fire"},
 		}}
 		var killed []string
+		var activated task.Run
 		svc := newTestServiceWithOptions(
 			t,
 			store,
@@ -1965,6 +1966,12 @@ func TestServiceCancellationShouldRecordCanceledTerminalTruth(t *testing.T) {
 					return nil
 				},
 			}),
+			loop.WithCoordinatorRunActivator(loop.CoordinatorRunActivatorFunc(func(
+				_ context.Context,
+				run task.Run,
+			) {
+				activated = run
+			})),
 		)
 		run, err := svc.Start(context.Background(), "ws-1", "valid-loop", loop.Inputs{
 			Values: map[string]any{"tasks": "task-ref"},
@@ -1983,6 +1990,9 @@ func TestServiceCancellationShouldRecordCanceledTerminalTruth(t *testing.T) {
 		}
 		if !reflect.DeepEqual(killed, []string{"session-agent"}) || len(store.cancellationStates) != 0 {
 			t.Fatalf("kill delivery = %#v states = %#v", killed, store.cancellationStates)
+		}
+		if activated.LoopRunID != string(run.ID) || activated.WorkspaceID != string(run.WorkspaceID) {
+			t.Fatalf("node kill activation = %#v, want killed Run identity", activated)
 		}
 	})
 
@@ -2829,6 +2839,15 @@ func (s *fakeLoopStore) AdvanceRunCancellation(
 		return loop.CancellationResult{}, loop.ErrRunNotFound
 	}
 	result := loop.CancellationResult{Run: run, Applied: true}
+	if state == loop.CancelStateDraining {
+		coordinator := task.Run{
+			ID:          "run-cancel-wake-" + string(mutation.RunID),
+			WorkspaceID: string(mutation.WorkspaceID),
+			LoopRunID:   string(mutation.RunID),
+			RunKind:     task.RunKindCoordinator,
+		}
+		result.Coordinator = &coordinator
+	}
 	if state == loop.CancelStateCanceled {
 		s.terminalizeCancellationLocked(run, mutation, &result)
 	}
@@ -2855,9 +2874,19 @@ func (s *fakeLoopStore) RequestNodeCancellation(
 	if run.Status.Terminal() {
 		return loop.CancellationResult{Run: run, Terminal: true}, nil
 	}
-	return loop.CancellationResult{
+	result := loop.CancellationResult{
 		Run: run, Applied: true, SessionIDs: append([]string(nil), s.cancellationSessionIDs...),
-	}, nil
+	}
+	if mutation.Kind == loop.RunCancelKill {
+		coordinator := task.Run{
+			ID:          "run-node-kill-wake-" + string(mutation.RunID),
+			WorkspaceID: string(mutation.WorkspaceID),
+			LoopRunID:   string(mutation.RunID),
+			RunKind:     task.RunKindCoordinator,
+		}
+		result.Coordinator = &coordinator
+	}
+	return result, nil
 }
 
 func (s *fakeLoopStore) AdvanceNodeCancellation(
@@ -2875,7 +2904,17 @@ func (s *fakeLoopStore) AdvanceNodeCancellation(
 	if !ok || run.WorkspaceID != mutation.WorkspaceID {
 		return loop.CancellationResult{}, loop.ErrRunNotFound
 	}
-	return loop.CancellationResult{Run: run, Applied: true}, nil
+	result := loop.CancellationResult{Run: run, Applied: true}
+	if state == loop.CancelStateDraining {
+		coordinator := task.Run{
+			ID:          "run-node-cancel-wake-" + string(mutation.RunID),
+			WorkspaceID: string(mutation.WorkspaceID),
+			LoopRunID:   string(mutation.RunID),
+			RunKind:     task.RunKindCoordinator,
+		}
+		result.Coordinator = &coordinator
+	}
+	return result, nil
 }
 
 func (s *fakeLoopStore) terminalizeCancellationLocked(

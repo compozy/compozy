@@ -133,7 +133,8 @@ how a scored best changes succession.
 | List runs       | `compozy loop runs`                             | `GET /loop-runs`                        | `compozy__loop_runs`                           |
 | Pause / resume  | `compozy loop pause` · `compozy loop resume`    | `POST /loop-runs/:id/pause` · `/resume` | `compozy__loop_pause` · `compozy__loop_resume` |
 | Approve         | `compozy loop approve --gate-id … --decision …` | `POST /loop-runs/:id/approve`           | `compozy__loop_approve`                        |
-| Stop            | `compozy loop stop`                             | `POST /loop-runs/:id/stop`              | `compozy__loop_stop`                           |
+| Cancel / kill   | `compozy loop cancel` · `compozy loop kill`     | `POST /loop-runs/:id/cancel` · `/kill`  | `compozy__loop_cancel` · `compozy__loop_kill`  |
+| List node state | `compozy loop nodes --state …`                  | `GET /loop-nodes?state=…`               | `compozy__loop_nodes`                          |
 
 Live events stream from `GET /loop-runs/:id/events` (SSE). HTTP routes are workspace-scoped under
 `/api/workspaces/{workspace_id}/…`; the [Loops API](/docs/api/loops) reference lists

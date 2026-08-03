@@ -12,6 +12,7 @@ export const LOOP_RUN_STATUSES = [
   "failed",
   "exhausted",
   "stalled",
+  "canceled",
 ] as const;
 
 export type LoopRunStatusValue = (typeof LOOP_RUN_STATUSES)[number];
@@ -31,6 +32,7 @@ export const LOOP_RUN_TERMINAL_STATUSES = [
   "failed",
   "exhausted",
   "stalled",
+  "canceled",
 ] as const;
 
 export const LOOP_RUN_EVENT_KINDS = [
@@ -48,6 +50,20 @@ export const LOOP_RUN_EVENT_KINDS = [
   "goal_status_changed",
   "runtime_applied",
   "node_retry_scheduled",
+  "node_paused",
+  "node_resumed",
+  "node_canceled",
+  "node_killed",
+  "node_quarantined",
+  "node_requeued",
+  "node_wait_started",
+  "node_wait_resumed",
+  "node_attention_flagged",
+  "node_attention_cleared",
+  "effect_results",
+  "custom_event",
+  "duplicate_suppressed",
+  "target_breaker_transition",
   "stale_schedule_dropped",
   "late_arrival",
 ] as const;
@@ -62,6 +78,7 @@ export const LOOP_GENERATION_ORIGINS = [
   "gate_next_generation",
   "dod_retry",
   "ratchet_restore",
+  "requeue",
 ] as const;
 
 export type LoopGenerationOriginValue = (typeof LOOP_GENERATION_ORIGINS)[number];
@@ -93,6 +110,20 @@ export const LOOP_RUN_LIFECYCLE_EVENT_KINDS = [
   "goal_status_changed",
   "runtime_applied",
   "node_retry_scheduled",
+  "node_paused",
+  "node_resumed",
+  "node_canceled",
+  "node_killed",
+  "node_quarantined",
+  "node_requeued",
+  "node_wait_started",
+  "node_wait_resumed",
+  "node_attention_flagged",
+  "node_attention_cleared",
+  "effect_results",
+  "custom_event",
+  "duplicate_suppressed",
+  "target_breaker_transition",
 ] as const;
 
 export const LOOP_WATCH_EVENT_KINDS = [

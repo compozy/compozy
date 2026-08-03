@@ -100,10 +100,11 @@ func (s *service) cancelRun(
 	if err := s.deliverSessionCancellation(ctx, result.SessionIDs, kind, mutation.Reason); err != nil {
 		return errors.Join(parentCloseErr, err)
 	}
-	if _, err := store.AdvanceRunCancellation(ctx, mutation, CancelStateDraining); err != nil {
+	draining, err := store.AdvanceRunCancellation(ctx, mutation, CancelStateDraining)
+	if err != nil {
 		return errors.Join(parentCloseErr, err)
 	}
-	s.activateCancellationCoordinator(ctx, ws, runID)
+	s.activateCancellationResult(ctx, &draining)
 	return parentCloseErr
 }
 
@@ -137,6 +138,7 @@ func (s *service) cancelNode(
 	}
 	parentCloseErr := s.applyParentCloseActions(ctx, mutation, parentCloseActions)
 	if kind == RunCancelKill {
+		s.activateCancellationResult(ctx, &result)
 		return errors.Join(
 			parentCloseErr,
 			s.deliverSessionCancellation(ctx, result.SessionIDs, kind, mutation.Reason),
@@ -148,10 +150,11 @@ func (s *service) cancelNode(
 	if err := s.deliverSessionCancellation(ctx, result.SessionIDs, kind, mutation.Reason); err != nil {
 		return errors.Join(parentCloseErr, err)
 	}
-	if _, err := store.AdvanceNodeCancellation(ctx, mutation, CancelStateDraining); err != nil {
+	draining, err := store.AdvanceNodeCancellation(ctx, mutation, CancelStateDraining)
+	if err != nil {
 		return errors.Join(parentCloseErr, err)
 	}
-	s.activateCancellationCoordinator(ctx, ws, runID)
+	s.activateCancellationResult(ctx, &draining)
 	return parentCloseErr
 }
 
@@ -289,16 +292,9 @@ func (s *service) finishCommittedRunCancellation(
 	return s.deliverSessionCancellation(ctx, result.SessionIDs, mutation.Kind, mutation.Reason)
 }
 
-func (s *service) activateCancellationCoordinator(
-	ctx context.Context,
-	workspaceID WorkspaceID,
-	runID RunID,
-) {
-	if s.coordinatorActivator == nil {
+func (s *service) activateCancellationResult(ctx context.Context, result *CancellationResult) {
+	if result == nil || s.coordinatorActivator == nil || result.Coordinator == nil {
 		return
 	}
-	s.coordinatorActivator.ActivateCoordinatorRun(context.WithoutCancel(ctx), task.Run{
-		WorkspaceID: string(workspaceID),
-		LoopRunID:   string(runID),
-	})
+	s.coordinatorActivator.ActivateCoordinatorRun(context.WithoutCancel(ctx), *result.Coordinator)
 }

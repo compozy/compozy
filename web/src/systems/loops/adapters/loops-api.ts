@@ -17,10 +17,10 @@ export {
 export {
   approveLoopRun,
   buildLoopStreamUrl,
+  cancelLoopRun,
   getLoopRun,
   listLoopRuns,
   pauseLoopRun,
   resumeLoopRun,
   runLoop,
-  stopLoopRun,
 } from "./loops-runs-api";

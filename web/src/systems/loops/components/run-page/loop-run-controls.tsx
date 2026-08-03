@@ -9,17 +9,17 @@ interface LoopRunControlsProps {
   pauseRequested?: boolean;
   isPausePending?: boolean;
   isResumePending?: boolean;
-  isStopPending?: boolean;
+  isCancelPending?: boolean;
   onPause: () => void;
   onResume: () => void;
-  onStop: () => void;
+  onCancel: () => void;
 }
 
 /**
  * Operator run controls (§4.4 / ADR-017): Pause is valid ONLY from `running` (the
  * daemon rejects it elsewhere, N-003), so it hides outside that state; a pending pause
  * request shows "Pausing…" until the generation boundary flips the run to `paused`,
- * where Resume takes over. Stop is offered for any live (non-terminal) run. Runtime
+ * where Resume takes over. Cancel is offered for any live (non-terminal) run. Runtime
  * truth wins — the buttons request a transition, they never simulate one.
  */
 export function LoopRunControls({
@@ -27,10 +27,10 @@ export function LoopRunControls({
   pauseRequested,
   isPausePending,
   isResumePending,
-  isStopPending,
+  isCancelPending,
   onPause,
   onResume,
-  onStop,
+  onCancel,
 }: LoopRunControlsProps) {
   const terminal = isTerminalLoopStatus(status);
   if (terminal) return null;
@@ -70,12 +70,12 @@ export function LoopRunControls({
         variant="outline"
         size="sm"
         className="text-danger hover:border-danger/40 hover:text-danger"
-        data-testid="loop-run-stop"
-        disabled={isStopPending}
-        onClick={onStop}
+        data-testid="loop-run-cancel"
+        disabled={isCancelPending}
+        onClick={onCancel}
       >
         <Square className="size-3.5" aria-hidden="true" />
-        Stop run
+        Cancel run
       </Button>
     </div>
   );

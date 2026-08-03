@@ -23,7 +23,7 @@ const (
 func (n *daemonNativeTools) loopToolBindings(
 	availability toolspkg.NativeAvailabilityFunc,
 ) map[toolspkg.ToolID]nativeToolBinding {
-	return map[toolspkg.ToolID]nativeToolBinding{
+	bindings := map[toolspkg.ToolID]nativeToolBinding{
 		toolspkg.ToolIDGoalGet: {
 			call:         n.goalGet,
 			availability: n.goalGetAvailability,
@@ -64,10 +64,6 @@ func (n *daemonNativeTools) loopToolBindings(
 			call:         n.loopTurns,
 			availability: availability,
 		},
-		toolspkg.ToolIDLoopStop: {
-			call:         n.loopStop,
-			availability: availability,
-		},
 		toolspkg.ToolIDLoopPause: {
 			call:         n.loopPause,
 			availability: availability,
@@ -89,6 +85,8 @@ func (n *daemonNativeTools) loopToolBindings(
 			availability: availability,
 		},
 	}
+	n.addLoopLifecycleBindings(bindings, availability)
+	return bindings
 }
 
 func (n *daemonNativeTools) loopList(
@@ -347,14 +345,6 @@ func (n *daemonNativeTools) loopRuns(
 		return toolspkg.ToolResult{}, nativeLoopToolError(req.ToolID, err)
 	}
 	return structuredResult(response, fmt.Sprintf("%d loop runs", len(response.Runs)))
-}
-
-func (n *daemonNativeTools) loopStop(
-	ctx context.Context,
-	scope toolspkg.Scope,
-	req toolspkg.CallRequest,
-) (toolspkg.ToolResult, error) {
-	return n.loopRunMutation(ctx, scope, req, n.loopService().StopLoopRun, "stopped")
 }
 
 func (n *daemonNativeTools) loopPause(
