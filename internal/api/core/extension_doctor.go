@@ -68,7 +68,9 @@ func extensionDiagnosticItems(extensions []contract.ExtensionPayload) []contract
 				),
 				contract.SeverityError,
 				contract.FreshnessLive,
-				diagnostics.WithSuggestedCommand("compozy extension status "+name),
+				diagnostics.WithSuggestedCommand(
+					"compozy extension secrets set "+name+" --env "+strings.TrimSpace(extension.MissingEnv[0]),
+				),
 				diagnostics.WithEvidence(map[string]any{
 					extensionDoctorNameEvidenceKey: name,
 					"missing_env":                  append([]string(nil), extension.MissingEnv...),

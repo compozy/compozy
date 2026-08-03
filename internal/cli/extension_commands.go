@@ -64,7 +64,7 @@ func extensionCommandsBundle(response ExtensionCommandsRecord) outputBundle {
 			}
 			return renderToonArray(
 				"extension_commands",
-				[]string{bundleExtensionKey, "path", toolOperatorToolIDKey, "risk_class", "approval_required"},
+				[]string{extensionExtensionKey, "path", toolOperatorToolIDKey, "risk_class", "approval_required"},
 				rows,
 			), nil
 		},

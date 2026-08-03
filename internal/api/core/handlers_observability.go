@@ -4,8 +4,6 @@ import (
 	"context"
 
 	"errors"
-	"fmt"
-
 	"log/slog"
 	"net/http"
 
@@ -124,10 +122,9 @@ func (h *BaseHandlers) ListLogs(c *gin.Context) {
 func (h *BaseHandlers) networkStatusPayload(ctx context.Context) (*contract.NetworkStatusPayload, error) {
 	if !h.Config.Network.Enabled {
 		return &contract.NetworkStatusPayload{
-			Enabled:          false,
-			Status:           memoryHealthStatusDisabled,
-			DeclaredChannels: []contract.DeclaredNetworkChannelPayload{},
-			KindMetrics:      []contract.NetworkKindMetricPayload{},
+			Enabled:     false,
+			Status:      memoryHealthStatusDisabled,
+			KindMetrics: []contract.NetworkKindMetricPayload{},
 		}, nil
 	}
 	if h.Network == nil {
@@ -142,17 +139,7 @@ func (h *BaseHandlers) networkStatusPayload(ctx context.Context) (*contract.Netw
 		return nil, errors.New("api: network status is required")
 	}
 
-	payload := NetworkStatusPayloadFromStatus(status)
-	if h.Bundles == nil {
-		return payload, nil
-	}
-
-	settings, err := h.Bundles.NetworkSettings(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("api: load bundle network settings: %w", err)
-	}
-	payload.DeclaredChannels = DeclaredNetworkChannelPayloads(settings.DeclaredChannels)
-	return payload, nil
+	return NetworkStatusPayloadFromStatus(status), nil
 }
 
 func (h *BaseHandlers) daemonUserHomeDir() string {

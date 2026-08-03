@@ -78,6 +78,13 @@ export const routeStoryRegistry = [
     storyName: "DetailSkillInstalled",
   },
   {
+    system: "marketplace",
+    routePath: "/marketplace/$kind",
+    storybookPath: "/marketplace/bundles",
+    title: "systems/marketplace/routes/Marketplace",
+    storyName: "RetiredKindNotFound",
+  },
+  {
     system: "automation",
     routePath: "/triggers",
     storybookPath: "/triggers",
@@ -104,13 +111,6 @@ export const routeStoryRegistry = [
     storybookPath: "/marketplace/mcps",
     title: "systems/marketplace/routes/Marketplace",
     storyName: "McpsMarketplace",
-  },
-  {
-    system: "marketplace",
-    routePath: "/marketplace/bundles",
-    storybookPath: "/marketplace/bundles",
-    title: "systems/marketplace/routes/Marketplace",
-    storyName: "BundlesMarketplace",
   },
   {
     system: "settings",
@@ -272,13 +272,6 @@ export const routeStoryRegistry = [
     storybookPath: "/marketplace/extensions?tab=installed",
     title: "systems/marketplace/routes/Marketplace",
     storyName: "ExtensionsInstalled",
-  },
-  {
-    system: "marketplace",
-    routePath: "/marketplace/bundles/activations/$id",
-    storybookPath: "/marketplace/bundles/activations/activation-ops-starter",
-    title: "systems/marketplace/routes/BundleActivationDetail",
-    storyName: "Current",
   },
   {
     system: "settings",

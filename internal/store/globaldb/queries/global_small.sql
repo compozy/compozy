@@ -14,9 +14,6 @@ ON CONFLICT(key) DO NOTHING;
 -- name: DeleteAppMetadata :exec
 DELETE FROM app_metadata WHERE key = sqlc.arg(key);
 
--- name: ListBundleActivationResourceSpecs :many
-SELECT spec_json FROM resource_records WHERE kind = sqlc.arg(kind);
-
 -- name: InsertPermissionLog :exec
 INSERT INTO permission_log (
   id, session_id, agent_name, action, resource, decision, policy_used, timestamp

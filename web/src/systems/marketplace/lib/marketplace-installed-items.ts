@@ -1,6 +1,5 @@
 import {
   extensionTrustFacts,
-  type BundleActivation,
   type ExtensionTrustFacts,
   type ExtensionTrustSource,
 } from "@/systems/extensions";
@@ -15,10 +14,6 @@ export interface MarketplaceInstalledItem {
   extensionEnabled?: boolean;
   /** Distribution truth for an installed extension; absent for every other kind. */
   extensionFacts?: ExtensionTrustFacts;
-  viaBundle?: string | null;
-  activationId?: string;
-  activationVersion?: number;
-  profileName?: string;
   scopeLabel?: string;
   mcpServer?: SettingsMCPServerEntry;
 }
@@ -38,7 +33,6 @@ interface InstalledItemsInput {
     listing: MarketplaceListing | null;
     updateAvailable: boolean;
   }[];
-  activations: readonly BundleActivation[];
   mcpServers: readonly SettingsMCPServerEntry[];
   listingBySlug: Map<string, MarketplaceListing>;
   listingByEntryId: Map<string, MarketplaceListing>;
@@ -66,10 +60,14 @@ function mergeMCPServers(
 }
 
 function buildInstalledItems(input: InstalledItemsInput): MarketplaceInstalledItem[] {
-  if (input.kind === "mcp") return buildInstalledMCPItems(input);
-  if (input.kind === "skill") return buildInstalledSkillItems(input);
-  if (input.kind === "extension") return buildInstalledExtensionItems(input);
-  return buildInstalledBundleItems(input);
+  switch (input.kind) {
+    case "extension":
+      return buildInstalledExtensionItems(input);
+    case "mcp":
+      return buildInstalledMCPItems(input);
+    case "skill":
+      return buildInstalledSkillItems(input);
+  }
 }
 
 function buildInstalledMCPItems(input: InstalledItemsInput): MarketplaceInstalledItem[] {
@@ -131,15 +129,8 @@ function buildInstalledMCPItems(input: InstalledItemsInput): MarketplaceInstalle
 }
 
 function buildInstalledSkillItems(input: InstalledItemsInput): MarketplaceInstalledItem[] {
-  const activationsById = new Map(
-    input.activations.map(activation => [activation.id, activation] as const)
-  );
   const items: MarketplaceInstalledItem[] = [];
   for (const skill of input.skills) {
-    const installedFromBundle = skill.provenance?.installed_from_bundle ?? null;
-    const bundleActivation = installedFromBundle
-      ? activationsById.get(installedFromBundle)
-      : undefined;
     const slug = skill.provenance?.slug?.trim();
     const listing =
       (slug ? input.listingBySlug.get(slug) : undefined) ??
@@ -169,20 +160,12 @@ function buildInstalledSkillItems(input: InstalledItemsInput): MarketplaceInstal
           version: skill.version,
           source: skill.source,
         };
-    const item: MarketplaceInstalledItem = {
-      entry,
-      skill,
-      viaBundle: bundleActivation
-        ? `${bundleActivation.bundle_name}/${bundleActivation.profile_name}`
-        : installedFromBundle,
-      activationId: bundleActivation?.id,
-    };
+    const item: MarketplaceInstalledItem = { entry, skill };
     if (
       matchesMarketplaceQuery(
         [
           item.entry.name,
           item.entry.description,
-          item.viaBundle,
           ...(Array.isArray(skill.metadata?.tags)
             ? skill.metadata.tags.filter((tag): tag is string => typeof tag === "string")
             : []),
@@ -229,61 +212,6 @@ function buildInstalledExtensionItems(input: InstalledItemsInput): MarketplaceIn
       extensionFacts: extensionTrustFacts(extension),
     };
     if (matchesMarketplaceQuery(marketplaceListingHaystack(installed.entry), input.query)) {
-      items.push(installed);
-    }
-  }
-  return items;
-}
-
-function buildInstalledBundleItems(input: InstalledItemsInput): MarketplaceInstalledItem[] {
-  const items: MarketplaceInstalledItem[] = [];
-  const listingByIdentity = new Map<string, MarketplaceListing>();
-  for (const entry of input.marketItems) {
-    listingByIdentity.set(`${entry.source}\u0000${entry.name}`, entry);
-  }
-  for (const activation of input.activations) {
-    const listing = listingByIdentity.get(
-      `${activation.extension_name}\u0000${activation.bundle_name}`
-    );
-    const entry: MarketplaceListing = listing
-      ? {
-          ...listing,
-          installed: true,
-          installed_name: activation.bundle_name,
-          update_available: activation.spec_drift === true,
-        }
-      : {
-          entry_id: activation.bundle_name,
-          kind: "bundle",
-          name: activation.bundle_name,
-          description: "",
-          installed: true,
-          installed_name: activation.bundle_name,
-          update_available: activation.spec_drift === true,
-          source: activation.extension_name,
-        };
-    const installed: MarketplaceInstalledItem = {
-      entry,
-      activationId: activation.id,
-      activationVersion: activation.version,
-      profileName: activation.profile_name,
-      scopeLabel: activation.workspace_id
-        ? `${activation.scope} · ${activation.workspace_id}`
-        : activation.scope,
-    };
-    if (
-      matchesMarketplaceQuery(
-        [
-          installed.entry.name,
-          installed.entry.description,
-          installed.profileName,
-          installed.scopeLabel,
-        ]
-          .filter(Boolean)
-          .join(" "),
-        input.query
-      )
-    ) {
       items.push(installed);
     }
   }

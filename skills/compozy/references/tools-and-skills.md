@@ -68,17 +68,17 @@ contract.
 
 ## Marketplace Discovery
 
-Use `compozy__marketplace_search` for read-only MCP, extension, skill, and bundle discovery. Results carry
+Use `compozy__marketplace_search` for read-only MCP, extension, and skill discovery. Results carry
 stable `entry_id` values and scoped installed state. CLI fallback:
-`compozy marketplace search [query] [--kind mcp|extension|skill|bundle] [--scope global|workspace]
+`compozy marketplace search [query] [--kind mcp|extension|skill] [--scope global|workspace]
 [--workspace <id>] [--cursor <opaque>] -o json`. Continuation requires one kind and unchanged query,
-scope, and workspace. Curated/bundle cursors fence the source; remote-skill cursors validate the prior
+scope, and workspace. Curated cursors fence the source; remote-skill cursors validate the prior
 page boundary; grouped search omits cursors. Restart from page one after rejection. Human/TOON output
 adds a Page block; JSONL adds a `type: "page"` record after items.
 
 Exact detail is `compozy marketplace info <kind> <entry_id> [--installed-name <name>]`; installed identity
-applies to MCPs, extensions, and skills, never bundles. Global is default; workspace requires an ID.
-Refresh with `compozy marketplace refresh [--kind]` or `POST /api/marketplace/refresh`; bundles are derived.
+applies to MCPs, extensions, and skills. Global is default; workspace requires an ID.
+Refresh with `compozy marketplace refresh [--kind]` or `POST /api/marketplace/refresh`.
 Read each kind's `stale`, `error_class`, and `error`: failed refreshes preserve the last good rows.
 Installed HTTP/UDS and structured CLI rows use `installed_name` for lifecycle mutations; `name` is
 feed-owned and `manage_path` is an opaque presentation path to follow, not reconstruct.
@@ -174,7 +174,7 @@ Resource files are load-bearing. A summary in SKILL.md is never a substitute for
 
 ## Skill Provenance And Shadows
 
-Every skill list/detail payload includes resolver provenance. `provenance.precedence_tier` names the winning tier, and installed-from metadata identifies bundle or extension ownership when present.
+Every skill list/detail payload includes resolver provenance. `provenance.precedence_tier` names the winning tier, and installed-from metadata identifies extension ownership when present.
 
 When multiple declarations use the same skill name, Compozy keeps the normal precedence order and records losing declarations as shadows. Use these surfaces before assuming which skill body is active:
 
@@ -183,7 +183,7 @@ When multiple declarations use the same skill name, Compozy keeps the normal pre
 
 The response shape is `SkillShadowsRecord` / `SkillShadowsResponse`: `winner` is the effective declaration, and each entry in `shadows` carries `path`, `tier`, `resolved_to_winner`, and `detected_at`. The winning entry is marked `resolved_to_winner: true`; lower-precedence declarations remain visible with `false`.
 
-Do not diagnose skill drift from filesystem paths alone. Use the resolver view so workspace, agent-local, bundled, marketplace, extension, and additional-path precedence are all considered.
+Do not diagnose skill drift from filesystem paths alone. Use the resolver view so workspace, agent-local, built-in, marketplace, extension, and additional-path precedence are all considered.
 
 Marketplace install can write files and still fail discovery verification when the effective skill is
 disabled, shadowed by a higher-precedence declaration, missing marketplace provenance, or reporting a

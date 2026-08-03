@@ -14,7 +14,10 @@ func (s *Session) Meta() store.SessionMeta {
 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	return s.metaLocked()
+}
 
+func (s *Session) metaLocked() store.SessionMeta {
 	profile := cloneCreationProfile(s.creationProfile)
 	creationOptions := cloneCreationOptions(s.creationOptions)
 	identity := cloneCreationIdentity(s.creationIdentity)

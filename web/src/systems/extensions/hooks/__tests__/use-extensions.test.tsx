@@ -4,8 +4,8 @@ import { createElement, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
-  bundleActivationFixtures,
   extensionFixtures,
+  extensionInventoryFixtures,
   extensionProvenanceFixtures,
 } from "../../mocks/fixtures";
 import { extensionKeys } from "../../lib/query-keys";
@@ -13,9 +13,8 @@ import type { ExtensionEntry } from "../../types";
 
 const mocks = vi.hoisted(() => ({
   activeWorkspaceId: null as string | null,
-  getBundleActivation: vi.fn(),
+  getExtensionInventory: vi.fn(),
   getExtensionProvenance: vi.fn(),
-  listBundleActivations: vi.fn(),
   listExtensions: vi.fn(),
   useMarketplaceKind: vi.fn(),
 }));
@@ -29,17 +28,15 @@ vi.mock("@/systems/marketplace", () => ({
 }));
 
 vi.mock("../../adapters/extensions-api", () => ({
-  getBundleActivation: mocks.getBundleActivation,
+  getExtensionInventory: mocks.getExtensionInventory,
   getExtensionProvenance: mocks.getExtensionProvenance,
-  listBundleActivations: mocks.listBundleActivations,
   listExtensions: mocks.listExtensions,
 }));
 
 import {
-  useBundleActivation,
-  useBundleActivations,
   useExtensionDetail,
   useExtensionInventory,
+  useExtensionKitInventory,
   useExtensionProvenance,
 } from "../use-extensions";
 
@@ -65,8 +62,11 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.activeWorkspaceId = null;
   mocks.listExtensions.mockResolvedValue(extensionFixtures);
-  mocks.listBundleActivations.mockResolvedValue(bundleActivationFixtures);
-  mocks.getBundleActivation.mockResolvedValue(bundleActivationFixtures[0]);
+  mocks.getExtensionInventory.mockResolvedValue({
+    enabled: false,
+    extension: "dep-kit-ops",
+    items: extensionInventoryFixtures["dep-kit-ops"],
+  });
   mocks.getExtensionProvenance.mockResolvedValue(extensionProvenanceFixtures["otel-bridge"]);
 });
 
@@ -86,6 +86,7 @@ describe("useExtensionInventory", () => {
     expect(result.current.data.map(item => [item.extension.name, item.updateAvailable])).toEqual([
       ["otel-bridge", true],
       ["slack-notify", false],
+      ["dep-kit-ops", false],
     ]);
     expect(result.current.data[0]?.listing?.description).toBe("Export session spans.");
     expect(mocks.useMarketplaceKind).not.toHaveBeenCalled();
@@ -125,6 +126,7 @@ describe("useExtensionInventory", () => {
     expect(result.current.data.map(item => [item.extension.name, item.updateAvailable])).toEqual([
       ["otel-bridge", true],
       ["slack-notify", false],
+      ["dep-kit-ops", false],
     ]);
     expect(result.current.data.every(item => item.listing === null)).toBe(true);
   });
@@ -168,17 +170,35 @@ describe("extension management queries", () => {
     expect(mocks.getExtensionProvenance).not.toHaveBeenCalled();
   });
 
-  it("Should load bundle inventory and direct activation detail with separate keys", async () => {
-    const inventory = renderHook(() => useBundleActivations(), { wrapper });
-    await waitFor(() => expect(inventory.result.current.isSuccess).toBe(true));
-    expect(inventory.result.current.data).toEqual(bundleActivationFixtures);
+  it("Should load the kit inventory under its own name-scoped key", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const inventoryWrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client }, children);
+    const inventory = renderHook(() => useExtensionKitInventory("dep-kit-ops"), {
+      wrapper: inventoryWrapper,
+    });
 
-    const detail = renderHook(() => useBundleActivation("activation-ops-starter"), { wrapper });
-    await waitFor(() => expect(detail.result.current.isSuccess).toBe(true));
-    expect(detail.result.current.data).toEqual(bundleActivationFixtures[0]);
-    expect(mocks.getBundleActivation).toHaveBeenCalledWith(
-      "activation-ops-starter",
+    await waitFor(() => expect(inventory.result.current.isSuccess).toBe(true));
+    const expectedInventory = {
+      enabled: false,
+      extension: "dep-kit-ops",
+      items: extensionInventoryFixtures["dep-kit-ops"],
+    };
+    expect(inventory.result.current.data).toEqual(expectedInventory);
+    expect(client.getQueryData(extensionKeys.inventory("dep-kit-ops"))).toEqual(expectedInventory);
+    expect(client.getQueryData(extensionKeys.inventory("otel-bridge"))).toBeUndefined();
+    expect(mocks.getExtensionInventory).toHaveBeenCalledWith(
+      "dep-kit-ops",
       expect.any(AbortSignal)
     );
+  });
+
+  it("Should keep the kit inventory disabled until the extension resolves", () => {
+    const { result } = renderHook(() => useExtensionKitInventory("dep-kit-ops", false), {
+      wrapper,
+    });
+
+    expect(result.current.fetchStatus).toBe("idle");
+    expect(mocks.getExtensionInventory).not.toHaveBeenCalled();
   });
 });

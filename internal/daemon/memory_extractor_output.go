@@ -20,6 +20,8 @@ import (
 	"github.com/compozy/compozy/internal/memory/prompts"
 )
 
+const memoryCandidateConfidence = "candidate"
+
 func renderMemoryExtractorPrompt(turn memcontract.TurnRecord) (string, error) {
 	tmpl, err := prompts.ParseTemplate(prompts.NameExtract, prompts.VersionV1)
 	if err != nil {
@@ -203,7 +205,7 @@ func candidateFromExtractedLine(
 			Provenance: &memcontract.Provenance{
 				SourceSessionIDs: []string{turn.SessionID},
 				SourceActor:      memcontract.OriginExtractor,
-				Confidence:       "candidate",
+				Confidence:       memoryCandidateConfidence,
 				CreatedAt:        submittedAt.UTC(),
 				UpdatedAt:        submittedAt.UTC(),
 			},

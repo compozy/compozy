@@ -120,7 +120,9 @@ func (c *unixSocketClient) MarketplaceInfo(
 	}
 	if trimmed := strings.TrimSpace(installedName); trimmed != "" {
 		switch trimmedKind {
-		case contract.MarketplaceKindMCP, contract.MarketplaceKindExtension, contract.MarketplaceKindSkill:
+		case string(contract.MarketplaceKindMCP),
+			string(contract.MarketplaceKindExtension),
+			string(contract.MarketplaceKindSkill):
 			values.Set("installed_name", trimmed)
 		default:
 			return MarketplaceEntryRecord{}, errors.New(

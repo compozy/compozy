@@ -21,10 +21,12 @@ import (
 	"github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/heartbeat"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/session"
 	skillspkg "github.com/compozy/compozy/internal/skills"
+	"github.com/compozy/compozy/internal/soul"
 	"github.com/compozy/compozy/internal/testutil"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
@@ -74,6 +76,22 @@ func TestAgentSkillPublicationAndBootRebuild(t *testing.T) {
 		if err != nil {
 			t.Fatalf("resources.NewStore(mcp) error = %v", err)
 		}
+		soulCodec, err := soul.NewResourceCodec()
+		if err != nil {
+			t.Fatalf("soul.NewResourceCodec() error = %v", err)
+		}
+		soulStore, err := resources.NewStore(kernel, soulCodec)
+		if err != nil {
+			t.Fatalf("resources.NewStore(soul) error = %v", err)
+		}
+		heartbeatCodec, err := heartbeat.NewResourceCodec()
+		if err != nil {
+			t.Fatalf("heartbeat.NewResourceCodec() error = %v", err)
+		}
+		heartbeatStore, err := resources.NewStore(kernel, heartbeatCodec)
+		if err != nil {
+			t.Fatalf("resources.NewStore(heartbeat) error = %v", err)
+		}
 
 		homePaths := agentSkillIntegrationHome(t)
 		workspaceRoot := agentSkillIntegrationWorkspace(t)
@@ -108,6 +126,8 @@ func TestAgentSkillPublicationAndBootRebuild(t *testing.T) {
 			skillspkg.WithLogger(discardLogger()),
 		)
 		initialMCPCatalog := newResourceCatalog(cloneDaemonMCPServer)
+		initialSoulCatalog := newResourceCatalog(cloneSoulResourceSpec)
+		initialHeartbeatCatalog := newResourceCatalog(cloneHeartbeatResourceSpec)
 		driver := newAgentSkillIntegrationDriver(
 			t,
 			kernel,
@@ -117,36 +137,39 @@ func TestAgentSkillPublicationAndBootRebuild(t *testing.T) {
 			initialAgentCatalog,
 			initialSkillRegistry,
 			initialMCPCatalog,
+			&agentSkillIntegrationSidecars{
+				soulCodec: soulCodec, soulCatalog: initialSoulCatalog,
+				heartbeatCodec: heartbeatCodec, heartbeatCatalog: initialHeartbeatCatalog,
+			},
 		)
 
-		syncer := newAgentSkillSourceSyncer(
-			kernel,
-			agentStore,
-			agentCodec,
-			newAgentProjector(initialAgentCatalog),
-			skillStore,
-			skillCodec,
-			newSkillProjector(initialSkillRegistry),
-			mcpStore,
-			mcpCodec,
-			agentSkillSyncActor(),
-			discardLogger(),
-			func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
+		syncer := newAgentSkillSourceSyncer(agentSkillSourceSyncerDeps{
+			raw: kernel, agentStore: agentStore, agentCodec: agentCodec,
+			agentProjector: newAgentProjector(initialAgentCatalog),
+			soulStore:      soulStore, soulCodec: soulCodec,
+			heartbeatStore: heartbeatStore, heartbeatCodec: heartbeatCodec,
+			skillStore: skillStore, skillCodec: skillCodec,
+			skillProjector: newSkillProjector(initialSkillRegistry),
+			mcpStore:       mcpStore, mcpCodec: mcpCodec,
+			actor: agentSkillSyncActor(), logger: discardLogger(),
+			trigger: func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
 				return driver.Trigger(ctx, kind, reason)
 			},
-			daemonAgentSkillDeclarationProvider(
-				homePaths,
-				db,
-				workspaceResolver,
-				initialSkillRegistry,
-				discardLogger(),
-			),
-			extensionAgentSkillDeclarationProvider(
-				extensionRegistry,
-				func() extensionRuntime { return runtime },
-				discardLogger(),
-			),
-		)
+			providers: []agentSkillDeclarationProvider{
+				daemonAgentSkillDeclarationProvider(
+					homePaths,
+					db,
+					workspaceResolver,
+					initialSkillRegistry,
+					discardLogger(),
+				),
+				extensionAgentSkillDeclarationProvider(
+					extensionRegistry,
+					func() extensionRuntime { return runtime },
+					discardLogger(),
+				),
+			},
+		})
 		if err := syncer.Sync(testutil.Context(t)); err != nil {
 			t.Fatalf("syncer.Sync() error = %v", err)
 		}
@@ -163,6 +186,14 @@ func TestAgentSkillPublicationAndBootRebuild(t *testing.T) {
 		if got, want := len(agents), 2; got != want {
 			t.Fatalf("len(agentStore.List()) = %d, want %d (%#v)", got, want, agents)
 		}
+		assertExtensionAgentSidecarOwnership(
+			t,
+			testutil.Context(t),
+			agents,
+			soulStore,
+			heartbeatStore,
+			extensionSnapshot.Info.Name,
+		)
 		skills, err := skillStore.List(
 			testutil.Context(t),
 			agentSkillSyncActor(),
@@ -195,6 +226,8 @@ func TestAgentSkillPublicationAndBootRebuild(t *testing.T) {
 			skillspkg.WithLogger(discardLogger()),
 		)
 		rebuiltMCPCatalog := newResourceCatalog(cloneDaemonMCPServer)
+		rebuiltSoulCatalog := newResourceCatalog(cloneSoulResourceSpec)
+		rebuiltHeartbeatCatalog := newResourceCatalog(cloneHeartbeatResourceSpec)
 		bootDriver := newAgentSkillIntegrationDriver(
 			t,
 			kernel,
@@ -204,6 +237,10 @@ func TestAgentSkillPublicationAndBootRebuild(t *testing.T) {
 			rebuiltAgentCatalog,
 			rebuiltSkillRegistry,
 			rebuiltMCPCatalog,
+			&agentSkillIntegrationSidecars{
+				soulCodec: soulCodec, soulCatalog: rebuiltSoulCatalog,
+				heartbeatCodec: heartbeatCodec, heartbeatCatalog: rebuiltHeartbeatCatalog,
+			},
 		)
 		if err := bootDriver.RunBoot(testutil.Context(t)); err != nil {
 			t.Fatalf("bootDriver.RunBoot() error = %v", err)
@@ -213,7 +250,9 @@ func TestAgentSkillPublicationAndBootRebuild(t *testing.T) {
 		if err != nil {
 			t.Fatalf("workspaceResolver.Resolve() error = %v", err)
 		}
-		agentCatalog := agentCatalogDependency(rebuiltAgentCatalog)
+		agentCatalog := agentCatalogDependency(rebuiltAgentCatalog, agentSidecarCatalogs{
+			soul: rebuiltSoulCatalog, heartbeat: rebuiltHeartbeatCatalog,
+		})
 		coder, err := agentCatalog.ResolveAgent("coder", &resolved)
 		if err != nil {
 			t.Fatalf("ResolveAgent(coder) error = %v", err)
@@ -230,6 +269,23 @@ func TestAgentSkillPublicationAndBootRebuild(t *testing.T) {
 		}
 		if !agentHasMCP(extAgent, "ext-agent-mcp") {
 			t.Fatalf("ResolveAgent(ext-agent).MCPServers = %#v, want ext-agent-mcp", extAgent.MCPServers)
+		}
+		artifacts, err := agentCatalog.ResolveAgentArtifacts("ext-agent", &resolved)
+		if err != nil {
+			t.Fatalf("ResolveAgentArtifacts(ext-agent) error = %v", err)
+		}
+		if !artifacts.PackageOwned || artifacts.SoulBody != "Write with extension context.\n" ||
+			artifacts.HeartbeatBody != "Check extension work.\n" {
+			t.Fatalf("ResolveAgentArtifacts(ext-agent) = %#v, want extension-owned sidecars", artifacts)
+		}
+		policy, ok, err := agentCatalog.ResolveHeartbeatPolicy(testutil.Context(t), heartbeat.AuthoringTarget{
+			AgentName: "ext-agent", WorkspaceID: resolved.ID, WorkspaceRoot: resolved.RootDir,
+		})
+		if err != nil {
+			t.Fatalf("ResolveHeartbeatPolicy(ext-agent) error = %v", err)
+		}
+		if !ok || policy.SourcePath != "agents/ext-agent/HEARTBEAT.md" {
+			t.Fatalf("ResolveHeartbeatPolicy(ext-agent) = %#v, %v", policy, ok)
 		}
 		resolved.Config.Providers["claude"] = compozyconfig.ProviderConfig{Command: "claude-acp"}
 		resolved.Config.Roles.Dream.Agent = "ext-agent"
@@ -270,6 +326,32 @@ func TestAgentSkillPublicationAndBootRebuild(t *testing.T) {
 			!mcpCatalogHas(rebuiltMCPCatalog, "ext-skill-mcp") {
 			t.Fatalf("rebuilt MCP catalog = %#v, want all agent/skill MCP attachments", rebuiltMCPCatalog.Snapshot())
 		}
+
+		if err := extensionRegistry.Disable(extensionSnapshot.Info.Name); err != nil {
+			t.Fatalf("extensionRegistry.Disable() error = %v", err)
+		}
+		if err := syncer.Sync(testutil.Context(t)); err != nil {
+			t.Fatalf("syncer.Sync(after disable) error = %v", err)
+		}
+		if err := bootDriver.RunBoot(testutil.Context(t)); err != nil {
+			t.Fatalf("bootDriver.RunBoot(after disable) error = %v", err)
+		}
+		owner := extensionOwner(extensionSnapshot.Info.Name)
+		for label, count := range map[string]int{
+			"agents":     countOwnedResourceRecords(t, testutil.Context(t), agentStore, owner),
+			"souls":      countOwnedResourceRecords(t, testutil.Context(t), soulStore, owner),
+			"heartbeats": countOwnedResourceRecords(t, testutil.Context(t), heartbeatStore, owner),
+		} {
+			if count != 0 {
+				t.Fatalf("owned %s after disable = %d, want 0", label, count)
+			}
+		}
+		if _, err := agentCatalog.ResolveAgent("ext-agent", &resolved); !errors.Is(
+			err,
+			workspacepkg.ErrAgentNotAvailable,
+		) {
+			t.Fatalf("ResolveAgent(ext-agent after disable) error = %v, want ErrAgentNotAvailable", err)
+		}
 	})
 }
 
@@ -309,11 +391,15 @@ func TestDevCycleBundledSkillPublicationAndBootRebuild(t *testing.T) {
 		if err != nil {
 			t.Fatalf("resources.NewStore(mcp) error = %v", err)
 		}
+		sidecarStores := newAgentSkillSourceSidecarStores(t, kernel)
 
 		homePaths := agentSkillIntegrationHome(t)
 		extensionRegistry := extensionpkg.NewRegistry(db.DB())
 		if err := devcycle.EnsureManagedInstall(homePaths, extensionRegistry); err != nil {
 			t.Fatalf("devcycle.EnsureManagedInstall() error = %v", err)
+		}
+		if err := extensionRegistry.Enable(devcycle.Name); err != nil {
+			t.Fatalf("extensionRegistry.Enable(%q) error = %v", devcycle.Name, err)
 		}
 		extensionSnapshot := agentSkillIntegrationDevCycleExtension(t, extensionRegistry)
 		runtime := &agentSkillIntegrationRuntime{extension: extensionSnapshot}
@@ -353,29 +439,28 @@ func TestDevCycleBundledSkillPublicationAndBootRebuild(t *testing.T) {
 			initialAgents,
 			initialSkills,
 			initialMCP,
+			nil,
 		)
-		syncer := newAgentSkillSourceSyncer(
-			kernel,
-			agentStore,
-			agentCodec,
-			newAgentProjector(initialAgents),
-			skillStore,
-			skillCodec,
-			newSkillProjector(initialSkills),
-			mcpStore,
-			mcpCodec,
-			agentSkillSyncActor(),
-			discardLogger(),
-			func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
+		syncer := newAgentSkillSourceSyncer(agentSkillSourceSyncerDeps{
+			raw: kernel, agentStore: agentStore, agentCodec: agentCodec,
+			agentProjector: newAgentProjector(initialAgents),
+			soulStore:      sidecarStores.soulStore, soulCodec: sidecarStores.soulCodec,
+			heartbeatStore: sidecarStores.heartbeatStore, heartbeatCodec: sidecarStores.heartbeatCodec,
+			skillStore: skillStore, skillCodec: skillCodec, skillProjector: newSkillProjector(initialSkills),
+			mcpStore: mcpStore, mcpCodec: mcpCodec,
+			actor: agentSkillSyncActor(), logger: discardLogger(),
+			trigger: func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
 				return initialDriver.Trigger(ctx, kind, reason)
 			},
-			daemonAgentSkillDeclarationProvider(homePaths, db, workspaceResolver, initialSkills, discardLogger()),
-			extensionAgentSkillDeclarationProvider(
-				extensionRegistry,
-				func() extensionRuntime { return runtime },
-				discardLogger(),
-			),
-		)
+			providers: []agentSkillDeclarationProvider{
+				daemonAgentSkillDeclarationProvider(homePaths, db, workspaceResolver, initialSkills, discardLogger()),
+				extensionAgentSkillDeclarationProvider(
+					extensionRegistry,
+					func() extensionRuntime { return runtime },
+					discardLogger(),
+				),
+			},
+		})
 		if err := syncer.Sync(ctx); err != nil {
 			t.Fatalf("syncer.Sync() error = %v", err)
 		}
@@ -413,6 +498,7 @@ func TestDevCycleBundledSkillPublicationAndBootRebuild(t *testing.T) {
 			newResourceCatalog(cloneAgentDef),
 			rebuiltSkills,
 			newResourceCatalog(cloneDaemonMCPServer),
+			nil,
 		)
 		if err := bootDriver.RunBoot(ctx); err != nil {
 			t.Fatalf("bootDriver.RunBoot() error = %v", err)
@@ -549,6 +635,7 @@ func TestAgentDefinitionMutationLifecycleIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("resources.NewStore(mcp) error = %v", err)
 		}
+		sidecarStores := newAgentSkillSourceSidecarStores(t, kernel)
 		homePaths := agentSkillIntegrationHome(t)
 		resolver, err := workspacepkg.NewResolver(
 			db,
@@ -573,24 +660,23 @@ func TestAgentDefinitionMutationLifecycleIntegration(t *testing.T) {
 			agentCatalog,
 			skillRegistry,
 			mcpCatalog,
+			nil,
 		)
-		syncer := newAgentSkillSourceSyncer(
-			kernel,
-			agentStore,
-			agentCodec,
-			newAgentProjector(agentCatalog),
-			skillStore,
-			skillCodec,
-			newSkillProjector(skillRegistry),
-			mcpStore,
-			mcpCodec,
-			agentSkillSyncActor(),
-			discardLogger(),
-			func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
+		syncer := newAgentSkillSourceSyncer(agentSkillSourceSyncerDeps{
+			raw: kernel, agentStore: agentStore, agentCodec: agentCodec,
+			agentProjector: newAgentProjector(agentCatalog),
+			soulStore:      sidecarStores.soulStore, soulCodec: sidecarStores.soulCodec,
+			heartbeatStore: sidecarStores.heartbeatStore, heartbeatCodec: sidecarStores.heartbeatCodec,
+			skillStore: skillStore, skillCodec: skillCodec, skillProjector: newSkillProjector(skillRegistry),
+			mcpStore: mcpStore, mcpCodec: mcpCodec,
+			actor: agentSkillSyncActor(), logger: discardLogger(),
+			trigger: func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
 				return driver.Trigger(ctx, kind, reason)
 			},
-			daemonAgentSkillDeclarationProvider(homePaths, db, resolver, skillRegistry, discardLogger()),
-		)
+			providers: []agentSkillDeclarationProvider{
+				daemonAgentSkillDeclarationProvider(homePaths, db, resolver, skillRegistry, discardLogger()),
+			},
+		})
 		catalog := agentCatalogDependency(agentCatalog)
 		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 			TransportName:       "agent-mutation-integration",
@@ -742,6 +828,7 @@ func TestAgentDefinitionMutationLifecycleIntegration(t *testing.T) {
 			rebuiltCatalog,
 			rebuiltSkills,
 			rebuiltMCP,
+			nil,
 		)
 		if err := bootDriver.RunBoot(ctx); err != nil {
 			t.Fatalf("bootDriver.RunBoot() error = %v", err)
@@ -788,6 +875,60 @@ type agentSkillIntegrationRuntime struct {
 	extension *extensionpkg.Extension
 }
 
+func assertExtensionAgentSidecarOwnership(
+	t *testing.T,
+	ctx context.Context,
+	agents []resources.Record[compozyconfig.AgentDef],
+	soulStore resources.Store[soul.ResourceSpec],
+	heartbeatStore resources.Store[heartbeat.ResourceSpec],
+	extensionName string,
+) {
+	t.Helper()
+	wantOwner := extensionOwner(extensionName).Normalize()
+	agentID := ""
+	for _, record := range agents {
+		if record.Owner.Normalize() == wantOwner {
+			agentID = record.ID
+			if record.Scope.Normalize().Kind != resources.ResourceScopeKindGlobal {
+				t.Fatalf("extension agent scope = %#v, want global", record.Scope)
+			}
+		}
+	}
+	if agentID == "" {
+		t.Fatalf("extension-owned agent not found in %#v", agents)
+	}
+	souls, err := soulStore.List(ctx, agentSkillSyncActor(), resources.ResourceFilter{Owner: &wantOwner})
+	if err != nil {
+		t.Fatalf("soulStore.List(extension owner) error = %v", err)
+	}
+	heartbeats, err := heartbeatStore.List(ctx, agentSkillSyncActor(), resources.ResourceFilter{Owner: &wantOwner})
+	if err != nil {
+		t.Fatalf("heartbeatStore.List(extension owner) error = %v", err)
+	}
+	if len(souls) != 1 || souls[0].Spec.AgentResourceID != agentID ||
+		souls[0].Spec.SourcePath != "agents/ext-agent/SOUL.md" {
+		t.Fatalf("extension soul records = %#v, want sidecar for %q", souls, agentID)
+	}
+	if len(heartbeats) != 1 || heartbeats[0].Spec.AgentResourceID != agentID ||
+		heartbeats[0].Spec.SourcePath != "agents/ext-agent/HEARTBEAT.md" {
+		t.Fatalf("extension heartbeat records = %#v, want sidecar for %q", heartbeats, agentID)
+	}
+}
+
+func countOwnedResourceRecords[T any](
+	t *testing.T,
+	ctx context.Context,
+	store resources.Store[T],
+	owner *resources.ResourceOwner,
+) int {
+	t.Helper()
+	records, err := store.List(ctx, agentSkillSyncActor(), resources.ResourceFilter{Owner: owner})
+	if err != nil {
+		t.Fatalf("store.List(extension owner) error = %v", err)
+	}
+	return len(records)
+}
+
 func (r *agentSkillIntegrationRuntime) Start(context.Context) error  { return nil }
 func (r *agentSkillIntegrationRuntime) Stop(context.Context) error   { return nil }
 func (r *agentSkillIntegrationRuntime) Reload(context.Context) error { return nil }
@@ -797,6 +938,16 @@ func (r *agentSkillIntegrationRuntime) Get(name string) (*extensionpkg.Extension
 		return nil, &extensionpkg.ExtensionNotFoundError{Name: name}
 	}
 	return r.extension, nil
+}
+
+func (r *agentSkillIntegrationRuntime) InspectPackageResources(
+	ctx context.Context,
+	name string,
+) (*extensionpkg.Extension, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return r.Get(name)
 }
 
 func (r *agentSkillIntegrationRuntime) HookDeclarations(context.Context) ([]hookspkg.HookDecl, error) {
@@ -812,6 +963,7 @@ func newAgentSkillIntegrationDriver(
 	agentCatalog *resourceCatalog[compozyconfig.AgentDef],
 	skillRegistry *skillspkg.Registry,
 	mcpCatalog *resourceCatalog[compozyconfig.MCPServer],
+	sidecars *agentSkillIntegrationSidecars,
 ) resources.ReconcileDriver {
 	t.Helper()
 
@@ -827,6 +979,29 @@ func newAgentSkillIntegrationDriver(
 	if err != nil {
 		t.Fatalf("resources.NewTypedProjectorRegistration(mcp) error = %v", err)
 	}
+	registrations := []resources.ProjectorRegistration{agentRegistration, skillRegistration, mcpRegistration}
+	if sidecars != nil {
+		if sidecars.soulCodec != nil && sidecars.soulCatalog != nil {
+			soulRegistration, registerErr := resources.NewTypedProjectorRegistration(
+				sidecars.soulCodec,
+				newSoulProjector(sidecars.soulCatalog),
+			)
+			if registerErr != nil {
+				t.Fatalf("resources.NewTypedProjectorRegistration(soul) error = %v", registerErr)
+			}
+			registrations = append(registrations, soulRegistration)
+		}
+		if sidecars.heartbeatCodec != nil && sidecars.heartbeatCatalog != nil {
+			heartbeatRegistration, registerErr := resources.NewTypedProjectorRegistration(
+				sidecars.heartbeatCodec,
+				newHeartbeatProjector(sidecars.heartbeatCatalog),
+			)
+			if registerErr != nil {
+				t.Fatalf("resources.NewTypedProjectorRegistration(heartbeat) error = %v", registerErr)
+			}
+			registrations = append(registrations, heartbeatRegistration)
+		}
+	}
 	driver, err := resources.NewReconcileDriver(
 		kernel,
 		resources.MutationActor{
@@ -838,7 +1013,7 @@ func newAgentSkillIntegrationDriver(
 			},
 			MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
 		},
-		[]resources.ProjectorRegistration{agentRegistration, skillRegistration, mcpRegistration},
+		registrations,
 		resources.WithReconcileLogger(discardLogger()),
 	)
 	if err != nil {
@@ -850,6 +1025,48 @@ func newAgentSkillIntegrationDriver(
 		}
 	})
 	return driver
+}
+
+type agentSkillIntegrationSidecars struct {
+	soulCodec        resources.KindCodec[soul.ResourceSpec]
+	soulCatalog      *resourceCatalog[soul.ResourceSpec]
+	heartbeatCodec   resources.KindCodec[heartbeat.ResourceSpec]
+	heartbeatCatalog *resourceCatalog[heartbeat.ResourceSpec]
+}
+
+type agentSkillSourceSidecarStores struct {
+	soulStore      resources.Store[soul.ResourceSpec]
+	soulCodec      resources.KindCodec[soul.ResourceSpec]
+	heartbeatStore resources.Store[heartbeat.ResourceSpec]
+	heartbeatCodec resources.KindCodec[heartbeat.ResourceSpec]
+}
+
+func newAgentSkillSourceSidecarStores(
+	t *testing.T,
+	kernel resources.RawStore,
+) agentSkillSourceSidecarStores {
+	t.Helper()
+
+	soulCodec, err := soul.NewResourceCodec()
+	if err != nil {
+		t.Fatalf("soul.NewResourceCodec() error = %v", err)
+	}
+	soulStore, err := resources.NewStore(kernel, soulCodec)
+	if err != nil {
+		t.Fatalf("resources.NewStore(soul) error = %v", err)
+	}
+	heartbeatCodec, err := heartbeat.NewResourceCodec()
+	if err != nil {
+		t.Fatalf("heartbeat.NewResourceCodec() error = %v", err)
+	}
+	heartbeatStore, err := resources.NewStore(kernel, heartbeatCodec)
+	if err != nil {
+		t.Fatalf("resources.NewStore(heartbeat) error = %v", err)
+	}
+	return agentSkillSourceSidecarStores{
+		soulStore: soulStore, soulCodec: soulCodec,
+		heartbeatStore: heartbeatStore, heartbeatCodec: heartbeatCodec,
+	}
 }
 
 func agentSkillIntegrationHome(t *testing.T) compozyconfig.HomePaths {
@@ -938,7 +1155,7 @@ min_compozy_version = "0.5.0"
 skills = ["skills/"]
 agents = ["agents/"]
 `)
-	agentPath := filepath.Join(dir, "agents", "ext-agent.md")
+	agentPath := filepath.Join(dir, "agents", "ext-agent", "AGENT.md")
 	writeAgentSkillIntegrationFile(t, agentPath, `---
 name: ext-agent
 provider: claude
@@ -949,6 +1166,16 @@ mcp_servers:
 
 Use extension-provided context.
 `)
+	writeAgentSkillIntegrationFile(
+		t,
+		filepath.Join(dir, "agents", "ext-agent", soul.FileName),
+		"Write with extension context.\n",
+	)
+	writeAgentSkillIntegrationFile(
+		t,
+		filepath.Join(dir, "agents", "ext-agent", heartbeat.FileName),
+		"Check extension work.\n",
+	)
 	skillPath := filepath.Join(dir, "skills", "ext-skill.md")
 	writeAgentSkillIntegrationFile(t, skillPath, `---
 name: ext-skill
@@ -980,20 +1207,25 @@ Use extension skill context.
 	if err != nil {
 		t.Fatalf("registry.Get(%q) error = %v", manifest.Name, err)
 	}
-	agent, err := compozyconfig.LoadAgentDefFile(agentPath)
+	staticAgents, err := extensionpkg.LoadAgentResources(dir, manifest.Resources.Agents)
 	if err != nil {
-		t.Fatalf("compozyconfig.LoadAgentDefFile(%q) error = %v", agentPath, err)
+		t.Fatalf("extensionpkg.LoadAgentResources(%q) error = %v", dir, err)
+	}
+	agents := make([]compozyconfig.AgentDef, 0, len(staticAgents))
+	for _, staticAgent := range staticAgents {
+		agents = append(agents, compozyconfig.CloneAgentDef(staticAgent.Agent))
 	}
 	skill, err := skillspkg.ParseSkillFileWithSource(skillPath, skillspkg.SourceUser)
 	if err != nil {
 		t.Fatalf("skillspkg.ParseSkillFileWithSource(%q) error = %v", skillPath, err)
 	}
 	return &extensionpkg.Extension{
-		Info:     *info,
-		Manifest: manifest,
-		RootDir:  dir,
-		Agents:   []compozyconfig.AgentDef{agent},
-		Skills:   []*skillspkg.Skill{skill},
+		Info:         *info,
+		Manifest:     manifest,
+		RootDir:      dir,
+		Agents:       agents,
+		StaticAgents: staticAgents,
+		Skills:       []*skillspkg.Skill{skill},
 		Status: extensionpkg.ExtensionStatus{
 			Name:       info.Name,
 			Version:    info.Version,
@@ -1019,9 +1251,13 @@ func agentSkillIntegrationDevCycleExtension(
 	if err != nil {
 		t.Fatalf("extensionpkg.LoadManifest(%q) error = %v", rootDir, err)
 	}
-	agents, err := extensionpkg.LoadAgentResources(rootDir, manifest)
+	staticAgents, err := extensionpkg.LoadAgentResources(rootDir, manifest.Resources.Agents)
 	if err != nil {
 		t.Fatalf("extensionpkg.LoadAgentResources(%q) error = %v", rootDir, err)
+	}
+	agents := make([]compozyconfig.AgentDef, 0, len(staticAgents))
+	for _, staticAgent := range staticAgents {
+		agents = append(agents, compozyconfig.CloneAgentDef(staticAgent.Agent))
 	}
 	skills := make([]*skillspkg.Skill, 0, len(devCycleIntegrationSkillNames))
 	for _, resourcePath := range manifest.Resources.Skills {
@@ -1051,11 +1287,12 @@ func agentSkillIntegrationDevCycleExtension(
 		t.Fatalf("loaded dev-cycle skills = %d, want %d", len(skills), len(devCycleIntegrationSkillNames))
 	}
 	return &extensionpkg.Extension{
-		Info:     *info,
-		Manifest: manifest,
-		RootDir:  rootDir,
-		Agents:   agents,
-		Skills:   skills,
+		Info:         *info,
+		Manifest:     manifest,
+		RootDir:      rootDir,
+		Agents:       agents,
+		StaticAgents: staticAgents,
+		Skills:       skills,
 		Status: extensionpkg.ExtensionStatus{
 			Name:       info.Name,
 			Version:    info.Version,

@@ -46,6 +46,15 @@ type extensionSearchPageRecord struct {
 	SourcesDegraded []string `json:"sources_degraded,omitempty"`
 }
 
+type extensionUpdateOptions struct {
+	Names                []string
+	All                  bool
+	CheckOnly            bool
+	Version              string
+	AllowUnverified      bool
+	ConfirmNetworkDigest string
+}
+
 func searchExtensionsPage(
 	ctx context.Context,
 	deps commandDeps,
@@ -75,25 +84,32 @@ func searchExtensionsPage(
 func updateMarketplaceExtensions(
 	ctx context.Context,
 	deps commandDeps,
-	args []string,
-	updateAll bool,
-	checkOnly bool,
-	version string,
-	allowUnverified bool,
+	options extensionUpdateOptions,
 ) ([]extensionUpdateItem, error) {
 	client, err := requireExtensionDaemonClient(ctx, deps)
 	if err != nil {
 		return nil, err
 	}
-	names := make([]string, 0, len(args))
-	for _, name := range args {
+	names := make([]string, 0, len(options.Names))
+	for _, name := range options.Names {
 		if name = strings.TrimSpace(name); name != "" {
 			names = append(names, name)
 		}
 	}
+	if !options.All && len(names) == 1 {
+		item, err := client.UpdateExtension(ctx, names[0], UpdateExtensionRequest{
+			Version: strings.TrimSpace(options.Version), CheckOnly: options.CheckOnly,
+			AllowUnverified:      options.AllowUnverified && !options.CheckOnly,
+			ConfirmNetworkDigest: strings.TrimSpace(options.ConfirmNetworkDigest),
+		})
+		if err != nil {
+			return nil, err
+		}
+		return []extensionUpdateItem{item}, nil
+	}
 	items, err := client.UpdateExtensions(ctx, UpdateExtensionsRequest{
-		Names: names, All: updateAll, Version: strings.TrimSpace(version), CheckOnly: checkOnly,
-		AllowUnverified: allowUnverified && !checkOnly,
+		Names: names, All: options.All, Version: strings.TrimSpace(options.Version), CheckOnly: options.CheckOnly,
+		AllowUnverified: options.AllowUnverified && !options.CheckOnly,
 	})
 	if err != nil {
 		return nil, err

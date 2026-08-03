@@ -129,6 +129,17 @@ func TestToolMCPStaticPublicationAndBootRebuild(t *testing.T) {
 		if got, want := tools[0].Spec.Source.Kind, toolspkg.ToolSourceExtension; got != want {
 			t.Fatalf("tools[0].Spec.Source.Kind = %q, want %q", got, want)
 		}
+		extensionResourceOwner := extensionOwner(manifest.Name).Normalize()
+		publicationSource := toolMCPSyncActor().Source.Normalize()
+		if got, want := tools[0].ID, "extension/"+manifest.Name+"/tool/"+tools[0].Spec.ID.String(); got != want {
+			t.Fatalf("tools[0].ID = %q, want source-key ID %q", got, want)
+		}
+		if got, want := tools[0].Owner.Normalize(), extensionResourceOwner; got != want {
+			t.Fatalf("tools[0].Owner = %#v, want extension owner %#v", got, want)
+		}
+		if got, want := tools[0].Source.Normalize(), publicationSource; got != want {
+			t.Fatalf("tools[0].Source = %#v, want daemon source %#v", got, want)
+		}
 
 		servers, err := mcpStore.List(
 			testutil.Context(t),
@@ -140,6 +151,38 @@ func TestToolMCPStaticPublicationAndBootRebuild(t *testing.T) {
 		}
 		if got, want := len(servers), 2; got != want {
 			t.Fatalf("len(mcpStore.List()) = %d, want %d", got, want)
+		}
+		extensionServer := requireMCPServerRecord(t, servers, "kubectl")
+		if got, want := extensionServer.ID, "extension/"+manifest.Name+"/mcp_server/kubectl"; got != want {
+			t.Fatalf("extension MCP ID = %q, want source-key ID %q", got, want)
+		}
+		if got, want := extensionServer.Owner.Normalize(), extensionResourceOwner; got != want {
+			t.Fatalf("extension MCP owner = %#v, want %#v", got, want)
+		}
+		if got, want := extensionServer.Source.Normalize(), publicationSource; got != want {
+			t.Fatalf("extension MCP source = %#v, want %#v", got, want)
+		}
+
+		configServer := requireMCPServerRecord(t, servers, "git")
+		configEncoded, err := mcpCodec.Encode(configServer.Spec)
+		if err != nil {
+			t.Fatalf("mcpCodec.Encode(config server) error = %v", err)
+		}
+		configSourceKey := "config/global/git"
+		wantConfigID := contentAddressedManagedPublicationID(
+			mcpServerManagedIDPrefix,
+			resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			configSourceKey,
+			configEncoded,
+		)
+		if got := configServer.ID; got != wantConfigID || got == configSourceKey {
+			t.Fatalf("config MCP ID = %q, want stable content-addressed ID %q", got, wantConfigID)
+		}
+		if got, want := configServer.Owner.Normalize(), managedDraftOwner(toolMCPSyncActor(), nil); got != want {
+			t.Fatalf("config MCP owner = %#v, want daemon owner %#v", got, want)
+		}
+		if got, want := configServer.Source.Normalize(), publicationSource; got != want {
+			t.Fatalf("config MCP source = %#v, want daemon source %#v", got, want)
 		}
 
 		candidateConfig := compozyconfig.Config{
@@ -270,13 +313,13 @@ func TestToolMCPStaticPublicationExtensionLifecycle(t *testing.T) {
 		if err := registry.Disable(manifest.Name); err != nil {
 			t.Fatalf("registry.Disable() error = %v", err)
 		}
-		syncAndAssertToolMCPStoreCounts(t, syncer, toolStore, mcpStore, 1, 0)
+		syncAndAssertToolMCPStoreCounts(t, syncer, toolStore, mcpStore, 0, 0)
 
 		if err := registry.Enable(manifest.Name); err != nil {
 			t.Fatalf("registry.Enable() error = %v", err)
 		}
 		runtime.extension.Status.Registered = false
-		syncAndAssertToolMCPStoreCounts(t, syncer, toolStore, mcpStore, 1, 0)
+		syncAndAssertToolMCPStoreCounts(t, syncer, toolStore, mcpStore, 0, 0)
 
 		runtime.extension.Status.Registered = true
 		runtime.extension.Status.Healthy = false
@@ -294,6 +337,8 @@ type toolMCPIntegrationRuntime struct {
 	extension *extensionpkg.Extension
 }
 
+var _ extensionRuntime = (*toolMCPIntegrationRuntime)(nil)
+
 func (r *toolMCPIntegrationRuntime) Start(context.Context) error  { return nil }
 func (r *toolMCPIntegrationRuntime) Stop(context.Context) error   { return nil }
 func (r *toolMCPIntegrationRuntime) Reload(context.Context) error { return nil }
@@ -307,6 +352,13 @@ func (r *toolMCPIntegrationRuntime) Get(name string) (*extensionpkg.Extension, e
 
 func (r *toolMCPIntegrationRuntime) HookDeclarations(context.Context) ([]hookspkg.HookDecl, error) {
 	return nil, nil
+}
+
+func (r *toolMCPIntegrationRuntime) InspectPackageResources(
+	_ context.Context,
+	name string,
+) (*extensionpkg.Extension, error) {
+	return r.Get(name)
 }
 
 func newToolMCPIntegrationDriver(
@@ -405,4 +457,20 @@ func mcpServerNames(records []resources.Record[compozyconfig.MCPServer]) []strin
 	}
 	slices.Sort(names)
 	return names
+}
+
+func requireMCPServerRecord(
+	t *testing.T,
+	records []resources.Record[compozyconfig.MCPServer],
+	name string,
+) resources.Record[compozyconfig.MCPServer] {
+	t.Helper()
+
+	for _, record := range records {
+		if record.Spec.Name == name {
+			return record
+		}
+	}
+	t.Fatalf("MCP server %q not found in persisted records", name)
+	return resources.Record[compozyconfig.MCPServer]{}
 }

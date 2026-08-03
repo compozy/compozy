@@ -3,7 +3,6 @@ import { HttpResponse, type HttpHandler } from "msw";
 import { compozyApiMock } from "@/storybook/openapi-msw";
 
 import {
-  marketplaceBundlePreviewFixture,
   marketplaceDetails,
   marketplaceKindFixture,
   marketplaceListings,
@@ -72,12 +71,6 @@ export const handlers: HttpHandler[] = [
     const items = fixture.items.filter(item => matchesQuery(item.name, item.description, query));
     return HttpResponse.json({ ...fixture, items, total: items.length });
   }),
-  compozyApiMock.post("/api/bundles/preview", () =>
-    HttpResponse.json(marketplaceBundlePreviewFixture)
-  ),
-  compozyApiMock.post("/api/bundles/activations", () =>
-    HttpResponse.json(marketplaceBundlePreviewFixture, { status: 201 })
-  ),
   compozyApiMock.post("/api/settings/mcp-servers/install", async ({ request }) => {
     const body = (await request.json()) as { entry_id?: string; name?: string; scope?: string };
     const remote = body.entry_id === "linear";

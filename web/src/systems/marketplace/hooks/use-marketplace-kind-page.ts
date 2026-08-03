@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 
-import { useBundleActivations, useExtensionInventory } from "@/systems/extensions";
+import { useExtensionInventory } from "@/systems/extensions";
 import {
   SETTINGS_QUERY_INTERVALS,
   useSettingsMCPServers,
@@ -84,7 +84,6 @@ function useMarketplaceKindPage(
 
   const skillsQuery = useSkills(activeWorkspaceId ?? "");
   const extensionsQuery = useExtensionInventory();
-  const bundlesQuery = useBundleActivations();
   const mcpPollInterval = SETTINGS_QUERY_INTERVALS.collectionRefetchInterval;
   const mcpGlobalQuery = useSettingsMCPServers(
     { scope: "global" },
@@ -193,7 +192,6 @@ function useMarketplaceKindPage(
     marketItems,
     skills: skillsQuery.data ?? [],
     extensions: extensionsQuery.data ?? [],
-    activations: bundlesQuery.data ?? [],
     mcpServers,
     listingBySlug,
     listingByEntryId,
@@ -205,7 +203,6 @@ function useMarketplaceKindPage(
         marketItems,
         skills: skillsQuery.data ?? [],
         extensions: extensionsQuery.data ?? [],
-        activations: bundlesQuery.data ?? [],
         mcpServers,
         listingBySlug,
         listingByEntryId,
@@ -222,17 +219,11 @@ function useMarketplaceKindPage(
 
   const marketEntries = scope === "market" ? marketItems : [];
 
-  const inventoryLoading =
-    kind === "skill"
-      ? skillsQuery.isLoading
-      : kind === "extension"
-        ? extensionsQuery.isLoading
-        : kind === "bundle"
-          ? bundlesQuery.isLoading
-          : kind === "mcp"
-            ? mcpGlobalQuery.isLoading ||
-              (Boolean(activeWorkspaceId) && mcpWorkspaceQuery.isLoading)
-            : false;
+  const inventoryLoadingByKind = {
+    extension: extensionsQuery.isLoading,
+    mcp: mcpGlobalQuery.isLoading || (Boolean(activeWorkspaceId) && mcpWorkspaceQuery.isLoading),
+    skill: skillsQuery.isLoading,
+  } satisfies Record<MarketplaceKind, boolean>;
 
   const marketplaceContinuationError = marketQuery.isFetchNextPageError
     ? (marketQuery.error ?? new Error("The next marketplace page could not be loaded."))
@@ -245,17 +236,12 @@ function useMarketplaceKindPage(
   const isLoading =
     scope === "market"
       ? marketQuery.isLoading
-      : marketQuery.isLoading || inventoryLoading || installedCatalogLoading;
-  const inventoryError =
-    kind === "skill"
-      ? (skillsQuery.error ?? null)
-      : kind === "extension"
-        ? (extensionsQuery.error ?? null)
-        : kind === "bundle"
-          ? (bundlesQuery.error ?? null)
-          : kind === "mcp"
-            ? (mcpGlobalQuery.error ?? mcpWorkspaceQuery.error ?? null)
-            : null;
+      : marketQuery.isLoading || inventoryLoadingByKind[kind] || installedCatalogLoading;
+  const inventoryErrorByKind = {
+    extension: extensionsQuery.error ?? null,
+    mcp: mcpGlobalQuery.error ?? mcpWorkspaceQuery.error ?? null,
+    skill: skillsQuery.error ?? null,
+  } satisfies Record<MarketplaceKind, Error | null>;
   const marketError = marketplaceContinuationError ? null : marketQuery.error;
 
   return {
@@ -292,7 +278,7 @@ function useMarketplaceKindPage(
     error:
       (scope === "market"
         ? marketError
-        : (marketplaceContinuationError ?? inventoryError ?? marketError)) ?? null,
+        : (marketplaceContinuationError ?? inventoryErrorByKind[kind] ?? marketError)) ?? null,
     refetch: () => {
       if (scope === "installed" && marketplaceContinuationError) {
         void marketQuery.fetchNextPage();
@@ -301,7 +287,6 @@ function useMarketplaceKindPage(
       void marketQuery.refetch();
       if (kind === "skill") void skillsQuery.refetch();
       if (kind === "extension") void extensionsQuery.refetch();
-      if (kind === "bundle") void bundlesQuery.refetch();
       if (kind === "mcp") {
         void mcpGlobalQuery.refetch();
         if (activeWorkspaceId) void mcpWorkspaceQuery.refetch();

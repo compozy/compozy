@@ -58,7 +58,6 @@ type Server struct {
 	loops              core.LoopService
 	bridges            core.BridgeService
 	notifications      core.NotificationPresetService
-	bundles            core.BundleService
 	supportBundles     core.SupportBundleService
 	tools              core.ToolRegistry
 	toolArtifacts      toolspkg.ToolArtifactStore
@@ -132,13 +131,6 @@ func WithBridgeService(bridges core.BridgeService) Option {
 func WithNotificationPresetService(service core.NotificationPresetService) Option {
 	return func(server *Server) {
 		server.notifications = service
-	}
-}
-
-// WithBundleService injects the daemon-owned bundle runtime.
-func WithBundleService(service core.BundleService) Option {
-	return func(server *Server) {
-		server.bundles = service
 	}
 }
 

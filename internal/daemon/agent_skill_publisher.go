@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"errors"
 
 	"fmt"
 	"log/slog"
@@ -11,7 +12,9 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 
+	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/soul"
 
 	skillspkg "github.com/compozy/compozy/internal/skills"
 
@@ -29,68 +32,107 @@ func (d *Daemon) newAgentSkillPublisher(
 	if state.resourceKernel == nil || state.resourceCodecs == nil {
 		return publisher, nil
 	}
-
-	agentCodec, err := resources.ResolveCodec[compozyconfig.AgentDef](
-		state.resourceCodecs,
-		compozyconfig.AgentResourceKind,
-	)
+	resolved, err := resolveAgentSkillPublisherResources(state)
 	if err != nil {
-		return nil, fmt.Errorf("daemon: resolve agent codec: %w", err)
-	}
-	agentStore, err := resources.NewStore(state.resourceKernel, agentCodec)
-	if err != nil {
-		return nil, fmt.Errorf("daemon: create agent store: %w", err)
-	}
-	skillCodec, err := resources.ResolveCodec[skillspkg.SkillResourceSpec](
-		state.resourceCodecs,
-		skillspkg.SkillResourceKind,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("daemon: resolve skill codec: %w", err)
-	}
-	skillStore, err := resources.NewStore(state.resourceKernel, skillCodec)
-	if err != nil {
-		return nil, fmt.Errorf("daemon: create skill store: %w", err)
-	}
-	mcpCodec, err := resources.ResolveCodec[compozyconfig.MCPServer](
-		state.resourceCodecs,
-		compozyconfig.MCPServerResourceKind,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("daemon: resolve mcp server codec for agent/skill sync: %w", err)
-	}
-	mcpStore, err := resources.NewStore(state.resourceKernel, mcpCodec)
-	if err != nil {
-		return nil, fmt.Errorf("daemon: create mcp server store for agent/skill sync: %w", err)
+		return nil, err
 	}
 
-	return newAgentSkillSourceSyncer(
-		state.resourceKernel,
-		agentStore,
-		agentCodec,
-		newAgentProjector(state.agentCatalog),
-		skillStore,
-		skillCodec,
-		newSkillProjector(state.skillsRegistry),
-		mcpStore,
-		mcpCodec,
-		agentSkillSyncActor(),
-		state.logger,
-		func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
+	syncer := newAgentSkillSourceSyncer(agentSkillSourceSyncerDeps{
+		raw:            state.resourceKernel,
+		agentStore:     resolved.agentStore,
+		agentCodec:     resolved.agentCodec,
+		agentProjector: newAgentProjector(state.agentCatalog),
+		soulStore:      resolved.soulStore,
+		soulCodec:      resolved.soulCodec,
+		heartbeatStore: resolved.heartbeatStore,
+		heartbeatCodec: resolved.heartbeatCodec,
+		skillStore:     resolved.skillStore,
+		skillCodec:     resolved.skillCodec,
+		skillProjector: newSkillProjector(state.skillsRegistry),
+		mcpStore:       resolved.mcpStore,
+		mcpCodec:       resolved.mcpCodec,
+		actor:          agentSkillSyncActor(),
+		logger:         state.logger,
+		trigger: func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
 			if state.resourceReconcile == nil {
 				return nil
 			}
 			return state.resourceReconcile.Trigger(ctx, kind, reason)
 		},
-		daemonAgentSkillDeclarationProvider(
-			d.homePaths,
-			state.registry,
-			state.workspaceResolver,
-			state.skillsRegistry,
-			state.logger,
-		),
-		extensionAgentSkillDeclarationProvider(registry, state.currentExtensionRuntime, state.logger),
-	), nil
+		providers: []agentSkillDeclarationProvider{
+			daemonAgentSkillDeclarationProvider(
+				d.homePaths,
+				state.registry,
+				state.workspaceResolver,
+				state.skillsRegistry,
+				state.logger,
+			),
+			extensionAgentSkillDeclarationProvider(registry, state.currentExtensionRuntime, state.logger),
+		},
+	})
+	if syncer == nil {
+		return nil, errors.New("daemon: create agent/skill source syncer")
+	}
+	return syncer, nil
+}
+
+type agentSkillPublisherResources struct {
+	agentCodec     resources.KindCodec[compozyconfig.AgentDef]
+	agentStore     resources.Store[compozyconfig.AgentDef]
+	skillCodec     resources.KindCodec[skillspkg.SkillResourceSpec]
+	skillStore     resources.Store[skillspkg.SkillResourceSpec]
+	mcpCodec       resources.KindCodec[compozyconfig.MCPServer]
+	mcpStore       resources.Store[compozyconfig.MCPServer]
+	soulCodec      resources.KindCodec[soul.ResourceSpec]
+	soulStore      resources.Store[soul.ResourceSpec]
+	heartbeatCodec resources.KindCodec[heartbeat.ResourceSpec]
+	heartbeatStore resources.Store[heartbeat.ResourceSpec]
+}
+
+func resolveAgentSkillPublisherResources(state *bootState) (agentSkillPublisherResources, error) {
+	var resolved agentSkillPublisherResources
+	var err error
+	resolved.agentCodec, resolved.agentStore, err = resolveDaemonResourceStore[compozyconfig.AgentDef](
+		state,
+		compozyconfig.AgentResourceKind,
+		"agent",
+	)
+	if err != nil {
+		return agentSkillPublisherResources{}, err
+	}
+	resolved.skillCodec, resolved.skillStore, err = resolveDaemonResourceStore[skillspkg.SkillResourceSpec](
+		state,
+		skillspkg.SkillResourceKind,
+		"skill",
+	)
+	if err != nil {
+		return agentSkillPublisherResources{}, err
+	}
+	resolved.mcpCodec, resolved.mcpStore, err = resolveDaemonResourceStore[compozyconfig.MCPServer](
+		state,
+		compozyconfig.MCPServerResourceKind,
+		"mcp server",
+	)
+	if err != nil {
+		return agentSkillPublisherResources{}, err
+	}
+	resolved.soulCodec, resolved.soulStore, err = resolveDaemonResourceStore[soul.ResourceSpec](
+		state,
+		soul.ResourceKind,
+		"extension soul",
+	)
+	if err != nil {
+		return agentSkillPublisherResources{}, err
+	}
+	resolved.heartbeatCodec, resolved.heartbeatStore, err = resolveDaemonResourceStore[heartbeat.ResourceSpec](
+		state,
+		heartbeat.ResourceKind,
+		"extension heartbeat",
+	)
+	if err != nil {
+		return agentSkillPublisherResources{}, err
+	}
+	return resolved, nil
 }
 
 func daemonAgentSkillDeclarationProvider(
@@ -100,26 +142,26 @@ func daemonAgentSkillDeclarationProvider(
 	skillsRegistry *skillspkg.Registry,
 	logger *slog.Logger,
 ) agentSkillDeclarationProvider {
-	return func(ctx context.Context) (agentSkillDesiredResources, error) {
-		desired := agentSkillDesiredResources{}
+	return func(ctx context.Context) (agentSkillDeclarations, error) {
+		desired := agentSkillDeclarations{}
 		globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
 		globalAgents, err := compozyconfig.LoadWorkspaceAgentDefs("", nil, homePaths)
 		if err != nil {
-			return agentSkillDesiredResources{}, fmt.Errorf("daemon: discover global agents: %w", err)
+			return agentSkillDeclarations{}, fmt.Errorf("daemon: discover global agents: %w", err)
 		}
 		appendAgentResources(&desired, globalScope, "config/global", globalAgents)
 
 		if skillsRegistry != nil {
 			globalSkills, _, err := skillsRegistry.DiscoverGlobal(ctx)
 			if err != nil {
-				return agentSkillDesiredResources{}, fmt.Errorf("daemon: discover global skills: %w", err)
+				return agentSkillDeclarations{}, fmt.Errorf("daemon: discover global skills: %w", err)
 			}
-			appendSkillResources(&desired, globalScope, "skills/global", globalSkills)
+			appendSkillResources(&desired, globalScope, skillPublicationSource{prefix: "skills/global"}, globalSkills)
 		}
 
 		workspaces, err := registeredWorkspaces(ctx, registry, workspaceResolver, logger)
 		if err != nil {
-			return agentSkillDesiredResources{}, err
+			return agentSkillDeclarations{}, err
 		}
 		for idx := range workspaces {
 			resolved := &workspaces[idx]
@@ -133,13 +175,18 @@ func daemonAgentSkillDeclarationProvider(
 			}
 			workspaceSkills, _, err := skillsRegistry.DiscoverWorkspace(ctx, resolved)
 			if err != nil {
-				return agentSkillDesiredResources{}, fmt.Errorf(
+				return agentSkillDeclarations{}, fmt.Errorf(
 					"daemon: discover workspace %q skills: %w",
 					scope.ID,
 					err,
 				)
 			}
-			appendSkillResources(&desired, scope, "skills/workspace/"+scope.ID, workspaceSkills)
+			appendSkillResources(
+				&desired,
+				scope,
+				skillPublicationSource{prefix: "skills/workspace/" + scope.ID},
+				workspaceSkills,
+			)
 		}
 
 		return desired, nil
@@ -151,32 +198,35 @@ func extensionAgentSkillDeclarationProvider(
 	runtime func() extensionRuntime,
 	logger *slog.Logger,
 ) agentSkillDeclarationProvider {
-	return func(ctx context.Context) (agentSkillDesiredResources, error) {
+	return func(ctx context.Context) (agentSkillDeclarations, error) {
+		if err := ctx.Err(); err != nil {
+			return agentSkillDeclarations{}, err
+		}
 		if registry == nil || runtime == nil {
-			return agentSkillDesiredResources{}, nil
+			return agentSkillDeclarations{}, nil
 		}
 		manager := runtime()
 		if manager == nil {
-			return agentSkillDesiredResources{}, nil
+			return agentSkillDeclarations{}, nil
 		}
 
 		infos, err := registry.List()
 		if err != nil {
-			return agentSkillDesiredResources{}, fmt.Errorf("daemon: list extensions for agent/skill sync: %w", err)
+			return agentSkillDeclarations{}, fmt.Errorf("daemon: list extensions for agent/skill sync: %w", err)
 		}
 		slices.SortFunc(infos, func(left, right extensionpkg.ExtensionInfo) int {
 			return strings.Compare(left.Name, right.Name)
 		})
 
-		desired := agentSkillDesiredResources{}
+		desired := agentSkillDeclarations{}
 		globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
 		for _, info := range infos {
 			if !info.Enabled {
 				continue
 			}
-			ext, err := loadExtensionSnapshot(ctx, registry, manager, logger, info.Name)
+			ext, err := loadExtensionSnapshot(registry, manager, logger, info.Name)
 			if err != nil {
-				return agentSkillDesiredResources{}, fmt.Errorf(
+				return agentSkillDeclarations{}, fmt.Errorf(
 					"daemon: load extension %q for agent/skill sync: %w",
 					info.Name,
 					err,
@@ -185,16 +235,19 @@ func extensionAgentSkillDeclarationProvider(
 			if ext == nil || ext.Manifest == nil || !ext.Status.Registered {
 				continue
 			}
-			agents, err := extensionpkg.LoadAgentResources(ext.RootDir, ext.Manifest)
+			agents, err := extensionpkg.LoadAgentResources(ext.RootDir, ext.Manifest.Resources.Agents)
 			if err != nil {
-				return agentSkillDesiredResources{}, fmt.Errorf(
+				return agentSkillDeclarations{}, fmt.Errorf(
 					"daemon: load extension %q agents for sync: %w",
 					ext.Info.Name,
 					err,
 				)
 			}
-			appendAgentResources(&desired, globalScope, "extension/"+ext.Info.Name+"/agents", agents)
-			appendSkillResources(&desired, globalScope, "extension/"+ext.Info.Name+"/skills", ext.Skills)
+			appendExtensionAgentResources(&desired, globalScope, ext.Info.Name, agents)
+			appendSkillResources(&desired, globalScope, skillPublicationSource{
+				prefix: "extension/" + strings.TrimSpace(ext.Info.Name) + "/skills",
+				owner:  extensionOwner(ext.Info.Name),
+			}, ext.Skills)
 		}
 
 		return desired, nil

@@ -37,6 +37,8 @@ func applyResolvedMarketplaceUpdate(
 		req.InstalledBy,
 		resolution.trust,
 		req.ObserveDigestVerification,
+		req.PreflightCandidate,
+		req.CommitCandidate,
 		reload,
 		marketplaceUpdateCleanupForRequest(req),
 	)

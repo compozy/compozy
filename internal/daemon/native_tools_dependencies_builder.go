@@ -71,11 +71,7 @@ func (d *Daemon) nativeToolsDeps(
 		Clarify: func() toolspkg.ClarifyBroker {
 			return state.clarify
 		},
-		BundleResources: state.bundleResources,
-		LoopResources:   state.loopResources,
-		BundleService: func() core.BundleService {
-			return state.deps.Bundles
-		},
+		LoopResources: state.loopResources,
 		Loops: func() core.LoopService {
 			return state.deps.Loops
 		},

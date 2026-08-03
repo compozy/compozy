@@ -14,9 +14,7 @@ import (
 	"testing"
 	"time"
 
-	automationpkg "github.com/compozy/compozy/internal/automation"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
-	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
@@ -27,7 +25,6 @@ import (
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/toolruntime"
 	toolspkg "github.com/compozy/compozy/internal/tools"
-	"github.com/compozy/compozy/internal/windowmanager"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -93,7 +90,7 @@ func TestManagerStartRegistersResourcesAndActivatesExtension(t *testing.T) {
 		permissions:  []string{"sessions/list"},
 	}), map[string]string{
 		"skills/ext-review/SKILL.md": managerSkillFile("ext-review", "External review workflow"),
-		"agents/coder.md":            managerAgentFile("ext-agent"),
+		"agents/coder/AGENT.md":      managerAgentFile("ext-agent"),
 	})
 	installManagerFixture(t, env.registry, fixture, SourceUser, true)
 
@@ -1416,52 +1413,6 @@ func TestManagerCloneExtensionReturnsIsolatedSnapshot(t *testing.T) {
 				Hash: "hash-original",
 			},
 		}},
-		bundles: []BundleSpec{{
-			Name:        "bundle-one",
-			Description: "Original bundle",
-			Profiles: []BundleProfile{{
-				Name:        "default",
-				Description: "Default profile",
-				Channels: BundleChannelsConfig{
-					Primary: "primary",
-					Items:   []BundleChannel{{Name: "primary", Description: "Primary"}},
-				},
-				Layouts: []BundleLayout{{
-					Path:   "layouts/two-up.json",
-					Layout: testBundleLayoutResource("two-up"),
-				}},
-				Agents: []BundleAgent{{
-					Path: "agents/coder",
-					Agent: compozyconfig.AgentDef{
-						Name:       "coder",
-						Provider:   "codex",
-						Tools:      []string{"read"},
-						Prompt:     "Run bundle work.",
-						SourcePath: "/extension/agents/coder/AGENT.md",
-					},
-					Soul: &BundleAgentSidecar{
-						SourcePath: "agents/coder/SOUL.md",
-						Body:       "Original soul.",
-					},
-				}},
-				Jobs: []BundleJob{{
-					Name:      "job-one",
-					AgentName: "coder",
-					Prompt:    "do work",
-					Task: &automationpkg.JobTaskConfig{
-						Title: "Job task",
-					},
-					Enabled: true,
-				}},
-				Bridges: []BundleBridgePreset{{
-					Name:        "bridge-one",
-					DisplayName: "Bridge",
-					RoutingPolicy: bridgepkg.RoutingPolicy{
-						IncludePeer: true,
-					},
-				}},
-			}},
-		}},
 		grantedResourceKinds:  []resources.ResourceKind{resources.ResourceKind("tool")},
 		grantedResourceScopes: []resources.ResourceScopeKind{resources.ResourceScopeKindWorkspace},
 		initialize: &subprocess.InitializeResponse{
@@ -1493,11 +1444,6 @@ func TestManagerCloneExtensionReturnsIsolatedSnapshot(t *testing.T) {
 	clone.Skills[0].Hooks[0].SecretEnv["TOKEN"] = "vault:hooks/snapshot-hook/changed"
 	clone.Skills[0].MCPServers[0].Env["ROOT"] = "/tmp/changed"
 	clone.Skills[0].Provenance.Hash = "hash-changed"
-	clone.Bundles[0].Profiles[0].Layouts[0].Layout.ParticipantSlots[0] = "changed"
-	clone.Bundles[0].Profiles[0].Agents[0].Agent.Tools[0] = "changed"
-	clone.Bundles[0].Profiles[0].Agents[0].Soul.Body = "Changed soul."
-	clone.Bundles[0].Profiles[0].Jobs[0].Task.Title = "changed"
-	clone.Bundles[0].Profiles[0].Bridges[0].DisplayName = "changed"
 	clone.GrantedResourceKinds[0] = resources.ResourceKind("changed")
 	clone.GrantedResourceScopes[0] = resources.ResourceScopeKindGlobal
 	clone.InitializeResult.ImplementedMethods[0] = "changed"
@@ -1538,22 +1484,6 @@ func TestManagerCloneExtensionReturnsIsolatedSnapshot(t *testing.T) {
 	}
 	if ext.skills[0].Provenance.Hash != "hash-original" {
 		t.Fatalf("original skill provenance mutated to %#v", ext.skills[0].Provenance)
-	}
-	if got, want := ext.bundles[0].Profiles[0].Layouts[0].Layout.ParticipantSlots[0],
-		windowmanager.WindowID("primary"); got != want {
-		t.Fatalf("original bundle layout participant slot = %q, want %q", got, want)
-	}
-	if got := ext.bundles[0].Profiles[0].Agents[0].Agent.Tools[0]; got != "read" {
-		t.Fatalf("original bundle agent tools mutated to %q", got)
-	}
-	if got := ext.bundles[0].Profiles[0].Agents[0].Soul.Body; got != "Original soul." {
-		t.Fatalf("original bundle agent soul mutated to %q", got)
-	}
-	if ext.bundles[0].Profiles[0].Jobs[0].Task.Title != "Job task" {
-		t.Fatalf("original bundle job task mutated to %#v", ext.bundles[0].Profiles[0].Jobs[0].Task)
-	}
-	if ext.bundles[0].Profiles[0].Bridges[0].DisplayName != "Bridge" {
-		t.Fatalf("original bundle bridge mutated to %#v", ext.bundles[0].Profiles[0].Bridges[0])
 	}
 	if ext.grantedResourceKinds[0] != resources.ResourceKind("tool") {
 		t.Fatalf("original granted resource kinds mutated to %#v", ext.grantedResourceKinds)

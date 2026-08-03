@@ -45,7 +45,6 @@ The full per-operation table is embedded in code: see `internal/api/spec/spec.go
 | `agents`           | 17         | `httpapi/routes.go:95-112`                  | `udsapi/routes.go:90-109`                  | `compozy agent`                                    | yes        | Soul + heartbeat full CRUD + history + rollback + wake.                                                                                          |
 | `automation`       | 15         | `httpapi/routes.go:168-191`                 | `udsapi/routes.go:193-217`                 | `compozy automation`                               | yes        | Jobs + triggers + runs + history + delete.                                                                                                      |
 | `bridges`          | 14         | `httpapi/routes.go:38-54`                   | `udsapi/routes.go:32-50`                   | `compozy bridge`                                   | yes        | Includes `POST /api/bridges/:id/test-delivery`.                                                                                                  |
-| `bundles`          | 8          | `httpapi/routes.go:268-278`                 | `udsapi/routes.go:308-320`                 | `compozy bundle`                                   | yes        |                                                                                                                                                  |
 | `daemon`           | 1          | `httpapi/routes.go:249-252`                 | `udsapi/routes.go:285-290`                 | `compozy status`                            | yes        | Single `getDaemonStatus`. CLI lifecycle (`start`/`stop`/`relaunch`) is local-only and not an HTTP/UDS operation.                                |
 | `extensions`       | 5          | `httpapi/routes.go:280-288`                 | `udsapi/routes.go:322-331`                 | `compozy extension`                                | yes        | HTTP `POST /api/extensions/...` requires `privilegedMutationGuard` (loopback only); CLI default uses UDS so it bypasses the loopback check.      |
 | `hooks`            | 3          | `httpapi/routes.go:125-130`                 | `udsapi/routes.go:150-157`                 | `compozy hooks`                                    | yes        |                                                                                                                                                  |
@@ -103,7 +102,6 @@ compozy
 ├── ch (list | recv | send | reply)
 ├── session (new | list | stop | status | inspect | resume | repair | wait | prompt | events | history)
 ├── bridge (list | get | create | update | enable | disable | restart | routes | test-delivery)
-├── bundle (catalog | preview | activate | list | get | update | deactivate | network-settings)
 ├── workspace (add | list | info | edit | remove)
 ├── agent (list | info)
 ├── extension (search | list | install | remove | update | enable | disable | status)
@@ -355,7 +353,7 @@ code_refs:
   - /Users/pedronauck/Dev/compozy/compozy/internal/api/core/handlers.go (BaseHandlers methods)
   - /Users/pedronauck/Dev/compozy/compozy/internal/api/httpapi/transport_parity_integration_test.go (existing partial coverage)
 steps:
-  - For each of `GET /api/sessions`, `GET /api/sessions/$S4`, `GET /api/sessions/$S4/transcript`, `GET /api/sessions/$S4/events`, `GET /api/sessions/$S4/history`, `GET /api/tasks`, `GET /api/hooks/catalog`, `GET /api/hooks/runs`, `GET /api/hooks/events`, `GET /api/observe/health`, `GET /api/observe/events`, `GET /api/settings/general`, `GET /api/settings/memory`, `GET /api/settings/skills`, `GET /api/settings/network`, `GET /api/agents`, `GET /api/skills`, `GET /api/memory`, `GET /api/network/status`, `GET /api/bundles/catalog`:
+  - For each of `GET /api/sessions`, `GET /api/sessions/$S4`, `GET /api/sessions/$S4/transcript`, `GET /api/sessions/$S4/events`, `GET /api/sessions/$S4/history`, `GET /api/tasks`, `GET /api/hooks/catalog`, `GET /api/hooks/runs`, `GET /api/hooks/events`, `GET /api/observe/health`, `GET /api/observe/events`, `GET /api/settings/general`, `GET /api/settings/memory`, `GET /api/settings/skills`, `GET /api/settings/network`, `GET /api/agents`, `GET /api/skills`, `GET /api/memory`, `GET /api/network/status`, `GET /api/extensions/$EXT/inventory`:
     - Fetch over HTTP into `api-04-http-<op>.json`.
     - Fetch over UDS (curl --unix-socket OR `compozy <verb> -o json`) into `api-04-uds-<op>.json`.
     - Compute `jq -S .` canonicalized diff.
@@ -970,7 +968,7 @@ cleanup: `compozy session stop $S`; kill any leftover background CLI processes.
 - Repo-wide rules: `/Users/pedronauck/Dev/compozy/compozy/CLAUDE.md` (Critical Rules; Workflow; Build Commands; Skill Dispatch; CI/Release; Cross-References).
 - Backend invariants: `/Users/pedronauck/Dev/compozy/compozy/internal/CLAUDE.md` — Architecture (lines 9-49), Concurrency (29-37), Observability (47-52), Security Invariants (55-62).
 - Contract:
-  - `/Users/pedronauck/Dev/compozy/compozy/internal/api/contract/` — `bridges.go`, `bundles.go`, `agents.go`, `automation.go`, `responses.go`, `tasks.go`, `tools.go`, `vault.go`, `settings.go`, `resources.go`, `authored_context.go`. ≥411 declared types per grep.
+  - `/Users/pedronauck/Dev/compozy/compozy/internal/api/contract/` — `bridges.go`, `extensions.go`, `agents.go`, `automation.go`, `responses.go`, `tasks.go`, `tools.go`, `vault.go`, `settings.go`, `resources.go`, `authored_context.go`.
 - Spec / OpenAPI:
   - `/Users/pedronauck/Dev/compozy/compozy/internal/api/spec/spec.go:121-208` (`Transport`, `OperationSpec`, `Document`).
   - `/Users/pedronauck/Dev/compozy/compozy/internal/api/spec/spec_test.go:1219-1232` (duplicate-id detector).

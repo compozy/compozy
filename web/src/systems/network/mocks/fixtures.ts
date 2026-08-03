@@ -265,7 +265,6 @@ function directMessage(
 export const networkStatusFixture: NetworkStatus = {
   channels: 10,
   conversation_messages: 0,
-  declared_channels: [],
   direct_resolves: 0,
   enabled: true,
   handoff_tagged_events: 0,

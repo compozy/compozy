@@ -39,7 +39,6 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	registerSkillRoutes(api, handlers)
 	registerMemoryRoutes(api, handlers)
 	registerNetworkRoutes(api, handlers)
-	registerBundleRoutes(api, handlers)
 	registerExtensionRoutes(api, handlers)
 	registerSettingsRoutes(api, handlers)
 	registerVaultRoutes(api, handlers)
@@ -344,19 +343,6 @@ func registerNetworkRoutes(api gin.IRouter, handlers *Handlers) {
 	workspaceCoordination.PUT("/invitation", handlers.PutNetworkCoordinationInvitation)
 }
 
-func registerBundleRoutes(api gin.IRouter, handlers *Handlers) {
-	privileged := handlers.privilegedMutationGuard()
-	bundles := api.Group("/bundles")
-	bundles.GET("/catalog", handlers.ListBundleCatalog)
-	bundles.POST("/preview", handlers.PreviewBundleActivation)
-	bundles.GET("/activations", handlers.ListBundleActivations)
-	bundles.POST("/activations", privileged, handlers.ActivateBundle)
-	bundles.GET("/activations/:id", handlers.GetBundleActivation)
-	bundles.PATCH("/activations/:id", privileged, handlers.UpdateBundleActivation)
-	bundles.DELETE("/activations/:id", privileged, handlers.DeleteBundleActivation)
-	bundles.GET("/network/settings", handlers.BundleNetworkSettings)
-}
-
 func registerExtensionRoutes(api gin.IRouter, handlers *Handlers) {
 	privileged := handlers.privilegedMutationGuard()
 	extensions := api.Group("/extensions")
@@ -369,6 +355,11 @@ func registerExtensionRoutes(api gin.IRouter, handlers *Handlers) {
 	extensions.PUT("/:name", privileged, handlers.UpdateExtension)
 	extensions.DELETE("/:name", privileged, handlers.RemoveExtension)
 	extensions.GET("/:name/provenance", handlers.ExtensionProvenance)
+	extensions.GET("/:name/secrets", handlers.ListExtensionSecrets)
+	extensions.PUT("/:name/secrets", privileged, handlers.SetExtensionSecrets)
+	extensions.DELETE("/:name/secrets/:env_name", privileged, handlers.DeleteExtensionSecret)
+	extensions.GET("/:name/inventory", handlers.ExtensionInventory)
+	extensions.GET("/:name/preview", handlers.PreviewExtensionEnable)
 	extensions.GET("/:name", handlers.ExtensionStatus)
 	extensions.POST("/:name/reload", privileged, handlers.ReloadDevExtension)
 	extensions.GET("/:name/logs", handlers.ExtensionLogs)

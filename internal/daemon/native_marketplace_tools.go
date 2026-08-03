@@ -88,7 +88,6 @@ func (n *daemonNativeTools) marketplaceHandlers() *core.BaseHandlers {
 		SkillMarketplace:          n.deps.MarketplaceSkills,
 		InstalledSkillMarketplace: n.deps.MarketplaceInstalledSkills,
 		Extensions:                n.extensionCoreService(),
-		Bundles:                   n.bundleService(),
 		Settings:                  settings,
 		HomePaths:                 n.deps.HomePaths,
 		Config:                    n.deps.Config,

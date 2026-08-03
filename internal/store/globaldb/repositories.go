@@ -48,7 +48,6 @@ func (r *repoBase) checkReady(ctx context.Context, action string) error {
 
 type WorkspaceRepo struct{ *repoBase }
 type AppMetadataRepo struct{ *repoBase }
-type BundleRepo struct{ *repoBase }
 type PermissionRepo struct{ *repoBase }
 type SessionRepo struct{ *repoBase }
 type TaskRepo struct {
@@ -80,6 +79,7 @@ type MarketplaceRepo struct{ *repoBase }
 type ObserveRepo struct{ *repoBase }
 type ToolRuntimeRepo struct{ *repoBase }
 type VaultRepo struct{ *repoBase }
+type ExtensionEnvRepo struct{ *repoBase }
 type WatchEventsRepo struct {
 	*repoBase
 	openSessionEventMetadata store.SessionEventMetadataOpener
@@ -92,7 +92,6 @@ func (g *GlobalDB) initializeRepositories(config openConfig) {
 	base.path = g.path
 	g.WorkspaceRepo = &WorkspaceRepo{repoBase: base}
 	g.AppMetadataRepo = &AppMetadataRepo{repoBase: base}
-	g.BundleRepo = &BundleRepo{repoBase: base}
 	g.PermissionRepo = &PermissionRepo{repoBase: base}
 	g.SessionRepo = &SessionRepo{repoBase: base}
 	base.sessions = g.SessionRepo
@@ -117,6 +116,7 @@ func (g *GlobalDB) initializeRepositories(config openConfig) {
 	g.NotificationRepo = &NotificationRepo{repoBase: base}
 	g.ToolRuntimeRepo = &ToolRuntimeRepo{repoBase: base}
 	g.VaultRepo = &VaultRepo{repoBase: base}
+	g.ExtensionEnvRepo = &ExtensionEnvRepo{repoBase: base}
 	g.WatchEventsRepo = &WatchEventsRepo{
 		repoBase:                 base,
 		openSessionEventMetadata: config.openSessionEventMetadata,

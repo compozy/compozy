@@ -213,6 +213,8 @@ func applyMarketplaceExtensionUpdate(
 	installedBy string,
 	trust *MarketplaceTrustEvidence,
 	observeDigestVerification MarketplaceDigestVerificationObserver,
+	preflightCandidate MarketplaceUpdatePreflight,
+	commitCandidate MarketplaceUpdateCommit,
 	reload MutationReload,
 	cleanup marketplaceUpdateCleanup,
 ) (out marketplaceUpdateApplyResult, err error) {
@@ -245,37 +247,35 @@ func applyMarketplaceExtensionUpdate(
 	if err != nil {
 		return marketplaceUpdateApplyResult{}, err
 	}
+	if preflightCandidate != nil {
+		if err := preflightCandidate(info, manifest); err != nil {
+			return marketplaceUpdateApplyResult{}, err
+		}
+	}
 	change, err := stageExtensionDirReplacement(result.InstallPath, installDir)
 	if err != nil {
 		return marketplaceUpdateApplyResult{}, err
 	}
-
-	remoteVersion := firstNonEmpty(result.Version, latestVersion, manifest.Version)
-	provenance := marketplaceUpdateProvenance(info, result, manifest, registryName, allowUnverified, installedBy, trust)
-	if err := installMarketplaceExtensionUpdateRecord(
-		registry,
-		manifest,
-		installDir,
-		result.Checksum,
-		slug,
-		registryName,
-		remoteVersion,
-		provenance,
-	); err != nil {
-		return marketplaceUpdateApplyResult{}, errors.Join(err, change.Rollback())
-	}
-	if err := reloadMarketplaceExtensionUpdate(ctx, reload, registry, info, installDir, change); err != nil {
+	remoteVersion, err := commitMarketplaceUpdateCandidate(ctx, &marketplaceUpdateCommitInput{
+		registry:        registry,
+		info:            info,
+		installDir:      installDir,
+		result:          result,
+		manifest:        manifest,
+		change:          change,
+		slug:            slug,
+		registryName:    registryName,
+		latestVersion:   latestVersion,
+		allowUnverified: allowUnverified,
+		installedBy:     installedBy,
+		trust:           trust,
+		commitCandidate: commitCandidate,
+		reload:          reload,
+	})
+	if err != nil {
 		return marketplaceUpdateApplyResult{}, err
 	}
-	out = marketplaceUpdateApplyResult{remoteVersion: remoteVersion, committed: true}
-	if cleanupErr := cleanup.commitChange(change); cleanupErr != nil {
-		out.warnings = append(out.warnings, marketplaceUpdateCleanupWarning(
-			info.Name,
-			marketplaceUpdateCleanupBackup,
-			change.backupDir,
-			cleanupErr,
-		))
-	}
+	out = committedMarketplaceUpdateResult(cleanup, info.Name, remoteVersion, change)
 	return out, nil
 }
 

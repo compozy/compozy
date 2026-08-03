@@ -3,7 +3,7 @@
 ```yaml
 charter:
   id: CH-reserved-builtin-name-sweep
-  mission: "As Ada, attack every agent-authoring path with the reserved names coordinator and dreaming-curator — CLI, HTTP, UDS, native tool, duplicate, rename, bundle, and an on-disk shadow directory — and prove each rejects with agent_name_reserved leaving zero residue, while the builtins themselves never surface in any catalog."
+  mission: "As Ada, attack every agent-authoring path with the reserved names coordinator and dreaming-curator — CLI, HTTP, UDS, native tool, duplicate, rename, extension kit, and an on-disk shadow directory — and prove each rejects with agent_name_reserved leaving zero residue, while the builtins themselves never surface in any catalog."
   mode: charter-with-tour
   persona:
     name: Ada
@@ -19,7 +19,7 @@ charter:
       - "Create sweep: `compozy agent create coordinator` (CLI→UDS), `POST /api/agents` over HTTP with dreaming-curator, and native `compozy__agent_create` — each rejects with the exact `agent_name_reserved` envelope (422-class), creates no directory, and leaves `compozy agent list` byte-stable."
       - "Mutation sweep: rename an existing agent to a reserved name and duplicate onto a reserved target — both reject; the source agent stays untouched."
       - "Normalization edges: case/whitespace variants (`Coordinator`, ` coordinator `) reject; near-miss `coordinator-helper` succeeds and is cleaned up — reservation is exact-name after normalization, not prefix."
-      - "Bundle path: activate a bundle whose profile ships an agent named coordinator — activation fails with `agent_name_reserved` naming the bundle path and materializes nothing from that profile."
+      - "Extension path: enable an extension whose kit ships an agent named coordinator — enable fails with `agent_name_reserved` naming the agent path and publishes nothing from that kit."
       - "Shadow path: plant `$COMPOZY_HOME/agents/coordinator/AGENT.md` before boot — boot succeeds, a warning diagnostic names the skipped path, the directory never enters agent list/catalog, and the coordinator role still resolves the virtual builtin (no shadow resolution)."
       - "Catalog hiding throughout: after every attempt, `GET /api/agents?workspace=<id>` and `GET /api/agents/catalog?workspace=<id>` (HTTP and UDS) and the fleet UI contain neither builtin name (Invariant 1)."
     must_avoid:
@@ -27,7 +27,7 @@ charter:
       - "Deleting or modifying the operator's real agents; use disposable names for the near-miss probe."
   coverage:
     surfaces:
-      - "compozy agent create|update|duplicate (CLI/UDS); POST/PUT /api/agents (HTTP); compozy__agent_create; bundle activation"
+      - "compozy agent create|update|duplicate (CLI/UDS); POST/PUT /api/agents (HTTP); compozy__agent_create; extension enable"
       - "boot-time discovery skip of a pre-existing reserved directory + its warning diagnostic"
       - "GET /api/agents?workspace=<id> + GET /api/agents/catalog?workspace=<id> (HTTP/UDS), fleet UI catalog hiding"
       - "docs entry origin: runtime/core/configuration/agent-md reserved-names note matches enforcement"

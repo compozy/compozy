@@ -56,20 +56,19 @@ the returned tool reference. `compozy__tool_list` shows the currently callable p
 Compozy groups runtime capabilities by owning subsystem. These toolsets are canonical IDs that can be
 granted through agent definitions or inspected through `compozy toolsets info`.
 
-| Toolset                    | Includes                                                                        |
-| -------------------------- | ------------------------------------------------------------------------------- |
-| `compozy__tasks`           | Task CRUD, task runs, reviews, execution profiles, and notifications.           |
-| `compozy__provider_models` | Provider model catalog list, curation, refresh, and source-status tools.        |
-| `compozy__memory`          | Memory list, show, search, proposal, and ad-hoc note tools.                     |
-| `compozy__memory_admin`    | Memory health, history, reindex, dream, provider, extractor, and ledger tools.  |
-| `compozy__bridges`         | Bridge instance, route, secret-binding, and status diagnostics.                 |
-| `compozy__automation`      | Automation job, trigger, and run management.                                    |
-| `compozy__extensions`      | Extension marketplace, install, update, enable, disable, and remove tools.      |
-| `compozy__bundles`         | Extension bundle catalog, activation, deactivation, and network-default status. |
-| `compozy__resources`       | Desired-state resource list, info, and snapshot inspection tools.               |
-| `compozy__mcp`             | MCP server probe/status diagnostics without login or logout tool calls.         |
-| `compozy__mcp_auth`        | Redacted MCP OAuth status for configured servers.                               |
-| `compozy__clarify`         | One bounded operator question through the read-only `compozy__clarify` tool.    |
+| Toolset                    | Includes                                                                       |
+| -------------------------- | ------------------------------------------------------------------------------ |
+| `compozy__tasks`           | Task CRUD, task runs, reviews, execution profiles, and notifications.          |
+| `compozy__provider_models` | Provider model catalog list, curation, refresh, and source-status tools.       |
+| `compozy__memory`          | Memory list, show, search, proposal, and ad-hoc note tools.                    |
+| `compozy__memory_admin`    | Memory health, history, reindex, dream, provider, extractor, and ledger tools. |
+| `compozy__bridges`         | Bridge instance, route, secret-binding, and status diagnostics.                |
+| `compozy__automation`      | Automation job, trigger, and run management.                                   |
+| `compozy__extensions`      | Extension marketplace, install, update, enable, disable, and remove tools.     |
+| `compozy__resources`       | Desired-state resource list, info, and snapshot inspection tools.              |
+| `compozy__mcp`             | MCP server probe/status diagnostics without login or logout tool calls.        |
+| `compozy__mcp_auth`        | Redacted MCP OAuth status for configured servers.                              |
+| `compozy__clarify`         | One bounded operator question through the read-only `compozy__clarify` tool.   |
 
 Toolsets expose current canonical tool IDs only. For Memory administration, `compozy__memory_admin`
 includes `compozy__memory_admin_history` for operation-history inspection.

@@ -11,8 +11,8 @@ bug_ids:
 fix_status:
 retest_status: pass
 fix_commits:
-evidence: docs/qa/evidence/2026-08-01-window-tabs/home-usage-30d-system-expanded.png
-last_report: docs/qa/reports/2026-08-01-window-tabs.md
+evidence: docs/qa/evidence/2026-08-01-window-tabs/home-usage-30d-system-expanded.png; docs/qa/evidence/2026-08-03-pr-291-ci-remediation/CH-window-tabs-home-canary.png
+last_report: docs/qa/reports/2026-08-03-pr-291-ci-remediation.md
 overlaps:
 ---
 
@@ -30,3 +30,7 @@ to its original absent state after the run.
 
 QA impact 2026-07-31: session-tab attention and observability now refresh provider/model facts from
 the authoritative session event. Reset as the adjacent Home usage canary.
+
+QA completion 2026-08-03 PR 291 CI remediation: After tab-route and deck activity, Cora switched
+Home from 30d to 90d and reloaded. The live shell remained connected, `Usage · 90d` persisted, the
+empty usage state stayed truthful, and cost remained unavailable rather than inferred.

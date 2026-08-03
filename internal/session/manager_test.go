@@ -3098,6 +3098,82 @@ func TestApplyAutomaticSessionTitleOwnsGeneratedIdentity(t *testing.T) {
 		}
 	})
 
+	t.Run("Should hide the generated title until identity persistence completes", func(t *testing.T) {
+		t.Parallel()
+
+		catalog := newRecordingSessionCatalog()
+		h := newHarness(t, WithSessionCatalog(catalog))
+		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder",
+			Workspace: h.workspaceID,
+			Type:      SessionTypeUser,
+		})
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if stopErr := h.manager.Stop(testutil.Context(t), session.ID); stopErr != nil &&
+				!errors.Is(stopErr, ErrSessionNotFound) {
+				t.Errorf("Stop() error = %v", stopErr)
+			}
+		})
+
+		const wantTitle = "Checkout webhook retries"
+		persistenceStarted := make(chan struct{})
+		releasePersistence := make(chan struct{})
+		var releaseOnce sync.Once
+		release := func() { releaseOnce.Do(func() { close(releasePersistence) }) }
+		t.Cleanup(release)
+		catalog.registerHook = func(ctx context.Context, info store.SessionInfo) error {
+			if info.Name != wantTitle {
+				return nil
+			}
+			close(persistenceStarted)
+			select {
+			case <-releasePersistence:
+				return nil
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
+
+		type applyResult struct {
+			applied bool
+			err     error
+		}
+		resultCh := make(chan applyResult, 1)
+		go func() {
+			applied, applyErr := h.manager.ApplyAutomaticSessionTitle(
+				testutil.Context(t),
+				session.ID,
+				wantTitle,
+			)
+			resultCh <- applyResult{applied: applied, err: applyErr}
+		}()
+
+		select {
+		case <-persistenceStarted:
+		case <-time.After(time.Second):
+			t.Fatal("automatic title persistence did not reach the catalog")
+		}
+		if session.mu.TryRLock() {
+			session.mu.RUnlock()
+			t.Fatal("session read lock acquired during persistence, want blocked")
+		}
+
+		release()
+		result := <-resultCh
+		if result.err != nil {
+			t.Fatalf("ApplyAutomaticSessionTitle() error = %v", result.err)
+		}
+		if !result.applied {
+			t.Fatal("ApplyAutomaticSessionTitle() applied = false, want true")
+		}
+		if got := session.Info().Name; got != wantTitle {
+			t.Fatalf("session title after persistence = %q, want %q", got, wantTitle)
+		}
+	})
+
 	t.Run("Should persist the first generated title as durable session identity", func(t *testing.T) {
 		t.Parallel()
 

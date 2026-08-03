@@ -16,7 +16,6 @@ import (
 	core "github.com/compozy/compozy/internal/api/core"
 
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
-	bundlepkg "github.com/compozy/compozy/internal/bundles"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/heartbeat"
@@ -72,6 +71,7 @@ type Observer interface {
 // Registry is the narrowed global database surface shared by observe and workspace.
 type Registry interface {
 	observe.Registry
+	store.EventSummaryBatchWriter
 	store.SessionCatalog
 	store.NetworkAuditStore
 	store.NetworkChannelStore
@@ -159,7 +159,6 @@ type resourceReconcileDriverDeps struct {
 	SkillsRegistry      *skills.Registry
 	Automation          automationResourceProjectorTarget
 	Bridges             bridgeResourceProjectorTarget
-	Bundles             resources.BundleActivationProjector[bundlepkg.ActivationResourceSpec, bundlepkg.BundleResourceSpec]
 }
 
 type extensionRuntime interface {
@@ -168,12 +167,16 @@ type extensionRuntime interface {
 	Reload(context.Context) error
 	Get(string) (*extensionpkg.Extension, error)
 	HookDeclarations(context.Context) ([]hookspkg.HookDecl, error)
+	InspectPackageResources(context.Context, string) (*extensionpkg.Extension, error)
 }
 
 type extensionDevRuntime interface {
 	GetForInstance(extensionpkg.InstanceKey) (*extensionpkg.Extension, error)
 	ListForWorkspace(string) []extensionpkg.ExtensionInfo
+	InspectDevelopmentGeneration(context.Context, string, string, string) (extensionpkg.DevelopmentGeneration, error)
 	LinkDevelopmentFromOrigin(context.Context, string, string, string) (*extensionpkg.Extension, error)
+	StageDevelopmentLink(context.Context, extensionpkg.InstanceKey, string, string) (*extensionpkg.DevLink, error)
+	ActivateDevelopmentLink(context.Context, extensionpkg.InstanceKey) (*extensionpkg.Extension, error)
 	ReloadExtension(context.Context, extensionpkg.InstanceKey, string) (*extensionpkg.Extension, error)
 	UnlinkDevelopment(context.Context, extensionpkg.InstanceKey) error
 	Logs(extensionpkg.InstanceKey, int64) ([]extensionpkg.ExtensionLogEntry, error)
@@ -212,6 +215,7 @@ type extensionManagerDeps struct {
 	WakeEvents             core.HeartbeatWakeEventReader
 	ProcessRegistry        *toolruntime.Registry
 	SecretResolver         extensionpkg.SecretRefResolver
+	EnvBindings            extensionpkg.EnvBindingStore
 	LifecycleEvents        extensionpkg.LifecycleEventSink
 	CompozyExecutable      func() (string, error)
 }

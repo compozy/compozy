@@ -98,33 +98,6 @@ func (p *captureTypedProjector) Apply(_ context.Context, plan ProjectionPlan) er
 	return nil
 }
 
-type captureBundleActivationProjector struct {
-	buildCalls  int
-	activations []Record[testTypedSpec]
-	bundles     []Record[otherTypedSpec]
-	applied     ProjectionPlan
-}
-
-func (p *captureBundleActivationProjector) Build(
-	_ context.Context,
-	activations []Record[testTypedSpec],
-	bundles []Record[otherTypedSpec],
-) (ProjectionPlan, error) {
-	p.buildCalls++
-	p.activations = append([]Record[testTypedSpec](nil), activations...)
-	p.bundles = append([]Record[otherTypedSpec](nil), bundles...)
-	return testPlan{
-		kind:       bundleActivationKind,
-		revision:   11,
-		operations: len(activations) + len(bundles),
-	}, nil
-}
-
-func (p *captureBundleActivationProjector) Apply(_ context.Context, plan ProjectionPlan) error {
-	p.applied = plan
-	return nil
-}
-
 func TestCodecRegistryRegistrationAndResolve(t *testing.T) {
 	t.Parallel()
 
@@ -468,100 +441,13 @@ func TestTypedProjectorRegistrationDecodesPrimaryKindOnce(t *testing.T) {
 	}
 }
 
-func TestBundleActivationProjectorRegistrationDecodesDependenciesExplicitly(t *testing.T) {
-	t.Parallel()
-
-	registry := NewCodecRegistry()
-	activationCodec := &countingCodec[testTypedSpec]{
-		inner: mustJSONCodec(t, bundleActivationKind, 1024, validateTestTypedSpec),
-	}
-	bundleCodec := &countingCodec[otherTypedSpec]{
-		inner: mustJSONCodec(t, bundleKind, 1024, validateOtherTypedSpec),
-	}
-	if err := RegisterCodec(registry, activationCodec); err != nil {
-		t.Fatalf("RegisterCodec(activation) error = %v", err)
-	}
-	if err := RegisterCodec(registry, bundleCodec); err != nil {
-		t.Fatalf("RegisterCodec(bundle) error = %v", err)
-	}
-
-	domainProjector := &captureBundleActivationProjector{}
-	registration, err := NewBundleActivationProjectorRegistration(registry, domainProjector)
-	if err != nil {
-		t.Fatalf("NewBundleActivationProjectorRegistration() error = %v", err)
-	}
-	internalProjector, err := unwrapProjectorRegistration(registration)
-	if err != nil {
-		t.Fatalf("unwrapProjectorRegistration() error = %v", err)
-	}
-
-	plan, err := internalProjector.Build(testutil.Context(t), projectionInput{
-		kind: bundleActivationKind,
-		records: []RawRecord{{
-			Kind:     bundleActivationKind,
-			ID:       "activation-1",
-			Scope:    ResourceScope{Kind: ResourceScopeKindGlobal},
-			SpecJSON: []byte(`{"name":"activation-1"}`),
-		}},
-		dependencies: map[ResourceKind][]RawRecord{
-			bundleKind: {{
-				Kind:     bundleKind,
-				ID:       "bundle-1",
-				Scope:    ResourceScope{Kind: ResourceScopeKindGlobal},
-				SpecJSON: []byte(`{"value":"bundle-1"}`),
-			}},
-		},
-	})
-	if err != nil {
-		t.Fatalf("Build() error = %v", err)
-	}
-	if got, want := activationCodec.decodeCount, 1; got != want {
-		t.Fatalf("activationCodec.decodeCount = %d, want %d", got, want)
-	}
-	if got, want := bundleCodec.decodeCount, 1; got != want {
-		t.Fatalf("bundleCodec.decodeCount = %d, want %d", got, want)
-	}
-	if got, want := len(domainProjector.activations), 1; got != want {
-		t.Fatalf("len(activations) = %d, want %d", got, want)
-	}
-	if got, want := len(domainProjector.bundles), 1; got != want {
-		t.Fatalf("len(bundles) = %d, want %d", got, want)
-	}
-	if got, want := plan.Kind(), bundleActivationKind; got != want {
-		t.Fatalf("plan.Kind() = %q, want %q", got, want)
-	}
-
-	if err := internalProjector.Apply(testutil.Context(t), plan); err != nil {
-		t.Fatalf("Apply() error = %v", err)
-	}
-	if domainProjector.applied == nil {
-		t.Fatal("Apply() did not reach bundle activation projector")
-	}
-
-	_, err = internalProjector.Build(testutil.Context(t), projectionInput{
-		kind: bundleActivationKind,
-		dependencies: map[ResourceKind][]RawRecord{
-			ResourceKind("automation.job"): {{
-				Kind:     ResourceKind("automation.job"),
-				ID:       "job-1",
-				Scope:    ResourceScope{Kind: ResourceScopeKindGlobal},
-				SpecJSON: []byte(`{"name":"job-1"}`),
-			}},
-		},
-	})
-	if !errors.Is(err, ErrValidation) {
-		t.Fatalf("Build(unexpected dependency kind) error = %v, want ErrValidation", err)
-	}
-}
-
 func TestTypedContractsDoNotExposeJSONRawMessage(t *testing.T) {
 	t.Parallel()
 
 	fileSet := token.NewFileSet()
 	targets := map[string]bool{
-		"SpecValidator":             false,
-		"TypedProjector":            false,
-		"BundleActivationProjector": false,
+		"SpecValidator":  false,
+		"TypedProjector": false,
 	}
 	found := make(map[string]bool, len(targets))
 
@@ -638,14 +524,6 @@ func validateTestTypedSpec(_ context.Context, _ ResourceScope, spec testTypedSpe
 	spec.Name = strings.TrimSpace(spec.Name)
 	if spec.Name == "" {
 		return testTypedSpec{}, fmt.Errorf("%w: test spec name is required", ErrValidation)
-	}
-	return spec, nil
-}
-
-func validateOtherTypedSpec(_ context.Context, _ ResourceScope, spec otherTypedSpec) (otherTypedSpec, error) {
-	spec.Value = strings.TrimSpace(spec.Value)
-	if spec.Value == "" {
-		return otherTypedSpec{}, fmt.Errorf("%w: other spec value is required", ErrValidation)
 	}
 	return spec, nil
 }

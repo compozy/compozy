@@ -1,10 +1,10 @@
 import { apiClient, apiErrorMessage, apiRequestFailed } from "@/lib/api-client";
 
 import type {
-  BundleActivation,
-  BundleActivationUpdateRequest,
+  ExtensionEnableResult,
   ExtensionEntry,
   ExtensionInstanceScope,
+  ExtensionKitInventory,
   ExtensionLogEntry,
   ExtensionProvenance,
   ExtensionUpdateRequest,
@@ -23,15 +23,48 @@ function instanceQuery(
 
 export type ExtensionsApiErrorKind = "daemon" | "malformed_response" | "transport";
 
+export interface ExtensionsApiErrorMetadata {
+  readonly code?: string;
+  readonly currentDigest?: string;
+}
+
 export class ExtensionsApiError extends Error {
+  /** Daemon error code, e.g. `extension_network_confirmation_required`. */
+  public readonly code: string | undefined;
+
+  /** Digest the daemon expects consent for; the remediation for a missing or stale confirm. */
+  public readonly currentDigest: string | undefined;
+
   constructor(
     message: string,
     public readonly status: number,
-    public readonly kind: ExtensionsApiErrorKind
+    public readonly kind: ExtensionsApiErrorKind,
+    metadata: ExtensionsApiErrorMetadata = {}
   ) {
     super(message);
     this.name = "ExtensionsApiError";
+    this.code = metadata.code;
+    this.currentDigest = metadata.currentDigest;
   }
+}
+
+type DaemonErrorField = "code" | "current_digest";
+
+function errorField(error: unknown, field: DaemonErrorField): string | undefined {
+  if (error == null || typeof error !== "object") return undefined;
+  const value = Reflect.get(error, field);
+  if (typeof value !== "string") return undefined;
+  const normalized = value.trim();
+  return normalized === "" ? undefined : normalized;
+}
+
+function daemonErrorMetadata(error: unknown): ExtensionsApiErrorMetadata {
+  const code = errorField(error, "code");
+  const currentDigest = errorField(error, "current_digest");
+  return {
+    ...(code ? { code } : {}),
+    ...(currentDigest ? { currentDigest } : {}),
+  };
 }
 
 function responseError(fallback: string, response: Response, error: unknown): ExtensionsApiError {
@@ -39,7 +72,8 @@ function responseError(fallback: string, response: Response, error: unknown): Ex
   return new ExtensionsApiError(
     daemonMessage ?? (response.status ? `${fallback} (${response.status})` : fallback),
     response.status,
-    daemonMessage ? "daemon" : "transport"
+    daemonMessage ? "daemon" : "transport",
+    daemonErrorMetadata(error)
   );
 }
 
@@ -81,6 +115,28 @@ function requiredObject<T extends object>(
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw malformedField(fallback, field, response);
   }
+  return value;
+}
+
+function requiredString(
+  value: string | undefined,
+  response: Response,
+  fallback: string,
+  field: string
+): string {
+  if (typeof value !== "string" || value.trim() === "") {
+    throw malformedField(fallback, field, response);
+  }
+  return value;
+}
+
+function requiredBoolean(
+  value: boolean | undefined,
+  response: Response,
+  fallback: string,
+  field: string
+): boolean {
+  if (typeof value !== "boolean") throw malformedField(fallback, field, response);
   return value;
 }
 
@@ -132,30 +188,42 @@ export async function getExtensionProvenance(
   return requiredObject(envelope.provenance, response, fallback, "provenance");
 }
 
-async function setExtensionEnabled(
+/**
+ * Enabling activates the extension kit. Its result enumerates the automation definitions that
+ * became runnable in the committed operation, so callers receive the complete lifecycle result
+ * rather than the extension row alone.
+ */
+export async function enableExtension(
   name: string,
-  enabled: boolean,
+  options: { confirmNetworkDigest?: string } = {},
+  signal?: AbortSignal
+): Promise<ExtensionEnableResult> {
+  const digest = options.confirmNetworkDigest?.trim();
+  const { data, error, response } = await apiClient.POST("/api/extensions/{name}/enable", {
+    params: { path: { name } },
+    body: digest ? { confirm_network_digest: digest } : {},
+    signal,
+  });
+  const fallback = `Failed to enable ${name}`;
+  if (apiRequestFailed(response, error)) throw responseError(fallback, response, error);
+  const envelope = responseData(data, response, fallback);
+  requiredObject(envelope.extension, response, fallback, "extension");
+  requiredArray(envelope.automation_started, response, fallback, "automation_started");
+  return envelope;
+}
+
+export async function disableExtension(
+  name: string,
   signal?: AbortSignal
 ): Promise<ExtensionEntry> {
-  const path = enabled ? "/api/extensions/{name}/enable" : "/api/extensions/{name}/disable";
-  const { data, error, response } = await apiClient.POST(path, {
+  const { data, error, response } = await apiClient.POST("/api/extensions/{name}/disable", {
     params: { path: { name } },
     signal,
   });
-  if (apiRequestFailed(response, error)) {
-    throw responseError(`Failed to ${enabled ? "enable" : "disable"} ${name}`, response, error);
-  }
-  const fallback = `Failed to update ${name}`;
+  const fallback = `Failed to disable ${name}`;
+  if (apiRequestFailed(response, error)) throw responseError(fallback, response, error);
   const envelope = responseData(data, response, fallback);
   return requiredObject(envelope.extension, response, fallback, "extension");
-}
-
-export function enableExtension(name: string, signal?: AbortSignal): Promise<ExtensionEntry> {
-  return setExtensionEnabled(name, true, signal);
-}
-
-export function disableExtension(name: string, signal?: AbortSignal): Promise<ExtensionEntry> {
-  return setExtensionEnabled(name, false, signal);
 }
 
 export async function updateExtension(
@@ -172,6 +240,34 @@ export async function updateExtension(
     throw responseError(`Failed to update ${name}`, response, error);
 }
 
+/**
+ * Shipped-vs-live kit resources for one extension. The route carries no workspace selector: the
+ * daemon answers for the global published instance.
+ */
+export async function getExtensionInventory(
+  name: string,
+  signal?: AbortSignal
+): Promise<ExtensionKitInventory> {
+  const { data, error, response } = await apiClient.GET("/api/extensions/{name}/inventory", {
+    params: { path: { name } },
+    signal,
+  });
+  const fallback = `Failed to load kit inventory for ${name}`;
+  if (apiRequestFailed(response, error)) throw responseError(fallback, response, error);
+  const envelope: ExtensionKitInventory = responseData(data, response, fallback);
+  requiredArray(envelope.items, response, fallback, "items");
+  const extension = requiredString(envelope.extension, response, fallback, "extension");
+  requiredBoolean(envelope.enabled, response, fallback, "enabled");
+  if (extension !== name) {
+    throw new ExtensionsApiError(
+      `${fallback}: extension identity mismatch (${response.status})`,
+      response.status,
+      "malformed_response"
+    );
+  }
+  return envelope;
+}
+
 /** A workspace selects a dev unlink when present; an absent workspace removes the global row. */
 export async function removeExtension(
   name: string,
@@ -184,58 +280,4 @@ export async function removeExtension(
   });
   if (apiRequestFailed(response, error))
     throw responseError(`Failed to remove ${name}`, response, error);
-}
-
-export async function listBundleActivations(signal?: AbortSignal): Promise<BundleActivation[]> {
-  const { data, error, response } = await apiClient.GET("/api/bundles/activations", { signal });
-  if (apiRequestFailed(response, error)) {
-    throw responseError("Failed to list bundle activations", response, error);
-  }
-  const fallback = "Failed to list bundle activations";
-  const envelope = responseData(data, response, fallback);
-  return requiredArray(envelope.activations, response, fallback, "activations");
-}
-
-export async function getBundleActivation(
-  id: string,
-  signal?: AbortSignal
-): Promise<BundleActivation> {
-  const { data, error, response } = await apiClient.GET("/api/bundles/activations/{id}", {
-    params: { path: { id } },
-    signal,
-  });
-  if (apiRequestFailed(response, error)) {
-    throw responseError(`Failed to load bundle activation ${id}`, response, error);
-  }
-  const fallback = `Failed to load bundle activation ${id}`;
-  const envelope = responseData(data, response, fallback);
-  return requiredObject(envelope.activation, response, fallback, "activation");
-}
-
-export async function updateBundleActivation(
-  id: string,
-  body: BundleActivationUpdateRequest,
-  signal?: AbortSignal
-): Promise<BundleActivation> {
-  const { data, error, response } = await apiClient.PATCH("/api/bundles/activations/{id}", {
-    params: { path: { id } },
-    body,
-    signal,
-  });
-  if (apiRequestFailed(response, error)) {
-    throw responseError(`Failed to update bundle activation ${id}`, response, error);
-  }
-  const fallback = `Failed to update bundle activation ${id}`;
-  const envelope = responseData(data, response, fallback);
-  return requiredObject(envelope.activation, response, fallback, "activation");
-}
-
-export async function deactivateBundle(id: string, signal?: AbortSignal): Promise<void> {
-  const { error, response } = await apiClient.DELETE("/api/bundles/activations/{id}", {
-    params: { path: { id } },
-    signal,
-  });
-  if (apiRequestFailed(response, error)) {
-    throw responseError(`Failed to deactivate bundle activation ${id}`, response, error);
-  }
 }

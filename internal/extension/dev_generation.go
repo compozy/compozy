@@ -12,11 +12,12 @@ import (
 var generationHashPattern = regexp.MustCompile(`^[a-f0-9]{64}$`)
 
 type verifiedDevGeneration struct {
-	OriginPath     string
-	GenerationDir  string
-	GenerationHash string
-	ManifestPath   string
-	Manifest       *Manifest
+	OriginPath               string
+	GenerationDir            string
+	GenerationHash           string
+	ManifestPath             string
+	Manifest                 *Manifest
+	NetworkRequirementDigest string
 }
 
 func canonicalizeDevOrigin(workspaceRoot, originPath string) (string, error) {
@@ -100,11 +101,21 @@ func verifyDevGeneration(originPath, generationHash string) (*verifiedDevGenerat
 	if err != nil {
 		return nil, fmt.Errorf("%w: load generation %q manifest: %v", ErrExtensionGenerationInvalid, hash, err)
 	}
+	networkDigest, err := NetworkParticipationRequirementDigest(manifest.NetworkParticipation)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"%w: digest generation %q network requirement: %w",
+			ErrExtensionGenerationInvalid,
+			hash,
+			err,
+		)
+	}
 	return &verifiedDevGeneration{
-		OriginPath:     originPath,
-		GenerationDir:  canonicalDir,
-		GenerationHash: hash,
-		ManifestPath:   bundleManifestPath(canonicalDir),
-		Manifest:       manifest,
+		OriginPath:               originPath,
+		GenerationDir:            canonicalDir,
+		GenerationHash:           hash,
+		ManifestPath:             extensionManifestPath(canonicalDir),
+		Manifest:                 manifest,
+		NetworkRequirementDigest: networkDigest,
 	}, nil
 }

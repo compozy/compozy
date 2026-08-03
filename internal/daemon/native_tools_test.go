@@ -21,7 +21,6 @@ import (
 	core "github.com/compozy/compozy/internal/api/core"
 	apitest "github.com/compozy/compozy/internal/api/testutil"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
-	bundlepkg "github.com/compozy/compozy/internal/bundles"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/config/lifecycle"
 	"github.com/compozy/compozy/internal/diagnosticcontract"
@@ -860,7 +859,6 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("Registry.Call(tool_list) error = %v", err)
 		}
 		requireNativeStructuredContains(t, listResult, []byte(`"compozy__task_child_create"`))
-		requireNativeStructuredContains(t, listResult, []byte(`"compozy__bundles_list"`))
 		requireNativeStructuredContains(t, listResult, []byte(`"compozy__resources_list"`))
 		requireNativeStructuredContains(t, listResult, []byte(`"compozy__mcp_status"`))
 		requireNativeStructuredContains(t, listResult, []byte(`"compozy__mcp_auth_status"`))
@@ -901,21 +899,9 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
-	t.Run("Should dispatch bundle and resource native tools through daemon services", func(t *testing.T) {
+	t.Run("Should dispatch resource native tools through the daemon service", func(t *testing.T) {
 		t.Parallel()
 
-		bundleService := &nativeBundleServiceStub{
-			catalog: []bundlepkg.CatalogEntry{{ExtensionName: "ext-bundle"}},
-			activations: []bundlepkg.ActivationPreview{{
-				Activation: bundlepkg.Activation{
-					ID:            "act-1",
-					ExtensionName: "ext-bundle",
-					BundleName:    "starter",
-					ProfileName:   "default",
-					Scope:         bundlepkg.ScopeGlobal,
-				},
-			}},
-		}
 		resourceService := &nativeResourceServiceStub{
 			records: []resources.RawRecord{{
 				Kind:     resources.ResourceKind("tool.mcp_server"),
@@ -924,19 +910,8 @@ func TestDaemonNativeTools(t *testing.T) {
 			}},
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			BundleService: func() core.BundleService { return bundleService },
-			Resources:     resourceService,
+			Resources: resourceService,
 		}, nativeApproveAllPolicyInputs())
-
-		bundleResult, err := registry.Call(
-			t.Context(),
-			toolspkg.Scope{Operator: true},
-			toolspkg.CallRequest{ToolID: toolspkg.ToolIDBundlesList},
-		)
-		if err != nil {
-			t.Fatalf("Registry.Call(bundles_list) error = %v", err)
-		}
-		requireNativeStructuredContains(t, bundleResult, []byte(`"act-1"`))
 
 		resourceResult, err := registry.Call(
 			t.Context(),
@@ -949,93 +924,9 @@ func TestDaemonNativeTools(t *testing.T) {
 		requireNativeStructuredContains(t, resourceResult, []byte(`"mcp.github"`))
 	})
 
-	t.Run("Should resolve bundle service after native registry boot", func(t *testing.T) {
+	t.Run("Should bind resource native tools to the caller workspace", func(t *testing.T) {
 		t.Parallel()
 
-		var bundleService core.BundleService
-		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			BundleService: func() core.BundleService { return bundleService },
-		}, nativeApproveAllPolicyInputs())
-		operatorScope := toolspkg.Scope{Operator: true}
-
-		views, err := registry.OperatorProjection(t.Context(), operatorScope)
-		if err != nil {
-			t.Fatalf("OperatorProjection() error = %v", err)
-		}
-		requireNativeToolUnavailableReason(t, views, toolspkg.ToolIDBundlesList)
-
-		bundleService = &nativeBundleServiceStub{
-			catalog: []bundlepkg.CatalogEntry{{ExtensionName: "ext-bundle"}},
-		}
-		result, err := registry.Call(
-			t.Context(),
-			operatorScope,
-			toolspkg.CallRequest{ToolID: toolspkg.ToolIDBundlesList},
-		)
-		if err != nil {
-			t.Fatalf("Registry.Call(bundles_list) after late service error = %v", err)
-		}
-		requireNativeStructuredContains(t, result, []byte(`"ext-bundle"`))
-	})
-
-	t.Run("Should preserve the reserved agent code from bundle activation", func(t *testing.T) {
-		t.Parallel()
-
-		bundleService := &nativeBundleServiceStub{
-			activateErr: fmt.Errorf("bundle agent: %w", compozyconfig.ErrAgentNameReserved),
-		}
-		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			BundleService: func() core.BundleService { return bundleService },
-		}, nativeApproveAllPolicyInputs())
-
-		_, err := registry.Call(
-			t.Context(),
-			toolspkg.Scope{Operator: true},
-			toolspkg.CallRequest{
-				ToolID: toolspkg.ToolIDBundlesActivate,
-				Input: json.RawMessage(
-					`{"extension_name":"ext-bundle","bundle_name":"starter","profile_name":"default","scope":"global"}`,
-				),
-			},
-		)
-		if !errors.Is(err, compozyconfig.ErrAgentNameReserved) {
-			t.Fatalf("Registry.Call(bundles_activate reserved) error = %v, want ErrAgentNameReserved", err)
-		}
-		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
-		var toolErr *toolspkg.ToolError
-		if !errors.As(err, &toolErr) || toolErr.Code != toolspkg.ErrorCodeAgentNameReserved {
-			t.Fatalf("Registry.Call(bundles_activate reserved) error = %#v, want agent_name_reserved", err)
-		}
-	})
-
-	t.Run("Should bind bundle and resource native tools to the caller workspace", func(t *testing.T) {
-		t.Parallel()
-
-		bundleService := &nativeBundleServiceStub{
-			catalog: []bundlepkg.CatalogEntry{{ExtensionName: "ext-bundle"}},
-			activations: []bundlepkg.ActivationPreview{
-				{
-					Activation: bundlepkg.Activation{
-						ID:            "act-ws-1",
-						ExtensionName: "ext-bundle",
-						BundleName:    "starter",
-						ProfileName:   "default",
-						Scope:         bundlepkg.ScopeWorkspace,
-						WorkspaceID:   "ws-1",
-					},
-				},
-				{
-					Activation: bundlepkg.Activation{
-						ID:            "act-ws-2",
-						ExtensionName: "ext-bundle",
-						BundleName:    "starter",
-						ProfileName:   "default",
-						Scope:         bundlepkg.ScopeWorkspace,
-						WorkspaceID:   "ws-2",
-					},
-				},
-			},
-		}
 		resourceService := &nativeResourceServiceStub{
 			records: []resources.RawRecord{
 				{
@@ -1053,128 +944,13 @@ func TestDaemonNativeTools(t *testing.T) {
 			},
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			BundleService: func() core.BundleService { return bundleService },
-			Resources:     resourceService,
-			Sessions:      nativeNetworkTestSessionManager("ws-1"),
-			Workspaces:    nativeNetworkTestWorkspaceService(t),
+			Resources:  resourceService,
+			Sessions:   nativeNetworkTestSessionManager("ws-1"),
+			Workspaces: nativeNetworkTestWorkspaceService(t),
 		}, nativeApproveAllPolicyInputs())
 		scope := toolspkg.Scope{SessionID: "sess-1", WorkspaceID: "ws-1", AgentName: "coder"}
 
-		listResult, err := registry.Call(
-			t.Context(),
-			scope,
-			toolspkg.CallRequest{ToolID: toolspkg.ToolIDBundlesList},
-		)
-		if err != nil {
-			t.Fatalf("Registry.Call(bundles_list) error = %v", err)
-		}
-		requireNativeStructuredContains(t, listResult, []byte(`"act-ws-1"`))
-		requireNativeStructuredExcludes(t, listResult, []byte(`"act-ws-2"`))
-
-		_, err = registry.Call(
-			t.Context(),
-			scope,
-			toolspkg.CallRequest{
-				ToolID: toolspkg.ToolIDBundlesActivate,
-				Input: json.RawMessage(
-					`{"extension_name":"ext-bundle","bundle_name":"starter","profile_name":"default"}`,
-				),
-			},
-		)
-		if err != nil {
-			t.Fatalf("Registry.Call(bundles_activate scoped default) error = %v", err)
-		}
-		if bundleService.activateCalls != 1 ||
-			bundleService.lastActivate.Scope != bundlepkg.ScopeWorkspace ||
-			bundleService.lastActivate.Workspace != "ws-1" {
-			t.Fatalf(
-				"Activate request = %#v after %d calls, want workspace ws-1",
-				bundleService.lastActivate,
-				bundleService.activateCalls,
-			)
-		}
-
-		_, err = registry.Call(
-			t.Context(),
-			scope,
-			toolspkg.CallRequest{
-				ToolID: toolspkg.ToolIDBundlesActivate,
-				Input: json.RawMessage(
-					`{"extension_name":"ext-bundle","bundle_name":"starter","profile_name":"default","bind_primary_channel_as_default":true}`,
-				),
-			},
-		)
-		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
-		if bundleService.activateCalls != 1 {
-			t.Fatalf(
-				"Activate calls = %d, want removed default binding rejected before service",
-				bundleService.activateCalls,
-			)
-		}
-
-		_, err = registry.Call(
-			t.Context(),
-			scope,
-			toolspkg.CallRequest{
-				ToolID: toolspkg.ToolIDBundlesActivate,
-				Input: json.RawMessage(
-					`{"extension_name":"ext-bundle","bundle_name":"starter","profile_name":"default","confirm_network_requirement":true}`,
-				),
-			},
-		)
-		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonPolicyDenied)
-		if bundleService.activateCalls != 1 {
-			t.Fatalf(
-				"Activate calls = %d, want non-operator confirmation rejected before service",
-				bundleService.activateCalls,
-			)
-		}
-
-		_, err = registry.Call(
-			t.Context(),
-			scope,
-			toolspkg.CallRequest{
-				ToolID: toolspkg.ToolIDBundlesActivate,
-				Input: json.RawMessage(
-					`{"extension_name":"ext-bundle","bundle_name":"starter","profile_name":"default","scope":"workspace","workspace":"ws-2"}`,
-				),
-			},
-		)
-		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
-		if bundleService.activateCalls != 1 {
-			t.Fatalf(
-				"Activate calls = %d, want cross-workspace request rejected before service",
-				bundleService.activateCalls,
-			)
-		}
-
-		_, err = registry.Call(
-			t.Context(),
-			scope,
-			toolspkg.CallRequest{
-				ToolID: toolspkg.ToolIDBundlesInfo,
-				Input:  json.RawMessage(`{"id":"act-ws-2"}`),
-			},
-		)
-		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
-
-		_, err = registry.Call(
-			t.Context(),
-			scope,
-			toolspkg.CallRequest{
-				ToolID: toolspkg.ToolIDBundlesDeactivate,
-				Input:  json.RawMessage(`{"id":"act-ws-2"}`),
-			},
-		)
-		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
-		if bundleService.deactivateCalls != 0 {
-			t.Fatalf(
-				"Deactivate calls = %d, want cross-workspace request rejected before mutation",
-				bundleService.deactivateCalls,
-			)
-		}
-
-		_, err = registry.Call(
+		_, err := registry.Call(
 			t.Context(),
 			scope,
 			toolspkg.CallRequest{ToolID: toolspkg.ToolIDResourcesList},
@@ -1218,40 +994,6 @@ func TestDaemonNativeTools(t *testing.T) {
 			},
 		)
 		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
-	})
-
-	t.Run("Should default operator bundle activation to the scoped workspace", func(t *testing.T) {
-		t.Parallel()
-
-		bundleService := &nativeBundleServiceStub{}
-		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			BundleService: func() core.BundleService { return bundleService },
-			Workspaces:    nativeNetworkTestWorkspaceService(t),
-		}, nativeApproveAllPolicyInputs())
-
-		_, err := registry.Call(
-			t.Context(),
-			toolspkg.Scope{Operator: true, WorkspaceID: "ws-operator"},
-			toolspkg.CallRequest{
-				ToolID: toolspkg.ToolIDBundlesActivate,
-				Input: json.RawMessage(
-					"{\"extension_name\":\"ext-bundle\",\"bundle_name\":\"starter\",\"profile_name\":\"default\",\"confirm_network_requirement\":true}",
-				),
-			},
-		)
-		if err != nil {
-			t.Fatalf("Registry.Call(bundles_activate operator scoped default) error = %v", err)
-		}
-		if bundleService.activateCalls != 1 ||
-			bundleService.lastActivate.Scope != bundlepkg.ScopeWorkspace ||
-			bundleService.lastActivate.Workspace != "ws-operator" ||
-			!bundleService.lastActivate.ConfirmNetworkRequirement {
-			t.Fatalf(
-				"Activate request = %#v after %d calls, want workspace ws-operator",
-				bundleService.lastActivate,
-				bundleService.activateCalls,
-			)
-		}
 	})
 
 	t.Run("Should bind shared native workspace resolution to the caller workspace", func(t *testing.T) {
@@ -1389,12 +1131,12 @@ func TestDaemonNativeTools(t *testing.T) {
 		t.Parallel()
 
 		descriptor := toolspkg.Descriptor{
-			ID:      toolspkg.ToolIDBundlesActivate,
+			ID:      toolspkg.ToolIDMemoryNote,
 			Backend: toolspkg.BackendRef{Kind: toolspkg.BackendNativeGo, NativeName: "test"},
 			InputSchema: json.RawMessage(
 				`{"type":"object","properties":{"scope":{"type":"string"},"workspace":{"type":"string"}}}`,
 			),
-			Toolsets: []toolspkg.ToolsetID{toolspkg.ToolsetIDBundles},
+			Toolsets: []toolspkg.ToolsetID{toolspkg.ToolsetIDMemory},
 		}
 		var unavailableBinder *nativeWorkspaceInputBinder
 		_, err := unavailableBinder.BindCallInput(
@@ -1655,7 +1397,6 @@ func TestDaemonNativeTools(t *testing.T) {
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDBridgesList)
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDAutomationJobsList)
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDExtensionsList)
-		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDBundlesList)
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDResourcesList)
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDMCPStatus)
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDMCPAuthStatus)
@@ -8319,6 +8060,9 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 		if err := devcycle.EnsureManagedInstall(deps.HomePaths, extensionRegistry); err != nil {
 			t.Fatalf("EnsureManagedInstall(dev-cycle) error = %v", err)
 		}
+		if err := extensionRegistry.Enable(devcycle.Name); err != nil {
+			t.Fatalf("registry.Enable(%q) error = %v", devcycle.Name, err)
+		}
 		runtime := &nativeBundledDevCycleToolRuntime{
 			devCycleLoopSchemaRuntime: newDevCycleLoopSchemaRuntime(t, extensionRegistry),
 		}
@@ -9770,93 +9514,6 @@ type nativeHookBindingsStub struct {
 func (b *nativeHookBindingsStub) Sync(context.Context) error {
 	b.syncCalls++
 	return b.err
-}
-
-type nativeBundleServiceStub struct {
-	catalog         []bundlepkg.CatalogEntry
-	activations     []bundlepkg.ActivationPreview
-	network         bundlepkg.NetworkSettings
-	activateCalls   int
-	lastActivate    bundlepkg.ActivateRequest
-	activateErr     error
-	deactivateCalls int
-}
-
-func (s *nativeBundleServiceStub) Catalog(context.Context) ([]bundlepkg.CatalogEntry, error) {
-	return append([]bundlepkg.CatalogEntry(nil), s.catalog...), nil
-}
-
-func (s *nativeBundleServiceStub) PreviewActivation(
-	_ context.Context,
-	_ bundlepkg.ActivateRequest,
-) (bundlepkg.ActivationPreview, error) {
-	return bundlepkg.ActivationPreview{}, errors.New("native bundle stub: preview should not be called")
-}
-
-func (s *nativeBundleServiceStub) Activate(
-	_ context.Context,
-	req bundlepkg.ActivateRequest,
-) (bundlepkg.ActivationPreview, error) {
-	s.activateCalls++
-	s.lastActivate = req
-	if s.activateErr != nil {
-		return bundlepkg.ActivationPreview{}, s.activateErr
-	}
-	return bundlepkg.ActivationPreview{
-		Activation: bundlepkg.Activation{
-			ID:            "act-created",
-			ExtensionName: req.ExtensionName,
-			BundleName:    req.BundleName,
-			ProfileName:   req.ProfileName,
-			Scope:         req.Scope,
-			WorkspaceID:   req.Workspace,
-		},
-	}, nil
-}
-
-func (s *nativeBundleServiceStub) ListActivations(context.Context) ([]bundlepkg.ActivationPreview, error) {
-	return append([]bundlepkg.ActivationPreview(nil), s.activations...), nil
-}
-
-func (s *nativeBundleServiceStub) GetActivation(
-	_ context.Context,
-	id string,
-) (bundlepkg.ActivationPreview, error) {
-	for _, item := range s.activations {
-		if item.Activation.ID == id {
-			return item, nil
-		}
-	}
-	return bundlepkg.ActivationPreview{}, bundlepkg.ErrActivationNotFound
-}
-
-func (s *nativeBundleServiceStub) UpdateActivation(
-	_ context.Context,
-	_ bundlepkg.UpdateActivationRequest,
-) (bundlepkg.ActivationPreview, error) {
-	return bundlepkg.ActivationPreview{}, errors.New("native bundle stub: update should not be called")
-}
-
-func (s *nativeBundleServiceStub) Deactivate(context.Context, string) error {
-	s.deactivateCalls++
-	return nil
-}
-
-func (s *nativeBundleServiceStub) NetworkSettings(context.Context) (bundlepkg.NetworkSettings, error) {
-	return s.network, nil
-}
-
-func (s *nativeBundleServiceStub) ConfirmNetworkRequirement(
-	_ context.Context,
-	activationID string,
-	_ int64,
-) (bundlepkg.ActivationPreview, error) {
-	for _, item := range s.activations {
-		if item.Activation.ID == activationID {
-			return item, nil
-		}
-	}
-	return bundlepkg.ActivationPreview{}, bundlepkg.ErrActivationNotFound
 }
 
 type nativeResourceServiceStub struct {

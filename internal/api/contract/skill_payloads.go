@@ -87,7 +87,6 @@ type ProvenancePayload struct {
 	Registry               string                    `json:"registry,omitempty"`
 	Version                string                    `json:"version,omitempty"`
 	InstalledAt            *time.Time                `json:"installed_at,omitempty"`
-	InstalledFromBundle    string                    `json:"installed_from_bundle,omitempty"`
 	InstalledFromExtension string                    `json:"installed_from_extension,omitempty"`
 	PrecedenceTier         string                    `json:"precedence_tier"`
 	ShadowedBy             []SkillShadowEntryPayload `json:"shadowed_by,omitempty"`

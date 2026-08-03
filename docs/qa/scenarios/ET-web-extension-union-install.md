@@ -11,8 +11,8 @@ bug_ids:
 fix_status:
 retest_status: pass
 fix_commits:
-evidence: web/src/systems/marketplace/components/extension-install-dialog.tsx; web/src/systems/marketplace/components/extension-install-model.ts; web/e2e/__tests__/extensions.spec.ts; /Users/pedronauck/dev/qa-labs/compozy-ext-improvs-final-20260729-230047-267985-lab/qa-artifacts/qa/browser/extension-management.json
-last_report: docs/qa/reports/2026-07-29-ext-improvs.md
+evidence: web/src/systems/marketplace/components/extension-install-dialog.tsx;web/src/systems/marketplace/components/extension-install-model.ts;web/e2e/__tests__/extensions.spec.ts;/Users/pedronauck/dev/qa-labs/compozy-ext-improvs-final-20260729-230047-267985-lab/qa-artifacts/qa/browser/extension-management.json;/Users/pedronauck/dev/qa-labs/compozy-devtool-oss-launch-20260802-195112-911343-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-08-02-bundles-removal.md
 overlaps: ET-web-extensions-manage; ET-extension-published-source-installs
 ---
 

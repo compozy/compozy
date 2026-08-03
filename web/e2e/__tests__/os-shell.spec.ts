@@ -1348,6 +1348,7 @@ test("E2E-029: dropping onto a tiled window splits its group and the zoom menu a
       normalizedFrameForWindow(await windowManagerSnapshot(runtime, workspace.id), tasksID)
     )
     .toEqual({ x: 0.5, y: 0, width: 0.5, height: 1 });
+  await expect(tasks).toHaveAttribute("data-window-placement", "tiled");
 
   const tasksRect = await tasks.boundingBox();
   if (!tasksRect) throw new Error("snapped tasks window must be visible");
@@ -1985,7 +1986,8 @@ test("E2E-034 (logical E2E-008): a pinned tab refuses Cmd+W until unpinned", asy
   await expect(shell.tab(tasksID)).toBeVisible();
   await shell.tabMenu(tasksID).click({ button: "right" });
   await appPage.getByRole("menuitem", { name: "Close other tabs" }).click();
-  await expect(shell.tab(tasksID)).toBeVisible();
+  await expect(shell.tab(tasksID)).toHaveCount(0);
+  await expect(shell.window(tasksID)).toBeVisible();
   await expect(shell.tab(agentsID)).toHaveCount(0);
 
   const agentsReplacement = (await openDeckFixtureWindows(runtime, workspace.id, ["agents"]))[0];
@@ -2664,24 +2666,23 @@ test("E2E-023: the 12-window envelope holds for drag frames, restore, and conver
   expect(restore).toBeLessThan(500);
 
   // The envelope measures steady-state pointer fluidity: wait until the main
-  // thread has been long-task quiet for 600ms so the 12 window bodies' initial
-  // content burst can't masquerade as drag jank. (networkidle never settles
-  // here — the shell keeps WebSocket/SSE connections open by design.)
-  await appPage.evaluate(() => {
-    const settle = { last: performance.now() };
-    Reflect.set(window, "__osSettle", settle);
-    new PerformanceObserver(list => {
-      for (const entry of list.getEntries()) {
-        settle.last = Math.max(settle.last, entry.startTime + entry.duration);
-      }
-    }).observe({ type: "longtask", buffered: true });
-  });
-  await appPage.waitForFunction(() => {
-    const settle = Reflect.get(window, "__osSettle") as { last: number };
-    return performance.now() - settle.last > 600;
-  });
+  // thread has been long-task quiet so the 12 window bodies' initial content
+  // burst can't masquerade as drag jank. (networkidle never settles here — the
+  // shell keeps WebSocket/SSE connections open by design.)
+  await installLongTaskQuietProbe(appPage);
+  await waitForLongTaskQuiet(appPage);
 
-  // Long-task probe during a 3s continuous drag of one window.
+  const dragged = appWindow(appPage, "vault");
+  await focusWindow(appPage, dragged);
+  const grip = await windowGrip(dragged);
+  await waitForLongTaskQuiet(appPage);
+
+  // Long-task probe during a 3s continuous drag of one window. Install it
+  // after focus settles so the envelope measures drag frames, not activation.
+  // Dispatch trusted Chromium input directly: Playwright's mouse helper takes
+  // a full DOM snapshot for every traced action, and that recorder work runs
+  // on the renderer thread that this envelope is meant to measure.
+  const dragInput = await appPage.context().newCDPSession(appPage);
   await appPage.evaluate(() => {
     const tasks: number[] = [];
     Reflect.set(window, "__osLongTasks", tasks);
@@ -2689,23 +2690,60 @@ test("E2E-023: the 12-window envelope holds for drag frames, restore, and conver
       for (const entry of list.getEntries()) tasks.push(entry.duration);
     }).observe({ type: "longtask", buffered: false });
   });
-  const dragged = appWindow(appPage, "vault");
-  await focusWindow(appPage, dragged);
-  const grip = await windowGrip(dragged);
-  await appPage.mouse.move(grip.x, grip.y);
-  await appPage.mouse.down();
-  const start = Date.now();
-  let step = 0;
-  while (Date.now() - start < 3000) {
-    const angle = (step / 20) * Math.PI * 2;
-    await appPage.mouse.move(
-      grip.x + 120 + Math.cos(angle) * 90,
-      grip.y + 100 + Math.sin(angle) * 60,
-      { steps: 2 }
-    );
-    step += 1;
+  let currentX = grip.x;
+  let currentY = grip.y;
+  let pressed = false;
+  try {
+    await dragInput.send("Input.dispatchMouseEvent", {
+      type: "mouseMoved",
+      x: currentX,
+      y: currentY,
+      button: "none",
+    });
+    await dragInput.send("Input.dispatchMouseEvent", {
+      type: "mousePressed",
+      x: currentX,
+      y: currentY,
+      button: "left",
+      buttons: 1,
+      clickCount: 1,
+    });
+    pressed = true;
+    const start = Date.now();
+    let step = 0;
+    while (Date.now() - start < 3000) {
+      const angle = (step / 20) * Math.PI * 2;
+      const targetX = grip.x + 120 + Math.cos(angle) * 90;
+      const targetY = grip.y + 100 + Math.sin(angle) * 60;
+      for (const progress of [0.5, 1]) {
+        await dragInput.send("Input.dispatchMouseEvent", {
+          type: "mouseMoved",
+          x: currentX + (targetX - currentX) * progress,
+          y: currentY + (targetY - currentY) * progress,
+          button: "left",
+          buttons: 1,
+        });
+      }
+      currentX = targetX;
+      currentY = targetY;
+      step += 1;
+    }
+  } finally {
+    try {
+      if (pressed) {
+        await dragInput.send("Input.dispatchMouseEvent", {
+          type: "mouseReleased",
+          x: currentX,
+          y: currentY,
+          button: "left",
+          buttons: 0,
+          clickCount: 1,
+        });
+      }
+    } finally {
+      await dragInput.detach();
+    }
   }
-  await appPage.mouse.up();
   const longTasks = await appPage.evaluate(() => Reflect.get(window, "__osLongTasks") as number[]);
   const worstFrame = longTasks.length > 0 ? Math.max(...longTasks) : 0;
 
@@ -2716,7 +2754,13 @@ test("E2E-023: the 12-window envelope holds for drag frames, restore, and conver
   let worstPeerTask = 0;
   try {
     for (const peer of [peerA, peerB]) {
-      await expect(appWindow(peer, "sandbox")).toBeAttached();
+      for (const app of PERF_APPS) {
+        const id = perfWindowIDs.get(app);
+        if (!id) throw new Error(`performance fixture must retain the ${app} window ID`);
+        await expect(osShellSelectors(peer).window(id)).toBeAttached();
+      }
+      await installLongTaskQuietProbe(peer);
+      await waitForLongTaskQuiet(peer);
       await peer.evaluate(() => {
         const tasks: number[] = [];
         Reflect.set(window, "__osLongTasks", tasks);
@@ -2784,6 +2828,25 @@ async function openPeerPage(browser: Browser, runtime: BrowserRuntime): Promise<
   return page;
 }
 
+async function installLongTaskQuietProbe(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const settle = { last: performance.now() };
+    Reflect.set(window, "__osSettle", settle);
+    new PerformanceObserver(list => {
+      for (const entry of list.getEntries()) {
+        settle.last = Math.max(settle.last, entry.startTime + entry.duration);
+      }
+    }).observe({ type: "longtask", buffered: true });
+  });
+}
+
+async function waitForLongTaskQuiet(page: Page): Promise<void> {
+  await page.waitForFunction(() => {
+    const settle = Reflect.get(window, "__osSettle") as { last: number };
+    return performance.now() - settle.last > 600;
+  });
+}
+
 async function openDockApp(page: Page, name: string, app: string) {
   await page.getByRole("button", { name }).click();
   const win = appWindow(page, app);
@@ -2830,14 +2893,15 @@ async function windowRect(page: Page, win: ReturnType<Page["locator"]>) {
 }
 
 /**
- * A guaranteed drag surface on the window head: the identity (glyph + title)
- * area is never inside the drag-cancel selectors, unlike the head center,
- * which can land on the mode tabs (`topbar-nav`) once an app publishes them.
+ * A guaranteed drag surface on the window head: the flexible spacer remains
+ * mounted while route identity is published and never overlaps interactive
+ * head controls. Title nodes can be replaced during lazy route startup.
  */
 async function windowGrip(win: ReturnType<Page["locator"]>): Promise<{ x: number; y: number }> {
-  const title = win.locator('[data-slot="topbar-title"]');
-  const box = await title.boundingBox();
-  if (!box) throw new Error("window title must be visible to start a head drag");
+  const spacer = win.locator('[data-slot="topbar-flex"]');
+  await expect(spacer).toBeVisible();
+  const box = await spacer.boundingBox();
+  if (!box) throw new Error("window head drag surface must expose a visible bounding box");
   return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
 }
 

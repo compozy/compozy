@@ -52,7 +52,6 @@ type BaseHandlerConfig struct {
 	Tasks                        TaskService
 	Bridges                      BridgeService
 	Notifications                NotificationPresetService
-	Bundles                      BundleService
 	SupportBundles               SupportBundleService
 	Settings                     SettingsService
 	SettingsRestart              SettingsRestartController
@@ -131,7 +130,6 @@ type BaseHandlers struct {
 	Tasks                        TaskService
 	Bridges                      BridgeService
 	Notifications                NotificationPresetService
-	Bundles                      BundleService
 	SupportBundles               SupportBundleService
 	Settings                     SettingsService
 	SettingsRestart              SettingsRestartController
@@ -220,7 +218,6 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 		Tasks:                        cfg.Tasks,
 		Bridges:                      cfg.Bridges,
 		Notifications:                cfg.Notifications,
-		Bundles:                      cfg.Bundles,
 		SupportBundles:               cfg.SupportBundles,
 		Settings:                     cfg.Settings,
 		SettingsRestart:              cfg.SettingsRestart,

@@ -141,7 +141,6 @@ func skillShadowEntryRecordFromDomain(entry skills.ShadowEntry) contract.SkillSh
 
 func skillProvenanceRecordFromSkill(skill *skills.Skill, shadows skills.SkillShadows) SkillProvenanceRecord {
 	provenance := SkillProvenanceRecord{
-		InstalledFromBundle:    strings.TrimSpace(skill.InstalledFromBundle),
 		InstalledFromExtension: strings.TrimSpace(skill.InstalledFromExtension),
 		PrecedenceTier:         skills.SkillPrecedenceTierName(skill.Source),
 	}

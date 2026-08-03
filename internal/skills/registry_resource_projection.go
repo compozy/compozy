@@ -71,7 +71,7 @@ func skillRecordSortKey(record resources.Record[SkillResourceSpec]) string {
 		strings.TrimSpace(record.ID)
 }
 
-func applySkillResourceOrigin(record resources.Record[SkillResourceSpec], skill *Skill) {
+func applySkillExtensionOrigin(record resources.Record[SkillResourceSpec], skill *Skill) {
 	if skill == nil {
 		return
 	}
@@ -79,11 +79,6 @@ func applySkillResourceOrigin(record resources.Record[SkillResourceSpec], skill 
 	if source.Kind == resources.ResourceSourceKind("extension") &&
 		strings.TrimSpace(skill.InstalledFromExtension) == "" {
 		skill.InstalledFromExtension = strings.TrimSpace(source.ID)
-	}
-	owner := record.Owner.Normalize()
-	if owner.Kind == resources.ResourceOwnerKind("bundle.activation") &&
-		strings.TrimSpace(skill.InstalledFromBundle) == "" {
-		skill.InstalledFromBundle = strings.TrimSpace(owner.ID)
 	}
 }
 

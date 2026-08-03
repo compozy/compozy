@@ -100,7 +100,7 @@ Discovery uses the shared `/api/marketplace` namespace on both HTTP and UDS. Row
 
 | Operation      | Endpoint                                         | Behavior                                                          |
 | -------------- | ------------------------------------------------ | ----------------------------------------------------------------- |
-| Grouped search | `GET /api/marketplace/search?q=<text>&limit=<n>` | Returns MCP, extension, skill, and bundle groups.                 |
+| Grouped search | `GET /api/marketplace/search?q=<text>&limit=<n>` | Returns MCP, extension, and skill groups.                         |
 | Skill browse   | `GET /api/marketplace/skill?q=<text>&limit=<n>`  | Returns only skill rows; empty `q` uses the curated slice.        |
 | Skill detail   | `GET /api/marketplace/skill/{entry_id}`          | Resolves full metadata by stable entry ID, never by display name. |
 | Refresh        | `POST /api/marketplace/refresh?kind=skill`       | Refreshes the feed-backed skill projection.                       |

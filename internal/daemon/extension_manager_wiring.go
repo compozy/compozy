@@ -71,6 +71,9 @@ func buildExtensionManagerOptions(
 	if deps.SecretResolver != nil {
 		opts = append(opts, extensionpkg.WithSecretResolver(deps.SecretResolver))
 	}
+	if deps.EnvBindings != nil {
+		opts = append(opts, extensionpkg.WithEnvBindingStore(deps.EnvBindings))
+	}
 	for method, handler := range hostAPI.MethodHandlers() {
 		opts = append(opts, extensionpkg.WithHostMethodHandler(method, handler))
 	}

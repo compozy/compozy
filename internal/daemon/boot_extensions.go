@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 
+	"github.com/compozy/compozy/internal/api/core"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 )
 
@@ -12,62 +13,52 @@ func (d *Daemon) attachExtensionRuntime(
 	extRegistry *extensionpkg.Registry,
 	manager extensionRuntime,
 ) {
-	state.deps.Extensions = newDaemonExtensionService(
-		extRegistry,
-		manager,
-		state.hookBindings,
-		state.agentSkillResources,
-		state.toolMCPResources,
-		state.bundleResources,
-		state.loopResources,
-		d.homePaths,
-		state.logger,
-		d.now,
+	state.deps.Extensions = d.newBootExtensionService(state, extRegistry, manager)
+	d.syncExtensionRuntimeConsumers(ctx, state)
+}
+
+func (d *Daemon) newBootExtensionService(
+	state *bootState,
+	extRegistry *extensionpkg.Registry,
+	manager extensionRuntime,
+) core.ExtensionService {
+	var envBindings extensionpkg.EnvBindingLifecycleStore
+	if store, ok := any(state.registry).(extensionpkg.EnvBindingLifecycleStore); ok {
+		envBindings = store
+	}
+	return newDaemonExtensionService(daemonExtensionServiceDeps{
+		Registry:     extRegistry,
+		Runtime:      manager,
+		HookBindings: state.hookBindings,
+		AgentSkill:   state.agentSkillResources,
+		ToolMCP:      state.toolMCPResources,
+		Loops:        state.loopResources,
+		HomePaths:    d.homePaths,
+		Logger:       state.logger,
+		Now:          d.now,
+		Getenv:       d.getenv,
+	},
 		withDaemonExtensionMarketplace(state.cfg.Extensions, nil),
 		withDaemonExtensionCatalog(state.marketplace),
 		withDaemonExtensionEventWriter(extensionEventSummaryStore(state.registry)),
 		withDaemonExtensionWorkspaceResolver(state.workspaceResolver),
+		withDaemonExtensionKitPublisher(state.extensionKitResources),
+		withDaemonExtensionSecrets(envBindings, state.providerVault),
+		withDaemonExtensionAutomation(state.automation),
+		withDaemonExtensionResources(state.resourceKernel, resourceReconcileActor(), state.resourceCodecs),
 	)
-	if state.agentSkillResources != nil {
-		if err := state.agentSkillResources.Sync(ctx); err != nil {
-			state.logger.Error(
-				"daemon: sync agent/skill resources after extension boot failed",
-				"error",
-				err,
-			)
+}
+
+func (d *Daemon) syncExtensionRuntimeConsumers(ctx context.Context, state *bootState) {
+	for _, entry := range extensionResourcePublishers(state) {
+		if entry.publisher == nil {
+			continue
 		}
-	}
-	if state.hookBindings != nil {
-		if err := state.hookBindings.Sync(ctx); err != nil {
+		if err := entry.publisher.Sync(ctx); err != nil {
 			state.logger.Error(
-				"daemon: sync hook bindings after extension boot failed",
-				"error",
-				err,
-			)
-		}
-	}
-	if state.toolMCPResources != nil {
-		if err := state.toolMCPResources.Sync(ctx); err != nil {
-			state.logger.Error(
-				"daemon: sync tool/mcp resources after extension boot failed",
-				"error",
-				err,
-			)
-		}
-	}
-	if state.bundleResources != nil {
-		if err := state.bundleResources.Sync(ctx); err != nil {
-			state.logger.Error(
-				"daemon: sync bundle resources after extension boot failed",
-				"error",
-				err,
-			)
-		}
-	}
-	if state.loopResources != nil {
-		if err := state.loopResources.Sync(ctx); err != nil {
-			state.logger.Error(
-				"daemon: sync loop resources after extension boot failed",
+				"daemon: sync extension resources after extension boot failed",
+				"publisher",
+				entry.name,
 				"error",
 				err,
 			)

@@ -1582,6 +1582,14 @@ export interface DeliveryRequest {
   snapshot?: DeliverySnapshot;
 }
 
+export interface DescribeResources {
+  skills?: string[];
+  loops?: string[];
+  agents?: string[];
+  automation?: string[];
+  layouts?: string[];
+}
+
 export interface DescribeSubprocess {
   command: string;
   args?: string[];
@@ -1635,6 +1643,7 @@ export interface DescribePayload {
   provides: string[];
   permissions: string[];
   requires_env?: string[];
+  resources: DescribeResources;
   subprocess: DescribeSubprocess;
   tools?: ExtensionToolRuntimeDescriptor[];
   hook_events?: string[];
@@ -3218,17 +3227,6 @@ export interface NetworkSendPayload {
   ext?: Record<string, JSONValue>;
 }
 
-export interface DeclaredNetworkChannelPayload {
-  activation_id?: string;
-  extension_name?: string;
-  bundle_name?: string;
-  profile_name?: string;
-  workspace_id?: string;
-  name: string;
-  description?: string;
-  primary?: boolean;
-}
-
 export interface NetworkKindMetricPayload {
   kind: string;
   sent: number;
@@ -3254,7 +3252,6 @@ export interface NetworkStatusPayload {
   conversation_messages: number;
   work_transitions: number;
   direct_resolves: number;
-  declared_channels: DeclaredNetworkChannelPayload[];
   kind_metrics: NetworkKindMetricPayload[];
 }
 

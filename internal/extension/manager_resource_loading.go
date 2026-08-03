@@ -2,23 +2,88 @@ package extensionpkg
 
 import (
 	"context"
-
 	"errors"
 	"fmt"
-
 	"path/filepath"
-
 	"strings"
-
 	"time"
 
+	automationpkg "github.com/compozy/compozy/internal/automation"
 	compozyconfig "github.com/compozy/compozy/internal/config"
-
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	looppkg "github.com/compozy/compozy/internal/loop"
-
 	skillspkg "github.com/compozy/compozy/internal/skills"
+	"github.com/compozy/compozy/internal/windowmanager"
 )
+
+type loadedExtensionResources struct {
+	skills             []*skillspkg.Skill
+	loops              []looppkg.ResourceSpec
+	staticAgents       []StaticAgent
+	agents             []compozyconfig.AgentDef
+	automationJobs     []automationpkg.Job
+	automationTriggers []automationpkg.Trigger
+	layouts            []windowmanager.LayoutResource
+	hooks              []hookspkg.HookDecl
+}
+
+func (resources loadedExtensionResources) apply(ext *managedExtension) {
+	ext.skills = resources.skills
+	ext.loops = resources.loops
+	ext.staticAgents = resources.staticAgents
+	ext.agents = resources.agents
+	ext.automationJobs = resources.automationJobs
+	ext.automationTriggers = resources.automationTriggers
+	ext.layouts = resources.layouts
+	ext.hooks = resources.hooks
+}
+
+func (m *Manager) loadDeclarativeResources(
+	ctx context.Context,
+	ext *managedExtension,
+) (loadedExtensionResources, error) {
+	if ctx == nil {
+		return loadedExtensionResources{}, errors.New("extension: declarative resource context is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return loadedExtensionResources{}, err
+	}
+
+	var loaded loadedExtensionResources
+	var err error
+	loaded.staticAgents, err = m.loadAgentResources(ext)
+	if err != nil {
+		return loadedExtensionResources{}, fmt.Errorf("extension: load declared agents: %w", err)
+	}
+	loaded.agents = make([]compozyconfig.AgentDef, 0, len(loaded.staticAgents))
+	for _, agent := range loaded.staticAgents {
+		loaded.agents = append(loaded.agents, compozyconfig.CloneAgentDef(agent.Agent))
+	}
+	loaded.skills, err = m.loadSkillResources(ext)
+	if err != nil {
+		return loadedExtensionResources{}, fmt.Errorf("extension: load declared skills: %w", err)
+	}
+	loaded.loops, err = m.loadLoopResources(ext)
+	if err != nil {
+		return loadedExtensionResources{}, fmt.Errorf("extension: load declared loops: %w", err)
+	}
+	loaded.automationJobs, loaded.automationTriggers, err = m.loadAutomationResources(ext, loaded.staticAgents)
+	if err != nil {
+		return loadedExtensionResources{}, fmt.Errorf("extension: load declared automation: %w", err)
+	}
+	loaded.layouts, err = m.loadLayoutResources(ctx, ext)
+	if err != nil {
+		return loadedExtensionResources{}, fmt.Errorf("extension: load declared layouts: %w", err)
+	}
+	if err := ctx.Err(); err != nil {
+		return loadedExtensionResources{}, err
+	}
+	loaded.hooks, err = m.loadHookResources(ext)
+	if err != nil {
+		return loadedExtensionResources{}, fmt.Errorf("extension: load declared hooks: %w", err)
+	}
+	return loaded, nil
+}
 
 func (m *Manager) loadSkillResources(ext *managedExtension) ([]*skillspkg.Skill, error) {
 	if ext.manifest == nil || len(ext.manifest.Resources.Skills) == 0 {
@@ -117,43 +182,45 @@ func (m *Manager) loadLoopResources(ext *managedExtension) ([]looppkg.ResourceSp
 	return loops, nil
 }
 
-func (m *Manager) loadAgentResources(ext *managedExtension) ([]compozyconfig.AgentDef, error) {
+func (m *Manager) loadAgentResources(ext *managedExtension) ([]StaticAgent, error) {
 	if ext == nil {
 		return nil, nil
 	}
-	return LoadAgentResources(ext.rootDir, ext.manifest)
-}
-
-// LoadAgentResources discovers the current authored agent definitions for an extension.
-func LoadAgentResources(rootDir string, manifest *Manifest) ([]compozyconfig.AgentDef, error) {
-	if manifest == nil || len(manifest.Resources.Agents) == 0 {
+	if ext.manifest == nil {
 		return nil, nil
 	}
+	return LoadAgentResources(ext.rootDir, ext.manifest.Resources.Agents)
+}
 
-	loaded := make(map[string]compozyconfig.AgentDef)
-	for _, resourcePath := range manifest.Resources.Agents {
-		resourceRoot, err := resolveResourcePath(rootDir, resourcePath)
-		if err != nil {
-			return nil, err
-		}
-		files, err := collectMarkdownFiles(resourceRoot)
-		if err != nil {
-			return nil, err
-		}
-		for _, file := range files {
-			agent, err := compozyconfig.LoadAgentDefFile(file)
-			if err != nil {
-				return nil, err
-			}
-			loaded[agent.Name] = agent
-		}
+func (m *Manager) loadAutomationResources(
+	ext *managedExtension,
+	agents []StaticAgent,
+) ([]automationpkg.Job, []automationpkg.Trigger, error) {
+	if ext == nil || ext.manifest == nil {
+		return nil, nil, nil
 	}
+	jobs, triggers, err := LoadAutomationResources(
+		ext.rootDir,
+		ext.info.Name,
+		ext.manifest.Resources.Automation,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := validateAutomationAgentTargets(jobs, triggers, agents); err != nil {
+		return nil, nil, err
+	}
+	return jobs, triggers, nil
+}
 
-	agents := make([]compozyconfig.AgentDef, 0, len(loaded))
-	for _, name := range sortedKeys(loaded) {
-		agents = append(agents, compozyconfig.CloneAgentDef(loaded[name]))
+func (m *Manager) loadLayoutResources(
+	ctx context.Context,
+	ext *managedExtension,
+) ([]windowmanager.LayoutResource, error) {
+	if ext == nil || ext.manifest == nil {
+		return nil, nil
 	}
-	return agents, nil
+	return LoadLayoutResources(ctx, ext.rootDir, ext.manifest.Resources.Layouts)
 }
 
 func (m *Manager) loadHookResources(ext *managedExtension) ([]hookspkg.HookDecl, error) {
@@ -171,13 +238,6 @@ func (m *Manager) loadHookResources(ext *managedExtension) ([]hookspkg.HookDecl,
 		decls = append(decls, decl)
 	}
 	return decls, nil
-}
-
-func (m *Manager) loadBundleResources(ctx context.Context, ext *managedExtension) ([]BundleSpec, error) {
-	if ext == nil || ext.manifest == nil {
-		return nil, nil
-	}
-	return LoadBundleSpecs(ctx, ext.rootDir, ext.manifest)
 }
 
 func (m *Manager) hookConfigToDecl(ext *managedExtension, cfg *HookConfig) (hookspkg.HookDecl, error) {

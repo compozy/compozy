@@ -4,15 +4,15 @@ area: ET
 title: Search the marketplace through structured CLI output
 persona: Ada
 journey: J-agent-marketplace-parity
-expected: `compozy marketplace search` returns fixed-order grouped JSON for all kinds, supports `--kind` browse and `jsonl`, and preserves truthful installed and update fields from the daemon.
-entry_points: compozy marketplace search [query] -o json; compozy marketplace search [query] --kind <kind> -o json; compozy marketplace search [query] -o jsonl; compozy.com/docs/marketplace (guide)
+expected: `compozy marketplace search` returns fixed-order grouped output for exactly mcp, extension, and skill, supports single-kind browse in every structured mode, rejects bundle, and preserves truthful installed and update fields from the daemon.
+entry_points: compozy marketplace search [query] -o json|jsonl|toon; compozy marketplace search [query] --kind <mcp|extension|skill> -o json|jsonl|toon; unsupported --kind bundle; compozy.com/docs/marketplace
 qa_status: pass
 bug_ids: BUG-20260715-native-marketplace-extension-parity; BUG-20260715-marketplace-stale-report; BUG-20260729-marketplace-json-parity; BUG-20260729-marketplace-file-cursor-fence
 fix_status: fixed
 retest_status: pass
 fix_commits: 8eeb8a38;351f3535
-evidence: docs/qa/reports/2026-07-30-mcp-2026-catalog-v2.md
-last_report: docs/qa/reports/2026-07-30-mcp-2026-catalog-v2.md
+evidence: docs/qa/reports/2026-07-30-mcp-2026-catalog-v2.md;/Users/pedronauck/dev/qa-labs/compozy-devtool-oss-launch-20260802-195112-911343-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-08-02-bundles-removal.md
 overlaps: ET-007; ET-016
 ---
 
@@ -35,3 +35,6 @@ QA result 2026-07-29: CLI JSON added a transport-only resolution field, and unch
 catalog refetches invalidated continuation cursors. Both canonical regressions, staged root fixes,
 and the rebuilt CLI/HTTP/UDS replay are green; the scenario remains failed until the fixes have
 governed commits.
+
+QA impact 2026-08-02: the marketplace kind set is now exactly MCP, Extension, and Skill. Reset to
+prove all structured modes and deterministic rejection of the retired kind.

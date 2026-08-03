@@ -5,6 +5,7 @@ import {
 } from "./window-manager-command-registry";
 
 type ShortcutModifier = "meta" | "control" | "alt" | "shift";
+export type PrimaryShortcutModifier = "meta" | "control";
 
 export interface ParsedShortcutChord {
   modifiers: ReadonlySet<ShortcutModifier>;
@@ -126,11 +127,26 @@ export function findShortcutConflicts(
   return conflicts;
 }
 
-export function shortcutMatches(event: KeyboardEvent, chord: ParsedShortcutChord): boolean {
+/** `meta` is the persisted primary-modifier token: Command on Apple, Control elsewhere. */
+export function primaryShortcutModifier(platform: string): PrimaryShortcutModifier {
+  if (platform.trim() === "") return "meta";
+  return /^(?:Mac|iPhone|iPad|iPod)/i.test(platform) ? "meta" : "control";
+}
+
+export function shortcutMatches(
+  event: KeyboardEvent,
+  chord: ParsedShortcutChord,
+  primaryModifier: PrimaryShortcutModifier = "meta"
+): boolean {
+  const portablePrimary = chord.modifiers.has("meta") && !chord.modifiers.has("control");
+  const expectsMeta = portablePrimary ? primaryModifier === "meta" : chord.modifiers.has("meta");
+  const expectsControl = portablePrimary
+    ? primaryModifier === "control"
+    : chord.modifiers.has("control");
   return (
     event.code === chord.code &&
-    event.metaKey === chord.modifiers.has("meta") &&
-    event.ctrlKey === chord.modifiers.has("control") &&
+    event.metaKey === expectsMeta &&
+    event.ctrlKey === expectsControl &&
     event.altKey === chord.modifiers.has("alt") &&
     event.shiftKey === chord.modifiers.has("shift")
   );

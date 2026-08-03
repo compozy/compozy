@@ -1,12 +1,12 @@
 package extensionpkg
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-
 	"strings"
 	"time"
 
@@ -241,7 +241,7 @@ func loadManifestTOML(path string) (*Manifest, error) {
 	if err != nil {
 		return nil, fmt.Errorf("extension: decode manifest %q: %w", path, err)
 	}
-	if err := rejectLegacyManifestTOML(meta.Undecoded()); err != nil {
+	if err := rejectUnsupportedManifestTOML(meta.Undecoded()); err != nil {
 		return nil, err
 	}
 
@@ -265,6 +265,9 @@ func loadManifestJSON(path string) (*Manifest, error) {
 	if err := rejectLegacyManifestJSON(data); err != nil {
 		return nil, err
 	}
+	if err := rejectUnknownManifestResourcesJSON(data); err != nil {
+		return nil, err
+	}
 	if err := json.Unmarshal(data, &doc); err != nil {
 		return nil, fmt.Errorf("extension: decode manifest %q: %w", path, err)
 	}
@@ -279,14 +282,57 @@ func loadManifestJSON(path string) (*Manifest, error) {
 	return &manifest, nil
 }
 
-func rejectLegacyManifestTOML(keys []toml.Key) error {
+func rejectUnsupportedManifestTOML(keys []toml.Key) error {
 	for _, key := range keys {
-		if len(key) == 0 || (key[0] != legacyManifestActionsKey && key[0] != legacyManifestSecurityKey) {
+		if len(key) == 0 {
 			continue
 		}
-		return legacyManifestSectionError(key[0])
+		if key[0] == legacyManifestActionsKey || key[0] == legacyManifestSecurityKey {
+			return legacyManifestSectionError(key[0])
+		}
+		if key[0] == manifestResourcesKey {
+			return unknownManifestFieldError(key.String())
+		}
 	}
 	return nil
+}
+
+func rejectUnknownManifestResourcesJSON(data []byte) error {
+	var root map[string]json.RawMessage
+	if err := json.Unmarshal(data, &root); err != nil {
+		return nil
+	}
+	resourcesData, ok := root[manifestResourcesKey]
+	if !ok {
+		return nil
+	}
+	decoder := json.NewDecoder(bytes.NewReader(resourcesData))
+	decoder.DisallowUnknownFields()
+	var resources ResourcesConfig
+	if err := decoder.Decode(&resources); err != nil {
+		field, found := jsonUnknownField(err)
+		if found {
+			return unknownManifestFieldError(manifestResourcesKey + "." + field)
+		}
+	}
+	return nil
+}
+
+func jsonUnknownField(err error) (string, bool) {
+	const prefix = `json: unknown field "`
+	field, found := strings.CutPrefix(err.Error(), prefix)
+	if !found {
+		return "", false
+	}
+	field, found = strings.CutSuffix(field, `"`)
+	return field, found && field != ""
+}
+
+func unknownManifestFieldError(field string) error {
+	return &ManifestValidationError{
+		Field:   field,
+		Message: fmt.Sprintf("unknown manifest field %q", field),
+	}
 }
 
 func rejectLegacyManifestJSON(data []byte) error {

@@ -12,6 +12,16 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const fixtureResourceKind resources.ResourceKind = "fixture.resource"
+
+func fixtureResourceAPIPath(id string) string {
+	path := "/api/resources/" + string(fixtureResourceKind)
+	if id == "" {
+		return path
+	}
+	return path + "/" + id
+}
+
 func TestListResourcesHandlerPreservesFilterSemantics(t *testing.T) {
 	t.Parallel()
 
@@ -28,8 +38,8 @@ func TestListResourcesHandlerPreservesFilterSemantics(t *testing.T) {
 					gotFilter = filter
 					return []resources.RawRecord{
 						{
-							Kind:    resources.ResourceKind("bundle.activation"),
-							ID:      "bundle-1",
+							Kind:    fixtureResourceKind,
+							ID:      "resource-1",
 							Version: 3,
 							Scope: resources.ResourceScope{
 								Kind: resources.ResourceScopeKindWorkspace,
@@ -58,14 +68,16 @@ func TestListResourcesHandlerPreservesFilterSemantics(t *testing.T) {
 		t,
 		engine,
 		http.MethodGet,
-		"/api/resources/bundle.activation?scope_kind=workspace&scope_id=ws-alpha&owner_kind=daemon&owner_id=daemon-control&source_kind=daemon&source_id=system&limit=7",
+		fixtureResourceAPIPath("")+
+			"?scope_kind=workspace&scope_id=ws-alpha&owner_kind=daemon&owner_id=daemon-control"+
+			"&source_kind=daemon&source_id=system&limit=7",
 		nil,
 	)
 	if resp.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
 	}
 
-	if gotFilter.Kind != resources.ResourceKind("bundle.activation") || gotFilter.Limit != 7 {
+	if gotFilter.Kind != fixtureResourceKind || gotFilter.Limit != 7 {
 		t.Fatalf("gotFilter = %#v", gotFilter)
 	}
 	if gotFilter.Scope == nil || gotFilter.Scope.Kind != resources.ResourceScopeKindWorkspace ||
@@ -83,8 +95,8 @@ func TestListResourcesHandlerPreservesFilterSemantics(t *testing.T) {
 
 	var payload contract.ResourcesResponse
 	decodeJSONResponse(t, resp, &payload)
-	if len(payload.Records) != 1 || payload.Records[0].ID != "bundle-1" {
-		t.Fatalf("payload.Records = %#v, want bundle-1", payload.Records)
+	if len(payload.Records) != 1 || payload.Records[0].ID != "resource-1" {
+		t.Fatalf("payload.Records = %#v, want resource-1", payload.Records)
 	}
 }
 
@@ -202,11 +214,11 @@ func TestPutResourceHandlerPreservesExpectedVersionAndStatusSemantics(t *testing
 				),
 			)
 
-			resp := performRequest(t, engine, http.MethodPut, "/api/resources/bundle.activation/demo", tt.body)
+			resp := performRequest(t, engine, http.MethodPut, fixtureResourceAPIPath("demo"), tt.body)
 			if resp.Code != tt.wantStatus {
 				t.Fatalf("status = %d, want %d; body=%s", resp.Code, tt.wantStatus, resp.Body.String())
 			}
-			if gotDraft.Kind != resources.ResourceKind("bundle.activation") || gotDraft.ID != "demo" {
+			if gotDraft.Kind != fixtureResourceKind || gotDraft.ID != "demo" {
 				t.Fatalf("gotDraft identity = %#v", gotDraft)
 			}
 			if gotDraft.Scope.Kind != tt.wantScopeKind || gotDraft.Scope.ID != tt.wantScopeID {
@@ -273,7 +285,7 @@ func TestPutResourceHandlerMapsResourceErrors(t *testing.T) {
 				t,
 				engine,
 				http.MethodPut,
-				"/api/resources/bundle.activation/demo",
+				fixtureResourceAPIPath("demo"),
 				[]byte(`{"scope":{"kind":"global"},"spec":{"enabled":true}}`),
 			)
 			if resp.Code != tt.want {
@@ -312,13 +324,13 @@ func TestDeleteResourceHandlerPreservesExpectedVersionAndMapsConflict(t *testing
 		t,
 		engine,
 		http.MethodDelete,
-		"/api/resources/bundle.activation/demo",
+		fixtureResourceAPIPath("demo"),
 		[]byte(`{"expected_version":2}`),
 	)
 	if resp.Code != http.StatusConflict {
 		t.Fatalf("status = %d, want %d; body=%s", resp.Code, http.StatusConflict, resp.Body.String())
 	}
-	if gotKind != resources.ResourceKind("bundle.activation") || gotID != "demo" || gotExpectedVersion != 2 {
+	if gotKind != fixtureResourceKind || gotID != "demo" || gotExpectedVersion != 2 {
 		t.Fatalf("Delete() arguments = kind:%q id:%q expected_version:%d", gotKind, gotID, gotExpectedVersion)
 	}
 }

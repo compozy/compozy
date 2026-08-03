@@ -13,7 +13,7 @@ import (
 
 const defaultBuildTimeout = 60 * time.Second
 
-// BuildRequest configures one daemon-free extension bundle build.
+// BuildRequest configures one daemon-free extension package build.
 type BuildRequest struct {
 	SourceDir string
 	OutputDir string
@@ -21,7 +21,7 @@ type BuildRequest struct {
 	Timeout   time.Duration
 }
 
-// BuildResult identifies one immutable, fully validated bundle generation.
+// BuildResult identifies one immutable, fully validated extension package generation.
 type BuildResult struct {
 	GenerationDir  string    `json:"generation_dir"`
 	GenerationHash string    `json:"generation_hash"`
@@ -82,7 +82,7 @@ func buildBundle(ctx context.Context, req BuildRequest, runner buildCommandRunne
 	if err != nil {
 		return nil, err
 	}
-	return publishBuildGeneration(normalized.OutputDir, manifest)
+	return publishBuildGeneration(ctx, normalized.OutputDir, normalized.SourceDir, manifest)
 }
 
 func normalizeBuildRequest(req BuildRequest) (BuildRequest, error) {

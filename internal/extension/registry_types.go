@@ -18,24 +18,29 @@ type Registry struct {
 
 // ExtensionInfo is one persisted extension registry row.
 type ExtensionInfo struct {
-	Name          string
-	Version       string
-	Source        ExtensionSource
-	Enabled       bool
-	ManifestPath  string
-	InstalledAt   time.Time
-	Capabilities  CapabilitiesConfig
-	Permissions   PermissionsConfig
-	Checksum      string
-	RegistrySlug  *string
-	RegistryName  *string
-	RemoteVersion *string
-	Provenance    ExtensionProvenance
+	Name                     string
+	Version                  string
+	Source                   ExtensionSource
+	Enabled                  bool
+	ManifestPath             string
+	InstalledAt              time.Time
+	Capabilities             CapabilitiesConfig
+	Permissions              PermissionsConfig
+	Checksum                 string
+	RegistrySlug             *string
+	RegistryName             *string
+	RemoteVersion            *string
+	Provenance               ExtensionProvenance
+	NetworkRequirementDigest string
+	NetworkConfirmedBy       string
+	NetworkConfirmedAt       time.Time
 }
 
 type installConfig struct {
 	source          ExtensionSource
+	enabled         bool
 	replaceExisting bool
+	installedAt     *time.Time
 	registrySlug    *string
 	registryName    *string
 	remoteVersion   *string
@@ -52,10 +57,25 @@ func WithInstallSource(source ExtensionSource) InstallOption {
 	}
 }
 
+// WithInstallEnabled controls the initial enabled state for a new registry row.
+// Replace installs preserve the existing row's state.
+func WithInstallEnabled(enabled bool) InstallOption {
+	return func(cfg *installConfig) {
+		cfg.enabled = enabled
+	}
+}
+
 // WithInstallReplaceExisting allows an install to overwrite an existing row.
 func WithInstallReplaceExisting() InstallOption {
 	return func(cfg *installConfig) {
 		cfg.replaceExisting = true
+	}
+}
+
+func withInstallInstalledAt(installedAt time.Time) InstallOption {
+	return func(cfg *installConfig) {
+		value := installedAt.UTC()
+		cfg.installedAt = &value
 	}
 }
 

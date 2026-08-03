@@ -7,18 +7,14 @@ import { settingsKeys } from "@/systems/settings";
 import { skillKeys } from "@/systems/skill";
 
 import {
-  activateMarketplaceBundle,
   installMarketplaceExtension,
   installMarketplaceMCP,
   installMarketplaceSkill,
-  previewMarketplaceBundle,
   refreshMarketplaceCatalog,
   updateMarketplaceSkill,
 } from "../adapters/marketplace-actions-api";
 import { marketplaceKeys } from "../lib/query-keys";
 import type {
-  BundleActivationRequest,
-  BundlePreviewRequest,
   ExtensionInstallRequest,
   ExtensionUpdateRequest,
   MarketplaceKind,
@@ -57,8 +53,7 @@ function mcpToastAction(label: "Authorize →" | "View installed →", path: str
 export function useRefreshMarketplaceCatalog() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (kind: Exclude<MarketplaceKind, "bundle"> | undefined) =>
-      refreshMarketplaceCatalog(kind),
+    mutationFn: (kind: MarketplaceKind | undefined) => refreshMarketplaceCatalog(kind),
     onSettled: () => invalidateMarketplace(queryClient),
   });
 }
@@ -132,19 +127,5 @@ export function useUpdateMarketplaceExtension() {
     mutationFn: ({ name, body }: { name: string; body: ExtensionUpdateRequest }) =>
       updateExtension(name, body),
     onSettled: () => reconcileInstalledExtensionCaches(queryClient),
-  });
-}
-
-export function usePreviewMarketplaceBundle() {
-  return useMutation({
-    mutationFn: (body: BundlePreviewRequest) => previewMarketplaceBundle(body),
-  });
-}
-
-export function useActivateMarketplaceBundle() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (body: BundleActivationRequest) => activateMarketplaceBundle(body),
-    onSettled: () => invalidateMarketplace(queryClient),
   });
 }

@@ -28,84 +28,98 @@ const (
 
 func TestDaemonE2ESoftwareDeliveryShouldCompleteLegacyUserJourney(t *testing.T) {
 	t.Parallel()
+	t.Run("Should complete the software delivery journey after explicit extension enable", func(t *testing.T) {
+		t.Parallel()
 
-	driverPath := acpmock.RequireDriver(t)
-	homePaths := e2etest.NewHomePaths(t)
-	workspaceRoot := filepath.Join(t.TempDir(), "software-delivery-workspace")
-	fixturePath := mockFixturePath(t, "software_delivery_fixture.json")
-	seedSoftwareDeliveryTaskTree(t, workspaceRoot)
+		driverPath := acpmock.RequireDriver(t)
+		homePaths := e2etest.NewHomePaths(t)
+		workspaceRoot := filepath.Join(t.TempDir(), "software-delivery-workspace")
+		fixturePath := mockFixturePath(t, "software_delivery_fixture.json")
+		seedSoftwareDeliveryTaskTree(t, workspaceRoot)
 
-	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
-		HomePaths: homePaths,
-		Workspace: e2etest.WorkspaceSeedOptions{Root: workspaceRoot},
-		ConfigSeed: e2etest.ConfigSeedOptions{
-			DefaultAgent:    softwareDeliveryImplementer,
-			DefaultProvider: acpmock.ProviderName,
-			PermissionMode:  config.PermissionModeApproveAll,
-			Mutate: func(cfg *config.Config) {
-				acpMockProvider := acpmock.ProviderConfig(driverPath)
-				acpMockProvider.Models.Reasoning.Apply = config.ReasoningApplyACPOption
-				cfg.Providers[acpmock.ProviderName] = acpMockProvider
-				claudeProvider := acpmock.ProviderConfig(acpmock.BuildCommand(
-					driverPath,
-					fixturePath,
-					softwareDeliveryFixtureAgent,
-					filepath.Join(homePaths.LogsDir, "software-delivery-claude.jsonl"),
-				))
-				claudeProvider.Models.Reasoning.Apply = config.ReasoningApplyACPOption
-				cfg.Providers["claude"] = claudeProvider
+		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+			HomePaths: homePaths,
+			Workspace: e2etest.WorkspaceSeedOptions{Root: workspaceRoot},
+			ConfigSeed: e2etest.ConfigSeedOptions{
+				DefaultAgent:    softwareDeliveryImplementer,
+				DefaultProvider: acpmock.ProviderName,
+				PermissionMode:  config.PermissionModeApproveAll,
+				Mutate: func(cfg *config.Config) {
+					acpMockProvider := acpmock.ProviderConfig(driverPath)
+					acpMockProvider.Models.Reasoning.Apply = config.ReasoningApplyACPOption
+					cfg.Providers[acpmock.ProviderName] = acpMockProvider
+					claudeProvider := acpmock.ProviderConfig(acpmock.BuildCommand(
+						driverPath,
+						fixturePath,
+						softwareDeliveryFixtureAgent,
+						filepath.Join(homePaths.LogsDir, "software-delivery-claude.jsonl"),
+					))
+					claudeProvider.Models.Reasoning.Apply = config.ReasoningApplyACPOption
+					cfg.Providers["claude"] = claudeProvider
+				},
 			},
-		},
-		MockAgents: []e2etest.MockAgentSpec{
-			{
-				FixturePath:  fixturePath,
-				FixtureAgent: softwareDeliveryFixtureAgent,
-				AgentName:    softwareDeliveryImplementer,
+			StartTimeout: 30 * time.Second,
+		})
+		ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+		defer cancel()
+		requireDevCycleExtensionEnabled(t, ctx, harness)
+		configureExtensionAgentFixture(
+			t,
+			ctx,
+			harness,
+			extensionAgentFixtureConfig{
+				DriverPath:         driverPath,
+				FixturePath:        fixturePath,
+				FixtureAgentName:   softwareDeliveryFixtureAgent,
+				ExtensionAgentName: softwareDeliveryImplementer,
 			},
-			{
-				FixturePath:  fixturePath,
-				FixtureAgent: softwareDeliveryReviewerFixture,
-				AgentName:    softwareDeliveryReviewer,
+		)
+		configureExtensionAgentFixture(
+			t,
+			ctx,
+			harness,
+			extensionAgentFixtureConfig{
+				DriverPath:         driverPath,
+				FixturePath:        fixturePath,
+				FixtureAgentName:   softwareDeliveryReviewerFixture,
+				ExtensionAgentName: softwareDeliveryReviewer,
 			},
-		},
-		StartTimeout: 30 * time.Second,
+		)
+		waitForLoopCatalogEntry(t, ctx, harness, "software-delivery")
+
+		stdout, stderr, err := harness.CLI.RunInDir(
+			ctx,
+			workspaceRoot,
+			"loop", "run",
+			"--workspace", workspaceRoot,
+			"--name", "software-delivery",
+			"--input", "slug="+softwareDeliveryE2ESlug,
+			"--runtime", "type=frontend:claude/opus",
+		)
+		if err != nil {
+			t.Fatalf("CLI software-delivery run error = %v; stderr=%s", err, strings.TrimSpace(stderr))
+		}
+		webURL, runID := softwareDeliveryRunURL(t, harness, stdout)
+		if !strings.HasSuffix(strings.TrimSpace(stdout), webURL) {
+			t.Fatalf("CLI software-delivery output = %q, want web URL as final line", stdout)
+		}
+
+		waitForLoopRunStatus(t, ctx, harness, runID, contract.LoopRunStatusDone)
+
+		var detail contract.LoopRunResponse
+		if err := harness.CLI.RunJSONInDir(
+			ctx,
+			workspaceRoot,
+			&detail,
+			"loop", "status",
+			"--workspace", workspaceRoot,
+			"--run-id", runID,
+			"-o", "json",
+		); err != nil {
+			t.Fatalf("CLI software-delivery status error = %v", err)
+		}
+		assertSoftwareDeliveryRuntimes(t, detail)
 	})
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
-	defer cancel()
-	waitForLoopCatalogEntry(t, ctx, harness, "software-delivery")
-
-	stdout, stderr, err := harness.CLI.RunInDir(
-		ctx,
-		workspaceRoot,
-		"loop", "run",
-		"--workspace", workspaceRoot,
-		"--name", "software-delivery",
-		"--input", "slug="+softwareDeliveryE2ESlug,
-		"--runtime", "type=frontend:claude/opus",
-	)
-	if err != nil {
-		t.Fatalf("CLI software-delivery run error = %v; stderr=%s", err, strings.TrimSpace(stderr))
-	}
-	webURL, runID := softwareDeliveryRunURL(t, harness, stdout)
-	if !strings.HasSuffix(strings.TrimSpace(stdout), webURL) {
-		t.Fatalf("CLI software-delivery output = %q, want web URL as final line", stdout)
-	}
-
-	waitForLoopRunStatus(t, ctx, harness, runID, contract.LoopRunStatusDone)
-
-	var detail contract.LoopRunResponse
-	if err := harness.CLI.RunJSONInDir(
-		ctx,
-		workspaceRoot,
-		&detail,
-		"loop", "status",
-		"--workspace", workspaceRoot,
-		"--run-id", runID,
-		"-o", "json",
-	); err != nil {
-		t.Fatalf("CLI software-delivery status error = %v", err)
-	}
-	assertSoftwareDeliveryRuntimes(t, detail)
 }
 
 func seedSoftwareDeliveryTaskTree(t testing.TB, workspaceRoot string) {

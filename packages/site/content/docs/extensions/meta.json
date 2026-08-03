@@ -1,5 +1,5 @@
 {
     "title": "Extensions",
     "icon": "Puzzle",
-    "pages": ["develop", "manifest", "permissions", "commands", "publish", "install"]
+    "pages": ["develop", "manifest", "permissions", "commands", "publish", "install", "secrets"]
 }

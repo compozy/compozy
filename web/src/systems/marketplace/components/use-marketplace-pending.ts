@@ -10,7 +10,6 @@ function entryKey(entry: MarketplaceListing): string {
 }
 
 function installedItemKey(item: MarketplaceInstalledItem): string {
-  if (item.activationId) return `bundle:${item.activationId}`;
   if (item.mcpServer) {
     const filter = deriveMCPManagementFilter(item.mcpServer);
     const owner = filter

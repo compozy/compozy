@@ -11,15 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	extensionpkg "github.com/compozy/compozy/internal/extension"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	"github.com/compozy/compozy/internal/session"
 	settingspkg "github.com/compozy/compozy/internal/settings"
-	taskpkg "github.com/compozy/compozy/internal/task"
 	runtimetestutil "github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/vault"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -52,164 +49,7 @@ func (stubVaultService) DeleteSecret(context.Context, string) error {
 	return nil
 }
 
-type stubExtensionService struct {
-	ListFn             func(context.Context) ([]contract.ExtensionPayload, error)
-	SearchFn           func(context.Context, contract.ExtensionSearchRequest) (contract.ExtensionSearchResponse, error)
-	MarketplaceTrustFn func(context.Context, extensionpkg.MarketplaceTrustEvidence) (contract.ExtensionTrustReportPayload, error)
-	InstallFn          func(context.Context, contract.InstallExtensionRequest, taskpkg.ActorContext) (contract.ExtensionPayload, error)
-	UpdateFn           func(context.Context, string, contract.UpdateExtensionRequest, taskpkg.ActorContext) (contract.ManagedExtensionUpdatePayload, error)
-	RemoveFn           func(context.Context, string, taskpkg.ActorContext) (contract.ManagedExtensionRemovePayload, error)
-	EnableFn           func(context.Context, string, taskpkg.ActorContext) (contract.ExtensionPayload, error)
-	DisableFn          func(context.Context, string, taskpkg.ActorContext) (contract.ExtensionPayload, error)
-	StatusFn           func(context.Context, string) (contract.ExtensionPayload, error)
-	ProvenanceFn       func(context.Context, string) (contract.ExtensionProvenancePayload, error)
-	DevFn              func(context.Context, contract.DevLinkExtensionRequest, taskpkg.ActorContext) (contract.ExtensionPayload, error)
-	ReloadDevFn        func(context.Context, string, contract.ReloadExtensionRequest, taskpkg.ActorContext) (contract.ExtensionPayload, error)
-	ExtensionLogsFn    func(context.Context, string, int64, taskpkg.ActorContext) ([]contract.ExtensionLogPayload, error)
-}
-
-func (s stubExtensionService) Search(
-	ctx context.Context,
-	req contract.ExtensionSearchRequest,
-) (contract.ExtensionSearchResponse, error) {
-	if s.SearchFn == nil {
-		return contract.ExtensionSearchResponse{}, nil
-	}
-	return s.SearchFn(ctx, req)
-}
-
-func (s stubExtensionService) List(ctx context.Context) ([]contract.ExtensionPayload, error) {
-	if s.ListFn == nil {
-		return nil, nil
-	}
-	return s.ListFn(ctx)
-}
-
-func (s stubExtensionService) MarketplaceTrust(
-	ctx context.Context,
-	evidence extensionpkg.MarketplaceTrustEvidence,
-) (contract.ExtensionTrustReportPayload, error) {
-	if s.MarketplaceTrustFn == nil {
-		return extensionpkg.MarketplaceEntryTrustReport(evidence, false)
-	}
-	return s.MarketplaceTrustFn(ctx, evidence)
-}
-
-func (s stubExtensionService) Install(
-	ctx context.Context,
-	req contract.InstallExtensionRequest,
-	actor taskpkg.ActorContext,
-) (contract.ExtensionPayload, error) {
-	if s.InstallFn == nil {
-		return contract.ExtensionPayload{}, nil
-	}
-	return s.InstallFn(ctx, req, actor)
-}
-
-func (s stubExtensionService) Update(
-	ctx context.Context,
-	name string,
-	req contract.UpdateExtensionRequest,
-	actor taskpkg.ActorContext,
-) (contract.ManagedExtensionUpdatePayload, error) {
-	if s.UpdateFn == nil {
-		return contract.ManagedExtensionUpdatePayload{}, nil
-	}
-	return s.UpdateFn(ctx, name, req, actor)
-}
-
-func (s stubExtensionService) UpdateBatch(
-	context.Context,
-	contract.UpdateExtensionsRequest,
-	taskpkg.ActorContext,
-) ([]contract.ManagedExtensionUpdatePayload, error) {
-	return nil, nil
-}
-
-func (s stubExtensionService) Remove(
-	ctx context.Context,
-	name string,
-	actor taskpkg.ActorContext,
-) (contract.ManagedExtensionRemovePayload, error) {
-	if s.RemoveFn == nil {
-		return contract.ManagedExtensionRemovePayload{}, nil
-	}
-	return s.RemoveFn(ctx, name, actor)
-}
-
-func (s stubExtensionService) Enable(
-	ctx context.Context,
-	name string,
-	actor taskpkg.ActorContext,
-) (contract.ExtensionPayload, error) {
-	if s.EnableFn == nil {
-		return contract.ExtensionPayload{}, nil
-	}
-	return s.EnableFn(ctx, name, actor)
-}
-
-func (s stubExtensionService) Disable(
-	ctx context.Context,
-	name string,
-	actor taskpkg.ActorContext,
-) (contract.ExtensionPayload, error) {
-	if s.DisableFn == nil {
-		return contract.ExtensionPayload{}, nil
-	}
-	return s.DisableFn(ctx, name, actor)
-}
-
-func (s stubExtensionService) Status(ctx context.Context, name string) (contract.ExtensionPayload, error) {
-	if s.StatusFn == nil {
-		return contract.ExtensionPayload{}, nil
-	}
-	return s.StatusFn(ctx, name)
-}
-
-func (s stubExtensionService) Provenance(
-	ctx context.Context,
-	name string,
-) (contract.ExtensionProvenancePayload, error) {
-	if s.ProvenanceFn == nil {
-		return contract.ExtensionProvenancePayload{}, nil
-	}
-	return s.ProvenanceFn(ctx, name)
-}
-
-func (s stubExtensionService) Dev(
-	ctx context.Context,
-	req contract.DevLinkExtensionRequest,
-	actor taskpkg.ActorContext,
-) (contract.ExtensionPayload, error) {
-	if s.DevFn == nil {
-		return contract.ExtensionPayload{}, nil
-	}
-	return s.DevFn(ctx, req, actor)
-}
-
-func (s stubExtensionService) ReloadDev(
-	ctx context.Context,
-	name string,
-	req contract.ReloadExtensionRequest,
-	actor taskpkg.ActorContext,
-) (contract.ExtensionPayload, error) {
-	if s.ReloadDevFn == nil {
-		return contract.ExtensionPayload{}, nil
-	}
-	return s.ReloadDevFn(ctx, name, req, actor)
-}
-
-func (s stubExtensionService) ExtensionLogs(
-	ctx context.Context,
-	name string,
-	after int64,
-	actor taskpkg.ActorContext,
-) ([]contract.ExtensionLogPayload, error) {
-	if s.ExtensionLogsFn == nil {
-		return []contract.ExtensionLogPayload{}, nil
-	}
-	return s.ExtensionLogsFn(ctx, name, after, actor)
-}
+type stubExtensionService = testutil.StubExtensionService
 
 type stubSettingsService struct {
 	GetSectionFn                func(context.Context, settingspkg.SectionRequest) (settingspkg.SectionEnvelope, error)

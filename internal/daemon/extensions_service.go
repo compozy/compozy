@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"log/slog"
+	"os"
 	"sync"
 	"time"
 
@@ -9,7 +10,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
-	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/resources"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -22,19 +23,40 @@ type daemonExtensionService struct {
 	hookBinds          hookBindingPublisher
 	agentSkill         agentSkillPublisher
 	toolMCP            toolMCPPublisher
-	bundles            bundleResourcePublisher
 	loops              loopResourcePublisher
+	extensionKit       extensionKitResourcePublisher
 	homePaths          compozyconfig.HomePaths
 	logger             *slog.Logger
 	now                func() time.Time
+	getenv             func(string) string
 	extensionConfig    compozyconfig.ExtensionsConfig
 	marketplaceLoader  extensionMarketplaceSourceLoader
 	marketplaceCatalog marketplacepkg.Service
-	eventWriter        store.EventSummaryStore
+	eventWriter        extensionLifecycleEventWriter
 	workspaceResolver  workspacepkg.RuntimeResolver
+	envBindings        extensionpkg.EnvBindingLifecycleStore
+	secretVault        extensionSecretVault
+	automation         extensionAutomationPreviewer
+	lifecycle          *extensionLifecycleCoordinator
+	resourceStore      resources.RawStore
+	resourceActor      resources.MutationActor
+	resourceCodecs     *resources.CodecRegistry
 }
 
 var _ udsapi.ExtensionService = (*daemonExtensionService)(nil)
+
+type daemonExtensionServiceDeps struct {
+	Registry     *extensionpkg.Registry
+	Runtime      extensionRuntime
+	HookBindings hookBindingPublisher
+	AgentSkill   agentSkillPublisher
+	ToolMCP      toolMCPPublisher
+	Loops        loopResourcePublisher
+	HomePaths    compozyconfig.HomePaths
+	Logger       *slog.Logger
+	Now          func() time.Time
+	Getenv       func(string) string
+}
 
 type daemonExtensionServiceOption func(*daemonExtensionService)
 
@@ -54,7 +76,7 @@ func withDaemonExtensionCatalog(catalog marketplacepkg.Service) daemonExtensionS
 	}
 }
 
-func withDaemonExtensionEventWriter(writer store.EventSummaryStore) daemonExtensionServiceOption {
+func withDaemonExtensionEventWriter(writer extensionLifecycleEventWriter) daemonExtensionServiceOption {
 	return func(service *daemonExtensionService) {
 		service.eventWriter = writer
 	}
@@ -68,41 +90,70 @@ func withDaemonExtensionWorkspaceResolver(
 	}
 }
 
+func withDaemonExtensionKitPublisher(publisher extensionKitResourcePublisher) daemonExtensionServiceOption {
+	return func(service *daemonExtensionService) {
+		service.extensionKit = publisher
+	}
+}
+
+func withDaemonExtensionSecrets(
+	bindings extensionpkg.EnvBindingLifecycleStore,
+	secretVault extensionSecretVault,
+) daemonExtensionServiceOption {
+	return func(service *daemonExtensionService) {
+		service.envBindings = bindings
+		service.secretVault = secretVault
+	}
+}
+
+func withDaemonExtensionAutomation(reader extensionAutomationPreviewer) daemonExtensionServiceOption {
+	return func(service *daemonExtensionService) {
+		service.automation = reader
+	}
+}
+
+func withDaemonExtensionResources(
+	store resources.RawStore,
+	actor resources.MutationActor,
+	codecs *resources.CodecRegistry,
+) daemonExtensionServiceOption {
+	return func(service *daemonExtensionService) {
+		service.resourceStore = store
+		service.resourceActor = actor
+		service.resourceCodecs = codecs
+	}
+}
+
 func newDaemonExtensionService(
-	registry *extensionpkg.Registry,
-	runtime extensionRuntime,
-	hookBinds hookBindingPublisher,
-	agentSkill agentSkillPublisher,
-	toolMCP toolMCPPublisher,
-	bundles bundleResourcePublisher,
-	loops loopResourcePublisher,
-	homePaths compozyconfig.HomePaths,
-	logger *slog.Logger,
-	now func() time.Time,
+	deps daemonExtensionServiceDeps,
 	opts ...daemonExtensionServiceOption,
 ) udsapi.ExtensionService {
-	if registry == nil {
+	if deps.Registry == nil {
 		return nil
 	}
-	if logger == nil {
-		logger = slog.Default()
+	if deps.Logger == nil {
+		deps.Logger = slog.Default()
 	}
-	if now == nil {
-		now = func() time.Time {
+	if deps.Now == nil {
+		deps.Now = func() time.Time {
 			return time.Now().UTC()
 		}
 	}
+	if deps.Getenv == nil {
+		deps.Getenv = os.Getenv
+	}
 	service := &daemonExtensionService{
-		registry:   registry,
-		runtime:    runtime,
-		hookBinds:  hookBinds,
-		agentSkill: agentSkill,
-		toolMCP:    toolMCP,
-		bundles:    bundles,
-		loops:      loops,
-		homePaths:  homePaths,
-		logger:     logger,
-		now:        now,
+		registry:   deps.Registry,
+		runtime:    deps.Runtime,
+		hookBinds:  deps.HookBindings,
+		agentSkill: deps.AgentSkill,
+		toolMCP:    deps.ToolMCP,
+		loops:      deps.Loops,
+		homePaths:  deps.HomePaths,
+		logger:     deps.Logger,
+		now:        deps.Now,
+		getenv:     deps.Getenv,
+		lifecycle:  newExtensionLifecycleCoordinator(),
 	}
 	for _, opt := range opts {
 		if opt != nil {

@@ -92,6 +92,21 @@ type UpdateExtensionsRequest = contract.UpdateExtensionsRequest
 // ExtensionRecord is the shared extension response payload.
 type ExtensionRecord = contract.ExtensionPayload
 
+// EnableExtensionRequest carries digest-exact network consent.
+type EnableExtensionRequest = contract.EnableExtensionRequest
+
+// ExtensionEnableRecord is the committed enable action result.
+type ExtensionEnableRecord = contract.ExtensionEnableResult
+
+// ExtensionKitItemRecord is one shipped or live extension resource.
+type ExtensionKitItemRecord = contract.ExtensionKitItemPayload
+
+// ExtensionInventoryRecord is the shipped/live resource union for one extension.
+type ExtensionInventoryRecord = contract.ExtensionInventoryPayload
+
+// ExtensionEnablePreviewRecord is the mutation-free enable projection.
+type ExtensionEnablePreviewRecord = contract.ExtensionEnablePreviewPayload
+
 // DevLinkExtensionRequest links an immutable generation to the resolved workspace.
 type DevLinkExtensionRequest = contract.DevLinkExtensionRequest
 
@@ -104,53 +119,17 @@ type ExtensionLogRecord = contract.ExtensionLogPayload
 // ExtensionProvenanceRecord is one installed extension provenance payload.
 type ExtensionProvenanceRecord = contract.ExtensionProvenancePayload
 
+// ExtensionSecretsRecord is the presence-only extension secret projection.
+type ExtensionSecretsRecord = contract.ExtensionSecretsPayload
+
+// SetExtensionSecretsRequest is the write-only extension secret mutation payload.
+type SetExtensionSecretsRequest = contract.SetExtensionSecretsRequest
+
 // ExtensionUpdateRecord is one daemon-owned extension update result.
 type ExtensionUpdateRecord = contract.ManagedExtensionUpdatePayload
 
 // ManagedExtensionRemoveRecord is one daemon-owned extension removal result.
 type ManagedExtensionRemoveRecord = contract.ManagedExtensionRemovePayload
-
-// BundleCatalogRecord is one extension bundle catalog entry.
-type BundleCatalogRecord = contract.BundleCatalogPayload
-
-// BundleActivationRecord is one concrete or previewed bundle activation payload.
-type BundleActivationRecord = contract.BundleActivationPayload
-
-// BundleNetworkSettingsRecord captures bundle-derived network defaults.
-type BundleNetworkSettingsRecord = contract.BundleNetworkSettingsPayload
-
-// BundleChannelRecord is one channel declared by a bundle profile.
-type BundleChannelRecord = contract.BundleChannelPayload
-
-// BundleProfileCatalogRecord is one bundle profile catalog summary.
-type BundleProfileCatalogRecord = contract.BundleProfileCatalogPayload
-
-// BundleAgentRecord is one agent declared by a bundle profile.
-type BundleAgentRecord = contract.BundleAgentPayload
-
-// BundleLayoutRecord is one window layout declared by a bundle profile.
-type BundleLayoutRecord = contract.BundleLayoutPayload
-
-// BundleJobRecord is one automation job declared by a bundle profile.
-type BundleJobRecord = contract.BundleJobPayload
-
-// BundleTriggerRecord is one automation trigger declared by a bundle profile.
-type BundleTriggerRecord = contract.BundleTriggerPayload
-
-// BundleBridgeRecord is one bridge preset declared by a bundle profile.
-type BundleBridgeRecord = contract.BundleBridgePayload
-
-// BundleInventoryRecord is one resource owned by a bundle activation.
-type BundleInventoryRecord = contract.BundleInventoryPayload
-
-// DeclaredNetworkChannelRecord is one bundle-declared network channel.
-type DeclaredNetworkChannelRecord = contract.DeclaredNetworkChannelPayload
-
-// ActivateBundleRequest captures bundle preview and activation inputs.
-type ActivateBundleRequest = contract.ActivateBundleRequest
-
-// UpdateBundleActivationRequest captures mutable bundle activation overlays.
-type UpdateBundleActivationRequest = contract.UpdateBundleActivationRequest
 
 // CreateBridgeRequest captures the shared bridge-instance creation payload.
 type CreateBridgeRequest = contract.CreateBridgeRequest

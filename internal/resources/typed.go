@@ -12,6 +12,7 @@ import (
 type Draft[T any] struct {
 	ID              string
 	Scope           ResourceScope
+	Owner           *ResourceOwner
 	ExpectedVersion int64
 	Spec            T
 }
@@ -76,6 +77,7 @@ func (s *typedStore[T]) Put(ctx context.Context, actor MutationActor, draft Draf
 		Kind:            s.codec.Kind(),
 		ID:              normalizedDraft.ID,
 		Scope:           normalizedDraft.Scope,
+		Owner:           normalizedDraft.Owner,
 		ExpectedVersion: normalizedDraft.ExpectedVersion,
 		SpecJSON:        specJSON,
 	})
@@ -129,12 +131,21 @@ func normalizeTypedDraft[T any](draft Draft[T]) (Draft[T], error) {
 	normalized := draft
 	normalized.ID = strings.TrimSpace(draft.ID)
 	normalized.Scope = draft.Scope.Normalize()
+	if draft.Owner != nil {
+		owner := draft.Owner.Normalize()
+		normalized.Owner = &owner
+	}
 
 	if normalized.ID == "" {
 		return Draft[T]{}, fmt.Errorf("%w: draft.id is required", ErrValidation)
 	}
 	if err := normalized.Scope.Validate("draft.scope"); err != nil {
 		return Draft[T]{}, err
+	}
+	if normalized.Owner != nil {
+		if err := normalized.Owner.Validate("draft.owner"); err != nil {
+			return Draft[T]{}, err
+		}
 	}
 	if normalized.ExpectedVersion < 0 {
 		return Draft[T]{}, fmt.Errorf(

@@ -1,11 +1,11 @@
-import type {
-  BundlePreviewResponse,
-  MarketplaceEntryResponse,
-  MarketplaceKind,
-  MarketplaceKindResponse,
-  MarketplaceListing,
-  MarketplaceSearchResponse,
-} from "@/systems/marketplace";
+import {
+  MARKETPLACE_KINDS,
+  type MarketplaceEntryResponse,
+  type MarketplaceKind,
+  type MarketplaceKindResponse,
+  type MarketplaceListing,
+  type MarketplaceSearchResponse,
+} from "../types";
 
 const warningUnsigned = {
   category: "supply_chain",
@@ -157,33 +157,6 @@ export const marketplaceListings: Record<MarketplaceKind, MarketplaceListing[]> 
       version: "0.3.2",
     },
   ],
-  bundle: [
-    {
-      author: "@compozy",
-      description:
-        "Skills and extensions for dependency review, lockfile hygiene, and release notes.",
-      entry_id: "dep-kit",
-      installed: false,
-      kind: "bundle",
-      name: "dep-kit",
-      source: "registry",
-      update_available: false,
-      version: "1.2.0",
-    },
-    {
-      author: "@compozy",
-      description: "MCP servers and skills for incident triage and status page updates.",
-      entry_id: "ops-starter",
-      installed: true,
-      installed_version: "0.8.0",
-      kind: "bundle",
-      manage_path: "/marketplace/bundles/activations/activation-ops-starter",
-      name: "ops-starter",
-      source: "registry",
-      update_available: false,
-      version: "0.8.0",
-    },
-  ],
   mcp: [
     {
       author: "@modelcontextprotocol",
@@ -217,7 +190,7 @@ export const marketplaceListings: Record<MarketplaceKind, MarketplaceListing[]> 
 
 export const marketplaceSearchFixture: MarketplaceSearchResponse = {
   query: "",
-  kinds: (["skill", "extension", "bundle", "mcp"] as const).map(kind => ({
+  kinds: MARKETPLACE_KINDS.map(kind => ({
     items: marketplaceListings[kind],
     kind,
     stale: false,
@@ -268,35 +241,6 @@ const blockedExtensionDetail: MarketplaceEntryResponse = {
   },
 };
 
-const bundleDetail: MarketplaceEntryResponse = {
-  bundle: {
-    extension_name: "compozy-foundations",
-    profiles: [
-      {
-        agents: 1,
-        bridges: 0,
-        channels: 1,
-        description: "Dependency review with a weekly audit job and lockfile-change trigger.",
-        jobs: 1,
-        layouts: 0,
-        name: "default",
-        triggers: 1,
-      },
-      {
-        agents: 1,
-        bridges: 1,
-        channels: 1,
-        description: "Dependency review with release notifications.",
-        jobs: 2,
-        layouts: 0,
-        name: "release",
-        triggers: 2,
-      },
-    ],
-  },
-  entry: marketplaceListings.bundle[0]!,
-};
-
 const mcpStdioDetail: MarketplaceEntryResponse = {
   entry: marketplaceListings.mcp[0]!,
   mcp: {
@@ -339,40 +283,6 @@ export const marketplaceDetails: Record<string, MarketplaceEntryResponse> = {
   "skill:git-flow": skillDetail,
   "extension:slack-notify": extensionDetail,
   "extension:policy-blocked": blockedExtensionDetail,
-  "bundle:dep-kit": bundleDetail,
   "mcp:github": mcpStdioDetail,
   "mcp:linear": mcpRemoteDetail,
-};
-
-export const marketplaceBundlePreviewFixture: BundlePreviewResponse = {
-  activation: {
-    agents: [{ id: "dep-reviewer", name: "dep-reviewer", provider: "anthropic" }],
-    bundle_description: "Dependency review and release hygiene.",
-    bundle_name: "dep-kit",
-    channels: [{ name: "dependency-review", primary: true }],
-    created_at: "2026-07-14T12:00:00Z",
-    extension_name: "compozy-foundations",
-    id: "bundle-preview-dep-kit",
-    inventory: [
-      { resource_id: "dep-audit", resource_kind: "skill", resource_name: "dep-audit" },
-      {
-        resource_id: "lockfile-hygiene",
-        resource_kind: "skill",
-        resource_name: "lockfile-hygiene",
-      },
-      {
-        resource_id: "release-notes",
-        resource_kind: "extension",
-        resource_name: "release-notes",
-      },
-    ],
-    network_requirement_digest: "sha256:live-network-requirement",
-    profile_description: "Dependency review with a weekly audit job.",
-    profile_name: "default",
-    scope: "workspace",
-    spec_drift: false,
-    updated_at: "2026-07-14T12:00:00Z",
-    version: 1,
-    workspace_id: "ws_story_fintech",
-  },
 };

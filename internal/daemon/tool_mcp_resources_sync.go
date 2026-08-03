@@ -32,7 +32,12 @@ func (s *toolMCPSourceSyncer) syncTools(ctx context.Context, desired map[string]
 			continue
 		}
 		existing, ok := currentByID[id]
-		if ok && sameManagedRawRecord(existing, desiredTool.scope, desiredTool.encoded) {
+		if ok && sameManagedRawRecord(
+			existing,
+			desiredTool.scope,
+			desiredTool.encoded,
+			managedRecordAttributionFor(s.actor, desiredTool.owner),
+		) {
 			delete(currentByID, id)
 			continue
 		}
@@ -44,6 +49,7 @@ func (s *toolMCPSourceSyncer) syncTools(ctx context.Context, desired map[string]
 		if _, err := s.toolStore.Put(ctx, s.actor, resources.Draft[toolspkg.Tool]{
 			ID:              desiredTool.id,
 			Scope:           desiredTool.scope,
+			Owner:           desiredTool.owner,
 			ExpectedVersion: expectedVersion,
 			Spec:            desiredTool.spec,
 		}); err != nil {
@@ -84,7 +90,12 @@ func (s *toolMCPSourceSyncer) syncMCPServers(
 	changed := false
 	for id, desiredServer := range desired {
 		existing, ok := currentByID[id]
-		if ok && sameManagedRawRecord(existing, desiredServer.scope, desiredServer.encoded) {
+		if ok && sameManagedRawRecord(
+			existing,
+			desiredServer.scope,
+			desiredServer.encoded,
+			managedRecordAttributionFor(s.actor, desiredServer.owner),
+		) {
 			delete(currentByID, id)
 			continue
 		}
@@ -96,6 +107,7 @@ func (s *toolMCPSourceSyncer) syncMCPServers(
 		if _, err := s.mcpStore.Put(ctx, s.actor, resources.Draft[compozyconfig.MCPServer]{
 			ID:              desiredServer.id,
 			Scope:           desiredServer.scope,
+			Owner:           desiredServer.owner,
 			ExpectedVersion: expectedVersion,
 			Spec:            desiredServer.spec,
 		}); err != nil {

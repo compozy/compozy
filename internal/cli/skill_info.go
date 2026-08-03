@@ -24,7 +24,7 @@ func newSkillInfoCommand(deps commandDeps) *cobra.Command {
 			}
 			response, err := client.MarketplaceInfo(
 				cmd.Context(),
-				contract.MarketplaceKindSkill,
+				string(contract.MarketplaceKindSkill),
 				args[0],
 				"",
 				MarketplaceReadScope{Scope: contract.SettingsWorkspaceScopeGlobal},

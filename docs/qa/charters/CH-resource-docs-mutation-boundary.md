@@ -17,7 +17,7 @@ charter:
   guidance:
     must_try:
       - "Run the generic optimistic create, update, conflict, invalid-spec, and delete example through the operator UDS."
-      - "Attempt the documented bundle lifecycle path and confirm that the guide never asks for direct bundle.activation mutation."
+      - "Attempt the documented extension-kit lifecycle and confirm that the guide never asks for direct service-owned resource mutation."
       - "Capture rendered-page or source-generation evidence plus runtime responses."
     must_avoid:
       - "Do not weaken the runtime's service-owned mutation guard."

@@ -29,7 +29,6 @@ const (
 const (
 	specAPIAutomationJobsIDPath                              = "/api/automation/jobs/{id}"
 	specAPIAutomationTriggersIDPath                          = "/api/automation/triggers/{id}"
-	specAPIBundlesActivationsIDPath                          = "/api/bundles/activations/{id}"
 	specAPIExtensionsPath                                    = "/api/extensions"
 	specAPIExtensionsCommandsPath                            = specAPIExtensionsPath + "/commands"
 	specAPIExtensionsNamePath                                = "/api/extensions/{name}"
@@ -39,6 +38,10 @@ const (
 	specAPIExtensionsDevPath                                 = specAPIExtensionsPath + "/dev"
 	specAPIExtensionsNameReloadPath                          = specAPIExtensionsNamePath + "/reload"
 	specAPIExtensionsNameLogsPath                            = specAPIExtensionsNamePath + "/logs"
+	specAPIExtensionsNameInventoryPath                       = specAPIExtensionsNamePath + "/inventory"
+	specAPIExtensionsNamePreviewPath                         = specAPIExtensionsNamePath + "/preview"
+	specAPIExtensionsNameSecretsPath                         = specAPIExtensionsNamePath + "/secrets"
+	specAPIExtensionsNameSecretPath                          = specAPIExtensionsNameSecretsPath + "/{env_name}"
 	specAPIMemoryFilenamePath                                = "/api/memory/{filename}"
 	specAPINotificationsPresetsPath                          = "/api/notifications/presets"
 	specAPINotificationsPresetsNamePath                      = specAPINotificationsPresetsPath + "/{name}"
@@ -94,7 +97,6 @@ const (
 	specAutomationTriggerNotFoundDescription                 = "Automation trigger not found"
 	specBridgeInstanceNotFoundDescription                    = "Bridge instance not found"
 	specBridgeServiceIsNotConfiguredDescription              = "Bridge service is not configured"
-	specBundleServiceIsNotConfiguredDescription              = "Bundle service is not configured"
 	specConflictingSettingsChangeDescription                 = "Conflicting settings change"
 	specCreatedDescription                                   = "Created"
 	specExtensionNotFoundDescription                         = "Extension not found"
@@ -145,7 +147,6 @@ const (
 	specAgentsKey                                            = "agents"
 	specAutomationKey                                        = "automation"
 	specBridgesKey                                           = "bridges"
-	specBundlesKey                                           = "bundles"
 	specDiagnosticsKey                                       = "diagnostics"
 	specOnboardingKey                                        = "onboarding"
 	specFilesystemKey                                        = "filesystem"
@@ -244,7 +245,6 @@ func Document() (*openapi3.T, error) {
 			{Name: specAgentsKey},
 			{Name: specAutomationKey},
 			{Name: specBridgesKey},
-			{Name: specBundlesKey},
 			{Name: specDiagnosticsKey},
 			{Name: specOnboardingKey},
 			{Name: specFilesystemKey},

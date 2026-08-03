@@ -34,6 +34,11 @@ type extensionNameInput struct {
 	Name string `json:"name"`
 }
 
+type extensionEnableInput struct {
+	Name                 string `json:"name"`
+	ConfirmNetworkDigest string `json:"confirm_network_digest"`
+}
+
 type extensionInstallInput struct {
 	Source          contract.InstallExtensionSource `json:"source"`
 	Ref             string                          `json:"ref"`
@@ -43,11 +48,12 @@ type extensionInstallInput struct {
 }
 
 type extensionUpdateInput struct {
-	Name            string `json:"name"`
-	All             bool   `json:"all"`
-	CheckOnly       bool   `json:"check_only"`
-	Version         string `json:"version"`
-	AllowUnverified bool   `json:"allow_unverified"`
+	Name                 string `json:"name"`
+	All                  bool   `json:"all"`
+	CheckOnly            bool   `json:"check_only"`
+	Version              string `json:"version"`
+	AllowUnverified      bool   `json:"allow_unverified"`
+	ConfirmNetworkDigest string `json:"confirm_network_digest"`
 }
 
 func (n *daemonNativeTools) extensionToolBindings(
@@ -96,6 +102,14 @@ func (n *daemonNativeTools) extensionToolBindings(
 		},
 		toolspkg.ToolIDExtensionsInfo: {
 			call:         n.extensionInfo,
+			availability: availability,
+		},
+		toolspkg.ToolIDExtensionsInventory: {
+			call:         n.extensionInventory,
+			availability: availability,
+		},
+		toolspkg.ToolIDExtensionsPreview: {
+			call:         n.extensionPreview,
 			availability: availability,
 		},
 		toolspkg.ToolIDExtensionsInstall: {
@@ -212,14 +226,17 @@ func (n *daemonNativeTools) extensionUpdate(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	names := []string{}
-	if strings.TrimSpace(input.Name) != "" {
-		names = append(names, input.Name)
-	}
-	if input.All && len(names) > 0 {
+	name := strings.TrimSpace(input.Name)
+	if input.All && name != "" {
 		return toolspkg.ToolResult{}, nativeExtensionValidationError(
 			req.ToolID,
 			errors.New("extension update accepts name or all, not both"),
+		)
+	}
+	if input.All && strings.TrimSpace(input.ConfirmNetworkDigest) != "" {
+		return toolspkg.ToolResult{}, nativeExtensionValidationError(
+			req.ToolID,
+			errors.New("confirm_network_digest applies only to a single extension update"),
 		)
 	}
 	actor, err := nativeExtensionActorContext(req)
@@ -227,8 +244,20 @@ func (n *daemonNativeTools) extensionUpdate(
 		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
 	}
 
+	if name != "" {
+		item, updateErr := n.extensionService().Update(ctx, name, contract.UpdateExtensionRequest{
+			Version: input.Version, CheckOnly: input.CheckOnly, AllowUnverified: input.AllowUnverified,
+			ConfirmNetworkDigest: strings.TrimSpace(input.ConfirmNetworkDigest),
+		}, actor)
+		if updateErr != nil {
+			return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, updateErr)
+		}
+		return structuredResult(
+			map[string]any{"updates": []contract.ManagedExtensionUpdatePayload{item}},
+			"1 extension update",
+		)
+	}
 	items, err := n.extensionService().UpdateBatch(ctx, contract.UpdateExtensionsRequest{
-		Names:           names,
 		All:             input.All,
 		CheckOnly:       input.CheckOnly,
 		Version:         input.Version,
@@ -272,10 +301,10 @@ func (n *daemonNativeTools) extensionRemove(
 
 func (n *daemonNativeTools) extensionEnable(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
-	var input extensionNameInput
+	var input extensionEnableInput
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -283,20 +312,22 @@ func (n *daemonNativeTools) extensionEnable(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	actor, err := nativeExtensionActorContext(req)
+	actor, err := nativeExtensionScopedActorContext(scope, req)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
 	}
-	item, err := n.extensionService().Enable(ctx, name, actor)
+	item, err := n.extensionService().Enable(ctx, name, contract.EnableExtensionRequest{
+		ConfirmNetworkDigest: strings.TrimSpace(input.ConfirmNetworkDigest),
+	}, actor)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
 	}
-	return structuredResult(map[string]any{nativeExtensionToolsExtensionKey: item}, item.Name)
+	return structuredResult(item, item.Extension.Name)
 }
 
 func (n *daemonNativeTools) extensionDisable(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input extensionNameInput
@@ -307,7 +338,7 @@ func (n *daemonNativeTools) extensionDisable(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	actor, err := nativeExtensionActorContext(req)
+	actor, err := nativeExtensionScopedActorContext(scope, req)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
 	}
@@ -326,20 +357,23 @@ func (n *daemonNativeTools) extensionService() *daemonExtensionService {
 	if n.deps.ExtensionRuntime != nil {
 		runtime = n.deps.ExtensionRuntime()
 	}
-	service, ok := newDaemonExtensionService(
-		n.deps.ExtensionRegistry,
-		runtime,
-		n.deps.HookBindings,
-		n.deps.agentSkills(),
-		n.deps.ToolMCP,
-		n.deps.BundleResources,
-		n.deps.LoopResources,
-		n.deps.HomePaths,
-		nil,
-		nil,
+	var automation extensionAutomationPreviewer
+	if previewer, supportsPreview := n.deps.Automation.(extensionAutomationPreviewer); supportsPreview {
+		automation = previewer
+	}
+	service, ok := newDaemonExtensionService(daemonExtensionServiceDeps{
+		Registry:     n.deps.ExtensionRegistry,
+		Runtime:      runtime,
+		HookBindings: n.deps.HookBindings,
+		AgentSkill:   n.deps.agentSkills(),
+		ToolMCP:      n.deps.ToolMCP,
+		Loops:        n.deps.LoopResources,
+		HomePaths:    n.deps.HomePaths,
+	},
 		withDaemonExtensionMarketplace(n.deps.ExtensionConfig, n.deps.ExtensionSources),
 		withDaemonExtensionEventWriter(n.deps.ExtensionEvents),
 		withDaemonExtensionWorkspaceResolver(n.deps.WorkspaceResolver),
+		withDaemonExtensionAutomation(automation),
 	).(*daemonExtensionService)
 	if !ok {
 		return nil

@@ -46,6 +46,7 @@ func reinstallExtensionInfo(
 	installOpts := []InstallOption{
 		WithInstallSource(info.Source),
 		WithInstallProvenance(info.Provenance),
+		withInstallInstalledAt(info.InstalledAt),
 	}
 	if info.Source == SourceMarketplace {
 		installOpts = append(installOpts, WithInstallRegistryMetadata(
@@ -62,6 +63,13 @@ func reinstallExtensionInfo(
 		if err := registry.Disable(info.Name); err != nil {
 			return fmt.Errorf("extension: restore disabled state for %q: %w", info.Name, err)
 		}
+	}
+	if err := registry.RestoreNetworkConfirmation(GlobalInstanceKey(info.Name), NetworkConfirmation{
+		Digest:      info.NetworkRequirementDigest,
+		ConfirmedBy: info.NetworkConfirmedBy,
+		ConfirmedAt: info.NetworkConfirmedAt,
+	}); err != nil {
+		return fmt.Errorf("extension: restore network confirmation for %q: %w", info.Name, err)
 	}
 	return nil
 }

@@ -1,4 +1,3 @@
-import { BundleActivationDetail } from "@/systems/extensions";
 import {
   isMarketplaceKind,
   isMarketplaceRouteKind,
@@ -24,10 +23,6 @@ function decodePathSegment(value: string): string {
 export function MarketplaceWindow({ windowId }: { windowId: string }) {
   const location = useDesktop(state => state.windows[windowId]?.route ?? DEFAULT_MARKETPLACE_ROUTE);
   const segments = location.pathname.split("/").filter(Boolean);
-
-  if (segments[1] === "bundles" && segments[2] === "activations" && segments[3]) {
-    return <BundleActivationDetail id={decodePathSegment(segments[3])} />;
-  }
 
   if (isMarketplaceKind(segments[1]) && segments[2]) {
     return (

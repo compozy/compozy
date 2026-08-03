@@ -29,10 +29,8 @@ const mocks = vi.hoisted(() => ({
   skills: [] as SkillPayload[],
   skillsWorkspace: vi.fn(),
   extensions: [] as unknown[],
-  activations: [] as unknown[],
   handleAction: vi.fn(),
   handleAuthorize: vi.fn(),
-  handleUpdateBundle: vi.fn(),
   fetchNextPage: vi.fn(),
   hasNextPage: false,
   isFetchNextPageError: false,
@@ -166,13 +164,6 @@ vi.mock("@/systems/extensions", async () => {
       isLoading: false,
       refetch: vi.fn(),
     }),
-    useBundleActivations: () => ({
-      data: mocks.activations,
-      error: null,
-      isLoading: false,
-      refetch: vi.fn(),
-    }),
-    useDeactivateBundle: () => ({ mutateAsync: vi.fn() }),
     useRemoveExtension: () => ({ mutateAsync: vi.fn() }),
     useToggleExtension: () => ({ mutateAsync: vi.fn() }),
   };
@@ -233,10 +224,8 @@ vi.mock("../use-marketplace-action-controller", () => ({
     dialogs: null,
     handleAction: mocks.handleAction,
     handleAuthorize: mocks.handleAuthorize,
-    handleDeactivate: vi.fn(),
     handleRemove: vi.fn(),
     handleToggleEnabled: vi.fn(),
-    handleUpdateBundle: mocks.handleUpdateBundle,
     isAuthorizing: false,
     isEntryFlashing: mocks.isEntryFlashing,
     isEntryPending: mocks.isEntryPending,
@@ -245,7 +234,7 @@ vi.mock("../use-marketplace-action-controller", () => ({
 }));
 
 function renderKindPage(
-  kind: "skill" | "mcp" | "extension" | "bundle" = "skill",
+  kind: "skill" | "mcp" | "extension" = "skill",
   search: {
     config_scope?: "global" | "workspace";
     tab?: "installed";
@@ -278,7 +267,6 @@ describe("MarketplaceKindPage", () => {
     mocks.isFetchingNextPage = false;
     mocks.skills = [];
     mocks.extensions = [];
-    mocks.activations = [];
     mocks.mcpServers = [];
     mocks.vaultSecrets = [];
     mocks.createSecret.mockReset();
@@ -946,112 +934,6 @@ describe("MarketplaceKindPage", () => {
     expect(screen.getByTestId("marketplace-installed-card-reviewer")).toBeInTheDocument();
   });
 
-  it("Should link bundle-managed skills to their activation", async () => {
-    const user = userEvent.setup();
-    mocks.skills = [
-      {
-        activation: { active: true },
-        description: "Bundled skill",
-        dir: "/tmp/skills/bundled-skill",
-        enabled: true,
-        name: "bundled-skill",
-        provenance: {
-          installed_from_bundle: "activation-ops-starter",
-          precedence_tier: "workspace",
-        },
-        source: "workspace",
-      },
-    ];
-    mocks.activations = [
-      {
-        bundle_name: "ops-starter",
-        extension_name: "ops-extension",
-        id: "activation-ops-starter",
-        profile_name: "default",
-        scope: "workspace",
-      },
-    ];
-    renderKindPage("skill", { tab: "installed" });
-
-    const trigger = screen.getByRole("button", { name: "More for bundled-skill" });
-    fireEvent.pointerDown(trigger, { button: 0, pointerType: "mouse" });
-    await user.click(trigger);
-    expect(await screen.findByText("ops-starter/default")).toBeInTheDocument();
-    expect(await screen.findByRole("menuitem", { name: "Open bundle activation" })).toHaveAttribute(
-      "href",
-      "/marketplace/bundles/activations/activation-ops-starter"
-    );
-  });
-
-  it("Should join installed bundles by extension and bundle identity", () => {
-    mocks.marketData = {
-      ...marketplaceKindFixture("bundle"),
-      items: [
-        {
-          ...marketplaceListings.bundle[0]!,
-          description: "Bundle from extension A",
-          entry_id: "bundle-extension-a",
-          name: "shared-bundle",
-          source: "extension-a",
-        },
-        {
-          ...marketplaceListings.bundle[0]!,
-          description: "Bundle from extension B",
-          entry_id: "bundle-extension-b",
-          name: "shared-bundle",
-          source: "extension-b",
-        },
-      ],
-      total: 2,
-    };
-    mocks.activations = [
-      {
-        bundle_name: "shared-bundle",
-        extension_name: "extension-b",
-        id: "activation-extension-b",
-        profile_name: "default",
-        scope: "global",
-      },
-    ];
-
-    renderKindPage("bundle", { tab: "installed" });
-
-    expect(screen.getByTestId("marketplace-installed-card-bundle-extension-b")).toHaveTextContent(
-      "Bundle from extension B"
-    );
-    expect(
-      screen.queryByTestId("marketplace-installed-card-bundle-extension-a")
-    ).not.toBeInTheDocument();
-  });
-
-  it("Should preserve activation identity when updating an installed bundle", async () => {
-    const user = userEvent.setup();
-    mocks.marketData = marketplaceKindFixture("bundle");
-    mocks.activations = [
-      {
-        bundle_name: "dep-kit",
-        created_at: "2026-07-14T12:00:00Z",
-        extension_name: "compozy-foundations",
-        id: "activation-dep-kit",
-        profile_name: "default",
-        scope: "global",
-        spec_drift: true,
-        updated_at: "2026-07-14T12:00:00Z",
-        version: 7,
-      },
-    ];
-    renderKindPage("bundle", { tab: "installed" });
-
-    await user.click(screen.getByRole("button", { name: "Update" }));
-
-    expect(mocks.handleUpdateBundle).toHaveBeenCalledWith(
-      expect.objectContaining({
-        activationId: "activation-dep-kit",
-        activationVersion: 7,
-      })
-    );
-  });
-
   it("Should render query-empty with clear search", () => {
     mocks.marketData = { ...marketplaceKindFixture("skill"), items: [], total: 0 };
     renderKindPage("skill", { q: "zzzz" });
@@ -1538,7 +1420,7 @@ describe("Marketplace cards and actions", () => {
   it.each([
     [marketplaceListings.mcp[0]!, "Installing…"],
     [marketplaceListings.skill[2]!, "Updating…"],
-    [marketplaceListings.bundle[0]!, "Activating…"],
+    [marketplaceListings.extension[0]!, "Installing…"],
   ])("Should render disabled pending action for %s", (entry, label) => {
     render(<MarketplaceEntryAction entry={entry} onAction={vi.fn()} pending />);
 
@@ -1590,11 +1472,11 @@ describe("Marketplace cards and actions", () => {
     );
   });
 
-  it("Should preserve an activation-specific manage path without repeating detail identity", () => {
+  it("Should preserve a daemon-supplied manage path without repeating detail identity", () => {
     const entry = {
-      ...marketplaceListings.bundle[0]!,
+      ...marketplaceListings.extension[0]!,
       installed: true,
-      manage_path: "/marketplace/bundles/activations/activation-specific",
+      manage_path: "/marketplace/extensions?tab=installed",
       update_available: false,
     };
     const view = render(<MarketplaceEntryAction entry={entry} onAction={vi.fn()} />);
@@ -1604,19 +1486,19 @@ describe("Marketplace cards and actions", () => {
     );
 
     view.rerender(<MarketplaceDetailMeta entry={entry} />);
-    expect(screen.getByTestId("marketplace-detail-meta")).toHaveTextContent("bundle");
+    expect(screen.getByTestId("marketplace-detail-meta")).toHaveTextContent("extension");
     expect(screen.queryByRole("heading", { name: entry.name })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: `Manage ${entry.name}` })).not.toBeInTheDocument();
   });
 
-  it("Should label installed bundles as active", () => {
+  it("Should label an installed entry as installed", () => {
     const entry = {
-      ...marketplaceListings.bundle[0]!,
+      ...marketplaceListings.extension[0]!,
       installed: true,
       update_available: false,
     };
     render(<MarketplaceEntryStatus entry={entry} />);
-    expect(screen.getByText("active")).toBeInTheDocument();
+    expect(screen.getByText("installed")).toBeInTheDocument();
   });
 
   it("Should render cards-only grid skeleton", () => {
@@ -1641,11 +1523,9 @@ describe("Marketplace cards and actions", () => {
     const handlers = {
       onAction: vi.fn(),
       onAuthorize: vi.fn(),
-      onDeactivate: vi.fn(),
       onEditMCP: vi.fn(),
       onRemove: vi.fn(),
       onToggleEnabled: vi.fn(),
-      onUpdateBundle: vi.fn(),
     };
     const view = render(<MarketplaceCard entry={entry} onAction={handlers.onAction} />);
 

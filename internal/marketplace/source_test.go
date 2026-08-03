@@ -62,7 +62,7 @@ func TestDecodeDocumentValidation(t *testing.T) {
 		}{
 			{
 				name:    "unknown kind",
-				kind:    Kind("bundle"),
+				kind:    Kind("artifact"),
 				raw:     validSkillDocumentJSON(),
 				wantErr: "unsupported kind",
 			},

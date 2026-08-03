@@ -101,8 +101,8 @@ compozy layout apply --workspace <workspace-id> --revision <revision> --file lay
 
 Export omits history. Validate never writes. Apply validates the complete document, binds it to the
 requested workspace, preserves current routes for surviving window IDs, and replaces the topology
-atomically. Extensions and bundles can contribute
-declarative `window_layout` resources; discover them through `compozy__resources_list`, then arrange by
+atomically. Extensions can contribute declarative `window_layout` resources; discover them through
+`compozy__resources_list`, then arrange by
 `resource_id`. The Settings layout editor lists and saves profiles through
 `/api/workspaces/{workspace_id}/window-manager/layout-profiles`. That projection contains global
 profiles plus profiles scoped to the selected workspace, and rejects cross-workspace writes.

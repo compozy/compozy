@@ -72,7 +72,7 @@ If any marker fails, print which one and refuse to mark the spec ready.
 
 The six quality markers are not the whole approval gate. Compozy TechSpecs must also include:
 
-- **Extensibility Integration Plan** — extension manifests, hooks, skills/capabilities, tools/resources, bundles, registries, bridge SDKs, MCP sidecars, and protocol docs added/changed/removed or explicitly unaffected.
+- **Extensibility Integration Plan** — extension manifests, hooks, skills/capabilities, tools/resources, registries, bridge SDKs, MCP sidecars, and protocol docs added/changed/removed or explicitly unaffected.
 - **Agent Manageability Plan** — CLI verbs, HTTP endpoints, UDS routes, structured outputs, status/config discovery, and deterministic errors agents will use to operate the feature.
 - **Config Lifecycle** — `config.toml` keys/defaults, merge/overlay behavior, validation, examples, generated CLI/site docs, and tests added/changed/removed or explicitly unaffected.
 

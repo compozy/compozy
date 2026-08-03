@@ -70,7 +70,7 @@ func TestNewCatalogServiceValidation(t *testing.T) {
 		{
 			name:    "Should reject an unsupported source kind",
 			store:   store,
-			sources: []Source{&recordingSource{kind: Kind("bundle")}},
+			sources: []Source{&recordingSource{kind: Kind("artifact")}},
 			ttl:     time.Hour,
 			timeout: time.Minute,
 			wantErr: "unsupported kind",
@@ -209,7 +209,7 @@ func TestCatalogServiceDetailStatusAndSelection(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), "not configured") {
 			t.Fatalf("Refresh(unconfigured kind) error = %v, want source diagnostic", err)
 		}
-		_, err = service.Refresh(ctx, Kind("bundle"))
+		_, err = service.Refresh(ctx, Kind("artifact"))
 		if err == nil || !strings.Contains(err.Error(), "unsupported kind") {
 			t.Fatalf("Refresh(unsupported kind) error = %v, want kind diagnostic", err)
 		}

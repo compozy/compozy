@@ -127,7 +127,7 @@ func TestManagerIntegrationResourceRegistration(t *testing.T) {
 		permissions:  []string{"sessions/list"},
 	}), map[string]string{
 		"skills/review/SKILL.md": managerSkillFile("resource-skill", "Loaded from extension"),
-		"agents/agent.md":        managerAgentFile("resource-agent"),
+		"agents/agent/AGENT.md":  managerAgentFile("resource-agent"),
 	})
 	installManagerFixture(t, env.registry, fixture, SourceUser, true)
 

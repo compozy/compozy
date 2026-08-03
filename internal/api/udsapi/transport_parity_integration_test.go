@@ -370,7 +370,11 @@ func TestUDSTransportWindowManagerMatchesHTTP(t *testing.T) {
 				t.Fatalf("UDS window.stack.group preview error = %v", err)
 			}
 			if !reflect.DeepEqual(httpGroupPreview, udsGroupPreview) {
-				t.Fatalf("window.stack.group preview parity mismatch: HTTP=%#v UDS=%#v", httpGroupPreview, udsGroupPreview)
+				t.Fatalf(
+					"window.stack.group preview parity mismatch: HTTP=%#v UDS=%#v",
+					httpGroupPreview,
+					udsGroupPreview,
+				)
 			}
 			var grouped compozycontract.WindowManagerResult
 			if err := runtimeHarness.HTTPJSON(
@@ -604,7 +608,13 @@ func TestUDSTransportWindowManagerMatchesHTTP(t *testing.T) {
 			}
 			assertCLIHTTPParity("layout apply", cliApplied.Snapshot)
 			var appliedLayout compozycontract.WindowManagerLayoutDocument
-			if err := runtimeHarness.HTTPJSON(ctx, http.MethodGet, basePath+"/layout", nil, &appliedLayout); err != nil {
+			if err := runtimeHarness.HTTPJSON(
+				ctx,
+				http.MethodGet,
+				basePath+"/layout",
+				nil,
+				&appliedLayout,
+			); err != nil {
 				t.Fatalf("HTTP layout export after CLI apply error = %v", err)
 			}
 			if !reflect.DeepEqual(exported, appliedLayout) {
@@ -1268,7 +1278,8 @@ func TestUDSTransportSessionRuntimeCreateReadMatchesHTTP(t *testing.T) {
 	); err != nil {
 		t.Fatalf("UDS get session error = %v", err)
 	}
-	if udsDetail.Session.Runtime.Status != created.Session.Runtime.Status || udsDetail.Session.Runtime.Effective != nil {
+	if udsDetail.Session.Runtime.Status != created.Session.Runtime.Status ||
+		udsDetail.Session.Runtime.Effective != nil {
 		t.Fatalf(
 			"UDS detail runtime = %#v, want unbound without effective selection",
 			udsDetail.Session.Runtime,
@@ -1285,7 +1296,8 @@ func TestUDSTransportSessionRuntimeCreateReadMatchesHTTP(t *testing.T) {
 	); err != nil {
 		t.Fatalf("HTTP get session error = %v", err)
 	}
-	if httpDetail.Session.Runtime.Status != created.Session.Runtime.Status || httpDetail.Session.Runtime.Effective != nil {
+	if httpDetail.Session.Runtime.Status != created.Session.Runtime.Status ||
+		httpDetail.Session.Runtime.Effective != nil {
 		t.Fatalf(
 			"HTTP detail runtime = %#v, want unbound without effective selection",
 			httpDetail.Session.Runtime,

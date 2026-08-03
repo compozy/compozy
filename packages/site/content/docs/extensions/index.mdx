@@ -1,11 +1,11 @@
 ---
 title: Extensions
-description: Install or build packages that bundle skills, agents, hooks, loops, MCP servers, provide surfaces, and subprocess tools.
+description: Install or build packages that ship skills, agents, automation, layouts, hooks, MCP servers, provide surfaces, and subprocess tools.
 ---
 
-An extension is one installable unit that ships runtime behavior and resources behind a single manifest. The
-operator installs, enables, and removes the bundle as a whole; Compozy wires the contained resources
-into the runtime registry only while the extension is enabled.
+An extension is one installable unit that ships runtime behavior and resources behind a single manifest.
+Installation is inert: Compozy publishes the package's resources only when the operator enables the
+extension, and removes those live resources when the extension is disabled.
 
 Use extensions when runtime behavior or resources should travel between machines or teams with one install command.
 If the work is only a local instruction set, a skill may be enough. If it includes multiple resources,
@@ -74,6 +74,13 @@ to the bundled local provider when the active provider is unhealthy.
     title="Publish an extension"
     description="Use this page to ship through GitHub Releases or plain Git, with digest sidecars and no catalog gatekeeper."
     meta="Distribute"
+  />
+  <RouteRow
+    href="/docs/extensions/secrets"
+    label="Secrets"
+    title="Bind extension secrets"
+    description="Use this page to bind declared environment names to instance-scoped Vault refs without exposing secret values."
+    meta="Operate"
   />
   <RouteRow
     href="/docs/extensions/install"

@@ -4,40 +4,31 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 
+import { ExtensionsApiError } from "@/systems/extensions/adapters/extensions-api";
 import type { MarketplaceInstalledItem } from "../../hooks/use-marketplace-kind-page";
 import type { MarketplaceListing } from "../../types";
-import {
-  marketplaceBundlePreviewFixture,
-  marketplaceDetails,
-  marketplaceListings,
-} from "../../mocks";
+import { marketplaceDetails, marketplaceListings } from "../../mocks";
 import { useMarketplaceActionController } from "../use-marketplace-action-controller";
 import {
   MarketplaceKindResults,
   type MarketplaceKindResultsProps,
 } from "../marketplace-kind-results";
 import { marketplaceKindConfig } from "../../lib/marketplace-kind-config";
-import { marketplaceEntryOptions } from "../../lib/query-options";
 
 const mocks = vi.hoisted(() => ({
-  activateBundle: vi.fn(),
   requestAuthorize: vi.fn(),
   installExtension: vi.fn(),
   installMCP: vi.fn(),
   installSkill: vi.fn(),
   navigate: vi.fn(),
-  previewBundle: vi.fn(),
-  previewData: undefined as unknown,
   toastError: vi.fn(),
   toastSuccess: vi.fn(),
   updateSkill: vi.fn(),
   updateExtension: vi.fn(),
-  updateBundle: vi.fn(),
   removeSkill: vi.fn(),
   removeExtension: vi.fn(),
   deleteMCP: vi.fn(),
   toggleExtension: vi.fn(),
-  deactivateBundle: vi.fn(),
 }));
 
 vi.mock("sonner", () => ({
@@ -67,10 +58,8 @@ vi.mock("@/systems/extensions", async () => {
     await vi.importActual<typeof import("@/systems/extensions")>("@/systems/extensions");
   return {
     ...actual,
-    useDeactivateBundle: () => ({ mutateAsync: mocks.deactivateBundle }),
     useRemoveExtension: () => ({ mutateAsync: mocks.removeExtension }),
     useToggleExtension: () => ({ mutateAsync: mocks.toggleExtension }),
-    useUpdateBundleActivation: () => ({ mutateAsync: mocks.updateBundle }),
   };
 });
 
@@ -109,24 +98,12 @@ vi.mock("@/systems/settings", async () => {
 });
 
 vi.mock("../../hooks/use-marketplace-actions", () => ({
-  useActivateMarketplaceBundle: () => ({
-    error: null,
-    isPending: false,
-    mutateAsync: mocks.activateBundle,
-  }),
   useInstallMarketplaceExtension: () => ({
     isPending: false,
     mutateAsync: mocks.installExtension,
   }),
   useInstallMarketplaceMCP: () => ({ mutateAsync: mocks.installMCP }),
   useInstallMarketplaceSkill: () => ({ mutateAsync: mocks.installSkill }),
-  usePreviewMarketplaceBundle: () => ({
-    data: mocks.previewData,
-    error: null,
-    isPending: false,
-    mutate: mocks.previewBundle,
-    mutateAsync: mocks.previewBundle,
-  }),
   useUpdateMarketplaceSkill: () => ({ mutateAsync: mocks.updateSkill }),
   useUpdateMarketplaceExtension: () => ({
     isPending: false,
@@ -188,16 +165,7 @@ function ConcurrentActionHarness({
   );
 }
 
-function BundleUpdateHarness({ item }: { item: MarketplaceInstalledItem }) {
-  const controller = useMarketplaceActionController("ws-a");
-  return (
-    <button onClick={() => controller.handleUpdateBundle(item)} type="button">
-      Update bundle
-    </button>
-  );
-}
-
-function InstalledBundleResultsHarness({ item }: { item: MarketplaceInstalledItem }) {
+function InstalledExtensionResultsHarness({ item }: { item: MarketplaceInstalledItem }) {
   const controller = useMarketplaceActionController("ws-a");
   const page: MarketplaceKindResultsProps["page"] = {
     clearSearch: vi.fn(),
@@ -216,13 +184,16 @@ function InstalledBundleResultsHarness({ item }: { item: MarketplaceInstalledIte
   };
 
   return (
-    <MarketplaceKindResults
-      actions={controller}
-      config={marketplaceKindConfig("bundle")}
-      kind="bundle"
-      onEditMCP={vi.fn()}
-      page={page}
-    />
+    <>
+      <MarketplaceKindResults
+        actions={controller}
+        config={marketplaceKindConfig("extension")}
+        kind="extension"
+        onEditMCP={vi.fn()}
+        page={page}
+      />
+      {controller.dialogs}
+    </>
   );
 }
 
@@ -262,11 +233,11 @@ function ConcurrentInstalledHarness({
   const controller = useMarketplaceActionController("ws-a");
   return (
     <>
-      <button onClick={() => void controller.handleDeactivate(first)} type="button">
-        Deactivate first
+      <button onClick={() => void controller.handleRemove(first)} type="button">
+        Remove first
       </button>
-      <button onClick={() => void controller.handleDeactivate(second)} type="button">
-        Deactivate second
+      <button onClick={() => void controller.handleRemove(second)} type="button">
+        Remove second
       </button>
       <output aria-label="First installed pending">
         {controller.isInstalledItemPending(first) ? "pending" : "idle"}
@@ -292,9 +263,6 @@ function setup(entry: MarketplaceListing) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.previewData = marketplaceBundlePreviewFixture;
-  mocks.previewBundle.mockResolvedValue(marketplaceBundlePreviewFixture);
-  mocks.activateBundle.mockResolvedValue({});
   mocks.installExtension.mockResolvedValue({
     extension: {
       daemon_running: false,
@@ -319,12 +287,10 @@ beforeEach(() => {
     },
   });
   mocks.updateExtension.mockResolvedValue(undefined);
-  mocks.updateBundle.mockResolvedValue(undefined);
   mocks.updateSkill.mockResolvedValue({});
   mocks.removeSkill.mockResolvedValue({});
   mocks.removeExtension.mockResolvedValue({});
   mocks.toggleExtension.mockResolvedValue({});
-  mocks.deactivateBundle.mockResolvedValue({});
   mocks.deleteMCP.mockResolvedValue({});
 });
 
@@ -410,16 +376,16 @@ describe("useMarketplaceActionController", () => {
     expect(mocks.toastSuccess).toHaveBeenCalledWith("github removed · restart required");
   });
 
-  it("Should track installed bundle actions by activation identity", async () => {
+  it("Should track installed extension actions by their installed identity", async () => {
     const user = userEvent.setup();
     let resolveFirst: (() => void) | undefined;
     let resolveSecond: (() => void) | undefined;
-    mocks.deactivateBundle
+    mocks.removeExtension
       .mockReturnValueOnce(new Promise<void>(resolve => (resolveFirst = resolve)))
       .mockReturnValueOnce(new Promise<void>(resolve => (resolveSecond = resolve)));
-    const entry = { ...marketplaceListings.bundle[0]!, installed: true };
-    const first = { activationId: "activation-a", entry };
-    const second = { activationId: "activation-b", entry };
+    const base = { ...marketplaceListings.extension[0]!, installed: true };
+    const first = { entry: { ...base, installed_name: "otel-bridge" } };
+    const second = { entry: { ...base, installed_name: "otel-bridge-canary" } };
 
     render(
       <QueryClientProvider client={new QueryClient()}>
@@ -427,7 +393,7 @@ describe("useMarketplaceActionController", () => {
       </QueryClientProvider>
     );
 
-    await user.click(screen.getByRole("button", { name: "Deactivate first" }));
+    await user.click(screen.getByRole("button", { name: "Remove first" }));
     await waitFor(() =>
       expect(screen.getByRole("status", { name: "First installed pending" })).toHaveTextContent(
         "pending"
@@ -437,7 +403,7 @@ describe("useMarketplaceActionController", () => {
       "idle"
     );
 
-    await user.click(screen.getByRole("button", { name: "Deactivate second" }));
+    await user.click(screen.getByRole("button", { name: "Remove second" }));
     expect(screen.getByRole("status", { name: "Second installed pending" })).toHaveTextContent(
       "pending"
     );
@@ -460,56 +426,26 @@ describe("useMarketplaceActionController", () => {
     );
   });
 
-  it("Should update installed bundles with their current activation version", async () => {
-    const user = userEvent.setup();
-    const entry = {
-      ...marketplaceListings.bundle[0]!,
-      installed: true,
-      update_available: true,
-    };
-    render(
-      <QueryClientProvider client={new QueryClient()}>
-        <BundleUpdateHarness
-          item={{
-            activationId: "activation-dep-kit",
-            activationVersion: 7,
-            entry,
-          }}
-        />
-      </QueryClientProvider>
-    );
-
-    await user.click(screen.getByRole("button", { name: "Update bundle" }));
-
-    await waitFor(() =>
-      expect(mocks.updateBundle).toHaveBeenCalledWith({
-        body: { expected_version: 7 },
-        id: "activation-dep-kit",
-      })
-    );
-  });
-
-  it("Should disable the real installed bundle card while its update is pending", async () => {
+  it("Should disable the installed extension card while its update is pending", async () => {
     const user = userEvent.setup();
     let resolveUpdate: (() => void) | undefined;
-    mocks.updateBundle.mockReturnValueOnce(
+    mocks.updateExtension.mockReturnValueOnce(
       new Promise<void>(resolve => {
         resolveUpdate = resolve;
       })
     );
     const item: MarketplaceInstalledItem = {
-      activationId: "activation-dep-kit",
-      activationVersion: 7,
       entry: {
-        ...marketplaceListings.bundle[0]!,
+        ...marketplaceListings.extension[0]!,
         installed: true,
+        installed_name: "otel-bridge",
         update_available: true,
       },
     };
 
     render(
       <QueryClientProvider client={new QueryClient()}>
-        <InstalledBundleResultsHarness item={item} />
+        <InstalledExtensionResultsHarness item={item} />
       </QueryClientProvider>
     );
 
@@ -518,7 +454,7 @@ describe("useMarketplaceActionController", () => {
 
     await waitFor(() => expect(update).toBeDisabled());
     await user.click(update);
-    expect(mocks.updateBundle).toHaveBeenCalledTimes(1);
+    expect(mocks.updateExtension).toHaveBeenCalledTimes(1);
 
     await act(async () => resolveUpdate?.());
     await waitFor(() => expect(update).toBeEnabled());
@@ -607,6 +543,93 @@ describe("useMarketplaceActionController", () => {
       })
     );
     expect(mocks.installExtension).not.toHaveBeenCalled();
+  });
+
+  it("Should resume a refused quick update with the exact network digest", async () => {
+    const user = userEvent.setup();
+    const digest = "sha256:quick-update";
+    mocks.updateExtension.mockRejectedValueOnce(
+      new ExtensionsApiError("network confirmation required", 409, "daemon", {
+        code: "extension_network_confirmation_required",
+        currentDigest: digest,
+      })
+    );
+    const entry: MarketplaceListing = {
+      ...marketplaceListings.extension[0]!,
+      installed: true,
+      installed_name: "manifest-otel-bridge",
+      name: "OpenTelemetry Bridge",
+      update_available: true,
+    };
+    setup(entry);
+
+    await user.click(screen.getByRole("button", { name: "Run action" }));
+    expect(await screen.findByTestId("extension-network-confirm-dialog")).toBeInTheDocument();
+    expect(mocks.updateExtension).toHaveBeenCalledWith({
+      body: { allow_unverified: false, version: "0.6.0" },
+      name: "manifest-otel-bridge",
+    });
+
+    await user.click(screen.getByTestId("extension-network-confirm-accept"));
+    await waitFor(() =>
+      expect(mocks.updateExtension).toHaveBeenLastCalledWith({
+        body: {
+          allow_unverified: false,
+          confirm_network_digest: digest,
+          version: "0.6.0",
+        },
+        name: "manifest-otel-bridge",
+      })
+    );
+    await waitFor(() =>
+      expect(screen.queryByTestId("extension-network-confirm-dialog")).not.toBeInTheDocument()
+    );
+  });
+
+  it("Should resume a refused installed-card enable with the exact network digest", async () => {
+    const user = userEvent.setup();
+    const digest = "sha256:quick-enable";
+    mocks.toggleExtension.mockRejectedValueOnce(
+      new ExtensionsApiError("network confirmation required", 409, "daemon", {
+        code: "extension_network_confirmation_required",
+        currentDigest: digest,
+      })
+    );
+    const item: MarketplaceInstalledItem = {
+      entry: {
+        ...marketplaceListings.extension[0]!,
+        installed: true,
+        installed_name: "dep-kit-ops",
+        name: "Dependency Kit Ops",
+        update_available: false,
+      },
+      extensionEnabled: false,
+    };
+
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <InstalledExtensionResultsHarness item={item} />
+      </QueryClientProvider>
+    );
+
+    await user.click(screen.getByRole("switch", { name: "Enable Dependency Kit Ops" }));
+    expect(await screen.findByTestId("extension-network-confirm-dialog")).toBeInTheDocument();
+    expect(mocks.toggleExtension).toHaveBeenCalledWith({
+      enabled: true,
+      name: "dep-kit-ops",
+    });
+
+    await user.click(screen.getByTestId("extension-network-confirm-accept"));
+    await waitFor(() =>
+      expect(mocks.toggleExtension).toHaveBeenLastCalledWith({
+        confirmNetworkDigest: digest,
+        enabled: true,
+        name: "dep-kit-ops",
+      })
+    );
+    await waitFor(() =>
+      expect(screen.queryByTestId("extension-network-confirm-dialog")).not.toBeInTheDocument()
+    );
   });
 
   it("Should surface acquisition failures and always release pending state", async () => {
@@ -750,9 +773,9 @@ describe("useMarketplaceActionController", () => {
     );
   });
 
-  it("Should render acquisition dialogs from canonical details and re-preview bundles for the active workspace", async () => {
+  it("Should render acquisition dialogs from canonical details for the active workspace", async () => {
     const user = userEvent.setup();
-    const { client, rerender } = setup(marketplaceListings.mcp[0]!);
+    const { client } = setup(marketplaceListings.mcp[0]!);
     const fetchDetail = vi.spyOn(client, "fetchQuery");
     fetchDetail.mockImplementationOnce(async options => {
       const detail = marketplaceDetails["mcp:github"]!;
@@ -768,55 +791,5 @@ describe("useMarketplaceActionController", () => {
 
     await user.keyboard("{Escape}");
     await waitFor(() => expect(screen.queryByTestId("mcp-install-dialog")).not.toBeInTheDocument());
-    fetchDetail.mockImplementationOnce(async options => {
-      const detail = marketplaceDetails["bundle:dep-kit"]!;
-      client.setQueryData(options.queryKey, detail);
-      return detail;
-    });
-    rerender(
-      <QueryClientProvider client={client}>
-        <ActionHarness entry={marketplaceListings.bundle[0]!} />
-      </QueryClientProvider>
-    );
-    await user.click(screen.getByRole("button", { name: "Run action" }));
-    expect(await screen.findByTestId("bundle-activation-dialog")).toBeInTheDocument();
-    await waitFor(() =>
-      expect(mocks.previewBundle).toHaveBeenLastCalledWith(
-        expect.objectContaining({ scope: "workspace", workspace: "ws-a" })
-      )
-    );
-    client.setQueryData(
-      marketplaceEntryOptions({
-        entryId: marketplaceListings.bundle[0]!.entry_id,
-        kind: "bundle",
-        workspaceId: "ws-b",
-      }).queryKey,
-      marketplaceDetails["bundle:dep-kit"]
-    );
-
-    rerender(
-      <QueryClientProvider client={client}>
-        <ActionHarness entry={marketplaceListings.bundle[0]!} workspaceId="ws-b" />
-      </QueryClientProvider>
-    );
-    await waitFor(() =>
-      expect(mocks.previewBundle).toHaveBeenLastCalledWith(
-        expect.objectContaining({ scope: "workspace", workspace: "ws-b" })
-      )
-    );
-
-    await user.click(screen.getByRole("radio", { name: /Global/ }));
-    await user.click(screen.getByRole("switch", { name: "Confirm Live network participation" }));
-    await user.click(screen.getByTestId("bundle-activate-confirm"));
-
-    await waitFor(() =>
-      expect(mocks.activateBundle).toHaveBeenCalledWith(
-        expect.objectContaining({
-          confirm_network_requirement: true,
-          scope: "global",
-        })
-      )
-    );
-    expect(screen.queryByTestId("bundle-activation-dialog")).not.toBeInTheDocument();
   });
 });

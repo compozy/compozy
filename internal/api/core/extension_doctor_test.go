@@ -72,6 +72,10 @@ func TestDoctorExtensionFilterReportsDistinctRuntimeFailures(t *testing.T) {
 				t.Fatalf("doctor item category = %q, want extension", item.Category)
 			}
 			ids = append(ids, item.ID)
+			if item.ID == "doctor.extension.missing-env.missing_env" &&
+				item.SuggestedCommand != "compozy extension secrets set missing-env --env API_TOKEN" {
+				t.Fatalf("missing-env suggested command = %q, want exact secrets set command", item.SuggestedCommand)
+			}
 		}
 		want := []string{
 			"doctor.extension.crashy.crash_loop",

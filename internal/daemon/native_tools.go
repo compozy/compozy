@@ -188,13 +188,6 @@ func newDaemonExtensionToolProvider(state *bootState) (toolspkg.Provider, error)
 	return newDaemonScopedExtensionToolProvider(provider, state.workspaceResolver), nil
 }
 
-func (n *daemonNativeTools) bundleService() core.BundleService {
-	if n == nil || n.deps == nil || n.deps.BundleService == nil {
-		return nil
-	}
-	return n.deps.BundleService()
-}
-
 func (n *daemonNativeTools) loopService() core.LoopService {
 	if n == nil || n.deps == nil || n.deps.Loops == nil {
 		return nil

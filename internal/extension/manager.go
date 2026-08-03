@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	automationpkg "github.com/compozy/compozy/internal/automation"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 
@@ -21,6 +22,7 @@ import (
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/toolruntime"
+	"github.com/compozy/compozy/internal/windowmanager"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -164,9 +166,12 @@ type Extension struct {
 	RootDir               string
 	Hooks                 []hookspkg.HookDecl
 	Agents                []compozyconfig.AgentDef
-	Bundles               []BundleSpec
+	StaticAgents          []StaticAgent
 	Skills                []*skillspkg.Skill
 	Loops                 []looppkg.ResourceSpec
+	AutomationJobs        []automationpkg.Job
+	AutomationTriggers    []automationpkg.Trigger
+	Layouts               []windowmanager.LayoutResource
 	GrantedPermissions    []string
 	GrantedSecurity       []string
 	GrantedResourceKinds  []resources.ResourceKind
@@ -184,9 +189,12 @@ type managedExtension struct {
 	manifest              *Manifest
 	hooks                 []hookspkg.HookDecl
 	agents                []compozyconfig.AgentDef
-	bundles               []BundleSpec
+	staticAgents          []StaticAgent
 	skills                []*skillspkg.Skill
 	loops                 []looppkg.ResourceSpec
+	automationJobs        []automationpkg.Job
+	automationTriggers    []automationpkg.Trigger
+	layouts               []windowmanager.LayoutResource
 	grantedPermissions    []string
 	grantedSecurity       []string
 	grantedResourceKinds  []resources.ResourceKind
@@ -246,6 +254,7 @@ type Manager struct {
 	getenv                func(string) string
 	compozyExecutable     func() (string, error)
 	secretResolver        SecretRefResolver
+	envBindings           EnvBindingStore
 	launch                processLauncher
 	toolCallTracker       ExtensionToolCallTracker
 	hostMethods           map[string]subprocess.HandlerFunc

@@ -18,6 +18,9 @@ export const extensionKeys = {
   provenance: (name: string) => [...extensionKeys.all, "provenance", name] as const,
   logs: (name: string, workspaceId?: string | null) =>
     [...extensionKeys.all, "logs", extensionWorkspaceKey(workspaceId), name] as const,
-  bundles: () => [...extensionKeys.all, "bundle-activations"] as const,
-  bundle: (id: string) => [...extensionKeys.bundles(), id] as const,
+  /**
+   * The inventory route carries no workspace selector and resolves the global published instance,
+   * so the key stays name-only rather than implying a scope the route does not expose.
+   */
+  inventory: (name: string) => [...extensionKeys.all, "inventory", name] as const,
 };

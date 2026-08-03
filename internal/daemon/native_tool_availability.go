@@ -40,7 +40,6 @@ type nativeToolAvailabilitySet struct {
 	loops               toolspkg.NativeAvailabilityFunc
 	extensions          toolspkg.NativeAvailabilityFunc
 	marketplace         toolspkg.NativeAvailabilityFunc
-	bundles             toolspkg.NativeAvailabilityFunc
 	resources           toolspkg.NativeAvailabilityFunc
 	windowManager       toolspkg.NativeAvailabilityFunc
 	mcpStatus           toolspkg.NativeAvailabilityFunc
@@ -125,9 +124,8 @@ func (n *daemonNativeTools) baseNativeToolAvailability() nativeToolAvailabilityS
 			return n.deps.ExtensionRegistry != nil && strings.TrimSpace(n.deps.HomePaths.HomeDir) != ""
 		}),
 		marketplace: n.dependencyAvailability(func() bool {
-			return n.deps.MarketplaceCatalog != nil || n.bundleService() != nil || n.deps.MarketplaceSkills != nil
+			return n.deps.MarketplaceCatalog != nil || n.deps.MarketplaceSkills != nil
 		}),
-		bundles:   n.dependencyAvailability(func() bool { return n.bundleService() != nil }),
 		resources: n.dependencyAvailability(func() bool { return n.deps.Resources != nil }),
 		mcpStatus: n.dependencyAvailability(func() bool {
 			return n.mcpAuthProvider() != nil && n.settingsService() != nil

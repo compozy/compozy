@@ -192,6 +192,50 @@ func TestResolveManifestToolDescriptorsIncludesDigestAndMetadata(t *testing.T) {
 			t.Fatalf("RuntimeDescriptor.Capabilities = %#v, want %#v", got, want)
 		}
 	})
+
+	t.Run("Should Resolve MCP Backend Without Extension Host Handler", func(t *testing.T) {
+		t.Parallel()
+
+		manifest := &Manifest{
+			Name: "catalog",
+			Resources: ResourcesConfig{
+				Tools: map[string]ToolConfig{
+					"probe": {
+						Description: "Inspect the catalog",
+						Backend: ToolBackendConfig{
+							Kind:   "mcp",
+							Server: "catalog-server",
+							Tool:   "catalog_probe",
+						},
+						InputSchema: json.RawMessage(`{"type":"object"}`),
+						ReadOnly:    true,
+					},
+				},
+			},
+		}
+
+		descriptors, err := ResolveManifestToolDescriptors(manifest)
+		if err != nil {
+			t.Fatalf("ResolveManifestToolDescriptors() error = %v", err)
+		}
+		if got, want := len(descriptors), 1; got != want {
+			t.Fatalf("len(ResolveManifestToolDescriptors()) = %d, want %d", got, want)
+		}
+
+		descriptor := descriptors[0]
+		if got, want := descriptor.Tool.Backend.Kind, toolspkg.BackendMCP; got != want {
+			t.Fatalf("Tool.Backend.Kind = %q, want %q", got, want)
+		}
+		if got, want := descriptor.Tool.Backend.MCPServer, "catalog-server"; got != want {
+			t.Fatalf("Tool.Backend.MCPServer = %q, want %q", got, want)
+		}
+		if got, want := descriptor.Tool.Backend.MCPTool, "catalog_probe"; got != want {
+			t.Fatalf("Tool.Backend.MCPTool = %q, want %q", got, want)
+		}
+		if descriptor.RuntimeDescriptor.Handler != "" {
+			t.Fatalf("RuntimeDescriptor.Handler = %q, want empty for MCP backend", descriptor.RuntimeDescriptor.Handler)
+		}
+	})
 }
 
 func TestManifestToolResourcesRemainColdUntilRuntimeHandleExists(t *testing.T) {

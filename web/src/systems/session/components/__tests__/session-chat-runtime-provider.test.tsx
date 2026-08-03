@@ -1856,8 +1856,8 @@ describe("SessionChatRuntimeProvider", () => {
 
     renderSessionThread();
 
-    // The settled turn folds its preamble + data behind a "Worked" disclosure and
-    // keeps the terminal answer visible; the data part is folded away, not dropped.
+    // The settled turn keeps authored text visible and folds the unregistered data
+    // at its chronological position instead of dropping or moving it.
     const fold = await screen.findByRole("button", { name: "Worked" });
     expect(screen.getByText("After data.")).toBeInTheDocument();
     expect(screen.queryByTestId("session-data-part")).not.toBeInTheDocument();

@@ -274,17 +274,10 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 		t.Parallel()
 
 		nativeDeps, registry, _, _ := newNativeExtensionToolDeps(t)
-		extensionService, ok := newDaemonExtensionService(
-			registry,
-			nil,
-			nil,
-			nil,
-			nil,
-			nil,
-			nil,
-			nativeDeps.HomePaths,
-			nil,
-			nil,
+		extensionService, ok := newDaemonExtensionService(daemonExtensionServiceDeps{
+			Registry:  registry,
+			HomePaths: nativeDeps.HomePaths,
+		},
 		).(*daemonExtensionService)
 		if !ok {
 			t.Fatal("newDaemonExtensionService() did not return daemon service")

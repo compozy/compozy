@@ -33,9 +33,7 @@ interface MarketplaceInstalledCardProps {
   onAuthorize: (item: MarketplaceInstalledItem) => void;
   onEditMCP: (server: NonNullable<MarketplaceInstalledItem["mcpServer"]>) => void;
   onRemove: (item: MarketplaceInstalledItem) => Promise<void> | void;
-  onDeactivate: (item: MarketplaceInstalledItem) => Promise<void> | void;
   onToggleEnabled: (item: MarketplaceInstalledItem, enabled: boolean) => void;
-  onUpdateBundle: (item: MarketplaceInstalledItem) => void;
 }
 
 function MarketplaceInstalledCard({
@@ -45,38 +43,32 @@ function MarketplaceInstalledCard({
   onAuthorize,
   onEditMCP,
   onRemove,
-  onDeactivate,
   onToggleEnabled,
-  onUpdateBundle,
 }: MarketplaceInstalledCardProps) {
   const { entry } = item;
-  const kind = entry.kind as "skill" | "extension" | "bundle" | "mcp";
-  const confirmation = useMarketplaceInstalledCardConfirmation(action =>
-    Promise.resolve(action === "deactivate" ? onDeactivate(item) : onRemove(item))
+  const kind = entry.kind;
+  const confirmation = useMarketplaceInstalledCardConfirmation(() =>
+    Promise.resolve(onRemove(item))
   );
-  const isBundle = kind === "bundle";
   const isMcp = kind === "mcp";
   // A dev overlay shadows the published row without owning it: enable/disable and marketplace
   // updates act on the published extension, so this card must not offer them.
   const isDevOverlay = item.extensionFacts?.dev === true;
-  const detailKind = kind === "bundle" ? "bundle" : kind;
   const mcpStatus = item.mcpServer ? marketplaceMCPInstalledStatus(item.mcpServer) : null;
   const authorizeCta = mcpStatus?.authorize === true;
   const installedName =
     entry.installed_name ?? item.mcpServer?.name ?? item.skill?.name ?? entry.name;
   const mcpManagement = item.mcpServer ? deriveMCPManagementFilter(item.mcpServer) : null;
-  const detailSearch = isBundle
-    ? undefined
-    : {
-        installed_name: installedName,
-        ...(isMcp && mcpManagement
-          ? {
-              scope: mcpManagement.scope,
-              workspace_id:
-                mcpManagement.scope === "workspace" ? mcpManagement.workspace_id : undefined,
-            }
-          : {}),
-      };
+  const detailSearch = {
+    installed_name: installedName,
+    ...(isMcp && mcpManagement
+      ? {
+          scope: mcpManagement.scope,
+          workspace_id:
+            mcpManagement.scope === "workspace" ? mcpManagement.workspace_id : undefined,
+        }
+      : {}),
+  };
 
   return (
     <>
@@ -85,36 +77,20 @@ function MarketplaceInstalledCard({
         data-testid={`marketplace-installed-card-${entry.entry_id}`}
         actionable={!pending}
       >
-        {isBundle && item.activationId ? (
-          <Link
-            aria-disabled={pending || undefined}
-            aria-label={`Open ${entry.name} activation`}
-            className="flex min-w-0 flex-col gap-3 rounded focus-visible:outline-none focus-visible:shadow-focus-ring"
-            onClick={event => {
-              if (pending) event.preventDefault();
-            }}
-            params={{ id: item.activationId }}
-            tabIndex={pending ? -1 : undefined}
-            to="/marketplace/bundles/activations/$id"
-          >
-            <InstalledCardHead entry={entry} item={item} kind={kind} />
-          </Link>
-        ) : (
-          <Link
-            aria-disabled={pending || undefined}
-            aria-label={`View ${entry.name} details`}
-            className="flex min-w-0 flex-col gap-3 rounded focus-visible:outline-none focus-visible:shadow-focus-ring"
-            onClick={event => {
-              if (pending) event.preventDefault();
-            }}
-            params={{ entryId: entry.entry_id, kind: detailKind }}
-            search={detailSearch}
-            tabIndex={pending ? -1 : undefined}
-            to="/marketplace/$kind/$entryId"
-          >
-            <InstalledCardHead entry={entry} item={item} kind={kind} />
-          </Link>
-        )}
+        <Link
+          aria-disabled={pending || undefined}
+          aria-label={`View ${entry.name} details`}
+          className="flex min-w-0 flex-col gap-3 rounded focus-visible:outline-none focus-visible:shadow-focus-ring"
+          onClick={event => {
+            if (pending) event.preventDefault();
+          }}
+          params={{ entryId: entry.entry_id, kind }}
+          search={detailSearch}
+          tabIndex={pending ? -1 : undefined}
+          to="/marketplace/$kind/$entryId"
+        >
+          <InstalledCardHead entry={entry} item={item} kind={kind} />
+        </Link>
 
         <CatalogCard.Actions>
           <InstalledPills item={item} mcpStatus={mcpStatus} />
@@ -146,7 +122,7 @@ function MarketplaceInstalledCard({
               <Button
                 data-testid={`marketplace-installed-update-${entry.entry_id}`}
                 disabled={pending}
-                onClick={() => (isBundle ? onUpdateBundle(item) : onAction(entry))}
+                onClick={() => onAction(entry)}
                 size="sm"
                 type="button"
                 variant="neutral"
@@ -183,52 +159,18 @@ function MarketplaceInstalledCard({
                 <DropdownMenuItem
                   render={
                     <Link
-                      params={
-                        isBundle && item.activationId
-                          ? { id: item.activationId }
-                          : { entryId: entry.entry_id, kind: detailKind }
-                      }
-                      search={isBundle && item.activationId ? undefined : detailSearch}
-                      to={
-                        isBundle && item.activationId
-                          ? "/marketplace/bundles/activations/$id"
-                          : "/marketplace/$kind/$entryId"
-                      }
+                      params={{ entryId: entry.entry_id, kind }}
+                      search={detailSearch}
+                      to="/marketplace/$kind/$entryId"
                     />
                   }
                 >
                   View details
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                {item.viaBundle ? (
-                  <>
-                    <div className="max-w-55 px-2 py-1.5 text-form-hint leading-snug text-subtle">
-                      Managed by the <span className="font-medium text-fg">{item.viaBundle}</span>{" "}
-                      bundle activation.
-                    </div>
-                    {item.activationId ? (
-                      <DropdownMenuItem
-                        render={
-                          <Link
-                            params={{ id: item.activationId }}
-                            to="/marketplace/bundles/activations/$id"
-                          />
-                        }
-                      >
-                        Open bundle activation
-                      </DropdownMenuItem>
-                    ) : null}
-                  </>
-                ) : (
-                  <DropdownMenuItem
-                    className="text-danger"
-                    onClick={() => {
-                      confirmation.openConfirmation(isBundle ? "deactivate" : "remove");
-                    }}
-                  >
-                    {isBundle ? "Deactivate…" : "Remove…"}
-                  </DropdownMenuItem>
-                )}
+                <DropdownMenuItem className="text-danger" onClick={confirmation.openConfirmation}>
+                  Remove…
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -238,29 +180,23 @@ function MarketplaceInstalledCard({
       <ConfirmDialog
         cancelLabel="Cancel"
         confirmButtonProps={{ "data-testid": `marketplace-confirm-${entry.entry_id}` }}
-        confirmLabel={isBundle ? "Deactivate" : "Remove"}
-        confirmTyping={isBundle ? undefined : entry.name}
+        confirmLabel="Remove"
+        confirmTyping={entry.name}
         description={
-          isBundle
-            ? "Stops this activation. Installed items stay on disk; only the activation binding is removed."
-            : isMcp
-              ? "Removes the server from MCP config. Sessions can no longer reach its tools."
-              : "Removes the installed files from this daemon. It stays available in the marketplace."
+          isMcp
+            ? "Removes the server from MCP config. Sessions can no longer reach its tools."
+            : "Removes the installed files from this daemon. It stays available in the marketplace."
         }
         error={confirmation.error}
         isPending={confirmation.isPending}
-        note={
-          isBundle
-            ? `Agents, jobs, and triggers from the ${item.profileName ?? "selected"} profile stop receiving new work from this activation.`
-            : `Type the ${kind} name to confirm.`
-        }
-        noteTone={isBundle ? "warning" : "neutral"}
+        note={`Type the ${kind} name to confirm.`}
+        noteTone="neutral"
         onConfirm={confirmation.confirm}
         onOpenChange={open => {
           if (!open) confirmation.cancel();
         }}
         open={confirmation.open}
-        title={`${isBundle ? "Deactivate" : "Remove"} ${entry.name}`}
+        title={`Remove ${entry.name}`}
         tone="danger"
       />
     </>
@@ -299,7 +235,6 @@ function InstalledCardHead({
             {entry.kind !== "mcp" && version ? (
               <span className="normal-case font-mono tracking-normal">{version}</span>
             ) : null}
-            {item.profileName ? <span>{`profile ${item.profileName}`}</span> : null}
             {entry.kind !== "mcp" && item.scopeLabel ? <span>{item.scopeLabel}</span> : null}
             {item.skill?.source ? <span>{item.skill.source}</span> : null}
           </CatalogCard.Meta>
@@ -332,7 +267,6 @@ function InstalledPills({
   const version = formatMarketplaceVersion(entry.version);
   return (
     <>
-      {item.viaBundle ? <Pill mono>{`via ${item.viaBundle}`}</Pill> : null}
       {item.skill ? (
         <SkillActivationPill
           active={item.skill.activation.active}
@@ -346,11 +280,6 @@ function InstalledPills({
         </Pill>
       ) : null}
       {item.extensionFacts ? <ExtensionTrustBadges facts={item.extensionFacts} showSource /> : null}
-      {entry.kind === "bundle" ? (
-        <Pill mono tone="success">
-          active
-        </Pill>
-      ) : null}
       {entry.update_available ? (
         <Pill mono tone="warning">
           {version ? `${version} available` : "update available"}

@@ -128,7 +128,7 @@ func TestMarketplaceOperations(t *testing.T) {
 				parameters: []parameterExpectation{
 					{
 						name: "kind", in: openapi3.ParameterInPath, required: true,
-						enum: []string{"mcp", "extension", "skill", "bundle"},
+						enum: []string{"mcp", "extension", "skill"},
 					},
 					{name: "q", in: openapi3.ParameterInQuery},
 					{name: "limit", in: openapi3.ParameterInQuery},
@@ -145,7 +145,7 @@ func TestMarketplaceOperations(t *testing.T) {
 				parameters: []parameterExpectation{
 					{
 						name: "kind", in: openapi3.ParameterInPath, required: true,
-						enum: []string{"mcp", "extension", "skill", "bundle"},
+						enum: []string{"mcp", "extension", "skill"},
 					},
 					{name: "entry_id", in: openapi3.ParameterInPath, required: true},
 					{name: "installed_name", in: openapi3.ParameterInQuery},

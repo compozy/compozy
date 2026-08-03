@@ -4,15 +4,15 @@ area: ET
 title: Navigate the desktop app registry
 persona: Bruno
 journey: J-marketplace-acquisition
-expected: The dock and command palette expose the canonical desktop app registry without duplicate windows; Marketplace owns its Extensions, Skills, MCP, and Bundles routes; Sandbox and Vault stay in the final dock group; Settings opens from the menubar cog; focusing a child route preserves the owning app window.
+expected: The dock and command palette expose the canonical desktop app registry without duplicate windows; Marketplace owns its Extensions, Skills, and MCP routes; Sandbox and Vault stay in the final dock group; Settings opens from the menubar cog; focusing a child route preserves the owning app window.
 entry_points: web desktop dock; command palette; settings cog; Catalog and System destinations
 qa_status: pass
-bug_ids:
-fix_status:
+bug_ids: BUG-20260802-retired-marketplace-kind-alias
+fix_status: fixed
 retest_status: pass
-fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/marketplace-under-minute.json;/Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-07-28-untested-full.md
+fix_commits: 7701a3f
+evidence: /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/marketplace-under-minute.json;/Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa;/Users/pedronauck/dev/qa-labs/compozy-devtool-oss-launch-20260802-195112-911343-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-08-02-bundles-removal.md
 overlaps: ET-web-marketplace-landing-browse; ET-web-extensions-manage
 ---
 
@@ -30,3 +30,6 @@ sidebar indicator.
 QA impact 2026-07-20: OS Shell Task 04 deleted the sidebar and replaced its app-navigation role
 with the dock, command palette, and settings cog. Reset to `untested`; later app-port tasks own the
 content journeys inside each registered window.
+
+QA impact 2026-08-02: Marketplace navigation now has exactly Extensions, Skills, and MCP. Reset for
+the next QA cycle.

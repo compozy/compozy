@@ -15,7 +15,6 @@ func buildOperationRegistry() []OperationSpec {
 		registryFilesystemOperations(),
 		registryNetworkOperations(),
 		registryExtensionOperations(),
-		registryBundleOperations(),
 		registryHookOperations(),
 		registryAgentRuntimeOperations(),
 		registryMemoryOperations(),

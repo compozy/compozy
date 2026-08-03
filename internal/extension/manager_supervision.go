@@ -117,38 +117,14 @@ func (m *Manager) registerExtension(ctx context.Context, ext *managedExtension) 
 		return err
 	}
 
-	skills, err := m.loadSkillResources(ext)
-	if err != nil {
-		m.setFailure(ext, ExtensionPhaseRegister, err)
-		return phaseError(ext.info.Name, ExtensionPhaseRegister, err)
-	}
-	loops, err := m.loadLoopResources(ext)
-	if err != nil {
-		m.setFailure(ext, ExtensionPhaseRegister, err)
-		return phaseError(ext.info.Name, ExtensionPhaseRegister, err)
-	}
-	agents, err := m.loadAgentResources(ext)
-	if err != nil {
-		m.setFailure(ext, ExtensionPhaseRegister, err)
-		return phaseError(ext.info.Name, ExtensionPhaseRegister, err)
-	}
-	hooks, err := m.loadHookResources(ext)
-	if err != nil {
-		m.setFailure(ext, ExtensionPhaseRegister, err)
-		return phaseError(ext.info.Name, ExtensionPhaseRegister, err)
-	}
-	bundles, err := m.loadBundleResources(ctx, ext)
+	loaded, err := m.loadDeclarativeResources(ctx, ext)
 	if err != nil {
 		m.setFailure(ext, ExtensionPhaseRegister, err)
 		return phaseError(ext.info.Name, ExtensionPhaseRegister, err)
 	}
 	m.mu.Lock()
-	ext.skills = skills
-	ext.agents = agents
-	ext.hooks = hooks
-	ext.bundles = bundles
+	loaded.apply(ext)
 	ext.registered = true
-	ext.loops = loops
 	ext.phase = ExtensionPhaseRegister
 	m.mu.Unlock()
 	return nil

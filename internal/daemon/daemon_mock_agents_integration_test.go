@@ -186,27 +186,39 @@ func TestDaemonE2EProviderReasoningNegotiatesThroughAdvertisedACPOptions(t *test
 		reasoningOptionID string
 	}{
 		{
-			name:              "Should apply Claude max after the model and before the first prompt",
-			agentName:         "reasoning-claude-max",
-			runtime:           &compozycontract.PromptRuntimeSelectionPayload{Provider: "claude", Model: "claude-sonnet-5", ReasoningEffort: "max"},
+			name:      "Should apply Claude max after the model and before the first prompt",
+			agentName: "reasoning-claude-max",
+			runtime: &compozycontract.PromptRuntimeSelectionPayload{
+				Provider:        "claude",
+				Model:           "claude-sonnet-5",
+				ReasoningEffort: "max",
+			},
 			transportModel:    "sonnet",
 			effort:            "max",
 			prompt:            "claude max",
 			reasoningOptionID: "effort",
 		},
 		{
-			name:              "Should apply Codex max after the model and before the first prompt",
-			agentName:         "reasoning-codex-max",
-			runtime:           &compozycontract.PromptRuntimeSelectionPayload{Provider: "codex", Model: "gpt-5.6-sol", ReasoningEffort: "max"},
+			name:      "Should apply Codex max after the model and before the first prompt",
+			agentName: "reasoning-codex-max",
+			runtime: &compozycontract.PromptRuntimeSelectionPayload{
+				Provider:        "codex",
+				Model:           "gpt-5.6-sol",
+				ReasoningEffort: "max",
+			},
 			transportModel:    "gpt-5.6-sol",
 			effort:            "max",
 			prompt:            "codex max",
 			reasoningOptionID: "reasoning_effort",
 		},
 		{
-			name:              "Should send explicit Codex none instead of treating it as provider default",
-			agentName:         "reasoning-codex-none",
-			runtime:           &compozycontract.PromptRuntimeSelectionPayload{Provider: "codex", Model: "gpt-5.6-sol", ReasoningEffort: "none"},
+			name:      "Should send explicit Codex none instead of treating it as provider default",
+			agentName: "reasoning-codex-none",
+			runtime: &compozycontract.PromptRuntimeSelectionPayload{
+				Provider:        "codex",
+				Model:           "gpt-5.6-sol",
+				ReasoningEffort: "none",
+			},
 			transportModel:    "gpt-5.6-sol",
 			effort:            "none",
 			prompt:            "codex none",
@@ -1466,6 +1478,7 @@ func newWorkspaceAccessHostedSession(
 	if err != nil {
 		t.Fatalf("ReadDiagnostics(%q) error = %v", agentName, err)
 	}
+	diagnostics = acpmock.DiagnosticsForCompozySession(diagnostics, active.ID)
 	client := startHostedMCPClient(
 		t,
 		ctx,

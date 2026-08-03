@@ -2,11 +2,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  bundleActivationFixtures,
-  extensionFixtures,
-  extensionProvenanceFixtures,
-} from "../../mocks/fixtures";
+import { extensionFixtures, extensionProvenanceFixtures } from "../../mocks/fixtures";
 
 const mocks = vi.hoisted(() => ({
   provenance: {
@@ -30,7 +26,7 @@ vi.mock("../../hooks/use-extensions", () => ({
 }));
 
 import {
-  DeactivateBundleDialog,
+  ExtensionNetworkConfirmDialog,
   ExtensionProvenanceDialog,
   RemoveExtensionDialog,
   VerifiedMark,
@@ -45,64 +41,15 @@ beforeEach(() => {
 });
 
 describe("RemoveExtensionDialog", () => {
-  it("Should block removal and offer dependency retry while bundle activity is unresolved", async () => {
+  it("Should show declared permissions without gating removal on unrelated state", async () => {
     const user = userEvent.setup();
-    const onRetryDependencies = vi.fn();
-    const { rerender } = render(
-      <RemoveExtensionDialog
-        activeBundles={undefined}
-        dependencyError={null}
-        dependencyLoading
-        extension={extensionFixtures[0]!}
-        onOpenChange={vi.fn()}
-        onRetryDependencies={onRetryDependencies}
-        open
-      />
-    );
-
-    expect(screen.getByText("Checking active bundles before removal.")).toBeInTheDocument();
-    await user.type(screen.getByLabelText("Type to confirm"), "otel-bridge");
-    expect(screen.getByTestId("remove-extension-confirm")).toBeDisabled();
-
-    rerender(
-      <RemoveExtensionDialog
-        activeBundles={undefined}
-        dependencyError={new Error("bundle inventory unavailable")}
-        dependencyLoading={false}
-        extension={extensionFixtures[0]!}
-        onOpenChange={vi.fn()}
-        onRetryDependencies={onRetryDependencies}
-        open
-      />
-    );
-    expect(screen.getByRole("note")).toHaveTextContent("bundle inventory unavailable");
-    await user.click(screen.getByRole("button", { name: "Retry bundle activity" }));
-    expect(onRetryDependencies).toHaveBeenCalledOnce();
-    expect(screen.getByTestId("remove-extension-confirm")).toBeDisabled();
-  });
-
-  it("Should show declared permissions and keep removal blocked by an active bundle", async () => {
-    const user = userEvent.setup();
-    render(
-      <RemoveExtensionDialog
-        activeBundles={bundleActivationFixtures}
-        dependencyError={null}
-        dependencyLoading={false}
-        extension={extensionFixtures[1]!}
-        onOpenChange={vi.fn()}
-        onRetryDependencies={vi.fn()}
-        open
-      />
-    );
+    render(<RemoveExtensionDialog extension={extensionFixtures[1]!} onOpenChange={vi.fn()} open />);
 
     expect(screen.getByRole("note")).toHaveTextContent(
       "Revoked permissions: network/send, sessions/list"
     );
-    expect(screen.getByRole("note")).toHaveTextContent(
-      "The daemon returns 409 while an active bundle depends on this extension"
-    );
     await user.type(screen.getByLabelText("Type to confirm"), "slack-notify");
-    expect(screen.getByTestId("remove-extension-confirm")).toBeDisabled();
+    expect(screen.getByTestId("remove-extension-confirm")).toBeEnabled();
     expect(mocks.remove).not.toHaveBeenCalled();
   });
 
@@ -112,13 +59,9 @@ describe("RemoveExtensionDialog", () => {
     const onRemoved = vi.fn();
     render(
       <RemoveExtensionDialog
-        activeBundles={[]}
-        dependencyError={null}
-        dependencyLoading={false}
         extension={extensionFixtures[0]!}
         onOpenChange={onOpenChange}
         onRemoved={onRemoved}
-        onRetryDependencies={vi.fn()}
         open
       />
     );
@@ -139,17 +82,7 @@ describe("RemoveExtensionDialog", () => {
   it("Should unlink a workspace dev overlay without promising global removal", async () => {
     const user = userEvent.setup();
     const extension = { ...extensionFixtures[0]!, dev: true };
-    render(
-      <RemoveExtensionDialog
-        activeBundles={bundleActivationFixtures}
-        dependencyError={null}
-        dependencyLoading={false}
-        extension={extension}
-        onOpenChange={vi.fn()}
-        onRetryDependencies={vi.fn()}
-        open
-      />
-    );
+    render(<RemoveExtensionDialog extension={extension} onOpenChange={vi.fn()} open />);
 
     expect(screen.getByText(/published installation stays in place/i)).toBeInTheDocument();
     await user.type(screen.getByLabelText("Type to confirm"), extension.name);
@@ -212,26 +145,37 @@ describe("ExtensionProvenanceDialog", () => {
   });
 });
 
-describe("DeactivateBundleDialog", () => {
-  it("Should disclose daemon failure while preserving the real confirmation callback", async () => {
-    const user = userEvent.setup();
-    const onConfirm = vi.fn().mockResolvedValue(undefined);
-    render(
-      <DeactivateBundleDialog
-        activation={bundleActivationFixtures[0]!}
-        error="deactivation rejected"
-        onConfirm={onConfirm}
-        onOpenChange={vi.fn()}
-        open
-        pending={false}
-      />
-    );
+describe("ExtensionNetworkConfirmDialog", () => {
+  it.each([
+    ["enable" as const, "Enabling dep-kit-ops"],
+    ["update" as const, "Updating dep-kit-ops"],
+  ])(
+    "Should show the exact digest and preserve the confirmation callback for %s",
+    async (action, sentence) => {
+      const user = userEvent.setup();
+      const onConfirm = vi.fn();
+      render(
+        <ExtensionNetworkConfirmDialog
+          action={action}
+          digest="sha256:6f1c0a94d3b27e58"
+          error="confirmation rejected"
+          extensionName="dep-kit-ops"
+          onConfirm={onConfirm}
+          onOpenChange={vi.fn()}
+          open
+          pending={false}
+        />
+      );
 
-    expect(screen.getByText("deactivation rejected")).toBeInTheDocument();
-    expect(screen.getByRole("note")).toHaveTextContent("production profile (workspace)");
-    await user.click(screen.getByRole("button", { name: "Deactivate" }));
-    expect(onConfirm).toHaveBeenCalledOnce();
-  });
+      expect(screen.getByText("confirmation rejected")).toBeInTheDocument();
+      expect(screen.getByText(new RegExp(sentence))).toBeInTheDocument();
+      expect(screen.getByTestId("extension-network-confirm-digest")).toHaveTextContent(
+        "sha256:6f1c0a94d3b27e58"
+      );
+      await user.click(screen.getByTestId("extension-network-confirm-accept"));
+      expect(onConfirm).toHaveBeenCalledOnce();
+    }
+  );
 });
 
 describe("VerifiedMark", () => {

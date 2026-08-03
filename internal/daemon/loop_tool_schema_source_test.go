@@ -190,6 +190,9 @@ func newBundledDevCycleLoopSchemaSource(t *testing.T) looppkg.ToolSchemaSource {
 	if err := devcycle.EnsureManagedInstall(homePaths, extensionRegistry); err != nil {
 		t.Fatalf("EnsureManagedInstall() error = %v", err)
 	}
+	if err := extensionRegistry.Enable(devcycle.Name); err != nil {
+		t.Fatalf("registry.Enable(%q) error = %v", devcycle.Name, err)
+	}
 	runtime := newDevCycleLoopSchemaRuntime(t, extensionRegistry)
 	provider, err := extensionpkg.NewExtensionToolProvider(extensionRegistry, func() extensionpkg.ExtensionToolRuntime {
 		return runtime

@@ -1,4 +1,4 @@
-import { Box, Package, Plug, Puzzle, ShoppingBag, Wrench, type LucideIcon } from "lucide-react";
+import { Package, Plug, Puzzle, ShoppingBag, Wrench, type LucideIcon } from "lucide-react";
 
 import type { MarketplaceKind } from "../types";
 
@@ -8,8 +8,6 @@ export interface MarketplaceKindConfig {
   singular: string;
   icon: LucideIcon;
   searchPlaceholder: string;
-  verb: string;
-  installedNoun: "installed" | "active";
   teachingEmptyTitle: string;
   teachingEmptyBody: string;
   cliHint: string;
@@ -22,8 +20,6 @@ const KIND_CONFIG: Record<MarketplaceKind, MarketplaceKindConfig> = {
     singular: "skill",
     icon: Wrench,
     searchPlaceholder: "Search skills…",
-    verb: "Install",
-    installedNoun: "installed",
     teachingEmptyTitle: "No skills installed yet",
     teachingEmptyBody: "Everything you install from the marketplace shows up here.",
     cliHint: "compozy skill install <slug>",
@@ -34,8 +30,6 @@ const KIND_CONFIG: Record<MarketplaceKind, MarketplaceKindConfig> = {
     singular: "MCP",
     icon: Plug,
     searchPlaceholder: "Search MCP servers…",
-    verb: "Install",
-    installedNoun: "installed",
     teachingEmptyTitle: "No MCPs installed yet",
     teachingEmptyBody: "Everything you install from the marketplace shows up here.",
     cliHint: "compozy mcp install <entry>",
@@ -46,24 +40,10 @@ const KIND_CONFIG: Record<MarketplaceKind, MarketplaceKindConfig> = {
     singular: "extension",
     icon: Puzzle,
     searchPlaceholder: "Search extensions…",
-    verb: "Install",
-    installedNoun: "installed",
     teachingEmptyTitle: "No extensions installed yet",
     teachingEmptyBody:
       "Install from the marketplace, a GitHub release, a git repository, or a local build.",
     cliHint: "compozy extension install github:owner/repo",
-  },
-  bundle: {
-    kind: "bundle",
-    label: "Bundles",
-    singular: "bundle",
-    icon: Box,
-    searchPlaceholder: "Search bundles…",
-    verb: "Activate",
-    installedNoun: "active",
-    teachingEmptyTitle: "No bundles active yet",
-    teachingEmptyBody: "A bundle activates a curated set of capabilities in one step.",
-    cliHint: "compozy bundle activate",
   },
 };
 

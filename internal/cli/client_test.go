@@ -22,6 +22,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -1018,6 +1019,32 @@ func TestUnixSocketClientAgentTaskErrorsRedactClaimTokens(t *testing.T) {
 		item, ok := diagnosticspkg.ItemFromError(err)
 		if !ok || item.Code != contract.CodeModelNotFound {
 			t.Fatalf("diagnostic = %#v, %v; want model_not_found", item, ok)
+		}
+	})
+
+	t.Run("Should preserve the extension operation error envelope", func(t *testing.T) {
+		t.Parallel()
+
+		err := readAPIErrorBody(
+			http.StatusConflict,
+			"409 Conflict",
+			[]byte(
+				`{"error":"confirmation required","code":"extension_network_confirmation_required","current_digest":"digest-current","agents":["writer"],"diagnostic":{"id":"extension.network_confirmation_required","code":"extension_network_confirmation_required","category":"extension","title":"Network confirmation is required","message":"Confirm the current digest.","severity":"error","freshness":"live","suggested_command":"compozy extension enable alpha --confirm-network-requirement digest-current"}}`,
+			),
+		)
+		var operationErr *extensionOperationAPIError
+		if !errors.As(err, &operationErr) {
+			t.Fatalf("readAPIErrorBody() error = %T %v, want extensionOperationAPIError", err, err)
+		}
+		payload := operationErr.extensionOperationErrorPayload()
+		if payload.Code != diagnosticcontract.CodeExtensionNetworkConfirmRequired ||
+			payload.CurrentDigest != "digest-current" || !reflect.DeepEqual(payload.Agents, []string{"writer"}) {
+			t.Fatalf("extension operation payload = %#v", payload)
+		}
+		item, ok := diagnosticspkg.ItemFromError(err)
+		if !ok || item.SuggestedCommand !=
+			"compozy extension enable alpha --confirm-network-requirement digest-current" {
+			t.Fatalf("diagnostic = %#v, %v", item, ok)
 		}
 	})
 }
@@ -2580,15 +2607,59 @@ func TestUnixSocketClientExtensionMethods(t *testing.T) {
 							`{"extension":{"name":"ext-a","version":"0.1.0","type":"resource","source":"user","enabled":true,"state":"active","daemon_running":true}}`,
 						), nil
 					case req.Method == http.MethodPost && req.URL.Path == "/api/extensions/ext-a/enable":
+						body, err := io.ReadAll(req.Body)
+						if err != nil {
+							t.Fatalf("io.ReadAll(extension enable body) error = %v", err)
+						}
+						var input contract.EnableExtensionRequest
+						if err := json.Unmarshal(body, &input); err != nil {
+							t.Fatalf("json.Unmarshal(extension enable body) error = %v", err)
+						}
+						if input.ConfirmNetworkDigest != "network-digest" {
+							t.Fatalf("extension enable body = %#v, want network digest", input)
+						}
 						return newHTTPResponse(
 							http.StatusOK,
-							`{"extension":{"name":"ext-a","version":"0.1.0","type":"resource","source":"user","enabled":true,"state":"active","daemon_running":true}}`,
+							`{"extension":{"name":"ext-a","version":"0.1.0","type":"resource","source":"user","enabled":true,"state":"active","daemon_running":true},"automation_started":["ext-a/daily"]}`,
 						), nil
 					case req.Method == http.MethodPost && req.URL.Path == "/api/extensions/ext-a/disable":
 						return newHTTPResponse(
 							http.StatusOK,
 							`{"extension":{"name":"ext-a","version":"0.1.0","type":"resource","source":"user","enabled":false,"state":"disabled","daemon_running":true}}`,
 						), nil
+					case req.Method == http.MethodGet && req.URL.Path == "/api/extensions/ext-a/inventory":
+						return newHTTPResponse(
+							http.StatusOK,
+							`{"extension":"ext-a","enabled":true,"items":[{"kind":"agent","id":"agent/ext-a/writer","name":"writer","live":true}]}`,
+						), nil
+					case req.Method == http.MethodGet && req.URL.Path == "/api/extensions/ext-a/preview":
+						return newHTTPResponse(
+							http.StatusOK,
+							`{"extension":"ext-a","changes":[],"agent_conflicts":[],"missing_env":["API_KEY"],"automation_starting":["ext-a/daily"],"network_requirement_digest":"digest","network_confirmation_required":true}`,
+						), nil
+					case req.Method == http.MethodGet && req.URL.Path == "/api/extensions/ext-a/secrets" &&
+						req.URL.Query().Get(workspaceFlagName) == "ws-alpha":
+						return newHTTPResponse(
+							http.StatusOK,
+							`{"declared_env":["API_KEY"],"bound_env_keys":["OLD_KEY"],"bindings":[{"env_name":"OLD_KEY","stale":true}]}`,
+						), nil
+					case req.Method == http.MethodPut && req.URL.Path == "/api/extensions/ext-a/secrets" &&
+						req.URL.Query().Get(workspaceFlagName) == "ws-alpha":
+						var input contract.SetExtensionSecretsRequest
+						if err := json.NewDecoder(req.Body).Decode(&input); err != nil {
+							t.Fatalf("decode extension secrets request error = %v", err)
+						}
+						secret := input.Secrets["API_KEY"]
+						if secret.Value == nil || *secret.Value != "planted-value" {
+							t.Fatalf("extension secrets input = %#v, want API_KEY value", input)
+						}
+						return newHTTPResponse(
+							http.StatusOK,
+							`{"declared_env":["API_KEY"],"bound_env_keys":["API_KEY"],"bindings":[{"env_name":"API_KEY","stale":false}]}`,
+						), nil
+					case req.Method == http.MethodDelete && req.URL.Path == "/api/extensions/ext-a/secrets/API_KEY" &&
+						req.URL.Query().Get(workspaceFlagName) == "ws-alpha":
+						return newHTTPResponse(http.StatusNoContent, ""), nil
 					case req.Method == http.MethodGet && req.URL.Path == "/api/extensions/ext-a":
 						if got := req.URL.Query().Get(extensionWorkspaceQueryKey); got != "" {
 							t.Fatalf("global extension status workspace query = %q, want empty", got)
@@ -2644,8 +2715,13 @@ func TestUnixSocketClientExtensionMethods(t *testing.T) {
 	t.Run("Should enable an extension", func(t *testing.T) {
 		t.Parallel()
 
-		enabled, err := newClient(t).EnableExtension(t.Context(), " ext-a ")
-		if err != nil || !enabled.Enabled {
+		enabled, err := newClient(t).EnableExtension(
+			t.Context(),
+			" ext-a ",
+			EnableExtensionRequest{ConfirmNetworkDigest: "network-digest"},
+		)
+		if err != nil || !enabled.Extension.Enabled || len(enabled.AutomationStarted) != 1 ||
+			enabled.AutomationStarted[0] != "ext-a/daily" {
 			t.Fatalf("EnableExtension() = %#v, %v", enabled, err)
 		}
 	})
@@ -2656,6 +2732,58 @@ func TestUnixSocketClientExtensionMethods(t *testing.T) {
 		disabled, err := newClient(t).DisableExtension(t.Context(), " ext-a ")
 		if err != nil || disabled.Enabled {
 			t.Fatalf("DisableExtension() = %#v, %v", disabled, err)
+		}
+	})
+
+	t.Run("Should read the extension inventory payload", func(t *testing.T) {
+		t.Parallel()
+
+		inventory, err := newClient(t).ExtensionInventory(t.Context(), " ext-a ")
+		if err != nil || len(inventory.Items) != 1 || inventory.Items[0].Name != "writer" || !inventory.Items[0].Live {
+			t.Fatalf("ExtensionInventory() = %#v, %v", inventory, err)
+		}
+	})
+
+	t.Run("Should read the extension enable preview payload", func(t *testing.T) {
+		t.Parallel()
+
+		preview, err := newClient(t).PreviewExtensionEnable(t.Context(), " ext-a ")
+		if err != nil || preview.NetworkRequirementDigest != "digest" ||
+			!preview.NetworkConfirmationRequired || !reflect.DeepEqual(preview.AutomationStarting, []string{"ext-a/daily"}) {
+			t.Fatalf("PreviewExtensionEnable() = %#v, %v", preview, err)
+		}
+	})
+
+	t.Run("Should manage workspace-scoped secret bindings without exposing values", func(t *testing.T) {
+		t.Parallel()
+
+		client := newClient(t)
+		listed, err := client.ListExtensionSecrets(t.Context(), " ext-a ", " ws-alpha ")
+		if err != nil || len(listed.Bindings) != 1 || !listed.Bindings[0].Stale ||
+			listed.Bindings[0].EnvName != "OLD_KEY" {
+			t.Fatalf("ListExtensionSecrets() = %#v, %v", listed, err)
+		}
+		value := "planted-value"
+		updated, err := client.SetExtensionSecrets(
+			t.Context(),
+			" ext-a ",
+			" ws-alpha ",
+			SetExtensionSecretsRequest{Secrets: map[string]contract.ExtensionSecretInput{
+				"API_KEY": {Value: &value},
+			}},
+		)
+		if err != nil || !reflect.DeepEqual(updated.BoundEnvKeys, []string{"API_KEY"}) {
+			t.Fatalf("SetExtensionSecrets() = %#v, %v", updated, err)
+		}
+		encoded, err := json.Marshal(updated)
+		if err != nil {
+			t.Fatalf("json.Marshal(updated) error = %v", err)
+		}
+		if strings.Contains(string(encoded), value) {
+			t.Fatalf("secret response leaked value: %s", encoded)
+		}
+		if err := client.DeleteExtensionSecret(t.Context(), " ext-a ", " ws-alpha ", " API_KEY "); err != nil {
+			t.Fatalf("DeleteExtensionSecret() error = %v", err)
 		}
 	})
 

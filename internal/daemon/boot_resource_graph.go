@@ -8,7 +8,6 @@ import (
 	core "github.com/compozy/compozy/internal/api/core"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
-	bundlepkg "github.com/compozy/compozy/internal/bundles"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/compozy/compozy/internal/heartbeat"
@@ -99,14 +98,7 @@ func registerDaemonResourceCodecs(registry *resources.CodecRegistry, bridges *br
 	}); err != nil {
 		return err
 	}
-	if err := registerDaemonResourceCodec(registry, "bundle", bundlepkg.NewBundleResourceCodec); err != nil {
-		return err
-	}
-	return registerDaemonResourceCodec(
-		registry,
-		"bundle activation",
-		bundlepkg.NewActivationResourceCodec,
-	)
+	return nil
 }
 
 func registerDaemonResourceCodec[T any](
@@ -199,7 +191,6 @@ func (d *Daemon) bootResourceReconcile(
 		SkillsRegistry:      state.skillsRegistry,
 		Automation:          automationResourceTarget(state.automation),
 		Bridges:             bridgeResourceTarget(state.bridges),
-		Bundles:             state.bundles,
 	})
 	if err != nil {
 		return fmt.Errorf("daemon: create resource reconcile driver: %w", err)

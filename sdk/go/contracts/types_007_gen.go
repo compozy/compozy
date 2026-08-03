@@ -20,17 +20,6 @@ type CursorPagePayload struct {
 	Limit      int    `json:"limit"`
 }
 
-type DeclaredNetworkChannelPayload struct {
-	ActivationID  string `json:"activation_id,omitempty"`
-	ExtensionName string `json:"extension_name,omitempty"`
-	BundleName    string `json:"bundle_name,omitempty"`
-	ProfileName   string `json:"profile_name,omitempty"`
-	WorkspaceID   string `json:"workspace_id,omitempty"`
-	Name          string `json:"name"`
-	Description   string `json:"description,omitempty"`
-	Primary       bool   `json:"primary,omitempty"`
-}
-
 type DeliveryAck struct {
 	DeliveryID             string               `json:"delivery_id"`
 	Seq                    int64                `json:"seq"`
@@ -122,12 +111,21 @@ type DescribePayload struct {
 	Provides         []string                         `json:"provides"`
 	Permissions      []string                         `json:"permissions"`
 	RequiresEnv      []string                         `json:"requires_env,omitempty"`
+	Resources        DescribeResources                `json:"resources"`
 	Subprocess       DescribeSubprocess               `json:"subprocess"`
 	Tools            []ExtensionToolRuntimeDescriptor `json:"tools,omitempty"`
 	HookEvents       []string                         `json:"hook_events,omitempty"`
 	WatchSourceKinds []string                         `json:"watch_source_kinds,omitempty"`
 	CommandGroups    []ExtensionCommandGroupSpec      `json:"command_groups,omitempty"`
 	SDK              DescribeSDKInfo                  `json:"sdk"`
+}
+
+type DescribeResources struct {
+	Skills     []string `json:"skills,omitempty"`
+	Loops      []string `json:"loops,omitempty"`
+	Agents     []string `json:"agents,omitempty"`
+	Automation []string `json:"automation,omitempty"`
+	Layouts    []string `json:"layouts,omitempty"`
 }
 
 type DescribeSDKInfo struct {

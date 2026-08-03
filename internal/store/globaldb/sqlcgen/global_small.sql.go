@@ -238,33 +238,6 @@ func (q *Queries) ListActiveSessionIDsByWorkspace(ctx context.Context, workspace
 	return items, nil
 }
 
-const listBundleActivationResourceSpecs = `-- name: ListBundleActivationResourceSpecs :many
-SELECT spec_json FROM resource_records WHERE kind = ?1
-`
-
-func (q *Queries) ListBundleActivationResourceSpecs(ctx context.Context, kind string) ([]string, error) {
-	rows, err := q.db.QueryContext(ctx, listBundleActivationResourceSpecs, kind)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []string{}
-	for rows.Next() {
-		var spec_json string
-		if err := rows.Scan(&spec_json); err != nil {
-			return nil, err
-		}
-		items = append(items, spec_json)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listWorkspaces = `-- name: ListWorkspaces :many
 SELECT id, root_dir, add_dirs, name, default_agent, sandbox_ref, created_at, updated_at
 FROM workspaces ORDER BY name ASC, id ASC

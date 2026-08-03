@@ -7,3 +7,8 @@ type EventSummaryStore interface {
 	WriteEventSummary(ctx context.Context, summary EventSummary) error
 	ListEventSummaries(ctx context.Context, query EventSummaryQuery) ([]EventSummary, error)
 }
+
+// EventSummaryBatchWriter persists related summaries atomically.
+type EventSummaryBatchWriter interface {
+	WriteEventSummaries(ctx context.Context, summaries []EventSummary) error
+}

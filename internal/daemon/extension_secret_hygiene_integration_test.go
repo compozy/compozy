@@ -76,17 +76,13 @@ func testExtensionSecretTransportAbsence(t *testing.T) {
 		}
 	})
 
-	service, ok := newDaemonExtensionService(
-		extensionRegistry,
-		manager,
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
-		homePaths,
-		discardLogger(),
-		time.Now,
+	service, ok := newDaemonExtensionService(daemonExtensionServiceDeps{
+		Registry:  extensionRegistry,
+		Runtime:   manager,
+		HomePaths: homePaths,
+		Logger:    discardLogger(),
+		Now:       time.Now,
+	},
 		withDaemonExtensionMarketplace(
 			compozyconfig.ExtensionsConfig{Trust: compozyconfig.ExtensionsTrustConfig{AllowUnverified: true}},
 			nil,
@@ -107,15 +103,15 @@ func testExtensionSecretTransportAbsence(t *testing.T) {
 		t.Fatalf("DeriveHumanActorContextForWorkspace() error = %v", err)
 	}
 
-	httpEngine := newExtensionSecretTransportEngine(service, actor, "http")
-	udsEngine := newExtensionSecretTransportEngine(service, actor, "uds")
+	httpEngine := newExtensionTransportEngine(service, actor, "http")
+	udsEngine := newExtensionTransportEngine(service, actor, "uds")
 	fixtureDir := writeSecretExtensionFixture(t, t.TempDir(), extensionName, "1.0.0")
-	installBody := mustSecretTransportJSON(t, contract.InstallExtensionRequest{
+	installBody := mustExtensionTransportJSON(t, contract.InstallExtensionRequest{
 		Source:          contract.InstallExtensionSourceLocalPath,
 		Ref:             fixtureDir,
 		AllowUnverified: true,
 	})
-	installResponse := performSecretTransportRequest(
+	installResponse := performExtensionTransportRequest(
 		t,
 		httpEngine,
 		http.MethodPost,
@@ -134,12 +130,12 @@ func testExtensionSecretTransportAbsence(t *testing.T) {
 
 	origin := filepath.Join(workspaceRoot, "secret-extension")
 	firstGeneration := writeSecretExtensionGeneration(t, origin, extensionName, "1.1.0")
-	devResponse := performSecretTransportRequest(
+	devResponse := performExtensionTransportRequest(
 		t,
 		httpEngine,
 		http.MethodPost,
 		"/extensions/dev",
-		mustSecretTransportJSON(t, contract.DevLinkExtensionRequest{
+		mustExtensionTransportJSON(t, contract.DevLinkExtensionRequest{
 			OriginPath: origin, GenerationHash: firstGeneration,
 		}),
 	)
@@ -149,27 +145,27 @@ func testExtensionSecretTransportAbsence(t *testing.T) {
 	assertSecretsAbsent(t, "HTTP dev response", devResponse.Body.String(), secrets)
 
 	secondGeneration := writeSecretExtensionGeneration(t, origin, extensionName, "1.2.0")
-	reloadResponse := performSecretTransportRequest(
+	reloadResponse := performExtensionTransportRequest(
 		t,
 		udsEngine,
 		http.MethodPost,
 		"/extensions/"+extensionName+"/reload",
-		mustSecretTransportJSON(t, contract.ReloadExtensionRequest{GenerationHash: secondGeneration}),
+		mustExtensionTransportJSON(t, contract.ReloadExtensionRequest{GenerationHash: secondGeneration}),
 	)
 	if reloadResponse.Code != http.StatusOK {
 		t.Fatalf("UDS reload status = %d, want %d; body=%s", reloadResponse.Code, http.StatusOK, reloadResponse.Body)
 	}
 	assertSecretsAbsent(t, "UDS reload response", reloadResponse.Body.String(), secrets)
 
-	logs := waitForSecretExtensionLogs(t, service, extensionName, actor)
-	logsJSON := mustSecretTransportJSON(t, logs)
+	logs := waitForSecretExtensionLogs(t, service, extensionName, actor, "safe=visible")
+	logsJSON := mustExtensionTransportJSON(t, logs)
 	assertSecretsAbsent(t, "extension log ring", string(logsJSON), secrets)
 	if !bytes.Contains(logsJSON, []byte("[REDACTED]")) || !bytes.Contains(logsJSON, []byte("safe=visible")) {
 		t.Fatalf("extension log ring = %s, want redaction marker and safe field", logsJSON)
 	}
 
 	for transport, engine := range map[string]*gin.Engine{"HTTP": httpEngine, "UDS": udsEngine} {
-		response := performSecretTransportRequest(
+		response := performExtensionTransportRequest(
 			t,
 			engine,
 			http.MethodGet,
@@ -246,7 +242,7 @@ func testExtensionSecretTransportAbsence(t *testing.T) {
 	if publishErr == nil {
 		t.Fatal("Registry.Call(extensions_publish failure) error = nil, want structured error")
 	}
-	structuredError := mustSecretTransportJSON(t, core.ErrorPayloadForError(publishErr))
+	structuredError := mustExtensionTransportJSON(t, core.ErrorPayloadForError(publishErr))
 	assertSecretsAbsent(t, "structured publish error", string(structuredError), secrets)
 
 	events, err := db.ListEventSummaries(t.Context(), store.EventSummaryQuery{})
@@ -256,10 +252,10 @@ func testExtensionSecretTransportAbsence(t *testing.T) {
 	if len(events) < 3 {
 		t.Fatalf("persisted extension events = %d, want install/dev/reload", len(events))
 	}
-	assertSecretsAbsent(t, "persisted extension events", string(mustSecretTransportJSON(t, events)), secrets)
+	assertSecretsAbsent(t, "persisted extension events", string(mustExtensionTransportJSON(t, events)), secrets)
 }
 
-func newExtensionSecretTransportEngine(
+func newExtensionTransportEngine(
 	service core.ExtensionService,
 	actor taskpkg.ActorContext,
 	transport string,
@@ -273,8 +269,13 @@ func newExtensionSecretTransportEngine(
 	})
 	engine := gin.New()
 	engine.POST("/extensions", handlers.InstallExtension)
+	engine.POST("/extensions/:name/enable", handlers.EnableExtension)
+	engine.POST("/extensions/:name/disable", handlers.DisableExtension)
 	engine.POST("/extensions/dev", handlers.DevExtension)
 	engine.POST("/extensions/:name/reload", handlers.ReloadDevExtension)
+	engine.GET("/extensions/:name/secrets", handlers.ListExtensionSecrets)
+	engine.PUT("/extensions/:name/secrets", handlers.SetExtensionSecrets)
+	engine.DELETE("/extensions/:name/secrets/:env_name", handlers.DeleteExtensionSecret)
 	engine.GET("/extensions/:name/logs", handlers.ExtensionLogs)
 	return engine
 }
@@ -286,6 +287,7 @@ func writeSecretExtensionFixture(t *testing.T, root, name, version string) strin
 		t.Fatalf("os.MkdirAll(%q) error = %v", dir, err)
 	}
 	manifest := daemonTestExtensionManifest(name, daemonTestExtensionOptions{
+		version:        version,
 		runtimeCommand: daemonExtensionHelperCommand(t),
 		runtimeArgs:    daemonExtensionHelperArgs(),
 		runtimeEnv:     daemonExtensionHelperScenarioEnv("secret_hygiene", ""),
@@ -294,7 +296,6 @@ func writeSecretExtensionFixture(t *testing.T, root, name, version string) strin
 			"BOUND_SECRET":         "env:EXT_RUNTIME_SECRET",
 		},
 	})
-	manifest = strings.Replace(manifest, `version = "0.2.1"`, fmt.Sprintf("version = %q", version), 1)
 	if err := os.WriteFile(filepath.Join(dir, "extension.toml"), []byte(manifest), 0o644); err != nil {
 		t.Fatalf("os.WriteFile(extension.toml) error = %v", err)
 	}
@@ -304,6 +305,19 @@ func writeSecretExtensionFixture(t *testing.T, root, name, version string) strin
 func writeSecretExtensionGeneration(t *testing.T, origin, name, version string) string {
 	t.Helper()
 	fixture := writeSecretExtensionFixture(t, t.TempDir(), name, version)
+	return publishSecretExtensionGeneration(t, origin, fixture)
+}
+
+func quotedSecretEnvNames(names []string) string {
+	quoted := make([]string, 0, len(names))
+	for _, name := range names {
+		quoted = append(quoted, fmt.Sprintf("%q", name))
+	}
+	return strings.Join(quoted, ", ")
+}
+
+func publishSecretExtensionGeneration(t *testing.T, origin, fixture string) string {
+	t.Helper()
 	manifest, err := os.ReadFile(filepath.Join(fixture, "extension.toml"))
 	if err != nil {
 		t.Fatalf("os.ReadFile(extension.toml) error = %v", err)
@@ -330,7 +344,7 @@ func writeSecretExtensionGeneration(t *testing.T, origin, name, version string) 
 	return hash
 }
 
-func performSecretTransportRequest(
+func performExtensionTransportRequest(
 	t *testing.T,
 	engine *gin.Engine,
 	method string,
@@ -351,28 +365,55 @@ func performSecretTransportRequest(
 	return response
 }
 
+type secretExtensionLogMatch struct {
+	logs    []contract.ExtensionLogPayload
+	matched contract.ExtensionLogPayload
+}
+
 func waitForSecretExtensionLogs(
 	t *testing.T,
 	service *daemonExtensionService,
 	name string,
 	actor taskpkg.ActorContext,
+	marker string,
 ) []contract.ExtensionLogPayload {
+	t.Helper()
+	return waitForSecretExtensionLogsAfter(t, service, name, actor, 0, marker).logs
+}
+
+func waitForSecretExtensionLogsAfter(
+	t *testing.T,
+	service *daemonExtensionService,
+	name string,
+	actor taskpkg.ActorContext,
+	after int64,
+	marker string,
+) secretExtensionLogMatch {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		logs, err := service.ExtensionLogs(t.Context(), name, 0, actor)
+		logs, err := service.ExtensionLogs(t.Context(), name, after, actor)
 		if err != nil {
 			t.Fatalf("ExtensionLogs() error = %v", err)
 		}
 		for _, entry := range logs {
-			if strings.Contains(entry.Message, "safe=visible") {
-				return logs
+			if strings.Contains(entry.Message, marker) {
+				return secretExtensionLogMatch{logs: logs, matched: entry}
 			}
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	t.Fatal("extension log ring did not receive the helper stderr record")
-	return nil
+	status, statusErr := service.Status(t.Context(), name)
+	logs, logsErr := service.ExtensionLogs(t.Context(), name, after, actor)
+	t.Fatalf(
+		"extension log ring did not receive marker %q; status=%#v status_error=%v logs=%#v logs_error=%v",
+		marker,
+		status,
+		statusErr,
+		logs,
+		logsErr,
+	)
+	return secretExtensionLogMatch{}
 }
 
 func readSecretExtensionSSEFrame(t *testing.T, engine *gin.Engine, name string) string {
@@ -432,7 +473,7 @@ func newSecretEchoingPublishFailureServer(t *testing.T, secrets []string) *httpt
 	}))
 }
 
-func mustSecretTransportJSON(t *testing.T, value any) []byte {
+func mustExtensionTransportJSON(t *testing.T, value any) []byte {
 	t.Helper()
 	payload, err := json.Marshal(value)
 	if err != nil {

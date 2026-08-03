@@ -1,6 +1,10 @@
 package builtin
 
-import toolspkg "github.com/compozy/compozy/internal/tools"
+import (
+	"encoding/json"
+
+	toolspkg "github.com/compozy/compozy/internal/tools"
+)
 
 const (
 	extensionsMarketplaceKey = "marketplace"
@@ -115,6 +119,32 @@ var extensionTools = []toolspkg.Descriptor{
 		[]string{extensionsExtensionsKey, extensionsStatusKey},
 		[]string{"extension info", "extension status"},
 	),
+	nativeExtensionDescriptorWithOutput(
+		toolspkg.ToolIDExtensionsInventory,
+		"extensions_inventory",
+		"Extensions Inventory",
+		"Read shipped and live resources for one installed extension.",
+		extensionNameInputSchema,
+		extensionInventoryOutputSchema,
+		toolspkg.RiskRead,
+		true,
+		false,
+		[]string{extensionsExtensionsKey, extensionsStatusKey, "inventory", "resources"},
+		[]string{"extension inventory", "extension resources"},
+	),
+	nativeExtensionDescriptorWithOutput(
+		toolspkg.ToolIDExtensionsPreview,
+		"extensions_preview",
+		"Extensions Preview",
+		"Preview enabling one installed extension without changing state.",
+		extensionNameInputSchema,
+		extensionEnablePreviewOutputSchema,
+		toolspkg.RiskRead,
+		true,
+		false,
+		[]string{extensionsExtensionsKey, extensionsStatusKey, "preview", "enable"},
+		[]string{"preview extension enable", "extension dry run"},
+	),
 	nativeExtensionDescriptor(
 		toolspkg.ToolIDExtensionsInstall,
 		"extensions_install",
@@ -156,7 +186,7 @@ var extensionTools = []toolspkg.Descriptor{
 		"extensions_enable",
 		"Extensions Enable",
 		"Enable one installed extension through the runtime extension lifecycle.",
-		extensionNameInputSchema,
+		extensionEnableInputSchema,
 		toolspkg.RiskMutating,
 		false,
 		false,
@@ -240,11 +270,41 @@ func nativeExtensionDescriptor(
 	)
 }
 
+func nativeExtensionDescriptorWithOutput(
+	id toolspkg.ToolID,
+	nativeName string,
+	title string,
+	description string,
+	inputSchema string,
+	outputSchema string,
+	risk toolspkg.RiskClass,
+	readOnly bool,
+	destructive bool,
+	tags []string,
+	searchHints []string,
+) toolspkg.Descriptor {
+	descriptor := nativeExtensionDescriptor(
+		id, nativeName, title, description, inputSchema, risk, readOnly, destructive, tags, searchHints,
+	)
+	descriptor.OutputSchema = json.RawMessage(outputSchema)
+	return descriptor
+}
+
 const extensionNameInputSchema = `{
 	"type":"object",
 	"required":["name"],
 	"properties":{
 		"name":{"type":"string"}
+	},
+	"additionalProperties":false
+}`
+
+const extensionEnableInputSchema = `{
+	"type":"object",
+	"required":["name"],
+	"properties":{
+		"name":{"type":"string"},
+		"confirm_network_digest":{"type":"string","pattern":"^[a-f0-9]{64}$"}
 	},
 	"additionalProperties":false
 }`
@@ -269,7 +329,8 @@ const extensionUpdateInputSchema = `{
 		"all":{"type":"boolean"},
 		"check_only":{"type":"boolean"},
 		"version":{"type":"string"},
-		"allow_unverified":{"type":"boolean"}
+		"allow_unverified":{"type":"boolean"},
+		"confirm_network_digest":{"type":"string","pattern":"^[a-f0-9]{64}$"}
 	},
 	"additionalProperties":false
 }`
@@ -309,7 +370,8 @@ const extensionDevInputSchema = `{
 	"required":["origin_path","generation_hash"],
 	"properties":{
 		"origin_path":{"type":"string","minLength":1},
-		"generation_hash":{"type":"string","pattern":"^[a-f0-9]{64}$"}
+		"generation_hash":{"type":"string","pattern":"^[a-f0-9]{64}$"},
+		"confirm_network_digest":{"type":"string","pattern":"^[a-f0-9]{64}$"}
 	},
 	"additionalProperties":false
 }`
@@ -319,7 +381,8 @@ const extensionReloadInputSchema = `{
 	"required":["name","generation_hash"],
 	"properties":{
 		"name":{"type":"string","minLength":1},
-		"generation_hash":{"type":"string","pattern":"^[a-f0-9]{64}$"}
+		"generation_hash":{"type":"string","pattern":"^[a-f0-9]{64}$"},
+		"confirm_network_digest":{"type":"string","pattern":"^[a-f0-9]{64}$"}
 	},
 	"additionalProperties":false
 }`
@@ -330,6 +393,61 @@ const extensionLogsInputSchema = `{
 	"properties":{
 		"name":{"type":"string","minLength":1},
 		"after":{"type":"integer","minimum":0}
+	},
+	"additionalProperties":false
+}`
+
+const extensionInventoryOutputSchema = `{
+	"type":"object",
+	"required":["extension","enabled","items"],
+	"properties":{
+		"extension":{"type":"string"},
+		"enabled":{"type":"boolean"},
+		"items":{
+			"type":"array",
+			"items":{
+				"type":"object",
+				"required":["kind","id","name","live"],
+				"properties":{
+					"kind":{"type":"string"},
+					"id":{"type":"string"},
+					"name":{"type":"string"},
+					"live":{"type":"boolean"}
+				},
+				"additionalProperties":false
+			}
+		}
+	},
+	"additionalProperties":false
+}`
+
+const extensionEnablePreviewOutputSchema = `{
+	"type":"object",
+	"required":[
+		"extension","changes","agent_conflicts","missing_env","automation_starting",
+		"network_requirement_digest","network_confirmation_required"
+	],
+	"properties":{
+		"extension":{"type":"string"},
+		"changes":{
+			"type":"array",
+			"items":{
+				"type":"object",
+				"required":["kind","id","name","change"],
+				"properties":{
+					"kind":{"type":"string"},
+					"id":{"type":"string"},
+					"name":{"type":"string"},
+					"change":{"type":"string","enum":["added","changed","removed"]}
+				},
+				"additionalProperties":false
+			}
+		},
+		"agent_conflicts":{"type":"array","items":{"type":"string"}},
+		"missing_env":{"type":"array","items":{"type":"string"}},
+		"automation_starting":{"type":"array","items":{"type":"string"}},
+		"network_requirement_digest":{"type":"string","pattern":"^$|^[a-f0-9]{64}$"},
+		"network_confirmation_required":{"type":"boolean"}
 	},
 	"additionalProperties":false
 }`

@@ -11,7 +11,6 @@ import (
 
 	core "github.com/compozy/compozy/internal/api/core"
 
-	bundlepkg "github.com/compozy/compozy/internal/bundles"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/deadentity"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
@@ -121,15 +120,14 @@ type bootState struct {
 	loopCatalog           *resourceCatalog[looppkg.ResourceSpec]
 	agentSkillResources   agentSkillPublisher
 	toolMCPResources      toolMCPPublisher
-	bundleResources       bundleResourcePublisher
 	loopResources         loopResourcePublisher
+	extensionKitResources extensionKitResourcePublisher
 	extMu                 sync.RWMutex
 	extensions            extensionRuntime
 	resourceReconcile     resources.ReconcileDriver
 	automation            automationRuntime
 	bridges               *bridgeRuntime
 	notificationPresets   *presetspkg.Service
-	bundles               *bundlepkg.Service
 	httpServer            Server
 	udsServer             Server
 	skillsCancel          context.CancelFunc

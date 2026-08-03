@@ -44,9 +44,11 @@ test.describe("Marketplace acquisition", () => {
   const skillSlug = "@compozy/browser-marketplace-skill";
   const mcpEntryID = "browser-guided-mcp";
   const extensionEntryID = "browser-blocked-extension";
-  const bundleExtensionName = "browser-marketplace-bundles";
-  const bundleName = "browser-acquisition";
-  const bundleProfile = "lean";
+  const kitExtensionName = "browser-marketplace-kit";
+  const kitEnvName = "BROWSER_KIT_TOKEN";
+  const kitSecretValue = "browser-kit-secret-42";
+  const kitAgentName = "browser-kit-reviewer";
+  const kitAutomationName = "browser-kit-sweep";
   const toggleExtensionName = "browser-toggle-extension";
   const typedEnvName = "BROWSER_TYPED_TOKEN";
   const vaultEnvName = "BROWSER_VAULT_TOKEN";
@@ -153,6 +155,22 @@ test.describe("Marketplace acquisition", () => {
     },
   });
 
+  test("operator sees the OS not-found posture for a retired marketplace kind", async ({
+    appPage,
+    runtime,
+  }) => {
+    await ensureGlobalWorkspace(runtime);
+    await appPage.reload({ waitUntil: "domcontentloaded" });
+    await useGlobalWorkspaceIfPrompted(appPage);
+
+    await appPage.goto(runtime.url("/marketplace/bundles"), {
+      waitUntil: "domcontentloaded",
+    });
+
+    await expect.poll(() => new URL(appPage.url()).pathname).toBe("/marketplace/bundles");
+    await expect(appPage.getByText("Nothing lives at this address")).toBeVisible();
+  });
+
   test("operator acquires marketplace capabilities against one real daemon", async ({
     appPage,
     browserArtifacts,
@@ -162,7 +180,7 @@ test.describe("Marketplace acquisition", () => {
       throw new Error("Marketplace browser E2E requires launch-mode runtime paths.");
     }
 
-    const bundleExtension = await createMarketplaceBundleExtension();
+    const kitExtension = await createMarketplaceKitExtension();
     const toggleExtensionDir = await createToggleExtension();
     await setLiveUnverifiedPolicy(runtime, true);
     try {
@@ -171,7 +189,7 @@ test.describe("Marketplace acquisition", () => {
         "install",
         "--allow-unverified",
         "--yes",
-        bundleExtension.rootDir,
+        kitExtension.rootDir,
       ]);
       await runBrowserRuntimeCLIJSON<{ name: string }>(runtime, [
         "extension",
@@ -257,55 +275,96 @@ test.describe("Marketplace acquisition", () => {
     await expect(marketplace.mcpInstallDialog).toBeHidden();
     await expect(marketplace.card(mcpEntryID)).toContainText("installed", { timeout: 20_000 });
 
-    await appPage.goto(runtime.url("/marketplace/bundles"), { waitUntil: "domcontentloaded" });
-    await expect(marketplace.kind("bundle")).toBeVisible();
-    const bundleCard = marketplaceCardByName(appPage, bundleName);
-    await expect(bundleCard).toBeVisible();
-    await bundleCard.getByRole("button", { name: `Activate ${bundleName}` }).click();
-    await expect(marketplace.bundleActivationDialog).toBeVisible();
-    await marketplace.bundleActivationDialog.getByRole("radio", { name: /Lean/ }).click();
-    await expect(
-      marketplace.bundleActivationDialog.getByRole("switch", {
-        name: "Confirm Live network participation",
-      })
-    ).toHaveCount(0);
-    await expect(marketplace.bundleActivateConfirm).toBeEnabled({ timeout: 20_000 });
-    await marketplace.bundleActivateConfirm.click();
-    await expect(marketplace.bundleActivationDialog).toBeHidden();
-    await expect(bundleCard).toContainText("active", { timeout: 20_000 });
-    await expect(bundleCard.getByRole("link", { name: `Manage ${bundleName}` })).toBeVisible();
-
-    await writeMarketplaceBundle(
-      path.join(
-        runtime.paths.homeDir,
-        "extensions",
-        bundleExtensionName,
-        "bundles",
-        `${bundleName}.toml`
-      ),
-      "Lean acquisition profile with a changed runtime contract"
-    );
-    await runBrowserRuntimeCLIJSON<{ name: string }>(runtime, [
-      "extension",
-      "enable",
-      bundleExtensionName,
-    ]);
-    const activationList = await runtime.requestJSON<{
-      activations: Array<{
-        bundle_name: string;
-        extension_name: string;
-        id: string;
-        spec_drift: boolean;
-      }>;
-    }>("/api/bundles/activations");
-    const driftedActivation = activationList.activations.find(
-      activation =>
-        activation.extension_name === bundleExtensionName && activation.bundle_name === bundleName
-    );
-    expect(driftedActivation).toMatchObject({ spec_drift: true });
-    if (driftedActivation === undefined) {
-      throw new Error("Marketplace management journey requires the live bundle activation.");
+    // E2E-004: the marketplace now carries exactly three kinds and every shared shell still works.
+    for (const [routeKind, apiKind] of [
+      ["skills", "skill"],
+      ["mcps", "mcp"],
+      ["extensions", "extension"],
+    ] as const) {
+      await appPage.goto(runtime.url(`/marketplace/${routeKind}`), {
+        waitUntil: "domcontentloaded",
+      });
+      await expect(marketplace.kind(apiKind)).toBeVisible({ timeout: 20_000 });
     }
+    await expect(marketplaceWin.getByRole("link", { name: /Bundles/i })).toHaveCount(0);
+
+    // Setup only: the binding is created through the shipped privileged route, because the web
+    // surface deliberately exposes no secret-write control.
+    const binding = await runtime.requestJSON<{ bound_env_keys: string[]; declared_env: string[] }>(
+      `/api/extensions/${kitExtensionName}/secrets`,
+      {
+        body: JSON.stringify({ secrets: { [kitEnvName]: { value: kitSecretValue } } }),
+        method: "PUT",
+      }
+    );
+    expect(binding.bound_env_keys).toContain(kitEnvName);
+    expect(JSON.stringify(binding)).not.toContain(kitSecretValue);
+
+    await appPage.goto(runtime.url(`/marketplace/extension/${kitExtensionName}`), {
+      waitUntil: "domcontentloaded",
+    });
+    await expect(marketplace.detail).toBeVisible({ timeout: 20_000 });
+
+    // Shipped-but-not-live is the pre-enable truth of a static kit.
+    await expect(marketplace.extensionKitInventory).toBeVisible();
+    await expect(marketplace.extensionKitInventory).toContainText(kitAgentName);
+    await expect(marketplace.extensionKitInventory).toContainText(kitAutomationName);
+    await expect(marketplace.extensionKitInventoryItem.first()).toContainText("shipped");
+    await expect(marketplace.extensionEnvironmentState).toContainText(kitEnvName);
+    await expect(marketplace.extensionEnvironmentState).toContainText("bound");
+    await expect(marketplace.extensionNetworkConsent).toContainText("confirmation required");
+
+    // E2E-004: enabling a Live-declaring extension walks the shared confirm affordance.
+    const refusedEnable = waitForAPIResponse(
+      appPage,
+      "POST",
+      `/api/extensions/${kitExtensionName}/enable`
+    );
+    await marketplaceWin.getByTestId("extension-enabled-switch").click();
+    expect((await refusedEnable).status()).toBe(409);
+    await expect(marketplace.extensionNetworkConfirmDialog).toBeVisible();
+    const digest = (await marketplace.extensionNetworkConfirmDigest.innerText()).trim();
+    expect(digest).not.toBe("");
+
+    const confirmedEnable = waitForAPIResponse(
+      appPage,
+      "POST",
+      `/api/extensions/${kitExtensionName}/enable`
+    );
+    await marketplace.extensionNetworkConfirmAccept.click();
+    const kitEnableResponse = await confirmedEnable;
+    expect(kitEnableResponse.status(), await kitEnableResponse.text()).toBe(200);
+    expect(JSON.parse(kitEnableResponse.request().postData() ?? "{}")).toMatchObject({
+      confirm_network_digest: digest,
+    });
+    // The daemon enumerates started automation by its owner-qualified definition name.
+    expect(
+      (
+        (await kitEnableResponse.json()) as {
+          automation_started: string[];
+        }
+      ).automation_started
+    ).toContain(`${kitExtensionName}/${kitAutomationName}`);
+    await expect(marketplace.extensionNetworkConfirmDialog).toBeHidden();
+    await expect(marketplace.extensionAutomationStarted).toContainText(kitAutomationName);
+    await expect(marketplace.extensionNetworkConsent).toContainText("confirmed", {
+      timeout: 20_000,
+    });
+    await expect(marketplace.extensionKitInventory).toContainText("live", { timeout: 20_000 });
+
+    const kitDisableResponse = waitForAPIResponse(
+      appPage,
+      "POST",
+      `/api/extensions/${kitExtensionName}/disable`
+    );
+    await marketplaceWin.getByTestId("extension-enabled-switch").click();
+    expect((await kitDisableResponse).status()).toBe(200);
+    await expect(marketplace.extensionKitInventoryItem.first()).toContainText("shipped", {
+      timeout: 20_000,
+    });
+
+    // A bound secret is a presence projection: the name is visible, the value never is.
+    await expect(appPage.locator("body")).not.toContainText(kitSecretValue);
 
     await appPage.goto(runtime.url("/marketplace/extensions"), { waitUntil: "domcontentloaded" });
     await expect(marketplace.kind("extension")).toBeVisible();
@@ -342,30 +401,31 @@ test.describe("Marketplace acquisition", () => {
     const enabledSwitch = toggleCard.getByRole("switch", {
       name: `Enable ${toggleExtensionName}`,
     });
-    await expect(enabledSwitch).toBeChecked();
-    const disableResponsePromise = waitForAPIResponse(
-      appPage,
-      "POST",
-      `/api/extensions/${toggleExtensionName}/disable`
-    );
-    await enabledSwitch.click();
-    const disableResponse = await disableResponsePromise;
-    expect(disableResponse.status(), await disableResponse.text()).toBe(200);
-    await expect(
-      toggleCard.getByRole("switch", { name: `Enable ${toggleExtensionName}` })
-    ).not.toBeChecked();
-
+    // Install left it inert, so the card's switch starts off and enable is the operator's act.
+    await expect(enabledSwitch).not.toBeChecked();
     const enableResponsePromise = waitForAPIResponse(
       appPage,
       "POST",
       `/api/extensions/${toggleExtensionName}/enable`
     );
-    await toggleCard.getByRole("switch", { name: `Enable ${toggleExtensionName}` }).click();
+    await enabledSwitch.click();
     const enableResponse = await enableResponsePromise;
     expect(enableResponse.status(), await enableResponse.text()).toBe(200);
     await expect(
       toggleCard.getByRole("switch", { name: `Enable ${toggleExtensionName}` })
     ).toBeChecked();
+
+    const disableResponsePromise = waitForAPIResponse(
+      appPage,
+      "POST",
+      `/api/extensions/${toggleExtensionName}/disable`
+    );
+    await toggleCard.getByRole("switch", { name: `Enable ${toggleExtensionName}` }).click();
+    const disableResponse = await disableResponsePromise;
+    expect(disableResponse.status(), await disableResponse.text()).toBe(200);
+    await expect(
+      toggleCard.getByRole("switch", { name: `Enable ${toggleExtensionName}` })
+    ).not.toBeChecked();
 
     await toggleCard.getByRole("link", { name: `View ${toggleExtensionName} details` }).click();
     await expect(marketplace.detail).toBeVisible();
@@ -373,82 +433,21 @@ test.describe("Marketplace acquisition", () => {
     await appPage.reload({ waitUntil: "domcontentloaded" });
     await expect(marketplace.detail).toBeVisible({ timeout: 20_000 });
 
-    await appPage.goto(runtime.url("/marketplace/bundles?tab=installed"), {
-      waitUntil: "domcontentloaded",
-    });
-    const installedBundleCard = installedCard(bundleName);
-    await expect(installedBundleCard).toBeVisible();
-    const updateResponsePromise = waitForAPIResponse(
-      appPage,
-      "PATCH",
-      `/api/bundles/activations/${driftedActivation.id}`
-    );
-    await installedBundleCard.getByRole("button", { name: "Update" }).click();
-    const updateResponse = await updateResponsePromise;
-    expect(updateResponse.status(), await updateResponse.text()).toBe(200);
-    await expect(installedBundleCard.getByRole("button", { name: "Update" })).toBeHidden();
-
-    await installedBundleCard.getByRole("link", { name: `Open ${bundleName} activation` }).click();
-    await expect(appPage.getByTestId("bundle-activation-detail")).toBeVisible();
-    await expect
-      .poll(() => new URL(appPage.url()).pathname)
-      .toBe(`/marketplace/bundles/activations/${driftedActivation.id}`);
-    await appPage.reload({ waitUntil: "domcontentloaded" });
-    await expect(appPage.getByTestId("bundle-activation-detail")).toBeVisible({ timeout: 20_000 });
-
     await appPage.goto(runtime.url("/marketplace/extensions?tab=installed"), {
       waitUntil: "domcontentloaded",
     });
-    await installedCard(bundleExtensionName)
-      .getByRole("link", { name: `View ${bundleExtensionName} details` })
-      .click();
-    await appPage.getByRole("button", { name: `Actions for ${bundleExtensionName}` }).click();
-    await appPage.getByRole("menuitem", { name: /Remove/ }).click();
-    const blockedRemoveDialog = appPage.getByTestId("remove-extension-dialog");
-    await expect(blockedRemoveDialog).toBeVisible();
-    await blockedRemoveDialog
-      .getByRole("textbox", { name: "Type to confirm" })
-      .fill(bundleExtensionName);
-    await expect(
-      blockedRemoveDialog.getByRole("button", { name: "Remove extension" })
-    ).toBeDisabled();
-    await expect(blockedRemoveDialog).toContainText(`Deactivate ${bundleName}`);
-    await blockedRemoveDialog.getByRole("button", { name: "Cancel" }).click();
-
-    await appPage.goto(runtime.url(`/marketplace/bundles/activations/${driftedActivation.id}`), {
-      waitUntil: "domcontentloaded",
-    });
-    await appPage.getByRole("button", { name: `Actions for ${bundleName}` }).click();
-    await appPage.getByRole("menuitem", { name: /Deactivate/ }).click();
-    const deactivateDialog = appPage.getByTestId("deactivate-bundle-dialog");
-    await expect(deactivateDialog).toBeVisible();
-    const deactivateResponsePromise = waitForAPIResponse(
-      appPage,
-      "DELETE",
-      `/api/bundles/activations/${driftedActivation.id}`
-    );
-    await deactivateDialog.getByRole("button", { name: "Deactivate" }).click();
-    const deactivateResponse = await deactivateResponsePromise;
-    expect(deactivateResponse.status()).toBe(204);
-    await expect
-      .poll(() => new URL(appPage.url()).toString())
-      .toContain("/marketplace/bundles?tab=installed");
-
-    await appPage.goto(runtime.url("/marketplace/extensions?tab=installed"), {
-      waitUntil: "domcontentloaded",
-    });
-    const removableProviderCard = installedCard(bundleExtensionName);
+    const removableProviderCard = installedCard(kitExtensionName);
     await removableProviderCard
-      .getByRole("link", { name: `View ${bundleExtensionName} details` })
+      .getByRole("link", { name: `View ${kitExtensionName} details` })
       .click();
-    await appPage.getByRole("button", { name: `Actions for ${bundleExtensionName}` }).click();
+    await appPage.getByRole("button", { name: `Actions for ${kitExtensionName}` }).click();
     await appPage.getByRole("menuitem", { name: /Remove/ }).click();
     const removeDialog = appPage.getByTestId("remove-extension-dialog");
-    await removeDialog.getByRole("textbox", { name: "Type to confirm" }).fill(bundleExtensionName);
+    await removeDialog.getByRole("textbox", { name: "Type to confirm" }).fill(kitExtensionName);
     const removeResponsePromise = waitForAPIResponse(
       appPage,
       "DELETE",
-      `/api/extensions/${bundleExtensionName}`
+      `/api/extensions/${kitExtensionName}`
     );
     await removeDialog.getByRole("button", { name: "Remove extension" }).click();
     const removeResponse = await removeResponsePromise;
@@ -456,7 +455,7 @@ test.describe("Marketplace acquisition", () => {
     await expect
       .poll(() => new URL(appPage.url()).toString())
       .toContain("/marketplace/extensions?tab=installed");
-    await expect(installedCard(bundleExtensionName)).toBeHidden();
+    await expect(installedCard(kitExtensionName)).toBeHidden();
 
     await marketplaceWin.getByRole("button", { name: "Close window" }).click();
     await expect(marketplaceWin).toBeHidden();
@@ -495,10 +494,6 @@ test.describe("Marketplace acquisition", () => {
     await browserArtifacts.persist(appPage);
   });
 
-  function marketplaceCardByName(page: Page, name: string) {
-    return page.getByTestId(/^marketplace-card-/).filter({ hasText: name });
-  }
-
   function waitForAPIResponse(page: Page, method: string, pathname: string) {
     return page.waitForResponse(response => {
       return (
@@ -517,36 +512,6 @@ test.describe("Marketplace acquisition", () => {
       "extensions.trust.allow_unverified",
       String(enabled),
     ]);
-  }
-
-  interface MarketplaceBundleExtensionFixture {
-    rootDir: string;
-  }
-
-  async function createMarketplaceBundleExtension(): Promise<MarketplaceBundleExtensionFixture> {
-    const rootDir = await mkdtemp(path.join(os.tmpdir(), "compozy-marketplace-bundle-"));
-    const bundlesDir = path.join(rootDir, "bundles");
-    await mkdir(bundlesDir, { recursive: true });
-    await writeFile(
-      path.join(rootDir, "extension.json"),
-      JSON.stringify(
-        {
-          extension: {
-            description: "Browser marketplace bundle provider",
-            min_compozy_version: "0.0.0",
-            name: bundleExtensionName,
-            version: "1.0.0",
-          },
-          resources: { bundles: ["bundles"] },
-        },
-        null,
-        2
-      ),
-      "utf8"
-    );
-    const bundleFile = path.join(bundlesDir, `${bundleName}.toml`);
-    await writeMarketplaceBundle(bundleFile, "Lean acquisition profile");
-    return { rootDir };
   }
 
   async function createToggleExtension(): Promise<string> {
@@ -570,37 +535,58 @@ test.describe("Marketplace acquisition", () => {
     return rootDir;
   }
 
-  async function writeMarketplaceBundle(bundleFile: string, profileDescription: string) {
+  /**
+   * A post-cut static kit: agents live in a dir-per-agent tree, automation ships as TOML, and the
+   * manifest declares Live network participation so enable must be ratified before it commits.
+   */
+  async function createMarketplaceKitExtension(): Promise<{ rootDir: string }> {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "compozy-marketplace-kit-"));
+    const agentDir = path.join(rootDir, "agents", kitAgentName);
+    await mkdir(agentDir, { recursive: true });
+    await mkdir(path.join(rootDir, "automation"), { recursive: true });
     await writeFile(
-      bundleFile,
-      `
-  name = "${bundleName}"
-  description = "Browser marketplace bundle with live preview"
-
-  [[profiles]]
-  name = "default"
-  description = "Default acquisition profile"
-
-  [profiles.channels]
-  primary = "browser-default"
-
-  [[profiles.channels.items]]
-  name = "browser-default"
-  description = "Default browser channel"
-
-  [[profiles]]
-  name = "${bundleProfile}"
-  description = "${profileDescription}"
-
-  [profiles.channels]
-  primary = "browser-lean"
-
-  [[profiles.channels.items]]
-  name = "browser-lean"
-  description = "Lean browser channel"
-  `.trimStart(),
+      path.join(rootDir, "extension.json"),
+      JSON.stringify(
+        {
+          extension: {
+            description: "Browser marketplace static kit provider",
+            min_compozy_version: "0.0.0",
+            name: kitExtensionName,
+            version: "1.0.0",
+          },
+          network_participation: {
+            channel_scopes: ["browser-kit"],
+            mode: "live",
+            required: true,
+          },
+          requires_env: [kitEnvName],
+          resources: { agents: ["agents"], automation: ["automation"] },
+        },
+        null,
+        2
+      ),
       "utf8"
     );
+    await writeFile(
+      path.join(agentDir, "AGENT.md"),
+      `---\nname: ${kitAgentName}\ncategory_path: [Browser]\n---\n\nReview dependency changes for the browser marketplace journey.\n`,
+      "utf8"
+    );
+    await writeFile(
+      path.join(rootDir, "automation", "main.toml"),
+      [
+        "[[jobs]]",
+        `name = "${kitAutomationName}"`,
+        `agent = "${kitAgentName}"`,
+        'prompt = "Sweep dependency drift."',
+        "[jobs.schedule]",
+        'mode = "cron"',
+        'expr = "0 * * * *"',
+        "",
+      ].join("\n"),
+      "utf8"
+    );
+    return { rootDir };
   }
 });
 
@@ -1495,14 +1481,11 @@ test.describe("MCP marketplace authorization", () => {
   });
 });
 
-test.describe("Extension and bundle marketplace runtime", () => {
+test.describe("Extension marketplace runtime", () => {
   const execFileAsync = promisify(execFile);
 
   const extensionName = "browser-tool-provider";
   const toolID = "ext__browser_tool_provider__search";
-  const bundleName = "browser-extensibility";
-  const bundleProfile = "default";
-  const bundleChannel = "extensibility-ops";
   const extensionSecretSentinel = "browser-extension-secret-value-13";
   const toolPermissionFixture = path.resolve(
     path.dirname(fileURLToPath(import.meta.url)),
@@ -1536,7 +1519,6 @@ test.describe("Extension and bundle marketplace runtime", () => {
     daemon_running: boolean;
     health?: string;
     capabilities?: string[];
-    bundles?: Array<{ name: string; profiles?: string[] }>;
   }
 
   interface ExtensionResponse {
@@ -1596,42 +1578,6 @@ test.describe("Extension and bundle marketplace runtime", () => {
     approval: ToolApprovalPayload;
   }
 
-  interface BundleCatalogResponse {
-    bundles: Array<{
-      extension_name: string;
-      bundle_name: string;
-      profiles?: Array<{ name: string }>;
-    }>;
-  }
-
-  interface BundleActivation {
-    id: string;
-    version: number;
-    extension_name: string;
-    bundle_name: string;
-    profile_name: string;
-    scope: string;
-    network_requirement_digest?: string;
-    network_requirement_confirmed_by?: string;
-    network_requirement_confirmed_at?: string;
-    channels?: Array<{ name: string }>;
-    inventory?: Array<{ resource_kind: string; resource_name: string }>;
-  }
-
-  interface BundleActivationResponse {
-    activation: BundleActivation;
-  }
-
-  interface BundleActivationsResponse {
-    activations: BundleActivation[];
-  }
-
-  interface BundleNetworkSettingsResponse {
-    network: {
-      declared_channels?: Array<{ activation_id: string; name: string; primary: boolean }>;
-    };
-  }
-
   interface SettingsRestartAction {
     operation_id: string;
     status_url: string;
@@ -1688,7 +1634,7 @@ test.describe("Extension and bundle marketplace runtime", () => {
     },
   });
 
-  test("operator installs a local extension tool provider, invokes it over transports, activates bundle resources, and verifies fail-closed manifest security", async ({
+  test("operator installs a local extension tool provider, invokes it over transports, and verifies fail-closed manifest security", async ({
     appPage,
     browserArtifacts,
     runtime,
@@ -1712,11 +1658,19 @@ test.describe("Extension and bundle marketplace runtime", () => {
       "--yes",
       extensionDir,
     ]);
+    // Install is inert: it registers the package without publishing or starting anything.
     expect(projectExtension(installed)).toMatchObject({
       name: extensionName,
-      enabled: true,
-      state: "active",
+      enabled: false,
+      state: "disabled",
     });
+
+    // Enable is the only switch that makes an extension runnable.
+    await runBrowserRuntimeCLIJSON<{ automation_started: string[] }>(runtime, [
+      "extension",
+      "enable",
+      extensionName,
+    ]);
 
     await expect
       .poll(async () => {
@@ -1824,95 +1778,6 @@ test.describe("Extension and bundle marketplace runtime", () => {
       cli: projectInvoke(cliInvoke),
     });
 
-    const httpCatalog = await runtime.requestJSON<BundleCatalogResponse>("/api/bundles/catalog");
-    const udsCatalog = await requestBrowserRuntimeOperatorJSON<BundleCatalogResponse>(
-      runtime,
-      "/api/bundles/catalog"
-    );
-    const cliCatalog = await runBrowserRuntimeCLIJSON<BundleCatalogResponse>(runtime, [
-      "bundle",
-      "catalog",
-    ]);
-    expectBundleCatalog(httpCatalog, "HTTP bundle catalog");
-    expectBundleCatalog(udsCatalog, "UDS bundle catalog");
-    expectBundleCatalog(cliCatalog, "CLI bundle catalog");
-
-    const activationRequest = JSON.stringify({
-      extension_name: extensionName,
-      bundle_name: bundleName,
-      profile_name: bundleProfile,
-      scope: "global",
-      confirm_network_requirement: true,
-    });
-    const httpPreview = await runtime.requestJSON<BundleActivationResponse>(
-      "/api/bundles/preview",
-      {
-        method: "POST",
-        body: activationRequest,
-      }
-    );
-    expectBundleActivation(httpPreview.activation, "HTTP bundle preview");
-
-    const cliPreview = await runBrowserRuntimeCLIJSON<BundleActivation>(runtime, [
-      "bundle",
-      "preview",
-      "--extension",
-      extensionName,
-      "--bundle",
-      bundleName,
-      "--profile",
-      bundleProfile,
-      "--confirm-network-requirement",
-    ]);
-    expectBundleActivation(cliPreview, "CLI bundle preview");
-
-    const httpActivation = await runtime.requestJSON<BundleActivationResponse>(
-      "/api/bundles/activations",
-      {
-        method: "POST",
-        body: activationRequest,
-      }
-    );
-    expectBundleActivation(httpActivation.activation, "HTTP bundle activation");
-
-    const activationID = httpActivation.activation.id;
-    const udsActivation = await requestBrowserRuntimeOperatorJSON<BundleActivationResponse>(
-      runtime,
-      `/api/bundles/activations/${encodeURIComponent(activationID)}`
-    );
-    const cliActivation = await runBrowserRuntimeCLIJSON<BundleActivation>(runtime, [
-      "bundle",
-      "get",
-      activationID,
-    ]);
-    expectBundleActivation(udsActivation.activation, "UDS bundle activation");
-    expectBundleActivation(cliActivation, "CLI bundle activation");
-
-    expect(httpActivation.activation.channels?.length ?? 0).toBeGreaterThan(0);
-    expect(udsActivation.activation.channels?.length ?? 0).toBeGreaterThan(0);
-    expect(cliActivation.channels?.length ?? 0).toBeGreaterThan(0);
-
-    const networkHTTP = await runtime.requestJSON<BundleNetworkSettingsResponse>(
-      "/api/bundles/network/settings"
-    );
-    const networkUDS = await requestBrowserRuntimeOperatorJSON<BundleNetworkSettingsResponse>(
-      runtime,
-      "/api/bundles/network/settings"
-    );
-    const networkCLI = await runBrowserRuntimeCLIJSON<BundleNetworkSettingsResponse["network"]>(
-      runtime,
-      ["bundle", "network-settings"]
-    );
-    expect(
-      networkHTTP.network.declared_channels?.some(channel => channel.name === bundleChannel)
-    ).toBe(true);
-    expect(
-      networkUDS.network.declared_channels?.some(channel => channel.name === bundleChannel)
-    ).toBe(true);
-    expect(networkCLI.declared_channels?.some(channel => channel.name === bundleChannel)).toBe(
-      true
-    );
-
     const restart = await runtime.requestJSON<SettingsRestartAction>(
       "/api/settings/actions/restart",
       {
@@ -1972,17 +1837,6 @@ test.describe("Extension and bundle marketplace runtime", () => {
       )
       .toContain("recovered-after-crash");
 
-    const updatedActivation = await runBrowserRuntimeCLIJSON<BundleActivation>(runtime, [
-      "bundle",
-      "update",
-      activationID,
-      "--expected-version",
-      String(cliActivation.version),
-      "--confirm-network-requirement",
-    ]);
-    expect(updatedActivation.id).toBe(activationID);
-    expect(updatedActivation.extension_name).toBe(extensionName);
-
     // The source union carries no operator checksum: an unverified local path installs only after
     // an explicit consent decision, and the daemon refuses it otherwise.
     const failureHTTP = await appPage.request.post(runtime.url("/api/extensions"), {
@@ -2010,45 +1864,12 @@ test.describe("Extension and bundle marketplace runtime", () => {
       /manifest|capabilities|invalid/i
     );
 
-    await runBrowserRuntimeCLIJSON<{ deactivated: string }>(runtime, [
-      "bundle",
-      "deactivate",
-      activationID,
-    ]);
-    const remainingActivations = await runtime.requestJSON<BundleActivationsResponse>(
-      "/api/bundles/activations"
-    );
-    expect(
-      remainingActivations.activations.some(activation => activation.id === activationID)
-    ).toBe(false);
-
     const extensionList = await runtime.requestJSON<ExtensionsResponse>("/api/extensions");
     const daemonLog = await readFile(runtime.paths.daemonLog, "utf8");
     const finalArtifacts = {
       route_state: routeState,
       viewport_evidence: viewportEvidence,
       extensions: extensionList.extensions.map(projectExtension),
-      bundle_catalog: {
-        http: projectBundleCatalog(httpCatalog),
-        uds: projectBundleCatalog(udsCatalog),
-        cli: projectBundleCatalog(cliCatalog),
-      },
-      bundle_activation: {
-        http: projectBundleActivation(httpActivation.activation),
-        uds: projectBundleActivation(udsActivation.activation),
-        cli: projectBundleActivation(cliActivation),
-        updated: projectBundleActivation(updatedActivation),
-      },
-      resources: {
-        http_inventory: httpActivation.activation.inventory ?? [],
-        uds_inventory: udsActivation.activation.inventory ?? [],
-        cli_inventory: cliActivation.inventory ?? [],
-      },
-      network: {
-        http: networkHTTP.network,
-        uds: networkUDS.network,
-        cli: networkCLI,
-      },
       fail_closed: {
         checksum_status: failureHTTP.status(),
         checksum_error: checksumFailureBody.error,
@@ -2181,8 +2002,6 @@ test.describe("Extension and bundle marketplace runtime", () => {
 
   async function createBrowserToolProviderExtension(): Promise<string> {
     const rootDir = await mkdtemp(path.join(os.tmpdir(), "compozy-browser-tool-provider-"));
-    const bundlesDir = path.join(rootDir, "bundles");
-    await mkdir(bundlesDir, { recursive: true });
 
     const inputSchema = {
       type: "object",
@@ -2208,7 +2027,6 @@ test.describe("Extension and bundle marketplace runtime", () => {
             args: ["extension.js"],
           },
           resources: {
-            bundles: ["bundles"],
             tools: {
               search: {
                 id: toolID,
@@ -2228,26 +2046,6 @@ test.describe("Extension and bundle marketplace runtime", () => {
         null,
         2
       ),
-      "utf8"
-    );
-
-    await writeFile(
-      path.join(bundlesDir, "browser-extensibility.toml"),
-      `
-  name = "${bundleName}"
-  description = "Browser E2E bundle proving extension resource projection"
-
-  [[profiles]]
-  name = "${bundleProfile}"
-  description = "Default extensibility profile"
-
-  [profiles.channels]
-  primary = "${bundleChannel}"
-
-  [[profiles.channels.items]]
-  name = "${bundleChannel}"
-  description = "Bundle-projected channel for E2E"
-  `.trimStart(),
       "utf8"
     );
 
@@ -2617,27 +2415,6 @@ test.describe("Extension and bundle marketplace runtime", () => {
     expect(response.result.truncated).toBe(false);
   }
 
-  function expectBundleCatalog(response: BundleCatalogResponse, label: string): void {
-    const entry = response.bundles.find(
-      item => item.extension_name === extensionName && item.bundle_name === bundleName
-    );
-    if (!entry) {
-      throw new Error(`${label} did not include ${extensionName}/${bundleName}`);
-    }
-    expect(entry.profiles?.some(profile => profile.name === bundleProfile)).toBe(true);
-  }
-
-  function expectBundleActivation(activation: BundleActivation, label: string): void {
-    expect(activation.extension_name, label).toBe(extensionName);
-    expect(activation.bundle_name, label).toBe(bundleName);
-    expect(activation.profile_name, label).toBe(bundleProfile);
-    expect(activation.scope, label).toBe("global");
-    expect(
-      activation.channels?.some(channel => channel.name === bundleChannel),
-      label
-    ).toBe(true);
-  }
-
   function projectExtension(extension: ExtensionPayload): Record<string, unknown> {
     return {
       name: extension.name,
@@ -2646,7 +2423,6 @@ test.describe("Extension and bundle marketplace runtime", () => {
       daemon_running: extension.daemon_running,
       health: extension.health,
       capabilities: extension.capabilities ?? [],
-      bundles: extension.bundles ?? [],
     };
   }
 
@@ -2681,31 +2457,6 @@ test.describe("Extension and bundle marketplace runtime", () => {
         has_input_digest: Boolean(event.input_digest),
         correlation_id: event.correlation_id,
       })),
-    };
-  }
-
-  function projectBundleCatalog(response: BundleCatalogResponse): Record<string, unknown> {
-    return {
-      bundles: response.bundles
-        .filter(item => item.extension_name === extensionName)
-        .map(item => ({
-          extension_name: item.extension_name,
-          bundle_name: item.bundle_name,
-          profiles: item.profiles?.map(profile => profile.name) ?? [],
-        })),
-    };
-  }
-
-  function projectBundleActivation(activation: BundleActivation): Record<string, unknown> {
-    return {
-      id: activation.id,
-      extension_name: activation.extension_name,
-      bundle_name: activation.bundle_name,
-      profile_name: activation.profile_name,
-      scope: activation.scope,
-      network_requirement_confirmed_by: activation.network_requirement_confirmed_by ?? "",
-      channels: activation.channels?.map(channel => channel.name) ?? [],
-      inventory: activation.inventory ?? [],
     };
   }
 

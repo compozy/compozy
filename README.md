@@ -45,7 +45,7 @@ surfaces.
   inspectable while work continues in the background.
 - **Local-first by default.** One Go binary and SQLite-backed stores keep runtime state on the
   operator's machine unless a configured provider or extension owns an external boundary.
-- **Built to extend.** Agents, skills, capabilities, bundles, hooks, bridges, and extensions plug into
+- **Built to extend.** Agents, skills, capabilities, hooks, bridges, and extension kits plug into
   explicit runtime contracts.
 - **Compozy Network.** Sessions can discover peers, exchange typed messages, delegate work, and close
   it with receipts over `compozy-network/v0`.
@@ -179,7 +179,7 @@ compozy extension logs <name> --follow
 - [Build your first extension](https://compozy.com/docs/guides/build-your-first-extension)
 - [Extensions](https://compozy.com/docs/extensions)
 - [Publish an extension](https://compozy.com/docs/extensions/publish)
-- [Capabilities and bundles](https://compozy.com/docs)
+- [Capabilities and extension kits](https://compozy.com/docs/extensions)
 - [Official Compozy skill](skills/compozy/)
 - [Migration guide](MIGRATION_GUIDE.md)
 

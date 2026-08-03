@@ -7,48 +7,62 @@ import (
 	"log/slog"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/heartbeat"
 
 	"github.com/compozy/compozy/internal/resources"
 
 	skillspkg "github.com/compozy/compozy/internal/skills"
+	"github.com/compozy/compozy/internal/soul"
 )
 
-func newAgentSkillSourceSyncer(
-	raw resources.RawStore,
-	agentStore resources.Store[compozyconfig.AgentDef],
-	agentCodec resources.KindCodec[compozyconfig.AgentDef],
-	agentProjector resources.TypedProjector[compozyconfig.AgentDef],
-	skillStore resources.Store[skillspkg.SkillResourceSpec],
-	skillCodec resources.KindCodec[skillspkg.SkillResourceSpec],
-	skillProjector resources.TypedProjector[skillspkg.SkillResourceSpec],
-	mcpStore resources.Store[compozyconfig.MCPServer],
-	mcpCodec resources.KindCodec[compozyconfig.MCPServer],
-	actor resources.MutationActor,
-	logger *slog.Logger,
-	trigger func(context.Context, resources.ResourceKind, resources.ReconcileReason) error,
-	providers ...agentSkillDeclarationProvider,
-) agentSkillPublisher {
-	if raw == nil || agentStore == nil || agentCodec == nil || skillStore == nil || skillCodec == nil ||
-		mcpStore == nil || mcpCodec == nil {
+type agentSkillSourceSyncerDeps struct {
+	raw            resources.RawStore
+	agentStore     resources.Store[compozyconfig.AgentDef]
+	agentCodec     resources.KindCodec[compozyconfig.AgentDef]
+	agentProjector resources.TypedProjector[compozyconfig.AgentDef]
+	soulStore      resources.Store[soul.ResourceSpec]
+	soulCodec      resources.KindCodec[soul.ResourceSpec]
+	heartbeatStore resources.Store[heartbeat.ResourceSpec]
+	heartbeatCodec resources.KindCodec[heartbeat.ResourceSpec]
+	skillStore     resources.Store[skillspkg.SkillResourceSpec]
+	skillCodec     resources.KindCodec[skillspkg.SkillResourceSpec]
+	skillProjector resources.TypedProjector[skillspkg.SkillResourceSpec]
+	mcpStore       resources.Store[compozyconfig.MCPServer]
+	mcpCodec       resources.KindCodec[compozyconfig.MCPServer]
+	actor          resources.MutationActor
+	logger         *slog.Logger
+	trigger        func(context.Context, resources.ResourceKind, resources.ReconcileReason) error
+	providers      []agentSkillDeclarationProvider
+}
+
+func newAgentSkillSourceSyncer(deps agentSkillSourceSyncerDeps) *agentSkillSourceSyncer {
+	if deps.raw == nil || deps.agentStore == nil || deps.agentCodec == nil ||
+		deps.soulStore == nil || deps.soulCodec == nil ||
+		deps.heartbeatStore == nil || deps.heartbeatCodec == nil ||
+		deps.skillStore == nil || deps.skillCodec == nil || deps.mcpStore == nil || deps.mcpCodec == nil {
 		return nil
 	}
-	if logger == nil {
-		logger = slog.Default()
+	if deps.logger == nil {
+		deps.logger = slog.Default()
 	}
 	return &agentSkillSourceSyncer{
-		raw:            raw,
-		agentStore:     agentStore,
-		agentCodec:     agentCodec,
-		agentProjector: agentProjector,
-		skillStore:     skillStore,
-		skillCodec:     skillCodec,
-		skillProjector: skillProjector,
-		mcpStore:       mcpStore,
-		mcpCodec:       mcpCodec,
-		actor:          actor,
-		logger:         logger,
-		trigger:        trigger,
-		providers:      append([]agentSkillDeclarationProvider(nil), providers...),
+		raw:            deps.raw,
+		agentStore:     deps.agentStore,
+		agentCodec:     deps.agentCodec,
+		agentProjector: deps.agentProjector,
+		soulStore:      deps.soulStore,
+		soulCodec:      deps.soulCodec,
+		heartbeatStore: deps.heartbeatStore,
+		heartbeatCodec: deps.heartbeatCodec,
+		skillStore:     deps.skillStore,
+		skillCodec:     deps.skillCodec,
+		skillProjector: deps.skillProjector,
+		mcpStore:       deps.mcpStore,
+		mcpCodec:       deps.mcpCodec,
+		actor:          deps.actor,
+		logger:         deps.logger,
+		trigger:        deps.trigger,
+		providers:      append([]agentSkillDeclarationProvider(nil), deps.providers...),
 	}
 }
 
@@ -78,41 +92,80 @@ func (s *agentSkillSourceSyncer) Sync(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	s.stageAgentTransientSpecs(desired.agents)
-	agentChanged, err := s.syncAgents(ctx, desired.agents)
+	changes, err := s.syncIndexedAgentSkillResources(ctx, desired)
 	if err != nil {
 		return err
+	}
+	return s.triggerAgentSkillChanges(ctx, changes)
+}
+
+type agentSkillSyncChanges struct {
+	agents     bool
+	souls      bool
+	heartbeats bool
+	skills     bool
+	mcpServers bool
+}
+
+func (s *agentSkillSourceSyncer) syncIndexedAgentSkillResources(
+	ctx context.Context,
+	desired indexedAgentSkillResources,
+) (agentSkillSyncChanges, error) {
+	var changes agentSkillSyncChanges
+	s.stageAgentTransientSpecs(desired.agents)
+	var err error
+	changes.agents, err = s.syncAgents(ctx, desired.agents)
+	if err != nil {
+		return agentSkillSyncChanges{}, err
 	}
 	if err := s.projectAgents(ctx); err != nil {
-		return err
+		return agentSkillSyncChanges{}, err
 	}
-	skillChanged, err := s.syncSkills(ctx, desired.skills)
+	changes.souls, err = s.syncSouls(ctx, desired.souls)
 	if err != nil {
-		return err
+		return agentSkillSyncChanges{}, err
 	}
-	if skillChanged {
+	changes.heartbeats, err = s.syncHeartbeats(ctx, desired.heartbeats)
+	if err != nil {
+		return agentSkillSyncChanges{}, err
+	}
+	changes.skills, err = s.syncSkills(ctx, desired.skills)
+	if err != nil {
+		return agentSkillSyncChanges{}, err
+	}
+	if changes.skills {
 		if err := s.projectSkills(ctx); err != nil {
-			return err
+			return agentSkillSyncChanges{}, err
 		}
 	}
-	mcpChanged, err := s.syncMCPServers(ctx, desired.mcpServers)
+	changes.mcpServers, err = s.syncMCPServers(ctx, desired.mcpServers)
 	if err != nil {
-		return err
+		return agentSkillSyncChanges{}, err
 	}
+	return changes, nil
+}
 
-	if agentChanged && s.trigger != nil {
-		if err := s.trigger(ctx, compozyconfig.AgentResourceKind, resources.ReconcileReasonWrite); err != nil {
-			return err
-		}
+func (s *agentSkillSourceSyncer) triggerAgentSkillChanges(
+	ctx context.Context,
+	changes agentSkillSyncChanges,
+) error {
+	if s.trigger == nil {
+		return nil
 	}
-	if skillChanged && s.trigger != nil {
-		if err := s.trigger(ctx, skillspkg.SkillResourceKind, resources.ReconcileReasonWrite); err != nil {
-			return err
-		}
-	}
-	if mcpChanged && s.trigger != nil {
-		if err := s.trigger(ctx, compozyconfig.MCPServerResourceKind, resources.ReconcileReasonWrite); err != nil {
-			return err
+	for _, change := range []struct {
+		changed bool
+		kind    resources.ResourceKind
+	}{
+		{changed: changes.agents, kind: compozyconfig.AgentResourceKind},
+		{changed: changes.souls, kind: soul.ResourceKind},
+		{changed: changes.heartbeats, kind: heartbeat.ResourceKind},
+		{changed: changes.skills, kind: skillspkg.SkillResourceKind},
+		{changed: changes.mcpServers, kind: compozyconfig.MCPServerResourceKind},
+	} {
+		if change.changed {
+			if err := s.trigger(ctx, change.kind, resources.ReconcileReasonWrite); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

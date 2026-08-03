@@ -1,6 +1,6 @@
 ---
 title: Marketplace
-description: Discover, inspect, install, authorize, update, and manage skills, extensions, bundles, and MCP servers through one catalog.
+description: Discover, inspect, install, authorize, update, and manage skills, extensions, and MCP servers through one catalog.
 ---
 
 This page helps you move from discovery to a managed capability. You will use the Marketplace web
@@ -10,8 +10,8 @@ from; it does not prove that the item is safe for every environment.
 
 <OperatorNote>
   Marketplace discovery is daemon-owned. Start the daemon before using the web page, the `compozy
-  marketplace` command group, extension registry operations, bundle operations, or MCP catalog
-  install and authorization.
+  marketplace` command group, extension registry operations, or MCP catalog install and
+  authorization.
 </OperatorNote>
 
 The curated catalog is also browsable without a daemon at [compozy.com/marketplace](/marketplace).
@@ -21,12 +21,12 @@ That static site renders its build-time, checked-in snapshot. Before installing 
 ## Browse And Inspect
 
 Open `/marketplace` to enter the Skills catalog, or go directly to `/marketplace/skills`,
-`/marketplace/mcp`, `/marketplace/extensions`, or `/marketplace/bundles`. Each kind page switches
+`/marketplace/mcp` or `/marketplace/extensions`. Each kind page switches
 between Marketplace and Installed scopes; `/marketplace/<kind>/<entry-id>` opens one catalog record.
 An installed skill detail also shows declared capabilities, recent calls, resolver provenance, and
 shadow resolution. An installed extension detail keeps its runtime state, health, daemon process,
-capabilities, actions, environment requirements, diagnostics, provenance, and provided bundles
-together with its management controls.
+kit inventory, capabilities, actions, environment requirements, diagnostics, provenance, and
+management controls together.
 
 The CLI returns the daemon-owned active projection:
 
@@ -49,14 +49,13 @@ compozy marketplace info mcp linear --installed-name custom-linear -o json
 
 Use the returned `entry_id` with `compozy marketplace info`. Install commands use the kind-specific
 identifier shown by the active detail payload, such as an extension or skill `install_slug`.
-`--installed-name` disambiguates installed MCP, extension, and skill identities; bundle detail
-rejects that flag because bundle activation identity is managed through its activation route.
+`--installed-name` disambiguates installed MCP, extension, and skill identities.
 The identifiers in the examples below are illustrative; substitute values returned by your active
 catalog.
 
 Single-kind responses return `next_cursor` when more rows remain. Treat it as opaque and pass it
 unchanged with the same kind, query, scope, and workspace; grouped search does not accept a cursor.
-Curated and bundle cursors fence the source projection. Remote skill registries do not expose a
+Curated cursors fence the source projection. Remote skill registries do not expose a
 snapshot revision, so Compozy validates the prior page boundary with one bounded look-behind row. If
 that boundary changes, Compozy rejects the continuation; restart from the first page instead of
 combining shifted pages.
@@ -71,8 +70,7 @@ Each kind can fail independently during grouped search. Read the affected kind's
 `error_class`, and `error` fields instead of treating an empty group as proof that no items exist.
 A failed refresh keeps the last successful rows, marks that kind stale, and returns the per-kind
 failure report rather than pruning the projection. MCP, extension, and skill rows come from curated
-feed documents. Bundle rows are derived from installed extensions, so
-`compozy marketplace refresh --kind bundle` is intentionally unavailable.
+feed documents.
 
 The launch catalog includes Context7 for current library documentation, Repository Orientation for
 evidence-backed codebase mapping, and Documentation Writer for project and API documentation.
@@ -126,33 +124,6 @@ When policy is disabled, the structured diagnostic code is
 `extension_unverified_policy_blocked`; its evidence points to `/settings/extensions` and the
 `extensions.trust.allow_unverified` key. Enabling the policy does not weaken curated digest
 verification.
-
-## Preview And Activate A Bundle
-
-Bundles are declared by installed extensions. Always preview the selected profile and scope before
-activation:
-
-```bash
-compozy bundle preview \
-  --extension linear-bridge \
-  --bundle incident-response \
-  --profile default \
-  --scope workspace \
-  --workspace <workspace-id> \
-  -o json
-
-compozy bundle activate \
-  --extension linear-bridge \
-  --bundle incident-response \
-  --profile default \
-  --scope workspace \
-  --workspace <workspace-id> \
-  -o json
-```
-
-Preview is read-only. Activation projects the profile's declared resources only after validation.
-An active bundle can prevent its owning extension from being disabled or removed until the
-activation is deactivated.
 
 ## Install An MCP Server
 
@@ -258,15 +229,13 @@ The HTTP-only `GET /api/mcp/oauth/callback` handles loopback browser completion.
 
 Marketplace does not invent one cross-kind update operation.
 
-| Kind      | Truthful update signal                                                         | Action                                                                                                                          |
-| --------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
-| Skill     | Installed marketplace version compared with the registry version.              | `compozy skill update <name> --check`, then `compozy skill update <name>`.                                                      |
-| Extension | Installed marketplace version compared with the registry version.              | `compozy extension update <name> --check`, then `compozy extension update <name>`. Curated updates re-verify the pinned digest. |
-| Bundle    | Stored activation spec hash differs from the current installed bundle profile. | Inspect `spec_drift`, then `compozy bundle update <activation-id>`.                                                             |
-| MCP       | No update comparison or update action in v1.                                   | Manage the installed definition and authorization state; do not infer freshness from a badge.                                   |
+| Kind      | Truthful update signal                                            | Action                                                                                                                          |
+| --------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Skill     | Installed marketplace version compared with the registry version. | `compozy skill update <name> --check`, then `compozy skill update <name>`.                                                      |
+| Extension | Installed marketplace version compared with the registry version. | `compozy extension update <name> --check`, then `compozy extension update <name>`. Curated updates re-verify the pinned digest. |
+| MCP       | No update comparison or update action in v1.                      | Manage the installed definition and authorization state; do not infer freshness from a badge.                                   |
 
-Non-semver skill or extension versions do not produce a speculative update badge. Updating a bundle
-reapplies its current profile and clears `spec_drift` after successful reconciliation.
+Non-semver skill or extension versions do not produce a speculative update badge.
 
 ## Read Trust As Provenance
 
@@ -281,7 +250,6 @@ not guarantee safe behavior.
 - MCP catalog provenance identifies the entry and version used to create the settings record. It
   does not report server reachability or authorization readiness.
 - Skills have installed provenance and content verification, but no Marketplace trust tier.
-- Bundles inherit their source from the installed extension that declares them.
 
 ## Configure Catalog Refresh
 
@@ -322,6 +290,7 @@ projection intact and stale-marked.
 - [MCP configuration and management](/docs/configuration/mcp-json) covers MCP fields,
   precedence, status, and authorization.
 - [Install extensions](/docs/extensions/install) covers extension lifecycle and policy.
-- [Bundles](/docs/resources/bundles) covers activation projection and conflicts.
+- [Extension operations](/docs/extensions/install) covers kit inventory, preview, lifecycle consent,
+  and secret bindings.
 - [Configuration lifecycle matrix](/docs/configuration/lifecycle-matrix) is generated from
   the runtime config owner.

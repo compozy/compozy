@@ -7,7 +7,6 @@ import (
 
 	"strings"
 
-	bundlepkg "github.com/compozy/compozy/internal/bundles"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/compozy/compozy/internal/heartbeat"
@@ -168,7 +167,7 @@ func (c *resourceAgentCatalog) ResolveAgentArtifacts(
 		OwnerKind:    string(record.Owner.Kind.Normalize()),
 		OwnerID:      strings.TrimSpace(record.Owner.ID),
 		Scope:        record.Scope.Normalize(),
-		PackageOwned: record.Owner.Kind.Normalize() == bundlepkg.BundleActivationOwnerKind,
+		PackageOwned: record.Owner.Kind.Normalize() == extensionResourceOwnerKind,
 	}
 	if c.soulCatalog != nil {
 		if spec, ok := c.lookupSoulForAgent(record); ok {

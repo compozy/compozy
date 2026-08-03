@@ -191,6 +191,17 @@ describe("runtime docs truth", () => {
     expect(resourceDoc).not.toMatch(/\| `400` on write\s+\|\s+Invalid kind/);
   });
 
+  it("declares the API reference as generated from the complete canonical contract", () => {
+    const content = manualContent();
+    const apiReference = readRepoFile("packages/site/content/docs/api/index.mdx");
+
+    expect(apiReference).toMatch(/built from\s+`openapi\/compozy\.json`/);
+    expect(apiReference).toContain("make codegen-check");
+    expect(content).toContain("The API route map lists the implemented route families");
+    expect(content).not.toMatch(/does not yet cover every implemented\s+route/);
+    expect(content).not.toMatch(/complete generated schema coverage for every route yet/i);
+  });
+
   it("does not route session SSE examples through the replay events endpoint", () => {
     const content = manualContent().replaceAll("\\\n", " ");
 
@@ -198,18 +209,6 @@ describe("runtime docs truth", () => {
       /curl\s+-N\b[\s\S]{0,240}\/api\/workspaces\/[^/\s]+\/sessions\/[^/\s]+\/events\b/
     );
     expect(content).toContain("/api/workspaces/ws_alpha/sessions/sess_1234/stream");
-  });
-
-  it("declares the API reference as built from the canonical OpenAPI spec on every site build", () => {
-    const content = manualContent();
-    const apiReference = readRepoFile("packages/site/content/docs/api/index.mdx");
-
-    expect(apiReference).toMatch(/built from\s+`openapi\/compozy\.json`/);
-    expect(apiReference).toContain("make codegen-check");
-    expect(apiReference).not.toMatch(
-      /does not yet cover every implemented\s+streaming and bundle route/
-    );
-    expect(content).toContain("The API route map lists the implemented route families");
   });
 
   it("keeps concrete tool invocation examples tied to compiled builtin tool IDs", () => {

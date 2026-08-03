@@ -10,12 +10,22 @@ type DescribePayload struct {
 	Provides         []string                                  `json:"provides"`
 	Permissions      []string                                  `json:"permissions"`
 	RequiresEnv      []string                                  `json:"requires_env,omitempty"`
+	Resources        DescribeResources                         `json:"resources"`
 	Subprocess       DescribeSubprocess                        `json:"subprocess"`
 	Tools            []toolspkg.ExtensionToolRuntimeDescriptor `json:"tools,omitempty"`
 	HookEvents       []string                                  `json:"hook_events,omitempty"`
 	WatchSourceKinds []string                                  `json:"watch_source_kinds,omitempty"`
 	CommandGroups    []ExtensionCommandGroupSpec               `json:"command_groups,omitempty"`
 	SDK              DescribeSDKInfo                           `json:"sdk"`
+}
+
+// DescribeResources declares source-relative static resource paths copied into a generation.
+type DescribeResources struct {
+	Skills     []string `json:"skills,omitempty"`
+	Loops      []string `json:"loops,omitempty"`
+	Agents     []string `json:"agents,omitempty"`
+	Automation []string `json:"automation,omitempty"`
+	Layouts    []string `json:"layouts,omitempty"`
 }
 
 // DescribeSubprocess declares the generated manifest's extension process entrypoint.

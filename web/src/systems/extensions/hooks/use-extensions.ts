@@ -3,8 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 import {
-  bundleActivationOptions,
-  bundleActivationsOptions,
+  extensionInventoryOptions,
   extensionProvenanceOptions,
   extensionsListOptions,
 } from "../lib/query-options";
@@ -43,10 +42,7 @@ export function useExtensionProvenance(name: string, enabled = true) {
   return useQuery(extensionProvenanceOptions(name, enabled));
 }
 
-export function useBundleActivations() {
-  return useQuery(bundleActivationsOptions());
-}
-
-export function useBundleActivation(id: string) {
-  return useQuery(bundleActivationOptions(id));
+/** Shipped-vs-live kit resources for the global published extension instance. */
+export function useExtensionKitInventory(name: string, enabled = true) {
+  return useQuery(extensionInventoryOptions(name, enabled));
 }

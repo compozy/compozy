@@ -10,16 +10,16 @@ describe("marketplace installed card confirmation store", () => {
     const store = logic.createStore();
     let snapshot = store.getInitialSnapshot();
 
-    [snapshot] = store.transition(snapshot, { type: "confirmationOpened", action: "remove" });
+    [snapshot] = store.transition(snapshot, { type: "confirmationOpened" });
     [snapshot] = store.transition(snapshot, {
       type: "confirmationRequested",
       execute: vi.fn(),
     });
     const requestId = snapshot.context.requestId;
-    [snapshot] = store.transition(snapshot, { type: "confirmationOpened", action: "deactivate" });
+    [snapshot] = store.transition(snapshot, { type: "confirmationOpened" });
     [snapshot] = store.transition(snapshot, { type: "confirmationSucceeded", requestId });
 
-    expect(snapshot.context).toMatchObject({ phase: "confirming", action: "deactivate" });
+    expect(snapshot.context).toMatchObject({ phase: "confirming" });
   });
 
   it("Should execute the callback from the render that confirms", async () => {
@@ -29,13 +29,13 @@ describe("marketplace installed card confirmation store", () => {
       ({ execute }) => useMarketplaceInstalledCardConfirmation(execute),
       { initialProps: { execute: previousExecute } }
     );
-    act(() => result.current.openConfirmation("remove"));
+    act(() => result.current.openConfirmation());
 
     rerender({ execute: currentExecute });
     act(() => result.current.confirm());
 
     await waitFor(() => expect(result.current.open).toBe(false));
     expect(previousExecute).not.toHaveBeenCalled();
-    expect(currentExecute).toHaveBeenCalledWith("remove");
+    expect(currentExecute).toHaveBeenCalledOnce();
   });
 });

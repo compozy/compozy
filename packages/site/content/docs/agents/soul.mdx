@@ -113,7 +113,7 @@ new claims see the latest valid resolved persona.
 ## Managed authoring
 
 Mutating `SOUL.md` always goes through the managed authoring service. Direct file writes from
-hooks, extensions, tools, resources, bundles, MCP sidecars, bridge adapters, or web code are
+hooks, extensions, tools, resources, MCP sidecars, bridge adapters, or web code are
 explicitly forbidden. Every write/delete/rollback against an existing file requires
 `expected_digest`; stale writes fail without persistence and never partially replace the file.
 

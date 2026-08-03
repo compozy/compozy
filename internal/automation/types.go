@@ -24,7 +24,7 @@ type JobSource = modelpkg.JobSource
 const (
 	// JobSourceConfig identifies a TOML-backed automation definition.
 	JobSourceConfig = modelpkg.JobSourceConfig
-	// JobSourcePackage identifies a daemon-managed extension bundle definition.
+	// JobSourcePackage identifies a definition managed by an extension package.
 	JobSourcePackage = modelpkg.JobSourcePackage
 	// JobSourceDynamic identifies a runtime-created automation definition.
 	JobSourceDynamic = modelpkg.JobSourceDynamic

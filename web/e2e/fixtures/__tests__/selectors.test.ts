@@ -336,11 +336,14 @@ describe("marketplace operator selectors", () => {
     expect(selectors.mcpInstallConfirm).toBe(
       `locator:${marketplaceOperatorTestIds.mcpInstallConfirm}`
     );
-    expect(selectors.bundleActivationDialog).toBe(
-      `locator:${marketplaceOperatorTestIds.bundleActivationDialog}`
+    expect(selectors.extensionKitInventory).toBe(
+      `locator:${marketplaceOperatorTestIds.extensionKitInventory}`
     );
-    expect(selectors.bundleActivateConfirm).toBe(
-      `locator:${marketplaceOperatorTestIds.bundleActivateConfirm}`
+    expect(selectors.extensionNetworkConfirmDialog).toBe(
+      `locator:${marketplaceOperatorTestIds.extensionNetworkConfirmDialog}`
+    );
+    expect(selectors.extensionNetworkConfirmAccept).toBe(
+      `locator:${marketplaceOperatorTestIds.extensionNetworkConfirmAccept}`
     );
     expect(selectors.extensionTrustDialog).toBe(
       `locator:${marketplaceOperatorTestIds.extensionTrustDialog}`

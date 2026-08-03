@@ -56,15 +56,13 @@ describe("tool-first canonical surface docs", () => {
       "compozy__memory",
       "compozy__memory_admin",
       "compozy__memory_admin_history",
-      "compozy__bundles",
       "compozy__resources",
       "compozy__mcp",
     ]);
-    expectExcludesAll(toolsets, ["compozy__memory_history"]);
+    expectExcludesAll(toolsets, ["compozy__memory_history", "compozy__bundles"]);
     expectIncludesAll(tools, [
       "task bridge notification subscription management",
       "Memory v2 operational/admin actions",
-      "extension bundle activation and desired-state resource inspection",
       "MCP server probe/status diagnostics",
     ]);
   });
@@ -126,7 +124,8 @@ describe("tool-first canonical surface docs", () => {
       "`compozy__extensions`",
       "`compozy__extensions_install`",
       "`compozy__extensions_remove`",
-      "`compozy__bundles_activate`",
+      "`compozy__extensions_inventory`",
+      "`compozy__extensions_preview`",
       "`compozy__resources_snapshot`",
       "`resources/list`",
       "`resources/get`",
@@ -134,6 +133,7 @@ describe("tool-first canonical surface docs", () => {
       "EXTENSION_SOURCE_FORBIDDEN",
       "EXTENSION_APPROVAL_REQUIRED",
     ]);
+    expectExcludesAll(extensionsInstall, ["compozy__bundles", "compozy__bundles_activate"]);
   });
 
   it("documents MCP auth as status-only on the tool surface", () => {

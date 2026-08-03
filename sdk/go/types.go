@@ -105,12 +105,16 @@ type ExtensionDefinition struct {
 	Version             string             `json:"version"`
 	Description         string             `json:"description,omitempty"`
 	RequiresEnv         []string           `json:"requires_env,omitempty"`
+	Resources           DescribeResources  `json:"resources,omitempty"`
 	Subprocess          DescribeSubprocess `json:"subprocess"`
 	Capabilities        CapabilitiesConfig `json:"capabilities"`
 	Permissions         PermissionsConfig  `json:"permissions"`
 	SupportedHookEvents []string           `json:"supported_hook_events,omitempty"`
 	Metadata            map[string]string  `json:"metadata,omitempty"`
 }
+
+// DescribeResources declares source-relative static resource paths shipped by an extension.
+type DescribeResources = contracts.DescribeResources
 
 // CapabilitiesConfig lists extension-provided capability surfaces.
 type CapabilitiesConfig struct {

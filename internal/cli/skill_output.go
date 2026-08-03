@@ -246,9 +246,6 @@ func skillProvenanceRows(provenance *SkillProvenanceRecord) [][]string {
 	if provenance.Version != "" {
 		rows = append(rows, []string{versionKey, provenance.Version})
 	}
-	if provenance.InstalledFromBundle != "" {
-		rows = append(rows, []string{"installed_from_bundle", provenance.InstalledFromBundle})
-	}
 	if provenance.InstalledFromExtension != "" {
 		rows = append(rows, []string{"installed_from_extension", provenance.InstalledFromExtension})
 	}

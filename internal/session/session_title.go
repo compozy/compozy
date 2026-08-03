@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/compozy/compozy/internal/store"
 )
 
 const (
@@ -15,7 +17,6 @@ const (
 )
 
 type sessionTitleClaim struct {
-	title             string
 	previousUpdatedAt time.Time
 }
 
@@ -36,23 +37,35 @@ func (m *Manager) ApplyAutomaticSessionTitle(
 	if !ok {
 		return false, nil
 	}
-	claim, ok := session.claimAutomaticTitle(title, m.now())
-	if !ok {
-		return false, nil
-	}
-	if err := m.persistSessionIdentity(ctx, session); err != nil {
-		session.rollbackAutomaticTitle(claim)
-		rollbackErr := m.writeMeta(session)
-		if rollbackErr != nil {
-			return false, errors.Join(err, fmt.Errorf("session: roll back automatic title: %w", rollbackErr))
+	var info *Info
+	applied, err := func() (bool, error) {
+		session.mu.Lock()
+		defer session.mu.Unlock()
+
+		claim, ok := session.claimAutomaticTitleLocked(title, m.now())
+		if !ok {
+			return false, nil
 		}
-		return false, err
+		metaPath := session.metaPath
+		meta := session.metaLocked()
+		info = session.infoLocked()
+		if err := m.persistSessionIdentitySnapshot(ctx, metaPath, meta, info); err != nil {
+			session.rollbackAutomaticTitleLocked(claim)
+			if rollbackErr := store.WriteSessionMeta(metaPath, session.metaLocked()); rollbackErr != nil {
+				return false, errors.Join(err, fmt.Errorf("session: roll back automatic title: %w", rollbackErr))
+			}
+			return false, err
+		}
+		return true, nil
+	}()
+	if err != nil || !applied {
+		return applied, err
 	}
-	m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventUpserted, session.Info()))
+	m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventUpserted, info))
 	return true, nil
 }
 
-func (s *Session) claimAutomaticTitle(candidate string, now time.Time) (sessionTitleClaim, bool) {
+func (s *Session) claimAutomaticTitleLocked(candidate string, now time.Time) (sessionTitleClaim, bool) {
 	if s == nil {
 		return sessionTitleClaim{}, false
 	}
@@ -61,24 +74,17 @@ func (s *Session) claimAutomaticTitle(candidate string, now time.Time) (sessionT
 		return sessionTitleClaim{}, false
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	if normalizeSessionType(s.Type) != SessionTypeUser || strings.TrimSpace(s.Name) != "" {
 		return sessionTitleClaim{}, false
 	}
-	claim := sessionTitleClaim{title: title, previousUpdatedAt: s.UpdatedAt}
+	claim := sessionTitleClaim{previousUpdatedAt: s.UpdatedAt}
 	s.Name = title
 	s.UpdatedAt = now.UTC()
 	return claim, true
 }
 
-func (s *Session) rollbackAutomaticTitle(claim sessionTitleClaim) {
+func (s *Session) rollbackAutomaticTitleLocked(claim sessionTitleClaim) {
 	if s == nil {
-		return
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.Name != claim.title {
 		return
 	}
 	s.Name = ""

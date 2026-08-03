@@ -92,7 +92,7 @@ func (m *Manager) cleanupLaunchedProcess(
 	cleanups []func(),
 	err error,
 ) error {
-	runExtensionRedactionCleanups(cleanups)
+	defer runExtensionRedactionCleanups(cleanups)
 	if process == nil {
 		return err
 	}
@@ -195,8 +195,10 @@ func (m *Manager) launchConfigFor(
 	if err != nil {
 		return subprocess.LaunchConfig{}, subprocess.InitializeRuntime{}, 0, nil, err
 	}
-	env, cleanups, err := m.resolveEnvMap(
+	env, cleanups, err := m.resolveInstanceEnvMap(
 		ctx,
+		ext.instanceKey(),
+		ext.manifest.RequiresEnv,
 		ext.rootDir,
 		ext.manifest.Subprocess.Env,
 		ext.manifest.Subprocess.SecretEnv,

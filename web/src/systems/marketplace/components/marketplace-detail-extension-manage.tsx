@@ -1,7 +1,9 @@
 import { MonoId, Pill, Section } from "@compozy/ui";
 
 import {
+  ExtensionKitInventoryPanel,
   ExtensionLogPanel,
+  ExtensionNetworkConfirmDialog,
   ExtensionProvenanceDialog,
   extensionTrustFacts,
   RemoveExtensionDialog,
@@ -17,7 +19,7 @@ import {
   MarketplaceDetailExtensionActions,
 } from "./marketplace-detail-extension-actions";
 import {
-  ExtensionBundlesProvided,
+  ExtensionAutomationStarted,
   ExtensionDetailBlock,
   ExtensionDiagnostics,
   ExtensionEnvironmentState,
@@ -49,18 +51,24 @@ function MarketplaceDetailExtensionManage({
     updateVersion: catalogVersion,
   });
   const {
-    bundles,
-    detail,
-    navigate,
     activeDialog,
+    detail,
     dismissDialog,
+    dismissNetworkConfirm,
+    enableResult,
+    inventory,
     logs,
+    navigate,
+    networkConfirm,
     requestProvenance,
     requestRemoval,
+    requestToggle,
     requestUpdate,
+    submitNetworkConfirm,
     submitUpdate,
     toggle,
     update,
+    workspaceId,
   } = state;
   const data = detail.data;
   if (!data) {
@@ -94,15 +102,27 @@ function MarketplaceDetailExtensionManage({
           isUpdatePending={update.isPending}
           onRequestProvenance={requestProvenance}
           onRequestRemoval={requestRemoval}
-          onToggleEnabled={enabled => toggle.mutate({ enabled, name })}
+          onToggleEnabled={requestToggle}
           onUpdate={requestUpdate}
           togglePending={toggle.isPending}
         />
       </Section>
+      {enableResult ? (
+        <ExtensionAutomationStarted started={enableResult.automation_started} />
+      ) : null}
+      {workspaceId === null ? (
+        <ExtensionKitInventoryPanel
+          error={inventory.error}
+          isLoading={inventory.isLoading}
+          items={inventory.data?.items}
+          onRetry={() => void inventory.refetch()}
+        />
+      ) : null}
       <ExtensionTokenBlock label="Capabilities" values={extension.capabilities ?? []} />
       <ExtensionTokenBlock label="Permissions" values={extension.permissions ?? []} />
       <ExtensionDetailBlock label="Environment">
         <ExtensionEnvironmentState
+          bound={extension.bound_env_keys ?? []}
           missing={extension.missing_env ?? []}
           required={extension.requires_env ?? []}
         />
@@ -177,14 +197,43 @@ function MarketplaceDetailExtensionManage({
           },
         ]}
       />
-      <ExtensionBundlesProvided
-        active={bundles.data}
-        error={bundles.error}
-        extensionName={extension.name}
-        isLoading={bundles.isLoading}
-        onRetry={() => void bundles.refetch()}
-        provided={extension.bundles ?? []}
-      />
+      {extension.network_requirement_digest ? (
+        <ExtensionRailBlock
+          label="Network participation"
+          rows={[
+            {
+              term: "Consent",
+              value: (
+                <Pill
+                  data-testid="extension-network-consent"
+                  mono
+                  size="xs"
+                  tone={extension.network_confirmation_required ? "warning" : "success"}
+                >
+                  {extension.network_confirmation_required ? "confirmation required" : "confirmed"}
+                </Pill>
+              ),
+            },
+            {
+              term: "Requirement digest",
+              value: <MonoId value={extension.network_requirement_digest} />,
+            },
+          ]}
+        />
+      ) : null}
+      {networkConfirm ? (
+        <ExtensionNetworkConfirmDialog
+          action={networkConfirm.action}
+          digest={networkConfirm.digest}
+          extensionName={extension.name}
+          onConfirm={submitNetworkConfirm}
+          onOpenChange={open => {
+            if (!open) dismissNetworkConfirm();
+          }}
+          open
+          pending={networkConfirm.action === "enable" ? toggle.isPending : update.isPending}
+        />
+      ) : null}
       <ExtensionProvenanceDialog
         extension={extension}
         onOpenChange={open => (open ? requestProvenance() : dismissDialog())}
@@ -200,15 +249,11 @@ function MarketplaceDetailExtensionManage({
         targetVersion={catalogVersion ?? extension.remote_version ?? ""}
       />
       <RemoveExtensionDialog
-        activeBundles={bundles.data}
-        dependencyError={bundles.error}
-        dependencyLoading={bundles.isLoading}
         extension={extension}
         onOpenChange={open => (open ? requestRemoval() : dismissDialog())}
         onRemoved={() =>
           void navigate({ search: { tab: "installed" }, to: "/marketplace/extensions" })
         }
-        onRetryDependencies={() => void bundles.refetch()}
         open={activeDialog === "remove"}
       />
     </>

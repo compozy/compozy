@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/extensionenv"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	memorypkg "github.com/compozy/compozy/internal/memory"
@@ -31,6 +32,7 @@ import (
 	"github.com/compozy/compozy/internal/store/sessiondb"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/vault"
 	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 	"github.com/pressly/goose/v3"
 )
@@ -1099,6 +1101,9 @@ func TestOpenGlobalDBCreatesExtensionsTableWithExpectedColumns(t *testing.T) {
 		"registry_name",
 		"remote_version",
 		globalDBExtensionProvenanceJSONKey,
+		"network_requirement_digest",
+		"network_confirmed_by",
+		"network_confirmed_at",
 	})
 	assertTableColumns(t, globalDB.db, "extension_dev_links", []string{
 		"extension_name",
@@ -1106,6 +1111,18 @@ func TestOpenGlobalDBCreatesExtensionsTableWithExpectedColumns(t *testing.T) {
 		"origin_path",
 		"bundle_generation",
 		"linked_at",
+		"network_requirement_digest",
+		"network_confirmed_by",
+		"network_confirmed_at",
+	})
+	assertTableColumns(t, globalDB.db, "extension_env_bindings", []string{
+		"extension_name",
+		"workspace_id",
+		"env_name",
+		"secret_ref",
+		"kind",
+		"created_at",
+		"updated_at",
 	})
 }
 
@@ -1145,6 +1162,9 @@ func TestOpenGlobalDBExtensionsSchemaIsIdempotent(t *testing.T) {
 		"registry_name",
 		"remote_version",
 		globalDBExtensionProvenanceJSONKey,
+		"network_requirement_digest",
+		"network_confirmed_by",
+		"network_confirmed_at",
 	})
 	assertTableColumns(t, second.db, "extension_dev_links", []string{
 		"extension_name",
@@ -1152,6 +1172,18 @@ func TestOpenGlobalDBExtensionsSchemaIsIdempotent(t *testing.T) {
 		"origin_path",
 		"bundle_generation",
 		"linked_at",
+		"network_requirement_digest",
+		"network_confirmed_by",
+		"network_confirmed_at",
+	})
+	assertTableColumns(t, second.db, "extension_env_bindings", []string{
+		"extension_name",
+		"workspace_id",
+		"env_name",
+		"secret_ref",
+		"kind",
+		"created_at",
+		"updated_at",
 	})
 }
 
@@ -1912,6 +1944,79 @@ func TestGlobalDBDeleteWorkspaceWithoutSessions(t *testing.T) {
 			compozyworkspace.ErrWorkspaceNotFound,
 		) {
 			t.Fatalf("GetWorkspace(deleted) error = %v, want ErrWorkspaceNotFound", err)
+		}
+	})
+
+	t.Run("Should delete scoped extension bindings and prevent same ID recovery", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(
+			t,
+			globalDB,
+			"ws-extension-secret-delete",
+			filepath.Join(t.TempDir(), "ws-extension-secret-delete"),
+		)
+		siblingID := registerWorkspaceForGlobalTests(
+			t,
+			globalDB,
+			"ws-extension-secret-sibling",
+			filepath.Join(t.TempDir(), "ws-extension-secret-sibling"),
+		)
+		deletedWorkspace, err := globalDB.GetWorkspace(ctx, workspaceID)
+		if err != nil {
+			t.Fatalf("GetWorkspace(before extension binding delete) error = %v", err)
+		}
+		bindings := []extensionenv.Binding{
+			{
+				ExtensionName: "kit", WorkspaceID: workspaceID, EnvName: "API_KEY",
+				SecretRef: vault.ExtensionSecretRef("kit", workspaceID, "API_KEY"), Kind: extensionenv.BindingKind,
+			},
+			{
+				ExtensionName: "kit", WorkspaceID: siblingID, EnvName: "API_KEY",
+				SecretRef: vault.ExtensionSecretRef("kit", siblingID, "API_KEY"), Kind: extensionenv.BindingKind,
+			},
+			{
+				ExtensionName: "kit", EnvName: "API_KEY",
+				SecretRef: vault.ExtensionSecretRef("kit", "", "API_KEY"), Kind: extensionenv.BindingKind,
+			},
+		}
+		for _, binding := range bindings {
+			if err := globalDB.PutEnvBinding(ctx, binding); err != nil {
+				t.Fatalf("PutEnvBinding(%#v) error = %v", binding, err)
+			}
+		}
+
+		if err := globalDB.DeleteWorkspace(ctx, workspaceID); err != nil {
+			t.Fatalf("DeleteWorkspace() error = %v", err)
+		}
+		deleted, err := globalDB.ListEnvBindings(ctx, "kit", workspaceID)
+		if err != nil || len(deleted) != 0 {
+			t.Fatalf("deleted workspace bindings = %#v, %v; want empty", deleted, err)
+		}
+		for _, preservedWorkspaceID := range []string{"", siblingID} {
+			preserved, listErr := globalDB.ListEnvBindings(ctx, "kit", preservedWorkspaceID)
+			if listErr != nil || len(preserved) != 1 {
+				t.Fatalf("preserved bindings for %q = %#v, %v; want one", preservedWorkspaceID, preserved, listErr)
+			}
+		}
+		if err := globalDB.InsertWorkspace(ctx, deletedWorkspace); err != nil {
+			t.Fatalf("InsertWorkspace(same ID) error = %v", err)
+		}
+		reused, err := globalDB.ListEnvBindings(ctx, "kit", workspaceID)
+		if err != nil || len(reused) != 0 {
+			t.Fatalf("reused workspace bindings = %#v, %v; want no recovered secrets", reused, err)
+		}
+		if err := globalDB.PutEnvBinding(ctx, bindings[0]); err != nil {
+			t.Fatalf("PutEnvBinding(raw cascade fixture) error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(ctx, `DELETE FROM workspaces WHERE id = ?`, workspaceID); err != nil {
+			t.Fatalf("raw workspace delete error = %v", err)
+		}
+		cascaded, err := globalDB.ListEnvBindings(ctx, "kit", workspaceID)
+		if err != nil || len(cascaded) != 0 {
+			t.Fatalf("raw-delete cascaded bindings = %#v, %v; want empty", cascaded, err)
 		}
 	})
 
@@ -2719,6 +2824,27 @@ func TestGlobalDBWriteEventSummary(t *testing.T) {
 	}
 	if got, want := errorOnly[0].Outcome, "failure"; got != want {
 		t.Fatalf("errorOnly[0].Outcome = %q, want %q", got, want)
+	}
+}
+
+func TestGlobalDBWriteEventSummariesAtomic(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openTestGlobalDB(t)
+	timestamp := time.Date(2026, 8, 2, 18, 0, 0, 0, time.UTC)
+	err := globalDB.WriteEventSummaries(testutil.Context(t), []EventSummary{
+		{ID: "duplicate-summary", Type: "settings.changed", Summary: "first", Timestamp: timestamp},
+		{ID: "duplicate-summary", Type: "settings.changed", Summary: "second", Timestamp: timestamp},
+	})
+	if !isSQLitePrimaryKeyConstraint(err) {
+		t.Fatalf("WriteEventSummaries(duplicate id) error = %v, want primary-key constraint", err)
+	}
+	summaries, listErr := globalDB.ListEventSummaries(testutil.Context(t), EventSummaryQuery{})
+	if listErr != nil {
+		t.Fatalf("ListEventSummaries() error = %v", listErr)
+	}
+	if len(summaries) != 0 {
+		t.Fatalf("ListEventSummaries() = %#v, want no partial batch writes", summaries)
 	}
 }
 

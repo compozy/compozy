@@ -17,7 +17,7 @@ import (
 
 func (h *BaseHandlers) marketplaceKindResult(
 	ctx context.Context,
-	kind string,
+	kind contract.MarketplaceKind,
 	query string,
 	offset int,
 	limit int,
@@ -33,8 +33,6 @@ func (h *BaseHandlers) marketplaceKindResult(
 			return h.curatedMarketplaceKind(ctx, marketplacepkg.KindSkill, "", offset, limit, scope)
 		}
 		return h.remoteSkillMarketplaceKind(ctx, query, offset, limit, scope)
-	case contract.MarketplaceKindBundle:
-		return h.bundleMarketplaceKind(ctx, query, offset, limit, scope)
 	default:
 		return marketplaceKindPage{}, errors.Join(
 			ErrMarketplaceNotFound, fmt.Errorf("unknown marketplace kind %q", kind),
@@ -59,7 +57,7 @@ func (h *BaseHandlers) curatedMarketplaceKind(
 	if err != nil {
 		return marketplaceKindPage{}, normalizeCuratedMarketplaceError(err)
 	}
-	installed, err := h.marketplaceInstallIndex(ctx, string(kind), scope)
+	installed, err := h.marketplaceInstallIndex(ctx, contract.MarketplaceKind(kind), scope)
 	if err != nil {
 		return marketplaceKindPage{}, err
 	}
@@ -74,7 +72,7 @@ func (h *BaseHandlers) curatedMarketplaceKind(
 	fence := marketplaceCatalogFence(kind, result.State)
 	return marketplaceKindPage{
 		result: contract.MarketplaceKindResult{
-			Kind:       string(kind),
+			Kind:       contract.MarketplaceKind(kind),
 			Total:      &result.Total,
 			Stale:      result.State.Stale,
 			ErrorClass: result.State.ErrorClass,
@@ -214,7 +212,7 @@ func newMarketplaceInstallIndex() marketplaceInstallIndex {
 
 func (h *BaseHandlers) marketplaceInstallIndex(
 	ctx context.Context,
-	kind string,
+	kind contract.MarketplaceKind,
 	scope marketplaceReadScope,
 ) (marketplaceInstallIndex, error) {
 	switch kind {
@@ -343,14 +341,23 @@ func (h *BaseHandlers) curatedMarketplaceListing(
 		updateAvailable = isInstalled && registrypkg.VersionIsNewer(installation.version, entry.Version)
 	}
 	result := contract.MarketplaceListingPayload{
-		Kind: string(entry.Kind), EntryID: entry.EntryID, Name: entry.Name, Description: entry.Description,
-		Version: entry.Version, Author: details.Author, Source: details.Source,
-		InstallSlug: marketplaceInstallSlug(details),
-		Transport:   marketplaceTransport(details), Tier: entry.Tier,
-		PublishedAt: entry.PublishedAt, UpdatedAt: entry.UpdatedAt,
-		Installed: isInstalled, InstalledName: installation.name, InstalledVersion: installation.version,
-		UpdateAvailable: updateAvailable,
-		ManagePath:      installation.managePath,
+		Kind:             contract.MarketplaceKind(entry.Kind),
+		EntryID:          entry.EntryID,
+		Name:             entry.Name,
+		Description:      entry.Description,
+		Version:          entry.Version,
+		Author:           details.Author,
+		Source:           details.Source,
+		InstallSlug:      marketplaceInstallSlug(details),
+		Transport:        marketplaceTransport(details),
+		Tier:             entry.Tier,
+		PublishedAt:      entry.PublishedAt,
+		UpdatedAt:        entry.UpdatedAt,
+		Installed:        isInstalled,
+		InstalledName:    installation.name,
+		InstalledVersion: installation.version,
+		UpdateAvailable:  updateAvailable,
+		ManagePath:       installation.managePath,
 	}
 	if entry.Kind != marketplacepkg.KindExtension {
 		return result, nil

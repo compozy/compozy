@@ -4,9 +4,10 @@ import { notifyUser } from "@/lib/user-feedback";
 
 import type { MarketplaceListing } from "../types";
 
-export type MarketplaceDialogSelection =
-  | { entryId: string; kind: "bundle" }
-  | { entryId: string; installedName?: string | null; kind: "mcp" };
+export type MarketplaceDialogSelection = {
+  entryId: string;
+  installedName?: string | null;
+};
 
 export type MarketplaceActionControllerPhase =
   | { status: "idle"; nextRequestId: number }
@@ -17,7 +18,6 @@ export type MarketplaceActionControllerPhase =
       selection: MarketplaceDialogSelection;
     }
   | { status: "mcpInstall"; nextRequestId: number; selection: MarketplaceDialogSelection }
-  | { status: "bundleActivation"; nextRequestId: number; selection: MarketplaceDialogSelection }
   | {
       status: "extensionTrust";
       nextRequestId: number;
@@ -42,7 +42,7 @@ type MarketplaceActionControllerEventPayloadMap = {
   dialogDismissed: {};
   extensionTrustConfirmed: {
     describeFailure: (error: unknown) => string;
-    execute: (entry: MarketplaceListing) => Promise<void>;
+    execute: (entry: MarketplaceListing) => Promise<boolean>;
     notifySuccess: (entry: MarketplaceListing) => void;
   };
   extensionTrustFailed: { error: string; requestId: number };
@@ -76,17 +76,11 @@ export const marketplaceActionControllerLogic = createStoreLogic<
     },
     detailLoaded: (context, event) => {
       if (context.status !== "detailLoading" || context.requestId !== event.requestId) return;
-      return context.selection.kind === "mcp"
-        ? {
-            nextRequestId: context.nextRequestId,
-            selection: context.selection,
-            status: "mcpInstall",
-          }
-        : {
-            nextRequestId: context.nextRequestId,
-            selection: context.selection,
-            status: "bundleActivation",
-          };
+      return {
+        nextRequestId: context.nextRequestId,
+        selection: context.selection,
+        status: "mcpInstall",
+      };
     },
     detailRequested: (context, event, enqueue) => {
       const requestId = context.nextRequestId + 1;
@@ -161,8 +155,11 @@ function enqueueExtensionTrust(
 ) {
   enqueue.effect(async ({ trigger }) => {
     try {
-      await event.execute(entry);
-      trigger.extensionTrustSucceeded({ notifySuccess: event.notifySuccess, requestId });
+      const notify = await event.execute(entry);
+      trigger.extensionTrustSucceeded({
+        notifySuccess: notify ? event.notifySuccess : () => undefined,
+        requestId,
+      });
     } catch (error) {
       trigger.extensionTrustFailed({ error: event.describeFailure(error), requestId });
     }

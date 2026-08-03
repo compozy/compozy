@@ -10,8 +10,10 @@
         "exec",
         "init",
         "install",
+        "inventory",
         "list",
         "logs",
+        "preview",
         "provenance",
         "publish",
         "reload",
@@ -19,6 +21,7 @@
         "search",
         "status",
         "update",
-        "validate"
+        "validate",
+        "secrets"
     ]
 }

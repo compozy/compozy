@@ -102,13 +102,8 @@ function foldTurnGroup(
   }
   const rowsBeforeTerminal = hasTerminalText ? group.slice(0, -1) : [...group];
   const rowsInsideFold: SessionRow[] = [];
-  const persistentRows: SessionRow[] = [];
   for (const row of rowsBeforeTerminal) {
-    if (isPersistentTurnRow(row)) {
-      persistentRows.push(row);
-    } else {
-      rowsInsideFold.push(row);
-    }
+    if (!isPersistentTurnRow(row)) rowsInsideFold.push(row);
   }
   if (rowsInsideFold.length === 0) {
     return group;
@@ -124,13 +119,26 @@ function foldTurnGroup(
     interrupted,
     rows: rowsInsideFold,
   };
-  return hasTerminalText ? [foldRow, ...persistentRows, terminal] : [foldRow, ...persistentRows];
+  const visibleRows: SessionRow[] = [];
+  let foldInserted = false;
+  for (const row of rowsBeforeTerminal) {
+    if (isPersistentTurnRow(row)) {
+      visibleRows.push(row);
+    } else if (!foldInserted) {
+      visibleRows.push(foldRow);
+      foldInserted = true;
+    }
+  }
+  if (hasTerminalText) visibleRows.push(terminal);
+  return visibleRows;
 }
 
-// Permission rows remain operator-visible audit and decision surfaces after a
-// turn settles; they are not transient reasoning or tool work.
+// Text and permission rows remain operator-visible after a turn settles; they
+// are transcript content and audit surfaces, not transient reasoning or tool work.
 function isPersistentTurnRow(row: SessionRow): boolean {
-  return row.kind === "data" && row.part.name === "data-compozy-permission";
+  return (
+    row.kind === "text" || (row.kind === "data" && row.part.name === "data-compozy-permission")
+  );
 }
 
 // Label fallbacks: a settled turn folds even when its duration is unknown, and

@@ -20,6 +20,8 @@ func TestExtensionLifecycleEventCoverageMatrix(t *testing.T) {
 	t.Parallel()
 
 	secret := "super-secret-must-not-appear"
+	boundCount := 2
+	automationCount := 3
 	tests := []struct {
 		name  string
 		event LifecycleEvent
@@ -28,82 +30,117 @@ func TestExtensionLifecycleEventCoverageMatrix(t *testing.T) {
 		{
 			name: "Should emit install completed keys",
 			event: LifecycleEvent{Type: eventspkg.ExtensionInstallCompleted, ExtensionName: "alpha",
-				SourceKind: "github", DigestMatched: true, WorkspaceID: secret, BundleGeneration: secret},
+				SourceKind: "github", DigestMatched: true, WorkspaceID: secret, ExtensionGeneration: secret},
 			want: map[string]any{"extension_name": "alpha", "source_kind": "github", "digest_matched": true},
 		},
 		{
 			name: "Should emit install failed keys",
 			event: LifecycleEvent{Type: eventspkg.ExtensionInstallFailed, ExtensionName: "alpha",
-				SourceKind: "local_path", WorkspaceID: secret, BundleGeneration: secret},
+				SourceKind: "local_path", WorkspaceID: secret, ExtensionGeneration: secret},
 			want: map[string]any{"extension_name": "alpha", "source_kind": "local_path", "digest_matched": false},
 		},
 		{
 			name: "Should emit update completed keys",
 			event: LifecycleEvent{Type: eventspkg.ExtensionUpdateCompleted, ExtensionName: "alpha",
-				SourceKind: "github", WorkspaceID: secret, BundleGeneration: secret},
+				SourceKind: "github", WorkspaceID: secret, ExtensionGeneration: secret},
 			want: map[string]any{"extension_name": "alpha", "source_kind": "github"},
 		},
 		{
 			name: "Should emit update failed keys",
 			event: LifecycleEvent{Type: eventspkg.ExtensionUpdateFailed, ExtensionName: "alpha",
-				SourceKind: "git", WorkspaceID: secret, BundleGeneration: secret},
+				SourceKind: "git", WorkspaceID: secret, ExtensionGeneration: secret},
 			want: map[string]any{"extension_name": "alpha", "source_kind": "git"},
 		},
 		{
 			name: "Should emit development linked keys",
 			event: LifecycleEvent{Type: eventspkg.ExtensionDevLinked, ExtensionName: "alpha",
-				WorkspaceID: "workspace-1", BundleGeneration: "abc123", SourceKind: secret},
+				WorkspaceID: "workspace-1", ExtensionGeneration: "abc123", SourceKind: secret},
 			want: map[string]any{
-				"extension_name": "alpha", "workspace_id": "workspace-1", "bundle_generation": "abc123",
+				"extension_name": "alpha", "workspace_id": "workspace-1", "extension_generation": "abc123",
 			},
 		},
 		{
 			name: "Should emit development unlinked keys",
 			event: LifecycleEvent{Type: eventspkg.ExtensionDevUnlinked, ExtensionName: "alpha",
-				WorkspaceID: "workspace-1", BundleGeneration: "abc123", SourceKind: secret},
+				WorkspaceID: "workspace-1", ExtensionGeneration: "abc123", SourceKind: secret},
 			want: map[string]any{
-				"extension_name": "alpha", "workspace_id": "workspace-1", "bundle_generation": "abc123",
+				"extension_name": "alpha", "workspace_id": "workspace-1", "extension_generation": "abc123",
 			},
 		},
 		{
 			name: "Should emit reload completed keys",
 			event: LifecycleEvent{Type: eventspkg.ExtensionReloadCompleted, ExtensionName: "alpha",
-				WorkspaceID: "workspace-1", BundleGeneration: "abc123", SourceKind: secret},
+				WorkspaceID: "workspace-1", ExtensionGeneration: "abc123", SourceKind: secret},
 			want: map[string]any{
-				"extension_name": "alpha", "workspace_id": "workspace-1", "bundle_generation": "abc123",
+				"extension_name": "alpha", "workspace_id": "workspace-1", "extension_generation": "abc123",
 			},
 		},
 		{
 			name: "Should emit reload failed keys",
 			event: LifecycleEvent{Type: eventspkg.ExtensionReloadFailed, ExtensionName: "alpha",
-				WorkspaceID: "workspace-1", BundleGeneration: "abc123", SourceKind: secret},
+				WorkspaceID: "workspace-1", ExtensionGeneration: "abc123", SourceKind: secret},
 			want: map[string]any{
-				"extension_name": "alpha", "workspace_id": "workspace-1", "bundle_generation": "abc123",
+				"extension_name": "alpha", "workspace_id": "workspace-1", "extension_generation": "abc123",
 			},
 		},
 		{
 			name: "Should emit publish completed keys",
 			event: LifecycleEvent{Type: eventspkg.ExtensionPublishCompleted, ExtensionName: "alpha",
-				SourceKind: secret, WorkspaceID: secret, BundleGeneration: secret},
+				SourceKind: secret, WorkspaceID: secret, ExtensionGeneration: secret},
 			want: map[string]any{"extension_name": "alpha"},
 		},
 		{
 			name: "Should emit publish failed keys",
 			event: LifecycleEvent{Type: eventspkg.ExtensionPublishFailed, ExtensionName: "alpha",
-				SourceKind: secret, WorkspaceID: secret, BundleGeneration: secret},
+				SourceKind: secret, WorkspaceID: secret, ExtensionGeneration: secret},
 			want: map[string]any{"extension_name": "alpha"},
 		},
 		{
 			name: "Should omit workspace for a global crash backoff",
 			event: LifecycleEvent{Type: eventspkg.ExtensionCrashLoopBackoff, ExtensionName: "alpha",
-				SourceKind: secret, BundleGeneration: secret},
+				SourceKind: secret, ExtensionGeneration: secret},
 			want: map[string]any{"extension_name": "alpha"},
 		},
 		{
 			name: "Should include workspace for a development crash backoff",
 			event: LifecycleEvent{Type: eventspkg.ExtensionCrashLoopBackoff, ExtensionName: "alpha",
-				WorkspaceID: "workspace-1", SourceKind: secret, BundleGeneration: secret},
+				WorkspaceID: "workspace-1", SourceKind: secret, ExtensionGeneration: secret},
 			want: map[string]any{"extension_name": "alpha", "workspace_id": "workspace-1"},
+		},
+		{
+			name: "Should emit network confirmation keys",
+			event: LifecycleEvent{
+				Type: eventspkg.ExtensionNetworkConfirmed, ExtensionName: "alpha", WorkspaceID: "workspace-1",
+				Digest: "digest-1", ConfirmedBy: "agent:session-1", SourceKind: secret,
+			},
+			want: map[string]any{
+				"extension_name": "alpha", "workspace_id": "workspace-1", "digest": "digest-1",
+				"confirmed_by": "agent:session-1",
+			},
+		},
+		{
+			name: "Should emit secrets updated keys",
+			event: LifecycleEvent{
+				Type: eventspkg.ExtensionSecretsUpdated, ExtensionName: "alpha", BoundCount: &boundCount,
+				Digest: secret, ConfirmedBy: secret,
+			},
+			want: map[string]any{"extension_name": "alpha", "workspace_id": "", "bound_count": 2},
+		},
+		{
+			name: "Should emit secrets failure keys",
+			event: LifecycleEvent{
+				Type: eventspkg.ExtensionSecretsUpdateFailed, ExtensionName: "alpha", WorkspaceID: "workspace-1",
+				Digest: secret, ConfirmedBy: secret,
+			},
+			want: map[string]any{"extension_name": "alpha", "workspace_id": "workspace-1"},
+		},
+		{
+			name: "Should emit enabled automation count keys",
+			event: LifecycleEvent{
+				Type: eventspkg.ExtensionEnabled, ExtensionName: "alpha", AutomationCount: &automationCount,
+				Digest: secret, ConfirmedBy: secret,
+			},
+			want: map[string]any{"extension_name": "alpha", "automation_started_count": 3},
 		},
 	}
 

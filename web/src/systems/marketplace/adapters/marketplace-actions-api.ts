@@ -2,10 +2,6 @@ import { apiClient, apiRequestFailed, requireResponseData } from "@/lib/api-clie
 
 import { marketplaceApiError } from "./marketplace-api-error";
 import type {
-  BundleActivationRequest,
-  BundleActivationResponse,
-  BundlePreviewRequest,
-  BundlePreviewResponse,
   ExtensionInstallRequest,
   ExtensionInstallResponse,
   MarketplaceKind,
@@ -19,7 +15,7 @@ import type {
 } from "../types";
 
 export async function refreshMarketplaceCatalog(
-  kind?: Exclude<MarketplaceKind, "bundle">,
+  kind?: MarketplaceKind,
   signal?: AbortSignal
 ): Promise<MarketplaceRefreshResponse> {
   const { data, error, response } = await apiClient.POST("/api/marketplace/refresh", {
@@ -93,36 +89,4 @@ export async function installMarketplaceExtension(
   }
 
   return requireResponseData(data, response, "Failed to install the extension");
-}
-
-export async function previewMarketplaceBundle(
-  body: BundlePreviewRequest,
-  signal?: AbortSignal
-): Promise<BundlePreviewResponse> {
-  const { data, error, response } = await apiClient.POST("/api/bundles/preview", {
-    body,
-    signal,
-  });
-
-  if (apiRequestFailed(response, error)) {
-    throw marketplaceApiError("Failed to preview the bundle", response, error);
-  }
-
-  return requireResponseData(data, response, "Failed to preview the bundle");
-}
-
-export async function activateMarketplaceBundle(
-  body: BundleActivationRequest,
-  signal?: AbortSignal
-): Promise<BundleActivationResponse> {
-  const { data, error, response } = await apiClient.POST("/api/bundles/activations", {
-    body,
-    signal,
-  });
-
-  if (apiRequestFailed(response, error)) {
-    throw marketplaceApiError("Failed to activate the bundle", response, error);
-  }
-
-  return requireResponseData(data, response, "Failed to activate the bundle");
 }

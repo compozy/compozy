@@ -61,6 +61,9 @@ func (k *Kernel) preparePutRaw(actor MutationActor, draft RawDraft) (MutationAct
 	if err != nil {
 		return MutationActor{}, RawDraft{}, err
 	}
+	if err := validateDraftOwner(normalizedActor, normalizedDraft); err != nil {
+		return MutationActor{}, RawDraft{}, err
+	}
 	if err := validateActorWriteAccess(normalizedActor, normalizedDraft.Kind, normalizedDraft.Scope); err != nil {
 		return MutationActor{}, RawDraft{}, err
 	}
@@ -105,7 +108,7 @@ func (k *Kernel) putRawWithExecutor(
 		ID:        draft.ID,
 		Version:   existing.Version + 1,
 		Scope:     draft.Scope,
-		Owner:     ownerFromActor(actor),
+		Owner:     ownerFromDraft(actor, draft),
 		Source:    actor.Source,
 		SpecJSON:  append([]byte(nil), draft.SpecJSON...),
 		CreatedAt: existing.CreatedAt,
@@ -129,7 +132,7 @@ func (k *Kernel) insertRawRecord(
 		ID:        draft.ID,
 		Version:   1,
 		Scope:     draft.Scope,
-		Owner:     ownerFromActor(actor),
+		Owner:     ownerFromDraft(actor, draft),
 		Source:    actor.Source,
 		SpecJSON:  append([]byte(nil), draft.SpecJSON...),
 		CreatedAt: now,

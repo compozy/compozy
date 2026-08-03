@@ -88,7 +88,7 @@ function MarketplaceKindPageBody({ kind, page, searchInputRef }: MarketplaceKind
       <Button
         data-testid="marketplace-refresh"
         disabled={refresh.isPending}
-        onClick={() => refresh.mutate(kind === "bundle" ? undefined : kind)}
+        onClick={() => refresh.mutate(kind)}
         size="sm"
         type="button"
         variant="ghost"
@@ -222,7 +222,7 @@ function MarketplaceKindPageBody({ kind, page, searchInputRef }: MarketplaceKind
         <span className="font-mono text-mono-id tabular-nums text-muted">
           {page.installedCount}
         </span>{" "}
-        {config.installedNoun}
+        installed
         {!page.isLoading && page.updatesAvailable > 0 ? (
           <>
             <span aria-hidden="true" className="mx-1.5 text-faint">

@@ -10,11 +10,15 @@ import (
 )
 
 const (
-	lifecycleEventExtensionNameKey    = "extension_name"
-	lifecycleEventSourceKindKey       = "source_kind"
-	lifecycleEventDigestMatchedKey    = "digest_matched"
-	lifecycleEventWorkspaceIDKey      = "workspace_id"
-	lifecycleEventBundleGenerationKey = "bundle_generation"
+	lifecycleEventExtensionNameKey       = "extension_name"
+	lifecycleEventSourceKindKey          = "source_kind"
+	lifecycleEventDigestMatchedKey       = "digest_matched"
+	lifecycleEventWorkspaceIDKey         = "workspace_id"
+	lifecycleEventExtensionGenerationKey = "extension_generation"
+	lifecycleEventDigestKey              = "digest"
+	lifecycleEventConfirmedByKey         = "confirmed_by"
+	lifecycleEventBoundCountKey          = "bound_count"
+	lifecycleEventAutomationCountKey     = "automation_started_count"
 )
 
 // LifecycleEventSink records one closed-shape extension lifecycle event.
@@ -24,12 +28,16 @@ type LifecycleEventSink interface {
 
 // LifecycleEvent carries only the correlation values allowed by the public event matrix.
 type LifecycleEvent struct {
-	Type             string
-	ExtensionName    string
-	SourceKind       string
-	DigestMatched    bool
-	WorkspaceID      string
-	BundleGeneration string
+	Type                string
+	ExtensionName       string
+	SourceKind          string
+	DigestMatched       bool
+	WorkspaceID         string
+	ExtensionGeneration string
+	Digest              string
+	ConfirmedBy         string
+	BoundCount          *int
+	AutomationCount     *int
 }
 
 // RequiredFields returns the exact payload shape for the event type.
@@ -60,16 +68,41 @@ func (e LifecycleEvent) RequiredFields() (map[string]any, error) {
 		} else {
 			return nil, errors.New("extension: development lifecycle event workspace id is required")
 		}
-		if generation := strings.TrimSpace(e.BundleGeneration); generation != "" {
-			fields[lifecycleEventBundleGenerationKey] = generation
+		if generation := strings.TrimSpace(e.ExtensionGeneration); generation != "" {
+			fields[lifecycleEventExtensionGenerationKey] = generation
 		} else {
-			return nil, errors.New("extension: development lifecycle event bundle generation is required")
+			return nil, errors.New("extension: development lifecycle event extension generation is required")
 		}
 	case eventspkg.ExtensionPublishCompleted, eventspkg.ExtensionPublishFailed:
 	case eventspkg.ExtensionCrashLoopBackoff:
 		if workspaceID := strings.TrimSpace(e.WorkspaceID); workspaceID != "" {
 			fields[lifecycleEventWorkspaceIDKey] = workspaceID
 		}
+	case eventspkg.ExtensionNetworkConfirmed:
+		fields[lifecycleEventWorkspaceIDKey] = strings.TrimSpace(e.WorkspaceID)
+		if digest := strings.TrimSpace(e.Digest); digest != "" {
+			fields[lifecycleEventDigestKey] = digest
+		} else {
+			return nil, errors.New("extension: network confirmation digest is required")
+		}
+		if actor := strings.TrimSpace(e.ConfirmedBy); actor != "" {
+			fields[lifecycleEventConfirmedByKey] = actor
+		} else {
+			return nil, errors.New("extension: network confirmation actor is required")
+		}
+	case eventspkg.ExtensionSecretsUpdated:
+		fields[lifecycleEventWorkspaceIDKey] = strings.TrimSpace(e.WorkspaceID)
+		if e.BoundCount == nil {
+			return nil, errors.New("extension: secrets updated bound count is required")
+		}
+		fields[lifecycleEventBoundCountKey] = *e.BoundCount
+	case eventspkg.ExtensionSecretsUpdateFailed:
+		fields[lifecycleEventWorkspaceIDKey] = strings.TrimSpace(e.WorkspaceID)
+	case eventspkg.ExtensionEnabled:
+		if e.AutomationCount == nil {
+			return nil, errors.New("extension: enabled automation count is required")
+		}
+		fields[lifecycleEventAutomationCountKey] = *e.AutomationCount
 	default:
 		return nil, fmt.Errorf("extension: unsupported lifecycle event type %q", e.Type)
 	}

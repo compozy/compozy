@@ -1,6 +1,7 @@
 package extensionpkg
 
 import (
+	"strings"
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -50,17 +51,20 @@ func DescribeExtension(ext *Extension, daemonRunning bool, now time.Time) contra
 	}
 
 	return contract.ExtensionPayload{
-		Name:                ext.Info.Name,
-		WorkspaceID:         ext.Status.WorkspaceID,
-		Version:             ext.Info.Version,
-		Type:                extensionType(ext.Manifest, ext.Info),
-		Source:              ext.Info.Source.String(),
-		Enabled:             ext.Info.Enabled,
-		State:               extensionState(ext.Info, ext.Status, daemonRunning),
-		Capabilities:        append([]string(nil), ext.Info.Capabilities.Provides...),
-		Permissions:         append([]string(nil), ext.Info.Permissions.Requires...),
-		RequiresEnv:         requiresEnv,
-		MissingEnv:          missingEnv,
+		Name:                     ext.Info.Name,
+		WorkspaceID:              ext.Status.WorkspaceID,
+		Version:                  ext.Info.Version,
+		Type:                     extensionType(ext.Manifest, ext.Info),
+		Source:                   ext.Info.Source.String(),
+		Enabled:                  ext.Info.Enabled,
+		State:                    extensionState(ext.Info, ext.Status, daemonRunning),
+		Capabilities:             append([]string(nil), ext.Info.Capabilities.Provides...),
+		Permissions:              append([]string(nil), ext.Info.Permissions.Requires...),
+		RequiresEnv:              requiresEnv,
+		MissingEnv:               missingEnv,
+		NetworkRequirementDigest: ext.Info.NetworkRequirementDigest,
+		NetworkConfirmationRequired: strings.TrimSpace(ext.Info.NetworkRequirementDigest) != "" &&
+			(strings.TrimSpace(ext.Info.NetworkConfirmedBy) == "" || ext.Info.NetworkConfirmedAt.IsZero()),
 		PID:                 ext.Status.PID,
 		UptimeSeconds:       uptimeSeconds,
 		Health:              extensionHealth(ext.Manifest, ext.Info, ext.Status, daemonRunning),
@@ -76,7 +80,6 @@ func DescribeExtension(ext *Extension, daemonRunning bool, now time.Time) contra
 		RemoteVersion:       dereferenceOptionalString(ext.Info.RemoteVersion),
 		DigestMatched:       ext.Info.Provenance.DigestMatched,
 		DaemonRunning:       daemonRunning,
-		Bundles:             bundleSummaryPayloads(ext.Bundles),
 		Provenance:          extensionProvenancePayload(ext.Info.Provenance),
 		Trust:               extensionTrustPayload(ext.Info.Provenance),
 		Diagnostics:         append([]contract.DiagnosticItem(nil), ext.Info.Provenance.Warnings...),
@@ -128,25 +131,6 @@ func extensionHealth(manifest *Manifest, info ExtensionInfo, status ExtensionSta
 		return extensionHealthHealthy
 	}
 	return extensionHealthUnknown
-}
-
-func bundleSummaryPayloads(values []BundleSpec) []contract.ExtensionBundleSummaryPayload {
-	if len(values) == 0 {
-		return nil
-	}
-	payloads := make([]contract.ExtensionBundleSummaryPayload, 0, len(values))
-	for _, value := range values {
-		profiles := make([]string, 0, len(value.Profiles))
-		for _, profile := range value.Profiles {
-			profiles = append(profiles, profile.Name)
-		}
-		payloads = append(payloads, contract.ExtensionBundleSummaryPayload{
-			Name:        value.Name,
-			Description: value.Description,
-			Profiles:    profiles,
-		})
-	}
-	return payloads
 }
 
 func extensionProvenancePayload(

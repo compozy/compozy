@@ -40,22 +40,46 @@ func (f agentSkillPublisherFunc) SyncSkills(ctx context.Context) error {
 	return f.Sync(ctx)
 }
 
-type agentSkillDeclarationProvider func(context.Context) (agentSkillDesiredResources, error)
+type agentSkillDeclarationProvider func(context.Context) (agentSkillDeclarations, error)
 
 type agentPublicationInput struct {
 	sourceKey string
 	scope     resources.ResourceScope
+	owner     *resources.ResourceOwner
 	spec      compozyconfig.AgentDef
 }
 
 type skillPublicationInput struct {
 	sourceKey string
 	scope     resources.ResourceScope
+	owner     *resources.ResourceOwner
 	spec      skillspkg.SkillResourceSpec
 }
 
-type agentSkillDesiredResources struct {
+type soulPublicationInput struct {
+	sourceKey      string
+	agentSourceKey string
+	scope          resources.ResourceScope
+	owner          *resources.ResourceOwner
+	agentName      string
+	sourcePath     string
+	body           string
+}
+
+type heartbeatPublicationInput struct {
+	sourceKey      string
+	agentSourceKey string
+	scope          resources.ResourceScope
+	owner          *resources.ResourceOwner
+	agentName      string
+	sourcePath     string
+	body           string
+}
+
+type agentSkillDeclarations struct {
 	agents     []agentPublicationInput
+	souls      []soulPublicationInput
+	heartbeats []heartbeatPublicationInput
 	skills     []skillPublicationInput
 	mcpServers []mcpServerPublicationInput
 }
@@ -66,6 +90,10 @@ type agentSkillSourceSyncer struct {
 	agentStore     resources.Store[compozyconfig.AgentDef]
 	agentCodec     resources.KindCodec[compozyconfig.AgentDef]
 	agentProjector resources.TypedProjector[compozyconfig.AgentDef]
+	soulStore      resources.Store[soul.ResourceSpec]
+	soulCodec      resources.KindCodec[soul.ResourceSpec]
+	heartbeatStore resources.Store[heartbeat.ResourceSpec]
+	heartbeatCodec resources.KindCodec[heartbeat.ResourceSpec]
 	skillStore     resources.Store[skillspkg.SkillResourceSpec]
 	skillCodec     resources.KindCodec[skillspkg.SkillResourceSpec]
 	skillProjector resources.TypedProjector[skillspkg.SkillResourceSpec]

@@ -5,22 +5,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
-  deactivateBundle,
   disableExtension,
   enableExtension,
   ExtensionsApiError,
-  getBundleActivation,
+  getExtensionInventory,
   getExtensionProvenance,
-  listBundleActivations,
   listExtensionLogs,
   listExtensions,
   removeExtension,
-  updateBundleActivation,
   updateExtension,
 } from "../extensions-api";
 import {
-  bundleActivationFixtures,
   extensionFixtures,
+  extensionInventoryFixtures,
   extensionProvenanceFixtures,
 } from "../../mocks/fixtures";
 import { expectFetchRequest, mockEmptyResponse, mockJsonResponse } from "@/test/fetch-test-utils";
@@ -48,30 +45,24 @@ describe("extensions management reads", () => {
     await expectFetchRequest({ callIndex: 1, path: "/api/extensions/otel-bridge/provenance" });
   });
 
-  it("Should read bundle inventory and one activation by stable id", async () => {
-    mockJsonResponse({ activations: bundleActivationFixtures });
-    await expect(listBundleActivations()).resolves.toEqual(bundleActivationFixtures);
-    await expectFetchRequest({ path: "/api/bundles/activations" });
+  it("Should read the kit inventory for one extension without a workspace selector", async () => {
+    const items = extensionInventoryFixtures["dep-kit-ops"]!;
+    const payload = { enabled: false, extension: "dep-kit-ops", items };
+    mockJsonResponse(payload);
 
-    mockJsonResponse({ activation: bundleActivationFixtures[0] });
-    await expect(getBundleActivation("activation-ops-starter")).resolves.toEqual(
-      bundleActivationFixtures[0]
-    );
-    await expectFetchRequest({
-      callIndex: 1,
-      path: "/api/bundles/activations/activation-ops-starter",
-    });
+    await expect(getExtensionInventory("dep-kit-ops")).resolves.toEqual(payload);
+    await expectFetchRequest({ path: "/api/extensions/dep-kit-ops/inventory" });
   });
 });
 
 describe("extensions management mutations", () => {
   it("Should enable and disable one extension through distinct lifecycle routes", async () => {
     const controller = new AbortController();
-    mockJsonResponse({ extension: extensionFixtures[0] });
-    await expect(enableExtension("otel-bridge", controller.signal)).resolves.toEqual(
-      extensionFixtures[0]
-    );
+    const result = { automation_started: ["span-export"], extension: extensionFixtures[0] };
+    mockJsonResponse(result);
+    await expect(enableExtension("otel-bridge", {}, controller.signal)).resolves.toEqual(result);
     await expectFetchRequest({
+      body: {},
       method: "POST",
       path: "/api/extensions/otel-bridge/enable",
       signal: controller.signal,
@@ -139,42 +130,64 @@ describe("extensions management mutations", () => {
     await expectFetchRequest({ path: "/api/extensions/otel-bridge/logs" });
   });
 
-  it("Should confirm a network requirement when updating and deactivating a bundle", async () => {
-    const controller = new AbortController();
-    const body = { confirm_network_requirement: true, expected_version: 7 };
-    mockJsonResponse({ activation: bundleActivationFixtures[0] });
-    await expect(
-      updateBundleActivation("activation-ops-starter", body, controller.signal)
-    ).resolves.toEqual(bundleActivationFixtures[0]);
+  it("Should ratify the exact digest on both the enable and update routes", async () => {
+    const digest = "sha256:6f1c0a94d3b27e58";
+    mockJsonResponse({ automation_started: [], extension: extensionFixtures[0] });
+    await enableExtension("dep-kit-ops", { confirmNetworkDigest: digest });
     await expectFetchRequest({
-      body,
-      method: "PATCH",
-      path: "/api/bundles/activations/activation-ops-starter",
-      signal: controller.signal,
+      body: { confirm_network_digest: digest },
+      method: "POST",
+      path: "/api/extensions/dep-kit-ops/enable",
     });
 
-    mockEmptyResponse({ status: 204 });
-    await expect(
-      deactivateBundle("activation-ops-starter", controller.signal)
-    ).resolves.toBeUndefined();
+    mockEmptyResponse();
+    await updateExtension("dep-kit-ops", {
+      allow_unverified: true,
+      confirm_network_digest: digest,
+      version: "1.1.0",
+    });
     await expectFetchRequest({
+      body: { allow_unverified: true, confirm_network_digest: digest, version: "1.1.0" },
       callIndex: 1,
-      method: "DELETE",
-      path: "/api/bundles/activations/activation-ops-starter",
-      signal: controller.signal,
+      method: "PUT",
+      path: "/api/extensions/dep-kit-ops",
     });
   });
 });
 
 describe("extensions management failures", () => {
   it("Should surface the daemon error body for a rejected mutation", async () => {
-    mockJsonResponse({ error: "active bundle still depends on this extension" }, { status: 409 });
+    mockJsonResponse({ error: "extension files are locked by another operation" }, { status: 409 });
 
     const error = await removeExtension("slack-notify").catch(reason => reason);
     expect(error).toBeInstanceOf(ExtensionsApiError);
     expect(error).toMatchObject({
       kind: "daemon",
-      message: "active bundle still depends on this extension",
+      message: "extension files are locked by another operation",
+      status: 409,
+    });
+  });
+
+  /**
+   * The digest is the whole remediation: without it the operator cannot ratify what the daemon
+   * refused, so the typed error has to carry it rather than flatten to a message.
+   */
+  it("Should expose the daemon code and current digest from a network-confirmation refusal", async () => {
+    mockJsonResponse(
+      {
+        code: "extension_network_confirmation_required",
+        current_digest: "sha256:6f1c0a94d3b27e58",
+        error: "dep-kit-ops declares Live network participation that has not been confirmed",
+      },
+      { status: 409 }
+    );
+
+    const error = await enableExtension("dep-kit-ops").catch((reason: unknown) => reason);
+    expect(error).toBeInstanceOf(ExtensionsApiError);
+    expect(error).toMatchObject({
+      code: "extension_network_confirmation_required",
+      currentDigest: "sha256:6f1c0a94d3b27e58",
+      kind: "daemon",
       status: 409,
     });
   });
@@ -182,11 +195,11 @@ describe("extensions management failures", () => {
   it("Should fall back to operation and status when the daemon has no error body", async () => {
     mockEmptyResponse({ status: 503 });
 
-    const error = await listBundleActivations().catch(reason => reason);
+    const error = await getExtensionInventory("dep-kit-ops").catch((reason: unknown) => reason);
     expect(error).toBeInstanceOf(ExtensionsApiError);
     expect(error).toMatchObject({
       kind: "transport",
-      message: "Failed to list bundle activations (503)",
+      message: "Failed to load kit inventory for dep-kit-ops (503)",
       status: 503,
     });
   });
@@ -207,17 +220,7 @@ describe("extensions management failures", () => {
     ["extension inventory", "extensions", () => listExtensions()],
     ["extension provenance", "provenance", () => getExtensionProvenance("otel-bridge")],
     ["extension lifecycle", "extension", () => enableExtension("otel-bridge")],
-    ["bundle inventory", "activations", () => listBundleActivations()],
-    ["bundle detail", "activation", () => getBundleActivation("activation-ops-starter")],
-    [
-      "bundle update",
-      "activation",
-      () =>
-        updateBundleActivation("activation-ops-starter", {
-          confirm_network_requirement: true,
-          expected_version: 7,
-        }),
-    ],
+    ["kit inventory", "items", () => getExtensionInventory("dep-kit-ops")],
   ])("Should reject a successful empty %s envelope", async (_name, field, invoke) => {
     mockJsonResponse({});
 
@@ -226,6 +229,18 @@ describe("extensions management failures", () => {
     expect(error).toMatchObject({
       kind: "malformed_response",
       message: expect.stringContaining(`missing ${field}`),
+      status: 200,
+    });
+  });
+
+  it("Should reject kit inventory for a different extension identity", async () => {
+    mockJsonResponse({ enabled: false, extension: "otel-bridge", items: [] });
+
+    const error = await getExtensionInventory("dep-kit-ops").catch(reason => reason);
+    expect(error).toBeInstanceOf(ExtensionsApiError);
+    expect(error).toMatchObject({
+      kind: "malformed_response",
+      message: "Failed to load kit inventory for dep-kit-ops: extension identity mismatch (200)",
       status: 200,
     });
   });

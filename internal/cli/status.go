@@ -150,7 +150,7 @@ func doctorBundle(result DoctorRecord) outputBundle {
 			return header + "\n\n" + table, nil
 		},
 		toon: func() (string, error) {
-			return renderToonObject("doctor", []string{daemonStatusKey, "items", cliDurationMSKey}, []string{
+			return renderToonObject("doctor", []string{daemonStatusKey, cliItemsKey, cliDurationMSKey}, []string{
 				result.Status,
 				strconv.Itoa(result.Summary.Total),
 				strconv.FormatInt(result.DurationMS, 10),

@@ -33,7 +33,6 @@ type handlerConfig struct {
 	loops              core.LoopService
 	bridges            core.BridgeService
 	notifications      core.NotificationPresetService
-	bundles            core.BundleService
 	supportBundles     core.SupportBundleService
 	tools              core.ToolRegistry
 	toolArtifacts      toolspkg.ToolArtifactStore

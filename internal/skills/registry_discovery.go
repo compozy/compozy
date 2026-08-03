@@ -73,7 +73,7 @@ func (r *Registry) ApplyResourceRecords(revision int64, records []resources.Reco
 		if err != nil {
 			return fmt.Errorf("skills: convert resource %q: %w", record.ID, err)
 		}
-		applySkillResourceOrigin(record, skill)
+		applySkillExtensionOrigin(record, skill)
 		name := strings.TrimSpace(skill.Meta.Name)
 		if name == "" {
 			continue

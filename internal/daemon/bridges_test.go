@@ -2334,6 +2334,13 @@ func (r *resolvingReloadExtensionRuntime) HookDeclarations(context.Context) ([]h
 	return nil, nil
 }
 
+func (r *resolvingReloadExtensionRuntime) InspectPackageResources(
+	context.Context,
+	string,
+) (*extensionpkg.Extension, error) {
+	return nil, extensionpkg.ErrExtensionNotFound
+}
+
 func (r *targetSnapshotExtensionRuntime) Reload(context.Context) error {
 	r.reloadCalls++
 	return r.reloadErr
@@ -2497,4 +2504,11 @@ func (r *blockingReloadExtensionRuntime) Get(string) (*extensionpkg.Extension, e
 
 func (r *blockingReloadExtensionRuntime) HookDeclarations(context.Context) ([]hookspkg.HookDecl, error) {
 	return nil, nil
+}
+
+func (r *blockingReloadExtensionRuntime) InspectPackageResources(
+	context.Context,
+	string,
+) (*extensionpkg.Extension, error) {
+	return nil, extensionpkg.ErrExtensionNotFound
 }

@@ -611,23 +611,7 @@ func normalizeExtensionPayload(value compozycontract.ExtensionPayload) compozyco
 	value.Permissions = normalizeStrings(value.Permissions)
 	value.RequiresEnv = normalizeStrings(value.RequiresEnv)
 	value.MissingEnv = normalizeStrings(value.MissingEnv)
-	value.Bundles = normalizeExtensionBundles(value.Bundles)
 	return value
-}
-
-func normalizeExtensionBundles(
-	values []compozycontract.ExtensionBundleSummaryPayload,
-) []compozycontract.ExtensionBundleSummaryPayload {
-	if len(values) == 0 {
-		return nil
-	}
-
-	normalized := make([]compozycontract.ExtensionBundleSummaryPayload, len(values))
-	for idx, value := range values {
-		value.Profiles = normalizeStrings(value.Profiles)
-		normalized[idx] = value
-	}
-	return normalized
 }
 
 func normalizeStrings(values []string) []string {

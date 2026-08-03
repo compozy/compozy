@@ -1205,8 +1205,8 @@ func TestBootExtensionsBuildsManagerWhenNoExtensionsInstalled(t *testing.T) {
 	if err != nil {
 		t.Fatalf("registry.Get(%s) error = %v", devcycle.Name, err)
 	}
-	if !info.Enabled || info.Source != extensionpkg.SourceBundled {
-		t.Fatalf("dev-cycle info = %#v, want enabled bundled extension", info)
+	if info.Enabled || info.Source != extensionpkg.SourceBundled {
+		t.Fatalf("dev-cycle info = %#v, want installed but disabled bundled extension", info)
 	}
 	if got, want := filepath.Base(info.ManifestPath), "extension.json"; got != want {
 		t.Fatalf("dev-cycle manifest file = %q, want %q", got, want)
@@ -1571,6 +1571,96 @@ func TestExtensionManagerDepsIncludeResourceHandlesAndTrigger(t *testing.T) {
 	}
 }
 
+func TestDefaultExtensionManagerFactory(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should pass the env binding store to extension launches", func(t *testing.T) {
+		t.Parallel()
+
+		db := openDaemonTestGlobalDB(t)
+		const extensionName = "factory-env-binding"
+		installDaemonTestExtension(t, db, extensionName, daemonTestExtensionOptions{
+			requiredEnv: []string{"BOUND_SECRET"},
+		}, true)
+		kernel, err := resources.NewKernel(db.DB())
+		if err != nil {
+			t.Fatalf("resources.NewKernel() error = %v", err)
+		}
+		lookupErr := errors.New("recording env binding lookup")
+		bindingStore := &recordingExtensionEnvBindingStore{listErr: lookupErr}
+		d := &Daemon{}
+		d.applyExtensionManagerFactoryDefault()
+		runtime := d.newExtensionManager(extensionManagerDeps{
+			Registry:       extensionpkg.NewRegistry(db.DB()),
+			Sessions:       &fakeSessionManager{},
+			ResourceStore:  kernel,
+			SourceSessions: kernel,
+			EnvBindings:    bindingStore,
+			Logger:         discardLogger(),
+		})
+		if runtime == nil {
+			t.Fatal("default extension manager factory returned nil runtime")
+		}
+		t.Cleanup(func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			if stopErr := runtime.Stop(ctx); stopErr != nil {
+				t.Errorf("extension runtime Stop() error = %v", stopErr)
+			}
+		})
+
+		err = runtime.Start(t.Context())
+		if !errors.Is(err, lookupErr) {
+			t.Fatalf("extension runtime Start() error = %v, want env binding lookup failure", err)
+		}
+		wantCalls := []extensionEnvBindingLookup{{extension: extensionName, workspaceID: ""}}
+		if got := bindingStore.snapshot(); !reflect.DeepEqual(got, wantCalls) {
+			t.Fatalf("ListEnvBindings() calls = %#v, want %#v", got, wantCalls)
+		}
+	})
+}
+
+type extensionEnvBindingLookup struct {
+	extension   string
+	workspaceID string
+}
+
+type recordingExtensionEnvBindingStore struct {
+	mu      sync.Mutex
+	listErr error
+	calls   []extensionEnvBindingLookup
+}
+
+func (s *recordingExtensionEnvBindingStore) ListEnvBindings(
+	_ context.Context,
+	extension string,
+	workspaceID string,
+) ([]extensionpkg.EnvBinding, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.calls = append(s.calls, extensionEnvBindingLookup{extension: extension, workspaceID: workspaceID})
+	return nil, s.listErr
+}
+
+func (*recordingExtensionEnvBindingStore) PutEnvBinding(context.Context, extensionpkg.EnvBinding) error {
+	return errors.New("unexpected env binding write")
+}
+
+func (*recordingExtensionEnvBindingStore) DeleteEnvBinding(
+	context.Context,
+	string,
+	string,
+	string,
+) error {
+	return errors.New("unexpected env binding delete")
+}
+
+func (s *recordingExtensionEnvBindingStore) snapshot() []extensionEnvBindingLookup {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]extensionEnvBindingLookup(nil), s.calls...)
+}
+
 func TestBootHooksBuildsResourceBackedRuntimeAndAttachesObserver(t *testing.T) {
 	t.Parallel()
 
@@ -1744,35 +1834,13 @@ func TestAttachExtensionRuntimeUsesHookBindingSyncBeforeRebuild(t *testing.T) {
 func TestNewDaemonExtensionServiceHandlesNilRegistryAndDefaults(t *testing.T) {
 	t.Parallel()
 
-	if svc := newDaemonExtensionService(
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
-		compozyconfig.HomePaths{},
-		nil,
-		nil,
-	); svc != nil {
+	if svc := newDaemonExtensionService(daemonExtensionServiceDeps{}); svc != nil {
 		t.Fatalf("newDaemonExtensionService(nil) = %#v, want nil", svc)
 	}
 
 	db := openDaemonTestGlobalDB(t)
 	registry := extensionpkg.NewRegistry(db.DB())
-	if svc := newDaemonExtensionService(
-		registry,
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
-		compozyconfig.HomePaths{},
-		nil,
-		nil,
-	); svc == nil {
+	if svc := newDaemonExtensionService(daemonExtensionServiceDeps{Registry: registry}); svc == nil {
 		t.Fatal("newDaemonExtensionService(defaults) = nil, want service")
 	}
 }
@@ -2243,199 +2311,232 @@ func TestHooksNotifierNoopDispatchesWithoutRuntime(t *testing.T) {
 	}
 }
 
-func TestDaemonExtensionServiceInstallStatusAndDisable(t *testing.T) {
+func TestDaemonExtensionServiceInstallStatusEnableAndDisable(t *testing.T) {
 	t.Parallel()
 
-	homePaths := testHomePaths(t)
-	db := openDaemonTestGlobalDB(t)
-	registry := extensionpkg.NewRegistry(db.DB())
-	manager := extensionpkg.NewManager(registry, extensionpkg.WithLogger(discardLogger()))
-	if err := manager.Start(testutil.Context(t)); err != nil {
-		t.Fatalf("manager.Start() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := manager.Stop(testutil.Context(t)); err != nil {
-			t.Fatalf("manager.Stop() error = %v", err)
+	t.Run("Should install disabled and transition through enable and disable", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := testHomePaths(t)
+		db := openDaemonTestGlobalDB(t)
+		registry := extensionpkg.NewRegistry(db.DB())
+		manager := extensionpkg.NewManager(registry, extensionpkg.WithLogger(discardLogger()))
+		if err := manager.Start(testutil.Context(t)); err != nil {
+			t.Fatalf("manager.Start() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := manager.Stop(testutil.Context(t)); err != nil {
+				t.Fatalf("manager.Stop() error = %v", err)
+			}
+		})
+
+		syncs := 0
+		fixedNow := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
+		service := newDaemonExtensionService(
+			daemonExtensionServiceDeps{
+				Registry: registry,
+				Runtime:  manager,
+				HookBindings: fakeHookBindingPublisher(func(context.Context) error {
+					syncs++
+					return nil
+				}),
+				HomePaths: homePaths,
+				Logger:    discardLogger(),
+				Now:       func() time.Time { return fixedNow },
+			},
+			withDaemonExtensionMarketplace(
+				compozyconfig.ExtensionsConfig{Trust: compozyconfig.ExtensionsTrustConfig{AllowUnverified: true}},
+				nil,
+			),
+			withDaemonExtensionAutomation(&fakeAutomationManager{}),
+			withDaemonExtensionEventWriter(db),
+		)
+		actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "compozy extension install")
+		if err != nil {
+			t.Fatalf("DeriveHumanActorContext() error = %v", err)
+		}
+
+		fixtureDir := filepath.Join(t.TempDir(), "service-ext")
+		if err := os.MkdirAll(fixtureDir, 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(%q) error = %v", fixtureDir, err)
+		}
+		if err := os.WriteFile(
+			filepath.Join(fixtureDir, "extension.toml"),
+			[]byte(daemonTestExtensionManifest("service-ext", daemonTestExtensionOptions{
+				runtimeCommand: daemonExtensionHelperCommand(t),
+				runtimeArgs:    daemonExtensionHelperArgs(),
+				runtimeEnv:     daemonExtensionHelperEnv(""),
+			})),
+			0o644,
+		); err != nil {
+			t.Fatalf("os.WriteFile(extension.toml) error = %v", err)
+		}
+		installed, err := service.Install(testutil.Context(t), contract.InstallExtensionRequest{
+			Source:          contract.InstallExtensionSourceLocalPath,
+			Ref:             fixtureDir,
+			AllowUnverified: true,
+		}, actor)
+		if err != nil {
+			t.Fatalf("service.Install() error = %v", err)
+		}
+		if got, want := installed.Name, "service-ext"; got != want {
+			t.Fatalf("installed.Name = %q, want %q", got, want)
+		}
+		if got, want := installed.State, "disabled"; got != want {
+			t.Fatalf("installed.State = %q, want %q", got, want)
+		}
+		if installed.Enabled {
+			t.Fatal("installed.Enabled = true, want false")
+		}
+		if got, want := installed.PID, 0; got != want {
+			t.Fatalf("installed.PID = %d, want %d", got, want)
+		}
+		if installed.Provenance == nil ||
+			installed.Provenance.InstalledFrom != extensionpkg.ExtensionInstalledFromLocalPath ||
+			installed.Provenance.ChecksumVerified || !installed.Provenance.AllowUnverified {
+			t.Fatalf("installed provenance = %#v, want consented local-path provenance", installed.Provenance)
+		}
+		_, err = service.Install(testutil.Context(t), contract.InstallExtensionRequest{
+			Source:          contract.InstallExtensionSourceLocalPath,
+			Ref:             fixtureDir,
+			AllowUnverified: true,
+		}, actor)
+		if !errors.Is(err, extensionpkg.ErrExtensionExists) {
+			t.Fatalf("service.Install(duplicate) error = %v, want ErrExtensionExists", err)
+		}
+		listed, err := service.List(testutil.Context(t))
+		if err != nil {
+			t.Fatalf("service.List() error = %v", err)
+		}
+		if got, want := len(listed), 1; got != want {
+			t.Fatalf("len(service.List()) = %d, want %d", got, want)
+		}
+		if got, want := listed[0].Name, "service-ext"; got != want {
+			t.Fatalf("service.List()[0].Name = %q, want %q", got, want)
+		}
+		if listed[0].Enabled {
+			t.Fatal("service.List()[0].Enabled = true, want false")
+		}
+
+		info, err := registry.Get("service-ext")
+		if err != nil {
+			t.Fatalf("registry.Get(service-ext) error = %v", err)
+		}
+		wantManifestPath := filepath.Join(extensionpkg.ManagedInstallPath(homePaths, "service-ext"), "extension.toml")
+		if info.ManifestPath != wantManifestPath {
+			t.Fatalf("installed manifest path = %q, want %q", info.ManifestPath, wantManifestPath)
+		}
+		if _, err := os.Stat(filepath.Join(fixtureDir, "extension.toml")); err != nil {
+			t.Fatalf("source fixture manifest stat error = %v", err)
+		}
+
+		status, err := service.Status(testutil.Context(t), "service-ext")
+		if err != nil {
+			t.Fatalf("service.Status() error = %v", err)
+		}
+		if got, want := status.Name, "service-ext"; got != want {
+			t.Fatalf("status.Name = %q, want %q", got, want)
+		}
+		if got, want := status.State, "disabled"; got != want {
+			t.Fatalf("status.State = %q, want %q", got, want)
+		}
+		if status.Enabled {
+			t.Fatal("status.Enabled = true, want false")
+		}
+		if got, want := status.PID, 0; got != want {
+			t.Fatalf("status.PID = %d, want %d", got, want)
+		}
+
+		enabled, err := service.Enable(
+			testutil.Context(t),
+			"service-ext",
+			contract.EnableExtensionRequest{},
+			actor,
+		)
+		if err != nil {
+			t.Fatalf("service.Enable() error = %v", err)
+		}
+		if got, want := enabled.Extension.State, "active"; got != want {
+			t.Fatalf("enabled.Extension.State = %q, want %q", got, want)
+		}
+		if !enabled.Extension.Enabled {
+			t.Fatal("enabled.Extension.Enabled = false, want true")
+		}
+
+		disabled, err := service.Disable(testutil.Context(t), "service-ext", actor)
+		if err != nil {
+			t.Fatalf("service.Disable() error = %v", err)
+		}
+		if got, want := disabled.State, "disabled"; got != want {
+			t.Fatalf("disabled.State = %q, want %q", got, want)
+		}
+		if disabled.Enabled {
+			t.Fatal("disabled.Enabled = true, want false")
+		}
+
+		listed, err = service.List(testutil.Context(t))
+		if err != nil {
+			t.Fatalf("service.List() error = %v", err)
+		}
+		if got, want := len(listed), 1; got != want {
+			t.Fatalf("len(service.List()) = %d, want %d", got, want)
+		}
+		if got, want := listed[0].State, "disabled"; got != want {
+			t.Fatalf("service.List()[0].State = %q, want %q", got, want)
+		}
+		if syncs != 3 {
+			t.Fatalf("hook binding sync count = %d, want 3", syncs)
+		}
+		summaries, err := db.ListEventSummaries(testutil.Context(t), store.EventSummaryQuery{
+			Component: eventspkg.ComponentExtension,
+		})
+		if err != nil {
+			t.Fatalf("ListEventSummaries(extension) error = %v", err)
+		}
+		wantCounts := map[string]int{
+			eventspkg.ExtensionInstallCompleted: 1,
+			eventspkg.ExtensionInstallFailed:    1,
+			eventspkg.ExtensionEnabled:          1,
+			eventspkg.ExtensionDisabled:         1,
+		}
+		gotCounts := make(map[string]int, len(wantCounts))
+		var installContent []byte
+		var failedInstallContent []byte
+		for i, summary := range summaries {
+			gotCounts[summary.Type]++
+			if summary.ActorKind != string(taskpkg.ActorKindHuman) || summary.ActorID != "user-1" {
+				t.Fatalf("summary[%d] actor = %s/%s, want human/user-1", i, summary.ActorKind, summary.ActorID)
+			}
+			if summary.Type == eventspkg.ExtensionInstallCompleted {
+				installContent = summary.Content
+			}
+			if summary.Type == eventspkg.ExtensionInstallFailed {
+				failedInstallContent = summary.Content
+			}
+		}
+		if len(summaries) != 4 || !maps.Equal(gotCounts, wantCounts) {
+			t.Fatalf("extension event type counts = %#v from summaries=%#v, want %#v", gotCounts, summaries, wantCounts)
+		}
+		var installFields map[string]any
+		if err := json.Unmarshal(installContent, &installFields); err != nil {
+			t.Fatalf("json.Unmarshal(install event) error = %v", err)
+		}
+		wantInstallFields := map[string]any{
+			"extension_name": "service-ext",
+			"source_kind":    "local_path",
+			"digest_matched": false,
+		}
+		if !reflect.DeepEqual(installFields, wantInstallFields) {
+			t.Fatalf("install event content = %#v, want %#v", installFields, wantInstallFields)
+		}
+		var failedInstallFields map[string]any
+		if err := json.Unmarshal(failedInstallContent, &failedInstallFields); err != nil {
+			t.Fatalf("json.Unmarshal(failed install event) error = %v", err)
+		}
+		if !reflect.DeepEqual(failedInstallFields, wantInstallFields) {
+			t.Fatalf("failed install event content = %#v, want %#v", failedInstallFields, wantInstallFields)
 		}
 	})
-
-	syncs := 0
-	fixedNow := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
-	service := newDaemonExtensionService(
-		registry,
-		manager,
-		fakeHookBindingPublisher(func(context.Context) error {
-			syncs++
-			return nil
-		}),
-		nil,
-		nil,
-		nil,
-		nil,
-		homePaths,
-		discardLogger(),
-		func() time.Time { return fixedNow },
-		withDaemonExtensionMarketplace(
-			compozyconfig.ExtensionsConfig{Trust: compozyconfig.ExtensionsTrustConfig{AllowUnverified: true}},
-			nil,
-		),
-		withDaemonExtensionEventWriter(db),
-	)
-	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "compozy extension install")
-	if err != nil {
-		t.Fatalf("DeriveHumanActorContext() error = %v", err)
-	}
-
-	fixtureDir := filepath.Join(t.TempDir(), "service-ext")
-	if err := os.MkdirAll(fixtureDir, 0o755); err != nil {
-		t.Fatalf("os.MkdirAll(%q) error = %v", fixtureDir, err)
-	}
-	if err := os.WriteFile(
-		filepath.Join(fixtureDir, "extension.toml"),
-		[]byte(daemonTestExtensionManifest("service-ext", daemonTestExtensionOptions{
-			runtimeCommand: daemonExtensionHelperCommand(t),
-			runtimeArgs:    daemonExtensionHelperArgs(),
-			runtimeEnv:     daemonExtensionHelperEnv(""),
-		})),
-		0o644,
-	); err != nil {
-		t.Fatalf("os.WriteFile(extension.toml) error = %v", err)
-	}
-	installed, err := service.Install(testutil.Context(t), contract.InstallExtensionRequest{
-		Source:          contract.InstallExtensionSourceLocalPath,
-		Ref:             fixtureDir,
-		AllowUnverified: true,
-	}, actor)
-	if err != nil {
-		t.Fatalf("service.Install() error = %v", err)
-	}
-	if installed.Name != "service-ext" || installed.State != "active" || !installed.DaemonRunning {
-		t.Fatalf("installed extension = %#v, want active daemon-backed extension", installed)
-	}
-	if installed.Provenance == nil ||
-		installed.Provenance.InstalledFrom != extensionpkg.ExtensionInstalledFromLocalPath ||
-		installed.Provenance.ChecksumVerified || !installed.Provenance.AllowUnverified {
-		t.Fatalf("installed provenance = %#v, want consented local-path provenance", installed.Provenance)
-	}
-	_, err = service.Install(testutil.Context(t), contract.InstallExtensionRequest{
-		Source:          contract.InstallExtensionSourceLocalPath,
-		Ref:             fixtureDir,
-		AllowUnverified: true,
-	}, actor)
-	if !errors.Is(err, extensionpkg.ErrExtensionExists) {
-		t.Fatalf("service.Install(duplicate) error = %v, want ErrExtensionExists", err)
-	}
-	listed, err := service.List(testutil.Context(t))
-	if err != nil {
-		t.Fatalf("service.List() error = %v", err)
-	}
-	if len(listed) != 1 || listed[0].Name != "service-ext" || !listed[0].Enabled {
-		t.Fatalf("service.List() = %#v, want one auto-enabled local extension", listed)
-	}
-
-	info, err := registry.Get("service-ext")
-	if err != nil {
-		t.Fatalf("registry.Get(service-ext) error = %v", err)
-	}
-	wantManifestPath := filepath.Join(extensionpkg.ManagedInstallPath(homePaths, "service-ext"), "extension.toml")
-	if info.ManifestPath != wantManifestPath {
-		t.Fatalf("installed manifest path = %q, want %q", info.ManifestPath, wantManifestPath)
-	}
-	if _, err := os.Stat(filepath.Join(fixtureDir, "extension.toml")); err != nil {
-		t.Fatalf("source fixture manifest stat error = %v", err)
-	}
-
-	status, err := service.Status(testutil.Context(t), "service-ext")
-	if err != nil {
-		t.Fatalf("service.Status() error = %v", err)
-	}
-	if status.Name != "service-ext" || status.State != "active" {
-		t.Fatalf("status = %#v, want active extension", status)
-	}
-
-	disabled, err := service.Disable(testutil.Context(t), "service-ext", actor)
-	if err != nil {
-		t.Fatalf("service.Disable() error = %v", err)
-	}
-	if disabled.State != "disabled" || disabled.Enabled {
-		t.Fatalf("disabled extension = %#v, want disabled extension", disabled)
-	}
-
-	enabled, err := service.Enable(testutil.Context(t), "service-ext", actor)
-	if err != nil {
-		t.Fatalf("service.Enable() error = %v", err)
-	}
-	if enabled.State != "active" || !enabled.Enabled {
-		t.Fatalf("enabled extension = %#v, want active enabled extension", enabled)
-	}
-
-	disabled, err = service.Disable(testutil.Context(t), "service-ext", actor)
-	if err != nil {
-		t.Fatalf("service.Disable(second) error = %v", err)
-	}
-	if disabled.State != "disabled" || disabled.Enabled {
-		t.Fatalf("disabled extension after second disable = %#v, want disabled extension", disabled)
-	}
-
-	listed, err = service.List(testutil.Context(t))
-	if err != nil {
-		t.Fatalf("service.List() error = %v", err)
-	}
-	if len(listed) != 1 || listed[0].State != "disabled" {
-		t.Fatalf("listed extensions = %#v, want one disabled extension", listed)
-	}
-	if syncs != 4 {
-		t.Fatalf("hook binding sync count = %d, want 4", syncs)
-	}
-	summaries, err := db.ListEventSummaries(testutil.Context(t), store.EventSummaryQuery{
-		Component: eventspkg.ComponentExtension,
-	})
-	if err != nil {
-		t.Fatalf("ListEventSummaries(extension) error = %v", err)
-	}
-	wantCounts := map[string]int{
-		eventspkg.ExtensionInstallCompleted: 1,
-		eventspkg.ExtensionInstallFailed:    1,
-		eventspkg.ExtensionEnabled:          1,
-		eventspkg.ExtensionDisabled:         2,
-	}
-	gotCounts := make(map[string]int, len(wantCounts))
-	var installContent []byte
-	var failedInstallContent []byte
-	for i, summary := range summaries {
-		gotCounts[summary.Type]++
-		if summary.ActorKind != string(taskpkg.ActorKindHuman) || summary.ActorID != "user-1" {
-			t.Fatalf("summary[%d] actor = %s/%s, want human/user-1", i, summary.ActorKind, summary.ActorID)
-		}
-		if summary.Type == eventspkg.ExtensionInstallCompleted {
-			installContent = summary.Content
-		}
-		if summary.Type == eventspkg.ExtensionInstallFailed {
-			failedInstallContent = summary.Content
-		}
-	}
-	if len(summaries) != 5 || !maps.Equal(gotCounts, wantCounts) {
-		t.Fatalf("extension event type counts = %#v from summaries=%#v, want %#v", gotCounts, summaries, wantCounts)
-	}
-	var installFields map[string]any
-	if err := json.Unmarshal(installContent, &installFields); err != nil {
-		t.Fatalf("json.Unmarshal(install event) error = %v", err)
-	}
-	wantInstallFields := map[string]any{
-		"extension_name": "service-ext",
-		"source_kind":    "local_path",
-		"digest_matched": false,
-	}
-	if !reflect.DeepEqual(installFields, wantInstallFields) {
-		t.Fatalf("install event content = %#v, want %#v", installFields, wantInstallFields)
-	}
-	var failedInstallFields map[string]any
-	if err := json.Unmarshal(failedInstallContent, &failedInstallFields); err != nil {
-		t.Fatalf("json.Unmarshal(failed install event) error = %v", err)
-	}
-	if !reflect.DeepEqual(failedInstallFields, wantInstallFields) {
-		t.Fatalf("failed install event content = %#v, want %#v", failedInstallFields, wantInstallFields)
-	}
 }
 
 func TestDaemonExtensionServiceInstallsPublishedSources(t *testing.T) {
@@ -2559,16 +2660,12 @@ func newDaemonDistributionInstallService(
 	db := openDaemonTestGlobalDB(t)
 	registry := extensionpkg.NewRegistry(db.DB())
 	service, ok := newDaemonExtensionService(
-		registry,
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
-		homePaths,
-		discardLogger(),
-		time.Now,
+		daemonExtensionServiceDeps{
+			Registry:  registry,
+			HomePaths: homePaths,
+			Logger:    discardLogger(),
+			Now:       time.Now,
+		},
 		withDaemonExtensionMarketplace(
 			compozyconfig.ExtensionsConfig{Trust: compozyconfig.ExtensionsTrustConfig{AllowUnverified: true}},
 			loader,
@@ -2752,6 +2849,14 @@ func (s *daemonExtensionEventStoreStub) WriteEventSummary(context.Context, store
 	return s.writeErr
 }
 
+func (s *daemonExtensionEventStoreStub) WriteEventSummaries(
+	_ context.Context,
+	summaries []store.EventSummary,
+) error {
+	s.writeCalls += len(summaries)
+	return s.writeErr
+}
+
 func (*daemonExtensionEventStoreStub) ListEventSummaries(
 	context.Context,
 	store.EventSummaryQuery,
@@ -2759,10 +2864,10 @@ func (*daemonExtensionEventStoreStub) ListEventSummaries(
 	return nil, nil
 }
 
-func TestDaemonExtensionServiceRollsBackFailedInstallReload(t *testing.T) {
+func TestDaemonExtensionServiceRollsBackFailedEnableReload(t *testing.T) {
 	t.Parallel()
 
-	t.Run("ShouldRollBackManagedInstallWhenReloadFails", func(t *testing.T) {
+	t.Run("Should keep the managed install disabled when enable reload fails", func(t *testing.T) {
 		t.Parallel()
 
 		homePaths := testHomePaths(t)
@@ -2779,22 +2884,21 @@ func TestDaemonExtensionServiceRollsBackFailedInstallReload(t *testing.T) {
 		})
 
 		service := newDaemonExtensionService(
-			registry,
-			manager,
-			fakeHookBindingPublisher(func(context.Context) error {
-				return nil
-			}),
-			nil,
-			nil,
-			nil,
-			nil,
-			homePaths,
-			discardLogger(),
-			time.Now,
+			daemonExtensionServiceDeps{
+				Registry: registry,
+				Runtime:  manager,
+				HookBindings: fakeHookBindingPublisher(func(context.Context) error {
+					return nil
+				}),
+				HomePaths: homePaths,
+				Logger:    discardLogger(),
+				Now:       time.Now,
+			},
 			withDaemonExtensionMarketplace(
 				compozyconfig.ExtensionsConfig{Trust: compozyconfig.ExtensionsTrustConfig{AllowUnverified: true}},
 				nil,
 			),
+			withDaemonExtensionAutomation(&fakeAutomationManager{}),
 		)
 		actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "compozy extension install")
 		if err != nil {
@@ -2834,30 +2938,57 @@ Broken agent missing required name.
 			t.Fatalf("os.WriteFile(AGENT.md) error = %v", err)
 		}
 
-		_, err = service.Install(testutil.Context(t), contract.InstallExtensionRequest{
+		installed, err := service.Install(testutil.Context(t), contract.InstallExtensionRequest{
 			Source:          contract.InstallExtensionSourceLocalPath,
 			Ref:             fixtureDir,
 			AllowUnverified: true,
 		}, actor)
-		if err == nil {
-			t.Fatal("service.Install(invalid extension) error = nil, want reload failure")
+		if err != nil {
+			t.Fatalf("service.Install(invalid extension) error = %v", err)
 		}
-		if !strings.Contains(err.Error(), "agent name is required") {
-			t.Fatalf("service.Install(invalid extension) error = %v, want agent parse failure", err)
+		if installed.Enabled {
+			t.Fatal("service.Install(invalid extension).Enabled = true, want false")
+		}
+		if got, want := installed.State, "disabled"; got != want {
+			t.Fatalf("service.Install(invalid extension).State = %q, want %q", got, want)
 		}
 
-		if _, err := registry.Get("rollback-ext"); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
-			t.Fatalf("registry.Get(rollback-ext) error = %v, want ErrExtensionNotFound", err)
+		_, err = service.Enable(
+			testutil.Context(t),
+			"rollback-ext",
+			contract.EnableExtensionRequest{},
+			actor,
+		)
+		if err == nil {
+			t.Fatal("service.Enable(invalid extension) error = nil, want reload failure")
+		}
+		if !strings.Contains(err.Error(), "agent name is required") {
+			t.Fatalf("service.Enable(invalid extension) error = %v, want agent parse failure", err)
+		}
+
+		info, err := registry.Get("rollback-ext")
+		if err != nil {
+			t.Fatalf("registry.Get(rollback-ext) error = %v", err)
+		}
+		if info.Enabled {
+			t.Fatal("registry.Get(rollback-ext).Enabled = true, want rolled back disabled state")
 		}
 		managedPath := extensionpkg.ManagedInstallPath(homePaths, "rollback-ext")
-		if _, err := os.Stat(managedPath); !errors.Is(err, os.ErrNotExist) {
-			t.Fatalf("os.Stat(%q) error = %v, want not exists", managedPath, err)
+		if _, err := os.Stat(managedPath); err != nil {
+			t.Fatalf("os.Stat(%q) error = %v, want managed install preserved", managedPath, err)
 		}
-		if _, err := manager.Get("rollback-ext"); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
-			t.Fatalf("manager.Get(rollback-ext) error = %v, want ErrExtensionNotFound", err)
+		managed, err := manager.Get("rollback-ext")
+		if err != nil {
+			t.Fatalf("manager.Get(rollback-ext) error = %v", err)
 		}
-		if listed := manager.List(); len(listed) != 0 {
-			t.Fatalf("manager.List() = %#v, want no extensions after rollback", listed)
+		if managed.Status.Enabled {
+			t.Fatal("manager.Get(rollback-ext).Status.Enabled = true, want false")
+		}
+		if managed.Status.Active {
+			t.Fatal("manager.Get(rollback-ext).Status.Active = true, want false")
+		}
+		if got, want := managed.Status.PID, 0; got != want {
+			t.Fatalf("manager.Get(rollback-ext).Status.PID = %d, want %d", got, want)
 		}
 		if _, err := os.Stat(filepath.Join(fixtureDir, "extension.toml")); err != nil {
 			t.Fatalf("source fixture manifest stat error = %v", err)
@@ -7535,6 +7666,10 @@ func (r *recordingRegistry) WriteEventSummary(context.Context, store.EventSummar
 	return nil
 }
 
+func (r *recordingRegistry) WriteEventSummaries(context.Context, []store.EventSummary) error {
+	return nil
+}
+
 func (r *recordingRegistry) ListEventSummaries(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error) {
 	return nil, nil
 }
@@ -8386,6 +8521,14 @@ func (f *fakeAutomationManager) DismissSuggestion(
 
 func (f *fakeAutomationManager) Jobs(context.Context) ([]automationpkg.Job, error) {
 	return append([]automationpkg.Job(nil), f.jobs...), nil
+}
+
+func (*fakeAutomationManager) EffectivePackageAutomation(
+	_ context.Context,
+	jobs []automationpkg.Job,
+	triggers []automationpkg.Trigger,
+) ([]automationpkg.Job, []automationpkg.Trigger, error) {
+	return append([]automationpkg.Job(nil), jobs...), append([]automationpkg.Trigger(nil), triggers...), nil
 }
 
 func (f *fakeAutomationManager) ListJobs(
@@ -9483,7 +9626,16 @@ func (f *fakeExtensionRuntime) HookDeclarations(context.Context) ([]hookspkg.Hoo
 	return decls, f.hookErr
 }
 
+func (f *fakeExtensionRuntime) InspectPackageResources(
+	_ context.Context,
+	name string,
+) (*extensionpkg.Extension, error) {
+	return f.Get(name)
+}
+
 type daemonTestExtensionOptions struct {
+	version           string
+	requiredEnv       []string
 	runtimeCommand    string
 	runtimeArgs       []string
 	runtimeEnv        map[string]string
@@ -9567,6 +9719,10 @@ func installDaemonTestExtension(
 }
 
 func daemonTestExtensionManifest(name string, opts daemonTestExtensionOptions) string {
+	version := strings.TrimSpace(opts.version)
+	if version == "" {
+		version = "0.2.1"
+	}
 	command := strings.TrimSpace(opts.runtimeCommand)
 	if command == "" {
 		command = "fake-extension"
@@ -9598,12 +9754,14 @@ func daemonTestExtensionManifest(name string, opts daemonTestExtensionOptions) s
 	var builder strings.Builder
 	fmt.Fprintf(&builder, `[extension]
 name = %q
-version = "0.2.1"
+version = %q
 description = "Daemon extension test fixture"
 min_compozy_version = "0.5.0"
-
-[resources]
-`, name)
+`, name, version)
+	if opts.requiredEnv != nil {
+		builder.WriteString("requires_env = " + daemonTOMLStringArray(opts.requiredEnv) + "\n")
+	}
+	builder.WriteString("\n[resources]\n")
 
 	if strings.TrimSpace(opts.hookCommand) != "" {
 		fmt.Fprintf(&builder, `

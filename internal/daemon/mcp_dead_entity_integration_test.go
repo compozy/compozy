@@ -180,9 +180,11 @@ func newDeadEntityMCPFixtureServer() *mcp.Server {
 		Capabilities: &mcp.ServerCapabilities{Tools: &mcp.ToolCapabilities{}},
 	})
 	server.AddTool(&mcp.Tool{
-		Name:         "lookup",
-		Description:  "Look up a recovery fixture value",
-		InputSchema:  json.RawMessage(`{"type":"object","properties":{"query":{"type":"string"}},"required":["query"],"additionalProperties":false}`),
+		Name:        "lookup",
+		Description: "Look up a recovery fixture value",
+		InputSchema: json.RawMessage(
+			`{"type":"object","properties":{"query":{"type":"string"}},"required":["query"],"additionalProperties":false}`,
+		),
 		OutputSchema: json.RawMessage(`{"type":"object","properties":{"answer":{"type":"string"}}}`),
 		Annotations:  &mcp.ToolAnnotations{ReadOnlyHint: true},
 	}, func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {

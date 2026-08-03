@@ -10,6 +10,7 @@ import (
 	looppkg "github.com/compozy/compozy/internal/loop"
 
 	skillspkg "github.com/compozy/compozy/internal/skills"
+	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 func (m *Manager) cloneExtension(ext *managedExtension) *Extension {
@@ -38,7 +39,14 @@ func (m *Manager) cloneExtension(ext *managedExtension) *Extension {
 	for _, agent := range ext.agents {
 		clone.Agents = append(clone.Agents, compozyconfig.CloneAgentDef(agent))
 	}
-	clone.Bundles = cloneBundleSpecs(ext.bundles)
+	for _, agent := range ext.staticAgents {
+		clone.StaticAgents = append(clone.StaticAgents, cloneStaticAgent(agent))
+	}
+	clone.AutomationJobs = cloneExtensionAutomationJobs(ext.automationJobs)
+	clone.AutomationTriggers = cloneExtensionAutomationTriggers(ext.automationTriggers)
+	for _, layout := range ext.layouts {
+		clone.Layouts = append(clone.Layouts, windowmanager.CloneLayoutResource(layout))
+	}
 	if len(ext.skills) > 0 {
 		clone.Skills = make([]*skillspkg.Skill, 0, len(ext.skills))
 		for _, skill := range ext.skills {
@@ -55,64 +63,6 @@ func (m *Manager) cloneExtension(ext *managedExtension) *Extension {
 		clone.InitializeResult = cloneInitializeResponse(ext.initialize)
 	}
 	return clone
-}
-
-func cloneBundleSpecs(values []BundleSpec) []BundleSpec {
-	if len(values) == 0 {
-		return nil
-	}
-	cloned := make([]BundleSpec, 0, len(values))
-	for _, value := range values {
-		next := BundleSpec{
-			Name:        strings.TrimSpace(value.Name),
-			Description: strings.TrimSpace(value.Description),
-			Profiles:    make([]BundleProfile, 0, len(value.Profiles)),
-		}
-		for _, profile := range value.Profiles {
-			clonedProfile := BundleProfile{
-				Name:        strings.TrimSpace(profile.Name),
-				Description: strings.TrimSpace(profile.Description),
-				Channels: BundleChannelsConfig{
-					Primary: strings.TrimSpace(profile.Channels.Primary),
-					Items:   normalizeBundleChannels(profile.Channels.Items),
-				},
-				Layouts:  cloneBundleLayouts(profile.Layouts),
-				Agents:   cloneBundleAgents(profile.Agents),
-				Jobs:     append([]BundleJob(nil), profile.Jobs...),
-				Triggers: append([]BundleTrigger(nil), profile.Triggers...),
-				Bridges:  normalizeBundleBridges(profile.Bridges),
-			}
-			for idx := range clonedProfile.Jobs {
-				clonedProfile.Jobs[idx].Task = cloneBundleTaskConfig(clonedProfile.Jobs[idx].Task)
-			}
-			next.Profiles = append(next.Profiles, clonedProfile)
-		}
-		cloned = append(cloned, next)
-	}
-	return cloned
-}
-
-func cloneBundleAgents(values []BundleAgent) []BundleAgent {
-	if len(values) == 0 {
-		return nil
-	}
-	cloned := make([]BundleAgent, 0, len(values))
-	for _, value := range values {
-		next := BundleAgent{
-			Path:  strings.TrimSpace(value.Path),
-			Agent: compozyconfig.CloneAgentDef(value.Agent),
-		}
-		if value.Soul != nil {
-			soul := *value.Soul
-			next.Soul = &soul
-		}
-		if value.Heartbeat != nil {
-			heartbeat := *value.Heartbeat
-			next.Heartbeat = &heartbeat
-		}
-		cloned = append(cloned, next)
-	}
-	return cloned
 }
 
 func (m *Manager) reportBridgeRuntimeIssue(bridgeInstanceID string, status bridgepkg.BridgeStatus, reason error) {

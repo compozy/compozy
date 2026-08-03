@@ -81,7 +81,6 @@ function MarketplaceDetailMain({ data }: { data: MarketplaceEntryResponse }) {
       {entry.trust?.warnings?.length ? (
         <MarketplaceWarningList warnings={entry.trust.warnings} />
       ) : null}
-      {data.bundle ? <MarketplaceBundleDetails bundle={data.bundle} /> : null}
       {data.mcp ? <MarketplaceMCPDetails mcp={data.mcp} /> : null}
     </>
   );
@@ -97,37 +96,6 @@ function extensionProvenanceMarkdown(
   ]
     .filter(Boolean)
     .join("\n\n");
-}
-
-function MarketplaceBundleDetails({
-  bundle,
-}: {
-  bundle: NonNullable<MarketplaceEntryResponse["bundle"]>;
-}) {
-  return (
-    <section className="flex flex-col gap-2.5">
-      <Eyebrow className="text-muted">Profiles</Eyebrow>
-      <div className="overflow-hidden rounded-lg bg-canvas-soft">
-        {bundle.profiles.map(profile => (
-          <div
-            className="grid gap-2 border-b border-line px-5 py-4 last:border-b-0 md:grid-cols-[minmax(0,1fr)_auto]"
-            key={profile.name}
-          >
-            <div>
-              <p className="text-small-body font-medium text-fg-strong">{profile.name}</p>
-              {profile.description ? (
-                <p className="mt-1 text-small-body text-muted">{profile.description}</p>
-              ) : null}
-            </div>
-            <p className="font-mono text-mono-id text-muted">
-              {profile.agents} agents · {profile.jobs} jobs · {profile.triggers} triggers ·
-              {profile.bridges} bridges · {profile.channels} channels
-            </p>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
 }
 
 function MarketplaceMCPDetails({ mcp }: { mcp: NonNullable<MarketplaceEntryResponse["mcp"]> }) {

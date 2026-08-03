@@ -14,9 +14,7 @@ import type { ExtensionLogEntry } from "../../types";
 const mocks = vi.hoisted(() => ({ listExtensionLogs: vi.fn() }));
 
 vi.mock("../../adapters/extensions-api", () => ({
-  getBundleActivation: vi.fn(),
   getExtensionProvenance: vi.fn(),
-  listBundleActivations: vi.fn(),
   listExtensionLogs: mocks.listExtensionLogs,
   listExtensions: vi.fn(),
 }));

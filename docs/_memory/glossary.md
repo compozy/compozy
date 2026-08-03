@@ -60,6 +60,20 @@ Enforcement is per call against the effective grant, which is the declared list 
 
 ---
 
+### Extension Kit
+
+The static resources shipped by one extension: skills, agents and their sidecars, Loops, automation, layouts, and MCP sidecars. Install leaves the kit inert; enable publishes resources owned by that extension instance, and disable removes them. Use **extension kit**, never **Bundle**, for this product concept.
+
+### Extension Secret Binding
+
+An instance-scoped link from a manifest-declared environment key to an existing Vault reference. Public reads expose only bound key names, never values or references.
+
+### Network Requirement Confirmation
+
+Explicit operator consent to the exact digest of an extension's normalized Network Live requirement. Enable or update must receive the daemon-returned digest; confirmation does not enroll a session in Live participation.
+
+---
+
 ### Loop
 
 The **deterministic runtime program the daemon owns and executes**, defined by the contract **goal → act → verify → stop** plus a fixed set of named terminal outcomes (ADR-001). A Loop's body is a static DAG of typed nodes; iteration is simply what happens when verification says "not done." A single-pass linear pipeline is still a Loop — one that finished on its first pass — and it still carries the contract (definition-of-done, verification gate, terminal states, budget), which is the value no plain DAG engine delivers.

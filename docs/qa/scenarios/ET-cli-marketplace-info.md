@@ -11,8 +11,8 @@ bug_ids: BUG-20260729-marketplace-json-parity
 fix_status: fixed
 retest_status: pass
 fix_commits: 351f3535
-evidence: docs/qa/reports/2026-07-30-mcp-2026-catalog-v2.md
-last_report: docs/qa/reports/2026-07-30-mcp-2026-catalog-v2.md
+evidence: docs/qa/reports/2026-07-30-mcp-2026-catalog-v2.md;/Users/pedronauck/dev/qa-labs/compozy-devtool-oss-launch-20260802-195112-911343-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-08-02-bundles-removal.md
 overlaps: ET-008
 ---
 
@@ -23,8 +23,8 @@ Added by marketplace Task 02. QA should use an entry whose display name differs 
 QA impact 2026-07-18: `--installed-name` now selects the exact installed MCP, extension, or skill
 when its local identity collides with a curated `entry_id`; compare CLI, HTTP, and UDS detail.
 
-QA impact 2026-07-18: `--installed-name` is rejected locally for bundle detail and is never sent by
-the Web adapter for bundles. MCP, extension, and skill detail continue to send the exact identity.
+QA impact 2026-08-02: detail accepts exactly MCP, extension, and skill kinds. Reset to verify exact
+installed identity and deterministic rejection of unsupported kinds.
 
 QA result 2026-07-29: CLI JSON added `resolution_source` outside the shared Marketplace detail
 payload. The canonical regression, staged root fix, and rebuilt CLI/HTTP/UDS replay are green; the

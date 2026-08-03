@@ -205,7 +205,6 @@ var builtinToolsets = []toolspkg.Toolset{
 	{ID: toolspkg.ToolsetIDAutomation, Tools: []string{"compozy__automation_*"}},
 	{ID: toolspkg.ToolsetIDMarketplace, Tools: []string{toolspkg.ToolIDMarketplaceSearch.String()}},
 	{ID: toolspkg.ToolsetIDExtensions, Tools: []string{"compozy__extensions_*"}},
-	{ID: toolspkg.ToolsetIDBundles, Tools: []string{"compozy__bundles_*"}},
 	{ID: toolspkg.ToolsetIDResources, Tools: []string{"compozy__resources_*"}},
 	{
 		ID: toolspkg.ToolsetIDWindowManager,

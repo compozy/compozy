@@ -126,15 +126,15 @@ func BenchmarkReconcileScheduleCascade(b *testing.B) {
 	root := ResourceKind("tool")
 	driver := &reconcileDriver{
 		dependents: map[ResourceKind][]ResourceKind{
-			root:                              {"agent", "bundle.activation"},
+			root:                              {"agent", "fixture.dependent"},
 			ResourceKind("agent"):             {"skill"},
-			ResourceKind("bundle.activation"): {"automation.job", "bridge.instance"},
+			ResourceKind("fixture.dependent"): {"automation.job", "bridge.instance"},
 			ResourceKind("automation.job"):    {"automation.trigger"},
 		},
 		topoRank: map[ResourceKind]int{
 			root:                               0,
 			ResourceKind("agent"):              1,
-			ResourceKind("bundle.activation"):  2,
+			ResourceKind("fixture.dependent"):  2,
 			ResourceKind("skill"):              3,
 			ResourceKind("automation.job"):     4,
 			ResourceKind("bridge.instance"):    5,
@@ -156,7 +156,7 @@ func BenchmarkReconcileBuildProjectionInput(b *testing.B) {
 	b.ReportAllocs()
 
 	primaryKind := testResourceKind
-	dependencyKind := ResourceKind("bundle")
+	dependencyKind := ResourceKind("fixture.parent")
 	driver := &reconcileDriver{
 		raw: benchmarkRawStore{recordsByKind: map[ResourceKind][]RawRecord{
 			primaryKind:    benchmarkRawRecords(primaryKind, 32),

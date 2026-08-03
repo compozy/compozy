@@ -1,33 +1,33 @@
 export type {
-  BundleActivation,
-  BundleActivationUpdateRequest,
+  ExtensionEnableResult,
   ExtensionEntry,
   ExtensionInstanceScope,
+  ExtensionKitInventory,
+  ExtensionKitItem,
   ExtensionLogEntry,
   ExtensionProvenance,
   ExtensionUpdateRequest,
   InstalledExtensionView,
 } from "./types";
 export {
-  useBundleActivation,
-  useBundleActivations,
   useExtensionDetail,
   useExtensionInstanceScope,
   useExtensionInventory,
+  useExtensionKitInventory,
   useExtensionProvenance,
 } from "./hooks/use-extensions";
 export {
-  useDeactivateBundle,
   useRemoveExtension,
   useToggleExtension,
-  useUpdateBundleActivation,
   useUpdateExtension,
 } from "./hooks/use-extension-actions";
 export type {
   RemoveExtensionVariables,
+  ToggleExtensionVariables,
   UpdateExtensionVariables,
 } from "./hooks/use-extension-actions";
 export { useExtensionDetailState } from "./hooks/use-extension-detail-state";
+export type { ExtensionNetworkConfirm } from "./hooks/use-extension-detail-state";
 export { EXTENSION_LOG_EVENT_NAME, useExtensionLogs } from "./hooks/use-extension-logs";
 export type {
   ExtensionLogEventSource,
@@ -35,11 +35,12 @@ export type {
   ExtensionLogStreamStatus,
 } from "./hooks/use-extension-logs";
 export {
-  DeactivateBundleDialog,
+  ExtensionNetworkConfirmDialog,
   ExtensionProvenanceDialog,
   RemoveExtensionDialog,
   VerifiedMark,
 } from "./components/extension-dialogs";
+export { ExtensionKitInventoryPanel } from "./components/extension-kit-inventory-panel";
 export { ExtensionLogPanel } from "./components/extension-log-panel";
 export {
   EXTENSION_CHECKSUM_VERIFIED_LABEL,
@@ -48,7 +49,10 @@ export {
   EXTENSION_OVERRIDES_PUBLISHED_LABEL,
   ExtensionTrustBadges,
 } from "./components/extension-trust-badges";
-export { BundleActivationDetail } from "./components/bundle-activation-detail";
+export {
+  EXTENSION_NETWORK_CONFIRMATION_CODE,
+  extensionNetworkConfirmation,
+} from "./lib/extension-network-confirmation";
 export {
   appendExtensionLogEntries,
   buildExtensionLogsStreamUrl,

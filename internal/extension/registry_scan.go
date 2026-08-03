@@ -14,90 +14,100 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
-func sqliteTableExists(db *sql.DB, tableName string) (bool, error) {
-	var count int
-	err := db.QueryRowContext(
-		registryContext(),
-		`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?`,
-		strings.TrimSpace(tableName),
-	).Scan(&count)
-	if err != nil {
-		return false, fmt.Errorf("extension: query sqlite table %q: %w", tableName, err)
+func scanExtensionInfo(scanner interface{ Scan(dest ...any) error }) (*ExtensionInfo, error) {
+	var row extensionInfoRow
+	if err := row.scan(scanner); err != nil {
+		return nil, err
 	}
-	return count > 0, nil
+	if err := row.decode(); err != nil {
+		return nil, err
+	}
+	return &row.info, nil
 }
 
-func scanExtensionInfo(scanner interface{ Scan(dest ...any) error }) (*ExtensionInfo, error) {
-	var (
-		info            ExtensionInfo
-		sourceText      string
-		installedAtText string
-		providesRaw     string
-		permissionsRaw  string
-		registrySlug    sql.NullString
-		registryName    sql.NullString
-		remoteVersion   sql.NullString
-		provenanceRaw   string
+type extensionInfoRow struct {
+	info               ExtensionInfo
+	sourceText         string
+	installedAtText    string
+	providesRaw        string
+	permissionsRaw     string
+	registrySlug       sql.NullString
+	registryName       sql.NullString
+	remoteVersion      sql.NullString
+	provenanceRaw      string
+	networkConfirmedBy sql.NullString
+	networkConfirmedAt sql.NullString
+}
+
+func (r *extensionInfoRow) scan(scanner interface{ Scan(dest ...any) error }) error {
+	return scanner.Scan(
+		&r.info.Name,
+		&r.info.Version,
+		&r.sourceText,
+		&r.info.Enabled,
+		&r.info.ManifestPath,
+		&r.installedAtText,
+		&r.providesRaw,
+		&r.permissionsRaw,
+		&r.info.Checksum,
+		&r.registrySlug,
+		&r.registryName,
+		&r.remoteVersion,
+		&r.provenanceRaw,
+		&r.info.NetworkRequirementDigest,
+		&r.networkConfirmedBy,
+		&r.networkConfirmedAt,
 	)
+}
 
-	if err := scanner.Scan(
-		&info.Name,
-		&info.Version,
-		&sourceText,
-		&info.Enabled,
-		&info.ManifestPath,
-		&installedAtText,
-		&providesRaw,
-		&permissionsRaw,
-		&info.Checksum,
-		&registrySlug,
-		&registryName,
-		&remoteVersion,
-		&provenanceRaw,
-	); err != nil {
-		return nil, err
-	}
-
-	source, err := parseExtensionSource(sourceText)
+func (r *extensionInfoRow) decode() error {
+	source, err := parseExtensionSource(r.sourceText)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	info.Source = source
+	r.info.Source = source
 
-	info.InstalledAt, err = store.ParseTimestamp(installedAtText)
+	r.info.InstalledAt, err = store.ParseTimestamp(r.installedAtText)
 	if err != nil {
-		return nil, fmt.Errorf("extension: parse installed_at for %q: %w", info.Name, err)
+		return fmt.Errorf("extension: parse installed_at for %q: %w", r.info.Name, err)
 	}
 
-	if err := decodeRegistryJSONArray(providesRaw, &info.Capabilities.Provides); err != nil {
-		return nil, fmt.Errorf("extension: decode capabilities for %q: %w", info.Name, err)
+	if err := decodeRegistryJSONArray(r.providesRaw, &r.info.Capabilities.Provides); err != nil {
+		return fmt.Errorf("extension: decode capabilities for %q: %w", r.info.Name, err)
 	}
-	if err := decodeRegistryJSONArray(permissionsRaw, &info.Permissions.Requires); err != nil {
-		return nil, fmt.Errorf("extension: decode permissions for %q: %w", info.Name, err)
+	if err := decodeRegistryJSONArray(r.permissionsRaw, &r.info.Permissions.Requires); err != nil {
+		return fmt.Errorf("extension: decode permissions for %q: %w", r.info.Name, err)
 	}
 
-	info.Capabilities = normalizeCapabilitiesConfig(info.Capabilities)
-	info.Permissions = normalizePermissionsConfig(info.Permissions)
-	info.RegistrySlug = nullableStringPointer(registrySlug)
-	info.RegistryName = nullableStringPointer(registryName)
-	info.RemoteVersion = nullableStringPointer(remoteVersion)
-	if err := decodeRegistryJSON(provenanceRaw, &info.Provenance); err != nil {
-		return nil, fmt.Errorf("extension: decode provenance for %q: %w", info.Name, err)
+	r.info.Capabilities = normalizeCapabilitiesConfig(r.info.Capabilities)
+	r.info.Permissions = normalizePermissionsConfig(r.info.Permissions)
+	r.info.RegistrySlug = nullableStringPointer(r.registrySlug)
+	r.info.RegistryName = nullableStringPointer(r.registryName)
+	r.info.RemoteVersion = nullableStringPointer(r.remoteVersion)
+	if err := decodeRegistryJSON(r.provenanceRaw, &r.info.Provenance); err != nil {
+		return fmt.Errorf("extension: decode provenance for %q: %w", r.info.Name, err)
 	}
-	info.Provenance = normalizeExtensionProvenance(info.Provenance, ExtensionProvenance{
-		Slug:             dereferenceOptionalString(info.RegistrySlug),
-		InstalledFrom:    installedFromForSource(info.Source),
-		SourceURL:        info.ManifestPath,
-		ChecksumSHA256:   info.Checksum,
-		ChecksumVerified: info.Source != SourceMarketplace,
+	r.info.Provenance = normalizeExtensionProvenance(r.info.Provenance, ExtensionProvenance{
+		Slug:             dereferenceOptionalString(r.info.RegistrySlug),
+		InstalledFrom:    installedFromForSource(r.info.Source),
+		SourceURL:        r.info.ManifestPath,
+		ChecksumSHA256:   r.info.Checksum,
+		ChecksumVerified: r.info.Source != SourceMarketplace,
 		RegistryTier:     ExtensionRegistryTierUnverified,
-		Permissions:      extensionPermissionsFromParts(info.Capabilities, info.Permissions),
-		InstalledAt:      info.InstalledAt,
+		Permissions:      extensionPermissionsFromParts(r.info.Capabilities, r.info.Permissions),
+		InstalledAt:      r.info.InstalledAt,
 		InstalledBy:      extensionTrustInstalledByOperator,
 		AllowUnverified:  false,
 	})
-
-	return &info, nil
+	r.info.NetworkRequirementDigest = strings.TrimSpace(r.info.NetworkRequirementDigest)
+	r.info.NetworkConfirmedBy = strings.TrimSpace(r.networkConfirmedBy.String)
+	if r.networkConfirmedAt.Valid {
+		r.info.NetworkConfirmedAt, err = store.ParseTimestamp(r.networkConfirmedAt.String)
+		if err != nil {
+			return fmt.Errorf("extension: parse network_confirmed_at for %q: %w", r.info.Name, err)
+		}
+	}
+	return nil
 }
 
 func registryContext() context.Context {

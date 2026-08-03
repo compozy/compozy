@@ -3,6 +3,7 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -12,13 +13,16 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	eventspkg "github.com/compozy/compozy/internal/events"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	registrypkg "github.com/compozy/compozy/internal/registry"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -26,17 +30,45 @@ import (
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
+func nativeNetworkExtensionDownloadResult(
+	t *testing.T,
+	version string,
+	channelScope string,
+) *registrypkg.DownloadResult {
+	t.Helper()
+
+	return &registrypkg.DownloadResult{
+		Reader:      io.NopCloser(bytes.NewReader(nativeExtensionTarGzWithNetwork(t, version, channelScope))),
+		Slug:        "acme/tool-ext",
+		Version:     version,
+		ContentSize: -1,
+		ContentType: "application/gzip",
+	}
+}
+
 func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 	t.Run("Should match lifecycle parity through native extension tools", func(t *testing.T) {
 		t.Parallel()
 
 		deps, extRegistry, source, runtime := newNativeExtensionToolDeps(t)
+		inspectionRuntime := &nativeExtensionInspectionRuntime{
+			fakeExtensionRuntime: runtime,
+			manager:              extensionpkg.NewManager(extRegistry),
+		}
+		deps.ExtensionRuntime = func() extensionRuntime { return inspectionRuntime }
+		source.downloads["1.0.0"] = nativeNetworkExtensionDownloadResult(t, "1.0.0", "builders")
+		source.downloads["2.0.0"] = nativeNetworkExtensionDownloadResult(t, "2.0.0", "reviewers")
 		source.latestVersion = "1.0.0"
 		registry := newDaemonNativeRegistry(t, deps, nativeApproveAllPolicyInputs())
+		agentScope := toolspkg.Scope{
+			SessionID:   "native-agent-session",
+			WorkspaceID: "workspace-native-agent",
+			ActorKind:   string(taskpkg.ActorKindAgentSession),
+		}
 
 		if _, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{Operator: true},
+			agentScope,
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDExtensionsInstall,
 				Input: json.RawMessage(
@@ -44,18 +76,82 @@ func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 				),
 			},
 		); err != nil {
-			t.Fatalf("Registry.Call(extensions_install) error = %v", err)
+			t.Fatalf("Registry.Call(extensions_install) error = %v; cause = %v", err, errors.Unwrap(err))
+		}
+		installed, err := extRegistry.Get("tool-ext")
+		if err != nil {
+			t.Fatalf("extension registry Get(installed) error = %v", err)
+		}
+		if installed.Enabled {
+			t.Fatal("installed extension enabled = true, want inert install")
+		}
+		inspected, err := inspectionRuntime.InspectPackageResources(t.Context(), "tool-ext")
+		if err != nil {
+			t.Fatalf("InspectPackageResources(tool-ext) error = %v", err)
+		}
+		if len(inspected.Skills) != 1 {
+			t.Fatalf(
+				"inspected extension skills = %#v from manifest %#v, want one shipped skill",
+				inspected.Skills,
+				inspected.Manifest.Resources.Skills,
+			)
+		}
+		service, ok := newDaemonExtensionService(daemonExtensionServiceDeps{
+			Registry:  extRegistry,
+			Runtime:   inspectionRuntime,
+			HomePaths: deps.HomePaths,
+		},
+			withDaemonExtensionMarketplace(deps.ExtensionConfig, deps.ExtensionSources),
+			withDaemonExtensionEventWriter(deps.ExtensionEvents),
+		).(*daemonExtensionService)
+		if !ok {
+			t.Fatal("newDaemonExtensionService() did not return daemonExtensionService")
+		}
+		assertNativeExtensionInventoryPreviewParity(t, registry, agentScope, service, "tool-ext")
+
+		firstDigest := nativeIntegrationNetworkDigest(t, "builders")
+		_, err = registry.Call(t.Context(), agentScope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDExtensionsEnable,
+			Input:  json.RawMessage(`{"name":"tool-ext"}`),
+		})
+		if !errors.Is(err, extensionpkg.ErrExtensionNetworkConfirmationRequired) {
+			t.Fatalf("Registry.Call(extensions_enable without confirmation) error = %v", err)
+		}
+		if _, err := registry.Call(t.Context(), agentScope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDExtensionsEnable,
+			Input: json.RawMessage(fmt.Sprintf(
+				`{"name":"tool-ext","confirm_network_digest":%q}`,
+				firstDigest,
+			)),
+		}); err != nil {
+			t.Fatalf("Registry.Call(extensions_enable confirmed) error = %v", err)
 		}
 		source.latestVersion = "2.0.0"
-		if _, err := registry.Call(
+		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{Operator: true},
+			agentScope,
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDExtensionsUpdate,
 				Input:  json.RawMessage("{\"name\":\"tool-ext\",\"allow_unverified\":true}"),
 			},
-		); err != nil {
-			t.Fatalf("Registry.Call(extensions_update) error = %v", err)
+		)
+		if !errors.Is(err, extensionpkg.ErrExtensionNetworkConfirmationRequired) {
+			t.Fatalf("Registry.Call(extensions_update without confirmation) error = %v", err)
+		}
+		unchanged, err := extRegistry.Get("tool-ext")
+		if err != nil || unchanged.Version != "1.0.0" {
+			t.Fatalf("extension after refused update = %#v, %v, want version 1.0.0", unchanged, err)
+		}
+		source.downloads["2.0.0"] = nativeNetworkExtensionDownloadResult(t, "2.0.0", "reviewers")
+		secondDigest := nativeIntegrationNetworkDigest(t, "reviewers")
+		if _, err := registry.Call(t.Context(), agentScope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDExtensionsUpdate,
+			Input: json.RawMessage(fmt.Sprintf(
+				`{"name":"tool-ext","allow_unverified":true,"confirm_network_digest":%q}`,
+				secondDigest,
+			)),
+		}); err != nil {
+			t.Fatalf("Registry.Call(extensions_update confirmed) error = %v; cause = %v", err, errors.Unwrap(err))
 		}
 		updated, err := extRegistry.Get("tool-ext")
 		if err != nil {
@@ -64,10 +160,15 @@ func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 		if updated.Version != "2.0.0" {
 			t.Fatalf("updated version = %q, want 2.0.0", updated.Version)
 		}
+		confirmation, err := extRegistry.NetworkConfirmation(extensionpkg.GlobalInstanceKey("tool-ext"))
+		if err != nil || confirmation.Digest != secondDigest ||
+			confirmation.ConfirmedBy != "agent:native-agent-session" {
+			t.Fatalf("updated network confirmation = %#v, %v", confirmation, err)
+		}
 
 		if _, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{Operator: true},
+			agentScope,
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDExtensionsDisable,
 				Input:  json.RawMessage(`{"name":"tool-ext"}`),
@@ -85,7 +186,7 @@ func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 
 		if _, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{Operator: true},
+			agentScope,
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDExtensionsEnable,
 				Input:  json.RawMessage(`{"name":"tool-ext"}`),
@@ -101,7 +202,7 @@ func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 				Input:  json.RawMessage(`{"name":"tool-ext"}`),
 			},
 		); err != nil {
-			t.Fatalf("Registry.Call(extensions_remove) error = %v", err)
+			t.Fatalf("Registry.Call(extensions_remove) error = %v; cause = %v", err, errors.Unwrap(err))
 		}
 		if _, err := extRegistry.Get("tool-ext"); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
 			t.Fatalf("extension registry Get(after remove) error = %v, want ErrExtensionNotFound", err)
@@ -115,7 +216,7 @@ func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 		deps, extRegistry, _, _ := newNativeExtensionToolDeps(t)
 		workspaceRoot := t.TempDir()
 		workspaceRegistrationID := "workspace-native-extension"
-		workspaceIdentity := "01KYYQSM30GYWR3KY485HKB9QT"
+		workspaceLookupIdentity := "01KYYQSM30GYWR3KY485HKB9QT"
 		resolver := &daemonExtensionWorkspaceResolverStub{
 			resolved: workspacepkg.ResolvedWorkspace{
 				Workspace: workspacepkg.Workspace{
@@ -123,7 +224,7 @@ func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 					Name:    "native-extension-workspace",
 					RootDir: workspaceRoot,
 				},
-				WorkspaceID: workspaceIdentity,
+				WorkspaceID: workspaceLookupIdentity,
 			},
 		}
 		installNativeGlobalResourceExtension(t, extRegistry, "global-native")
@@ -185,7 +286,7 @@ func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Registry.Call(extensions_dev) error = %v", err)
 		}
-		requireNativeStructuredContains(t, devResult, []byte(`"workspace_id":"`+workspaceIdentity+`"`))
+		requireNativeStructuredContains(t, devResult, []byte(`"workspace_id":"`+workspaceRegistrationID+`"`))
 
 		writeNativeDevBuildFixture(t, sourceDir, "0.2.0", "second")
 		secondBuild := callNativeExtensionBuild(t, registry, scope, sourceDir)
@@ -312,9 +413,88 @@ func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 			t.Fatalf("Registry.Call(extensions_remove dev) error = %v", err)
 		}
 
-		assertNativeExtensionLifecycleEvents(t, deps.ExtensionEvents, workspaceIdentity)
+		assertNativeExtensionLifecycleEvents(t, deps.ExtensionEvents, workspaceRegistrationID)
 		assertNativeExtensionAuthoringRisk(t)
 	})
+}
+
+type nativeExtensionInspectionRuntime struct {
+	*fakeExtensionRuntime
+	manager *extensionpkg.Manager
+}
+
+func (r *nativeExtensionInspectionRuntime) InspectPackageResources(
+	ctx context.Context,
+	name string,
+) (*extensionpkg.Extension, error) {
+	return r.manager.InspectPackageResources(ctx, name)
+}
+
+func assertNativeExtensionInventoryPreviewParity(
+	t *testing.T,
+	registry toolspkg.Registry,
+	scope toolspkg.Scope,
+	service *daemonExtensionService,
+	name string,
+) {
+	t.Helper()
+
+	inventoryResult, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
+		ToolID: toolspkg.ToolIDExtensionsInventory,
+		Input:  json.RawMessage(fmt.Sprintf(`{"name":%q}`, name)),
+	})
+	if err != nil {
+		t.Fatalf("Registry.Call(extensions_inventory) error = %v", err)
+	}
+	var nativeInventory contract.ExtensionInventoryPayload
+	if err := json.Unmarshal(inventoryResult.Structured, &nativeInventory); err != nil {
+		t.Fatalf("json.Unmarshal(extensions_inventory) error = %v", err)
+	}
+	directInventory, err := service.Inventory(t.Context(), name)
+	if err != nil {
+		t.Fatalf("service.Inventory() error = %v", err)
+	}
+	if !reflect.DeepEqual(nativeInventory, directInventory) {
+		t.Fatalf("native inventory = %#v, want core service payload %#v", nativeInventory, directInventory)
+	}
+	if len(nativeInventory.Items) != 1 || nativeInventory.Items[0].Live {
+		t.Fatalf("native inventory = %#v, want one shipped inactive item", nativeInventory)
+	}
+
+	previewResult, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
+		ToolID: toolspkg.ToolIDExtensionsPreview,
+		Input:  json.RawMessage(fmt.Sprintf(`{"name":%q}`, name)),
+	})
+	if err != nil {
+		t.Fatalf("Registry.Call(extensions_preview) error = %v", err)
+	}
+	var nativePreview contract.ExtensionEnablePreviewPayload
+	if err := json.Unmarshal(previewResult.Structured, &nativePreview); err != nil {
+		t.Fatalf("json.Unmarshal(extensions_preview) error = %v", err)
+	}
+	directPreview, err := service.Preview(t.Context(), name)
+	if err != nil {
+		t.Fatalf("service.Preview() error = %v", err)
+	}
+	if !reflect.DeepEqual(nativePreview, directPreview) {
+		t.Fatalf("native preview = %#v, want core service payload %#v", nativePreview, directPreview)
+	}
+	if len(nativePreview.Changes) != 1 || !nativePreview.NetworkConfirmationRequired {
+		t.Fatalf("native preview = %#v, want one item and network confirmation", nativePreview)
+	}
+}
+
+func nativeIntegrationNetworkDigest(t *testing.T, channelScope string) string {
+	t.Helper()
+	digest, err := extensionpkg.NetworkParticipationRequirementDigest(
+		&extensionpkg.NetworkParticipationRequirement{
+			Required: true, Mode: "live", ChannelScopes: []string{channelScope},
+		},
+	)
+	if err != nil {
+		t.Fatalf("NetworkParticipationRequirementDigest() error = %v", err)
+	}
+	return digest
 }
 
 func callNativeExtensionBuild(
@@ -424,7 +604,6 @@ func assertNativeExtensionLifecycleEvents(
 		eventspkg.ExtensionDevLinked,
 		eventspkg.ExtensionDevUnlinked,
 		eventspkg.ExtensionReloadCompleted,
-		eventspkg.ExtensionReloadFailed,
 	} {
 		events, err := storeReader.ListEventSummaries(t.Context(), store.EventSummaryQuery{Type: eventType})
 		if err != nil {
@@ -437,9 +616,23 @@ func assertNativeExtensionLifecycleEvents(
 		if err := json.Unmarshal(events[0].Content, &fields); err != nil {
 			t.Fatalf("json.Unmarshal(%s event) error = %v", eventType, err)
 		}
-		if len(fields) != 3 || fields["workspace_id"] != workspaceID || fields["bundle_generation"] == "" {
+		if len(fields) != 3 || fields["workspace_id"] != workspaceID || fields["extension_generation"] == "" {
 			t.Fatalf("%s fields = %#v, want exact extension/workspace/generation keys", eventType, fields)
 		}
+	}
+	failedReloads, err := storeReader.ListEventSummaries(
+		t.Context(),
+		store.EventSummaryQuery{Type: eventspkg.ExtensionReloadFailed},
+	)
+	if err != nil {
+		t.Fatalf("ListEventSummaries(%s) error = %v", eventspkg.ExtensionReloadFailed, err)
+	}
+	if len(failedReloads) != 0 {
+		t.Fatalf(
+			"ListEventSummaries(%s) = %#v, want no event for validation refusal",
+			eventspkg.ExtensionReloadFailed,
+			failedReloads,
+		)
 	}
 	for _, eventType := range []string{eventspkg.ExtensionPublishCompleted, eventspkg.ExtensionPublishFailed} {
 		events, err := storeReader.ListEventSummaries(t.Context(), store.EventSummaryQuery{Type: eventType})

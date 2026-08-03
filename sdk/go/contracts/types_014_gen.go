@@ -108,24 +108,23 @@ type NetworkSendPayload struct {
 }
 
 type NetworkStatusPayload struct {
-	Enabled              bool                            `json:"enabled"`
-	Status               string                          `json:"status"`
-	LocalPeers           int                             `json:"local_peers"`
-	Channels             int                             `json:"channels"`
-	MessagesSent         int64                           `json:"messages_sent"`
-	MessagesReceived     int64                           `json:"messages_received"`
-	MessagesRejected     int64                           `json:"messages_rejected"`
-	MessagesDelivered    int64                           `json:"messages_delivered"`
-	WorkflowTaggedEvents int64                           `json:"workflow_tagged_events"`
-	HandoffTaggedEvents  int64                           `json:"handoff_tagged_events"`
-	OpenThreads          int64                           `json:"open_threads"`
-	OpenDirectRooms      int64                           `json:"open_direct_rooms"`
-	OpenWorkItems        int64                           `json:"open_work_items"`
-	ConversationMessages int64                           `json:"conversation_messages"`
-	WorkTransitions      int64                           `json:"work_transitions"`
-	DirectResolves       int64                           `json:"direct_resolves"`
-	DeclaredChannels     []DeclaredNetworkChannelPayload `json:"declared_channels"`
-	KindMetrics          []NetworkKindMetricPayload      `json:"kind_metrics"`
+	Enabled              bool                       `json:"enabled"`
+	Status               string                     `json:"status"`
+	LocalPeers           int                        `json:"local_peers"`
+	Channels             int                        `json:"channels"`
+	MessagesSent         int64                      `json:"messages_sent"`
+	MessagesReceived     int64                      `json:"messages_received"`
+	MessagesRejected     int64                      `json:"messages_rejected"`
+	MessagesDelivered    int64                      `json:"messages_delivered"`
+	WorkflowTaggedEvents int64                      `json:"workflow_tagged_events"`
+	HandoffTaggedEvents  int64                      `json:"handoff_tagged_events"`
+	OpenThreads          int64                      `json:"open_threads"`
+	OpenDirectRooms      int64                      `json:"open_direct_rooms"`
+	OpenWorkItems        int64                      `json:"open_work_items"`
+	ConversationMessages int64                      `json:"conversation_messages"`
+	WorkTransitions      int64                      `json:"work_transitions"`
+	DirectResolves       int64                      `json:"direct_resolves"`
+	KindMetrics          []NetworkKindMetricPayload `json:"kind_metrics"`
 }
 
 type NetworkThreadMessagesParams struct {

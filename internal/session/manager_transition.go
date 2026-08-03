@@ -48,19 +48,20 @@ func (m *Manager) persistSessionLifecycleState(ctx context.Context, session *Ses
 	return nil
 }
 
-func (m *Manager) persistSessionIdentity(ctx context.Context, session *Session) error {
-	if session == nil {
-		return fmt.Errorf("session: session is required")
-	}
-	if err := m.writeMeta(session); err != nil {
-		return err
+func (m *Manager) persistSessionIdentitySnapshot(
+	ctx context.Context,
+	metaPath string,
+	meta store.SessionMeta,
+	info *Info,
+) error {
+	if err := store.WriteSessionMeta(metaPath, meta); err != nil {
+		return fmt.Errorf("session: write meta for %q: %w", meta.ID, err)
 	}
 	if m.sessionCatalog == nil {
 		return nil
 	}
-	info := session.Info()
 	if err := m.sessionCatalog.RegisterSession(ctx, sessionCatalogInfoFromRuntime(info)); err != nil {
-		return fmt.Errorf("session: update catalog identity for %q: %w", session.ID, err)
+		return fmt.Errorf("session: update catalog identity for %q: %w", meta.ID, err)
 	}
 	return nil
 }

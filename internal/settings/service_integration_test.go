@@ -221,9 +221,12 @@ func TestSettingsCatalogMCPStdioHelperProcess(t *testing.T) {
 	}
 	// Intentionally serial: this subprocess test owns stdin/stdout as the MCP stdio protocol.
 	t.Run("Should serve the catalog MCP helper over stdio", func(_ *testing.T) {
-		server := mcp.NewServer(&mcp.Implementation{Name: "settings-catalog-helper", Version: "1.0.0"}, &mcp.ServerOptions{
-			Capabilities: &mcp.ServerCapabilities{Tools: &mcp.ToolCapabilities{}},
-		})
+		server := mcp.NewServer(
+			&mcp.Implementation{Name: "settings-catalog-helper", Version: "1.0.0"},
+			&mcp.ServerOptions{
+				Capabilities: &mcp.ServerCapabilities{Tools: &mcp.ToolCapabilities{}},
+			},
+		)
 		server.AddTool(&mcp.Tool{
 			Name: "env",
 			InputSchema: json.RawMessage(

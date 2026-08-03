@@ -1,6 +1,7 @@
 package extensionpkg
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -33,7 +34,9 @@ func prepareBuildOutput(outputDir string) error {
 }
 
 func publishBuildGeneration(
+	ctx context.Context,
 	outputDir string,
+	sourceDir string,
 	manifest *Manifest,
 ) (result *BuildResult, resultErr error) {
 	stageDir, err := os.MkdirTemp(outputDir, stagingPrefix)
@@ -50,6 +53,9 @@ func publishBuildGeneration(
 	if err := copyLooseBuildArtifacts(outputDir, stageDir); err != nil {
 		return nil, err
 	}
+	if err := copyDeclaredBuildResources(sourceDir, outputDir, stageDir, manifest.Resources); err != nil {
+		return nil, err
+	}
 	manifestData, err := encodeManifestTOML(manifest)
 	if err != nil {
 		return nil, err
@@ -61,6 +67,9 @@ func publishBuildGeneration(
 	validated, err := LoadManifest(stageDir)
 	if err != nil {
 		return nil, fmt.Errorf("extension: validate staged generation: %w", err)
+	}
+	if err := validateStaticKitResources(ctx, stageDir, validated); err != nil {
+		return nil, fmt.Errorf("extension: validate staged static resources: %w", err)
 	}
 
 	hash, err := ComputeDirectoryChecksum(stageDir)
@@ -177,6 +186,9 @@ func copyBuildFile(source, destination string, mode fs.FileMode) (resultErr erro
 		}
 	}()
 
+	if err := os.MkdirAll(filepath.Dir(destination), 0o755); err != nil {
+		return fmt.Errorf("extension: create build artifact parent %q: %w", filepath.Dir(destination), err)
+	}
 	output, err := os.OpenFile(destination, os.O_CREATE|os.O_EXCL|os.O_WRONLY, mode)
 	if err != nil {
 		return fmt.Errorf("extension: create build artifact %q: %w", destination, err)

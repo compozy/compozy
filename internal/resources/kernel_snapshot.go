@@ -50,6 +50,9 @@ func (k *Kernel) prepareSnapshotApply(
 		if draftErr != nil {
 			return MutationActor{}, SourceSnapshot{}, nil, draftErr
 		}
+		if ownerErr := validateDraftOwner(normalizedActor, normalizedDraft); ownerErr != nil {
+			return MutationActor{}, SourceSnapshot{}, nil, ownerErr
+		}
 		if normalizedDraft.ExpectedVersion != 0 {
 			return MutationActor{}, SourceSnapshot{}, nil, fmt.Errorf(
 				"%w: snapshot records must use expected_version 0",
@@ -186,7 +189,7 @@ func (k *Kernel) applySnapshotDraft(
 		ID:        draft.ID,
 		Version:   existing.Version + 1,
 		Scope:     draft.Scope,
-		Owner:     ownerFromActor(actor),
+		Owner:     ownerFromDraft(actor, draft),
 		Source:    actor.Source,
 		SpecJSON:  append([]byte(nil), draft.SpecJSON...),
 		CreatedAt: existing.CreatedAt,

@@ -5,6 +5,10 @@ const (
 	ToolIDExtensionsList ToolID = "compozy__extensions_list"
 	// ToolIDExtensionsInfo reads one installed extension status.
 	ToolIDExtensionsInfo ToolID = "compozy__extensions_info"
+	// ToolIDExtensionsInventory reads shipped and live extension resources.
+	ToolIDExtensionsInventory ToolID = "compozy__extensions_inventory"
+	// ToolIDExtensionsPreview previews an extension enable without changing state.
+	ToolIDExtensionsPreview ToolID = "compozy__extensions_preview"
 	// ToolIDExtensionsInstall installs one extension through a managed local or marketplace source.
 	ToolIDExtensionsInstall ToolID = "compozy__extensions_install"
 	// ToolIDExtensionsUpdate updates one or more marketplace-installed extensions.

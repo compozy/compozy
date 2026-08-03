@@ -173,7 +173,7 @@ func TestManagerStartRegistersResourceDefinitionsAtStartup(t *testing.T) {
 	}
 	t.Cleanup(func() {
 		if err := manager.Shutdown(testutil.Context(t)); err != nil {
-			t.Fatalf("manager.Shutdown() error = %v", err)
+			t.Errorf("manager.Shutdown() error = %v", err)
 		}
 	})
 
@@ -522,47 +522,104 @@ func TestAutomationTriggerResourceBuildDoesNotMutateLiveRuntime(t *testing.T) {
 func TestAutomationJobResourceApplyFailurePreservesPreviousRuntime(t *testing.T) {
 	t.Parallel()
 
-	h := newManagerResourceHarness(t)
-	manager := h.newResourceManager(t)
-	if err := manager.Start(h.ctx); err != nil {
-		t.Fatalf("manager.Start() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := manager.Shutdown(testutil.Context(t)); err != nil {
-			t.Fatalf("manager.Shutdown() error = %v", err)
+	t.Run("Should preserve the previous runtime when applying a canceled plan", func(t *testing.T) {
+		t.Parallel()
+
+		h := newManagerResourceHarness(t)
+		manager := h.newResourceManager(t)
+		if err := manager.Start(h.ctx); err != nil {
+			t.Fatalf("manager.Start() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := manager.Shutdown(testutil.Context(t)); err != nil {
+				t.Errorf("manager.Shutdown() error = %v", err)
+			}
+		})
+
+		first := h.putJobResource(t, "job-previous", "previous-job")
+		firstPlan, err := manager.BuildJobResourceState(h.ctx, []resources.Record[Job]{first})
+		if err != nil {
+			t.Fatalf("BuildJobResourceState(previous) error = %v", err)
+		}
+		if err := manager.ApplyJobResourceState(h.ctx, firstPlan); err != nil {
+			t.Fatalf("ApplyJobResourceState(previous) error = %v", err)
+		}
+
+		next := h.putJobResource(t, "job-next", "next-job")
+		nextPlan, err := manager.BuildJobResourceState(h.ctx, []resources.Record[Job]{next})
+		if err != nil {
+			t.Fatalf("BuildJobResourceState(next) error = %v", err)
+		}
+		canceledCtx, cancel := context.WithCancel(h.ctx)
+		cancel()
+		if err := manager.ApplyJobResourceState(canceledCtx, nextPlan); !errors.Is(err, context.Canceled) {
+			t.Fatalf("ApplyJobResourceState(canceled) error = %v, want context.Canceled", err)
+		}
+
+		jobs, err := manager.Jobs(h.ctx)
+		if err != nil {
+			t.Fatalf("manager.Jobs() error = %v", err)
+		}
+		if got := findJobByID(jobs, first.ID); got == nil {
+			t.Fatalf("previous job %q missing after failed Apply", first.ID)
+		}
+		if got := findJobByID(jobs, next.ID); got != nil {
+			t.Fatalf("next job %q applied after failed Apply", next.ID)
 		}
 	})
 
-	first := h.putJobResource(t, "job-previous", "previous-job")
-	firstPlan, err := manager.BuildJobResourceState(h.ctx, []resources.Record[Job]{first})
-	if err != nil {
-		t.Fatalf("BuildJobResourceState(previous) error = %v", err)
-	}
-	if err := manager.ApplyJobResourceState(h.ctx, firstPlan); err != nil {
-		t.Fatalf("ApplyJobResourceState(previous) error = %v", err)
-	}
+	t.Run("Should restore pruned overlays and join delete and restore failures", func(t *testing.T) {
+		t.Parallel()
 
-	next := h.putJobResource(t, "job-next", "next-job")
-	nextPlan, err := manager.BuildJobResourceState(h.ctx, []resources.Record[Job]{next})
-	if err != nil {
-		t.Fatalf("BuildJobResourceState(next) error = %v", err)
-	}
-	canceledCtx, cancel := context.WithCancel(h.ctx)
-	cancel()
-	if err := manager.ApplyJobResourceState(canceledCtx, nextPlan); !errors.Is(err, context.Canceled) {
-		t.Fatalf("ApplyJobResourceState(canceled) error = %v, want context.Canceled", err)
-	}
+		h := newManagerResourceHarness(t)
+		deleteErr := errors.New("delete later overlay")
+		restoreErr := errors.New("report restored overlay")
+		store := &overlayFailureStore{
+			Store: h.db,
+		}
+		manager := h.newResourceManager(t, WithStore(store))
+		records := []resources.Record[Job]{
+			h.putJobResourceWithSource(t, "job-overlay-a", "overlay-a", JobSourceConfig),
+			h.putJobResourceWithSource(t, "job-overlay-b", "overlay-b", JobSourceConfig),
+		}
+		initialPlan, err := manager.BuildJobResourceState(h.ctx, records)
+		if err != nil {
+			t.Fatalf("BuildJobResourceState(initial) error = %v", err)
+		}
+		if err := manager.ApplyJobResourceState(h.ctx, initialPlan); err != nil {
+			t.Fatalf("ApplyJobResourceState(initial) error = %v", err)
+		}
+		for _, record := range records {
+			if _, err := h.db.SetJobEnabledOverlay(h.ctx, JobEnabledOverlay{
+				JobID:           record.ID,
+				EnabledOverride: false,
+			}); err != nil {
+				t.Fatalf("SetJobEnabledOverlay(%q) error = %v", record.ID, err)
+			}
+		}
 
-	jobs, err := manager.Jobs(h.ctx)
-	if err != nil {
-		t.Fatalf("manager.Jobs() error = %v", err)
-	}
-	if got := findJobByID(jobs, first.ID); got == nil {
-		t.Fatalf("previous job %q missing after failed Apply", first.ID)
-	}
-	if got := findJobByID(jobs, next.ID); got != nil {
-		t.Fatalf("next job %q applied after failed Apply", next.ID)
-	}
+		retirePlan, err := manager.BuildJobResourceState(h.ctx, nil)
+		if err != nil {
+			t.Fatalf("BuildJobResourceState(retire) error = %v", err)
+		}
+		store.failJobDeleteID = records[1].ID
+		store.jobDeleteErr = deleteErr
+		store.failJobRestoreID = records[0].ID
+		store.jobRestoreErr = restoreErr
+		err = manager.ApplyJobResourceState(h.ctx, retirePlan)
+		if !errors.Is(err, deleteErr) || !errors.Is(err, restoreErr) {
+			t.Fatalf("ApplyJobResourceState(retire) error = %v, want joined delete and restore errors", err)
+		}
+		for _, record := range records {
+			overlay, getErr := h.db.GetJobEnabledOverlay(h.ctx, record.ID)
+			if getErr != nil {
+				t.Fatalf("GetJobEnabledOverlay(%q) error = %v", record.ID, getErr)
+			}
+			if overlay.EnabledOverride {
+				t.Fatalf("GetJobEnabledOverlay(%q) enabled_override = true, want restored false", record.ID)
+			}
+		}
+	})
 }
 
 func TestAutomationTriggerResourceApplyFailurePreservesPreviousRuntime(t *testing.T) {
@@ -1354,6 +1411,22 @@ func TestAutomationResourceConfigEnabledChangesUseOperationalOverlays(t *testing
 	if triggerOverlay.EnabledOverride {
 		t.Fatal("config trigger overlay enabled_override = true, want false")
 	}
+
+	if _, err := manager.SyncManagedDefinitions(h.ctx, JobSourceConfig, nil, nil); err != nil {
+		t.Fatalf("SyncManagedDefinitions(remove config resources) error = %v", err)
+	}
+	if err := manager.applyJobResourcesFromStore(h.ctx); err != nil {
+		t.Fatalf("applyJobResourcesFromStore(remove) error = %v", err)
+	}
+	if err := manager.applyTriggerResourcesFromStore(h.ctx); err != nil {
+		t.Fatalf("applyTriggerResourcesFromStore(remove) error = %v", err)
+	}
+	if _, err := h.db.GetJobEnabledOverlay(h.ctx, job.ID); !errors.Is(err, ErrJobOverlayNotFound) {
+		t.Fatalf("GetJobEnabledOverlay(after removal) error = %v, want overlay GC", err)
+	}
+	if _, err := h.db.GetTriggerEnabledOverlay(h.ctx, trigger.ID); !errors.Is(err, ErrTriggerOverlayNotFound) {
+		t.Fatalf("GetTriggerEnabledOverlay(after removal) error = %v, want overlay GC", err)
+	}
 }
 
 type managerResourceHarness struct {
@@ -1565,6 +1638,37 @@ type cancelAfterMutationStore[T any] struct {
 	cancel         context.CancelFunc
 	cancelOnPut    bool
 	cancelOnDelete bool
+}
+
+type overlayFailureStore struct {
+	Store
+	failJobDeleteID  string
+	jobDeleteErr     error
+	failJobRestoreID string
+	jobRestoreErr    error
+}
+
+var _ Store = (*overlayFailureStore)(nil)
+
+func (s *overlayFailureStore) DeleteJobEnabledOverlay(ctx context.Context, jobID string) error {
+	if jobID == s.failJobDeleteID {
+		return s.jobDeleteErr
+	}
+	return s.Store.DeleteJobEnabledOverlay(ctx, jobID)
+}
+
+func (s *overlayFailureStore) SetJobEnabledOverlay(
+	ctx context.Context,
+	overlay JobEnabledOverlay,
+) (JobEnabledOverlay, error) {
+	stored, err := s.Store.SetJobEnabledOverlay(ctx, overlay)
+	if err != nil {
+		return JobEnabledOverlay{}, err
+	}
+	if overlay.JobID == s.failJobRestoreID {
+		return stored, s.jobRestoreErr
+	}
+	return stored, nil
 }
 
 var _ resources.Store[Job] = (*cancelAfterMutationStore[Job])(nil)

@@ -208,6 +208,7 @@ func TestSchedulerAtJobUnregistersAfterFiringOnce(t *testing.T) {
 	baseTime := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
 	fakeClock := clockwork.NewFakeClockAt(baseTime)
 	dispatcher := newStubScheduleDispatcher()
+	dispatcher.blockNextDispatch()
 	scheduler := newTestScheduler(t, dispatcher, WithSchedulerClock(fakeClock))
 
 	job := testJob(AutomationScopeGlobal, "at-once", "")
@@ -230,6 +231,11 @@ func TestSchedulerAtJobUnregistersAfterFiringOnce(t *testing.T) {
 	waitForTimers(t, fakeClock, 1)
 	fakeClock.Advance(1 * time.Minute)
 	dispatcher.waitForDispatchCount(t, 1, 2*time.Second)
+	dispatchCtx := dispatcher.contextSnapshot()[0]
+	if err := dispatchCtx.Err(); err != nil {
+		t.Fatalf("one-time dispatch context error = %v, want live context", err)
+	}
+	dispatcher.releaseBlockedDispatch()
 	dispatcher.waitForCompletionCount(t, 1, 2*time.Second)
 
 	if _, err := scheduler.State(job.ID); !errors.Is(err, ErrScheduledJobNotFound) {
@@ -1094,6 +1100,7 @@ func TestNormalizeScheduledJobAndPredictNextRunValidation(t *testing.T) {
 type stubScheduleDispatcher struct {
 	mu             sync.Mutex
 	calls          []DispatchRequest
+	contexts       []context.Context
 	blocked        bool
 	releaseCh      chan struct{}
 	dispatchedCh   chan struct{}
@@ -1114,6 +1121,7 @@ func (d *stubScheduleDispatcher) Dispatch(ctx context.Context, req DispatchReque
 
 	d.mu.Lock()
 	d.calls = append(d.calls, req)
+	d.contexts = append(d.contexts, ctx)
 	releaseCh := d.releaseCh
 	blocked := d.blocked
 	dispatchResult := d.dispatchResult
@@ -1180,6 +1188,12 @@ func (d *stubScheduleDispatcher) callSnapshot() []DispatchRequest {
 	calls := make([]DispatchRequest, len(d.calls))
 	copy(calls, d.calls)
 	return calls
+}
+
+func (d *stubScheduleDispatcher) contextSnapshot() []context.Context {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return append([]context.Context(nil), d.contexts...)
 }
 
 func (d *stubScheduleDispatcher) assertDispatchCount(t *testing.T, want int) {

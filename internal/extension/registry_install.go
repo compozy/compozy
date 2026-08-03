@@ -25,7 +25,10 @@ func (r *Registry) installWithConfig(manifest *Manifest, path string, checksum s
 		return err
 	}
 
-	info := registryInstallInfo(r, resolvedManifest, manifestPath, actualChecksum, config)
+	info, err := registryInstallInfo(r, resolvedManifest, manifestPath, actualChecksum, config)
+	if err != nil {
+		return err
+	}
 	return r.persistInstalledInfo(info, sourceText, config.replaceExisting)
 }
 
@@ -122,8 +125,11 @@ func registryInstallInfo(
 	manifestPath string,
 	actualChecksum string,
 	config installConfig,
-) ExtensionInfo {
+) (ExtensionInfo, error) {
 	installedAt := r.now().UTC()
+	if config.installedAt != nil {
+		installedAt = config.installedAt.UTC()
+	}
 	capabilities := normalizeCapabilitiesConfig(resolvedManifest.Capabilities)
 	permissions := normalizePermissionsConfig(resolvedManifest.Permissions)
 	fallbackProvenance := ExtensionProvenance{
@@ -141,21 +147,26 @@ func registryInstallInfo(
 	if config.provenance != nil {
 		provenance = normalizeExtensionProvenance(*config.provenance, fallbackProvenance)
 	}
-	return ExtensionInfo{
-		Name:          strings.TrimSpace(resolvedManifest.Name),
-		Version:       strings.TrimSpace(resolvedManifest.Version),
-		Source:        config.source,
-		Enabled:       true,
-		ManifestPath:  manifestPath,
-		InstalledAt:   installedAt,
-		Capabilities:  capabilities,
-		Permissions:   permissions,
-		Checksum:      actualChecksum,
-		RegistrySlug:  config.registrySlug,
-		RegistryName:  config.registryName,
-		RemoteVersion: config.remoteVersion,
-		Provenance:    provenance,
+	networkDigest, err := NetworkParticipationRequirementDigest(resolvedManifest.NetworkParticipation)
+	if err != nil {
+		return ExtensionInfo{}, err
 	}
+	return ExtensionInfo{
+		Name:                     strings.TrimSpace(resolvedManifest.Name),
+		Version:                  strings.TrimSpace(resolvedManifest.Version),
+		Source:                   config.source,
+		Enabled:                  config.enabled,
+		ManifestPath:             manifestPath,
+		InstalledAt:              installedAt,
+		Capabilities:             capabilities,
+		Permissions:              permissions,
+		Checksum:                 actualChecksum,
+		RegistrySlug:             config.registrySlug,
+		RegistryName:             config.registryName,
+		RemoteVersion:            config.remoteVersion,
+		Provenance:               provenance,
+		NetworkRequirementDigest: networkDigest,
+	}, nil
 }
 
 func (r *Registry) persistInstalledInfo(info ExtensionInfo, sourceText string, replaceExisting bool) error {
@@ -176,7 +187,7 @@ func (r *Registry) persistInstalledInfo(info ExtensionInfo, sourceText string, r
 		INSERT INTO extensions (
 ` + registryInsertColumns + `
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 	if replaceExisting {
 		query += `
@@ -192,6 +203,17 @@ func (r *Registry) persistInstalledInfo(info ExtensionInfo, sourceText string, r
 			registry_name = excluded.registry_name,
 			remote_version = excluded.remote_version,
 			provenance_json = excluded.provenance_json
+			,network_requirement_digest = excluded.network_requirement_digest
+			,network_confirmed_by = CASE
+				WHEN extensions.network_requirement_digest = excluded.network_requirement_digest
+				THEN extensions.network_confirmed_by
+				ELSE NULL
+			END
+			,network_confirmed_at = CASE
+				WHEN extensions.network_requirement_digest = excluded.network_requirement_digest
+				THEN extensions.network_confirmed_at
+				ELSE NULL
+			END
 		`
 	}
 
@@ -211,6 +233,9 @@ func (r *Registry) persistInstalledInfo(info ExtensionInfo, sourceText string, r
 		nullableStringValue(info.RegistryName),
 		nullableStringValue(info.RemoteVersion),
 		string(provenanceJSON),
+		strings.TrimSpace(info.NetworkRequirementDigest),
+		nullableRegistryString(info.NetworkConfirmedBy),
+		nullableRegistryTime(info.NetworkConfirmedAt),
 	)
 	if err != nil {
 		if replaceExisting {

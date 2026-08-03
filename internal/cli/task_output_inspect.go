@@ -209,7 +209,7 @@ func taskInspectSessionRows(session *contract.TaskInspectSessionPayload) []keyVa
 	return []keyValue{
 		{Label: taskSessionValue, Value: stringOrDash(session.SessionID)},
 		{Label: taskStatusValue, Value: stringOrDash(session.State)},
-		{Label: bundleAgentValue, Value: stringOrDash(session.AgentName)},
+		{Label: automationAgentValue, Value: stringOrDash(session.AgentName)},
 		{Label: installProviderValue, Value: stringOrDash(session.ProviderName)},
 		{Label: taskWorkspaceValue, Value: stringOrDash(session.WorkspaceID)},
 		{Label: taskStartedValue, Value: stringOrDash(formatTimePtr(session.StartedAt))},

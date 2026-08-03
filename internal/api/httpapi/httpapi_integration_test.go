@@ -631,7 +631,7 @@ func TestHTTPResourceMutationRoutesRemainUnavailableWithoutOperatorAuth(t *testi
 		t,
 		runtime.HTTPClient,
 		http.MethodPut,
-		runtime.HTTPURL("/api/resources/bundle.activation/demo"),
+		runtime.HTTPURL("/api/resources/fixture.resource/demo"),
 		[]byte(`{"scope":{"kind":"global"},"spec":{"enabled":true}}`),
 		nil,
 	)
@@ -645,7 +645,7 @@ func TestHTTPResourceMutationRoutesRemainUnavailableWithoutOperatorAuth(t *testi
 		t,
 		runtime.HTTPClient,
 		http.MethodDelete,
-		runtime.HTTPURL("/api/resources/bundle.activation/demo"),
+		runtime.HTTPURL("/api/resources/fixture.resource/demo"),
 		[]byte(`{"expected_version":1}`),
 		nil,
 	)

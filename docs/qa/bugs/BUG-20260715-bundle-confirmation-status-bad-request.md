@@ -1,6 +1,7 @@
 # BUG-20260715-bundle-confirmation-status-bad-request: Missing bundle confirmation reports the wrong status
 
 - **Status:** verified
+- **Historical surface:** The Bundle API and its scenarios were removed by the extension-kit hard cut. This record remains only as evidence for the retired behavior.
 - **Impact (user-side):** Friction
 - **Severity:** Medium · **Priority:** P1
 - **Persona Affected:** Bruno

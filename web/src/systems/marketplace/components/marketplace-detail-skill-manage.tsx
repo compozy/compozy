@@ -172,7 +172,6 @@ function SkillManageProvenance({ skill }: { skill: SkillPayload }) {
   const rows = [
     ["Tier", provenance.precedence_tier],
     ["Extension", provenance.installed_from_extension],
-    ["Bundle", provenance.installed_from_bundle],
     ["Registry", provenance.registry],
     ["Slug", provenance.slug],
     ["Version", provenance.version],

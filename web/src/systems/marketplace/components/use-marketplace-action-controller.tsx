@@ -1,20 +1,23 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSelector, useStore } from "@xstate/store-react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
-import { isMCPAuthorizeAwaiting, isMCPAuthorizePending, useMCPAuthorize } from "@/systems/settings";
 import {
-  useDeactivateBundle,
+  ExtensionNetworkConfirmDialog,
+  extensionNetworkConfirmation,
   useRemoveExtension,
   useToggleExtension,
-  useUpdateBundleActivation,
+  type ToggleExtensionVariables,
 } from "@/systems/extensions";
 import {
   deriveMCPAuthFilter,
   deriveMCPManagementFilter,
+  isMCPAuthorizeAwaiting,
+  isMCPAuthorizePending,
   useDeleteSettingsMCPServer,
+  useMCPAuthorize,
 } from "@/systems/settings";
 import { useRemoveSkillMarketplace } from "@/systems/skill";
 
@@ -29,6 +32,7 @@ import type { MarketplaceInstalledItem } from "../hooks/use-marketplace-kind-pag
 import { marketplaceEntryOptions } from "../lib/query-options";
 import type {
   ExtensionInstallRequest,
+  ExtensionUpdateRequest,
   MarketplaceKind,
   MarketplaceListing,
   MCPInstallRequest,
@@ -57,8 +61,6 @@ interface MarketplaceActionController {
   handleAction: (entry: MarketplaceListing) => void;
   handleAuthorize: (item: MarketplaceInstalledItem) => void;
   handleRemove: (item: MarketplaceInstalledItem) => Promise<void>;
-  handleDeactivate: (item: MarketplaceInstalledItem) => Promise<void>;
-  handleUpdateBundle: (item: MarketplaceInstalledItem) => void;
   handleToggleEnabled: (item: MarketplaceInstalledItem, enabled: boolean) => void;
   handleFlashEnd: (entry: MarketplaceListing) => void;
   isEntryPending: (entry: MarketplaceListing) => boolean;
@@ -66,6 +68,20 @@ interface MarketplaceActionController {
   isEntryFlashing: (entry: MarketplaceListing) => boolean;
   isAuthorizing: boolean;
 }
+
+type MarketplaceExtensionNetworkConfirm =
+  | {
+      action: "enable";
+      digest: string;
+      item: MarketplaceInstalledItem;
+      variables: ToggleExtensionVariables;
+    }
+  | {
+      action: "update";
+      digest: string;
+      entry: MarketplaceListing;
+      request: { body: ExtensionUpdateRequest; name: string };
+    };
 
 function installedName(entry: MarketplaceListing): string {
   if (!entry.installed_name) {
@@ -102,9 +118,10 @@ function useMarketplaceActionController(
   const removeExtension = useRemoveExtension();
   const deleteMCP = useDeleteSettingsMCPServer();
   const toggleExtension = useToggleExtension();
-  const deactivateBundle = useDeactivateBundle();
-  const updateBundle = useUpdateBundleActivation();
   const pending = useMarketplacePending();
+  const [networkConfirm, setNetworkConfirm] = useState<MarketplaceExtensionNetworkConfirm | null>(
+    null
+  );
   const controllerStore = useStore(marketplaceActionControllerLogic);
   const phase = useSelector(controllerStore, snapshot => snapshot.context);
   const dialogSelection = marketplaceDialogSelection(phase);
@@ -145,7 +162,7 @@ function useMarketplaceActionController(
     toast.success(message, {
       action: {
         label: "View installed →",
-        onClick: () => goToInstalled(entry.kind as MarketplaceKind),
+        onClick: () => goToInstalled(entry.kind),
       },
     });
   };
@@ -157,6 +174,41 @@ function useMarketplaceActionController(
     }
     pending.flash(entry);
     viewInstalledToast(entry, `${entry.name} installed`);
+  };
+
+  const runExtensionUpdate = async (
+    entry: MarketplaceListing,
+    request: { body: ExtensionUpdateRequest; name: string }
+  ): Promise<boolean> => {
+    try {
+      await updateExtension.mutateAsync(request);
+      return true;
+    } catch (error) {
+      const confirmation = extensionNetworkConfirmation(error);
+      if (!confirmation) throw error;
+      setNetworkConfirm({
+        action: "update",
+        digest: confirmation.digest,
+        entry,
+        request,
+      });
+      return false;
+    }
+  };
+
+  const runExtensionToggle = async (
+    item: MarketplaceInstalledItem,
+    variables: ToggleExtensionVariables
+  ): Promise<boolean> => {
+    try {
+      await toggleExtension.mutateAsync(variables);
+      return true;
+    } catch (error) {
+      const confirmation = variables.enabled ? extensionNetworkConfirmation(error) : null;
+      if (!confirmation) throw error;
+      setNetworkConfirm({ action: "enable", digest: confirmation.digest, item, variables });
+      return false;
+    }
   };
 
   const withPendingEntry = async (entry: MarketplaceListing, action: () => Promise<void>) => {
@@ -176,18 +228,13 @@ function useMarketplaceActionController(
   };
 
   const fetchDetail = async (entry: MarketplaceListing) => {
-    const kind = entry.kind as MarketplaceKind;
     return queryClient.fetchQuery(
-      marketplaceEntryOptions(
-        kind === "bundle"
-          ? { entryId: entry.entry_id, kind, workspaceId }
-          : {
-              entryId: entry.entry_id,
-              installedName: entry.installed_name,
-              kind,
-              workspaceId,
-            }
-      )
+      marketplaceEntryOptions({
+        entryId: entry.entry_id,
+        installedName: entry.installed_name,
+        kind: entry.kind,
+        workspaceId,
+      })
     );
   };
 
@@ -197,7 +244,7 @@ function useMarketplaceActionController(
       controllerStore.trigger.extensionTrustRequested({ entry });
       return;
     }
-    if (entry.kind === "mcp" || entry.kind === "bundle") {
+    if (entry.kind === "mcp") {
       controllerStore.trigger.detailRequested({
         describeFailure: error =>
           marketplaceErrorMessage(error, `Failed to load ${entry.name} details`),
@@ -205,10 +252,10 @@ function useMarketplaceActionController(
           pending.trackEntry(entry, async () => {
             await fetchDetail(entry);
           }),
-        selection:
-          entry.kind === "bundle"
-            ? { entryId: entry.entry_id, kind: entry.kind }
-            : { entryId: entry.entry_id, installedName: entry.installed_name, kind: entry.kind },
+        selection: {
+          entryId: entry.entry_id,
+          installedName: entry.installed_name,
+        },
       });
       return;
     }
@@ -236,10 +283,11 @@ function useMarketplaceActionController(
       }
       if (entry.kind === "extension") {
         if (entry.update_available) {
-          await updateExtension.mutateAsync({
+          const updated = await runExtensionUpdate(entry, {
             body: { allow_unverified: false, version: entry.version },
             name: installedName(entry),
           });
+          if (!updated) return;
           const displayVersion = formatMarketplaceVersion(entry.version);
           toast.success(
             displayVersion ? `${entry.name} updated to ${displayVersion}` : `${entry.name} updated`
@@ -275,13 +323,13 @@ function useMarketplaceActionController(
       execute: entry =>
         pending.trackEntry(entry, async () => {
           if (entry.update_available) {
-            await updateExtension.mutateAsync({
+            return runExtensionUpdate(entry, {
               body: { allow_unverified: true, version: entry.version },
               name: installedName(entry),
             });
-            return;
           }
           await installExtension.mutateAsync(curatedInstallRequest(entry, true));
+          return true;
         }),
     });
   };
@@ -324,63 +372,87 @@ function useMarketplaceActionController(
     });
   };
 
-  const handleDeactivate = async (item: MarketplaceInstalledItem) => {
-    const activationId = item.activationId;
-    if (!activationId) {
-      throw new Error(`Activation id is unavailable for ${item.entry.name}`);
-    }
-    await pending.trackItem(item, async () => {
-      await deactivateBundle.mutateAsync(activationId);
-    });
-  };
-
-  const handleUpdateBundle = (item: MarketplaceInstalledItem) => {
-    void withPendingItem(item, async () => {
-      if (!item.activationId || item.activationVersion === undefined) {
-        throw new Error(`Activation identity is unavailable for ${item.entry.name}`);
-      }
-      await updateBundle.mutateAsync({
-        body: { expected_version: item.activationVersion },
-        id: item.activationId,
-      });
-    });
-  };
-
   const handleToggleEnabled = (item: MarketplaceInstalledItem, enabled: boolean) => {
     const name = installedName(item.entry);
     void withPendingItem(item, async () => {
-      await toggleExtension.mutateAsync({ enabled, name });
+      await runExtensionToggle(item, { enabled, name });
+    });
+  };
+
+  const submitNetworkConfirm = () => {
+    const pendingConfirmation = networkConfirm;
+    if (!pendingConfirmation) return;
+    if (pendingConfirmation.action === "update") {
+      void withPendingEntry(pendingConfirmation.entry, async () => {
+        const updated = await runExtensionUpdate(pendingConfirmation.entry, {
+          ...pendingConfirmation.request,
+          body: {
+            ...pendingConfirmation.request.body,
+            confirm_network_digest: pendingConfirmation.digest,
+          },
+        });
+        if (!updated) return;
+        setNetworkConfirm(null);
+        handleExtensionTrusted(pendingConfirmation.entry);
+      });
+      return;
+    }
+    void withPendingItem(pendingConfirmation.item, async () => {
+      const enabled = await runExtensionToggle(pendingConfirmation.item, {
+        ...pendingConfirmation.variables,
+        confirmNetworkDigest: pendingConfirmation.digest,
+      });
+      if (enabled) setNetworkConfirm(null);
     });
   };
 
   const dialogs = (
-    <MarketplaceActionDialogs
-      authorize={authorize}
-      authScope={authFilter?.scope ?? "global"}
-      authServer={authServerEntry}
-      bundleDetail={phase.status === "bundleActivation" ? dialogDetail : null}
-      mcpDetail={phase.status === "mcpInstall" ? dialogDetail : null}
-      onBundleClose={() => controllerStore.trigger.dialogDismissed()}
-      onConfirmTrust={confirmUnverifiedExtension}
-      onInstallMCP={installSelectedMCP}
-      onMCPClose={() => controllerStore.trigger.dialogDismissed()}
-      onTrustClose={() => controllerStore.trigger.dialogDismissed()}
-      trustEntry={trustEntry(phase)}
-      trustError={trustError(phase)}
-      trustPending={phase.status === "extensionTrustSubmitting"}
-      workspaceId={workspaceId}
-    />
+    <>
+      <MarketplaceActionDialogs
+        authorize={authorize}
+        authScope={authFilter?.scope ?? "global"}
+        authServer={authServerEntry}
+        mcpDetail={phase.status === "mcpInstall" ? dialogDetail : null}
+        onConfirmTrust={confirmUnverifiedExtension}
+        onInstallMCP={installSelectedMCP}
+        onMCPClose={() => controllerStore.trigger.dialogDismissed()}
+        onTrustClose={() => controllerStore.trigger.dialogDismissed()}
+        trustEntry={trustEntry(phase)}
+        trustError={trustError(phase)}
+        trustPending={phase.status === "extensionTrustSubmitting"}
+        workspaceId={workspaceId}
+      />
+      {networkConfirm ? (
+        <ExtensionNetworkConfirmDialog
+          action={networkConfirm.action}
+          digest={networkConfirm.digest}
+          extensionName={
+            networkConfirm.action === "update"
+              ? networkConfirm.entry.name
+              : networkConfirm.item.entry.name
+          }
+          onConfirm={submitNetworkConfirm}
+          onOpenChange={open => {
+            if (!open) setNetworkConfirm(null);
+          }}
+          open
+          pending={
+            networkConfirm.action === "update"
+              ? updateExtension.isPending
+              : toggleExtension.isPending
+          }
+        />
+      ) : null}
+    </>
   );
 
   return {
     dialogs,
     handleAction,
     handleAuthorize,
-    handleDeactivate,
     handleFlashEnd: pending.handleFlashEnd,
     handleRemove,
     handleToggleEnabled,
-    handleUpdateBundle,
     isAuthorizing: isMCPAuthorizePending(authorize.phase),
     isEntryFlashing: pending.isEntryFlashing,
     isEntryPending: pending.isEntryPending,
@@ -397,25 +469,19 @@ function trustEntry(phase: MarketplaceActionControllerPhase): MarketplaceListing
 function marketplaceDialogSelection(
   phase: MarketplaceActionControllerPhase
 ): MarketplaceDialogSelection | null {
-  return phase.status === "mcpInstall" || phase.status === "bundleActivation"
-    ? phase.selection
-    : null;
+  return phase.status === "mcpInstall" ? phase.selection : null;
 }
 
 function marketplaceDialogEntryOptions(
   selection: MarketplaceDialogSelection | null,
   workspaceId?: string | null
 ) {
-  return marketplaceEntryOptions(
-    selection?.kind === "bundle"
-      ? { entryId: selection.entryId, kind: selection.kind, workspaceId }
-      : {
-          entryId: selection?.entryId ?? "",
-          installedName: selection?.installedName,
-          kind: "mcp",
-          workspaceId,
-        }
-  );
+  return marketplaceEntryOptions({
+    entryId: selection?.entryId ?? "",
+    installedName: selection?.installedName,
+    kind: "mcp",
+    workspaceId,
+  });
 }
 
 function trustError(phase: MarketplaceActionControllerPhase): string | null {

@@ -1,12 +1,22 @@
 import { describe, expect, it } from "vitest";
 
 import { marketplaceListings } from "../../mocks";
+import { marketplaceKindConfig } from "../../lib/marketplace-kind-config";
+import {
+  MARKETPLACE_KINDS,
+  MARKETPLACE_ROUTE_KINDS,
+  marketplaceApiKindFor,
+  marketplaceRouteKindFor,
+} from "../../types";
 import {
   formatMarketplaceMCPLaunch,
   formatMarketplaceCount,
   formatMarketplaceVersion,
   isMarketplaceKind,
   isMarketplaceViewSort,
+  MARKETPLACE_KIND_LABEL,
+  MARKETPLACE_KIND_ORDER,
+  MARKETPLACE_KIND_SINGULAR,
   sortMarketplaceEntries,
 } from "../marketplace-ui";
 
@@ -16,6 +26,22 @@ describe("marketplace UI helpers", () => {
     expect(isMarketplaceKind("recipe")).toBe(false);
     expect(isMarketplaceViewSort("downloads")).toBe(true);
     expect(isMarketplaceViewSort("updated")).toBe(false);
+  });
+
+  // UT-062: the kind system is the marketplace's public surface — every table that keys off it
+  // must agree, so a re-introduced kind cannot reach a page through one of them.
+  it("Should expose exactly extension, skill, and mcp across every kind table", () => {
+    expect([...MARKETPLACE_KINDS].sort()).toEqual(["extension", "mcp", "skill"]);
+    expect([...MARKETPLACE_ROUTE_KINDS].sort()).toEqual(["extensions", "mcps", "skills"]);
+    expect([...MARKETPLACE_KIND_ORDER].sort()).toEqual([...MARKETPLACE_KINDS].sort());
+    expect(Object.keys(MARKETPLACE_KIND_LABEL).sort()).toEqual([...MARKETPLACE_KINDS].sort());
+    expect(Object.keys(MARKETPLACE_KIND_SINGULAR).sort()).toEqual([...MARKETPLACE_KINDS].sort());
+    expect(isMarketplaceKind("bundle")).toBe(false);
+
+    for (const kind of MARKETPLACE_KINDS) {
+      expect(marketplaceKindConfig(kind).kind).toBe(kind);
+      expect(marketplaceApiKindFor(marketplaceRouteKindFor(kind))).toBe(kind);
+    }
   });
 
   it("Should sort by real downloads or name without mutating the API order", () => {

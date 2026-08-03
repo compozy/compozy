@@ -8,6 +8,7 @@ import type {
   HookPayloadByEvent,
   HostAPIMethod,
   DescribeSubprocess,
+  DescribeResources,
   ExtensionCommandGroupSpec,
   ExtensionCommandSpec,
   RiskClass,
@@ -79,9 +80,7 @@ export interface ToolConfig {
   command?: ExtensionCommandSpec;
 }
 
-export interface ResourcesConfig {
-  skills?: string[];
-  agents?: string[];
+export interface ResourcesConfig extends DescribeResources {
   hooks?: HookConfig[];
   tools?: Record<string, ToolConfig>;
   command_groups?: ExtensionCommandGroupSpec[];
@@ -120,6 +119,7 @@ export interface ExtensionDefinition extends Pick<
   "name" | "version" | "description" | "capabilities" | "permissions"
 > {
   requires_env?: string[];
+  resources?: DescribeResources;
   subprocess?: DescribeSubprocess;
   supported_hook_events?: HookEvent[];
 }

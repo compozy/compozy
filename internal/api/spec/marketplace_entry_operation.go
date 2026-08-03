@@ -15,7 +15,7 @@ func marketplaceEntryOperation() OperationSpec {
 			pathParam("entry_id", "Stable URL-safe marketplace entry id"),
 			queryParam(
 				"installed_name",
-				"Exact installed MCP, extension, or skill identity; rejected for bundles",
+				"Exact installed MCP, extension, or skill identity",
 				false,
 			),
 			enumQueryParam(

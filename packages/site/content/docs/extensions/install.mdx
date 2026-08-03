@@ -4,8 +4,8 @@ description: Install extensions from curated, GitHub, git, or local sources; und
 ---
 
 Extensions are installable packages that add static resources or runtime behavior to Compozy. An
-extension can bundle skills, agent definitions, hooks, loops, bundles, MCP servers, memory backends,
-model sources, and subprocess tools.
+extension can ship skills, agent definitions with authored-context sidecars, automation, layouts,
+hooks, loops, MCP servers, memory backends, model sources, and subprocess tools.
 
 Compozy stores installed extensions in the global registry and copies managed installs into
 `<COMPOZY_HOME>/extensions/<name>`.
@@ -165,8 +165,8 @@ workspace, or through `compozy extension logs <name>`. See
 | `consecutive_failures`, `restart_backoff_ms`                                   | Crash-loop honesty: a looping extension is distinguishable from a stably-failed one.                     |
 | `dev`, `overrides_published`, `origin_path`, `generation_hash`, `workspace_id` | Dev-overlay identity when one is active.                                                                 |
 | `update_available`, `remote_version`                                           | Passive update projection.                                                                               |
-| `requires_env`, `missing_env`                                                  | Declared environment variable names and the ones currently unset.                                        |
-| `bundles`                                                                      | Bundle summaries packaged by the extension.                                                              |
+| `requires_env`, `missing_env`, `bound_env_keys`                                | Declared names, currently missing names, and names bound through Vault.                                  |
+| `network_requirement_digest`, `network_confirmation_required`                  | The exact Live requirement digest and whether lifecycle consent is pending.                              |
 | `provenance`, `trust`                                                          | Install source, checksums, registry tier, `allow_unverified`, installer identity, decision, diagnostics. |
 
 Apply updates:
@@ -188,6 +188,26 @@ The runtime activation is the commit point. If the new version is active but Com
 staging directory or backup, the result is still `status: "updated"` with an
 `extension_update_cleanup_failed` warning naming the residual path.
 
+## Inspect and preview the kit
+
+Use inventory to compare every resource shipped by the global installed extension with the records
+currently live in the daemon:
+
+```bash
+compozy extension inventory hello -o json
+```
+
+Use preview before enable to calculate the same desired state without writing records, starting
+automation, launching a subprocess, or recording Network consent:
+
+```bash
+compozy extension preview hello -o json
+```
+
+Preview reports the publish set, agent-name conflicts, unbound environment names, automation that
+would start, and the current Network requirement digest. Resolve conflicts and bindings before the
+enable mutation.
+
 ## Enable, disable, remove
 
 ```bash
@@ -197,10 +217,15 @@ compozy extension remove hello
 compozy extension remove hello --global
 ```
 
-Enable and disable require the daemon: it updates the registry flag, reloads the extension manager,
-rebuilds the hook registry, reconciles bundles, and writes an `extension.enabled` or
-`extension.disabled` event. Both are rejected while active bundle activations depend on the
-extension — remove or deactivate those first.
+Enable and disable require the daemon. Enable publishes the complete static kit, starts effectively
+enabled package automation, loads runtime behavior, and writes an `extension.enabled` event. Its
+result lists the automation definitions that became runnable. Disable removes the extension-owned
+live resources, stops runtime behavior, and writes `extension.disabled`.
+
+When the manifest requires Live Network participation, an unconfirmed enable returns
+`extension_network_confirmation_required` with the current digest. Review it, then retry with
+`--confirm-network-requirement <digest>`. An update that changes the digest refuses before replacing
+the installed package and uses the same exact-digest confirmation flag.
 
 Inside a workspace, `remove` unlinks a dev overlay and lets the published installation resume;
 `--global` removes the published installation. Removal deletes the managed install directory and
@@ -224,6 +249,11 @@ Compozy validates `requires_env` at install and status load. Diagnostics report 
 An unset or empty variable surfaces through `missing_env` in `list`, `status`, the API, and the
 settings page.
 
+Bind required values through the instance-scoped Vault flow described in
+[Extension secret bindings](/docs/extensions/secrets). Bindings survive an update of the same managed
+instance, while stale bindings remain visible but are never injected when the new manifest stops
+declaring that name.
+
 ## Agent surfaces
 
 Extension lifecycle is agent-manageable. The `compozy__extensions` toolset reaches the same services
@@ -240,6 +270,8 @@ as the CLI:
 | List installed     | `compozy__extensions_list`              | `compozy extension list`           |
 | Inspect one        | `compozy__extensions_info`              | `compozy extension status`         |
 | Inspect provenance | `compozy__extensions_provenance`        | `compozy extension provenance`     |
+| Inspect kit        | `compozy__extensions_inventory`         | `compozy extension inventory`      |
+| Preview enable     | `compozy__extensions_preview`           | `compozy extension preview`        |
 | Install            | `compozy__extensions_install`           | `compozy extension install`        |
 | Update             | `compozy__extensions_update`            | `compozy extension update`         |
 | Remove             | `compozy__extensions_remove`            | `compozy extension remove`         |
@@ -255,12 +287,10 @@ server-side and registered for redaction.
 Native `dev` and `reload` never build. Call `compozy__extensions_build` first and pass its
 `generation_hash`.
 
-Extension bundles have their own UDS-backed surface: `compozy bundle catalog|preview|activate|list|get|update|deactivate|network-settings`,
-mirrored by `compozy__bundles_list`, `compozy__bundles_info`, `compozy__bundles_activate`,
-`compozy__bundles_deactivate`, and `compozy__bundles_status`. Desired-state resources published by
-extensions are inspectable through `compozy__resources_list`, `compozy__resources_info`, and
-`compozy__resources_snapshot`. An extension declares the corresponding Host API methods in
-`permissions.requires`, such as `resources/list`, `resources/get`, and `resources/snapshot`.
+Extension-owned desired-state records are inspectable through `compozy__resources_list`,
+`compozy__resources_info`, and `compozy__resources_snapshot`. An extension declares the corresponding
+Host API methods in `permissions.requires`, such as `resources/list`, `resources/get`, and
+`resources/snapshot`.
 
 ## Troubleshooting
 
@@ -271,7 +301,7 @@ extensions are inspectable through `compozy__resources_list`, `compozy__resource
 | `extension_archive_digest_mismatch`         | Curated archive differs from the pinned bytes.                                    | Stop; refresh the catalog or wait for the entry to be corrected.            |
 | `extension_git_unavailable`                 | No `git` binary on the daemon host.                                               | Install `git` or install from another source.                               |
 | Extension is `enabled` but not `active`     | Daemon offline, disabled, or activation failed.                                   | `compozy extension status <name>` and `compozy extension logs <name>`.      |
-| Disable or remove returns a conflict        | Active bundle activations depend on the extension.                                | Deactivate those bundle activations first.                                  |
+| Enable asks for Network confirmation        | The extension declares an unconfirmed or changed Live requirement digest.         | Review the digest, then retry with `--confirm-network-requirement`.         |
 | `bridge.adapter` install rejected           | External bridge authoring is a planned follow-up.                                 | See [Develop Extensions](/docs/extensions/develop#bridge-adapters).         |
 | Daemon-required error on a marketplace verb | Search, install, update, remove, enable, status, and provenance are daemon-owned. | Start the daemon and retry.                                                 |
 
@@ -280,6 +310,7 @@ Related references:
 - [Develop Extensions](/docs/extensions/develop)
 - [Publish an Extension](/docs/extensions/publish)
 - [Extension Permissions](/docs/extensions/permissions)
+- [Extension Secret Bindings](/docs/extensions/secrets)
 - [Extension CLI Reference](/docs/cli/extension)
 - [Hook Declaration Format](/docs/hooks/declaration)
 - [Unified Marketplace](/docs/marketplace)

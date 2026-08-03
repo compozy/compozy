@@ -13,6 +13,11 @@ func registryExtensionOperations() []OperationSpec {
 		listExtensionCommandsOperationSpec(),
 		installExtensionOperationSpec(),
 		getExtensionOperationSpec(),
+		getExtensionInventoryOperationSpec(),
+		previewExtensionEnableOperationSpec(),
+		listExtensionSecretsOperationSpec(),
+		setExtensionSecretsOperationSpec(),
+		deleteExtensionSecretOperationSpec(),
 		updateExtensionOperationSpec(),
 		removeExtensionOperationSpec(),
 		getExtensionProvenanceOperationSpec(),
@@ -82,8 +87,118 @@ func reloadDevExtensionOperationSpec() OperationSpec {
 			{Status: 200, Description: "OK", Body: contract.ExtensionResponse{}},
 			{Status: 400, Description: "Invalid generation", Body: contract.ErrorPayload{}},
 			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
-			{Status: 409, Description: "Extension is not dev linked", Body: contract.ErrorPayload{}},
+			{
+				Status:      409,
+				Description: "Extension is not dev linked or needs network confirmation",
+				Body:        contract.ExtensionOperationErrorPayload{},
+			},
 			{Status: 503, Description: specExtensionServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
+		},
+	}
+}
+
+func getExtensionInventoryOperationSpec() OperationSpec {
+	return OperationSpec{
+		Method:      httpMethodGet,
+		Path:        specAPIExtensionsNameInventoryPath,
+		OperationID: "getExtensionInventory",
+		Summary:     "List shipped and live resources for one extension",
+		Tags:        []string{specExtensionsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters:  []ParameterSpec{pathParam("name", "Extension name")},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.ExtensionInventoryPayload{}},
+			{Status: 404, Description: specExtensionNotFoundDescription, Body: contract.ErrorPayload{}},
+			{Status: 503, Description: specExtensionServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
+		},
+	}
+}
+
+func previewExtensionEnableOperationSpec() OperationSpec {
+	return OperationSpec{
+		Method:      httpMethodGet,
+		Path:        specAPIExtensionsNamePreviewPath,
+		OperationID: "previewExtensionEnable",
+		Summary:     "Preview enabling one extension without changing state",
+		Tags:        []string{specExtensionsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters:  []ParameterSpec{pathParam("name", "Extension name")},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.ExtensionEnablePreviewPayload{}},
+			{Status: 404, Description: specExtensionNotFoundDescription, Body: contract.ErrorPayload{}},
+			{Status: 503, Description: specExtensionServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
+		},
+	}
+}
+
+func listExtensionSecretsOperationSpec() OperationSpec {
+	return OperationSpec{
+		Method:      httpMethodGet,
+		Path:        specAPIExtensionsNameSecretsPath,
+		OperationID: "listExtensionSecrets",
+		Summary:     "List declared and bound extension environment names",
+		Tags:        []string{specExtensionsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("name", "Extension name"),
+			queryParam("workspace", specExtensionWorkspaceParamDescription, false),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.ExtensionSecretsPayload{}},
+			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
+			{Status: 404, Description: specExtensionNotFoundDescription, Body: contract.ErrorPayload{}},
+		},
+	}
+}
+
+func setExtensionSecretsOperationSpec() OperationSpec {
+	return OperationSpec{
+		Method:      httpMethodPut,
+		Path:        specAPIExtensionsNameSecretsPath,
+		OperationID: "setExtensionSecrets",
+		Summary:     "Set or bind extension environment secrets",
+		Tags:        []string{specExtensionsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("name", "Extension name"),
+			queryParam("workspace", specExtensionWorkspaceParamDescription, false),
+		},
+		RequestBody: contract.SetExtensionSecretsRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.ExtensionSecretsPayload{}},
+			{
+				Status:      400,
+				Description: "Invalid extension secret binding",
+				Body:        contract.ExtensionOperationErrorPayload{},
+			},
+			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
+			{Status: 404, Description: specExtensionNotFoundDescription, Body: contract.ErrorPayload{}},
+		},
+	}
+}
+
+func deleteExtensionSecretOperationSpec() OperationSpec {
+	return OperationSpec{
+		Method:      httpMethodDelete,
+		Path:        specAPIExtensionsNameSecretPath,
+		OperationID: "deleteExtensionSecret",
+		Summary:     "Remove one extension environment secret binding",
+		Tags:        []string{specExtensionsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("name", "Extension name"),
+			pathParam("env_name", "Declared environment name"),
+			queryParam("workspace", specExtensionWorkspaceParamDescription, false),
+		},
+		Responses: []ResponseSpec{
+			{Status: 204, Description: "No Content"},
+			{
+				Status:      400,
+				Description: "Invalid extension secret binding",
+				Body:        contract.ExtensionOperationErrorPayload{},
+			},
+			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
+			{Status: 404, Description: specExtensionNotFoundDescription, Body: contract.ErrorPayload{}},
 		},
 	}
 }
@@ -184,6 +299,11 @@ func updateExtensionOperationSpec() OperationSpec {
 			{Status: 400, Description: "Invalid update request", Body: contract.ErrorPayload{}},
 			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
 			{Status: 404, Description: specExtensionNotFoundDescription, Body: contract.ErrorPayload{}},
+			{
+				Status:      409,
+				Description: "Network confirmation required",
+				Body:        contract.ExtensionOperationErrorPayload{},
+			},
 			{Status: 422, Description: "Extension trust decision required", Body: contract.ErrorPayload{}},
 			{Status: 503, Description: specExtensionServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
@@ -242,10 +362,16 @@ func enableExtensionOperationSpec() OperationSpec {
 		Parameters: []ParameterSpec{
 			pathParam("name", "Extension name"),
 		},
+		RequestBody: contract.EnableExtensionRequest{},
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.ExtensionResponse{}},
+			{Status: 200, Description: "OK", Body: contract.ExtensionEnableResult{}},
 			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
 			{Status: 404, Description: specExtensionNotFoundDescription, Body: contract.ErrorPayload{}},
+			{
+				Status:      409,
+				Description: "Network confirmation required or shipped agent conflict",
+				Body:        contract.ExtensionOperationErrorPayload{},
+			},
 			{Status: 503, Description: specExtensionServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},

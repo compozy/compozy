@@ -7,14 +7,13 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	bundlepkg "github.com/compozy/compozy/internal/bundles"
 	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
 	registrypkg "github.com/compozy/compozy/internal/registry"
 )
 
 func (h *BaseHandlers) marketplaceEntry(
 	ctx context.Context,
-	kind string,
+	kind contract.MarketplaceKind,
 	entryID string,
 	installedName string,
 	scope marketplaceReadScope,
@@ -40,8 +39,6 @@ func (h *BaseHandlers) marketplaceEntry(
 		return h.marketplaceCuratedOrInstalledEntry(ctx, marketplacepkg.KindExtension, entryID, scope)
 	case contract.MarketplaceKindSkill:
 		return h.skillMarketplaceEntry(ctx, entryID, scope)
-	case contract.MarketplaceKindBundle:
-		return h.bundleMarketplaceEntry(ctx, entryID, scope)
 	default:
 		return contract.MarketplaceEntryResponse{}, errors.Join(
 			ErrMarketplaceNotFound, fmt.Errorf("unknown marketplace kind %q", kind),
@@ -69,7 +66,7 @@ func (h *BaseHandlers) curatedMarketplaceEntry(
 			ErrMarketplaceNotFound, fmt.Errorf("marketplace %s entry %q not found", kind, entryID),
 		)
 	}
-	installed, err := h.marketplaceInstallIndex(ctx, string(kind), scope)
+	installed, err := h.marketplaceInstallIndex(ctx, contract.MarketplaceKind(kind), scope)
 	if err != nil {
 		return contract.MarketplaceEntryResponse{}, err
 	}
@@ -172,68 +169,6 @@ func (h *BaseHandlers) remoteSkillMarketplaceEntry(
 		Skill: marketplaceSkillDetail(marketplacepkg.EntryDetails{
 			Skill: &marketplacepkg.SkillEntryDetails{InstallSlug: slug},
 		}, detail),
-	}, nil
-}
-
-func (h *BaseHandlers) bundleMarketplaceEntry(
-	ctx context.Context,
-	entryID string,
-	scope marketplaceReadScope,
-) (contract.MarketplaceEntryResponse, error) {
-	if h == nil || h.Bundles == nil {
-		return contract.MarketplaceEntryResponse{}, errors.Join(
-			ErrMarketplaceUnavailable, errors.New("bundle catalog is not configured"),
-		)
-	}
-	extensionName, bundleName, ok := decodeBundleEntryID(entryID)
-	if !ok {
-		return contract.MarketplaceEntryResponse{}, errors.Join(
-			ErrMarketplaceNotFound, fmt.Errorf("bundle entry %q not found", entryID),
-		)
-	}
-	catalog, err := h.Bundles.Catalog(ctx)
-	if err != nil {
-		return contract.MarketplaceEntryResponse{}, err
-	}
-	var found *bundlepkg.CatalogEntry
-	for index := range catalog {
-		entry := &catalog[index]
-		if entry.ExtensionName == extensionName && entry.Bundle.Name == bundleName {
-			found = entry
-			break
-		}
-	}
-	if found == nil {
-		return contract.MarketplaceEntryResponse{}, errors.Join(
-			ErrMarketplaceNotFound, fmt.Errorf("bundle entry %q not found", entryID),
-		)
-	}
-	activations, err := h.Bundles.ListActivations(ctx)
-	if err != nil {
-		return contract.MarketplaceEntryResponse{}, err
-	}
-	activation, installed := bundleActivationIndex(activations, scope)[bundleIdentityKey(extensionName, bundleName)]
-	listing := contract.MarketplaceListingPayload{
-		Kind: contract.MarketplaceKindBundle, EntryID: entryID, Name: found.Bundle.Name,
-		Description: found.Bundle.Description, Source: found.ExtensionName,
-		Installed: installed, UpdateAvailable: installed && activation.SpecDrift,
-	}
-	if installed {
-		listing.ManagePath = marketplaceBundleActivationPath(activation.Activation.ID)
-	}
-	profiles := make([]contract.MarketplaceBundleProfilePayload, 0, len(found.Bundle.Profiles))
-	for _, profile := range found.Bundle.Profiles {
-		profiles = append(profiles, contract.MarketplaceBundleProfilePayload{
-			Name: profile.Name, Description: profile.Description, Agents: len(profile.Agents),
-			Jobs: len(profile.Jobs), Triggers: len(profile.Triggers), Bridges: len(profile.Bridges),
-			Channels: len(profile.Channels.Items), Layouts: len(profile.Layouts),
-		})
-	}
-	return contract.MarketplaceEntryResponse{
-		Entry: listing,
-		Bundle: &contract.MarketplaceBundleDetailPayload{
-			ExtensionName: found.ExtensionName, Profiles: profiles,
-		},
 	}, nil
 }
 

@@ -110,7 +110,7 @@ func (h *HostAPIHandler) jobFromCreateParams(
 		WorkspaceID: workspaceID,
 		Prompt:      strings.TrimSpace(req.Prompt),
 		Schedule:    &schedule,
-		Task:        cloneBundleTaskConfig(req.Task),
+		Task:        cloneAutomationTaskConfig(req.Task),
 		LoopTarget:  cloneHostAPIAutomationLoopTarget(req.LoopTarget),
 		Enabled:     enabled,
 		Retry:       retry,
@@ -136,7 +136,7 @@ func (h *HostAPIHandler) applyJobUpdateParams(
 		next.Schedule = &schedule
 	}
 	if req.Task != nil {
-		next.Task = cloneBundleTaskConfig(req.Task)
+		next.Task = cloneAutomationTaskConfig(req.Task)
 	}
 	if req.LoopTarget != nil {
 		next.LoopTarget = cloneHostAPIAutomationLoopTarget(req.LoopTarget)

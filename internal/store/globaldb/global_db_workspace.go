@@ -85,17 +85,8 @@ func (g *WorkspaceRepo) DeleteWorkspace(ctx context.Context, id string) error {
 
 	return store.ExecuteWrite(ctx, g.db, func(ctx context.Context, tx *store.WriteTx) error {
 		queries := sqlcgen.New(tx)
-		activeSessions, err := queries.ListActiveSessionIDsByWorkspace(ctx, trimmedID)
-		if err != nil {
+		if err := ensureWorkspaceDeletionAllowed(ctx, queries, trimmedID); err != nil {
 			return err
-		}
-		if len(activeSessions) > 0 {
-			return fmt.Errorf(
-				"store: delete workspace %q: %w: %s",
-				trimmedID,
-				compozyworkspace.ErrWorkspaceHasActiveSessions,
-				strings.Join(activeSessions, ", "),
-			)
 		}
 
 		mcpAuthRefs, err := queries.ListMCPAuthTokenRefsByWorkspace(ctx, trimmedID)
@@ -138,6 +129,10 @@ func (g *WorkspaceRepo) DeleteWorkspace(ctx context.Context, id string) error {
 			return fmt.Errorf("store: delete MCP OAuth registrations for workspace %q: %w", trimmedID, err)
 		}
 
+		if err := deleteWorkspaceExtensionEnv(ctx, queries, trimmedID); err != nil {
+			return err
+		}
+
 		if err := queries.DeleteSessionsByWorkspace(ctx, trimmedID); err != nil {
 			return fmt.Errorf("store: delete stopped sessions for workspace %q: %w", trimmedID, err)
 		}
@@ -153,6 +148,40 @@ func (g *WorkspaceRepo) DeleteWorkspace(ctx context.Context, id string) error {
 
 		return nil
 	})
+}
+
+func ensureWorkspaceDeletionAllowed(ctx context.Context, queries *sqlcgen.Queries, workspaceID string) error {
+	activeSessions, err := queries.ListActiveSessionIDsByWorkspace(ctx, workspaceID)
+	if err != nil {
+		return err
+	}
+	if len(activeSessions) > 0 {
+		return fmt.Errorf(
+			"store: delete workspace %q: %w: %s",
+			workspaceID,
+			compozyworkspace.ErrWorkspaceHasActiveSessions,
+			strings.Join(activeSessions, ", "),
+		)
+	}
+
+	return nil
+}
+
+func deleteWorkspaceExtensionEnv(ctx context.Context, queries *sqlcgen.Queries, workspaceID string) error {
+	extensionSecretRefs, err := queries.ListExtensionEnvSecretRefsByWorkspace(ctx, workspaceID)
+	if err != nil {
+		return fmt.Errorf("store: list extension secret refs for workspace %q: %w", workspaceID, err)
+	}
+	for _, ref := range extensionSecretRefs {
+		if _, err := queries.DeleteVaultSecret(ctx, ref); err != nil {
+			return fmt.Errorf("store: delete extension secret for workspace %q: %w", workspaceID, err)
+		}
+	}
+	if _, err := queries.DeleteExtensionEnvBindingsByWorkspace(ctx, workspaceID); err != nil {
+		return fmt.Errorf("store: delete extension env bindings for workspace %q: %w", workspaceID, err)
+	}
+
+	return nil
 }
 
 // GetWorkspace loads a workspace registration by primary key.

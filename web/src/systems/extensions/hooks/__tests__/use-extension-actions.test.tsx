@@ -9,13 +9,11 @@ import { marketplaceKeys } from "@/systems/marketplace/lib/query-keys";
 
 const mocks = vi.hoisted(() => ({
   activeWorkspaceId: null as string | null,
-  deactivateBundle: vi.fn(),
   disableExtension: vi.fn(),
   enableExtension: vi.fn(),
   removeExtension: vi.fn(),
   toastError: vi.fn(),
   toastSuccess: vi.fn(),
-  updateBundleActivation: vi.fn(),
   updateExtension: vi.fn(),
 }));
 
@@ -27,20 +25,23 @@ vi.mock("@/systems/workspace", () => ({
   useActiveWorkspace: () => ({ activeWorkspaceId: mocks.activeWorkspaceId }),
 }));
 
-vi.mock("../../adapters/extensions-api", () => ({
-  deactivateBundle: mocks.deactivateBundle,
-  disableExtension: mocks.disableExtension,
-  enableExtension: mocks.enableExtension,
-  removeExtension: mocks.removeExtension,
-  updateBundleActivation: mocks.updateBundleActivation,
-  updateExtension: mocks.updateExtension,
-}));
+vi.mock("../../adapters/extensions-api", async () => {
+  const actual = await vi.importActual<typeof import("../../adapters/extensions-api")>(
+    "../../adapters/extensions-api"
+  );
+  return {
+    ExtensionsApiError: actual.ExtensionsApiError,
+    disableExtension: mocks.disableExtension,
+    enableExtension: mocks.enableExtension,
+    removeExtension: mocks.removeExtension,
+    updateExtension: mocks.updateExtension,
+  };
+});
 
+import { ExtensionsApiError } from "../../adapters/extensions-api";
 import {
-  useDeactivateBundle,
   useRemoveExtension,
   useToggleExtension,
-  useUpdateBundleActivation,
   useUpdateExtension,
 } from "../use-extension-actions";
 
@@ -56,22 +57,13 @@ function setup() {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.activeWorkspaceId = null;
-  mocks.enableExtension.mockResolvedValue(extensionFixtures[0]);
+  mocks.enableExtension.mockResolvedValue({
+    automation_started: [],
+    extension: extensionFixtures[0],
+  });
   mocks.disableExtension.mockResolvedValue(extensionFixtures[0]);
   mocks.updateExtension.mockResolvedValue(undefined);
   mocks.removeExtension.mockResolvedValue(undefined);
-  mocks.updateBundleActivation.mockResolvedValue({
-    bundle_name: "ops-starter",
-    created_at: "2026-07-08T09:20:00Z",
-    extension_name: "slack-notify",
-    id: "activation-ops-starter",
-    profile_name: "production",
-    scope: "workspace",
-    spec_drift: false,
-    updated_at: "2026-07-14T18:00:00Z",
-    workspace_id: "ws_northstar",
-  });
-  mocks.deactivateBundle.mockResolvedValue(undefined);
 });
 
 describe("useToggleExtension", () => {
@@ -104,18 +96,93 @@ describe("useToggleExtension", () => {
     expect(mocks.toastError).toHaveBeenCalledWith("daemon refused the toggle");
   });
 
-  it("Should enable through the daemon and invalidate inventory without cached rollback state", async () => {
-    const { queryClient, wrapper } = setup();
-    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+  it("Should enable through the daemon and enumerate the automation it started", async () => {
+    const { wrapper } = setup();
+    mocks.enableExtension.mockResolvedValue({
+      automation_started: ["weekly-audit", "dep-sweep"],
+      extension: extensionFixtures[0],
+    });
     const { result } = renderHook(() => useToggleExtension(), { wrapper });
 
     await act(async () => {
-      await result.current.mutateAsync({ enabled: true, name: "otel-bridge" });
+      await result.current.mutateAsync({ enabled: true, name: "dep-kit-ops" });
     });
 
-    expect(mocks.enableExtension).toHaveBeenCalledWith("otel-bridge");
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: extensionKeys.lists() });
+    expect(mocks.enableExtension).toHaveBeenCalledWith("dep-kit-ops", {
+      confirmNetworkDigest: undefined,
+    });
+    expect(mocks.toastSuccess).toHaveBeenCalledWith("dep-kit-ops enabled · 2 automation started", {
+      description: "dep-sweep, weekly-audit",
+    });
   });
+
+  it("Should carry the ratified digest on a confirmed enable retry", async () => {
+    const { wrapper } = setup();
+    const { result } = renderHook(() => useToggleExtension(), { wrapper });
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        confirmNetworkDigest: "sha256:6f1c0a94d3b27e58",
+        enabled: true,
+        name: "dep-kit-ops",
+      });
+    });
+
+    expect(mocks.enableExtension).toHaveBeenCalledWith("dep-kit-ops", {
+      confirmNetworkDigest: "sha256:6f1c0a94d3b27e58",
+    });
+  });
+
+  /**
+   * A confirmation refusal is not an error the operator has to dismiss: the dialog owns it, so a
+   * toast here would double-signal the same state.
+   */
+  it("Should stay silent for a network-confirmation refusal instead of toasting it", async () => {
+    const { wrapper } = setup();
+    mocks.enableExtension.mockRejectedValue(
+      new ExtensionsApiError("confirmation required", 409, "daemon", {
+        code: "extension_network_confirmation_required",
+        currentDigest: "sha256:6f1c0a94d3b27e58",
+      })
+    );
+    const { result } = renderHook(() => useToggleExtension(), { wrapper });
+
+    await act(async () => {
+      await expect(
+        result.current.mutateAsync({ enabled: true, name: "dep-kit-ops" })
+      ).rejects.toThrow("confirmation required");
+    });
+
+    expect(mocks.toastError).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Enabling and disabling change which kit resources are live and whether confirmation is still
+   * required, so a stale inventory would render badges the daemon no longer backs.
+   */
+  it.each([
+    ["enable", true],
+    ["disable", false],
+  ])(
+    "Should invalidate the cached kit inventory after a successful %s",
+    async (_label, enabled) => {
+      const { queryClient, wrapper } = setup();
+      const inventoryKey = extensionKeys.inventory("dep-kit-ops");
+      queryClient.setQueryData(inventoryKey, [
+        { id: "weekly-audit", kind: "automation", live: !enabled, name: "weekly-audit" },
+      ]);
+      expect(queryClient.getQueryState(inventoryKey)?.isInvalidated).toBe(false);
+      const { result } = renderHook(() => useToggleExtension(), { wrapper });
+
+      await act(async () => {
+        await result.current.mutateAsync({ enabled, name: "dep-kit-ops" });
+      });
+
+      await waitFor(() =>
+        expect(queryClient.getQueryState(inventoryKey)?.isInvalidated).toBe(true)
+      );
+    }
+  );
 
   it("Should apply the optimistic toggle to the active workspace instance row only", async () => {
     mocks.activeWorkspaceId = "ws_northstar";
@@ -144,62 +211,61 @@ describe("useToggleExtension", () => {
   });
 });
 
-describe("useUpdateBundleActivation", () => {
-  it("Should send explicit network confirmation in the real PATCH mutation", async () => {
+describe("useUpdateExtension", () => {
+  it("Should carry the ratified digest on a confirmed update retry", async () => {
     const { wrapper } = setup();
-    const activation = {
-      bundle_name: "ops-starter",
-      created_at: "2026-07-08T09:20:00Z",
-      extension_name: "slack-notify",
-      id: "activation-ops-starter",
-      profile_name: "production",
-      scope: "workspace",
-      spec_drift: false,
-      updated_at: "2026-07-14T18:00:00Z",
-      version: 7,
-      workspace_id: "ws_northstar",
-    };
-    mocks.updateBundleActivation.mockResolvedValue(activation);
-    const { result } = renderHook(() => useUpdateBundleActivation(), { wrapper });
+    const { result } = renderHook(() => useUpdateExtension(), { wrapper });
 
     await act(async () => {
       await result.current.mutateAsync({
-        body: { confirm_network_requirement: true, expected_version: 7 },
-        id: activation.id,
+        allowUnverified: true,
+        confirmNetworkDigest: "sha256:6f1c0a94d3b27e58",
+        name: "dep-kit-ops",
+        version: "1.1.0",
       });
     });
 
-    expect(mocks.updateBundleActivation).toHaveBeenCalledWith(activation.id, {
-      confirm_network_requirement: true,
-      expected_version: 7,
+    expect(mocks.updateExtension).toHaveBeenCalledWith("dep-kit-ops", {
+      allow_unverified: true,
+      confirm_network_digest: "sha256:6f1c0a94d3b27e58",
+      version: "1.1.0",
     });
-    expect(mocks.toastSuccess).toHaveBeenCalledWith("ops-starter updated");
   });
 
-  it("Should toast a bundle update error and still invalidate bundle identities", async () => {
+  it("Should invalidate the cached kit inventory after a successful update", async () => {
     const { queryClient, wrapper } = setup();
-    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
-    mocks.updateBundleActivation.mockRejectedValue(new Error("bundle update rejected"));
-    const { result } = renderHook(() => useUpdateBundleActivation(), { wrapper });
+    const inventoryKey = extensionKeys.inventory("otel-bridge");
+    queryClient.setQueryData(inventoryKey, []);
+    const { result } = renderHook(() => useUpdateExtension(), { wrapper });
 
     await act(async () => {
-      await expect(
-        result.current.mutateAsync({
-          body: { expected_version: 7 },
-          id: "activation-ops-starter",
-        })
-      ).rejects.toThrow("bundle update rejected");
+      await result.current.mutateAsync({ name: "otel-bridge" });
     });
 
-    expect(mocks.toastError).toHaveBeenCalledWith("bundle update rejected");
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: extensionKeys.bundles() });
-    expect(invalidate).toHaveBeenCalledWith({
-      queryKey: extensionKeys.bundle("activation-ops-starter"),
+    await waitFor(() => expect(queryClient.getQueryState(inventoryKey)?.isInvalidated).toBe(true));
+  });
+
+  it("Should stay silent for a network-confirmation refusal instead of toasting it", async () => {
+    const { wrapper } = setup();
+    mocks.updateExtension.mockRejectedValue(
+      new ExtensionsApiError("confirmation required", 409, "daemon", {
+        code: "extension_network_confirmation_required",
+        currentDigest: "sha256:6f1c0a94d3b27e58",
+      })
+    );
+    const { result } = renderHook(() => useUpdateExtension(), { wrapper });
+
+    await act(async () => {
+      await expect(result.current.mutateAsync({ name: "dep-kit-ops" })).rejects.toThrow(
+        "confirmation required"
+      );
     });
+
+    expect(mocks.toastError).not.toHaveBeenCalled();
   });
 });
 
-describe("extension and bundle lifecycle mutations", () => {
+describe("extension lifecycle mutations", () => {
   it("Should reconcile Marketplace discovery after an extension update", async () => {
     const { queryClient, wrapper } = setup();
     const invalidate = vi.spyOn(queryClient, "invalidateQueries");
@@ -243,47 +309,32 @@ describe("extension and bundle lifecycle mutations", () => {
   it("Should toast successful lifecycle actions without leaking mutation context", async () => {
     const { wrapper } = setup();
     const { result } = renderHook(
-      () => ({
-        deactivate: useDeactivateBundle(),
-        remove: useRemoveExtension(),
-        update: useUpdateExtension(),
-      }),
+      () => ({ remove: useRemoveExtension(), update: useUpdateExtension() }),
       { wrapper }
     );
 
     await act(async () => {
       await result.current.update.mutateAsync({ name: "otel-bridge" });
       await result.current.remove.mutateAsync({ dev: false, name: "slack-notify" });
-      await result.current.deactivate.mutateAsync("activation-ops-starter");
     });
 
     expect(mocks.updateExtension).toHaveBeenCalledWith("otel-bridge", { allow_unverified: false });
     expect(mocks.removeExtension).toHaveBeenCalledWith("slack-notify", {});
-    expect(mocks.deactivateBundle).toHaveBeenCalledWith("activation-ops-starter");
     expect(mocks.toastSuccess).toHaveBeenCalledWith("otel-bridge updated");
     expect(mocks.toastSuccess).toHaveBeenCalledWith("slack-notify removed");
-    expect(mocks.toastSuccess).toHaveBeenCalledWith("Bundle deactivated");
   });
 
-  it("Should surface extension removal and bundle deactivation errors", async () => {
+  it("Should surface extension removal errors", async () => {
     const { wrapper } = setup();
     mocks.removeExtension.mockRejectedValue(new Error("remove rejected"));
-    mocks.deactivateBundle.mockRejectedValue(new Error("deactivate rejected"));
-    const { result } = renderHook(
-      () => ({ deactivate: useDeactivateBundle(), remove: useRemoveExtension() }),
-      { wrapper }
-    );
+    const { result } = renderHook(() => useRemoveExtension(), { wrapper });
 
     await act(async () => {
       await expect(
-        result.current.remove.mutateAsync({ dev: false, name: "slack-notify" })
+        result.current.mutateAsync({ dev: false, name: "slack-notify" })
       ).rejects.toThrow("remove rejected");
-      await expect(result.current.deactivate.mutateAsync("activation-ops-starter")).rejects.toThrow(
-        "deactivate rejected"
-      );
     });
 
     expect(mocks.toastError).toHaveBeenCalledWith("remove rejected");
-    expect(mocks.toastError).toHaveBeenCalledWith("deactivate rejected");
   });
 });

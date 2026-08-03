@@ -11,8 +11,8 @@ bug_ids: BUG-20260713-session-user-message-reorders-or-disappears; BUG-20260801-
 fix_status: fixed
 retest_status: pass
 fix_commits: 8eeb8a38; a73b6587
-evidence: /Users/pedronauck/dev/qa-labs/compozy-session-prompt-idempotency-current-web-20260801-081126-391752-lab/qa-artifacts/qa/session-prompt-reloaded-centered.png; /Users/pedronauck/dev/qa-labs/compozy-session-prompt-idempotency-current-web-20260801-081126-391752-lab/qa-artifacts/qa/session-prompt-reloaded-deterministic.png; /Users/pedronauck/dev/qa-labs/compozy-session-prompt-idempotency-current-web-20260801-081126-391752-lab/qa-artifacts/qa/cold-reload-dom-counts.json
-last_report: docs/qa/reports/2026-07-31-session-prompt-idempotency-post-review.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-session-prompt-idempotency-current-web-20260801-081126-391752-lab/qa-artifacts/qa/session-prompt-reloaded-centered.png; /Users/pedronauck/dev/qa-labs/compozy-session-prompt-idempotency-current-web-20260801-081126-391752-lab/qa-artifacts/qa/session-prompt-reloaded-deterministic.png; /Users/pedronauck/dev/qa-labs/compozy-session-prompt-idempotency-current-web-20260801-081126-391752-lab/qa-artifacts/qa/cold-reload-dom-counts.json; docs/qa/evidence/2026-08-03-pr-291-remediation/CH-session-prompt-identity-permission.png; docs/qa/evidence/2026-08-03-pr-291-remediation/CH-session-prompt-identity-complete.png; docs/qa/evidence/2026-08-03-pr-291-remediation/CH-session-prompt-identity-reload.png; docs/qa/evidence/2026-08-03-pr-291-remediation/session-thread-folded-turns.png
+last_report: docs/qa/reports/2026-08-03-pr-291-remediation.md
 overlaps: RT-045; RT-058; TA-089
 ---
 
@@ -33,3 +33,14 @@ QA impact 2026-07-31: prompt admission now preserves Assistant UI's authored `me
 2026-08-01 post-review first attempt: the daemon served its embedded release Web bundle instead of the current repository build, so the current API rejected the stale client's request before provider dispatch. The environment finding is invalid; live settlement and reload remain untested pending a fresh lab using `COMPOZY_WEB_DIST_DIR`.
 
 2026-08-01 post-review production-parity retest: current `web/dist` rendered the Web-authored prompt and `ONE-ROW-OK` once after live settlement. The same canonical permalink was cold-reloaded after an independent structured prompt and exact retry. DOM counts remained exactly one for both authored prompts and both assistant responses, and the durable history retained the Web message at sequence 3 and the CLI message at sequence 13 under distinct stable turn ids.
+
+QA impact 2026-08-03: settled assistant text on both sides of a permission decision now remains
+visible as transcript content; only reasoning and tool work fold. Reset for a fresh live permission
+flow and cold permalink reload from the current build.
+
+2026-08-03 isolated retest: real Codex session `sess-349f0185279f8457` rendered assistant text at
+sequence 8, an interactive permission request and `allow-once` decision at sequences 37–38, and
+the completion text at sequence 48 before ending at sequence 52. A cold reload of the canonical
+permalink retained both text segments around the permission boundary. Independent structured CLI
+history returned the same single user message, two agent messages, two permission events, and one
+terminal event in order.

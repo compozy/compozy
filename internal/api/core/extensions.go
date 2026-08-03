@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -25,6 +26,8 @@ const (
 
 // ExtensionService exposes daemon-backed extension management to API transports.
 type ExtensionService interface {
+	ExtensionSecretsService
+
 	List(ctx context.Context) ([]contract.ExtensionPayload, error)
 	Search(ctx context.Context, req contract.ExtensionSearchRequest) (contract.ExtensionSearchResponse, error)
 	MarketplaceTrust(
@@ -48,10 +51,38 @@ type ExtensionService interface {
 		actor taskpkg.ActorContext,
 	) ([]contract.ManagedExtensionUpdatePayload, error)
 	Remove(ctx context.Context, name string, actor taskpkg.ActorContext) (contract.ManagedExtensionRemovePayload, error)
-	Enable(ctx context.Context, name string, actor taskpkg.ActorContext) (contract.ExtensionPayload, error)
+	Enable(
+		ctx context.Context,
+		name string,
+		req contract.EnableExtensionRequest,
+		actor taskpkg.ActorContext,
+	) (contract.ExtensionEnableResult, error)
 	Disable(ctx context.Context, name string, actor taskpkg.ActorContext) (contract.ExtensionPayload, error)
 	Status(ctx context.Context, name string) (contract.ExtensionPayload, error)
 	Provenance(ctx context.Context, name string) (contract.ExtensionProvenancePayload, error)
+	Inventory(ctx context.Context, name string) (contract.ExtensionInventoryPayload, error)
+	Preview(ctx context.Context, name string) (contract.ExtensionEnablePreviewPayload, error)
+}
+
+// ExtensionSecretsService exposes presence-only, caller-scoped secret bindings.
+type ExtensionSecretsService interface {
+	ListExtensionSecrets(
+		ctx context.Context,
+		name string,
+		actor taskpkg.ActorContext,
+	) (contract.ExtensionSecretsPayload, error)
+	SetExtensionSecrets(
+		ctx context.Context,
+		name string,
+		req contract.SetExtensionSecretsRequest,
+		actor taskpkg.ActorContext,
+	) (contract.ExtensionSecretsPayload, error)
+	DeleteExtensionSecret(
+		ctx context.Context,
+		name string,
+		envName string,
+		actor taskpkg.ActorContext,
+	) error
 }
 
 // SearchExtensions returns one stable page from curated and GitHub discovery.
@@ -301,15 +332,21 @@ func (h *BaseHandlers) mutateExtensionEnabled(c *gin.Context, enabled bool) {
 		return
 	}
 
-	var (
-		item contract.ExtensionPayload
-		err  error
-	)
 	if enabled {
-		item, err = service.Enable(c.Request.Context(), name, actor)
-	} else {
-		item, err = service.Disable(c.Request.Context(), name, actor)
+		var req contract.EnableExtensionRequest
+		if err := c.ShouldBindJSON(&req); err != nil && !errors.Is(err, io.EOF) {
+			h.respondExtensionError(c, http.StatusBadRequest, err)
+			return
+		}
+		result, err := service.Enable(c.Request.Context(), name, req, actor)
+		if err != nil {
+			h.respondExtensionError(c, ExtensionStatusCode(err), err)
+			return
+		}
+		c.JSON(http.StatusOK, result)
+		return
 	}
+	item, err := service.Disable(c.Request.Context(), name, actor)
 	if err != nil {
 		h.respondExtensionError(c, ExtensionStatusCode(err), err)
 		return

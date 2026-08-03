@@ -123,33 +123,9 @@ type DaemonClient interface {
 		threadID string,
 		request PromoteNetworkThreadTaskRequest,
 	) (PromoteNetworkThreadTaskRecord, error)
-	ListExtensions(ctx context.Context) ([]ExtensionRecord, error)
-	ListExtensionsScoped(ctx context.Context, workspaceRef string) ([]ExtensionRecord, error)
-	SearchExtensions(ctx context.Context, request ExtensionSearchRequest) (ExtensionSearchRecord, error)
-	ListExtensionCommands(ctx context.Context, extension string, workspaceID string) (ExtensionCommandsRecord, error)
+	extensionClientAPI
 	MarketplaceClient
 	MCPSettingsClient
-	InstallExtension(ctx context.Context, request InstallExtensionRequest) (ExtensionRecord, error)
-	UpdateExtension(ctx context.Context, name string, request UpdateExtensionRequest) (ExtensionUpdateRecord, error)
-	UpdateExtensions(ctx context.Context, request UpdateExtensionsRequest) ([]ExtensionUpdateRecord, error)
-	RemoveExtension(ctx context.Context, name string) (ManagedExtensionRemoveRecord, error)
-	EnableExtension(ctx context.Context, name string) (ExtensionRecord, error)
-	DisableExtension(ctx context.Context, name string) (ExtensionRecord, error)
-	ExtensionStatus(ctx context.Context, name string) (ExtensionRecord, error)
-	ExtensionStatusScoped(ctx context.Context, workspaceRef, name string) (ExtensionRecord, error)
-	ExtensionProvenance(ctx context.Context, name string) (ExtensionProvenanceRecord, error)
-	ListBundleCatalog(ctx context.Context) ([]BundleCatalogRecord, error)
-	PreviewBundleActivation(ctx context.Context, request ActivateBundleRequest) (BundleActivationRecord, error)
-	ActivateBundle(ctx context.Context, request ActivateBundleRequest) (BundleActivationRecord, error)
-	ListBundleActivations(ctx context.Context) ([]BundleActivationRecord, error)
-	GetBundleActivation(ctx context.Context, id string) (BundleActivationRecord, error)
-	UpdateBundleActivation(
-		ctx context.Context,
-		id string,
-		request UpdateBundleActivationRequest,
-	) (BundleActivationRecord, error)
-	DeactivateBundle(ctx context.Context, id string) error
-	BundleNetworkSettings(ctx context.Context) (BundleNetworkSettingsRecord, error)
 	bridgeClientAPI
 	ListNotificationPresets(ctx context.Context, query NotificationPresetQuery) (NotificationPresetListRecord, error)
 	GetNotificationPreset(ctx context.Context, name string) (NotificationPresetRecord, error)

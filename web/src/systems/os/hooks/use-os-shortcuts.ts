@@ -1,7 +1,11 @@
 import { useEffect, useEffectEvent } from "react";
 
 import { dispatchWindowManagerAction } from "../lib/window-manager-action-dispatch";
-import { resolveWindowManagerActions, shortcutMatches } from "../lib/window-manager-shortcuts";
+import {
+  primaryShortcutModifier,
+  resolveWindowManagerActions,
+  shortcutMatches,
+} from "../lib/window-manager-shortcuts";
 import { windowManagerCommandsAvailable } from "../lib/window-manager-command-availability";
 import type { WindowManagerActionId } from "../lib/window-manager-command-registry";
 import { windowManagerStore } from "../stores/window-manager-store";
@@ -21,6 +25,15 @@ export interface OsShortcutOptions {
 
 function isPlainMod(event: KeyboardEvent): boolean {
   return (event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey;
+}
+
+function isPrimaryModifierPressed(
+  event: KeyboardEvent,
+  primaryModifier: ReturnType<typeof primaryShortcutModifier>
+): boolean {
+  return primaryModifier === "meta"
+    ? event.metaKey && !event.ctrlKey
+    : event.ctrlKey && !event.metaKey;
 }
 
 /** AltGr aliases ⌃⌥ on some layouts — never steal keystrokes from text entry. */
@@ -67,9 +80,10 @@ export function useOsShortcuts(
     const state = projection.get();
     const config = state.windowManagerConfig;
     const editableTarget = isEditableTarget(event.target);
+    const primaryModifier = primaryShortcutModifier(navigator.platform);
     if (config !== null && windowManagerCommandsAvailable(state)) {
       const action = resolveWindowManagerActions(config.shortcuts).find(
-        candidate => candidate.chord && shortcutMatches(event, candidate.chord)
+        candidate => candidate.chord && shortcutMatches(event, candidate.chord, primaryModifier)
       );
       if (
         action &&
@@ -98,12 +112,11 @@ export function useOsShortcuts(
         });
         return;
       }
-      // ⌘[ pops the active tab's own stack (D7). The chord is fixed: the Go
-      // rebinding allow-list deliberately excludes navigation pops.
+      // Primary+[ pops the active tab's own stack (D7). The chord is fixed:
+      // the Go rebinding allow-list deliberately excludes navigation pops.
       if (
         !editableTarget &&
-        event.metaKey &&
-        !event.ctrlKey &&
+        isPrimaryModifierPressed(event, primaryModifier) &&
         !event.altKey &&
         !event.shiftKey &&
         event.code === "BracketLeft" &&

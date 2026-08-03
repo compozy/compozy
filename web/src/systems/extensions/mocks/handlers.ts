@@ -3,21 +3,21 @@ import { HttpResponse, type HttpHandler } from "msw";
 import { compozyApiMock } from "@/storybook/openapi-msw";
 
 import {
-  bundleActivationFixtures,
   DEV_EXTENSION_WORKSPACE_ID,
   devExtensionFixture,
   extensionFixtures,
+  extensionInventoryFixtures,
   extensionLogFixtures,
   extensionProvenanceFixtures,
 } from "./fixtures";
-import type { BundleActivation, ExtensionEntry } from "../types";
+import type { ExtensionEntry, ExtensionKitItem } from "../types";
 
 function cloneExtensions(): ExtensionEntry[] {
   return structuredClone(extensionFixtures);
 }
 
-function cloneBundleActivations(): BundleActivation[] {
-  return structuredClone(bundleActivationFixtures);
+function cloneInventory(): Record<string, ExtensionKitItem[]> {
+  return structuredClone(extensionInventoryFixtures);
 }
 
 function cloneDevExtensions(): Record<string, ExtensionEntry[]> {
@@ -29,23 +29,19 @@ function cloneExtensionLogs() {
 }
 
 let extensionsState = cloneExtensions();
-let bundleActivationsState = cloneBundleActivations();
+let inventoryState = cloneInventory();
 let devExtensionsState = cloneDevExtensions();
 let extensionLogsState = cloneExtensionLogs();
 
 export function resetExtensionMockState(): void {
   extensionsState = cloneExtensions();
-  bundleActivationsState = cloneBundleActivations();
+  inventoryState = cloneInventory();
   devExtensionsState = cloneDevExtensions();
   extensionLogsState = cloneExtensionLogs();
 }
 
 function extensionByName(name: string) {
   return extensionsState.find(extension => extension.name === name);
-}
-
-function activationById(id: string) {
-  return bundleActivationsState.find(activation => activation.id === id);
 }
 
 /** Mirrors the daemon: `?workspace=` resolves that workspace's instances, absent the global rows. */
@@ -112,15 +108,48 @@ export const handlers: HttpHandler[] = [
       ? HttpResponse.json({ provenance })
       : HttpResponse.json({ error: `Extension not found: ${name}` }, { status: 404 });
   }),
-  compozyApiMock.post("/api/extensions/{name}/enable", ({ params }) => {
+  compozyApiMock.get("/api/extensions/{name}/inventory", ({ params }) => {
     const name = String(params.name);
     const extension = extensionByName(name);
     if (!extension) {
       return HttpResponse.json({ error: `Extension not found: ${name}` }, { status: 404 });
     }
-    const enabled = { ...extension, enabled: true };
+    return HttpResponse.json({
+      enabled: extension.enabled,
+      extension: name,
+      items: inventoryState[name] ?? [],
+    });
+  }),
+  /** Mirrors the lifecycle gate: a declared digest must be ratified before enable commits. */
+  compozyApiMock.post("/api/extensions/{name}/enable", async ({ params, request, response }) => {
+    const name = String(params.name);
+    const extension = extensionByName(name);
+    if (!extension) {
+      return HttpResponse.json({ error: `Extension not found: ${name}` }, { status: 404 });
+    }
+    const body = (await request.json().catch(() => ({}))) as { confirm_network_digest?: string };
+    const digest = extension.network_requirement_digest;
+    if (
+      extension.network_confirmation_required &&
+      digest &&
+      body.confirm_network_digest !== digest
+    ) {
+      return response(409).json({
+        code: "extension_network_confirmation_required",
+        current_digest: digest,
+        error: `${name} declares Live network participation that has not been confirmed`,
+      });
+    }
+    const enabled = { ...extension, enabled: true, network_confirmation_required: false };
     extensionsState = extensionsState.map(item => (item.name === name ? enabled : item));
-    return HttpResponse.json({ extension: enabled });
+    inventoryState = {
+      ...inventoryState,
+      [name]: (inventoryState[name] ?? []).map(item => ({ ...item, live: true })),
+    };
+    const automationStarted = (inventoryState[name] ?? [])
+      .filter(item => item.kind === "automation")
+      .map(item => item.name);
+    return HttpResponse.json({ automation_started: automationStarted, extension: enabled });
   }),
   compozyApiMock.post("/api/extensions/{name}/disable", ({ params }) => {
     const name = String(params.name);
@@ -130,24 +159,45 @@ export const handlers: HttpHandler[] = [
     }
     const disabled = { ...extension, enabled: false };
     extensionsState = extensionsState.map(item => (item.name === name ? disabled : item));
+    inventoryState = {
+      ...inventoryState,
+      [name]: (inventoryState[name] ?? []).map(item => ({ ...item, live: false })),
+    };
     return HttpResponse.json({ extension: disabled });
   }),
-  compozyApiMock.put("/api/extensions/{name}", ({ params }) => {
+  /** Mirrors the candidate gate used by update: the current digest stands in for the next release. */
+  compozyApiMock.put("/api/extensions/{name}", async ({ params, request, response }) => {
     const name = String(params.name);
     const extension = extensionByName(name);
-    return extension
-      ? HttpResponse.json({
-          update: {
-            current_version: extension.version,
-            latest_version: extension.version,
-            name,
-            path: `/var/lib/compozy/extensions/${name}`,
-            registry: "compozy",
-            slug: extension.provenance?.slug ?? name,
-            status: "current",
-          },
-        })
-      : HttpResponse.json({ error: `Extension not found: ${name}` }, { status: 404 });
+    if (!extension) {
+      return HttpResponse.json({ error: `Extension not found: ${name}` }, { status: 404 });
+    }
+    const body = (await request.json().catch(() => ({}))) as { confirm_network_digest?: string };
+    const digest = extension.network_requirement_digest;
+    if (
+      extension.network_confirmation_required &&
+      digest &&
+      body.confirm_network_digest !== digest
+    ) {
+      return response(409).json({
+        code: "extension_network_confirmation_required",
+        current_digest: digest,
+        error: `${name} update changes Live network participation that has not been confirmed`,
+      });
+    }
+    const updated = { ...extension, network_confirmation_required: false };
+    extensionsState = extensionsState.map(item => (item.name === name ? updated : item));
+    return HttpResponse.json({
+      update: {
+        current_version: extension.version,
+        latest_version: extension.version,
+        name,
+        path: `/var/lib/compozy/extensions/${name}`,
+        registry: "compozy",
+        slug: extension.provenance?.slug ?? name,
+        status: "current",
+      },
+    });
   }),
   compozyApiMock.delete("/api/extensions/{name}", ({ params, request }) => {
     const name = String(params.name);
@@ -181,51 +231,5 @@ export const handlers: HttpHandler[] = [
     return HttpResponse.json({
       extension: { name, path: `/var/lib/compozy/extensions/${name}`, status: "removed" },
     });
-  }),
-  compozyApiMock.get("/api/bundles/activations", () =>
-    HttpResponse.json({ activations: bundleActivationsState })
-  ),
-  compozyApiMock.get("/api/bundles/activations/{id}", ({ params }) => {
-    const id = String(params.id);
-    const activation = activationById(id);
-    return activation
-      ? HttpResponse.json({ activation })
-      : HttpResponse.json({ error: `Bundle activation not found: ${id}` }, { status: 404 });
-  }),
-  compozyApiMock.patch("/api/bundles/activations/{id}", async ({ params, request }) => {
-    const id = String(params.id);
-    const activation = activationById(id);
-    if (!activation) {
-      return HttpResponse.json({ error: `Bundle activation not found: ${id}` }, { status: 404 });
-    }
-    const body = (await request.json()) as {
-      confirm_network_requirement?: boolean;
-      expected_version?: number;
-    };
-    if (body.expected_version !== activation.version) {
-      return HttpResponse.json({ error: "Bundle activation version conflict" }, { status: 409 });
-    }
-    const updated = {
-      ...activation,
-      network_requirement_confirmed_at: body.confirm_network_requirement
-        ? "2026-07-14T18:00:00Z"
-        : activation.network_requirement_confirmed_at,
-      network_requirement_confirmed_by: body.confirm_network_requirement
-        ? "operator"
-        : activation.network_requirement_confirmed_by,
-      spec_drift: false,
-      updated_at: "2026-07-14T18:00:00Z",
-      version: activation.version + 1,
-    };
-    bundleActivationsState = bundleActivationsState.map(item => (item.id === id ? updated : item));
-    return HttpResponse.json({ activation: updated });
-  }),
-  compozyApiMock.delete("/api/bundles/activations/{id}", ({ params }) => {
-    const id = String(params.id);
-    if (!activationById(id)) {
-      return HttpResponse.json({ error: `Bundle activation not found: ${id}` }, { status: 404 });
-    }
-    bundleActivationsState = bundleActivationsState.filter(activation => activation.id !== id);
-    return new HttpResponse(null, { status: 204 });
   }),
 ];

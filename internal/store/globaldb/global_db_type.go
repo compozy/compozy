@@ -10,7 +10,6 @@ import (
 type GlobalDB struct {
 	*WorkspaceRepo
 	*AppMetadataRepo
-	*BundleRepo
 	*PermissionRepo
 	*SessionRepo
 	*TaskRepo
@@ -28,6 +27,7 @@ type GlobalDB struct {
 	*NotificationRepo
 	*ToolRuntimeRepo
 	*VaultRepo
+	*ExtensionEnvRepo
 	*WatchEventsRepo
 	*DeadEntityRepo
 	*ApprovalGrantRepo

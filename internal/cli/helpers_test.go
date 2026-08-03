@@ -99,24 +99,18 @@ type stubClient struct {
 	updateExtensionFn            func(context.Context, string, UpdateExtensionRequest) (ExtensionUpdateRecord, error)
 	updateExtensionsFn           func(context.Context, UpdateExtensionsRequest) ([]ExtensionUpdateRecord, error)
 	removeExtensionFn            func(context.Context, string) (ManagedExtensionRemoveRecord, error)
-	enableExtensionFn            func(context.Context, string) (ExtensionRecord, error)
+	enableExtensionFn            func(context.Context, string, EnableExtensionRequest) (ExtensionEnableRecord, error)
 	disableExtensionFn           func(context.Context, string) (ExtensionRecord, error)
 	extensionStatusFn            func(context.Context, string) (ExtensionRecord, error)
 	extensionStatusScopedFn      func(context.Context, string, string) (ExtensionRecord, error)
 	extensionProvenanceFn        func(context.Context, string) (ExtensionProvenanceRecord, error)
+	extensionInventoryFn         func(context.Context, string) (ExtensionInventoryRecord, error)
+	previewExtensionEnableFn     func(context.Context, string) (ExtensionEnablePreviewRecord, error)
 	devExtensionFn               func(context.Context, string, DevLinkExtensionRequest) (ExtensionRecord, error)
 	reloadDevExtensionFn         func(context.Context, string, string, ReloadExtensionRequest) (ExtensionRecord, error)
 	extensionLogsFn              func(context.Context, string, string, int64) ([]ExtensionLogRecord, error)
 	streamExtensionLogsFn        func(context.Context, string, string, int64, SSEHandler) error
 	removeDevExtensionFn         func(context.Context, string, string) (ManagedExtensionRemoveRecord, error)
-	listBundleCatalogFn          func(context.Context) ([]BundleCatalogRecord, error)
-	previewBundleActivationFn    func(context.Context, ActivateBundleRequest) (BundleActivationRecord, error)
-	activateBundleFn             func(context.Context, ActivateBundleRequest) (BundleActivationRecord, error)
-	listBundleActivationsFn      func(context.Context) ([]BundleActivationRecord, error)
-	getBundleActivationFn        func(context.Context, string) (BundleActivationRecord, error)
-	updateBundleActivationFn     func(context.Context, string, UpdateBundleActivationRequest) (BundleActivationRecord, error)
-	deactivateBundleFn           func(context.Context, string) error
-	bundleNetworkSettingsFn      func(context.Context) (BundleNetworkSettingsRecord, error)
 	listBridgesFn                func(context.Context, BridgeListQuery) (BridgeListRecord, error)
 	createBridgeFn               func(context.Context, CreateBridgeRequest) (BridgeRecord, error)
 	getBridgeFn                  func(context.Context, string) (BridgeRecord, error)
@@ -1130,11 +1124,15 @@ func (s *stubClient) RemoveExtension(
 	return ManagedExtensionRemoveRecord{}, errors.New("unexpected RemoveExtension call")
 }
 
-func (s *stubClient) EnableExtension(ctx context.Context, name string) (ExtensionRecord, error) {
+func (s *stubClient) EnableExtension(
+	ctx context.Context,
+	name string,
+	request EnableExtensionRequest,
+) (ExtensionEnableRecord, error) {
 	if s.enableExtensionFn != nil {
-		return s.enableExtensionFn(ctx, name)
+		return s.enableExtensionFn(ctx, name, request)
 	}
-	return ExtensionRecord{}, errors.New("unexpected EnableExtension call")
+	return ExtensionEnableRecord{}, errors.New("unexpected EnableExtension call")
 }
 
 func (s *stubClient) DisableExtension(ctx context.Context, name string) (ExtensionRecord, error) {
@@ -1167,6 +1165,23 @@ func (s *stubClient) ExtensionProvenance(ctx context.Context, name string) (Exte
 		return s.extensionProvenanceFn(ctx, name)
 	}
 	return ExtensionProvenanceRecord{}, errors.New("unexpected ExtensionProvenance call")
+}
+
+func (s *stubClient) ExtensionInventory(ctx context.Context, name string) (ExtensionInventoryRecord, error) {
+	if s.extensionInventoryFn != nil {
+		return s.extensionInventoryFn(ctx, name)
+	}
+	return ExtensionInventoryRecord{}, errors.New("unexpected ExtensionInventory call")
+}
+
+func (s *stubClient) PreviewExtensionEnable(
+	ctx context.Context,
+	name string,
+) (ExtensionEnablePreviewRecord, error) {
+	if s.previewExtensionEnableFn != nil {
+		return s.previewExtensionEnableFn(ctx, name)
+	}
+	return ExtensionEnablePreviewRecord{}, errors.New("unexpected PreviewExtensionEnable call")
 }
 
 func (s *stubClient) DevExtension(
@@ -1226,72 +1241,6 @@ func (s *stubClient) RemoveDevExtension(
 		return s.removeDevExtensionFn(ctx, workspaceRef, name)
 	}
 	return ManagedExtensionRemoveRecord{}, errors.New("unexpected RemoveDevExtension call")
-}
-
-func (s *stubClient) ListBundleCatalog(ctx context.Context) ([]BundleCatalogRecord, error) {
-	if s.listBundleCatalogFn != nil {
-		return s.listBundleCatalogFn(ctx)
-	}
-	return nil, errors.New("unexpected ListBundleCatalog call")
-}
-
-func (s *stubClient) PreviewBundleActivation(
-	ctx context.Context,
-	request ActivateBundleRequest,
-) (BundleActivationRecord, error) {
-	if s.previewBundleActivationFn != nil {
-		return s.previewBundleActivationFn(ctx, request)
-	}
-	return BundleActivationRecord{}, errors.New("unexpected PreviewBundleActivation call")
-}
-
-func (s *stubClient) ActivateBundle(
-	ctx context.Context,
-	request ActivateBundleRequest,
-) (BundleActivationRecord, error) {
-	if s.activateBundleFn != nil {
-		return s.activateBundleFn(ctx, request)
-	}
-	return BundleActivationRecord{}, errors.New("unexpected ActivateBundle call")
-}
-
-func (s *stubClient) ListBundleActivations(ctx context.Context) ([]BundleActivationRecord, error) {
-	if s.listBundleActivationsFn != nil {
-		return s.listBundleActivationsFn(ctx)
-	}
-	return nil, errors.New("unexpected ListBundleActivations call")
-}
-
-func (s *stubClient) GetBundleActivation(ctx context.Context, id string) (BundleActivationRecord, error) {
-	if s.getBundleActivationFn != nil {
-		return s.getBundleActivationFn(ctx, id)
-	}
-	return BundleActivationRecord{}, errors.New("unexpected GetBundleActivation call")
-}
-
-func (s *stubClient) UpdateBundleActivation(
-	ctx context.Context,
-	id string,
-	request UpdateBundleActivationRequest,
-) (BundleActivationRecord, error) {
-	if s.updateBundleActivationFn != nil {
-		return s.updateBundleActivationFn(ctx, id, request)
-	}
-	return BundleActivationRecord{}, errors.New("unexpected UpdateBundleActivation call")
-}
-
-func (s *stubClient) DeactivateBundle(ctx context.Context, id string) error {
-	if s.deactivateBundleFn != nil {
-		return s.deactivateBundleFn(ctx, id)
-	}
-	return errors.New("unexpected DeactivateBundle call")
-}
-
-func (s *stubClient) BundleNetworkSettings(ctx context.Context) (BundleNetworkSettingsRecord, error) {
-	if s.bundleNetworkSettingsFn != nil {
-		return s.bundleNetworkSettingsFn(ctx)
-	}
-	return BundleNetworkSettingsRecord{}, errors.New("unexpected BundleNetworkSettings call")
 }
 
 func (s *stubClient) ListBridges(ctx context.Context, query BridgeListQuery) (BridgeListRecord, error) {

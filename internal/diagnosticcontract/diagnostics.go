@@ -80,7 +80,6 @@ const (
 	CodeDaemonStatusOK                = "daemon_status_ok"
 	CodeDaemonUnavailable             = "daemon_unavailable"
 	CodeDiskWriteFailed               = "disk_write_failed"
-	CodeExtensionBlockedByBundle      = "extension_blocked_by_bundle"
 	CodeExtensionChecksumUnverified   = "extension_checksum_unverified"
 	CodeExtensionGitUnavailable       = "extension_git_unavailable"
 	CodeExtensionInstallFailed        = "extension_install_failed"
@@ -172,6 +171,11 @@ const (
 
 const (
 	CodeExtensionArchiveDigestMismatch   = "extension_archive_digest_mismatch"
+	CodeExtensionAgentConflict           = "extension_agent_conflict"
+	CodeExtensionEnvBindingDangling      = "extension_env_binding_dangling"
+	CodeExtensionEnvBindingInvalid       = "extension_env_binding_invalid"
+	CodeExtensionEnvBindingUndeclared    = "extension_env_binding_undeclared"
+	CodeExtensionNetworkConfirmRequired  = "extension_network_confirmation_required"
 	CodeExtensionRegistryTierUnverified  = "extension_registry_tier_unverified"
 	CodeExtensionUnverifiedPolicyBlocked = "extension_unverified_policy_blocked"
 )
@@ -211,10 +215,14 @@ var diagnosticCodeSpecs = []DiagnosticCodeSpec{
 	{Code: CodeDaemonStatusOK, Category: CategoryDaemon},
 	{Code: CodeDaemonUnavailable, Category: CategoryDaemon},
 	{Code: CodeDiskWriteFailed, Category: CategoryDaemon},
-	{Code: CodeExtensionBlockedByBundle, Category: CategoryExtension},
 	{Code: CodeExtensionArchiveDigestMismatch, Category: CategoryExtension},
+	{Code: CodeExtensionAgentConflict, Category: CategoryExtension},
 	{Code: CodeExtensionChecksumUnverified, Category: CategoryExtension},
+	{Code: CodeExtensionEnvBindingDangling, Category: CategoryExtension},
+	{Code: CodeExtensionEnvBindingInvalid, Category: CategoryExtension},
+	{Code: CodeExtensionEnvBindingUndeclared, Category: CategoryExtension},
 	{Code: CodeExtensionGitUnavailable, Category: CategoryExtension},
+	{Code: CodeExtensionNetworkConfirmRequired, Category: CategoryExtension},
 	{Code: CodeExtensionRegistryTierUnverified, Category: CategoryExtension},
 	{Code: CodeExtensionUnverifiedPolicyBlocked, Category: CategoryExtension},
 	{Code: CodeExtensionInstallFailed, Category: CategoryExtension},

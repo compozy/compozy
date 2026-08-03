@@ -348,16 +348,6 @@ const (
 	ToolIDAutomationSuggestionsDismiss ToolID = "compozy__automation_suggestions_dismiss"
 	// ToolIDMarketplaceSearch searches the shared marketplace discovery plane.
 	ToolIDMarketplaceSearch ToolID = "compozy__marketplace_search"
-	// ToolIDBundlesList lists the extension bundle catalog and active bundle records.
-	ToolIDBundlesList ToolID = "compozy__bundles_list"
-	// ToolIDBundlesInfo reads one active bundle record.
-	ToolIDBundlesInfo ToolID = "compozy__bundles_info"
-	// ToolIDBundlesActivate activates one extension bundle profile.
-	ToolIDBundlesActivate ToolID = "compozy__bundles_activate"
-	// ToolIDBundlesDeactivate deactivates one bundle activation.
-	ToolIDBundlesDeactivate ToolID = "compozy__bundles_deactivate"
-	// ToolIDBundlesStatus reports bundle catalog, activation, and network-default status.
-	ToolIDBundlesStatus ToolID = "compozy__bundles_status"
 	// ToolIDResourcesList lists desired-state resource records.
 	ToolIDResourcesList ToolID = "compozy__resources_list"
 	// ToolIDResourcesInfo reads one desired-state resource record.
@@ -415,8 +405,6 @@ const (
 	ToolsetIDExtensions ToolsetID = "compozy__extensions"
 	// ToolsetIDMarketplace groups cross-kind marketplace discovery tools.
 	ToolsetIDMarketplace ToolsetID = "compozy__marketplace"
-	// ToolsetIDBundles groups extension bundle lifecycle tools.
-	ToolsetIDBundles ToolsetID = "compozy__bundles"
 	// ToolsetIDResources groups desired-state resource inspection tools.
 	ToolsetIDResources ToolsetID = "compozy__resources"
 	// ToolsetIDWindowManager groups persistent desktop, window, and layout tools.

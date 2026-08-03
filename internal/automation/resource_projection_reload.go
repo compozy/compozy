@@ -14,6 +14,12 @@ func (m *Manager) setJobResourceEnabled(ctx context.Context, id string, enabled 
 		return Job{}, err
 	}
 	if isOverlayManagedSource(current.Source) {
+		m.resourceOverlayMu.Lock()
+		defer m.resourceOverlayMu.Unlock()
+		current, err = m.projectedJobDefinition(id)
+		if err != nil {
+			return Job{}, err
+		}
 		if err := m.persistJobOverlay(ctx, current, enabled); err != nil {
 			return Job{}, err
 		}
@@ -37,6 +43,12 @@ func (m *Manager) setTriggerResourceEnabled(ctx context.Context, id string, enab
 		return Trigger{}, err
 	}
 	if isOverlayManagedSource(current.Source) {
+		m.resourceOverlayMu.Lock()
+		defer m.resourceOverlayMu.Unlock()
+		current, err = m.projectedTriggerDefinition(id)
+		if err != nil {
+			return Trigger{}, err
+		}
 		if err := m.persistTriggerOverlay(ctx, current, enabled); err != nil {
 			return Trigger{}, err
 		}

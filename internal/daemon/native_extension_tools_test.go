@@ -131,6 +131,43 @@ func (s *nativeExtensionSource) Close() error {
 }
 
 func TestDaemonNativeExtensionTools(t *testing.T) {
+	t.Run("Should expose inventory and preview through native bindings", func(t *testing.T) {
+		t.Parallel()
+
+		deps, _, _, _ := newNativeExtensionToolDeps(t)
+		deps.Extensions = func() core.ExtensionService {
+			return nativeInventoryExtensionService{
+				inventory: contract.ExtensionInventoryPayload{
+					Extension: "kit", Enabled: true,
+					Items: []contract.ExtensionKitItemPayload{{Kind: "automation.job", Name: "kit/daily", Live: true}},
+				},
+				preview: contract.ExtensionEnablePreviewPayload{
+					Extension: "kit", AutomationStarting: []string{"kit/daily"}, MissingEnv: []string{"API_KEY"},
+				},
+			}
+		}
+		registry := newDaemonNativeRegistry(t, deps, nativeApproveAllPolicyInputs())
+		inventory, err := registry.Call(t.Context(), toolspkg.Scope{}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDExtensionsInventory,
+			Input:  json.RawMessage(`{"name":"kit"}`),
+		})
+		if err != nil {
+			t.Fatalf("Registry.Call(extensions_inventory) error = %v", err)
+		}
+		requireNativeStructuredContains(t, inventory, []byte(`"extension":"kit"`))
+		requireNativeStructuredContains(t, inventory, []byte(`"live":true`))
+
+		preview, err := registry.Call(t.Context(), toolspkg.Scope{}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDExtensionsPreview,
+			Input:  json.RawMessage(`{"name":"kit"}`),
+		})
+		if err != nil {
+			t.Fatalf("Registry.Call(extensions_preview) error = %v", err)
+		}
+		requireNativeStructuredContains(t, preview, []byte(`"automation_starting":["kit/daily"]`))
+		requireNativeStructuredContains(t, preview, []byte(`"missing_env":["API_KEY"]`))
+	})
+
 	t.Run("Should report a missing Git dependency as tool unavailable", func(t *testing.T) {
 		t.Parallel()
 
@@ -413,17 +450,11 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 				`{"install_slug":"acme/tool-ext","repository":"https://github.com/acme/tool-ext"}`,
 			),
 		}}
-		service := newDaemonExtensionService(
-			extRegistry,
-			runtime,
-			nil,
-			nil,
-			nil,
-			nil,
-			nil,
-			deps.HomePaths,
-			nil,
-			nil,
+		service := newDaemonExtensionService(daemonExtensionServiceDeps{
+			Registry:  extRegistry,
+			Runtime:   runtime,
+			HomePaths: deps.HomePaths,
+		},
 			withDaemonExtensionMarketplace(
 				validNativeExtensionConfig(false),
 				deps.ExtensionSources,
@@ -492,8 +523,11 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 				`{"install_slug":"acme/tool-ext","repository":"https://github.com/acme/tool-ext"}`,
 			),
 		}}
-		service := newDaemonExtensionService(
-			extRegistry, runtime, nil, nil, nil, nil, nil, deps.HomePaths, nil, nil,
+		service := newDaemonExtensionService(daemonExtensionServiceDeps{
+			Registry:  extRegistry,
+			Runtime:   runtime,
+			HomePaths: deps.HomePaths,
+		},
 			withDaemonExtensionMarketplace(
 				validNativeExtensionConfig(true),
 				deps.ExtensionSources,
@@ -564,6 +598,26 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 	})
 }
 
+type nativeInventoryExtensionService struct {
+	core.ExtensionService
+	inventory contract.ExtensionInventoryPayload
+	preview   contract.ExtensionEnablePreviewPayload
+}
+
+func (s nativeInventoryExtensionService) Inventory(
+	context.Context,
+	string,
+) (contract.ExtensionInventoryPayload, error) {
+	return s.inventory, nil
+}
+
+func (s nativeInventoryExtensionService) Preview(
+	context.Context,
+	string,
+) (contract.ExtensionEnablePreviewPayload, error) {
+	return s.preview, nil
+}
+
 func newNativeExtensionToolDeps(
 	t *testing.T,
 ) (*daemonNativeToolsDeps, *extensionpkg.Registry, *nativeExtensionSource, *fakeExtensionRuntime) {
@@ -589,6 +643,30 @@ func newNativeExtensionToolDeps(
 	source := newNativeExtensionSource(t, "1.0.0", "2.0.0")
 	runtime := &fakeExtensionRuntime{}
 	extRegistry := extensionpkg.NewRegistry(db.DB())
+	runtime.getFn = func(name string) (*extensionpkg.Extension, error) {
+		info, getErr := extRegistry.Get(name)
+		if getErr != nil {
+			return nil, getErr
+		}
+		rootDir := filepath.Dir(info.ManifestPath)
+		manifest, loadErr := extensionpkg.LoadManifest(rootDir)
+		if loadErr != nil {
+			return nil, loadErr
+		}
+		return &extensionpkg.Extension{
+			Info:     *info,
+			Manifest: manifest,
+			RootDir:  rootDir,
+			Status: extensionpkg.ExtensionStatus{
+				Name:       info.Name,
+				Version:    info.Version,
+				Source:     info.Source,
+				Enabled:    info.Enabled,
+				Registered: info.Enabled,
+				Active:     info.Enabled,
+			},
+		}, nil
+	}
 	deps := daemonNativeToolsDeps{
 		HomePaths:         homePaths,
 		ExtensionRegistry: extRegistry,
@@ -600,6 +678,7 @@ func newNativeExtensionToolDeps(
 		},
 		ExtensionConfig: validNativeExtensionConfig(true),
 		ExtensionEvents: db,
+		Automation:      &fakeAutomationManager{},
 	}
 	return &deps, extRegistry, source, runtime
 }
@@ -645,6 +724,24 @@ func nativeExtensionDownloadResult(t *testing.T, version string) *registrypkg.Do
 
 func nativeExtensionTarGz(t *testing.T, version string) []byte {
 	t.Helper()
+	return nativeExtensionTarGzWithNetwork(t, version, "")
+}
+
+func nativeExtensionTarGzWithNetwork(t *testing.T, version string, channelScope string) []byte {
+	t.Helper()
+
+	integrationManifestSections := ""
+	if strings.TrimSpace(channelScope) != "" {
+		integrationManifestSections = fmt.Sprintf(`
+[resources]
+skills = ["skills/"]
+
+[network_participation]
+required = true
+mode = "live"
+channel_scopes = [%q]
+`, channelScope)
+	}
 
 	files := map[string]string{
 		filepath.Join("tool-ext", "extension.toml"): fmt.Sprintf(`[extension]
@@ -658,8 +755,17 @@ provides = ["memory.backend"]
 
 [permissions]
 requires = ["sessions/list"]
-`, version),
+%s`, version, integrationManifestSections),
 		filepath.Join("tool-ext", "VERSION.txt"): version + "\n",
+	}
+	if strings.TrimSpace(channelScope) != "" {
+		files[filepath.Join("tool-ext", "skills", "native-tool", "SKILL.md")] = `---
+name: native-tool
+description: Native tool integration skill
+---
+
+Use the native tool integration fixture.
+`
 	}
 
 	var buffer bytes.Buffer

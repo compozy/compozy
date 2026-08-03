@@ -9,13 +9,16 @@ entry_points: `compozy extension build`; `compozy extension validate`; generated
 qa_status: pass
 bug_ids:
 fix_status:
-retest_status: pass
+retest_status:
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-ext-improvs-final-20260729-230047-267985-lab/qa-artifacts/qa/extension-charters.json
-last_report: docs/qa/reports/2026-07-29-ext-improvs.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-bundles-removal-review-20260803-040035-513450-lab/qa-artifacts/qa/validate-review-kit.json; /Users/pedronauck/dev/qa-labs/compozy-bundles-removal-review-20260803-040035-513450-lab/qa-artifacts/qa/validate-duplicate-layouts.json
+last_report: docs/qa/reports/2026-08-03-bundles-removal-review.md
 overlaps: ET-extension-code-first-authoring; ET-discover-extension-command-tree; ET-044
 ---
 
 QA impact 2026-07-29: derived from the ext-improvs hard-cut contract. This scenario owns the
 cross-surface declaration invariant; behavior-specific execution remains in the dev, hook, and
 command scenarios.
+
+QA impact 2026-08-02: duplicate layout diagnostics now report both owning paths; re-walk build and
+validation failure output across CLI and native tools.

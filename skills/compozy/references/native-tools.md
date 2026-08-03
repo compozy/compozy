@@ -11,7 +11,7 @@
 - Network tools
 - Task and autonomy tools
 - Loop tools
-- Config, hooks, automation, marketplace, extensions, bundles, resources, and MCP tools
+- Config, hooks, automation, marketplace, extensions, resources, and MCP tools
 - Observability and bridge tools
 - CLI/HTTP-only management surfaces
 - Descriptor discipline
@@ -178,7 +178,7 @@ Toolset `compozy__loops` (16 tools):
 No `compozy__loop_edit`. See references/loops.md for publishing, approval/self-approval, and Goal report
 binding semantics.
 
-## Config, Hooks, Automation, Marketplace, Extensions, Bundles, Resources, And MCP Tools
+## Config, Hooks, Automation, Marketplace, Extensions, Resources, And MCP Tools
 
 Config tools live under `compozy__config_*` for show/list/get/set/unset/diff/path. Hook tools live under `compozy__hooks_*` for list/info/events/runs/create/update/delete/enable/disable; hooks are typed dispatch, not an event bus.
 
@@ -199,25 +199,25 @@ deleted; dynamic definitions are fully mutable.
 `compozy__automation_suggestions_{list,accept,dismiss}` accepts optional `workspace`; list, accept, or
 dismiss; retry CAS conflicts.
 
-`compozy__marketplace_search` returns MCP, extension, skill, and bundle rows. Single-kind cursors bind the
+`compozy__marketplace_search` returns MCP, extension, and skill rows. Single-kind cursors bind the
 query, scope, workspace, and source projection; grouped searches omit them. Paging and installed
 identity rules live in `references/tools-and-skills.md`. Installed state is scoped to the caller's
 exact workspace; never reuse it across workspace scopes.
 Extension tools are
-`compozy__extensions_{init,build,validate,dev,reload,logs,list,info,search,provenance,publish,install,update,remove,enable,disable}`.
+`compozy__extensions_{init,build,validate,dev,reload,logs,list,info,inventory,preview,search,provenance,publish,install,update,remove,enable,disable}`.
 `validate`, `logs`, `list`, `info`, `search`, and `provenance` are read-only; `init`, `build`, `dev`,
 and `reload` are mutating, with `build`, `dev`, and `reload` requiring interaction; `remove` is
 destructive; `publish` is open-world, interaction-gated, and takes no credential field because the
 daemon resolves and redacts that token server-side. `compozy__extensions_search` spans the `curated`
 and `github` sources only and is not `compozy__marketplace_search`. Resolve live schemas first;
 install sources, consent, authoring, workspace binding, generation handles, commit boundaries,
-batch-update outcomes, and cleanup warnings live in `references/capabilities-and-bundles.md`.
+batch-update outcomes, kit lifecycle, and cleanup warnings live in `references/capabilities.md`.
 
 The `compozy__automation_jobs_create` and `compozy__automation_jobs_update` descriptors expose the complete recurring schedule shape, including `catch_up_policy` and `misfire_grace_seconds`. Resolve the live descriptor instead of guessing the enum or sending catch-up fields to a one-time `at` schedule.
 
 `compozy__automation_jobs_create` and `compozy__automation_jobs_update` reject Agent prompts and Task descriptions containing command-shaped Compozy daemon restart, stop, or kill instructions before persistence, including resource-applied definitions. The tool error names `compozy_daemon`, `process_signal`, or `service_manager`; remove the lifecycle command before retrying. There is no bypass.
 
-Bundle tools live under `compozy__bundles_*` for list/info/activate/deactivate/status. Resource tools live under `compozy__resources_*` for list/info/snapshot of desired-state resources.
+Resource tools live under `compozy__resources_*` for list/info/snapshot of desired-state resources.
 
 MCP diagnostics are `compozy__mcp_status` and `compozy__mcp_auth_status`. A
 workspace-scoped server with five consecutive confirmed permanent failures reports `state: "dead"`

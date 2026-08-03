@@ -67,7 +67,6 @@ The operator is most likely to act on: (1) the network channel/thread/direct/pee
 | NB-020 | Send network message (all kinds) | Agent / Operator | As an agent I want to send a validated network message of any kind. | `POST .../network/send` validates `session_id` (must be in workspace), body `workspace_id`==path, `channel`, `kind`, non-empty valid-JSON `body`; rejects raw `claim_token`; greet/whois forbid conversation/work fields; say/etc require `surface`; capability/receipt/trace require `work_id`. Returns message id + echo. | `POST .../network/send`; CLI `network send` | `network.go:148-203,284-415`; `cli/network.go:659,1502-1576` | Needs QA | Token-redaction + kind-scope are security-critical. Web only sends `say`. |
 | NB-021 | Read session inbox | Agent | As an agent I want to read my queued inbound envelopes. | `GET .../network/inbox?session_id=` returns queued inbound envelopes for one local session; `session_id` required and must be in workspace. | `GET .../network/inbox`; CLI `network inbox` | `network.go:205-236`; `cli/network.go:744` | Needs QA | Missing/foreign session_id → error. |
 | NB-022 | View network work item | Agent / Operator | As a person running agent work I want to inspect a network work item's state and lineage. | `GET .../network/work/:work_id` returns work row: surface/thread/direct, opened-by peer/session, target peer, state (`submitted|working|needs_input|completed|failed|canceled`), opened/last-activity/terminal timestamps; invalid id → 400. | `GET .../network/work/:work_id`; CLI `network work` | `network_conversations.go:263-283,514-531`; `cli/network.go:604,615`; `envelope.go:165-170` | Needs QA | Open-work counts surface in thread/direct summaries + inspector. |
-| NB-023 | Bundle network onboarding settings | Agent | As an agent I want bundle-facing network settings so onboarding knows the network config. | `GET .../bundles/network/settings` returns network settings for bundle/agent onboarding. | `GET .../bundles/network/settings` | `routes.go` HTTP:430 / UDS:458; `bundles.go:123` (`BundleNetworkSettings`) | Inventory | API/agent-only; exact payload not read — see Open Questions. |
 | NB-024 | List bridges + health (scoped) | Operator / Agent | As a person running agent work I want to list bridges filtered by scope with health. | `GET /api/bridges?scope=all|global|workspace&workspace_id=` returns instances filtered by scope/workspace plus per-instance health (status, diagnostics, degradation). Invalid scope/workspace combos → 400. | `GET /api/bridges`; CLI `bridge list`; web `/bridges` (scope pills) | `bridges.go:39-215`; `cli/bridge.go:92`; `bridges.tsx:28-54` | Needs QA | Global scope + workspace id → 400. |
 | NB-025 | List bridge providers | Operator / Agent | As a person running agent work I want to see installed bridge-capable providers. | `GET /api/bridges/providers` returns providers (platform, extension, secret slots); web empty-state lists them. | `GET /api/bridges/providers`; web bridges empty state | `bridges.go:217-236`; `bridges.tsx:87` | Needs QA | Drives create-dialog provider choices. |
 | NB-026 | Create bridge | Operator | As a person running agent work I want to create a bridge instance. | `POST /api/bridges` decodes strict JSON (rejects unknown/extra fields), validates the create request, returns instance + health (201). | `POST /api/bridges`; CLI `bridge create`; web create dialog | `bridges.go:238-283`; `cli/bridge.go:145`; `bridges.tsx:97` | Needs QA | Unknown-field body → 400. |
@@ -141,9 +140,8 @@ The operator is most likely to act on: (1) the network channel/thread/direct/pee
 
 - Are `NetworkChannelMessages` / `NetworkPeerMessages` intentionally unwired (pending feature) or dead code to delete? The parent must decide whether QA tests them (they're not reachable today).
 - Does sending a `say` with a fresh `thread_id` implicitly create a thread root, or must a thread be opened by another mechanism first (NB-012)? Not resolvable from the read slice alone.
-- What exact payload/behavior does `BundleNetworkSettings` (`bundles.go:123`) return for agent onboarding (NB-023)? `bundles.go` was not read in full (out of primary scope).
 - Is there a CLI verb for single peer detail (NB-018), or is peer detail web/API-only?
-- Do bridge providers come from extensions/bundles, and is provider installation itself a user-facing story owned by an extensions slice (NB-025 depends on installed providers)?
+- Do bridge providers come from extensions, and is provider installation itself a user-facing story owned by an extensions slice (NB-025 depends on installed providers)?
 - `internal/bridgesdk/` (bridge SDK contract types, webhook/runtime) was only directory-surveyed; it appears to be an internal SDK boundary, not a directly user-facing surface — confirm no agent-facing CLI/HTTP verb is owned there.
 
 ## Evidence
@@ -154,7 +152,6 @@ The operator is most likely to act on: (1) the network channel/thread/direct/pee
 - `internal/api/core/bridges.go`
 - `internal/api/core/bridge_diagnostics.go`
 - `internal/api/core/notifications.go`
-- `internal/api/core/bundles.go`
 - `internal/api/httpapi/routes.go`
 - `internal/api/udsapi/routes.go`
 - `internal/api/contract/responses.go`

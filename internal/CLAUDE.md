@@ -8,7 +8,7 @@ Repo-wide rules (Critical Rules, Workflow, Build, Commits, Skill Dispatch, Memor
 
 ### Principles
 
-- **Designed for incremental extension** — new capabilities arrive as new packages wired into `daemon/`, without modifying existing packages. Small interfaces + dependency injection. Every capability plan decides which extension points, hooks, capabilities, tools/resources, bundles, registries, bridge SDKs, and docs must be added, updated, or removed.
+- **Designed for incremental extension** — new capabilities arrive as new packages wired into `daemon/`, without modifying existing packages. Small interfaces + dependency injection. Every capability plan decides which extension points, hooks, capabilities, tools/resources, registries, bridge SDKs, and docs must be added, updated, or removed.
 - **Pragmatic Flat with Discipline** — packages under `internal/`, API transports grouped under `api/`, no domain/infra split, no event bus.
 - **`daemon/` is the sole composition root** — the only package that imports all others. Reconciliation logic running at boot belongs to composition root and is not "legacy support".
 - **No package imports `daemon/`, `api/`, or `cli/`** — dependencies flow downward only.
@@ -63,7 +63,7 @@ Generic Go concurrency patterns (goroutine ownership, channels vs mutexes, `sele
 ## Security Invariants
 
 - **`claim_token` redaction is non-negotiable.** Raw `claim_token` (`compozy_claim_*`), MCP auth tokens, OAuth codes, PKCE verifiers, and secret bindings MUST NEVER appear in logs, status APIs, settings views, error payloads, channel messages, SSE, web UI, or memory. Use hash forms (`claim_token_hash`) over the wire. Network layer rejects raw `claim_token` in metadata.
-- **Symlink escape hardening.** Skill sidecars, skill files, managed-extension dependency copies, and bundle install paths MUST verify resolved targets remain inside approved roots. Use `EvalSymlinks` + path-prefix check, not naive joins. Handle macOS `/private/var/folders` quirk (canonicalize source root before containment check).
+- **Symlink escape hardening.** Skill sidecars, skill files, managed-extension dependency copies, and extension install paths MUST verify resolved targets remain inside approved roots. Use `EvalSymlinks` + path-prefix check, not naive joins. Handle macOS `/private/var/folders` quirk (canonicalize source root before containment check).
 - **Path security helpers.** Filesystem helpers resolving user-controlled or agent-controlled paths use the `sanitizePathKey` + `realpathDeepestExisting` pattern (defenses against null-byte, URL-encoded traversal, Unicode normalization, symlink-escape).
 - **Identity proof-stripping defense.** In any signed-message processing path (Compozy Network v1), an identity in verified format (`nickname@fingerprint`) without valid `proof` MUST classify as `rejected`, not `unverified`.
 - **External-call timeouts.** Outbound HTTP/network calls MUST use a client with an explicit timeout. `http.DefaultClient` is forbidden in production code paths.
@@ -88,7 +88,6 @@ Generic Go concurrency patterns (goroutine ownership, channels vs mutexes, `sele
 | `internal/automation`           | Cron, webhook, and scheduled triggers; durable scheduler state                  |
 | `internal/bridges`              | External messaging adapters (Slack, Telegram, etc.)                             |
 | `internal/bridgesdk`            | Bridge SDK / contract types                                                     |
-| `internal/bundles`              | Bundle activation projector                                                     |
 | `internal/cli`                  | Cobra commands                                                                  |
 | `internal/codegen`              | OpenAPI → TS generator helpers                                                  |
 | `internal/coordinator`          | Coordinator-agent bootstrap and lifecycle                                       |

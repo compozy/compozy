@@ -15,6 +15,7 @@ import (
 
 	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 	"github.com/compozy/compozy/internal/testutil"
+	"golang.org/x/mod/modfile"
 )
 
 func TestBuildBundle(t *testing.T) {
@@ -107,6 +108,157 @@ func TestBuildBundle(t *testing.T) {
 		if !slices.Equal(firstBytes, secondBytes) {
 			t.Fatal("generated extension.toml bytes differ across identical builds")
 		}
+	})
+
+	t.Run("Should copy declared resources and emit them deterministically", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		writeGoBuildFixture(t, dir)
+		skillDir := filepath.Join(dir, "skills", "writer")
+		if err := os.MkdirAll(skillDir, 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(skillDir) error = %v", err)
+		}
+		writeFile(t, filepath.Join(skillDir, "SKILL.md"), "# Writer\n")
+		writeStaticAgentFixture(t, dir, "writer", true)
+		writeAutomationResource(t, dir, "automation/main.toml", `
+[[jobs]]
+name = "daily"
+agent = "writer"
+prompt = "Write a digest."
+[jobs.schedule]
+mode = "cron"
+expr = "0 * * * *"
+`)
+		if err := os.MkdirAll(filepath.Join(dir, "layouts"), 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(layouts) error = %v", err)
+		}
+		writeLayoutJSONFile(t, filepath.Join(dir, "layouts", "two-up.json"), testLayoutResource("two-up"))
+		payload := validDescribePayload()
+		payload.Resources.Agents = []string{"agents"}
+		payload.Resources.Skills = []string{"skills"}
+		payload.Resources.Automation = []string{"automation"}
+		payload.Resources.Layouts = []string{"layouts/two-up.json"}
+
+		first, err := buildBundle(testutil.Context(t), BuildRequest{SourceDir: dir}, newBuildTestRunner(payload))
+		if err != nil {
+			t.Fatalf("buildBundle(first) error = %v", err)
+		}
+		copied, err := os.ReadFile(filepath.Join(first.GenerationDir, "skills", "writer", "SKILL.md"))
+		if err != nil {
+			t.Fatalf("os.ReadFile(copied skill) error = %v", err)
+		}
+		if string(copied) != "# Writer\n" || !reflect.DeepEqual(first.Manifest.Resources.Skills, []string{"skills"}) {
+			t.Fatalf("copied = %q resources = %#v", copied, first.Manifest.Resources.Skills)
+		}
+		for _, relativePath := range []string{
+			"agents/writer/AGENT.md",
+			"agents/writer/SOUL.md",
+			"agents/writer/HEARTBEAT.md",
+			"automation/main.toml",
+			"layouts/two-up.json",
+		} {
+			if _, err := os.Stat(filepath.Join(first.GenerationDir, relativePath)); err != nil {
+				t.Fatalf("os.Stat(copied %q) error = %v", relativePath, err)
+			}
+		}
+		firstManifest, err := os.ReadFile(first.ManifestPath)
+		if err != nil {
+			t.Fatalf("os.ReadFile(first manifest) error = %v", err)
+		}
+		for _, declaration := range []string{
+			"agents = [\"agents\"]",
+			"skills = [\"skills\"]",
+			"automation = [\"automation\"]",
+			"layouts = [\"layouts/two-up.json\"]",
+		} {
+			if !strings.Contains(string(firstManifest), declaration) {
+				t.Fatalf("manifest = %s, want declaration %q", firstManifest, declaration)
+			}
+		}
+		second, err := buildBundle(testutil.Context(t), BuildRequest{SourceDir: dir}, newBuildTestRunner(payload))
+		if err != nil {
+			t.Fatalf("buildBundle(second) error = %v", err)
+		}
+		if first.GenerationHash != second.GenerationHash {
+			t.Fatalf("generation hash = %q then %q, want stable", first.GenerationHash, second.GenerationHash)
+		}
+	})
+
+	t.Run("Should reject invalid declared automation before publishing a generation", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		writeGoBuildFixture(t, dir)
+		if err := os.MkdirAll(filepath.Join(dir, "automation"), 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(automation) error = %v", err)
+		}
+		writeFile(t, filepath.Join(dir, "automation", "jobs.toml"), `
+[[jobs]]
+name = "daily"
+agent = "writer"
+prompt = "Write a digest."
+[jobs.schedule]
+mode = "cron"
+expr = "not-a-cron"
+`)
+		payload := validDescribePayload()
+		payload.Resources.Automation = []string{"automation"}
+		_, err := buildBundle(testutil.Context(t), BuildRequest{SourceDir: dir}, newBuildTestRunner(payload))
+		if err == nil || !strings.Contains(err.Error(), "automation/jobs.toml") ||
+			!strings.Contains(err.Error(), "expr is invalid") {
+			t.Fatalf("buildBundle() error = %v, want positioned automation validation", err)
+		}
+		generations, globErr := filepath.Glob(filepath.Join(dir, "dist", "gen-*"))
+		if globErr != nil {
+			t.Fatalf("filepath.Glob(generations) error = %v", globErr)
+		}
+		if len(generations) != 0 {
+			t.Fatalf("published generations = %#v, want none", generations)
+		}
+	})
+
+	t.Run("Should reject declared resource overlaps and symlinks", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("Should reject overlapping declarations", func(t *testing.T) {
+			t.Parallel()
+
+			dir := t.TempDir()
+			writeGoBuildFixture(t, dir)
+			if err := os.MkdirAll(filepath.Join(dir, "resources", "nested"), 0o755); err != nil {
+				t.Fatalf("os.MkdirAll(resources) error = %v", err)
+			}
+			payload := validDescribePayload()
+			payload.Resources.Skills = []string{"resources"}
+			payload.Resources.Loops = []string{"resources/nested"}
+			_, err := buildBundle(testutil.Context(t), BuildRequest{SourceDir: dir}, newBuildTestRunner(payload))
+			if !errors.Is(err, ErrManifestInvalid) || !strings.Contains(err.Error(), "overlap") {
+				t.Fatalf("buildBundle() error = %v, want overlap rejection", err)
+			}
+		})
+
+		t.Run("Should reject symlinks inside declared resources", func(t *testing.T) {
+			t.Parallel()
+
+			dir := t.TempDir()
+			writeGoBuildFixture(t, dir)
+			resourceDir := filepath.Join(dir, "skills")
+			if err := os.MkdirAll(resourceDir, 0o755); err != nil {
+				t.Fatalf("os.MkdirAll(skills) error = %v", err)
+			}
+			outside := filepath.Join(t.TempDir(), "outside.md")
+			writeFile(t, outside, "outside")
+			if err := os.Symlink(outside, filepath.Join(resourceDir, "escape.md")); err != nil {
+				t.Fatalf("os.Symlink() error = %v", err)
+			}
+			payload := validDescribePayload()
+			payload.Resources.Skills = []string{"skills"}
+			_, err := buildBundle(testutil.Context(t), BuildRequest{SourceDir: dir}, newBuildTestRunner(payload))
+			if !errors.Is(err, ErrManifestInvalid) || !strings.Contains(err.Error(), "symlink") {
+				t.Fatalf("buildBundle() error = %v, want symlink rejection", err)
+			}
+		})
 	})
 
 	t.Run("Should Time Out Describe Without Partial Manifest", func(t *testing.T) {
@@ -210,8 +362,106 @@ min_compozy_version = "9.9.9"
 	})
 }
 
+func TestManifestFromDescribeResources(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should map every declared resource kind in sorted order", func(t *testing.T) {
+		t.Parallel()
+
+		payload := validDescribePayload()
+		payload.Resources = extensioncontract.DescribeResources{
+			Skills:     []string{"skills/z", "skills/a"},
+			Loops:      []string{"loops"},
+			Agents:     []string{"agents"},
+			Automation: []string{"automation/z.toml", "automation/a.toml"},
+			Layouts:    []string{"layouts"},
+		}
+		manifest, err := manifestFromDescribe(payload)
+		if err != nil {
+			t.Fatalf("manifestFromDescribe() error = %v", err)
+		}
+		want := ResourcesConfig{
+			Skills:     []string{"skills/a", "skills/z"},
+			Loops:      []string{"loops"},
+			Agents:     []string{"agents"},
+			Automation: []string{"automation/a.toml", "automation/z.toml"},
+			Layouts:    []string{"layouts"},
+		}
+		if !reflect.DeepEqual(manifest.Resources, want) {
+			t.Fatalf("manifest.Resources = %#v, want %#v", manifest.Resources, want)
+		}
+	})
+}
+
 func TestValidateBundle(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should validate automation and layout declarations", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		if err := os.MkdirAll(filepath.Join(dir, "automation"), 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(automation) error = %v", err)
+		}
+		if err := os.MkdirAll(filepath.Join(dir, "layouts"), 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(layouts) error = %v", err)
+		}
+		writeFile(t, filepath.Join(dir, manifestTOMLFileName), `
+[extension]
+name = "resource-only"
+version = "0.1.0"
+min_compozy_version = "0.3.0-beta.1"
+
+[resources]
+automation = ["automation"]
+layouts = ["layouts"]
+
+[subprocess]
+command = "./bin"
+`)
+		manifest, issues, err := ValidateBundle(dir)
+		if err != nil {
+			t.Fatalf("ValidateBundle() error = %v", err)
+		}
+		if manifest == nil || len(issues) != 0 {
+			t.Fatalf("ValidateBundle() manifest = %#v issues = %#v, want valid", manifest, issues)
+		}
+	})
+
+	t.Run("Should reject the removed bundles resource field", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		writeFile(t, filepath.Join(dir, manifestTOMLFileName), `
+[extension]
+name = "legacy-bundle"
+version = "0.1.0"
+min_compozy_version = "0.3.0-beta.1"
+
+[resources]
+bundles = ["bundles"]
+
+[subprocess]
+command = "./bin"
+`)
+		manifest, issues, err := ValidateBundle(dir)
+		if err != nil {
+			t.Fatalf("ValidateBundle() error = %v", err)
+		}
+		if manifest != nil {
+			t.Fatalf("ValidateBundle() manifest = %#v, want nil", manifest)
+		}
+		if len(issues) != 1 {
+			t.Fatalf("ValidateBundle() issues = %#v, want one", issues)
+		}
+		if issues[0].Field != "resources.bundles" ||
+			!strings.Contains(issues[0].Message, `unknown manifest field "resources.bundles"`) {
+			t.Fatalf(
+				"ValidateBundle() issue = %#v, want resources.bundles unknown-field issue",
+				issues[0],
+			)
+		}
+	})
 
 	t.Run("Should Return Positioned TOML Syntax Issue", func(t *testing.T) {
 		t.Parallel()
@@ -308,9 +558,36 @@ func TestScaffoldExtension(t *testing.T) {
 					t.Fatalf("read scaffold file %q: %v", relative, err)
 				}
 				content := string(data)
-				for _, forbidden := range []string{"__EXTENSION_NAME__", "min_compozy_version", `"private": true`} {
+				for _, forbidden := range []string{
+					"__EXTENSION_NAME__",
+					"__COMPOZY_GO_SDK_VERSION__",
+					"min_compozy_version",
+					`"private": true`,
+				} {
 					if strings.Contains(content, forbidden) {
 						t.Fatalf("template %q file %q contains forbidden %q", template, relative, forbidden)
+					}
+				}
+				if relative == "go.mod" {
+					parsed, err := modfile.Parse(relative, data, nil)
+					if err != nil {
+						t.Fatalf("modfile.Parse(%q) error = %v", relative, err)
+					}
+					const sdkModulePath = "github.com/compozy/compozy/sdk/go"
+					var sdkVersion string
+					for _, requirement := range parsed.Require {
+						if requirement.Mod.Path == sdkModulePath {
+							sdkVersion = requirement.Mod.Version
+							break
+						}
+					}
+					if sdkVersion != scaffoldGoSDKVersion {
+						t.Fatalf(
+							"template %q go.mod SDK version = %q, want %q",
+							template,
+							sdkVersion,
+							scaffoldGoSDKVersion,
+						)
 					}
 				}
 			}

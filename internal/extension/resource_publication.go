@@ -402,6 +402,9 @@ func manifestRuntimeDescriptor(
 		Capabilities:        append([]string(nil), tool.Backend.RequiresCapabilities...),
 		Command:             cloneExtensionCommandSpec(command),
 	}
+	if tool.Backend.Kind != toolspkg.BackendExtensionHost {
+		return descriptor, nil
+	}
 	if err := descriptor.Validate(); err != nil {
 		return toolspkg.ExtensionToolRuntimeDescriptor{}, err
 	}

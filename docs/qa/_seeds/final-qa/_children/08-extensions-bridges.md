@@ -1,6 +1,6 @@
 ---
 name: 08-extensions-bridges
-description: Compozy pre-release QA — extensions + bridges + bundles + bridge SDK module. Real-LLM scenarios required. Read-only research deliverable.
+description: Compozy pre-release QA — extension kits + bridges + bridge SDK module. Real-LLM scenarios required. Read-only research deliverable.
 type: qa-child
 module: extensions-bridges
 owner: pre-release-qa
@@ -11,7 +11,7 @@ references:
   - /Users/pedronauck/Dev/compozy/compozy/internal/CLAUDE.md
 ---
 
-# 08 — Extensions, Bridges, Bundles, and Bridge SDK QA
+# 08 — Extension Kits, Bridges, and Bridge SDK QA
 
 ## 1. Module scope
 
@@ -19,11 +19,10 @@ This child stresses every load-bearing surface in the Compozy extension stack. A
 extension is the canonical Compozy unit of "code that the daemon supervises but
 does not own": tool providers, hook subprocesses, memory backends, and
 bridge adapters all flow through one manifest, one registry, and one
-subprocess supervisor. Bundles are the activation projector that turns one
-extension's declared profile (skills + tools + hooks + bridges + agents +
-jobs) into a coherent runtime overlay; deactivation must reverse the overlay
-atomically. The bridge SDK (Go and TS) is the contract every adapter binds
-to.
+subprocess supervisor. An extension can ship a static kit of skills, agents,
+automation, layouts, and MCP sidecars; install is inert, enable publishes the
+owned set, and disable removes it. The bridge SDK (Go and TS) is the contract
+every adapter binds to.
 
 Packages and SDKs in scope (file:line citations are repo-absolute):
 
@@ -33,8 +32,6 @@ Packages and SDKs in scope (file:line citations are repo-absolute):
 | Manager + supervisor | `/Users/pedronauck/Dev/compozy/compozy/internal/extension/manager.go`              | `Manager.recoverExtension` (`:1093`), `launchRuntime` (`:1152`), `ExtensionPhaseRecover` (`:125`)                                                                                                                                                                                                                  |
 | Host API             | `/Users/pedronauck/Dev/compozy/compozy/internal/extension/host_api.go`             | `HostAPIRateLimitedCode = -32002` (`:36-37`), `HostAPIInvalidParamsCode` (`:42-43`), default rate-limit / dedup TTL constants (`:47-52`)                                                                                                                                                                           |
 | Managed install      | `/Users/pedronauck/Dev/compozy/compozy/internal/extension/install_managed.go`      | Symlink hardening for runtime dependency copy (`:355-572`); cycle detection (`:536`); escape rejection (`:562`)                                                                                                                                                                                                    |
-| Bundles spec         | `/Users/pedronauck/Dev/compozy/compozy/internal/extension/bundle.go`               | `BundleSpec` (`:27`), `BundleProfile` (`:35`), `BundleAgent` (`:46`), `BundleChannel` (`:66`), `BundleJob` (`:71`), `BundleTrigger` (`:84`), `BundleBridgePreset` (`:96-104`); bundle root resolve (`:741-750`)                                                                                                     |
-| Bundle service       | `/Users/pedronauck/Dev/compozy/compozy/internal/bundles/service.go`                | `Activate` (`:220`), `Deactivate` (`:401`), `PreviewActivation` (`:203`), `reconcileLocked` rollback (`:268-287`, `:388-396`, `:416-425`), Network requirement confirmation, `joinRollbackFailure`                                                                                                              |
 | Bridge registry      | `/Users/pedronauck/Dev/compozy/compozy/internal/bridges/registry.go`               | `Registry.CreateInstance`, `UpdateInstance`, `UpdateInstanceState`, `BuildRoutingKey`, `ResolveOrCreateRoute`                                                                                                                                                                                                      |
 | Bridge lifecycle     | `/Users/pedronauck/Dev/compozy/compozy/internal/bridges/lifecycle.go`              | `ValidateInstanceStateTransition` (`:9`), `validateInstanceLifecycle` (`:43`), `transitionFromStarting/Ready/Degraded/AuthRequired/Error` (`:101+`)                                                                                                                                                                |
 | Bridge delivery      | `/Users/pedronauck/Dev/compozy/compozy/internal/bridges/delivery_broker.go`        | `Broker.Deliver` (`:301`), `enqueueEventLocked` (`:334`/`:424`), bounded per-route queue (`:33,95,118-137`); defaults `defaultDeliveryQueueCapacity=4`, `defaultDeliveryRetryDelay=25ms`, `defaultDeliveryRequestTimeout=5s` (`internal/bridges/delivery_types.go:38-40`)                                          |
@@ -43,7 +40,7 @@ Packages and SDKs in scope (file:line citations are repo-absolute):
 | create-extension     | `/Users/pedronauck/Dev/compozy/compozy/sdk/create-extension/`                      | `parseArgs` (`src/index.ts:30`), templates (`templates/{hook-subprocess,memory-backend,tool-provider,go-tool-provider}`), `DEFAULT_SDK_SPEC = "^0.1.0"`                                                                                                                                                            |
 | Bridge providers     | `/Users/pedronauck/Dev/compozy/compozy/extensions/bridges/{slack,telegram,discord,gchat,github,linear,teams,whatsapp}` | Each `extension.toml` declares `bridge.platform`, `secret_slots` (e.g. `slack/extension.toml:14-22` for `bot_token`/`signing_secret`), and subprocess command (`./bin/<name>`) wired through bridge SDK runtime.                                                              |
 | Test harness         | `/Users/pedronauck/Dev/compozy/compozy/internal/extensiontest/`                    | `bridge_adapter_harness.go`, `bridge_conformance_matrix.go`                                                                                                                                                                                                                                                        |
-| CLI                  | `/Users/pedronauck/Dev/compozy/compozy/internal/cli/{extension,bundle,bridge}.go`  | `compozy extension {search,list,install,remove,update,enable,disable,status}` (`extension.go:34-233`); `compozy bundle {catalog,preview,activate,list,get,update}` (`bundle.go:20-148`); `compozy bridge {list,get,create,update,enable,disable,...}` (`bridge.go:17-300`); restart guidance constants `extensionInstallRestartMessage`, `extensionUpdateRestartMessage` (`internal/cli/extension_marketplace.go:22-25`) |
+| CLI                  | `/Users/pedronauck/Dev/compozy/compozy/internal/cli/{extension,bridge}.go`         | `compozy extension {search,list,install,remove,update,enable,disable,status,inventory,preview,secrets}`; `compozy bridge {list,get,create,update,enable,disable,...}`                                                                                                                                          |
 
 Out of scope (covered by other children): full ACP transport correctness
 (module 03), autonomy kernel internals (module 04), Compozy Network channel
@@ -64,13 +61,13 @@ follow the openclaw lowercase dotted/dashed convention.
 | `extension.install.restart-guidance`        | After `compozy extension install` (or update), CLI emits restart guidance to stderr; new tools/skills become available after a daemon restart.               | `internal/cli/extension_marketplace.go:22-25`; `internal/cli/extension_marketplace_test.go:415,764,845`                                                                                                                                                                               |
 | `extension.lifecycle.recover`               | A subprocess panic / unexpected exit triggers `recoverExtension` with backoff; the daemon never crashes; the extension is marked unhealthy then recovered or disabled. | `internal/extension/manager.go:1035-1149`                                                                                                                                                                                                                                             |
 | `extension.host-api.rate-limit`             | Per-extension Host API call rate-limit enforced at `HostAPIRateLimitedCode = -32002`; bursts allowed up to configured `defaultHostAPIBurst = 20`.        | `internal/extension/host_api.go:36-50`                                                                                                                                                                                                                                                |
-| `extension.skill.verify-content`            | Every non-bundled skill (including those packaged inside extensions/bundles) is scanned by `internal/skills.VerifyContent` on every load; critical findings block. | `internal/CLAUDE.md` "Load-time security scan"; `internal/skills/registry.go:504`; `internal/skills/verify.go:101-102`                                                                                                                                                                |
+| `extension.skill.verify-content`            | Every extension skill is scanned by `internal/skills.VerifyContent` on every load; critical findings block.                                               | `internal/CLAUDE.md` "Load-time security scan"; `internal/skills/registry.go`; `internal/skills/verify.go`                                                                                                                                                                           |
 | `extension.lifecycle-hook.session-postcreate` | Extension-declared `session.post_create` hooks fire in hierarchy precedence + alphabetical order; legacy `on_session_created` event names are rejected with the documented translation message. | `internal/skills/loader.go:517-526`; `internal/skills/loader_test.go:650-660`                                                                                                                                                                                                          |
-| `extension.workspace-scope`                 | Workspace-scoped extension/bundle activation only exposes its tools/skills inside that workspace.                                                        | `internal/bundles/service.go:163-290`; `internal/bundles/model/model.go` (Scope kinds)                                                                                                                                                                                                |
-| `bundle.activate.atomic`                    | Bundle `Activate` writes activation row + reconciles overlays atomically; if reconcile fails, the activation is fully rolled back via `joinRollbackFailure`. | `internal/bundles/service.go:220-290`                                                                                                                                                                                                                                                 |
-| `bundle.deactivate.clean`                   | Bundle `Deactivate` reverses every overlay (skills/tools/hooks/agents/triggers/bridges); on reconcile failure the activation is restored.                | `internal/bundles/service.go:401-427`                                                                                                                                                                                                                                                 |
-| `bundle.activate.no-leak`                   | Two bundles' activations never share state — uninstalling one cannot reach into the other's overlays.                                                    | `internal/bundles/service.go:200-330`                                                                                                                                                                                                                                                 |
-| `bundle.network-requirement-confirmation`   | An extension-declared Live requirement blocks activation until the operator confirms the current requirement digest; a changed digest clears confirmation. | `internal/bundles/network_requirement.go`                                                                                                                                                                                                                                             |
+| `extension.workspace-scope`                 | A workspace dev overlay is visible only in its workspace and never contaminates the global published instance.                                           | `internal/extension/manager.go`; `internal/daemon/extensions.go`                                                                                                                                                                                                                       |
+| `extension.kit.enable-atomic`               | Enable publishes the complete static kit atomically; a failure leaves no partial live resource set.                                                       | `internal/daemon/extensions.go`; `internal/extension/manager_resource_loading.go`                                                                                                                                                                                                      |
+| `extension.kit.disable-clean`               | Disable removes only the target extension instance's owned resources and stops owned automation.                                                         | `internal/daemon/extensions.go`; `internal/resources/`                                                                                                                                                                                                                                 |
+| `extension.secrets.redacted`                | Secret bindings are instance-scoped and every read exposes bound key names only.                                                                          | `internal/daemon/extension_secrets.go`; `internal/store/globaldb/`                                                                                                                                                                                                                      |
+| `extension.network-confirmation`            | Enable/update refuse before mutation until the caller confirms the exact candidate Network requirement digest.                                            | `internal/daemon/extension_lifecycle.go`                                                                                                                                                                                                                                               |
 | `bridge.lifecycle.transitions`              | Only the documented status transitions in `lifecycle.go` are accepted; e.g. `disabled → starting` only with `enabled=true`; nothing reaches `ready` without going through `starting`. | `internal/bridges/lifecycle.go:9-160`                                                                                                                                                                                                                                                 |
 | `bridge.delivery.bounded-queue`             | Per-route delivery queue is bounded (`defaultDeliveryQueueCapacity = 4`); overflow is reported via the broker's `DeliveryBacklog` metrics, not unbounded growth. | `internal/bridges/delivery_broker.go:33,95,221`; `internal/bridges/delivery_types.go:38`                                                                                                                                                                                              |
 | `bridge.delivery.ordering`                  | A delivery's start → delta(s) → terminal sequence is preserved per route under load (no out-of-order or token-delta partials leak past the terminal).    | `internal/bridges/delivery_broker.go:24-78`; matches openclaw `streaming-final-integrity` shape                                                                                                                                                                                       |
@@ -105,7 +102,7 @@ QA). Every scenario:
     scenario window)
   - `ext-XX-output.log` (combined stdout/stderr)
 - Asserts against EventStore rows + `extensions` table state +
-  `bundle_activations` rows + bridge `delivery_broker` metrics + structured
+  extension resource inventory + bridge `delivery_broker` metrics + structured
   log output, never just process exit codes.
 
 Scenarios are numbered `EXT-01..EXT-NN`; each is a fenced `qa-scenario`
@@ -158,7 +155,7 @@ EXT_BRIDGE_BROKER_SECRET_MAINTAINER=<...>           # only for live lanes
 - `compozy daemon stop` (or kill PID from manifest).
 - For live lanes: release the broker lease (`/release` endpoint) before
   archiving evidence.
-- Inspect `extensions`, `bundle_activations`, `bridge_instances`, and
+- Inspect `extensions`, materialized extension resources, `bridge_instances`, and
   `bridge_routes` for stuck rows; if found, attach to scenario report and
   do NOT clean — it is evidence.
 - Archive `compozy.db`, `events.db` snapshots before tearing down the
@@ -232,113 +229,65 @@ cleanup:
     SQLite and the install dir is removed.
 ```
 
-### EXT-02 — Bundle activation: skills + tools + hooks atomic; rollback on partial failure
+### EXT-02 — Enable publishes a complete static kit atomically
 
 ```yaml qa-scenario
-id: ext-02-bundle-activate-atomic
-title: A bundle profile activates skills + tools + hooks + bridges atomically; injected reconcile failure rolls back the activation row
-theme: extensions.bundle.activate
+id: ext-02-extension-kit-enable
+title: Install remains inert; enable publishes agents, sidecars, automation, and layouts as one owned set
+theme: extensions.kit.enable
 coverage:
   primary:
-    - bundle.activate.atomic
+    - extension.kit.enable-atomic
   secondary:
     - extension.skill.verify-content
-    - extension.workspace-scope
+    - extension.network-confirmation
 risk: critical
 live: false
 provider: real-claude-code
 preconditions:
-  - Installed extension `bundle-fixture` declaring one bundle with one
-    profile that overlays:
-    - 2 skills (one with a `session.post_create` hook).
-    - 1 tool registered through the bridge SDK.
-    - 1 bridge preset.
-    - 1 agent definition.
-  - A test-only fault flag (`COMPOZY_TEST_BUNDLE_RECONCILE_FAULT=true`)
-    that causes `s.store.ApplyBundleActivationResources` to return an
-    error AFTER the activation row has been created, exercising the
-    rollback path.
-code_refs:
-  - /Users/pedronauck/Dev/compozy/compozy/internal/bundles/service.go:220
-  - /Users/pedronauck/Dev/compozy/compozy/internal/bundles/service.go:268
-  - /Users/pedronauck/Dev/compozy/compozy/internal/bundles/service.go:401
-  - /Users/pedronauck/Dev/compozy/compozy/internal/extension/bundle.go:27
+  - An installed disabled extension ships two agent directories with sidecars, one automation job and trigger, and one window layout.
 steps:
-  - Variant A (happy path): `compozy bundle activate bundle-fixture --profile default --workspace wsp-ext02`. Capture state.
-  - Variant B (rollback): set fault flag; repeat activate; capture errors and final state.
+  - Read inventory before enable and prove every shipped item is not live.
+  - Enable through CLI, record the enumerated automation start result, then read inventory through HTTP, UDS, and native tools.
+  - Inject one publication conflict and repeat with a fresh instance.
 expected:
-  - Variant A:
-    - `bundle_activations` row created with profile=default,
-      scope=workspace.
-    - All four overlays observable via `compozy bundle get …` /
-      `compozy skills list` / `compozy tools list` / `compozy bridge list`.
-    - `session.post_create` hook from the bundle's skill is registered
-      and visible in hook taxonomy.
-  - Variant B:
-    - The `Activate` call returns a `joinRollbackFailure`-shaped error
-      that wraps both the original reconcile error AND the rollback
-      outcome.
-    - `bundle_activations` row does NOT exist post-failure (created
-      activation fully deleted by `s.store.DeleteBundleActivation`).
-    - No partial overlay visible — neither skill nor tool nor hook
-      appears in their respective listings.
+  - Successful enable publishes the full owned set and starts only enabled automation.
+  - Conflict returns a typed error and leaves no partial live resources.
 evidence:
-  - `bundle_activations` snapshot in both variants.
-  - List outputs for skills/tools/hooks/bridges in both variants.
-  - Error payload for variant B.
+  - Before/after inventory plus CLI enable result and cross-plane resource lists.
 failure_signatures:
-  - Activation row exists post-rollback: atomic violated.
-  - Partial overlay visible after rollback: leak; partial-surface
-    completion violated.
-  - Reconcile error swallowed: trust broken.
+  - Install publishes resources, enable omits a shipped item, or a failed enable leaves residue.
 cleanup:
-  - `compozy bundle deactivate <activation-id>` if variant A row exists;
-    confirm clean removal.
+  - Disable and remove the extension; confirm owned resources are absent.
 ```
 
-### EXT-03 — Bundle deactivation removes every overlay; nothing leaks across bundles
+### EXT-03 — Disable removes only the target extension kit
 
 ```yaml qa-scenario
-id: ext-03-bundle-deactivate-clean
-title: Two bundles activate side-by-side; deactivating bundle A leaves bundle B intact and removes only A's overlays
-theme: extensions.bundle.deactivate
+id: ext-03-extension-kit-disable-clean
+title: Two enabled extensions remain isolated when one kit is disabled
+theme: extensions.kit.disable
 coverage:
   primary:
-    - bundle.deactivate.clean
-    - bundle.activate.no-leak
-  secondary:
+    - extension.kit.disable-clean
     - extension.workspace-scope
 risk: high
 live: false
 provider: real-claude-code
 preconditions:
-  - Two installed extensions, each declaring one bundle:
-    - bundle-A: skill `qa-aaa`, tool `aaa.echo`, hook `pre.aaa`.
-    - bundle-B: skill `qa-bbb`, tool `bbb.echo`, hook `pre.bbb`.
-  - Both activated against the same workspace.
-code_refs:
-  - /Users/pedronauck/Dev/compozy/compozy/internal/bundles/service.go:401
-  - /Users/pedronauck/Dev/compozy/compozy/internal/bundles/service.go:220
+  - Two installed extensions ship distinct agents, automation, layouts, and skills; both are enabled globally.
 steps:
-  - `compozy bundle list -o json`; expect two rows.
-  - `compozy bundle deactivate <bundle-A-activation-id>`.
-  - Re-list bundles, skills, tools, hooks. Capture all four.
-  - Prompt a real Claude Code session to enumerate available tools.
+  - Capture inventory and resource lists for both extensions.
+  - Disable extension A and re-read every resource family plus automation state.
 expected:
-  - After deactivate: `bundle_activations` has only bundle-B's row.
-  - Skills list lacks `qa-aaa`, still contains `qa-bbb`.
-  - Tools list lacks `aaa.echo`, still contains `bbb.echo`.
-  - Hooks taxonomy lacks `pre.aaa`, still contains `pre.bbb`.
-  - Agent's enumerated tools include `bbb.echo` only (no stale
-    `aaa.echo`).
+  - Every resource owned by A disappears and its automation stops.
+  - Every resource owned by B remains live and unchanged.
 evidence:
-  - Pre/post listings for the four resource families.
-  - Transcript line of agent's tool enumeration.
+  - Pre/post inventory and resource listings for both owners.
 failure_signatures:
-  - Any of bundle-A's overlays still visible: leak.
-  - Bundle-B affected: cross-contamination; serious bug.
+  - A-owned residue or any mutation to B is an ownership leak.
 cleanup:
-  - Deactivate bundle-B and uninstall both extensions.
+  - Disable and remove extension B, then remove extension A.
 ```
 
 ### EXT-04 — Malicious manifest: traversal in path / symlink escape rejected
@@ -696,7 +645,7 @@ steps:
     tool with a unique marker.
 expected:
   - Scaffold completes without prompt; tree matches template fixtures.
-  - Build succeeds; output bundle present where extension.json points.
+  - Build succeeds; output artifact is present where extension.json points.
   - `compozy extension install` succeeds; status payload shows
     `capabilities.provides=["tool.provider"]`.
   - On agent invocation: tool's input/output round-trips; transcript
@@ -765,13 +714,12 @@ cleanup:
 ### EXT-12 — Hot install + workspace scoping (workspace W vs W')
 
 ```yaml qa-scenario
-id: ext-12-hot-install-workspace-scope
-title: After install + restart, the new tool/skill is available in workspace W where the bundle is activated; agent in workspace W' does NOT see it
+id: ext-12-dev-overlay-workspace-scope
+title: A workspace dev overlay is visible only in its workspace while the published extension remains global
 theme: extensions.workspace-scope
 coverage:
   primary:
     - extension.workspace-scope
-    - bundle.activate.no-leak
   secondary:
     - cli.extension.machine-readable
 risk: high
@@ -780,13 +728,12 @@ provider: real-claude-code
 preconditions:
   - Two workspaces `wsp-W` and `wsp-W2`, each with one active
     Claude Code session.
-  - Bundle `qa-scope-fixture` installed (extension supplies one bundle
-    that overlays one tool `scope.echo` and one skill `qa-scope`).
+  - Published extension `qa-scope-fixture` is installed globally and a changed generation is dev-linked only to workspace W.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/compozy/internal/bundles/service.go:163-330
-  - /Users/pedronauck/Dev/compozy/compozy/internal/bundles/model/model.go
+  - /Users/pedronauck/Dev/compozy/compozy/internal/extension/manager.go
+  - /Users/pedronauck/Dev/compozy/compozy/internal/daemon/extensions.go
 steps:
-  - `compozy bundle activate qa-scope-fixture --profile default --workspace wsp-W`.
+  - `compozy extension dev` the changed generation in workspace W.
   - Restart daemon.
   - Ask agent in `wsp-W` to enumerate tools and call `scope.echo`.
   - Ask agent in `wsp-W2` to enumerate tools and try the same.
@@ -796,17 +743,15 @@ expected:
   - Agent in `wsp-W2` does NOT see `scope.echo` in its tool list; if
     it attempts to call by name, daemon returns a typed
     `tool not available in workspace` error.
-  - `compozy bundle list -o json --workspace wsp-W2` shows the bundle
-    activation only when filter respects the right scope.
+  - Extension inventory in workspace W shows the dev generation; workspace W2 and global reads show the published generation.
 evidence:
   - Two transcripts (one per workspace).
-  - `bundle_activations` row showing `scope=workspace`,
-    `workspace_id=wsp-W`.
+  - Scoped extension list/status/inventory from both workspaces.
 failure_signatures:
   - `wsp-W2` agent sees the tool: workspace scoping leak; serious bug.
-  - `wsp-W` agent does NOT see the tool: activation failed.
+  - `wsp-W` agent does NOT see the dev behavior: overlay failed.
 cleanup:
-  - Deactivate; uninstall extension.
+  - Unlink the dev overlay; remove the published extension.
 ```
 
 ### EXT-13 — Bridge signature verification rejects forgeries (Slack + Discord + Telegram)
@@ -974,7 +919,7 @@ coverage:
   primary:
     - extension.skill.verify-content
     - bridge.sdk.contract
-    - bundle.activate.atomic
+    - extension.kit.enable-atomic
   secondary:
     - cli.extension.machine-readable
     - bridge.delivery.ordering
@@ -1149,39 +1094,40 @@ cleanup:
   - None.
 ```
 
-### EXT-20 — Bundle Live requirement needs explicit confirmation
+### EXT-20 — Extension Live requirement needs exact confirmation
 
 ```yaml qa-scenario
-id: ext-20-bundle-network-requirement
-title: Activating a bundle with an unconfirmed Live requirement fails without partial state
-theme: bundles.network
+id: ext-20-extension-network-requirement
+title: Enabling or updating an extension with an unconfirmed Live requirement fails before mutation
+theme: extensions.network
 coverage:
   primary:
-    - bundle.network-requirement-confirmation
+    - extension.network-confirmation
   secondary:
-    - bundle.activate.atomic
+    - extension.kit.enable-atomic
 risk: medium
 live: false
 provider: mock-acp
 preconditions:
   - An extension manifest declares a Live Network participation requirement.
-  - No activation has confirmed the current requirement digest.
+  - The extension instance has not confirmed the current requirement digest.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/compozy/internal/bundles/network_requirement.go
+  - /Users/pedronauck/Dev/compozy/compozy/internal/daemon/extension_lifecycle.go
 steps:
-  - Activate without confirmation. Capture the error and activation inventory.
-  - Activate again with `confirm_network_requirement=true`.
+  - Enable without confirmation. Capture the returned digest and fresh inventory.
+  - Retry with that exact `confirm_network_digest`.
+  - Install a candidate update with a changed digest and attempt update before confirming it.
 expected:
-  - The first call returns `ErrNetworkRequirementConfirmationRequired`; no activation row or
-    projected resource is created.
+  - The first call returns `extension_network_confirmation_required`; no resource is published.
   - The confirmed call succeeds and records the exact digest, confirmer, and timestamp.
+  - The changed update is refused before file swap until retried with the candidate digest.
   - Declared channels remain inventory only and do not enroll an execution.
 evidence:
-  - Captured error + activation and projected-resource snapshots.
+  - Captured error plus installed-state, confirmation, and resource snapshots.
 failure_signatures:
-  - Unconfirmed activation succeeds or leaves partial resources: invariant violated.
+  - Unconfirmed enable/update succeeds or leaves partial state: invariant violated.
 cleanup:
-  - Deactivate the confirmed activation.
+  - Disable and remove the confirmed extension.
 ```
 
 ## 9. Coverage matrix (this child)
@@ -1199,10 +1145,10 @@ cleanup:
 | `extension.skill.verify-content`              | EXT-02, EXT-10, EXT-16, EXT-18                                           |
 | `extension.lifecycle-hook.session-postcreate` | EXT-14                                                                   |
 | `extension.workspace-scope`                   | EXT-02, EXT-03, EXT-12                                                   |
-| `bundle.activate.atomic`                      | EXT-02, EXT-16, EXT-20                                                   |
-| `bundle.deactivate.clean`                     | EXT-03                                                                   |
-| `bundle.activate.no-leak`                     | EXT-03, EXT-12                                                           |
-| `bundle.network-requirement-confirmation`     | EXT-20                                                                   |
+| `extension.kit.enable-atomic`                 | EXT-02, EXT-16, EXT-20                                                   |
+| `extension.kit.disable-clean`                 | EXT-03                                                                   |
+| `extension.secrets.redacted`                  | EXT-19                                                                   |
+| `extension.network-confirmation`              | EXT-02, EXT-20                                                           |
 | `bridge.lifecycle.transitions`                | EXT-06, EXT-07, EXT-09, EXT-13, EXT-19                                   |
 | `bridge.delivery.bounded-queue`               | EXT-08                                                                   |
 | `bridge.delivery.ordering`                    | EXT-06, EXT-07, EXT-08, EXT-16                                           |
@@ -1217,7 +1163,7 @@ Total: 18 mandatory + 2 optional = 20 scenarios. Every coverage ID is
 exercised by at least one scenario; security-critical IDs
 (`extension.install.symlink-escape`, `bridge.signature.verify`,
 `bridge.secret-redaction`, `extension.skill.verify-content`,
-`bundle.activate.atomic`) are exercised by at least two each.
+`extension.kit.enable-atomic`) are exercised by at least two each.
 
 ## 10. Forbidden-needle list (transcript and event payloads)
 

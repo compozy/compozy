@@ -294,9 +294,16 @@ func TestLoopbackServerAllowsSettingsAndExtensionMutations(t *testing.T) {
 			installedReq = req
 			return contract.ExtensionPayload{Name: "demo", State: "registered"}, nil
 		},
-		EnableFn: func(_ context.Context, name string, _ taskpkg.ActorContext) (contract.ExtensionPayload, error) {
+		EnableFn: func(
+			_ context.Context,
+			name string,
+			_ contract.EnableExtensionRequest,
+			_ taskpkg.ActorContext,
+		) (contract.ExtensionEnableResult, error) {
 			enabledName = name
-			return contract.ExtensionPayload{Name: name, Enabled: true, State: "active"}, nil
+			return contract.ExtensionEnableResult{
+				Extension: contract.ExtensionPayload{Name: name, Enabled: true, State: "active"},
+			}, nil
 		},
 		DisableFn: func(_ context.Context, name string, _ taskpkg.ActorContext) (contract.ExtensionPayload, error) {
 			disabledName = name
@@ -650,9 +657,14 @@ func TestNonLoopbackServerBlocksDaemonAPIRoutes(t *testing.T) {
 			t.Fatal("Install should not be called on non-loopback HTTP bind")
 			return contract.ExtensionPayload{}, nil
 		},
-		EnableFn: func(context.Context, string, taskpkg.ActorContext) (contract.ExtensionPayload, error) {
+		EnableFn: func(
+			context.Context,
+			string,
+			contract.EnableExtensionRequest,
+			taskpkg.ActorContext,
+		) (contract.ExtensionEnableResult, error) {
 			t.Fatal("Enable should not be called on non-loopback HTTP bind")
-			return contract.ExtensionPayload{}, nil
+			return contract.ExtensionEnableResult{}, nil
 		},
 		DisableFn: func(context.Context, string, taskpkg.ActorContext) (contract.ExtensionPayload, error) {
 			t.Fatal("Disable should not be called on non-loopback HTTP bind")

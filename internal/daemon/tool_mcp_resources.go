@@ -39,12 +39,14 @@ func (f toolMCPPublisherFunc) SyncConfig(ctx context.Context, _ *compozyconfig.C
 type toolPublicationInput struct {
 	sourceKey string
 	scope     resources.ResourceScope
+	owner     *resources.ResourceOwner
 	spec      toolspkg.Tool
 }
 
 type mcpServerPublicationInput struct {
 	sourceKey string
 	scope     resources.ResourceScope
+	owner     *resources.ResourceOwner
 	spec      compozyconfig.MCPServer
 }
 
@@ -186,6 +188,7 @@ func (s *toolMCPSourceSyncer) syncConfig(ctx context.Context, cfg *compozyconfig
 type desiredToolResource struct {
 	id      string
 	scope   resources.ResourceScope
+	owner   *resources.ResourceOwner
 	spec    toolspkg.Tool
 	encoded []byte
 }
@@ -193,6 +196,7 @@ type desiredToolResource struct {
 type desiredMCPServerResource struct {
 	id      string
 	scope   resources.ResourceScope
+	owner   *resources.ResourceOwner
 	spec    compozyconfig.MCPServer
 	encoded []byte
 }
@@ -235,10 +239,11 @@ func (s *toolMCPSourceSyncer) desiredResources(ctx context.Context, cfg *compozy
 			if err != nil {
 				return desired, err
 			}
-			id := managedResourceID(toolManagedIDPrefix, item.scope.Normalize(), item.sourceKey, encoded)
+			id := managedPublicationID(toolManagedIDPrefix, item.scope.Normalize(), item.sourceKey, encoded, item.owner)
 			desired.tools[id] = &desiredToolResource{
 				id:      id,
 				scope:   item.scope.Normalize(),
+				owner:   item.owner,
 				spec:    spec,
 				encoded: encoded,
 			}
@@ -248,10 +253,17 @@ func (s *toolMCPSourceSyncer) desiredResources(ctx context.Context, cfg *compozy
 			if err != nil {
 				return desired, err
 			}
-			id := managedResourceID(mcpServerManagedIDPrefix, item.scope.Normalize(), item.sourceKey, encoded)
+			id := managedPublicationID(
+				mcpServerManagedIDPrefix,
+				item.scope.Normalize(),
+				item.sourceKey,
+				encoded,
+				item.owner,
+			)
 			desired.mcpServers[id] = desiredMCPServerResource{
 				id:      id,
 				scope:   item.scope.Normalize(),
+				owner:   item.owner,
 				spec:    spec,
 				encoded: encoded,
 			}

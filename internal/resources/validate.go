@@ -52,6 +52,10 @@ func normalizeDraft(draft RawDraft, maxSpecBytes int) (RawDraft, error) {
 	normalized.Kind = draft.Kind.Normalize()
 	normalized.ID = strings.TrimSpace(draft.ID)
 	normalized.Scope = draft.Scope.Normalize()
+	if draft.Owner != nil {
+		owner := draft.Owner.Normalize()
+		normalized.Owner = &owner
+	}
 
 	if err := normalized.Kind.Validate("draft.kind"); err != nil {
 		return RawDraft{}, err
@@ -61,6 +65,11 @@ func normalizeDraft(draft RawDraft, maxSpecBytes int) (RawDraft, error) {
 	}
 	if err := normalized.Scope.Validate("draft.scope"); err != nil {
 		return RawDraft{}, err
+	}
+	if normalized.Owner != nil {
+		if err := normalized.Owner.Validate("draft.owner"); err != nil {
+			return RawDraft{}, err
+		}
 	}
 	specJSON, err := normalizeJSON(draft.SpecJSON, maxSpecBytes, "draft.spec_json")
 	if err != nil {
@@ -196,6 +205,25 @@ func ownerFromActor(actor MutationActor) ResourceOwner {
 		Kind: ResourceOwnerKind(actor.Kind),
 		ID:   actor.ID,
 	}
+}
+
+func ownerFromDraft(actor MutationActor, draft RawDraft) ResourceOwner {
+	if draft.Owner != nil {
+		return draft.Owner.Normalize()
+	}
+	return ownerFromActor(actor)
+}
+
+func validateDraftOwner(actor MutationActor, draft RawDraft) error {
+	if draft.Owner == nil || actor.Kind != MutationActorKindExtension {
+		return nil
+	}
+	return fmt.Errorf(
+		"%w: extension actors cannot assign owner %q/%q",
+		ErrPermissionDenied,
+		draft.Owner.Kind,
+		draft.Owner.ID,
+	)
 }
 
 func actorOwnerProvided(owner ResourceOwner) bool {

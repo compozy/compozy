@@ -17,9 +17,6 @@ var (
 	// ErrExtensionChecksumMismatch reports that the provided checksum does not
 	// match the on-disk extension artifact.
 	ErrExtensionChecksumMismatch = errors.New("extension: checksum mismatch")
-	// ErrExtensionHasActiveBundles reports that the extension lifecycle is
-	// blocked by one or more active bundle activations.
-	ErrExtensionHasActiveBundles = errors.New("extension: extension has active bundle activations")
 )
 
 const (
@@ -37,7 +34,10 @@ const (
 			registry_slug,
 			registry_name,
 			remote_version,
-			provenance_json
+			provenance_json,
+			network_requirement_digest,
+			network_confirmed_by,
+			network_confirmed_at
 	`
 	registryInsertColumns = `
 			name,
@@ -52,7 +52,10 @@ const (
 			registry_slug,
 			registry_name,
 			remote_version,
-			provenance_json
+			provenance_json,
+			network_requirement_digest,
+			network_confirmed_by,
+			network_confirmed_at
 	`
 )
 
@@ -79,7 +82,8 @@ func (r *Registry) DB() *sql.DB {
 // a user-sourced extension.
 func (r *Registry) Install(manifest *Manifest, path string, checksum string, opts ...InstallOption) error {
 	config := installConfig{
-		source: SourceUser,
+		source:  SourceUser,
+		enabled: true,
 	}
 	applyInstallOptions(&config, opts...)
 
@@ -96,10 +100,6 @@ func (r *Registry) Uninstall(name string) error {
 	if err != nil {
 		return err
 	}
-	if err := r.ensureNoActiveBundles(trimmedName); err != nil {
-		return err
-	}
-
 	result, err := r.db.ExecContext(registryContext(), `DELETE FROM extensions WHERE name = ?`, trimmedName)
 	if err != nil {
 		return fmt.Errorf("extension: uninstall %q: %w", trimmedName, err)

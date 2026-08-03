@@ -386,76 +386,6 @@
         readme:"## What it does\naudit-log keeps an append-only record of installs, policy changes, and destructive removes. Each entry carries the actor, the target, and a checksum, so the trail can be verified after the fact and never silently edited.",
         desc:"Append-only audit trail for installs, policy changes, and destructive removes." }
     ],
-    bundles: [
-      { id:"dep-kit", name:"dep-kit", extension_name:"dep-kit", version:"1.2.0", contents:"3 items", icon:"box", state:"default", source:"catalog", href:"marketplace-detail.html?kind=bundles&name=dep-kit",
-        desc:"Skills and extensions for dependency review, lockfile hygiene, and release notes.",
-        readme:"## What it does\ndep-kit activates a working set for dependency review: an audit skill, a lockfile-hygiene skill, and the release-notes extension. Activating a profile wires up the agent, its job, and the trigger that runs the audit on every lockfile change.",
-        profiles:[
-          { name:"default", description:"Dependency review with a weekly audit job and a lockfile-change trigger.",
-            primary_channel:"github", channels:[{name:"github",primary:true}],
-            agent_count:1, job_count:1, trigger_count:1, bridge_count:1,
-            inventory:[
-              {resource_kind:"skill", resource_name:"dep-audit", version:"1.0.0", action:"add"},
-              {resource_kind:"skill", resource_name:"lockfile-hygiene", version:"0.4.1", action:"add"},
-              {resource_kind:"extension", resource_name:"release-notes", version:"1.2.0", action:"already"}
-            ],
-            agents:[{name:"dep-reviewer", provider:"anthropic", model:"claude-opus-4-8"}],
-            jobs:[{name:"weekly-audit", agent_name:"dep-reviewer", enabled:true}],
-            triggers:[{name:"on-lockfile-change", agent_name:"dep-reviewer", event:"push", enabled:true}],
-            bridges:[{name:"github", platform:"github", display_name:"GitHub PRs"}]
-          }
-        ] },
-      { id:"ops-starter", name:"ops-starter", extension_name:"ops-starter", version:"0.8.0", contents:"4 items", icon:"box", state:"installed", source:"catalog", href:"marketplace-detail.html?kind=bundles&name=ops-starter",
-        desc:"MCP servers and skills for incident triage and status page updates.",
-        readme:"## What it does\nops-starter wires the on-call surface: incident triage skills, a status-page updater, and the MCP servers they lean on. Pick the profile that matches how your team runs on-call.",
-        profiles:[
-          { name:"triage", description:"Triage-only: the incident skill plus the GitHub and Postgres MCP servers.",
-            primary_channel:"slack", channels:[{name:"slack",primary:true}],
-            agent_count:1, job_count:0, trigger_count:1, bridge_count:1,
-            inventory:[
-              {resource_kind:"skill", resource_name:"incident-triage", version:"0.6.0", action:"add"},
-              {resource_kind:"mcp", resource_name:"github", version:"—", action:"already"},
-              {resource_kind:"mcp", resource_name:"postgres", version:"—", action:"add"}
-            ],
-            agents:[{name:"oncall", provider:"anthropic", model:"claude-sonnet-5"}],
-            jobs:[],
-            triggers:[{name:"on-incident", agent_name:"oncall", event:"webhook", enabled:true}],
-            bridges:[{name:"slack", platform:"slack", display_name:"Slack #incidents"}]
-          },
-          { name:"oncall", description:"Triage plus scheduled status-page updates and a weekly review job.",
-            primary_channel:"slack", channels:[{name:"slack",primary:true}],
-            agent_count:1, job_count:1, trigger_count:1, bridge_count:1,
-            inventory:[
-              {resource_kind:"skill", resource_name:"incident-triage", version:"0.6.0", action:"add"},
-              {resource_kind:"skill", resource_name:"status-page", version:"0.3.1", action:"add"},
-              {resource_kind:"mcp", resource_name:"github", version:"—", action:"already"},
-              {resource_kind:"mcp", resource_name:"postgres", version:"—", action:"add"}
-            ],
-            agents:[{name:"oncall", provider:"anthropic", model:"claude-sonnet-5"}],
-            jobs:[{name:"status-refresh", agent_name:"oncall", enabled:true}],
-            triggers:[{name:"on-incident", agent_name:"oncall", event:"webhook", enabled:true}],
-            bridges:[{name:"slack", platform:"slack", display_name:"Slack #incidents"}]
-          }
-        ] },
-      { id:"design-handoff", name:"design-handoff", extension_name:"design-handoff", version:"1.0.1", contents:"2 items", icon:"box", state:"default", source:"catalog", href:"marketplace-detail.html?kind=bundles&name=design-handoff",
-        desc:"Activate the Open Design handoff skill plus screenshot capture helpers.",
-        readme:"## What it does\ndesign-handoff activates the Open Design handoff surface. The minimal profile installs the screenshot capture skill only; the full profile adds the handoff skill and a designer agent.",
-        profiles:[
-          { name:"minimal", description:"Screenshot capture only. No agents, jobs, or triggers.",
-            primary_channel:"local", channels:[{name:"local",primary:true}],
-            agent_count:0, job_count:0, trigger_count:0, bridge_count:0,
-            inventory:[{resource_kind:"skill", resource_name:"eng-ui-screenshot", version:"1.3.0", action:"add"}],
-            agents:[], jobs:[], triggers:[], bridges:[] },
-          { name:"full", description:"Screenshot capture plus the Open Design handoff skill and a designer agent.",
-            primary_channel:"local", channels:[{name:"local",primary:true}],
-            agent_count:1, job_count:0, trigger_count:0, bridge_count:0,
-            inventory:[
-              {resource_kind:"skill", resource_name:"eng-ui-screenshot", version:"1.3.0", action:"add"},
-              {resource_kind:"skill", resource_name:"design-handoff", version:"1.0.1", action:"add"}
-            ],
-            agents:[{name:"designer", provider:"anthropic", model:"claude-opus-4-8"}], jobs:[], triggers:[], bridges:[] }
-        ] }
-    ],
     mcp: [
       { id:"github", name:"github", transport:"stdio", provenance:"curated", state:"default", icon:"plug", href:"marketplace-detail.html?kind=mcp&name=github",
         desc:"Issues, PRs, and repository search via the official GitHub MCP server.",
@@ -489,7 +419,6 @@
   var KIND_META = {
     skills:{ label:"Skills", eyebrow:"SKILLS", verb:"Install", manage:"marketplace.html?kind=skills&tab=installed" },
     extensions:{ label:"Extensions", eyebrow:"EXTENSIONS", verb:"Install", manage:"marketplace.html?kind=extensions&tab=installed" },
-    bundles:{ label:"Bundles", eyebrow:"BUNDLES", verb:"Activate", manage:"marketplace.html?kind=bundles&tab=installed", manageItem:function(item){ return "bundle-activation-detail.html?id="+encodeURIComponent(item.id); } },
     mcp:{ label:"MCP Servers", eyebrow:"MCP SERVERS", verb:"Install", manage:"marketplace.html?kind=mcps&tab=installed" }
   };
 
@@ -560,7 +489,7 @@
   function section(label, inner){ return '<div class="section"><div class="section__label">'+esc(label)+'</div>'+inner+'</div>'; }
 
   var p=params();
-  var kind=["skills","extensions","bundles","mcp"].indexOf(p.kind)>=0 ? p.kind : "mcp";
+  var kind=["skills","extensions","mcp"].indexOf(p.kind)>=0 ? p.kind : "mcp";
   var name=p.name || (CATALOG[kind][0] && CATALOG[kind][0].id) || "github";
   var item=(CATALOG[kind]||[]).find(function(x){ return x.id===name; });
   var root=document.getElementById("detail-root");
@@ -580,10 +509,6 @@
   }
 
   var isRemote=(kind==="mcp" && (item.transport==="http"||item.transport==="sse"));
-  // R-017: declare profile state BEFORE first render() — var initializers are not
-  // hoisted as values, so bundles previously threw on item.profiles[undefined].
-  var activeProfileIdx=0;
-
   render();
 
   function skeleton(){
@@ -616,7 +541,6 @@
   function metaLine(){
     if(kind==="skills") return item.author+' <span class="dotsep"></span> '+item.source+' <span class="dotsep"></span> <span class="mono">'+item.downloads+' downloads</span>';
     if(kind==="extensions") return item.author+' <span class="dotsep"></span> '+item.source+' <span class="dotsep"></span> <span class="mono">'+item.downloads+' downloads</span>';
-    if(kind==="bundles") return '<span class="mono">v'+item.version+'</span> <span class="dotsep"></span> '+item.contents;
     return '<span class="mono">'+item.transport+'</span> <span class="dotsep"></span> curated feed'+(isRemote?' <span class="dotsep"></span> <span class="mono">remote</span>':' <span class="dotsep"></span> <span class="mono">local</span>');
   }
 
@@ -641,9 +565,7 @@
         mng+='<div class="policy-note"><a href="'+item.auth_status.authorization_url+'">Authorize server →</a></div>';
       return mng;
     }
-    var verb=kind==="bundles"?"Activate":"Install";
-    var act=kind==="bundles"?"activate":"install";
-    return '<div class="dh__actionsrow"><button class="btn btn--primary" id="cta" data-action="'+act+'">'+verb+'</button></div><div id="action-err"></div>';
+    return '<div class="dh__actionsrow"><button class="btn btn--primary" id="cta" data-action="install">Install</button></div><div id="action-err"></div>';
   }
 
   function railDetails(){
@@ -651,7 +573,6 @@
       +row("License", item.license||"—")+row("Repository", item.repository?'<a class="link" href="https://'+item.repository+'">'+item.repository+'</a>':"—")
       +row("Downloads", '<span class="mono">'+item.downloads+'</span>');
     if(kind==="extensions") return row("Version","v"+item.version)+row("Author",item.author)+row("Source",item.source)+row("Type",item.type||"extension")+row("Downloads",item.downloads);
-    if(kind==="bundles") return row("Version","v"+item.version)+row("Contents",item.contents)+row("Source",item.source)+row("Profiles",String(item.profiles.length));
     // mcp
     var r=row("Transport",item.transport)+row("Provenance","curated")+row("Scope default","Workspace");
     if(isRemote) r+=row("URL",'<a class="link" href="'+item.url+'">'+item.url+'</a>');
@@ -669,10 +590,6 @@
     } else if(kind==="extensions"){
       rows+=row("Enabled", '<span class="pill" data-mono="true" data-tone="success">enabled</span>');
       rows+=row("State", '<span class="mono">'+(item.runtime_state||"running")+'</span>');
-    } else if(kind==="bundles"){
-      var pf=(item.profiles||[])[activeProfileIdx]||{};
-      rows+=row("Profile", '<a class="link" href="bundle-activation-detail.html?id='+encodeURIComponent(item.id)+'">'+esc(pf.name||"default")+'</a>');
-      rows+=row("Scope", '<a class="link" href="bundle-activation-detail.html?id='+encodeURIComponent(item.id)+'">workspace</a>');
     } else if(kind==="mcp"){
       var auth=(item.auth_status&&item.auth_status.status)||"authorized";
       rows+=row("Auth status", '<span class="pill" data-mono="true" data-tone="'+(auth==="authorized"?"success":"warning")+'">'+esc(auth.replace(/_/g," "))+'</span>');
@@ -691,9 +608,6 @@
         return readme + section("Trust warnings", warnBlock(item.warningsList));
       }
       return readme;
-    }
-    if(kind==="bundles"){
-      return readme + bundleBlock();
     }
     // mcp — transport-aware config template + required config (R-002)
     var tpl;
@@ -717,40 +631,6 @@
         +(w.suggested_command?'<span class="warn-item__cmd">'+esc(w.suggested_command)+'</span>':'')
         +(w.doc_url?'<a class="warn-item__doc" href="'+w.doc_url+'">Docs →</a>':'')+'</div>';
     }).join("")+'</div>';
-  }
-
-  function bundleBlock(){
-    var profs=item.profiles||[];
-    var pickerHtml="";
-    if(profs.length>1){
-      pickerHtml=section("Profile", '<div class="profilepick" id="prof-pick">'+profs.map(function(pf,i){
-        return '<label style="flex:1"><input type="radio" name="prof" value="'+i+'"'+(i===activeProfileIdx?' checked':'')+' style="margin-top:2px" /><div style="margin-left:0"><b style="display:block;font-size:12.5px;color:var(--fg-strong)">'+esc(pf.name)+'</b><span style="display:block;font-size:11.5px;color:var(--subtle);margin-top:3px;line-height:1.4">'+esc(pf.description)+'</span></div></label>';
-      }).join("")+'</div>');
-      // wrap radios in scope styling
-      pickerHtml=pickerHtml.replace('class="profilepick"','class="profilepick scope" style="flex-direction:column"');
-    }
-    return pickerHtml + section("What changes", '<div id="prof-preview">'+bundlePreview(profs[activeProfileIdx])+'</div>');
-  }
-  function bundlePreview(pf){
-    if(!pf) return '';
-    // R-001 bundles: conflict arrives as 409/422 -> error strip naming the resource (demo via ?conflict=1)
-    if(p.conflict){
-      return '<div class="error-strip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>'
-        +'<span>Conflict: <b>'+esc((pf.inventory[0]||{}).resource_name)+'</b> is already managed by another activation (HTTP 409).</span><span class="pad"></span>'
-        +'<button class="btn btn--ghost btn--sm" id="preview-retry">Retry</button></div>';
-    }
-    var rows=(pf.inventory||[]).map(function(r){
-      var pill=r.action==="add"?'<span class="pill" data-mono="true">add</span>':'<span class="pill" data-mono="true">already present</span>';
-      return '<tr><td><span class="pill" data-mono="true">'+r.resource_kind+'</span></td><td>'+esc(r.resource_name)+'</td><td class="mono" style="font-family:var(--font-mono);font-size:11px;color:var(--muted)">'+(r.version==="—"?"—":"v"+r.version)+'</td><td>'+pill+'</td></tr>';
-    }).join("");
-    var groups="";
-    function grp(label, arr, sub){ if(!arr||!arr.length) return; groups+='<div class="section__label" style="margin-top:16px">'+label+'</div><div class="panelbox"><div class="group-list">'+arr.map(function(x){ return '<div class="group-list__row"><span class="pill" data-mono="true">'+label.replace(/s$/,'').toLowerCase()+'</span><span class="nm">'+esc(x.name)+'</span><span class="sub">'+sub(x)+'</span></div>'; }).join("")+'</div></div>'; }
-    grp("Agents", pf.agents, function(a){ return (a.provider||'')+(a.model?' · '+a.model:''); });
-    grp("Jobs", pf.jobs, function(j){ return j.agent_name+(j.enabled?' · enabled':' · off'); });
-    grp("Triggers", pf.triggers, function(t){ return t.event+' · '+t.agent_name; });
-    grp("Bridges", pf.bridges, function(b){ return b.platform+' · '+b.display_name; });
-    var counts='<div class="dh__meta" style="margin:0 0 12px"><span class="mono">'+pf.agent_count+' agents</span><span class="dotsep"></span><span class="mono">'+pf.job_count+' jobs</span><span class="dotsep"></span><span class="mono">'+pf.trigger_count+' triggers</span><span class="dotsep"></span><span class="mono">'+pf.bridge_count+' bridges</span></div>';
-    return counts + '<div class="panelbox" style="padding:16px"><table class="preview-table"><thead><tr><th>Kind</th><th>Name</th><th>Version</th><th>Action</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+groups;
   }
 
   function railBlock(){
@@ -777,14 +657,6 @@
         +(item.warnings?row("Warnings", String(item.warnings)):"")
         +'</div></div>');
     }
-    if(kind==="bundles"){
-      var pf=item.profiles[activeProfileIdx];
-      out+=section("Profile summary", '<div class="panelbox"><div class="kv">'
-        +row("Profile", pf.name)
-        +row("Primary channel", pf.primary_channel||"—")
-        +row("Channels", (pf.channels||[]).map(function(c){ return c.name; }).join(", ")||"—")
-        +'</div></div>');
-    }
     if(kind==="mcp"){
       out+=section("Trust", '<div class="panelbox"><div class="kv">'+row("Provenance","curated")+row("Feed","CompozyOS curated")+row("Community registry","out of v1")+'</div></div>');
       if(isRemote){
@@ -809,15 +681,6 @@
   }
 
   function wire(){
-    // Bundle profile switching re-runs preview (§7.2 / R-003 parity on detail)
-    var pick=document.getElementById("prof-pick");
-    if(pick){
-      pick.addEventListener("change", function(e){
-        var r=e.target.closest('input[name="prof"]'); if(!r) return;
-        activeProfileIdx=parseInt(r.value,10);
-        render();
-      });
-    }
     var pr=document.getElementById("preview-retry");
     if(pr){ pr.addEventListener("click", function(){
       var u=new URL(location.href); u.searchParams.delete("conflict"); history.replaceState(null,"",u.toString());
@@ -830,7 +693,6 @@
     if(cta){
       cta.addEventListener("click", function(){
         if(kind==="mcp"){ location.href="marketplace.html?kind=mcps"; return; }
-        if(kind==="bundles"){ location.href="marketplace.html?kind=bundles"; return; }
         if(kind==="extensions" && item.trust==="unverified"){
           if(!confirm("Install unverified extension "+item.name+"?\n\nReview the trust warnings above before confirming.")) return;
         }

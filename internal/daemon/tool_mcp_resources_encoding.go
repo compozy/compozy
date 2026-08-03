@@ -56,7 +56,7 @@ func validateAndEncodeMCPServer(
 	return validated, canonical, nil
 }
 
-func managedResourceID(
+func contentAddressedManagedPublicationID(
 	prefix string,
 	scope resources.ResourceScope,
 	sourceKey string,
@@ -66,6 +66,23 @@ func managedResourceID(
 		string(scope.Kind) + "\x00" + scope.ID + "\x00" + strings.TrimSpace(sourceKey) + "\x00" + string(encoded),
 	))
 	return prefix + hex.EncodeToString(sum[:12])
+}
+
+func extensionSourceKeyPublicationID(sourceKey string) string {
+	return strings.TrimSpace(sourceKey)
+}
+
+func managedPublicationID(
+	prefix string,
+	scope resources.ResourceScope,
+	sourceKey string,
+	encoded []byte,
+	owner *resources.ResourceOwner,
+) string {
+	if owner == nil || owner.Kind.Normalize() != extensionResourceOwnerKind {
+		return contentAddressedManagedPublicationID(prefix, scope, sourceKey, encoded)
+	}
+	return extensionSourceKeyPublicationID(sourceKey)
 }
 
 func cloneResourceRecords[T any](records []resources.Record[T], cloneSpec func(T) T) []resources.Record[T] {

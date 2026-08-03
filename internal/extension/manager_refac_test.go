@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 
+	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/testutil"
 )
@@ -96,6 +98,41 @@ func TestManagerStopShutdownErrors(t *testing.T) {
 		}
 		if proc.shutdownCount() != 1 {
 			t.Fatalf("Shutdown() count = %d, want 1", proc.shutdownCount())
+		}
+	})
+}
+
+func TestManagerFailedLaunchCleanupKeepsRedactionThroughShutdown(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should unregister dynamic secrets only after the failed process is reaped", func(t *testing.T) {
+		t.Parallel()
+
+		secret := "runtime-cleanup-secret-510793"
+		cleanup := diagnostics.RegisterDynamicSecret(secret)
+		process := newFakeProcess(904)
+		redactedDuringShutdown := false
+		process.shutdownFn = func(context.Context) error {
+			redactedDuringShutdown = !strings.Contains(diagnostics.Redact("stderr "+secret), secret)
+			process.close(nil)
+			return nil
+		}
+		manager := NewManager(nil)
+		cause := errors.New("initialization failed")
+		err := manager.cleanupLaunchedProcess(
+			testutil.Context(t),
+			process,
+			[]func(){cleanup},
+			cause,
+		)
+		if !errors.Is(err, cause) {
+			t.Fatalf("cleanupLaunchedProcess() error = %v, want initialization failure", err)
+		}
+		if !redactedDuringShutdown {
+			t.Fatal("dynamic secret was unregistered before process shutdown completed")
+		}
+		if got := diagnostics.Redact("after " + secret); !strings.Contains(got, secret) {
+			t.Fatalf("dynamic secret remained registered after cleanup: %q", got)
 		}
 	})
 }

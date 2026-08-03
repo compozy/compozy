@@ -120,6 +120,9 @@ test("operator can onboard, create a session, submit work, approve a permission 
   expect(approvalResponse.ok()).toBeTruthy();
 
   await expect(sessionUi.chatView).toContainText("Streaming response started.");
+  await expect(sessionUi.chatView).toContainText(
+    "Approval granted.Session continued after approval."
+  );
 
   const sessionPath = new URL(appPage.url()).pathname;
 
@@ -128,19 +131,14 @@ test("operator can onboard, create a session, submit work, approve a permission 
   await expect.poll(() => new URL(appPage.url()).pathname).toBe(sessionPath);
   await expect(sessionWin).toBeVisible();
   await expect(sessionUi.chatView).toContainText(browserLifecyclePrompt);
-  // Rehydration is correct: the settled turn's TERMINAL assistant output stays visible…
+  // Rehydration keeps every authored response segment visible across the
+  // permission boundary instead of hiding the pre-permission text as work.
+  await expect(sessionUi.chatView).toContainText("Streaming response started.");
   await expect(sessionUi.chatView).toContainText(
     "Approval granted.Session continued after approval."
   );
-  // …while its earlier "Streaming response started." preamble is intentionally folded
-  // behind the collapsed "Worked" disclosure. Reach it by expanding that disclosure —
-  // do not assert the folded text directly (persistence/fold behavior is unchanged).
   const workedFold = sessionWin.getByRole("button", { name: /^Worked/ });
-  await expect(workedFold).toHaveAttribute("data-testid", "turn-fold-row");
-  await expect(workedFold).toHaveAttribute("aria-expanded", "false");
-  await workedFold.click();
-  await expect(workedFold).toHaveAttribute("aria-expanded", "true");
-  await expect(sessionUi.chatView).toContainText("Streaming response started.");
+  await expect(workedFold).toHaveCount(0);
   await expect(sessionUi.resumeButton).toBeVisible();
 
   await sessionUi.resumeButton.click();

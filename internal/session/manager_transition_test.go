@@ -290,6 +290,7 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 type recordingSessionCatalog struct {
 	mu            sync.Mutex
 	sessions      map[string]store.SessionInfo
+	registerHook  func(context.Context, store.SessionInfo) error
 	updateErr     error
 	updateHook    func(store.SessionStateUpdate) error
 	deleteErr     error
@@ -301,9 +302,14 @@ func newRecordingSessionCatalog() *recordingSessionCatalog {
 	return &recordingSessionCatalog{sessions: make(map[string]store.SessionInfo)}
 }
 
-func (c *recordingSessionCatalog) RegisterSession(_ context.Context, session store.SessionInfo) error {
+func (c *recordingSessionCatalog) RegisterSession(ctx context.Context, session store.SessionInfo) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if c.registerHook != nil {
+		if err := c.registerHook(ctx, session); err != nil {
+			return err
+		}
+	}
 	c.sessions[session.ID] = session
 	return nil
 }

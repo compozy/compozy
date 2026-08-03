@@ -43,7 +43,7 @@ export const marketplaceKeys = {
       "detail",
       options.kind,
       normalizeText(options.entryId),
-      options.kind === "bundle" ? null : normalizeText(options.installedName),
+      normalizeText(options.installedName),
       ...scopeIdentity(options.workspaceId),
     ] as const,
 };

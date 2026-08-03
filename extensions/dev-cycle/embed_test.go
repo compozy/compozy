@@ -139,8 +139,8 @@ func TestDevCycleRuntimeToolDescriptorsShouldPinSchemaDigests(t *testing.T) {
 	})
 }
 
-func TestDevCycleManagedInstallShouldPublishManagedManifestTools(t *testing.T) {
-	t.Run("Should publish managed tools through the bundled manifest install", func(t *testing.T) {
+func TestDevCycleManagedInstallShouldPreserveManagedManifestTools(t *testing.T) {
+	t.Run("Should install managed tool declarations in an inert bundled extension", func(t *testing.T) {
 		t.Parallel()
 
 		homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
@@ -165,8 +165,8 @@ func TestDevCycleManagedInstallShouldPublishManagedManifestTools(t *testing.T) {
 		if err != nil {
 			t.Fatalf("registry.Get(%q) error = %v", Name, err)
 		}
-		if installed.Source != extensionpkg.SourceBundled || !installed.Enabled {
-			t.Fatalf("installed dev-cycle = %#v, want enabled bundled extension", installed)
+		if installed.Source != extensionpkg.SourceBundled || installed.Enabled {
+			t.Fatalf("installed dev-cycle = %#v, want disabled bundled extension", installed)
 		}
 
 		manifest, err := extensionpkg.LoadManifest(filepath.Dir(installed.ManifestPath))

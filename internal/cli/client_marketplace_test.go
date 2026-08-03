@@ -136,7 +136,7 @@ func TestUnixSocketClientMarketplaceMethods(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reject installed identity for bundle detail before transport", func(t *testing.T) {
+	t.Run("Should reject installed identity for an unsupported detail kind before transport", func(t *testing.T) {
 		t.Parallel()
 
 		client := &unixSocketClient{
@@ -149,13 +149,13 @@ func TestUnixSocketClientMarketplaceMethods(t *testing.T) {
 
 		_, err := client.MarketplaceInfo(
 			t.Context(),
-			"bundle",
+			"artifact",
 			"review-kit",
 			"activation-review-kit",
 			MarketplaceReadScope{Scope: "global"},
 		)
 		if err == nil || !strings.Contains(err.Error(), "--installed-name is only supported") {
-			t.Fatalf("MarketplaceInfo(bundle installed identity) error = %v, want local validation", err)
+			t.Fatalf("MarketplaceInfo(unsupported installed identity) error = %v, want local validation", err)
 		}
 	})
 }

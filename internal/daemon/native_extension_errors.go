@@ -67,8 +67,14 @@ func nativeExtensionToolError(id toolspkg.ToolID, err error) error {
 		)
 	case isExtensionValidationError(err):
 		return nativeExtensionValidationError(id, err)
-	case errors.Is(err, extensionpkg.ErrExtensionHasActiveBundles),
-		errors.Is(err, extensionpkg.ErrExtensionDevOriginMissing),
+	case errors.Is(err, extensionpkg.ErrExtensionNetworkConfirmationRequired),
+		errors.Is(err, extensionpkg.ErrExtensionAgentConflict):
+		return nativeHTTPStatusToolError(id, err, core.ExtensionStatusCode(err))
+	case errors.Is(err, extensionpkg.ErrExtensionEnvBindingInvalid),
+		errors.Is(err, extensionpkg.ErrExtensionEnvBindingUndeclared),
+		errors.Is(err, extensionpkg.ErrExtensionEnvBindingDangling):
+		return nativeHTTPStatusToolError(id, err, core.ExtensionStatusCode(err))
+	case errors.Is(err, extensionpkg.ErrExtensionDevOriginMissing),
 		errors.Is(err, extensionpkg.ErrExtensionNotDevLinked):
 		return toolspkg.NewToolError(
 			toolspkg.ErrorCodeConflict,

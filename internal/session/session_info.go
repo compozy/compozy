@@ -15,7 +15,11 @@ func (s *Session) Info() *Info {
 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	return s.infoLocked()
+}
 
+// infoLocked returns a session snapshot; the caller must hold s.mu for reading or writing.
+func (s *Session) infoLocked() *Info {
 	acpCaps := cloneCaps(s.ACPCaps)
 	if s.process != nil {
 		acpCaps = cloneCaps(s.process.CapsSnapshot())

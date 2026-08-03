@@ -31,7 +31,6 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	registerSkillRoutes(api, handlers)
 	registerMemoryRoutes(api, handlers)
 	registerNetworkRoutes(api, handlers)
-	registerBundleRoutes(api, handlers)
 	registerExtensionRoutes(api, handlers)
 	registerSettingsRoutes(api, handlers)
 	registerVaultRoutes(api, handlers)
@@ -384,20 +383,6 @@ func registerNetworkRoutes(api gin.IRouter, handlers *Handlers) {
 		workspaceCoordination.GET("", handlers.GetNetworkCoordination)
 		workspaceCoordination.PUT("", handlers.PutNetworkCoordination)
 		workspaceCoordination.PUT("/invitation", handlers.PutNetworkCoordinationInvitation)
-	}
-}
-
-func registerBundleRoutes(api gin.IRouter, handlers *Handlers) {
-	bundles := api.Group("/bundles")
-	{
-		bundles.GET("/catalog", handlers.ListBundleCatalog)
-		bundles.POST("/preview", handlers.PreviewBundleActivation)
-		bundles.GET("/activations", handlers.ListBundleActivations)
-		bundles.POST("/activations", handlers.ActivateBundle)
-		bundles.GET("/activations/:id", handlers.GetBundleActivation)
-		bundles.PATCH("/activations/:id", handlers.UpdateBundleActivation)
-		bundles.DELETE("/activations/:id", handlers.DeleteBundleActivation)
-		bundles.GET("/network/settings", handlers.BundleNetworkSettings)
 	}
 }
 
