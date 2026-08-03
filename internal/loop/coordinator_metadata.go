@@ -12,6 +12,8 @@ func coordinatorNodeMetadataWithFanOutItem(
 	generation int,
 	node dsl.Node,
 	itemIndex int,
+	attempt int,
+	epoch int64,
 	item any,
 	hasItem bool,
 ) (json.RawMessage, error) {
@@ -20,11 +22,13 @@ func coordinatorNodeMetadataWithFanOutItem(
 		"loop_name":           run.LoopName,
 		"workspace_id":        string(run.WorkspaceID),
 		metadataGenerationKey: generation,
-		"node_id":             string(node.ID),
+		metadataNodeIDKey:     string(node.ID),
 		"node_class":          string(node.Class),
 		"node_kind":           node.Kind,
-		"item_index":          itemIndex,
+		metadataItemIndexKey:  itemIndex,
 		"index":               itemIndex,
+		"attempt":             attempt,
+		"epoch":               epoch,
 	}
 	if hasItem {
 		payload["item"] = item

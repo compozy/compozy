@@ -416,6 +416,109 @@ start: [{ kind: manual }]
 	})
 }
 
+func TestCodecShouldRoundTripLifecycleGrammar(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve every lifecycle field across serialization", func(t *testing.T) {
+		t.Parallel()
+
+		raw := []byte(`apiVersion: compozy.loop/v1
+kind: Loop
+meta: { name: lifecycle-loop }
+concurrency: forbid
+contract:
+  goal: Exercise lifecycle grammar
+  definition_of_done: All lifecycle fields survive
+  terminal_states: [done, canceled]
+  iteration_cap: 3
+  no_progress: { window: 2 }
+  budget: { tokens: 100, wall_clock_sec: 60, on_exceeded: halt }
+  on_done:
+    - emit: { kind: loop_done, payload: { source: contract } }
+  on_canceled:
+    - tool: known__notify
+      with: { body: canceled }
+graph:
+  nodes:
+    - id: worker
+      class: action
+      kind: known__work
+      timeout: 30s
+      deadline: 2m
+      retry:
+        max_attempts: 3
+        backoff: { base: 1s, max: 10s }
+        non_retryable: [payload_declared]
+      result_contract: { failure_field: error, message_field: error.message }
+      on_error:
+        allow_fail: true
+        effects:
+          - emit: { kind: worker_failed }
+      on_retry:
+        - tool: known__notify
+          with: { body: retrying }
+      on_success:
+        - emit: { kind: worker_succeeded }
+    - id: child
+      class: action
+      kind: run-loop
+      params: { loop: child-loop, mode: await }
+      on_parent_close: cancel
+    - id: wait_for_ack
+      class: control
+      kind: wait
+      params:
+        event: { kind: approval.received }
+        expect: { type: object, required: [approved] }
+        ahead_arrival: consume_on_entry
+        expires:
+          after: 72h
+          escalate:
+            - tool: known__notify
+              with: { body: still-waiting }
+          route: timed_out
+    - id: timed_out
+      class: action
+      kind: transform
+      params:
+        map: { status: timed_out }
+  edges:
+    - { from: worker, to: child }
+    - { from: child, to: wait_for_ack }
+    - { from: wait_for_ack, to: timed_out }
+start: [{ kind: manual }]
+`)
+
+		definition, err := dsl.Parse(raw)
+		if err != nil {
+			t.Fatalf("Parse() error = %v", err)
+		}
+		serialized, err := dsl.Serialize(definition)
+		if err != nil {
+			t.Fatalf("Serialize() error = %v", err)
+		}
+		reparsed, err := dsl.Parse(serialized)
+		if err != nil {
+			t.Fatalf("Parse(serialized) error = %v", err)
+		}
+		if !reflect.DeepEqual(reparsed, definition) {
+			t.Fatalf("lifecycle round-trip changed definition\nfirst: %#v\nsecond: %#v", definition, reparsed)
+		}
+		for _, fragment := range []string{
+			"deadline: 2m",
+			"failure_field: error",
+			"on_error:",
+			"on_retry:",
+			"on_canceled:",
+			"on_parent_close: cancel",
+			"ahead_arrival: consume_on_entry",
+		} {
+			if !strings.Contains(string(serialized), fragment) {
+				t.Fatalf("serialized lifecycle grammar missing %q:\n%s", fragment, serialized)
+			}
+		}
+	})
+}
+
 func minimalDefinition(contract string) string {
 	return `apiVersion: compozy.loop/v1
 kind: Loop

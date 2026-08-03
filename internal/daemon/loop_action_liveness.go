@@ -17,7 +17,8 @@ import (
 const (
 	loopActionNoProgressTimeout       = 7*time.Minute + 30*time.Second
 	loopActionLivenessPollMaxInterval = time.Minute
-	loopActionReasonNodeTimeout       = "node_timeout"
+	loopActionReasonNodeTimeout       = string(looppkg.ReasonCodeActionTimeout)
+	loopActionReasonNodeDeadline      = string(looppkg.FailureBudgetExhausted)
 	loopActionReasonNoProgress        = "no_progress"
 )
 
@@ -102,11 +103,22 @@ func (r *loopActionRuntime) executeClaimedRun(
 	actor taskpkg.ActorContext,
 	leaseDuration time.Duration,
 	actionTimeout time.Duration,
+	authoredTimeout bool,
+	timeoutReason string,
 ) (taskpkg.RunResult, error) {
 	runCtx, cancelRun := context.WithTimeout(ctx, actionTimeout)
 	usage := newLoopActionUsageState(r.now)
 	runCtx = looppkg.ContextWithActionUsageReporter(runCtx, usage)
-	heartbeatErrC := r.startHeartbeat(runCtx, cancelRun, claim, actor, leaseDuration, actionTimeout, usage)
+	heartbeatErrC := r.startHeartbeat(
+		runCtx,
+		cancelRun,
+		claim,
+		actor,
+		leaseDuration,
+		actionTimeout,
+		authoredTimeout,
+		usage,
+	)
 	result, runErr := r.runner.ExecuteActionRun(runCtx, claim.Run, actor)
 	deadlineExceeded := errors.Is(runCtx.Err(), context.DeadlineExceeded)
 	cancelRun()
@@ -118,7 +130,7 @@ func (r *loopActionRuntime) executeClaimedRun(
 		result.TokensUsed = tokensUsed
 	}
 	if deadlineExceeded {
-		return result, errors.Join(newLoopActionLivenessError(loopActionReasonNodeTimeout), heartbeatErr, runErr)
+		return result, errors.Join(newLoopActionLivenessError(timeoutReason), heartbeatErr, runErr)
 	}
 	return result, errors.Join(heartbeatErr, runErr)
 }
@@ -130,11 +142,20 @@ func (r *loopActionRuntime) startHeartbeat(
 	actor taskpkg.ActorContext,
 	leaseDuration time.Duration,
 	actionTimeout time.Duration,
+	authoredTimeout bool,
 	usage *loopActionUsageState,
 ) <-chan error {
 	errC := make(chan error, 1)
 	go func() {
-		err := r.heartbeatClaim(ctx, claim, actor, leaseDuration, actionTimeout, usage)
+		err := r.heartbeatClaim(
+			ctx,
+			claim,
+			actor,
+			leaseDuration,
+			actionTimeout,
+			authoredTimeout,
+			usage,
+		)
 		if err != nil {
 			cancelRun()
 		}
@@ -149,6 +170,7 @@ func (r *loopActionRuntime) heartbeatClaim(
 	actor taskpkg.ActorContext,
 	leaseDuration time.Duration,
 	actionTimeout time.Duration,
+	authoredTimeout bool,
 	usage *loopActionUsageState,
 ) error {
 	heartbeatInterval := r.heartbeatInterval(leaseDuration)
@@ -166,7 +188,8 @@ func (r *loopActionRuntime) heartbeatClaim(
 				r.logger.Warn("daemon: read loop action session activity", "error", err)
 			}
 			snapshot := usage.snapshot()
-			if !activeTool && r.now().UTC().Sub(snapshot.progressAt) >= actionNoProgressWindow(actionTimeout) {
+			if !authoredTimeout && !activeTool &&
+				r.now().UTC().Sub(snapshot.progressAt) >= actionNoProgressWindow(actionTimeout) {
 				return newLoopActionLivenessError(loopActionReasonNoProgress)
 			}
 			if time.Now().Before(nextHeartbeat) {
@@ -231,14 +254,45 @@ func (r *loopActionRuntime) actionTimeoutForRun(
 	ctx context.Context,
 	run taskpkg.Run,
 ) (time.Duration, error) {
+	timeout, _, err := r.actionTimeoutSpecForRun(ctx, run)
+	return timeout, err
+}
+
+func (r *loopActionRuntime) actionTimeoutSpecForRun(
+	ctx context.Context,
+	run taskpkg.Run,
+) (time.Duration, bool, error) {
 	timeout, ok, err := r.runner.ActionRunTimeout(ctx, run)
 	if err != nil {
-		return 0, err
+		return 0, false, err
 	}
 	if !ok {
-		return r.actionRunTimeout, nil
+		return r.actionRunTimeout, false, nil
 	}
-	return timeout, nil
+	return timeout, true, nil
+}
+
+type loopActionTimeoutReasonRunner interface {
+	ActionRunTimeoutReason(context.Context, taskpkg.Run) (string, error)
+}
+
+func (r *loopActionRuntime) actionTimeoutReasonForRun(
+	ctx context.Context,
+	run taskpkg.Run,
+) (string, error) {
+	reasonRunner, ok := r.runner.(loopActionTimeoutReasonRunner)
+	if !ok {
+		return loopActionReasonNodeTimeout, nil
+	}
+	reason, err := reasonRunner.ActionRunTimeoutReason(ctx, run)
+	if err != nil {
+		return "", err
+	}
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		return loopActionReasonNodeTimeout, nil
+	}
+	return reason, nil
 }
 
 func leaseDurationForActionTimeout(timeout time.Duration) time.Duration {
@@ -289,6 +343,12 @@ func (e *loopActionLivenessError) SafeActionFailure() looppkg.ActionFailure {
 			e.reasonCode,
 			"The action exceeded its wall-clock deadline.",
 			"Review the action scope or set a larger node timeout before retrying.",
+		)
+	case loopActionReasonNodeDeadline:
+		return looppkg.NewActionFailure(
+			e.reasonCode,
+			"The action exhausted its authored total deadline.",
+			"Review the total deadline and prior attempts before starting a new generation.",
 		)
 	default:
 		return looppkg.NewActionFailure(

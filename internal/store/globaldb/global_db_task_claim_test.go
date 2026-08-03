@@ -2806,6 +2806,73 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldRollbackWhenFinalizerFai
 		testGlobalDBCompleteCoordinatorAndEnqueueNextShouldRollbackWhenFinalizerFails(t)
 	})
 
+	t.Run("Should hide effect deliveries when a later boundary validation rolls back", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, time.August, 2, 15, 5, 0, 0, time.UTC)
+		loopRun, err := globalDB.CreateLoopRunForStart(
+			ctx,
+			testLoopRun("looprun-effect-rollback", now, looppkg.StatusRunning),
+			dsl.ConcurrencyAllow,
+		)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		claim := claimCoordinatorRunForTest(
+			ctx,
+			t,
+			globalDB,
+			loopRun.ID,
+			"run-effect-rollback",
+			now,
+		)
+		nextAttemptAt := now.Add(time.Second)
+		_, err = globalDB.CompleteCoordinatorAndEnqueueNext(ctx, taskpkg.CoordinatorCompletion{
+			RunID: claim.Run.ID, ClaimToken: claim.ClaimToken,
+			Actor: coordinatorActorContextForTest(), Now: now.Add(time.Millisecond),
+			Plan: taskpkg.CoordinatorCompletionPlan{
+				Snapshot: taskpkg.GenerationSnapshot{
+					LoopRunID: string(loopRun.ID), Generation: 1,
+					Payload: looppkg.GenerationSnapshotPayload{
+						Events: []looppkg.GenerationLifecycleEventIntent{{
+							Kind:   looppkg.GenerationLifecycleEventNodeRetryScheduled,
+							NodeID: "fetch", Attempt: 2, IssuedEpoch: 1,
+							NextAttemptAt: &nextAttemptAt, FailureClass: looppkg.FailureTransport,
+							Effects: []looppkg.RenderedEffectIntent{{
+								Trigger: looppkg.EffectTriggerOnRetry, Generation: 1, NodeID: "fetch",
+								Entry: json.RawMessage(`{"kind":"emit","emit":{"kind":"retrying"}}`),
+							}},
+						}},
+					},
+				},
+				Terminal: &taskpkg.CoordinatorTerminal{Status: string(looppkg.StatusNeedsApproval)},
+			},
+		}, looppkg.NewStoreFinalizer())
+		if !errors.Is(err, taskpkg.ErrValidation) || !strings.Contains(err.Error(), "gate_id") {
+			t.Fatalf("CompleteCoordinatorAndEnqueueNext() error = %v, want missing gate validation", err)
+		}
+		outbox, err := globalDB.ListEffectOutbox(ctx, loopRun.WorkspaceID, loopRun.ID)
+		if err != nil {
+			t.Fatalf("ListEffectOutbox() error = %v", err)
+		}
+		if len(outbox) != 0 {
+			t.Fatalf("effect outbox = %#v, want no pre-commit delivery after rollback", outbox)
+		}
+		events, err := globalDB.ListLoopRunEvents(ctx, looppkg.RunEventQuery{
+			WorkspaceID: loopRun.WorkspaceID, RunID: loopRun.ID,
+		})
+		if err != nil {
+			t.Fatalf("ListLoopRunEvents() error = %v", err)
+		}
+		for _, event := range events {
+			if event.Kind == loopRunEventNodeRetryScheduled {
+				t.Fatalf("events = %#v, want trigger event rolled back with its delivery", events)
+			}
+		}
+	})
+
 	t.Run("Should reject snapshots for another loop before writing either workspace", func(t *testing.T) {
 		t.Parallel()
 
@@ -5109,11 +5176,15 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldRefreshTokensAndApplyBud
 	t.Parallel()
 
 	cases := []struct {
-		name       string
-		exceeded   dsl.BudgetExceeded
-		wantStatus looppkg.Status
+		name        string
+		exceeded    dsl.BudgetExceeded
+		wantStatus  looppkg.Status
+		wantEffects int
 	}{
-		{name: "halt", exceeded: dsl.BudgetExceededHalt, wantStatus: looppkg.StatusExhausted},
+		{
+			name: "halt", exceeded: dsl.BudgetExceededHalt,
+			wantStatus: looppkg.StatusExhausted, wantEffects: 1,
+		},
 		{
 			name:       "escalate",
 			exceeded:   dsl.BudgetExceededEscalate,
@@ -5162,6 +5233,14 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldRefreshTokensAndApplyBud
 						Snapshot: taskpkg.GenerationSnapshot{
 							LoopRunID:  string(loopRun.ID),
 							Generation: 1,
+							Payload: looppkg.GenerationSnapshotPayload{
+								BoundaryEffects: map[looppkg.Status][]looppkg.RenderedEffectIntent{
+									looppkg.StatusExhausted: {{
+										Trigger: looppkg.EffectTriggerOnExhausted, Generation: 1,
+										Entry: json.RawMessage(`{"kind":"emit","emit":{"kind":"budget_exhausted"}}`),
+									}},
+								},
+							},
 						},
 						NextCoordinator: &taskpkg.EnqueueSpec{
 							TaskID:         claim.Run.TaskID,
@@ -5202,6 +5281,16 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldRefreshTokensAndApplyBud
 			}
 			if storedLoop.TokensUsed != 5 {
 				t.Fatalf("loop tokens_used = %d, want refreshed sum 5", storedLoop.TokensUsed)
+			}
+			outbox, err := globalDB.ListEffectOutbox(ctx, loopRun.WorkspaceID, loopRun.ID)
+			if err != nil {
+				t.Fatalf("ListEffectOutbox() error = %v", err)
+			}
+			if len(outbox) != tc.wantEffects {
+				t.Fatalf("effect outbox len = %d, want %d for committed boundary", len(outbox), tc.wantEffects)
+			}
+			if tc.wantEffects == 1 && outbox[0].Trigger != string(looppkg.EffectTriggerOnExhausted) {
+				t.Fatalf("effect trigger = %q, want %q", outbox[0].Trigger, looppkg.EffectTriggerOnExhausted)
 			}
 			if tc.wantStatus == looppkg.StatusNeedsApproval {
 				if storedLoop.ActiveGateID != looppkg.BudgetGateID {
@@ -5883,7 +5972,7 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 				t.Fatalf("CreateTask() error = %v", err)
 			}
 			runID := "run-node-terminal-" + strings.ReplaceAll(tc.name, " ", "-")
-			metadata := json.RawMessage(`{"generation":1,"node_id":"load","item_index":0}`)
+			metadata := json.RawMessage(`{"generation":1,"node_id":"load","item_index":0,"attempt":1,"epoch":0}`)
 			reservation := queuedRunReservationForTest(
 				taskRecord.ID,
 				runID,
@@ -6024,6 +6113,52 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 }
 
 func TestGlobalDBCompleteRunLeaseShouldCommitCoordinatorControlWithoutNodeSuccess(t *testing.T) {
+	t.Run("Should reject a coordinator control output fenced by a newer epoch", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 7, 10, 17, 0, 0, 0, time.UTC)
+		loopRun, err := globalDB.CreateLoopRunForStart(
+			ctx,
+			testLoopRun("looprun-control-stale", now, looppkg.StatusRunning),
+			dsl.ConcurrencyAllow,
+		)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		const taskRunID = "run-control-stale"
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`INSERT INTO loop_generation_outputs (
+				loop_run_id, generation, node_id, item_index, status, task_run_id, attempt, epoch
+			) VALUES (?, 1, 'converge', 0, 'running', ?, 1, 2)`,
+			string(loopRun.ID),
+			taskRunID,
+		); err != nil {
+			t.Fatalf("insert generation output error = %v", err)
+		}
+		current := taskpkg.Run{
+			ID: taskRunID, RunKind: taskpkg.RunKindWorker, LoopRunID: string(loopRun.ID),
+			Metadata: json.RawMessage(
+				`{"generation":1,"node_id":"converge","item_index":0,"attempt":1,"epoch":1}`,
+			),
+		}
+		err = recordCompletedRunLoopOutput(
+			ctx,
+			globalDB.db,
+			current,
+			taskpkg.LeaseCompletion{Result: taskpkg.RunResult{
+				CoordinatorControl: &taskpkg.CoordinatorControlResult{Kind: "loop_action", Payload: json.RawMessage(`{}`)},
+			}},
+			"",
+			nil,
+		)
+		if !errors.Is(err, looppkg.ErrStaleGenerationOutput) {
+			t.Fatalf("recordCompletedRunLoopOutput() error = %v, want ErrStaleGenerationOutput", err)
+		}
+	})
+
 	t.Run("Should preserve task completion while leaving the Goal output control pending", func(t *testing.T) {
 		t.Parallel()
 
@@ -6105,7 +6240,7 @@ func TestGlobalDBCompleteRunLeaseShouldCommitCoordinatorControlWithoutNodeSucces
 			runID,
 			"goal-control-pending",
 			taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "loop"},
-			json.RawMessage(`{"generation":1,"node_id":"converge","item_index":0}`),
+			json.RawMessage(`{"generation":1,"node_id":"converge","item_index":0,"attempt":1,"epoch":0}`),
 			now,
 		)
 		reservation.RunKind = taskpkg.RunKindWorker
@@ -6321,7 +6456,7 @@ func TestGlobalDBHeartbeatRunLeaseShouldPersistCoalescedLoopTokenTicks(t *testin
 		runID,
 		"heartbeat-token-ticks",
 		taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "loop"},
-		json.RawMessage(`{"generation":1,"node_id":"agent","item_index":0}`),
+		json.RawMessage(`{"generation":1,"node_id":"agent","item_index":0,"attempt":1,"epoch":0}`),
 		now,
 	)
 	reservation.RunKind = taskpkg.RunKindWorker
@@ -6637,7 +6772,7 @@ func TestGlobalDBCompleteRunLeaseShouldStoreLargeLoopOutputByRef(t *testing.T) {
 			t.Fatalf("CreateTask() error = %v", err)
 		}
 		runID := "run-large-output-ref"
-		metadata := json.RawMessage(`{"generation":1,"node_id":"summarize","item_index":0}`)
+		metadata := json.RawMessage(`{"generation":1,"node_id":"summarize","item_index":0,"attempt":1,"epoch":0}`)
 		reservation := queuedRunReservationForTest(
 			taskRecord.ID,
 			runID,
@@ -7061,6 +7196,232 @@ func TestNormalizePostReserveSnapshot(t *testing.T) {
 		)
 		if snapshot == nil || snapshot.LoopRunID != "loop-run-1" {
 			t.Fatalf("normalizePostReserveSnapshot() = %#v, want trimmed loop_run_id", snapshot)
+		}
+	})
+}
+
+func TestGlobalDBLoopGenerationOutputWritersShouldFenceStaleEpochs(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should let only the writer holding the current cell epoch mutate output", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, time.August, 2, 23, 0, 0, 0, time.UTC)
+		loopRun, err := globalDB.CreateLoopRunForStart(
+			ctx,
+			testLoopRun("looprun-output-epoch-race", now, looppkg.StatusRunning),
+			dsl.ConcurrencyAllow,
+		)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		const taskRunID = "run-output-epoch-race"
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`INSERT INTO loop_generation_outputs (
+				loop_run_id, generation, node_id, item_index, status, task_run_id, attempt, epoch
+			) VALUES (?, 1, 'work', 0, 'running', ?, 2, 5)`,
+			string(loopRun.ID),
+			taskRunID,
+		); err != nil {
+			t.Fatalf("insert generation output error = %v", err)
+		}
+
+		tx, err := globalDB.db.BeginTx(ctx, nil)
+		if err != nil {
+			t.Fatalf("BeginTx() error = %v", err)
+		}
+		nextAttemptAt := now.Add(time.Second)
+		expectedEpoch := int64(4)
+		err = looppkg.NewStoreFinalizer().WriteGenerationSnapshot(
+			ctx,
+			tx,
+			taskpkg.GenerationSnapshot{
+				LoopRunID:  string(loopRun.ID),
+				Generation: 1,
+				Payload: looppkg.GenerationSnapshotPayload{Outputs: []looppkg.GenerationOutput{{
+					NodeID:        "work",
+					Status:        "retrying",
+					Attempt:       2,
+					NextAttemptAt: &nextAttemptAt,
+					Epoch:         6,
+					ExpectedEpoch: &expectedEpoch,
+				}}},
+			},
+		)
+		if !errors.Is(err, looppkg.ErrStaleGenerationOutput) {
+			t.Fatalf("WriteGenerationSnapshot() error = %v, want stale epoch", err)
+		}
+		if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
+			t.Fatalf("Rollback() error = %v", rollbackErr)
+		}
+
+		staleRun := taskpkg.Run{
+			ID:        taskRunID,
+			RunKind:   taskpkg.RunKindWorker,
+			LoopRunID: string(loopRun.ID),
+			Metadata: json.RawMessage(
+				`{"generation":1,"node_id":"work","item_index":0,"attempt":2,"epoch":4}`,
+			),
+		}
+		recorded, err := updateLoopNodeOutputStatusWithExecutor(
+			ctx,
+			globalDB.db,
+			staleRun,
+			string(loopRun.ID),
+			loopNodeOutputSucceeded,
+			`{"stale":true}`,
+		)
+		if err != nil {
+			t.Fatalf("updateLoopNodeOutputStatusWithExecutor(stale) error = %v", err)
+		}
+		if recorded {
+			t.Fatal("stale terminal writer recorded = true, want dropped")
+		}
+		if err := recordLoopNodeTerminalWithExecutor(
+			ctx, globalDB.db, staleRun, "success", `{"stale":true}`, nil, now,
+		); err != nil {
+			t.Fatalf("recordLoopNodeTerminalWithExecutor(stale) error = %v", err)
+		}
+		var lateArrivals int
+		if err := globalDB.db.QueryRowContext(
+			ctx,
+			`SELECT COUNT(*) FROM loop_run_events WHERE loop_run_id = ? AND kind = ?`,
+			loopRun.ID,
+			loopRunEventLateArrival,
+		).Scan(&lateArrivals); err != nil {
+			t.Fatalf("count late arrival diagnostics error = %v", err)
+		}
+		if lateArrivals != 1 {
+			t.Fatalf("late arrival diagnostics = %d, want 1", lateArrivals)
+		}
+
+		currentRun := staleRun
+		currentRun.Metadata = json.RawMessage(
+			`{"generation":1,"node_id":"work","item_index":0,"attempt":2,"epoch":5}`,
+		)
+		recorded, err = updateLoopNodeOutputStatusWithExecutor(
+			ctx,
+			globalDB.db,
+			currentRun,
+			string(loopRun.ID),
+			loopNodeOutputSucceeded,
+			`{"ok":true}`,
+		)
+		if err != nil {
+			t.Fatalf("updateLoopNodeOutputStatusWithExecutor(current) error = %v", err)
+		}
+		if !recorded {
+			t.Fatal("current terminal writer recorded = false, want true")
+		}
+		var status string
+		var outputRef string
+		var epoch int64
+		if err := globalDB.db.QueryRowContext(
+			ctx,
+			`SELECT status, output_ref, epoch FROM loop_generation_outputs
+			 WHERE loop_run_id = ? AND generation = 1 AND node_id = 'work' AND item_index = 0`,
+			string(loopRun.ID),
+		).Scan(&status, &outputRef, &epoch); err != nil {
+			t.Fatalf("query generation output error = %v", err)
+		}
+		if status != loopNodeOutputSucceeded || outputRef != `{"ok":true}` || epoch != 5 {
+			t.Fatalf("generation output = (%q, %q, %d), want current writer result", status, outputRef, epoch)
+		}
+	})
+}
+
+func TestGlobalDBCoordinatorCompletionShouldPersistRetryAttemptAndEventAtomically(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should commit the retry cell ledger row and schedule event together", func(t *testing.T) {
+		t.Parallel()
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, time.August, 2, 23, 30, 0, 0, time.UTC)
+		loopRun, err := globalDB.CreateLoopRunForStart(
+			ctx,
+			testLoopRun("looprun-retry-boundary", now, looppkg.StatusRunning),
+			dsl.ConcurrencyAllow,
+		)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		claim := claimCoordinatorRunForTest(
+			ctx, t, globalDB, loopRun.ID, "run-retry-boundary", now.Add(time.Millisecond),
+		)
+		failureClass := looppkg.FailureTransport
+		endedAt := now.Add(2 * time.Millisecond)
+		nextAttemptAt := now.Add(time.Second)
+		firstScheduledAt := now.Add(-time.Second)
+		_, err = globalDB.CompleteCoordinatorAndEnqueueNext(ctx, taskpkg.CoordinatorCompletion{
+			RunID: claim.Run.ID, ClaimToken: claim.ClaimToken,
+			Actor: coordinatorActorContextForTest(), Now: endedAt,
+			Plan: taskpkg.CoordinatorCompletionPlan{Yield: true, Snapshot: taskpkg.GenerationSnapshot{
+				LoopRunID: string(loopRun.ID), Generation: 1,
+				Payload: looppkg.GenerationSnapshotPayload{
+					Outputs: []looppkg.GenerationOutput{{
+						Generation: 1, NodeID: "fetch", Status: "retrying", Attempt: 1, Epoch: 1,
+						FirstScheduledAt: &firstScheduledAt, NextAttemptAt: &nextAttemptAt,
+					}},
+					Attempts: []looppkg.NodeAttempt{{
+						LoopRunID: loopRun.ID, Generation: 1, NodeID: "fetch", Attempt: 1,
+						FailureClass: &failureClass, FailureCode: "tool_unavailable", Cause: "offline",
+						Hint: "restore the tool", Disposition: looppkg.AttemptRetried,
+						StartedAt: now, EndedAt: &endedAt, NextAttemptAt: &nextAttemptAt,
+					}},
+					Events: []looppkg.GenerationLifecycleEventIntent{{
+						Kind:   looppkg.GenerationLifecycleEventNodeRetryScheduled,
+						NodeID: "fetch", Attempt: 2, IssuedEpoch: 1,
+						NextAttemptAt: &nextAttemptAt, FailureClass: failureClass,
+						Effects: []looppkg.RenderedEffectIntent{{
+							Trigger: looppkg.EffectTriggerOnRetry, Generation: 1, NodeID: "fetch",
+							EntryIndex: 0,
+							Entry: json.RawMessage(
+								`{"kind":"emit","emit":{"kind":"fetch_retrying","payload":{"attempt":2}}}`,
+							),
+						}},
+					}},
+				},
+			}},
+		}, looppkg.NewStoreFinalizer())
+		if err != nil {
+			t.Fatalf("CompleteCoordinatorAndEnqueueNext() error = %v", err)
+		}
+		attempts, err := globalDB.ListNodeAttempts(ctx, loopRun.WorkspaceID, loopRun.ID)
+		if err != nil {
+			t.Fatalf("ListNodeAttempts() error = %v", err)
+		}
+		if len(attempts) != 1 || attempts[0].Disposition != looppkg.AttemptRetried ||
+			attempts[0].FailureClass == nil || *attempts[0].FailureClass != failureClass ||
+			attempts[0].NextAttemptAt == nil || !attempts[0].NextAttemptAt.Equal(nextAttemptAt) {
+			t.Fatalf("retry attempts = %#v, want one classified retry", attempts)
+		}
+		events, err := globalDB.ListLoopRunEvents(ctx, looppkg.RunEventQuery{
+			WorkspaceID: loopRun.WorkspaceID, RunID: loopRun.ID,
+		})
+		if err != nil {
+			t.Fatalf("ListLoopRunEvents() error = %v", err)
+		}
+		payload := loopEventPayloadForKind(t, events, "node_retry_scheduled")
+		if payload["node_id"] != "fetch" || payload["attempt"] != float64(2) ||
+			payload["issued_epoch"] != float64(1) || payload["failure_class"] != string(failureClass) {
+			t.Fatalf("node_retry_scheduled payload = %#v, want durable retry identity", payload)
+		}
+		outbox, err := globalDB.ListEffectOutbox(ctx, loopRun.WorkspaceID, loopRun.ID)
+		if err != nil {
+			t.Fatalf("ListEffectOutbox() error = %v", err)
+		}
+		if len(outbox) != 1 || outbox[0].State != looppkg.EffectPending ||
+			outbox[0].SourceEventID == "" || outbox[0].DeliveryID != looppkg.EffectDeliveryID(
+			loopRun.ID,
+			outbox[0].SourceEventID,
+			looppkg.EffectTriggerOnRetry,
+			0,
+		) {
+			t.Fatalf("effect outbox = %#v, want same-transaction deterministic pending delivery", outbox)
 		}
 	})
 }

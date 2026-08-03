@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
@@ -63,9 +64,80 @@ func TestLoopActionFailureMetadataShouldPreserveSafeOperatorDetail(t *testing.T)
 			t.Fatalf("failure metadata = %#v, want domain-owned safe detail", envelope.Failure)
 		}
 	})
+
+	t.Run("Should preserve the classified attempt timeout code", func(t *testing.T) {
+		t.Parallel()
+
+		cause := &looppkg.ReasonError{
+			Code: looppkg.ReasonCodeActionTimeout,
+			Err:  looppkg.ErrActionTimeout,
+		}
+		metadata, err := marshalLoopActionFailureMetadata("loop_action", cause)
+		if err != nil {
+			t.Fatalf("marshalLoopActionFailureMetadata() error = %v", err)
+		}
+		var envelope loopActionFailureMetadata
+		if err := json.Unmarshal(metadata, &envelope); err != nil {
+			t.Fatalf("Unmarshal(loop action failure metadata) error = %v", err)
+		}
+		if envelope.ReasonCode != string(looppkg.ReasonCodeActionTimeout) ||
+			envelope.Failure.Code != string(looppkg.ReasonCodeActionTimeout) {
+			t.Fatalf("failure metadata = %#v, want attempt timeout classification", envelope)
+		}
+	})
+
+	t.Run("Should retain safe defaults when providers omit fields", func(t *testing.T) {
+		t.Parallel()
+
+		testCases := []struct {
+			name  string
+			cause error
+		}{
+			{
+				name:  "Should retain the default code for an empty reason code",
+				cause: &looppkg.ReasonError{Err: errors.New("runtime contract failed")},
+			},
+			{
+				name:  "Should retain default recovery for a partial safe failure",
+				cause: partialSafeActionFailureTestError{},
+			},
+			{
+				name: "Should retain default operator text for an empty tool detail",
+				cause: toolspkg.NewOperatorToolError(
+					toolspkg.ErrorCodeUnavailable,
+					"ext__partial",
+					"",
+					errors.New("unavailable"),
+					"",
+					"",
+				),
+			},
+		}
+		for _, testCase := range testCases {
+			t.Run(testCase.name, func(t *testing.T) {
+				t.Parallel()
+
+				failure := operatorSafeActionFailure(testCase.cause)
+				if strings.TrimSpace(failure.Code) == "" || strings.TrimSpace(failure.Cause) == "" ||
+					strings.TrimSpace(failure.Recovery) == "" {
+					t.Fatalf("operatorSafeActionFailure() = %#v, want complete safe defaults", failure)
+				}
+			})
+		}
+	})
 }
 
 type safeActionFailureTestError struct{}
+
+type partialSafeActionFailureTestError struct{}
+
+func (partialSafeActionFailureTestError) Error() string {
+	return "partial safe failure"
+}
+
+func (partialSafeActionFailureTestError) SafeActionFailure() looppkg.ActionFailure {
+	return looppkg.NewActionFailure("partial_safe", "Safe partial failure.", "")
+}
 
 func (safeActionFailureTestError) Error() string {
 	return "internal state api_key=secret-value"

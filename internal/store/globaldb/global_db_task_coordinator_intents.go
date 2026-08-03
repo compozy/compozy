@@ -220,6 +220,31 @@ func appendGenerationLifecycleEventsWithExecutor(
 			); err != nil {
 				return err
 			}
+		case looppkg.GenerationLifecycleEventNodeRetryScheduled:
+			if err := appendRetryScheduledEffectEventWithExecutor(
+				ctx, exec, run, generation, event, at,
+			); err != nil {
+				return err
+			}
+		case looppkg.GenerationLifecycleEventNodeSucceeded,
+			looppkg.GenerationLifecycleEventNodeFailed:
+			if err := appendNodeOutcomeEffectEventWithExecutor(
+				ctx, exec, run, generation, event, at,
+			); err != nil {
+				return err
+			}
+		case looppkg.GenerationLifecycleEventNodeQuarantined:
+			if err := appendNodeQuarantinedEffectEventWithExecutor(
+				ctx, exec, run, generation, event, at,
+			); err != nil {
+				return err
+			}
+		case looppkg.GenerationLifecycleEventTargetBreakerTransition:
+			if err := appendTargetBreakerTransitionEventWithExecutor(
+				ctx, exec, run, generation, event, at,
+			); err != nil {
+				return err
+			}
 		}
 	}
 	if !hasGenerationStarted && generation > run.Generation {

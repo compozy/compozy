@@ -478,6 +478,91 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 		}
 	})
 
+	t.Run("Should pass the prior classified failure to an authored agent retry", func(t *testing.T) {
+		t.Parallel()
+
+		binder := &fakeActionSessionBinder{
+			binding:       loop.ActionSessionBinding{SessionID: "sess-retry-feedback", Handle: "main"},
+			promptResults: []loop.ActionPromptResult{{Text: "done"}},
+		}
+		actions := newActionRegistryForTest(t, &fakeActionToolRegistry{}, loop.WithActionSessionBinder(binder))
+		executor, err := actions.Resolve(context.Background(), tools.Scope{}, string(dsl.ActionRunAgent))
+		if err != nil {
+			t.Fatalf("Resolve(run-agent) error = %v", err)
+		}
+		failure := loop.ClassifiedFailure{
+			Class: loop.FailureAttemptTimeout, Code: string(loop.ReasonCodeActionTimeout),
+			Cause:         "The action exceeded its configured attempt timeout.",
+			Hint:          "Review the action timeout and target health before retrying.",
+			RetryEligible: true,
+		}
+		_, err = executor.Execute(context.Background(), dsl.Node{
+			ID: "agent", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent),
+			Params: dsl.NodeParams{"agent": "planner", "prompt": "Resume the work"},
+		}, loop.ActionExecutionInput{
+			WorkspaceID: "ws-1", Attempt: 2, RetryFailure: &failure,
+		})
+		if err != nil {
+			t.Fatalf("Execute() error = %v", err)
+		}
+		prompts := binder.promptMessages()
+		if len(prompts) != 1 || !strings.Contains(prompts[0], "Automatic retry context:") ||
+			!strings.Contains(prompts[0], `"attempt":2`) ||
+			!strings.Contains(prompts[0], `"code":"action_timeout"`) ||
+			!strings.Contains(prompts[0], "Review the action timeout") {
+			t.Fatalf("retry prompt = %#v, want prior classified cause and hint", prompts)
+		}
+	})
+
+	t.Run("Should pass only escalated classified failures to a repair generation", func(t *testing.T) {
+		t.Parallel()
+
+		binder := &fakeActionSessionBinder{
+			binding:       loop.ActionSessionBinding{SessionID: "sess-repair-feedback", Handle: "main"},
+			promptResults: []loop.ActionPromptResult{{Text: "done"}},
+		}
+		actions := newActionRegistryForTest(t, &fakeActionToolRegistry{}, loop.WithActionSessionBinder(binder))
+		executor, err := actions.Resolve(context.Background(), tools.Scope{}, string(dsl.ActionRunAgent))
+		if err != nil {
+			t.Fatalf("Resolve(run-agent) error = %v", err)
+		}
+		_, err = executor.Execute(context.Background(), dsl.Node{
+			ID: "agent", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent),
+			Params: dsl.NodeParams{"agent": "planner", "prompt": "Repair the generation"},
+		}, loop.ActionExecutionInput{
+			WorkspaceID: "ws-1",
+			Generation:  2,
+			RepairFailures: []loop.ActionRepairFailure{
+				{
+					NodeID: "primary", Disposition: loop.AttemptEscalated,
+					Failure: loop.ClassifiedFailure{
+						Class: loop.FailurePayloadDeclared, Code: "payload_declared",
+						Cause: "semantic escalation", Hint: "repair the payload",
+					},
+				},
+				{
+					NodeID: "absorbed", Disposition: loop.AttemptAbsorbed,
+					Failure: loop.ClassifiedFailure{
+						Class: loop.FailureTransport, Code: "absorbed_transport",
+						Cause: "unique absorbed failure must stay out of repair context",
+					},
+				},
+			},
+		})
+		if err != nil {
+			t.Fatalf("Execute() error = %v", err)
+		}
+		prompts := binder.promptMessages()
+		if len(prompts) != 1 || !strings.Contains(prompts[0], "Automatic generation repair context:") ||
+			!strings.Contains(prompts[0], `"generation":2`) ||
+			!strings.Contains(prompts[0], `"disposition":"escalated"`) ||
+			!strings.Contains(prompts[0], "semantic escalation") ||
+			!strings.Contains(prompts[0], "repair the payload") ||
+			strings.Contains(prompts[0], "unique absorbed failure") {
+			t.Fatalf("repair prompt = %#v, want classified escalated context", prompts)
+		}
+	})
+
 	t.Run("Should mark runtime fields completed by the agent definition", func(t *testing.T) {
 		t.Parallel()
 

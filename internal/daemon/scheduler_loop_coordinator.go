@@ -10,16 +10,21 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
+const loopCoordinatorActorRef = "loop-coordinator"
+
 func (s schedulerTaskSource) RunLoopCoordinatorBackstop(
 	ctx context.Context,
 	now time.Time,
 	actor taskpkg.ActorContext,
 ) (int, error) {
-	if s.coordinatorBackstop != nil {
-		return s.coordinatorBackstop.RunLoopCoordinatorBackstop(ctx, now, actor)
-	}
 	if err := s.enqueueWatchEventsGapWakes(ctx, actor.Origin, now); err != nil {
 		return 0, err
+	}
+	if err := s.enqueueDueLoopRetryWakes(ctx, actor.Origin, now); err != nil {
+		return 0, err
+	}
+	if s.coordinatorBackstop != nil {
+		return s.coordinatorBackstop.RunLoopCoordinatorBackstop(ctx, now, actor)
 	}
 	scopes, err := s.loopCoordinatorClaimScopes(ctx)
 	if err != nil {
@@ -34,7 +39,7 @@ func (s schedulerTaskSource) RunLoopCoordinatorBackstop(
 				WorkspaceID:      scope.workspaceID,
 				RunKind:          taskpkg.RunKindCoordinator,
 				ClaimerSessionID: "daemon-loop-coordinator",
-				ClaimedBy:        &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "loop-coordinator"},
+				ClaimedBy:        &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: loopCoordinatorActorRef},
 				LeaseDuration:    taskpkg.DefaultRunLeaseDuration,
 				Now:              now,
 			}, actor)

@@ -21,12 +21,7 @@ func (d *Daemon) bootTasks(ctx context.Context, state *bootState) error {
 		return nil
 	}
 
-	bridge, err := newTaskSessionBridge(
-		state.sessions,
-		d.homePaths.HomeDir,
-		state.logger,
-		withTaskSessionContextOverlay(state.situationContext),
-	)
+	bridge, err := d.newBootTaskSessionBridge(state)
 	if err != nil {
 		return err
 	}
@@ -49,6 +44,7 @@ func (d *Daemon) bootTasks(ctx context.Context, state *bootState) error {
 		return fmt.Errorf("daemon: create loop coordinator runner: %w", err)
 	}
 	manager, err := newTaskRuntimeManager(
+		ctx,
 		state,
 		store,
 		bridge,
@@ -57,6 +53,7 @@ func (d *Daemon) bootTasks(ctx context.Context, state *bootState) error {
 		reviewRequests,
 		coordinatorRunner,
 		&d.admission,
+		d.now,
 	)
 	if err != nil {
 		return fmt.Errorf("daemon: create task manager: %w", err)
@@ -92,6 +89,15 @@ func (d *Daemon) bootTasks(ctx context.Context, state *bootState) error {
 		loopJudges,
 	)
 	return recoverInstalledTaskRuntime(ctx, state, manager, store, reentry)
+}
+
+func (d *Daemon) newBootTaskSessionBridge(state *bootState) (*taskSessionBridge, error) {
+	return newTaskSessionBridge(
+		state.sessions,
+		d.homePaths.HomeDir,
+		state.logger,
+		withTaskSessionContextOverlay(state.situationContext),
+	)
 }
 
 func taskStoreForBoot(state *bootState) (taskStore, bool) {
@@ -262,6 +268,7 @@ func installTaskRuntime(
 }
 
 func newTaskRuntimeManager(
+	ctx context.Context,
 	state *bootState,
 	store taskStore,
 	bridge taskpkg.SessionExecutor,
@@ -270,6 +277,7 @@ func newTaskRuntimeManager(
 	reviewRequests taskpkg.RunReviewRequestedObserver,
 	coordinatorRunner taskpkg.CoordinatorRunner,
 	workAdmission admission.Checker,
+	now func() time.Time,
 ) (*taskpkg.Service, error) {
 	resolver, err := ensureDaemonParticipationResolver(state, store)
 	if err != nil {
@@ -295,6 +303,9 @@ func newTaskRuntimeManager(
 		taskpkg.WithWorkAdmissionChecker(workAdmission),
 		taskpkg.WithWorkspaceAccessPolicy(state.accessPolicy),
 	)
+	if timerArmer := newLoopRetryTimerArmer(ctx, store, state.logger, now); timerArmer != nil {
+		options = append(options, taskpkg.WithCoordinatorTimerArmer(timerArmer))
+	}
 	return taskpkg.NewManager(options...)
 }
 

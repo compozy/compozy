@@ -72,6 +72,9 @@ type ActionExecutionInput struct {
 	Generation               int
 	NodeID                   dsl.NodeID
 	ItemIndex                int
+	Attempt                  int
+	RetryFailure             *ClassifiedFailure
+	RepairFailures           []ActionRepairFailure
 	Namespace                map[string]any
 	Contract                 *dsl.Contract
 	ToolScope                tools.Scope

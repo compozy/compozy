@@ -39,6 +39,14 @@ func (e *RunAgentActionExecutor) Execute(
 	if err := dsl.NodeParams(params).Decode(&spec); err != nil {
 		return ActionRawResult{}, fmt.Errorf("decode run-agent params: %w", err)
 	}
+	spec.Prompt, err = runAgentPromptWithRetryFeedback(spec.Prompt, in.Attempt, in.RetryFailure)
+	if err != nil {
+		return ActionRawResult{}, err
+	}
+	spec.Prompt, err = runAgentPromptWithRepairFeedback(spec.Prompt, in.Generation, in.RepairFailures)
+	if err != nil {
+		return ActionRawResult{}, err
+	}
 	runCtx, cancelRun, err := actionContextWithNodeTimeout(ctx, node.Timeout)
 	if err != nil {
 		return ActionRawResult{}, err

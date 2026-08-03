@@ -1,0 +1,95 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "lifecycle_retry",
+            "provider": "acpmock",
+            "permissions": "approve-all",
+            "turns": [
+                {
+                    "name": "retry-healed",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text_contains": "Automatic retry context:"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "```json\n{\"summary\":\"retry healed\",\"value\":\"recovered\"}\n```"
+                        }
+                    ]
+                },
+                {
+                    "name": "retry-timeout",
+                    "match": { "turn_source": "user", "user_text": "retry lifecycle" },
+                    "steps": [
+                        {
+                            "kind": "driver_control",
+                            "driver_control": { "action": "delay", "delay_ms": 3000 }
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "lifecycle_route",
+            "provider": "acpmock",
+            "permissions": "approve-all",
+            "turns": [
+                {
+                    "name": "route-primary-failure",
+                    "match": { "turn_source": "user", "user_text": "route primary" },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "```json\n{\"summary\":\"primary failed\",\"error\":\"route fallback\"}\n```"
+                        }
+                    ]
+                },
+                {
+                    "name": "route-fallback-success",
+                    "match": { "turn_source": "user", "user_text": "route fallback" },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "```json\n{\"summary\":\"fallback completed\",\"value\":\"fallback\"}\n```"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "lifecycle_escalation",
+            "provider": "acpmock",
+            "permissions": "approve-all",
+            "turns": [
+                {
+                    "name": "escalation-repair-success",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text_contains": "semantic escalation"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "```json\n{\"summary\":\"repair completed\",\"value\":\"repaired\"}\n```"
+                        }
+                    ]
+                },
+                {
+                    "name": "escalation-primary-failure",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text_contains": "escalation generation 1"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "```json\n{\"summary\":\"needs repair\",\"error\":\"semantic escalation\"}\n```"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

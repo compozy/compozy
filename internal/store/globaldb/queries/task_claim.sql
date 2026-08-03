@@ -35,28 +35,6 @@ SET last_progress_at = CASE
     END
 WHERE id = sqlc.arg(id);
 
--- name: UpdateLoopGenerationOutputForTaskRun :execrows
-UPDATE loop_generation_outputs
-SET status = sqlc.arg(status),
-    output_ref = CASE
-      WHEN CAST(sqlc.arg(output_ref) AS TEXT) = '' THEN output_ref
-      ELSE CAST(sqlc.arg(output_ref) AS TEXT)
-    END,
-    task_run_id = sqlc.arg(task_run_id)
-WHERE loop_run_id = sqlc.arg(loop_run_id) AND task_run_id = sqlc.arg(task_run_id);
-
--- name: UpsertLoopGenerationOutputForTaskRun :exec
-INSERT INTO loop_generation_outputs (
-  loop_run_id, generation, node_id, item_index, status, output_ref, task_run_id
-) VALUES (
-  sqlc.arg(loop_run_id), sqlc.arg(generation), sqlc.arg(node_id), sqlc.arg(item_index),
-  sqlc.arg(status), sqlc.narg(output_ref), sqlc.arg(task_run_id)
-)
-ON CONFLICT(loop_run_id, generation, node_id, item_index) DO UPDATE SET
-  status = excluded.status,
-  output_ref = excluded.output_ref,
-  task_run_id = excluded.task_run_id;
-
 -- name: FailTaskRunLease :execrows
 UPDATE task_runs
 SET status = sqlc.arg(status), lease_until = NULL, heartbeat_at = NULL, claim_token = NULL,

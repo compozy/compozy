@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
 )
@@ -14,6 +15,8 @@ var emptyChecksJSON = json.RawMessage(`{}`)
 // DefaultLoopDefaults returns the built-in fallback `[loops.defaults.*]` layer.
 func DefaultLoopDefaults() LoopDefaults {
 	halt := dsl.BudgetExceededHalt
+	deliveryLifecycle := DefaultLifecycleConfig()
+	watchLifecycle := deliveryLifecycle.Clone()
 	return LoopDefaults{
 		Delivery: LoopConfig{
 			IterationCap:     new(50),
@@ -23,6 +26,7 @@ func DefaultLoopDefaults() LoopDefaults {
 			BudgetWallSec:    new(0),
 			BudgetOnExceeded: new(halt),
 			FanOutWidth:      new(4),
+			Lifecycle:        &deliveryLifecycle,
 		},
 		Watch: LoopConfig{
 			IterationCap:     new(0),
@@ -31,6 +35,7 @@ func DefaultLoopDefaults() LoopDefaults {
 			BudgetWallSec:    new(0),
 			BudgetOnExceeded: new(halt),
 			FanOutWidth:      new(2),
+			Lifecycle:        &watchLifecycle,
 		},
 	}
 }
@@ -85,6 +90,10 @@ func (cfg LoopConfig) Clone() LoopConfig {
 	}
 	cloned.RuntimeDefaults = cloneRuntimeDefaults(cfg.RuntimeDefaults)
 	cloned.RuntimeRules = cloneRuntimeRules(cfg.RuntimeRules)
+	if cfg.Lifecycle != nil {
+		lifecycle := cfg.Lifecycle.Clone()
+		cloned.Lifecycle = &lifecycle
+	}
 	return cloned
 }
 
@@ -102,6 +111,7 @@ func ResolveEffectiveConfig(
 		ReattemptStrategy: ReattemptFailedOnly,
 		EnabledChecks:     cloneRawMessage(emptyChecksJSON),
 		BudgetOnExceeded:  dsl.BudgetExceededHalt,
+		Lifecycle:         DefaultLifecycleConfig(),
 	}
 	mergeConfigLayer(&effective, definitionConfigLayer(resolved.Definition))
 	mergeConfigLayer(&effective, defaults.forDefinition(resolved.Definition))
@@ -207,6 +217,9 @@ func mergeConfigLayer(effective *EffectiveConfig, layer LoopConfig) {
 	if layer.GateMaxRevisions != nil {
 		effective.GateMaxRevisions = *layer.GateMaxRevisions
 	}
+	if layer.Lifecycle != nil {
+		mergeLifecycleLayer(&effective.Lifecycle, *layer.Lifecycle)
+	}
 	mergeRuntimeConfigLayer(effective, layer)
 }
 
@@ -225,7 +238,39 @@ func validateEffectiveConfig(cfg EffectiveConfig) error {
 	if !json.Valid(cfg.EnabledChecks) {
 		return fmt.Errorf("%w: enabled_checks_json must be valid JSON", ErrValidation)
 	}
+	if _, err := ResolveNodeLifecycleConfig(dsl.Node{}, nil, cfg.Lifecycle); err != nil {
+		return err
+	}
 	return nil
+}
+
+func mergeLifecycleLayer(target *LifecycleConfig, layer LifecycleConfig) {
+	mergeLifecycleInt(&target.RetryMaxAttempts, layer.RetryMaxAttempts)
+	mergeLifecycleDuration(&target.RetryBackoffBase, layer.RetryBackoffBase)
+	mergeLifecycleDuration(&target.RetryBackoffMax, layer.RetryBackoffMax)
+	mergeLifecycleDuration(&target.LivenessSilenceWindow, layer.LivenessSilenceWindow)
+	mergeLifecycleInt(&target.ResumeDeathStreakLimit, layer.ResumeDeathStreakLimit)
+	if layer.PredicateCostLimit != nil {
+		target.PredicateCostLimit = new(*layer.PredicateCostLimit)
+	}
+	mergeLifecycleInt(&target.WaitAdmissionAttempts, layer.WaitAdmissionAttempts)
+	mergeLifecycleDuration(&target.WaitAdmissionInterval, layer.WaitAdmissionInterval)
+	mergeLifecycleDuration(&target.AdmissionHorizon, layer.AdmissionHorizon)
+	if len(layer.Autopause) > 0 {
+		target.Autopause = append(target.Autopause, layer.Autopause...)
+	}
+}
+
+func mergeLifecycleInt(target **int, value *int) {
+	if value != nil {
+		*target = new(*value)
+	}
+}
+
+func mergeLifecycleDuration(target **time.Duration, value *time.Duration) {
+	if value != nil {
+		*target = new(*value)
+	}
 }
 
 // DeriveDisplayCost derives a display-only cost value from token count and price.

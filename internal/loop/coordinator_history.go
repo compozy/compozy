@@ -10,6 +10,18 @@ import (
 type coordinatorGenerationHistoryReader struct {
 	outputs  GenerationOutputReader
 	verdicts gate.VerdictReader
+	attempts NodeAttemptReader
+}
+
+func (r coordinatorGenerationHistoryReader) ListNodeAttempts(
+	ctx context.Context,
+	workspaceID WorkspaceID,
+	runID RunID,
+) ([]NodeAttempt, error) {
+	if r.attempts == nil {
+		return nil, nil
+	}
+	return r.attempts.ListNodeAttempts(ctx, workspaceID, runID)
 }
 
 func (r coordinatorGenerationHistoryReader) ListGenerationOutputs(
@@ -59,7 +71,7 @@ func (r *CoordinatorRunner) readGenerationHistory(
 	}
 	return ReadGenerationHistory(
 		ctx,
-		coordinatorGenerationHistoryReader{outputs: r.outputs, verdicts: r.verdicts},
+		coordinatorGenerationHistoryReader{outputs: r.outputs, verdicts: r.verdicts, attempts: r.attempts},
 		run,
 		generation,
 	)

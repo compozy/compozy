@@ -21,5 +21,10 @@ func (d *Daemon) bootDeadEntityRegistry(state *bootState) error {
 		deadentity.WithLogger(state.logger),
 		deadentity.WithEventStore(state.registry),
 	)
+	loopTargets, err := d.newLoopTargetHealthService(state, state.cfg.Loops.Breaker)
+	if err != nil {
+		return err
+	}
+	state.loopTargetHealth = &loopTargetHealthSlot{service: loopTargets}
 	return nil
 }

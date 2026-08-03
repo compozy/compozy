@@ -36,7 +36,7 @@ func TestGlobalDBReactivateGoalRunShouldEnqueueOneEpochScopedSuccessor(t *testin
 		}
 		initialRunID := looppkg.GoalSegmentRunID(loopRun.ID, 1, "converge", 0, 1)
 		metadata := json.RawMessage(
-			`{"generation":1,"node_id":"converge","item_index":0,"goal_segment_epoch":1}`,
+			`{"generation":1,"node_id":"converge","item_index":0,"attempt":1,"epoch":0,"goal_segment_epoch":1}`,
 		)
 		reservation := queuedRunReservationForTest(
 			taskRecord.ID,

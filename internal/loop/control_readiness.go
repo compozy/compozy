@@ -1,6 +1,8 @@
 package loop
 
 import (
+	"time"
+
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/task"
@@ -193,6 +195,7 @@ func appendReadyNodeRunsControlAware(
 	topology controlTopology,
 	gatesEnabled bool,
 	outputs []GenerationOutput,
+	scheduledAt time.Time,
 ) error {
 	indexes := generationOutputIndexMap(outputs)
 	for _, output := range sortedGenerationOutputs(outputs) {
@@ -213,8 +216,12 @@ func appendReadyNodeRunsControlAware(
 		if err != nil {
 			return err
 		}
-		runID := coordinatorNodeRunID(run.ID, generation, node.ID, output.ItemIndex)
-		idempotencyKey := coordinatorNodeIdempotencyKey(run.ID, generation, node.ID, output.ItemIndex)
+		runID := coordinatorNodeAttemptRunID(
+			run.ID, generation, node.ID, output.ItemIndex, output.Attempt,
+		)
+		idempotencyKey := coordinatorNodeAttemptIdempotencyKey(
+			run.ID, generation, node.ID, output.ItemIndex, output.Attempt,
+		)
 		if dsl.ActionKind(node.Kind) == dsl.ActionGoal {
 			runID = GoalSegmentRunID(run.ID, generation, node.ID, output.ItemIndex, initialGoalSegmentEpoch)
 			idempotencyKey = GoalSegmentIdempotencyKey(
@@ -227,6 +234,10 @@ func appendReadyNodeRunsControlAware(
 		}
 		output.Status = generationOutputEnqueued
 		output.TaskRunID = runID
+		if output.FirstScheduledAt == nil {
+			firstScheduledAt := scheduledAt.UTC()
+			output.FirstScheduledAt = &firstScheduledAt
+		}
 		key := generationOutputKey{nodeID: output.NodeID, itemIndex: output.ItemIndex}
 		if idx, exists := indexes[key]; exists {
 			outputs[idx] = output

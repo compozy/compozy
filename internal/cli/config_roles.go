@@ -20,6 +20,8 @@ func configSetKindFromToolKind(kind compozyconfig.ValueKind) configSetValueKind 
 		return configSetInt
 	case compozyconfig.ConfigValueInt64:
 		return configSetInt64
+	case compozyconfig.ConfigValueUint64:
+		return configSetUint64
 	case compozyconfig.ConfigValueFloat:
 		return configSetFloat
 	case compozyconfig.ConfigValueDuration:

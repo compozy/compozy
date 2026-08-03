@@ -169,6 +169,58 @@ func TestServicePermanentFailureRecovery(t *testing.T) {
 			t.Fatalf("BeforeProbe(at persisted interval) = %#v, want due recovery", decision)
 		}
 	})
+
+	t.Run("Should retain an open Loop target but reset its pre-threshold streak after restart", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		clock := newDeadEntityTestClock()
+		deadStore := newRecordingDeadEntityStore()
+		key := loopTargetTestKey("ws-loop-restart", "toolcall:compozy__search")
+		first := New(
+			deadStore,
+			WithClock(clock.Now),
+			WithPermanentFailureThreshold(2),
+			WithRecoveryInterval(time.Minute),
+		)
+		if err := first.RecordFailure(ctx, key, FailurePermanent, "transport failure"); err != nil {
+			t.Fatalf("RecordFailure(first process) error = %v", err)
+		}
+
+		restarted := New(
+			deadStore,
+			WithClock(clock.Now),
+			WithPermanentFailureThreshold(2),
+			WithRecoveryInterval(time.Minute),
+		)
+		if err := restarted.RecordFailure(ctx, key, FailurePermanent, "transport failure"); err != nil {
+			t.Fatalf("RecordFailure(after restart) error = %v", err)
+		}
+		if status, err := restarted.Status(ctx, key); err != nil || status.Dead {
+			t.Fatalf("Status(after one restarted failure) = %#v, %v; want live", status, err)
+		}
+		if err := restarted.RecordFailure(ctx, key, FailurePermanent, "transport failure"); err != nil {
+			t.Fatalf("RecordFailure(restarted threshold) error = %v", err)
+		}
+
+		reopened := New(
+			deadStore,
+			WithClock(clock.Now),
+			WithPermanentFailureThreshold(2),
+			WithRecoveryInterval(time.Minute),
+		)
+		if status, err := reopened.Status(ctx, key); err != nil || !status.Dead {
+			t.Fatalf("Status(durable open after restart) = %#v, %v; want dead", status, err)
+		}
+		if decision, err := reopened.BeforeProbe(ctx, key); err != nil || decision.Allowed {
+			t.Fatalf("BeforeProbe(before interval) = %#v, %v; want suppressed", decision, err)
+		}
+		clock.Advance(time.Minute)
+		if decision, err := reopened.BeforeProbe(ctx, key); err != nil ||
+			!decision.Allowed || !decision.Recovery || !decision.Dead {
+			t.Fatalf("BeforeProbe(after interval) = %#v, %v; want half-open recovery", decision, err)
+		}
+	})
 }
 
 func assertDeadEntityTransitionSummary(
@@ -274,6 +326,39 @@ func TestServiceFailureClassificationAndIsolation(t *testing.T) {
 		}
 		if !decisionB.Allowed || decisionB.Dead {
 			t.Fatalf("BeforeProbe(workspace B) = %#v, want independent live entity", decisionB)
+		}
+	})
+
+	t.Run("Should isolate the Loop target policy from the shared runtime policy", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		deadStore := newRecordingDeadEntityStore()
+		shared := New(deadStore)
+		loopTargets := New(deadStore, WithPermanentFailureThreshold(2))
+		sharedKey := deadEntityTestKey("ws-policy-isolation")
+		loopKey := loopTargetTestKey("ws-policy-isolation", "run-agent:reviewer")
+		for range 2 {
+			if err := shared.RecordFailure(ctx, sharedKey, FailurePermanent, "runtime failure"); err != nil {
+				t.Fatalf("shared RecordFailure() error = %v", err)
+			}
+			if err := loopTargets.RecordFailure(ctx, loopKey, FailurePermanent, "transport failure"); err != nil {
+				t.Fatalf("loop RecordFailure() error = %v", err)
+			}
+		}
+		sharedDecision, err := shared.BeforeProbe(ctx, sharedKey)
+		if err != nil {
+			t.Fatalf("shared BeforeProbe() error = %v", err)
+		}
+		loopDecision, err := loopTargets.BeforeProbe(ctx, loopKey)
+		if err != nil {
+			t.Fatalf("loop BeforeProbe() error = %v", err)
+		}
+		if !sharedDecision.Allowed || sharedDecision.Dead {
+			t.Fatalf("shared decision = %#v, want default policy still live", sharedDecision)
+		}
+		if loopDecision.Allowed || !loopDecision.Dead {
+			t.Fatalf("loop decision = %#v, want separately configured target open", loopDecision)
 		}
 	})
 }
@@ -488,5 +573,13 @@ func deadEntityTestKey(workspaceID string) store.DeadEntityKey {
 		WorkspaceID: workspaceID,
 		Kind:        store.DeadEntityKindMCPSidecar,
 		EntityID:    "github",
+	}
+}
+
+func loopTargetTestKey(workspaceID, entityID string) store.DeadEntityKey {
+	return store.DeadEntityKey{
+		WorkspaceID: workspaceID,
+		Kind:        store.DeadEntityKindLoopTarget,
+		EntityID:    entityID,
 	}
 }

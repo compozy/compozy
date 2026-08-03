@@ -44,6 +44,8 @@ type shutdownTargets struct {
 	loopsDone           chan struct{}
 	goalOutboxCancel    context.CancelFunc
 	goalOutboxDone      chan struct{}
+	effectRelayCancel   context.CancelFunc
+	effectRelayDone     chan struct{}
 	retention           observerRetentionStopper
 	windowManagerStore  *clientstate.Engine
 	windowManager       *windowmanager.Manager
@@ -86,6 +88,8 @@ func (d *Daemon) detachShutdownTargets() shutdownTargets {
 		loopsDone:           d.loopsDone,
 		goalOutboxCancel:    d.goalOutboxCancel,
 		goalOutboxDone:      d.goalOutboxDone,
+		effectRelayCancel:   d.effectRelayCancel,
+		effectRelayDone:     d.effectRelayDone,
 		windowManagerStore:  d.windowManagerStore,
 		windowManager:       d.windowManager,
 	}
@@ -138,6 +142,8 @@ func (d *Daemon) resetRuntimeStateLocked() {
 	d.loopsDone = nil
 	d.goalOutboxCancel = nil
 	d.goalOutboxDone = nil
+	d.effectRelayCancel = nil
+	d.effectRelayDone = nil
 	d.bridges = nil
 	d.network = nil
 	d.networkWakeRunner = nil

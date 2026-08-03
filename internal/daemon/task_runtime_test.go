@@ -151,6 +151,55 @@ func TestLoopActionRuntimeEnforcesActionLiveness(t *testing.T) {
 		assertLoopActionLivenessFailure(t, manager, err, loopActionReasonNodeTimeout, 17)
 	})
 
+	t.Run("Should not ask for an authored reason when using the default timeout", func(t *testing.T) {
+		t.Parallel()
+
+		manager, taskRecord, run := newLoopActionLivenessTestFixture()
+		runner := &loopActionLivenessTestRunner{reason: string(looppkg.FailureBudgetExhausted)}
+		runtime, err := newLoopActionRuntime(
+			manager,
+			&loopActionCapacityTestStore{taskRecord: taskRecord, run: run},
+			runner,
+			nil,
+			discardLogger(),
+			nil,
+			40*time.Millisecond,
+		)
+		if err != nil {
+			t.Fatalf("newLoopActionRuntime() error = %v", err)
+		}
+		runtime.livenessPollInterval = func(time.Duration) time.Duration { return time.Second }
+
+		err = runtime.executeQueuedRun(context.Background(), taskRecord, run, loopActionRuntimeReasonEnqueued)
+		assertLoopActionLivenessFailure(t, manager, err, loopActionReasonNodeTimeout, 0)
+		if calls := runner.reasonCalls.Load(); calls != 0 {
+			t.Fatalf("ActionRunTimeoutReason() calls = %d, want 0 for default timeout", calls)
+		}
+	})
+
+	t.Run("Should let an authored timeout win over the generic no-progress watchdog", func(t *testing.T) {
+		t.Parallel()
+
+		manager, taskRecord, run := newLoopActionLivenessTestFixture()
+		runner := &loopActionLivenessTestRunner{timeout: 40 * time.Millisecond, hasTimeout: true}
+		runtime, err := newLoopActionRuntime(
+			manager,
+			&loopActionCapacityTestStore{taskRecord: taskRecord, run: run},
+			runner,
+			nil,
+			discardLogger(),
+			nil,
+			200*time.Millisecond,
+		)
+		if err != nil {
+			t.Fatalf("newLoopActionRuntime() error = %v", err)
+		}
+		runtime.livenessPollInterval = func(time.Duration) time.Duration { return time.Millisecond }
+
+		err = runtime.executeQueuedRun(context.Background(), taskRecord, run, loopActionRuntimeReasonEnqueued)
+		assertLoopActionLivenessFailure(t, manager, err, loopActionReasonNodeTimeout, 0)
+	})
+
 	t.Run("Should fail on no progress even while lease heartbeats succeed", func(t *testing.T) {
 		t.Parallel()
 
@@ -384,10 +433,20 @@ func (m *loopActionLivenessTestManager) FailRunLease(
 }
 
 type loopActionLivenessTestRunner struct {
-	timeout    time.Duration
-	hasTimeout bool
-	timeoutErr error
-	tokensUsed int64
+	timeout     time.Duration
+	hasTimeout  bool
+	timeoutErr  error
+	reason      string
+	reasonCalls atomic.Int64
+	tokensUsed  int64
+}
+
+func (r *loopActionLivenessTestRunner) ActionRunTimeoutReason(
+	context.Context,
+	taskpkg.Run,
+) (string, error) {
+	r.reasonCalls.Add(1)
+	return r.reason, nil
 }
 
 func (r *loopActionLivenessTestRunner) ExecuteActionRun(

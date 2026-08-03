@@ -2,6 +2,7 @@ package loop
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
@@ -10,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/deadentity"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/loop/dsl/refs"
@@ -502,6 +504,70 @@ func TestCoordinatorRunnerShouldYieldWhenGenerationStillHasLiveNode(t *testing.T
 				len(plan.NodeRuns),
 				plan.Terminal,
 			)
+		}
+	})
+}
+
+func TestCoordinatorRunnerShouldKeepHealthyLaneRunningWhenTargetIsUnavailable(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should yield instead of terminalizing while an independent lane is live", func(t *testing.T) {
+		t.Parallel()
+
+		loopRun := Run{
+			ID: "looprun-target-unavailable-live", WorkspaceID: "ws-1", LoopName: "delivery",
+			Status: StatusRunning, Generation: 1,
+		}
+		coordinatorRun := task.Run{
+			ID: "run-coordinator-target-unavailable-live", TaskID: "task-coordinator-target-unavailable-live",
+			RunKind: task.RunKindCoordinator, LoopRunID: string(loopRun.ID), Status: task.TaskRunStatusClaimed,
+		}
+		healthyRun := task.Run{
+			ID:      coordinatorNodeRunID(loopRun.ID, 1, "healthy", 0),
+			TaskID:  coordinatorNodeTaskID(loopRun.ID, 1, "healthy", 0),
+			RunKind: task.RunKindWorker, LoopRunID: string(loopRun.ID), Status: task.TaskRunStatusRunning,
+		}
+		failureRef, ok := ActionFailureOutputRef(NewActionFailure(
+			targetUnavailableReasonCode,
+			"target health breaker is open",
+			"repair the target and requeue the node",
+		))
+		if !ok {
+			t.Fatal("ActionFailureOutputRef() = false")
+		}
+		graph := dsl.Graph{Nodes: []dsl.Node{
+			{ID: "sick", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform)},
+			{ID: "healthy", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform)},
+		}}
+		runner := newCoordinatorRunnerForTestWithGraph(
+			t,
+			loopRun,
+			coordinatorRun,
+			map[string]task.Run{coordinatorRun.ID: coordinatorRun, healthyRun.ID: healthyRun},
+			coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: {
+				{Generation: 1, NodeID: "sick", Status: generationOutputFailed, OutputRef: failureRef},
+				{
+					Generation: 1, NodeID: "healthy", Status: generationOutputEnqueued,
+					TaskRunID: healthyRun.ID,
+				},
+			}}},
+			graph,
+		)
+
+		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		if err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+		if plan.Terminal != nil || !plan.GenerationInFlight || !plan.Yield {
+			t.Fatalf(
+				"plan terminal/in-flight/yield = %#v/%t/%t, want nil/true/true",
+				plan.Terminal,
+				plan.GenerationInFlight,
+				plan.Yield,
+			)
+		}
+		if len(plan.NodeRuns) != 0 || plan.NextCoordinator != nil {
+			t.Fatalf("plan scheduled work while healthy lane runs: %#v", plan)
 		}
 	})
 }
@@ -2360,10 +2426,13 @@ func TestCoordinatorRunnerShouldResetStallWhenBlockingIssueSignatureChanges(t *t
 	})
 }
 
-func TestCoordinatorRunnerShouldTripCircuitBreakerAsStalled(t *testing.T) {
-	t.Run("Should preserve a failing node streak across sibling success", func(t *testing.T) {
+func TestCoordinatorRunnerShouldIsolateRepeatedFailures(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should quarantine a repeated failing node while preserving its healthy sibling", func(t *testing.T) {
 		t.Parallel()
 
+		now := time.Date(2026, time.August, 2, 12, 0, 0, 0, time.UTC)
 		loopRun := Run{
 			ID:          "looprun-circuit-breaker",
 			WorkspaceID: "ws-1",
@@ -2382,12 +2451,9 @@ func TestCoordinatorRunnerShouldTripCircuitBreakerAsStalled(t *testing.T) {
 			{ID: "a_failing", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform)},
 			{ID: "z_healthy", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform)},
 		}}
-		runner := newCoordinatorRunnerForTestWithDefinition(
-			t,
-			loopRun,
-			coordinatorRun,
-			nil,
-			coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{
+		failureClass := FailureTransport
+		outputs := &lifecycleCoordinatorStore{
+			coordinatorRunnerOutputs: coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{
 				1: {
 					{Generation: 1, NodeID: "a_failing", Status: generationOutputFailed},
 					{Generation: 1, NodeID: "z_healthy", Status: generationOutputSucceeded},
@@ -2397,14 +2463,55 @@ func TestCoordinatorRunnerShouldTripCircuitBreakerAsStalled(t *testing.T) {
 					{Generation: 2, NodeID: "z_healthy", Status: generationOutputSucceeded},
 				},
 			}},
+			attempts: []NodeAttempt{
+				{
+					LoopRunID: loopRun.ID, Generation: 1, NodeID: "a_failing", ItemIndex: 0,
+					Attempt: 1, FailureClass: &failureClass, FailureCode: "provider_unavailable",
+					Cause: "provider unavailable", Target: "transform:a_failing",
+					Disposition: AttemptEscalated, StartedAt: now.Add(-2 * time.Minute),
+				},
+				{
+					LoopRunID: loopRun.ID, Generation: 2, NodeID: "a_failing", ItemIndex: 0,
+					Attempt: 1, FailureClass: &failureClass, FailureCode: "provider_unavailable",
+					Cause: "provider unavailable", Target: "transform:a_failing",
+					Disposition: AttemptEscalated, StartedAt: now.Add(-time.Minute),
+				},
+			},
+		}
+		runner := newCoordinatorRunnerForTestWithDefinition(
+			t,
+			loopRun,
+			coordinatorRun,
+			nil,
+			outputs,
 			dsl.Definition{Graph: graph},
+			WithCoordinatorNodeAttemptReader(outputs),
 		)
+		runner.now = func() time.Time { return now }
 
 		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
-		assertCircuitBreakerTerminal(t, plan.Terminal)
+		if plan.Terminal != nil || plan.NextCoordinator == nil || plan.PostReserveSnapshot == nil {
+			t.Fatalf("plan = %#v, want non-terminal quarantine succession", plan)
+		}
+		payload := coordinatorSnapshotPayloadForTest(t, plan)
+		if got, want := len(payload.Controls), 1; got != want ||
+			payload.Controls[0].Kind != NodeControlMutationQuarantine {
+			t.Fatalf("control intents = %#v, want one quarantine", payload.Controls)
+		}
+		if got, want := len(payload.Events), 1; got != want ||
+			payload.Events[0].Kind != GenerationLifecycleEventNodeQuarantined {
+			t.Fatalf("events = %#v, want node_quarantined", payload.Events)
+		}
+		next := outputsByNodeAndItemForTest(coordinatorPostReservePayloadForTest(t, plan).Outputs)
+		if got := next["a_failing/0"]; got.Status != generationOutputQuarantined {
+			t.Fatalf("quarantined output = %#v", got)
+		}
+		if got := next["z_healthy/0"]; got.Status != generationOutputSucceeded {
+			t.Fatalf("healthy output = %#v", got)
+		}
 	})
 
 	t.Run("Should backstop an unbounded watch after consecutive failed generations", func(t *testing.T) {
@@ -2486,6 +2593,174 @@ func TestCoordinatorRunnerShouldTripCircuitBreakerAsStalled(t *testing.T) {
 		}
 		if plan.Terminal != nil && plan.Terminal.ReasonCode == circuitBreakerReasonCode {
 			t.Fatalf("Terminal = %#v, want no circuit breaker", plan.Terminal)
+		}
+	})
+}
+
+func TestCoordinatorRunnerShouldPlanRequeueThroughSuccession(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.August, 2, 12, 30, 0, 0, time.UTC)
+	loopRun := Run{
+		ID:           "looprun-requeue-succession",
+		WorkspaceID:  "ws-1",
+		LoopName:     "delivery",
+		Status:       StatusRunning,
+		Generation:   2,
+		IterationCap: 7,
+		Origin:       &RunOrigin{Kind: RunOriginCatalog},
+	}
+	coordinatorRun := controlCoordinatorRun(loopRun, 2)
+	entry, err := encodeQuarantineEntry(QuarantineEntry{
+		NodeID:   "finish",
+		InputRef: "loop-run:looprun-requeue-succession:node:finish:input",
+		Episodes: []QuarantineEpisode{{Generation: 2, QuarantinedAt: now}},
+		Requeues: []QuarantineProvenance{{
+			ActorKind: "human", ActorID: "operator:alice", RequestedAt: now, Generation: 3,
+		}},
+	})
+	if err != nil {
+		t.Fatalf("encodeQuarantineEntry() error = %v", err)
+	}
+	controls := coordinatorNodeControlReaderStub{controls: []NodeControl{{
+		LoopRunID: loopRun.ID, NodeID: "finish", Quarantined: false,
+		QuarantineEntry: entry, Revision: 5, UpdatedAt: now,
+	}}}
+	graph := dsl.Graph{Nodes: []dsl.Node{{
+		ID: "finish", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent),
+		Params: dsl.NodeParams{"agent": "planner", "prompt": "finish the repair"},
+	}}}
+	runner := newCoordinatorRunnerForTestWithDefinition(
+		t,
+		loopRun,
+		coordinatorRun,
+		nil,
+		coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{2: {{
+			Generation: 2, NodeID: "finish", Status: generationOutputQuarantined, Attempt: 1, Epoch: 10,
+		}}}},
+		dsl.Definition{Graph: graph},
+		WithCoordinatorNodeControlReader(controls),
+	)
+	runner.now = func() time.Time { return now }
+
+	plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if plan.Terminal != nil || plan.NextCoordinator == nil || plan.PostReserveSnapshot == nil {
+		t.Fatalf("plan = %#v, want non-terminal requeue succession", plan)
+	}
+	payload := coordinatorPostReservePayloadForTest(t, plan)
+	if payload.GenerationProvenance == nil || payload.GenerationProvenance.Origin != OriginRequeue ||
+		payload.GenerationProvenance.Generation != 3 || payload.GenerationProvenance.ParentGeneration != 2 {
+		t.Fatalf("generation provenance = %#v, want requeue 2 -> 3", payload.GenerationProvenance)
+	}
+	if len(payload.Outputs) != 1 || payload.Outputs[0].Status != generationOutputPending ||
+		payload.Outputs[0].Generation != 3 {
+		t.Fatalf("requeue outputs = %#v, want pending generation 3", payload.Outputs)
+	}
+
+	health := newRecordingTargetHealth()
+	health.decision = deadentity.ProbeDecision{
+		Allowed: false,
+		Dead:    true,
+		Reason:  "target remains unavailable after repair",
+	}
+	actions, err := NewActionRegistry(&internalActionRegistryFake{})
+	if err != nil {
+		t.Fatalf("NewActionRegistry() error = %v", err)
+	}
+	runAfterRequeue := loopRun
+	runAfterRequeue.Generation = 3
+	coordinatorAfterRequeue := controlCoordinatorRun(runAfterRequeue, 3)
+	runnerAfterRequeue := newCoordinatorRunnerForTestWithDefinition(
+		t,
+		runAfterRequeue,
+		coordinatorAfterRequeue,
+		nil,
+		coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{3: payload.Outputs}},
+		dsl.Definition{Graph: graph},
+		WithCoordinatorNodeControlReader(controls),
+		WithCoordinatorActionRegistry(actions),
+		WithCoordinatorTargetHealth(health),
+	)
+	readyPlan, err := runnerAfterRequeue.Run(
+		context.Background(), task.RunID(coordinatorAfterRequeue.ID),
+	)
+	if err != nil {
+		t.Fatalf("Run(after requeue) error = %v", err)
+	}
+	if len(readyPlan.NodeRuns) != 1 {
+		t.Fatalf("requeue node runs = %#v, want one admitted attempt", readyPlan.NodeRuns)
+	}
+	workerSpec := readyPlan.NodeRuns[0]
+	workerRun := task.Run{
+		ID: workerSpec.RunID, TaskID: workerSpec.TaskID, RunKind: task.RunKindWorker,
+		LoopRunID: string(runAfterRequeue.ID), Status: task.TaskRunStatusClaimed, Metadata: workerSpec.Metadata,
+	}
+	_, err = runnerAfterRequeue.ExecuteActionRun(context.Background(), workerRun, task.ActorContext{})
+	var safeFailure SafeActionFailureProvider
+	if !errors.As(err, &safeFailure) || safeFailure.SafeActionFailure().Code != targetUnavailableReasonCode {
+		t.Fatalf("ExecuteActionRun(requeued) error = %v, want target_unavailable", err)
+	}
+	if got := health.probedKeys(); len(got) != 1 || got[0].EntityID != "run-agent:planner" {
+		t.Fatalf("requeue probe keys = %#v, want run-agent:planner", got)
+	}
+}
+
+func TestCoordinatorRunnerShouldPlanEveryPendingRequeueInOneGeneration(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should place every pending requeue in one successor generation", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, time.August, 2, 13, 0, 0, 0, time.UTC)
+		run := Run{
+			ID: "looprun-multi-requeue", WorkspaceID: "ws-1", LoopName: "delivery",
+			Status: StatusRunning, Generation: 2, IterationCap: 7,
+		}
+		entryFor := func(nodeID NodeID) json.RawMessage {
+			entry, err := encodeQuarantineEntry(QuarantineEntry{
+				NodeID: nodeID, InputRef: "loop-run:looprun-multi-requeue:node:" + string(nodeID) + ":input",
+				Episodes: []QuarantineEpisode{{Generation: 2, QuarantinedAt: now}},
+				Requeues: []QuarantineProvenance{{
+					ActorKind: "human", ActorID: "operator:alice", RequestedAt: now, Generation: 3,
+				}},
+			})
+			if err != nil {
+				t.Fatalf("encodeQuarantineEntry(%s) error = %v", nodeID, err)
+			}
+			return entry
+		}
+		controls := coordinatorNodeControlReaderStub{controls: []NodeControl{
+			{LoopRunID: run.ID, NodeID: "first", QuarantineEntry: entryFor("first")},
+			{LoopRunID: run.ID, NodeID: "second", QuarantineEntry: entryFor("second")},
+		}}
+		graph := dsl.Graph{Nodes: []dsl.Node{
+			{ID: "first", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform)},
+			{ID: "second", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform)},
+		}}
+		current := []GenerationOutput{
+			{Generation: 2, NodeID: "first", Status: generationOutputQuarantined, Attempt: 1, Epoch: 2},
+			{Generation: 2, NodeID: "second", Status: generationOutputQuarantined, Attempt: 1, Epoch: 3},
+		}
+		runner := &CoordinatorRunner{controls: controls}
+		plan, found, err := runner.buildPendingRequeuePlan(
+			t.Context(), controlCoordinatorRun(run, 2), run, graph, current,
+		)
+		if err != nil {
+			t.Fatalf("buildPendingRequeuePlan() error = %v", err)
+		}
+		if !found || plan.PostReserveSnapshot == nil {
+			t.Fatalf("requeue plan = %#v found=%v, want one successor snapshot", plan, found)
+		}
+		payload := coordinatorPostReservePayloadForTest(t, plan)
+		outputs := outputsByNodeAndItemForTest(payload.Outputs)
+		for _, nodeID := range []string{"first", "second"} {
+			output := outputs[nodeID+"/0"]
+			if output.Generation != 3 || output.Status != generationOutputPending {
+				t.Fatalf("requeued output %s = %#v, want pending generation 3", nodeID, output)
+			}
 		}
 	})
 }
@@ -3314,6 +3589,18 @@ func (r *coordinatorRunnerTaskRunReader) GetTaskRun(
 
 type coordinatorRunnerOutputs struct {
 	outputs map[int][]GenerationOutput
+}
+
+type coordinatorNodeControlReaderStub struct {
+	controls []NodeControl
+}
+
+func (s coordinatorNodeControlReaderStub) ListNodeControls(
+	context.Context,
+	WorkspaceID,
+	RunID,
+) ([]NodeControl, error) {
+	return append([]NodeControl(nil), s.controls...), nil
 }
 
 func (r coordinatorRunnerOutputs) ListGateVerdicts(

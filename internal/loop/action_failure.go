@@ -3,9 +3,15 @@ package loop
 import (
 	"encoding/json"
 	"strings"
+
+	"github.com/compozy/compozy/internal/diagnostics"
 )
 
-const actionFailureKind = "action_failure"
+const (
+	actionFailureKind      = "action_failure"
+	actionFailureCodeLimit = 256
+	actionFailureTextLimit = 2 * 1024
+)
 
 // ActionFailure is the durable operator-safe failure payload stored for a Loop action.
 type ActionFailure struct {
@@ -56,32 +62,53 @@ func newSafeActionFailureError(err error, failure ActionFailure) error {
 func NewActionFailure(code string, cause string, recovery string) ActionFailure {
 	return ActionFailure{
 		Kind:     actionFailureKind,
-		Code:     strings.TrimSpace(code),
-		Cause:    strings.TrimSpace(cause),
-		Recovery: strings.TrimSpace(recovery),
+		Code:     diagnostics.RedactAndBound(code, actionFailureCodeLimit),
+		Cause:    diagnostics.RedactAndBound(cause, actionFailureTextLimit),
+		Recovery: diagnostics.RedactAndBound(recovery, actionFailureTextLimit),
 	}
 }
 
 // ActionFailureOutputRefFromMetadata extracts a valid failure payload from task-run metadata.
 func ActionFailureOutputRefFromMetadata(raw json.RawMessage) (string, bool) {
-	if len(raw) == 0 {
+	failure, ok := ActionFailureFromMetadata(raw)
+	if !ok {
 		return "", false
+	}
+	return ActionFailureOutputRef(failure)
+}
+
+// ActionFailureFromMetadata extracts a validated operator-safe failure from task-run metadata.
+func ActionFailureFromMetadata(raw json.RawMessage) (ActionFailure, bool) {
+	if len(raw) == 0 {
+		return ActionFailure{}, false
 	}
 	var envelope struct {
 		Failure *ActionFailure `json:"failure"`
 	}
 	if err := json.Unmarshal(raw, &envelope); err != nil {
-		return "", false
+		return ActionFailure{}, false
 	}
 	if envelope.Failure == nil {
-		return "", false
+		return ActionFailure{}, false
 	}
 	failure := *envelope.Failure
 	failure.Kind = strings.TrimSpace(failure.Kind)
 	failure.Code = strings.TrimSpace(failure.Code)
 	failure.Cause = strings.TrimSpace(failure.Cause)
 	failure.Recovery = strings.TrimSpace(failure.Recovery)
-	if failure.Kind != actionFailureKind || failure.Code == "" || failure.Cause == "" || failure.Recovery == "" {
+	if failure.Kind != actionFailureKind || failure.Code == "" || failure.Cause == "" {
+		return ActionFailure{}, false
+	}
+	return failure, true
+}
+
+// ActionFailureOutputRef encodes a validated failure for a generation output cell.
+func ActionFailureOutputRef(failure ActionFailure) (string, bool) {
+	failure.Kind = strings.TrimSpace(failure.Kind)
+	failure.Code = strings.TrimSpace(failure.Code)
+	failure.Cause = strings.TrimSpace(failure.Cause)
+	failure.Recovery = strings.TrimSpace(failure.Recovery)
+	if failure.Kind != actionFailureKind || failure.Code == "" || failure.Cause == "" {
 		return "", false
 	}
 	payload, err := json.Marshal(failure)

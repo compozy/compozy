@@ -577,7 +577,7 @@ func newManagedLifecycleClaimStore() (*managedLifecycleClaimStore, session.Manag
 		taskRun: taskpkg.Run{
 			ID: owner.TaskRunID, LoopRunID: owner.LoopRunID,
 			Metadata: json.RawMessage(
-				`{"generation":1,"node_id":"converge","item_index":0,"goal_segment_epoch":2}`,
+				`{"generation":1,"node_id":"converge","item_index":0,"attempt":1,"epoch":0,"goal_segment_epoch":2}`,
 			),
 		},
 		run: looppkg.Run{ID: key.LoopRunID, WorkspaceID: key.WorkspaceID},

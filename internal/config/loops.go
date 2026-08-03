@@ -15,11 +15,17 @@ const (
 
 	loopDefaultsMaxFanoutWidth      = 64
 	loopDefaultsMaxNoProgressWindow = 30
+	loopDefaultRetryBackoffBase     = "1s"
+	loopDefaultRetryBackoffMax      = "30s"
+	loopDefaultSilenceWindow        = "30m"
+	loopDefaultAdmissionInterval    = "60s"
+	loopDefaultTombstoneHorizon     = "168h"
 )
 
 // LoopsConfig holds global and workspace defaults used to seed new loop runs.
 type LoopsConfig struct {
 	Defaults LoopsDefaultsConfig `toml:"defaults"`
+	Breaker  LoopBreakerConfig   `toml:"breaker"`
 	Inputs   LoopInputDefaults   `toml:"inputs,omitempty"`
 
 	inputSources LoopInputDefaultSources
@@ -33,7 +39,7 @@ type LoopInputDefaultSources map[string]map[string]string
 
 // InputDefaultLayers returns caller-owned global and workspace defaults for one Loop.
 // The source map is recorded while overlays are applied; origin is never inferred from values.
-func (c LoopsConfig) InputDefaultLayers(loopName string) (global map[string]any, workspace map[string]any) {
+func (c *LoopsConfig) InputDefaultLayers(loopName string) (global map[string]any, workspace map[string]any) {
 	name := strings.TrimSpace(loopName)
 	global = map[string]any{}
 	workspace = map[string]any{}
@@ -74,6 +80,13 @@ type LoopDefaultConfig struct {
 	RuntimeDefaults dsl.RuntimeDefaults         `toml:"runtime_defaults"`
 	RuntimeRules    []dsl.RuntimeRule           `toml:"runtime_rules"`
 	FanOutWidth     int                         `toml:"fan_out_width"`
+	Retry           LoopRetryDefaultConfig      `toml:"retry"`
+	Liveness        LoopLivenessDefaultConfig   `toml:"liveness"`
+	Resume          LoopResumeDefaultConfig     `toml:"resume"`
+	Predicates      LoopPredicateDefaultConfig  `toml:"predicates"`
+	Waits           LoopWaitDefaultConfig       `toml:"waits"`
+	Admission       LoopAdmissionDefaultConfig  `toml:"admission"`
+	Autopause       []LoopAutopauseRule         `toml:"autopause"`
 }
 
 // LoopNoProgressDefaultConfig controls generation-hash no-progress detection.
@@ -107,6 +120,20 @@ func DefaultLoopsConfig() LoopsConfig {
 					OnExceeded:   string(dsl.BudgetExceededHalt),
 				},
 				FanOutWidth: 4,
+				Retry: LoopRetryDefaultConfig{
+					MaxAttempts: 3,
+					BackoffBase: loopDefaultRetryBackoffBase,
+					BackoffMax:  loopDefaultRetryBackoffMax,
+				},
+				Liveness:   LoopLivenessDefaultConfig{SilenceWindow: loopDefaultSilenceWindow},
+				Resume:     LoopResumeDefaultConfig{DeathStreakLimit: 3},
+				Predicates: LoopPredicateDefaultConfig{CostLimit: 10000},
+				Waits: LoopWaitDefaultConfig{
+					AdmissionAttempts:      3,
+					AdmissionRetryInterval: loopDefaultAdmissionInterval,
+				},
+				Admission: LoopAdmissionDefaultConfig{TombstoneHorizon: loopDefaultTombstoneHorizon},
+				Autopause: []LoopAutopauseRule{},
 			},
 			Watch: LoopDefaultConfig{
 				IterationCap: 0,
@@ -117,18 +144,36 @@ func DefaultLoopsConfig() LoopsConfig {
 					OnExceeded:   string(dsl.BudgetExceededHalt),
 				},
 				FanOutWidth: 2,
+				Retry: LoopRetryDefaultConfig{
+					MaxAttempts: 3,
+					BackoffBase: loopDefaultRetryBackoffBase,
+					BackoffMax:  loopDefaultRetryBackoffMax,
+				},
+				Liveness:   LoopLivenessDefaultConfig{SilenceWindow: loopDefaultSilenceWindow},
+				Resume:     LoopResumeDefaultConfig{DeathStreakLimit: 3},
+				Predicates: LoopPredicateDefaultConfig{CostLimit: 10000},
+				Waits: LoopWaitDefaultConfig{
+					AdmissionAttempts:      3,
+					AdmissionRetryInterval: loopDefaultAdmissionInterval,
+				},
+				Admission: LoopAdmissionDefaultConfig{TombstoneHorizon: loopDefaultTombstoneHorizon},
+				Autopause: []LoopAutopauseRule{},
 			},
 		},
+		Breaker: LoopBreakerConfig{Threshold: 5, ProbeInterval: loopDefaultAdmissionInterval},
 	}
 }
 
 // Validate enforces write-time loop default bounds.
-func (c LoopsConfig) Validate() error {
-	return c.Defaults.Validate("loops.defaults")
+func (c *LoopsConfig) Validate() error {
+	if err := c.Defaults.Validate("loops.defaults"); err != nil {
+		return err
+	}
+	return c.Breaker.validate("loops.breaker")
 }
 
 // Validate enforces delivery and watch default bounds.
-func (c LoopsDefaultsConfig) Validate(path string) error {
+func (c *LoopsDefaultsConfig) Validate(path string) error {
 	if err := c.Delivery.Validate(path + ".delivery"); err != nil {
 		return err
 	}
@@ -160,7 +205,28 @@ func (c LoopDefaultConfig) Validate(path string) error {
 	if err := c.Budget.Validate(path + ".budget"); err != nil {
 		return err
 	}
-	return validateLoopDefaultMax(path+".fan_out_width", c.FanOutWidth, loopDefaultsMaxFanoutWidth)
+	if err := validateLoopDefaultMax(path+".fan_out_width", c.FanOutWidth, loopDefaultsMaxFanoutWidth); err != nil {
+		return err
+	}
+	if err := c.Retry.validate(path + ".retry"); err != nil {
+		return err
+	}
+	if err := c.Liveness.validate(path + ".liveness"); err != nil {
+		return err
+	}
+	if err := c.Resume.validate(path + ".resume"); err != nil {
+		return err
+	}
+	if err := c.Predicates.validate(path + ".predicates"); err != nil {
+		return err
+	}
+	if err := c.Waits.validate(path + ".waits"); err != nil {
+		return err
+	}
+	if err := c.Admission.validate(path + ".admission"); err != nil {
+		return err
+	}
+	return validateLoopAutopauseRules(path+".autopause", c.Autopause)
 }
 
 // Validate enforces SET budget semantics before config writes are persisted.
