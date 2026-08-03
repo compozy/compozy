@@ -299,6 +299,41 @@ func TestCoordinatorRunnerShouldApplyNodeFailurePrecedence(t *testing.T) {
 			t.Fatal("terminal task lookup failure retained target probe")
 		}
 	})
+
+	t.Run("Should not require generation history when target health is disabled", func(t *testing.T) {
+		t.Parallel()
+
+		const taskRunID = "taskrun-no-target-health"
+		firstScheduledAt := time.Date(2026, time.August, 3, 20, 30, 0, 0, time.UTC)
+		runner := &CoordinatorRunner{taskRuns: &coordinatorRunnerTaskRunReader{runs: map[string]task.Run{
+			taskRunID: {ID: taskRunID, Status: task.TaskRunStatusCompleted},
+		}}}
+		runner.now = func() time.Time { return firstScheduledAt }
+		graph := dsl.Graph{Nodes: []dsl.Node{{
+			ID: "work", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform),
+		}}}
+		result, err := runner.applyTerminalNodeLifecycle(
+			t.Context(),
+			Run{ID: "run-no-target-health", WorkspaceID: "ws-1"},
+			2,
+			EffectiveConfig{},
+			graph,
+			newControlTopology(graph),
+			[]GenerationOutput{{
+				Generation: 2, NodeID: "work", Status: generationOutputSucceeded,
+				TaskRunID: taskRunID, Attempt: 1, FirstScheduledAt: &firstScheduledAt,
+			}},
+			0,
+			nil,
+			GenerationHistory{},
+		)
+		if err != nil {
+			t.Fatalf("applyTerminalNodeLifecycle() error = %v", err)
+		}
+		if !result.handled || result.attempt.Disposition != AttemptSucceeded {
+			t.Fatalf("lifecycle result = %#v, want handled success without history", result)
+		}
+	})
 }
 
 const toolsUnavailableCodeForTest = "tool_unavailable"

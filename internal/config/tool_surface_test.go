@@ -1,6 +1,7 @@
 package config
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -685,9 +686,23 @@ func TestNormalizeToolConfigValue(t *testing.T) {
 		if uint64Value != uint64(18446744073709551615) {
 			t.Fatalf("NormalizeToolConfigValue(uint64) = %#v, want max uint64", uint64Value)
 		}
-		for _, invalid := range []any{"-1", "18446744073709551616", float64(1<<53) + 2} {
-			if _, err := NormalizeToolConfigValue(ConfigValueUint64, invalid); err == nil {
-				t.Fatalf("NormalizeToolConfigValue(uint64 %#v) error = nil, want non-nil", invalid)
+		invalidValues := []struct {
+			value       any
+			wantMessage string
+		}{
+			{value: "-1", wantMessage: `parse unsigned integer value "-1"`},
+			{value: "18446744073709551616", wantMessage: "value out of range"},
+			{value: float64(1<<53) + 2, wantMessage: "expected unsigned integer value"},
+		}
+		for _, invalid := range invalidValues {
+			if _, err := NormalizeToolConfigValue(ConfigValueUint64, invalid.value); err == nil ||
+				!strings.Contains(err.Error(), invalid.wantMessage) {
+				t.Fatalf(
+					"NormalizeToolConfigValue(uint64 %#v) error = %v, want message containing %q",
+					invalid.value,
+					err,
+					invalid.wantMessage,
+				)
 			}
 		}
 

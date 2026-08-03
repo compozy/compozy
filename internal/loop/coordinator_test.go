@@ -2709,6 +2709,8 @@ func TestCoordinatorRunnerShouldPlanRequeueThroughSuccession(t *testing.T) {
 }
 
 func TestCoordinatorRunnerShouldPlanEveryPendingRequeueInOneGeneration(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should place every pending requeue in one successor generation", func(t *testing.T) {
 		t.Parallel()
 

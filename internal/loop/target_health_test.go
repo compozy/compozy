@@ -177,6 +177,8 @@ func TestTargetHealthShouldRetainOnlyAllowedBoundProbes(t *testing.T) {
 }
 
 func TestTargetHealthShouldReuseRenderedIdentityWithoutProbeMemory(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should reconstruct the rendered target after probe memory is cleared", func(t *testing.T) {
 		t.Parallel()
 

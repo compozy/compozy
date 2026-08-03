@@ -89,20 +89,23 @@ func (r *CoordinatorRunner) applyTerminalNodeLifecycle(
 		return nodeLifecycleResult{}, nil
 	}
 	defer r.discardTargetProbe(output.TaskRunID)
-	namespace, err := runtimeNamespaceWithHistory(
-		run,
-		generation,
-		graph,
-		topology,
-		advanced,
-		history,
-		node.ID,
-		output.ItemIndex,
-	)
-	if err != nil {
-		return nodeLifecycleResult{}, err
+	targetInput := ActionExecutionInput{WorkspaceID: run.WorkspaceID}
+	if r.targetHealth != nil {
+		namespace, err := runtimeNamespaceWithHistory(
+			run,
+			generation,
+			graph,
+			topology,
+			advanced,
+			history,
+			node.ID,
+			output.ItemIndex,
+		)
+		if err != nil {
+			return nodeLifecycleResult{}, err
+		}
+		targetInput.Namespace = namespace
 	}
-	targetInput := ActionExecutionInput{WorkspaceID: run.WorkspaceID, Namespace: namespace}
 	taskRun, err := r.taskRuns.GetTaskRun(ctx, output.TaskRunID)
 	if err != nil {
 		return nodeLifecycleResult{}, fmt.Errorf(
