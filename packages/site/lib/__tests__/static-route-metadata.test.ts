@@ -32,9 +32,12 @@ describe("static public route metadata", () => {
 
     expect(metadata.title).toBe("Changelog");
     expect(metadata.description).toBe(
-      "Release notes, breaking changes, and verification receipts for CompozyOS."
+      "Complete GitHub release notes, pull requests, contributors, and assets for CompozyOS."
     );
     expect(metadata.alternates?.canonical).toBe("/changelog/");
+    expect(metadata.alternates?.types).toEqual({
+      "application/rss+xml": "/changelog/feed.xml",
+    });
     expect(metadata.openGraph?.title).toBe("Changelog");
     expect(metadata.openGraph?.description).toBe(metadata.description);
     expect(metadata.openGraph?.url).toBe("https://compozy.com/changelog/");

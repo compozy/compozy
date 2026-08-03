@@ -52,9 +52,7 @@ func (h *BaseHandlers) StreamWindowManager(c *gin.Context) {
 		},
 	)
 	if err != nil {
-		if clientID != nil &&
-			errors.Is(err, windowmanager.ErrClientNotFound) &&
-			websocket.IsWebSocketUpgrade(c.Request) {
+		if websocket.IsWebSocketUpgrade(c.Request) {
 			terminalErr := writeWindowManagerPreflightError(c, workspaceID, err)
 			if terminalErr != nil && h.Logger != nil {
 				h.Logger.Debug(

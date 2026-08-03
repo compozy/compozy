@@ -22,7 +22,6 @@
         "postinstall": "bash scripts/postinstall.sh",
         "prepare": "husky",
         "prs:scrape": "bun run scripts/scrape-prs.ts",
-        "release:site-changelog": "bun run packages/site/scripts/generate-changelog-release.ts",
         "test": "turbo run test",
         "test:cold": "turbo run test --force",
         "test:e2e": "make test-e2e",

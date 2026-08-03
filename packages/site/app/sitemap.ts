@@ -3,8 +3,9 @@ import { BLOG_CATEGORIES, allPosts } from "@/lib/blog";
 import { entriesForKind, MARKETPLACE_KINDS } from "@/lib/marketplace-catalog";
 import { docsSource } from "@/lib/source";
 import { absoluteUrl, canonicalPath } from "@/lib/site-config";
+import { loadChangelogReleases } from "@/lib/changelog/github-client";
 
-export const dynamic = "force-static";
+export const revalidate = 300;
 
 const LLM_DISCOVERY_PATHS = ["/llms.txt", "/llms-full.txt"] as const;
 
@@ -17,10 +18,15 @@ function pageEntry(path: string): MetadataRoute.Sitemap[number] {
   };
 }
 
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const docsPaths = docsSource.getPages().map(page => page.url);
   const blogPaths = allPosts().map(post => post.permalink);
   const categoryPaths = BLOG_CATEGORIES.map(category => `/blog/categories/${category}`);
+  const changelog = await loadChangelogReleases();
+  const releasePaths =
+    changelog.status === "ready"
+      ? changelog.releases.map(release => `/changelog/${encodeURIComponent(release.version)}`)
+      : [];
   const marketplacePaths = [
     "/marketplace",
     "/marketplace/bridges",
@@ -35,6 +41,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
       "/",
       "/blog",
       "/changelog",
+      "/changelog/feed.xml",
+      ...releasePaths,
       ...docsPaths,
       ...marketplacePaths,
       ...blogPaths,

@@ -318,8 +318,7 @@ jobs:
     # shapes exist: the PR title ("release: Release vX.Y.Z") and the branch
     # commit subject GitHub uses for single-commit squashes ("release:
     # prepare release vX.Y.Z" — how v0.3.0 merged as 7cf16a49). Other
-    # Other bot-generated subjects — e.g. the site changelog receipt the
-    # release job pushes — must stay inert or publishing loops.
+    # Other bot-generated subjects must stay inert or publishing loops.
     if: |
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'push' &&
@@ -745,37 +744,3 @@ jobs:
           }
           NODE
           done
-
-      # The receipt is generated from the REAL published tag (never the release
-      # PR's base version) so the site changelog only ever advertises releases
-      # that exist, with valid compare links. Legacy-line releases publish no
-      # receipt on the CompozyOS site.
-      - name: Publish site changelog receipt
-        if: needs.release-plan.outputs.release_channel != 'legacy'
-        env:
-          RELEASE_TAG: ${{ needs.release-plan.outputs.release_tag }}
-          RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
-          PR_RELEASE_PREVIOUS_TAG: ${{ needs.release-plan.outputs.release_previous_tag }}
-          PR_RELEASE_GIT_RANGE: ${{ needs.release-plan.outputs.release_git_range }}
-          PR_RELEASE_INITIAL: ${{ needs.release-plan.outputs.release_initial }}
-        run: |
-          set -euo pipefail
-          export PR_RELEASE_VERSION="${RELEASE_VERSION}"
-          bun run release:site-changelog
-          git add packages/site/content/blog/changelog
-          if git diff --cached --quiet; then
-            echo "site changelog receipt already present for ${RELEASE_TAG}"
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git commit -m "build: publish site changelog receipt ${RELEASE_TAG}"
-          for _ in 1 2 3; do
-            if git push origin "HEAD:refs/heads/main"; then
-              exit 0
-            fi
-            git fetch origin main
-            git rebase FETCH_HEAD
-          done
-          echo "::error::could not push the site changelog receipt for ${RELEASE_TAG}"
-          exit 1

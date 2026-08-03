@@ -6,26 +6,21 @@ import { BlogEmptyState } from "@/components/blog/empty-state";
 import { FeaturedPost } from "@/components/blog/featured-post";
 import { PostCard } from "@/components/blog/post-card";
 import { SubscribeRail } from "@/components/blog/subscribe-rail";
-import {
-  BLOG_CATEGORIES,
-  allPosts,
-  allReleases,
-  authorInitial,
-  categoryCounts,
-  featuredPost,
-} from "@/lib/blog";
+import { BLOG_CATEGORIES, allPosts, authorInitial, categoryCounts, featuredPost } from "@/lib/blog";
+import { loadChangelogReleases } from "@/lib/changelog/github-client";
 import { categoryLabel } from "@/components/blog/format";
 import { blogMetadata } from "./metadata";
 import { Eyebrow } from "@compozy/ui";
 
 export const metadata = blogMetadata;
 
-export default function BlogIndexPage() {
+export default async function BlogIndexPage() {
   const featured = featuredPost();
   const posts = allPosts();
   const grid = featured ? posts.filter(post => post.slug !== featured.slug) : posts;
   const counts = categoryCounts();
-  const releases = allReleases();
+  const changelog = await loadChangelogReleases();
+  const releases = changelog.status === "ready" ? changelog.releases : [];
 
   return (
     <>

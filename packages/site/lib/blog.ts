@@ -1,4 +1,4 @@
-import { authors, posts, releases, type Author, type Post, type Release } from "#site/content";
+import { authors, posts, type Author, type Post } from "#site/content";
 
 export const BLOG_CATEGORIES = ["protocol", "runtime", "engineering", "network"] as const;
 export type BlogCategory = (typeof BLOG_CATEGORIES)[number];
@@ -14,10 +14,6 @@ const FEATURED_COVER_BY_SLUG: Record<string, BlogCover> = {
 };
 
 const sortedPostsCache = posts.toSorted(
-  (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-);
-
-const sortedReleasesCache = releases.toSorted(
   (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
 );
 
@@ -92,8 +88,4 @@ export function authorInitial(handle: string): string {
   return handle.charAt(0).toUpperCase();
 }
 
-export function allReleases(): Release[] {
-  return sortedReleasesCache;
-}
-
-export type { Author, Post, Release };
+export type { Author, Post };

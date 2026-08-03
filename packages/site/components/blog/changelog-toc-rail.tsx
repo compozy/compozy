@@ -1,9 +1,9 @@
-import type { Release } from "#site/content";
+import type { ChangelogRelease } from "@/lib/changelog/types";
 import { cn, Eyebrow } from "@compozy/ui";
 import Link from "next/link";
 
 export interface ChangelogTocRailProps {
-  releases: Release[];
+  releases: ChangelogRelease[];
   activeVersion?: string;
 }
 
@@ -18,7 +18,7 @@ export function ChangelogTocRail({ releases, activeVersion }: ChangelogTocRailPr
             return (
               <li key={release.version}>
                 <Link
-                  href={`#${release.version}`}
+                  href={`/changelog/${encodeURIComponent(release.version)}`}
                   aria-current={isActive ? "location" : undefined}
                   className={cn(
                     "block font-mono text-small-body tracking-mono",

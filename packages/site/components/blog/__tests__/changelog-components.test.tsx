@@ -1,137 +1,162 @@
-import { render, screen, within } from "@testing-library/react";
-import type { Release } from "#site/content";
+import { render, screen } from "@testing-library/react";
+import ChangelogReleasePage from "@/app/changelog/[version]/page";
+import type { ChangelogRelease } from "@/lib/changelog/types";
 import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { ChangelogRail } from "../changelog-rail";
 import { ReleaseEntry } from "../release-entry";
+import { ReleaseMarkdown } from "../release-markdown";
+
+const changelogClient = vi.hoisted(() => ({
+  loadChangelogReleases: vi.fn(),
+  loadReleasePullRequests: vi.fn(),
+}));
+
+vi.mock("@/lib/changelog/github-client", () => changelogClient);
 
 vi.mock("next/link", () => ({
   default: ({
     href,
     children,
     ...props
-  }: {
-    href: string;
-    children: ReactNode;
-  } & Omit<AnchorHTMLAttributes<HTMLAnchorElement>, "href">) => (
+  }: { href: string; children: ReactNode } & Omit<
+    AnchorHTMLAttributes<HTMLAnchorElement>,
+    "href"
+  >) => (
     <a href={href} {...props}>
       {children}
     </a>
   ),
 }));
 
-function release(overrides: Partial<Release> & Pick<Release, "version">): Release {
+function release(version: string, overrides: Partial<ChangelogRelease> = {}): ChangelogRelease {
   return {
-    version: overrides.version,
-    date: overrides.date ?? "2026-05-01T00:00:00.000Z",
-    status: overrides.status ?? "stable",
-    summary: overrides.summary ?? `${overrides.version} summary`,
-    added: overrides.added ?? [],
-    changed: overrides.changed ?? [],
-    fixed: overrides.fixed ?? [],
-    breaking: overrides.breaking ?? [],
-    compareUrl: overrides.compareUrl,
-    body: overrides.body ?? "",
+    version,
+    name: null,
+    body: "### Runtime\n\n- Changed the runtime.",
+    summary: `${version} summary`,
+    publishedAt: "2026-05-01T00:00:00.000Z",
+    channel: "beta",
+    prerelease: true,
+    url: `https://github.com/compozy/compozy/releases/tag/${version}`,
+    sourceArchiveUrl: `https://api.github.com/repos/compozy/compozy/tarball/${version}`,
+    sourceZipUrl: `https://api.github.com/repos/compozy/compozy/zipball/${version}`,
+    assets: [],
+    categories: [{ id: "runtime", label: "Runtime", itemCount: 1 }],
+    headings: [{ id: "runtime", label: "Runtime", level: 3 }],
+    pullRequestNumbers: [],
+    ...overrides,
   };
 }
 
 describe("changelog public components", () => {
-  it("links rail entries to exact release anchors and preserves the four-item limit", () => {
+  it("compares a release with its semantic predecessor when a backport was published later", async () => {
+    changelogClient.loadChangelogReleases.mockResolvedValueOnce({
+      status: "ready",
+      releases: [
+        release("v1.4.0", { publishedAt: "2026-08-03T00:00:00Z" }),
+        release("v1.5.0", { publishedAt: "2026-08-02T00:00:00Z" }),
+        release("v1.3.0", { publishedAt: "2026-08-01T00:00:00Z" }),
+      ],
+    });
+    changelogClient.loadReleasePullRequests.mockResolvedValueOnce({
+      status: "ready",
+      pullRequests: [],
+      contributors: [],
+      missingNumbers: [],
+    });
+
+    render(await ChangelogReleasePage({ params: Promise.resolve({ version: "v1.5.0" }) }));
+
+    expect(
+      screen
+        .getByRole("button", { name: "Compare v1.5.0 with v1.4.0 on GitHub" })
+        .getAttribute("href")
+    ).toBe("https://github.com/compozy/compozy/compare/v1.4.0...v1.5.0");
+  });
+
+  it("does not compare the oldest release with a newer version published earlier", async () => {
+    changelogClient.loadChangelogReleases.mockResolvedValueOnce({
+      status: "ready",
+      releases: [
+        release("v1.0.0", { publishedAt: "2026-08-03T00:00:00Z" }),
+        release("v1.1.0", { publishedAt: "2026-08-02T00:00:00Z" }),
+      ],
+    });
+    changelogClient.loadReleasePullRequests.mockResolvedValueOnce({
+      status: "ready",
+      pullRequests: [],
+      contributors: [],
+      missingNumbers: [],
+    });
+
+    render(await ChangelogReleasePage({ params: Promise.resolve({ version: "v1.0.0" }) }));
+
+    expect(screen.queryByRole("button", { name: /Compare .* on GitHub/ })).toBeNull();
+  });
+
+  it("links recent versions to dedicated release pages and preserves the four-item limit", () => {
     render(
       <ChangelogRail
-        releases={[
-          release({ version: "v0.5.0", status: "breaking", summary: "Breaking release" }),
-          release({ version: "v0.4.0", status: "beta", summary: "Beta release" }),
-          release({ version: "v0.3.0", status: "alpha", summary: "Alpha release" }),
-          release({ version: "v0.2.0", status: "stable", summary: "Stable release" }),
-          release({ version: "v0.1.0", summary: "Hidden old release" }),
-        ]}
+        releases={["v0.5.0", "v0.4.0", "v0.3.0", "v0.2.0", "v0.1.0"].map(version =>
+          release(version)
+        )}
       />
     );
 
-    expect(screen.getByRole("complementary", { name: "Recent changelog releases" })).toBeDefined();
-    expect(screen.getByRole("link", { name: /all versions/i }).getAttribute("href")).toBe(
-      "/changelog"
+    expect(screen.getByRole("link", { name: /v0\.5\.0/ }).getAttribute("href")).toBe(
+      "/changelog/v0.5.0"
     );
-    expect(screen.getByRole("link", { name: "Open the changelog" }).getAttribute("href")).toBe(
-      "/changelog"
+    expect(screen.getByRole("link", { name: /v0\.2\.0/ }).getAttribute("href")).toBe(
+      "/changelog/v0.2.0"
     );
-
-    const breaking = screen.getByRole("link", { name: /v0\.5\.0.*Breaking release/s });
-    const beta = screen.getByRole("link", { name: /v0\.4\.0.*Beta release/s });
-    const alpha = screen.getByRole("link", { name: /v0\.3\.0.*Alpha release/s });
-    const stable = screen.getByRole("link", { name: /v0\.2\.0.*Stable release/s });
-
-    expect(breaking.getAttribute("href")).toBe("/changelog#v0.5.0");
-    expect(beta.getAttribute("href")).toBe("/changelog#v0.4.0");
-    expect(alpha.getAttribute("href")).toBe("/changelog#v0.3.0");
-    expect(stable.getAttribute("href")).toBe("/changelog#v0.2.0");
-    expect(within(breaking).getByText("v0.5.0").getAttribute("class")).toContain("bg-danger-tint");
-    expect(within(beta).getByText("v0.4.0").getAttribute("class")).toContain("bg-info-tint");
-    expect(within(alpha).getByText("v0.3.0").getAttribute("class")).toContain("bg-accent-tint");
-    expect(within(stable).getByText("v0.2.0").getAttribute("class")).toContain("bg-success-tint");
-    expect(within(breaking).getByText("May 01 · 2026").closest("time")?.dateTime).toBe(
-      "2026-05-01T00:00:00.000Z"
-    );
-    expect(screen.queryByText("Hidden old release")).toBeNull();
+    expect(screen.queryByText("v0.1.0")).toBeNull();
   });
 
-  it("renders release entries with stable anchors, sections, and opener-safe compare links", () => {
+  it("uses the exact version as the title and presents GitHub release categories", () => {
     render(
       <ReleaseEntry
-        release={release({
-          version: "v0.6.0",
-          status: "beta",
-          summary: "Runtime surface polish",
-          compareUrl: "https://github.com/compozy/compozy/compare/v0.5.0...v0.6.0",
-          added: ["Added docs navigation checks."],
-          fixed: ["Fixed release copy drift."],
+        release={release("v0.3.0-beta.3", {
+          summary: "Complete release notes from GitHub.",
+          assets: [
+            {
+              name: "compozy.tar.gz",
+              url: "https://example.com/compozy.tar.gz",
+              size: 42,
+              contentType: "application/gzip",
+              downloadCount: 7,
+            },
+          ],
+          categories: [{ id: "runtime", label: "Runtime", itemCount: 4 }],
         })}
       />
     );
 
-    const entry = screen.getByRole("article");
-    const compare = screen.getByRole("link", { name: "Compare v0.6.0 on GitHub" });
-
-    expect(entry.getAttribute("id")).toBe("v0.6.0");
-    expect(screen.getByRole("heading", { name: "Runtime surface polish" })).toBeDefined();
-    expect(screen.getByText("ADDED")).toBeDefined();
-    expect(screen.getByText("Added docs navigation checks.")).toBeDefined();
-    expect(screen.getByText("FIXED")).toBeDefined();
-    expect(screen.getByText("Fixed release copy drift.")).toBeDefined();
-    expect(screen.getByText("May 01, 2026").closest("time")?.dateTime).toBe(
-      "2026-05-01T00:00:00.000Z"
-    );
-    expect(screen.queryByText("CHANGED")).toBeNull();
-    expect(screen.queryByText("BREAKING")).toBeNull();
-    expect(compare.getAttribute("href")).toBe(
-      "https://github.com/compozy/compozy/compare/v0.5.0...v0.6.0"
-    );
-    expect(compare.getAttribute("target")).toBe("_blank");
-    expect(compare.getAttribute("rel")).toContain("noopener");
-    expect(compare.getAttribute("rel")).toContain("noreferrer");
+    const title = screen.getByRole("heading", { name: "v0.3.0-beta.3" });
+    expect(title).toBeDefined();
+    expect(screen.getByText("Complete release notes from GitHub.")).toBeDefined();
+    expect(screen.getByText("Runtime · 4")).toBeDefined();
+    expect(
+      screen.getByRole("link", { name: "Read full release notes →" }).getAttribute("href")
+    ).toBe("/changelog/v0.3.0-beta.3");
+    const github = screen.getByRole("link", { name: /GitHub release/ });
+    expect(github.getAttribute("target")).toBe("_blank");
+    expect(github.getAttribute("rel")).toContain("noopener");
   });
 
-  it("renders duplicate release bullets without duplicate-key warnings", () => {
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+  it("preserves deep GitHub release sections without skipping HTML heading levels", () => {
+    render(
+      <ReleaseMarkdown
+        body={
+          "### Release Notes\n\n#### Features\n\n##### Grouped skills\n\n###### Migration detail"
+        }
+        pullRequestNumbers={[]}
+      />
+    );
 
-    try {
-      render(
-        <ReleaseEntry
-          release={release({
-            version: "v0.6.1",
-            added: [
-              "Added duplicate-safe release bullets.",
-              "Added duplicate-safe release bullets.",
-            ],
-          })}
-        />
-      );
-
-      expect(screen.getAllByText("Added duplicate-safe release bullets.")).toHaveLength(2);
-      expect(errorSpy.mock.calls.flat().join(" ")).not.toContain("same key");
-    } finally {
-      errorSpy.mockRestore();
-    }
+    expect(screen.getByRole("heading", { level: 2, name: "Release Notes" })).toBeDefined();
+    expect(screen.getByRole("heading", { level: 3, name: "Features" })).toBeDefined();
+    expect(screen.getByRole("heading", { level: 4, name: "Grouped skills" })).toBeDefined();
+    expect(screen.getByRole("heading", { level: 5, name: "Migration detail" })).toBeDefined();
   });
 });

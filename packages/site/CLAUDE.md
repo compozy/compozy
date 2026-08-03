@@ -1,6 +1,6 @@
 # CLAUDE.md (packages/site)
 
-Fumadocs documentation site at `compozy.com` — Next.js 16, Fumadocs 16, Velite (`/blog` + `/changelog` content layer), Bun-managed. (Root `CLAUDE.md` rules apply — this file adds site-specific ones.)
+Fumadocs documentation site at `compozy.com` — Next.js 16, Fumadocs 16, Velite blog content, Bun-managed. (Root `CLAUDE.md` rules apply — this file adds site-specific ones.)
 
 ## Critical Rules
 
@@ -44,14 +44,14 @@ make cli-docs / make cli-docs-check                  # regenerate / verify the C
 
 - TypeScript strict (no `any` when the concrete type is known). Functional React components only — no `React.FC`; named exports; kebab-case files; `@/*` alias.
 - MDX lives under `content/docs/` (Fumadocs, single tree; protocol spec nests at `content/docs/network/protocol/`) and `content/blog/` (Velite). CLI docs auto-generate under `content/docs/cli/`, API docs under `content/docs/api/` — never hand-edit generated pages; edit the Cobra command source or `openapi/compozy.json`.
-- Blog layout: `content/blog/posts/<slug>.mdx`, `content/blog/changelog/<version>.mdx`, `content/blog/authors/<handle>.yml`. Frontmatter is zod-validated by `velite.config.ts` (broken frontmatter fails the build with line-numbered errors).
+- Blog layout: `content/blog/posts/<slug>.mdx` and `content/blog/authors/<handle>.yml`. Frontmatter is zod-validated by `velite.config.ts` (broken frontmatter fails the build with line-numbered errors).
 - Pages need `<title>` + meta via Fumadocs metadata helpers. Code blocks use the project syntax-highlight theme — no new variants.
 
 ## Truthful Docs > Plausible Docs
 
 - Document only behavior the runtime supports today. When the Compozy Network RFC differs from the daemon, docs follow the daemon and link the RFC as "future profile".
 - API/CLI references are generated from `openapi/compozy.json` + the Cobra command tree — never paraphrase; if the generated reference is wrong, fix the source.
-- Changelog entries (`content/blog/changelog/*.mdx`) reflect real merged work — source `added`/`changed`/`fixed`/`breaking` from `git log` + PR descriptions, not aspirational copy.
+- Changelog pages read published GitHub Releases from `v0.3.0-beta.1`; preserve their full notes, categories, pull-request evidence, contributors, and assets.
 
 ## Testing
 

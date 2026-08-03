@@ -6,7 +6,7 @@ import viteReact, { reactCompilerPreset } from "@vitejs/plugin-react";
 import { fileURLToPath, URL } from "node:url";
 import { defineConfig } from "vite";
 
-import { resolveApiProxyOrigin, resolveApiProxyTarget } from "./src/lib/vite-api-proxy-target";
+import { resolveApiProxyOrigin, resolveApiProxyTarget } from "./src/lib/vite-api-proxy-target.ts";
 
 const reactRuntimePattern =
   /[\\/]node_modules[\\/](?:\.bun[\\/][^\\/]+[\\/]node_modules[\\/])?(?:react|react-dom|scheduler|use-sync-external-store)[\\/]/;

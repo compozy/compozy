@@ -17,7 +17,7 @@ export function absoluteUrl(path = "/") {
   return new URL(path, siteConfig.url).toString();
 }
 
-const FILE_EXTENSION_PATTERN = /\.[a-z0-9]+$/i;
+const FILE_EXTENSION_PATTERN = /\.[a-z][a-z0-9]*$/i;
 
 export function canonicalPath(path = "/") {
   if (!path || path === "/") return "/";

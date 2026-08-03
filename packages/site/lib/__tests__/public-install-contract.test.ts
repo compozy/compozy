@@ -6,7 +6,6 @@ import { tmpdir } from "node:os";
 import { basename, join, relative, resolve } from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
-import { allReleases } from "../blog";
 import { siteRoot } from "../content-test-utils";
 
 const publicRoot = resolve(siteRoot, "public");
@@ -20,11 +19,7 @@ const releaseHeaderPath = resolve(siteRoot, "../../.goreleaser.release-header.md
 const releaseFooterPath = resolve(siteRoot, "../../.goreleaser.release-footer.md.tmpl");
 const cliffPath = resolve(siteRoot, "../../cliff.toml");
 
-const latestBeta = allReleases().find(release => release.status === "beta");
-if (!latestBeta) {
-  throw new Error("public install contract requires a published beta release");
-}
-const betaVersion = latestBeta.version;
+const betaVersion = "v0.3.0-beta.2";
 const npmInstallCommand = "npm install -g @compozy/cli@beta";
 const goInstallCommand = `go install github.com/compozy/compozy@${betaVersion}`;
 const verifiedInstallerCommand = "curl -fsSL https://compozy.com/install.sh | sh";

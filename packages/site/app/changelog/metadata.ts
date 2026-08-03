@@ -1,8 +1,17 @@
 import type { Metadata } from "next";
 import { createPageMetadata } from "@/lib/site-config";
 
-export const changelogMetadata: Metadata = createPageMetadata({
+const baseMetadata = createPageMetadata({
   title: "Changelog",
-  description: "Release notes, breaking changes, and verification receipts for CompozyOS.",
+  description:
+    "Complete GitHub release notes, pull requests, contributors, and assets for CompozyOS.",
   path: "/changelog",
 });
+
+export const changelogMetadata: Metadata = {
+  ...baseMetadata,
+  alternates: {
+    ...baseMetadata.alternates,
+    types: { "application/rss+xml": "/changelog/feed.xml" },
+  },
+};
