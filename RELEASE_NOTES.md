@@ -1,9 +1,10 @@
-## 0.3.0 - 2026-08-01
+## 0.3.0 - 2026-08-04
 
 ### ♻️ Refactoring
 
 - State management with xstate-store (#268)
 - Site improvements (#277)
+- Replace bundles with extension kits (#291)
 
 ### 🎉 Features
 
@@ -19,6 +20,8 @@
 - **BREAKING:** MCP catalogs now require manifest_version 2 and public
   MCP transport no longer accepts SSE.
 - Add support for window tabs (#287)
+- Adopt feedback semantics for durable Loops (#290)
+- Add complete Loop node lifecycle (#305)
 
 ### 🐛 Bug Fixes
 
@@ -29,6 +32,9 @@
 - Untested cases from qa (#276)
 - Remaining untested qa (#279)
 - Durable session messaging (#288)
+- Assistant-ui version
+- Changelog generation (#292)
+- Make busy-session inputs durable (#304)
 
 ### Release Notes
 
@@ -64,8 +70,6 @@ Compozy now discovers `SKILL.md` definitions at any depth below each skill root,
 `compozy.com` now serves a single `/docs` experience with reworked navigation, breadcrumbs, responsive layouts, generated CLI reference pages, and API references that include Go examples. A new `/marketplace` section lists skills, extensions, MCP entries, bridge providers, and bundled capabilities with search, install commands, and detail pages. (#277)
 
 Migration notes: two CLI verbs were renamed and their old spellings removed — `compozy mcp authorize <server>` is now `compozy mcp auth login <server>`, and `compozy memory extractor list-pending` is now `compozy memory extractor list-failures`. The `compozy network work status` alias was removed in favor of `compozy network work lookup`, and `compozy network send --body` accepts a kind-specific JSON value rather than requiring an object.
-
-The `compozy loop stop` command was removed. Use `compozy loop cancel` for cooperative cancellation or `compozy loop kill` to stop the run immediately.
 
 ##### Window tabs in the OS shell
 
