@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"strings"
 	"sync"
 	"testing"
@@ -15,6 +16,7 @@ import (
 	eventspkg "github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/notifications"
 	"github.com/compozy/compozy/internal/store"
+	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -571,6 +573,151 @@ func TestNotificationPresetDispatchRedactsCursorDiagnostics(t *testing.T) {
 			t.Fatalf("dispatch failure event last_error = %q, want cursor diagnostic %q", got, want)
 		}
 	})
+}
+
+func TestNotificationPresetTaskEventScope(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should deliver with global scope when task ownership cannot be read", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		cursors := newPresetMemoryCursorStore()
+		bridges := newPresetReadyBridgeRuntime()
+		service := newPresetTaskTerminalService(cursors, bridges)
+		observer := NewTaskEventObserver(
+			service,
+			presetFakeTaskReader{err: taskpkg.ErrTaskNotFound},
+			slog.New(slog.DiscardHandler),
+		)
+
+		observer.OnTaskEvent(ctx, presetTaskEventRecord("evt-orphan", "task-deleted"))
+
+		if got, want := bridges.deliveries, 1; got != want {
+			t.Fatalf("bridge deliveries = %d, want %d for an unreadable task", got, want)
+		}
+		stored, err := cursors.ListCursors(ctx, notifications.CursorQuery{})
+		if err != nil {
+			t.Fatalf("ListCursors() error = %v", err)
+		}
+		if got, want := len(stored), 1; got != want {
+			t.Fatalf("stored cursor rows = %d, want %d", got, want)
+		}
+		wantScope := notifications.ScopeRef{Kind: notifications.ScopeKindGlobal}
+		if got := stored[0].Key.Scope; got != wantScope {
+			t.Fatalf("cursor scope = %#v, want %#v", got, wantScope)
+		}
+	})
+
+	t.Run("Should carry workspace ownership verbatim from the task record", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		cursors := newPresetMemoryCursorStore()
+		bridges := newPresetReadyBridgeRuntime()
+		service := newPresetTaskTerminalService(cursors, bridges)
+		observer := NewTaskEventObserver(
+			service,
+			presetFakeTaskReader{task: taskpkg.Task{
+				ID:          "task-owned",
+				Scope:       taskpkg.ScopeWorkspace,
+				WorkspaceID: " global ",
+				Title:       " Build finished ",
+			}},
+			slog.New(slog.DiscardHandler),
+		)
+
+		observer.OnTaskEvent(ctx, presetTaskEventRecord("evt-owned", "task-owned"))
+
+		stored, err := cursors.ListCursors(ctx, notifications.CursorQuery{})
+		if err != nil {
+			t.Fatalf("ListCursors() error = %v", err)
+		}
+		if got, want := len(stored), 1; got != want {
+			t.Fatalf("stored cursor rows = %d, want %d", got, want)
+		}
+		wantScope := notifications.ScopeRef{
+			Kind:        notifications.ScopeKindWorkspace,
+			WorkspaceID: " global ",
+		}
+		if got := stored[0].Key.Scope; got != wantScope {
+			t.Fatalf("cursor scope = %#v, want %#v", got, wantScope)
+		}
+		if got, want := len(bridges.requests), 1; got != want {
+			t.Fatalf("bridge delivery requests = %d, want %d", got, want)
+		}
+		if got, want := bridges.requests[0].Event.Content.Text, "Compozy task_terminal: Build finished"; got != want {
+			t.Fatalf("delivery text = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should map a global task to global scope without a workspace binding", func(t *testing.T) {
+		t.Parallel()
+
+		got := taskEventScope(taskpkg.Task{ID: "task-global", Scope: taskpkg.ScopeGlobal})
+		want := notifications.ScopeRef{Kind: notifications.ScopeKindGlobal}
+		if got != want {
+			t.Fatalf("taskEventScope(global) = %#v, want %#v", got, want)
+		}
+		if err := got.Validate(); err != nil {
+			t.Fatalf("taskEventScope(global).Validate() error = %v", err)
+		}
+	})
+}
+
+type presetFakeTaskReader struct {
+	task taskpkg.Task
+	err  error
+}
+
+func (r presetFakeTaskReader) GetTask(_ context.Context, _ string) (taskpkg.Task, error) {
+	if r.err != nil {
+		return taskpkg.Task{}, r.err
+	}
+	return r.task, nil
+}
+
+func newPresetReadyBridgeRuntime() *presetFakeBridgeRuntime {
+	return &presetFakeBridgeRuntime{instance: bridgepkg.BridgeInstance{
+		ID:            "brg-1",
+		Scope:         bridgepkg.ScopeGlobal,
+		Platform:      "slack",
+		ExtensionName: "slack-extension",
+		DisplayName:   "Slack",
+		Enabled:       true,
+		Status:        bridgepkg.BridgeStatusReady,
+	}}
+}
+
+func newPresetTaskTerminalService(
+	cursors notifications.CursorStore,
+	bridges BridgeRuntime,
+) *Service {
+	return NewService(Config{
+		Store: newPresetMemoryStore([]Preset{{
+			Name:    "task_terminal",
+			Events:  []string{"task.run_*"},
+			Targets: []Target{{BridgeID: "brg-1", CanonicalRoute: "#ops"}},
+			Enabled: true,
+		}}),
+		Cursors: cursors,
+		Bridges: bridges,
+		Now:     presetTestNow,
+	})
+}
+
+func presetTaskEventRecord(eventID string, taskID string) taskpkg.EventRecord {
+	return taskpkg.EventRecord{
+		Sequence: 9,
+		Event: taskpkg.Event{
+			ID:        eventID,
+			TaskID:    taskID,
+			RunID:     "run-1",
+			EventType: eventspkg.TaskRunCompleted,
+			Actor:     taskpkg.ActorIdentity{Kind: taskpkg.ActorKindAgentSession, Ref: "sess-1"},
+			Timestamp: presetTestNow(),
+		},
+	}
 }
 
 func presetTestNow() time.Time {

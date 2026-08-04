@@ -302,6 +302,54 @@ func TestRunner(t *testing.T) {
 			t.Fatalf("timeout Code = %q, want %q", items[0].Code, contract.CodeProbeTimeout)
 		}
 	})
+
+	t.Run("Should time out a probe that never observes cancellation", func(t *testing.T) {
+		t.Parallel()
+
+		release := make(chan struct{})
+		t.Cleanup(func() { close(release) })
+		registry := NewRegistry()
+		if err := registry.Register(&ProbeFunc{
+			ProbeID:       "doctor.daemon.uncooperative",
+			ProbeCategory: contract.CategoryDaemon,
+			RunFunc: func(context.Context, *ProbeEnv) ([]contract.DiagnosticItem, error) {
+				<-release
+				return nil, nil
+			},
+		}); err != nil {
+			t.Fatalf("Register() error = %v", err)
+		}
+		runner := NewRunner(registry)
+
+		type runOutcome struct {
+			items []contract.DiagnosticItem
+			err   error
+		}
+		outcome := make(chan runOutcome, 1)
+		ctx := t.Context()
+		go func() {
+			items, runErr := runner.Run(ctx, RunOptions{ProbeTimeout: 10 * time.Millisecond})
+			outcome <- runOutcome{items: items, err: runErr}
+		}()
+
+		budget := time.NewTimer(5 * time.Second)
+		defer budget.Stop()
+		var observed runOutcome
+		select {
+		case observed = <-outcome:
+		case <-budget.C:
+			t.Fatal("Run() never returned, want the per-probe deadline enforced against an uncooperative probe")
+		}
+		if observed.err != nil {
+			t.Fatalf("Run() error = %v", observed.err)
+		}
+		if len(observed.items) != 1 {
+			t.Fatalf("Run() item count = %d, want 1", len(observed.items))
+		}
+		if observed.items[0].Code != contract.CodeProbeTimeout {
+			t.Fatalf("timeout Code = %q, want %q", observed.items[0].Code, contract.CodeProbeTimeout)
+		}
+	})
 }
 
 func TestRuntimeMemoryProbe(t *testing.T) {

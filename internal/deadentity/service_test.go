@@ -776,7 +776,7 @@ func TestServiceContextCancellation(t *testing.T) {
 		}
 	})
 
-	t.Run("Should propagate cancellation from a blocked transition event", func(t *testing.T) {
+	t.Run("Should publish the marked transition after the caller cancels post-commit", func(t *testing.T) {
 		t.Parallel()
 
 		gate := newDeadEntityTestGate()
@@ -788,6 +788,7 @@ func TestServiceContextCancellation(t *testing.T) {
 			newRecordingDeadEntityStore(),
 			WithPermanentFailureThreshold(1),
 			WithEventStore(eventStore),
+			WithTransitionEventTimeout(time.Minute),
 		)
 		key := deadEntityTestKey("ws-canceled-event")
 		ctx, cancel := context.WithCancel(testutil.Context(t))
@@ -800,8 +801,8 @@ func TestServiceContextCancellation(t *testing.T) {
 		<-gate.started
 		cancel()
 		gate.Release()
-		if err := <-result; !errors.Is(err, context.Canceled) {
-			t.Fatalf("RecordFailure(canceled event) error = %v, want context.Canceled", err)
+		if err := <-result; err != nil {
+			t.Fatalf("RecordFailure(canceled event) error = %v, want nil after a committed durable mark", err)
 		}
 		status, err := service.Status(testutil.Context(t), key)
 		if err != nil {
@@ -809,6 +810,52 @@ func TestServiceContextCancellation(t *testing.T) {
 		}
 		if !status.Dead {
 			t.Fatalf("Status(after canceled event) = %#v, want committed dead state", status)
+		}
+		summaries := eventStore.Summaries()
+		if len(summaries) != 1 || summaries[0].Type != events.DeadEntityMarked {
+			t.Fatalf("transition summaries = %#v, want one marked publication", summaries)
+		}
+	})
+
+	t.Run("Should publish the cleared transition after the caller cancels post-commit", func(t *testing.T) {
+		t.Parallel()
+
+		gate := newDeadEntityTestGate()
+		key := deadEntityTestKey("ws-canceled-clear-event")
+		deadStore := newRecordingDeadEntityStore()
+		deadStore.entities[key] = store.DeadEntity{
+			DeadEntityKey: key,
+			Reason:        "durable failure",
+			MarkedAt:      newDeadEntityTestClock().Now(),
+		}
+		eventStore := &blockingDeadEntityEventStore{
+			recordingDeadEntityEventStore: &recordingDeadEntityEventStore{},
+			gate:                          gate,
+		}
+		service := New(deadStore, WithEventStore(eventStore), WithTransitionEventTimeout(time.Minute))
+		ctx, cancel := context.WithCancel(testutil.Context(t))
+		defer cancel()
+		result := make(chan error, 1)
+		go func() {
+			result <- service.RecordSuccess(ctx, key)
+		}()
+
+		<-gate.started
+		cancel()
+		gate.Release()
+		if err := <-result; err != nil {
+			t.Fatalf("RecordSuccess(canceled event) error = %v, want nil after a committed durable clear", err)
+		}
+		status, err := service.Status(testutil.Context(t), key)
+		if err != nil {
+			t.Fatalf("Status(after canceled clear event) error = %v", err)
+		}
+		if status.Dead {
+			t.Fatalf("Status(after canceled clear event) = %#v, want live state", status)
+		}
+		summaries := eventStore.Summaries()
+		if len(summaries) != 1 || summaries[0].Type != events.DeadEntityCleared {
+			t.Fatalf("transition summaries = %#v, want one cleared publication", summaries)
 		}
 	})
 
@@ -829,6 +876,7 @@ func TestServiceContextCancellation(t *testing.T) {
 			deadStore,
 			WithPermanentFailureThreshold(1),
 			WithEventStore(eventStore),
+			WithTransitionEventTimeout(time.Minute),
 		)
 		key := deadEntityTestKey("ws-canceled-publication")
 		ctx := testutil.Context(t)
@@ -1179,6 +1227,7 @@ func TestServiceReleasesStateOwnershipForIO(t *testing.T) {
 			newRecordingDeadEntityStore(),
 			WithPermanentFailureThreshold(1),
 			WithEventStore(eventStore),
+			WithTransitionEventTimeout(time.Minute),
 		)
 		key := deadEntityTestKey("ws-unlocked-event")
 		result := make(chan error, 1)
@@ -1228,6 +1277,7 @@ func TestServiceReleasesStateOwnershipForIO(t *testing.T) {
 			deadStore,
 			WithPermanentFailureThreshold(1),
 			WithEventStore(eventStore),
+			WithTransitionEventTimeout(time.Minute),
 		)
 		key := deadEntityTestKey("ws-transition-order")
 		ctx := testutil.Context(t)

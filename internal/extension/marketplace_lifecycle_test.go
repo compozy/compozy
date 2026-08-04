@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -233,6 +234,52 @@ func TestMarketplaceLifecycleInstallsUpdatesAndRemovesManagedExtensions(t *testi
 		}
 		if _, err := os.Stat(ManagedInstallPath(homePaths, "lifecycle-ext")); !errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("os.Stat(managed dir after remove) error = %v, want not exist", err)
+		}
+	})
+
+	t.Run("Should install a payload whose directories prefix sibling file names", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		env := newRegistryTestEnv(t)
+		source := newLifecycleSource(t, "1.0.0")
+		source.archives["1.0.0"] = lifecycleTarGzWithPayload(t, "lifecycle-ext", "1.0.0", map[string]string{
+			"docs.md":             "root doc\n",
+			"docs-extra.md":       "extra doc\n",
+			"docs/guide.md":       "guide\n",
+			"docs/nested.md":      "nested doc\n",
+			"docs/nested/deep.md": "deep\n",
+			"src.d.ts":            "export {}\n",
+			"src/index.ts":        "export const identifier = 1\n",
+		})
+		installed, err := InstallMarketplaceManaged(
+			t.Context(),
+			homePaths,
+			env.registry,
+			func(context.Context) ([]registrypkg.Source, error) { return []registrypkg.Source{source}, nil },
+			MarketplaceInstallRequest{
+				Slug: "acme/lifecycle-ext", SourceFilter: "github",
+				PolicyAllowsUnverified: true, AllowUnverified: true,
+			},
+		)
+		if err != nil {
+			t.Fatalf("InstallMarketplaceManaged() error = %v", err)
+		}
+		installDir := ManagedInstallPath(homePaths, "lifecycle-ext")
+		verified, err := ComputeDirectoryChecksum(installDir)
+		if err != nil {
+			t.Fatalf("ComputeDirectoryChecksum(%q) error = %v", installDir, err)
+		}
+		if installed.Checksum != verified {
+			t.Fatalf(
+				"installed.Checksum = %q, want %q recomputed from %q",
+				installed.Checksum,
+				verified,
+				installDir,
+			)
 		}
 	})
 
@@ -1400,15 +1447,28 @@ func newLifecycleSourceNamed(
 
 func lifecycleTarGzNamed(t *testing.T, name string, version string) []byte {
 	t.Helper()
+	return lifecycleTarGzWithPayload(t, name, version, nil)
+}
+
+func lifecycleTarGzWithPayload(
+	t *testing.T,
+	name string,
+	version string,
+	payload map[string]string,
+) []byte {
+	t.Helper()
 
 	files := map[string]string{
-		filepath.Join(name, "extension.toml"): strings.Replace(
+		path.Join(name, "extension.toml"): strings.Replace(
 			registryManifestTOML(name, registryManifestOptions{}),
 			`version = "0.2.1"`,
 			fmt.Sprintf(`version = %q`, version),
 			1,
 		),
-		filepath.Join(name, "VERSION.txt"): version + "\n",
+		path.Join(name, "VERSION.txt"): version + "\n",
+	}
+	for relativePath, content := range payload {
+		files[path.Join(name, relativePath)] = content
 	}
 
 	var buffer bytes.Buffer

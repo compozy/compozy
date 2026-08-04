@@ -41,6 +41,10 @@ func removeNoFollowAt(*os.File, string, bool) error {
 	return errNoFollowUnsupported
 }
 
+func isDirectoryUnlinkRejection(error) bool {
+	return false
+}
+
 func syncDirectoryHandle(*os.File) error {
 	return errNoFollowUnsupported
 }

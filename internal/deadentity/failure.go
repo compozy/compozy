@@ -121,11 +121,6 @@ func (s *Service) persistPermanentFailure(
 	if err := s.store.MarkDeadEntity(ctx, entity); err != nil {
 		return s.handlePermanentMarkFailure(ctx, key, state, operation, refreshing, err)
 	}
-	if ctxErr := contextError(ctx); ctxErr != nil {
-		s.invalidateLoadedState(key, state, operation)
-		s.completeOperation(state, operation)
-		return ctxErr
-	}
 	publication, committed := s.commitPermanentMark(key, state, operation, entity, refreshing)
 	if !committed {
 		s.completeOperation(state, operation)

@@ -20,6 +20,8 @@ import (
 
 const DefaultProviderAuthCommandTimeout = 30 * time.Second
 
+const providerAuthCommandWaitDelay = time.Second
+
 // ProviderAuthCommandRunner executes a provider-owned auth command.
 type ProviderAuthCommandRunner func(context.Context, ProviderAuthCommandSpec) (ProviderAuthCommandResult, error)
 
@@ -63,9 +65,11 @@ func DefaultProviderAuthCommandRunner(
 	var stderr bytes.Buffer
 	execCmd.Stdout = &stdout
 	execCmd.Stderr = &stderr
+	// A status command that leaks its output pipe to a lingering child would block Wait forever.
+	execCmd.WaitDelay = providerAuthCommandWaitDelay
 	err = execCmd.Run()
 	result := ProviderAuthCommandResult{
-		ExitCode:   exitCodeFromError(err),
+		ExitCode:   commandExitCode(execCmd, err),
 		Stdout:     diagnostics.RedactAndBound(stdout.String(), 4096),
 		Stderr:     diagnostics.RedactAndBound(stderr.String(), 4096),
 		DurationMs: time.Since(startedAt).Milliseconds(),
@@ -73,7 +77,7 @@ func DefaultProviderAuthCommandRunner(
 	if commandCtx.Err() != nil {
 		return result, commandCtx.Err()
 	}
-	if err == nil {
+	if err == nil || errors.Is(err, exec.ErrWaitDelay) {
 		return result, nil
 	}
 	if exitErr, ok := errors.AsType[*exec.ExitError](err); ok && exitErr != nil {
@@ -205,4 +209,11 @@ func exitCodeFromError(err error) int {
 		return exitErr.ExitCode()
 	}
 	return -1
+}
+
+func commandExitCode(execCmd *exec.Cmd, err error) int {
+	if errors.Is(err, exec.ErrWaitDelay) && execCmd.ProcessState != nil {
+		return execCmd.ProcessState.ExitCode()
+	}
+	return exitCodeFromError(err)
 }

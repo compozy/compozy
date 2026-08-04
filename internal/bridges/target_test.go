@@ -67,6 +67,38 @@ func TestBuildDeliveryTargetExplicitOverridesWinOverDefaults(t *testing.T) {
 			t.Fatalf("BuildDeliveryTarget().Mode = %q, want %q", target.Mode, bridgepkg.DeliveryModeDirectSend)
 		}
 	})
+
+	t.Run("Should keep the configured default when an override carries no identity", func(t *testing.T) {
+		t.Parallel()
+
+		instance := testBridgeInstanceForTargets()
+		instance.DeliveryDefaults = []byte(`{"peer_id":" peer-default "}`)
+
+		target, err := bridgepkg.BuildDeliveryTarget(instance, bridgepkg.ResolveDeliveryTargetRequest{
+			BridgeInstanceID: instance.ID,
+			PeerID:           "   ",
+		})
+		if err != nil {
+			t.Fatalf("BuildDeliveryTarget() error = %v", err)
+		}
+		if target.PeerID != " peer-default " {
+			t.Fatalf("BuildDeliveryTarget().PeerID = %q, want the configured default verbatim", target.PeerID)
+		}
+	})
+
+	t.Run("Should reject a target that resolves to no identity", func(t *testing.T) {
+		t.Parallel()
+
+		instance := testBridgeInstanceForTargets()
+		instance.DeliveryDefaults = []byte(`{"peer_id":"   "}`)
+
+		if _, err := bridgepkg.BuildDeliveryTarget(instance, bridgepkg.ResolveDeliveryTargetRequest{
+			BridgeInstanceID: instance.ID,
+			PeerID:           "   ",
+		}); err == nil {
+			t.Fatal("BuildDeliveryTarget(blank peer and blank default) error = nil, want rejection")
+		}
+	})
 }
 
 func TestResolveDeliveryTargetRequestValidation(t *testing.T) {
@@ -107,6 +139,10 @@ func TestResolveDeliveryTargetRequestValidation(t *testing.T) {
 					BridgeInstanceID: "bridge",
 					PeerID:           string([]byte{0xff}),
 				},
+			},
+			{
+				name:    "Should reject a blank bridge instance identity",
+				request: bridgepkg.ResolveDeliveryTargetRequest{BridgeInstanceID: " "},
 			},
 		}
 		for _, test := range tests {

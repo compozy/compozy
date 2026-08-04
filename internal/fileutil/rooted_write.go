@@ -217,8 +217,8 @@ func (d *Directory) RemoveRegularFile(name string) (err error) {
 	return d.Sync()
 }
 
-// RemoveAll removes a direct child tree without traversing links or reparse points.
-func (d *Directory) RemoveAll(name string) (err error) {
+// RemoveAll removes a direct child tree without traversing links; an absent child counts as removed.
+func (d *Directory) RemoveAll(name string) error {
 	if d == nil || d.file == nil {
 		return fmt.Errorf("%w: directory is closed", ErrInvalidPath)
 	}
@@ -226,27 +226,44 @@ func (d *Directory) RemoveAll(name string) (err error) {
 		return err
 	}
 
-	child, err := d.OpenDirectory(name)
-	if err == nil {
-		if err := child.removeContents(); err != nil {
-			closeErr := child.Close()
-			if closeErr != nil {
-				return errors.Join(err, closeErr)
-			}
-			return err
-		}
-		if err := child.Close(); err != nil {
-			return fmt.Errorf("fileutil: close directory %q before remove: %w", name, err)
-		}
-		if err := removeNoFollowAt(d.file, name, true); err != nil {
-			return fmt.Errorf("fileutil: remove directory %q: %w", name, err)
-		}
+	unlinkErr := removeNoFollowAt(d.file, name, false)
+	if unlinkErr == nil {
 		return d.Sync()
 	}
-	if !errors.Is(err, ErrNotDirectory) {
+	if errors.Is(unlinkErr, os.ErrNotExist) {
+		return nil
+	}
+	// Detaching by name never opens the entry, so only a real directory survives here.
+	if !isDirectoryUnlinkRejection(unlinkErr) {
+		return fmt.Errorf("fileutil: remove child %q: %w", name, unlinkErr)
+	}
+	return d.removeDirectoryChild(name, unlinkErr)
+}
+
+func (d *Directory) removeDirectoryChild(name string, unlinkErr error) error {
+	child, err := d.OpenDirectory(name)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return errors.Join(fmt.Errorf("fileutil: remove child %q: %w", name, unlinkErr), err)
+	}
+	if err := child.removeContents(); err != nil {
+		if closeErr := child.Close(); closeErr != nil {
+			return errors.Join(err, closeErr)
+		}
 		return err
 	}
-	return d.RemoveRegularFile(name)
+	if err := child.Close(); err != nil {
+		return fmt.Errorf("fileutil: close directory %q before remove: %w", name, err)
+	}
+	if err := removeNoFollowAt(d.file, name, true); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return fmt.Errorf("fileutil: remove directory %q: %w", name, err)
+	}
+	return d.Sync()
 }
 
 // CopyContentsFrom copies every child from source into d, excluding one direct child name.

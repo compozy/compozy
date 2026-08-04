@@ -16,12 +16,9 @@ type transitionContent struct {
 	MarkedAt string               `json:"marked_at,omitempty"`
 }
 
-func (s *Service) emitTransition(ctx context.Context, entity store.DeadEntity, marked bool) error {
-	if err := contextError(ctx); err != nil {
-		return err
-	}
+func (s *Service) emitTransition(ctx context.Context, entity store.DeadEntity, marked bool) {
 	if s.events == nil {
-		return nil
+		return
 	}
 	eventType := events.DeadEntityCleared
 	summary := fmt.Sprintf("%s %s recovered", entity.Kind, entity.EntityID)
@@ -37,9 +34,12 @@ func (s *Service) emitTransition(ctx context.Context, entity store.DeadEntity, m
 	})
 	if err != nil {
 		s.logger.Warn("deadentity: marshal transition event failed", "type", eventType, "error", err)
-		return nil
+		return
 	}
-	if err := s.events.WriteEventSummary(ctx, store.EventSummary{
+	// The durable transition already committed, so caller cancellation must not drop its event.
+	writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.transitionEventTimeout)
+	defer cancel()
+	if err := s.events.WriteEventSummary(writeCtx, store.EventSummary{
 		WorkspaceID: entity.WorkspaceID,
 		Type:        eventType,
 		Outcome:     string(events.OutcomeFor(eventType)),
@@ -47,9 +47,6 @@ func (s *Service) emitTransition(ctx context.Context, entity store.DeadEntity, m
 		Summary:     summary,
 		Timestamp:   s.now().UTC(),
 	}); err != nil {
-		if ctxErr := contextError(ctx); ctxErr != nil {
-			return ctxErr
-		}
 		s.logger.Warn(
 			"deadentity: write transition event failed open",
 			"type", eventType,
@@ -59,5 +56,4 @@ func (s *Service) emitTransition(ctx context.Context, entity store.DeadEntity, m
 			"error", err,
 		)
 	}
-	return contextError(ctx)
 }

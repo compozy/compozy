@@ -131,17 +131,7 @@ func publishNoFollowAt(parent *os.File, source *os.File, sourceName string, targ
 }
 
 func removeNoFollowAt(parent *os.File, name string, directory bool) (err error) {
-	expectation := entryRegularFile
-	if directory {
-		expectation = entryDirectory
-	}
-	handle, err := openWindowsChildWithDisposition(
-		windows.Handle(parent.Fd()),
-		name,
-		expectation,
-		windows.FILE_OPEN,
-		windows.DELETE|windows.SYNCHRONIZE,
-	)
+	handle, err := openWindowsChildForRemoval(windows.Handle(parent.Fd()), name, directory)
 	if err != nil {
 		return err
 	}
@@ -163,6 +153,12 @@ func removeNoFollowAt(parent *os.File, name string, directory bool) (err error) 
 		return windowsOpenError(err)
 	}
 	return nil
+}
+
+// isDirectoryUnlinkRejection reports the removal failures that leave open the
+// possibility of a directory that has to be emptied first.
+func isDirectoryUnlinkRejection(err error) bool {
+	return errors.Is(err, ErrDirectory) || errors.Is(err, windows.ERROR_ACCESS_DENIED)
 }
 
 func syncDirectoryHandle(file *os.File) error {

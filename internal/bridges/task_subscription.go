@@ -206,7 +206,13 @@ func (q BridgeTaskSubscriptionQuery) Validate() error {
 }
 
 func validateBridgeTaskSubscriptionIdentity(value string, label string) error {
-	if value != "" && !utf8.ValidString(value) {
+	if value == "" {
+		return nil
+	}
+	if isBlank(value) {
+		return fmt.Errorf("%w: %s must not be blank", ErrInvalidBridgeTaskSubscription, label)
+	}
+	if !utf8.ValidString(value) {
 		return fmt.Errorf("%w: %s must be valid UTF-8", ErrInvalidBridgeTaskSubscription, label)
 	}
 	return nil

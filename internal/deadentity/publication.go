@@ -45,7 +45,8 @@ func (s *Service) publishTransition(
 		publication.skippedPredecessor = true
 		return err
 	}
-	return s.emitTransition(ctx, entity, marked)
+	s.emitTransition(ctx, entity, marked)
+	return nil
 }
 
 func (p *transitionPublication) waitForPredecessors(ctx context.Context) error {

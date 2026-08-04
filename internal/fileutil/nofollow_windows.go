@@ -158,7 +158,65 @@ func openWindowsChildWithDispositionAndOptions(
 	return openWindowsObject(attributes, expectation, disposition, access, extraOptions)
 }
 
+// A reparse point is opened rather than rejected here because removal never traverses one.
+func openWindowsChildForRemoval(parent windows.Handle, child string, directory bool) (windows.Handle, error) {
+	expectation := entryAny
+	if directory {
+		expectation = entryDirectory
+	}
+	name, err := windows.NewNTUnicodeString(child)
+	if err != nil {
+		return 0, fmt.Errorf("fileutil: encode path component: %w", err)
+	}
+	attributes := &windows.OBJECT_ATTRIBUTES{
+		Length:        uint32(unsafe.Sizeof(windows.OBJECT_ATTRIBUTES{})),
+		RootDirectory: parent,
+		ObjectName:    name,
+		Attributes:    windows.OBJ_CASE_INSENSITIVE | windows.OBJ_DONT_REPARSE,
+	}
+	handle, err := createWindowsObject(
+		attributes,
+		expectation,
+		windows.FILE_OPEN,
+		windows.DELETE|windows.SYNCHRONIZE,
+		0,
+	)
+	if err != nil {
+		return 0, err
+	}
+	if directory {
+		return handle, nil
+	}
+	if err := rejectWindowsPlainDirectory(handle); err != nil {
+		if closeErr := windows.CloseHandle(handle); closeErr != nil {
+			return 0, errors.Join(err, fmt.Errorf("fileutil: close directory handle: %w", closeErr))
+		}
+		return 0, err
+	}
+	return handle, nil
+}
+
 func openWindowsObject(
+	attributes *windows.OBJECT_ATTRIBUTES,
+	expectation entryExpectation,
+	disposition uint32,
+	access uint32,
+	extraOptions uint32,
+) (windows.Handle, error) {
+	handle, err := createWindowsObject(attributes, expectation, disposition, access, extraOptions)
+	if err != nil {
+		return 0, err
+	}
+	if err := rejectWindowsReparsePoint(handle); err != nil {
+		if closeErr := windows.CloseHandle(handle); closeErr != nil {
+			return 0, errors.Join(err, fmt.Errorf("fileutil: close reparse point handle: %w", closeErr))
+		}
+		return 0, err
+	}
+	return handle, nil
+}
+
+func createWindowsObject(
 	attributes *windows.OBJECT_ATTRIBUTES,
 	expectation entryExpectation,
 	disposition uint32,
@@ -243,6 +301,19 @@ func rejectWindowsReparsePoint(handle windows.Handle) error {
 	}
 	if info.FileAttributes&windows.FILE_ATTRIBUTE_REPARSE_POINT != 0 {
 		return ErrSymlink
+	}
+	return nil
+}
+
+// Mirrors unlinkat: refuse a real directory, still detach a directory reparse point.
+func rejectWindowsPlainDirectory(handle windows.Handle) error {
+	var info windows.ByHandleFileInformation
+	if err := windows.GetFileInformationByHandle(handle, &info); err != nil {
+		return fmt.Errorf("fileutil: inspect file handle: %w", err)
+	}
+	if info.FileAttributes&windows.FILE_ATTRIBUTE_DIRECTORY != 0 &&
+		info.FileAttributes&windows.FILE_ATTRIBUTE_REPARSE_POINT == 0 {
+		return ErrDirectory
 	}
 	return nil
 }

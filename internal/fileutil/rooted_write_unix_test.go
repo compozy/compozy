@@ -5,9 +5,11 @@ package fileutil
 import (
 	"bytes"
 	"errors"
+	"net"
 	"os"
 	"path/filepath"
 	"runtime"
+	"syscall"
 	"testing"
 )
 
@@ -102,6 +104,127 @@ func TestDirectoryRootedMutationsKeepTheHeldParentAfterPathReplacement(t *testin
 			t.Fatalf("os.Stat(archived agent) error = %v, want %v", err, os.ErrNotExist)
 		}
 		assertRootedSentinelUnchanged(t, sentinelPath, sentinel)
+	})
+}
+
+// Invariant: RemoveAll deletes a child tree whatever entry types it holds, never
+// follows a link out of that tree, and treats an absent child as already removed.
+// Owner: fileutil capability-rooted filesystem boundary.
+// Canonical suite: fileutil rooted-write filesystem unit tests.
+func TestDirectoryRemoveAllEntryTypes(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should remove a tree holding symlinks without following them", func(t *testing.T) {
+		t.Parallel()
+
+		rootPath := t.TempDir()
+		treePath := filepath.Join(rootPath, "tree")
+		outsidePath := filepath.Join(rootPath, "outside")
+		nestedPath := filepath.Join(treePath, "nested")
+		if err := os.MkdirAll(nestedPath, 0o700); err != nil {
+			t.Fatalf("os.MkdirAll(nested) error = %v", err)
+		}
+		if err := os.MkdirAll(outsidePath, 0o700); err != nil {
+			t.Fatalf("os.MkdirAll(outside) error = %v", err)
+		}
+		sentinelPath := filepath.Join(outsidePath, "sentinel")
+		sentinel := []byte("keep external target")
+		if err := os.WriteFile(sentinelPath, sentinel, 0o600); err != nil {
+			t.Fatalf("os.WriteFile(sentinel) error = %v", err)
+		}
+		payloadPath := filepath.Join(nestedPath, "payload")
+		if err := os.WriteFile(payloadPath, []byte("remove"), 0o600); err != nil {
+			t.Fatalf("os.WriteFile(payload) error = %v", err)
+		}
+		for name, target := range map[string]string{
+			"dangling":      filepath.Join(treePath, "absent"),
+			"internal-file": payloadPath,
+			"external-file": sentinelPath,
+			"external-dir":  outsidePath,
+		} {
+			if err := os.Symlink(target, filepath.Join(nestedPath, name)); err != nil {
+				t.Fatalf("os.Symlink(%q) error = %v", name, err)
+			}
+		}
+
+		root, err := OpenDirectory(rootPath)
+		if err != nil {
+			t.Fatalf("OpenDirectory(root) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := root.Close(); closeErr != nil {
+				t.Errorf("Directory.Close(root) error = %v", closeErr)
+			}
+		})
+
+		if err := root.RemoveAll("tree"); err != nil {
+			t.Fatalf("Directory.RemoveAll(tree) error = %v", err)
+		}
+		if _, err := os.Lstat(treePath); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("os.Lstat(tree) error = %v, want %v", err, os.ErrNotExist)
+		}
+		assertRootedSentinelUnchanged(t, sentinelPath, sentinel)
+		if _, err := os.Stat(outsidePath); err != nil {
+			t.Fatalf("os.Stat(outside) error = %v", err)
+		}
+	})
+
+	t.Run("Should remove a tree holding a fifo and a socket", func(t *testing.T) {
+		t.Parallel()
+
+		rootPath := shortLivedTemporaryDirectory(t)
+		treePath := filepath.Join(rootPath, "tree")
+		if err := os.Mkdir(treePath, 0o700); err != nil {
+			t.Fatalf("os.Mkdir(tree) error = %v", err)
+		}
+		if err := syscall.Mkfifo(filepath.Join(treePath, "fifo"), 0o600); err != nil {
+			t.Fatalf("syscall.Mkfifo(fifo) error = %v", err)
+		}
+		address := &net.UnixAddr{Name: filepath.Join(treePath, "socket"), Net: "unix"}
+		listener, err := net.ListenUnix("unix", address)
+		if err != nil {
+			t.Fatalf("net.ListenUnix(%q) error = %v", address.Name, err)
+		}
+		listener.SetUnlinkOnClose(false)
+		if closeErr := listener.Close(); closeErr != nil {
+			t.Fatalf("net.UnixListener.Close() error = %v", closeErr)
+		}
+
+		root, err := OpenDirectory(rootPath)
+		if err != nil {
+			t.Fatalf("OpenDirectory(root) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := root.Close(); closeErr != nil {
+				t.Errorf("Directory.Close(root) error = %v", closeErr)
+			}
+		})
+
+		if err := root.RemoveAll("tree"); err != nil {
+			t.Fatalf("Directory.RemoveAll(tree) error = %v", err)
+		}
+		if _, err := os.Lstat(treePath); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("os.Lstat(tree) error = %v, want %v", err, os.ErrNotExist)
+		}
+	})
+
+	t.Run("Should report an absent child as already removed", func(t *testing.T) {
+		t.Parallel()
+
+		rootPath := t.TempDir()
+		root, err := OpenDirectory(rootPath)
+		if err != nil {
+			t.Fatalf("OpenDirectory(root) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := root.Close(); closeErr != nil {
+				t.Errorf("Directory.Close(root) error = %v", closeErr)
+			}
+		})
+
+		if err := root.RemoveAll("absent"); err != nil {
+			t.Fatalf("Directory.RemoveAll(absent) error = %v", err)
+		}
 	})
 }
 
@@ -996,6 +1119,23 @@ func assertRegularFileContents(t *testing.T, path string, want string) {
 	if string(got) != want {
 		t.Fatalf("file %q = %q, want %q", path, got, want)
 	}
+}
+
+// shortLivedTemporaryDirectory keeps the sun_path budget of a unix socket child
+// within the platform limit, which t.TempDir() names can exceed.
+func shortLivedTemporaryDirectory(t *testing.T) string {
+	t.Helper()
+
+	path, err := os.MkdirTemp("", "cz-fileutil-")
+	if err != nil {
+		t.Fatalf("os.MkdirTemp() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if removeErr := os.RemoveAll(path); removeErr != nil {
+			t.Errorf("os.RemoveAll(%q) error = %v", path, removeErr)
+		}
+	})
+	return path
 }
 
 func replaceDirectoryPathWithExternalSymlink(t *testing.T, live string, archived string, external string) {

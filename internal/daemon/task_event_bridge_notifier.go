@@ -8,7 +8,6 @@ import (
 	"time"
 
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
-	eventspkg "github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/notifications"
 	presetspkg "github.com/compozy/compozy/internal/notifications/presets"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -346,7 +345,7 @@ func (o *bridgeTerminalTaskNotificationObserver) processPresetWake(
 	ctx context.Context,
 	wake bridgeTerminalTaskNotificationWake,
 ) {
-	event := presetEventFromTaskRecord(ctx, o.tasks, wake.record, o.log())
+	event := presetspkg.EventFromTaskRecord(ctx, o.tasks, wake.record, o.log())
 	result, err := o.presets.Dispatch(ctx, event)
 	if err != nil {
 		o.logPresetWakeFailure(wake, result, err)
@@ -431,43 +430,6 @@ func (o *bridgeTerminalTaskNotificationObserver) logPresetWakeSuccess(
 		"skipped", result.Skipped,
 		"failed", result.Failed,
 	)
-}
-
-func presetEventFromTaskRecord(
-	ctx context.Context,
-	tasks bridgepkg.TerminalTaskEventReader,
-	record taskpkg.EventRecord,
-	logger *slog.Logger,
-) presetspkg.Event {
-	event := presetspkg.Event{
-		ID:        record.Event.ID,
-		Type:      record.Event.EventType,
-		AgentName: strings.TrimSpace(record.Event.Actor.Ref),
-		TaskID:    record.Event.TaskID,
-		RunID:     record.Event.RunID,
-		Outcome:   eventspkg.OutcomeFor(record.Event.EventType),
-		Sequence:  record.Sequence,
-		Payload:   append([]byte(nil), record.Event.Payload...),
-		Timestamp: record.Event.Timestamp,
-	}
-	if tasks != nil && event.TaskID != "" {
-		taskRecord, err := tasks.GetTask(ctx, event.TaskID)
-		if err == nil {
-			event.Scope = notifications.ScopeRef{
-				Kind:        notifications.ScopeKind(taskRecord.Scope.Normalize()),
-				WorkspaceID: taskRecord.WorkspaceID,
-			}
-			event.Summary = strings.TrimSpace(taskRecord.Title)
-		} else if logger != nil {
-			logger.Debug(
-				"daemon: notification preset could not enrich task event",
-				"task_id", event.TaskID,
-				"event_id", event.ID,
-				"error", err,
-			)
-		}
-	}
-	return event
 }
 
 func (o *bridgeTerminalTaskNotificationObserver) log() *slog.Logger {

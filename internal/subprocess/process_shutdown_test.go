@@ -1,9 +1,11 @@
 package subprocess
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -219,6 +221,25 @@ func TestProcessShutdownCancellationContract(t *testing.T) {
 		}
 	})
 
+	t.Run("Should start a fresh attempt after a failed shutdown", func(t *testing.T) {
+		t.Parallel()
+
+		var frames bytes.Buffer
+		process := newStalledShutdownProcess(t, &frames)
+
+		firstErr := process.Shutdown(t.Context())
+		if !errors.Is(firstErr, context.DeadlineExceeded) {
+			t.Fatalf("Shutdown(stalled process) error = %v, want context.DeadlineExceeded", firstErr)
+		}
+		secondErr := process.Shutdown(t.Context())
+		if !errors.Is(secondErr, context.DeadlineExceeded) {
+			t.Fatalf("Shutdown(retry after failure) error = %v, want context.DeadlineExceeded", secondErr)
+		}
+		if got, want := strings.Count(frames.String(), `"method":"shutdown"`), 2; got != want {
+			t.Fatalf("cooperative shutdown request count = %d, want %d; frames=%q", got, want, frames.String())
+		}
+	})
+
 	t.Run("Should bound process record completion before publishing Done", func(t *testing.T) {
 		t.Parallel()
 
@@ -394,6 +415,25 @@ func (s *blockingCompletionProcessStore) ListProcessRecords(
 	query toolruntime.ProcessQuery,
 ) ([]toolruntime.ProcessRecord, error) {
 	return s.base.ListProcessRecords(ctx, query)
+}
+
+// The nil command and never-closed done channel model a process group that never drains.
+func newStalledShutdownProcess(t *testing.T, frames io.Writer) *Process {
+	t.Helper()
+
+	lifecycleCtx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	process := &Process{
+		stdin:           discardWriteCloser{Writer: frames},
+		lifecycleCtx:    lifecycleCtx,
+		cancelLifecycle: cancel,
+		done:            make(chan struct{}),
+		state:           processStateReady,
+		shutdownTimeout: 20 * time.Millisecond,
+		postSignalGrace: 10 * time.Millisecond,
+	}
+	process.transport = newTransport(process, defaultMaxMessageBytes)
+	return process
 }
 
 func cleanupProcessShutdownContract(t *testing.T, process *Process) {

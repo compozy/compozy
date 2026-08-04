@@ -77,6 +77,11 @@ func TestBridgeTerminalTaskNotificationObserver(t *testing.T) {
 		record := store.records[0]
 		record.Event.EventType = "task.run_started"
 		observer.OnTaskEvent(context.Background(), record)
+		waitForCondition(t, "bridge observer wake drain", func() bool {
+			observer.mu.Lock()
+			defer observer.mu.Unlock()
+			return len(observer.pending) == 0 && len(observer.backlog) == 0 && len(observer.queue) == 0
+		})
 
 		if got := store.deliveryCount(); got != 0 {
 			t.Fatalf("len(deliveries) = %d, want 0", got)

@@ -117,6 +117,11 @@ func removeNoFollowAt(parent *os.File, name string, directory bool) error {
 	return unix.Unlinkat(parentFD, name, flags)
 }
 
+// unlinkat returns these when the entry may still be a directory needing removal of its contents.
+func isDirectoryUnlinkRejection(err error) bool {
+	return errors.Is(err, unix.EISDIR) || errors.Is(err, unix.EPERM) || errors.Is(err, unix.EACCES)
+}
+
 func syncDirectoryHandle(file *os.File) error {
 	return file.Sync()
 }

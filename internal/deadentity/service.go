@@ -18,6 +18,7 @@ type Service struct {
 
 	permanentFailureThreshold int
 	recoveryInterval          time.Duration
+	transitionEventTimeout    time.Duration
 
 	mu               sync.Mutex
 	states           map[store.DeadEntityKey]*entityState
@@ -33,6 +34,7 @@ func New(deadStore store.DeadEntityStore, opts ...Option) *Service {
 		now:                       time.Now,
 		permanentFailureThreshold: DefaultPermanentFailureThreshold,
 		recoveryInterval:          DefaultRecoveryInterval,
+		transitionEventTimeout:    DefaultTransitionEventTimeout,
 		states:                    make(map[store.DeadEntityKey]*entityState),
 		workspaceStates:           make(map[string]*workspaceState),
 		publicationTails:          make(map[store.DeadEntityKey]*transitionPublication),
@@ -53,6 +55,9 @@ func New(deadStore store.DeadEntityStore, opts ...Option) *Service {
 	}
 	if service.recoveryInterval <= 0 {
 		service.recoveryInterval = DefaultRecoveryInterval
+	}
+	if service.transitionEventTimeout <= 0 {
+		service.transitionEventTimeout = DefaultTransitionEventTimeout
 	}
 	return service
 }
@@ -192,11 +197,6 @@ func (s *Service) RecordSuccess(ctx context.Context, key store.DeadEntityKey) er
 		s.logStoreFailure("clear", normalized, err)
 		s.completeOperation(state, operation)
 		return nil
-	}
-	if ctxErr := contextError(ctx); ctxErr != nil {
-		s.invalidateLoadedState(normalized, state, operation)
-		s.completeOperation(state, operation)
-		return ctxErr
 	}
 
 	state.mu.Lock()

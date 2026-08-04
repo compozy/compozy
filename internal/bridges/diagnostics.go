@@ -256,7 +256,7 @@ func deliveryDefaultsCarryDestination(raw []byte) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return defaults.PeerID != "" || defaults.GroupID != "", nil
+	return !isBlank(defaults.PeerID) || !isBlank(defaults.GroupID), nil
 }
 
 func degradationReason(instance BridgeInstance) BridgeDegradationReason {

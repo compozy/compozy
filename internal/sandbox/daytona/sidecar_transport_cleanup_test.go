@@ -20,14 +20,39 @@ func TestSidecarSessionCleanupContract(t *testing.T) {
 	t.Run("Should close endpoint exactly once after Stop", func(t *testing.T) {
 		t.Parallel()
 
-		session, closeCount := newContractSidecarSession(t)
-		if err := session.Stop(testutil.Context(t)); err != nil {
+		contract := newContractSidecarSession(t)
+		if err := contract.session.Stop(testutil.Context(t)); err != nil {
 			t.Fatalf("Stop() error = %v", err)
 		}
-		if err := session.Stop(testutil.Context(t)); err != nil {
+		if err := contract.session.Stop(testutil.Context(t)); err != nil {
 			t.Fatalf("Stop(second) error = %v", err)
 		}
-		if got := closeCount.Load(); got != 1 {
+		if got := contract.closeCount.Load(); got != 1 {
+			t.Fatalf("endpoint close count = %d, want 1", got)
+		}
+		if got := contract.stopCount.Load(); got != 1 {
+			t.Fatalf("remote stop request count = %d, want 1", got)
+		}
+	})
+
+	t.Run("Should request remote stop on Close after the stream drops", func(t *testing.T) {
+		t.Parallel()
+
+		contract := newDroppedContractSidecarSession(t)
+		<-contract.session.Done()
+		if err := contract.session.Close(); err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+		if got := contract.stopCount.Load(); got != 1 {
+			t.Fatalf("remote stop request count = %d, want 1", got)
+		}
+		if err := contract.session.Close(); err != nil {
+			t.Fatalf("Close(second) error = %v", err)
+		}
+		if got := contract.stopCount.Load(); got != 1 {
+			t.Fatalf("remote stop request count after second Close = %d, want 1", got)
+		}
+		if got := contract.closeCount.Load(); got != 1 {
 			t.Fatalf("endpoint close count = %d, want 1", got)
 		}
 	})
@@ -35,14 +60,14 @@ func TestSidecarSessionCleanupContract(t *testing.T) {
 	t.Run("Should close endpoint exactly once after Wait observes server exit", func(t *testing.T) {
 		t.Parallel()
 
-		session, closeCount := newContractSidecarSession(t)
-		if err := session.Wait(); err != nil {
+		contract := newContractSidecarSession(t)
+		if err := contract.session.Wait(); err != nil {
 			t.Fatalf("Wait() error = %v", err)
 		}
-		if err := session.Wait(); err != nil {
+		if err := contract.session.Wait(); err != nil {
 			t.Fatalf("Wait(second) error = %v", err)
 		}
-		if got := closeCount.Load(); got != 1 {
+		if got := contract.closeCount.Load(); got != 1 {
 			t.Fatalf("endpoint close count = %d, want 1", got)
 		}
 	})
@@ -50,32 +75,52 @@ func TestSidecarSessionCleanupContract(t *testing.T) {
 	t.Run("Should retain a nonzero server exit code after Wait", func(t *testing.T) {
 		t.Parallel()
 
-		session, closeCount := newContractSidecarSessionWithExit(t, 23)
-		if err := session.Wait(); err == nil {
+		contract := newContractSidecarSessionWithExit(t, 23)
+		if err := contract.session.Wait(); err == nil {
 			t.Fatal("Wait() error = nil, want nonzero exit error")
 		}
-		if got, ok := session.ExitCode(); !ok || got != 23 {
+		if got, ok := contract.session.ExitCode(); !ok || got != 23 {
 			t.Fatalf("ExitCode() = %d, %v, want 23, true", got, ok)
 		}
-		if got := closeCount.Load(); got != 1 {
+		if got := contract.closeCount.Load(); got != 1 {
 			t.Fatalf("endpoint close count = %d, want 1", got)
 		}
 	})
 }
 
-func newContractSidecarSession(t *testing.T) (*sidecarSession, *atomic.Int32) {
+type contractSidecarSession struct {
+	session    *sidecarSession
+	closeCount *atomic.Int32
+	stopCount  *atomic.Int32
+}
+
+func newContractSidecarSession(t *testing.T) contractSidecarSession {
 	t.Helper()
 	return newContractSidecarSessionWithExit(t, 0)
 }
 
-func newContractSidecarSessionWithExit(
+func newContractSidecarSessionWithExit(t *testing.T, exitCode int) contractSidecarSession {
+	t.Helper()
+
+	var stopCount atomic.Int32
+	return dialContractSidecarSession(t, newContractSidecarServer(t, exitCode, &stopCount), &stopCount)
+}
+
+func newDroppedContractSidecarSession(t *testing.T) contractSidecarSession {
+	t.Helper()
+
+	var stopCount atomic.Int32
+	return dialContractSidecarSession(t, newDroppedStreamSidecarServer(t, &stopCount), &stopCount)
+}
+
+func dialContractSidecarSession(
 	t *testing.T,
-	exitCode int,
-) (*sidecarSession, *atomic.Int32) {
+	server *httptest.Server,
+	stopCount *atomic.Int32,
+) contractSidecarSession {
 	t.Helper()
 
 	var closeCount atomic.Int32
-	server := newContractSidecarServer(t, exitCode)
 	endpoint := newContractSidecarEndpoint(t, server, &closeCount)
 	conn, response, err := websocket.DefaultDialer.Dial(
 		endpoint.wsURL(sidecarSessionStreamBasePath, "session-1", "stream"),
@@ -91,7 +136,11 @@ func newContractSidecarSessionWithExit(
 	if err != nil {
 		t.Fatalf("websocket.Dial() error = %v", err)
 	}
-	return newSidecarSession(conn, endpoint, "session-1", server.Client(), time.Second), &closeCount
+	return contractSidecarSession{
+		session:    newSidecarSession(conn, endpoint, "session-1", server.Client(), time.Second),
+		closeCount: &closeCount,
+		stopCount:  stopCount,
+	}
 }
 
 func TestSidecarTransportDialCleanupContract(t *testing.T) {
@@ -171,13 +220,14 @@ func newContractSidecarEndpoint(
 	}
 }
 
-func newContractSidecarServer(t *testing.T, exitCode int) *httptest.Server {
+func newContractSidecarServer(t *testing.T, exitCode int, stopCount *atomic.Int32) *httptest.Server {
 	t.Helper()
 
 	upgrader := websocket.Upgrader{}
-	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+	return newContractDialServer(t, func(writer http.ResponseWriter, request *http.Request) {
 		switch {
 		case request.Method == http.MethodDelete && request.URL.Path == "/v1/sessions/session-1":
+			stopCount.Add(1)
 			writer.WriteHeader(http.StatusNoContent)
 		case request.Method == http.MethodGet && request.URL.Path == "/v1/sessions/session-1/stream":
 			conn, err := upgrader.Upgrade(writer, request, nil)
@@ -200,9 +250,33 @@ func newContractSidecarServer(t *testing.T, exitCode int) *httptest.Server {
 		default:
 			http.Error(writer, fmt.Sprintf("unexpected %s %s", request.Method, request.URL.Path), http.StatusNotFound)
 		}
-	}))
-	t.Cleanup(server.Close)
-	return server
+	})
+}
+
+// newDroppedStreamSidecarServer drops the websocket without an exit frame, the
+// shape a mid-session network failure produces while the remote process keeps running.
+func newDroppedStreamSidecarServer(t *testing.T, stopCount *atomic.Int32) *httptest.Server {
+	t.Helper()
+
+	upgrader := websocket.Upgrader{}
+	return newContractDialServer(t, func(writer http.ResponseWriter, request *http.Request) {
+		switch {
+		case request.Method == http.MethodDelete && request.URL.Path == "/v1/sessions/session-1":
+			stopCount.Add(1)
+			writer.WriteHeader(http.StatusNoContent)
+		case request.Method == http.MethodGet && request.URL.Path == "/v1/sessions/session-1/stream":
+			conn, err := upgrader.Upgrade(writer, request, nil)
+			if err != nil {
+				t.Errorf("websocket Upgrade() error = %v", err)
+				return
+			}
+			if err := conn.Close(); err != nil {
+				t.Errorf("conn.Close() error = %v", err)
+			}
+		default:
+			http.Error(writer, fmt.Sprintf("unexpected %s %s", request.Method, request.URL.Path), http.StatusNotFound)
+		}
+	})
 }
 
 func newContractDialServer(t *testing.T, handler http.HandlerFunc) *httptest.Server {

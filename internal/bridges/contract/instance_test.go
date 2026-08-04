@@ -95,9 +95,19 @@ func TestBridgeInstanceContractValidation(t *testing.T) {
 		}{
 			{name: "Should reject a missing id", mutate: func(v *BridgeInstance) { v.ID = "" }, want: "instance id"},
 			{
+				name:   "Should reject a blank id",
+				mutate: func(v *BridgeInstance) { v.ID = " " },
+				want:   "instance id is required",
+			},
+			{
 				name:   "Should reject a missing workspace",
 				mutate: func(v *BridgeInstance) { v.WorkspaceID = "" },
 				want:   "requires workspace",
+			},
+			{
+				name:   "Should reject a blank workspace",
+				mutate: func(v *BridgeInstance) { v.WorkspaceID = " " },
+				want:   "workspace id must not be blank",
 			},
 			{
 				name:   "Should reject a missing platform",
@@ -466,6 +476,18 @@ func TestRoutingContractBuildSerializeAndHash(t *testing.T) {
 				name:       "Should require a group dimension",
 				dimensions: RoutingDimensions{PeerID: "peer-1", ThreadID: "thread-1"},
 			},
+			{
+				name:       "Should reject a blank peer dimension",
+				dimensions: RoutingDimensions{PeerID: " ", ThreadID: "thread-1", GroupID: "group-1"},
+			},
+			{
+				name:       "Should reject a blank thread dimension",
+				dimensions: RoutingDimensions{PeerID: "peer-1", ThreadID: " ", GroupID: "group-1"},
+			},
+			{
+				name:       "Should reject a blank group dimension",
+				dimensions: RoutingDimensions{PeerID: "peer-1", ThreadID: "thread-1", GroupID: " "},
+			},
 		}
 		for _, test := range cases {
 			t.Run(test.name, func(t *testing.T) {
@@ -485,6 +507,23 @@ func TestRoutingContractBuildSerializeAndHash(t *testing.T) {
 		}
 		if _, err := (RoutingKey{}).Serialize(); err == nil {
 			t.Fatal("RoutingKey.Serialize(invalid) error = nil")
+		}
+	})
+
+	t.Run("Should refuse to hash a blank routing dimension", func(t *testing.T) {
+		t.Parallel()
+
+		key := RoutingKey{
+			Scope:            ScopeWorkspace,
+			WorkspaceID:      "ws-1",
+			BridgeInstanceID: "brg-1",
+			PeerID:           " ",
+		}
+		if err := key.Validate(); err == nil {
+			t.Fatal("RoutingKey.Validate(blank peer) error = nil, want blank identity rejection")
+		}
+		if _, err := key.Hash(); err == nil {
+			t.Fatal("RoutingKey.Hash(blank peer) error = nil, want blank identity rejection")
 		}
 	})
 

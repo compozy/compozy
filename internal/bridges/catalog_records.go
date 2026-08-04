@@ -273,10 +273,10 @@ func bridgeCatalogRecordPageStart(
 	if err != nil {
 		return 0, fmt.Errorf("%w: %w", ErrBridgeCatalogCursorInvalid, err)
 	}
-	if position.ID == "" {
+	if isBlank(position.ID) {
 		return 0, fmt.Errorf("%w: cursor id is required", ErrBridgeCatalogCursorInvalid)
 	}
-	if strings.TrimSpace(position.DisplayName) == "" {
+	if isBlank(position.DisplayName) {
 		return 0, fmt.Errorf("%w: cursor display name is required", ErrBridgeCatalogCursorInvalid)
 	}
 	if err := position.Scope.Validate(); err != nil {

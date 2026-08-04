@@ -11715,6 +11715,57 @@ func TestManagerStartRunAndAttachErrorBranches(t *testing.T) {
 			t.Fatalf("stored queued admission lease until = %s, want zero", stored.LeaseUntil)
 		}
 	})
+
+	t.Run("Should reject session attach for a run escalated to needs attention", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+		store := newInMemoryManagerStore()
+		manager := newTaskManagerForTestWithOptions(
+			t,
+			store,
+			WithSessionExecutor(&recordingSessionExecutor{}),
+		)
+		actor := validActorContext()
+
+		taskRecord, err := manager.CreateTask(ctx, CreateTask{
+			Scope: ScopeGlobal,
+			Title: "Attach status guard",
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run, err := manager.EnqueueRun(ctx, EnqueueRun{TaskID: taskRecord.ID}, actor)
+		if err != nil {
+			t.Fatalf("EnqueueRun() error = %v", err)
+		}
+		if _, err := admitRunDirectlyForTest(ctx, manager, run.ID, actor); err != nil {
+			t.Fatalf("admitRunDirectlyForTest() error = %v", err)
+		}
+		escalated, err := manager.MarkRunNeedsAttention(ctx, run.ID, "worker unreachable", actor)
+		if err != nil {
+			t.Fatalf("MarkRunNeedsAttention() error = %v", err)
+		}
+		if got, want := escalated.Status.Normalize(), TaskRunStatusNeedsAttention; got != want {
+			t.Fatalf("MarkRunNeedsAttention().Status = %q, want %q", got, want)
+		}
+		if got := strings.TrimSpace(escalated.SessionID); got != "" {
+			t.Fatalf("escalated run session id = %q, want empty so the status guard is exercised", got)
+		}
+
+		if _, err := manager.AttachRunSession(
+			ctx,
+			run.ID,
+			"sess-escalated",
+			actor,
+		); !errors.Is(err, ErrSessionAttachNotAllowed) {
+			t.Fatalf(
+				"AttachRunSession(needs_attention run) error = %v, want %v",
+				err,
+				ErrSessionAttachNotAllowed,
+			)
+		}
+	})
 }
 
 func TestManagerRecoverRunOnBoot(t *testing.T) {

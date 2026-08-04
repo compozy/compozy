@@ -151,10 +151,23 @@ func (p *Process) startShutdown(ctx context.Context) *processShutdownOperation {
 	p.shutdownOp = operation
 	operationCtx := context.WithoutCancel(ctx)
 	go func() {
-		operation.err = p.runShutdown(operationCtx)
+		err := p.runShutdown(operationCtx)
+		operation.err = err
+		if err != nil {
+			// Released before the close so every caller that observes the failure can escalate again.
+			p.releaseShutdownOperation(operation)
+		}
 		close(operation.done)
 	}()
 	return operation
+}
+
+func (p *Process) releaseShutdownOperation(operation *processShutdownOperation) {
+	p.shutdownMu.Lock()
+	defer p.shutdownMu.Unlock()
+	if p.shutdownOp == operation {
+		p.shutdownOp = nil
+	}
 }
 
 func (p *Process) runShutdown(ctx context.Context) error {

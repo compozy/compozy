@@ -2,8 +2,10 @@ package providers
 
 import (
 	"os"
+	"os/exec"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/kballard/go-shellquote"
@@ -42,6 +44,50 @@ func TestProviderAuthCommandEnvironmentPrefix(t *testing.T) {
 		}
 		if got, ok := subprocess.LookupEnv(cmd.Env, "QA_LOGIN_TOKEN"); !ok || got != "distinctive-secret" {
 			t.Fatalf("QA_LOGIN_TOKEN = %q/%v, want distinctive-secret/true", got, ok)
+		}
+	})
+}
+
+func TestDefaultProviderAuthCommandRunner(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should return when a lingering child keeps the output pipe open", func(t *testing.T) {
+		t.Parallel()
+
+		shell, err := exec.LookPath("sh")
+		if err != nil {
+			t.Skipf("POSIX shell unavailable: %v", err)
+		}
+		type runOutcome struct {
+			result ProviderAuthCommandResult
+			err    error
+		}
+		outcome := make(chan runOutcome, 1)
+		ctx := t.Context()
+		go func() {
+			result, runErr := DefaultProviderAuthCommandRunner(ctx, ProviderAuthCommandSpec{
+				Command:    "sh",
+				Executable: shell,
+				Args:       []string{"-c", "sleep 120 & exit 0"},
+				Timeout:    DefaultProviderAuthCommandTimeout,
+				NoTTY:      true,
+			})
+			outcome <- runOutcome{result: result, err: runErr}
+		}()
+
+		budget := time.NewTimer(20 * time.Second)
+		defer budget.Stop()
+		var observed runOutcome
+		select {
+		case observed = <-outcome:
+		case <-budget.C:
+			t.Fatal("DefaultProviderAuthCommandRunner() never returned, want the inherited pipe bounded")
+		}
+		if observed.err != nil {
+			t.Fatalf("DefaultProviderAuthCommandRunner() error = %v", observed.err)
+		}
+		if observed.result.ExitCode != 0 {
+			t.Fatalf("ExitCode = %d, want 0 from the completed status command", observed.result.ExitCode)
 		}
 	})
 }

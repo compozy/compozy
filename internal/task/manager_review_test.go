@@ -62,6 +62,11 @@ func (s *inMemoryManagerStore) RecordRunReview(
 	if err := actor.Validate(); err != nil {
 		return RunReviewResult{}, err
 	}
+	// Mirrors globaldb.TaskRunRepo.RecordRunReview: the precondition runs before the transaction.
+	if normalized.Verdict.Outcome == RunReviewOutcomeRejected &&
+		strings.TrimSpace(continuationRunID) == "" {
+		return RunReviewResult{}, errors.New("store: continuation task run id is required")
+	}
 	review, ok := s.reviews[normalized.ReviewID]
 	if !ok {
 		return RunReviewResult{}, ErrRunReviewNotFound
@@ -568,6 +573,41 @@ func TestTaskManagerRunReviews(t *testing.T) {
 		if !containsEventType(store.events, taskEventRunReviewRejected) ||
 			!containsEventType(store.events, taskEventRunReviewRetry) {
 			t.Fatalf("events = %#v, want rejected and retry", sortedEventTypes(store.events))
+		}
+
+		replay, err := manager.RecordRunReview(
+			context.Background(),
+			RecordRunReviewRequest{
+				ReviewID: review.ReviewID,
+				RunID:    review.RunID,
+				Verdict: RunReviewVerdict{
+					Outcome:           RunReviewOutcomeRejected,
+					Confidence:        &confidence,
+					Reason:            "missing regression coverage",
+					DeliveryID:        "delivery-rejected",
+					MissingWork:       []byte(`["add regression tests"]`),
+					NextRoundGuidance: "Add the missing tests and rerun verification.",
+				},
+			},
+			validActorContext(),
+		)
+		if err != nil {
+			t.Fatalf("RecordRunReview(rejected replay) error = %v", err)
+		}
+		if replay.ContinuationRun == nil {
+			t.Fatal("replay ContinuationRun = nil, want the recorded continuation run")
+		}
+		if got, want := replay.ContinuationRun.ID, result.ContinuationRun.ID; got != want {
+			t.Fatalf("replay continuation run id = %q, want %q", got, want)
+		}
+		if got, want := len(store.runs), 2; got != want {
+			t.Fatalf("run count after replay = %d, want %d", got, want)
+		}
+		if got := countEventType(store.events, taskEventRunReviewRejected); got != 1 {
+			t.Fatalf("review rejected event count = %d, want 1", got)
+		}
+		if got := countEventType(store.events, taskEventRunReviewRetry); got != 1 {
+			t.Fatalf("review retry event count = %d, want 1", got)
 		}
 	})
 

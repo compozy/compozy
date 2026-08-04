@@ -123,6 +123,12 @@ func NormalizeBridgeCatalogQuery(query BridgeCatalogQuery) (BridgeCatalogQuery, 
 			query.Scope,
 		)
 	}
+	if query.WorkspaceID != "" && isBlank(query.WorkspaceID) {
+		return BridgeCatalogQuery{}, fmt.Errorf(
+			"%w: workspace id must not be blank",
+			ErrBridgeCatalogQueryInvalid,
+		)
+	}
 	if query.Scope == string(ScopeGlobal) && query.WorkspaceID != "" {
 		return BridgeCatalogQuery{}, fmt.Errorf(
 			"%w: global scope cannot include workspace id",

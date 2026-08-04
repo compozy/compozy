@@ -130,13 +130,13 @@ func validateRoutingDimensions(policy RoutingPolicy, dims RoutingDimensions) err
 	if err := policy.Validate(); err != nil {
 		return err
 	}
-	if policy.IncludePeer && dims.PeerID == "" {
+	if policy.IncludePeer && isBlank(dims.PeerID) {
 		return errors.New("bridges: routing policy requires peer id")
 	}
-	if policy.IncludeThread && dims.ThreadID == "" {
+	if policy.IncludeThread && isBlank(dims.ThreadID) {
 		return errors.New("bridges: routing policy requires thread id")
 	}
-	if policy.IncludeGroup && dims.GroupID == "" {
+	if policy.IncludeGroup && isBlank(dims.GroupID) {
 		return errors.New("bridges: routing policy requires group id")
 	}
 	for _, field := range []struct {

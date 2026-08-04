@@ -155,8 +155,9 @@ func (m *Service) RecordRunReview(
 		return RunReviewResult{}, err
 	}
 	alreadyRecorded := review.Status.Normalize() == RunReviewStatusRecorded
+	// The store decides replay inside its transaction and discards this id when it replays.
 	continuationRunID := ""
-	if !alreadyRecorded && normalized.Verdict.Outcome.Normalize() == RunReviewOutcomeRejected {
+	if normalized.Verdict.Outcome.Normalize() == RunReviewOutcomeRejected {
 		continuationRunID, err = m.newID("run")
 		if err != nil {
 			return RunReviewResult{}, fmt.Errorf("task: generate review continuation run id: %w", err)

@@ -457,15 +457,20 @@ func (r IngestDedupRecord) normalize() IngestDedupRecord {
 	return normalized
 }
 
+// isBlank marks values that carry no identity: whitespace is opaque data, but an all-whitespace value names nothing.
+func isBlank(value string) bool {
+	return strings.TrimSpace(value) == ""
+}
+
 func requireField(value string, label string) error {
-	if strings.TrimSpace(value) == "" {
+	if isBlank(value) {
 		return fmt.Errorf("bridges: %s is required", label)
 	}
 	return nil
 }
 
 func requireOpaqueDeliveryID(value string, label string) error {
-	if value == "" {
+	if isBlank(value) {
 		return fmt.Errorf("bridges: %s is required", label)
 	}
 	if !utf8.ValidString(value) {

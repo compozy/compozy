@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -220,6 +221,61 @@ func TestManagerResourceSourceCleanup(t *testing.T) {
 		if started || stopping {
 			t.Fatalf("manager lifecycle = started %v stopping %v, want false/false", started, stopping)
 		}
+	})
+
+	t.Run("Should stop every extension when the admitted development drain times out", func(t *testing.T) {
+		t.Parallel()
+
+		env := newRegistryTestEnv(t)
+		key := GlobalInstanceKey("ext-drain-timeout")
+		manager, proc := startedManagerWithProcess(env.registry, key.Name)
+		manager.defaultShutdownTimeout = 20 * time.Millisecond
+		operation, err := manager.beginDevOperation(
+			testutil.Context(t),
+			InstanceKey{Name: "stuck-dev-operation", WorkspaceID: "workspace-drain-timeout"},
+		)
+		if err != nil {
+			t.Fatalf("beginDevOperation() error = %v", err)
+		}
+		t.Cleanup(operation.close)
+
+		var supervisionJoined atomic.Bool
+		released := make(chan struct{})
+		manager.wg.Go(func() {
+			<-released
+			supervisionJoined.Store(true)
+		})
+		proc.shutdownFn = func(context.Context) error {
+			close(released)
+			proc.close(nil)
+			return nil
+		}
+
+		stopErr := manager.Stop(testutil.Context(t))
+		if !errors.Is(stopErr, context.DeadlineExceeded) {
+			t.Fatalf("Stop() error = %v, want the admitted development drain deadline", stopErr)
+		}
+		if got := proc.shutdownCount(); got != 1 {
+			t.Fatalf("Shutdown() count = %d, want 1", got)
+		}
+		if !supervisionJoined.Load() {
+			t.Fatal("Stop() returned before joining supervision goroutines")
+		}
+		manager.mu.RLock()
+		started := manager.started
+		stopping := manager.stopping
+		manager.mu.RUnlock()
+		if started || stopping {
+			t.Fatalf("manager lifecycle = started %v stopping %v, want false/false", started, stopping)
+		}
+		if err := manager.Start(testutil.Context(t)); err != nil {
+			t.Fatalf("Manager.Start() after a drained shutdown error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := manager.Stop(testutil.Context(t)); err != nil {
+				t.Fatalf("Manager.Stop() cleanup error = %v", err)
+			}
+		})
 	})
 
 	t.Run("Should block reload until pending source cleanup succeeds", func(t *testing.T) {

@@ -18,7 +18,8 @@ const (
 )
 
 // Probe executes one doctor diagnostic check.
-// Implementations must stop their work and return when the context is canceled.
+// Implementations should return when the context is canceled so the runner can reclaim
+// their goroutine; the per-probe deadline is enforced either way.
 type Probe interface {
 	ID() string
 	Category() string
@@ -107,7 +108,18 @@ func (r *Runner) runProbe(ctx context.Context, probe Probe, env ProbeEnv) []cont
 	probeCtx, cancel := context.WithTimeout(ctx, env.Timeout)
 	defer cancel()
 
-	result := executeProbe(probeCtx, probe, &env)
+	// A probe that ignores cancellation must not outlive its deadline in the caller's goroutine.
+	resultCh := make(chan probeResult, 1)
+	go func() {
+		resultCh <- executeProbe(probeCtx, probe, &env)
+	}()
+
+	var result probeResult
+	select {
+	case result = <-resultCh:
+	case <-probeCtx.Done():
+		return []contract.DiagnosticItem{probeErrorItem(probe, probeCtx.Err())}
+	}
 	if result.err != nil {
 		return []contract.DiagnosticItem{probeErrorItem(probe, result.err)}
 	}

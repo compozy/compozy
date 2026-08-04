@@ -48,7 +48,7 @@ func (r ResolveDeliveryTargetRequest) Validate() error {
 		{value: r.ThreadID, label: "delivery target request thread id"},
 		{value: r.GroupID, label: "delivery target request group id"},
 	} {
-		if field.value == "" {
+		if isBlank(field.value) {
 			continue
 		}
 		if err := requireOpaqueDeliveryID(field.value, field.label); err != nil {
@@ -170,7 +170,7 @@ func decodeDeliveryTargetDefaults(raw json.RawMessage) (deliveryTargetDefaults, 
 
 func firstNonEmpty(values ...string) string {
 	for _, value := range values {
-		if value != "" {
+		if !isBlank(value) {
 			return value
 		}
 	}

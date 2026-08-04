@@ -144,8 +144,10 @@ func (m *Manager) stopLocked(ctx context.Context) error {
 	if cancel != nil {
 		cancel()
 	}
+	// A drain that never settles must not strand extension subprocesses, so teardown continues.
+	var drainErr error
 	if err := m.waitForDevOperationsDuringShutdown(ctx, devOperationsDone); err != nil {
-		return fmt.Errorf("extension: wait for admitted development operations: %w", err)
+		drainErr = fmt.Errorf("extension: wait for admitted development operations: %w", err)
 	}
 	pendingCleanupErr := m.retryPendingCleanups(ctx)
 
@@ -193,7 +195,7 @@ func (m *Manager) stopLocked(ctx context.Context) error {
 	m.lifecycleCtx = nil
 	m.mu.Unlock()
 
-	var errs []error
+	errs := []error{drainErr}
 	for err := range errCh {
 		errs = append(errs, err)
 	}
