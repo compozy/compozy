@@ -27,7 +27,7 @@ func requireExpectedActiveTurn(session *Session, expectedTurnID string) (string,
 func (m *Manager) activateInterruptingInput(
 	ctx context.Context,
 	session *Session,
-	entry store.SessionInputQueueEntry,
+	entry *store.SessionInputQueueEntry,
 ) error {
 	if session == nil {
 		return errors.New("session: session is required")
@@ -57,7 +57,7 @@ func (m *Manager) activateInterruptingInput(
 func (m *Manager) ensureInterruptingInputActivated(
 	ctx context.Context,
 	session *Session,
-	entry store.SessionInputQueueEntry,
+	entry *store.SessionInputQueueEntry,
 ) error {
 	switch entry.Status {
 	case store.SessionInputQueueStatusQueued:
@@ -78,7 +78,7 @@ func (m *Manager) ensureInterruptingInputActivated(
 
 func (m *Manager) cleanupInterruptingInputActivationFailure(
 	ctx context.Context,
-	entry store.SessionInputQueueEntry,
+	entry *store.SessionInputQueueEntry,
 	cause error,
 ) error {
 	if entry.Status != store.SessionInputQueueStatusQueued {

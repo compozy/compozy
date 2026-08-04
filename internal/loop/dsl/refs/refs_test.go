@@ -3,6 +3,7 @@ package refs_test
 import (
 	"bytes"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -78,6 +79,69 @@ func TestTemplateShouldValidateReferencesAgainstNamespace(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Should report the deepest valid schema segment and available fields", func(t *testing.T) {
+		t.Parallel()
+
+		path := []string{"nodes", "load", "output", "tasks", "summary"}
+		err := namespace(false).ValidatePath(path)
+		if err == nil {
+			t.Fatal("ValidatePath() error = nil, want missing deep field")
+		}
+		if err.Code != refs.CodeUnresolvablePath ||
+			!reflect.DeepEqual(err.DeepestValidPath, []string{"nodes", "load", "output", "tasks"}) ||
+			!reflect.DeepEqual(err.AvailableFields, []string{"title"}) {
+			t.Fatalf("ValidatePath() error = %#v, want deepest tasks and available title", err)
+		}
+		for _, fragment := range []string{"nodes.load.output.tasks.summary", "nodes.load.output.tasks", "title"} {
+			if !strings.Contains(err.Error(), fragment) {
+				t.Fatalf("ValidatePath() message = %q, want %q", err.Error(), fragment)
+			}
+		}
+	})
+
+	t.Run("Should list existing nodes for a stale node reference", func(t *testing.T) {
+		t.Parallel()
+
+		err := namespace(false).ValidatePath([]string{"nodes", "lod", "output", "tasks"})
+		if err == nil {
+			t.Fatal("ValidatePath() error = nil, want stale node failure")
+		}
+		wantNodes := []string{"gate", "load", "review"}
+		if err.Code != refs.CodeUnknownReference || !reflect.DeepEqual(err.AvailableNodes, wantNodes) {
+			t.Fatalf("ValidatePath() error = %#v, want nodes %#v", err, wantNodes)
+		}
+		for _, nodeID := range wantNodes {
+			if !strings.Contains(err.Error(), nodeID) {
+				t.Fatalf("ValidatePath() message = %q, want node %q", err.Error(), nodeID)
+			}
+		}
+	})
+
+	t.Run("Should preserve the same diagnostic shape across template and condition compilation", func(t *testing.T) {
+		t.Parallel()
+
+		compiler, err := refs.NewConditionCompiler(namespace(false))
+		if err != nil {
+			t.Fatalf("NewConditionCompiler() error = %v", err)
+		}
+		_, templateErr := refs.CompileTemplate(
+			"test",
+			"{{ .nodes.load.output.tasks.summary }}",
+			namespace(false),
+		)
+		_, conditionErr := compiler.Compile("nodes.load.output.tasks.summary == 'missing'")
+		for label, compileErr := range map[string]error{"template": templateErr, "condition": conditionErr} {
+			var refErr *refs.Error
+			if !errors.As(compileErr, &refErr) {
+				t.Fatalf("%s compile error = %v, want refs.Error", label, compileErr)
+			}
+			if refErr.Code != refs.CodeUnresolvablePath ||
+				!reflect.DeepEqual(refErr.AvailableFields, []string{"title"}) {
+				t.Fatalf("%s diagnostic = %#v, want unresolvable path with title", label, refErr)
+			}
+		}
+	})
 }
 
 func TestTemplateShouldRejectNonAllowlistedFunctions(t *testing.T) {
@@ -470,6 +534,60 @@ func TestConditionShouldAcceptCustomCostLimit(t *testing.T) {
 		}
 		if condition.Program == nil {
 			t.Fatal("Compile().Program is nil")
+		}
+	})
+
+	t.Run("Should track evaluation cost and warn at the inclusive threshold", func(t *testing.T) {
+		t.Parallel()
+
+		if !refs.CostWarningThresholdReached(8, 10) {
+			t.Fatal("CostWarningThresholdReached(8, 10) = false, want true")
+		}
+		if refs.CostWarningThresholdReached(7, 10) {
+			t.Fatal("CostWarningThresholdReached(7, 10) = true, want false")
+		}
+		maximum := ^uint64(0)
+		if !refs.CostWarningThresholdReached(maximum, maximum) {
+			t.Fatal("CostWarningThresholdReached(max, max) = false, want true without overflow")
+		}
+		compiler, err := refs.NewConditionCompiler(namespace(false), refs.WithCostLimit(100))
+		if err != nil {
+			t.Fatalf("NewConditionCompiler() error = %v", err)
+		}
+		condition, err := compiler.Compile("inputs.slug == 'ready'")
+		if err != nil {
+			t.Fatalf("Compile() error = %v", err)
+		}
+		evaluation, err := condition.Evaluate(map[string]any{
+			"inputs": map[string]any{"slug": "ready"},
+		})
+		if err != nil {
+			t.Fatalf("Evaluate() error = %v", err)
+		}
+		if !evaluation.Value || evaluation.Cost == 0 {
+			t.Fatalf("Evaluate() = %#v, want true with tracked cost", evaluation)
+		}
+	})
+
+	t.Run("Should treat absent first-generation history as data", func(t *testing.T) {
+		t.Parallel()
+
+		compiler, err := refs.NewConditionCompiler(namespace(false))
+		if err != nil {
+			t.Fatalf("NewConditionCompiler() error = %v", err)
+		}
+		condition, err := compiler.Compile("!has(previous.nodes.load.status)")
+		if err != nil {
+			t.Fatalf("Compile() error = %v", err)
+		}
+		evaluation, err := condition.Evaluate(map[string]any{
+			"previous": map[string]any{"nodes": map[string]any{"load": map[string]any{}}},
+		})
+		if err != nil {
+			t.Fatalf("Evaluate() error = %v, want absent history value", err)
+		}
+		if !evaluation.Value {
+			t.Fatalf("Evaluate().Value = false, want absent previous.nodes.load.status")
 		}
 	})
 }

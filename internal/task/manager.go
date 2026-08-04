@@ -86,7 +86,9 @@ type managerOptions struct {
 	reviewObserver        RunReviewRequestedObserver
 	taskHooks             RunHookDispatcher
 	coordinatorRunner     CoordinatorRunner
+	coordinatorPostCommit CoordinatorPostCommitHandler
 	generationFinalizer   GenerationStateFinalizer
+	coordinatorTimerArmer CoordinatorTimerArmer
 	wakeNotifier          WakeNotifier
 	participationResolver participation.Resolver
 	coordinatorStatusOK   func(string) bool
@@ -114,7 +116,9 @@ type Service struct {
 	reviewObserver        RunReviewRequestedObserver
 	taskHooks             RunHookDispatcher
 	coordinatorRunner     CoordinatorRunner
+	coordinatorPostCommit CoordinatorPostCommitHandler
 	generationFinalizer   GenerationStateFinalizer
+	coordinatorTimerArmer CoordinatorTimerArmer
 	wakeNotifier          WakeNotifier
 	participationResolver participation.Resolver
 	taskAuthorizer        ResourceAuthorizer
@@ -200,10 +204,24 @@ func WithCoordinatorRunner(runner CoordinatorRunner) Option {
 	}
 }
 
+// WithCoordinatorPostCommitHandler injects process-side effects that must run only after commit.
+func WithCoordinatorPostCommitHandler(handler CoordinatorPostCommitHandler) Option {
+	return func(opts *managerOptions) {
+		opts.coordinatorPostCommit = handler
+	}
+}
+
 // WithGenerationStateFinalizer injects the generation-state writer used inside coordinator finalization.
 func WithGenerationStateFinalizer(finalizer GenerationStateFinalizer) Option {
 	return func(opts *managerOptions) {
 		opts.generationFinalizer = finalizer
+	}
+}
+
+// WithCoordinatorTimerArmer injects the daemon-owned retry timer fast path.
+func WithCoordinatorTimerArmer(armer CoordinatorTimerArmer) Option {
+	return func(opts *managerOptions) {
+		opts.coordinatorTimerArmer = armer
 	}
 }
 

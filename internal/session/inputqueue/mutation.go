@@ -157,7 +157,7 @@ func (s *Service) replayMutation(
 	if err != nil {
 		return store.SessionInputQueueEntry{}, false, err
 	}
-	if !sameMutation(entry, text, messageID, idempotencyKey, mode, delivery, targetTurnID) {
+	if !sameMutation(&entry, text, messageID, idempotencyKey, mode, delivery, targetTurnID) {
 		return store.SessionInputQueueEntry{}, false, fmt.Errorf(
 			"%w: %s",
 			store.ErrSessionInputMutationConflict,
@@ -177,7 +177,7 @@ func durableMutationID(sessionID string, entryID string, idempotencyKey string) 
 }
 
 func sameMutation(
-	entry store.SessionInputQueueEntry,
+	entry *store.SessionInputQueueEntry,
 	text string,
 	messageID string,
 	idempotencyKey string,

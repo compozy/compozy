@@ -62,15 +62,33 @@ An extension declares a watch source with the SDK:
 
 ```ts
 extension.watchSource("acme.pull_request", {/* options */}, async (spec, expectedStateDigest) => {
-  // return { ready, state_digest, payload, settled_at }
+  // event_key is required on every response, including ready: false.
+  return {
+    ready: false,
+    event_key: `pull-request:${spec.number}`,
+    state_digest: expectedStateDigest,
+    payload: {},
+  };
 });
 ```
 
 `extension.watchSource()` auto-declares the `loop.watch_source` capability and registers the
 `watch/poll` handler. The daemon calls it synchronously — `{ spec, expected_state_digest }` in,
-`{ ready, state_digest, payload, settled_at }` out — driven by the coordinator's own task run
+`{ ready, event_key, state_digest, payload, settled_at }` out — driven by the coordinator's own task run
 (claim → poll → yield → re-claim), never a parked goroutine. There is no push path in this version;
 the coordinator polls.
+
+<Callout type="warn" title="event_key is required">
+  This is a hard contract cut: responses without `event_key` are invalid; there is no fallback to a
+  digest or payload field. Return one stable identity for the external occurrence being observed.
+  Compozy trims it, normalizes Unicode to NFC, requires valid UTF-8, and rejects values over 256
+  bytes before admission.
+</Callout>
+
+The admission identity combines workspace, Loop, source, and `event_key`. Compozy claims it in the
+same transaction as run start, so a redelivered occurrence returns a structured duplicate result
+instead of starting another run. Keep the key stable across retries and daemon restarts; use a new
+key only for a distinct external occurrence.
 
 ### Watch runtime behavior
 

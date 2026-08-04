@@ -1,0 +1,149 @@
+---
+title: Failure handling
+description: Classify failures, bound retries, route or absorb errors, react with effects, and recover parked or quarantined nodes.
+---
+
+{/* Contract sources: loop-node-lifecycle ADR-002 (failure precedence), ADR-003 (family-asymmetric retry), ADR-004 (evidence-based liveness), and ADR-005 (durable waits). */}
+
+Loop failures follow one fixed path. The daemon classifies the failure first, then applies the same
+precedence to every node family:
+
+1. retry automatically when the class and node policy allow it;
+2. apply the authored `on_error.route` or `on_error.allow_fail` decision;
+3. enqueue the authored effects for the chosen lifecycle point;
+4. send any unhandled failure to generation-level repair or the run's terminal policy.
+
+Doing nothing is safe and explicit: an unannotated failure is never swallowed. It moves to the next
+generation with repair context. Absorption requires `allow_fail: true`; an error route requires a
+real target node.
+
+## Failure classes
+
+Every failed attempt carries an operator-safe `class`, `code`, `cause`, optional `hint`, optional
+`target`, optional `retry_after`, and `retry_eligible` flag.
+
+| Class                | Meaning                                                        | Automatic retry |
+| -------------------- | -------------------------------------------------------------- | --------------- |
+| `transport`          | The call failed across a transport or infrastructure boundary. | yes             |
+| `attempt_timeout`    | An authored attempt timeout elapsed.                           | yes             |
+| `payload_declared`   | A successful call returned a payload that declares failure.    | no              |
+| `quality_rejection`  | A judge or gate rejected the result.                           | no              |
+| `authoring`          | The definition or rendered input is invalid.                   | no              |
+| `cancellation`       | Cancellation won the attempt.                                  | no              |
+| `budget_exhausted`   | The attempt cannot finish inside its remaining budget.         | no              |
+| `target_unavailable` | The shared target breaker is open.                             | no              |
+
+Only `transport` and `attempt_timeout` are retry-eligible. A node's `non_retryable` list can narrow
+that set further; it cannot make another class transient.
+
+## Bound a node and declare its response
+
+```yaml
+- id: publish
+  class: action
+  kind: ext__acme__publish
+  timeout: 30s
+  deadline: 2m
+  retry:
+    max_attempts: 3
+    backoff: { base: 1s, max: 10s }
+    non_retryable: [payload_declared]
+  result_contract:
+    failure_field: error
+    message_field: error.message
+  on_error:
+    route: report_failure
+    effects:
+      - emit:
+          kind: release.publish_failed
+          payload: { code: "{{ .effect.failure.code }}" }
+  on_retry:
+    - tool: compozy__network_send
+      with: { message: "Retry {{ .effect.attempt.number }} for {{ .effect.identity.node_id }}" }
+```
+
+`timeout` bounds one attempt. `deadline` bounds all attempts and backoff for the node. Both are
+opt-in; Compozy has no hidden duration limit. `timeout` must not exceed `deadline`. If a scheduled
+retry would cross the deadline, the failure becomes `budget_exhausted` instead of starting work that
+cannot finish.
+
+Mechanical actions, such as tool calls and transforms, inherit the configured retry defaults.
+`run-agent` and `run-loop` retry only when their node declares `retry`. A `goal` node does not use
+generic node retry; it owns its turn and recovery contract.
+
+`result_contract.failure_field` turns an application-level failure payload into
+`payload_declared`; `message_field` selects its safe operator message. In `on_error`, choose exactly
+one of `route` or `allow_fail`. Effects do not change that routing decision.
+
+## Effects observe committed truth
+
+Node effects are `on_retry`, `on_success`, `on_pause`, `on_timeout`, `on_cancel`, and
+`on_quarantine`. Contract effects are `on_done`, `on_noop`, `on_blocked`, `on_failed`,
+`on_exhausted`, `on_stalled`, and `on_canceled`. A wait expiry may also declare `escalate` effects.
+
+Each effect declares exactly one action:
+
+```yaml
+on_canceled:
+  - emit: { kind: release.canceled, payload: { run: "{{ .effect.links.run }}" } }
+  - tool: compozy__network_send
+    with: { message: "Run {{ .effect.identity.loop_run_id }} was canceled." }
+```
+
+Effects are written in the same transaction as the lifecycle event and dispatched only after the
+state commits. Tool delivery is at least once and carries a stable `delivery_id`, so the receiver
+must be idempotent — safe to call again with the same identity. One failed effect never changes the
+run outcome or blocks its siblings. See the [reference grammar](/docs/loops/reference-grammar#effect-templates)
+for the template namespace.
+
+## Durable waits and parked work
+
+A `wait` control parks on exactly one of `for`, `until`, or `event`. It may validate a resume payload
+with `expect`, decide whether an early event is consumed or rejected with `ahead_arrival`, and declare
+an `expires` block with effects and a route. No expiry is added by default.
+
+Paused nodes, durable waits, approval waits, and quarantined nodes are parked. They stay visible,
+but they are excluded from no-progress checks, due schedules, and rerun sets. Their node clocks and
+the run's wall-clock work budget stop while parked; token usage still counts whenever tokens are
+spent.
+
+## Inspect and recover nodes
+
+List one workspace-scoped inventory at a time:
+
+```bash
+compozy loop nodes --workspace . --state waiting -o json
+compozy loop nodes --workspace . --state quarantined -o json
+compozy loop nodes --workspace . --state attention -o json
+compozy loop nodes --workspace . --state retrying -o json
+```
+
+Inventories are cursor-paginated, default to 50 rows, cap at 200, and can be narrowed with `--loop`
+or `--run-id`. Use the node's `generation`, `node_id`, and `item_index` from that result before a
+mutation.
+
+| Intent                 | CLI verb                                      | Notes                                                         |
+| ---------------------- | --------------------------------------------- | ------------------------------------------------------------- |
+| Pause at a safe point  | `compozy loop node pause --mode drain`        | `--mode cancel` requests cancellation of current work first.  |
+| Resume parked work     | `compozy loop node resume --mode plain`       | `reset_attempts` and `immediate` are explicit alternatives.   |
+| Supply a manual wait   | `compozy loop node resume --payload '<json>'` | The payload must satisfy the wait's `expect` schema.          |
+| Cancel cooperatively   | `compozy loop node cancel`                    | Idempotent; lets the current cancellation path drain.         |
+| Fence immediately      | `compozy loop node kill`                      | Destructive; stale work cannot commit afterward.              |
+| Retry quarantined work | `compozy loop node requeue`                   | Creates a bounded successor generation with origin `requeue`. |
+
+Quarantine does not terminate a run. If another node requires a quarantined producer, the run
+surfaces attention instead of inventing an output. Requeue is the explicit repair path and remains
+subject to the Loop's budgets and stop limits.
+
+## Liveness is evidence, not elapsed time
+
+Compozy never declares a node dead because it has run for a long time. Stream activity, an in-flight
+tool, and transport presence are evidence of life. Prolonged silence raises the `silence` attention
+flag; it does not pause, cancel, or fail the node. Confirmed process or transport death is different:
+the daemon resumes from recorded progress through one atomic authority, bounded by the configured
+death streak. Any post-resume evidence resets that streak, and parked nodes are never death-resumed.
+
+At run scope, **Cancel** is cooperative and ends `canceled` with cause `operator_cancel`; **Kill**
+fences immediately and ends `canceled` with cause `operator_kill`. There is no `stop` alias and no
+silent cancel-to-kill escalation. See [Running and observing](/docs/loops/running#pause-resume-cancel-and-kill)
+for the operator surfaces.

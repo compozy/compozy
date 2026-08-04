@@ -10,6 +10,7 @@ import {
   mergeGoalTurns,
   useGoalTurns,
   useLoop,
+  useLoopNodeInventory,
   useLoopAnnotations,
   useLoopConfig,
   useLoopRun,
@@ -75,9 +76,9 @@ describe("loop read hooks", () => {
     ]);
     expect(result.current.total).toBe(2);
     expect(result.current.facets).toEqual({
-      categories: { delivery: 1, watch: 1 },
+      categories: { delivery: 1, Engineering: 1 },
       kinds: { read_only: 1, workspace: 1 },
-      statuses: { running: 1, watching: 1 },
+      statuses: { running: 2 },
     });
   });
 
@@ -164,5 +165,12 @@ describe("loop read hooks", () => {
     const { result } = renderHook(() => useLoops(""), { wrapper: createWrapper() });
     expect(result.current.fetchStatus).toBe("idle");
     expect(result.current.data).toBeUndefined();
+  });
+
+  it("Should not report loading while the node inventory query is disabled", () => {
+    const { result } = renderHook(() => useLoopNodeInventory(WS, { state: "waiting" }, false), {
+      wrapper: createWrapper(),
+    });
+    expect(result.current.isLoading).toBe(false);
   });
 });

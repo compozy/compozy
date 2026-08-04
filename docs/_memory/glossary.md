@@ -82,7 +82,7 @@ Loops ride Compozy's existing durable foundations (work queue, sessions, automat
 
 **Loop vs Capability:** a Loop is deterministic and runtime-owned; a [capability](#capability) is interpretive and network-shipped. Loops do not replace capabilities, and loop execution never travels over the network wire.
 
-**Terminal outcomes:** `done`, `no-op`, `blocked`, `failed`, `exhausted`, `stalled`. Live states: `queued`, `running`, `watching`, `needs-approval`, `paused`.
+**Terminal outcomes:** `done`, `no-op`, `blocked`, `failed`, `exhausted`, `stalled`, `canceled`. Live states: `queued`, `running`, `watching`, `needs-approval`, `paused`.
 
 **Not to be conflated with:** the historical "workflow" positioning. Compozy is a runtime with a Loop domain; the Compozy Network protocol remains not a workflow engine.
 

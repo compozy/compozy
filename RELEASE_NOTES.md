@@ -65,6 +65,8 @@ Compozy now discovers `SKILL.md` definitions at any depth below each skill root,
 
 Migration notes: two CLI verbs were renamed and their old spellings removed — `compozy mcp authorize <server>` is now `compozy mcp auth login <server>`, and `compozy memory extractor list-pending` is now `compozy memory extractor list-failures`. The `compozy network work status` alias was removed in favor of `compozy network work lookup`, and `compozy network send --body` accepts a kind-specific JSON value rather than requiring an object.
 
+The `compozy loop stop` command was removed. Use `compozy loop cancel` for cooperative cancellation or `compozy loop kill` to stop the run immediately.
+
 ##### Window tabs in the OS shell
 
 The OS shell now groups windows into first-class tab frames instead of assuming one window per app. Tabs carry ordered members, an active member, per-tab navigation stacks, pinning, scoped close and reopen, and bounded history. The same topology is exposed through Web, CLI, HTTP, UDS, native tools, streams, hooks, resources, layout profiles, and the bundled Compozy skill, so agents operate windows with the same semantics people see. (#287)

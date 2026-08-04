@@ -72,6 +72,11 @@ type ActionExecutionInput struct {
 	Generation               int
 	NodeID                   dsl.NodeID
 	ItemIndex                int
+	Attempt                  int
+	CellEpoch                int64
+	DeathResume              *DeathResumeContext
+	RetryFailure             *ClassifiedFailure
+	RepairFailures           []ActionRepairFailure
 	Namespace                map[string]any
 	Contract                 *dsl.Contract
 	ToolScope                tools.Scope
@@ -230,9 +235,11 @@ type ActionSessionBindRequest struct {
 	Agent                          string
 	CWD                            string
 	Handle                         string
+	SharedKey                      string
 	Mode                           string
 	OriginSessionID                string
 	TargetBindingEpoch             int64
+	CellFence                      *ActionSessionCellFence
 	ExpectedControlEpoch           int64
 	ExpectedCheckpointPhase        string
 	ExpectedTaskRunID              string
@@ -253,6 +260,12 @@ type ActionSessionBindRequest struct {
 	MaxTurns                       int
 	ContractBlock                  string
 	NetworkParticipation           *participation.Spec
+}
+
+// ActionSessionCellFence identifies the live ordinary-action cell allowed to activate a session binding.
+type ActionSessionCellFence struct {
+	Epoch     int64
+	TaskRunID string
 }
 
 // ActionSessionCreationError carries provider-effect certainty without importing session internals.

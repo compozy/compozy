@@ -35,6 +35,7 @@ type RunEvent struct {
 	Kind        string
 	Payload     json.RawMessage
 	At          time.Time
+	DeliveryKey string
 }
 
 // UIAnnotation is one editor sidecar position for a loop node.

@@ -159,6 +159,7 @@ const (
 	configSetBool
 	configSetInt
 	configSetInt64
+	configSetUint64
 	configSetFloat
 	configSetDuration
 	configSetStringSlice

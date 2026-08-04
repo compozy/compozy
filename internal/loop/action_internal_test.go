@@ -431,6 +431,48 @@ func TestReservedActionInternalsShouldCoverErrorBranches(t *testing.T) {
 			t.Fatalf("prompt calls = %d, want 2", len(binder.prompts))
 		}
 	})
+
+	t.Run("Should persist the exact managed session identity for cancellation", func(t *testing.T) {
+		t.Parallel()
+
+		run := Run{ID: "looprun-session-metadata", WorkspaceID: "ws-session-metadata", LoopName: "metadata"}
+		actionNode := dsl.Node{
+			ID: "worker", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent),
+			Session: &dsl.SessionSpec{Handle: "main"},
+		}
+		metadata, err := coordinatorNodeMetadataWithFanOutItem(run, 2, actionNode, 3, 1, 4, nil, false)
+		if err != nil {
+			t.Fatalf("coordinatorNodeMetadataWithFanOutItem(run-agent) error = %v", err)
+		}
+		var actionPayload map[string]any
+		if err := json.Unmarshal(metadata, &actionPayload); err != nil {
+			t.Fatalf("json.Unmarshal(run-agent metadata) error = %v", err)
+		}
+		wantActionKey := actionSessionSharedKey(2, actionNode.ID, 3, "main")
+		if got := actionPayload["session_handle"]; got != wantActionKey {
+			t.Fatalf("run-agent session_handle = %#v, want %q", got, wantActionKey)
+		}
+
+		goalNode := dsl.Node{
+			ID: "goal", Class: dsl.NodeClassAction, Kind: string(dsl.ActionGoal),
+			Session: &dsl.SessionSpec{Handle: "review"},
+		}
+		metadata, err = coordinatorNodeMetadataWithFanOutItem(run, 2, goalNode, 3, 1, 4, nil, false)
+		if err != nil {
+			t.Fatalf("coordinatorNodeMetadataWithFanOutItem(Goal) error = %v", err)
+		}
+		var goalPayload map[string]any
+		if err := json.Unmarshal(metadata, &goalPayload); err != nil {
+			t.Fatalf("json.Unmarshal(Goal metadata) error = %v", err)
+		}
+		wantGoalKey, err := dsl.DeriveGoalHandle(goalNode.ID, "review", 3)
+		if err != nil {
+			t.Fatalf("DeriveGoalHandle() error = %v", err)
+		}
+		if got := goalPayload["session_handle"]; got != wantGoalKey {
+			t.Fatalf("Goal session_handle = %#v, want %q", got, wantGoalKey)
+		}
+	})
 }
 
 type stubActionExecutor struct {

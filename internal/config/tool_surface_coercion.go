@@ -12,6 +12,8 @@ import (
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 )
 
+const maxExactConfigFloatInteger = float64(1 << 53)
+
 func coerceConfigBool(value any) (bool, error) {
 	switch typed := value.(type) {
 	case bool:
@@ -64,6 +66,68 @@ func coerceConfigInt64(value any) (int64, error) {
 		return parsed, nil
 	default:
 		return 0, fmt.Errorf("config: expected integer value, got %T", value)
+	}
+}
+
+func coerceConfigUint64(value any) (uint64, error) {
+	if unsigned, ok := configUnsignedInteger(value); ok {
+		return unsigned, nil
+	}
+	if signed, ok := configSignedInteger(value); ok {
+		if signed < 0 {
+			return 0, fmt.Errorf("config: unsigned integer value must be non-negative: %d", signed)
+		}
+		return uint64(signed), nil
+	}
+	switch typed := value.(type) {
+	case float64:
+		if math.IsNaN(typed) || math.IsInf(typed, 0) || typed < 0 || math.Trunc(typed) != typed ||
+			typed > maxExactConfigFloatInteger {
+			return 0, fmt.Errorf("config: expected unsigned integer value, got %v", typed)
+		}
+		return uint64(typed), nil
+	case string:
+		parsed, err := strconv.ParseUint(strings.TrimSpace(typed), 10, 64)
+		if err != nil {
+			return 0, fmt.Errorf("config: parse unsigned integer value %q: %w", typed, err)
+		}
+		return parsed, nil
+	default:
+		return 0, fmt.Errorf("config: expected unsigned integer value, got %T", value)
+	}
+}
+
+func configUnsignedInteger(value any) (uint64, bool) {
+	switch typed := value.(type) {
+	case uint:
+		return uint64(typed), true
+	case uint8:
+		return uint64(typed), true
+	case uint16:
+		return uint64(typed), true
+	case uint32:
+		return uint64(typed), true
+	case uint64:
+		return typed, true
+	default:
+		return 0, false
+	}
+}
+
+func configSignedInteger(value any) (int64, bool) {
+	switch typed := value.(type) {
+	case int:
+		return int64(typed), true
+	case int8:
+		return int64(typed), true
+	case int16:
+		return int64(typed), true
+	case int32:
+		return int64(typed), true
+	case int64:
+		return typed, true
+	default:
+		return 0, false
 	}
 }
 

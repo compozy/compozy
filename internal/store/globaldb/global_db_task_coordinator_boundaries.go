@@ -22,7 +22,11 @@ func applyCoordinatorBudgetBoundary(
 	if loopRun.BudgetOnExceeded == dsl.BudgetExceededEscalate {
 		budgetStatus = looppkg.StatusNeedsApproval
 	}
-	if err := updateLoopBoundaryStatusWithExecutor(
+	payload, err := looppkg.GenerationSnapshotPayloadFrom(snapshot.Payload)
+	if err != nil {
+		return err
+	}
+	if err := updateLoopBoundaryStatusWithEffects(
 		ctx,
 		exec,
 		loopRun,
@@ -30,6 +34,8 @@ func applyCoordinatorBudgetBoundary(
 		looppkg.TransitionCauseBudget,
 		completion.Now,
 		snapshot.Generation,
+		nil,
+		payload.BoundaryEffects[budgetStatus],
 	); err != nil {
 		return err
 	}
@@ -93,7 +99,11 @@ func applyCoordinatorTerminalBoundary(
 	if strings.TrimSpace(string(cause)) == "" {
 		cause = looppkg.TransitionCauseContract
 	}
-	if err := updateLoopBoundaryStatusWithExecutor(
+	payload, err := looppkg.GenerationSnapshotPayloadFrom(snapshot.Payload)
+	if err != nil {
+		return err
+	}
+	if err := updateLoopBoundaryStatusWithEffects(
 		ctx,
 		exec,
 		loopRun,
@@ -101,6 +111,8 @@ func applyCoordinatorTerminalBoundary(
 		cause,
 		completion.Now,
 		snapshot.Generation,
+		nil,
+		payload.BoundaryEffects[terminalStatus],
 	); err != nil {
 		return err
 	}

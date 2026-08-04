@@ -64,6 +64,37 @@ func testLocalParticipation() participation.Spec {
 	return participation.LocalSpec()
 }
 
+func TestSupervisionForSessionShouldDisableOnlyLoopInactivityTimers(t *testing.T) {
+	t.Parallel()
+
+	configured := compozyconfig.SessionSupervisionConfig{
+		ActivityHeartbeatInterval: 5 * time.Second,
+		ProgressNotifyInterval:    7 * time.Second,
+		PromptDeadline:            time.Hour,
+		InactivityWarningAfter:    15 * time.Minute,
+		InactivityTimeout:         30 * time.Minute,
+		TimeoutCancelGrace:        5 * time.Second,
+	}
+	loopSession := &Session{NetworkOwnerKey: participation.OwnerKey(participation.OwnerRef{
+		Kind: participation.OwnerKindLoopRun,
+		ID:   "run-1",
+	})}
+	got := supervisionForSession(loopSession, configured)
+	if got.InactivityWarningAfter != 0 || got.InactivityTimeout != 0 {
+		t.Fatalf("Loop inactivity supervision = %#v, want warning and timeout disabled", got)
+	}
+	got.InactivityWarningAfter = configured.InactivityWarningAfter
+	got.InactivityTimeout = configured.InactivityTimeout
+	if got != configured {
+		t.Fatalf("Loop supervision changed unrelated fields: got %#v want %#v", got, configured)
+	}
+
+	nonLoop := supervisionForSession(&Session{NetworkOwnerKey: "session:sess-1"}, configured)
+	if nonLoop != configured {
+		t.Fatalf("non-Loop supervision = %#v, want configured %#v", nonLoop, configured)
+	}
+}
+
 func testLocalParticipationPtr() *participation.Spec {
 	return participation.CloneSpec(testLocalParticipation())
 }

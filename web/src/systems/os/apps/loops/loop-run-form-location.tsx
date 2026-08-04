@@ -1,23 +1,18 @@
-import { AlertCircle, Repeat2 } from "lucide-react";
-import { useNavigate } from "@tanstack/react-router";
+import { AlertCircle, Repeat2, X } from "lucide-react";
 
-import { Empty, Spinner, useTopbarSlot } from "@compozy/ui";
-import { LoopRunForm, useLoop, useLoopConfig } from "@/systems/loops";
-import { useActiveWorkspace } from "@/systems/workspace";
+import { Button, Empty, Spinner, useTopbarSlot } from "@compozy/ui";
+import { LoopRunForm } from "@/systems/loops";
+
+import { useLoopRunFormPage } from "./use-loop-run-form-page";
 
 /**
  * Run-form entry for a Loop (design §4.3): the auto-generated typed input form, the
- * Advanced per-run overrides, the live contract preview, and Dry run / Run. On a
- * successful Run the started run's id routes to its live run page.
+ * per-run limits fold, the live contract preview, and Dry run / Start run. On a
+ * successful start the run's id routes to its live run page.
  */
 export function LoopRunFormLocation({ name }: { name: string }) {
-  const navigate = useNavigate();
-  const { activeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = activeWorkspaceId ?? "";
-  const loopQuery = useLoop(workspaceId, name, workspaceId !== "");
-  const configQuery = useLoopConfig(workspaceId, name, workspaceId !== "");
-  const openLoops = () => void navigate({ to: "/loops" });
-  const openLoop = () => void navigate({ to: "/loops/$name", params: { name } });
+  const page = useLoopRunFormPage(name);
+  const { configQuery, loopQuery, openLoop, openLoops, workspaceId } = page;
   useTopbarSlot({
     onBack: openLoop,
     crumbs: [
@@ -25,6 +20,20 @@ export function LoopRunFormLocation({ name }: { name: string }) {
       { id: "loop", label: name, onSelect: openLoop },
     ],
     crumb: "Run",
+    // Leaving without starting is a route action, so it sits in the window chrome
+    // beside the crumbs rather than as a third button next to Dry run and Start run.
+    actions: (
+      <Button
+        data-testid="loop-run-form-close"
+        onClick={openLoop}
+        size="sm"
+        type="button"
+        variant="ghost"
+      >
+        <X aria-hidden="true" className="size-3.5" />
+        Close
+      </Button>
+    ),
   });
 
   if (workspaceId === "") {
@@ -75,9 +84,9 @@ export function LoopRunFormLocation({ name }: { name: string }) {
       key={loopQuery.data.name}
       workspaceId={workspaceId}
       loop={loopQuery.data}
+      activeRun={page.activeRun}
       effectiveConfig={configQuery.effectiveConfig}
-      onCancel={openLoop}
-      onRunStarted={runId => navigate({ to: "/loop-runs/$runId", params: { runId } })}
+      onRunStarted={page.openRun}
     />
   );
 }

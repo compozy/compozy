@@ -14,6 +14,14 @@ func (s *daemonLoopAPIService) loopGenerations(
 	ctx context.Context,
 	run looppkg.Run,
 ) ([]contract.LoopGenerationPayload, error) {
+	attempts := []looppkg.NodeAttempt{}
+	if reader, ok := s.persistence.(looppkg.NodeAttemptReader); ok {
+		loadedAttempts, attemptsErr := reader.ListNodeAttempts(ctx, run.WorkspaceID, run.ID)
+		if attemptsErr != nil {
+			return nil, fmt.Errorf("daemon: list attempts for loop run %s: %w", run.ID, attemptsErr)
+		}
+		attempts = loadedAttempts
+	}
 	lineage, err := s.persistence.ListGenerations(ctx, string(run.WorkspaceID), string(run.ID))
 	if err != nil {
 		return nil, fmt.Errorf("daemon: list generations for loop run %s: %w", run.ID, err)
@@ -62,7 +70,7 @@ func (s *daemonLoopAPIService) loopGenerations(
 			ParentGeneration: generation.ParentGeneration,
 			Origin:           contract.LoopGenerationOrigin(generation.Origin),
 			Verdicts:         verdictPayloads,
-			Outputs:          loopGenerationOutputsPayload(outputs),
+			Outputs:          loopGenerationOutputsPayload(outputs, attempts),
 		})
 	}
 	return generations, nil

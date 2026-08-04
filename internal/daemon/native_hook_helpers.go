@@ -271,7 +271,7 @@ func addNativeConfigLifecycleFields(payload map[string]any, path string) error {
 func nativeHookDeclPayload(decl hookspkg.HookDecl) map[string]any {
 	payload := map[string]any{
 		nativeConfigHookToolsNameKey: decl.Name,
-		"event":                      decl.Event.String(),
+		loopEventIdentity:            decl.Event.String(),
 		"source":                     decl.Source.String(),
 		"mode":                       string(decl.Mode),
 		"required":                   decl.Required,

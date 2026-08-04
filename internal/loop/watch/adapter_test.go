@@ -25,6 +25,7 @@ func TestAdapterTick(t *testing.T) {
 			}
 			return PollResponse{
 				Ready:       true,
+				EventKey:    "reviews:r1",
 				StateDigest: "sha256:next",
 				Payload:     json.RawMessage(`{"review":"r1"}`),
 				SettledAt:   &settledAt,
@@ -63,7 +64,7 @@ func TestAdapterTick(t *testing.T) {
 
 		now := time.Date(2026, 7, 5, 12, 0, 0, 0, time.UTC)
 		adapter, err := NewAdapter(PollerFunc(func(context.Context, PollRequest) (PollResponse, error) {
-			return PollResponse{Ready: false, StateDigest: "sha256:current"}, nil
+			return PollResponse{Ready: false, EventKey: "reviews:poll", StateDigest: "sha256:current"}, nil
 		}))
 		if err != nil {
 			t.Fatalf("NewAdapter() error = %v", err)
@@ -91,7 +92,7 @@ func TestAdapterTick(t *testing.T) {
 
 		now := time.Date(2026, 7, 5, 12, 0, 0, 0, time.UTC)
 		adapter, err := NewAdapter(PollerFunc(func(context.Context, PollRequest) (PollResponse, error) {
-			return PollResponse{Ready: false, StateDigest: "sha256:old"}, nil
+			return PollResponse{Ready: false, EventKey: "reviews:poll", StateDigest: "sha256:old"}, nil
 		}))
 		if err != nil {
 			t.Fatalf("NewAdapter() error = %v", err)
@@ -110,6 +111,69 @@ func TestAdapterTick(t *testing.T) {
 			t.Fatalf("Outcome = %q, want stalled", result.Outcome)
 		}
 	})
+
+	t.Run("Should fail closed when event identity is missing", func(t *testing.T) {
+		t.Parallel()
+
+		adapter, err := NewAdapter(PollerFunc(func(context.Context, PollRequest) (PollResponse, error) {
+			return PollResponse{Ready: true}, nil
+		}))
+		if err != nil {
+			t.Fatalf("NewAdapter() error = %v", err)
+		}
+		_, err = adapter.Tick(context.Background(), TickRequest{Spec: json.RawMessage(`{"kind":"reviews"}`)})
+		if err == nil || !strings.Contains(err.Error(), "event_key") {
+			t.Fatalf("Tick() error = %v, want event_key validation", err)
+		}
+	})
+
+	t.Run("Should normalize Unicode event identity before admission", func(t *testing.T) {
+		t.Parallel()
+
+		adapter, err := NewAdapter(PollerFunc(func(context.Context, PollRequest) (PollResponse, error) {
+			return PollResponse{Ready: true, EventKey: "  reviews:e\u0301  "}, nil
+		}))
+		if err != nil {
+			t.Fatalf("NewAdapter() error = %v", err)
+		}
+		result, err := adapter.Tick(
+			context.Background(),
+			TickRequest{Spec: json.RawMessage(`{"kind":"reviews"}`)},
+		)
+		if err != nil {
+			t.Fatalf("Tick() error = %v", err)
+		}
+		if result.Response.EventKey != "reviews:é" {
+			t.Fatalf("Response.EventKey = %q, want trimmed NFC identity", result.Response.EventKey)
+		}
+	})
+
+	for _, testCase := range []struct {
+		name     string
+		eventKey string
+		want     string
+	}{
+		{name: "non UTF-8", eventKey: string([]byte{0xff}), want: "UTF-8"},
+		{name: "more than 256 bytes", eventKey: strings.Repeat("é", 129), want: "256 bytes"},
+	} {
+		t.Run("Should reject "+testCase.name+" event identity", func(t *testing.T) {
+			t.Parallel()
+
+			adapter, err := NewAdapter(PollerFunc(func(context.Context, PollRequest) (PollResponse, error) {
+				return PollResponse{Ready: true, EventKey: testCase.eventKey}, nil
+			}))
+			if err != nil {
+				t.Fatalf("NewAdapter() error = %v", err)
+			}
+			_, err = adapter.Tick(
+				context.Background(),
+				TickRequest{Spec: json.RawMessage(`{"kind":"reviews"}`)},
+			)
+			if err == nil || !strings.Contains(err.Error(), testCase.want) {
+				t.Fatalf("Tick() error = %v, want %q validation", err, testCase.want)
+			}
+		})
+	}
 
 	t.Run("Should surface poll failures", func(t *testing.T) {
 		t.Parallel()

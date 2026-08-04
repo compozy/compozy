@@ -1,9 +1,10 @@
 import { CalendarClock, Plus, Zap } from "lucide-react";
 
-import { Button, Section, Spinner } from "@compozy/ui";
+import { Button, Spinner } from "@compozy/ui";
 
 import { bindingKindLabel, type LoopBindingRow } from "../../lib/loop-bindings";
 import { MonoTag } from "../mono-tag";
+import { LoopRailSection } from "../loop-rail-section";
 
 interface LoopStartBindingsPanelProps {
   /** The DSL `start[]` allowlist kinds, read-only (edited only in the definition). */
@@ -54,8 +55,12 @@ export function LoopStartBindingsPanel({
     ? (jobs?.total ?? 0) + (triggers?.total ?? 0)
     : bindings.length;
   return (
-    <Section label="Start bindings" data-testid="loop-start-bindings">
-      <div className="rounded-lg border border-line bg-canvas-soft">
+    <LoopRailSection
+      data-testid="loop-start-bindings"
+      gist={`${declaredKinds.length} ways · ${totalBindings} attached`}
+      title="Start"
+    >
+      <div>
         <div className="flex flex-wrap items-center gap-1.5 px-3.5 py-3">
           {declaredKinds.map(kind => (
             <MonoTag
@@ -204,6 +209,6 @@ export function LoopStartBindingsPanel({
           </div>
         )}
       </div>
-    </Section>
+    </LoopRailSection>
   );
 }

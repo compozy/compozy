@@ -81,7 +81,7 @@ func networkSendBundle(message NetworkSendRecord) outputBundle {
 		toon: func() (string, error) {
 			return renderToonObject("network_message", []string{
 				"id",
-				"session_id",
+				bridgeSessionIDKey,
 				networkChannelKey,
 				networkSurfaceKey,
 				networkThreadIDKey,

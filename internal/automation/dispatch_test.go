@@ -210,7 +210,7 @@ func TestDispatchLoopTargetJobDelegatesToLoopStarterWithoutSessionRuntime(t *tes
 
 	store := newMemoryRunStore()
 	creator := newRecordingSessionCreator()
-	starter := &recordingLoopStarter{runID: "looprun-schedule"}
+	starter := &recordingLoopStarter{runID: "looprun-schedule", suppressed: true, suppressedCount: 3}
 	dispatcher := newTestDispatcher(t, creator, store, WithDispatcherLoopStarter(starter))
 
 	job := testJob(AutomationScopeWorkspace, "job-loop-backed", "ws_alpha")
@@ -244,6 +244,12 @@ func TestDispatchLoopTargetJobDelegatesToLoopStarterWithoutSessionRuntime(t *tes
 	}
 	if got, want := run.LoopRunID, "looprun-schedule"; got != want {
 		t.Fatalf("run.LoopRunID = %q, want %q", got, want)
+	}
+	if got, want := run.Metadata["loop_suppressed"], true; got != want {
+		t.Fatalf("run.Metadata[loop_suppressed] = %#v, want %#v", got, want)
+	}
+	if got, want := run.Metadata["loop_suppressed_count"], 3; got != want {
+		t.Fatalf("run.Metadata[loop_suppressed_count] = %#v, want %#v", got, want)
 	}
 	if got := run.TaskID; got != "" {
 		t.Fatalf("run.TaskID = %q, want empty", got)
@@ -1802,13 +1808,15 @@ func assertNamedParticipation(t *testing.T, request *participation.Request, chan
 }
 
 type recordingLoopStarter struct {
-	mu            sync.Mutex
-	validateCalls []LoopTargetValidationRequest
-	startCalls    []LoopStartRequest
-	validateErr   error
-	startErr      error
-	startErrors   []error
-	runID         string
+	mu              sync.Mutex
+	validateCalls   []LoopTargetValidationRequest
+	startCalls      []LoopStartRequest
+	validateErr     error
+	startErr        error
+	startErrors     []error
+	runID           string
+	suppressed      bool
+	suppressedCount int
 }
 
 func (s *recordingLoopStarter) ValidateLoopTarget(
@@ -1846,7 +1854,9 @@ func (s *recordingLoopStarter) StartLoop(ctx context.Context, req LoopStartReque
 	if runID == "" {
 		runID = "looprun-1"
 	}
-	return LoopStartResult{RunID: runID}, nil
+	return LoopStartResult{
+		RunID: runID, Suppressed: s.suppressed, SuppressedCount: s.suppressedCount,
+	}, nil
 }
 
 func (s *recordingLoopStarter) validateCallSnapshot() []LoopTargetValidationRequest {

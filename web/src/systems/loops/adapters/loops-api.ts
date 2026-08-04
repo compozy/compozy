@@ -1,5 +1,13 @@
 export { listGoalTurns } from "./goal-turns-api";
-export { LoopsApiError, LoopValidationError } from "./loops-api-errors";
+export {
+  cancelLoopNode,
+  killLoopNode,
+  listLoopNodes,
+  pauseLoopNode,
+  requeueLoopNode,
+  resumeLoopNode,
+} from "./loop-nodes-api";
+export { LoopLifecycleConflictError, LoopsApiError, LoopValidationError } from "./loops-api-errors";
 export {
   createLoop,
   deleteLoop,
@@ -17,10 +25,11 @@ export {
 export {
   approveLoopRun,
   buildLoopStreamUrl,
+  cancelLoopRun,
   getLoopRun,
+  killLoopRun,
   listLoopRuns,
   pauseLoopRun,
   resumeLoopRun,
   runLoop,
-  stopLoopRun,
 } from "./loops-runs-api";

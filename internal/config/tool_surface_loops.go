@@ -2,6 +2,14 @@ package config
 
 import "maps"
 
+const (
+	loopDeliveryRetryMaxAttemptsPath  = "loops.defaults.delivery.retry.max_attempts"
+	loopDeliveryAdmissionIntervalPath = "loops.defaults.delivery.waits.admission_retry_interval"
+	// #nosec G101 -- This is a public configuration path, not a credential.
+	loopWatchRetryBackoffBasePath = "loops.defaults.watch.retry.backoff_base"
+	loopBreakerThresholdPath      = "loops.breaker.threshold"
+)
+
 func loopAndGoalToolPathKinds() map[string]ValueKind {
 	return map[string]ValueKind{
 		goalMaxTurnsPath:                                            ConfigValueInt,
@@ -21,6 +29,15 @@ func loopAndGoalToolPathKinds() map[string]ValueKind {
 		"loops.defaults.delivery.runtime_defaults.judge.model":      ConfigValueString,
 		"loops.defaults.delivery.runtime_defaults.judge.reasoning":  ConfigValueString,
 		"loops.defaults.delivery.fan_out_width":                     ConfigValueInt,
+		loopDeliveryRetryMaxAttemptsPath:                            ConfigValueInt,
+		"loops.defaults.delivery.retry.backoff_base":                ConfigValueDuration,
+		"loops.defaults.delivery.retry.backoff_max":                 ConfigValueDuration,
+		"loops.defaults.delivery.liveness.silence_window":           ConfigValueDuration,
+		"loops.defaults.delivery.resume.death_streak_limit":         ConfigValueInt,
+		"loops.defaults.delivery.predicates.cost_limit":             ConfigValueUint64,
+		"loops.defaults.delivery.waits.admission_attempts":          ConfigValueInt,
+		loopDeliveryAdmissionIntervalPath:                           ConfigValueDuration,
+		"loops.defaults.delivery.admission.tombstone_horizon":       ConfigValueDuration,
 		"loops.defaults.watch.iteration_cap":                        ConfigValueInt,
 		"loops.defaults.watch.no_progress.window":                   ConfigValueInt,
 		"loops.defaults.watch.gates.max_revisions":                  ConfigValueInt,
@@ -34,6 +51,17 @@ func loopAndGoalToolPathKinds() map[string]ValueKind {
 		"loops.defaults.watch.runtime_defaults.judge.model":         ConfigValueString,
 		"loops.defaults.watch.runtime_defaults.judge.reasoning":     ConfigValueString,
 		"loops.defaults.watch.fan_out_width":                        ConfigValueInt,
+		"loops.defaults.watch.retry.max_attempts":                   ConfigValueInt,
+		loopWatchRetryBackoffBasePath:                               ConfigValueDuration,
+		"loops.defaults.watch.retry.backoff_max":                    ConfigValueDuration,
+		"loops.defaults.watch.liveness.silence_window":              ConfigValueDuration,
+		"loops.defaults.watch.resume.death_streak_limit":            ConfigValueInt,
+		"loops.defaults.watch.predicates.cost_limit":                ConfigValueUint64,
+		"loops.defaults.watch.waits.admission_attempts":             ConfigValueInt,
+		"loops.defaults.watch.waits.admission_retry_interval":       ConfigValueDuration,
+		"loops.defaults.watch.admission.tombstone_horizon":          ConfigValueDuration,
+		loopBreakerThresholdPath:                                    ConfigValueInt,
+		"loops.breaker.probe_interval":                              ConfigValueDuration,
 	}
 }
 

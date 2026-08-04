@@ -37,13 +37,12 @@ type loopActionRunner interface {
 }
 
 type loopActionRuntime struct {
-	manager          loopActionTaskManager
-	store            taskStore
-	runner           loopActionRunner
-	sessions         loopActionSessionStatus
-	logger           *slog.Logger
-	now              func() time.Time
-	actionRunTimeout time.Duration
+	manager  loopActionTaskManager
+	store    taskStore
+	runner   loopActionRunner
+	sessions loopActionSessionStatus
+	logger   *slog.Logger
+	now      func() time.Time
 
 	root                 context.Context
 	cancel               context.CancelFunc
@@ -65,7 +64,6 @@ func newLoopActionRuntime(
 	sessions loopActionSessionStatus,
 	logger *slog.Logger,
 	now func() time.Time,
-	actionRunTimeout time.Duration,
 ) (*loopActionRuntime, error) {
 	if manager == nil {
 		return nil, errors.New("daemon: loop action runtime requires task manager")
@@ -75,9 +73,6 @@ func newLoopActionRuntime(
 	}
 	if runner == nil {
 		return nil, errors.New("daemon: loop action runtime requires coordinator runner")
-	}
-	if actionRunTimeout <= 0 || actionRunTimeout > taskpkg.MaxRunLeaseDuration {
-		return nil, fmt.Errorf("daemon: loop action timeout must be between 1ns and %s", taskpkg.MaxRunLeaseDuration)
 	}
 	if logger == nil {
 		logger = slog.Default()
@@ -93,7 +88,6 @@ func newLoopActionRuntime(
 		sessions:             sessions,
 		logger:               logger,
 		now:                  now,
-		actionRunTimeout:     actionRunTimeout,
 		root:                 root,
 		cancel:               cancel,
 		sem:                  make(chan struct{}, looppkg.LoopMaxFanoutWidth),
@@ -193,11 +187,10 @@ func (r *loopActionRuntime) executeQueuedRun(
 	if err != nil {
 		return err
 	}
-	actionTimeout, err := r.actionTimeoutForRun(ctx, run)
+	policy, err := r.actionLivenessPolicyForRun(ctx, run)
 	if err != nil {
 		return err
 	}
-	leaseDuration := leaseDurationForActionTimeout(actionTimeout)
 	claim, err := r.manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
 		RunID:            strings.TrimSpace(run.ID),
 		Scope:            taskRecord.Scope.Normalize(),
@@ -208,7 +201,7 @@ func (r *loopActionRuntime) executeQueuedRun(
 			Kind: taskpkg.ActorKindDaemon,
 			Ref:  loopActionRuntimeActorRef,
 		},
-		LeaseDuration: leaseDuration,
+		LeaseDuration: policy.leaseDuration,
 		Now:           r.now().UTC(),
 	}, actor)
 	if err != nil {
@@ -217,7 +210,20 @@ func (r *loopActionRuntime) executeQueuedRun(
 		}
 		return err
 	}
-	result, err := r.executeClaimedRun(ctx, claim, actor, leaseDuration, actionTimeout)
+	result, controlled, err := r.executeClaimedRun(
+		ctx,
+		claim,
+		actor,
+		policy.leaseDuration,
+		policy.actionTimeout,
+		policy.timeoutReason,
+		looppkg.WorkspaceID(taskRecord.WorkspaceID),
+		policy.silenceWindow,
+		policy.deathStreakLimit,
+	)
+	if controlled {
+		return err
+	}
 	if err != nil {
 		if ctx.Err() != nil {
 			return err

@@ -1,7 +1,6 @@
 package acp
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 
@@ -9,10 +8,6 @@ import (
 )
 
 func (p *AgentProcess) handleSessionUpdate(params json.RawMessage) error {
-	return p.handleSessionUpdateWithContext(context.Background(), params)
-}
-
-func (p *AgentProcess) handleSessionUpdateWithContext(ctx context.Context, params json.RawMessage) error {
 	var raw wireSessionNotification
 	if err := json.Unmarshal(params, &raw); err != nil {
 		return fmt.Errorf("acp: decode session/update notification: %w", err)

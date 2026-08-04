@@ -787,9 +787,12 @@ func TestHostAPIHandlerSessionInputsUseDurableManagerOperations(t *testing.T) {
 			},
 		}}
 
-		listResult, err := handler.handleSessionsInputsList(testutil.Context(t), mustMarshalRawMessage(t, map[string]string{
-			"workspace_id": workspaceID, "session_id": sessionID,
-		}))
+		listResult, err := handler.handleSessionsInputsList(
+			testutil.Context(t),
+			mustMarshalRawMessage(t, map[string]string{
+				"workspace_id": workspaceID, "session_id": sessionID,
+			}),
+		)
 		if err != nil {
 			t.Fatalf("handleSessionsInputsList() error = %v", err)
 		}
@@ -800,10 +803,13 @@ func TestHostAPIHandlerSessionInputsUseDurableManagerOperations(t *testing.T) {
 			t.Fatalf("sessions/inputs/list result = %#v", listResult)
 		}
 
-		replaceResult, err := handler.handleSessionsInputsReplace(testutil.Context(t), mustMarshalRawMessage(t, map[string]string{
-			"workspace_id": workspaceID, "session_id": sessionID, "queue_entry_id": entryID,
-			"text": "Use the narrow check.", "message_id": "msg-replaced", "idempotency_key": "idem-replaced",
-		}))
+		replaceResult, err := handler.handleSessionsInputsReplace(
+			testutil.Context(t),
+			mustMarshalRawMessage(t, map[string]string{
+				"workspace_id": workspaceID, "session_id": sessionID, "queue_entry_id": entryID,
+				"text": "Use the narrow check.", "message_id": "msg-replaced", "idempotency_key": "idem-replaced",
+			}),
+		)
 		if err != nil {
 			t.Fatalf("handleSessionsInputsReplace() error = %v", err)
 		}
@@ -812,9 +818,12 @@ func TestHostAPIHandlerSessionInputsUseDurableManagerOperations(t *testing.T) {
 			t.Fatalf("sessions/inputs/replace result = %#v", replaceResult)
 		}
 
-		cancelResult, err := handler.handleSessionsInputsCancel(testutil.Context(t), mustMarshalRawMessage(t, map[string]string{
-			"workspace_id": workspaceID, "session_id": sessionID, "queue_entry_id": entryID,
-		}))
+		cancelResult, err := handler.handleSessionsInputsCancel(
+			testutil.Context(t),
+			mustMarshalRawMessage(t, map[string]string{
+				"workspace_id": workspaceID, "session_id": sessionID, "queue_entry_id": entryID,
+			}),
+		)
 		if err != nil {
 			t.Fatalf("handleSessionsInputsCancel() error = %v", err)
 		}
@@ -824,11 +833,14 @@ func TestHostAPIHandlerSessionInputsUseDurableManagerOperations(t *testing.T) {
 			t.Fatalf("sessions/inputs/cancel result = %#v", cancelResult)
 		}
 
-		promoteResult, err := handler.handleSessionsInputsPromote(testutil.Context(t), mustMarshalRawMessage(t, map[string]string{
-			"workspace_id": workspaceID, "session_id": sessionID, "queue_entry_id": entryID,
-			"text": "Prioritize this.", "message_id": "msg-promoted", "idempotency_key": "idem-promoted",
-			"expected_turn_id": "turn-active",
-		}))
+		promoteResult, err := handler.handleSessionsInputsPromote(
+			testutil.Context(t),
+			mustMarshalRawMessage(t, map[string]string{
+				"workspace_id": workspaceID, "session_id": sessionID, "queue_entry_id": entryID,
+				"text": "Prioritize this.", "message_id": "msg-promoted", "idempotency_key": "idem-promoted",
+				"expected_turn_id": "turn-active",
+			}),
+		)
 		if err != nil {
 			t.Fatalf("handleSessionsInputsPromote() error = %v", err)
 		}

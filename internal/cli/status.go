@@ -174,7 +174,7 @@ func renderStatusHuman(status *StatusRecord, now func() time.Time) string {
 		{Label: "Config", Value: stringOrDash(status.Config.Status)},
 		{Label: "Log Tail", Value: stringOrDash(status.LogTail.Status)},
 	}
-	sections := []string{renderHumanSection("Runtime", daemonRows)}
+	sections := []string{renderHumanSection(cliRuntimeValue, daemonRows)}
 	if len(status.Providers) > 0 {
 		rows := make([][]string, 0, len(status.Providers))
 		for _, provider := range status.Providers {
@@ -211,7 +211,7 @@ func renderStatusHuman(status *StatusRecord, now func() time.Time) string {
 			"MCP Servers",
 			[]string{
 				providerNameValue,
-				"Runtime",
+				cliRuntimeValue,
 				providerStateValue,
 				toolOperatorToolsValue,
 				authoredContextReasonValue,

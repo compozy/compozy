@@ -164,7 +164,7 @@ func (g *SessionRepo) replacePendingSessionInput(
 	err = g.withImmediateTransaction(ctx, action, func(exec globalSQLExecutor) error {
 		replayed, replayErr := getSessionInputQueueEntry(ctx, exec, target, replacement.ID)
 		if replayErr == nil {
-			if !sameSessionInputMutation(replayed, replacement) {
+			if !sameSessionInputMutation(&replayed, replacement) {
 				return fmt.Errorf("%w: %s", store.ErrSessionInputMutationConflict, replacement.ID)
 			}
 			entry = replayed
@@ -215,7 +215,7 @@ func (g *SessionRepo) replacePendingSessionInput(
 }
 
 func sameSessionInputMutation(
-	entry store.SessionInputQueueEntry,
+	entry *store.SessionInputQueueEntry,
 	replacement store.SessionInputQueueInsert,
 ) bool {
 	return entry.SessionID == replacement.SessionID &&

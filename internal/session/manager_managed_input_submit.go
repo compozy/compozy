@@ -281,7 +281,7 @@ func (m *Manager) logManagedInputError(msg string, err error, owner ManagedInput
 	logger.Error(
 		msg,
 		"error", err,
-		"queue_entry_id", owner.QueueEntryID,
+		promptEvidenceQueueEntryIDKey, owner.QueueEntryID,
 		"prompt_id", owner.PromptID,
 	)
 }

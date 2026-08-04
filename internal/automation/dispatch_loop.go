@@ -52,11 +52,15 @@ type LoopStartRequest struct {
 	ScheduledAt          *time.Time
 	CatchUp              bool
 	CatchUpPolicy        SchedulerCatchUpPolicy
+	SourceKey            string
+	EventKey             string
 }
 
 // LoopStartResult returns the observable loop_run correlation for an automation fire.
 type LoopStartResult struct {
-	RunID string
+	RunID           string
+	Suppressed      bool
+	SuppressedCount int
 }
 
 // LoopStarter is implemented at the composition root so automation does not import internal/loop.
@@ -116,6 +120,8 @@ func (d *Dispatcher) dispatchLoopBackedAttempt(
 		ScheduledAt:          cloneTimePointer(req.ScheduledAt),
 		CatchUp:              req.CatchUp,
 		CatchUpPolicy:        req.CatchUpPolicy,
+		SourceKey:            req.definitionID(),
+		EventKey:             loopAdmissionEventKey(req.Envelope),
 	})
 	if err != nil {
 		if req.CatchUp && errors.Is(err, ErrLoopConcurrencyConflict) {
@@ -126,6 +132,9 @@ func (d *Dispatcher) dispatchLoopBackedAttempt(
 	if strings.TrimSpace(result.RunID) == "" {
 		return d.finishRun(ctx, scheduledRun, RunFailed, errors.New("automation: loop starter returned empty run id"))
 	}
+	if result.Suppressed {
+		scheduledRun.Metadata = loopSuppressionMetadata(scheduledRun.Metadata, result.SuppressedCount)
+	}
 
 	delegatedRun, err := d.delegateRunToLoop(ctx, scheduledRun, result.RunID)
 	if err != nil {
@@ -133,6 +142,27 @@ func (d *Dispatcher) dispatchLoopBackedAttempt(
 	}
 	d.dispatchPostFireHook(ctx, req, *delegatedRun)
 	return delegatedRun, nil
+}
+
+func loopSuppressionMetadata(existing map[string]any, suppressedCount int) map[string]any {
+	metadata := cloneJSONMap(existing)
+	if metadata == nil {
+		metadata = make(map[string]any, 2)
+	}
+	metadata["loop_suppressed"] = true
+	metadata["loop_suppressed_count"] = suppressedCount
+	return metadata
+}
+
+func loopAdmissionEventKey(envelope *ActivationEnvelope) string {
+	if envelope == nil || envelope.Data == nil {
+		return ""
+	}
+	value, ok := envelope.Data["event_key"].(string)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(value)
 }
 
 func loopCatchUpFailureMetadata(req DispatchRequest, reason string) map[string]any {

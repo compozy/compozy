@@ -56,9 +56,12 @@ type Reference struct {
 
 // Error reports a namespace validation failure.
 type Error struct {
-	Code    string
-	Path    []string
-	Message string
+	Code             string
+	Path             []string
+	DeepestValidPath []string
+	AvailableFields  []string
+	AvailableNodes   []string
+	Message          string
 }
 
 func (e *Error) Error() string {
@@ -133,7 +136,13 @@ func (n Namespace) validateNodePath(path []string) *Error {
 	}
 	node, ok := n.Nodes[path[1]]
 	if !ok {
-		return newPathError(CodeUnknownReference, path, "unknown node %q", path[1])
+		available := availableNodeIDs(n.Nodes)
+		return &Error{
+			Code:           CodeUnknownReference,
+			Path:           append([]string(nil), path...),
+			AvailableNodes: available,
+			Message:        availableNodeMessage(path[1], available),
+		}
 	}
 	switch path[2] {
 	case "status":
@@ -163,12 +172,17 @@ func validateSchemaPath(schema Schema, path []string, original []string) *Error 
 	for idx, segment := range path {
 		next, ok := childSchema(current, segment)
 		if !ok {
-			return newPathError(
-				CodeUnresolvablePath,
-				original[:len(original)-len(path)+idx+1],
-				"schema path %q is not declared",
-				strings.Join(original, "."),
-			)
+			base := len(original) - len(path)
+			invalidPath := append([]string(nil), original[:base+idx+1]...)
+			deepest := append([]string(nil), original[:base+idx]...)
+			available := availableSchemaFields(current)
+			return &Error{
+				Code:             CodeUnresolvablePath,
+				Path:             invalidPath,
+				DeepestValidPath: deepest,
+				AvailableFields:  available,
+				Message:          schemaPathMessage(original, deepest, available),
+			}
 		}
 		current = next
 	}

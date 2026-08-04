@@ -22,14 +22,20 @@ import { buildDslView, type DslLine } from "../lib/loop-dsl";
 import {
   editorDefinitionFromLoop,
   withLoopContractField,
+  withLoopContractPath,
   type EditableLoopContractField,
 } from "../lib/loop-editor-definition";
-import { isNodeIdPath, renameNodeId, setNodeField } from "../lib/loop-editor-draft";
+import {
+  isNodeIdPath,
+  renameNodeId,
+  setNodeFields,
+  type NodeFieldEdit,
+} from "../lib/loop-editor-draft";
 import type { LoopLintState } from "../lib/loop-editor-lint";
 import { layoutEditorGraph } from "../lib/loop-editor-layout";
 import { buildNodeFields, type FieldPath, type FieldSpec } from "../lib/loop-node-schema";
 import type { PaletteItem } from "../lib/loop-palette";
-import type { LoopDefinition, LoopDetail } from "../types";
+import type { LoopDefinition, LoopDetail, LoopValidationIssue } from "../types";
 import {
   useLoopEditorState,
   type LoopEditorSidebarTab,
@@ -59,11 +65,15 @@ export interface UseLoopEditorResult {
   selectView: (view: LoopEditorView) => void;
   isDirty: boolean;
   positionsDirty: boolean;
+  /** Definition writes are allowed only for workspace-owned loops. */
+  definitionEditable: boolean;
   lint: LoopLintState;
   validateFailed: boolean;
   publishDisabled: boolean;
   busy: boolean;
   publishError: string | null;
+  /** The issue list a publish 422 returned; empty for a transport failure. */
+  publishRejectedIssues: LoopValidationIssue[];
   dslLines: DslLine[];
   onNodesChange: (changes: NodeChange<EditorNode>[]) => void;
   onEdgesChange: (changes: EdgeChange<EditorEdge>[]) => void;
@@ -71,7 +81,10 @@ export interface UseLoopEditorResult {
   selectNode: (id: string | null) => void;
   revealNode: (id: string) => void;
   changeField: (path: FieldPath, value: unknown) => void;
+  /** Applies several path writes to the selected node as ONE draft transition. */
+  changeFields: (edits: NodeFieldEdit[]) => void;
   changeContract: (field: EditableLoopContractField, value: string) => void;
+  changeContractPath: (path: FieldPath, value: unknown) => void;
   addNode: (item: PaletteItem) => void;
   autoLayout: () => void;
   validate: () => void;
@@ -109,6 +122,7 @@ export function useLoopEditor(
     nodes,
     positionsDirty,
     publishError,
+    publishRejectedIssues,
     selectedNodeId,
     selectionSeq,
     sidebarTab,
@@ -140,11 +154,13 @@ export function useLoopEditor(
 
   // Seed the editable draft once the definition + settled sidecar arrive. This syncs
   // server state into local editor state (a legit external-system → draft sync).
+  //
+  // A same-name Fork changes only `source`; include it so the workspace copy re-seeds the draft.
   useEffect(() => {
     const loop = loopQuery.data;
     if (!loop || annotationsQuery.isLoading) return;
     const definition = editorDefinitionFromLoop(loop);
-    const key = `${workspaceId}:${name}`;
+    const key = `${workspaceId}:${name}:${loop.source}`;
     if (initedKeyRef.current === key) return;
     initedKeyRef.current = key;
     const graph = definitionToGraph(definition);
@@ -201,24 +217,38 @@ export function useLoopEditor(
     };
   }, [structuralRevision]);
 
+  // Positions live in the annotations sidecar and remain editable for read-only definitions.
+  const definitionEditable = loopQuery.data?.source === "workspace";
+
   const onNodesChange = (changes: NodeChange<EditorNode>[]) => {
+    // Drop structural changes on a read-only definition; keep position/selection changes so the
+    // canvas stays readable and layout (a sidecar concern) still works.
+    const allowed = definitionEditable
+      ? changes
+      : changes.filter(change => change.type !== "remove");
+    if (allowed.length === 0) return;
     let positionsChanged = false;
     let structureChanged = false;
-    for (const change of changes) {
+    for (const change of allowed) {
       if (change.type === "position") positionsChanged = true;
       if (change.type === "remove") structureChanged = true;
     }
-    applyGraphNodes(applyNodeChanges(changes, nodes), positionsChanged, structureChanged);
+    applyGraphNodes(applyNodeChanges(allowed, nodes), positionsChanged, structureChanged);
   };
 
   const onEdgesChange = (changes: EdgeChange<EditorEdge>[]) => {
+    const allowed = definitionEditable
+      ? changes
+      : changes.filter(change => change.type !== "remove");
+    if (allowed.length === 0) return;
     applyGraphEdges(
-      applyEdgeChanges(changes, edges),
-      changes.some(change => change.type === "remove")
+      applyEdgeChanges(allowed, edges),
+      allowed.some(change => change.type === "remove")
     );
   };
 
   const onConnect = (connection: Connection) => {
+    if (!definitionEditable) return;
     const { source, target } = connection;
     if (!source || !target) return;
     const edge: EditorEdge = {
@@ -240,9 +270,15 @@ export function useLoopEditor(
     selectEditorNode(id, true);
   };
 
+  const changeFields = (edits: NodeFieldEdit[]) => {
+    const targetId = selectedNodeId;
+    if (!definitionEditable || !targetId || edits.length === 0) return;
+    changeNodeField(setNodeFields(nodes, targetId, edits));
+  };
+
   const changeField = (path: FieldPath, value: unknown) => {
     const targetId = selectedNodeId;
-    if (!targetId) return;
+    if (!definitionEditable || !targetId) return;
     if (isNodeIdPath(path)) {
       const newId = String(value).trim();
       if (newId === "" || newId === targetId) return;
@@ -252,15 +288,19 @@ export function useLoopEditor(
       if (nodes.some(node => node.id === newId)) return;
       const renamed = renameNodeId(nodes, edges, targetId, newId);
       renameNode(renamed.edges, renamed.nodes, newId);
-    } else {
-      changeNodeField(setNodeField(nodes, targetId, path, value));
+      return;
     }
+    changeFields([{ path, value }]);
   };
 
   const changeContract = (field: EditableLoopContractField, value: string) => {
-    changeEditorContract(
-      baseDefinition ? withLoopContractField(baseDefinition, field, value) : null
-    );
+    if (!definitionEditable || !baseDefinition) return;
+    changeEditorContract(withLoopContractField(baseDefinition, field, value));
+  };
+
+  const changeContractPath = (path: FieldPath, value: unknown) => {
+    if (!definitionEditable || !baseDefinition) return;
+    changeEditorContract(withLoopContractPath(baseDefinition, path, value));
   };
 
   const publish = () => {
@@ -327,14 +367,16 @@ export function useLoopEditor(
     selectView,
     isDirty,
     positionsDirty,
+    definitionEditable,
     lint,
     validateFailed,
     // Gated on known blocking errors only: when no verdict exists (e.g. validate is
     // unreachable) Publish stays enabled because publish runs the shared linter atomically
     // and returns a 422 the editor maps onto nodes — no invalid definition can ship.
-    publishDisabled: loopQuery.data?.source !== "workspace" || lint.hasBlockingErrors || busy,
+    publishDisabled: !definitionEditable || lint.hasBlockingErrors || busy,
     busy,
     publishError,
+    publishRejectedIssues,
     dslLines,
     onNodesChange,
     onEdgesChange,
@@ -342,8 +384,13 @@ export function useLoopEditor(
     selectNode,
     revealNode,
     changeField,
+    changeFields,
     changeContract,
-    addNode,
+    changeContractPath,
+    addNode: (item: PaletteItem) => {
+      if (!definitionEditable) return;
+      addNode(item);
+    },
     autoLayout,
     validate: () => runValidation({ notify: true }),
     publish,

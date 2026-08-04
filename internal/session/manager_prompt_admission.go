@@ -262,8 +262,8 @@ func (m *Manager) stageAdmittedSteerPrompt(
 	if err != nil {
 		return SendPromptResult{}, err
 	}
-	if err := m.ensureInterruptingInputActivated(ctx, session, entry); err != nil {
-		activationErr := m.cleanupInterruptingInputActivationFailure(ctx, entry, err)
+	if err := m.ensureInterruptingInputActivated(ctx, session, &entry); err != nil {
+		activationErr := m.cleanupInterruptingInputActivationFailure(ctx, &entry, err)
 		return SendPromptResult{}, m.promptDispatchIndeterminate(ctx, admission, activationErr)
 	}
 	if created {
@@ -302,8 +302,8 @@ func (m *Manager) interruptAdmittedPrompt(
 	if err != nil {
 		return SendPromptResult{}, err
 	}
-	if err := m.ensureInterruptingInputActivated(ctx, session, entry); err != nil {
-		activationErr := m.cleanupInterruptingInputActivationFailure(ctx, entry, err)
+	if err := m.ensureInterruptingInputActivated(ctx, session, &entry); err != nil {
+		activationErr := m.cleanupInterruptingInputActivationFailure(ctx, &entry, err)
 		return SendPromptResult{}, m.promptDispatchIndeterminate(ctx, admission, activationErr)
 	}
 	if created {
@@ -315,7 +315,7 @@ func (m *Manager) interruptAdmittedPrompt(
 			"Replacement input accepted and the active turn was interrupted.",
 			map[string]any{
 				promptEvidenceQueueGenerationKey: entry.SessionGeneration,
-				"queue_entry_id":                 entry.ID,
+				promptEvidenceQueueEntryIDKey:    entry.ID,
 			},
 		)
 	}

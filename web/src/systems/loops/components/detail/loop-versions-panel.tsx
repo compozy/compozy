@@ -1,6 +1,5 @@
-import { Section } from "@compozy/ui";
-
 import { MonoTag } from "../mono-tag";
+import { LoopRailSection } from "../loop-rail-section";
 
 interface LoopVersionsPanelProps {
   version: number;
@@ -14,8 +13,8 @@ interface LoopVersionsPanelProps {
  */
 export function LoopVersionsPanel({ version }: LoopVersionsPanelProps) {
   return (
-    <Section label="Versions" data-testid="loop-versions">
-      <div className="rounded-lg border border-line bg-canvas-soft px-3.5 py-1">
+    <LoopRailSection data-testid="loop-versions" gist={`v${version} current`} title="Versions">
+      <div className="px-3.5 py-1">
         <div className="flex items-center gap-2.5 py-2.5">
           <span className="font-mono text-mono-id text-fg-strong">v{version}</span>
           <MonoTag className="rounded-xs bg-success-tint px-1.5 py-0.5 text-success">
@@ -23,6 +22,6 @@ export function LoopVersionsPanel({ version }: LoopVersionsPanelProps) {
           </MonoTag>
         </div>
       </div>
-    </Section>
+    </LoopRailSection>
   );
 }

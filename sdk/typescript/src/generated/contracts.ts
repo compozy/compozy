@@ -2589,6 +2589,10 @@ export interface LoopNodeTerminalPayload {
   origin_ref?: string;
   task_status?: string;
   run_status?: string;
+  failure_class?: string;
+  disposition?: string;
+  attempt?: number;
+  target?: string;
   error?: string;
   details?: JSONValue;
 }

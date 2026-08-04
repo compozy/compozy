@@ -11,7 +11,7 @@ import {
 } from "../loop-formatters";
 import type { LoopRunStatus } from "../../types";
 
-// The canonical §3.3 table: every one of the 11 statuses -> tone + pulse + label +
+// The canonical §3.3 table: every one of the 12 statuses -> tone + pulse + label +
 // terminal group. Diverging from this is a truthful-UI regression (color = state).
 const STATUS_TABLE: Array<{
   status: LoopRunStatus;
@@ -37,10 +37,11 @@ const STATUS_TABLE: Array<{
   { status: "failed", tone: "danger", pulse: false, terminal: true, label: "Failed" },
   { status: "exhausted", tone: "warning", pulse: false, terminal: true, label: "Exhausted" },
   { status: "stalled", tone: "neutral", pulse: false, terminal: true, label: "Stalled" },
+  { status: "canceled", tone: "neutral", pulse: false, terminal: true, label: "Canceled" },
 ];
 
 describe("loop-formatters", () => {
-  it("Should map every one of the 11 statuses to the design tone, pulse, terminal group and label", () => {
+  it("Should map every one of the 12 statuses to the design tone, pulse, terminal group and label", () => {
     for (const row of STATUS_TABLE) {
       expect(loopStatusTone(row.status)).toBe(row.tone);
       expect(loopStatusPulse(row.status)).toBe(row.pulse);
@@ -55,9 +56,9 @@ describe("loop-formatters", () => {
     expect(pulsing).toEqual(["running", "watching"]);
   });
 
-  it("Should recognize the 6 terminal statuses and reject live ones", () => {
+  it("Should recognize the 7 terminal statuses and reject live ones", () => {
     const terminal = STATUS_TABLE.filter(row => row.terminal).map(row => row.status);
-    expect(terminal).toHaveLength(6);
+    expect(terminal).toHaveLength(7);
     expect(isTerminalLoopStatus("running")).toBe(false);
     expect(isTerminalLoopStatus("queued")).toBe(false);
   });

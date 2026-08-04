@@ -1,10 +1,17 @@
+import type { ReactNode } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { X } from "lucide-react";
+
+import { Button } from "@compozy/ui";
 import { expect, fireEvent, userEvent, within } from "storybook/test";
 
-import { StorySurface } from "@/storybook/story-layout";
-
 import { LoopRunForm } from "../run-form/loop-run-form";
-import { loopDetailByName, loopEffectiveConfigFixture } from "../../mocks/fixtures";
+import {
+  loopDetailByName,
+  loopEffectiveConfigFixture,
+  loopRunFixtures,
+} from "../../mocks/fixtures";
+import { LoopsStoryShell } from "./loops-story-shell";
 
 const meta: Meta<typeof LoopRunForm> = {
   title: "systems/loops/components/LoopRunForm",
@@ -17,6 +24,9 @@ type Story = StoryObj<typeof meta>;
 
 const deliveryLoop = loopDetailByName.get("software-delivery")!;
 const watchLoop = loopDetailByName.get("review-and-fix")!;
+const liveRun = loopRunFixtures.find(
+  run => run.loop_name === "software-delivery" && run.status === "running"
+)!;
 const deliveryConfig = {
   iteration_cap: 3,
   budget_on_exceeded: "escalate" as const,
@@ -27,16 +37,38 @@ const deliveryConfig = {
   human_gate_enabled: true,
 };
 
+/** The run form inside its product window chrome — the crumbs its route location publishes. */
+function RunFormShell({ children }: { children: ReactNode }) {
+  return (
+    <LoopsStoryShell
+      actions={
+        <Button data-testid="loop-run-form-close" size="sm" type="button" variant="ghost">
+          <X aria-hidden="true" className="size-3.5" />
+          Close
+        </Button>
+      }
+      crumb="Run"
+      crumbs={[
+        { id: "loops", label: "Loops", onSelect: () => {} },
+        { id: "loop", label: "software-delivery", onSelect: () => {} },
+      ]}
+      onBack={() => {}}
+    >
+      {children}
+    </LoopsStoryShell>
+  );
+}
+
 /** The hero run form: auto-generated typed inputs, Advanced overrides, live preview. */
 export const Delivery: Story = {
   render: () => (
-    <StorySurface className="flex h-[840px] flex-col p-0">
+    <RunFormShell>
       <LoopRunForm
         workspaceId="ws_default"
         loop={deliveryLoop}
         effectiveConfig={{ ...loopEffectiveConfigFixture, ...deliveryConfig }}
       />
-    </StorySurface>
+    </RunFormShell>
   ),
 };
 
@@ -46,7 +78,7 @@ export const DeliveryWithRunOverride: Story = {
   tags: ["play-fn"],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: /Advanced/ }));
+    await userEvent.click(canvas.getByRole("button", { name: /Limits/ }));
     const capInput = canvas.getByTestId("loop-run-override-input-iteration_cap");
     await expect(capInput).toHaveAttribute("placeholder", "3");
     await fireEvent.change(capInput, { target: { value: "4" } });
@@ -56,10 +88,27 @@ export const DeliveryWithRunOverride: Story = {
   },
 };
 
+/**
+ * The same loop, arrived at while one of its runs is already live: the open run is
+ * stated with a link to its page, and no control is duplicated here (US-029 EC-6).
+ */
+export const AlreadyRunning: Story = {
+  render: () => (
+    <RunFormShell>
+      <LoopRunForm
+        activeRun={liveRun}
+        workspaceId="ws_default"
+        loop={deliveryLoop}
+        effectiveConfig={{ ...loopEffectiveConfigFixture, ...deliveryConfig }}
+      />
+    </RunFormShell>
+  ),
+};
+
 /** A watch loop with no declared inputs — run it directly. */
 export const NoInputs: Story = {
   render: () => (
-    <StorySurface className="flex h-[840px] flex-col p-0">
+    <RunFormShell>
       <LoopRunForm
         workspaceId="ws_default"
         loop={watchLoop}
@@ -70,6 +119,6 @@ export const NoInputs: Story = {
           iteration_cap: 0,
         }}
       />
-    </StorySurface>
+    </RunFormShell>
   ),
 };

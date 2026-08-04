@@ -150,6 +150,9 @@ func executedDefinitionDigest(data []byte) string {
 
 func cloneEffectiveConfig(config EffectiveConfig) EffectiveConfig {
 	config.EnabledChecks = cloneRawMessage(config.EnabledChecks)
+	lifecycle := DefaultLifecycleConfig()
+	mergeLifecycleLayer(&lifecycle, config.Lifecycle)
+	config.Lifecycle = lifecycle
 	return config
 }
 

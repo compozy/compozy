@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
@@ -58,6 +59,7 @@ func TestManagerWatchPoll(t *testing.T) {
 				t.Fatalf("Call() result type = %T, want *watch.PollResponse", result)
 			}
 			response.Ready = true
+			response.EventKey = " reviews:r1 "
 			response.StateDigest = "sha256:next"
 			response.Payload = json.RawMessage(`{"review":"r1"}`)
 			return nil
@@ -80,6 +82,9 @@ func TestManagerWatchPoll(t *testing.T) {
 		if !response.Ready {
 			t.Fatal("response.Ready = false, want true")
 		}
+		if got, want := response.EventKey, "reviews:r1"; got != want {
+			t.Fatalf("response.EventKey = %q, want %q", got, want)
+		}
 		if got, want := string(response.Payload), `{"review":"r1"}`; got != want {
 			t.Fatalf("response.Payload = %s, want %s", got, want)
 		}
@@ -96,7 +101,12 @@ func TestManagerWatchPoll(t *testing.T) {
 		t.Parallel()
 
 		process := newFakeProcess(9103)
-		process.callFn = func(context.Context, string, any, any) error {
+		process.callFn = func(_ context.Context, _ string, _ any, result any) error {
+			response, ok := result.(*watchpkg.PollResponse)
+			if !ok {
+				t.Fatalf("Call() result type = %T, want *watch.PollResponse", result)
+			}
+			response.EventKey = "reviews:poll"
 			return nil
 		}
 		manager := newWatchSourceManagerForTest(
@@ -111,6 +121,26 @@ func TestManagerWatchPoll(t *testing.T) {
 			Spec: json.RawMessage(`{"kind":"reviews"}`),
 		}); err != nil {
 			t.Fatalf("Poll() error = %v", err)
+		}
+	})
+
+	t.Run("Should fail closed when extension omits event identity", func(t *testing.T) {
+		t.Parallel()
+
+		process := newFakeProcess(9104)
+		process.callFn = func(context.Context, string, any, any) error { return nil }
+		manager := newWatchSourceManagerForTest(
+			"ext-watch",
+			[]string{extensionprotocol.CapabilityProvideWatchSource},
+			[]string{string(extensionprotocol.ExtensionServiceMethodWatchPoll)},
+			[]string{"reviews"},
+			process,
+		)
+		_, err := manager.WatchPoll(testutil.Context(t), "ext-watch", watchpkg.PollRequest{
+			Spec: json.RawMessage(`{"kind":"reviews"}`),
+		})
+		if err == nil || !strings.Contains(err.Error(), "event_key") {
+			t.Fatalf("WatchPoll() error = %v, want event_key validation", err)
 		}
 	})
 }

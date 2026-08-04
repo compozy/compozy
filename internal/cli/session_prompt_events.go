@@ -199,7 +199,11 @@ func (flags *sessionPromptCommandFlags) promptIdentity(cmd *cobra.Command) (stri
 	return promptIdentityFromFlags(cmd, flags.messageID, flags.idempotencyKey)
 }
 
-func promptIdentityFromFlags(cmd *cobra.Command, rawMessageID string, rawIdempotencyKey string) (string, string, error) {
+func promptIdentityFromFlags(
+	cmd *cobra.Command,
+	rawMessageID string,
+	rawIdempotencyKey string,
+) (string, string, error) {
 	if cmd == nil {
 		return "", "", errors.New("cli: command is required")
 	}

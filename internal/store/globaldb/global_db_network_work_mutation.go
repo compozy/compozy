@@ -12,6 +12,13 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
+const (
+	networkReceiptStatusAccepted    = "accepted"
+	networkReceiptStatusDuplicate   = "duplicate"
+	networkReceiptStatusExpired     = "expired"
+	networkReceiptStatusUnsupported = "unsupported"
+)
+
 func applyNetworkWorkMutation(
 	ctx context.Context,
 	exec networkSQLExecutor,
@@ -166,11 +173,12 @@ func nextNetworkWorkStateFromReceipt(current string, body json.RawMessage) (stri
 		return "", false, fmt.Errorf("store: decode network receipt body: %w", err)
 	}
 	switch strings.TrimSpace(receipt.Status) {
-	case "accepted", "duplicate", "expired", "unsupported":
+	case networkReceiptStatusAccepted, networkReceiptStatusDuplicate,
+		networkReceiptStatusExpired, networkReceiptStatusUnsupported:
 		return current, false, nil
 	case globalDBNetworkConversationsRejectedKey:
 		return store.NetworkWorkStateFailed, true, nil
-	case "canceled":
+	case store.NetworkWorkStateCanceled:
 		return store.NetworkWorkStateCanceled, true, nil
 	default:
 		return "", false, fmt.Errorf("store: unsupported network receipt status %q", receipt.Status)

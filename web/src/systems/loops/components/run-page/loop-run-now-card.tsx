@@ -4,6 +4,8 @@ import { Link } from "@tanstack/react-router";
 
 import { formatRelativeTime, LiveBadge } from "@compozy/ui";
 
+import type { LoopNodeNowLine } from "../../lib/loop-node-now-view";
+import type { LoopNodeLifecycle } from "../../lib/loop-node-lifecycle";
 import type { LoopStoryNow } from "../../lib/loop-run-story";
 import type { LoopRunRecord } from "../../types";
 import { LoopRunSection } from "./loop-run-section";
@@ -19,6 +21,16 @@ interface LoopRunNowCardProps {
   /** Ticking elapsed of the current step; null hides the trail clock. */
   stepElapsedLabel?: string | null;
   isLive: boolean;
+  /**
+   * Per-node lifecycle lines (retrying / paused / waiting / quarantined /
+   * canceling) derived from daemon truth. Each renders as its own row inside
+   * this card's anatomy — the card is the one "what is happening" surface.
+   */
+  nodeLines?: readonly LoopNodeNowLine[];
+  /** Lifecycle rows keyed by node id, so a line can host its verb menu. */
+  nodesById?: ReadonlyMap<string, LoopNodeLifecycle>;
+  /** Renders the verb menu for one lifecycle row; omitted in read-only fixtures. */
+  renderNodeActions?: (node: LoopNodeLifecycle) => ReactNode;
   /** Turns disclosure slot when the running node is a goal node. */
   children?: ReactNode;
 }
@@ -101,6 +113,62 @@ function nowView(props: LoopRunNowCardProps): NowView | null {
   }
 }
 
+/** Dot treatment per lifecycle state — signal colour marks state, never category. */
+const NODE_LINE_DOT: Record<string, string> = {
+  retrying: "bg-warning",
+  paused: "border-[1.5px] border-neutral bg-transparent",
+  waiting: "bg-info",
+  quarantined: "bg-danger",
+  requested: "bg-warning",
+  delivering: "bg-warning",
+  draining: "bg-warning",
+};
+
+/** One lifecycle row: headline, sentence, optional chip + provenance, mono trail. */
+function NodeNowRow({
+  line,
+  actions,
+  withDivider,
+}: {
+  line: LoopNodeNowLine;
+  actions?: ReactNode;
+  withDivider: boolean;
+}) {
+  return (
+    <div
+      className={`flex items-start gap-3 px-4 py-3.5 ${withDivider ? "border-t border-line-soft" : ""}`}
+      data-testid={`loop-run-now-node-${line.nodeId}`}
+    >
+      <span
+        aria-hidden="true"
+        className={`mt-1.5 size-2 shrink-0 rounded-full ${NODE_LINE_DOT[line.state] ?? "bg-neutral"}`}
+      />
+      <div className="min-w-0 flex-1">
+        <div className="text-ws-name font-medium text-fg-strong">{line.headline}</div>
+        <div className="mt-0.75 max-w-[60ch] text-small-body leading-relaxed text-muted">
+          {line.body}
+        </div>
+        {line.chip ? (
+          <span
+            className="mt-2 inline-flex items-center rounded bg-warning-tint px-1.5 py-0.5 font-mono text-mono-id text-warning"
+            data-testid={`loop-run-now-chip-${line.nodeId}`}
+          >
+            {line.chip}
+          </span>
+        ) : null}
+        {line.provenance ? (
+          <div className="mt-2 font-mono text-mono-id text-subtle">{line.provenance}</div>
+        ) : null}
+        <div className="mt-1.5 font-mono text-pill-group-badge text-faint">{line.micro}</div>
+      </div>
+      <span className="flex shrink-0 items-center gap-2 pt-0.5">
+        <span className="font-mono text-mono-id whitespace-nowrap text-subtle">{line.state}</span>
+        {actions}
+      </span>
+    </div>
+  );
+}
+
 /** Shared chrome for the "Happening now" outbound child-run / task-run links. */
 const NOW_OUTBOUND_LINK_CLASS =
   "mt-2.25 inline-flex items-center gap-1.25 text-badge font-medium text-muted hover:text-fg-strong";
@@ -121,9 +189,13 @@ function NowOutboundLinkContent({ label }: { label: string }) {
  * Every rendered value traces to the run projection or streamed frames.
  */
 export function LoopRunNowCard(props: LoopRunNowCardProps) {
-  const { run, now, isLive, children } = props;
+  const { run, now, isLive, children, nodeLines, nodesById, renderNodeActions } = props;
   const view = nowView(props);
-  if (!view) return null;
+  const lines = nodeLines ?? [];
+  // The card exists when the run has something to say OR when at least one node
+  // declares a lifecycle state — a run whose only story is "task_03 is paused"
+  // still needs this surface.
+  if (!view && lines.length === 0) return null;
   const showLive = isLive && (run.status === "running" || run.status === "watching");
   return (
     <LoopRunSection
@@ -132,52 +204,65 @@ export function LoopRunNowCard(props: LoopRunNowCardProps) {
       data-testid="loop-run-now"
     >
       <div className="overflow-hidden rounded-lg border border-line bg-canvas-soft">
-        <div className="flex items-start gap-3 px-4 py-3.5">
-          <span
-            aria-hidden="true"
-            className={`mt-1.5 size-2 shrink-0 rounded-full ${view.dotClass} ${
-              view.pulse ? "animate-pulse motion-reduce:animate-none" : ""
-            }`}
-          />
-          <div className="min-w-0 flex-1">
-            <div
-              className="text-ws-name font-medium text-fg-strong"
-              data-testid="loop-run-now-label"
-            >
-              {view.label}
-            </div>
-            {view.sub ? (
-              <div className="mt-0.75 max-w-[60ch] text-small-body leading-relaxed text-muted">
-                {view.sub}
+        {view ? (
+          <div className="flex items-start gap-3 px-4 py-3.5">
+            <span
+              aria-hidden="true"
+              className={`mt-1.5 size-2 shrink-0 rounded-full ${view.dotClass} ${
+                view.pulse ? "animate-pulse motion-reduce:animate-none" : ""
+              }`}
+            />
+            <div className="min-w-0 flex-1">
+              <div
+                className="text-ws-name font-medium text-fg-strong"
+                data-testid="loop-run-now-label"
+              >
+                {view.label}
               </div>
+              {view.sub ? (
+                <div className="mt-0.75 max-w-[60ch] text-small-body leading-relaxed text-muted">
+                  {view.sub}
+                </div>
+              ) : null}
+              {run.status === "running" && now?.childRunId ? (
+                <Link
+                  className={NOW_OUTBOUND_LINK_CLASS}
+                  data-testid="loop-run-now-child-link"
+                  params={{ runId: now.childRunId }}
+                  to="/loop-runs/$runId"
+                >
+                  <NowOutboundLinkContent label="View child run" />
+                </Link>
+              ) : run.status === "running" && now?.taskLink ? (
+                <Link
+                  className={NOW_OUTBOUND_LINK_CLASS}
+                  data-testid="loop-run-now-task-link"
+                  params={{ id: now.taskLink.taskId, runId: now.taskLink.taskRunId }}
+                  to="/tasks/$id/runs/$runId"
+                >
+                  <NowOutboundLinkContent label="View task run" />
+                </Link>
+              ) : null}
+              {children}
+            </div>
+            {view.trail ? (
+              <span className="pt-0.75 font-mono text-mono-id whitespace-nowrap tabular-nums text-subtle">
+                {view.trail}
+              </span>
             ) : null}
-            {run.status === "running" && now?.childRunId ? (
-              <Link
-                className={NOW_OUTBOUND_LINK_CLASS}
-                data-testid="loop-run-now-child-link"
-                params={{ runId: now.childRunId }}
-                to="/loop-runs/$runId"
-              >
-                <NowOutboundLinkContent label="View child run" />
-              </Link>
-            ) : run.status === "running" && now?.taskLink ? (
-              <Link
-                className={NOW_OUTBOUND_LINK_CLASS}
-                data-testid="loop-run-now-task-link"
-                params={{ id: now.taskLink.taskId, runId: now.taskLink.taskRunId }}
-                to="/tasks/$id/runs/$runId"
-              >
-                <NowOutboundLinkContent label="View task run" />
-              </Link>
-            ) : null}
-            {children}
           </div>
-          {view.trail ? (
-            <span className="pt-0.75 font-mono text-mono-id whitespace-nowrap tabular-nums text-subtle">
-              {view.trail}
-            </span>
-          ) : null}
-        </div>
+        ) : null}
+        {lines.map((line, index) => {
+          const node = nodesById?.get(line.nodeId);
+          return (
+            <NodeNowRow
+              actions={node && renderNodeActions ? renderNodeActions(node) : undefined}
+              key={line.nodeId}
+              line={line}
+              withDivider={view !== null || index > 0}
+            />
+          );
+        })}
       </div>
     </LoopRunSection>
   );

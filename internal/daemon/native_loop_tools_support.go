@@ -232,16 +232,38 @@ func nativeLoopReasonToolError(id toolspkg.ToolID, err error) error {
 		reason = toolspkg.ReasonLoopInvalidStatusTransition
 	case looppkg.ReasonCodeTerminalRun:
 		reason = toolspkg.ReasonLoopTerminalRun
+	case looppkg.ReasonCodeRunTerminal:
+		reason = toolspkg.ReasonLoopRunTerminal
+	case looppkg.ReasonCodeNodeNotPaused:
+		reason = toolspkg.ReasonLoopNodeNotPaused
+	case looppkg.ReasonCodeNodeNotQuarantined:
+		reason = toolspkg.ReasonLoopNodeNotQuarantined
+	case looppkg.ReasonCodeAlreadyDecided:
+		reason = toolspkg.ReasonLoopAlreadyDecided
 	default:
 		return nil
 	}
-	return toolspkg.NewToolError(
-		toolspkg.ErrorCodeInvalidInput,
-		id,
-		err.Error(),
-		fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
-		reason,
-	)
+	code := toolspkg.ErrorCodeInvalidInput
+	cause := toolspkg.ErrToolInvalidInput
+	if reasonErr.Code == looppkg.ReasonCodeAlreadyDecided {
+		code = toolspkg.ErrorCodeConflict
+		cause = toolspkg.ErrToolConflict
+	}
+	toolErr := toolspkg.NewToolError(code, id, err.Error(), fmt.Errorf("%w: %w", cause, err), reason)
+	structured, marshalErr := json.Marshal(core.ErrorPayloadForError(err))
+	if marshalErr != nil {
+		return toolspkg.NewToolError(
+			toolspkg.ErrorCodeBackendFailed,
+			id,
+			"marshal Loop lifecycle error payload",
+			fmt.Errorf("%w: %w", toolspkg.ErrToolBackendFailed, marshalErr),
+			toolspkg.ReasonBackendUnhealthy,
+		)
+	}
+	return toolErr.WithPartialResult(toolspkg.ToolResult{
+		Structured: structured,
+		Preview:    "loop lifecycle mutation rejected",
+	})
 }
 
 func nativeLoopVersionConflictToolError(id toolspkg.ToolID, err error, currentVersion int) error {

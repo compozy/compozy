@@ -5,14 +5,12 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/compozy/compozy/internal/diagnostics"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 const (
-	loopActionFailureCode      = "loop_action_failed"
-	loopActionFailureTextLimit = 2 * 1024
+	loopActionFailureCode = "loop_action_failed"
 )
 
 type loopActionFailureMetadata struct {
@@ -32,6 +30,10 @@ func marshalLoopActionFailureMetadata(reason string, cause error) ([]byte, error
 		if provided := strings.TrimSpace(provider.loopActionReasonCode()); provided != "" {
 			reasonCode = provided
 		}
+	} else if reasonErr, ok := errors.AsType[*looppkg.ReasonError](cause); ok {
+		if provided := strings.TrimSpace(string(reasonErr.Code)); provided != "" {
+			reasonCode = provided
+		}
 	}
 	return json.Marshal(loopActionFailureMetadata{
 		ReasonCode: reasonCode,
@@ -47,20 +49,37 @@ func operatorSafeActionFailure(cause error) looppkg.ActionFailure {
 
 	if provider, ok := errors.AsType[looppkg.SafeActionFailureProvider](cause); ok {
 		failure := provider.SafeActionFailure()
-		if strings.TrimSpace(failure.Code) != "" && strings.TrimSpace(failure.Cause) != "" &&
-			strings.TrimSpace(failure.Recovery) != "" {
-			code = failure.Code
-			message = failure.Cause
-			recovery = failure.Recovery
+		if provided := strings.TrimSpace(failure.Code); provided != "" {
+			code = provided
+		}
+		if provided := strings.TrimSpace(failure.Cause); provided != "" {
+			message = provided
+		}
+		if provided := strings.TrimSpace(failure.Recovery); provided != "" {
+			recovery = provided
+		}
+	} else if reasonErr, ok := errors.AsType[*looppkg.ReasonError](cause); ok {
+		if provided := strings.TrimSpace(string(reasonErr.Code)); provided != "" {
+			code = provided
+		}
+		switch reasonErr.Code {
+		case looppkg.ReasonCodeActionTimeout:
+			message = "The action exceeded its configured attempt timeout."
+			recovery = "Review the action timeout and target health before retrying."
+		default:
+			message = "The action could not complete its runtime contract."
 		}
 	} else if toolErr, ok := errors.AsType[*toolspkg.ToolError](cause); ok {
-		code = strings.TrimSpace(string(toolErr.Code))
-		if code == "" {
-			code = loopActionFailureCode
+		if provided := strings.TrimSpace(string(toolErr.Code)); provided != "" {
+			code = provided
 		}
 		if toolErr.Operator != nil {
-			message = toolErr.Operator.Cause
-			recovery = toolErr.Operator.Recovery
+			if provided := strings.TrimSpace(toolErr.Operator.Cause); provided != "" {
+				message = provided
+			}
+			if provided := strings.TrimSpace(toolErr.Operator.Recovery); provided != "" {
+				recovery = provided
+			}
 		} else if strings.TrimSpace(toolErr.Message) != "" {
 			message = toolErr.Message
 			recovery = recoveryForToolError(toolErr.Code)
@@ -69,8 +88,8 @@ func operatorSafeActionFailure(cause error) looppkg.ActionFailure {
 
 	return looppkg.NewActionFailure(
 		code,
-		diagnostics.RedactAndBound(message, loopActionFailureTextLimit),
-		diagnostics.RedactAndBound(recovery, loopActionFailureTextLimit),
+		message,
+		recovery,
 	)
 }
 

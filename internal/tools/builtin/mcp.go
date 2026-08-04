@@ -16,7 +16,7 @@ var mcpTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDMCP},
-		[]string{mcpKey, "status", "probe"},
+		[]string{mcpKey, descriptorKeywordStatus, "probe"},
 		[]string{"mcp status", "mcp probe", "mcp server health"},
 	),
 }

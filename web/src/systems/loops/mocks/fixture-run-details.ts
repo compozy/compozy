@@ -161,6 +161,8 @@ export function buildLoopRunDetailFixtures(
       executed_definition: detail.definition,
       generations:
         run.loop_name === "review-and-fix" ? reviewGenerations(run) : deliveryGenerations(run),
+      node_controls: [],
+      waits: [],
     };
   });
 }

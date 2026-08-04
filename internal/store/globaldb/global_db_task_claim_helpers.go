@@ -162,7 +162,7 @@ func (g *TaskRunRepo) coordinationChannelMetadata(
 		WorkflowID:  taskRunMetadataString(run.Metadata, "workflow_id"),
 		AllowedMessageKinds: []string{
 			globalDBTaskClaimStatusKey,
-			"request",
+			globalDBTaskClaimRequestKey,
 			"reply",
 			"blocker",
 			globalDBTaskClaimHandoffKey,

@@ -3,19 +3,22 @@
     "pages": [
         "index",
         "approve",
+        "cancel",
         "configure",
         "create",
         "delete",
         "edit",
         "inspect",
+        "kill",
         "list",
+        "nodes",
         "pause",
         "resume",
         "run",
         "runs",
         "status",
-        "stop",
         "turns",
-        "validate"
+        "validate",
+        "node"
     ]
 }

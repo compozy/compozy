@@ -11,8 +11,8 @@ bug_ids:
 fix_status:
 retest_status: pass
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/cross-surface/web-task-detail.png; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260801-135009-390014-lab/qa-artifacts/qa/loop/browser-url-v6.txt; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260801-135009-390014-lab/qa-artifacts/qa/loop/loop-run-v6-full.png; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260801-135009-390014-lab/qa-artifacts/qa/loop/same-run-parity-v6.json
-last_report: docs/qa/reports/2026-08-01-loops-paper-adoption.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/cross-surface/web-task-detail.png; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260801-135009-390014-lab/qa-artifacts/qa/loop/browser-url-v6.txt; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260801-135009-390014-lab/qa-artifacts/qa/loop/loop-run-v6-full.png; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260801-135009-390014-lab/qa-artifacts/qa/loop/same-run-parity-v6.json; /Users/pedronauck/dev/qa-labs/compozy-loop-operator-lifecycle-ui-20260803-044343-123901-lab/qa-artifacts/qa/screenshots/task08/15b-cora-deep-link-stable.png
+last_report: docs/qa/reports/2026-08-03-loop-node-lifecycle-task08.md
 overlaps: LP-003; LP-005
 ---
 
@@ -26,3 +26,5 @@ QA impact 2026-08-01: reset to `untested` because the run detail payload and ren
 include scored verdicts, best-generation links, parent generation, and origin. Re-open the CLI URL
 after restart and confirm those persisted fields agree with structured reads without duplicate
 generation anchors; historical deep-link evidence remains recorded in frontmatter.
+
+QA result 2026-08-03: the exact persisted run deep link reopened after live layout synchronization and rendered the matching run id, durable terminal state, and run story on a fresh browser read.

@@ -98,14 +98,15 @@ func (m *Manager) submitPromptInReservedSlot(
 	if _, err := m.persistSessionPromptActivity(ctx, session, m.now()); err != nil {
 		return nil, err
 	}
-	activity := newPromptActivitySupervisor(promptExecutionCtx, m, session, turnState, m.supervision)
+	supervision := supervisionForSession(session, m.supervision)
+	activity := newPromptActivitySupervisor(promptExecutionCtx, m, session, turnState, supervision)
 	activity.start()
 	source, err := m.driver.Prompt(promptExecutionCtx, proc, acp.PromptRequest{
 		TurnID:                    req.turnID,
 		Message:                   dispatchMessage,
 		Meta:                      req.meta,
 		ActivityReporter:          activity.report,
-		ActivityHeartbeatInterval: m.supervision.ActivityHeartbeatInterval,
+		ActivityHeartbeatInterval: supervision.ActivityHeartbeatInterval,
 	})
 	if err != nil {
 		cancelPromptExecution()

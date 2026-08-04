@@ -197,9 +197,14 @@ func (h *HostAPIHandler) handleSessionsInputsReplace(ctx context.Context, raw js
 	if err != nil {
 		return nil, err
 	}
-	input, err := manager.ReplacePendingInput(ctx, params.SessionID, params.QueueEntryID, session.ReplacePendingInputOpts{
-		Text: request.Text, MessageID: request.MessageID, IdempotencyKey: request.IdempotencyKey,
-	})
+	input, err := manager.ReplacePendingInput(
+		ctx,
+		params.SessionID,
+		params.QueueEntryID,
+		session.ReplacePendingInputOpts{
+			Text: request.Text, MessageID: request.MessageID, IdempotencyKey: request.IdempotencyKey,
+		},
+	)
 	if err != nil {
 		return nil, err
 	}

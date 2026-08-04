@@ -57,7 +57,7 @@ func (m *Manager) finishManagedInputPrompt(
 		m.sessionLogger(session).Error(
 			"session: persist managed input terminal failed",
 			"error", err,
-			"queue_entry_id", execution.submission.Owner.QueueEntryID,
+			promptEvidenceQueueEntryIDKey, execution.submission.Owner.QueueEntryID,
 		)
 	}
 }

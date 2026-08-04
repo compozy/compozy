@@ -277,6 +277,49 @@ func TestCompilerShouldCompileWatchEventsFiltersWithEventEnv(t *testing.T) {
 			t.Fatal("Compile() mutated input watch-events filter")
 		}
 	})
+
+	t.Run("Should compile a wait event filter with the event namespace", func(t *testing.T) {
+		t.Parallel()
+
+		def := singleNodeDefinition(dsl.Node{
+			ID: "wait_for_task", Class: dsl.NodeClassControl, Kind: string(dsl.ControlWait),
+			Params: dsl.NodeParams{"event": map[string]any{
+				"kind": "task.status_changed", "filter": `event.task_id == inputs.parent_task_id`,
+			}},
+		})
+		def.Inputs = map[string]dsl.Input{"parent_task_id": {Type: dsl.InputTypeString}}
+		resolved, err := loop.NewCompiler().Compile(def)
+		if err != nil {
+			t.Fatalf("Compile(wait event filter) error = %v", err)
+		}
+		condition := resolved.Conditions["nodes.wait_for_task.events.0.filter"]
+		if condition == nil {
+			t.Fatal("resolved wait event filter condition is nil")
+		}
+		value, _, err := condition.Program.Eval(map[string]any{
+			"inputs": map[string]any{"parent_task_id": "task-parent"},
+			"event":  map[string]any{"task_id": "task-parent"},
+		})
+		if err != nil || value.Value() != true {
+			t.Fatalf("compiled wait filter Eval() = %v, %v, want true", value.Value(), err)
+		}
+	})
+
+	t.Run("Should leave conditions empty for a timer wait without an event", func(t *testing.T) {
+		t.Parallel()
+
+		def := singleNodeDefinition(dsl.Node{
+			ID: "wait_for_timer", Class: dsl.NodeClassControl, Kind: string(dsl.ControlWait),
+			Params: dsl.NodeParams{"for": "1m"},
+		})
+		resolved, err := loop.NewCompiler().Compile(def)
+		if err != nil {
+			t.Fatalf("Compile(timer wait) error = %v", err)
+		}
+		if len(resolved.Conditions) != 0 {
+			t.Fatalf("timer wait conditions = %#v, want none", resolved.Conditions)
+		}
+	})
 }
 
 func TestCompilerShouldRejectInvalidWatchEventsFilterAtPublish(t *testing.T) {

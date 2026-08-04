@@ -1,7 +1,6 @@
-import { Section } from "@compozy/ui";
-
 import { successRateLabel } from "../../lib/loop-catalog";
 import type { LoopAggregate30d } from "../../types";
+import { LoopRailSection } from "../loop-rail-section";
 
 interface LoopStatsPanelProps {
   successRate: number;
@@ -22,8 +21,12 @@ export function LoopStatsPanel({ successRate, aggregate }: LoopStatsPanelProps) 
     { label: "Failed", value: String(aggregate.failed) },
   ];
   return (
-    <Section label="Last 30 days" data-testid="loop-stats">
-      <div className="grid grid-cols-2 rounded-lg border border-line bg-canvas-soft">
+    <LoopRailSection
+      data-testid="loop-stats"
+      gist={`${successRateLabel(successRate)} success · ${aggregate.runs} runs`}
+      title="Last 30 days"
+    >
+      <div className="grid grid-cols-2">
         {stats.map((stat, index) => (
           <div
             key={stat.label}
@@ -38,6 +41,6 @@ export function LoopStatsPanel({ successRate, aggregate }: LoopStatsPanelProps) 
           </div>
         ))}
       </div>
-    </Section>
+    </LoopRailSection>
   );
 }

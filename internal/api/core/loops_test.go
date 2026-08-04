@@ -252,16 +252,66 @@ func TestLoopHandlersExposeCatalogRunConfigAnnotationsAndEvents(t *testing.T) {
 			t.Fatalf("GET /loop-runs/:run_id payload = %#v", runDetailPayload)
 		}
 
-		assertLoopOKMutation(t, engine, http.MethodPost, "/workspaces/ws-1/loop-runs/run-1/stop", nil)
-		assertLoopOKMutation(t, engine, http.MethodPost, "/workspaces/ws-1/loop-runs/run-1/pause", nil)
-		assertLoopOKMutation(t, engine, http.MethodPost, "/workspaces/ws-1/loop-runs/run-1/resume", nil)
+		assertLoopOKMutation(t, engine, http.MethodPost, "/workspaces/ws-1/loop-runs/run-1/cancel", nil, "run-1", "")
+		assertLoopOKMutation(t, engine, http.MethodPost, "/workspaces/ws-1/loop-runs/run-1/kill", nil, "run-1", "")
+		assertLoopOKMutation(
+			t, engine, http.MethodPost,
+			"/workspaces/ws-1/loop-runs/run-1/nodes/worker/pause",
+			[]byte(`{"mode":"drain","reason":"repair"}`),
+			"run-1", "worker",
+		)
+		assertLoopOKMutation(
+			t, engine, http.MethodPost,
+			"/workspaces/ws-1/loop-runs/run-1/nodes/worker/resume",
+			[]byte(`{"mode":"plain"}`),
+			"run-1", "worker",
+		)
+		assertLoopOKMutation(
+			t, engine, http.MethodPost,
+			"/workspaces/ws-1/loop-runs/run-1/nodes/worker/cancel",
+			[]byte(`{"reason":"repair"}`),
+			"run-1", "worker",
+		)
+		assertLoopOKMutation(
+			t, engine, http.MethodPost,
+			"/workspaces/ws-1/loop-runs/run-1/nodes/worker/kill",
+			[]byte(`{"reason":"repair"}`),
+			"run-1", "worker",
+		)
+		assertLoopOKMutation(
+			t, engine, http.MethodPost,
+			"/workspaces/ws-1/loop-runs/run-1/nodes/worker/requeue",
+			[]byte(`{"reason":"repaired"}`),
+			"run-1", "worker",
+		)
+		nodesResp := performRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/workspaces/ws-1/loop-nodes?state=waiting&loop=alpha&run_id=run-1&cursor=next&limit=25",
+			nil,
+		)
+		assertLoopStatus(t, nodesResp.Code, http.StatusOK, nodesResp.Body.String())
+		var nodesPayload contract.LoopNodeInventoryResponse
+		testutil.DecodeJSONResponse(t, nodesResp, &nodesPayload)
+		if nodesPayload.Items == nil {
+			t.Fatalf("GET /loop-nodes payload = %#v, want truthful empty items", nodesPayload)
+		}
+		assertLoopOKMutation(t, engine, http.MethodPost, "/workspaces/ws-1/loop-runs/run-1/pause", nil, "", "")
+		assertLoopOKMutation(t, engine, http.MethodPost, "/workspaces/ws-1/loop-runs/run-1/resume", nil, "", "")
 		assertLoopOKMutation(
 			t,
 			engine,
 			http.MethodPost,
 			"/workspaces/ws-1/loop-runs/run-1/approve",
 			[]byte(`{"gate_id":"review","decision":"approve"}`),
+			"", "",
 		)
+		stopResp := performRequest(t, engine, http.MethodPost, "/workspaces/ws-1/loop-runs/run-1/stop", nil)
+		assertLoopStatus(t, stopResp.Code, http.StatusNotFound, stopResp.Body.String())
+		if !strings.Contains(stopResp.Body.String(), "404") {
+			t.Fatalf("POST deleted /stop body = %q, want unknown-route body", stopResp.Body.String())
+		}
 
 		streamResp := testutil.PerformRequestWithHeaders(
 			t,
@@ -698,6 +748,123 @@ func TestGoalReadHandlersExposeSnapshotAndTurnContracts(t *testing.T) {
 func TestLoopHandlersExposeValidationAndConflictBodies(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should accept lifecycle authoring through PATCH and validate", func(t *testing.T) {
+		t.Parallel()
+
+		service := happyLoopService(t)
+		assertLifecycle := func(document contract.LoopDefinitionDocument) {
+			t.Helper()
+			encoded, err := json.Marshal(document)
+			if err != nil {
+				t.Fatalf("json.Marshal() error = %v", err)
+			}
+			for _, field := range []string{
+				`"deadline":"15m"`,
+				`"result_contract"`,
+				`"on_error"`,
+				`"on_parent_close":"cancel"`,
+				`"on_canceled"`,
+				`"expires"`,
+			} {
+				if !strings.Contains(string(encoded), field) {
+					t.Fatalf("decoded lifecycle document missing %s: %s", field, encoded)
+				}
+			}
+		}
+		service.patchLoopFn = func(
+			_ context.Context,
+			workspaceID string,
+			name string,
+			req contract.PatchLoopRequest,
+		) (contract.LoopResponse, error) {
+			if workspaceID != "ws-1" || name != "alpha" {
+				t.Fatalf("PatchLoop() target = %s/%s", workspaceID, name)
+			}
+			assertLifecycle(req.Definition)
+			return loopResponse(t), nil
+		}
+		service.validateLoopFn = func(
+			_ context.Context,
+			workspaceID string,
+			name string,
+			req contract.ValidateLoopRequest,
+		) (contract.LoopValidationResponse, error) {
+			if workspaceID != "ws-1" || name != "alpha" {
+				t.Fatalf("ValidateLoop() target = %s/%s", workspaceID, name)
+			}
+			assertLifecycle(req.Definition)
+			return contract.LoopValidationResponse{Valid: true}, nil
+		}
+		_, engine := newLoopHandlerFixture(t, "httpapi", service)
+
+		patchResponse := performRequest(
+			t,
+			engine,
+			http.MethodPatch,
+			"/workspaces/ws-1/loops/alpha",
+			loopLifecyclePatchRequestBody(),
+		)
+		assertLoopStatus(t, patchResponse.Code, http.StatusOK, patchResponse.Body.String())
+
+		validateResponse := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/workspaces/ws-1/loops/alpha/validate",
+			loopLifecycleValidateRequestBody(),
+		)
+		assertLoopStatus(t, validateResponse.Code, http.StatusOK, validateResponse.Body.String())
+		var validation contract.LoopValidationResponse
+		testutil.DecodeJSONResponse(t, validateResponse, &validation)
+		if !validation.Valid {
+			t.Fatalf("validate lifecycle response = %#v, want valid", validation)
+		}
+	})
+
+	t.Run("Should preserve lifecycle reason codes through HTTP and UDS", func(t *testing.T) {
+		t.Parallel()
+
+		for _, transport := range []string{"httpapi", "udsapi"} {
+			t.Run("Should return node state and transitions over "+transport, func(t *testing.T) {
+				t.Parallel()
+
+				service := happyLoopService(t)
+				service.resumeLoopNodeFn = func(
+					context.Context,
+					string,
+					string,
+					string,
+					contract.LoopNodeResumeRequest,
+				) (contract.LoopMutationResponse, error) {
+					return contract.LoopMutationResponse{}, &looppkg.ReasonError{
+						Code: looppkg.ReasonCodeNodeNotPaused,
+						Err:  looppkg.ErrInvalidTransition,
+						Meta: map[string]string{
+							looppkg.ReasonMetaActualState:        "active",
+							looppkg.ReasonMetaAllowedTransitions: "pause,cancel,kill",
+						},
+					}
+				}
+				_, engine := newLoopHandlerFixture(t, transport, service)
+				resp := performRequest(
+					t,
+					engine,
+					http.MethodPost,
+					"/workspaces/ws-1/loop-runs/run-1/nodes/worker/resume",
+					[]byte(`{"mode":"plain"}`),
+				)
+				assertLoopStatus(t, resp.Code, http.StatusUnprocessableEntity, resp.Body.String())
+				var payload contract.ErrorPayload
+				testutil.DecodeJSONResponse(t, resp, &payload)
+				if payload.Code != string(looppkg.ReasonCodeNodeNotPaused) ||
+					payload.Details[looppkg.ReasonMetaActualState] != "active" ||
+					payload.Details[looppkg.ReasonMetaAllowedTransitions] != "pause,cancel,kill" {
+					t.Fatalf("%s lifecycle error payload = %#v", transport, payload)
+				}
+			})
+		}
+	})
+
 	t.Run("Should return per-node 422 bodies from PATCH and validate", func(t *testing.T) {
 		t.Parallel()
 
@@ -993,6 +1160,36 @@ func TestLoopHandlersExposeValidationAndConflictBodies(t *testing.T) {
 		var payload contract.ErrorPayload
 		testutil.DecodeJSONResponse(t, resp, &payload)
 		assertLoopErrorPayloadContains(t, payload, agentidentity.ErrIdentityStale.Error())
+	})
+
+	t.Run("Should authorize Loop node inventory before reading another workspace", func(t *testing.T) {
+		t.Parallel()
+
+		service := happyLoopService(t)
+		service.listLoopNodesFn = func(
+			context.Context,
+			string,
+			core.LoopNodeListQuery,
+		) (contract.LoopNodeInventoryResponse, error) {
+			t.Fatal("ListLoopNodes() should not be called when workspace authorization fails")
+			return contract.LoopNodeInventoryResponse{}, nil
+		}
+		gin.SetMode(gin.TestMode)
+		engine := gin.New()
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+			TransportName: "udsapi",
+			Loops:         service,
+			TaskActorContextResolver: func(_ *gin.Context, action string) (taskpkg.ActorContext, error) {
+				if action != "loop_node_list" {
+					t.Fatalf("actor action = %q, want loop_node_list", action)
+				}
+				return taskpkg.ActorContext{}, agentidentity.ErrIdentityUnauthorized
+			},
+		})
+		registerLoopTestRoutes(engine, handlers)
+
+		resp := performRequest(t, engine, http.MethodGet, "/workspaces/ws-other/loop-nodes", nil)
+		assertLoopStatus(t, resp.Code, http.StatusForbidden, resp.Body.String())
 	})
 
 	t.Run("Should pass approve caller identity through the shared Loop handler", func(t *testing.T) {
@@ -1300,10 +1497,17 @@ func registerLoopTestRoutes(engine *gin.Engine, handlers *core.BaseHandlers) {
 	workspace.GET("/loop-runs", handlers.ListLoopRuns)
 	workspace.GET("/loop-runs/:run_id", handlers.GetLoopRun)
 	workspace.GET("/loop-runs/:run_id/turns", handlers.ListGoalTurns)
-	workspace.POST("/loop-runs/:run_id/stop", handlers.StopLoopRun)
+	workspace.POST("/loop-runs/:run_id/cancel", handlers.CancelLoopRun)
+	workspace.POST("/loop-runs/:run_id/kill", handlers.KillLoopRun)
 	workspace.POST("/loop-runs/:run_id/pause", handlers.PauseLoopRun)
 	workspace.POST("/loop-runs/:run_id/resume", handlers.ResumeLoopRun)
 	workspace.POST("/loop-runs/:run_id/approve", handlers.ApproveLoopRun)
+	workspace.POST("/loop-runs/:run_id/nodes/:node_id/pause", handlers.PauseLoopNode)
+	workspace.POST("/loop-runs/:run_id/nodes/:node_id/resume", handlers.ResumeLoopNode)
+	workspace.POST("/loop-runs/:run_id/nodes/:node_id/cancel", handlers.CancelLoopNode)
+	workspace.POST("/loop-runs/:run_id/nodes/:node_id/kill", handlers.KillLoopNode)
+	workspace.POST("/loop-runs/:run_id/nodes/:node_id/requeue", handlers.RequeueLoopNode)
+	workspace.GET("/loop-nodes", handlers.ListLoopNodes)
 	workspace.GET("/loop-runs/:run_id/events", handlers.StreamLoopRunEvents)
 	workspace.GET("/sessions/:session_id/goal", handlers.GetSessionGoal)
 }
@@ -1335,7 +1539,14 @@ type stubLoopService struct {
 	getLoopRunFn        func(context.Context, string, string) (contract.LoopRunResponse, error)
 	getSessionGoalFn    func(context.Context, string, string) (*session.GoalSnapshot, error)
 	listGoalTurnsFn     func(context.Context, string, string, core.GoalTurnListQuery) (session.GoalTurnPage, error)
-	stopLoopRunFn       func(context.Context, string, string) error
+	cancelLoopRunFn     func(context.Context, string, string) (contract.LoopMutationResponse, error)
+	killLoopRunFn       func(context.Context, string, string) (contract.LoopMutationResponse, error)
+	pauseLoopNodeFn     func(context.Context, string, string, string, contract.LoopNodePauseRequest) (contract.LoopMutationResponse, error)
+	resumeLoopNodeFn    func(context.Context, string, string, string, contract.LoopNodeResumeRequest) (contract.LoopMutationResponse, error)
+	cancelLoopNodeFn    func(context.Context, string, string, string, contract.LoopNodeMutationRequest) (contract.LoopMutationResponse, error)
+	killLoopNodeFn      func(context.Context, string, string, string, contract.LoopNodeMutationRequest) (contract.LoopMutationResponse, error)
+	requeueLoopNodeFn   func(context.Context, string, string, string, contract.LoopNodeMutationRequest) (contract.LoopMutationResponse, error)
+	listLoopNodesFn     func(context.Context, string, core.LoopNodeListQuery) (contract.LoopNodeInventoryResponse, error)
 	pauseLoopRunFn      func(context.Context, string, string) error
 	resumeLoopRunFn     func(context.Context, string, string) error
 	approveLoopRunFn    func(context.Context, string, string, contract.ApproveLoopRunRequest, taskpkg.ActorContext) error
@@ -1464,8 +1675,33 @@ func happyLoopService(t testing.TB) *stubLoopService {
 		listGoalTurnsFn: func(context.Context, string, string, core.GoalTurnListQuery) (session.GoalTurnPage, error) {
 			return session.GoalTurnPage{Turns: []session.GoalTurn{}}, nil
 		},
-		stopLoopRunFn: func(context.Context, string, string) error {
-			return nil
+		cancelLoopRunFn: func(_ context.Context, _ string, runID string) (contract.LoopMutationResponse, error) {
+			return contract.LoopMutationResponse{OK: true, RunID: runID}, nil
+		},
+		killLoopRunFn: func(_ context.Context, _ string, runID string) (contract.LoopMutationResponse, error) {
+			return contract.LoopMutationResponse{OK: true, RunID: runID}, nil
+		},
+		pauseLoopNodeFn: func(_ context.Context, _ string, runID string, nodeID string, _ contract.LoopNodePauseRequest) (contract.LoopMutationResponse, error) {
+			return contract.LoopMutationResponse{OK: true, RunID: runID, NodeID: nodeID}, nil
+		},
+		resumeLoopNodeFn: func(_ context.Context, _ string, runID string, nodeID string, _ contract.LoopNodeResumeRequest) (contract.LoopMutationResponse, error) {
+			return contract.LoopMutationResponse{OK: true, RunID: runID, NodeID: nodeID}, nil
+		},
+		cancelLoopNodeFn: func(_ context.Context, _ string, runID string, nodeID string, _ contract.LoopNodeMutationRequest) (contract.LoopMutationResponse, error) {
+			return contract.LoopMutationResponse{OK: true, RunID: runID, NodeID: nodeID}, nil
+		},
+		killLoopNodeFn: func(_ context.Context, _ string, runID string, nodeID string, _ contract.LoopNodeMutationRequest) (contract.LoopMutationResponse, error) {
+			return contract.LoopMutationResponse{OK: true, RunID: runID, NodeID: nodeID}, nil
+		},
+		requeueLoopNodeFn: func(_ context.Context, _ string, runID string, nodeID string, _ contract.LoopNodeMutationRequest) (contract.LoopMutationResponse, error) {
+			return contract.LoopMutationResponse{OK: true, RunID: runID, NodeID: nodeID}, nil
+		},
+		listLoopNodesFn: func(_ context.Context, workspaceID string, query core.LoopNodeListQuery) (contract.LoopNodeInventoryResponse, error) {
+			if workspaceID != "ws-1" || query.State != "waiting" || query.LoopName != "alpha" ||
+				query.RunID != "run-1" || query.Cursor != "next" || query.Limit != 25 {
+				return contract.LoopNodeInventoryResponse{}, errors.New("unexpected loop node inventory query")
+			}
+			return contract.LoopNodeInventoryResponse{Items: []contract.LoopNodeInventoryItem{}}, nil
 		},
 		pauseLoopRunFn: func(context.Context, string, string) error {
 			return nil
@@ -1651,13 +1887,85 @@ func (s *stubLoopService) ListGoalTurns(
 	return s.listGoalTurnsFn(ctx, workspaceID, runID, query)
 }
 
-func (s *stubLoopService) StopLoopRun(
+func (s *stubLoopService) CancelLoopRun(
 	ctx context.Context,
 	workspaceID string,
 	runID string,
 	_ taskpkg.ActorContext,
-) error {
-	return s.stopLoopRunFn(ctx, workspaceID, runID)
+) (contract.LoopMutationResponse, error) {
+	return s.cancelLoopRunFn(ctx, workspaceID, runID)
+}
+
+func (s *stubLoopService) KillLoopRun(
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+	_ taskpkg.ActorContext,
+) (contract.LoopMutationResponse, error) {
+	return s.killLoopRunFn(ctx, workspaceID, runID)
+}
+
+func (s *stubLoopService) PauseLoopNode(
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+	nodeID string,
+	req contract.LoopNodePauseRequest,
+	_ taskpkg.ActorContext,
+) (contract.LoopMutationResponse, error) {
+	return s.pauseLoopNodeFn(ctx, workspaceID, runID, nodeID, req)
+}
+
+func (s *stubLoopService) ResumeLoopNode(
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+	nodeID string,
+	req contract.LoopNodeResumeRequest,
+	_ taskpkg.ActorContext,
+) (contract.LoopMutationResponse, error) {
+	return s.resumeLoopNodeFn(ctx, workspaceID, runID, nodeID, req)
+}
+
+func (s *stubLoopService) CancelLoopNode(
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+	nodeID string,
+	req contract.LoopNodeMutationRequest,
+	_ taskpkg.ActorContext,
+) (contract.LoopMutationResponse, error) {
+	return s.cancelLoopNodeFn(ctx, workspaceID, runID, nodeID, req)
+}
+
+func (s *stubLoopService) KillLoopNode(
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+	nodeID string,
+	req contract.LoopNodeMutationRequest,
+	_ taskpkg.ActorContext,
+) (contract.LoopMutationResponse, error) {
+	return s.killLoopNodeFn(ctx, workspaceID, runID, nodeID, req)
+}
+
+func (s *stubLoopService) RequeueLoopNode(
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+	nodeID string,
+	req contract.LoopNodeMutationRequest,
+	_ taskpkg.ActorContext,
+) (contract.LoopMutationResponse, error) {
+	return s.requeueLoopNodeFn(ctx, workspaceID, runID, nodeID, req)
+}
+
+func (s *stubLoopService) ListLoopNodes(
+	ctx context.Context,
+	workspaceID string,
+	query core.LoopNodeListQuery,
+) (contract.LoopNodeInventoryResponse, error) {
+	return s.listLoopNodesFn(ctx, workspaceID, query)
 }
 
 func (s *stubLoopService) PauseLoopRun(
@@ -1713,7 +2021,9 @@ func loopDefinition() dsl.Definition {
 			Goal:             "Handle the ticket",
 			DefinitionOfDone: "Ticket is resolved",
 			IterationCap:     3,
-			TerminalStates:   []dsl.TerminalState{dsl.TerminalDone, dsl.TerminalFailed},
+			ContractLifecycleState: &dsl.ContractLifecycleState{
+				TerminalStates: []dsl.TerminalState{dsl.TerminalDone, dsl.TerminalFailed},
+			},
 		},
 		Graph: dsl.Graph{Nodes: []dsl.Node{{ID: "draft", Class: dsl.NodeClassAction, Kind: "run-agent"}}},
 		DefinitionExtensionState: &dsl.DefinitionExtensionState{
@@ -1763,6 +2073,53 @@ func loopPatchRequestBody(t *testing.T, expectedVersion int) []byte {
 	})
 }
 
+const loopLifecycleDefinitionJSON = `{
+	"apiVersion":"compozy.loop/v1",
+	"kind":"Loop",
+	"meta":{"name":"alpha","version":7,"catalog":{}},
+	"contract":{
+		"goal":"Ship safely",
+		"definition_of_done":"The release is healthy",
+		"iteration_cap":3,
+		"no_progress":{"window":2},
+		"budget":{"tokens":0,"wall_clock_sec":0},
+		"terminal_states":["done","canceled"],
+		"on_done":[{"emit":{"kind":"release_done"}}],
+		"on_canceled":[{"tool":"notify","with":{"status":"canceled"}}]
+	},
+	"graph":{
+		"nodes":[
+			{
+				"id":"deploy",
+				"class":"action",
+				"kind":"run-loop",
+				"params":{"loop":"child"},
+				"deadline":"15m",
+				"retry":{"max_attempts":3,"backoff":{"base":"1s","max":"30s"},"non_retryable":["payload_declared"]},
+				"result_contract":{"failure_field":"failed","message_field":"message"},
+				"on_error":{"route":"recover","effects":[{"emit":{"kind":"deploy_failed"}}]},
+				"on_retry":[{"emit":{"kind":"deploy_retrying"}}],
+				"on_success":[{"tool":"notify","with":{"status":"done"}}],
+				"on_pause":[{"emit":{"kind":"deploy_paused"}}],
+				"on_timeout":[{"emit":{"kind":"deploy_timed_out"}}],
+				"on_cancel":[{"emit":{"kind":"deploy_canceled"}}],
+				"on_quarantine":[{"emit":{"kind":"deploy_quarantined"}}],
+				"on_parent_close":"cancel"
+			},
+			{"id":"recover","class":"control","kind":"gate","expires":{"after":"1h","route":"deploy"}}
+		],
+		"edges":[{"from":"deploy","to":"recover"}]
+	}
+}`
+
+func loopLifecyclePatchRequestBody() []byte {
+	return []byte(`{"expected_version":7,"definition":` + loopLifecycleDefinitionJSON + `}`)
+}
+
+func loopLifecycleValidateRequestBody() []byte {
+	return []byte(`{"definition":` + loopLifecycleDefinitionJSON + `}`)
+}
+
 func loopRunPayload(id string, status looppkg.Status) *contract.LoopRunPayload {
 	return &contract.LoopRunPayload{
 		ID:                           id,
@@ -1792,15 +2149,34 @@ func fixedLoopTime() time.Time {
 	return time.Date(2026, 7, 5, 12, 0, 0, 0, time.UTC)
 }
 
-func assertLoopOKMutation(t *testing.T, engine http.Handler, method string, path string, body []byte) {
+func assertLoopOKMutation(
+	t *testing.T,
+	engine http.Handler,
+	method string,
+	path string,
+	body []byte,
+	wantRunID string,
+	wantNodeID string,
+) {
 	t.Helper()
 
 	resp := performRequest(t, engine, method, path, body)
 	assertLoopStatus(t, resp.Code, http.StatusOK, resp.Body.String())
-	var payload map[string]bool
+	var payload contract.LoopMutationResponse
 	testutil.DecodeJSONResponse(t, resp, &payload)
-	if !payload["ok"] {
+	if !payload.OK {
 		t.Fatalf("%s %s payload = %#v, want ok=true", method, path, payload)
+	}
+	if payload.RunID != wantRunID || payload.NodeID != wantNodeID {
+		t.Fatalf(
+			"%s %s identity = %q/%q, want %q/%q",
+			method,
+			path,
+			payload.RunID,
+			payload.NodeID,
+			wantRunID,
+			wantNodeID,
+		)
 	}
 }
 

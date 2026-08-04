@@ -162,6 +162,14 @@ func loopAPIServiceOptions(
 		looppkg.WithGoalRunActivator(loopGoalRunActivator{state: state}),
 		looppkg.WithCoordinatorRunActivator(loopCoordinatorRunActivator{state: state}),
 		looppkg.WithRuntimeCatalog(runtimeCatalog),
+		looppkg.WithCancellationSessionController(looppkg.CancellationSessionControllerFuncs{
+			Cancel: func(ctx context.Context, sessionID, _ string) error {
+				return state.sessions.CancelPrompt(ctx, sessionID)
+			},
+			Kill: func(ctx context.Context, sessionID, reason string) error {
+				return state.sessions.StopWithCause(ctx, sessionID, session.CauseUserRequested, reason)
+			},
+		}),
 	}
 	if state.participationResolver != nil {
 		options = append(options, looppkg.WithParticipationResolver(state.participationResolver))
@@ -248,7 +256,7 @@ func (s *daemonLoopAPIService) CreateLoop(
 }
 
 func (s *daemonLoopAPIService) GetLoop(
-	_ context.Context,
+	ctx context.Context,
 	workspaceID string,
 	name string,
 ) (contract.LoopResponse, error) {
@@ -264,6 +272,29 @@ func (s *daemonLoopAPIService) GetLoop(
 	if err != nil {
 		return contract.LoopResponse{}, err
 	}
+	if s.aggregate == nil {
+		return contract.LoopResponse{Loop: payload}, nil
+	}
+	ws, err := normalizeLoopWorkspaceID(workspaceID)
+	if err != nil {
+		return contract.LoopResponse{}, err
+	}
+	snapshot, err := s.aggregate.GetConfigSnapshot(ctx, ws, name)
+	if err != nil {
+		return contract.LoopResponse{}, err
+	}
+	var storedLifecycle *looppkg.LifecycleConfig
+	if snapshot.Stored != nil {
+		storedLifecycle = snapshot.Stored.Lifecycle
+	}
+	resolvedLifecycle, err := looppkg.ResolveNodeLifecycleConfig(
+		dsl.Node{}, storedLifecycle, snapshot.Effective.Lifecycle,
+	)
+	if err != nil {
+		return contract.LoopResponse{}, fmt.Errorf("daemon: resolve effective Loop lifecycle: %w", err)
+	}
+	lifecyclePayload := loopResolvedLifecyclePayload(resolvedLifecycle)
+	payload.EffectiveLifecycle = &lifecyclePayload
 	return contract.LoopResponse{Loop: payload}, nil
 }
 

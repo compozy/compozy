@@ -26,21 +26,33 @@ type CoordinatorRunner interface {
 	Run(ctx context.Context, taskRunID RunID) (CoordinatorCompletionPlan, error)
 }
 
+// CoordinatorPostCommitHandler applies process-side effects after a coordinator plan commits.
+type CoordinatorPostCommitHandler interface {
+	ApplyCoordinatorPostCommit(
+		context.Context,
+		[]CoordinatorParentCloseSpec,
+		ActorContext,
+	) error
+}
+
 // CoordinatorCompletionPlan contains all coordinator mutations that task applies atomically.
 type CoordinatorCompletionPlan struct {
 	NodeTasks           []CoordinatorTaskSpec
 	Dependencies        []CoordinatorDependencySpec
 	NodeRuns            []EnqueueSpec
 	RunStops            []CoordinatorStopSpec
+	ParentCloses        []CoordinatorParentCloseSpec
 	Snapshot            GenerationSnapshot
 	PostReserveSnapshot *GenerationSnapshot
 	// GenerationInFlight means at least one current-generation node is still live.
 	GenerationInFlight bool
+	CancellationDrain  bool
 	// NextCoordinator is emitted by the gate/carry-forward planner; the task_05 reconciler does not yet populate it.
-	NextCoordinator *EnqueueSpec
-	Terminal        *CoordinatorTerminal
-	Yield           bool
-	PostCommitWakes []CoordinatorWakeSpec
+	NextCoordinator  *EnqueueSpec
+	Terminal         *CoordinatorTerminal
+	Yield            bool
+	PostCommitWakes  []CoordinatorWakeSpec
+	PostCommitTimers []CoordinatorTimerSpec
 }
 
 // CoordinatorTaskSpec describes a node task that must exist before node runs are queued.
@@ -74,6 +86,14 @@ type EnqueueSpec struct {
 type CoordinatorStopSpec struct {
 	LoopRunID  string `json:"loop_run_id"`
 	ReasonCode string `json:"reason_code,omitempty"`
+}
+
+// CoordinatorParentCloseSpec applies one authored parent-close policy to an owned child Loop.
+type CoordinatorParentCloseSpec struct {
+	ParentLoopRunID string `json:"parent_loop_run_id"`
+	ChildLoopRunID  string `json:"child_loop_run_id"`
+	Policy          string `json:"policy"`
+	ParentStatus    string `json:"parent_status"`
 }
 
 // CoordinatorWakeSpec describes a coordinator wake to enqueue after the
@@ -115,14 +135,15 @@ type CoordinatorCompletion struct {
 
 // CoordinatorCompletionResult records the durable state written by coordinator finalization.
 type CoordinatorCompletionResult struct {
-	Run          Run                     `json:"run"`
-	EnqueuedRuns []Run                   `json:"enqueued_runs,omitempty"`
-	LoopRunID    string                  `json:"loop_run_id,omitempty"`
-	Context      json.RawMessage         `json:"context,omitempty"`
-	Paused       bool                    `json:"paused,omitempty"`
-	Terminal     bool                    `json:"terminal,omitempty"`
-	TokensUsed   int64                   `json:"tokens_used,omitempty"`
-	Settlement   *CompletedRunSettlement `json:"-"`
+	Run            Run                     `json:"run"`
+	EnqueuedRuns   []Run                   `json:"enqueued_runs,omitempty"`
+	LoopRunID      string                  `json:"loop_run_id,omitempty"`
+	Context        json.RawMessage         `json:"context,omitempty"`
+	Paused         bool                    `json:"paused,omitempty"`
+	Terminal       bool                    `json:"terminal,omitempty"`
+	PlanSuperseded bool                    `json:"plan_superseded,omitempty"`
+	TokensUsed     int64                   `json:"tokens_used,omitempty"`
+	Settlement     *CompletedRunSettlement `json:"-"`
 }
 
 // Normalize returns a validated coordinator completion request with default time applied.
@@ -166,7 +187,13 @@ func (p CoordinatorCompletionPlan) Validate(path string) error {
 	if err := validateCoordinatorStopSpecs(p.RunStops, path); err != nil {
 		return err
 	}
+	if err := validateCoordinatorParentCloseSpecs(p.ParentCloses, path); err != nil {
+		return err
+	}
 	if err := validateCoordinatorWakeSpecs(p.PostCommitWakes, path); err != nil {
+		return err
+	}
+	if err := validateCoordinatorTimerSpecs(p.PostCommitTimers, path); err != nil {
 		return err
 	}
 	if p.NextCoordinator != nil {
@@ -196,6 +223,7 @@ func (p CoordinatorCompletionPlan) validateShape(path string) error {
 	}
 	if p.Yield && (len(p.NodeRuns) > 0 ||
 		len(p.RunStops) > 0 ||
+		len(p.ParentCloses) > 0 ||
 		p.NextCoordinator != nil ||
 		p.Terminal != nil) {
 		return fmt.Errorf("%w: %s yield must not enqueue work or terminalize", ErrValidation, path)
@@ -239,6 +267,15 @@ func validateCoordinatorStopSpecs(specs []CoordinatorStopSpec, path string) erro
 	return nil
 }
 
+func validateCoordinatorParentCloseSpecs(specs []CoordinatorParentCloseSpec, path string) error {
+	for idx, spec := range specs {
+		if err := spec.Validate(nestedPath(path, fmt.Sprintf("parent_closes[%d]", idx))); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Normalize returns a coordinator plan with normalized enqueue specs and terminal data.
 func (p CoordinatorCompletionPlan) Normalize() CoordinatorCompletionPlan {
 	normalized := p
@@ -260,8 +297,14 @@ func (p CoordinatorCompletionPlan) Normalize() CoordinatorCompletionPlan {
 	for idx := range normalized.RunStops {
 		normalized.RunStops[idx] = normalized.RunStops[idx].Normalize()
 	}
+	for idx := range normalized.ParentCloses {
+		normalized.ParentCloses[idx] = normalized.ParentCloses[idx].Normalize()
+	}
 	for idx := range normalized.PostCommitWakes {
 		normalized.PostCommitWakes[idx] = normalized.PostCommitWakes[idx].Normalize()
+	}
+	for idx := range normalized.PostCommitTimers {
+		normalized.PostCommitTimers[idx] = normalized.PostCommitTimers[idx].Normalize()
 	}
 	if normalized.NextCoordinator != nil {
 		next := normalized.NextCoordinator.Normalize()
@@ -394,64 +437,6 @@ func (s EnqueueSpec) Validate(path string) error {
 		}
 	}
 	if err := ValidateMetadataSize(s.Metadata, nestedPath(path, "metadata")); err != nil {
-		return err
-	}
-	return nil
-}
-
-// Normalize returns a normalized loop stop request.
-func (s CoordinatorStopSpec) Normalize() CoordinatorStopSpec {
-	normalized := s
-	normalized.LoopRunID = strings.TrimSpace(normalized.LoopRunID)
-	normalized.ReasonCode = strings.TrimSpace(normalized.ReasonCode)
-	return normalized
-}
-
-// Validate reports whether a loop stop request names a child loop run.
-func (s CoordinatorStopSpec) Validate(path string) error {
-	if strings.TrimSpace(s.LoopRunID) == "" {
-		return fmt.Errorf("%w: %s is required", ErrValidation, nestedPath(path, "loop_run_id"))
-	}
-	return nil
-}
-
-// Normalize returns a normalized post-commit wake request.
-func (s CoordinatorWakeSpec) Normalize() CoordinatorWakeSpec {
-	return CoordinatorWakeSpec{
-		LoopRunID:      strings.TrimSpace(s.LoopRunID),
-		IdempotencyKey: strings.TrimSpace(s.IdempotencyKey),
-	}
-}
-
-// Validate reports whether a post-commit wake has a stable target.
-func (s CoordinatorWakeSpec) Validate(path string) error {
-	if strings.TrimSpace(s.LoopRunID) == "" {
-		return fmt.Errorf("%w: %s is required", ErrValidation, nestedPath(path, "loop_run_id"))
-	}
-	if strings.TrimSpace(s.IdempotencyKey) == "" {
-		return fmt.Errorf("%w: %s is required", ErrValidation, nestedPath(path, "idempotency_key"))
-	}
-	return nil
-}
-
-// Normalize returns normalized coordinator terminal data.
-func (t CoordinatorTerminal) Normalize() CoordinatorTerminal {
-	normalized := t
-	normalized.Status = strings.TrimSpace(normalized.Status)
-	normalized.Cause = strings.TrimSpace(normalized.Cause)
-	normalized.ReasonCode = strings.TrimSpace(normalized.ReasonCode)
-	normalized.GateID = strings.TrimSpace(normalized.GateID)
-	normalized.Details = normalizeRawJSON(normalized.Details)
-	return normalized
-}
-
-// Validate reports whether coordinator terminal data has the minimum persisted shape.
-func (t CoordinatorTerminal) Validate(path string) error {
-	status := strings.TrimSpace(t.Status)
-	if status == "" {
-		return fmt.Errorf("%w: %s is required", ErrValidation, nestedPath(path, "status"))
-	}
-	if err := ValidatePayloadSize(t.Details, nestedPath(path, "details")); err != nil {
 		return err
 	}
 	return nil

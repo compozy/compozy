@@ -146,6 +146,28 @@ export function hasActiveOverrides(
 }
 
 /**
+ * The one-line gist a folded Limits panel must still state: how many generations this
+ * run gets, whether any budget is enforced, and whether the loop's saved defaults are
+ * in play. Reads the draft on top of the effective config, so it stays true while the
+ * operator types.
+ */
+export function summarizeRunLimits(
+  draft: LoopOverrideDraft,
+  effectiveConfig: LoopEffectiveConfig
+): string {
+  const effective = resolveLoopEffectiveConfig(effectiveConfig);
+  const generations = draft.values.iteration_cap ?? effective.iteration_cap;
+  const tokens = draft.values.budget_tokens ?? effective.budget_tokens;
+  const wallSeconds =
+    draft.values.budget_wall_sec !== undefined
+      ? draft.values.budget_wall_sec * 60
+      : effective.budget_wall_sec;
+  const budgets = tokens > 0 || wallSeconds > 0 ? "budgets set" : "no budgets set";
+  const source = hasActiveOverrides(draft, effectiveConfig) ? "overrides set" : "loop defaults";
+  return `${generations} generations · ${budgets} · ${source}`;
+}
+
+/**
  * Projects the draft into the `runLoop` `config_overrides` body: only fields that
  * differ from the per-loop default are sent (wall clock converted minutes -> seconds).
  * Returns `null` when nothing is overridden, so an untouched Advanced panel never

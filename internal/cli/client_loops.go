@@ -21,6 +21,14 @@ type LoopRunListQuery struct {
 	Limit         int
 }
 
+type LoopNodeListQuery struct {
+	State    string
+	LoopName string
+	RunID    string
+	Cursor   string
+	Limit    int
+}
+
 type GoalTurnListQuery struct {
 	NodeID    string
 	ItemIndex *int
@@ -249,13 +257,22 @@ func (c *unixSocketClient) GetLoopRun(
 	return response, nil
 }
 
-func (c *unixSocketClient) StopLoopRun(
+func (c *unixSocketClient) CancelLoopRun(
 	ctx context.Context,
 	workspaceID string,
 	runID string,
 	credentials agentidentity.Credentials,
-) error {
-	return c.loopRunAction(ctx, workspaceID, runID, "stop", nil, credentials)
+) (contract.LoopMutationResponse, error) {
+	return c.loopRunLifecycleAction(ctx, workspaceID, runID, "cancel", nil, credentials)
+}
+
+func (c *unixSocketClient) KillLoopRun(
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+	credentials agentidentity.Credentials,
+) (contract.LoopMutationResponse, error) {
+	return c.loopRunLifecycleAction(ctx, workspaceID, runID, "kill", nil, credentials)
 }
 
 func (c *unixSocketClient) PauseLoopRun(
@@ -294,8 +311,110 @@ func (c *unixSocketClient) loopRunAction(
 	request any,
 	credentials agentidentity.Credentials,
 ) error {
+	_, err := c.loopRunLifecycleAction(ctx, workspaceID, runID, action, request, credentials)
+	return err
+}
+
+func (c *unixSocketClient) loopRunLifecycleAction(
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+	action string,
+	request any,
+	credentials agentidentity.Credentials,
+) (contract.LoopMutationResponse, error) {
+	var response contract.LoopMutationResponse
 	path := loopRunPath(workspaceID, runID) + "/" + strings.TrimSpace(action)
-	return c.doAgentJSON(ctx, http.MethodPost, path, nil, request, credentials, nil)
+	if err := c.doAgentJSON(ctx, http.MethodPost, path, nil, request, credentials, &response); err != nil {
+		return contract.LoopMutationResponse{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) ListLoopNodes(
+	ctx context.Context,
+	workspaceID string,
+	query LoopNodeListQuery,
+) (contract.LoopNodeInventoryResponse, error) {
+	var response contract.LoopNodeInventoryResponse
+	path := loopWorkspacePath(workspaceID) + "/loop-nodes"
+	if err := c.doJSON(ctx, http.MethodGet, path, loopNodeValues(query), nil, &response); err != nil {
+		return contract.LoopNodeInventoryResponse{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) PauseLoopNode(
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+	nodeID string,
+	request contract.LoopNodePauseRequest,
+	credentials agentidentity.Credentials,
+) (contract.LoopMutationResponse, error) {
+	return c.loopNodeAction(ctx, workspaceID, runID, nodeID, "pause", request, credentials)
+}
+
+func (c *unixSocketClient) ResumeLoopNode(
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+	nodeID string,
+	request contract.LoopNodeResumeRequest,
+	credentials agentidentity.Credentials,
+) (contract.LoopMutationResponse, error) {
+	return c.loopNodeAction(ctx, workspaceID, runID, nodeID, "resume", request, credentials)
+}
+
+func (c *unixSocketClient) CancelLoopNode(
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+	nodeID string,
+	request contract.LoopNodeMutationRequest,
+	credentials agentidentity.Credentials,
+) (contract.LoopMutationResponse, error) {
+	return c.loopNodeAction(ctx, workspaceID, runID, nodeID, "cancel", request, credentials)
+}
+
+func (c *unixSocketClient) KillLoopNode(
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+	nodeID string,
+	request contract.LoopNodeMutationRequest,
+	credentials agentidentity.Credentials,
+) (contract.LoopMutationResponse, error) {
+	return c.loopNodeAction(ctx, workspaceID, runID, nodeID, "kill", request, credentials)
+}
+
+func (c *unixSocketClient) RequeueLoopNode(
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+	nodeID string,
+	request contract.LoopNodeMutationRequest,
+	credentials agentidentity.Credentials,
+) (contract.LoopMutationResponse, error) {
+	return c.loopNodeAction(ctx, workspaceID, runID, nodeID, "requeue", request, credentials)
+}
+
+func (c *unixSocketClient) loopNodeAction(
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+	nodeID string,
+	action string,
+	request any,
+	credentials agentidentity.Credentials,
+) (contract.LoopMutationResponse, error) {
+	var response contract.LoopMutationResponse
+	path := loopRunPath(workspaceID, runID) + "/nodes/" + url.PathEscape(strings.TrimSpace(nodeID)) +
+		"/" + strings.TrimSpace(action)
+	if err := c.doAgentJSON(ctx, http.MethodPost, path, nil, request, credentials, &response); err != nil {
+		return contract.LoopMutationResponse{}, err
+	}
+	return response, nil
 }
 
 func loopWorkspacePath(workspaceID string) string {
@@ -324,6 +443,18 @@ func loopRunValues(query LoopRunListQuery) url.Values {
 	if trimmed := strings.TrimSpace(query.OriginSession); trimmed != "" {
 		values.Set("origin_session", trimmed)
 	}
+	if query.Limit > 0 {
+		values.Set("limit", strconv.Itoa(query.Limit))
+	}
+	return values
+}
+
+func loopNodeValues(query LoopNodeListQuery) url.Values {
+	values := url.Values{}
+	setLoopListQueryValue(values, "state", query.State)
+	setLoopListQueryValue(values, "loop", query.LoopName)
+	setLoopListQueryValue(values, "run_id", query.RunID)
+	setLoopListQueryValue(values, "cursor", query.Cursor)
 	if query.Limit > 0 {
 		values.Set("limit", strconv.Itoa(query.Limit))
 	}

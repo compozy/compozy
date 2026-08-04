@@ -1,5 +1,6 @@
 export { DesktopShell } from "./components/desktop-shell";
 export { createOsRouteSync } from "./components/os-route-sync";
+export { OsWindowSurface, type OsWindowSurfaceProps } from "./components/os-window-frame";
 export { OsRouteNotFound } from "./components/os-route-not-found";
 export { OsShellContext, type OsShellHandle } from "./contexts/os-shell-context";
 export { useOsShell } from "./hooks/use-os-shell";

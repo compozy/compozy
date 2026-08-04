@@ -373,9 +373,16 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"POST /api/workspaces/:workspace_id/network/channels/:channel/directs/resolve",
 			"POST /api/workspaces/:workspace_id/network/channels/:channel/threads/:thread_id/promote-task",
 			"POST /api/workspaces/:workspace_id/loop-runs/:run_id/approve",
+			"POST /api/workspaces/:workspace_id/loop-runs/:run_id/cancel",
+			"POST /api/workspaces/:workspace_id/loop-runs/:run_id/kill",
+			"POST /api/workspaces/:workspace_id/loop-runs/:run_id/nodes/:node_id/cancel",
+			"POST /api/workspaces/:workspace_id/loop-runs/:run_id/nodes/:node_id/kill",
+			"POST /api/workspaces/:workspace_id/loop-runs/:run_id/nodes/:node_id/pause",
+			"POST /api/workspaces/:workspace_id/loop-runs/:run_id/nodes/:node_id/requeue",
+			"POST /api/workspaces/:workspace_id/loop-runs/:run_id/nodes/:node_id/resume",
 			"POST /api/workspaces/:workspace_id/loop-runs/:run_id/pause",
 			"POST /api/workspaces/:workspace_id/loop-runs/:run_id/resume",
-			"POST /api/workspaces/:workspace_id/loop-runs/:run_id/stop",
+			"GET /api/workspaces/:workspace_id/loop-nodes",
 			"POST /api/workspaces/:workspace_id/loops",
 			"POST /api/workspaces/:workspace_id/loops/:name/run",
 			"POST /api/workspaces/:workspace_id/loops/:name/validate",
@@ -1970,7 +1977,9 @@ func TestSteerSessionPromptHandlerPropagatesDurableIdentity(t *testing.T) {
 			requestCtx,
 			http.MethodPost,
 			"/api/workspaces/ws-workspace/sessions/sess-123/steer",
-			strings.NewReader(`{"text":"focus on the race","message_id":"msg-steer","idempotency_key":"idem-steer","expected_turn_id":"turn-live"}`),
+			strings.NewReader(
+				`{"text":"focus on the race","message_id":"msg-steer","idempotency_key":"idem-steer","expected_turn_id":"turn-live"}`,
+			),
 		)
 		req.Header.Set("Content-Type", "application/json")
 		recorder := httptest.NewRecorder()

@@ -137,12 +137,21 @@ type SettleStoppedBindingCreationRequest struct {
 
 // ActivateBindingRequest atomically swaps one creating run-owned attempt into active state.
 type ActivateBindingRequest struct {
-	Key                  BindingKey
-	CheckpointKey        *TurnKey
+	Key           BindingKey
+	CheckpointKey *TurnKey
+	// CellFence is mutually exclusive with CheckpointKey, ExpectedControlEpoch, and GrantID.
+	CellFence            *BindingCellFence
 	ExpectedBindingEpoch int64
 	ExpectedControlEpoch int64
 	GrantID              int64
 	ActivatedAt          time.Time
+}
+
+// BindingCellFence identifies the ordinary loop cell allowed to activate a created session.
+type BindingCellFence struct {
+	Key       TurnKey
+	Epoch     int64
+	TaskRunID string
 }
 
 // CloseBindingRequest closes one exact active binding without adopting another epoch.

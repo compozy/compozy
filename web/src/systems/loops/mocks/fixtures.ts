@@ -11,6 +11,8 @@ import type {
   LoopRunAggregates,
 } from "../types";
 import { buildLocalNetworkParticipationFixture } from "@/test/network-participation-fixtures";
+import { isTerminalLoopStatus } from "../lib/loop-formatters";
+import { heroEffectiveLifecycle, heroRunFixtures } from "./fixture-hero-path";
 import { buildLoopRunDetailFixtures } from "./fixture-run-details";
 
 export const MOCK_WORKSPACE_ID = "ws_default";
@@ -36,7 +38,13 @@ const deliveryGraph = graph(
       max_parallel: 1,
       max_fan_out: 64,
     },
-    { id: "execute_task", class: "action", kind: "run-agent" },
+    {
+      id: "execute_task",
+      class: "action",
+      kind: "run-agent",
+      timeout: "45m0s",
+      deadline: "2h0m0s",
+    },
     { id: "collect", class: "control", kind: "collect" },
     { id: "review", class: "control", kind: "gate", verdict_policy: "revise_until_clean" },
     { id: "verify", class: "control", kind: "gate", verdict_policy: "fixed_passes" },
@@ -327,12 +335,15 @@ export const loopRunFixtures: LoopRun[] = [
     started_origin_kind: "http",
     inputs: { task_name: "network-bridge", reviewer: "reviewer", fixer: "review_fixer" },
   }),
+  ...heroRunFixtures,
 ];
+
+const terminalRunCount = loopRunFixtures.filter(run => isTerminalLoopStatus(run.status)).length;
 
 export const loopRunAggregatesFixture: LoopRunAggregates = {
   total: loopRunFixtures.length,
-  live: 5,
-  terminal: 9,
+  live: loopRunFixtures.length - terminalRunCount,
+  terminal: terminalRunCount,
   succeeded: 2,
   failed: 1,
 };
@@ -430,6 +441,7 @@ export const loopDetailFixtures: LoopDetail[] = loopCatalogFixtures.map(entry =>
   description: entry.description,
   catalog: entry.catalog,
   definition: buildDefinition(entry),
+  effective_lifecycle: heroEffectiveLifecycle,
 }));
 
 export const loopDetailByName = new Map(loopDetailFixtures.map(detail => [detail.name, detail]));

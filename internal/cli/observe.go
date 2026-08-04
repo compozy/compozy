@@ -146,7 +146,7 @@ func renderObserveOverviewHuman(overview *contract.ObserveOverviewPayload) strin
 			[]keyValue{
 				{Label: observeLabelCompleted, Value: fmt.Sprintf("%d", overview.Outcomes.Completed)},
 				{Label: observeLabelFailed, Value: fmt.Sprintf("%d", overview.Outcomes.Failed)},
-				{Label: "canceled", Value: fmt.Sprintf("%d", overview.Outcomes.Canceled)},
+				{Label: cliCanceledKey, Value: fmt.Sprintf("%d", overview.Outcomes.Canceled)},
 				{Label: "success", Value: fmt.Sprintf("%.0f%%", overview.Outcomes.SuccessPct)},
 			},
 		),

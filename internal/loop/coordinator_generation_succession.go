@@ -145,6 +145,9 @@ func (r *CoordinatorRunner) buildFailedGenerationPlan(
 	loopStops []task.CoordinatorStopSpec,
 	evaluations *gateEvaluationCollector,
 ) (task.CoordinatorCompletionPlan, error) {
+	if deferTargetUnavailableFailure(&plan, failed, live) {
+		return plan, nil
+	}
 	if !live {
 		if evaluations == nil || len(evaluations.routeCauses()) == 0 {
 			loaded, err := r.loadPersistedRouteCauses(ctx, run, generation, def.Graph, normalized)
@@ -169,6 +172,18 @@ func (r *CoordinatorRunner) buildFailedGenerationPlan(
 	if live || terminal.Status != string(StatusFailed) {
 		plan.Terminal = terminal
 		return plan, nil
+	}
+	repeatedNodes, err := r.repeatedFailureNodes(ctx, run, generation, normalized)
+	if err != nil {
+		return task.CoordinatorCompletionPlan{}, err
+	}
+	if len(repeatedNodes) > 0 {
+		plan, normalized, err = r.applyQuarantineToPlan(
+			ctx, run, generation, def.Graph, plan, normalized, repeatedNodes,
+		)
+		if err != nil {
+			return task.CoordinatorCompletionPlan{}, err
+		}
 	}
 	nextGeneration := generation + 1
 	if terminal := iterationCapTerminal(run, nextGeneration); terminal != nil {
@@ -196,4 +211,22 @@ func (r *CoordinatorRunner) buildFailedGenerationPlan(
 	}
 	r.dispatchGenerationPost(ctx, taskRun, run, intent)
 	return reattemptPlan, nil
+}
+
+func exactTargetUnavailableFailure(output GenerationOutput) bool {
+	failure := classifyGenerationOutputFailure(output, task.Run{})
+	return failure.Class == FailureTargetUnavailable && failure.Code == targetUnavailableReasonCode
+}
+
+func deferTargetUnavailableFailure(
+	plan *task.CoordinatorCompletionPlan,
+	failed GenerationOutput,
+	live bool,
+) bool {
+	if !live || !exactTargetUnavailableFailure(failed) {
+		return false
+	}
+	plan.GenerationInFlight = true
+	plan.Yield = true
+	return true
 }

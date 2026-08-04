@@ -40,6 +40,9 @@ func rejectionRerunSet(
 	}
 	rerun := make(map[generationOutputKey]struct{})
 	for _, output := range outputs {
+		if GenerationOutputStatusParked(output.Status) {
+			continue
+		}
 		if _, ok := routeNodes[dsl.NodeID(output.NodeID)]; !ok {
 			continue
 		}
@@ -65,6 +68,12 @@ func successionGenerationOutputs(
 			continue
 		}
 		key := generationOutputKey{nodeID: current.NodeID, itemIndex: current.ItemIndex}
+		if GenerationOutputStatusParked(current.Status) {
+			current.Generation = nextGeneration
+			current.ExpectedEpoch = nil
+			next = append(next, current)
+			continue
+		}
 		seed, hasSeed := seedByKey[key]
 		_, shouldRerun := rerun[key]
 		if shouldRerun {
@@ -114,6 +123,14 @@ func (r *CoordinatorRunner) loadPersistedRouteCauses(
 	if err != nil {
 		return nil, fmt.Errorf("load route-causing gate verdicts: %w", err)
 	}
+	outputs, err = generationOutputRuntimeView(ctx, r.outputs, generationOutputRuntimeScope{
+		workspaceID: run.WorkspaceID,
+		runID:       run.ID,
+		generation:  generation,
+	}, outputs)
+	if err != nil {
+		return nil, fmt.Errorf("load route-causing gate output payloads: %w", err)
+	}
 	outputByKey := generationOutputMap(outputs)
 	for _, record := range records {
 		node, ok := graphNode(graph, dsl.NodeID(record.GateID))
@@ -139,7 +156,8 @@ func (r *CoordinatorRunner) loadPersistedRouteCauses(
 				output.Status,
 			)
 		}
-		if strings.TrimSpace(output.OutputRef) == "" {
+		runtimeRef := generationOutputRuntimePayload(output)
+		if strings.TrimSpace(runtimeRef) == "" {
 			return nil, fmt.Errorf(
 				"%w: persisted route-causing gate %q finished without an output reference",
 				ErrValidation,
@@ -147,7 +165,7 @@ func (r *CoordinatorRunner) loadPersistedRouteCauses(
 			)
 		}
 		var verdict gate.Verdict
-		if err := json.Unmarshal([]byte(output.OutputRef), &verdict); err != nil {
+		if err := json.Unmarshal([]byte(runtimeRef), &verdict); err != nil {
 			return nil, fmt.Errorf("decode persisted route-causing gate %q output: %w", record.GateID, err)
 		}
 		collector.record(gate.GateFromNode(node), record.ItemIndex, verdict)

@@ -185,7 +185,7 @@ func TestRuntimeNamespaceShouldScopeFanOutItemsByBatchSize(t *testing.T) {
 	})
 }
 
-func TestOutputValueShouldPreserveExactJSONNumbers(t *testing.T) {
+func TestOutputValueShouldProjectNamespaceValues(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should preserve large JSON numbers as json.Number", func(t *testing.T) {
@@ -202,6 +202,14 @@ func TestOutputValueShouldPreserveExactJSONNumbers(t *testing.T) {
 		}
 		if got, want := number.String(), "9007199254740993"; got != want {
 			t.Fatalf("outputValue().id = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should project a skipped branch marker as absent", func(t *testing.T) {
+		t.Parallel()
+
+		if value := outputValue(branchSkippedOutputRef); value != nil {
+			t.Fatalf("outputValue(branch skipped) = %#v, want nil", value)
 		}
 	})
 }

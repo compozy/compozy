@@ -32,6 +32,31 @@ const (
 	LoopRunStatusFailed        LoopRunStatus = "failed"
 	LoopRunStatusExhausted     LoopRunStatus = "exhausted"
 	LoopRunStatusStalled       LoopRunStatus = "stalled"
+	LoopRunStatusCanceled      LoopRunStatus = "canceled"
+)
+
+// LoopRunTransitionCause identifies why a run status changed.
+type LoopRunTransitionCause string
+
+const (
+	LoopRunTransitionCauseStart              LoopRunTransitionCause = "start"
+	LoopRunTransitionCausePromote            LoopRunTransitionCause = "promote"
+	LoopRunTransitionCauseOperatorCancel     LoopRunTransitionCause = "operator_cancel"
+	LoopRunTransitionCauseOperatorKill       LoopRunTransitionCause = "operator_kill"
+	LoopRunTransitionCauseGoalReplace        LoopRunTransitionCause = "goal_replace"
+	LoopRunTransitionCauseGoalClear          LoopRunTransitionCause = "goal_clear"
+	LoopRunTransitionCausePauseBoundary      LoopRunTransitionCause = "pause_boundary"
+	LoopRunTransitionCauseOperatorResume     LoopRunTransitionCause = "operator_resume"
+	LoopRunTransitionCauseApproval           LoopRunTransitionCause = "approval"
+	LoopRunTransitionCauseWaitExpired        LoopRunTransitionCause = "wait_expired"
+	LoopRunTransitionCauseGateRejected       LoopRunTransitionCause = "gate_rejected"
+	LoopRunTransitionCauseContract           LoopRunTransitionCause = "contract"
+	LoopRunTransitionCauseBudget             LoopRunTransitionCause = "budget"
+	LoopRunTransitionCauseIterationCap       LoopRunTransitionCause = "iteration_cap"
+	LoopRunTransitionCauseNoProgress         LoopRunTransitionCause = "no_progress"
+	LoopRunTransitionCauseWatchPoll          LoopRunTransitionCause = "watch_poll"
+	LoopRunTransitionCauseWatchEvents        LoopRunTransitionCause = "watch_events"
+	LoopRunTransitionCauseCoordinatorFailure LoopRunTransitionCause = "coordinator_failure"
 )
 
 // LoopNodeClass is the public loop graph node class vocabulary.
@@ -86,12 +111,28 @@ const (
 
 // LoopDefinitionPayload is the inspect/publish response for one Loop definition.
 type LoopDefinitionPayload struct {
-	Name        string                  `json:"name"`
-	Version     int                     `json:"version"`
-	Description string                  `json:"description,omitempty"`
-	Source      LoopSource              `json:"source"`
-	Catalog     LoopCatalogResourceSpec `json:"catalog"`
-	Definition  LoopDefinitionDocument  `json:"definition"`
+	Name               string                       `json:"name"`
+	Version            int                          `json:"version"`
+	Description        string                       `json:"description,omitempty"`
+	Source             LoopSource                   `json:"source"`
+	Catalog            LoopCatalogResourceSpec      `json:"catalog"`
+	Definition         LoopDefinitionDocument       `json:"definition"`
+	EffectiveLifecycle *LoopResolvedLifecycleConfig `json:"effective_lifecycle,omitempty"`
+}
+
+// LoopResolvedLifecycleConfig reports effective node-family defaults and their source layer.
+type LoopResolvedLifecycleConfig struct {
+	RetryMaxAttempts       int               `json:"retry_max_attempts"`
+	RetryBackoffBase       string            `json:"retry_backoff_base"`
+	RetryBackoffMax        string            `json:"retry_backoff_max"`
+	RetryNonRetryable      []string          `json:"retry_non_retryable"`
+	LivenessSilenceWindow  string            `json:"liveness_silence_window"`
+	ResumeDeathStreakLimit int               `json:"resume_death_streak_limit"`
+	PredicateCostLimit     uint64            `json:"predicate_cost_limit"`
+	WaitAdmissionAttempts  int               `json:"wait_admission_attempts"`
+	WaitAdmissionInterval  string            `json:"wait_admission_interval"`
+	AdmissionHorizon       string            `json:"admission_horizon"`
+	Sources                map[string]string `json:"sources"`
 }
 
 // LoopResponse wraps one Loop definition.
@@ -319,6 +360,7 @@ type LoopContract struct {
 	Budget           LoopBudget           `json:"budget"`
 	RuntimeDefaults  *LoopRuntimeDefaults `json:"runtime_defaults,omitempty"`
 	RuntimeRules     []LoopRuntimeRule    `json:"runtime_rules,omitempty"`
+	*LoopContractLifecycleState
 }
 
 type LoopNoProgress struct {
@@ -343,7 +385,7 @@ type LoopGraphNode struct {
 	Kind          string                       `json:"kind"`
 	Session       map[string]any               `json:"session,omitempty"`
 	Timeout       string                       `json:"timeout,omitempty"`
-	Retry         map[string]any               `json:"retry,omitempty"`
+	Retry         *LoopRetrySpec               `json:"retry,omitempty"`
 	Harvest       map[string]any               `json:"harvest,omitempty"`
 	Produces      map[string]any               `json:"produces,omitempty"`
 	Params        map[string]any               `json:"params,omitempty"`
@@ -364,6 +406,7 @@ type LoopGraphNode struct {
 	Parse         string                       `json:"parse,omitempty"`
 	WatchSpec     map[string]any               `json:"watch,omitempty"`
 	Events        []LoopWatchEventSubscription `json:"events,omitempty"`
+	*LoopNodeLifecycleState
 }
 
 type LoopGateCriterion struct {

@@ -117,16 +117,16 @@ func (g *LoopRepo) replaceInlineLoopRunTransaction(
 		if current == nil || current.ID != request.ExpectedRunID {
 			return goalReplaceStaleError(current)
 		}
-		stopRequest := looppkg.GoalRunStopRequest{
+		cancelRequest := goalCancellationRequest{
 			WorkspaceID: run.WorkspaceID,
-			RunID:       current.ID, ExpectedStatus: current.Status,
-			Actor: request.Actor, StoppedAt: request.ReplacedAt,
+			RunID:       current.ID,
+			Actor:       request.Actor, CanceledAt: request.ReplacedAt,
 		}
-		leases, err := stopGoalCheckpointsWithExecutor(ctx, exec, stopRequest, false)
+		leases, err := cancelGoalCheckpointsWithExecutor(ctx, exec, cancelRequest, false)
 		if err != nil {
 			return err
 		}
-		if err := closeStoppedGoalBindings(ctx, exec, stopRequest); err != nil {
+		if err := closeCanceledGoalBindings(ctx, exec, cancelRequest); err != nil {
 			return err
 		}
 		if err := compareAndSwapLoopRunStatusWithExecutor(
@@ -212,18 +212,17 @@ func (g *LoopRepo) ClearInlineGoal(
 		}
 		result.Run = *run
 		if run.Status.Live() {
-			stopRequest := looppkg.GoalRunStopRequest{
-				WorkspaceID:    request.WorkspaceID,
-				RunID:          run.ID,
-				ExpectedStatus: run.Status,
-				Actor:          request.Actor,
-				StoppedAt:      request.ClearedAt,
+			cancelRequest := goalCancellationRequest{
+				WorkspaceID: request.WorkspaceID,
+				RunID:       run.ID,
+				Actor:       request.Actor,
+				CanceledAt:  request.ClearedAt,
 			}
-			leases, err := stopGoalCheckpointsWithExecutor(ctx, exec, stopRequest, false)
+			leases, err := cancelGoalCheckpointsWithExecutor(ctx, exec, cancelRequest, false)
 			if err != nil {
 				return err
 			}
-			if err := closeStoppedGoalBindings(ctx, exec, stopRequest); err != nil {
+			if err := closeCanceledGoalBindings(ctx, exec, cancelRequest); err != nil {
 				return err
 			}
 			if err := compareAndSwapLoopRunStatusWithExecutor(

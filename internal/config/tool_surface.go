@@ -324,6 +324,8 @@ func NormalizeToolConfigValue(kind ValueKind, value any) (any, error) {
 		return coerceConfigInt(value)
 	case ConfigValueInt64:
 		return coerceConfigInt64(value)
+	case ConfigValueUint64:
+		return coerceConfigUint64(value)
 	case ConfigValueFloat:
 		return coerceConfigFloat(value)
 	case ConfigValueDuration:

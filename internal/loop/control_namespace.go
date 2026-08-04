@@ -68,7 +68,7 @@ func runtimeNamespaceWithHistory(
 		entry := map[string]any{}
 		if ok {
 			entry[namespaceStatusKey] = output.Status
-			entry[namespaceOutputKey] = outputValue(output.OutputRef)
+			entry[namespaceOutputKey] = generationOutputRuntimeValue(output)
 		}
 		nodes[string(node.ID)] = entry
 		if alias, ok := subLoopLocalNodeAlias(nodeID, node.ID); ok {
@@ -84,7 +84,15 @@ func (h GenerationHistory) previousNamespace(
 	itemIndex int,
 ) map[string]any {
 	if h.Previous == nil {
-		return map[string]any{}
+		nodes := make(map[string]any, len(topology.dependencies))
+		for nodeID := range topology.dependencies {
+			nodes[string(nodeID)] = map[string]any{}
+		}
+		return map[string]any{
+			namespaceNodesKey:       nodes,
+			namespaceVerdictsKey:    map[string]any{},
+			namespaceRouteCausesKey: []string{},
+		}
 	}
 	nodes := make(map[string]any, len(h.Previous.Nodes))
 	for nodeID, items := range h.Previous.Nodes {
@@ -92,7 +100,12 @@ func (h GenerationHistory) previousNamespace(
 		if !ok {
 			continue
 		}
-		nodes[nodeID] = map[string]any{namespaceStatusKey: node.Status, namespaceOutputKey: node.Output}
+		entry := map[string]any{namespaceStatusKey: node.Status, namespaceOutputKey: node.Output}
+		if node.Failure != nil {
+			entry[namespaceFailureKey] = *node.Failure
+			entry[namespaceDispositionKey] = node.Disposition
+		}
+		nodes[nodeID] = entry
 	}
 	verdicts := make(map[string]any, len(h.Previous.Verdicts))
 	for gateID, items := range h.Previous.Verdicts {
@@ -223,7 +236,7 @@ func valueAtPath(namespace map[string]any, path []string) (any, bool) {
 
 func outputValue(ref string) any {
 	trimmed := strings.TrimSpace(ref)
-	if trimmed == "" {
+	if trimmed == "" || outputRefRepresentsAbsentValue(trimmed) {
 		return nil
 	}
 	var value any

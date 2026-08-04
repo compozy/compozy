@@ -355,9 +355,16 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"POST /api/workspaces/:workspace_id/network/channels/:channel/directs/resolve",
 		"POST /api/workspaces/:workspace_id/network/channels/:channel/threads/:thread_id/promote-task",
 		"POST /api/workspaces/:workspace_id/loop-runs/:run_id/approve",
+		"POST /api/workspaces/:workspace_id/loop-runs/:run_id/cancel",
+		"POST /api/workspaces/:workspace_id/loop-runs/:run_id/kill",
+		"POST /api/workspaces/:workspace_id/loop-runs/:run_id/nodes/:node_id/cancel",
+		"POST /api/workspaces/:workspace_id/loop-runs/:run_id/nodes/:node_id/kill",
+		"POST /api/workspaces/:workspace_id/loop-runs/:run_id/nodes/:node_id/pause",
+		"POST /api/workspaces/:workspace_id/loop-runs/:run_id/nodes/:node_id/requeue",
+		"POST /api/workspaces/:workspace_id/loop-runs/:run_id/nodes/:node_id/resume",
 		"POST /api/workspaces/:workspace_id/loop-runs/:run_id/pause",
 		"POST /api/workspaces/:workspace_id/loop-runs/:run_id/resume",
-		"POST /api/workspaces/:workspace_id/loop-runs/:run_id/stop",
+		"GET /api/workspaces/:workspace_id/loop-nodes",
 		"POST /api/workspaces/:workspace_id/loops",
 		"POST /api/workspaces/:workspace_id/loops/:name/run",
 		"POST /api/workspaces/:workspace_id/loops/:name/validate",
@@ -2710,7 +2717,9 @@ func TestSteerSessionPromptHandlerPropagatesDurableIdentity(t *testing.T) {
 			engine,
 			http.MethodPost,
 			"/api/workspaces/ws-workspace/sessions/sess-123/steer",
-			[]byte(`{"text":"focus on the race","message_id":"msg-steer","idempotency_key":"idem-steer","expected_turn_id":"turn-live"}`),
+			[]byte(
+				`{"text":"focus on the race","message_id":"msg-steer","idempotency_key":"idem-steer","expected_turn_id":"turn-live"}`,
+			),
 		)
 		if recorder.Code != http.StatusAccepted {
 			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusAccepted, recorder.Body.String())
@@ -2838,7 +2847,9 @@ func TestSessionInputHandlersExposeAuthoritativeQueueMutations(t *testing.T) {
 			engine,
 			http.MethodPost,
 			"/api/workspaces/ws-workspace/sessions/sess-123/prompt/queue/inq-1/steer",
-			[]byte(`{"text":"steer now","message_id":"msg-3","idempotency_key":"idem-3","expected_turn_id":"turn-live"}`),
+			[]byte(
+				`{"text":"steer now","message_id":"msg-3","idempotency_key":"idem-3","expected_turn_id":"turn-live"}`,
+			),
 		)
 		if recorder.Code != http.StatusAccepted {
 			t.Fatalf("status = %d, want 202; body=%s", recorder.Code, recorder.Body.String())

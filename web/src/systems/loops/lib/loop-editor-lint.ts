@@ -80,6 +80,8 @@ export interface LoopLintState {
   /** True when at least one blocking error exists — Publish is disabled. */
   hasBlockingErrors: boolean;
   errorCount: number;
+  /** Non-blocking issues (`wait_expiry_without_path`, `effect_tool_unknown`, …). */
+  warningCount: number;
   /**
    * True only after a real daemon verdict. The pre-validation state is `false` so the UI
    * shows a neutral "not yet validated" state instead of asserting a pass the daemon has
@@ -103,8 +105,37 @@ export function emptyLintState(): LoopLintState {
     },
     hasBlockingErrors: false,
     errorCount: 0,
+    warningCount: 0,
     validated: false,
   };
+}
+
+/** The dock's header state; zero counts are omitted. */
+export type LoopLintDockState = "pending" | "unavailable" | "clean" | "issues";
+
+export interface LoopLintDockCounters {
+  state: LoopLintDockState;
+  /** Present only when greater than zero. */
+  errors?: number;
+  /** Present only when greater than zero. */
+  warnings?: number;
+}
+
+/**
+ * Maps a verdict onto the dock header. Clean verdicts carry no counter; issue verdicts expose
+ * only non-zero severities.
+ */
+export function lintDockCounters(
+  lint: LoopLintState,
+  validateFailed: boolean
+): LoopLintDockCounters {
+  if (!lint.validated) return { state: validateFailed ? "unavailable" : "pending" };
+  const counters: LoopLintDockCounters = {
+    state: lint.issues.length === 0 ? "clean" : "issues",
+  };
+  if (lint.errorCount > 0) counters.errors = lint.errorCount;
+  if (lint.warningCount > 0) counters.warnings = lint.warningCount;
+  return counters;
 }
 
 /**
@@ -121,6 +152,7 @@ export function buildLintState(result: ValidateLoopResult | null): LoopLintState
   for (const issue of issues) {
     const blocking = isBlockingIssue(issue);
     if (blocking) state.errorCount += 1;
+    else state.warningCount += 1;
     const nodeId = issue.node_id?.trim();
     if (nodeId) {
       const bucket = state.byNode.get(nodeId);

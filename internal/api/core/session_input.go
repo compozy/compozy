@@ -42,9 +42,14 @@ func (h *BaseHandlers) HandleReplaceSessionInput(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
-	input, err := h.Sessions.ReplacePendingInput(c.Request.Context(), sessionID, entryID, session.ReplacePendingInputOpts{
-		Text: request.Text, MessageID: request.MessageID, IdempotencyKey: request.IdempotencyKey,
-	})
+	input, err := h.Sessions.ReplacePendingInput(
+		c.Request.Context(),
+		sessionID,
+		entryID,
+		session.ReplacePendingInputOpts{
+			Text: request.Text, MessageID: request.MessageID, IdempotencyKey: request.IdempotencyKey,
+		},
+	)
 	if err != nil {
 		h.respondError(c, StatusForSessionError(err), err)
 		return

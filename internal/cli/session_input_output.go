@@ -15,7 +15,10 @@ func sessionInputListBundle(response SessionInputListRecord) outputBundle {
 		"Pending Session Input",
 		[]string{"ID", "MODE", "STATUS", "DELIVERY", "TARGET TURN", "TEXT", "QUEUED AT"},
 		"session_inputs",
-		[]string{"id", "mode", "status", "delivery", "target_turn_id", "text", "enqueued_at"},
+		[]string{
+			"id", bridgeModeKey, automationStatusKey, cliDeliveryKey, "target_turn_id", sessionClarifyTextFlag,
+			"enqueued_at",
+		},
 		func(input SessionInputRecord) []string {
 			return []string{
 				stringOrDash(input.ID), stringOrDash(string(input.Mode)), stringOrDash(input.Status),
@@ -52,26 +55,27 @@ func sessionInputRows(input SessionInputRecord) []keyValue {
 	rows := []keyValue{
 		{Label: "Input ID", Value: stringOrDash(input.ID)},
 		{Label: "Session", Value: stringOrDash(input.SessionID)},
-		{Label: "Message ID", Value: stringOrDash(input.MessageID)},
+		{Label: cliMessageIDValue, Value: stringOrDash(input.MessageID)},
 		{Label: idempotencyKeyLabel, Value: stringOrDash(input.IdempotencyKey)},
 		{Label: "Target Turn", Value: stringOrDash(input.TargetTurnID)},
-		{Label: "Status", Value: stringOrDash(input.Status)},
+		{Label: automationStatusValue, Value: stringOrDash(input.Status)},
 		{Label: "Mode", Value: stringOrDash(string(input.Mode))},
-		{Label: "Delivery", Value: stringOrDash(string(input.Delivery))},
+		{Label: cliDeliveryValue, Value: stringOrDash(string(input.Delivery))},
 		{Label: "Text", Value: stringOrDash(input.Text)},
 		{Label: "Queue Generation", Value: strconv.FormatInt(input.QueueGeneration, 10)},
 		{Label: "Enqueued At", Value: formatTime(input.EnqueuedAt)},
 	}
 	if runtime := sessionInputRuntime(input.Runtime); runtime != "" {
-		rows = append(rows, keyValue{Label: "Runtime", Value: runtime})
+		rows = append(rows, keyValue{Label: cliRuntimeValue, Value: runtime})
 	}
 	return rows
 }
 
 func sessionInputFields() []string {
 	return []string{
-		"id", "session_id", "message_id", "idempotency_key", "target_turn_id", "status", "mode", "delivery",
-		"text", "queue_generation", "enqueued_at", "runtime",
+		"id", bridgeSessionIDKey, "message_id", "idempotency_key", "target_turn_id", automationStatusKey,
+		bridgeModeKey, cliDeliveryKey,
+		sessionClarifyTextFlag, "queue_generation", "enqueued_at", cliRuntimeKey,
 	}
 }
 

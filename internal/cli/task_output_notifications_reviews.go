@@ -216,7 +216,7 @@ func taskRunReviewRows(review *TaskRunReviewRecord) []keyValue {
 		{Label: taskStatusValue, Value: stringOrDash(string(review.Status))},
 		{Label: taskOutcomeValue, Value: stringOrDash(string(review.Outcome))},
 		{Label: taskReasonValue, Value: stringOrDash(review.Reason)},
-		{Label: "Delivery", Value: stringOrDash(review.DeliveryID)},
+		{Label: cliDeliveryValue, Value: stringOrDash(review.DeliveryID)},
 		{Label: "Missing Work", Value: stringOrDash(compactJSON(review.MissingWork))},
 		{Label: "Next Guidance", Value: stringOrDash(review.NextRoundGuidance)},
 		{Label: "Reviewer Session", Value: stringOrDash(review.ReviewerSessionID)},

@@ -161,6 +161,25 @@ export function formatTokenCount(tokens: number): string {
   return String(Math.round(tokens));
 }
 
+/**
+ * Where a run came from (`schedule · nightly`, `cli · pedro`), read from the origin
+ * the daemon recorded. Falls back to the em dash rather than guessing a starter.
+ */
+export function loopRunOriginLine(
+  run: Pick<
+    LoopRun,
+    "started_origin_kind" | "started_by_kind" | "started_by_ref" | "started_origin_ref"
+  >
+): string {
+  const originKind = run.started_origin_kind || "";
+  const originRef = run.started_origin_ref || "";
+  if (originKind && originRef) return `${originKind} · ${originRef}`;
+  const actorKind = run.started_by_kind || "";
+  const actorRef = run.started_by_ref || "";
+  if (actorKind && actorRef) return `${actorKind} · ${actorRef}`;
+  return originKind || originRef || actorKind || actorRef || "—";
+}
+
 /** `generation / cap` label for a run row (`2 / 50`, `5 / ∞`). */
 export function runGenerationLabel(run: Pick<LoopRun, "generation" | "iteration_cap">): string {
   const cap = run.iteration_cap === 0 ? "∞" : String(run.iteration_cap);

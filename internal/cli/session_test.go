@@ -1997,9 +1997,14 @@ func TestSessionInputCommands(t *testing.T) {
 				}
 				received = request
 				return SessionInputRecord{
-					ID: inputID, SessionID: sessionID, MessageID: request.MessageID, IdempotencyKey: request.IdempotencyKey,
-					Status: "queued", Mode: contract.PromptModeQueue, Delivery: contract.PromptDeliveryAfterTurn,
-					Text: request.Text,
+					ID:             inputID,
+					SessionID:      sessionID,
+					MessageID:      request.MessageID,
+					IdempotencyKey: request.IdempotencyKey,
+					Status:         "queued",
+					Mode:           contract.PromptModeQueue,
+					Delivery:       contract.PromptDeliveryAfterTurn,
+					Text:           request.Text,
 				}, nil
 			},
 		})
@@ -2140,7 +2145,15 @@ func TestSessionInputCommands(t *testing.T) {
 	t.Run("Should reject prompt cancel as a removed command", func(t *testing.T) {
 		t.Parallel()
 
-		_, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, &stubClient{}), "session", "prompt", "sess-1", "--cancel", "queue-1")
+		_, _, err := executeRootCommand(
+			t,
+			newWorkspaceTestDeps(t, &stubClient{}),
+			"session",
+			"prompt",
+			"sess-1",
+			"--cancel",
+			"queue-1",
+		)
 		assertErrorContains(t, err, "unknown flag: --cancel")
 	})
 }
