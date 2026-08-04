@@ -192,6 +192,11 @@ catch-up start hits Loop concurrency `forbid`, Compozy records the rejected auto
 structured catch-up failure metadata and still advances the scheduler cursor so the same fire does
 not replay indefinitely.
 
+When a Loop concurrency policy suppresses a start by reusing an admitted Loop run, the automation
+run still becomes `delegated` and keeps that Loop run ID. Its metadata sets `loop_suppressed: true`
+and records the durable suppression total in `loop_suppressed_count`, so hooks and run history can
+distinguish a reused admission from a newly created Loop run.
+
 Inspect scheduler state through:
 
 - `compozy automation jobs get <job-id>` for the job-local `next_run`, `last_scheduled_at`,

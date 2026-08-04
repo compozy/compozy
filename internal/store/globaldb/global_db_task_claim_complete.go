@@ -6,11 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"time"
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	looppkg "github.com/compozy/compozy/internal/loop"
-	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
@@ -160,7 +158,7 @@ func recordCompletedRunLoopOutput(
 		return nil
 	}
 	if completion.Result.CoordinatorControl != nil {
-		return updateLoopNodeOutputStatusWithExecutor(
+		recorded, err := updateLoopNodeOutputStatusWithExecutor(
 			ctx,
 			exec,
 			current,
@@ -168,6 +166,17 @@ func recordCompletedRunLoopOutput(
 			looppkg.GenerationOutputStatusControlPending,
 			"",
 		)
+		if err != nil {
+			return err
+		}
+		if !recorded {
+			return fmt.Errorf(
+				"%w: coordinator control output for task run %q was fenced",
+				looppkg.ErrStaleGenerationOutput,
+				current.ID,
+			)
+		}
+		return nil
 	}
 	return recordLoopNodeTerminalWithExecutor(
 		ctx,
@@ -288,162 +297,6 @@ func completionCreatedTaskClaimMatches(
 		return false, fmt.Errorf("store: verify completion created task claim %q: %w", taskID, err)
 	}
 	return found, nil
-}
-
-type loopNodeRunMetadata struct {
-	Generation int    `json:"generation"`
-	NodeID     string `json:"node_id"`
-	ItemIndex  int    `json:"item_index"`
-}
-
-const (
-	loopNodeOutcomeFailure  = "failure"
-	loopNodeOutputFailed    = "failed"
-	loopNodeOutputSucceeded = "succeeded"
-)
-
-func recordLoopNodeTerminalWithExecutor(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	run taskpkg.Run,
-	outcome string,
-	outputRef string,
-	resultPayload json.RawMessage,
-	terminalAt time.Time,
-) error {
-	loopRunID := strings.TrimSpace(run.LoopRunID)
-	if !run.IsLoopWorker() {
-		return nil
-	}
-	status := loopNodeOutputSucceeded
-	if outcome == loopNodeOutcomeFailure {
-		status = loopNodeOutputFailed
-	}
-	if err := updateLoopNodeOutputStatusWithExecutor(ctx, exec, run, loopRunID, status, outputRef); err != nil {
-		return err
-	}
-	affected, err := sqlcgen.New(exec).UpdateLoopRunNodeTerminal(ctx, sqlcgen.UpdateLoopRunNodeTerminalParams{
-		TerminalAt: store.FormatTimestamp(terminalAt), ID: loopRunID,
-	})
-	if err != nil {
-		return fmt.Errorf("store: record loop run %q node terminal progress: %w", loopRunID, err)
-	}
-	if affected == 0 {
-		return fmt.Errorf("store: loop run %q: %w", loopRunID, looppkg.ErrRunNotFound)
-	}
-	tokensUsed, err := refreshLoopTokensUsedWithExecutor(ctx, exec, loopRunID)
-	if err != nil {
-		return err
-	}
-	return appendLoopNodeTerminalEventsWithExecutor(
-		ctx,
-		exec,
-		run,
-		outcome,
-		outputRef,
-		normalizeTaskJSON(resultPayload),
-		tokensUsed,
-		terminalAt,
-	)
-}
-
-func updateLoopNodeOutputStatusWithExecutor(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	run taskpkg.Run,
-	loopRunID string,
-	status string,
-	outputRef string,
-) error {
-	// Generation advance is atomic with task-run completion here; changing that boundary requires an ADR.
-	affected, err := sqlcgen.New(exec).UpdateLoopGenerationOutputForTaskRun(
-		ctx,
-		sqlcgen.UpdateLoopGenerationOutputForTaskRunParams{
-			Status: status, OutputRef: strings.TrimSpace(outputRef),
-			TaskRunID: nullableTaskString(run.ID), LoopRunID: loopRunID,
-		},
-	)
-	if err != nil {
-		return fmt.Errorf(
-			"store: update loop run %q node output for task run %q: %w",
-			loopRunID,
-			run.ID,
-			err,
-		)
-	}
-	if affected > 0 {
-		return nil
-	}
-	metadata, ok, err := loopNodeMetadataFromTaskRun(run.Metadata)
-	if err != nil {
-		return err
-	}
-	if !ok {
-		return nil
-	}
-	err = sqlcgen.New(exec).UpsertLoopGenerationOutputForTaskRun(
-		ctx,
-		sqlcgen.UpsertLoopGenerationOutputForTaskRunParams{
-			LoopRunID: loopRunID, Generation: int64(metadata.Generation), NodeID: metadata.NodeID,
-			ItemIndex: int64(metadata.ItemIndex), Status: status,
-			OutputRef: nullableTaskString(outputRef), TaskRunID: nullableTaskString(run.ID),
-		},
-	)
-	if err != nil {
-		return fmt.Errorf(
-			"store: insert loop run %q node output for task run %q: %w",
-			loopRunID,
-			run.ID,
-			err,
-		)
-	}
-	return nil
-}
-
-func loopNodeMetadataFromTaskRun(raw json.RawMessage) (loopNodeRunMetadata, bool, error) {
-	if len(raw) == 0 {
-		return loopNodeRunMetadata{}, false, nil
-	}
-	var metadata loopNodeRunMetadata
-	if err := json.Unmarshal(raw, &metadata); err != nil {
-		return loopNodeRunMetadata{}, false, fmt.Errorf(
-			"store: decode loop node task run metadata: %w",
-			err,
-		)
-	}
-	metadata.NodeID = strings.TrimSpace(metadata.NodeID)
-	if metadata.Generation <= 0 || metadata.NodeID == "" || metadata.ItemIndex < 0 {
-		return loopNodeRunMetadata{}, false, nil
-	}
-	return metadata, true, nil
-}
-
-func loopFailureOutputRef(failure taskpkg.RunFailure) string {
-	if outputRef, ok := looppkg.ActionFailureOutputRefFromMetadata(failure.Metadata); ok {
-		return outputRef
-	}
-
-	type reasonEnvelope struct {
-		ReasonCode string `json:"reason_code"`
-		Code       string `json:"code"`
-	}
-	var envelope reasonEnvelope
-	if len(failure.Metadata) > 0 {
-		if err := json.Unmarshal(failure.Metadata, &envelope); err == nil {
-			if strings.TrimSpace(envelope.ReasonCode) != "" {
-				return strings.TrimSpace(envelope.ReasonCode)
-			}
-			if strings.TrimSpace(envelope.Code) != "" {
-				return strings.TrimSpace(envelope.Code)
-			}
-		}
-	}
-	for _, code := range []string{"dependency_missing", "credential_missing", "resource_unreachable"} {
-		if strings.Contains(failure.Error, code) {
-			return code
-		}
-	}
-	return ""
 }
 
 // FailRunLease marks one claimed run failed after token verification.

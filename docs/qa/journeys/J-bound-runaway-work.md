@@ -2,9 +2,9 @@
 
 An autonomy operator trusts the orchestration kernel to bound failure instead of looping forever:
 crash-looping workers exhaust a durable attempt budget (O1), one persistently failing loop node
-trips the breaker even while siblings succeed (O2), two concurrent exact claims yield exactly one
-owner (O3), and a wedged-but-heartbeating action times out while healthy long work is untouched
-(O4). Every terminal state carries a forensic reason. Covers US-012, US-013, US-014, US-015
+quarantines while siblings continue and can be repaired in place (O2), two concurrent exact claims yield exactly one
+owner (O3), and long-running actions use evidence-only liveness while only authored deadlines can
+end work by duration (O4). Every terminal or parked state carries a forensic reason. Covers US-012, US-013, US-014, US-015
 (TechSpec §3.10; Safety Invariants 21–25).
 
 ```mermaid
@@ -25,21 +25,33 @@ flowchart TD
     REPAIR --> GEN
     RESTORE --> GEN
     GNEXT --> GEN
-    GEN --> ST{A's per-node streak at limit?}
-    ST -->|yes| STL[Loop trips Stalled at A's streak — never runs to the iteration cap; B's successes never reset A]
+    GEN --> ST{A repeats the failure across generations?}
+    ST -->|yes| Q[Quarantine A with sanitized repair context; B remains complete]
+    Q --> DEP{Does pending work require A?}
+    DEP -->|yes| ATTN[Needs attention names A as the quarantined dependency]
+    DEP -->|no| INSQ[Inspect the quarantined entry]
+    ATTN --> INSQ
+    INSQ --> FIX[Repair the external target]
+    FIX --> REQUEUE[Requeue A with actor provenance and origin requeue]
+    REQUEUE --> RECOVER[A succeeds through normal bounded succession]
     ST -->|healthy loop| OKL[Breaker never trips]
     GEN --> WB[Unbounded watch with persistent failure] --> BSTOP[Hard generation backstop terminates it]
     E3[Entry: two concurrent exact claims on one queued RunID] --> CAS[Shared guarded queued-status CAS in one immediate transaction]
     CAS --> ONE[Exactly one owner; the loser gets the typed no-claimable-run outcome — never a false success]
-    E4[Entry: action node past its window with no progress] --> LV{Progress or in-tool activity?}
-    LV -->|actively in a tool or progressing| LIVE[Run untouched — healthy long work never shortened]
-    LV -->|idle past thresholds| TO[Terminal: node_timeout / no_progress; lease freed; loop advances; O1 budget consumed]
+    E4[Entry: action node runs without an authored timeout] --> LV{Liveness evidence?}
+    LV -->|activity, in-flight tool, or transport present| LIVE[Update last evidence; keep work untouched]
+    LV -->|silence past configured window| FLAG[Raise attention only; keep work untouched]
+    FLAG -->|new evidence| CLEAR[Clear attention and keep running]
+    E4 -->|authored node timeout expires| TO[Terminal through the declared timeout path]
     TX -.->|operator away during the crash loop| AB[Abandon: bounded terminal state waits — never infinite requeue]
     AB -.->|operator returns| INS[Inspect forensic reason and deliberately recover]
-    STL --> TE[True end: every runaway path ended in a bounded terminal state whose forensic reason names the cause, and healthy work was never harmed]
+    Q -.->|operator leaves before repair| ABQ[Abandon: quarantine remains inspectable without killing the run]
+    ABQ -.->|operator returns| INSQ
+    RECOVER --> TE[True end: every runaway path is bounded or parked with a forensic cause, and healthy work was never harmed]
     TX --> TE
     ONE --> TE
     TO --> TE
+    CLEAR --> TE
     BSTOP --> TE
     LIVE --> TE
     OKL --> TE
@@ -52,11 +64,11 @@ journey:
   value_statement: "Failure is bounded by budgets, breakers, and liveness — the kernel never loops forever, never double-owns a run, and never kills healthy long work."
   personas: [Ada, Bruno]
   entry_points:
-    - url: "CLI: compozy task next --wait -o json; compozy task inspect <run-id> -o json; compozy loop runs show <run-id> -o json"
+    - url: "CLI: compozy task next --wait -o json; compozy task inspect <run-id> -o json; compozy loop status --run-id <run-id> -o json; compozy loop nodes --state quarantined -o json; compozy loop node requeue --node <node-id> --run-id <run-id>"
       origin: direct
     - url: "HTTP/UDS: POST /api/agent/tasks/claim-next; task-run and loop-run listings"
       origin: direct
-    - url: "config: task.orchestration.action_run_timeout; max_attempts"
+    - url: "config: loops.defaults.delivery.liveness.silence_window; max_attempts"
       origin: direct
   actions:
     - step: 1
@@ -64,24 +76,24 @@ journey:
       expected_observable: "Each recovery consumes the durable budget; the run terminalizes at max_attempts with lease_recovery_exhausted — distinguishable from ordinary failure"
     - step: 2
       verb: "Advance a loop with one failing and one succeeding node"
-      expected_observable: "Node failed_only/full_body and gate revise/next_generation choose their documented rerun sets without resetting the failing node's streak; the loop trips Stalled at the per-node limit regardless of terminal order, while a healthy loop never false-stalls"
+      expected_observable: "Node failed_only/full_body and gate revise/next_generation choose their documented rerun sets; repeated failure quarantines only that node, required consumers name it, healthy lanes continue, and repair plus requeue resumes bounded succession"
     - step: 3
       verb: "Race two exact claims on the same queued run"
       expected_observable: "Exactly one claim succeeds; the other receives the typed no-claimable-run outcome; exact and next-work selection share one CAS"
     - step: 4
-      verb: "Wedge one action and run one healthy long tool"
-      expected_observable: "The wedged run terminalizes node_timeout/no_progress, frees its lease, and consumes the attempt budget; the healthy in-tool run survives its idle window"
+      verb: "Advance time around one silent action and one healthy long tool"
+      expected_observable: "Neither node fails by hidden duration; silence raises self-clearing attention, evidence keeps the healthy node live, and only an authored node timeout can end work by duration"
   goal:
-    observable: "Every injected failure ends in a bounded, forensically-explained terminal state"
-    side_effects: [needs-attention-escalations, loop-stalled-record, terminal-reason-rows]
-  true_end_state: "Fresh run listings show the terminal reasons (lease_recovery_exhausted, Stalled, node_timeout/no_progress), exactly one owner per contested run, and the healthy control run completed normally."
+    observable: "Every injected failure becomes bounded, parked, or terminal with a forensically useful reason"
+    side_effects: [needs-attention-escalations, attention-clear-events, quarantine-entry, requeue-provenance, terminal-reason-rows]
+  true_end_state: "Fresh run listings show terminal reasons for terminal paths, the repaired node completed after requeue without losing sibling work, exactly one owner exists per contested run, and long-running controls completed without a hidden clock."
   exit:
     natural: "The operator recovers parked work deliberately after reading the forensic reason."
   abandonment:
     - at_step: 1
       how: "The operator is away while the worker crash-loops."
-      resume: "The budget bounds the loop autonomously; the parked needs_attention row with its reason waits durably for deliberate recovery — no unbounded requeue ever ran."
-  crosses: [task-runs-queue, ClaimNextRun-CAS, lease-recovery, loop-coordinator, generation-history, generation-outputs, scheduler-sweep, CLI, HTTP, UDS]
+      resume: "The budget or quarantine bounds the failing work autonomously; the parked row and its reason wait durably for deliberate recovery — no unbounded requeue ever ran."
+  crosses: [task-runs-queue, ClaimNextRun-CAS, lease-recovery, loop-coordinator, loop-target-breaker, node-controls, generation-history, generation-outputs, scheduler-sweep, CLI, HTTP, UDS]
 ```
 
 Taxonomy note: structured kernel journey with no Web surface. Functional, failure, concurrency,

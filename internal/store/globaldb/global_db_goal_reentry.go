@@ -212,6 +212,9 @@ func (g *GoalRepo) applyGoalReentry(
 	if err := updateGoalOutputForReentry(ctx, exec, current, successor.ID, turnLimit); err != nil {
 		return looppkg.GoalReactivationResult{}, err
 	}
+	if err := shiftGoalReentryClocks(ctx, exec, current, g.now().UTC()); err != nil {
+		return looppkg.GoalReactivationResult{}, err
+	}
 	for _, decision := range decisions {
 		if err := insertLoopGateDecision(ctx, exec, decision); err != nil {
 			return looppkg.GoalReactivationResult{}, err
@@ -228,6 +231,39 @@ func (g *GoalRepo) applyGoalReentry(
 		ControlEpoch: nextEpoch,
 		GrantID:      grantID,
 	}, nil
+}
+
+func shiftGoalReentryClocks(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	current goalReentryRow,
+	resumedAt time.Time,
+) error {
+	if current.parkedAt.IsZero() {
+		return nil
+	}
+	parkedFor := resumedAt.UTC().Sub(current.parkedAt.UTC())
+	if parkedFor <= 0 {
+		return nil
+	}
+	firstScheduledAt, err := shiftedLoopCellFirstScheduledAt(
+		ctx, exec, current.state.LoopRunID, current.state.Generation,
+		current.state.NodeID, current.state.ItemIndex, parkedFor,
+	)
+	if err != nil {
+		return err
+	}
+	result, err := exec.ExecContext(ctx, `UPDATE loop_generation_outputs SET first_scheduled_at = ?
+		WHERE loop_run_id = ? AND generation = ? AND node_id = ? AND item_index = ?
+		AND status = 'enqueued'`, firstScheduledAt, current.state.LoopRunID,
+		current.state.Generation, current.state.NodeID, current.state.ItemIndex)
+	if err != nil {
+		return fmt.Errorf("store: shift Goal node clock after reentry: %w", err)
+	}
+	if err := requireGoalRowsAffected(result, "shift Goal node clock after reentry"); err != nil {
+		return err
+	}
+	return shiftLoopWallClockIfUnparked(ctx, exec, current.state.LoopRunID, parkedFor)
 }
 
 func (g *GoalRepo) replayedGoalReactivation(

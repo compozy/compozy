@@ -4,7 +4,9 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"strings"
+	"time"
 )
 
 const (
@@ -36,4 +38,27 @@ func OutputRefLooksContentAddressed(ref string) bool {
 	}
 	_, err := hex.DecodeString(digest)
 	return err == nil
+}
+
+func generationOutputRefForPayload(
+	payload json.RawMessage,
+	outputBlobs *[]GenerationOutputBlob,
+	at time.Time,
+) (string, json.RawMessage, error) {
+	if !json.Valid(payload) {
+		return "", nil, fmt.Errorf("%w: generation output payload must be valid JSON", ErrValidation)
+	}
+	if !OutputPayloadRequiresRef(payload) {
+		return string(payload), nil, nil
+	}
+	if outputBlobs == nil {
+		return "", nil, fmt.Errorf("%w: output blob sink is required", ErrValidation)
+	}
+	ref := OutputRefForPayload(payload)
+	*outputBlobs = append(*outputBlobs, GenerationOutputBlob{
+		OutputRef: ref,
+		Payload:   cloneRawMessage(payload),
+		At:        at.UTC(),
+	})
+	return ref, cloneRawMessage(payload), nil
 }

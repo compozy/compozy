@@ -78,7 +78,7 @@ func goalCommandRows(prompt SessionPromptResultRecord, result contract.GoalComma
 		)
 	}
 	rows = append(rows,
-		keyValue{Label: "Message ID", Value: stringOrDash(prompt.MessageID)},
+		keyValue{Label: cliMessageIDValue, Value: stringOrDash(prompt.MessageID)},
 		keyValue{Label: idempotencyKeyLabel, Value: stringOrDash(prompt.IdempotencyKey)},
 	)
 	return rows
@@ -121,7 +121,7 @@ func sessionPromptRows(result SessionPromptResultRecord) []keyValue {
 		rows = append(rows, keyValue{Label: bridgeModeValue, Value: string(result.Mode)})
 	}
 	if result.Delivery != "" {
-		rows = append(rows, keyValue{Label: "Delivery", Value: string(result.Delivery)})
+		rows = append(rows, keyValue{Label: cliDeliveryValue, Value: string(result.Delivery)})
 	}
 	if result.QueueEntryID != "" {
 		rows = append(rows, keyValue{Label: "Queue Entry", Value: result.QueueEntryID})
@@ -148,7 +148,7 @@ func sessionPromptFields() []string {
 	return []string{
 		sessionStatusKey,
 		bridgeModeKey,
-		"delivery",
+		cliDeliveryKey,
 		"queue_entry_id",
 		"queue_position",
 		"queue_generation",

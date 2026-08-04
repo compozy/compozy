@@ -1,7 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
-import { StorySurface, StoryTopbarHost } from "@/storybook/story-layout";
-
 import { LoopDetailView } from "../detail/loop-detail";
 import type { LoopBindingRow } from "../../lib/loop-bindings";
 import { readLoopGraph } from "../../lib/loop-graph";
@@ -11,15 +9,16 @@ import {
   loopEffectiveConfigFixture,
   loopRunFixtures,
 } from "../../mocks/fixtures";
+import { LoopsStoryShell } from "./loops-story-shell";
 
 const meta: Meta<typeof LoopDetailView> = {
   title: "systems/loops/components/LoopDetail",
   component: LoopDetailView,
   decorators: [
     Story => (
-      <StoryTopbarHost title="software-delivery">
+      <LoopsStoryShell crumb="software-delivery">
         <Story />
-      </StoryTopbarHost>
+      </LoopsStoryShell>
     ),
   ],
   parameters: {
@@ -37,7 +36,13 @@ type Story = StoryObj<typeof meta>;
 
 const loop = loopDetailByName.get("software-delivery")!;
 const catalogEntry = loopCatalogFixtures.find(entry => entry.name === "software-delivery")!;
-const recentRuns = loopRunFixtures.filter(run => run.loop_name === "software-delivery").slice(0, 5);
+// Keeps the cooperative-cancel terminal in view: `canceled` is its own ending, not a failure.
+const deliveryRuns = loopRunFixtures.filter(run => run.loop_name === "software-delivery");
+const canceledRun = deliveryRuns.find(run => run.status === "canceled")!;
+const recentRuns = [
+  ...deliveryRuns.filter(run => run.status !== "canceled").slice(0, 4),
+  canceledRun,
+];
 const config = {
   iteration_cap: 3,
   budget_on_exceeded: "escalate" as const,
@@ -64,7 +69,7 @@ const noop = () => {};
 export const WithBinding: Story = {
   args: {},
   render: () => (
-    <StorySurface>
+    <>
       <LoopDetailView
         loop={loop}
         effectiveConfig={{ ...loopEffectiveConfigFixture, ...config }}
@@ -84,7 +89,7 @@ export const WithBinding: Story = {
         onAddTrigger={noop}
         onAddSchedule={noop}
       />
-    </StorySurface>
+    </>
   ),
 };
 
@@ -92,7 +97,7 @@ export const WithBinding: Story = {
 export const NoBindings: Story = {
   args: {},
   render: () => (
-    <StorySurface>
+    <>
       <LoopDetailView
         loop={loop}
         effectiveConfig={{ ...loopEffectiveConfigFixture, ...config }}
@@ -112,6 +117,6 @@ export const NoBindings: Story = {
         onAddTrigger={noop}
         onAddSchedule={noop}
       />
-    </StorySurface>
+    </>
   ),
 };

@@ -97,7 +97,63 @@ type LoopService interface {
 		runID string,
 		query GoalTurnListQuery,
 	) (session.GoalTurnPage, error)
-	StopLoopRun(ctx context.Context, workspaceID string, runID string, actor taskpkg.ActorContext) error
+	CancelLoopRun(
+		ctx context.Context,
+		workspaceID string,
+		runID string,
+		actor taskpkg.ActorContext,
+	) (contract.LoopMutationResponse, error)
+	KillLoopRun(
+		ctx context.Context,
+		workspaceID string,
+		runID string,
+		actor taskpkg.ActorContext,
+	) (contract.LoopMutationResponse, error)
+	PauseLoopNode(
+		ctx context.Context,
+		workspaceID string,
+		runID string,
+		nodeID string,
+		req contract.LoopNodePauseRequest,
+		actor taskpkg.ActorContext,
+	) (contract.LoopMutationResponse, error)
+	ResumeLoopNode(
+		ctx context.Context,
+		workspaceID string,
+		runID string,
+		nodeID string,
+		req contract.LoopNodeResumeRequest,
+		actor taskpkg.ActorContext,
+	) (contract.LoopMutationResponse, error)
+	CancelLoopNode(
+		ctx context.Context,
+		workspaceID string,
+		runID string,
+		nodeID string,
+		req contract.LoopNodeMutationRequest,
+		actor taskpkg.ActorContext,
+	) (contract.LoopMutationResponse, error)
+	KillLoopNode(
+		ctx context.Context,
+		workspaceID string,
+		runID string,
+		nodeID string,
+		req contract.LoopNodeMutationRequest,
+		actor taskpkg.ActorContext,
+	) (contract.LoopMutationResponse, error)
+	RequeueLoopNode(
+		ctx context.Context,
+		workspaceID string,
+		runID string,
+		nodeID string,
+		req contract.LoopNodeMutationRequest,
+		actor taskpkg.ActorContext,
+	) (contract.LoopMutationResponse, error)
+	ListLoopNodes(
+		ctx context.Context,
+		workspaceID string,
+		query LoopNodeListQuery,
+	) (contract.LoopNodeInventoryResponse, error)
 	PauseLoopRun(ctx context.Context, workspaceID string, runID string, actor taskpkg.ActorContext) error
 	ResumeLoopRun(ctx context.Context, workspaceID string, runID string, actor taskpkg.ActorContext) error
 	ApproveLoopRun(
@@ -123,6 +179,15 @@ type LoopRunListQuery struct {
 	OriginSession string
 	Live          *bool
 	Limit         int
+}
+
+// LoopNodeListQuery contains workspace node-inventory filters.
+type LoopNodeListQuery struct {
+	State    string
+	LoopName string
+	RunID    string
+	Cursor   string
+	Limit    int
 }
 
 // GoalTurnListQuery contains validated public turn-audit filters.

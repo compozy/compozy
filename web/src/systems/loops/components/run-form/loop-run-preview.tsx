@@ -1,4 +1,4 @@
-import { Eyebrow, MonoId, Pill } from "@compozy/ui";
+import { MonoId, Pill } from "@compozy/ui";
 import type { NetworkParticipationDraft } from "@/lib/network-participation";
 
 import {
@@ -11,7 +11,8 @@ import type {
   LoopEffectiveConfig,
   LoopInputSchema,
 } from "../../types";
-import { LoopContractPanel } from "../detail/loop-contract-panel";
+import { LoopContractRows } from "../detail/loop-contract-panel";
+import { LoopRailSection } from "../loop-rail-section";
 import { LoopRunPlan } from "./loop-run-plan";
 
 interface LoopRunPreviewProps {
@@ -43,54 +44,63 @@ export function LoopRunPreview({
   const effective =
     plan?.effective_config ?? resolveLoopEffectiveConfig(effectiveConfig, configOverrides);
   const reattemptLabel = effective.reattempt_strategy === "full_body" ? "full-body" : "failed-only";
+  const terminalCount = contract.terminal_states?.length ?? 0;
   return (
-    <aside className="flex flex-col gap-3.5" data-testid="loop-run-preview">
-      <Eyebrow className="text-subtle">Run preview</Eyebrow>
-      <div className="rounded-lg border border-line-soft bg-canvas-soft px-4 py-3.5">
-        <Eyebrow className="text-faint">What will run</Eyebrow>
-        <p className="mt-1.5 text-small-body leading-relaxed text-muted">
-          Run <b className="font-medium text-fg-strong">{loopName}</b> against its contract:{" "}
-          {contract.goal} Iterates up to{" "}
-          <b className="font-medium text-fg-strong">
-            {effective.iteration_cap === 0 ? "∞" : effective.iteration_cap}
-          </b>{" "}
-          generations with {reattemptLabel} re-attempts from {inputCount} declared input
-          {inputCount === 1 ? "" : "s"}, ending honestly at one of its terminal outcomes.
-        </p>
-        <div
-          className="mt-3 flex flex-wrap items-center gap-2 border-t border-line-soft pt-3"
-          data-testid="loop-run-participation-preview"
-        >
-          <span className="text-form-hint text-subtle">Participation</span>
-          <Pill tone="neutral">{networkParticipation.mode === "live" ? "Live" : "Local"}</Pill>
-          {networkParticipation.mode === "live" ? (
-            networkParticipation.channelId ? (
-              <MonoId value={networkParticipation.channelId} />
-            ) : (
-              <span className="text-form-hint text-faint">channel resolved at start</span>
-            )
-          ) : null}
+    <aside className="flex flex-col gap-3" data-testid="loop-run-preview">
+      <LoopRailSection
+        defaultOpen
+        gist={`${inputCount} declared input${inputCount === 1 ? "" : "s"}`}
+        title="What will run"
+      >
+        <div className="px-4 py-3.5">
+          <p className="text-small-body leading-relaxed text-muted">
+            Run <b className="font-medium text-fg-strong">{loopName}</b> against its contract:{" "}
+            {contract.goal} Iterates up to{" "}
+            <b className="font-medium text-fg-strong">
+              {effective.iteration_cap === 0 ? "∞" : effective.iteration_cap}
+            </b>{" "}
+            generations with {reattemptLabel} re-attempts from {inputCount} declared input
+            {inputCount === 1 ? "" : "s"}, ending honestly at one of its terminal outcomes.
+          </p>
+          <div
+            className="mt-3 flex flex-wrap items-center gap-2 border-t border-line-soft pt-3"
+            data-testid="loop-run-participation-preview"
+          >
+            <span className="text-form-hint text-subtle">Participation</span>
+            <Pill tone="neutral">{networkParticipation.mode === "live" ? "Live" : "Local"}</Pill>
+            {networkParticipation.mode === "live" ? (
+              networkParticipation.channelId ? (
+                <MonoId value={networkParticipation.channelId} />
+              ) : (
+                <span className="text-form-hint text-faint">channel resolved at start</span>
+              )
+            ) : null}
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-line-soft pt-3 font-mono text-mono-id text-subtle">
+            <span className="text-muted">running</span>
+            <span className="text-faint">→</span>
+            <span className="text-muted">verify</span>
+            {/* needs-approval only appears when the loop actually declares a human gate —
+                a loop with no human criterion can never enter it (truthful lifecycle, §4.3). */}
+            {effective.human_gate_enabled ? (
+              <>
+                <span className="text-faint">→</span>
+                <span className="text-warning">needs-approval</span>
+              </>
+            ) : null}
+            <span className="text-faint">→</span>
+            <span className="text-success">done</span>
+          </div>
         </div>
-      </div>
-      <LoopContractPanel contract={contract} />
-      <div className="rounded-lg border border-line-soft bg-canvas-soft px-4 py-3.5">
-        <Eyebrow className="text-faint">Lifecycle</Eyebrow>
-        <div className="mt-2 flex flex-wrap items-center gap-2 font-mono text-mono-id text-subtle">
-          <span className="text-muted">running</span>
-          <span className="text-faint">→</span>
-          <span className="text-muted">verify</span>
-          {/* needs-approval only appears when the loop actually declares a human gate —
-              a loop with no human criterion can never enter it (truthful lifecycle, §4.3). */}
-          {effective.human_gate_enabled ? (
-            <>
-              <span className="text-faint">→</span>
-              <span className="text-warning">needs-approval</span>
-            </>
-          ) : null}
-          <span className="text-faint">→</span>
-          <span className="text-success">done</span>
+      </LoopRailSection>
+      <LoopRailSection
+        gist={`${contract.verification?.length ?? 0} checks · ${terminalCount} possible endings`}
+        title="Contract"
+      >
+        <div className="flex flex-col">
+          <LoopContractRows contract={contract} />
         </div>
-      </div>
+      </LoopRailSection>
       {plan ? <LoopRunPlan plan={plan} /> : null}
     </aside>
   );

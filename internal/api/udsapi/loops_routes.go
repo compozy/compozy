@@ -61,10 +61,18 @@ func registerLoopRoutes(api gin.IRouter, handlers *Handlers) {
 		runs.GET("", handlers.ListLoopRuns)
 		runs.GET("/:run_id", handlers.GetLoopRun)
 		runs.GET("/:run_id/turns", handlers.ListGoalTurns)
-		runs.POST("/:run_id/stop", handlers.StopLoopRun)
+		runs.POST("/:run_id/cancel", handlers.CancelLoopRun)
+		runs.POST("/:run_id/kill", handlers.KillLoopRun)
 		runs.POST("/:run_id/pause", handlers.PauseLoopRun)
 		runs.POST("/:run_id/resume", handlers.ResumeLoopRun)
 		runs.POST("/:run_id/approve", handlers.ApproveLoopRun)
+		runs.POST("/:run_id/nodes/:node_id/pause", handlers.PauseLoopNode)
+		runs.POST("/:run_id/nodes/:node_id/resume", handlers.ResumeLoopNode)
+		runs.POST("/:run_id/nodes/:node_id/cancel", handlers.CancelLoopNode)
+		runs.POST("/:run_id/nodes/:node_id/kill", handlers.KillLoopNode)
+		runs.POST("/:run_id/nodes/:node_id/requeue", handlers.RequeueLoopNode)
 		runs.GET("/:run_id/events", handlers.StreamLoopRunEvents)
 	}
+
+	api.GET("/workspaces/:workspace_id/loop-nodes", handlers.ListLoopNodes)
 }

@@ -1,6 +1,8 @@
+import type { ReactNode } from "react";
 import { Activity, AlertCircle } from "lucide-react";
 
 import {
+  Button,
   Empty,
   ListingPage,
   ListingToolbar,
@@ -10,11 +12,30 @@ import {
   useTopbarSlot,
 } from "@compozy/ui";
 import { useLoopRunsRoute, type LoopRunsRouteSearch } from "./use-loop-runs-route";
-import { LoopRunsView } from "@/systems/loops";
+import {
+  LOOP_NODE_INVENTORY_LABELS,
+  LOOP_NODE_INVENTORY_STATES,
+  LoopNodeInventoryView,
+  LoopRunsView,
+} from "@/systems/loops";
 
 export function LoopRunsLocation({ search }: { search: LoopRunsRouteSearch }) {
-  const { outcome, runsQuery, setOrigin, setOriginSession, setOutcome, workspaceId } =
-    useLoopRunsRoute(search);
+  const {
+    outcome,
+    runsQuery,
+    setOrigin,
+    setOriginSession,
+    setOutcome,
+    workspaceId,
+    inventoryState,
+    inventory,
+    loopOptions,
+    inventorySort,
+    setInventorySort,
+    setInventoryState,
+    setInventoryLoop,
+    clearInventoryFilters,
+  } = useLoopRunsRoute(search);
 
   const runs = runsQuery.data?.runs ?? [];
   const showToolbar = workspaceId !== "" && !runsQuery.isLoading && !runsQuery.error;
@@ -25,6 +46,25 @@ export function LoopRunsLocation({ search }: { search: LoopRunsRouteSearch }) {
     toolbar: showToolbar ? (
       <ListingToolbar data-testid="loop-runs-origin-toolbar">
         <ListingToolbar.Leading>
+          <NativeSelect
+            aria-label="Runs view"
+            data-testid="loop-runs-view-switch"
+            onChange={event =>
+              setInventoryState(
+                event.target.value === "runs"
+                  ? undefined
+                  : (event.target.value as (typeof LOOP_NODE_INVENTORY_STATES)[number])
+              )
+            }
+            value={inventoryState ?? "runs"}
+          >
+            <NativeSelectOption value="runs">Runs</NativeSelectOption>
+            {LOOP_NODE_INVENTORY_STATES.map(value => (
+              <NativeSelectOption key={value} value={value}>
+                {LOOP_NODE_INVENTORY_LABELS[value]} nodes
+              </NativeSelectOption>
+            ))}
+          </NativeSelect>
           <NativeSelect
             aria-label="Run origin"
             data-testid="loop-runs-origin-filter"
@@ -63,6 +103,49 @@ export function LoopRunsLocation({ search }: { search: LoopRunsRouteSearch }) {
         testId="loop-runs-no-workspace"
         title="No workspace selected"
       />
+    );
+  }
+
+  // The inventory is a peer view of the same runs area, not a nested state of
+  // the roster — it owns its own loading, empty, and paging surfaces.
+  if (inventoryState !== undefined) {
+    if (inventory.isError) {
+      return (
+        <RunsState
+          action={
+            <Button onClick={inventory.refetch} size="sm" type="button" variant="outline">
+              Retry inventory
+            </Button>
+          }
+          description={inventory.error?.message ?? "The node inventory could not be loaded."}
+          icon={AlertCircle}
+          role="alert"
+          testId="loop-runs-inventory-error"
+          title="Unable to load node inventory"
+        />
+      );
+    }
+    return (
+      <ListingPage data-testid="loop-runs-inventory">
+        <LoopNodeInventoryView
+          hasMore={inventory.hasMore}
+          isFetchingNextPage={inventory.isFetchingNextPage}
+          isLoading={inventory.isLoading}
+          items={inventory.items}
+          loadedCount={inventory.loadedCount}
+          loopFilter={search.nodes_loop ?? ""}
+          loopOptions={loopOptions}
+          nowMs={Date.now()}
+          onClearFilters={clearInventoryFilters}
+          onLoadMore={inventory.fetchNextPage}
+          onLoopFilterChange={setInventoryLoop}
+          onSortChange={setInventorySort}
+          onStateChange={setInventoryState}
+          runFilter={search.nodes_run ?? ""}
+          sort={inventorySort}
+          state={inventoryState}
+        />
+      </ListingPage>
     );
   }
 
@@ -116,12 +199,24 @@ interface RunsStateProps {
   description: string;
   testId: string;
   icon?: typeof Activity;
+  action?: ReactNode;
+  role?: "alert";
 }
 
-function RunsState({ title, description, testId, icon = Activity }: RunsStateProps) {
+function RunsState({ title, description, testId, icon = Activity, action, role }: RunsStateProps) {
   return (
-    <div className="flex min-h-0 flex-1 items-center justify-center py-10" data-testid={testId}>
-      <Empty className="max-w-md" description={description} icon={icon} title={title} />
+    <div
+      className="flex min-h-0 flex-1 items-center justify-center py-10"
+      data-testid={testId}
+      role={role}
+    >
+      <Empty
+        action={action}
+        className="max-w-md"
+        description={description}
+        icon={icon}
+        title={title}
+      />
     </div>
   );
 }

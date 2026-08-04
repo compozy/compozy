@@ -340,11 +340,21 @@ func compileWatchEventsFilters(
 	namespace refs.Namespace,
 	ctx *lintContext,
 ) error {
-	if node.Class != dsl.NodeClassSource || dsl.SourceKind(node.Kind) != dsl.SourceWatchEvents {
+	subscriptions := node.Events
+	if node.Class == dsl.NodeClassControl && dsl.ControlKind(node.Kind) == dsl.ControlWait {
+		var params dsl.WaitParams
+		if err := node.Params.Decode(&params); err != nil {
+			return fmt.Errorf("compile wait event filters for %s: %w", node.ID, err)
+		}
+		if params.Event == nil {
+			return nil
+		}
+		subscriptions = []dsl.EventSubscription{*params.Event}
+	} else if node.Class != dsl.NodeClassSource || dsl.SourceKind(node.Kind) != dsl.SourceWatchEvents {
 		return nil
 	}
 	eventNamespace := namespaceWithEvent(namespace)
-	for idx, subscription := range node.Events {
+	for idx, subscription := range subscriptions {
 		if strings.TrimSpace(subscription.Filter) == "" {
 			continue
 		}

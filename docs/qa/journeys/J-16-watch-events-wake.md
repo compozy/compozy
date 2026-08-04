@@ -22,7 +22,7 @@ flowchart TD
     H -->|work done| I[True end: truthful terminal done — never coerced from exhausted/stalled]
     D -.->|daemon restarts while parked| X1[Recover: boot reconcile + backstop gap-check replay from the ledger cursor — wake EXACTLY once, never a claim]
     X1 --> F
-    D -.->|no matching event ever arrives| X2[Abandon: stays dormant at zero cost — watch-events has NO silence-stall; operator stop → failed operator_stop, never coerced]
+    D -.->|no matching event ever arrives| X2[Abandon: stays dormant at zero cost — watch-events has NO silence-stall; operator cancel → canceled operator_cancel, never coerced]
 ```
 
 ```yaml
@@ -34,7 +34,7 @@ journey:
   entry_points:
     - url: "web /loops/:name/editor (loop-editor: Watch events source + subscription form) › Publish › Run › web run-detail (park read-model)"
       origin: in-app-nav
-    - url: "CLI: compozy loop run  +  compozy loop runs show -o json (park read-model: subscriptions, cursors, last_wake_at)"
+    - url: "CLI: compozy loop run + compozy loop status --run-id <run-id> -o json (park read-model: subscriptions, cursors, last_wake_at)"
       origin: direct
     - url: "native compozy__loop_* (author/validate/run/observe entirely through structured surfaces)"
       origin: external-share
@@ -44,7 +44,7 @@ journey:
       expected_observable: "The kind select lists exactly the registry-supported kinds; an unsupported kind or a too-broad filter (e.g. event.post_record without a session_id constraint) is rejected by the shared Go linter, disabling Publish"
     - step: 2
       verb: "Run the loop; it reaches the watch-events node"
-      expected_observable: "The run enters the live watching state at zero cost; run-detail (web + compozy loop runs show -o json) exposes the parked read-model — subscriptions {kind, filter}, cursors, last_wake_at — and renders nothing when absent"
+      expected_observable: "The run enters the live watching state at zero cost; run-detail (web + compozy loop status --run-id <run-id> -o json) exposes the parked read-model — subscriptions {kind, filter}, cursors, last_wake_at — and renders nothing when absent"
     - step: 3
       verb: "A matching durable event commits (a task completes, an automation finishes, a network/coordinator/session event lands)"
       expected_observable: "The doorbell evaluates CEL(event, inputs); a match coalesces one wake and runs a coordinator round over the ledger batch; a non-matching or cross-workspace event never wakes the loop"
@@ -60,7 +60,7 @@ journey:
   abandonment:
     - at_step: 3
       how: "No event of a subscribed kind ever arrives."
-      resume: "The run stays dormant at zero cost — watch-events has NO silence-stall (distinct from J-08); the operator stops it to failed(operator_stop) if no longer wanted."
+      resume: "The run stays dormant at zero cost — watch-events has NO silence-stall (distinct from J-08); the operator cancels it to canceled(operator_cancel) if no longer wanted."
     - at_step: 2
       how: "The daemon is restarted while the run is parked and events commit during downtime."
       resume: "Boot reconcile scans watching runs for ledger-cursor gaps and the scheduler backstop gap-check catches any missed index entry; the run wakes exactly once, never claims."

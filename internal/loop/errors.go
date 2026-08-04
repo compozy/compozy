@@ -26,6 +26,8 @@ var (
 	ErrConcurrencyConflict = errors.New("loop: concurrency conflict")
 	// ErrAncestryRejected reports an invalid run-loop ancestry chain.
 	ErrAncestryRejected = errors.New("loop: ancestry rejected")
+	// ErrStaleGenerationOutput reports an output write fenced by a newer cell epoch.
+	ErrStaleGenerationOutput = errors.New("loop: stale generation output")
 )
 
 // ReasonCode is the deterministic machine-readable failure code surfaced to agents.
@@ -42,12 +44,35 @@ const (
 	ReasonCodeInvalidStatusTransition ReasonCode = "invalid_status_transition"
 	// ReasonCodeTerminalRun reports an operation rejected because the run is already terminal.
 	ReasonCodeTerminalRun ReasonCode = "terminal_loop_run"
+	// ReasonCodeRunTerminal reports a node lifecycle verb rejected by terminal run truth.
+	ReasonCodeRunTerminal ReasonCode = "run_terminal"
+	// ReasonCodeNodeNotPaused reports a resume request against a node that is not paused.
+	ReasonCodeNodeNotPaused ReasonCode = "node_not_paused"
+	// ReasonCodeNodeNotQuarantined reports a requeue request against a node outside quarantine.
+	ReasonCodeNodeNotQuarantined ReasonCode = "node_not_quarantined"
+	// ReasonCodeAlreadyDecided reports a lifecycle compare-and-swap lost to a durable winner.
+	ReasonCodeAlreadyDecided ReasonCode = "already_decided"
 	// ReasonCodeStartKindNotAllowed reports a start surface missing from the loop definition allowlist.
 	ReasonCodeStartKindNotAllowed ReasonCode = "start_kind_not_allowed"
 	// ReasonCodeStartInputInvalid reports invalid static or mapped start inputs.
 	ReasonCodeStartInputInvalid ReasonCode = "start_input_invalid"
 	// ReasonCodeStartInputMappingInvalid reports invalid or unresolvable input_mapping entries.
 	ReasonCodeStartInputMappingInvalid ReasonCode = "start_input_mapping_invalid"
+)
+
+const (
+	// ReasonMetaActualState names the durable state that rejected a lifecycle verb.
+	ReasonMetaActualState = "actual_state"
+	// ReasonMetaAllowedTransitions lists the valid next lifecycle verbs as a comma-separated value.
+	ReasonMetaAllowedTransitions = "allowed_transitions"
+	// ReasonMetaWinnerActorKind attributes a winning concurrent lifecycle mutation.
+	ReasonMetaWinnerActorKind = "winner_actor_kind"
+	// ReasonMetaWinnerActorID identifies the winning concurrent lifecycle actor.
+	ReasonMetaWinnerActorID = "winner_actor_id"
+	// ReasonMetaWinnerReason carries the bounded reason recorded by the winning mutation.
+	ReasonMetaWinnerReason = "winner_reason"
+	// ReasonMetaWinnerRequestedAt carries the winning mutation timestamp in RFC3339Nano form.
+	ReasonMetaWinnerRequestedAt = "winner_requested_at"
 )
 
 // ReasonError carries a deterministic reason code while preserving errors.Is.

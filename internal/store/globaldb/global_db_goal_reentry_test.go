@@ -21,6 +21,8 @@ func TestGlobalDBReactivateGoalRunShouldEnqueueOneEpochScopedSuccessor(t *testin
 		globalDB := openLoopTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 7, 10, 20, 0, 0, 0, time.UTC)
+		resumeAt := now.Add(3 * time.Minute)
+		globalDB.now = func() time.Time { return resumeAt }
 		loopRun, err := globalDB.CreateLoopRunForStart(
 			ctx,
 			testLoopRun("looprun-goal-reentry", now, looppkg.StatusRunning),
@@ -36,7 +38,7 @@ func TestGlobalDBReactivateGoalRunShouldEnqueueOneEpochScopedSuccessor(t *testin
 		}
 		initialRunID := looppkg.GoalSegmentRunID(loopRun.ID, 1, "converge", 0, 1)
 		metadata := json.RawMessage(
-			`{"generation":1,"node_id":"converge","item_index":0,"goal_segment_epoch":1}`,
+			`{"generation":1,"node_id":"converge","item_index":0,"attempt":1,"epoch":0,"goal_segment_epoch":1}`,
 		)
 		reservation := queuedRunReservationForTest(
 			taskRecord.ID,
@@ -55,10 +57,11 @@ func TestGlobalDBReactivateGoalRunShouldEnqueueOneEpochScopedSuccessor(t *testin
 			ctx,
 			`INSERT INTO loop_generation_outputs (
 				loop_run_id, generation, node_id, item_index, status, task_run_id,
-				goal_status, goal_turns_used, goal_turn_limit
-			) VALUES (?, 1, 'converge', 0, 'enqueued', ?, 'active', 2, 10)`,
+				goal_status, goal_turns_used, goal_turn_limit, first_scheduled_at
+			) VALUES (?, 1, 'converge', 0, 'enqueued', ?, 'active', 2, 10, ?)`,
 			string(loopRun.ID),
 			initialRunID,
+			now.Add(-time.Minute),
 		); err != nil {
 			t.Fatalf("insert Goal generation output error = %v", err)
 		}
@@ -293,7 +296,16 @@ func TestGlobalDBReactivateGoalRunShouldEnqueueOneEpochScopedSuccessor(t *testin
 		if err != nil {
 			t.Fatalf("GetLoopRunByID() error = %v", err)
 		}
-		if storedRun.Status != looppkg.StatusRunning || storedRun.ActiveGateID != "" {
+		var firstScheduledAt time.Time
+		if err := globalDB.db.QueryRowContext(ctx, `SELECT first_scheduled_at
+			FROM loop_generation_outputs WHERE loop_run_id = ? AND generation = 1
+			AND node_id = 'converge' AND item_index = 0`, loopRun.ID).Scan(&firstScheduledAt); err != nil {
+			t.Fatalf("read Goal reentry clock error = %v", err)
+		}
+		parkedFor := resumeAt.Sub(now.Add(time.Second))
+		if storedRun.Status != looppkg.StatusRunning || storedRun.ActiveGateID != "" ||
+			!storedRun.StartedAt.Equal(now.Add(parkedFor)) ||
+			!firstScheduledAt.Equal(now.Add(-time.Minute).Add(parkedFor)) {
 			t.Fatalf("Run after reentry = %#v", storedRun)
 		}
 	})

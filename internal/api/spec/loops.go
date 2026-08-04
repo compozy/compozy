@@ -241,7 +241,7 @@ func putLoopAnnotationsOperation() OperationSpec {
 }
 
 func loopRuntimeOperations() []OperationSpec {
-	return []OperationSpec{
+	operations := []OperationSpec{
 		loopOperation(
 			httpMethodGet,
 			loopRunsPath(),
@@ -274,7 +274,6 @@ func loopRuntimeOperations() []OperationSpec {
 				internalError(),
 			},
 		),
-		loopRunMutationOperation("stopLoopRun", "Stop one Loop run", "/stop"),
 		loopRunMutationOperation("pauseLoopRun", "Pause one Loop run", "/pause"),
 		loopRunMutationOperation("resumeLoopRun", "Resume one Loop run", "/resume"),
 		loopOperation(
@@ -296,6 +295,7 @@ func loopRuntimeOperations() []OperationSpec {
 		),
 		loopRunEventsOperation(),
 	}
+	return append(operations, loopNodeLifecycleOperations()...)
 }
 
 func loopRunEventsOperation() OperationSpec {
@@ -388,6 +388,10 @@ func loopRunMutationOperation(operationID string, summary string, suffix string)
 	)
 }
 
+func loopRunIDParam() ParameterSpec {
+	return pathParam("run_id", "Loop run id")
+}
+
 func loopsPath() string {
 	return specAPILoopsPath
 }
@@ -410,10 +414,6 @@ func workspaceIDParam() ParameterSpec {
 
 func loopNameParam() ParameterSpec {
 	return pathParam("name", "Loop name")
-}
-
-func loopRunIDParam() ParameterSpec {
-	return pathParam("run_id", "Loop run id")
 }
 
 func ok(body any) ResponseSpec {

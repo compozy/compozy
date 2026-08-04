@@ -32,6 +32,27 @@ func TestDefinitionShouldNormalizeAndValidateHeader(t *testing.T) {
 		}
 	})
 
+	t.Run("Should normalize nested node bodies and contracts", func(t *testing.T) {
+		t.Parallel()
+
+		node := dsl.Node{
+			ID: "sub", Class: dsl.NodeClassControl, Kind: string(dsl.ControlSubLoop),
+			Body: &dsl.Graph{Nodes: []dsl.Node{{
+				ID: "nested", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform),
+			}}},
+			Contract: &dsl.Contract{},
+		}
+		node.Normalize()
+		if node.Body == nil || node.Body.Nodes == nil || node.Body.Edges == nil ||
+			node.Body.Nodes[0].NodeLifecycleState == nil {
+			t.Fatalf("Normalize() nested body = %#v, want stable graph and node lifecycle", node.Body)
+		}
+		if node.Contract == nil || node.Contract.ContractLifecycleState == nil ||
+			node.Contract.Constraints == nil || node.Contract.TerminalStates == nil {
+			t.Fatalf("Normalize() nested contract = %#v, want stable lifecycle collections", node.Contract)
+		}
+	})
+
 	t.Run("Should reject wrong apiVersion", func(t *testing.T) {
 		t.Parallel()
 

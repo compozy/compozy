@@ -185,7 +185,12 @@ func TestGlobalDBSessionInputQueueGeneration(t *testing.T) {
 		if consumed.ID != "steer-new" || consumed.Status != store.SessionInputQueueStatusDispatching {
 			t.Fatalf("consumed = %#v, want dispatching steer-new", consumed)
 		}
-		if err := globalDB.MarkSessionInputSent(ctx, sessionID, consumed.ID, now.Add(3500*time.Millisecond)); err != nil {
+		if err := globalDB.MarkSessionInputSent(
+			ctx,
+			sessionID,
+			consumed.ID,
+			now.Add(3500*time.Millisecond),
+		); err != nil {
 			t.Fatalf("MarkSessionInputSent(steer) error = %v", err)
 		}
 		consumed, ok, err = globalDB.ClaimNextSessionInput(ctx, sessionID, now.Add(4*time.Second))
@@ -397,7 +402,11 @@ func TestGlobalDBSessionInputQueueGeneration(t *testing.T) {
 			t.Fatalf("ReplaceSessionInput(replay) error = %v", err)
 		}
 		if replayCreated || replayed.ID != replacement.ID {
-			t.Fatalf("ReplaceSessionInput(replay) = %#v/%t, want same identity without creation", replayed, replayCreated)
+			t.Fatalf(
+				"ReplaceSessionInput(replay) = %#v/%t, want same identity without creation",
+				replayed,
+				replayCreated,
+			)
 		}
 		conflictingRequest := replacementRequest
 		conflictingRequest.Text = "different replacement"

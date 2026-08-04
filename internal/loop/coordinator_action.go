@@ -13,13 +13,6 @@ import (
 	"github.com/compozy/compozy/internal/tools"
 )
 
-type coordinatorActionRunMetadata struct {
-	Generation       int    `json:"generation"`
-	NodeID           string `json:"node_id"`
-	ItemIndex        int    `json:"item_index"`
-	GoalSegmentEpoch int64  `json:"goal_segment_epoch,omitempty"`
-}
-
 type coordinatorActionRunContext struct {
 	loopRun   Run
 	resolved  *ResolvedDefinition
@@ -58,12 +51,7 @@ func (r *CoordinatorRunner) ExecuteActionRun(
 	if err != nil {
 		return task.RunResult{}, err
 	}
-	outputs, err := r.outputs.ListGenerationOutputs(
-		ctx,
-		actionCtx.loopRun.WorkspaceID,
-		actionCtx.loopRun.ID,
-		actionCtx.meta.Generation,
-	)
+	outputs, err := r.readActionGenerationOutputs(ctx, &actionCtx)
 	if err != nil {
 		return task.RunResult{}, err
 	}
@@ -85,6 +73,10 @@ func (r *CoordinatorRunner) ExecuteActionRun(
 	if err != nil {
 		return task.RunResult{}, err
 	}
+	input.RetryFailure, err = r.actionRetryFailure(ctx, actionCtx.loopRun, actionCtx.meta)
+	if err != nil {
+		return task.RunResult{}, err
+	}
 	input.UsageReporter = actionUsageReporterFromContext(ctx)
 	if input.RuntimeSelection == nil {
 		input.RuntimeSelection = &ActionRuntimeSelection{}
@@ -103,7 +95,30 @@ func (r *CoordinatorRunner) ExecuteActionRun(
 	if err != nil {
 		return task.RunResult{}, err
 	}
+	if err := r.admitActionTarget(ctx, taskRun.ID, actionCtx.node, input); err != nil {
+		return task.RunResult{}, err
+	}
 	return executeActionTaskRun(ctx, executor, actionCtx.node, input)
+}
+
+func (r *CoordinatorRunner) readActionGenerationOutputs(
+	ctx context.Context,
+	actionCtx *coordinatorActionRunContext,
+) ([]GenerationOutput, error) {
+	outputs, err := r.outputs.ListGenerationOutputs(
+		ctx,
+		actionCtx.loopRun.WorkspaceID,
+		actionCtx.loopRun.ID,
+		actionCtx.meta.Generation,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return generationOutputRuntimeView(ctx, r.outputs, generationOutputRuntimeScope{
+		workspaceID: actionCtx.loopRun.WorkspaceID,
+		runID:       actionCtx.loopRun.ID,
+		generation:  actionCtx.meta.Generation,
+	}, outputs)
 }
 
 func (r *CoordinatorRunner) resolvePinnedActionExecutor(
@@ -179,15 +194,86 @@ func (r *CoordinatorRunner) ActionRunTimeout(
 	ctx context.Context,
 	taskRun task.Run,
 ) (time.Duration, bool, error) {
+	limit, err := r.actionRunLimit(ctx, taskRun)
+	return limit.duration, limit.enabled, err
+}
+
+// ActionRunTimeoutReason returns the failure code selected by the same
+// deterministic timeout/deadline calculation as ActionRunTimeout.
+func (r *CoordinatorRunner) ActionRunTimeoutReason(
+	ctx context.Context,
+	taskRun task.Run,
+) (string, error) {
+	limit, err := r.actionRunLimit(ctx, taskRun)
+	return limit.reasonCode, err
+}
+
+type actionRunLimit struct {
+	duration   time.Duration
+	enabled    bool
+	reasonCode string
+}
+
+func (r *CoordinatorRunner) actionRunLimit(
+	ctx context.Context,
+	taskRun task.Run,
+) (actionRunLimit, error) {
 	actionCtx, err := r.resolveActionRun(ctx, taskRun)
 	if err != nil {
-		return 0, false, err
+		return actionRunLimit{}, err
 	}
-	timeout, err := parseActionTimeout(actionCtx.node.Timeout)
+	outputs, err := r.outputs.ListGenerationOutputs(
+		ctx, actionCtx.loopRun.WorkspaceID, actionCtx.loopRun.ID, actionCtx.meta.Generation,
+	)
 	if err != nil {
-		return 0, false, err
+		return actionRunLimit{}, err
 	}
-	return timeout, timeout > 0, nil
+	output, _ := generationOutputForActionMetadata(outputs, actionCtx.meta)
+	return effectiveActionRunLimit(actionCtx.node, actionCtx.effective, output, r.now().UTC())
+}
+
+func effectiveActionRunLimit(
+	node dsl.Node,
+	effective EffectiveConfig,
+	output GenerationOutput,
+	now time.Time,
+) (actionRunLimit, error) {
+	timeout, err := parseActionTimeout(node.Timeout)
+	if err != nil {
+		return actionRunLimit{}, err
+	}
+	limit := actionRunLimit{
+		duration: timeout, enabled: timeout > 0, reasonCode: string(ReasonCodeActionTimeout),
+	}
+	resolved, err := ResolveNodeLifecycleConfig(node, nil, effective.Lifecycle)
+	if err != nil {
+		return actionRunLimit{}, err
+	}
+	if resolved.Deadline == nil || output.FirstScheduledAt == nil {
+		return limit, nil
+	}
+	remaining := output.FirstScheduledAt.UTC().Add(*resolved.Deadline).Sub(now.UTC())
+	if remaining <= 0 {
+		remaining = time.Nanosecond
+	}
+	if !limit.enabled || remaining <= limit.duration {
+		limit.duration = remaining
+		limit.enabled = true
+		limit.reasonCode = string(FailureBudgetExhausted)
+	}
+	return limit, nil
+}
+
+func generationOutputForActionMetadata(
+	outputs []GenerationOutput,
+	meta coordinatorActionRunMetadata,
+) (GenerationOutput, bool) {
+	for _, output := range outputs {
+		if output.NodeID == meta.NodeID && output.ItemIndex == meta.ItemIndex {
+			return output, true
+		}
+	}
+	return GenerationOutput{}, false
 }
 
 func (r *CoordinatorRunner) resolveActionRun(
@@ -257,17 +343,20 @@ func actionExecutionInput(
 	if err != nil {
 		return ActionExecutionInput{}, err
 	}
-	return ActionExecutionInput{
-		WorkspaceID:   loopRun.WorkspaceID,
-		LoopRunID:     loopRun.ID,
-		Generation:    meta.Generation,
-		NodeID:        node.ID,
-		ItemIndex:     meta.ItemIndex,
-		Namespace:     namespace,
-		Contract:      &resolved.Definition.Contract,
-		ToolScope:     actionToolScope(loopRun, actor),
-		Actor:         actor,
-		CorrelationID: strings.TrimSpace(taskRun.ID),
+	input := ActionExecutionInput{
+		WorkspaceID:    loopRun.WorkspaceID,
+		LoopRunID:      loopRun.ID,
+		Generation:     meta.Generation,
+		NodeID:         node.ID,
+		ItemIndex:      meta.ItemIndex,
+		Attempt:        meta.Attempt,
+		CellEpoch:      meta.Epoch,
+		RepairFailures: actionRepairFailures(history),
+		Namespace:      namespace,
+		Contract:       &resolved.Definition.Contract,
+		ToolScope:      actionToolScope(loopRun, actor),
+		Actor:          actor,
+		CorrelationID:  strings.TrimSpace(taskRun.ID),
 		RuntimeSelection: &ActionRuntimeSelection{
 			Defaults:    effective.RuntimeDefaults,
 			ConfigRules: cloneRuntimeRules(effective.RuntimeRules),
@@ -280,7 +369,15 @@ func actionExecutionInput(
 		GoalContextNudgeRatio:    new(loopRun.GoalContextNudgeRatio),
 		GoalSegmentEpoch:         meta.GoalSegmentEpoch,
 		NetworkParticipation:     new(loopRun.NetworkSpecSnapshot()),
-	}, nil
+	}
+	if meta.ContinuationKind == deathResumeContinuationKind {
+		input.DeathResume = &DeathResumeContext{
+			SourceTaskRunID: meta.ResumeFromTaskRunID,
+			SourceSessionID: meta.ResumeFromSessionID,
+			Checkpoint:      meta.DeathCheckpoint.Clone(),
+		}
+	}
+	return input, nil
 }
 
 func (r *CoordinatorRunner) resolvedLoopForAction(
@@ -300,33 +397,6 @@ func (r *CoordinatorRunner) resolvedLoopForAction(
 		return nil, EffectiveConfig{}, err
 	}
 	return coordinatorResolvedWithEffectiveConfig(resolved, effective), effective, nil
-}
-
-func parseCoordinatorActionRunMetadata(raw json.RawMessage) (coordinatorActionRunMetadata, error) {
-	var meta coordinatorActionRunMetadata
-	if err := json.Unmarshal(raw, &meta); err != nil {
-		return coordinatorActionRunMetadata{}, fmt.Errorf("loop: decode action task metadata: %w", err)
-	}
-	meta.NodeID = strings.TrimSpace(meta.NodeID)
-	if meta.Generation <= 0 {
-		return coordinatorActionRunMetadata{}, fmt.Errorf("%w: action generation must be positive", ErrValidation)
-	}
-	if meta.NodeID == "" {
-		return coordinatorActionRunMetadata{}, fmt.Errorf("%w: action node_id is required", ErrValidation)
-	}
-	if meta.ItemIndex < 0 {
-		return coordinatorActionRunMetadata{}, fmt.Errorf(
-			"%w: action item_index must be zero or positive",
-			ErrValidation,
-		)
-	}
-	if meta.GoalSegmentEpoch < 0 {
-		return coordinatorActionRunMetadata{}, fmt.Errorf(
-			"%w: action goal_segment_epoch must be zero or positive",
-			ErrValidation,
-		)
-	}
-	return meta, nil
 }
 
 func actionNodeForRun(graph dsl.Graph, nodeID string) (dsl.Node, error) {

@@ -122,7 +122,7 @@ func validateExecutedWatchContracts(
 func referencedWatchEventKinds(graph dsl.Graph) map[hooks.HookEvent]struct{} {
 	kinds := map[hooks.HookEvent]struct{}{}
 	for _, node := range graph.Nodes {
-		for _, subscription := range node.Events {
+		for _, subscription := range nodeWatchEventSubscriptions(node) {
 			kinds[hooks.HookEvent(strings.TrimSpace(subscription.Kind))] = struct{}{}
 		}
 		if node.Body != nil {

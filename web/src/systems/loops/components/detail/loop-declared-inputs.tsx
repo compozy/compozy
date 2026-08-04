@@ -1,7 +1,6 @@
-import { Section } from "@compozy/ui";
-
 import type { LoopInputSchema } from "../../types";
 import { MonoTag } from "../mono-tag";
+import { LoopRailSection } from "../loop-rail-section";
 
 interface LoopDeclaredInputsProps {
   inputs?: LoopInputSchema;
@@ -17,9 +16,15 @@ function formatDefault(value: unknown): string | null {
 /** Right-rail panel: the Loop's declared inputs (name, required, type, default). */
 export function LoopDeclaredInputs({ inputs }: LoopDeclaredInputsProps) {
   const names = inputs ? Object.keys(inputs) : [];
+  const required = names.filter(name => inputs?.[name]?.required).length;
   return (
-    <Section label="Declared inputs" data-testid="loop-declared-inputs">
-      <div className="flex flex-col rounded-lg border border-line bg-canvas-soft">
+    <LoopRailSection
+      data-testid="loop-declared-inputs"
+      defaultOpen
+      gist={`${required} required · ${names.length - required} optional`}
+      title="Inputs"
+    >
+      <div className="flex flex-col">
         {names.length === 0 ? (
           <p className="px-3.5 py-3 text-form-hint text-subtle">This Loop declares no inputs.</p>
         ) : (
@@ -52,6 +57,6 @@ export function LoopDeclaredInputs({ inputs }: LoopDeclaredInputsProps) {
           })
         )}
       </div>
-    </Section>
+    </LoopRailSection>
   );
 }

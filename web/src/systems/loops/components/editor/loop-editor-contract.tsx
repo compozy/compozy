@@ -1,16 +1,24 @@
 import { Field, FieldDescription, FieldLabel, Textarea } from "@compozy/ui";
 
 import type { EditableLoopContractField } from "../../lib/loop-editor-definition";
+import type { FieldPath } from "../../lib/loop-node-schema";
 import type { LoopContract } from "../../types";
+import { LoopEditorContractTerminals } from "./loop-editor-contract-terminals";
 
 interface LoopEditorContractProps {
   contract: LoopContract;
   disabled: boolean;
   onChange: (field: EditableLoopContractField, value: string) => void;
+  onChangePath: (path: FieldPath, value: unknown) => void;
 }
 
 /** Authoring controls for the Loop-level outcome contract, separate from graph-node fields. */
-export function LoopEditorContract({ contract, disabled, onChange }: LoopEditorContractProps) {
+export function LoopEditorContract({
+  contract,
+  disabled,
+  onChange,
+  onChangePath,
+}: LoopEditorContractProps) {
   return (
     <section className="bg-canvas px-4 py-3.5" data-testid="loop-editor-contract">
       <p className="mb-3 text-form-hint leading-relaxed text-subtle">
@@ -40,6 +48,11 @@ export function LoopEditorContract({ contract, disabled, onChange }: LoopEditorC
             className="min-h-20 resize-y"
           />
         </Field>
+        <LoopEditorContractTerminals
+          contract={contract}
+          disabled={disabled}
+          onChangePath={onChangePath}
+        />
       </div>
     </section>
   );

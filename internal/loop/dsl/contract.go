@@ -2,23 +2,26 @@ package dsl
 
 // Contract defines goal, verification, and stop semantics.
 type Contract struct {
-	Goal             string           `json:"goal"                       yaml:"goal"`
-	DefinitionOfDone string           `json:"definition_of_done"         yaml:"definition_of_done"`
-	Constraints      []string         `json:"constraints,omitempty"      yaml:"constraints,omitempty"`
-	Boundaries       []string         `json:"boundaries,omitempty"       yaml:"boundaries,omitempty"`
-	StopWhen         string           `json:"stop_when,omitempty"        yaml:"stop_when,omitempty"`
-	Verification     []GateCriterion  `json:"verification,omitempty"     yaml:"verification,omitempty"`
-	TerminalStates   []TerminalState  `json:"terminal_states,omitempty"  yaml:"terminal_states,omitempty"`
-	IterationCap     int              `json:"iteration_cap"              yaml:"iteration_cap"`
-	NoProgress       NoProgress       `json:"no_progress"                yaml:"no_progress"`
-	Budget           Budget           `json:"budget"                     yaml:"budget"`
-	RuntimeDefaults  *RuntimeDefaults `json:"runtime_defaults,omitempty" yaml:"runtime_defaults,omitempty"`
-	RuntimeRules     []RuntimeRule    `json:"runtime_rules,omitempty"    yaml:"runtime_rules,omitempty"`
-	Extra            map[string]any   `json:"-"                          yaml:",inline"`
+	Goal                    string           `json:"goal"                       yaml:"goal"`
+	DefinitionOfDone        string           `json:"definition_of_done"         yaml:"definition_of_done"`
+	Constraints             []string         `json:"constraints,omitempty"      yaml:"constraints,omitempty"`
+	Boundaries              []string         `json:"boundaries,omitempty"       yaml:"boundaries,omitempty"`
+	StopWhen                string           `json:"stop_when,omitempty"        yaml:"stop_when,omitempty"`
+	Verification            []GateCriterion  `json:"verification,omitempty"     yaml:"verification,omitempty"`
+	IterationCap            int              `json:"iteration_cap"              yaml:"iteration_cap"`
+	NoProgress              NoProgress       `json:"no_progress"                yaml:"no_progress"`
+	Budget                  Budget           `json:"budget"                     yaml:"budget"`
+	RuntimeDefaults         *RuntimeDefaults `json:"runtime_defaults,omitempty" yaml:"runtime_defaults,omitempty"`
+	RuntimeRules            []RuntimeRule    `json:"runtime_rules,omitempty"    yaml:"runtime_rules,omitempty"`
+	*ContractLifecycleState `                                                   yaml:",inline"`
+	Extra                   map[string]any `json:"-"                          yaml:",inline"`
 }
 
 // Normalize gives optional ADR-018 fields empty values when absent.
 func (c *Contract) Normalize() {
+	if c.ContractLifecycleState == nil {
+		c.ContractLifecycleState = &ContractLifecycleState{}
+	}
 	if c.Constraints == nil {
 		c.Constraints = []string{}
 	}
@@ -77,12 +80,20 @@ const (
 	TerminalExhausted TerminalState = "exhausted"
 	// TerminalStalled means progress stopped.
 	TerminalStalled TerminalState = "stalled"
+	// TerminalCanceled means an operator canceled or killed the run.
+	TerminalCanceled TerminalState = "canceled"
 )
 
 // IsKnownTerminalState reports whether value belongs to the closed terminal outcome vocabulary.
 func IsKnownTerminalState(value TerminalState) bool {
 	switch value {
-	case TerminalDone, TerminalNoOp, TerminalBlocked, TerminalFailed, TerminalExhausted, TerminalStalled:
+	case TerminalDone,
+		TerminalNoOp,
+		TerminalBlocked,
+		TerminalFailed,
+		TerminalExhausted,
+		TerminalStalled,
+		TerminalCanceled:
 		return true
 	default:
 		return false

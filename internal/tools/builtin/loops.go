@@ -133,16 +133,100 @@ var loopTools = []toolspkg.Descriptor{
 		[]string{"goal turns", "loop turn audit", "goal history"},
 	),
 	nativeLoopDescriptor(
-		toolspkg.ToolIDLoopStop,
-		"loop_stop",
-		"Loop Stop",
-		"Stop one active Loop run.",
+		toolspkg.ToolIDLoopCancel,
+		"loop_cancel",
+		"Loop Cancel",
+		"Request cooperative cancellation for one active Loop run.",
+		loopRunIDInputSchema,
+		toolspkg.RiskMutating,
+		false,
+		false,
+		[]string{loopKey, descriptorKeywordCancel},
+		[]string{"cancel loop", "cancel loop run"},
+	),
+	nativeLoopDescriptor(
+		toolspkg.ToolIDLoopKill,
+		"loop_kill",
+		"Loop Kill",
+		"Immediately terminalize one active Loop run.",
 		loopRunIDInputSchema,
 		toolspkg.RiskDestructive,
 		false,
 		true,
-		[]string{loopKey, "stop", "destructive"},
-		[]string{"stop loop", "cancel loop run"},
+		[]string{loopKey, "kill", descriptorKeywordDestructive},
+		[]string{"kill loop", "kill loop run"},
+	),
+	nativeLoopDescriptor(
+		toolspkg.ToolIDLoopNodes,
+		"loop_nodes",
+		"Loop Nodes",
+		"List workspace-scoped Loop node state with stable pagination.",
+		loopNodesInputSchema,
+		toolspkg.RiskRead,
+		true,
+		false,
+		[]string{loopKey, "nodes", descriptorKeywordStatus},
+		[]string{"loop nodes", "waiting nodes", "quarantined nodes"},
+	),
+	nativeLoopDescriptor(
+		toolspkg.ToolIDLoopNodePause,
+		"loop_node_pause",
+		"Loop Node Pause",
+		"Pause one authored node across its live cells.",
+		loopNodePauseInputSchema,
+		toolspkg.RiskMutating,
+		false,
+		false,
+		[]string{loopKey, descriptorKeywordNode, "pause"},
+		[]string{"pause loop node"},
+	),
+	nativeLoopDescriptor(
+		toolspkg.ToolIDLoopNodeResume,
+		"loop_node_resume",
+		"Loop Node Resume",
+		"Resume one paused node or admit one manual wait payload.",
+		loopNodeResumeInputSchema,
+		toolspkg.RiskMutating,
+		false,
+		false,
+		[]string{loopKey, descriptorKeywordNode, "resume"},
+		[]string{"resume loop node", "resume loop wait"},
+	),
+	nativeLoopDescriptor(
+		toolspkg.ToolIDLoopNodeCancel,
+		"loop_node_cancel",
+		"Loop Node Cancel",
+		"Request cooperative cancellation for one authored node.",
+		loopNodeMutationInputSchema,
+		toolspkg.RiskMutating,
+		false,
+		false,
+		[]string{loopKey, descriptorKeywordNode, descriptorKeywordCancel},
+		[]string{"cancel loop node"},
+	),
+	nativeLoopDescriptor(
+		toolspkg.ToolIDLoopNodeKill,
+		"loop_node_kill",
+		"Loop Node Kill",
+		"Immediately fence and stop one authored node.",
+		loopNodeMutationInputSchema,
+		toolspkg.RiskDestructive,
+		false,
+		true,
+		[]string{loopKey, descriptorKeywordNode, "kill", descriptorKeywordDestructive},
+		[]string{"kill loop node"},
+	),
+	nativeLoopDescriptor(
+		toolspkg.ToolIDLoopNodeRequeue,
+		"loop_node_requeue",
+		"Loop Node Requeue",
+		"Clear one node quarantine and reserve its next generation.",
+		loopNodeMutationInputSchema,
+		toolspkg.RiskMutating,
+		false,
+		false,
+		[]string{loopKey, descriptorKeywordNode, "requeue"},
+		[]string{"requeue loop node", "clear node quarantine"},
 	),
 	nativeLoopDescriptor(
 		toolspkg.ToolIDLoopPause,
@@ -201,7 +285,7 @@ var loopTools = []toolspkg.Descriptor{
 		toolspkg.RiskDestructive,
 		false,
 		true,
-		[]string{loopKey, "delete", "destructive"},
+		[]string{loopKey, "delete", descriptorKeywordDestructive},
 		[]string{"delete loop", "remove loop definition"},
 	),
 }
@@ -231,6 +315,16 @@ func nativeLoopDescriptor(
 		descriptor.OutputSchema = json.RawMessage(loopStatusOutputSchema)
 	case toolspkg.ToolIDLoopRuns:
 		descriptor.OutputSchema = json.RawMessage(loopRunsOutputSchema)
+	case toolspkg.ToolIDLoopNodes:
+		descriptor.OutputSchema = json.RawMessage(loopNodesOutputSchema)
+	case toolspkg.ToolIDLoopCancel,
+		toolspkg.ToolIDLoopKill,
+		toolspkg.ToolIDLoopNodePause,
+		toolspkg.ToolIDLoopNodeResume,
+		toolspkg.ToolIDLoopNodeCancel,
+		toolspkg.ToolIDLoopNodeKill,
+		toolspkg.ToolIDLoopNodeRequeue:
+		descriptor.OutputSchema = json.RawMessage(loopMutationOutputSchema)
 	}
 	if id == toolspkg.ToolIDLoopApprove {
 		return withRequiredCapabilities(descriptor, "loops.approve")
@@ -250,7 +344,7 @@ const loopListInputSchema = `{
 			"type":"string",
 			"enum":[
 				"queued","running","watching","needs-approval","paused","done",
-				"no-op","blocked","failed","exhausted","stalled"
+				"no-op","blocked","failed","exhausted","stalled","canceled"
 			]
 		},
 		"sort":{"type":"string","enum":["name"]},

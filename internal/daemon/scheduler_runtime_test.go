@@ -363,6 +363,66 @@ func TestSchedulerTaskSourceLoopCoordinatorBackstopShouldDeferAtWorkspaceCapacit
 	}
 }
 
+func TestSchedulerTaskSourceLoopCoordinatorBackstopShouldDeferWhileConsumerLeaseIsActive(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should defer while the coordinator consumer lease is active", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 8, 3, 22, 45, 0, 0, time.UTC)
+		workspaceID := "ws-backstop-active-consumer"
+		db := openDaemonTestGlobalDB(t)
+		if err := db.InsertWorkspace(ctx, workspacepkg.Workspace{
+			ID:        workspaceID,
+			RootDir:   t.TempDir(),
+			Name:      workspaceID,
+			CreatedAt: now,
+			UpdatedAt: now,
+		}); err != nil {
+			t.Fatalf("InsertWorkspace() error = %v", err)
+		}
+		seedCoordinatorBackstopRun(t, db, now, "active-consumer", 0, workspaceID)
+		seedCoordinatorBackstopRun(t, db, now, "active-consumer", 1, workspaceID)
+		if _, err := db.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			Scope:            taskpkg.ScopeWorkspace,
+			WorkspaceID:      workspaceID,
+			RunKind:          taskpkg.RunKindCoordinator,
+			ClaimerSessionID: loopCoordinatorSessionID,
+			LeaseDuration:    taskpkg.DefaultRunLeaseDuration,
+			Now:              now,
+		}); err != nil {
+			t.Fatalf("ClaimNextRun(active coordinator) error = %v", err)
+		}
+		manager, err := taskpkg.NewManager(
+			taskpkg.WithStore(db),
+			taskpkg.WithManagerNow(func() time.Time { return now }),
+		)
+		if err != nil {
+			t.Fatalf("task.NewManager() error = %v", err)
+		}
+		actor, err := taskpkg.DeriveDaemonActorContext("scheduler", "daemon.scheduler")
+		if err != nil {
+			t.Fatalf("DeriveDaemonActorContext() error = %v", err)
+		}
+
+		started, err := (schedulerTaskSource{manager: manager, store: db}).RunLoopCoordinatorBackstop(ctx, now, actor)
+		if err != nil {
+			t.Fatalf("RunLoopCoordinatorBackstop() error = %v", err)
+		}
+		if started != 0 {
+			t.Fatalf("started = %d, want 0 while the coordinator consumer is busy", started)
+		}
+		queued, err := db.ListTaskRunsByStatus(ctx, []taskpkg.RunStatus{taskpkg.TaskRunStatusQueued})
+		if err != nil {
+			t.Fatalf("ListTaskRunsByStatus(queued) error = %v", err)
+		}
+		if got, want := len(queued), 1; got != want {
+			t.Fatalf("queued coordinator runs = %d, want %d deferred run", got, want)
+		}
+	})
+}
+
 func TestSchedulerTaskSourceLoopCoordinatorBackstopShouldRecoverWatchEventsGap(t *testing.T) {
 	t.Parallel()
 
@@ -579,8 +639,286 @@ func TestSchedulerTaskSourceWatchEventsGapRecoveryShouldRequireStoreCapability(t
 	})
 }
 
+func TestSchedulerTaskSourceLoopRetryDueRecovery(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve the retry cursor when a page fails", func(t *testing.T) {
+		t.Parallel()
+
+		sentinel := errors.New("forced retry due page failure")
+		initial := looppkg.RetryDueCursor{
+			NextAttemptAt: time.Date(2026, 8, 2, 19, 0, 0, 0, time.UTC),
+			LoopRunID:     "looprun-initial", Generation: 2, NodeID: "fetch", ItemIndex: 1,
+		}
+		next := looppkg.RetryDueCursor{
+			NextAttemptAt: initial.NextAttemptAt.Add(time.Minute),
+			LoopRunID:     "looprun-next", Generation: 3, NodeID: "publish", ItemIndex: 2,
+		}
+		state := newLoopRetryDueScanState()
+		state.cursor = initial
+		source := schedulerTaskSource{
+			store:            retryDueErrorTaskStore{taskStore: openDaemonTestGlobalDB(t), next: next, err: sentinel},
+			loopRetryDueScan: state,
+		}
+		err := source.enqueueDueLoopRetryWakes(
+			testutil.Context(t),
+			taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "scheduler-test"},
+			initial.NextAttemptAt,
+		)
+		if !errors.Is(err, sentinel) {
+			t.Fatalf("enqueueDueLoopRetryWakes() error = %v, want sentinel", err)
+		}
+		if state.cursor != initial {
+			t.Fatalf("retry cursor = %#v, want unchanged %#v", state.cursor, initial)
+		}
+	})
+
+	t.Run("Should preserve wait cursors when a page fails", func(t *testing.T) {
+		t.Parallel()
+
+		sentinel := errors.New("forced wait page failure")
+		initialDue := looppkg.WaitDueCursor{
+			ResumeAt:  time.Date(2026, 8, 2, 19, 0, 0, 0, time.UTC),
+			LoopRunID: "looprun-due-initial", Generation: 2, NodeID: "wait", ItemIndex: 1,
+		}
+		nextDue := looppkg.WaitDueCursor{
+			ResumeAt:  initialDue.ResumeAt.Add(time.Minute),
+			LoopRunID: "looprun-due-next", Generation: 3, NodeID: "wait", ItemIndex: 2,
+		}
+		dueState := newLoopWaitDueScanState()
+		dueState.cursor = initialDue
+		dueSource := schedulerTaskSource{
+			store: loopWaitDueErrorTaskStore{
+				taskStore: openDaemonTestGlobalDB(t), next: nextDue, err: sentinel,
+			},
+			loopWaitDueScan: dueState,
+		}
+		if err := dueSource.resumeDueLoopWaits(testutil.Context(t), initialDue.ResumeAt); !errors.Is(err, sentinel) {
+			t.Fatalf("resumeDueLoopWaits() error = %v, want sentinel", err)
+		}
+		if dueState.cursor != initialDue {
+			t.Fatalf("wait due cursor = %#v, want unchanged %#v", dueState.cursor, initialDue)
+		}
+
+		initialEscalation := looppkg.WaitEscalationCursor{
+			NextEscalationAt: initialDue.ResumeAt,
+			LoopRunID:        "looprun-escalation-initial", Generation: 2, NodeID: "gate", ItemIndex: 1,
+		}
+		nextEscalation := looppkg.WaitEscalationCursor{
+			NextEscalationAt: initialEscalation.NextEscalationAt.Add(time.Minute),
+			LoopRunID:        "looprun-escalation-next", Generation: 3, NodeID: "gate", ItemIndex: 2,
+		}
+		escalationState := newLoopWaitEscalationScanState()
+		escalationState.cursor = initialEscalation
+		escalationSource := schedulerTaskSource{
+			store: loopWaitEscalationErrorTaskStore{
+				taskStore: openDaemonTestGlobalDB(t), next: nextEscalation, err: sentinel,
+			},
+			loopWaitEscalationScan: escalationState,
+		}
+		if err := escalationSource.escalateDueLoopWaits(
+			testutil.Context(t), initialEscalation.NextEscalationAt,
+		); !errors.Is(err, sentinel) {
+			t.Fatalf("escalateDueLoopWaits() error = %v, want sentinel", err)
+		}
+		if escalationState.cursor != initialEscalation {
+			t.Fatalf("wait escalation cursor = %#v, want unchanged %#v", escalationState.cursor, initialEscalation)
+		}
+	})
+
+	t.Run("Should require admission claim sweeping support", func(t *testing.T) {
+		t.Parallel()
+
+		source := schedulerTaskSource{
+			store: taskStoreWithoutWatchEventsGapWake{taskStore: openDaemonTestGlobalDB(t)},
+		}
+		err := source.sweepLoopAdmissionClaims(testutil.Context(t), time.Now().UTC())
+		if !errors.Is(err, errLoopAdmissionClaimSweeperRequired) {
+			t.Fatalf("sweepLoopAdmissionClaims() error = %v, want %v", err, errLoopAdmissionClaimSweeperRequired)
+		}
+	})
+
+	t.Run("Should reserve and start an epoch-current due retry wake", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 8, 2, 20, 0, 0, 0, time.UTC)
+		db := openDaemonTestGlobalDB(t)
+		workspaceID := "ws-retry-due-backstop"
+		if err := db.InsertWorkspace(ctx, workspacepkg.Workspace{
+			ID: workspaceID, RootDir: t.TempDir(), Name: workspaceID, CreatedAt: now, UpdatedAt: now,
+		}); err != nil {
+			t.Fatalf("InsertWorkspace() error = %v", err)
+		}
+		loopRun := looppkg.Run{
+			ID: "looprun-retry-due-backstop", WorkspaceID: looppkg.WorkspaceID(workspaceID),
+			LoopName: "retry-due-backstop", Status: looppkg.StatusRunning,
+			ReattemptStrategy: looppkg.ReattemptFailedOnly, IterationCap: 50,
+			BudgetOnExceeded: loopdsl.BudgetExceededHalt, CreatedAt: now, LastProgressAt: now,
+		}
+		applyLoopRunPinningForTest(t, &loopRun, now)
+		created, err := db.CreateLoopRunForStart(ctx, loopRun, loopdsl.ConcurrencyAllow)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		actor := schedulerCoordinatorActorContextForTest(t)
+		claim, err := db.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			Scope: taskpkg.ScopeWorkspace, WorkspaceID: workspaceID, RunKind: taskpkg.RunKindCoordinator,
+			ClaimerSessionID: "daemon-loop-retry-seed",
+			ClaimedBy:        &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "loop-coordinator"},
+			LeaseDuration:    time.Minute, Now: now.Add(time.Millisecond),
+		})
+		if err != nil {
+			t.Fatalf("ClaimNextRun(seed) error = %v", err)
+		}
+		firstScheduledAt := now.Add(-time.Minute)
+		nextAttemptAt := now.Add(-time.Second)
+		if _, err := db.CompleteCoordinatorAndEnqueueNext(ctx, taskpkg.CoordinatorCompletion{
+			RunID: claim.Run.ID, ClaimToken: claim.ClaimToken, Actor: actor, Now: now.Add(2 * time.Millisecond),
+			Plan: taskpkg.CoordinatorCompletionPlan{Yield: true, Snapshot: taskpkg.GenerationSnapshot{
+				LoopRunID: string(created.ID), Generation: 1,
+				Payload: looppkg.GenerationSnapshotPayload{Outputs: []looppkg.GenerationOutput{{
+					Generation: 1, NodeID: "fetch", Status: "retrying", Attempt: 1, Epoch: 1,
+					FirstScheduledAt: &firstScheduledAt, NextAttemptAt: &nextAttemptAt,
+				}}},
+			}},
+		}, looppkg.NewStoreFinalizer()); err != nil {
+			t.Fatalf("CompleteCoordinatorAndEnqueueNext(seed) error = %v", err)
+		}
+
+		manager, err := taskpkg.NewManager(
+			taskpkg.WithStore(db),
+			taskpkg.WithCoordinatorRunner(schedulerBackstopCoordinatorRunner{}),
+			taskpkg.WithGenerationStateFinalizer(schedulerBackstopGenerationFinalizer{}),
+			taskpkg.WithCoordinatorTerminalStatusValidator(func(status string) bool {
+				return looppkg.Status(strings.TrimSpace(status)).Valid()
+			}),
+			taskpkg.WithCoordinatorTerminalHookStatusValidator(func(status string) bool {
+				return looppkg.Status(strings.TrimSpace(status)).Terminal()
+			}),
+			taskpkg.WithManagerNow(func() time.Time { return now }),
+		)
+		if err != nil {
+			t.Fatalf("task.NewManager() error = %v", err)
+		}
+		started, err := (schedulerTaskSource{
+			manager: manager, store: db, loopRetryDueScan: newLoopRetryDueScanState(),
+		}).RunLoopCoordinatorBackstop(ctx, now, actor)
+		if err != nil {
+			t.Fatalf("RunLoopCoordinatorBackstop() error = %v", err)
+		}
+		if started != 1 {
+			t.Fatalf("started = %d, want one due retry coordinator", started)
+		}
+		completed, err := db.ListTaskRunsByStatus(ctx, []taskpkg.RunStatus{taskpkg.TaskRunStatusCompleted})
+		if err != nil {
+			t.Fatalf("ListTaskRunsByStatus(completed) error = %v", err)
+		}
+		if !schedulerCompletedRunForLoop(completed, string(created.ID)) {
+			t.Fatalf("completed coordinator runs = %#v, want retry wake completion", completed)
+		}
+	})
+}
+
+func TestLoopRetryTimerShouldUseSharedWakeIdentity(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should fire through the epoch-fenced retry store after its due time", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, 8, 2, 20, 30, 0, 0, time.UTC)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+		store := &recordingLoopRetryTimerStore{calls: make(chan looppkg.RetryDueCell, 1)}
+		armer := newLoopRetryTimerArmer(ctx, store, discardLogger(), func() time.Time { return now })
+		cell := looppkg.RetryDueCell{
+			LoopRunID: "looprun-timer", Generation: 2, NodeID: "fetch", ItemIndex: 1,
+			Attempt: 3, Epoch: 7, NextAttemptAt: now,
+		}
+		spec := taskpkg.CoordinatorTimerSpec{
+			LoopRunID: string(cell.LoopRunID), Generation: cell.Generation, NodeID: string(cell.NodeID),
+			ItemIndex: cell.ItemIndex, Attempt: cell.Attempt, IssuedEpoch: cell.Epoch,
+			FireAt: cell.NextAttemptAt, IdempotencyKey: looppkg.RetryWakeIdempotencyKey(cell),
+		}
+		err := armer.ArmCoordinatorTimer(
+			context.Background(),
+			spec,
+			schedulerCoordinatorActorContextForTest(t),
+		)
+		if err != nil {
+			t.Fatalf("ArmCoordinatorTimer() error = %v", err)
+		}
+		select {
+		case got := <-store.calls:
+			if got != cell {
+				t.Fatalf("timer cell = %#v, want %#v", got, cell)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatal("retry timer did not fire")
+		}
+	})
+}
+
+type recordingLoopRetryTimerStore struct {
+	calls chan looppkg.RetryDueCell
+}
+
+func (s *recordingLoopRetryTimerStore) EnqueueLoopRetryWakeIfCurrent(
+	_ context.Context,
+	_ taskpkg.Origin,
+	cell looppkg.RetryDueCell,
+	_ time.Time,
+) (taskpkg.Run, bool, bool, error) {
+	s.calls <- cell
+	return taskpkg.Run{}, true, true, nil
+}
+
 type taskStoreWithoutWatchEventsGapWake struct {
 	taskStore
+}
+
+type retryDueErrorTaskStore struct {
+	taskStore
+	next looppkg.RetryDueCursor
+	err  error
+}
+
+type loopWaitDueErrorTaskStore struct {
+	taskStore
+	next looppkg.WaitDueCursor
+	err  error
+}
+
+func (s loopWaitDueErrorTaskStore) ResumeDueLoopWaitsPage(
+	context.Context,
+	time.Time,
+	looppkg.WaitDueCursor,
+	int,
+) ([]taskpkg.Run, looppkg.WaitDueCursor, error) {
+	return nil, s.next, s.err
+}
+
+type loopWaitEscalationErrorTaskStore struct {
+	taskStore
+	next looppkg.WaitEscalationCursor
+	err  error
+}
+
+func (s loopWaitEscalationErrorTaskStore) EscalateDueLoopWaitsPage(
+	context.Context,
+	time.Time,
+	looppkg.WaitEscalationCursor,
+	int,
+) (looppkg.WaitEscalationCursor, error) {
+	return s.next, s.err
+}
+
+func (s retryDueErrorTaskStore) EnqueueDueLoopRetryWakesPage(
+	context.Context,
+	taskpkg.Origin,
+	time.Time,
+	looppkg.RetryDueCursor,
+	int,
+) ([]taskpkg.Run, looppkg.RetryDueCursor, error) {
+	return nil, s.next, s.err
 }
 
 func seedCoordinatorBackstopRun(
@@ -649,7 +987,7 @@ func parkSchedulerWatchEventsLoopForTest(
 		Scope:            taskpkg.ScopeWorkspace,
 		WorkspaceID:      workspaceID,
 		RunKind:          taskpkg.RunKindCoordinator,
-		ClaimerSessionID: "daemon-loop-coordinator",
+		ClaimerSessionID: loopCoordinatorSessionID,
 		ClaimedBy:        &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "loop-coordinator"},
 		LeaseDuration:    time.Minute,
 		Now:              now,

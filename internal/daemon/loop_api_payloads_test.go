@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	looppkg "github.com/compozy/compozy/internal/loop"
 )
@@ -37,11 +38,23 @@ func TestLoopGenerationOutputsPayloadShouldProjectAppliedRuntime(t *testing.T) {
 			Model:    looppkg.RuntimeSourceNode, Reasoning: looppkg.RuntimeSourceDefault,
 		},
 	}
-	payload := loopGenerationOutputsPayload([]looppkg.GenerationOutput{{
-		Generation: 1, NodeID: "work", ItemIndex: 2, Status: "succeeded", ResolvedRuntime: &resolved,
-	}})
-	if len(payload) != 1 || payload[0].ResolvedRuntime == nil {
-		t.Fatalf("loopGenerationOutputsPayload() = %#v, want one resolved runtime", payload)
+	nextAttemptAt := time.Date(2026, 8, 2, 18, 0, 0, 0, time.UTC)
+	failureClass := looppkg.FailureTransport
+	payload := loopGenerationOutputsPayload(
+		[]looppkg.GenerationOutput{
+			{Generation: 1, NodeID: "work", ItemIndex: 2, Status: "succeeded", ResolvedRuntime: &resolved},
+			{
+				Generation: 2, NodeID: "retry", Status: "failed", Attempt: 2,
+				NextAttemptAt: &nextAttemptAt,
+			},
+		},
+		[]looppkg.NodeAttempt{{
+			Generation: 2, NodeID: "retry", Attempt: 2, FailureClass: &failureClass,
+			Disposition: looppkg.AttemptRetried,
+		}},
+	)
+	if len(payload) != 2 || payload[0].ResolvedRuntime == nil {
+		t.Fatalf("loopGenerationOutputsPayload() = %#v, want runtime and lifecycle outputs", payload)
 	}
 	runtime := payload[0].ResolvedRuntime
 	if runtime.Provider != "mock" || runtime.Model != "node-model" || runtime.Reasoning != "high" ||
@@ -57,5 +70,20 @@ func TestLoopGenerationOutputsPayloadShouldProjectAppliedRuntime(t *testing.T) {
 		`"source":{"provider":"agent","model":"node","reasoning":"default"}}`
 	if string(encoded) != want {
 		t.Fatalf("resolved runtime JSON = %s, want %s", encoded, want)
+	}
+	legacyEncoded, err := json.Marshal(payload[0])
+	if err != nil {
+		t.Fatalf("json.Marshal(legacy output) error = %v", err)
+	}
+	if strings.Contains(string(legacyEncoded), `"attempt"`) ||
+		strings.Contains(string(legacyEncoded), `"failure_class"`) ||
+		strings.Contains(string(legacyEncoded), `"disposition"`) {
+		t.Fatalf("legacy output JSON = %s, want lifecycle evidence omitted", legacyEncoded)
+	}
+	lifecycle := payload[1]
+	if lifecycle.Attempt != 2 || lifecycle.NextAttemptAt == nil ||
+		lifecycle.FailureClass != string(looppkg.FailureTransport) ||
+		lifecycle.Disposition != string(looppkg.AttemptRetried) {
+		t.Fatalf("lifecycle output = %#v, want durable attempt evidence", lifecycle)
 	}
 }

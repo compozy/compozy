@@ -1,6 +1,6 @@
 ---
 title: Reference grammar
-description: How Loop definitions reference data — the {{ }} value grammar, CEL conditions, the single namespace, and the snake_case ID rule.
+description: How Loop definitions reference data — value templates, CEL conditions, effect context, and the snake_case ID rule.
 ---
 
 A Loop definition wires nodes together by _referencing_ values — a prior node's output, a declared
@@ -9,10 +9,10 @@ chosen by the field, never by the author.
 
 ## Two surfaces, one namespace
 
-| Surface        | Syntax                     | Where it is used                                                                                                                                        |
-| -------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Values**     | Go `text/template` `{{ }}` | Every string-valued field: `params.*`, `file-import.pattern`, gate rubrics, `run-loop.inputs`, `transform.map.*.template`, start `input_mapping` values |
-| **Conditions** | CEL, returning `bool`      | `branch.condition`, `fan-out.filter`, `contract.stop_when`, `watch-events` `events[].filter`                                                            |
+| Surface        | Syntax                     | Where it is used                                                                                                   |
+| -------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| **Values**     | Go `text/template` `{{ }}` | String-valued fields: `params.*`, effect payloads, gate rubrics, `run-loop.inputs`, transforms, and start mappings |
+| **Conditions** | CEL, returning `bool`      | `branch.condition`, `fan-out.filter`, `contract.stop_when`, `watch-events` `events[].filter`                       |
 
 Values interpolate; conditions evaluate. A `branch` never uses `{{ }}`, and a prompt never uses raw
 CEL — the field's type decides.
@@ -53,6 +53,35 @@ against the declared input and output schemas — there is no silent empty-strin
 
 In `{{ }}`, roots take a leading dot (`{{ .inputs.slug }}`, `{{ .item.title }}`); in CEL they do
 not (`inputs.slug`, `item.title`). Node IDs are identical in both.
+
+## Effect templates
+
+Effect `with` and `emit.payload` values use a deliberately smaller namespace: declared `inputs`
+plus the immutable `effect` context captured with the lifecycle transition. In `{{ }}` templates,
+use the leading dot.
+
+| Root                | Contents                                                                                                       |
+| ------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `effect.identity`   | `scope`, `workspace_id`, `loop_name`, `loop_run_id`, `generation`, optional `node_id`, `item_index`, `trigger` |
+| `effect.failure`    | Classified `class`, `code`, `cause`, `hint`, `target`, `retry_after`, and `retry_eligible` when present        |
+| `effect.quarantine` | The sanitized quarantine record when present                                                                   |
+| `effect.attempt`    | `number`, optional `next_attempt_at`, and optional `disposition`                                               |
+| `effect.links`      | `run`, plus node-scoped `resume` and `approval` decision links                                                 |
+
+```yaml
+on_retry:
+  - emit:
+      kind: release.retry_scheduled
+      payload:
+        run_id: "{{ .effect.identity.loop_run_id }}"
+        node_id: "{{ .effect.identity.node_id }}"
+        attempt: "{{ .effect.attempt.number }}"
+        retry_at: "{{ .effect.attempt.next_attempt_at }}"
+```
+
+Effect context is recorded before dispatch, secret-redacted, and bounded. It cannot read mutable
+node outputs or change the transition it observes. See
+[Failure handling](/docs/loops/failure-handling#effects-observe-committed-truth) for delivery rules.
 
 ## Cross-generation repair context
 

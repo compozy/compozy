@@ -2,6 +2,7 @@ package loop
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -108,7 +109,7 @@ func evaluateWatchEventsNode(
 		if err != nil {
 			return GenerationOutput{}, nil, err
 		}
-		output.OutputRef = ref
+		setGenerationOutputRef(&output, ref)
 		if control.run.Status == StatusWatching {
 			evaluation.plan.Yield = true
 			return output, nil, nil
@@ -116,12 +117,18 @@ func evaluateWatchEventsNode(
 		return output, watchEventsWaitingTerminal(), nil
 	}
 
-	ref, err := confirmedWatchEventsOutputRef(matches, nextCursors, evaluation.outputBlobs, runtime.now().UTC())
+	ref, runtimePayload, err := confirmedWatchEventsOutputRef(
+		matches,
+		nextCursors,
+		evaluation.outputBlobs,
+		runtime.now().UTC(),
+	)
 	if err != nil {
 		return GenerationOutput{}, nil, err
 	}
 	output.Status = generationOutputSucceeded
-	output.OutputRef = ref
+	setGenerationOutputRef(&output, ref)
+	output.runtimePayload = runtimePayload
 	logWatchEventsEvaluation(runtime, control.run, node, len(rows), len(matches), nextCursors)
 	return output, nil, nil
 }
@@ -266,24 +273,12 @@ func confirmedWatchEventsOutputRef(
 	cursors map[string]int64,
 	outputBlobs *[]GenerationOutputBlob,
 	at time.Time,
-) (string, error) {
+) (string, json.RawMessage, error) {
 	payload, err := watchpkg.EventsConfirmedOutputPayload(events, cursors)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
-	if !OutputPayloadRequiresRef(payload) {
-		return string(payload), nil
-	}
-	if outputBlobs == nil {
-		return "", fmt.Errorf("%w: output blob sink is required", ErrValidation)
-	}
-	ref := OutputRefForPayload(payload)
-	*outputBlobs = append(*outputBlobs, GenerationOutputBlob{
-		OutputRef: ref,
-		Payload:   payload,
-		At:        at,
-	})
-	return ref, nil
+	return generationOutputRefForPayload(payload, outputBlobs, at)
 }
 
 func watchEventsReadMayBeTruncated(readCounts map[string]int, limit int) bool {

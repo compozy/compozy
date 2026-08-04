@@ -52,14 +52,14 @@ func resolveGoalActionControl(
 	switch control.Disposition {
 	case ActionDispositionSucceeded:
 		output.Status = generationOutputSucceeded
-		output.OutputRef = ""
+		setGenerationOutputRef(&output, "")
 		return output, nil, nil
 	case ActionDispositionBlocked, ActionDispositionExhausted:
 		output.Status = generationOutputFailed
-		output.OutputRef = string(control.Cause)
+		setGenerationOutputRef(&output, string(control.Cause))
 	case ActionDispositionPaused, ActionDispositionNeedsApproval:
 		output.Status = generationOutputAwaitingGoal
-		output.OutputRef = ""
+		setGenerationOutputRef(&output, "")
 	}
 	if wasAwaitingGoal && goalControlAlreadySettled(parent.Status, control.Disposition) {
 		return output, nil, nil

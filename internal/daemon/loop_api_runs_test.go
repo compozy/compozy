@@ -95,6 +95,7 @@ func TestDaemonLoopAPIServiceShouldAssembleGenerationDetailFromLineage(t *testin
 
 	score := 0.72
 	rank := 0
+	storedOutputRef := looppkg.OutputRefForPayload([]byte(`{"value":"best"}`))
 	persistence := &loopRunHistoryPersistenceStub{
 		lineage: []looppkg.LoopGeneration{
 			{
@@ -107,7 +108,7 @@ func TestDaemonLoopAPIServiceShouldAssembleGenerationDetailFromLineage(t *testin
 			},
 		},
 		outputs: map[int][]looppkg.GenerationOutput{
-			1: {{Generation: 1, NodeID: "draft", Status: "succeeded", OutputRef: `{"value":"best"}`}},
+			1: {{Generation: 1, NodeID: "draft", Status: "succeeded", OutputRef: storedOutputRef}},
 			3: {{Generation: 3, NodeID: "draft", Status: "pending"}},
 		},
 		verdicts: map[int64][]gate.VerdictRecord{
@@ -139,6 +140,9 @@ func TestDaemonLoopAPIServiceShouldAssembleGenerationDetailFromLineage(t *testin
 	}
 	if len(generations) != 2 || generations[0].Generation != 1 || generations[1].Generation != 3 {
 		t.Fatalf("loopGenerations() = %#v, want exact lineage rows 1 and 3", generations)
+	}
+	if got := generations[0].Outputs[0].OutputRef; got != storedOutputRef {
+		t.Fatalf("generation output_ref = %q, want stored ref %q", got, storedOutputRef)
 	}
 	if generations[1].ParentGeneration != 1 ||
 		generations[1].Origin != contract.LoopGenerationOriginRatchetRestore {
@@ -622,14 +626,32 @@ func (s *loopApprovalAggregateStub) DryRun(
 	return nil, errors.New("unexpected DryRun call")
 }
 
-func (s *loopApprovalAggregateStub) Stop(
+func (s *loopApprovalAggregateStub) CancelRun(
 	context.Context,
 	looppkg.WorkspaceID,
 	looppkg.RunID,
-	looppkg.StopReason,
+	string,
 	task.ActorContext,
 ) error {
-	return errors.New("unexpected Stop call")
+	return errors.New("unexpected CancelRun call")
+}
+
+func (s *loopApprovalAggregateStub) KillRun(
+	context.Context, looppkg.WorkspaceID, looppkg.RunID, string, task.ActorContext,
+) error {
+	return errors.New("unexpected KillRun call")
+}
+
+func (s *loopApprovalAggregateStub) CancelNode(
+	context.Context, looppkg.WorkspaceID, looppkg.RunID, looppkg.NodeID, string, task.ActorContext,
+) error {
+	return errors.New("unexpected CancelNode call")
+}
+
+func (s *loopApprovalAggregateStub) KillNode(
+	context.Context, looppkg.WorkspaceID, looppkg.RunID, looppkg.NodeID, string, task.ActorContext,
+) error {
+	return errors.New("unexpected KillNode call")
 }
 
 func (s *loopApprovalAggregateStub) Pause(

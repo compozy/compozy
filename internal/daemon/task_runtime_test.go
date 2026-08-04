@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -27,6 +28,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/transcript"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -57,7 +59,6 @@ func TestLoopActionRuntimeRetriesWorkspaceCapacityDeferral(t *testing.T) {
 		nil,
 		discardLogger(),
 		func() time.Time { return now },
-		compozyconfig.DefaultTaskActionRunTimeout,
 	)
 	if err != nil {
 		t.Fatalf("newLoopActionRuntime() error = %v", err)
@@ -93,20 +94,17 @@ func TestLoopActionRuntimeRetriesWorkspaceCapacityDeferral(t *testing.T) {
 func TestLoopActionRuntimeEnforcesActionLiveness(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should inherit the configured timeout only when the node omits one", func(t *testing.T) {
+	t.Run("Should return no timeout when the node omits one", func(t *testing.T) {
 		t.Parallel()
 
 		runner := &loopActionLivenessTestRunner{}
-		runtime := &loopActionRuntime{
-			runner:           runner,
-			actionRunTimeout: 30 * time.Minute,
-		}
+		runtime := &loopActionRuntime{runner: runner}
 		got, err := runtime.actionTimeoutForRun(context.Background(), taskpkg.Run{})
 		if err != nil {
 			t.Fatalf("actionTimeoutForRun(unset) error = %v", err)
 		}
-		if got != 30*time.Minute {
-			t.Fatalf("actionTimeoutForRun(unset) = %s, want 30m", got)
+		if got != 0 {
+			t.Fatalf("actionTimeoutForRun(unset) = %s, want no hidden timeout", got)
 		}
 
 		runner.timeout = 45 * time.Second
@@ -128,11 +126,14 @@ func TestLoopActionRuntimeEnforcesActionLiveness(t *testing.T) {
 		}
 	})
 
-	t.Run("Should fail at the absolute default deadline with cumulative usage", func(t *testing.T) {
+	t.Run("Should not turn caller cancellation into a hidden action failure", func(t *testing.T) {
 		t.Parallel()
 
 		manager, taskRecord, run := newLoopActionLivenessTestFixture()
-		runner := &loopActionLivenessTestRunner{tokensUsed: 17}
+		runner := &loopActionLivenessTestRunner{
+			reason:     string(looppkg.FailureBudgetExhausted),
+			tokensUsed: 17,
+		}
 		runtime, err := newLoopActionRuntime(
 			manager,
 			&loopActionCapacityTestStore{taskRecord: taskRecord, run: run},
@@ -140,22 +141,31 @@ func TestLoopActionRuntimeEnforcesActionLiveness(t *testing.T) {
 			nil,
 			discardLogger(),
 			nil,
-			40*time.Millisecond,
 		)
 		if err != nil {
 			t.Fatalf("newLoopActionRuntime() error = %v", err)
 		}
-		runtime.livenessPollInterval = func(time.Duration) time.Duration { return time.Second }
-
-		err = runtime.executeQueuedRun(context.Background(), taskRecord, run, loopActionRuntimeReasonEnqueued)
-		assertLoopActionLivenessFailure(t, manager, err, loopActionReasonNodeTimeout, 17)
+		runtime.heartbeatInterval = func(time.Duration) time.Duration { return 5 * time.Millisecond }
+		runtime.livenessPollInterval = func(time.Duration) time.Duration { return 5 * time.Millisecond }
+		callerCtx, cancel := context.WithTimeout(context.Background(), 40*time.Millisecond)
+		defer cancel()
+		err = runtime.executeQueuedRun(callerCtx, taskRecord, run, loopActionRuntimeReasonEnqueued)
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("executeQueuedRun() error = %v, want caller deadline", err)
+		}
+		if manager.failure.RunID != "" {
+			t.Fatalf("FailRunLease() = %#v, want no persisted hidden-clock failure", manager.failure)
+		}
+		if calls := runner.reasonCalls.Load(); calls != 0 {
+			t.Fatalf("ActionRunTimeoutReason() calls = %d, want 0 without an authored timeout", calls)
+		}
 	})
 
-	t.Run("Should fail on no progress even while lease heartbeats succeed", func(t *testing.T) {
+	t.Run("Should let an authored timeout win over the generic no-progress watchdog", func(t *testing.T) {
 		t.Parallel()
 
 		manager, taskRecord, run := newLoopActionLivenessTestFixture()
-		runner := &loopActionLivenessTestRunner{}
+		runner := &loopActionLivenessTestRunner{timeout: 40 * time.Millisecond, hasTimeout: true}
 		runtime, err := newLoopActionRuntime(
 			manager,
 			&loopActionCapacityTestStore{taskRecord: taskRecord, run: run},
@@ -163,7 +173,28 @@ func TestLoopActionRuntimeEnforcesActionLiveness(t *testing.T) {
 			nil,
 			discardLogger(),
 			nil,
-			200*time.Millisecond,
+		)
+		if err != nil {
+			t.Fatalf("newLoopActionRuntime() error = %v", err)
+		}
+		runtime.livenessPollInterval = func(time.Duration) time.Duration { return time.Millisecond }
+
+		err = runtime.executeQueuedRun(context.Background(), taskRecord, run, loopActionRuntimeReasonEnqueued)
+		assertLoopActionLivenessFailure(t, manager, err, loopActionReasonNodeTimeout, 0)
+	})
+
+	t.Run("Should keep renewing a lease without killing an idle action", func(t *testing.T) {
+		t.Parallel()
+
+		manager, taskRecord, run := newLoopActionLivenessTestFixture()
+		runner := &loopActionLivenessTestRunner{completeAfter: 40 * time.Millisecond}
+		runtime, err := newLoopActionRuntime(
+			manager,
+			&loopActionCapacityTestStore{taskRecord: taskRecord, run: run},
+			runner,
+			nil,
+			discardLogger(),
+			nil,
 		)
 		if err != nil {
 			t.Fatalf("newLoopActionRuntime() error = %v", err)
@@ -172,9 +203,18 @@ func TestLoopActionRuntimeEnforcesActionLiveness(t *testing.T) {
 		runtime.livenessPollInterval = func(time.Duration) time.Duration { return 5 * time.Millisecond }
 
 		err = runtime.executeQueuedRun(context.Background(), taskRecord, run, loopActionRuntimeReasonEnqueued)
-		assertLoopActionLivenessFailure(t, manager, err, loopActionReasonNoProgress, 0)
+		if err != nil {
+			t.Fatalf("executeQueuedRun() error = %v", err)
+		}
 		if manager.heartbeatCalls.Load() == 0 {
-			t.Fatal("HeartbeatRunLease() calls = 0, want successful heartbeats before no-progress failure")
+			t.Fatal("HeartbeatRunLease() calls = 0, want renewal while no activity is observed")
+		}
+		if manager.completedCalls.Load() != 1 || manager.failure.RunID != "" {
+			t.Fatalf(
+				"completion/failure = %d/%#v, want successful completion",
+				manager.completedCalls.Load(),
+				manager.failure,
+			)
 		}
 	})
 
@@ -193,22 +233,170 @@ func TestLoopActionRuntimeEnforcesActionLiveness(t *testing.T) {
 			}},
 		}}}
 
-		activeTool, err := runtime.refreshActionProgress(context.Background(), usage)
+		evidence, err := runtime.refreshActionProgress(context.Background(), usage)
 		if err != nil {
 			t.Fatalf("refreshActionProgress() error = %v", err)
 		}
-		if !activeTool {
-			t.Fatal("refreshActionProgress() activeTool = false, want true")
+		if !evidence {
+			t.Fatal("refreshActionProgress() evidence = false, want transport/activity evidence")
 		}
 		if got := usage.snapshot().progressAt; !got.Equal(activityAt) {
 			t.Fatalf("progressAt = %s, want %s", got, activityAt)
 		}
 
-		current = base.Add(2 * time.Minute)
+		current = base.Add(7 * 24 * time.Hour)
 		usage.ReportActionTokensUsed(9)
 		snapshot := usage.snapshot()
 		if snapshot.tokensUsed != 9 || !snapshot.progressAt.Equal(current) {
 			t.Fatalf("usage snapshot = %#v, want cumulative tokens and advanced progress", snapshot)
+		}
+	})
+
+	t.Run("Should not treat a stalled session without activity as fresh evidence", func(t *testing.T) {
+		t.Parallel()
+
+		base := time.Date(2026, 7, 19, 0, 0, 0, 0, time.UTC)
+		usage := newLoopActionUsageState(func() time.Time { return base })
+		usage.ReportActionSessionBound("sess-stalled")
+		runtime := &loopActionRuntime{sessions: loopActionSessionStatusStub{info: &session.Info{
+			Liveness: &store.SessionLivenessMeta{StallState: store.SessionStallStateDetected},
+		}}}
+
+		evidence, err := runtime.refreshActionProgress(context.Background(), usage)
+		if err != nil {
+			t.Fatalf("refreshActionProgress() error = %v", err)
+		}
+		if evidence {
+			t.Fatal("refreshActionProgress() evidence = true, want stalled session silence")
+		}
+		if got := usage.snapshot().progressAt; !got.Equal(base) {
+			t.Fatalf("progressAt = %s, want unchanged %s", got, base)
+		}
+	})
+
+	t.Run("Should not turn a liveness read failure into silence", func(t *testing.T) {
+		t.Parallel()
+
+		manager, taskRecord, run := newLoopActionLivenessTestFixture()
+		actionStore := &loopActionCapacityTestStore{taskRecord: taskRecord, run: run}
+		runtime, err := newLoopActionRuntime(
+			manager,
+			actionStore,
+			&loopActionLivenessTestRunner{sessionID: "sess-degraded", completeAfter: 40 * time.Millisecond},
+			loopActionSessionStatusStub{err: errors.New("temporary liveness transport failure")},
+			discardLogger(),
+			nil,
+		)
+		if err != nil {
+			t.Fatalf("newLoopActionRuntime() error = %v", err)
+		}
+		runtime.heartbeatInterval = func(time.Duration) time.Duration { return 5 * time.Millisecond }
+		runtime.livenessPollInterval = func(time.Duration) time.Duration { return 5 * time.Millisecond }
+
+		if err := runtime.executeQueuedRun(
+			context.Background(), taskRecord, run, loopActionRuntimeReasonEnqueued,
+		); err != nil {
+			t.Fatalf("executeQueuedRun() error = %v", err)
+		}
+		if got := actionStore.livenessObservationCount(); got != 0 {
+			t.Fatalf("RecordNodeLiveness() calls = %d, want no fabricated observation", got)
+		}
+	})
+
+	t.Run("Should continue only a confirmed crashed session", func(t *testing.T) {
+		t.Parallel()
+
+		manager, taskRecord, run := newLoopActionLivenessTestFixture()
+		run.Metadata = json.RawMessage(`{"generation":1,"node_id":"work","item_index":0,"attempt":1,"epoch":4}`)
+		manager.run = run
+		actionStore := &loopActionCapacityTestStore{
+			taskRecord: taskRecord,
+			run:        run,
+			resumeResult: looppkg.DeadNodeResumeResult{
+				Continued:   true,
+				Run:         taskpkg.Run{ID: "run-loop-liveness-continuation"},
+				IssuedEpoch: 5,
+			},
+		}
+		runnerErr := errors.New("prompt ended after ACP process exit")
+		runner := &loopActionLivenessTestRunner{sessionID: "sess-crashed", executeErr: runnerErr}
+		partialContent, err := transcript.MarshalAgentEvent(acp.AgentEvent{
+			Type: acp.EventTypeAgentMessage, Text: "checkpointed partial before crash",
+		})
+		if err != nil {
+			t.Fatalf("MarshalAgentEvent() error = %v", err)
+		}
+		runtime, err := newLoopActionRuntime(
+			manager,
+			actionStore,
+			runner,
+			loopActionSessionStatusStub{info: &session.Info{
+				State: session.StateStopped, StopReason: store.StopAgentCrashed,
+				Failure: &store.SessionFailure{Kind: store.FailureProcess, Summary: "provider process exited"},
+			}, events: []store.SessionEvent{{
+				SessionID: "sess-crashed", Sequence: 13, Type: acp.EventTypeAgentMessage,
+				Content: `{"malformed":`,
+			}, {
+				SessionID: "sess-crashed", Sequence: 14, Type: acp.EventTypeAgentMessage, Content: partialContent,
+			}}},
+			discardLogger(),
+			func() time.Time { return time.Date(2026, time.August, 3, 6, 0, 0, 0, time.UTC) },
+		)
+		if err != nil {
+			t.Fatalf("newLoopActionRuntime() error = %v", err)
+		}
+		if err := runtime.executeQueuedRun(
+			context.Background(),
+			taskRecord,
+			run,
+			loopActionRuntimeReasonEnqueued,
+		); err != nil {
+			t.Fatalf("executeQueuedRun(crashed) error = %v", err)
+		}
+		if actionStore.resumeCalls.Load() != 1 || actionStore.resumeRequest.TaskRunID != run.ID ||
+			actionStore.resumeRequest.SourceSessionID != "sess-crashed" ||
+			actionStore.resumeRequest.ExpectedEpoch != 4 || actionStore.resumeRequest.DeathStreakLimit != 3 {
+			t.Fatalf("ResumeDeadNode() request = %#v calls=%d, want exact crashed cell",
+				actionStore.resumeRequest, actionStore.resumeCalls.Load())
+		}
+		checkpoint := actionStore.resumeRequest.Checkpoint
+		if checkpoint == nil || checkpoint.EventStartSeq != 13 || checkpoint.EventEndSeq != 14 ||
+			len(checkpoint.Partials) != 1 || checkpoint.Partials[0].Text != "checkpointed partial before crash" {
+			t.Fatalf("death-resume checkpoint = %#v, want malformed event skipped and event 14 preserved", checkpoint)
+		}
+		if manager.completedCalls.Load() != 0 || manager.failure.RunID != "" {
+			t.Fatalf("completion/failure after continuation = %d/%#v, want authority-owned retirement",
+				manager.completedCalls.Load(), manager.failure)
+		}
+	})
+
+	t.Run("Should keep a session status failure on the ordinary failure path", func(t *testing.T) {
+		t.Parallel()
+
+		manager, taskRecord, run := newLoopActionLivenessTestFixture()
+		run.Metadata = json.RawMessage(`{"generation":1,"node_id":"work","item_index":0,"attempt":1,"epoch":4}`)
+		manager.run = run
+		actionStore := &loopActionCapacityTestStore{taskRecord: taskRecord, run: run}
+		runnerErr := errors.New("temporary transport read failure")
+		statusErr := errors.New("session status transport unavailable")
+		runtime, err := newLoopActionRuntime(
+			manager,
+			actionStore,
+			&loopActionLivenessTestRunner{sessionID: "sess-degraded", executeErr: runnerErr},
+			loopActionSessionStatusStub{err: statusErr},
+			discardLogger(),
+			nil,
+		)
+		if err != nil {
+			t.Fatalf("newLoopActionRuntime() error = %v", err)
+		}
+		err = runtime.executeQueuedRun(context.Background(), taskRecord, run, loopActionRuntimeReasonEnqueued)
+		if !errors.Is(err, runnerErr) {
+			t.Fatalf("executeQueuedRun(status failure) error = %v, want ordinary runner failure", err)
+		}
+		if actionStore.resumeCalls.Load() != 0 || manager.failure.RunID != run.ID {
+			t.Fatalf("ambiguous failure resume/failure = %d/%#v, want no death continuation",
+				actionStore.resumeCalls.Load(), manager.failure)
 		}
 	})
 }
@@ -262,8 +450,14 @@ func assertLoopActionLivenessFailure(
 
 type loopActionCapacityTestStore struct {
 	taskpkg.Store
-	taskRecord taskpkg.Task
-	run        taskpkg.Run
+	taskRecord           taskpkg.Task
+	run                  taskpkg.Run
+	resumeCalls          atomic.Int32
+	resumeRequest        looppkg.DeadNodeResumeRequest
+	resumeResult         looppkg.DeadNodeResumeResult
+	resumeErr            error
+	livenessMu           sync.Mutex
+	livenessObservations []looppkg.NodeLivenessObservation
 }
 
 func (s *loopActionCapacityTestStore) GetTask(context.Context, string) (taskpkg.Task, error) {
@@ -272,6 +466,31 @@ func (s *loopActionCapacityTestStore) GetTask(context.Context, string) (taskpkg.
 
 func (s *loopActionCapacityTestStore) GetTaskRun(context.Context, string) (taskpkg.Run, error) {
 	return s.run, nil
+}
+
+func (s *loopActionCapacityTestStore) ResumeDeadNode(
+	_ context.Context,
+	request looppkg.DeadNodeResumeRequest,
+) (looppkg.DeadNodeResumeResult, error) {
+	s.resumeCalls.Add(1)
+	s.resumeRequest = request
+	return s.resumeResult, s.resumeErr
+}
+
+func (s *loopActionCapacityTestStore) RecordNodeLiveness(
+	_ context.Context,
+	observation looppkg.NodeLivenessObservation,
+) error {
+	s.livenessMu.Lock()
+	defer s.livenessMu.Unlock()
+	s.livenessObservations = append(s.livenessObservations, observation)
+	return nil
+}
+
+func (s *loopActionCapacityTestStore) livenessObservationCount() int {
+	s.livenessMu.Lock()
+	defer s.livenessMu.Unlock()
+	return len(s.livenessObservations)
 }
 
 type loopActionCapacityTestManager struct {
@@ -340,6 +559,7 @@ func (*loopActionCapacityTestRunner) ActionRunTimeout(
 
 type loopActionLivenessTestManager struct {
 	heartbeatCalls atomic.Int32
+	completedCalls atomic.Int32
 	failure        taskpkg.LeaseFailure
 	run            taskpkg.Run
 }
@@ -371,6 +591,7 @@ func (m *loopActionLivenessTestManager) CompleteRunLease(
 	taskpkg.LeaseCompletion,
 	taskpkg.ActorContext,
 ) (*taskpkg.Run, error) {
+	m.completedCalls.Add(1)
 	return &m.run, nil
 }
 
@@ -384,10 +605,23 @@ func (m *loopActionLivenessTestManager) FailRunLease(
 }
 
 type loopActionLivenessTestRunner struct {
-	timeout    time.Duration
-	hasTimeout bool
-	timeoutErr error
-	tokensUsed int64
+	timeout       time.Duration
+	hasTimeout    bool
+	timeoutErr    error
+	reason        string
+	reasonCalls   atomic.Int64
+	tokensUsed    int64
+	completeAfter time.Duration
+	sessionID     string
+	executeErr    error
+}
+
+func (r *loopActionLivenessTestRunner) ActionRunTimeoutReason(
+	context.Context,
+	taskpkg.Run,
+) (string, error) {
+	r.reasonCalls.Add(1)
+	return r.reason, nil
 }
 
 func (r *loopActionLivenessTestRunner) ExecuteActionRun(
@@ -395,6 +629,22 @@ func (r *loopActionLivenessTestRunner) ExecuteActionRun(
 	_ taskpkg.Run,
 	_ taskpkg.ActorContext,
 ) (taskpkg.RunResult, error) {
+	if r.sessionID != "" {
+		looppkg.ReportActionSessionBound(ctx, r.sessionID)
+	}
+	if r.executeErr != nil {
+		return taskpkg.RunResult{TokensUsed: r.tokensUsed}, r.executeErr
+	}
+	if r.completeAfter > 0 {
+		timer := time.NewTimer(r.completeAfter)
+		defer timer.Stop()
+		select {
+		case <-timer.C:
+			return taskpkg.RunResult{TokensUsed: r.tokensUsed}, nil
+		case <-ctx.Done():
+			return taskpkg.RunResult{TokensUsed: r.tokensUsed}, ctx.Err()
+		}
+	}
 	<-ctx.Done()
 	return taskpkg.RunResult{TokensUsed: r.tokensUsed}, ctx.Err()
 }
@@ -407,11 +657,21 @@ func (r *loopActionLivenessTestRunner) ActionRunTimeout(
 }
 
 type loopActionSessionStatusStub struct {
-	info *session.Info
+	info   *session.Info
+	events []store.SessionEvent
+	err    error
 }
 
 func (s loopActionSessionStatusStub) Status(context.Context, string) (*session.Info, error) {
-	return s.info, nil
+	return s.info, s.err
+}
+
+func (s loopActionSessionStatusStub) Events(
+	context.Context,
+	string,
+	store.EventQuery,
+) ([]store.SessionEvent, error) {
+	return append([]store.SessionEvent(nil), s.events...), s.err
 }
 
 func seedNonLeasedClaimedRunForDaemonTest(
@@ -1782,7 +2042,9 @@ func TestLoopCoordinatorRunnerShouldPollThroughExtensionRuntime(t *testing.T) {
 				if string(req.Spec) != `{"kind":"reviews","query":"open"}` {
 					t.Fatalf("PollRequest.Spec = %s, want watch spec", string(req.Spec))
 				}
-				return watchpkg.PollResponse{Ready: false, StateDigest: "sha256:daemon"}, nil
+				return watchpkg.PollResponse{
+					Ready: false, EventKey: "reviews:daemon", StateDigest: "sha256:daemon",
+				}, nil
 			},
 		}
 		state := &bootState{

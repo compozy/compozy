@@ -124,23 +124,40 @@ func TestMCPServeCommand(t *testing.T) {
 		}, "\n") + "\n"
 
 		stdin, stdinWriter := io.Pipe()
-		errCh := make(chan error, 1)
+		serveErrCh := make(chan error, 1)
 		go func() {
-			errCh <- runMCPServe(t.Context(), deps, mcpServeOptions{
+			serveErrCh <- runMCPServe(t.Context(), deps, mcpServeOptions{
 				Transport: mcpServeTransportStdio,
 				Stdin:     stdin,
 				Stdout:    &bytes.Buffer{},
 			})
 		}()
-		if _, err := io.WriteString(stdinWriter, requests); err != nil {
-			t.Fatalf("write MCP requests error = %v", err)
-		}
+		writeErrCh := make(chan error, 1)
+		go func() {
+			_, err := io.WriteString(stdinWriter, requests)
+			writeErrCh <- err
+		}()
+
+		writePending := true
 		deadline := time.NewTimer(time.Second)
 		defer deadline.Stop()
 		tick := time.NewTicker(5 * time.Millisecond)
 		defer tick.Stop()
 		for client.invokedWorkspace() == "" {
 			select {
+			case err := <-serveErrCh:
+				if closeErr := stdinWriter.Close(); closeErr != nil {
+					t.Fatalf("stdin close after early server exit error = %v", closeErr)
+				}
+				t.Fatalf("runMCPServe() exited before tool invocation: %v", err)
+			case err := <-writeErrCh:
+				writePending = false
+				if err != nil {
+					if closeErr := stdinWriter.Close(); closeErr != nil {
+						t.Fatalf("stdin close after write error = %v", closeErr)
+					}
+					t.Fatalf("write MCP requests error = %v", err)
+				}
 			case <-deadline.C:
 				if closeErr := stdinWriter.Close(); closeErr != nil {
 					t.Fatalf("stdin close after invocation timeout error = %v", closeErr)
@@ -152,7 +169,12 @@ func TestMCPServeCommand(t *testing.T) {
 		if err := stdinWriter.Close(); err != nil {
 			t.Fatalf("stdin close error = %v", err)
 		}
-		if err := <-errCh; err != nil {
+		if writePending {
+			if err := <-writeErrCh; err != nil {
+				t.Fatalf("write MCP requests error = %v", err)
+			}
+		}
+		if err := <-serveErrCh; err != nil {
 			t.Fatalf("runMCPServe() error = %v", err)
 		}
 		workspaceRefMu.Lock()

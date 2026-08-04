@@ -54,16 +54,22 @@ func (d *Daemon) publishBootState(state *bootState) {
 	d.windowManager = state.windowManager
 	d.sandboxRegistry = state.sandboxRegistry
 	d.skillsRegistry = state.skillsRegistry
-	d.skillsCancel = state.skillsCancel
-	d.skillsDone = state.skillsDone
-	d.loopsCancel = state.loopsCancel
-	d.loopsDone = state.loopsDone
-	d.goalOutboxCancel = state.goalOutboxCancel
-	d.goalOutboxDone = state.goalOutboxDone
+	d.publishBootWorkerState(state)
 	d.startedAt = state.startedAt
 	d.info = state.info
 	if !d.readyClosed {
 		close(d.readyCh)
 		d.readyClosed = true
 	}
+}
+
+func (d *Daemon) publishBootWorkerState(state *bootState) {
+	d.skillsCancel = state.skillsCancel
+	d.skillsDone = state.skillsDone
+	d.loopsCancel = state.loopsCancel
+	d.loopsDone = state.loopsDone
+	d.goalOutboxCancel = state.goalOutboxCancel
+	d.goalOutboxDone = state.goalOutboxDone
+	d.effectRelayCancel = state.effectRelayCancel
+	d.effectRelayDone = state.effectRelayDone
 }

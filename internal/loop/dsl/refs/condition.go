@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/cel-go/cel"
 	celast "github.com/google/cel-go/common/ast"
+	"github.com/google/cel-go/common/types"
 )
 
 const defaultCostLimit uint64 = 10000
@@ -16,6 +17,40 @@ type Condition struct {
 	Raw        string
 	Program    cel.Program
 	References []Reference
+	CostLimit  uint64
+}
+
+// ConditionEvaluation is one pure CEL result with its measured runtime cost.
+type ConditionEvaluation struct {
+	Value       bool
+	Cost        uint64
+	CostWarning bool
+}
+
+// Evaluate executes the compiled condition and reports its measured cost.
+func (c *Condition) Evaluate(variables map[string]any) (ConditionEvaluation, error) {
+	if c == nil || c.Program == nil {
+		return ConditionEvaluation{}, fmt.Errorf("compiled condition is required")
+	}
+	value, details, err := c.Program.Eval(variables)
+	evaluation := ConditionEvaluation{}
+	if details != nil && details.ActualCost() != nil {
+		evaluation.Cost = *details.ActualCost()
+		evaluation.CostWarning = CostWarningThresholdReached(evaluation.Cost, c.CostLimit)
+	}
+	if err != nil {
+		return evaluation, fmt.Errorf("evaluate CEL condition %q: %w", c.Raw, err)
+	}
+	if value != types.True && value != types.False {
+		return evaluation, fmt.Errorf("evaluate CEL condition %q: result is not bool", c.Raw)
+	}
+	evaluation.Value = value == types.True
+	return evaluation, nil
+}
+
+// CostWarningThresholdReached reports the inclusive 80-percent warning boundary.
+func CostWarningThresholdReached(cost, limit uint64) bool {
+	return limit > 0 && cost >= limit-limit/5
 }
 
 // ConditionCompiler compiles CEL expressions over the shared namespace.
@@ -97,7 +132,11 @@ func (c *ConditionCompiler) Compile(raw string) (*Condition, error) {
 			Message: fmt.Sprintf("condition must return bool, got %s", ast.OutputType().String()),
 		}
 	}
-	program, err := c.env.Program(ast, cel.EvalOptions(cel.OptOptimize), cel.CostLimit(c.costLimit))
+	program, err := c.env.Program(
+		ast,
+		cel.EvalOptions(cel.OptOptimize, cel.OptTrackCost),
+		cel.CostLimit(c.costLimit),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("create CEL program: %w", err)
 	}
@@ -105,6 +144,7 @@ func (c *ConditionCompiler) Compile(raw string) (*Condition, error) {
 		Raw:        trimmed,
 		Program:    program,
 		References: references,
+		CostLimit:  c.costLimit,
 	}
 
 	c.mu.Lock()

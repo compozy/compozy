@@ -159,17 +159,18 @@ func newLoopRunActionCommand(deps commandDeps, verb string, short string) *cobra
 			if err != nil {
 				return err
 			}
-			if err := executeLoopRunAction(
+			response, err := executeLoopRunAction(
 				cmd.Context(),
 				client,
 				verb,
 				workspaceID,
 				id,
 				agentCredentialsFromEnv(deps),
-			); err != nil {
+			)
+			if err != nil {
 				return err
 			}
-			return writeLoopMutationOK(cmd, verb, id)
+			return writeCommandOutput(cmd, loopMutationOutputBundle(response, verb))
 		},
 	}
 	addLoopRunIDFlags(cmd, &workspaceRef, &runID)

@@ -94,6 +94,24 @@ func validateJSONSchema(schema dsl.Schema, raw json.RawMessage) error {
 	return nil
 }
 
+// ValidateWaitPayload validates one admitted wait payload against its persisted schema.
+func ValidateWaitPayload(expect json.RawMessage, payload json.RawMessage) error {
+	if len(bytes.TrimSpace(payload)) == 0 || !json.Valid(payload) {
+		return fmt.Errorf("%w: wait payload must be valid JSON", ErrValidation)
+	}
+	if len(bytes.TrimSpace(expect)) == 0 {
+		return nil
+	}
+	var schema dsl.Schema
+	if err := json.Unmarshal(expect, &schema); err != nil {
+		return fmt.Errorf("%w: decode wait schema: %v", ErrValidation, err)
+	}
+	if err := validateJSONSchema(schema, payload); err != nil {
+		return fmt.Errorf("%w: wait payload does not match expect: %v", ErrValidation, err)
+	}
+	return nil
+}
+
 func normalizeLoopSchema(schema dsl.Schema) (map[string]any, error) {
 	normalized, err := normalizeJSONValue(map[string]any(schema))
 	if err != nil {

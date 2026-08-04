@@ -36,6 +36,57 @@ func (g *LoopRepo) reserveLoopCoordinatorRunWithExecutor(
 	)
 }
 
+func (g *LoopRepo) reserveOrReuseOpenLoopCoordinatorRunWithExecutor(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	run looppkg.Run,
+	origin taskpkg.Origin,
+	now time.Time,
+	idempotencyKey string,
+) (taskpkg.Run, error) {
+	coordinator, _, err := g.reserveLoopCoordinatorRunWithExecutor(
+		ctx,
+		exec,
+		run,
+		origin,
+		now,
+		"",
+		idempotencyKey,
+	)
+	if err == nil {
+		return coordinator, nil
+	}
+	if !errors.Is(err, taskpkg.ErrInvalidStatusTransition) {
+		return taskpkg.Run{}, err
+	}
+
+	taskID := loopCoordinatorTaskID(run.ID)
+	openRunID, lookupErr := g.tasks.findOpenRunIDForQueuedRunReservation(ctx, exec, taskID, "")
+	if lookupErr != nil {
+		return taskpkg.Run{}, lookupErr
+	}
+	if openRunID == "" {
+		return taskpkg.Run{}, err
+	}
+	openRun, lookupErr := g.tasks.getTaskRunWithExecutor(ctx, exec, openRunID)
+	if lookupErr != nil {
+		return taskpkg.Run{}, lookupErr
+	}
+	if openRun.TaskID != taskID ||
+		openRun.RunKind.Normalize() != taskpkg.RunKindCoordinator ||
+		openRun.LoopRunID != string(run.ID) ||
+		openRun.WorkspaceID != string(run.WorkspaceID) ||
+		taskpkg.IsTerminalRunStatus(openRun.Status) {
+		return taskpkg.Run{}, fmt.Errorf(
+			"%w: open run %q is not the active coordinator for loop %q",
+			taskpkg.ErrInvalidStatusTransition,
+			openRun.ID,
+			run.ID,
+		)
+	}
+	return openRun, nil
+}
+
 func (g *LoopRepo) ensureLoopCoordinatorTaskWithExecutor(
 	ctx context.Context,
 	exec taskSQLExecutor,

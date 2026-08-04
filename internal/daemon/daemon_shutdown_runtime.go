@@ -37,6 +37,11 @@ func (d *Daemon) shutdownRuntimeWorkers(ctx context.Context, targets shutdownTar
 	)
 	appendWrappedError(
 		errs,
+		"daemon: stop loop effect relay",
+		stopLoopEffectRelay(ctx, targets.effectRelayCancel, targets.effectRelayDone),
+	)
+	appendWrappedError(
+		errs,
 		"daemon: stop Goal session outbox relay",
 		stopGoalSessionOutboxRelay(ctx, targets.goalOutboxCancel, targets.goalOutboxDone),
 	)

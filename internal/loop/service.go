@@ -39,6 +39,7 @@ type service struct {
 	goalRunActivator      GoalRunActivator
 	coordinatorActivator  CoordinatorRunActivator
 	goalLeaseRevoker      GoalPromptLeaseRevoker
+	cancellationSessions  CancellationSessionController
 	participationResolver participation.Resolver
 	runtimeCatalog        WorkspaceRuntimeCatalog
 	logger                *slog.Logger
@@ -339,14 +340,14 @@ func (s *service) ensureAncestry(ctx context.Context, parentID RunID, targetLoop
 func allowedTransition(from Status, to Status, cause TransitionCause) bool {
 	switch from {
 	case StatusQueued:
-		return to == StatusRunning || (to == StatusFailed && cause == TransitionCauseOperatorStop)
+		return to == StatusRunning || cancelTransition(to, cause)
 	case StatusRunning:
 		switch to {
 		case StatusWatching, StatusNeedsApproval, StatusPaused,
 			StatusDone, StatusNoOp, StatusBlocked, StatusFailed, StatusExhausted, StatusStalled:
 			return true
 		default:
-			return false
+			return cancelTransition(to, cause)
 		}
 	case StatusWatching:
 		switch to {
@@ -354,24 +355,28 @@ func allowedTransition(from Status, to Status, cause TransitionCause) bool {
 			StatusDone, StatusNoOp, StatusBlocked, StatusFailed, StatusExhausted, StatusStalled:
 			return true
 		default:
-			return false
+			return cancelTransition(to, cause)
 		}
 	case StatusNeedsApproval:
-		return to == StatusRunning || to == StatusBlocked ||
-			(to == StatusFailed && cause == TransitionCauseOperatorStop)
+		return to == StatusRunning || to == StatusBlocked || cancelTransition(to, cause)
 	case StatusPaused:
-		return to == StatusRunning || (to == StatusFailed && cause == TransitionCauseOperatorStop)
-	case StatusDone, StatusNoOp, StatusBlocked, StatusFailed, StatusExhausted, StatusStalled:
+		return to == StatusRunning || cancelTransition(to, cause)
+	case StatusDone, StatusNoOp, StatusBlocked, StatusFailed, StatusExhausted, StatusStalled, StatusCanceled:
 		return false
 	default:
 		return false
 	}
 }
 
+func cancelTransition(to Status, cause TransitionCause) bool {
+	return to == StatusCanceled &&
+		(cause == TransitionCauseOperatorCancel || cause == TransitionCauseOperatorKill)
+}
+
 // Terminal reports whether the status is terminal.
 func (s Status) Terminal() bool {
 	switch s {
-	case StatusDone, StatusNoOp, StatusBlocked, StatusFailed, StatusExhausted, StatusStalled:
+	case StatusDone, StatusNoOp, StatusBlocked, StatusFailed, StatusExhausted, StatusStalled, StatusCanceled:
 		return true
 	case StatusQueued, StatusRunning, StatusWatching, StatusNeedsApproval, StatusPaused:
 		return false
@@ -389,7 +394,8 @@ func (s Status) Live() bool {
 func (s Status) Valid() bool {
 	switch s {
 	case StatusQueued, StatusRunning, StatusWatching, StatusNeedsApproval, StatusPaused,
-		StatusDone, StatusNoOp, StatusBlocked, StatusFailed, StatusExhausted, StatusStalled:
+		StatusDone, StatusNoOp, StatusBlocked, StatusFailed, StatusExhausted, StatusStalled,
+		StatusCanceled:
 		return true
 	default:
 		return false

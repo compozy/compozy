@@ -140,9 +140,13 @@ func (o *loopNativeHookObserver) OnTaskRunTerminal(
 			OriginKind:                   strings.TrimSpace(payload.OriginKind),
 			OriginRef:                    strings.TrimSpace(payload.OriginRef),
 		},
-		TaskStatus: strings.TrimSpace(payload.TaskStatus),
-		RunStatus:  strings.TrimSpace(payload.RunStatus),
-		Error:      strings.TrimSpace(payload.Error),
+		TaskStatus:   strings.TrimSpace(payload.TaskStatus),
+		RunStatus:    strings.TrimSpace(payload.RunStatus),
+		FailureClass: loopNodeHookFailureClass(payload),
+		Disposition:  loopNodeHookDisposition(payload.RunStatus),
+		Attempt:      payload.Attempt,
+		Target:       strings.TrimSpace(payload.AgentName),
+		Error:        strings.TrimSpace(payload.Error),
 	}
 	if err := o.store.AdvanceLoopRunProgress(ctx, loopRunID, payload.Timestamp); err != nil {
 		errs = append(errs, err)
@@ -315,15 +319,35 @@ func (o *loopNativeHookObserver) dispatchSettledGoalNodeTerminal(
 			OriginKind:                   string(run.Origin.Kind.Normalize()),
 			OriginRef:                    strings.TrimSpace(run.Origin.Ref),
 		},
-		TaskStatus: string(taskRecord.Status.Normalize()),
-		RunStatus:  run.Status.Normalize().String(),
-		Error:      string(control.Cause),
-		Details:    details,
+		TaskStatus:  string(taskRecord.Status.Normalize()),
+		RunStatus:   run.Status.Normalize().String(),
+		Disposition: string(looppkg.AttemptEscalated),
+		Attempt:     int(run.Attempt),
+		Error:       string(control.Cause),
+		Details:     details,
 	}
 	if _, err := o.dispatcher.DispatchLoopNodeTerminal(ctx, nodePayload); err != nil {
 		return fmt.Errorf("dispatch settled Goal loop.node.terminal: %w", err)
 	}
 	return nil
+}
+
+func loopNodeHookFailureClass(payload hookspkg.TaskRunLeasePayload) string {
+	if strings.TrimSpace(payload.Error) == "" {
+		return ""
+	}
+	return string(looppkg.FailurePayloadDeclared)
+}
+
+func loopNodeHookDisposition(status string) string {
+	switch taskpkg.ParseRunStatus(strings.TrimSpace(status)).Normalize() {
+	case taskpkg.TaskRunStatusCompleted:
+		return string(looppkg.AttemptSucceeded)
+	case taskpkg.TaskRunStatusCanceled:
+		return string(looppkg.AttemptCanceled)
+	default:
+		return ""
+	}
 }
 
 func isLoopActionControlEnvelope(raw json.RawMessage) bool {

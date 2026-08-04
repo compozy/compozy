@@ -2,6 +2,7 @@ package loop
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/compozy/compozy/internal/loop/gate"
@@ -10,6 +11,18 @@ import (
 type coordinatorGenerationHistoryReader struct {
 	outputs  GenerationOutputReader
 	verdicts gate.VerdictReader
+	attempts NodeAttemptReader
+}
+
+func (r coordinatorGenerationHistoryReader) ListNodeAttempts(
+	ctx context.Context,
+	workspaceID WorkspaceID,
+	runID RunID,
+) ([]NodeAttempt, error) {
+	if r.attempts == nil {
+		return nil, nil
+	}
+	return r.attempts.ListNodeAttempts(ctx, workspaceID, runID)
 }
 
 func (r coordinatorGenerationHistoryReader) ListGenerationOutputs(
@@ -19,6 +32,13 @@ func (r coordinatorGenerationHistoryReader) ListGenerationOutputs(
 	generation int,
 ) ([]GenerationOutput, error) {
 	return r.outputs.ListGenerationOutputs(ctx, workspaceID, runID, generation)
+}
+
+func (r coordinatorGenerationHistoryReader) GetGenerationOutputPayload(
+	ctx context.Context,
+	key GenerationOutputPayloadKey,
+) (json.RawMessage, error) {
+	return r.outputs.GetGenerationOutputPayload(ctx, key)
 }
 
 func (r coordinatorGenerationHistoryReader) ListGateVerdicts(
@@ -59,7 +79,7 @@ func (r *CoordinatorRunner) readGenerationHistory(
 	}
 	return ReadGenerationHistory(
 		ctx,
-		coordinatorGenerationHistoryReader{outputs: r.outputs, verdicts: r.verdicts},
+		coordinatorGenerationHistoryReader{outputs: r.outputs, verdicts: r.verdicts, attempts: r.attempts},
 		run,
 		generation,
 	)

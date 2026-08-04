@@ -8,6 +8,7 @@ const (
 	ConfigValueBool
 	ConfigValueInt
 	ConfigValueInt64
+	ConfigValueUint64
 	ConfigValueFloat
 	ConfigValueDuration
 	ConfigValueStringSlice

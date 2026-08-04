@@ -1,11 +1,6 @@
 package loop
 
-import (
-	"context"
-	"time"
-
-	"github.com/compozy/compozy/internal/task"
-)
+import "context"
 
 // GoalPromptLease is the neutral identity required to revoke one managed Goal prompt lease.
 type GoalPromptLease struct {
@@ -21,25 +16,6 @@ type GoalPromptLease struct {
 	PromptID       string
 	PromptKind     string
 	JudgeAttemptID string
-}
-
-// GoalRunStopRequest atomically revokes Goal state and transitions its owning Run.
-type GoalRunStopRequest struct {
-	WorkspaceID    WorkspaceID
-	RunID          RunID
-	ExpectedStatus Status
-	Actor          task.ActorContext
-	StoppedAt      time.Time
-}
-
-// GoalRunStopResult carries exact in-memory leases that may be canceled after commit.
-type GoalRunStopResult struct {
-	RevokedPromptLeases []GoalPromptLease
-}
-
-// GoalRunStopStore is the optional atomic Goal-aware Run stop extension.
-type GoalRunStopStore interface {
-	StopGoalRun(context.Context, GoalRunStopRequest) (GoalRunStopResult, error)
 }
 
 // GoalPromptLeaseRevoker cancels one exact in-memory prompt lease after durable revocation commits.

@@ -21,7 +21,7 @@ const loopRunSelectColumnsSQL = `
 	last_progress_at, definition_version, definition_digest, active_gate_id,
 	active_human_criteria_json, budget_approval_seq, start_metadata_json,
 	budget_tokens, budget_wall_sec,
-	budget_on_exceeded, tokens_used, parent_loop_run_id, pause_requested,
+	budget_on_exceeded, tokens_used, parent_loop_run_id, pause_requested, cancel_requested, cancel_kind,
 	control_actor_kind, control_actor_id, control_requested_at, inputs_json, iteration_cap,
 	started_by_kind, started_by_ref, started_origin_kind, started_origin_ref,
 	goal_context_nudge_ratio, origin_kind, origin_session_id,
@@ -53,6 +53,21 @@ func (g *LoopRepo) CreateLoopRunForStart(
 	}
 	created := normalized
 	err = g.withTaskImmediateTransaction(ctx, "create loop run for start", func(exec taskSQLExecutor) error {
+		if normalized.RunStartState != nil && normalized.Admission != nil {
+			suppressed, winner, claim, claimErr := claimLoopAdmission(ctx, exec, normalized, g.now())
+			if claimErr != nil {
+				return claimErr
+			}
+			if suppressed {
+				created = winner
+				created.Admission = &looppkg.RunAdmission{
+					Identity:   normalized.Admission.Identity,
+					Suppressed: true,
+					Claim:      &claim,
+				}
+				return nil
+			}
+		}
 		var decisionErr error
 		created, decisionErr = applyLoopStartConcurrencyPolicy(ctx, exec, normalized, policy)
 		if decisionErr != nil {

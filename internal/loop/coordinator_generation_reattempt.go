@@ -125,6 +125,9 @@ func reattemptRerunSet(
 	switch normalizedStrategy {
 	case ReattemptFullBody:
 		for _, output := range outputs {
+			if GenerationOutputStatusParked(output.Status) {
+				continue
+			}
 			rerun[generationOutputKey{nodeID: output.NodeID, itemIndex: output.ItemIndex}] = struct{}{}
 		}
 		return rerun, nil
@@ -133,6 +136,9 @@ func reattemptRerunSet(
 		return nil, fmt.Errorf("%w: reattempt_strategy is invalid: %q", ErrValidation, strategy)
 	}
 	for _, output := range outputs {
+		if GenerationOutputStatusParked(output.Status) {
+			continue
+		}
 		if output.Status == generationOutputFailed || output.Status == generationOutputPending {
 			rerun[generationOutputKey{nodeID: output.NodeID, itemIndex: output.ItemIndex}] = struct{}{}
 		}
@@ -165,10 +171,26 @@ func addTransitiveDependents(
 			if _, ok := rerun[dependent]; ok {
 				continue
 			}
+			if outputStatusForKey(outputs, dependent, GenerationOutputStatusParked) {
+				continue
+			}
 			rerun[dependent] = struct{}{}
 			queue = append(queue, dependent)
 		}
 	}
+}
+
+func outputStatusForKey(
+	outputs []GenerationOutput,
+	key generationOutputKey,
+	predicate func(string) bool,
+) bool {
+	for _, output := range outputs {
+		if output.NodeID == key.nodeID && output.ItemIndex == key.itemIndex {
+			return predicate(output.Status)
+		}
+	}
+	return false
 }
 
 func dependentOutputKeys(
@@ -218,7 +240,10 @@ func reattemptGenerationOutputs(
 		}
 		carry := current
 		carry.Generation = nextGeneration
-		carry.Status = generationOutputSucceeded
+		if !GenerationOutputStatusParked(carry.Status) {
+			carry.Status = generationOutputSucceeded
+		}
+		carry.ExpectedEpoch = nil
 		next = append(next, carry)
 	}
 	sort.Slice(next, func(i, j int) bool {
@@ -240,5 +265,6 @@ func reattemptPendingOutput(
 		NodeID:     string(node.ID),
 		ItemIndex:  current.ItemIndex,
 		Status:     generationOutputPending,
+		Attempt:    1,
 	}
 }

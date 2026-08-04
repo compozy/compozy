@@ -29,8 +29,13 @@ const (
 	loopConfigureKey  = "configure"
 	loopRunKey        = "run"
 	loopStatusKey     = "status"
+	loopStateKey      = "state"
 	loopTurnsKey      = "turns"
-	loopStopKey       = "stop"
+	loopCancelKey     = "cancel"
+	loopKillKey       = "kill"
+	loopNodeKey       = "node"
+	loopNodesKey      = "nodes"
+	loopRequeueKey    = "requeue"
 	loopPauseKey      = "pause"
 	loopResumeKey     = "resume"
 	loopApproveKey    = "approve"
@@ -43,6 +48,9 @@ func newLoopCommand(deps commandDeps) *cobra.Command {
 		Use:   loopLoopKey,
 		Short: "Manage Loop definitions and runs",
 		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return cmd.Help()
+		},
 	}
 
 	cmd.AddCommand(newLoopListCommand(deps))
@@ -53,9 +61,12 @@ func newLoopCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newLoopStatusCommand(deps))
 	cmd.AddCommand(newLoopRunsCommand(deps))
 	cmd.AddCommand(newLoopTurnsCommand(deps))
-	cmd.AddCommand(newLoopRunActionCommand(deps, loopStopKey, "Stop one Loop run"))
+	cmd.AddCommand(newLoopRunActionCommand(deps, loopCancelKey, "Cancel one Loop run"))
+	cmd.AddCommand(newLoopRunActionCommand(deps, loopKillKey, "Kill one Loop run"))
 	cmd.AddCommand(newLoopRunActionCommand(deps, loopPauseKey, "Pause one Loop run"))
 	cmd.AddCommand(newLoopRunActionCommand(deps, loopResumeKey, "Resume one Loop run"))
+	cmd.AddCommand(newLoopNodeCommand(deps))
+	cmd.AddCommand(newLoopNodesCommand(deps))
 	cmd.AddCommand(newLoopConfigureCommand(deps))
 	cmd.AddCommand(newLoopApproveCommand(deps))
 	cmd.AddCommand(newLoopEditCommand(deps))
@@ -82,8 +93,7 @@ func newLoopInspectCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			summary := fmt.Sprintf("Loop %s v%d", response.Loop.Name, response.Loop.Version)
-			return writeCommandOutput(cmd, loopOutputBundle(response, summary))
+			return writeCommandOutput(cmd, loopInspectOutputBundle(&response))
 		},
 	}
 	cmd.Flags().StringVar(&workspaceRef, loopWorkspaceKey, "", "Override workspace (ID, name, or path)")

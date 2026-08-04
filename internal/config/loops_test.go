@@ -1,7 +1,9 @@
 package config
 
 import (
+	"errors"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -39,6 +41,11 @@ func TestLoopsConfigShouldLoadDefaultsAndOverlays(t *testing.T) {
 			budgetOnExceeded: string(dsl.BudgetExceededHalt),
 			fanOutWidth:      2,
 		})
+		assertLoopLifecycleDefaults(t, "delivery", cfg.Loops.Defaults.Delivery)
+		assertLoopLifecycleDefaults(t, "watch", cfg.Loops.Defaults.Watch)
+		if cfg.Loops.Breaker.Threshold != 5 || cfg.Loops.Breaker.ProbeInterval != "60s" {
+			t.Fatalf("breaker defaults = %#v, want threshold 5 and probe interval 60s", cfg.Loops.Breaker)
+		}
 	})
 
 	t.Run("Should apply global and workspace overlays with zero values preserved", func(t *testing.T) {
@@ -78,6 +85,15 @@ tokens = 100
 wall_clock_sec = 60
 on_exceeded = "escalate"
 
+[loops.defaults.delivery.retry]
+max_attempts = 0
+backoff_base = "2s"
+backoff_max = "45s"
+
+[[loops.defaults.delivery.autopause]]
+match = "class == 'transport'"
+action = "pause"
+
 [loops.defaults.watch]
 iteration_cap = 1
 fan_out_width = 1
@@ -104,6 +120,10 @@ on_exceeded = "halt"
 
 [loops.defaults.delivery.runtime_defaults.worker]
 model = "workspace-worker"
+
+[[loops.defaults.delivery.autopause]]
+match = "attempt >= 2"
+action = "pause"
 
 [[loops.defaults.delivery.runtime_rules]]
 [loops.defaults.delivery.runtime_rules.match]
@@ -158,6 +178,17 @@ fixer = ""
 		if len(rules) != 2 || rules[0].Match.Complexity != "high" ||
 			rules[1].Match.Type != "frontend" || rules[1].Runtime.Model != "workspace-frontend-model" {
 			t.Fatalf("delivery runtime rules = %#v, want ordered global/workspace rules", rules)
+		}
+		if got := cfg.Loops.Defaults.Delivery.Retry; got.MaxAttempts != 0 ||
+			got.BackoffBase != "2s" || got.BackoffMax != "45s" {
+			t.Fatalf("delivery retry = %#v, want explicit zero attempts with inherited bounds", got)
+		}
+		wantAutopause := []LoopAutopauseRule{
+			{Match: "class == 'transport'", Action: "pause"},
+			{Match: "attempt >= 2", Action: "pause"},
+		}
+		if got := cfg.Loops.Defaults.Delivery.Autopause; !reflect.DeepEqual(got, wantAutopause) {
+			t.Fatalf("delivery autopause = %#v, want %#v", got, wantAutopause)
 		}
 		globalInputs, workspaceInputs := cfg.Loops.InputDefaultLayers("review-and-fix")
 		if got, ok := workspaceInputs["auto_commit"]; !ok || got != true {
@@ -230,6 +261,30 @@ func TestLoopsConfigShouldRejectWriteTimeInvalidDefaults(t *testing.T) {
 			value:     "ignore",
 			wantError: "loops.defaults.delivery.budget.on_exceeded",
 		},
+		{
+			name:      "Should reject retry attempts above the lifecycle ceiling",
+			path:      []string{"loops", "defaults", "delivery", "retry", "max_attempts"},
+			value:     11,
+			wantError: "loops.defaults.delivery.retry.max_attempts",
+		},
+		{
+			name:      "Should reject retry backoff bounds in descending order",
+			path:      []string{"loops", "defaults", "watch", "retry", "backoff_base"},
+			value:     "31s",
+			wantError: "loops.defaults.watch.retry.backoff_base",
+		},
+		{
+			name:      "Should reject zero wait admission interval",
+			path:      []string{"loops", "defaults", "delivery", "waits", "admission_retry_interval"},
+			value:     "0s",
+			wantError: "loops.defaults.delivery.waits.admission_retry_interval",
+		},
+		{
+			name:      "Should reject a non-positive global breaker threshold",
+			path:      []string{"loops", "breaker", "threshold"},
+			value:     0,
+			wantError: "loops.breaker.threshold",
+		},
 	}
 
 	for _, tt := range tests {
@@ -253,6 +308,69 @@ func TestLoopsConfigShouldRejectWriteTimeInvalidDefaults(t *testing.T) {
 			}
 			if !strings.Contains(err.Error(), tt.wantError) {
 				t.Fatalf("EditConfigOverlay() error = %v, want path %q", err, tt.wantError)
+			}
+			var validationError ValidationError
+			if !errors.As(err, &validationError) || validationError.Path != tt.wantError {
+				t.Fatalf("EditConfigOverlay() error = %#v, want ValidationError path %q", err, tt.wantError)
+			}
+		})
+	}
+}
+
+func TestLoopsConfigShouldRejectInvalidAutopauseWithoutMutatingRules(t *testing.T) {
+	t.Parallel()
+
+	valid := LoopAutopauseRule{Match: "class == 'transport' && attempt >= 2", Action: "pause"}
+	tests := []struct {
+		name        string
+		invalid     LoopAutopauseRule
+		wantPath    string
+		wantMessage string
+	}{
+		{
+			name:        "Should reject an expression that does not compile",
+			invalid:     LoopAutopauseRule{Match: "unknown == true", Action: "pause"},
+			wantPath:    "loops.defaults.delivery.autopause[1].match",
+			wantMessage: "undeclared reference",
+		},
+		{
+			name:        "Should reject a non boolean expression",
+			invalid:     LoopAutopauseRule{Match: "attempt", Action: "pause"},
+			wantPath:    "loops.defaults.delivery.autopause[1].match",
+			wantMessage: "must return bool",
+		},
+		{
+			name:        "Should reject an unsupported action",
+			invalid:     LoopAutopauseRule{Match: "attempt >= 2", Action: "resume"},
+			wantPath:    "loops.defaults.delivery.autopause[1].action",
+			wantMessage: "must be pause",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := DefaultLoopsConfig()
+			cfg.Defaults.Delivery.Autopause = []LoopAutopauseRule{valid, tt.invalid}
+			before := append([]LoopAutopauseRule(nil), cfg.Defaults.Delivery.Autopause...)
+
+			err := cfg.Validate()
+			if err == nil {
+				t.Fatal("Validate() error = nil, want invalid autopause rule")
+			}
+			var validationError ValidationError
+			if !errors.As(err, &validationError) || validationError.Code != loopAutopauseRuleInvalidCode ||
+				validationError.Path != tt.wantPath || !strings.Contains(validationError.Message, tt.wantMessage) {
+				t.Fatalf(
+					"Validate() error = %#v, want code %q path %q containing %q",
+					err,
+					loopAutopauseRuleInvalidCode,
+					tt.wantPath,
+					tt.wantMessage,
+				)
+			}
+			if got := cfg.Defaults.Delivery.Autopause; !reflect.DeepEqual(got, before) {
+				t.Fatalf("Validate() mutated rules = %#v, want %#v", got, before)
 			}
 		})
 	}
@@ -357,5 +475,21 @@ func assertLoopDefaultConfig(t *testing.T, label string, got LoopDefaultConfig, 
 			got.RuntimeDefaults.Judge.Model,
 			want.judgeModel,
 		)
+	}
+}
+
+func assertLoopLifecycleDefaults(t *testing.T, label string, got LoopDefaultConfig) {
+	t.Helper()
+
+	if got.Retry != (LoopRetryDefaultConfig{MaxAttempts: 3, BackoffBase: "1s", BackoffMax: "30s"}) {
+		t.Fatalf("%s Retry = %#v, want shipped lifecycle defaults", label, got.Retry)
+	}
+	if got.Liveness.SilenceWindow != "30m" || got.Resume.DeathStreakLimit != 3 ||
+		got.Predicates.CostLimit != 10000 || got.Waits.AdmissionAttempts != 3 ||
+		got.Waits.AdmissionRetryInterval != "60s" || got.Admission.TombstoneHorizon != "168h" {
+		t.Fatalf("%s lifecycle defaults = %#v, want shipped values", label, got)
+	}
+	if got.Autopause == nil || len(got.Autopause) != 0 {
+		t.Fatalf("%s Autopause = %#v, want owned empty list", label, got.Autopause)
 	}
 }

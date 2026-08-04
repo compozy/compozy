@@ -11,6 +11,7 @@ import (
 )
 
 const (
+	promptEvidenceQueueEntryIDKey    = "queue_entry_id"
 	promptEvidenceQueueGenerationKey = "queue_generation"
 )
 
@@ -313,8 +314,8 @@ func (m *Manager) stageSteerPrompt(
 	if err != nil {
 		return SendPromptResult{}, err
 	}
-	if err := m.activateInterruptingInput(ctx, session, entry); err != nil {
-		return SendPromptResult{}, m.cleanupInterruptingInputActivationFailure(ctx, entry, err)
+	if err := m.activateInterruptingInput(ctx, session, &entry); err != nil {
+		return SendPromptResult{}, m.cleanupInterruptingInputActivationFailure(ctx, &entry, err)
 	}
 	m.emitTranscriptMarker(
 		ctx,
@@ -352,8 +353,8 @@ func (m *Manager) interruptAndSubmitPrompt(
 	if err != nil {
 		return SendPromptResult{}, err
 	}
-	if err := m.activateInterruptingInput(ctx, session, entry); err != nil {
-		return SendPromptResult{}, m.cleanupInterruptingInputActivationFailure(ctx, entry, err)
+	if err := m.activateInterruptingInput(ctx, session, &entry); err != nil {
+		return SendPromptResult{}, m.cleanupInterruptingInputActivationFailure(ctx, &entry, err)
 	}
 	m.emitTranscriptMarker(
 		ctx,
@@ -364,7 +365,7 @@ func (m *Manager) interruptAndSubmitPrompt(
 		map[string]any{
 			promptEvidenceQueueGenerationKey: entry.SessionGeneration,
 			"canceled_queue_entries":         canceled,
-			"queue_entry_id":                 entry.ID,
+			promptEvidenceQueueEntryIDKey:    entry.ID,
 		},
 	)
 	return SendPromptResult{
@@ -400,7 +401,7 @@ func (m *Manager) currentInputGeneration(ctx context.Context, sessionID string) 
 
 func queueEntryEvidence(entryID string, generation int64, status string, mode string, position int) map[string]any {
 	evidence := map[string]any{
-		"queue_entry_id":                 entryID,
+		promptEvidenceQueueEntryIDKey:    entryID,
 		promptEvidenceQueueGenerationKey: generation,
 		"queue_status":                   status,
 		"mode":                           mode,

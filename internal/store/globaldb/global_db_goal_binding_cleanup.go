@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	goalBindingFailureStopCreationUnsettled = "goal_stop_creation_unsettled"
-	goalBindingFailureStopCreationSettled   = "goal_control_revoked_in_flight"
+	goalBindingFailureStopCreationUnsettled  = "goal_stop_creation_unsettled"
+	goalBindingFailureControlRevokedInFlight = "goal_control_revoked_in_flight"
 )
 
 func closeGoalBindingWithCleanup(
@@ -111,7 +111,7 @@ func (g *GoalRepo) SettleStoppedSessionBindingCreation(
 				return nil
 			}
 			switch binding.FailureCode {
-			case goalBindingFailureStopCreationSettled:
+			case goalBindingFailureControlRevokedInFlight:
 				stopped = true
 				return nil
 			case goalBindingFailureStopCreationUnsettled:
@@ -121,7 +121,7 @@ func (g *GoalRepo) SettleStoppedSessionBindingCreation(
 			affected, err := sqlcgen.New(exec).SettleStoppedGoalBindingCreationForSession(
 				ctx,
 				sqlcgen.SettleStoppedGoalBindingCreationForSessionParams{
-					SettledFailureCode: goalNullableString(goalBindingFailureStopCreationSettled),
+					SettledFailureCode: goalNullableString(goalBindingFailureControlRevokedInFlight),
 					LoopRunID:          string(req.Key.LoopRunID), Handle: req.Key.Handle,
 					BindingEpoch: req.ExpectedBindingEpoch, SessionID: strings.TrimSpace(req.SessionID),
 					UnsettledFailureCode: goalNullableString(goalBindingFailureStopCreationUnsettled),

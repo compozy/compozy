@@ -23,6 +23,8 @@ export type {
   LoopEffectiveConfig,
   LoopInputSchema,
   LoopInputSchemaField,
+  LoopNodeInventoryItem,
+  LoopNodeInventoryState,
   LoopRun,
   LoopRunActionResult,
   LoopRunAggregates,
@@ -52,9 +54,11 @@ export type {
 
 // Adapters
 export {
+  LoopLifecycleConflictError,
   LoopsApiError,
   approveLoopRun,
   buildLoopStreamUrl,
+  cancelLoopRun,
   createLoop,
   deleteLoop,
   getLoop,
@@ -70,7 +74,6 @@ export {
   putLoopConfig,
   resumeLoopRun,
   runLoop,
-  stopLoopRun,
   validateLoop,
 } from "./adapters/loops-api";
 
@@ -82,6 +85,7 @@ export {
   loopConfigOptions,
   loopDetailOptions,
   loopRunDetailOptions,
+  loopNodeInventoryOptions,
   loopRunsOptions,
   loopsCatalogOptions,
 } from "./lib/query-options";
@@ -96,27 +100,23 @@ export type {
 } from "./lib/loop-catalog";
 export {
   UNBOUNDED_CAP,
-  countByKind,
   groupLoopCatalog,
   hasActiveLoopFilters,
   hasHumanGate,
   isUnboundedCap,
   iterationCapLabel,
-  loopCategories,
   loopCategory,
   loopInputCount,
   loopKind,
-  loopStatuses,
   matchesLoopFilter,
   successRateLabel,
 } from "./lib/loop-catalog";
+export { loopFactsSegments } from "./lib/loop-catalog-presentation";
 
-// Listing filter bridge (reui Filters + URL parsers)
-export type { LoopFilterFieldKey, LoopFilterHandlers } from "./lib/loop-list-filters";
+// Listing filter bridge (status options + URL parsers)
+export type { LoopStatusFilterOption } from "./lib/loop-list-filters";
 export {
-  applyLoopFilterChips,
-  buildLoopFilterFields,
-  loopFiltersToChips,
+  loopStatusFilterOptions,
   parseLoopCategoryFilter,
   parseLoopKindFilter,
   parseLoopStatusFilter,
@@ -125,6 +125,16 @@ export {
 // Start-binding helpers
 export type { LoopBindingKind, LoopBindingRow } from "./lib/loop-bindings";
 export { bindingKindLabel, summarizeBindingKinds } from "./lib/loop-bindings";
+export type { LoopStartKinds } from "./lib/loop-start-kinds";
+export { describeStartKinds, RUN_FORM_START_KIND } from "./lib/loop-start-kinds";
+
+// Failure-contract posture (plain-language Spec 1 tiles)
+export type {
+  LoopEffectiveLifecycle,
+  LoopReliabilityIcon,
+  LoopReliabilityTile,
+} from "./lib/loop-reliability";
+export { buildLoopReliability, formatLoopDuration } from "./lib/loop-reliability";
 
 // Read-only graph projection
 export type { LoopGraph, LoopGraphEdge, LoopGraphNode, LoopNodeClass } from "./lib/loop-graph";
@@ -198,6 +208,7 @@ export {
   buildRunKpis,
   formatTokenCount,
   loopBudgetBar,
+  loopRunOriginLine,
   partitionRuns,
 } from "./lib/loop-runs-view";
 
@@ -222,6 +233,7 @@ export {
   clampOverrideValue,
   hasActiveOverrides,
   initialOverrideDraft,
+  summarizeRunLimits,
 } from "./lib/loop-overrides";
 
 // Configure-sheet model
@@ -246,38 +258,50 @@ export {
 } from "./lib/loop-config-draft";
 
 // Run-page model
-export type {
-  LoopRunStory,
-  LoopRunStoryContext,
-  LoopStoryIcon,
-  LoopStoryIssue,
-  LoopStoryNow,
-  LoopStoryRow,
-  LoopStoryTaskLink,
+export {
+  buildNextNote,
+  buildRunStory,
+  type LoopRunStory,
+  type LoopRunStoryContext,
+  type LoopStoryIcon,
+  type LoopStoryIssue,
+  type LoopStoryNow,
+  type LoopStoryRow,
+  type LoopStoryTaskLink,
 } from "./lib/loop-run-story";
-export { buildNextNote, buildRunStory } from "./lib/loop-run-story";
-export type { LoopProgressSegmentState, LoopRunProgressModel } from "./lib/loop-run-progress";
-export { buildRunProgress, latestGateVerdict } from "./lib/loop-run-progress";
-export type { LoopRunUsageRow, LoopUsageKey, LoopUsageTone } from "./lib/loop-run-usage";
+export {
+  buildRunProgress,
+  latestGateVerdict,
+  type LoopProgressSegmentState,
+  type LoopRunProgressModel,
+} from "./lib/loop-run-progress";
 export {
   buildRunUsage,
   deriveCostEstimate,
   formatClockDuration,
+  type LoopRunUsageRow,
+  type LoopUsageKey,
+  type LoopUsageTone,
   runElapsedSeconds,
   usageNote,
   usageSnapshotFacts,
 } from "./lib/loop-run-usage";
-export type { LoopRunInputRow } from "./lib/loop-run-about";
-export { buildInputRows, humanizeStartOrigin, watchedSubject } from "./lib/loop-run-about";
-export type {
-  LoopApprovalFact,
-  LoopApprovalRequest,
-  LoopCoordinatorFailure,
-  LoopGateVerdict,
-  LoopGoalTurnLive,
-  LoopRunLiveState,
+export {
+  buildInputRows,
+  humanizeStartOrigin,
+  type LoopRunInputRow,
+  watchedSubject,
+} from "./lib/loop-run-about";
+export {
+  applyLoopEventFrame,
+  emptyLoopRunLiveState,
+  type LoopApprovalFact,
+  type LoopApprovalRequest,
+  type LoopCoordinatorFailure,
+  type LoopGateVerdict,
+  type LoopGoalTurnLive,
+  type LoopRunLiveState,
 } from "./lib/loop-events";
-export { applyLoopEventFrame, emptyLoopRunLiveState } from "./lib/loop-events";
 
 // Run-page view projection (one derivation path shared by the page hook + fixtures)
 export type { LoopRunPageView, LoopRunPageViewInput } from "./lib/loop-run-page-view";
@@ -310,17 +334,43 @@ export {
 // Mutation hooks
 export {
   useApproveLoopRun,
+  useCancelLoopRun,
   useCreateLoop,
   useDeleteLoop,
   usePatchLoop,
   usePauseLoopRun,
   usePutLoopAnnotations,
   usePutLoopConfig,
+  useKillLoopRun,
   useResumeLoopRun,
   useRunLoop,
-  useStopLoopRun,
   useValidateLoop,
 } from "./hooks/use-loop-actions";
+
+// Node lifecycle (Spec 1). Only what crosses the system boundary lives here;
+// files inside `systems/loops/` import their own modules directly.
+export {
+  useCancelLoopNode,
+  useKillLoopNode,
+  usePauseLoopNode,
+  useRequeueLoopNode,
+  useResumeLoopNode,
+} from "./hooks/use-loop-node-actions";
+export { useLoopNodeInventory } from "./hooks/use-loop-node-inventory";
+export { type LoopNodeLifecycle, projectNodeLifecycles } from "./lib/loop-node-lifecycle";
+export {
+  loopControlAnswer,
+  type LoopNodeVerb,
+  loopNodeWaitResumeItemIndex,
+  loopRunVerbs,
+} from "./lib/loop-node-controls";
+export { buildNodeNowLines } from "./lib/loop-node-now-view";
+export {
+  isLoopNodeInventoryState,
+  LOOP_NODE_INVENTORY_LABELS,
+  LOOP_NODE_INVENTORY_STATES,
+  type LoopNodeInventorySort,
+} from "./lib/loop-node-inventory";
 
 // Run-form view-model hook
 export { useLoopRunForm } from "./hooks/use-loop-run-form";
@@ -345,18 +395,24 @@ export type { LoopStatusPillProps } from "./components/loop-status-pill";
 export { LoopCatalog } from "./components/catalog/loop-catalog";
 export { LoopCatalogCard } from "./components/catalog/loop-catalog-card";
 export { LoopCatalogFilters } from "./components/catalog/loop-catalog-filters";
+export { LoopCatalogLede } from "./components/catalog/loop-catalog-lede";
 export { MonoTag } from "./components/mono-tag";
 export { LoopDetailView } from "./components/detail/loop-detail";
 export { LoopStartBindingsPanel } from "./components/detail/loop-start-bindings-panel";
 export { LoopRunsView } from "./components/runs/loop-runs-view";
+export { LoopNodeInventoryView } from "./components/runs/loop-node-inventory-view";
+export type { LoopNodeInventoryViewProps } from "./components/runs/loop-node-inventory-view";
 export type { LoopOutcomeValue } from "./components/runs/loop-runs-outcome-filter";
 export { LoopTargetFields } from "./components/target/loop-target-fields";
 
 // Run form
 export { LoopRunForm } from "./components/run-form/loop-run-form";
+export { LoopRunActiveNotice } from "./components/run-form/loop-run-active-notice";
+export { LoopRunAfterStart } from "./components/run-form/loop-run-after-start";
 export { LoopRunInputField } from "./components/run-form/loop-run-input-field";
 export { LoopRunOverrides } from "./components/run-form/loop-run-overrides";
 export { LoopRunPreview } from "./components/run-form/loop-run-preview";
+export { LoopRunWaysToStart } from "./components/run-form/loop-run-ways-to-start";
 
 // Configure sheet
 export { LoopConfigureDialog } from "./components/configure/loop-configure-dialog";
@@ -365,6 +421,17 @@ export { LoopConfigureDialog } from "./components/configure/loop-configure-dialo
 export { GoalTurnTimeline } from "./components/run-page/goal-turn-timeline";
 export { LoopRunAboutRail } from "./components/run-page/loop-run-about-rail";
 export { LoopRunControls } from "./components/run-page/loop-run-controls";
+export { LoopNodeRowActions } from "./components/run-page/loop-node-row-actions";
+export {
+  LoopNodeControlDialog,
+  type LoopNodeVerbCommit,
+  type LoopNodeVerbRequest,
+} from "./components/run-page/loop-node-control-dialog";
+export { LoopQuarantineSheet } from "./components/run-page/loop-quarantine-sheet";
+export {
+  LoopRunControlDialog,
+  type LoopRunConfirmVerb,
+} from "./components/run-page/loop-run-control-dialog";
 export { LoopRunInspectSheet } from "./components/run-page/loop-run-inspect-sheet";
 export { LoopRunNeedsYouCard } from "./components/run-page/loop-run-needs-you-card";
 export type { LoopGateDecision } from "./lib/loop-events";

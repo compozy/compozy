@@ -2,7 +2,7 @@ package builtin
 
 const loopStatusOutputSchema = `{
 	"type":"object",
-	"required":["run"],
+	"required":["run","node_controls","waits"],
 	"properties":{
 		"run":{
 			"type":"object",
@@ -27,7 +27,7 @@ const loopStatusOutputSchema = `{
 						"type":"string",
 						"enum":[
 							"initial","stop_when","reattempt","gate_revise",
-							"gate_next_generation","dod_retry","ratchet_restore"
+							"gate_next_generation","dod_retry","ratchet_restore","requeue"
 						]
 					},
 					"verdicts":{
@@ -52,11 +52,13 @@ const loopStatusOutputSchema = `{
 							"additionalProperties":false
 						}
 					},
-					"outputs":{"type":"array","items":{"type":"object"}}
+					"outputs":{"type":"array","items":` + loopGenerationOutputSchema + `}
 				},
 				"additionalProperties":false
 			}
 		},
+		"node_controls":{"type":"array","items":{"type":"object","additionalProperties":true}},
+		"waits":{"type":"array","items":{"type":"object","additionalProperties":true}},
 		"watch_events":{"type":"object"}
 	},
 	"additionalProperties":false

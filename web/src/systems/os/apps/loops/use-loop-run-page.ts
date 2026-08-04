@@ -5,12 +5,17 @@ import { toast } from "@compozy/ui";
 import { useStoreBinding } from "@/hooks/use-store-binding";
 
 import {
+  buildNodeNowLines,
   isTerminalLoopStatus,
   type LoopGateDecision,
+  type LoopNodeLifecycle,
+  loopRunVerbs,
   mergeGoalTurnTimeline,
   projectLoopRunPageView,
   useApproveLoopRun,
+  useCancelLoopRun,
   useGoalTurns,
+  useKillLoopRun,
   useLoop,
   useLoopRun,
   useLoopStream,
@@ -18,7 +23,6 @@ import {
   usePauseLoopRun,
   useResumeLoopRun,
   useRunLoop,
-  useStopLoopRun,
 } from "@/systems/loops";
 import { loopRunPageLogic } from "./use-loop-run-page-state";
 
@@ -67,13 +71,28 @@ export function useLoopRunPage(workspaceId: string, runId: string) {
 
   const pauseMutation = usePauseLoopRun();
   const resumeMutation = useResumeLoopRun();
-  const stopMutation = useStopLoopRun();
+  const cancelMutation = useCancelLoopRun();
+  const killMutation = useKillLoopRun();
   const approveMutation = useApproveLoopRun();
   const runLoopMutation = useRunLoop();
 
   const nowMs = useNowTick(run?.status === "running");
-  const view = run ? projectLoopRunPageView({ run, generations, live, definition, nowMs }) : null;
+  const view = run
+    ? projectLoopRunPageView({
+        run,
+        generations,
+        live,
+        definition,
+        nowMs,
+        nodeControls: runQuery.data?.node_controls,
+        waits: runQuery.data?.waits,
+      })
+    : null;
   const effectiveRun = view?.effectiveRun ?? run;
+  const nodeLifecycles = view?.nodeLifecycles ?? [];
+  const nodesById = new Map<string, LoopNodeLifecycle>(
+    nodeLifecycles.map(node => [node.nodeId, node])
+  );
 
   const handlePause = () => {
     pauseMutation.mutate(
@@ -97,15 +116,31 @@ export function useLoopRunPage(workspaceId: string, runId: string) {
     );
   };
 
-  const handleStop = () => {
-    stopMutation.mutate(
-      { workspaceId, runId },
-      {
-        onSuccess: () => toast.success("Run stopped"),
-        onError: error =>
-          toast.error(error instanceof Error ? error.message : "Failed to stop run"),
-      }
-    );
+  const handleCancel = async (): Promise<boolean> => {
+    try {
+      await cancelMutation.mutateAsync({ workspaceId, runId });
+      toast.success("Cancellation requested");
+      return true;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to cancel run");
+      return false;
+    }
+  };
+
+  const handleKill = async (): Promise<boolean> => {
+    try {
+      await killMutation.mutateAsync({ workspaceId, runId });
+      toast.success("Run killed — in-flight work was stopped immediately");
+      return true;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to kill run");
+      return false;
+    }
+  };
+
+  const resetRunControlErrors = () => {
+    cancelMutation.reset();
+    killMutation.reset();
   };
 
   const handleDecision = (decision: LoopGateDecision, gateId: string) => {
@@ -186,14 +221,38 @@ export function useLoopRunPage(workspaceId: string, runId: string) {
     showNowCard: view?.showNowCard ?? false,
     terminalFromStatus: view?.terminalFromStatus,
     terminalAt: view?.terminalAt,
+    terminalCause: view?.terminalCause,
+    nodeLifecycles,
+    nodesById,
+    nodeNowLines: buildNodeNowLines(nodeLifecycles, view?.graph ?? null, live.retrySchedules),
+    waitingNodes: view?.waitingNodes ?? [],
+    attentionNodes: view?.attentionNodes ?? [],
     handlePause,
     handleResume,
-    handleStop,
+    handleCancel,
+    handleKill,
     handleDecision,
     handleStartNewRun,
     pendingAction,
     isPausePending: pauseMutation.isPending,
     isResumePending: resumeMutation.isPending,
-    isStopPending: stopMutation.isPending,
+    isCancelPending: cancelMutation.isPending,
+    isKillPending: killMutation.isPending,
+    cancelError: cancelMutation.error instanceof Error ? cancelMutation.error.message : undefined,
+    killError: killMutation.error instanceof Error ? killMutation.error.message : undefined,
+    resetRunControlErrors,
+    /** Kill is offerable exactly while the daemon reports a live run. */
+    canKillRun: Boolean(run) && loopRunVerbs(run?.status, false).includes("kill"),
+    // The daemon settles one run verb before the next is offerable, so the
+    // controls read a single in-flight verb rather than four parallel flags.
+    pendingRunVerb: pauseMutation.isPending
+      ? ("pause" as const)
+      : resumeMutation.isPending
+        ? ("resume" as const)
+        : cancelMutation.isPending
+          ? ("cancel" as const)
+          : killMutation.isPending
+            ? ("kill" as const)
+            : undefined,
   };
 }

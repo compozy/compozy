@@ -165,10 +165,13 @@ func newSchedulerRuntime(
 
 	scheduler, err := schedulerpkg.New(
 		schedulerTaskSource{
-			manager:             manager,
-			store:               store,
-			watchEventsGapScan:  newLoopWatchEventsGapScanState(),
-			coordinatorBackstop: tasks.coordinatorBackstop,
+			manager:                manager,
+			store:                  store,
+			watchEventsGapScan:     newLoopWatchEventsGapScanState(),
+			loopRetryDueScan:       newLoopRetryDueScanState(),
+			loopWaitDueScan:        newLoopWaitDueScanState(),
+			loopWaitEscalationScan: newLoopWaitEscalationScanState(),
+			coordinatorBackstop:    tasks.coordinatorBackstop,
 		},
 		schedulerSessionSource{sessions: sessions, situation: situation, logger: logger},
 		waker,

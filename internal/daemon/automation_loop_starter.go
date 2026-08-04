@@ -144,6 +144,7 @@ func (s *automationLoopStarter) StartLoop(
 		StartMetadata:              automationLoopStartMetadata(req),
 		NetworkParticipation:       req.NetworkParticipation,
 		NetworkParticipationSource: participation.SourceAutomationJob,
+		Admission:                  automationLoopAdmission(req),
 	}, req.Actor)
 	if err != nil {
 		if errors.Is(err, looppkg.ErrConcurrencyConflict) {
@@ -151,7 +152,23 @@ func (s *automationLoopStarter) StartLoop(
 		}
 		return automationpkg.LoopStartResult{}, err
 	}
-	return automationpkg.LoopStartResult{RunID: string(run.ID)}, nil
+	result := automationpkg.LoopStartResult{RunID: string(run.ID)}
+	if run.RunStartState != nil && run.Admission != nil {
+		result.Suppressed = run.Admission.Suppressed
+		if run.Admission.Claim != nil {
+			result.SuppressedCount = run.Admission.Claim.SuppressedCount
+		}
+	}
+	return result, nil
+}
+
+func automationLoopAdmission(req automationpkg.LoopStartRequest) *looppkg.AdmissionIdentity {
+	sourceKey := strings.TrimSpace(req.SourceKey)
+	eventKey := strings.TrimSpace(req.EventKey)
+	if sourceKey == "" || eventKey == "" {
+		return nil
+	}
+	return &looppkg.AdmissionIdentity{SourceKey: sourceKey, EventKey: eventKey}
 }
 
 func automationLoopStartMetadata(req automationpkg.LoopStartRequest) map[string]any {

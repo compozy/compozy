@@ -39,6 +39,18 @@ func (e *RunAgentActionExecutor) Execute(
 	if err := dsl.NodeParams(params).Decode(&spec); err != nil {
 		return ActionRawResult{}, fmt.Errorf("decode run-agent params: %w", err)
 	}
+	spec.Prompt, err = runAgentPromptWithRetryFeedback(spec.Prompt, in.Attempt, in.RetryFailure)
+	if err != nil {
+		return ActionRawResult{}, err
+	}
+	spec.Prompt, err = runAgentPromptWithRepairFeedback(spec.Prompt, in.Generation, in.RepairFailures)
+	if err != nil {
+		return ActionRawResult{}, err
+	}
+	spec.Prompt, err = runAgentPromptWithDeathResume(spec.Prompt, in.DeathResume)
+	if err != nil {
+		return ActionRawResult{}, err
+	}
 	runCtx, cancelRun, err := actionContextWithNodeTimeout(ctx, node.Timeout)
 	if err != nil {
 		return ActionRawResult{}, err
@@ -108,13 +120,22 @@ func (e *RunAgentActionExecutor) bindRunAgentSession(
 	if err != nil {
 		return ActionSessionBinding{}, ResolvedRuntime{}, err
 	}
+	handle := actionSessionHandle(node.Session)
 	binding, err := e.binder.BindActionSession(ctx, ActionSessionBindRequest{
-		WorkspaceID:          in.WorkspaceID,
-		LoopRunID:            in.LoopRunID,
-		Agent:                strings.TrimSpace(spec.Agent),
-		CWD:                  strings.TrimSpace(spec.CWD),
-		Handle:               actionSessionHandle(node.Session),
-		ItemIndex:            in.ItemIndex,
+		WorkspaceID:        in.WorkspaceID,
+		LoopRunID:          in.LoopRunID,
+		Generation:         in.Generation,
+		NodeID:             in.NodeID,
+		Agent:              strings.TrimSpace(spec.Agent),
+		CWD:                strings.TrimSpace(spec.CWD),
+		Handle:             handle,
+		SharedKey:          actionSessionSharedKey(in.Generation, in.NodeID, in.ItemIndex, handle),
+		ItemIndex:          in.ItemIndex,
+		TargetBindingEpoch: in.CellEpoch + 1,
+		CellFence: &ActionSessionCellFence{
+			Epoch:     in.CellEpoch,
+			TaskRunID: strings.TrimSpace(in.CorrelationID),
+		},
 		Isolated:             node.Session != nil && node.Session.Isolated,
 		Runtime:              resolvedRuntime.Runtime,
 		AllowedTools:         append([]string(nil), spec.AllowedTools...),
@@ -139,7 +160,7 @@ func (e *RunAgentActionExecutor) bindRunAgentSession(
 			return ActionSessionBinding{}, ResolvedRuntime{}, fmt.Errorf("persist applied runtime: %w", err)
 		}
 	}
-	reportActionSessionBound(ctx, binding.SessionID)
+	ReportActionSessionBound(ctx, binding.SessionID)
 	return binding, resolvedRuntime, nil
 }
 

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -89,6 +89,51 @@ describe("LoopRunForm", () => {
     });
     expect(screen.getByTestId("loop-run-submit-button")).not.toBeDisabled();
     expect(screen.getByTestId("loop-run-dry-button")).not.toBeDisabled();
+  });
+
+  it("Should create no run when a required input is blank and submit is attempted", async () => {
+    const { onRunStarted } = renderForm();
+    const submit = screen.getByTestId("loop-run-submit-button");
+    expect(submit).toBeDisabled();
+    fireEvent.click(submit);
+    fireEvent.submit(screen.getByTestId("loop-run-field-input-goal").closest("form")!);
+    await waitFor(() =>
+      expect(screen.getByTestId("loop-run-field-error-goal")).toBeInTheDocument()
+    );
+    expect(screen.getByTestId("loop-run-field-error-goal")).toHaveTextContent(
+      "goal is required to run this loop."
+    );
+    expect(onRunStarted).not.toHaveBeenCalled();
+    const runCalls = fetchMock.mock.calls.filter(([input]) => {
+      const url = input instanceof Request ? input.url : String(input);
+      return url.includes("/loops/software-delivery/run");
+    });
+    expect(runCalls).toHaveLength(0);
+  });
+
+  it("Should identify this form as the http start kind and list other declared kinds as text", () => {
+    renderForm();
+    expect(screen.getByTestId("loop-run-ways-to-start")).toHaveTextContent(
+      "this form starts over http"
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Ways to start/ }));
+    expect(screen.getByTestId("loop-run-this-form-kind")).toHaveTextContent("http");
+    const others = screen.getByTestId("loop-run-other-start-kinds");
+    expect(others).toHaveTextContent("manual");
+    expect(others).toHaveTextContent("schedule");
+    expect(others).not.toHaveTextContent("http");
+    // Read-only by contract (ADR-018 §3): disclosure only, nothing that edits start[].
+    const waysToStart = within(screen.getByTestId("loop-run-ways-to-start"));
+    expect(waysToStart.getAllByRole("button")).toHaveLength(1);
+    expect(waysToStart.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(waysToStart.queryByRole("combobox")).not.toBeInTheDocument();
+    expect(waysToStart.queryByRole("checkbox")).not.toBeInTheDocument();
+  });
+
+  it("Should render NO stop control anywhere in the form", () => {
+    renderForm();
+    expect(screen.queryByRole("button", { name: /^stop/i })).not.toBeInTheDocument();
+    expect(screen.getByTestId("loop-run-form")).not.toHaveTextContent(/\bstop\b/i);
   });
 
   it("Should render NO cost-cap input anywhere in the form", () => {
@@ -237,13 +282,13 @@ describe("LoopRunForm", () => {
 
     expect(screen.getByTestId("loop-run-preview")).toHaveTextContent("3 generations");
     expect(screen.getByTestId("loop-run-preview")).toHaveTextContent("full-body re-attempt");
-    fireEvent.click(screen.getByRole("button", { name: /Advanced/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Limits/ }));
     expect(screen.getByTestId("loop-run-override-input-iteration_cap")).toHaveAttribute(
       "placeholder",
       "3"
     );
     expect(screen.getByTestId("loop-run-override-policy")).toHaveValue("escalate");
-    expect(screen.getByTestId("loop-run-overrides-badge")).toHaveTextContent("using loop defaults");
+    expect(screen.getByTestId("loop-run-overrides-badge")).toHaveTextContent("loop defaults");
 
     fireEvent.change(screen.getByTestId("loop-run-field-input-goal"), {
       target: { value: "ship it" },
@@ -258,7 +303,7 @@ describe("LoopRunForm", () => {
     const preview = screen.getByTestId("loop-run-preview");
 
     expect(preview).toHaveTextContent("3 generations");
-    fireEvent.click(screen.getByRole("button", { name: /Advanced/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Limits/ }));
     const capInput = screen.getByTestId("loop-run-override-input-iteration_cap");
     expect(capInput).toHaveAttribute("placeholder", "3");
 
@@ -268,7 +313,7 @@ describe("LoopRunForm", () => {
     expect(capInput).toHaveAttribute("placeholder", "3");
 
     fireEvent.change(capInput, { target: { value: "" } });
-    expect(screen.getByTestId("loop-run-overrides-badge")).toHaveTextContent("using loop defaults");
+    expect(screen.getByTestId("loop-run-overrides-badge")).toHaveTextContent("loop defaults");
     expect(preview).toHaveTextContent("3 generations");
 
     fireEvent.change(capInput, { target: { value: "4" } });

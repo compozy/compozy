@@ -7,6 +7,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
+	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
@@ -14,6 +15,10 @@ import (
 func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 	message = diagnosticspkg.Redact(taskpkg.RedactClaimTokens(message))
 	payload := contract.ErrorPayload{Error: message}
+	if reason, ok := errors.AsType[*looppkg.ReasonError](err); ok {
+		payload.Code = string(reason.Code)
+		payload.Details = lifecycleReasonDetails(reason.Meta)
+	}
 	if item, ok := diagnosticspkg.ItemFromError(err); ok {
 		payload.Diagnostic = &item
 	} else if errors.Is(err, compozyconfig.ErrAgentNameReserved) {
@@ -42,6 +47,17 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 		}
 	}
 	return payload
+}
+
+func lifecycleReasonDetails(meta map[string]string) map[string]string {
+	if len(meta) == 0 {
+		return nil
+	}
+	details := make(map[string]string, len(meta))
+	for key, value := range meta {
+		details[key] = diagnosticspkg.Redact(taskpkg.RedactClaimTokens(value))
+	}
+	return details
 }
 
 type diagnosticCodeCarrier interface {

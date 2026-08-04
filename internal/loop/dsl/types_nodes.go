@@ -56,12 +56,14 @@ const (
 	ControlGate ControlKind = "gate"
 	// ControlSubLoop embeds an inline nested loop body.
 	ControlSubLoop ControlKind = "sub-loop"
+	// ControlWait parks one cell until a timer, timestamp, or event resolves.
+	ControlWait ControlKind = "wait"
 )
 
 // IsKnownControlKind validates the closed control enum.
 func IsKnownControlKind(kind string) bool {
 	switch ControlKind(kind) {
-	case ControlFanOut, ControlCollect, ControlBranch, ControlGate, ControlSubLoop:
+	case ControlFanOut, ControlCollect, ControlBranch, ControlGate, ControlSubLoop, ControlWait:
 		return true
 	default:
 		return false

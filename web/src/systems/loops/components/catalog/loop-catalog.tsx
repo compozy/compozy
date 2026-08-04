@@ -69,35 +69,36 @@ export function LoopCatalog({
     );
   }
 
-  const catalog =
-    view === "cards" ? (
-      <div
-        className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3"
-        data-testid="loop-catalog-card-grid"
-      >
-        {entries.map(entry => (
-          <LoopCatalogCard key={entry.name} entry={entry} onRun={onRun} />
-        ))}
-      </div>
-    ) : (
-      <div className="flex flex-col gap-5" data-testid="loop-catalog">
-        {groups.map(group => (
-          <section key={group.kind} data-testid={`loop-group-${group.kind}`}>
-            <div className="flex items-center gap-2 px-1 pb-2">
-              <Eyebrow className="text-muted">{group.label}</Eyebrow>
-              <span className="font-mono text-mono-id tabular-nums text-faint">
-                {group.entries.length}
-              </span>
+  const catalog = (
+    <div className="flex flex-col gap-5" data-testid="loop-catalog">
+      {groups.map(group => (
+        <section key={group.kind} data-testid={`loop-group-${group.kind}`}>
+          <div className="flex items-center gap-2 px-1 pb-2">
+            <Eyebrow className="text-muted">{group.label}</Eyebrow>
+            <span className="font-mono text-mono-id tabular-nums text-faint">
+              {group.entries.length}
+            </span>
+          </div>
+          {view === "cards" ? (
+            <div
+              className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3"
+              data-testid="loop-catalog-card-grid"
+            >
+              {group.entries.map(entry => (
+                <LoopCatalogCard key={entry.name} entry={entry} onRun={onRun} />
+              ))}
             </div>
+          ) : (
             <div className="overflow-hidden rounded-lg border border-line bg-canvas-soft">
               {group.entries.map(entry => (
                 <LoopCatalogRow key={entry.name} entry={entry} onRun={onRun} />
               ))}
             </div>
-          </section>
-        ))}
-      </div>
-    );
+          )}
+        </section>
+      ))}
+    </div>
+  );
 
   return (
     <div className="flex flex-col gap-3">

@@ -1,20 +1,20 @@
 ---
-title: "compozy loop stop"
-description: "Stop one Loop run"
+title: "compozy loop cancel"
+description: "Cancel one Loop run"
 ---
 
-## compozy loop stop
+## compozy loop cancel
 
-Stop one Loop run
+Cancel one Loop run
 
 ```
-compozy loop stop [flags]
+compozy loop cancel [flags]
 ```
 
 ### Options
 
 ```
-  -h, --help               help for stop
+  -h, --help               help for cancel
       --run-id string      Loop run ID
       --workspace string   Override workspace (ID, name, or path)
 ```
@@ -40,5 +40,5 @@ The root `-o, --output` flag accepts these values. A renderer is supported only 
 Example:
 
 ```bash
-compozy loop stop -o json
+compozy loop cancel -o json
 ```

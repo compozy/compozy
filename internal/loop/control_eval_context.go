@@ -2,6 +2,7 @@ package loop
 
 import (
 	"context"
+	"time"
 
 	"github.com/compozy/compozy/internal/loop/gate"
 )
@@ -21,4 +22,5 @@ type controlEvalContext struct {
 	watchEventsRuntime coordinatorWatchEventsRuntime
 	gateEvaluations    *gateEvaluationCollector
 	history            GenerationHistory
+	now                time.Time
 }

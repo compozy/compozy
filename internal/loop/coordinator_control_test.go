@@ -3,15 +3,246 @@ package loop
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"strconv"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/loop/gate"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/task"
 )
+
+// Invariant: a wait control is coordinator-owned and its waiting output, durable row intent,
+// lifecycle event, and lack of worker work are one completion plan. This canonical control
+// suite owns wait-node planning.
+func TestCoordinatorRunnerShouldParkWaitControls(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.August, 4, 15, 0, 0, 0, time.UTC)
+	definition := dsl.Definition{Graph: dsl.Graph{
+		Nodes: []dsl.Node{
+			{ID: "wait_for_ack", Class: dsl.NodeClassControl, Kind: string(dsl.ControlWait),
+				Params: dsl.NodeParams{"for": "10m", "expect": map[string]any{"approved": "boolean"}}},
+			{ID: "publish", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform),
+				Params: dsl.NodeParams{"map": map[string]any{"published": map[string]any{"value": true}}}},
+		},
+		Edges: []dsl.Edge{{From: "wait_for_ack", To: "publish"}},
+	}}
+	resolved := compileCoordinatorControlDefinition(t, definition)
+	loopRun := controlLoopRun("looprun-wait-control", nil)
+	coordinatorRun := controlCoordinatorRun(loopRun, 1)
+	runner := newCoordinatorRunnerForControlTest(
+		t,
+		loopRun,
+		coordinatorRun,
+		nil,
+		coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: {
+			{Generation: 1, NodeID: "wait_for_ack", Status: generationOutputPending, Attempt: 1},
+			{Generation: 1, NodeID: "publish", Status: generationOutputPending, Attempt: 1},
+		}}},
+		resolved,
+	)
+	runner.now = func() time.Time { return now }
+	plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if plan.Terminal != nil || len(plan.NodeRuns) != 0 || !plan.Yield || !plan.GenerationInFlight {
+		t.Fatalf("wait plan = terminal:%#v runs:%d yield:%v live:%v, want parked in-flight yield",
+			plan.Terminal, len(plan.NodeRuns), plan.Yield, plan.GenerationInFlight)
+	}
+	payload := coordinatorSnapshotPayloadForTest(t, plan)
+	outputs := outputsByNodeAndItemForTest(payload.Outputs)
+	waitOutput := outputs["wait_for_ack/0"]
+	if waitOutput.Status != generationOutputWaiting || waitOutput.Epoch != 1 || waitOutput.TaskRunID != "" {
+		t.Fatalf("wait output = %#v, want waiting epoch 1 without worker", waitOutput)
+	}
+	if len(payload.Waits) != 1 || payload.Waits[0].Kind != "timer" ||
+		payload.Waits[0].ResumeAt == nil || !payload.Waits[0].ResumeAt.Equal(now.Add(10*time.Minute)) ||
+		payload.Waits[0].IssuedEpoch != 1 {
+		t.Fatalf("wait intents = %#v, want one durable ten-minute timer", payload.Waits)
+	}
+	if len(payload.Events) != 1 || payload.Events[0].Kind != GenerationLifecycleEventNodeWaitStarted {
+		t.Fatalf("wait events = %#v, want node_wait_started", payload.Events)
+	}
+
+	initialRun := controlLoopRun("looprun-initial-wait-control", nil)
+	initialRun.Generation = 0
+	initialCoordinator := controlCoordinatorRun(initialRun, 0)
+	initialRunner := newCoordinatorRunnerForControlTest(
+		t,
+		initialRun,
+		initialCoordinator,
+		nil,
+		coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{}},
+		resolved,
+	)
+	initialRunner.now = func() time.Time { return now }
+	initialPlan, err := initialRunner.Run(context.Background(), task.RunID(initialCoordinator.ID))
+	if err != nil {
+		t.Fatalf("Run(initial wait) error = %v", err)
+	}
+	if initialPlan.Terminal != nil || !initialPlan.Yield || !initialPlan.GenerationInFlight {
+		t.Fatalf(
+			"initial wait plan = terminal:%#v yield:%v live:%v, want parked in-flight yield",
+			initialPlan.Terminal,
+			initialPlan.Yield,
+			initialPlan.GenerationInFlight,
+		)
+	}
+	initialPayload := coordinatorSnapshotPayloadForTest(t, initialPlan)
+	initialOutputs := outputsByNodeAndItemForTest(initialPayload.Outputs)
+	if initialOutputs["wait_for_ack/0"].Status != generationOutputWaiting || len(initialPayload.Waits) != 1 {
+		t.Fatalf(
+			"initial wait outputs = %#v waits = %#v, want one durable waiting node",
+			initialOutputs,
+			initialPayload.Waits,
+		)
+	}
+
+	deadline := now.Add(45 * time.Minute)
+	templatedDefinition := dsl.Definition{
+		Inputs: map[string]dsl.Input{"deadline": {Type: dsl.InputTypeString, Required: true}},
+		Graph: dsl.Graph{Nodes: []dsl.Node{{
+			ID: "wait_until_deadline", Class: dsl.NodeClassControl, Kind: string(dsl.ControlWait),
+			Params: dsl.NodeParams{"until": "{{ .inputs.deadline }}"},
+		}}},
+	}
+	templatedResolved := compileCoordinatorControlDefinition(t, templatedDefinition)
+	templatedRun := controlLoopRun("looprun-wait-until-template", map[string]any{
+		"deadline": deadline.Format(time.RFC3339Nano),
+	})
+	templatedCoordinator := controlCoordinatorRun(templatedRun, 1)
+	templatedRunner := newCoordinatorRunnerForControlTest(
+		t,
+		templatedRun,
+		templatedCoordinator,
+		nil,
+		coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: {{
+			Generation: 1, NodeID: "wait_until_deadline", Status: generationOutputPending, Attempt: 1,
+		}}}},
+		templatedResolved,
+	)
+	templatedRunner.now = func() time.Time { return now }
+	templatedPlan, err := templatedRunner.Run(context.Background(), task.RunID(templatedCoordinator.ID))
+	if err != nil {
+		t.Fatalf("Run(templated until) error = %v", err)
+	}
+	templatedPayload := coordinatorSnapshotPayloadForTest(t, templatedPlan)
+	if len(templatedPayload.Waits) != 1 || templatedPayload.Waits[0].ResumeAt == nil ||
+		!templatedPayload.Waits[0].ResumeAt.Equal(deadline) {
+		t.Fatalf("templated wait intents = %#v, want resolved deadline %s", templatedPayload.Waits, deadline)
+	}
+}
+
+func TestCoordinatorRunnerShouldParkGateApprovalWait(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.August, 4, 16, 0, 0, 0, time.UTC)
+	gateNode := dsl.Node{
+		ID: "approval", Class: dsl.NodeClassControl, Kind: string(dsl.ControlGate),
+		Criteria:      []dsl.GateCriterion{testRouteCriterion()},
+		VerdictPolicy: dsl.VerdictPolicyFixedPasses,
+		Expires:       &dsl.WaitExpiry{After: "15m", Route: "timed_out"},
+	}
+	gateNode.Normalize()
+	gateNode.OnPause = []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: "approval_requested"}}}
+	definition := dsl.Definition{Graph: dsl.Graph{
+		Nodes: []dsl.Node{
+			gateNode,
+			lifecycleNode("normal"),
+			lifecycleNode("timed_out"),
+		},
+		Edges: []dsl.Edge{{From: "approval", To: "normal"}, {From: "approval", To: "timed_out"}},
+	}}
+	loopRun := controlLoopRun("looprun-gate-approval-wait", nil)
+	coordinatorRun := controlCoordinatorRun(loopRun, 1)
+	runner := newCoordinatorRunnerForTestWithDefinition(
+		t,
+		loopRun,
+		coordinatorRun,
+		nil,
+		coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: {
+			{Generation: 1, NodeID: "approval", Status: generationOutputPending, Attempt: 1},
+			{Generation: 1, NodeID: "normal", Status: generationOutputPending, Attempt: 1},
+			{Generation: 1, NodeID: "timed_out", Status: generationOutputPending, Attempt: 1},
+		}}},
+		definition,
+		WithCoordinatorGateEvaluator(gateEvaluatorFunc(
+			func(context.Context, gate.Gate, gate.GateInput) (gate.Verdict, error) {
+				return gate.Verdict{
+					Outcome: gate.VerdictOutcomeAwaitingApproval,
+					Criteria: []gate.CriterionResult{{
+						ID: "operator", Type: dsl.CriterionHuman,
+						Outcome: gate.VerdictOutcomeAwaitingApproval,
+					}},
+					Route: gate.RouteDecision{
+						Placement: gate.PlacementInBody, Action: gate.RouteEscalate,
+						TerminalStatus: string(StatusNeedsApproval), ReasonCode: "human_pending",
+					},
+				}, nil
+			},
+		)),
+	)
+	runner.now = func() time.Time { return now }
+
+	plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	payload := coordinatorSnapshotPayloadForTest(t, plan)
+	outputs := outputsByNodeAndItemForTest(payload.Outputs)
+	if plan.Terminal == nil || plan.Terminal.Status != string(StatusNeedsApproval) ||
+		outputs["approval/0"].Status != generationOutputSucceeded || outputs["approval/0"].Epoch != 1 {
+		t.Fatalf("approval plan = %#v outputs = %#v", plan, outputs)
+	}
+	if len(payload.Waits) != 1 || payload.Waits[0].Kind != "approval_escalation" ||
+		payload.Waits[0].IssuedEpoch != 1 || payload.Waits[0].NextEscalationAt == nil ||
+		!payload.Waits[0].NextEscalationAt.Equal(now.Add(15*time.Minute)) {
+		t.Fatalf("approval waits = %#v, want durable expiring approval", payload.Waits)
+	}
+	var waitEvent *GenerationLifecycleEventIntent
+	for index := range payload.Events {
+		if payload.Events[index].Kind == GenerationLifecycleEventNodeWaitStarted {
+			waitEvent = &payload.Events[index]
+			break
+		}
+	}
+	if waitEvent == nil || len(waitEvent.Effects) != 1 || waitEvent.Effects[0].Trigger != EffectTriggerOnPause {
+		t.Fatalf("approval wait events = %#v, want one on_pause delivery", payload.Events)
+	}
+}
+
+func TestCoordinatorWaitExpiryRouteShouldSkipNormalPath(t *testing.T) {
+	t.Parallel()
+
+	graph := dsl.Graph{
+		Nodes: []dsl.Node{
+			{ID: "wait_for_ack", Class: dsl.NodeClassControl, Kind: string(dsl.ControlWait)},
+			{ID: "normal", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform)},
+			{ID: "timeout", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform)},
+		},
+		Edges: []dsl.Edge{{From: "wait_for_ack", To: "normal"}, {From: "wait_for_ack", To: "timeout"}},
+	}
+	outputs := []GenerationOutput{
+		{Generation: 1, NodeID: "wait_for_ack", Status: generationOutputSucceeded,
+			OutputRef: WaitExpiryRouteOutputRef("timeout"), Epoch: 2},
+		{Generation: 1, NodeID: "normal", Status: generationOutputPending},
+		{Generation: 1, NodeID: "timeout", Status: generationOutputPending},
+	}
+	applyWaitExpiryRoutes(graph, newControlTopology(graph), &outputs)
+	mapped := outputsByNodeAndItemForTest(outputs)
+	if mapped["normal/0"].Status != generationOutputSucceeded ||
+		mapped["normal/0"].OutputRef != branchSkippedOutputRef ||
+		mapped["timeout/0"].Status != generationOutputPending {
+		t.Fatalf("expiry route outputs = %#v, want normal skipped and timeout pending", mapped)
+	}
+}
 
 func TestCoordinatorRunnerShouldDriveFanOutAndCollectControls(t *testing.T) {
 	t.Run("Should materialize chunks and hold collect until all branch items are terminal", func(t *testing.T) {
@@ -110,6 +341,166 @@ func TestCoordinatorRunnerShouldDriveFanOutAndCollectControls(t *testing.T) {
 		}
 		if got, want := secondPlan.NodeRuns[0].TaskID, coordinatorNodeTaskID(loopRun.ID, 1, "work", 1); got != want {
 			t.Fatalf("second queued task = %q, want %q", got, want)
+		}
+	})
+
+	t.Run(
+		"Should resolve externalized producer and fan-out payloads without replacing stored refs",
+		func(t *testing.T) {
+			t.Parallel()
+
+			largeBody := strings.Repeat("x", LoopOutputInlineLimitBytes+1)
+			producerPayload, err := json.Marshal(map[string]any{
+				"items": []any{map[string]any{"id": "A", "body": largeBody}},
+			})
+			if err != nil {
+				t.Fatalf("json.Marshal(producer payload) error = %v", err)
+			}
+			producerRef := OutputRefForPayload(producerPayload)
+			resolved := compileCoordinatorControlDefinition(t, fanOutControlDefinition(1, 1, 2))
+			loopRun := controlLoopRun("looprun-externalized-fanout", map[string]any{})
+			coordinatorRun := controlCoordinatorRun(loopRun, 1)
+			loadRun := controlWorkerRun(loopRun, "load", 0, task.TaskRunStatusCompleted)
+			payloadKey := GenerationOutputPayloadKey{
+				WorkspaceID: loopRun.WorkspaceID,
+				RunID:       loopRun.ID,
+				Generation:  1,
+				NodeID:      "load",
+				OutputRef:   producerRef,
+			}
+			outputStore := coordinatorRunnerOutputs{
+				outputs: map[int][]GenerationOutput{1: {
+					{Generation: 1, NodeID: "load", Status: generationOutputEnqueued,
+						OutputRef: producerRef, TaskRunID: loadRun.ID},
+					{Generation: 1, NodeID: "fan", Status: generationOutputPending},
+					{Generation: 1, NodeID: "collect", Status: generationOutputPending},
+				}},
+				payloads:     map[GenerationOutputPayloadKey]json.RawMessage{payloadKey: producerPayload},
+				payloadCalls: map[GenerationOutputPayloadKey]int{},
+			}
+			runner := newCoordinatorRunnerForControlTest(
+				t,
+				loopRun,
+				coordinatorRun,
+				map[string]task.Run{coordinatorRun.ID: coordinatorRun, loadRun.ID: loadRun},
+				outputStore,
+				resolved,
+			)
+
+			plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+			if err != nil {
+				t.Fatalf("Run() error = %v", err)
+			}
+			if got, want := outputStore.payloadCalls[payloadKey], 1; got != want {
+				t.Fatalf("payload lookups = %d, want %d", got, want)
+			}
+			if got, want := len(plan.NodeRuns), 1; got != want {
+				t.Fatalf("node runs = %d, want %d", got, want)
+			}
+			var metadata map[string]any
+			if err := json.Unmarshal(plan.NodeRuns[0].Metadata, &metadata); err != nil {
+				t.Fatalf("json.Unmarshal(node metadata) error = %v", err)
+			}
+			item, ok := metadata["item"].(map[string]any)
+			if !ok || item["body"] != largeBody {
+				t.Fatalf("metadata.item = %#v, want externalized producer item", metadata["item"])
+			}
+			payload := coordinatorPostReservePayloadForTest(t, plan)
+			outputs := outputsByNodeAndItemForTest(payload.Outputs)
+			if got := outputs["load/0"].OutputRef; got != producerRef {
+				t.Fatalf("load output_ref = %q, want stored ref %q", got, producerRef)
+			}
+			fanRef := outputs["fan/0"].OutputRef
+			if !OutputRefLooksContentAddressed(fanRef) || fanRef == producerRef {
+				t.Fatalf("fan output_ref = %q, want distinct content-addressed materialization", fanRef)
+			}
+			if got, want := len(payload.OutputBlobs), 1; got != want {
+				t.Fatalf("output blobs = %d, want %d fan-out materialization", got, want)
+			}
+			if payload.OutputBlobs[0].OutputRef != fanRef {
+				t.Fatalf("materialization blob ref = %q, want %q", payload.OutputBlobs[0].OutputRef, fanRef)
+			}
+		},
+	)
+
+	t.Run("Should fail loudly when an externalized producer payload is missing", func(t *testing.T) {
+		t.Parallel()
+
+		producerRef := OutputRefForPayload(json.RawMessage(`{"items":[{"id":"A"}]}`))
+		resolved := compileCoordinatorControlDefinition(t, fanOutControlDefinition(1, 1, 2))
+		loopRun := controlLoopRun("looprun-missing-fanout-payload", map[string]any{})
+		coordinatorRun := controlCoordinatorRun(loopRun, 1)
+		loadRun := controlWorkerRun(loopRun, "load", 0, task.TaskRunStatusCompleted)
+		runner := newCoordinatorRunnerForControlTest(
+			t,
+			loopRun,
+			coordinatorRun,
+			map[string]task.Run{coordinatorRun.ID: coordinatorRun, loadRun.ID: loadRun},
+			coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: {
+				{Generation: 1, NodeID: "load", Status: generationOutputEnqueued,
+					OutputRef: producerRef, TaskRunID: loadRun.ID},
+				{Generation: 1, NodeID: "fan", Status: generationOutputPending},
+				{Generation: 1, NodeID: "collect", Status: generationOutputPending},
+			}}},
+			resolved,
+		)
+
+		_, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		if !errors.Is(err, ErrOutputRefNotFound) {
+			t.Fatalf("Run() error = %v, want %v", err, ErrOutputRefNotFound)
+		}
+	})
+
+	t.Run("Should inspect an externalized result contract before declaring success", func(t *testing.T) {
+		t.Parallel()
+
+		failurePayload, err := json.Marshal(map[string]any{
+			"error": "declared failure",
+			"body":  strings.Repeat("x", LoopOutputInlineLimitBytes+1),
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal(failure payload) error = %v", err)
+		}
+		failureRef := OutputRefForPayload(failurePayload)
+		resolved := compileCoordinatorControlDefinition(t, fanOutControlDefinition(1, 1, 2))
+		loopRun := controlLoopRun("looprun-externalized-result-contract", map[string]any{})
+		coordinatorRun := controlCoordinatorRun(loopRun, 1)
+		loadRun := controlWorkerRun(loopRun, "load", 0, task.TaskRunStatusCompleted)
+		payloadKey := GenerationOutputPayloadKey{
+			WorkspaceID: loopRun.WorkspaceID,
+			RunID:       loopRun.ID,
+			Generation:  1,
+			NodeID:      "load",
+			OutputRef:   failureRef,
+		}
+		runner := newCoordinatorRunnerForControlTest(
+			t,
+			loopRun,
+			coordinatorRun,
+			map[string]task.Run{coordinatorRun.ID: coordinatorRun, loadRun.ID: loadRun},
+			coordinatorRunnerOutputs{
+				outputs: map[int][]GenerationOutput{1: {
+					{Generation: 1, NodeID: "load", Status: generationOutputEnqueued,
+						OutputRef: failureRef, TaskRunID: loadRun.ID},
+					{Generation: 1, NodeID: "fan", Status: generationOutputPending},
+					{Generation: 1, NodeID: "collect", Status: generationOutputPending},
+				}},
+				payloads: map[GenerationOutputPayloadKey]json.RawMessage{payloadKey: failurePayload},
+			},
+			resolved,
+		)
+
+		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		if err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+		outputs := outputsByNodeAndItemForTest(coordinatorSnapshotPayloadForTest(t, plan).Outputs)
+		load := outputs["load/0"]
+		if load.Status != generationOutputFailed {
+			t.Fatalf("load status = %q, want %q", load.Status, generationOutputFailed)
+		}
+		if OutputRefLooksContentAddressed(load.OutputRef) || !strings.Contains(load.OutputRef, "declared failure") {
+			t.Fatalf("load output_ref = %q, want classified inline failure", load.OutputRef)
 		}
 	})
 }

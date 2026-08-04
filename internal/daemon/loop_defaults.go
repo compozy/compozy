@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	looppkg "github.com/compozy/compozy/internal/loop"
@@ -20,7 +21,7 @@ func newLoopDefaultsResolver(
 		if err != nil {
 			return looppkg.LoopDefaults{}, err
 		}
-		return loopDefaultsFromConfig(cfg.Loops), nil
+		return loopDefaultsFromConfig(&cfg.Loops)
 	}
 }
 
@@ -63,14 +64,26 @@ func resolveLoopServiceConfig(
 	return cfg, nil
 }
 
-func loopDefaultsFromConfig(cfg compozyconfig.LoopsConfig) looppkg.LoopDefaults {
-	return looppkg.LoopDefaults{
-		Delivery: loopDefaultConfigFromConfig(cfg.Defaults.Delivery, true),
-		Watch:    loopDefaultConfigFromConfig(cfg.Defaults.Watch, false),
+func loopDefaultsFromConfig(cfg *compozyconfig.LoopsConfig) (looppkg.LoopDefaults, error) {
+	delivery, err := loopDefaultConfigFromConfig(cfg.Defaults.Delivery, true)
+	if err != nil {
+		return looppkg.LoopDefaults{}, err
 	}
+	watch, err := loopDefaultConfigFromConfig(cfg.Defaults.Watch, false)
+	if err != nil {
+		return looppkg.LoopDefaults{}, err
+	}
+	return looppkg.LoopDefaults{Delivery: delivery, Watch: watch}, nil
 }
 
-func loopDefaultConfigFromConfig(cfg compozyconfig.LoopDefaultConfig, includeZeroGate bool) looppkg.LoopConfig {
+func loopDefaultConfigFromConfig(
+	cfg compozyconfig.LoopDefaultConfig,
+	includeZeroGate bool,
+) (looppkg.LoopConfig, error) {
+	lifecycle, err := loopLifecycleConfigFromConfig(cfg)
+	if err != nil {
+		return looppkg.LoopConfig{}, err
+	}
 	result := looppkg.LoopConfig{
 		IterationCap:     new(cfg.IterationCap),
 		NoProgressWindow: new(cfg.NoProgress.Window),
@@ -80,11 +93,59 @@ func loopDefaultConfigFromConfig(cfg compozyconfig.LoopDefaultConfig, includeZer
 		RuntimeDefaults:  loopRuntimeDefaultsFromConfig(cfg.RuntimeDefaults),
 		RuntimeRules:     loopRuntimeRulesFromConfig(cfg.RuntimeRules),
 		FanOutWidth:      new(cfg.FanOutWidth),
+		Lifecycle:        &lifecycle,
 	}
 	if includeZeroGate || cfg.Gates.MaxRevisions > 0 {
 		result.GateMaxRevisions = new(cfg.Gates.MaxRevisions)
 	}
-	return result
+	return result, nil
+}
+
+func loopLifecycleConfigFromConfig(cfg compozyconfig.LoopDefaultConfig) (looppkg.LifecycleConfig, error) {
+	backoffBase, err := time.ParseDuration(strings.TrimSpace(cfg.Retry.BackoffBase))
+	if err != nil {
+		return looppkg.LifecycleConfig{}, fmt.Errorf("daemon: parse Loop retry backoff base: %w", err)
+	}
+	backoffMax, err := time.ParseDuration(strings.TrimSpace(cfg.Retry.BackoffMax))
+	if err != nil {
+		return looppkg.LifecycleConfig{}, fmt.Errorf("daemon: parse Loop retry backoff max: %w", err)
+	}
+	silenceWindow, err := time.ParseDuration(strings.TrimSpace(cfg.Liveness.SilenceWindow))
+	if err != nil {
+		return looppkg.LifecycleConfig{}, fmt.Errorf("daemon: parse Loop silence window: %w", err)
+	}
+	waitInterval, err := time.ParseDuration(strings.TrimSpace(cfg.Waits.AdmissionRetryInterval))
+	if err != nil {
+		return looppkg.LifecycleConfig{}, fmt.Errorf("daemon: parse Loop wait admission interval: %w", err)
+	}
+	horizon, err := time.ParseDuration(strings.TrimSpace(cfg.Admission.TombstoneHorizon))
+	if err != nil {
+		return looppkg.LifecycleConfig{}, fmt.Errorf("daemon: parse Loop admission horizon: %w", err)
+	}
+	rules := make([]looppkg.LifecycleAutopauseRule, len(cfg.Autopause))
+	for index, rule := range cfg.Autopause {
+		rules[index] = looppkg.LifecycleAutopauseRule{Match: rule.Match, Action: rule.Action}
+	}
+	return looppkg.LifecycleConfig{
+		RetryMaxAttempts:       new(cfg.Retry.MaxAttempts),
+		RetryBackoffBase:       new(backoffBase),
+		RetryBackoffMax:        new(backoffMax),
+		LivenessSilenceWindow:  new(silenceWindow),
+		ResumeDeathStreakLimit: new(cfg.Resume.DeathStreakLimit),
+		PredicateCostLimit:     new(cfg.Predicates.CostLimit),
+		WaitAdmissionAttempts:  new(cfg.Waits.AdmissionAttempts),
+		WaitAdmissionInterval:  new(waitInterval),
+		AdmissionHorizon:       new(horizon),
+		Autopause:              rules,
+	}, nil
+}
+
+func loopBreakerPolicyFromConfig(cfg compozyconfig.LoopBreakerConfig) (looppkg.GlobalBreakerPolicy, error) {
+	probeInterval, err := time.ParseDuration(strings.TrimSpace(cfg.ProbeInterval))
+	if err != nil {
+		return looppkg.GlobalBreakerPolicy{}, fmt.Errorf("daemon: parse Loop breaker probe interval: %w", err)
+	}
+	return looppkg.ResolveGlobalBreakerPolicy(cfg.Threshold, probeInterval)
 }
 
 func loopRuntimeDefaultsFromConfig(cfg loopdsl.RuntimeDefaults) *looppkg.RuntimeDefaults {

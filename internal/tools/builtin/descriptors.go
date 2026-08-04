@@ -16,6 +16,10 @@ const (
 	descriptorKeywordSnapshot    = "snapshot"
 	descriptorKeywordUpdate      = "update"
 	descriptorKeywordValidate    = "validate"
+	descriptorKeywordCancel      = "cancel"
+	descriptorKeywordDestructive = "destructive"
+	descriptorKeywordNode        = "node"
+	descriptorKeywordReplace     = "replace"
 	emptyInputSchema             = `{"type":"object","additionalProperties":false}`
 )
 

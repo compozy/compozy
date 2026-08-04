@@ -416,18 +416,26 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		}
 	})
 
-	t.Run("Should validate exact Loop read-model output schemas", func(t *testing.T) {
+	t.Run("Should validate exact Loop lifecycle output schemas", func(t *testing.T) {
 		t.Parallel()
 
 		descriptors := descriptorMap(NativeDescriptors())
 		status := descriptors[toolspkg.ToolIDLoopStatus]
 		runs := descriptors[toolspkg.ToolIDLoopRuns]
+		cancel := descriptors[toolspkg.ToolIDLoopCancel]
+		nodes := descriptors[toolspkg.ToolIDLoopNodes]
 		assertNativeOutputSchemaAccepts(t, status, `{
 			"run":{"id":"run-1","best_generation":2,"best_score":0.91},
+			"node_controls":[],
+			"waits":[],
 			"generations":[{
 				"generation":2,"parent_generation":1,"origin":"gate_revise",
 				"verdicts":[{"gate_id":"quality","outcome":"rejected","score":0.7,"route_cause_rank":0}],
-				"outputs":[]
+				"outputs":[{
+					"node_id":"draft","status":"failed","attempt":3,
+					"next_attempt_at":"2026-08-02T18:00:00Z",
+					"failure_class":"transient","disposition":"retry"
+				}]
 			}]
 		}`)
 		assertNativeOutputSchemaAccepts(t, runs, `{
@@ -446,6 +454,33 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			"runs":[{"best_generation":2}],
 			"aggregates":{"total":1,"live":0,"terminal":1,"succeeded":1,"failed":0}
 		}`)
+		assertNativeOutputSchemaAccepts(t, cancel, `{
+			"ok":true,
+			"run_id":"run-1",
+			"status":"canceled",
+			"provenance":{
+				"actor_kind":"cli",
+				"actor_id":"operator-1",
+				"reason":"operator request",
+				"requested_at":"2026-08-02T18:00:00Z"
+			}
+		}`)
+		assertNativeOutputSchemaAccepts(t, nodes, `{
+			"items":[{
+				"state":"waiting",
+				"loop_run_id":"run-1",
+				"loop_name":"review",
+				"generation":2,
+				"node_id":"approval",
+				"item_index":0,
+				"state_at":"2026-08-02T18:00:00Z",
+				"wait":{"kind":"human"}
+			}],
+			"next_cursor":"cursor-2"
+		}`)
+		if _, exists := descriptors[toolspkg.ToolID("compozy__loop_stop")]; exists {
+			t.Fatal("deleted compozy__loop_stop descriptor is still registered")
+		}
 		for _, descriptor := range []toolspkg.Descriptor{status, runs} {
 			if strings.Contains(string(descriptor.OutputSchema), "confidence") {
 				t.Fatalf(
@@ -533,6 +568,37 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 					tc.id,
 					withDigests.Backend.RequiresCapabilities,
 					tc.capability,
+				)
+			}
+		}
+		lifecycleIDs := []toolspkg.ToolID{
+			toolspkg.ToolIDLoopCancel,
+			toolspkg.ToolIDLoopKill,
+			toolspkg.ToolIDLoopNodes,
+			toolspkg.ToolIDLoopNodePause,
+			toolspkg.ToolIDLoopNodeResume,
+			toolspkg.ToolIDLoopNodeCancel,
+			toolspkg.ToolIDLoopNodeKill,
+			toolspkg.ToolIDLoopNodeRequeue,
+		}
+		for _, id := range lifecycleIDs {
+			descriptor, ok := descriptors[id]
+			if !ok {
+				t.Fatalf("descriptor %q missing", id)
+			}
+			withDigests, err := toolspkg.DescriptorWithSchemaDigests(descriptor)
+			if err != nil {
+				t.Fatalf("DescriptorWithSchemaDigests(%s) error = %v", id, err)
+			}
+			if strings.TrimSpace(withDigests.InputSchemaDigest) == "" ||
+				strings.TrimSpace(withDigests.OutputSchemaDigest) == "" {
+				t.Fatalf("%s lifecycle schema digests are incomplete", id)
+			}
+			if len(withDigests.Backend.RequiresCapabilities) != 0 {
+				t.Fatalf(
+					"%s capabilities = %#v, want no new capability gate",
+					id,
+					withDigests.Backend.RequiresCapabilities,
 				)
 			}
 		}
@@ -887,6 +953,8 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__loop_approve", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__loop_cancel", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__loop_configure", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__loop_create", risk: toolspkg.RiskMutating,
@@ -895,7 +963,21 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: false, destructive: true, openWorld: false},
 		{id: "compozy__loop_inspect", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__loop_kill", risk: toolspkg.RiskDestructive,
+			readOnly: false, destructive: true, openWorld: false},
 		{id: "compozy__loop_list", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__loop_node_cancel", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__loop_node_kill", risk: toolspkg.RiskDestructive,
+			readOnly: false, destructive: true, openWorld: false},
+		{id: "compozy__loop_node_pause", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__loop_node_requeue", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__loop_node_resume", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__loop_nodes", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__loop_pause", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
@@ -907,8 +989,6 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__loop_status", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__loop_stop", risk: toolspkg.RiskDestructive,
-			readOnly: false, destructive: true, openWorld: false},
 		{id: "compozy__loop_turns", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__loop_validate", risk: toolspkg.RiskRead,
@@ -1390,7 +1470,11 @@ func assertSessionPromptMutationOutputSchema(t *testing.T, owner string, raw jso
 		"replayed", "status",
 	})
 	if !slices.Equal(prompt.Required, []string{"status", "delivery", "message_id", "idempotency_key", "replayed"}) {
-		t.Fatalf("%s prompt required = %#v, want status/delivery/message_id/idempotency_key/replayed", owner, prompt.Required)
+		t.Fatalf(
+			"%s prompt required = %#v, want status/delivery/message_id/idempotency_key/replayed",
+			owner,
+			prompt.Required,
+		)
 	}
 	assertStringEnumSchema(
 		t,

@@ -1,39 +1,33 @@
 ---
 id: TA-action-run-liveness
 area: TA
-title: Bound action runs by deadline and observable progress
+title: Keep long-running Loop nodes alive without a hidden clock
 persona: Ada
 journey: J-bound-runaway-work
-expected: An action without a node timeout inherits the configured deadline, active tools and fresh activity avoid false idle failures, a wedged action is canceled with node_timeout or no_progress with its lease freed and the loop advancing, and a timeout consumes the shared O1 attempt budget instead of reclaiming forever.
-entry_points: `compozy config set task.orchestration.action_run_timeout`; `compozy task inspect <run-id> -o json`; task-run listing over CLI/HTTP/UDS
-qa_status: pass
+expected: A Loop node runs for days when the definition has no timeout, fresh ACP activity, an in-flight tool, or a present transport counts as life, silence only raises a self-clearing attention flag, and only an authored node timeout may end the work by duration.
+entry_points: `compozy loop status --run-id <run-id> -o json`; Loop node inventory and event history over CLI/HTTP/UDS; `loops.defaults.delivery.liveness.silence_window`
+qa_status: blocked-verify
 bug_ids:
 fix_status:
-retest_status: pass
+retest_status:
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-ta-replay-20260730-062156-531636-lab/qa-artifacts/qa; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260801-135009-390014-lab/qa-artifacts/qa/loop/adjacent-safety-tests.json
-last_report: docs/qa/reports/2026-08-01-loops-paper-adoption.md
-overlaps: TA-019; TA-022; TA-023; TA-workspace-run-capacity; TA-lease-recovery-attempt-budget
+last_report:
+overlaps: LP-days-long-node-no-clock; LP-crash-death-resume; TA-lease-recovery-attempt-budget
 ---
 
-Added by the Hermes comparison recovery/liveness milestone. Exercise both inherited and explicit
-node deadlines, observable ACP activity, an active long-running tool, and a genuinely idle action.
-Repeated lease-expiry attempt budgeting is owned by TA-lease-recovery-attempt-budget (US-012); the
-two couple only through the shared budget a timeout consumes.
-
-Flag only: the later Hermes comparison QA cycle owns execution and evidence.
-
-Phase C planning 2026-07-19 (corrected same day): linked to J-bound-runaway-work; settles US-015
-ONLY (O4 wall-clock + progress-aware liveness, Safety Invariant 25; UT-105–110, IT-038). An
-initial planning fold of US-012 into this file was reversed — _tests.md assigns O1 and O4 to
-distinct invariant owners (UT-102–104/IT-035 vs UT-105–110/IT-038), so US-012 has its own
-scenario, TA-lease-recovery-attempt-budget.
+QA impact 2026-08-02: the Loop node lifecycle hard cut removes the inherited 7m30s action kill,
+`node_timeout`/`no_progress` lease-failure path, and
+`task.orchestration.action_run_timeout`. The former pass evidence no longer proves the product
+contract. Task 13 owns the isolated public-surface walk after Tasks 07–11 expose the node inventory,
+attention events, and current configuration reference.
 
 Forensic evidence contract (SD-006) — each item cites timestamp, exact command, observed output:
 
-- The wedged fixture's terminal reason (`node_timeout`/`no_progress`) with the loop advancing and
-  the freed lease.
-- The healthy-long-run survival log (active in-tool run untouched at the idle window; inherited
-  vs explicit deadlines both honored).
-- The timed-out run consuming the O1 attempt budget (never reclaim-forever) — budget exhaustion
-  itself is proven in TA-lease-recovery-attempt-budget.
+- A clock advanced by days while a node with no authored timeout remains live and no duration
+  failure event is emitted.
+- Fresh activity, an in-flight tool, and transport presence each count as evidence without a
+  synthetic heartbeat becoming progress.
+- Silence raises one attention flag, new evidence clears it, and neither transition interrupts
+  the prompt or frees its lease.
+- An explicitly authored node timeout remains the only duration-based terminal path.

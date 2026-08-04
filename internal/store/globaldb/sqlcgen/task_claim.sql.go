@@ -506,37 +506,6 @@ func (q *Queries) RequeueTaskRunLease(ctx context.Context, arg RequeueTaskRunLea
 	return result.RowsAffected()
 }
 
-const updateLoopGenerationOutputForTaskRun = `-- name: UpdateLoopGenerationOutputForTaskRun :execrows
-UPDATE loop_generation_outputs
-SET status = ?1,
-    output_ref = CASE
-      WHEN CAST(?2 AS TEXT) = '' THEN output_ref
-      ELSE CAST(?2 AS TEXT)
-    END,
-    task_run_id = ?3
-WHERE loop_run_id = ?4 AND task_run_id = ?3
-`
-
-type UpdateLoopGenerationOutputForTaskRunParams struct {
-	Status    string         `json:"status"`
-	OutputRef string         `json:"output_ref"`
-	TaskRunID sql.NullString `json:"task_run_id"`
-	LoopRunID string         `json:"loop_run_id"`
-}
-
-func (q *Queries) UpdateLoopGenerationOutputForTaskRun(ctx context.Context, arg UpdateLoopGenerationOutputForTaskRunParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, updateLoopGenerationOutputForTaskRun,
-		arg.Status,
-		arg.OutputRef,
-		arg.TaskRunID,
-		arg.LoopRunID,
-	)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
-}
-
 const updateLoopRunNodeTerminal = `-- name: UpdateLoopRunNodeTerminal :execrows
 UPDATE loop_runs
 SET last_progress_at = CASE
@@ -557,40 +526,4 @@ func (q *Queries) UpdateLoopRunNodeTerminal(ctx context.Context, arg UpdateLoopR
 		return 0, err
 	}
 	return result.RowsAffected()
-}
-
-const upsertLoopGenerationOutputForTaskRun = `-- name: UpsertLoopGenerationOutputForTaskRun :exec
-INSERT INTO loop_generation_outputs (
-  loop_run_id, generation, node_id, item_index, status, output_ref, task_run_id
-) VALUES (
-  ?1, ?2, ?3, ?4,
-  ?5, ?6, ?7
-)
-ON CONFLICT(loop_run_id, generation, node_id, item_index) DO UPDATE SET
-  status = excluded.status,
-  output_ref = excluded.output_ref,
-  task_run_id = excluded.task_run_id
-`
-
-type UpsertLoopGenerationOutputForTaskRunParams struct {
-	LoopRunID  string         `json:"loop_run_id"`
-	Generation int64          `json:"generation"`
-	NodeID     string         `json:"node_id"`
-	ItemIndex  int64          `json:"item_index"`
-	Status     string         `json:"status"`
-	OutputRef  sql.NullString `json:"output_ref"`
-	TaskRunID  sql.NullString `json:"task_run_id"`
-}
-
-func (q *Queries) UpsertLoopGenerationOutputForTaskRun(ctx context.Context, arg UpsertLoopGenerationOutputForTaskRunParams) error {
-	_, err := q.db.ExecContext(ctx, upsertLoopGenerationOutputForTaskRun,
-		arg.LoopRunID,
-		arg.Generation,
-		arg.NodeID,
-		arg.ItemIndex,
-		arg.Status,
-		arg.OutputRef,
-		arg.TaskRunID,
-	)
-	return err
 }

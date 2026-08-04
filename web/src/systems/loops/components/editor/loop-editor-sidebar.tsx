@@ -2,6 +2,7 @@ import { LaneTabs, TabsContent, type LaneTabsItem } from "@compozy/ui";
 
 import type { EditableLoopContractField } from "../../lib/loop-editor-definition";
 import type { EditorEdge, EditorNode } from "../../lib/codec";
+import type { NodeFieldEdit } from "../../lib/loop-editor-draft";
 import type { FieldPath, FieldSpec } from "../../lib/loop-node-schema";
 import type { LoopEditorSidebarTab } from "../../hooks/use-loop-editor-state";
 import type { LoopContract, LoopDefinition } from "../../types";
@@ -17,6 +18,7 @@ interface LoopEditorSidebarProps {
   contract: LoopContract;
   contractDisabled: boolean;
   onChangeContract: (field: EditableLoopContractField, value: string) => void;
+  onChangeContractPath: (path: FieldPath, value: unknown) => void;
   node: EditorNode | null;
   fields: FieldSpec[];
   nodes: EditorNode[];
@@ -25,6 +27,7 @@ interface LoopEditorSidebarProps {
   definition: Pick<LoopDefinition, "inputs" | "start">;
   inspectorDisabled: boolean;
   onChangeField: (path: FieldPath, value: unknown) => void;
+  onChangeFields: (edits: NodeFieldEdit[]) => void;
   sidebarTab: LoopEditorSidebarTab;
   onSidebarTabChange: (tab: LoopEditorSidebarTab) => void;
 }
@@ -34,6 +37,7 @@ export function LoopEditorSidebar({
   contract,
   contractDisabled,
   onChangeContract,
+  onChangeContractPath,
   node,
   fields,
   nodes,
@@ -42,6 +46,7 @@ export function LoopEditorSidebar({
   definition,
   inspectorDisabled,
   onChangeField,
+  onChangeFields,
   sidebarTab,
   onSidebarTabChange,
 }: LoopEditorSidebarProps) {
@@ -64,6 +69,7 @@ export function LoopEditorSidebar({
               contract={contract}
               disabled={contractDisabled}
               onChange={onChangeContract}
+              onChangePath={onChangeContractPath}
             />
           </TabsContent>
           <TabsContent value="node" className="mt-0 h-full">
@@ -76,6 +82,7 @@ export function LoopEditorSidebar({
               definition={definition}
               disabled={inspectorDisabled}
               onChange={onChangeField}
+              onChangeFields={onChangeFields}
             />
           </TabsContent>
         </div>

@@ -29,8 +29,8 @@ func (m *Manager) ListPendingInputs(ctx context.Context, id string) ([]PendingIn
 		return nil, err
 	}
 	inputs := make([]PendingInput, 0, len(entries))
-	for _, entry := range entries {
-		inputs = append(inputs, pendingInputFromStore(entry))
+	for index := range entries {
+		inputs = append(inputs, pendingInputFromStore(&entries[index]))
 	}
 	return inputs, nil
 }
@@ -63,7 +63,7 @@ func (m *Manager) ReplacePendingInput(
 	if err != nil {
 		return PendingInput{}, err
 	}
-	return pendingInputFromStore(entry), nil
+	return pendingInputFromStore(&entry), nil
 }
 
 // PromotePendingInputToSteer atomically prioritizes queued input and interrupts its target turn.
@@ -100,7 +100,7 @@ func (m *Manager) PromotePendingInputToSteer(
 		return SendPromptResult{}, err
 	}
 	if found {
-		return promotedInputResult(replayed), nil
+		return promotedInputResult(&replayed), nil
 	}
 	targetTurnID, err = requireExpectedActiveTurn(session, targetTurnID)
 	if err != nil {
@@ -118,8 +118,8 @@ func (m *Manager) PromotePendingInputToSteer(
 	if err != nil {
 		return SendPromptResult{}, err
 	}
-	if err := m.ensureInterruptingInputActivated(ctx, session, entry); err != nil {
-		return SendPromptResult{}, m.cleanupInterruptingInputActivationFailure(ctx, entry, err)
+	if err := m.ensureInterruptingInputActivated(ctx, session, &entry); err != nil {
+		return SendPromptResult{}, m.cleanupInterruptingInputActivationFailure(ctx, &entry, err)
 	}
 	if created {
 		m.emitTranscriptMarker(
@@ -131,10 +131,10 @@ func (m *Manager) PromotePendingInputToSteer(
 			queueEntryEvidence(entry.ID, entry.SessionGeneration, entry.Status, entry.Mode, 0),
 		)
 	}
-	return promotedInputResult(entry), nil
+	return promotedInputResult(&entry), nil
 }
 
-func promotedInputResult(entry store.SessionInputQueueEntry) SendPromptResult {
+func promotedInputResult(entry *store.SessionInputQueueEntry) SendPromptResult {
 	return SendPromptResult{
 		Status:          store.SessionPromptResultStatusSteering,
 		Mode:            BusyInputModeSteer,
@@ -146,7 +146,7 @@ func promotedInputResult(entry store.SessionInputQueueEntry) SendPromptResult {
 	}
 }
 
-func pendingInputFromStore(entry store.SessionInputQueueEntry) PendingInput {
+func pendingInputFromStore(entry *store.SessionInputQueueEntry) PendingInput {
 	runtime := runtimeSelectionFromStore(entry.Runtime)
 	return PendingInput{
 		ID:              entry.ID,

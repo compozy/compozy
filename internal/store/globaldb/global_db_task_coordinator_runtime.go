@@ -2,6 +2,7 @@ package globaldb
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -21,7 +22,7 @@ func updateLoopBoundaryStatusWithExecutor(
 	at time.Time,
 	generation int,
 ) error {
-	return updateLoopBoundaryStatusWithFailure(
+	return updateLoopBoundaryStatusWithEffects(
 		ctx,
 		exec,
 		current,
@@ -29,6 +30,7 @@ func updateLoopBoundaryStatusWithExecutor(
 		cause,
 		at,
 		generation,
+		nil,
 		nil,
 	)
 }
@@ -42,6 +44,22 @@ func updateLoopBoundaryStatusWithFailure(
 	at time.Time,
 	generation int,
 	failure *taskpkg.CoordinatorFailure,
+) error {
+	return updateLoopBoundaryStatusWithEffects(
+		ctx, exec, current, to, cause, at, generation, failure, nil,
+	)
+}
+
+func updateLoopBoundaryStatusWithEffects(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	current loop.Run,
+	to loop.Status,
+	cause loop.TransitionCause,
+	at time.Time,
+	generation int,
+	failure *taskpkg.CoordinatorFailure,
+	effects []loop.RenderedEffectIntent,
 ) error {
 	if current.Status == to {
 		return updateLoopGenerationWithExecutor(ctx, exec, string(current.ID), generation)
@@ -76,7 +94,7 @@ func updateLoopBoundaryStatusWithFailure(
 			to,
 		)
 	}
-	return appendLoopRunStatusEventWithFailure(
+	return appendLoopRunStatusEventWithFailureAndEffects(
 		ctx,
 		exec,
 		current.ID,
@@ -85,6 +103,7 @@ func updateLoopBoundaryStatusWithFailure(
 		to,
 		cause,
 		failure,
+		effects,
 		at,
 	)
 }
@@ -118,6 +137,7 @@ func loopStatusIsTerminalOrApproval(status loop.Status) bool {
 		loop.StatusFailed,
 		loop.StatusExhausted,
 		loop.StatusStalled,
+		loop.StatusCanceled,
 		loop.StatusNeedsApproval:
 		return true
 	default:
@@ -149,6 +169,13 @@ func (g *TaskRepo) reserveCoordinatorPlanRunsWithExecutor(
 	enqueued := make([]taskpkg.Run, 0, len(specs))
 	for _, spec := range specs {
 		reservation := coordinatorPlanRunReservation(spec, current, origin, queuedAt)
+		existing, err := g.coordinatorPlanRunReservationExists(ctx, exec, reservation)
+		if err != nil {
+			return nil, err
+		}
+		if existing {
+			continue
+		}
 		_, run, existing, err := g.reserveQueuedRunWithExecutor(ctx, exec, reservation)
 		if err != nil {
 			return nil, err
@@ -159,6 +186,35 @@ func (g *TaskRepo) reserveCoordinatorPlanRunsWithExecutor(
 		enqueued = append(enqueued, run)
 	}
 	return enqueued, nil
+}
+
+func (g *TaskRepo) coordinatorPlanRunReservationExists(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	reservation queuedRunReservationInput,
+) (bool, error) {
+	runID := strings.TrimSpace(reservation.runID)
+	if runID == "" {
+		return false, nil
+	}
+	existing, err := g.getTaskRunWithExecutor(ctx, exec, runID)
+	if errors.Is(err, taskpkg.ErrTaskRunNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if strings.TrimSpace(existing.TaskID) != strings.TrimSpace(reservation.taskID) ||
+		existing.RunKind.Normalize() != reservation.runKind.Normalize() ||
+		strings.TrimSpace(existing.LoopRunID) != strings.TrimSpace(reservation.loopRunID) ||
+		strings.TrimSpace(existing.IdempotencyKey) != strings.TrimSpace(reservation.idempotencyKey) {
+		return false, fmt.Errorf(
+			"%w: coordinator plan run %q conflicts with its existing deterministic identity",
+			taskpkg.ErrValidation,
+			runID,
+		)
+	}
+	return true, nil
 }
 
 func coordinatorPlanRunReservation(

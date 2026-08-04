@@ -11,10 +11,16 @@ const (
 )
 
 const (
-	sessionsEventsKey  = "events"
-	sessionsHistoryKey = "history"
-	sessionsListKey    = "list"
-	sessionsStatusKey  = "status"
+	sessionsEventsKey    = "events"
+	sessionsHistoryKey   = "history"
+	sessionsInputKey     = "input"
+	sessionsInterruptKey = "interrupt"
+	sessionsListKey      = "list"
+	sessionsPromptKey    = "prompt"
+	sessionsQueueKey     = "queue"
+	sessionsRuntimeKey   = "runtime"
+	sessionsStatusKey    = "status"
+	sessionsSteerKey     = "steer"
 )
 
 var sessionTools = []toolspkg.Descriptor{
@@ -132,14 +138,22 @@ func sessionPromptDescriptor() toolspkg.Descriptor {
 		toolspkg.ToolIDSessionPrompt,
 		"session_prompt",
 		"Session Prompt",
-		"Send a prompt to a session. While it is busy, choose queue, interrupt, or steer; steering uses the expected active turn.",
+		"Send a prompt to a session. While it is busy, choose queue, interrupt, or steer; "+
+			"steering uses the expected active turn.",
 		sessionPromptInputSchema,
 		toolspkg.RiskMutating,
 		false,
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDSessions},
-		[]string{sessionsSessionsKey, "prompt", "runtime", "queue", "steer", "interrupt"},
+		[]string{
+			sessionsSessionsKey,
+			sessionsPromptKey,
+			sessionsRuntimeKey,
+			sessionsQueueKey,
+			sessionsSteerKey,
+			sessionsInterruptKey,
+		},
 		[]string{"session prompt", "queue input", "steer active turn", "interrupt session turn"},
 	)
 	descriptor.OutputSchema = json.RawMessage(sessionPromptOutputSchema)
@@ -177,7 +191,7 @@ func sessionInputReplaceDescriptor() toolspkg.Descriptor {
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDSessions},
-		[]string{sessionsSessionsKey, "input", "replace", "queue"},
+		[]string{sessionsSessionsKey, sessionsInputKey, descriptorKeywordReplace, sessionsQueueKey},
 		[]string{"replace queued input", "update session input"},
 	)
 	descriptor.OutputSchema = json.RawMessage(sessionInputOutputSchema)
@@ -196,7 +210,7 @@ func sessionInputCancelDescriptor() toolspkg.Descriptor {
 		true,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDSessions},
-		[]string{sessionsSessionsKey, "input", "cancel", "queue"},
+		[]string{sessionsSessionsKey, sessionsInputKey, descriptorKeywordCancel, sessionsQueueKey},
 		[]string{"cancel queued input", "drop session input"},
 	)
 	descriptor.OutputSchema = json.RawMessage(sessionPromptOutputSchema)
@@ -215,7 +229,7 @@ func sessionInputPromoteDescriptor() toolspkg.Descriptor {
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDSessions},
-		[]string{sessionsSessionsKey, "input", "promote", "steer", "queue"},
+		[]string{sessionsSessionsKey, sessionsInputKey, "promote", sessionsSteerKey, sessionsQueueKey},
 		[]string{"promote queued input", "steer queued input"},
 	)
 	descriptor.OutputSchema = json.RawMessage(sessionPromptOutputSchema)

@@ -186,6 +186,7 @@ func newLoopCoordinatorRunner(
 	gateEvaluator gate.GateEvaluator,
 	actions *looppkg.ActionRegistry,
 	runtimeCatalog looppkg.WorkspaceRuntimeCatalog,
+	targetHealth looppkg.TargetHealth,
 	logger *slog.Logger,
 ) (*looppkg.CoordinatorRunner, error) {
 	loopStore, ok := requireStoreCapability[looppkg.Store](store, logger, "loop store")
@@ -224,6 +225,9 @@ func newLoopCoordinatorRunner(
 	}
 	if runtimeCatalog != nil {
 		options = append(options, looppkg.WithCoordinatorRuntimeCatalog(runtimeCatalog))
+	}
+	if targetHealth != nil {
+		options = append(options, looppkg.WithCoordinatorTargetHealth(targetHealth))
 	}
 	return looppkg.NewCoordinatorRunner(
 		store,
@@ -313,6 +317,7 @@ func newBootLoopCoordinatorRuntime(
 		loopRuntimeCatalogFactory{
 			homePaths: homePaths, workspaceResolver: workspaceResolver, models: state.modelCatalog,
 		},
+		state.loopTargetHealth,
 		state.logger,
 	)
 	if err != nil {

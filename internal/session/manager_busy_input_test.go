@@ -1995,86 +1995,89 @@ func TestManagerBusyInputInterrupt(t *testing.T) {
 func TestManagerPendingInputPromotionReplay(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should replay promotion after the replacement turn starts without interrupting it again", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"Should replay promotion after the replacement turn starts without interrupting it again",
+		func(t *testing.T) {
+			t.Parallel()
 
-		queueStore := openManagerInputQueueStore(t)
-		h := newHarness(t, WithSessionInputQueueStore(queueStore))
-		registerManagerInputQueueWorkspace(t, queueStore, h)
-		sess := createSession(t, h)
-		registerManagerInputQueueSession(t, queueStore, h, sess)
-		activeEntered := make(chan struct{})
-		replacementEntered := make(chan struct{})
-		releaseActive := make(chan struct{})
-		releaseReplacement := make(chan struct{})
-		var releaseActiveOnce sync.Once
-		var releaseReplacementOnce sync.Once
-		t.Cleanup(func() {
-			releaseActiveOnce.Do(func() { close(releaseActive) })
-			releaseReplacementOnce.Do(func() { close(releaseReplacement) })
-			if err := h.manager.Stop(testutil.Context(t), sess.ID); err != nil {
-				t.Errorf("Stop() error = %v", err)
-			}
-		})
-		h.driver.cancelHook = func(*fakeProcess) error {
-			releaseActiveOnce.Do(func() { close(releaseActive) })
-			return nil
-		}
-		h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
-			events := make(chan acp.AgentEvent)
-			go func() {
-				defer close(events)
-				switch req.Message {
-				case "active prompt":
-					close(activeEntered)
-					<-releaseActive
-				case "promote this input":
-					close(replacementEntered)
-					<-releaseReplacement
+			queueStore := openManagerInputQueueStore(t)
+			h := newHarness(t, WithSessionInputQueueStore(queueStore))
+			registerManagerInputQueueWorkspace(t, queueStore, h)
+			sess := createSession(t, h)
+			registerManagerInputQueueSession(t, queueStore, h, sess)
+			activeEntered := make(chan struct{})
+			replacementEntered := make(chan struct{})
+			releaseActive := make(chan struct{})
+			releaseReplacement := make(chan struct{})
+			var releaseActiveOnce sync.Once
+			var releaseReplacementOnce sync.Once
+			t.Cleanup(func() {
+				releaseActiveOnce.Do(func() { close(releaseActive) })
+				releaseReplacementOnce.Do(func() { close(releaseReplacement) })
+				if err := h.manager.Stop(testutil.Context(t), sess.ID); err != nil {
+					t.Errorf("Stop() error = %v", err)
 				}
-				emitDonePromptEvents(events, sess.ID, req.TurnID)
-			}()
-			return events, nil
-		}
+			})
+			h.driver.cancelHook = func(*fakeProcess) error {
+				releaseActiveOnce.Do(func() { close(releaseActive) })
+				return nil
+			}
+			h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+				events := make(chan acp.AgentEvent)
+				go func() {
+					defer close(events)
+					switch req.Message {
+					case "active prompt":
+						close(activeEntered)
+						<-releaseActive
+					case "promote this input":
+						close(replacementEntered)
+						<-releaseReplacement
+					}
+					emitDonePromptEvents(events, sess.ID, req.TurnID)
+				}()
+				return events, nil
+			}
 
-		active, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, SendPromptOpts{Message: "active prompt"})
-		if err != nil {
-			t.Fatalf("SendPrompt(active) error = %v", err)
-		}
-		<-activeEntered
-		targetTurnID := sess.CurrentTurnID()
-		queued, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, SendPromptOpts{
-			Message: "promote this input", Mode: BusyInputModeQueue,
-		})
-		if err != nil {
-			t.Fatalf("SendPrompt(queue) error = %v", err)
-		}
-		opts := PromotePendingInputOpts{
-			Text: "promote this input", ExpectedTurnID: targetTurnID,
-			MessageID: "message-promote-replay", IdempotencyKey: "idem-promote-replay",
-		}
-		first, err := h.manager.PromotePendingInputToSteer(
-			testutil.Context(t), sess.ID, queued.QueueEntryID, opts,
-		)
-		if err != nil {
-			t.Fatalf("PromotePendingInputToSteer(first) error = %v", err)
-		}
-		collectEvents(t, active.Events)
-		<-replacementEntered
-		replayed, err := h.manager.PromotePendingInputToSteer(
-			testutil.Context(t), sess.ID, queued.QueueEntryID, opts,
-		)
-		if err != nil {
-			t.Fatalf("PromotePendingInputToSteer(replay) error = %v", err)
-		}
-		if replayed.QueueEntryID != first.QueueEntryID {
-			t.Fatalf("promotion replay queue id = %q, want %q", replayed.QueueEntryID, first.QueueEntryID)
-		}
-		if got := managerCancelCalls(h); got != 1 {
-			t.Fatalf("driver cancel calls = %d, want one", got)
-		}
-		releaseReplacementOnce.Do(func() { close(releaseReplacement) })
-	})
+			active, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, SendPromptOpts{Message: "active prompt"})
+			if err != nil {
+				t.Fatalf("SendPrompt(active) error = %v", err)
+			}
+			<-activeEntered
+			targetTurnID := sess.CurrentTurnID()
+			queued, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, SendPromptOpts{
+				Message: "promote this input", Mode: BusyInputModeQueue,
+			})
+			if err != nil {
+				t.Fatalf("SendPrompt(queue) error = %v", err)
+			}
+			opts := PromotePendingInputOpts{
+				Text: "promote this input", ExpectedTurnID: targetTurnID,
+				MessageID: "message-promote-replay", IdempotencyKey: "idem-promote-replay",
+			}
+			first, err := h.manager.PromotePendingInputToSteer(
+				testutil.Context(t), sess.ID, queued.QueueEntryID, opts,
+			)
+			if err != nil {
+				t.Fatalf("PromotePendingInputToSteer(first) error = %v", err)
+			}
+			collectEvents(t, active.Events)
+			<-replacementEntered
+			replayed, err := h.manager.PromotePendingInputToSteer(
+				testutil.Context(t), sess.ID, queued.QueueEntryID, opts,
+			)
+			if err != nil {
+				t.Fatalf("PromotePendingInputToSteer(replay) error = %v", err)
+			}
+			if replayed.QueueEntryID != first.QueueEntryID {
+				t.Fatalf("promotion replay queue id = %q, want %q", replayed.QueueEntryID, first.QueueEntryID)
+			}
+			if got := managerCancelCalls(h); got != 1 {
+				t.Fatalf("driver cancel calls = %d, want one", got)
+			}
+			releaseReplacementOnce.Do(func() { close(releaseReplacement) })
+		},
+	)
 }
 
 func managerPromptCalls(h *harness) []acp.PromptRequest {

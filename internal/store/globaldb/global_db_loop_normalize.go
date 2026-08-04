@@ -68,6 +68,13 @@ func normalizeLoopRunForCreate(run looppkg.Run) (looppkg.Run, error) {
 		return looppkg.Run{}, err
 	}
 	run.Origin = &origin
+	if run.RunStartState != nil && run.Admission != nil {
+		normalizedAdmission, err := looppkg.NormalizeAdmissionIdentity(run.Admission.Identity)
+		if err != nil {
+			return looppkg.Run{}, err
+		}
+		run.Admission = &looppkg.RunAdmission{Identity: normalizedAdmission}
+	}
 	return run, nil
 }
 

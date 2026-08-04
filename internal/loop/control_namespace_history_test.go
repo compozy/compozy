@@ -22,12 +22,138 @@ func TestGenerationHistoryProjection(t *testing.T) {
 
 	t.Run("Should leave initial generation history and namespace roots empty", testGenerationHistoryInitialGeneration)
 	t.Run("Should project every previous node and verdict", testGenerationHistoryPreviousGeneration)
+	t.Run("Should expose only escalated classified failures to repair context", testGenerationHistoryRepairFailure)
 	t.Run("Should scope fan-out history to the current item", testGenerationHistoryFanOutScope)
 	t.Run("Should project best outputs without status", testGenerationHistoryBestGeneration)
 	t.Run("Should reject invalid best-generation state", testGenerationHistoryBestValidation)
 	t.Run("Should project scalar best output", testGenerationHistoryScalarBestOutput)
+	t.Run("Should hydrate externalized previous and best outputs", testGenerationHistoryExternalizedOutputs)
+	t.Run("Should authorize every externalized output through its owning cell", testGenerationHistoryOutputOwnership)
 	t.Run("Should include the contract verdict in route causes", testGenerationHistoryContractVerdict)
+	t.Run(
+		"Should preserve terminal node output or absence without authoring errors",
+		testGenerationHistoryTerminalNodes,
+	)
 	t.Run("Should reject a non-positive generation", testGenerationHistoryNonPositiveGeneration)
+}
+
+func testGenerationHistoryExternalizedOutputs(t *testing.T) {
+	t.Parallel()
+
+	previousPayload := json.RawMessage(`{"summary":"previous"}`)
+	bestPayload := json.RawMessage(`{"summary":"best"}`)
+	previousRef := OutputRefForPayload(previousPayload)
+	bestRef := OutputRefForPayload(bestPayload)
+	bestGeneration := int64(1)
+	bestScore := 0.91
+	run := Run{
+		ID: "run-history-payloads", WorkspaceID: "ws-history-payloads",
+		BestGeneration: &bestGeneration, BestScore: &bestScore,
+	}
+	reader := generationHistoryReaderStub{
+		outputs: map[int][]GenerationOutput{
+			1: {{Generation: 1, NodeID: "draft", Status: generationOutputSucceeded, OutputRef: bestRef}},
+			2: {{Generation: 2, NodeID: "draft", Status: generationOutputSucceeded, OutputRef: previousRef}},
+		},
+		payloads: map[GenerationOutputPayloadKey]json.RawMessage{
+			{WorkspaceID: run.WorkspaceID, RunID: run.ID, Generation: 1, NodeID: "draft", OutputRef: bestRef}:     bestPayload,
+			{WorkspaceID: run.WorkspaceID, RunID: run.ID, Generation: 2, NodeID: "draft", OutputRef: previousRef}: previousPayload,
+		},
+	}
+
+	history, err := ReadGenerationHistory(context.Background(), reader, run, 3)
+	if err != nil {
+		t.Fatalf("ReadGenerationHistory() error = %v", err)
+	}
+	previous, ok := history.Previous.Nodes["draft"][0].Output.(map[string]any)
+	if !ok || previous["summary"] != "previous" {
+		t.Fatalf("previous output = %#v, want hydrated payload", history.Previous.Nodes["draft"][0].Output)
+	}
+	best, ok := history.Best.Nodes["draft"][0].Output.(map[string]any)
+	if !ok || best["summary"] != "best" {
+		t.Fatalf("best output = %#v, want hydrated payload", history.Best.Nodes["draft"][0].Output)
+	}
+	if got := reader.outputs[2][0].OutputRef; got != previousRef {
+		t.Fatalf("previous stored output_ref = %q, want %q", got, previousRef)
+	}
+	if got := reader.outputs[1][0].OutputRef; got != bestRef {
+		t.Fatalf("best stored output_ref = %q, want %q", got, bestRef)
+	}
+}
+
+func testGenerationHistoryOutputOwnership(t *testing.T) {
+	t.Parallel()
+
+	payload := json.RawMessage(`{"summary":"shared"}`)
+	ref := OutputRefForPayload(payload)
+	run := Run{ID: "run-output-ownership", WorkspaceID: "ws-output-ownership"}
+	reader := generationHistoryReaderStub{
+		outputs: map[int][]GenerationOutput{
+			2: {
+				{Generation: 2, NodeID: "draft", Status: generationOutputSucceeded, OutputRef: ref},
+				{Generation: 2, NodeID: "review", Status: generationOutputSucceeded, OutputRef: ref},
+			},
+		},
+		payloads: map[GenerationOutputPayloadKey]json.RawMessage{
+			{WorkspaceID: run.WorkspaceID, RunID: run.ID, Generation: 2, NodeID: "draft", OutputRef: ref}: payload,
+		},
+	}
+
+	_, err := ReadGenerationHistory(context.Background(), reader, run, 3)
+	if !errors.Is(err, ErrOutputRefNotFound) {
+		t.Fatalf("ReadGenerationHistory() error = %v, want %v", err, ErrOutputRefNotFound)
+	}
+}
+
+func testGenerationHistoryRepairFailure(t *testing.T) {
+	t.Parallel()
+	failureClass := FailurePayloadDeclared
+	reader := generationHistoryReaderStub{
+		outputs: map[int][]GenerationOutput{2: {
+			{NodeID: "fetch", Status: generationOutputFailed},
+			{NodeID: "optional", Status: generationOutputSucceeded, OutputRef: failureAbsorbedOutputRef},
+		}},
+		attempts: []NodeAttempt{
+			{Generation: 2, NodeID: "fetch", Attempt: 1, FailureClass: &failureClass,
+				FailureCode: "tool_failed", Cause: "request failed", Hint: "use a smaller batch",
+				Disposition: AttemptEscalated},
+			{Generation: 2, NodeID: "optional", Attempt: 1, FailureClass: &failureClass,
+				FailureCode: "optional_failed", Cause: "optional request failed", Hint: "ignore",
+				Disposition: AttemptAbsorbed},
+		},
+	}
+	history, err := ReadGenerationHistory(
+		context.Background(), reader, Run{ID: "run-repair", WorkspaceID: "workspace-1"}, 3,
+	)
+	if err != nil {
+		t.Fatalf("ReadGenerationHistory() error = %v", err)
+	}
+	fetch := history.Previous.Nodes["fetch"][0]
+	if fetch.Failure == nil || fetch.Failure.Class != failureClass || fetch.Failure.Code != "tool_failed" ||
+		fetch.Failure.Hint != "use a smaller batch" || fetch.Disposition != AttemptEscalated {
+		t.Fatalf("fetch repair failure = %#v, want classified escalated attempt", fetch)
+	}
+	if optional := history.Previous.Nodes["optional"][0]; optional.Failure != nil || optional.Disposition != "" {
+		t.Fatalf("optional repair failure = %#v, want absorbed failure omitted", optional)
+	}
+	namespace := history.previousNamespace(
+		newControlTopology(dsl.Graph{Nodes: []dsl.Node{
+			{ID: "fetch", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform)},
+			{ID: "optional", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform)},
+		}}),
+		"fetch",
+		0,
+	)
+	nodes := namespace[namespaceNodesKey].(map[string]any)
+	fetchNamespace := nodes["fetch"].(map[string]any)
+	projected, ok := fetchNamespace[namespaceFailureKey].(ClassifiedFailure)
+	if !ok || projected.Cause != "request failed" || fetchNamespace[namespaceDispositionKey] != AttemptEscalated {
+		t.Fatalf("fetch namespace = %#v, want classified repair context", fetchNamespace)
+	}
+	optionalNamespace := nodes["optional"].(map[string]any)
+	if _, exists := optionalNamespace[namespaceFailureKey]; exists {
+		t.Fatalf("optional namespace = %#v, want no absorbed repair context", optionalNamespace)
+	}
 }
 
 func testGenerationHistoryInitialGeneration(t *testing.T) {
@@ -56,14 +182,17 @@ func testGenerationHistoryInitialGeneration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("runtimeNamespaceWithHistory() error = %v", err)
 	}
-	for _, key := range []string{"previous", "best"} {
-		value, ok := namespace[key].(map[string]any)
-		if !ok {
-			t.Fatalf("namespace[%q] = %#v, want empty object", key, namespace[key])
-		}
-		if len(value) != 0 {
-			t.Fatalf("namespace[%q] = %#v, want empty object", key, value)
-		}
+	previous, ok := namespace["previous"].(map[string]any)
+	if !ok {
+		t.Fatalf("namespace[previous] = %#v, want absent-data object", namespace["previous"])
+	}
+	previousNodes, ok := previous["nodes"].(map[string]any)
+	if !ok || len(previousNodes) != 0 {
+		t.Fatalf("namespace[previous].nodes = %#v, want empty node map", previous["nodes"])
+	}
+	best, ok := namespace["best"].(map[string]any)
+	if !ok || len(best) != 0 {
+		t.Fatalf("namespace[best] = %#v, want empty object", namespace["best"])
 	}
 }
 
@@ -377,10 +506,57 @@ func testGenerationHistoryNonPositiveGeneration(t *testing.T) {
 	}
 }
 
+func testGenerationHistoryTerminalNodes(t *testing.T) {
+	t.Parallel()
+
+	history, err := ProjectGenerationHistory(
+		2,
+		Run{},
+		[]GenerationOutput{
+			{NodeID: "quarantined", Status: "quarantined", OutputRef: `{"last":"known"}`},
+			{NodeID: "canceled", Status: "canceled"},
+		},
+		nil,
+		nil,
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("ProjectGenerationHistory() error = %v", err)
+	}
+	quarantined, ok := history.Previous.Nodes["quarantined"][0].Output.(map[string]any)
+	if !ok || quarantined["last"] != "known" {
+		t.Fatalf("quarantined output = %#v, want last recorded output", history.Previous.Nodes["quarantined"][0])
+	}
+	if got := history.Previous.Nodes["canceled"][0].Output; got != nil {
+		t.Fatalf("canceled output = %#v, want absent", got)
+	}
+}
+
 type generationHistoryReaderStub struct {
 	outputs     map[int][]GenerationOutput
+	payloads    map[GenerationOutputPayloadKey]json.RawMessage
 	verdicts    map[int][]gate.VerdictRecord
 	routeCauses map[int][]gate.VerdictRecord
+	attempts    []NodeAttempt
+}
+
+func (r generationHistoryReaderStub) GetGenerationOutputPayload(
+	_ context.Context,
+	key GenerationOutputPayloadKey,
+) (json.RawMessage, error) {
+	payload, ok := r.payloads[key]
+	if !ok {
+		return nil, ErrOutputRefNotFound
+	}
+	return cloneRawMessage(payload), nil
+}
+
+func (r generationHistoryReaderStub) ListNodeAttempts(
+	_ context.Context,
+	_ WorkspaceID,
+	_ RunID,
+) ([]NodeAttempt, error) {
+	return append([]NodeAttempt(nil), r.attempts...), nil
 }
 
 func (r generationHistoryReaderStub) ListGenerationOutputs(

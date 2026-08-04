@@ -71,6 +71,18 @@ func TestAutomationLoopStartMetadataShouldIncludeCatchUpEvidence(t *testing.T) {
 			t.Fatalf("catch_up_policy = %#v, want %q", got, want)
 		}
 	})
+
+	t.Run("Should canonicalize admission identity before persistence", func(t *testing.T) {
+		t.Parallel()
+
+		admission := automationLoopAdmission(automationpkg.LoopStartRequest{
+			SourceKey: "  trigger:deploy  ",
+			EventKey:  "  delivery:42  ",
+		})
+		if admission == nil || admission.SourceKey != "trigger:deploy" || admission.EventKey != "delivery:42" {
+			t.Fatalf("automationLoopAdmission() = %#v, want trimmed stable identity", admission)
+		}
+	})
 }
 
 func TestAutomationLoopStarterShouldForwardDefinitionParticipationAsAutomationIntent(t *testing.T) {

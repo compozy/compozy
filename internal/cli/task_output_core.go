@@ -207,7 +207,7 @@ func taskExecutionProfileBundle(profile *TaskExecutionProfileRecord) outputBundl
 				{Label: "Review Agent", Value: stringOrDash(profile.Review.AgentName)},
 				{Label: taskSandboxValue, Value: stringOrDash(string(profile.Sandbox.Mode))},
 				{Label: "Sandbox Ref", Value: stringOrDash(profile.Sandbox.SandboxRef)},
-				{Label: "Runtime", Value: stringOrDash(string(profile.Runtime.Mode))},
+				{Label: cliRuntimeValue, Value: stringOrDash(string(profile.Runtime.Mode))},
 				{Label: taskUpdatedValue, Value: stringOrDash(formatTime(profile.UpdatedAt))},
 			}), nil
 		},

@@ -26,7 +26,7 @@ export const loopEditorPublishTransitions = {
       return;
     }
     const next = clearPublishPending(current, event.generation);
-    return { ...next, publishError: event.error };
+    return { ...next, publishError: event.error, publishRejectedIssues: [] };
   },
   publishRejected: (current: LoopEditorState, event: LoopEditorEvents["publishRejected"]) => {
     if (
@@ -38,14 +38,18 @@ export const loopEditorPublishTransitions = {
     const next = clearPublishPending(current, event.generation);
     const lint = buildLintState(event.result);
     const publishError = `Publish rejected — ${lint.errorCount} issue${lint.errorCount === 1 ? "" : "s"} to resolve.`;
+    // The strip lists what the daemon returned, even when the draft moved on and the dock's
+    // lint state is intentionally left alone.
+    const publishRejectedIssues = lint.issues;
     if (current.structuralRevision !== event.revision) {
-      return { ...next, publishError };
+      return { ...next, publishError, publishRejectedIssues };
     }
     return {
       ...next,
       lint,
       nodes: applyLintToNodes(current.nodes, lint.byNode),
       publishError,
+      publishRejectedIssues,
     };
   },
   publishRequested: (
@@ -85,6 +89,7 @@ export const loopEditorPublishTransitions = {
       ...current,
       pendingPublishGeneration: generation,
       publishError: null,
+      publishRejectedIssues: [],
       publishGeneration: generation,
       validationGeneration: current.validationGeneration + 1,
     };

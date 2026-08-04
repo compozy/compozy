@@ -51,6 +51,29 @@ func WithCoordinatorVerdictReader(reader gate.VerdictReader) CoordinatorRunnerOp
 	}
 }
 
+// WithCoordinatorNodeAttemptReader injects the durable attempt-ledger reader.
+func WithCoordinatorNodeAttemptReader(reader NodeAttemptReader) CoordinatorRunnerOption {
+	return func(r *CoordinatorRunner) {
+		r.attempts = reader
+	}
+}
+
+// WithCoordinatorNodeControlReader injects cross-generation node control reads.
+func WithCoordinatorNodeControlReader(reader NodeControlReader) CoordinatorRunnerOption {
+	return func(r *CoordinatorRunner) {
+		r.controls = reader
+	}
+}
+
+// WithCoordinatorRetryRand injects the retry jitter source.
+func WithCoordinatorRetryRand(randFloat64 func() float64) CoordinatorRunnerOption {
+	return func(r *CoordinatorRunner) {
+		if randFloat64 != nil {
+			r.retryRand = randFloat64
+		}
+	}
+}
+
 // WithCoordinatorActionRegistry injects runtime action execution for worker node runs.
 func WithCoordinatorActionRegistry(registry *ActionRegistry) CoordinatorRunnerOption {
 	return func(r *CoordinatorRunner) {
@@ -62,6 +85,13 @@ func WithCoordinatorActionRegistry(registry *ActionRegistry) CoordinatorRunnerOp
 func WithCoordinatorRuntimeCatalog(catalog WorkspaceRuntimeCatalog) CoordinatorRunnerOption {
 	return func(r *CoordinatorRunner) {
 		r.runtimeCatalog = catalog
+	}
+}
+
+// WithCoordinatorTargetHealth injects daemon-global loop-target admission and accounting.
+func WithCoordinatorTargetHealth(health TargetHealth) CoordinatorRunnerOption {
+	return func(r *CoordinatorRunner) {
+		r.targetHealth = health
 	}
 }
 

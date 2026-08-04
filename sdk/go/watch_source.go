@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"slices"
 	"strings"
+	"unicode/utf8"
 )
 
 const extensionKindKey = "kind"
@@ -148,12 +149,26 @@ func (e *Extension) handleWatchPoll(
 		)
 	}
 	contextValue := e.makeContext(request)
-	return registered.handler(ctx, rawWatchSourceRequest{
+	response, err := registered.handler(ctx, rawWatchSourceRequest{
 		kind:                registered.kind,
 		spec:                cloneRawMessage(poll.Spec),
 		expectedStateDigest: strings.TrimSpace(poll.ExpectedStateDigest),
 		context:             contextValue,
 	})
+	if err != nil {
+		return WatchPollResponse{}, err
+	}
+	if !utf8.ValidString(response.EventKey) {
+		return WatchPollResponse{}, NewInvalidParamsError("watch source response.event_key must be valid UTF-8", nil)
+	}
+	response.EventKey = strings.TrimSpace(response.EventKey)
+	if response.EventKey == "" {
+		return WatchPollResponse{}, NewInvalidParamsError("watch source response.event_key is required", nil)
+	}
+	if len([]byte(response.EventKey)) > 256 {
+		return WatchPollResponse{}, NewInvalidParamsError("watch source response.event_key must be at most 256 bytes", nil)
+	}
+	return response, nil
 }
 
 func (e *Extension) watchSourceKindsLocked() []string {

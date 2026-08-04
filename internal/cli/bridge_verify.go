@@ -114,7 +114,7 @@ func bridgeSendTestBundle(result BridgeSendTestRecord) outputBundle {
 			deliveryValues := []keyValue{
 				{Label: automationStatusValue, Value: stringOrDash(string(result.Status))},
 				{Label: bridgeBridgeValue, Value: stringOrDash(result.BridgeInstanceID)},
-				{Label: "Delivery", Value: stringOrDash(result.DeliveryID)},
+				{Label: cliDeliveryValue, Value: stringOrDash(result.DeliveryID)},
 			}
 			if strings.TrimSpace(result.RemoteMessageID) != "" {
 				deliveryValues = append(deliveryValues, keyValue{

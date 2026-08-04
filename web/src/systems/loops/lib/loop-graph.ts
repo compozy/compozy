@@ -34,6 +34,18 @@ export interface LoopGraphNode {
   watch?: Record<string, unknown>;
   /** Declared watch-event subscription count (event-driven watch nodes). */
   eventsCount: number;
+  /**
+   * Authored `retry.max_attempts`. Only present when the definition declares it —
+   * the run payload never carries an attempt ceiling, so "attempt 2 of 3" may be
+   * phrased only for a node whose author wrote the 3.
+   */
+  retryMaxAttempts?: number;
+  /** Authored `timeout` — the ceiling on a single attempt (Go duration string). */
+  timeout?: string;
+  /** Authored `deadline` — the ceiling on the whole node across attempts. */
+  deadline?: string;
+  /** Authored `expires.after` on a wait node — the point the wait gives up. */
+  waitExpiresAfter?: string;
 }
 
 export interface LoopGraphEdge {
@@ -58,6 +70,12 @@ function asOptionalNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
+function asOptionalString(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed === "" ? undefined : trimmed;
+}
+
 export function toLoopNodeClass(value: unknown): LoopNodeClass | null {
   return typeof value === "string" && LOOP_NODE_CLASS_SET.has(value as LoopNodeClass)
     ? (value as LoopNodeClass)
@@ -80,7 +98,16 @@ function projectNode(raw: unknown): LoopGraphNode | null {
     isGate: kind === "gate" || Boolean(record.criteria) || Boolean(record.verdict_policy),
     watch: asRecord(record.watch) ?? undefined,
     eventsCount: Array.isArray(record.events) ? record.events.length : 0,
+    retryMaxAttempts: asOptionalNumber(asRecord(record.retry)?.max_attempts),
+    timeout: asOptionalString(record.timeout),
+    deadline: asOptionalString(record.deadline),
+    waitExpiresAfter: asOptionalString(asRecord(asRecord(record.params)?.expires)?.after),
   };
+}
+
+/** The authored attempt ceiling for one node, or undefined when none is declared. */
+export function nodeRetryMaxAttempts(graph: LoopGraph | null, nodeId: string): number | undefined {
+  return graph?.nodes.find(node => node.id === nodeId)?.retryMaxAttempts;
 }
 
 function projectEdge(raw: unknown): LoopGraphEdge | null {

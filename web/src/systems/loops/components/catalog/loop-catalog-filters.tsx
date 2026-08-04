@@ -1,76 +1,42 @@
-import { ListFilter } from "lucide-react";
+import { NativeSelect, NativeSelectOption } from "@compozy/ui";
 
-import { Button } from "@compozy/ui";
-import { FiltersWithSearch, type Filter } from "@compozy/ui";
+import type { LoopStatusFilter } from "../../lib/loop-catalog";
+import { loopStatusFilterOptions } from "../../lib/loop-list-filters";
+import { isLoopRunStatus } from "../../lib/loop-formatters";
 
-import type { LoopKindFilter, LoopStatusFilter } from "../../lib/loop-catalog";
-import {
-  applyLoopFilterChips,
-  buildLoopFilterFields,
-  loopFiltersToChips,
-} from "../../lib/loop-list-filters";
+const ALL_STATUSES = "";
 
 export interface LoopCatalogFiltersProps {
-  categories: readonly string[];
-  statuses: readonly LoopStatusFilter[];
-  kindFilter: LoopKindFilter;
-  categoryFilter: string | null;
   statusFilter: LoopStatusFilter | null;
-  onKindFilterChange: (next: LoopKindFilter) => void;
-  onCategoryFilterChange: (next: string | null) => void;
   onStatusFilterChange: (next: LoopStatusFilter | null) => void;
 }
 
 /**
- * Loops filter chip bar for composition inside ListingToolbar.Filters.
- * Kind / category / status options are data-driven from the catalog (truthful UI).
+ * Catalog filter control: one select over the latest-run status of each loop.
+ *
+ * The option list is the daemon's full status vocabulary rather than the statuses
+ * present on the loaded page, so `canceled` stays selectable on a roster that has
+ * none — the answer is the truthful empty state, not a missing option.
  */
-function LoopCatalogFilters({
-  categories,
-  statuses,
-  kindFilter,
-  categoryFilter,
-  statusFilter,
-  onKindFilterChange,
-  onCategoryFilterChange,
-  onStatusFilterChange,
-}: LoopCatalogFiltersProps) {
-  const fields = buildLoopFilterFields(categories, statuses);
-  const chips = loopFiltersToChips({
-    kind: kindFilter,
-    category: categoryFilter,
-    status: statusFilter,
-  });
-
-  const handleFiltersChange = (next: Filter<string>[]) => {
-    applyLoopFilterChips(next, {
-      onKindChange: onKindFilterChange,
-      onCategoryChange: onCategoryFilterChange,
-      onStatusChange: onStatusFilterChange,
-    });
-  };
-
+function LoopCatalogFilters({ statusFilter, onStatusFilterChange }: LoopCatalogFiltersProps) {
   return (
-    <FiltersWithSearch<string>
-      allowMultiple={false}
-      data-testid="loop-catalog-filters"
-      fields={fields}
-      filters={chips}
-      onChange={handleFiltersChange}
+    <NativeSelect
+      aria-label="Filter by latest run status"
+      data-testid="loop-catalog-status-filter"
+      onChange={event => {
+        const next = event.target.value;
+        onStatusFilterChange(isLoopRunStatus(next) ? next : null);
+      }}
       size="sm"
-      trigger={
-        <Button
-          aria-label="Add filter"
-          data-testid="loop-catalog-filters-add"
-          size="sm"
-          type="button"
-          variant="ghost"
-        >
-          <ListFilter aria-hidden="true" className="size-3" />
-          Filter
-        </Button>
-      }
-    />
+      value={statusFilter ?? ALL_STATUSES}
+    >
+      <NativeSelectOption value={ALL_STATUSES}>All statuses</NativeSelectOption>
+      {loopStatusFilterOptions().map(option => (
+        <NativeSelectOption key={option.value} value={option.value}>
+          {option.label}
+        </NativeSelectOption>
+      ))}
+    </NativeSelect>
   );
 }
 

@@ -8,6 +8,7 @@ import {
   formatRunInputs,
   formatTokenCount,
   loopBudgetBar,
+  loopRunOriginLine,
   partitionRuns,
   runGenerationLabel,
 } from "../loop-runs-view";
@@ -71,7 +72,8 @@ describe("loop-runs-view", () => {
   it("Should split live runs into Active and terminal runs into Past, honoring the outcome filter", () => {
     const { active, past } = partitionRuns(loopRunFixtures);
     expect(active).toHaveLength(5);
-    expect(past).toHaveLength(9);
+    expect(past).toHaveLength(10);
+    expect(past.some(runItem => runItem.status === "canceled")).toBe(true);
     const onlyDone = partitionRuns(loopRunFixtures, "done");
     expect(onlyDone.active).toHaveLength(0);
     expect(onlyDone.past.every(runItem => runItem.status === "done")).toBe(true);
@@ -88,6 +90,25 @@ describe("loop-runs-view", () => {
   it("Should preview resolved inputs truthfully", () => {
     expect(formatRunInputs({ slug: "x", branch: "main", extra: 1 })).toBe("slug: x · branch: main");
     expect(formatRunInputs(undefined)).toBe("");
+  });
+
+  it("Should keep origin kind and reference from the same recorded pair", () => {
+    expect(
+      loopRunOriginLine({
+        started_origin_kind: "schedule",
+        started_origin_ref: "nightly",
+        started_by_kind: "user",
+        started_by_ref: "pedro",
+      })
+    ).toBe("schedule · nightly");
+    expect(
+      loopRunOriginLine({
+        started_origin_kind: "schedule",
+        started_origin_ref: "",
+        started_by_kind: "user",
+        started_by_ref: "pedro",
+      })
+    ).toBe("user · pedro");
   });
 
   it("Should model the budget mini-bar: uncapped shows no percent, capped warns and dangers near the ceiling", () => {

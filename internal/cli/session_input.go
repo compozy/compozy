@@ -82,10 +82,11 @@ func newSessionInputEditCommand(deps commandDeps) *cobra.Command {
 func newSessionInputSteerCommand(deps commandDeps) *cobra.Command {
 	flags := sessionInputSteerFlags{}
 	cmd := &cobra.Command{
-		Use:     "steer <session-id> <input-id> <message>",
-		Short:   "Promote queued input to fenced steering guidance",
-		Args:    exactSessionInputMutationArgs(),
-		Example: "  compozy session input steer sess_1234 queue_entry_1234 \"Prefer the smaller patch.\" --expected-turn-id turn_1234",
+		Use:   "steer <session-id> <input-id> <message>",
+		Short: "Promote queued input to fenced steering guidance",
+		Args:  exactSessionInputMutationArgs(),
+		Example: "  compozy session input steer sess_1234 queue_entry_1234 " +
+			"\"Prefer the smaller patch.\" --expected-turn-id turn_1234",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -109,7 +110,8 @@ func newSessionInputSteerCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	bindSessionInputIdentityFlags(cmd, &flags.sessionInputIdentityFlags)
-	cmd.Flags().StringVar(&flags.expectedTurnID, "expected-turn-id", "", "Active turn id that this steer request must match")
+	cmd.Flags().
+		StringVar(&flags.expectedTurnID, "expected-turn-id", "", "Active turn id that this steer request must match")
 	mustMarkFlagRequired(cmd, "expected-turn-id")
 	return cmd
 }

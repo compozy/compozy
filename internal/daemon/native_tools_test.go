@@ -5645,7 +5645,11 @@ func TestDaemonNativeTools(t *testing.T) {
 				)
 				requireToolReason(t, callErr, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
 				if got := workspaceGetCalls + workspaceResolveCalls; got != workspaceCallsBeforeInvalidInput {
-					t.Fatalf("workspace lookup calls = %d, want %d before local validation", got, workspaceCallsBeforeInvalidInput)
+					t.Fatalf(
+						"workspace lookup calls = %d, want %d before local validation",
+						got,
+						workspaceCallsBeforeInvalidInput,
+					)
 				}
 			})
 		}
@@ -5744,7 +5748,9 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDSessionInputCancel,
-				Input:  json.RawMessage(`{"workspace":"ws-stable","session_id":"sess-1","queue_entry_id":"input-queued"}`),
+				Input: json.RawMessage(
+					`{"workspace":"ws-stable","session_id":"sess-1","queue_entry_id":"input-queued"}`,
+				),
 			},
 		)
 		if err != nil {

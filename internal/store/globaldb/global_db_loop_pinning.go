@@ -184,6 +184,17 @@ func (g *LoopRepo) RecordLoopGateDecisions(
 				return err
 			}
 		}
+		if len(normalized) > 0 {
+			run, err := getLoopRunByIDWithExecutor(ctx, exec, normalized[0].RunID)
+			if err != nil {
+				return err
+			}
+			if run.Status == looppkg.StatusNeedsApproval && run.ActiveGateID == normalized[0].GateID {
+				if err := claimActiveApprovalWait(ctx, exec, run, normalized[0]); err != nil {
+					return err
+				}
+			}
+		}
 		return nil
 	})
 }

@@ -124,6 +124,34 @@ const (
 	CodeNetworkParticipationInvalid = "network_participation_invalid"
 	// CodeLoopRequiresLive reports a Network-using graph without authored Live participation.
 	CodeLoopRequiresLive = "loop_requires_live"
+	// CodeErrorRouteBackward reports an error route that is not a direct forward edge.
+	CodeErrorRouteBackward = "error_route_backward"
+	// CodeErrorRouteConflict reports route and allow_fail on the same error policy.
+	CodeErrorRouteConflict = "error_route_conflict"
+	// CodeErrorRouteDead warns about an error route on an infallible node.
+	CodeErrorRouteDead = "error_route_dead"
+	// CodeRetryOnGoalNode reports generic lifecycle retry fields on a Goal node.
+	CodeRetryOnGoalNode = "retry_on_goal_node"
+	// CodeTimeoutExceedsDeadline reports a per-attempt timeout beyond the node deadline.
+	CodeTimeoutExceedsDeadline = "timeout_exceeds_deadline"
+	// CodeDurationInvalid reports an invalid or non-positive lifecycle duration.
+	CodeDurationInvalid = "duration_invalid"
+	// CodeResultContractInvalid reports a result contract that cannot resolve against output.
+	CodeResultContractInvalid = "result_contract_invalid"
+	// CodeEffectShapeInvalid reports an effect that is not exactly one emit or tool call.
+	CodeEffectShapeInvalid = "effect_shape_invalid"
+	// CodeEffectToolUnknown warns that an effect tool is absent from the schema snapshot.
+	CodeEffectToolUnknown = "effect_tool_unknown"
+	// CodeWaitShapeInvalid reports an invalid wait discriminator or expiry shape.
+	CodeWaitShapeInvalid = "wait_shape_invalid"
+	// CodeWaitExpiryWithoutPath warns that expiry can only surface needs-attention.
+	CodeWaitExpiryWithoutPath = "wait_expiry_without_path"
+	// CodeWatchIdentityRequired reports a watch source without stable event identity support.
+	CodeWatchIdentityRequired = "watch_identity_required"
+	// CodeParentCloseInvalid reports parent-close policy outside run-loop or its closed enum.
+	CodeParentCloseInvalid = "parent_close_invalid"
+	// CodeAutopauseRuleInvalid identifies a config-side autopause compilation failure.
+	CodeAutopauseRuleInvalid = "autopause_rule_invalid"
 )
 
 // ToolSchemaSnapshot is the pure tool-schema view consumed by lint and compile.
@@ -138,4 +166,9 @@ type ToolSchemaSnapshot struct {
 // ToolSchemaSource resolves open action ToolIDs without tying lint to runtime IO.
 type ToolSchemaSource interface {
 	Snapshot(toolID string) (ToolSchemaSnapshot, bool)
+}
+
+// WatchIdentitySource reports whether a watch source kind provides stable event identity.
+type WatchIdentitySource interface {
+	SupportsStableWatchIdentity(kind string) bool
 }

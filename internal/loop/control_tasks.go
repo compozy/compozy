@@ -22,6 +22,12 @@ func appendCoordinatorTasksForOutputs(
 		existing[spec.TaskID] = struct{}{}
 	}
 	for _, output := range sortedGenerationOutputs(outputs) {
+		if GenerationOutputStatusParked(output.Status) {
+			continue
+		}
+		if requiredParkedProducer(graph, topology, outputs, output) != "" {
+			continue
+		}
 		node, ok := graphNode(graph, dsl.NodeID(output.NodeID))
 		if !ok {
 			continue
@@ -68,6 +74,12 @@ func appendCoordinatorDependenciesForOutputs(
 	}
 	outputMap := generationOutputMap(outputs)
 	for _, output := range sortedGenerationOutputs(outputs) {
+		if GenerationOutputStatusParked(output.Status) {
+			continue
+		}
+		if requiredParkedProducer(graph, topology, outputs, output) != "" {
+			continue
+		}
 		nodeID := dsl.NodeID(output.NodeID)
 		node, ok := graphNode(graph, nodeID)
 		if !ok || isCoordinatorOwnedNodeWithGates(node, gatesEnabled) {
@@ -76,6 +88,9 @@ func appendCoordinatorDependenciesForOutputs(
 		for _, dependency := range topology.dependencies[nodeID] {
 			dependencyNode, ok := graphNode(graph, dependency)
 			if !ok || isCoordinatorOwnedNodeWithGates(dependencyNode, gatesEnabled) {
+				continue
+			}
+			if isAuthoredErrorRouteDependency(dependencyNode, nodeID) {
 				continue
 			}
 			dependencyOutputs := dependencyOutputsForTaskDependency(
@@ -87,7 +102,7 @@ func appendCoordinatorDependenciesForOutputs(
 				output.ItemIndex,
 			)
 			for _, dependencyOutput := range dependencyOutputs {
-				if dependencyOutput.NodeID == "" {
+				if dependencyOutput.NodeID == "" || GenerationOutputStatusParked(dependencyOutput.Status) {
 					continue
 				}
 				taskID := coordinatorNodeTaskID(run.ID, generation, nodeID, output.ItemIndex)
@@ -111,6 +126,11 @@ func appendCoordinatorDependenciesForOutputs(
 		}
 	}
 	return nil
+}
+
+func isAuthoredErrorRouteDependency(source dsl.Node, target dsl.NodeID) bool {
+	policy := nodeErrorPolicy(source)
+	return policy != nil && policy.Route == target
 }
 
 func dependencyOutputsForTaskDependency(
@@ -183,7 +203,16 @@ func coordinatorNodeMetadataForOutput(
 	if err != nil {
 		return nil, err
 	}
-	return coordinatorNodeMetadataWithFanOutItem(run, generation, node, output.ItemIndex, item, hasItem)
+	return coordinatorNodeMetadataWithFanOutItem(
+		run,
+		generation,
+		node,
+		output.ItemIndex,
+		output.Attempt,
+		output.Epoch,
+		item,
+		hasItem,
+	)
 }
 
 func fanOutItemForOutput(

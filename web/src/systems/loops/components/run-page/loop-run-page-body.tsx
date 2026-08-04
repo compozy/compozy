@@ -1,7 +1,12 @@
-import type { ComponentProps } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import { Search } from "lucide-react";
 
 import { Button, cn } from "@compozy/ui";
+
+import type { LoopNodeLifecycle } from "../../lib/loop-node-lifecycle";
+import type { LoopNodeNowLine } from "../../lib/loop-node-now-view";
+import { LoopRunAttentionPanel, LoopRunWaitingPanel } from "./loop-run-parked-panels";
+import { LoopRunWaitsRail } from "./loop-run-waits-rail";
 
 import type {
   LoopApprovalFact,
@@ -43,6 +48,9 @@ const OUTCOME_STATUSES = new Set<LoopRunStatus>([
   "exhausted",
   "stalled",
   "no-op",
+  // `canceled` is a deliberate ending, not a failure — it renders the same
+  // "Why it stopped" slot with calm neutral tone (VC-R2).
+  "canceled",
 ]);
 
 export interface LoopRunGoalTurnsPaging {
@@ -92,8 +100,24 @@ export interface LoopRunPageBodyProps extends Omit<ComponentProps<"div">, "child
   showNowCard: boolean;
   terminalFromStatus?: string;
   terminalAt?: string;
+  /** The terminal transition's `cause` — separates a cancel from a kill. */
+  terminalCause?: string;
   inspect: LoopRunInspectState;
   pendingAction?: LoopRunPendingAction;
+  /** Lifecycle lines rendered inside the Happening-now card. */
+  nodeNowLines?: readonly LoopNodeNowLine[];
+  /** Nodes holding an open wait cell. */
+  waitingNodes?: readonly LoopNodeLifecycle[];
+  /** Nodes carrying an attention flag. */
+  attentionNodes?: readonly LoopNodeLifecycle[];
+  /** Every node with declared lifecycle state; feeds the rail's waits panel. */
+  nodeLifecycles?: readonly LoopNodeLifecycle[];
+  /** Lifecycle rows by node id, so a line can host its verb menu. */
+  nodesById?: ReadonlyMap<string, LoopNodeLifecycle>;
+  /** Renders the verb menu for one node; omitted in read-only fixtures. */
+  renderNodeActions?: (node: LoopNodeLifecycle) => ReactNode;
+  /** Opens the quarantine entry sheet for one node. */
+  onOpenQuarantine?: (node: LoopNodeLifecycle) => void;
   onDecision: (decision: LoopGateDecision, gateId: string) => void;
   onStartNewRun: () => void;
 }
@@ -141,8 +165,16 @@ export function LoopRunPageBody({
   showNowCard,
   terminalFromStatus,
   terminalAt,
+  terminalCause,
   inspect,
   pendingAction,
+  nodeNowLines,
+  waitingNodes,
+  attentionNodes,
+  nodeLifecycles,
+  nodesById,
+  renderNodeActions,
+  onOpenQuarantine,
   onDecision,
   onStartNewRun,
   className,
@@ -161,6 +193,9 @@ export function LoopRunPageBody({
       />
     ) : undefined;
 
+  // A terminal run has nothing happening: `showNowCard` already excludes every
+  // terminal status, so a canceled run renders no live card even while its node
+  // lifecycle rows still exist in the projection (VC-R2).
   const nowCard = showNowCard ? (
     <LoopRunNowCard
       run={run}
@@ -169,6 +204,9 @@ export function LoopRunPageBody({
       watchCadence={watchCadence}
       stepElapsedLabel={stepElapsedLabel}
       isLive={isLive}
+      nodeLines={nodeNowLines}
+      nodesById={nodesById}
+      renderNodeActions={renderNodeActions}
     >
       {nowTurnsSlot}
     </LoopRunNowCard>
@@ -198,12 +236,18 @@ export function LoopRunPageBody({
                 onDecision={onDecision}
               />
             ) : null}
+            <LoopRunAttentionPanel
+              nodes={attentionNodes ?? []}
+              onOpenQuarantine={onOpenQuarantine}
+              renderNodeActions={renderNodeActions}
+            />
             {OUTCOME_STATUSES.has(status) ? (
               <LoopRunOutcomeCard
                 run={run}
                 failure={failure}
                 fromStatus={terminalFromStatus}
                 terminalAt={terminalAt}
+                cause={terminalCause}
                 noProgressWindow={contract?.no_progress.window}
                 repeatedIssueIds={latestVerdict?.blockingIssues.map(issue => issue.id) ?? []}
                 onStartNewRun={onStartNewRun}
@@ -217,6 +261,7 @@ export function LoopRunPageBody({
               progress={progress}
             />
             {status !== "paused" ? nowCard : null}
+            <LoopRunWaitingPanel nodes={waitingNodes ?? []} renderNodeActions={renderNodeActions} />
             <LoopRunStoryTimeline
               rows={story.rows}
               isLive={isLive}
@@ -231,6 +276,9 @@ export function LoopRunPageBody({
           <aside data-testid="loop-run-detail-rail">
             <div className="rounded-lg border border-line bg-canvas-soft">
               <LoopRunUsageRail rows={usageRows} note={usageNote} />
+              {nodeLifecycles && nodeLifecycles.length > 0 ? (
+                <LoopRunWaitsRail nodes={nodeLifecycles} />
+              ) : null}
               <LoopRunAboutRail
                 run={run}
                 versionLabel={versionLabel}

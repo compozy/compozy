@@ -20,78 +20,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type loopCommandClient interface {
-	GetWorkspace(ctx context.Context, ref string) (WorkspaceDetailRecord, error)
-	ListLoops(ctx context.Context, workspaceID string, query LoopListQuery) (contract.LoopsResponse, error)
-	CreateLoop(
-		ctx context.Context,
-		workspaceID string,
-		request contract.CreateLoopRequest,
-		credentials agentidentity.Credentials,
-	) (contract.LoopResponse, error)
-	GetLoop(ctx context.Context, workspaceID string, name string) (contract.LoopResponse, error)
-	PatchLoop(
-		ctx context.Context,
-		workspaceID string,
-		name string,
-		request contract.PatchLoopRequest,
-		credentials agentidentity.Credentials,
-	) (contract.LoopResponse, error)
-	ValidateLoop(
-		ctx context.Context,
-		workspaceID string,
-		name string,
-		request contract.ValidateLoopRequest,
-	) (contract.LoopValidationResponse, error)
-	DeleteLoop(ctx context.Context, workspaceID string, name string, credentials agentidentity.Credentials) error
-	RunLoop(
-		ctx context.Context,
-		workspaceID string,
-		name string,
-		request contract.RunLoopRequest,
-		dry bool,
-		credentials agentidentity.Credentials,
-	) (contract.RunLoopResponse, error)
-	GetLoopConfig(ctx context.Context, workspaceID string, name string) (contract.LoopConfigResponse, error)
-	PutLoopConfig(
-		ctx context.Context,
-		workspaceID string,
-		name string,
-		request contract.PutLoopConfigRequest,
-		credentials agentidentity.Credentials,
-	) (contract.LoopConfigResponse, error)
-	ListLoopRuns(ctx context.Context, workspaceID string, query LoopRunListQuery) (contract.LoopRunsResponse, error)
-	ListGoalTurns(
-		ctx context.Context,
-		workspaceID string,
-		runID string,
-		query GoalTurnListQuery,
-	) (contract.GoalTurnPage, error)
-	GetLoopRun(ctx context.Context, workspaceID string, runID string) (contract.LoopRunResponse, error)
-	StopLoopRun(ctx context.Context, workspaceID string, runID string, credentials agentidentity.Credentials) error
-	PauseLoopRun(ctx context.Context, workspaceID string, runID string, credentials agentidentity.Credentials) error
-	ResumeLoopRun(ctx context.Context, workspaceID string, runID string, credentials agentidentity.Credentials) error
-	ApproveLoopRun(
-		ctx context.Context,
-		workspaceID string,
-		runID string,
-		request contract.ApproveLoopRunRequest,
-		credentials agentidentity.Credentials,
-	) error
-}
-
-func loopClientFromDeps(deps commandDeps) (loopCommandClient, error) {
-	client, err := clientFromDeps(deps)
-	if err != nil {
-		return nil, err
-	}
-	loopClient, ok := client.(loopCommandClient)
-	if !ok {
-		return nil, errors.New("cli: daemon client does not support loop commands")
-	}
-	return loopClient, nil
-}
-
 func requiredLoopFlag(field string, value string) (string, error) {
 	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {
@@ -277,17 +205,24 @@ func executeLoopRunAction(
 	workspaceID string,
 	runID string,
 	credentials agentidentity.Credentials,
-) error {
+) (contract.LoopMutationResponse, error) {
 	switch strings.TrimSpace(verb) {
-	case loopStopKey:
-		return client.StopLoopRun(ctx, workspaceID, runID, credentials)
+	case loopCancelKey:
+		return client.CancelLoopRun(ctx, workspaceID, runID, credentials)
+	case loopKillKey:
+		return client.KillLoopRun(ctx, workspaceID, runID, credentials)
 	case loopPauseKey:
-		return client.PauseLoopRun(ctx, workspaceID, runID, credentials)
+		if err := client.PauseLoopRun(ctx, workspaceID, runID, credentials); err != nil {
+			return contract.LoopMutationResponse{}, err
+		}
 	case loopResumeKey:
-		return client.ResumeLoopRun(ctx, workspaceID, runID, credentials)
+		if err := client.ResumeLoopRun(ctx, workspaceID, runID, credentials); err != nil {
+			return contract.LoopMutationResponse{}, err
+		}
 	default:
-		return fmt.Errorf("cli: unsupported loop run action %q", verb)
+		return contract.LoopMutationResponse{}, fmt.Errorf("cli: unsupported loop run action %q", verb)
 	}
+	return contract.LoopMutationResponse{OK: true, RunID: runID}, nil
 }
 
 func writeLoopDefinition(cmd *cobra.Command, response *contract.LoopResponse) error {

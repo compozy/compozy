@@ -13,9 +13,16 @@ import (
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
+// CreatedAgentDefinition is the normalized result of one shared agent creation.
+type CreatedAgentDefinition struct {
+	Agent         compozyconfig.AgentDef
+	RuntimeConfig compozyconfig.Config
+	WorkspaceID   string
+}
+
 // CreateAgentFromRequest validates and persists one AGENT.md definition from a
-// shared create-agent request. It is the single authoring path reused by the
-// HTTP handler and the compozy__agent_create native tool.
+// shared create-agent request. It is the authoring path used by the
+// compozy__agent_create native tool.
 func CreateAgentFromRequest(
 	ctx context.Context,
 	req contract.CreateAgentRequest,
@@ -23,25 +30,29 @@ func CreateAgentFromRequest(
 	globalConfig *compozyconfig.Config,
 	workspaces WorkspaceService,
 	transportName string,
-) (compozyconfig.AgentDef, compozyconfig.Config, error) {
+) (CreatedAgentDefinition, error) {
 	draft, err := createAgentDraftFromRequest(req)
 	if err != nil {
-		return compozyconfig.AgentDef{}, compozyconfig.Config{}, err
+		return CreatedAgentDefinition{}, err
 	}
 	target, err := createAgentDefinitionTargetFor(
 		ctx, req, homePaths, globalConfig, workspaces, transportName,
 	)
 	if err != nil {
-		return compozyconfig.AgentDef{}, compozyconfig.Config{}, err
+		return CreatedAgentDefinition{}, err
 	}
 	if err := validateAgentDraftRuntime(draft, &target.Config); err != nil {
-		return compozyconfig.AgentDef{}, compozyconfig.Config{}, err
+		return CreatedAgentDefinition{}, err
 	}
 	agent, err := compozyconfig.CreateAgentDefFile(target.Path, draft, false)
 	if err != nil {
-		return compozyconfig.AgentDef{}, compozyconfig.Config{}, err
+		return CreatedAgentDefinition{}, err
 	}
-	return agent, target.Config, nil
+	return CreatedAgentDefinition{
+		Agent:         agent,
+		RuntimeConfig: target.Config,
+		WorkspaceID:   target.WorkspaceID,
+	}, nil
 }
 
 func createAgentDraftFromRequest(req contract.CreateAgentRequest) (compozyconfig.AgentDefinitionDraft, error) {
@@ -184,7 +195,7 @@ func createAgentDefinitionTargetFor(
 				name,
 				compozyconfig.AgentDefinitionFileName,
 			),
-			WorkspaceID: strings.TrimSpace(resolved.WorkspaceID),
+			WorkspaceID: strings.TrimSpace(resolved.ID),
 			Config:      resolved.Config,
 		}, nil
 	default:

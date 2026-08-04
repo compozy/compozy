@@ -4,11 +4,14 @@ import { ReactFlowProvider } from "@xyflow/react";
 import { Empty, Skeleton, useTopbarSlot, type TopbarSlotValue } from "@compozy/ui";
 
 import { useLoopEditor, type UseLoopEditorResult } from "../../hooks/use-loop-editor";
+import { useLoopFork } from "../../hooks/use-loop-fork";
 import type { LoopDefinition, LoopDetail } from "../../types";
 import { LoopEditorCanvas } from "./loop-editor-canvas";
 import { LoopEditorDslView } from "./loop-editor-dsl-view";
 import { LoopEditorPalette } from "./loop-editor-palette";
+import { LoopEditorPublishRejectedStrip } from "./loop-editor-publish-rejected-strip";
 import { LoopEditorSidebar } from "./loop-editor-sidebar";
+import { LoopEditorSourceStrip } from "./loop-editor-source-strip";
 import { LoopEditorStartSummary } from "./loop-editor-start-summary";
 import { LoopEditorToolbar } from "./loop-editor-toolbar";
 import { LoopEditorTopbarActions, LoopEditorTopbarStatus } from "./loop-editor-topbar-actions";
@@ -35,6 +38,7 @@ type ReadyEditor = UseLoopEditorResult & {
  */
 export function LoopEditor({ workspaceId, name, topbarIdentity, onPublished }: LoopEditorProps) {
   const editor = useLoopEditor(workspaceId, name, onPublished);
+  const forkState = useLoopFork(workspaceId, name);
   const readyEditor: ReadyEditor | null =
     editor.status === "ready" && editor.loop && editor.definition
       ? { ...editor, loop: editor.loop, definition: editor.definition }
@@ -84,17 +88,23 @@ export function LoopEditor({ workspaceId, name, topbarIdentity, onPublished }: L
     );
   }
 
-  return <LoopEditorReady editor={readyEditor} />;
+  return <LoopEditorReady editor={readyEditor} fork={forkState} />;
 }
 
-function LoopEditorReady({ editor }: { editor: ReadyEditor }) {
+function LoopEditorReady({
+  editor,
+  fork,
+}: {
+  editor: ReadyEditor;
+  fork: { fork: () => void; forking: boolean };
+}) {
   const definition = editor.definition;
+  const readOnly = !editor.definitionEditable;
 
   return (
     <ReactFlowProvider>
       <div className="flex min-h-0 flex-1 flex-col gap-0" data-testid="loop-editor">
         <LoopEditorToolbar
-          source={editor.loop.source}
           busy={editor.busy}
           positionsDirty={editor.positionsDirty}
           view={editor.view}
@@ -103,8 +113,16 @@ function LoopEditorReady({ editor }: { editor: ReadyEditor }) {
           onSaveLayout={() => void editor.savePositions()}
         />
 
+        {readOnly ? (
+          <LoopEditorSourceStrip
+            source={editor.loop.source}
+            forking={fork.forking}
+            onFork={fork.fork}
+          />
+        ) : null}
+
         <div className="grid min-h-0 flex-1 grid-cols-[190px_minmax(0,1fr)_344px]">
-          <LoopEditorPalette onAddNode={editor.addNode} disabled={editor.busy} />
+          <LoopEditorPalette onAddNode={editor.addNode} disabled={editor.busy || readOnly} />
 
           <section className="relative flex min-h-0 flex-col bg-canvas">
             {editor.view === "graph" ? (
@@ -118,6 +136,7 @@ function LoopEditorReady({ editor }: { editor: ReadyEditor }) {
                   onEdgesChange={editor.onEdgesChange}
                   onConnect={editor.onConnect}
                   onSelectNode={editor.selectNode}
+                  readOnly={readOnly}
                 />
               </div>
             ) : (
@@ -127,14 +146,11 @@ function LoopEditorReady({ editor }: { editor: ReadyEditor }) {
             )}
 
             {editor.publishError ? (
-              <p
-                className="flex items-center gap-2 border-t border-danger/40 bg-danger-tint px-3.5 py-2 text-form-label text-danger"
-                data-testid="loop-editor-publish-error"
-                role="alert"
-              >
-                <AlertCircle aria-hidden="true" className="size-3.5" />
-                {editor.publishError}
-              </p>
+              <LoopEditorPublishRejectedStrip
+                message={editor.publishError}
+                issues={editor.publishRejectedIssues}
+                version={editor.version}
+              />
             ) : null}
 
             <LoopLinterDock
@@ -146,16 +162,18 @@ function LoopEditorReady({ editor }: { editor: ReadyEditor }) {
 
           <LoopEditorSidebar
             contract={definition.contract}
-            contractDisabled={editor.busy || editor.loop.source !== "workspace"}
+            contractDisabled={editor.busy || readOnly}
             onChangeContract={editor.changeContract}
+            onChangeContractPath={editor.changeContractPath}
             node={editor.selectedNode}
             fields={editor.selectedFields}
             nodes={editor.nodes}
             edges={editor.edges}
             selectionKey={editor.selectionSeq}
             definition={definition}
-            inspectorDisabled={editor.busy}
+            inspectorDisabled={editor.busy || readOnly}
             onChangeField={editor.changeField}
+            onChangeFields={editor.changeFields}
             sidebarTab={editor.sidebarTab}
             onSidebarTabChange={editor.selectSidebarTab}
           />

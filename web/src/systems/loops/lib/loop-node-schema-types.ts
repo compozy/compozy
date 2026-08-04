@@ -47,6 +47,12 @@ export interface SelectFieldSpec extends FieldCommon {
   path: FieldPath;
   options: string[];
   optionalLabel?: string;
+  /**
+   * A leading option that CLEARS the key instead of writing a value. Optional DSL enums
+   * (`ahead_arrival`, `on_parent_close`) have no authored default, so without this the select
+   * would claim the first member the moment the inspector renders — an untruthful control.
+   */
+  clearOption?: { value: string; label: string };
 }
 
 export interface SwitchFieldSpec extends FieldCommon {
@@ -78,6 +84,33 @@ export interface EventsFieldSpec extends FieldCommon {
   path: FieldPath;
 }
 
+/**
+ * One effect list (`on_retry`, `contract.on_failed`, `expires.escalate`, …). Each entry
+ * is exactly one of `{emit:{kind,payload?}}` or `{tool,with}` — the editor constructs the
+ * shape rather than validating it, so `effect_shape_invalid` can only come from the daemon.
+ */
+export interface EffectsFieldSpec extends FieldCommon {
+  type: "effects";
+  path: FieldPath;
+}
+
+/** The closed `wait` discriminator vocabulary (`dsl.WaitParams`). */
+export const WAIT_MODES = ["for", "until", "event"] as const;
+export type LoopWaitMode = (typeof WAIT_MODES)[number];
+
+/**
+ * The `wait` mode switch. It is NOT a plain select: `wait_shape_invalid` fires on any extra
+ * `params` key, so selecting a mode must write the winner and clear BOTH losers in one draft
+ * transition (see `waitModeEdits` + `setNodeFields`).
+ */
+export interface WaitModeFieldSpec extends FieldCommon {
+  type: "wait-mode";
+  /** The container the three discriminators live under — `["params"]`. */
+  basePath: FieldPath;
+  /** The discriminator currently declared, or `null` when the node declares none. */
+  mode: LoopWaitMode | null;
+}
+
 export interface FoldFieldSpec extends FieldCommon {
   type: "fold";
   subLabel?: string;
@@ -93,4 +126,6 @@ export type FieldSpec =
   | HintFieldSpec
   | CriteriaFieldSpec
   | EventsFieldSpec
+  | EffectsFieldSpec
+  | WaitModeFieldSpec
   | FoldFieldSpec;

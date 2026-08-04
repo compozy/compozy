@@ -15,6 +15,13 @@ func (o *loopWatchEventsObserver) Hydrate(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("daemon: hydrate loop watch-events observer: %w", err)
 	}
+	if waitStore, ok := o.store.(loopWaitEventStore); ok {
+		waits, waitErr := waitStore.ListParkedLoopWaitEventSubscriptions(ctx)
+		if waitErr != nil {
+			return fmt.Errorf("daemon: hydrate Loop event waits observer: %w", waitErr)
+		}
+		parked = append(parked, waits...)
+	}
 	o.replaceIndex(parked)
 	return nil
 }
@@ -24,6 +31,13 @@ func (o *loopWatchEventsObserver) refreshLoopRun(ctx context.Context, loopRunID 
 	parked, err := o.store.ListParkedWatchEventSubscriptionsForLoopRun(ctx, loopRunID)
 	if err != nil {
 		return fmt.Errorf("daemon: refresh loop watch-events observer for loop run %q: %w", loopRunID, err)
+	}
+	if waitStore, ok := o.store.(loopWaitEventStore); ok {
+		waits, waitErr := waitStore.ListParkedLoopWaitEventSubscriptionsForLoopRun(ctx, loopRunID)
+		if waitErr != nil {
+			return fmt.Errorf("daemon: refresh Loop event waits observer for loop run %q: %w", loopRunID, waitErr)
+		}
+		parked = append(parked, waits...)
 	}
 	o.replaceLoopRun(loopRunID, parked)
 	return nil
@@ -126,5 +140,9 @@ func cloneParkedWatchEventSubscription(
 	src.Subscriptions = append(src.Subscriptions[:0:0], src.Subscriptions...)
 	src.Cursors = maps.Clone(src.Cursors)
 	src.Contracts = maps.Clone(src.Contracts)
+	if src.Wait != nil {
+		wait := *src.Wait
+		src.Wait = &wait
+	}
 	return src
 }

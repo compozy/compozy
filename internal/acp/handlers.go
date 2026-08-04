@@ -76,7 +76,7 @@ func (p *AgentProcess) handleInbound(
 	params json.RawMessage,
 ) (any, *acpsdk.RequestError) {
 	if method == acpsdk.ClientMethodSessionUpdate {
-		if err := p.handleSessionUpdateWithContext(ctx, params); err != nil {
+		if err := p.handleSessionUpdate(params); err != nil {
 			return nil, requestError(err)
 		}
 		return nil, nil

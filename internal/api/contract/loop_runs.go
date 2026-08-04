@@ -18,6 +18,7 @@ const (
 	LoopGenerationOriginGateNextGeneration LoopGenerationOrigin = "gate_next_generation"
 	LoopGenerationOriginDoDRetry           LoopGenerationOrigin = "dod_retry"
 	LoopGenerationOriginRatchetRestore     LoopGenerationOrigin = "ratchet_restore"
+	LoopGenerationOriginRequeue            LoopGenerationOrigin = "requeue"
 )
 
 // LoopGateVerdictOutcome is the machine gate verdict vocabulary.
@@ -83,9 +84,11 @@ type LoopRunsAggregatePayload struct {
 
 // LoopRunResponse returns one run with generation detail.
 type LoopRunResponse struct {
-	Run                LoopRunPayload          `json:"run"`
-	ExecutedDefinition *LoopDefinitionDocument `json:"executed_definition,omitempty"`
-	Generations        []LoopGenerationPayload `json:"generations,omitempty"`
+	Run                LoopRunPayload           `json:"run"`
+	ExecutedDefinition *LoopDefinitionDocument  `json:"executed_definition,omitempty"`
+	Generations        []LoopGenerationPayload  `json:"generations,omitempty"`
+	NodeControls       []LoopNodeControlPayload `json:"node_controls"`
+	Waits              []LoopNodeWaitPayload    `json:"waits"`
 	// WatchEvents is the parked watch-events read-model (present only while dormant).
 	WatchEvents *LoopWatchEventsState `json:"watch_events,omitempty"`
 }
@@ -143,6 +146,10 @@ type LoopGenerationOutput struct {
 	TaskRunID       string               `json:"task_run_id,omitempty"`
 	ChildLoopRunID  string               `json:"child_loop_run_id,omitempty"`
 	ResolvedRuntime *LoopResolvedRuntime `json:"resolved_runtime,omitempty"`
+	Attempt         int                  `json:"attempt,omitempty"`
+	NextAttemptAt   *time.Time           `json:"next_attempt_at,omitempty"`
+	FailureClass    string               `json:"failure_class,omitempty"`
+	Disposition     string               `json:"disposition,omitempty"`
 }
 
 // LoopRunEventPayload is one SSE/audit event for a loop run.

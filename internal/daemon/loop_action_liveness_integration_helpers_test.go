@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -19,8 +18,6 @@ import (
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/workspace"
 )
-
-const loopActionLivenessIntegrationTimeout = 40 * time.Millisecond
 
 var errLoopFailureBreakerIntegration = errors.New("forced breaker failure")
 
@@ -71,7 +68,7 @@ func testLoopActionLivenessIntegration(t *testing.T) {
 
 	actions, err := looppkg.NewActionRegistry(
 		inertActionToolRegistry{},
-		looppkg.WithActionGoalExecutor(wedgedLoopActionExecutor{}),
+		looppkg.WithActionGoalExecutor(quietLoopActionExecutor{}),
 	)
 	if err != nil {
 		t.Fatalf("loop.NewActionRegistry() error = %v", err)
@@ -133,7 +130,6 @@ func testLoopActionLivenessIntegration(t *testing.T) {
 		nil,
 		discardLogger(),
 		nil,
-		loopActionLivenessIntegrationTimeout,
 	)
 	if err != nil {
 		t.Fatalf("newLoopActionRuntime() error = %v", err)
@@ -146,69 +142,24 @@ func testLoopActionLivenessIntegration(t *testing.T) {
 		}
 	})
 
-	if err := runtime.executeQueuedRun(ctx, taskRecord, worker, loopActionRuntimeReasonEnqueued); err == nil {
-		t.Fatal("executeQueuedRun(wedged) error = nil, want liveness failure")
+	runtime.heartbeatInterval = func(time.Duration) time.Duration { return 5 * time.Millisecond }
+	runtime.livenessPollInterval = func(time.Duration) time.Duration { return 5 * time.Millisecond }
+	if err := runtime.executeQueuedRun(ctx, taskRecord, worker, loopActionRuntimeReasonEnqueued); err != nil {
+		t.Fatalf("executeQueuedRun(quiet) error = %v", err)
 	}
-	failed, err := db.GetTaskRun(ctx, worker.ID)
+	completed, err := db.GetTaskRun(ctx, worker.ID)
 	if err != nil {
-		t.Fatalf("GetTaskRun(failed worker) error = %v", err)
+		t.Fatalf("GetTaskRun(completed worker) error = %v", err)
 	}
-	if failed.Status.Normalize() != taskpkg.TaskRunStatusFailed || !failed.LeaseUntil.IsZero() {
-		t.Fatalf("failed worker lease state = %#v", failed)
-	}
-	if !strings.Contains(failed.Error, loopActionReasonNoProgress) {
-		t.Fatalf("failed worker error = %q, want reason %q", failed.Error, loopActionReasonNoProgress)
+	if completed.Status.Normalize() != taskpkg.TaskRunStatusCompleted || !completed.LeaseUntil.IsZero() {
+		t.Fatalf("quiet worker lease state = %#v, want completed without hidden timeout", completed)
 	}
 	outputs, err := db.ListGenerationOutputs(ctx, created.WorkspaceID, created.ID, 1)
 	if err != nil {
-		t.Fatalf("ListGenerationOutputs(failed worker) error = %v", err)
+		t.Fatalf("ListGenerationOutputs(completed worker) error = %v", err)
 	}
-	if len(outputs) != 1 {
-		t.Fatalf("failed generation outputs = %#v, want exactly one", outputs)
-	}
-	var actionFailure looppkg.ActionFailure
-	if err := json.Unmarshal([]byte(outputs[0].OutputRef), &actionFailure); err != nil {
-		t.Fatalf("decode action failure output ref error = %v", err)
-	}
-	if actionFailure.Code != loopActionReasonNoProgress {
-		t.Fatalf("action failure code = %q, want %q", actionFailure.Code, loopActionReasonNoProgress)
-	}
-
-	reconciled, err := db.ReconcileLoopCoordinatorsOnBoot(ctx, actor.Origin, time.Now().UTC())
-	if err != nil {
-		t.Fatalf("ReconcileLoopCoordinatorsOnBoot() error = %v", err)
-	}
-	if len(reconciled) != 1 {
-		t.Fatalf("reconciled coordinator runs = %#v, want exactly one", reconciled)
-	}
-	next := claimLoopRunForIntegration(
-		t,
-		manager,
-		db,
-		created,
-		taskpkg.RunKindCoordinator,
-		reconciled[0].ID,
-		actor,
-	)
-	if _, err := manager.StartRun(ctx, next.Run.ID, taskpkg.StartRun{
-		IdempotencyKey: "start-" + next.Run.ID,
-		ClaimToken:     next.ClaimToken,
-	}, actor); err != nil {
-		t.Fatalf("StartRun(retry coordinator) error = %v", err)
-	}
-	advanced, err := db.GetLoopRunByID(ctx, created.ID)
-	if err != nil {
-		t.Fatalf("GetLoopRunByID(advanced) error = %v", err)
-	}
-	if advanced.Generation != 2 || advanced.Status != looppkg.StatusRunning {
-		t.Fatalf("advanced Loop = %#v, want running generation 2", advanced)
-	}
-	generationTwoOutputs, err := db.ListGenerationOutputs(ctx, created.WorkspaceID, created.ID, 2)
-	if err != nil {
-		t.Fatalf("ListGenerationOutputs(generation two) error = %v", err)
-	}
-	if len(generationTwoOutputs) != 1 || generationTwoOutputs[0].Status != "pending" {
-		t.Fatalf("generation two outputs = %#v, want one pending retry", generationTwoOutputs)
+	if len(outputs) != 1 || outputs[0].Status == "failed" {
+		t.Fatalf("quiet generation outputs = %#v, want no liveness failure", outputs)
 	}
 }
 
@@ -308,7 +259,6 @@ func testLoopFailureBreakerIntegration(t *testing.T) {
 		nil,
 		discardLogger(),
 		nil,
-		loopActionLivenessIntegrationTimeout,
 	)
 	if err != nil {
 		t.Fatalf("newLoopActionRuntime() error = %v", err)
@@ -581,21 +531,27 @@ func queuedLoopWorkerForIntegration(
 	return taskpkg.Run{}
 }
 
-type wedgedLoopActionExecutor struct{}
+type quietLoopActionExecutor struct{}
 
-func (wedgedLoopActionExecutor) Execute(
+func (e quietLoopActionExecutor) Execute(
 	ctx context.Context,
 	_ loopdsl.Node,
 	_ looppkg.ActionExecutionInput,
 ) (looppkg.ActionRawResult, error) {
-	<-ctx.Done()
-	return looppkg.ActionRawResult{}, ctx.Err()
+	timer := time.NewTimer(75 * time.Millisecond)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return looppkg.ActionRawResult{Value: map[string]any{"status": "complete"}}, nil
+	case <-ctx.Done():
+		return looppkg.ActionRawResult{}, ctx.Err()
+	}
 }
 
-func (wedgedLoopActionExecutor) Harvest(
-	context.Context,
-	looppkg.ActionRawResult,
-	loopdsl.Node,
+func (quietLoopActionExecutor) Harvest(
+	_ context.Context,
+	raw looppkg.ActionRawResult,
+	_ loopdsl.Node,
 ) (looppkg.ActionOutput, error) {
-	return looppkg.ActionOutput{}, nil
+	return looppkg.ActionOutput{Value: raw.Value}, nil
 }

@@ -68,22 +68,29 @@ func hostAPIMethodHandlers(handler *HostAPIHandler) map[string]hostAPIMethodFunc
 		string(extensioncontract.HostAPIMethodAgentsHeartbeatRollback): handler.handleAgentsHeartbeatRollback,
 		string(extensioncontract.HostAPIMethodAgentsHeartbeatStatus):   handler.handleAgentsHeartbeatStatus,
 		string(extensioncontract.HostAPIMethodAgentsHeartbeatWake):     handler.handleAgentsHeartbeatWake,
-		hostAPISessionsCreatePath:                                      handler.handleSessionsCreate,
-		hostAPISessionsEventsPath:                                      handler.handleSessionsEvents,
-		string(extensioncontract.HostAPIMethodSessionsSoulRefresh):     handler.handleSessionsSoulRefresh,
-		string(extensioncontract.HostAPIMethodSessionsHealthGet):       handler.handleSessionsHealthGet,
-		hostAPISessionsListPath:                                        handler.handleSessionsList,
-		hostAPISessionsPromptPath:                                      handler.handleSessionsPrompt,
-		hostAPISessionsInputsListPath:                                  handler.handleSessionsInputsList,
-		hostAPISessionsInputsReplacePath:                               handler.handleSessionsInputsReplace,
-		hostAPISessionsInputsCancelPath:                                handler.handleSessionsInputsCancel,
-		hostAPISessionsInputsPromotePath:                               handler.handleSessionsInputsPromote,
-		hostAPISessionsStatusPath:                                      handler.handleSessionsStatus,
-		string(extensioncontract.HostAPIMethodSessionsStatusGet):       handler.handleSessionsStatusGet,
-		hostAPISessionsStopPath:                                        handler.handleSessionsStop,
 		hostAPISkillsListPath:                                          handler.handleSkillsList,
 	}
+	registerHostAPISessionMethodHandlers(handler, handlers)
 	registerHostAPINetworkMethodHandlers(handler, handlers)
 	registerHostAPIClarifyMethodHandler(handler, handlers)
 	return handlers
+}
+
+func registerHostAPISessionMethodHandlers(
+	handler *HostAPIHandler,
+	handlers map[string]hostAPIMethodFunc,
+) {
+	handlers[hostAPISessionsCreatePath] = handler.handleSessionsCreate
+	handlers[hostAPISessionsEventsPath] = handler.handleSessionsEvents
+	handlers[string(extensioncontract.HostAPIMethodSessionsSoulRefresh)] = handler.handleSessionsSoulRefresh
+	handlers[string(extensioncontract.HostAPIMethodSessionsHealthGet)] = handler.handleSessionsHealthGet
+	handlers[hostAPISessionsListPath] = handler.handleSessionsList
+	handlers[hostAPISessionsPromptPath] = handler.handleSessionsPrompt
+	handlers[hostAPISessionsInputsListPath] = handler.handleSessionsInputsList
+	handlers[hostAPISessionsInputsReplacePath] = handler.handleSessionsInputsReplace
+	handlers[hostAPISessionsInputsCancelPath] = handler.handleSessionsInputsCancel
+	handlers[hostAPISessionsInputsPromotePath] = handler.handleSessionsInputsPromote
+	handlers[hostAPISessionsStatusPath] = handler.handleSessionsStatus
+	handlers[string(extensioncontract.HostAPIMethodSessionsStatusGet)] = handler.handleSessionsStatusGet
+	handlers[hostAPISessionsStopPath] = handler.handleSessionsStop
 }

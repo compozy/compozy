@@ -18,6 +18,7 @@ vi.mock("@tanstack/react-router", async importOriginal => {
 });
 
 const { LoopCatalog } = await import("../catalog/loop-catalog");
+const { LoopCatalogFilters } = await import("../catalog/loop-catalog-filters");
 const { loopCatalogFixtures } = await import("../../mocks/fixtures");
 type LoopCatalogEntry = import("../../types").LoopCatalogEntry;
 type ListingViewMode = import("@compozy/ui").ListingViewMode;
@@ -56,14 +57,26 @@ function Harness({
 }
 
 describe("LoopCatalog", () => {
-  it("Should render grouped rows with success rate and the last-outcome pill", () => {
+  it("Should render Built-in and Custom groups with success rate and the last-outcome pill", () => {
     render(<Harness onRun={() => {}} />);
-    expect(screen.getByTestId("loop-group-read-only")).toBeInTheDocument();
-    expect(screen.getByTestId("loop-group-workspace")).toBeInTheDocument();
+    expect(screen.getByTestId("loop-group-read-only")).toHaveTextContent("Built-in");
+    expect(screen.getByTestId("loop-group-workspace")).toHaveTextContent("Custom");
     expect(screen.getByText("90%")).toBeInTheDocument();
     expect(screen.getByText("100%")).toBeInTheDocument();
     expect(screen.getAllByText("Running")).toHaveLength(2);
     expect(screen.getByTestId("loop-catalog-best")).toHaveTextContent("best Gen 2 · 0.82");
+  });
+
+  it("Should show the canceled terminal on a roster row without offering a stop control", () => {
+    const canceledEntry: LoopCatalogEntry = {
+      ...loopCatalogFixtures[0],
+      last_run: { ...loopCatalogFixtures[0].last_run!, status: "canceled" },
+    };
+    render(<Harness entries={[canceledEntry]} onRun={() => {}} />);
+    const row = screen.getByTestId("loop-catalog-row");
+    expect(within(row).getByText("Canceled")).toBeInTheDocument();
+    expect(within(row).queryByText(/stop/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /stop/i })).not.toBeInTheDocument();
   });
 
   it("Should not claim sampled catalog-wide automation bindings", () => {
@@ -89,11 +102,12 @@ describe("LoopCatalog", () => {
     expect(onClearFilters).toHaveBeenCalledTimes(1);
   });
 
-  it("Should render the cards grid when view is cards", () => {
+  it("Should render the cards grid inside the same groups when view is cards", () => {
     render(<Harness onRun={() => {}} view="cards" />);
-    expect(screen.getByTestId("loop-catalog-card-grid")).toBeInTheDocument();
+    expect(screen.getAllByTestId("loop-catalog-card-grid")).toHaveLength(2);
     expect(screen.getByTestId("loop-catalog-card-software-delivery")).toBeInTheDocument();
-    expect(screen.queryByTestId("loop-catalog")).not.toBeInTheDocument();
+    expect(screen.getByTestId("loop-group-workspace")).toBeInTheDocument();
+    expect(screen.queryByTestId("loop-catalog-row")).not.toBeInTheDocument();
   });
 
   it("Should launch a run from the card without navigating to the detail link", () => {
@@ -142,5 +156,31 @@ describe("LoopCatalog", () => {
     rerender(<Harness hasNextPage isFetchingNextPage onLoadMore={onLoadMore} onRun={() => {}} />);
     expect(screen.getByTestId("loop-catalog-load-more")).toBeDisabled();
     expect(screen.getByTestId("loop-catalog-load-more")).toHaveAttribute("aria-busy", "true");
+  });
+});
+
+describe("LoopCatalogFilters", () => {
+  it("Should offer canceled even when the loaded roster has no canceled run", () => {
+    const hasCanceledRun = loopCatalogFixtures.some(entry => entry.last_run?.status === "canceled");
+    expect(hasCanceledRun).toBe(false);
+    render(<LoopCatalogFilters onStatusFilterChange={() => {}} statusFilter={null} />);
+    const select = screen.getByTestId("loop-catalog-status-filter");
+    const options = within(select)
+      .getAllByRole("option")
+      .map(option => option.textContent);
+    expect(options[0]).toBe("All statuses");
+    expect(options).toContain("Canceled");
+    expect(options).toContain("Running");
+    expect(options).not.toContain("Stop");
+  });
+
+  it("Should report the selected status and clear back to every status", () => {
+    const onStatusFilterChange = vi.fn();
+    render(<LoopCatalogFilters onStatusFilterChange={onStatusFilterChange} statusFilter={null} />);
+    const select = screen.getByTestId("loop-catalog-status-filter");
+    fireEvent.change(select, { target: { value: "canceled" } });
+    expect(onStatusFilterChange).toHaveBeenCalledWith("canceled");
+    fireEvent.change(select, { target: { value: "" } });
+    expect(onStatusFilterChange).toHaveBeenLastCalledWith(null);
   });
 });

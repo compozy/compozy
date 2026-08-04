@@ -499,3 +499,165 @@ describe("buildNextNote", () => {
     expect(buildNextNote(null, [])).toBeNull();
   });
 });
+
+// WT-002: every lifecycle kind becomes a readable beat, and every clause in it
+// traces to a payload field. The failure this guards against is copy that
+// asserts something the payload never said.
+describe("lifecycle story rows", () => {
+  function storyFor(frames: Parameters<typeof buildRunStory>[0]) {
+    return buildRunStory(frames, { status: "running", graph: null });
+  }
+
+  function rowFor(kind: Parameters<typeof frame>[0], payload: unknown) {
+    const story = storyFor([frame(kind, payload, 1)]);
+    expect(story.rows).toHaveLength(1);
+    return story.rows[0];
+  }
+
+  it("Should phrase a scheduled retry with its attempt and failure class", () => {
+    const row = rowFor("node_retry_scheduled", {
+      node_id: "fix_batches",
+      generation: 2,
+      item_index: 3,
+      attempt: 2,
+      failure_class: "transport",
+      next_attempt_at: "2026-08-03T14:33:41Z",
+    });
+    expect(row.title).toBe("Retry scheduled for fix batches");
+    expect(row.sub).toContain("Attempt 2 is queued.");
+    expect(row.sub).toContain("transport-class");
+    expect(row.micro).toBe(
+      "node_retry_scheduled · fix_batches[3] · gen 2 · next 2026-08-03T14:33:41Z"
+    );
+    expect(row.tone).toBe("warning");
+  });
+
+  it("Should attribute a pause to its actor and reason, and a rule when one drove it", () => {
+    const manual = rowFor("node_paused", {
+      node_id: "fix_batches",
+      generation: 2,
+      actor_kind: "user",
+      actor_id: "pedro",
+      reason: "hold this one",
+      mode: "drain",
+    });
+    expect(manual.title).toBe("Fix batches paused");
+    expect(manual.sub).toContain("Parked by you (pedro)");
+    expect(manual.sub).toContain("“hold this one”");
+    expect(manual.sub).toContain("finished cleanly before parking");
+
+    const byRule = rowFor("node_paused", {
+      node_id: "fix_batches",
+      rule_id: "retry_storm",
+      actor_kind: "system",
+    });
+    expect(byRule.sub).toContain("Parked by rule retry_storm");
+  });
+
+  it("Should name the resume semantics that were actually applied", () => {
+    expect(rowFor("node_resumed", { node_id: "fix_batches", mode: "reset_attempts" }).sub).toBe(
+      "Attempt counter restarted; the retry delay was cleared."
+    );
+    expect(rowFor("node_resumed", { node_id: "fix_batches", mode: "immediate" }).sub).toContain(
+      "retry delay was skipped"
+    );
+  });
+
+  it("Should separate a cooperative cancel from a kill", () => {
+    const canceled = rowFor("node_canceled", { node_id: "fix_batches", actor_id: "pedro" });
+    expect(canceled.title).toBe("Fix batches canceled");
+    expect(canceled.sub).toContain("requested → delivering → draining → canceled");
+    expect(canceled.tone).toBe("neutral");
+
+    const killed = rowFor("node_killed", { node_id: "fix_batches", actor_id: "pedro" });
+    expect(killed.title).toBe("Fix batches killed");
+    expect(killed.sub).toContain("reactions were skipped");
+    expect(killed.tone).toBe("danger");
+  });
+
+  it("Should report a quarantine with its attempt count and keep the run's continuation clear", () => {
+    const row = rowFor("node_quarantined", {
+      node_id: "fix_batches",
+      generation: 2,
+      attempt: 4,
+      failure: { cause: "GitHub rejected the credential." },
+    });
+    expect(row.title).toBe("Fix batches was set aside after 4 attempts");
+    expect(row.sub).toContain("GitHub rejected the credential. — Its clock is suspended");
+    expect(row.sub).toContain("the rest of the run keeps going");
+  });
+
+  it("Should record a requeue with its actor and the caps that still apply", () => {
+    const row = rowFor("node_requeued", { node_id: "fix_batches", actor_id: "pedro" });
+    expect(row.title).toBe("Fix batches requeued");
+    expect(row.sub).toContain("All caps and budgets still apply.");
+  });
+
+  it("Should phrase each wait kind from its own wait_kind", () => {
+    expect(
+      rowFor("node_wait_started", { node_id: "publish", wait_kind: "timer", resume_at: "15:10" })
+        .sub
+    ).toContain("Sleeping until its timer is due — resumes 15:10");
+    expect(
+      rowFor("node_wait_started", { node_id: "publish", wait_kind: "approval_escalation" }).sub
+    ).toContain("Waiting for your decision");
+    expect(rowFor("node_wait_resumed", { node_id: "publish", actor_id: "ana" }).sub).toContain(
+      "Resolved by ana"
+    );
+  });
+
+  it("Should read an attention flag from either emitter's field and say it self-clears", () => {
+    // The liveness path writes the flag into `reason`, the escalation path into
+    // `attention_flag`; both must produce the same beat.
+    const fromReason = rowFor("node_attention_flagged", { node_id: "task_04", reason: "silence" });
+    const fromFlag = rowFor("node_attention_flagged", {
+      node_id: "task_04",
+      attention_flag: "silence",
+    });
+    expect(fromReason.title).toBe("Flagged: task 04 is silent for a while");
+    expect(fromFlag.title).toBe(fromReason.title);
+    expect(fromFlag.sub).toContain("clears itself on any evidence of life");
+    expect(rowFor("node_attention_cleared", { node_id: "task_04" }).tone).toBe("success");
+  });
+
+  it("Should keep an effect delivery clearly separate from the node's own outcome", () => {
+    const failed = rowFor("effect_results", {
+      trigger: "on_failed",
+      outcome: "error",
+      cause: "channel #ops rejected the message.",
+    });
+    expect(failed.title).toBe("The on_failed reaction couldn't be delivered");
+    expect(failed.sub).toContain("reactions never touch the step itself");
+    expect(rowFor("effect_results", { trigger: "on_failed", outcome: "ok" }).tone).toBe("neutral");
+  });
+
+  it("Should report suppressed duplicates and breaker transitions", () => {
+    const suppressed = rowFor("duplicate_suppressed", {
+      event_key: "pr-4182",
+      suppressed_count: 2,
+    });
+    expect(suppressed.title).toBe("2 duplicate deliveries were suppressed");
+    expect(suppressed.sub).toContain("no second run started");
+
+    const opened = rowFor("target_breaker_transition", { target: "github-mcp", state: "open" });
+    expect(opened.title).toBe("Paused calls to github-mcp");
+    expect(opened.tone).toBe("warning");
+    const closed = rowFor("target_breaker_transition", { target: "github-mcp", state: "closed" });
+    expect(closed.title).toBe("Calls to github-mcp resumed");
+    expect(closed.tone).toBe("success");
+  });
+
+  it("Should clear a node from Happening now once a lifecycle beat ends its attempt", () => {
+    const story = storyFor([
+      frame("node_running", { node_id: "fix_batches", item_index: 3, generation: 2 }, 1),
+      frame("node_paused", { node_id: "fix_batches", item_index: 3, generation: 2 }, 2),
+    ]);
+    expect(story.now).toBeNull();
+  });
+
+  it("Should omit a clause the payload never carried instead of inventing one", () => {
+    const row = rowFor("node_retry_scheduled", { node_id: "fix_batches" });
+    expect(row.sub).toBeUndefined();
+    expect(row.micro).toBe("node_retry_scheduled · fix_batches");
+  });
+});

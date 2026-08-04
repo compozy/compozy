@@ -81,7 +81,7 @@ func networkPeersBundle(peers []NetworkPeerRecord) outputBundle {
 		[]string{
 			networkPeerIDKey,
 			bridgeSetupDisplayNameKey,
-			"session_id",
+			bridgeSessionIDKey,
 			networkChannelKey,
 			"presence_state",
 			networkLocalKey,

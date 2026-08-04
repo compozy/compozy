@@ -52,9 +52,9 @@ func (c *watchEventsDoorbellCompiler) Match(
 		return true
 	}
 	value, _, err := condition.program.Eval(map[string]any{
-		loopInputsKey: inputs,
-		"nodes":       map[string]any{},
-		"event":       event.EventMap(),
+		loopInputsKey:     inputs,
+		"nodes":           map[string]any{},
+		loopEventIdentity: event.EventMap(),
 	})
 	if err != nil {
 		return true

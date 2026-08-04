@@ -4,7 +4,7 @@ area: LP
 title: Read a live run as a plain-language story on the redesigned run detail
 persona: Lea
 journey: J-04
-expected: The run detail answers Progress / Happening now / What happened / What happens next in plain language — goal + group bar from the latest generation, a live now-card linking the running node's task run, a newest-first story timeline with verbatim mono micro-labels, Usage (Time/Tokens/Cost estimate/Rounds with ∞ for unbounded caps) and About rails — while every operator fact (stop_when, verification, policies, watch spec, criteria, raw events, digest) stays reachable in the Inspect drawer; no template refs, CEL, fan-out/batch vocabulary, or status legend anywhere on the main surface, and controls render exactly per the §7 status matrix for all 11 statuses.
+expected: The run detail answers Progress / Happening now / What happened / What happens next in plain language — goal + group bar from the latest generation, a live now-card linking the running node's task run, a newest-first story timeline with verbatim mono micro-labels, Usage (Time/Tokens/Cost estimate/Rounds with ∞ for unbounded caps) and About rails — while every operator fact (stop_when, verification, policies, watch spec, criteria, raw events, digest) stays reachable in the Inspect drawer; no template refs, CEL, fan-out/batch vocabulary, or status legend anywhere on the main surface, and controls render exactly per the §7 status matrix for all 12 statuses.
 entry_points: web /loop-runs/:id; GET /loop-runs/:id; SSE /loop-runs/:id/events; topbar ⋯ Inspect
 qa_status: blocked-verify
 bug_ids:

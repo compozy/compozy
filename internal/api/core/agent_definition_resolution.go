@@ -56,7 +56,7 @@ func (h *BaseHandlers) resolveAgentDefinition(
 			if compozyconfig.NormalizeAgentName(agent.Name) != target {
 				continue
 			}
-			workspaceID := strings.TrimSpace(resolved.WorkspaceID)
+			workspaceID := strings.TrimSpace(resolved.ID)
 			entry := h.agentCatalogEntryFromDef(agent, workspaceID)
 			return resolvedAgentDefinition{
 				Entry:              entry,
@@ -170,7 +170,7 @@ func (h *BaseHandlers) duplicateAgentTarget(
 				targetName,
 			),
 			Origin:      contract.AgentOriginWorkspace,
-			WorkspaceID: strings.TrimSpace(resolved.WorkspaceID),
+			WorkspaceID: strings.TrimSpace(resolved.ID),
 			Config:      resolved.Config,
 		}, nil
 	default:

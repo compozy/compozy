@@ -104,6 +104,13 @@ func WithGoalPromptLeaseRevoker(revoker GoalPromptLeaseRevoker) Option {
 	}
 }
 
+// WithCancellationSessionController injects post-commit prompt and process cancellation.
+func WithCancellationSessionController(controller CancellationSessionController) Option {
+	return func(s *service) {
+		s.cancellationSessions = controller
+	}
+}
+
 func (s *service) resolveDefaults(ctx context.Context, ws WorkspaceID) (LoopDefaults, error) {
 	if s.defaultsResolver == nil {
 		return s.defaults, nil

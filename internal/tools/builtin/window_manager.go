@@ -282,7 +282,7 @@ var windowManagerToolSpecs = []windowManagerDescriptorSpec{
 		description: "Validate and atomically replace the workspace layout at an expected revision.",
 		inputSchema: windowManagerLayoutApplyInputSchema, outputSchema: windowManagerCommandOutputSchema,
 		risk: toolspkg.RiskDestructive, destructive: true, capability: windowManagerWriteCapability,
-		tags: []string{windowManagerTag, windowManagerLayoutTag, "apply", "replace"},
+		tags: []string{windowManagerTag, windowManagerLayoutTag, "apply", descriptorKeywordReplace},
 	},
 }
 

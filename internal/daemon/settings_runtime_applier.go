@@ -4,6 +4,7 @@ import (
 	"context"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/deadentity"
 	"github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/providers"
@@ -36,6 +37,10 @@ func (a daemonSettingsRuntimeApplier) ApplyActiveConfig(
 	failures := a.applyRuntimeDependencies(ctx, &next)
 	if len(failures) > 0 {
 		return a.rollbackRuntimeDependencies(ctx, &previous, failures)
+	}
+	nextLoopTargetHealth, failure := a.prepareLoopTargetHealthConfigChange(&previous, &next)
+	if failure != nil {
+		return a.rollbackRuntimeDependencies(ctx, &previous, []settingspkg.ApplyFailure{*failure})
 	}
 
 	availabilityChanged := a.networkAvailability != nil && previous.Network.Enabled != next.Network.Enabled
@@ -83,6 +88,9 @@ func (a daemonSettingsRuntimeApplier) ApplyActiveConfig(
 	}
 
 	a.daemon.mu.Lock()
+	if nextLoopTargetHealth != nil {
+		a.state.loopTargetHealth.Swap(nextLoopTargetHealth)
+	}
 	a.state.cfg = next
 	a.daemon.config = next
 	a.daemon.mu.Unlock()
@@ -93,6 +101,26 @@ func (a daemonSettingsRuntimeApplier) ApplyActiveConfig(
 
 	providers.InvalidatePreStartCache()
 	return nil
+}
+
+func (a daemonSettingsRuntimeApplier) prepareLoopTargetHealthConfigChange(
+	previous *compozyconfig.Config,
+	next *compozyconfig.Config,
+) (*deadentity.Service, *settingspkg.ApplyFailure) {
+	if a.state.loopTargetHealth == nil || previous.Loops.Breaker == next.Loops.Breaker {
+		return nil, nil
+	}
+	service, err := a.daemon.newLoopTargetHealthService(a.state, next.Loops.Breaker)
+	if err == nil {
+		return service, nil
+	}
+	failure := configApplyFailure(
+		"loop_target_health",
+		diagnosticcontract.CategoryConfig,
+		"Loop target breaker policy sync failed",
+		err,
+	)
+	return nil, &failure
 }
 
 func (a daemonSettingsRuntimeApplier) rollbackRuntimeDependencies(

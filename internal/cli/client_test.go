@@ -209,7 +209,10 @@ func TestUnixSocketClientSessionInputMethods(t *testing.T) {
 					`{"session":{"id":"sess-1","workspace_id":"ws-1","state":"active","available_commands":[],"created_at":"2026-07-10T20:00:00Z","updated_at":"2026-07-10T20:00:00Z"}}`,
 				), nil
 			case req.Method == http.MethodGet && req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/prompt/queue":
-				return newHTTPResponse(http.StatusOK, `{"inputs":[{"id":"queue-1","session_id":"sess-1","status":"queued","mode":"queue","delivery":"after_turn","text":"Run the test.","queue_generation":2,"enqueued_at":"2026-07-10T20:00:00Z"}]}`), nil
+				return newHTTPResponse(
+					http.StatusOK,
+					`{"inputs":[{"id":"queue-1","session_id":"sess-1","status":"queued","mode":"queue","delivery":"after_turn","text":"Run the test.","queue_generation":2,"enqueued_at":"2026-07-10T20:00:00Z"}]}`,
+				), nil
 			case req.Method == http.MethodPut && req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/prompt/queue/queue-1":
 				var body contract.ReplaceSessionInputRequest
 				if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
@@ -218,10 +221,14 @@ func TestUnixSocketClientSessionInputMethods(t *testing.T) {
 				if err := req.Body.Close(); err != nil {
 					return nil, fmt.Errorf("close replace input request: %w", err)
 				}
-				if body.Text != "Run the focused test." || body.MessageID != "msg-1" || body.IdempotencyKey != "idem-1" {
+				if body.Text != "Run the focused test." || body.MessageID != "msg-1" ||
+					body.IdempotencyKey != "idem-1" {
 					return nil, fmt.Errorf("replace input request = %#v", body)
 				}
-				return newHTTPResponse(http.StatusOK, `{"input":{"id":"queue-1","session_id":"sess-1","message_id":"msg-1","idempotency_key":"idem-1","status":"queued","mode":"queue","delivery":"after_turn","text":"Run the focused test.","queue_generation":3,"enqueued_at":"2026-07-10T20:00:00Z"}}`), nil
+				return newHTTPResponse(
+					http.StatusOK,
+					`{"input":{"id":"queue-1","session_id":"sess-1","message_id":"msg-1","idempotency_key":"idem-1","status":"queued","mode":"queue","delivery":"after_turn","text":"Run the focused test.","queue_generation":3,"enqueued_at":"2026-07-10T20:00:00Z"}}`,
+				), nil
 			case req.Method == http.MethodPost && req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/steer":
 				var body contract.SteerPromptRequest
 				if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
@@ -234,7 +241,10 @@ func TestUnixSocketClientSessionInputMethods(t *testing.T) {
 					body.IdempotencyKey != "idem-2" || body.ExpectedTurnID != "turn-1" {
 					return nil, fmt.Errorf("steer prompt request = %#v", body)
 				}
-				return newHTTPResponse(http.StatusAccepted, `{"prompt":{"status":"steering","mode":"steer","delivery":"interrupt_then_prompt","message_id":"msg-2","idempotency_key":"idem-2","replayed":false,"queue_entry_id":"queue-1"}}`), nil
+				return newHTTPResponse(
+					http.StatusAccepted,
+					`{"prompt":{"status":"steering","mode":"steer","delivery":"interrupt_then_prompt","message_id":"msg-2","idempotency_key":"idem-2","replayed":false,"queue_entry_id":"queue-1"}}`,
+				), nil
 			case req.Method == http.MethodPost && req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/prompt/queue/queue-1/steer":
 				var body contract.PromoteSessionInputRequest
 				if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
@@ -247,9 +257,15 @@ func TestUnixSocketClientSessionInputMethods(t *testing.T) {
 					body.IdempotencyKey != "idem-2" || body.ExpectedTurnID != "turn-1" {
 					return nil, fmt.Errorf("promote input request = %#v", body)
 				}
-				return newHTTPResponse(http.StatusAccepted, `{"prompt":{"status":"steering","mode":"steer","delivery":"interrupt_then_prompt","message_id":"msg-2","idempotency_key":"idem-2","replayed":false,"queue_entry_id":"queue-1"}}`), nil
+				return newHTTPResponse(
+					http.StatusAccepted,
+					`{"prompt":{"status":"steering","mode":"steer","delivery":"interrupt_then_prompt","message_id":"msg-2","idempotency_key":"idem-2","replayed":false,"queue_entry_id":"queue-1"}}`,
+				), nil
 			case req.Method == http.MethodDelete && req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/prompt/queue/queue-1":
-				return newHTTPResponse(http.StatusAccepted, `{"prompt":{"status":"canceled","delivery":"none","message_id":"msg-2","idempotency_key":"idem-2","replayed":false,"queue_entry_id":"queue-1"}}`), nil
+				return newHTTPResponse(
+					http.StatusAccepted,
+					`{"prompt":{"status":"canceled","delivery":"none","message_id":"msg-2","idempotency_key":"idem-2","replayed":false,"queue_entry_id":"queue-1"}}`,
+				), nil
 			default:
 				return nil, fmt.Errorf("unexpected request = %s %s", req.Method, req.URL.Path)
 			}
@@ -744,7 +760,7 @@ func TestUnixSocketClientLoopMutationsSendIdentityHeaders(t *testing.T) {
 					if payload.GateID != "human" || payload.Decision != contract.LoopGateDecisionApprove {
 						t.Fatalf("approve body = %#v, want human/approve", payload)
 					}
-					return newHTTPResponse(http.StatusNoContent, ""), nil
+					return newHTTPResponse(http.StatusOK, `{"ok":true}`), nil
 				default:
 					t.Fatalf("unexpected request = %s %s", req.Method, req.URL.Path)
 					return nil, nil

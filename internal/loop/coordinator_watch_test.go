@@ -30,7 +30,7 @@ func TestCoordinatorRunnerWatchSource(t *testing.T) {
 			if req.ExpectedStateDigest != "" {
 				t.Fatalf("ExpectedStateDigest = %q, want empty", req.ExpectedStateDigest)
 			}
-			return watchpkg.PollResponse{Ready: false, StateDigest: "sha256:current"}, nil
+			return watchpkg.PollResponse{Ready: false, EventKey: "reviews:poll", StateDigest: "sha256:current"}, nil
 		})
 		runner := newWatchCoordinatorRunnerForTest(t, loopRun, coordinatorRun, nil, coordinatorRunnerOutputs{}, poller)
 		runner.now = func() time.Time { return now }
@@ -99,7 +99,7 @@ func TestCoordinatorRunnerWatchSource(t *testing.T) {
 			if !ok || len(labels) != 1 || labels[0] != "review" {
 				t.Fatalf("PollRequest.Spec[labels] = %#v, want rendered label", spec["labels"])
 			}
-			return watchpkg.PollResponse{Ready: false, StateDigest: "sha256:current"}, nil
+			return watchpkg.PollResponse{Ready: false, EventKey: "reviews:poll", StateDigest: "sha256:current"}, nil
 		})
 		runner := newWatchCoordinatorRunnerWithGraphForTest(
 			t,
@@ -140,6 +140,7 @@ func TestCoordinatorRunnerWatchSource(t *testing.T) {
 			}
 			return watchpkg.PollResponse{
 				Ready:       true,
+				EventKey:    "reviews:r1",
 				StateDigest: "sha256:next",
 				Payload:     json.RawMessage(`{"review":"r1"}`),
 			}, nil
@@ -190,7 +191,7 @@ func TestCoordinatorRunnerWatchSource(t *testing.T) {
 		loopRun := watchLoopRun(StatusWatching, 1, now.Add(-3*time.Minute))
 		coordinatorRun := watchCoordinatorRun(loopRun)
 		poller := watchPollerFunc(func(context.Context, watchpkg.PollRequest) (watchpkg.PollResponse, error) {
-			return watchpkg.PollResponse{Ready: false, StateDigest: "sha256:old"}, nil
+			return watchpkg.PollResponse{Ready: false, EventKey: "reviews:poll", StateDigest: "sha256:old"}, nil
 		})
 		runner := newWatchCoordinatorRunnerForTest(
 			t,
@@ -507,6 +508,149 @@ func TestCoordinatorRunnerWatchEvents(t *testing.T) {
 			t.Fatalf("wake key = %q, want %q", got, want)
 		}
 	})
+}
+
+// Invariant: event waits consume a matching durable event on entry by default, while reject
+// captures a durable per-stream fence so pre-entry rows cannot resume the wait later. This
+// canonical watch-events suite owns ahead-arrival policy.
+func TestCoordinatorRunnerEventWaitAheadArrival(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should consume the first matching ahead event on entry", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, time.August, 4, 16, 0, 0, 0, time.UTC)
+		definition := eventWaitDefinitionForTest(dsl.WaitAheadConsumeOnEntry)
+		definition.Graph.Nodes[0].NodeLifecycleState = &dsl.NodeLifecycleState{
+			TriggerEffects: dsl.TriggerEffects{OnPause: []dsl.EffectSpec{{
+				Emit: &dsl.EmitSpec{Kind: "wait_paused"},
+			}}},
+		}
+		resolved, err := NewCompiler().Compile(definition)
+		if err != nil {
+			t.Fatalf("Compile() error = %v", err)
+		}
+		loopRun := controlLoopRun("looprun-event-wait-ahead-consume", nil)
+		coordinatorRun := controlCoordinatorRun(loopRun, 1)
+		ledger := &watchEventsLedgerForTest{rows: []WatchEvent{
+			watchTaskStatusEventForTest(8, "task-42", "blocked"),
+		}}
+		runner := newWatchEventsCoordinatorRunnerForTest(
+			t,
+			loopRun,
+			coordinatorRun,
+			coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: {
+				{Generation: 1, NodeID: "wait_for_task", Status: generationOutputPending, Attempt: 1},
+				{Generation: 1, NodeID: "summarize", Status: generationOutputPending, Attempt: 1},
+			}}},
+			resolved,
+			ledger,
+		)
+		runner.now = func() time.Time { return now }
+		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		if err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+		if len(plan.NodeRuns) != 1 || len(ledger.matchQueries) != 1 {
+			t.Fatalf("ahead consume plan runs=%d match queries=%d, want one each",
+				len(plan.NodeRuns), len(ledger.matchQueries))
+		}
+		payload := coordinatorSnapshotPayloadForTest(t, plan)
+		outputs := outputsByNodeAndItemForTest(payload.Outputs)
+		if outputs["wait_for_task/0"].Status != generationOutputSucceeded ||
+			outputs["wait_for_task/0"].OutputRef == "" {
+			t.Fatalf("ahead wait output = %#v, want succeeded payload ref", outputs["wait_for_task/0"])
+		}
+		if len(payload.Waits) != 1 || payload.Waits[0].ClaimState != WaitClaimResumed ||
+			payload.Waits[0].ClaimedByKind != "ahead_event" ||
+			payload.Waits[0].ClaimedByID != WatchEventsTaskStream+":8" {
+			t.Fatalf("ahead wait intent = %#v, want durable resumed provenance", payload.Waits)
+		}
+		if len(payload.OutputBlobs) != 0 || len(payload.Events) != 2 {
+			t.Fatalf(
+				"ahead wait blobs/events = %d/%d, want inline output and two events",
+				len(payload.OutputBlobs),
+				len(payload.Events),
+			)
+		}
+		for _, event := range payload.Events {
+			if event.Kind == GenerationLifecycleEventNodeWaitStarted && len(event.Effects) != 0 {
+				t.Fatalf("ahead-consumed wait start effects = %#v, want no on_pause delivery", event.Effects)
+			}
+		}
+	})
+
+	t.Run("Should fence every pre-entry event when ahead arrival is reject", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, time.August, 4, 17, 0, 0, 0, time.UTC)
+		resolved, err := NewCompiler().Compile(eventWaitDefinitionForTest(dsl.WaitAheadReject))
+		if err != nil {
+			t.Fatalf("Compile() error = %v", err)
+		}
+		loopRun := controlLoopRun("looprun-event-wait-ahead-reject", nil)
+		coordinatorRun := controlCoordinatorRun(loopRun, 1)
+		ledger := &watchEventsLedgerForTest{
+			cursors: map[string]int64{WatchEventsTaskStream: 8},
+			rows:    []WatchEvent{watchTaskStatusEventForTest(8, "task-42", "blocked")},
+		}
+		runner := newWatchEventsCoordinatorRunnerForTest(
+			t,
+			loopRun,
+			coordinatorRun,
+			coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: {
+				{Generation: 1, NodeID: "wait_for_task", Status: generationOutputPending, Attempt: 1},
+				{Generation: 1, NodeID: "summarize", Status: generationOutputPending, Attempt: 1},
+			}}},
+			resolved,
+			ledger,
+		)
+		runner.now = func() time.Time { return now }
+		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		if err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+		if !plan.Yield || !plan.GenerationInFlight || len(plan.NodeRuns) != 0 ||
+			len(ledger.matchQueries) != 0 || len(ledger.cursorQueries) != 1 {
+			t.Fatalf("ahead reject plan = yield:%v live:%v runs:%d matches:%d cursors:%d",
+				plan.Yield, plan.GenerationInFlight, len(plan.NodeRuns), len(ledger.matchQueries),
+				len(ledger.cursorQueries))
+		}
+		payload := coordinatorSnapshotPayloadForTest(t, plan)
+		if len(payload.Waits) != 1 || payload.Waits[0].ClaimState != WaitClaimWaiting {
+			t.Fatalf("ahead reject waits = %#v, want one waiting intent", payload.Waits)
+		}
+		cursors, rejected, err := DecodeWaitAheadRejectCursors(payload.Waits[0].AheadPayload)
+		if err != nil || !rejected || cursors[WatchEventsTaskStream] != 8 {
+			t.Fatalf("ahead reject fence = %#v/%v/%v, want task cursor 8", cursors, rejected, err)
+		}
+		if len(payload.Events) != 1 || payload.Events[0].AheadArrival != string(dsl.WaitAheadReject) ||
+			payload.Events[0].AheadCursors[WatchEventsTaskStream] != 8 {
+			t.Fatalf("ahead reject event = %#v, want durable diagnostic fence", payload.Events)
+		}
+	})
+}
+
+func eventWaitDefinitionForTest(ahead dsl.WaitAheadArrival) dsl.Definition {
+	return dsl.Definition{
+		APIVersion: dsl.APIVersion,
+		Kind:       dsl.KindLoop,
+		Graph: dsl.Graph{
+			Nodes: []dsl.Node{
+				{ID: "wait_for_task", Class: dsl.NodeClassControl, Kind: string(dsl.ControlWait),
+					Params: dsl.NodeParams{
+						"event": map[string]any{
+							"kind":   string(hooks.HookTaskStatusChanged),
+							"filter": `event.task_id == "task-42"`,
+						},
+						"expect": map[string]any{"type": "object"}, "ahead_arrival": string(ahead),
+					}},
+				{ID: "summarize", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform),
+					Params: dsl.NodeParams{"map": map[string]any{"ok": map[string]any{"value": true}}}},
+			},
+			Edges: []dsl.Edge{{From: "wait_for_task", To: "summarize"}},
+		},
+	}
 }
 
 func TestWatchEventsEvaluatorHelpers(t *testing.T) {

@@ -28,6 +28,7 @@ type Inputs struct {
 	StartMetadata              map[string]any         `json:"start_metadata,omitempty"`
 	NetworkParticipation       *participation.Request `json:"network_participation,omitempty"`
 	NetworkParticipationSource participation.Source   `json:"-"`
+	Admission                  *AdmissionIdentity     `json:"-"`
 }
 
 // Status is the closed loop_runs.status vocabulary.
@@ -61,6 +62,8 @@ const (
 	StatusExhausted Status = "exhausted"
 	// StatusStalled is a terminal no-progress outcome.
 	StatusStalled Status = "stalled"
+	// StatusCanceled is a terminal operator-canceled outcome.
+	StatusCanceled Status = "canceled"
 )
 
 // TransitionCause records why a status transition happened.
@@ -71,8 +74,10 @@ const (
 	TransitionCauseStart TransitionCause = "start"
 	// TransitionCausePromote records queued-run promotion.
 	TransitionCausePromote TransitionCause = "promote"
-	// TransitionCauseOperatorStop records an operator stop/cancel request.
-	TransitionCauseOperatorStop TransitionCause = "operator_stop"
+	// TransitionCauseOperatorCancel records a graceful operator cancellation.
+	TransitionCauseOperatorCancel TransitionCause = "operator_cancel"
+	// TransitionCauseOperatorKill records an immediate operator kill.
+	TransitionCauseOperatorKill TransitionCause = "operator_kill"
 	// TransitionCauseGoalReplace records an expected-run inline Goal replacement.
 	TransitionCauseGoalReplace TransitionCause = "goal_replace"
 	// TransitionCauseGoalClear records an inline Goal clear that also stops a live Run.
@@ -83,6 +88,8 @@ const (
 	TransitionCauseOperatorResume TransitionCause = "operator_resume"
 	// TransitionCauseApproval records a human approval.
 	TransitionCauseApproval TransitionCause = "approval"
+	// TransitionCauseWaitExpired records an authored wait or approval timeout route.
+	TransitionCauseWaitExpired TransitionCause = "wait_expired"
 	// TransitionCauseGateRejected records a human gate rejection.
 	TransitionCauseGateRejected TransitionCause = "gate_rejected"
 	// TransitionCauseContract records a coordinator contract verdict.
@@ -91,7 +98,7 @@ const (
 	TransitionCauseBudget TransitionCause = "budget"
 	// TransitionCauseIterationCap records a generation iteration-cap outcome.
 	TransitionCauseIterationCap TransitionCause = "iteration_cap"
-	// TransitionCauseNoProgress records a no-progress outcome.
+	// TransitionCauseNoProgress records a coordinator no-progress outcome.
 	TransitionCauseNoProgress TransitionCause = "no_progress"
 	// TransitionCauseWatchPoll records a watch-source poll yielding dormancy.
 	TransitionCauseWatchPoll TransitionCause = "watch_poll"
@@ -99,14 +106,6 @@ const (
 	TransitionCauseWatchEvents TransitionCause = "watch_events"
 	// TransitionCauseCoordinatorFailure records an execution failure before a boundary settled.
 	TransitionCauseCoordinatorFailure TransitionCause = "coordinator_failure"
-)
-
-// StopReason captures the operator-visible stop reason.
-type StopReason string
-
-const (
-	// StopReasonOperator is the default explicit operator stop.
-	StopReasonOperator StopReason = "operator"
 )
 
 // GateDecision is the closed approval decision vocabulary consumed by Approve.
@@ -147,6 +146,7 @@ type LoopConfig struct {
 	GateMaxRevisions  *int                `json:"gate_max_revisions,omitempty"  yaml:"gate_max_revisions,omitempty"`
 	RuntimeDefaults   *RuntimeDefaults    `json:"runtime_defaults,omitempty"    yaml:"runtime_defaults,omitempty"`
 	RuntimeRules      []RuntimeRule       `json:"runtime_rules,omitempty"       yaml:"runtime_rules,omitempty"`
+	Lifecycle         *LifecycleConfig    `json:"lifecycle,omitempty"           yaml:"lifecycle,omitempty"`
 }
 
 // EffectiveConfig is the fully resolved non-null runtime config.
@@ -164,6 +164,7 @@ type EffectiveConfig struct {
 	RuntimeDefaults   RuntimeDefaults    `json:"runtime_defaults"`
 	RuntimeRules      []RuntimeRule      `json:"runtime_rules"`
 	RunRuntimeRules   []RuntimeRule      `json:"run_runtime_rules"`
+	Lifecycle         LifecycleConfig    `json:"lifecycle"`
 }
 
 // ConfigSnapshot keeps the stored override and daemon-resolved runtime config from one read.
@@ -209,12 +210,21 @@ type Run struct {
 	TokensUsed            int64
 	ParentLoopRunID       RunID
 	PauseRequested        bool
+	CancelRequested       bool
+	CancelKind            RunCancelKind
 	ControlActor          task.ActorIdentity
 	ControlRequestedAt    time.Time
 	GoalContextNudgeRatio float64
-	*RunNetworkState
+	*RunStartState
 	Origin *RunOrigin
 	Inputs map[string]any
+}
+
+// RunAdmission groups the transient watch-admission command and its optional suppression answer.
+type RunAdmission struct {
+	Identity   AdmissionIdentity
+	Suppressed bool
+	Claim      *AdmissionClaim
 }
 
 // DefinitionSnapshot is the content-addressed executed definition pinned by one or more runs.
@@ -346,7 +356,24 @@ type Service interface {
 		actor task.ActorContext,
 	) error
 	DryRun(ctx context.Context, ws WorkspaceID, name string, inputs Inputs) (*PlanPreview, error)
-	Stop(ctx context.Context, ws WorkspaceID, runID RunID, reason StopReason, actor task.ActorContext) error
+	CancelRun(ctx context.Context, ws WorkspaceID, runID RunID, reason string, actor task.ActorContext) error
+	KillRun(ctx context.Context, ws WorkspaceID, runID RunID, reason string, actor task.ActorContext) error
+	CancelNode(
+		ctx context.Context,
+		ws WorkspaceID,
+		runID RunID,
+		nodeID NodeID,
+		reason string,
+		actor task.ActorContext,
+	) error
+	KillNode(
+		ctx context.Context,
+		ws WorkspaceID,
+		runID RunID,
+		nodeID NodeID,
+		reason string,
+		actor task.ActorContext,
+	) error
 	Pause(ctx context.Context, ws WorkspaceID, runID RunID, actor task.ActorContext) error
 	// Resume clears pause_requested on running runs or transitions paused runs back to running.
 	Resume(ctx context.Context, ws WorkspaceID, runID RunID, actor task.ActorContext) error

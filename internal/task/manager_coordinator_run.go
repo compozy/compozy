@@ -77,12 +77,72 @@ func (m *Service) startCoordinatorRun(
 		Actor:      actor,
 		Now:        m.now().UTC(),
 	}, m.generationFinalizer)
+	return m.finishCoordinatorRun(lifecycleCtx, &result, plan, actor, completionErr)
+}
+
+func (m *Service) finishCoordinatorRun(
+	ctx context.Context,
+	result *CoordinatorCompletionResult,
+	plan CoordinatorCompletionPlan,
+	actor ActorContext,
+	completionErr error,
+) (*Run, error) {
 	if strings.TrimSpace(result.Run.ID) == "" {
 		return nil, completionErr
 	}
-	eventErr := m.recordCoordinatorCompletionEvents(lifecycleCtx, &result, actor)
-	m.dispatchCoordinatorTerminal(lifecycleCtx, &result, actor)
-	return &result.Run, errorsJoin(completionErr, eventErr)
+	var postCommitErr error
+	if !result.PlanSuperseded {
+		postCommitErr = m.applyCoordinatorPostCommit(ctx, plan.ParentCloses, actor)
+	}
+	var timerErr error
+	if !result.PlanSuperseded {
+		timerErr = m.armCoordinatorTimers(ctx, plan.PostCommitTimers, actor)
+	}
+	eventErr := m.recordCoordinatorCompletionEvents(ctx, result, actor)
+	m.dispatchCoordinatorTerminal(ctx, result, actor)
+	return &result.Run, errorsJoin(completionErr, postCommitErr, timerErr, eventErr)
+}
+
+func (m *Service) applyCoordinatorPostCommit(
+	ctx context.Context,
+	parentCloses []CoordinatorParentCloseSpec,
+	actor ActorContext,
+) error {
+	if len(parentCloses) == 0 {
+		return nil
+	}
+	if m.coordinatorPostCommit == nil {
+		return fmt.Errorf("%w: coordinator parent-close handler is required", ErrValidation)
+	}
+	return m.coordinatorPostCommit.ApplyCoordinatorPostCommit(ctx, parentCloses, actor)
+}
+
+func (m *Service) armCoordinatorTimers(
+	ctx context.Context,
+	timers []CoordinatorTimerSpec,
+	actor ActorContext,
+) error {
+	if len(timers) == 0 {
+		return nil
+	}
+	if m.coordinatorTimerArmer == nil {
+		keys := make([]string, 0, len(timers))
+		for _, timer := range timers {
+			keys = append(keys, timer.Normalize().IdempotencyKey)
+		}
+		return fmt.Errorf(
+			"%w: coordinator timer armer is required for timers %q",
+			ErrValidation,
+			strings.Join(keys, ", "),
+		)
+	}
+	var armErrs []error
+	for _, timer := range timers {
+		if err := m.coordinatorTimerArmer.ArmCoordinatorTimer(ctx, timer.Normalize(), actor); err != nil {
+			armErrs = append(armErrs, fmt.Errorf("task: arm coordinator timer %q: %w", timer.IdempotencyKey, err))
+		}
+	}
+	return errorsJoin(armErrs...)
 }
 
 func (m *Service) validateCoordinatorRuntime(runID string, req StartRun) error {

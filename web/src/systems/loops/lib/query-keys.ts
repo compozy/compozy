@@ -2,9 +2,13 @@ import { normalizeLoopCatalogFilter } from "./loops-list-query";
 import type {
   GoalTurnFilter,
   LoopCatalogStableFilter,
+  LoopNodeInventoryFilter,
   LoopRunsFilter,
   LoopStreamFilter,
 } from "../types";
+
+/** Inventory filter minus the continuation cursor, which lives in `pageParam`. */
+export type LoopNodeInventoryStableFilter = Omit<LoopNodeInventoryFilter, "cursor">;
 
 function normalizeText(value?: string | null): string {
   // Trim to match the adapter's `normalizeOptionalText`, so a whitespace-padded
@@ -75,6 +79,21 @@ export const loopsKeys = {
   runDetails: () => [...loopsKeys.all, "run-detail"] as const,
   runDetail: (workspaceId: string, runId: string) =>
     [...loopsKeys.runDetails(), workspaceId, runId] as const,
+
+  // Workspace-scoped node inventory (`GET /loop-nodes?state=…`). `state` is a
+  // required query param, so it is part of every key — the four inventory views
+  // are four independent caches, never one list filtered client-side.
+  nodeInventoryRoot: () => [...loopsKeys.all, "node-inventory"] as const,
+  nodeInventoryByWorkspace: (workspaceId: string) =>
+    [...loopsKeys.nodeInventoryRoot(), workspaceId] as const,
+  nodeInventory: (workspaceId: string, filters: LoopNodeInventoryStableFilter) =>
+    [
+      ...loopsKeys.nodeInventoryByWorkspace(workspaceId),
+      normalizeText(filters.state),
+      normalizeText(filters.loop),
+      normalizeText(filters.run_id),
+      normalizeNumber(filters.limit),
+    ] as const,
 
   goalTurnsRoot: () => [...loopsKeys.all, "goal-turns"] as const,
   goalTurns: (

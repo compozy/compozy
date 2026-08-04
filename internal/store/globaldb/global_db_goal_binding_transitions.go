@@ -30,6 +30,7 @@ func (g *GoalRepo) FinalizeSessionBindingCreation(
 	}
 	var binding goal.SessionBinding
 	stopped := false
+	var activationErr error
 	err := g.withTaskImmediateTransaction(
 		ctx,
 		"finalize Goal session binding creation",
@@ -40,14 +41,14 @@ func (g *GoalRepo) FinalizeSessionBindingCreation(
 			}
 			if current.State == goal.BindingStateFailed {
 				if current.FailureCode != goalBindingFailureStopCreationUnsettled &&
-					current.FailureCode != goalBindingFailureStopCreationSettled {
-					return goalControlStaleError("created Goal binding failed outside Stop settlement")
+					current.FailureCode != goalBindingFailureControlRevokedInFlight {
+					return goalControlStaleError("created Goal binding failed outside control-revoked cleanup")
 				}
 				if current.FailureCode == goalBindingFailureStopCreationUnsettled {
 					affected, updateErr := sqlcgen.New(exec).SettleStoppedGoalBindingBeforeActivation(
 						ctx,
 						sqlcgen.SettleStoppedGoalBindingBeforeActivationParams{
-							SettledFailureCode: goalNullableString(goalBindingFailureStopCreationSettled),
+							SettledFailureCode: goalNullableString(goalBindingFailureControlRevokedInFlight),
 							LoopRunID:          string(req.Key.LoopRunID), Handle: req.Key.Handle,
 							BindingEpoch:         req.ExpectedBindingEpoch,
 							UnsettledFailureCode: goalNullableString(goalBindingFailureStopCreationUnsettled),
@@ -62,17 +63,29 @@ func (g *GoalRepo) FinalizeSessionBindingCreation(
 					); err != nil {
 						return err
 					}
-					current.FailureCode = goalBindingFailureStopCreationSettled
+					current.FailureCode = goalBindingFailureControlRevokedInFlight
 				}
 				binding = current
 				stopped = true
 				return nil
 			}
 			binding, err = activateSessionBindingWithExecutor(ctx, exec, req)
-			return err
+			if err == nil || !isGoalControlStale(err) {
+				return err
+			}
+			failed, cleanupErr := failStaleBindingCreationWithCleanup(ctx, exec, current, req.ActivatedAt)
+			if cleanupErr != nil {
+				return errors.Join(err, cleanupErr)
+			}
+			binding = failed
+			activationErr = err
+			return nil
 		},
 	)
-	return binding, stopped, err
+	if err != nil {
+		return binding, stopped, err
+	}
+	return binding, stopped, activationErr
 }
 
 // ActivateSessionBinding swaps one successfully created run-owned attempt into active state.
@@ -133,6 +146,9 @@ func activateSessionBindingWithExecutor(
 		target.PolicySpecDigest,
 		target.CreationDigest,
 	); err != nil {
+		return goal.SessionBinding{}, err
+	}
+	if err := validateBindingActivationOwner(ctx, exec, req); err != nil {
 		return goal.SessionBinding{}, err
 	}
 	current, found, err := getActiveSessionBindingWithExecutor(ctx, exec, req.Key)
@@ -359,21 +375,16 @@ func validateReseedGrantForActivation(
 	current goal.SessionBinding,
 	currentFound bool,
 ) error {
-	if req.GrantID == 0 && req.ExpectedControlEpoch == 0 {
-		return nil
-	}
-	if req.ExpectedControlEpoch < 1 {
-		return goalControlStaleError("binding activation control identity is incomplete")
-	}
-	if err := validateBindingActivationControlEpoch(ctx, exec, req); err != nil {
-		return err
-	}
 	if req.GrantID == 0 {
 		if currentFound && current.Ownership == goal.BindingOwnershipOriginBorrowed &&
 			current.BindingEpoch != req.ExpectedBindingEpoch {
 			return goalControlStaleError("borrowed-origin reseed requires an explicit grant")
 		}
 		return nil
+	}
+	if currentFound && current.Ownership == goal.BindingOwnershipOriginBorrowed &&
+		current.BindingEpoch == req.ExpectedBindingEpoch {
+		return goalControlStaleError("reseed grant cannot target the active borrowed origin")
 	}
 	var exists int
 	query := `SELECT 1 FROM loop_goal_checkpoints
@@ -397,37 +408,6 @@ func validateReseedGrantForActivation(
 	}
 	if err != nil {
 		return fmt.Errorf("store: validate reseed activation grant: %w", err)
-	}
-	return nil
-}
-
-func validateBindingActivationControlEpoch(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	req goal.ActivateBindingRequest,
-) error {
-	query := `SELECT 1 FROM loop_goal_checkpoints WHERE loop_run_id = ? AND control_epoch = ?`
-	args := []any{string(req.Key.LoopRunID), req.ExpectedControlEpoch}
-	if req.CheckpointKey != nil {
-		if err := req.CheckpointKey.Validate(); err != nil {
-			return err
-		}
-		query += goalBindingCheckpointPredicate
-		args = append(
-			args,
-			req.CheckpointKey.Generation,
-			string(req.CheckpointKey.NodeID),
-			req.CheckpointKey.ItemIndex,
-		)
-	}
-	var exists int
-	// dynamic-sql: checkpoint ownership is optional, so validation conditionally narrows the control epoch identity.
-	err := exec.QueryRowContext(ctx, query, args...).Scan(&exists)
-	if errors.Is(err, sql.ErrNoRows) {
-		return goalControlStaleError("binding activation control epoch is stale")
-	}
-	if err != nil {
-		return fmt.Errorf("store: validate binding activation control epoch: %w", err)
 	}
 	return nil
 }
