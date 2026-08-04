@@ -143,6 +143,66 @@ func TestManagerBusyInputQueue(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject explicit busy modes for stopped sessions without resuming or persisting", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name string
+			mode BusyInputMode
+		}{
+			{name: "Should reject queue mode", mode: BusyInputModeQueue},
+			{name: "Should reject interrupt mode", mode: BusyInputModeInterrupt},
+			{name: "Should reject steer mode", mode: BusyInputModeSteer},
+		}
+
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				queueStore := openManagerInputQueueStore(t)
+				h := newHarness(t, WithSessionInputQueueStore(queueStore))
+				registerManagerInputQueueWorkspace(t, queueStore, h)
+				sess := createSession(t, h)
+				registerManagerInputQueueSession(t, queueStore, h, sess)
+				if err := h.manager.Stop(testutil.Context(t), sess.ID); err != nil {
+					t.Fatalf("Stop() error = %v", err)
+				}
+
+				_, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, SendPromptOpts{
+					Message:        "must remain stopped",
+					MessageID:      "message-stopped-" + string(test.mode),
+					IdempotencyKey: "idempotency-stopped-" + string(test.mode),
+					Mode:           test.mode,
+					ExpectedTurnID: "turn-before-stop",
+				})
+				if !errors.Is(err, ErrSessionNotActive) {
+					t.Fatalf("SendPrompt(%s) error = %v, want ErrSessionNotActive", test.mode, err)
+				}
+				if _, active := h.manager.Get(sess.ID); active {
+					t.Fatalf("Get(%q) active = true after rejected %s", sess.ID, test.mode)
+				}
+				h.driver.mu.Lock()
+				startCalls := len(h.driver.startCalls)
+				h.driver.mu.Unlock()
+				if startCalls != 1 {
+					t.Fatalf("driver Start() calls = %d, want only initial create", startCalls)
+				}
+
+				var admissions int
+				if err := queueStore.DB().QueryRowContext(
+					testutil.Context(t),
+					"SELECT COUNT(*) FROM session_prompt_admissions WHERE session_id = ?",
+					sess.ID,
+				).Scan(&admissions); err != nil {
+					t.Fatalf("count session prompt admissions error = %v", err)
+				}
+				if admissions != 0 {
+					t.Fatalf("session prompt admissions = %d, want 0", admissions)
+				}
+			})
+		}
+	})
+
 	t.Run("Should queue busy user input and dispatch it after the active turn ends", func(t *testing.T) {
 		t.Parallel()
 

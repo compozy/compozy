@@ -93,7 +93,7 @@ func (r BridgeRoute) Validate() error {
 	if err := normalized.RoutingKey().Validate(); err != nil {
 		return err
 	}
-	if err := requireOpaqueDeliveryID(normalized.SessionID, "bridge route session id"); err != nil {
+	if err := requireOpaqueIdentity(normalized.SessionID, "bridge route session id"); err != nil {
 		return err
 	}
 	if err := requireField(normalized.AgentName, "bridge route agent name"); err != nil {
@@ -131,7 +131,7 @@ func (r BridgeRoute) Canonicalize() (BridgeRoute, error) {
 // routing policy and computes the expected routing-key hash.
 func CanonicalizeRoute(instance BridgeInstance, route BridgeRoute) (BridgeRoute, error) {
 	normalizedRoute := route.normalize()
-	if err := requireOpaqueDeliveryID(normalizedRoute.BridgeInstanceID, "bridge route bridge instance id"); err != nil {
+	if err := requireOpaqueIdentity(normalizedRoute.BridgeInstanceID, "bridge route bridge instance id"); err != nil {
 		return BridgeRoute{}, err
 	}
 

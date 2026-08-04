@@ -63,7 +63,7 @@ func (r BridgeCatalogRecord) Normalized() BridgeCatalogRecord {
 // Validate reports whether the lean projection contains every catalog-owned field.
 func (r BridgeCatalogRecord) Validate() error {
 	normalized := r.Normalized()
-	if err := requireOpaqueDeliveryID(normalized.ID, "bridge instance id"); err != nil {
+	if err := requireOpaqueIdentity(normalized.ID, "bridge instance id"); err != nil {
 		return err
 	}
 	if err := ValidateScopeWorkspaceID(normalized.Scope, normalized.WorkspaceID); err != nil {

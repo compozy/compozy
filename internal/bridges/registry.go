@@ -54,7 +54,7 @@ type UpdateInstanceRequest struct {
 // Validate reports whether the request contains at least one mutable field and
 // each supplied value is internally consistent.
 func (r UpdateInstanceRequest) Validate() error {
-	if err := requireOpaqueDeliveryID(r.ID, "bridge instance id"); err != nil {
+	if err := requireOpaqueIdentity(r.ID, "bridge instance id"); err != nil {
 		return err
 	}
 	if !r.hasMutableField() {
@@ -120,7 +120,7 @@ type UpdateInstanceStateRequest struct {
 
 // Validate reports whether the request contains the fields needed for a lifecycle update.
 func (r UpdateInstanceStateRequest) Validate() error {
-	if err := requireOpaqueDeliveryID(r.ID, "bridge instance id"); err != nil {
+	if err := requireOpaqueIdentity(r.ID, "bridge instance id"); err != nil {
 		return err
 	}
 	if r.ClearDegradation && r.Degradation != nil && !r.Degradation.IsZero() {

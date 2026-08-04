@@ -98,6 +98,16 @@ func (m *Manager) lookupOrResumePromptSession(ctx context.Context, target string
 	return m.lookupPromptSession(ctx, target)
 }
 
+func (m *Manager) lookupPromptRequestSession(
+	ctx context.Context,
+	req promptRequest,
+) (*Session, error) {
+	if req.resumeStopped {
+		return m.lookupOrResumePromptSession(ctx, req.target)
+	}
+	return m.lookupPromptSession(ctx, req.target)
+}
+
 func normalizePromptMeta(
 	turnSource TurnSource,
 	meta acp.PromptMeta,

@@ -37,7 +37,7 @@ type ResolveDeliveryTargetRequest struct {
 // Validate reports whether the request carries valid opaque identities and an
 // exact supported mode when one is explicitly supplied.
 func (r ResolveDeliveryTargetRequest) Validate() error {
-	if err := requireOpaqueDeliveryID(r.BridgeInstanceID, "delivery target request bridge instance id"); err != nil {
+	if err := requireOpaqueIdentity(r.BridgeInstanceID, "delivery target request bridge instance id"); err != nil {
 		return err
 	}
 	for _, field := range []struct {
@@ -51,7 +51,7 @@ func (r ResolveDeliveryTargetRequest) Validate() error {
 		if isBlank(field.value) {
 			continue
 		}
-		if err := requireOpaqueDeliveryID(field.value, field.label); err != nil {
+		if err := requireOpaqueIdentity(field.value, field.label); err != nil {
 			return err
 		}
 	}

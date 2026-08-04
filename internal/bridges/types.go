@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	bridgecontract "github.com/compozy/compozy/internal/bridges/contract"
 	"github.com/compozy/compozy/internal/vault"
@@ -455,26 +454,4 @@ func (r IngestDedupRecord) normalize() IngestDedupRecord {
 	normalized := r
 	normalized.IdempotencyKey = strings.TrimSpace(normalized.IdempotencyKey)
 	return normalized
-}
-
-// isBlank marks values that carry no identity: whitespace is opaque data, but an all-whitespace value names nothing.
-func isBlank(value string) bool {
-	return strings.TrimSpace(value) == ""
-}
-
-func requireField(value string, label string) error {
-	if isBlank(value) {
-		return fmt.Errorf("bridges: %s is required", label)
-	}
-	return nil
-}
-
-func requireOpaqueDeliveryID(value string, label string) error {
-	if value == "" {
-		return fmt.Errorf("bridges: %s is required", label)
-	}
-	if !utf8.ValidString(value) {
-		return fmt.Errorf("bridges: %s must be valid UTF-8", label)
-	}
-	return nil
 }

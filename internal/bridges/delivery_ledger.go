@@ -100,7 +100,7 @@ func (r DeliveryLedgerRecord) Validate() error {
 	if err := requireField(r.TurnID, "delivery ledger turn id"); err != nil {
 		return err
 	}
-	if err := requireOpaqueDeliveryID(r.BridgeInstanceID, "delivery ledger bridge instance id"); err != nil {
+	if err := requireOpaqueIdentity(r.BridgeInstanceID, "delivery ledger bridge instance id"); err != nil {
 		return err
 	}
 	if err := ValidateScopeWorkspaceID(r.Scope, r.WorkspaceID); err != nil {
@@ -206,7 +206,7 @@ func (r DeliveryMetricRecord) Canonicalize() (DeliveryMetricRecord, error) {
 
 // Validate reports whether durable delivery metrics are complete and internally consistent.
 func (r DeliveryMetricRecord) Validate() error {
-	if err := requireOpaqueDeliveryID(r.BridgeInstanceID, "delivery metric bridge instance id"); err != nil {
+	if err := requireOpaqueIdentity(r.BridgeInstanceID, "delivery metric bridge instance id"); err != nil {
 		return err
 	}
 	if err := ValidateScopeWorkspaceID(r.Scope, r.WorkspaceID); err != nil {
@@ -263,7 +263,7 @@ func (q DeliveryLedgerQuery) Validate() error {
 		return err
 	}
 	if q.BridgeInstanceID != "" {
-		if err := requireOpaqueDeliveryID(q.BridgeInstanceID, "delivery ledger query bridge instance id"); err != nil {
+		if err := requireOpaqueIdentity(q.BridgeInstanceID, "delivery ledger query bridge instance id"); err != nil {
 			return err
 		}
 	}

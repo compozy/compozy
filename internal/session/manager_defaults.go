@@ -45,15 +45,7 @@ func (m *Manager) applyRuntimeDefaults() error {
 	if m.promptBufSize <= 0 {
 		m.promptBufSize = defaultPromptBufferSize
 	}
-	if m.soulLocks == nil {
-		m.soulLocks = make(map[string]chan struct{})
-	}
-	if m.resumeLifecycle.runs == nil {
-		m.resumeLifecycle.runs = make(map[string]*sessionResumeRun)
-	}
-	if m.sessionHealthHookLast == nil {
-		m.sessionHealthHookLast = make(map[string]time.Time)
-	}
+	m.applyMutableStateDefaults()
 	if m.soulRefreshTimeout <= 0 {
 		m.soulRefreshTimeout = defaultLifecycleTimeout
 	}
@@ -76,6 +68,18 @@ func (m *Manager) applyRuntimeDefaults() error {
 		m.sessionHealthHookMinInterval = compozyconfig.DefaultHeartbeatConfig().SessionHealthHookMinInterval
 	}
 	return nil
+}
+
+func (m *Manager) applyMutableStateDefaults() {
+	if m.soulLocks == nil {
+		m.soulLocks = make(map[string]chan struct{})
+	}
+	if m.resumeLifecycle.runs == nil {
+		m.resumeLifecycle.runs = make(map[string]*sessionResumeRun)
+	}
+	if m.sessionHealthHookLast == nil {
+		m.sessionHealthHookLast = make(map[string]time.Time)
+	}
 }
 
 func (m *Manager) startRuntimeOwners() error {
