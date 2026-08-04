@@ -7,37 +7,6 @@ import (
 	"time"
 )
 
-type HookMatcher struct {
-	AgentName           string           `json:"agent_name,omitempty"`
-	AgentType           string           `json:"agent_type,omitempty"`
-	WorkspaceID         string           `json:"workspace_id,omitempty"`
-	WorkspaceRoot       string           `json:"workspace_root,omitempty"`
-	SessionType         string           `json:"session_type,omitempty"`
-	SandboxID           string           `json:"sandbox_id,omitempty"`
-	SandboxBackend      string           `json:"sandbox_backend,omitempty"`
-	SandboxProfile      string           `json:"sandbox_profile,omitempty"`
-	SyncDirection       string           `json:"sync_direction,omitempty"`
-	InputClass          string           `json:"input_class,omitempty"`
-	ACPEventType        string           `json:"acp_event_type,omitempty"`
-	TurnID              string           `json:"turn_id,omitempty"`
-	ToolID              string           `json:"tool_id,omitempty"`
-	ToolName            string           `json:"tool_name,omitempty"`
-	ToolReadOnly        *bool            `json:"tool_read_only,omitempty"`
-	DecisionClass       string           `json:"decision_class,omitempty"`
-	MessageRole         string           `json:"message_role,omitempty"`
-	MessageDeltaType    string           `json:"message_delta_type,omitempty"`
-	Channel             string           `json:"channel,omitempty"`
-	Surface             string           `json:"surface,omitempty"`
-	Kind                string           `json:"kind,omitempty"`
-	Direction           string           `json:"direction,omitempty"`
-	WorkState           string           `json:"work_state,omitempty"`
-	ParticipationMode   string           `json:"participation_mode,omitempty"`
-	ParticipationSource string           `json:"participation_source,omitempty"`
-	Reason              string           `json:"compaction_reason,omitempty"`
-	Strategy            string           `json:"compaction_strategy,omitempty"`
-	Autonomy            *AutonomyMatcher `json:"autonomy,omitempty"`
-}
-
 type HookMode string
 
 type HookRunOutcome string
@@ -185,4 +154,25 @@ type InputPreSubmitPatch struct {
 	DenyReason    string         `json:"deny_reason,omitempty"`
 	Message       *string        `json:"message,omitempty"`
 	ContextBlocks []ContextBlock `json:"context_blocks,omitempty"`
+}
+
+type InputPreSubmitPayload struct {
+	Event          HookEvent      `json:"event"`
+	Timestamp      time.Time      `json:"timestamp"`
+	SessionID      string         `json:"session_id,omitempty"`
+	SessionName    string         `json:"session_name,omitempty"`
+	SessionType    string         `json:"session_type,omitempty"`
+	AgentName      string         `json:"agent_name,omitempty"`
+	WorkspaceID    string         `json:"workspace_id,omitempty"`
+	Workspace      string         `json:"workspace,omitempty"`
+	ACPSessionID   string         `json:"acp_session_id,omitempty"`
+	State          string         `json:"state,omitempty"`
+	SoulSnapshotID string         `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string         `json:"soul_digest,omitempty"`
+	CreatedAt      time.Time      `json:"created_at"`
+	UpdatedAt      time.Time      `json:"updated_at"`
+	TurnID         string         `json:"turn_id,omitempty"`
+	InputClass     string         `json:"input_class,omitempty"`
+	Message        string         `json:"message,omitempty"`
+	ContextBlocks  []ContextBlock `json:"context_blocks,omitempty"`
 }

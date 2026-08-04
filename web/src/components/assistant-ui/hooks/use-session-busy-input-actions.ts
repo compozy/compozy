@@ -60,7 +60,8 @@ export function useSessionBusyInputActions({
       return;
     }
 
-    void Promise.resolve(handler(trimmedComposerText))
+    void Promise.resolve()
+      .then(() => handler(trimmedComposerText))
       .then(() => {
         clearComposer();
         onSuccess?.();
@@ -74,7 +75,11 @@ export function useSessionBusyInputActions({
   const handleQueueAction = () => {
     const editingQueuedPrompt =
       queuedPrompts.find(prompt => prompt.id === editingQueuedPromptId.current) ?? null;
-    if (editingQueuedPrompt && onReplaceQueuedPrompt) {
+    if (editingQueuedPrompt) {
+      if (!onReplaceQueuedPrompt) {
+        toast.error("Couldn't update queued prompt.");
+        return;
+      }
       handleBusyInputAction(
         message => onReplaceQueuedPrompt(editingQueuedPrompt, message),
         "Couldn't update queued prompt.",

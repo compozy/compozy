@@ -234,7 +234,7 @@ func TestUnixSocketClientSessionInputMethods(t *testing.T) {
 					body.IdempotencyKey != "idem-2" || body.ExpectedTurnID != "turn-1" {
 					return nil, fmt.Errorf("steer prompt request = %#v", body)
 				}
-				return newHTTPResponse(http.StatusAccepted, `{"prompt":{"status":"steering","mode":"steer","delivery":"after_turn","message_id":"msg-2","idempotency_key":"idem-2","replayed":false,"queue_entry_id":"queue-1"}}`), nil
+				return newHTTPResponse(http.StatusAccepted, `{"prompt":{"status":"steering","mode":"steer","delivery":"interrupt_then_prompt","message_id":"msg-2","idempotency_key":"idem-2","replayed":false,"queue_entry_id":"queue-1"}}`), nil
 			case req.Method == http.MethodPost && req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/prompt/queue/queue-1/steer":
 				var body contract.PromoteSessionInputRequest
 				if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
@@ -247,7 +247,7 @@ func TestUnixSocketClientSessionInputMethods(t *testing.T) {
 					body.IdempotencyKey != "idem-2" || body.ExpectedTurnID != "turn-1" {
 					return nil, fmt.Errorf("promote input request = %#v", body)
 				}
-				return newHTTPResponse(http.StatusAccepted, `{"prompt":{"status":"steering","mode":"steer","delivery":"after_turn","message_id":"msg-2","idempotency_key":"idem-2","replayed":false,"queue_entry_id":"queue-1"}}`), nil
+				return newHTTPResponse(http.StatusAccepted, `{"prompt":{"status":"steering","mode":"steer","delivery":"interrupt_then_prompt","message_id":"msg-2","idempotency_key":"idem-2","replayed":false,"queue_entry_id":"queue-1"}}`), nil
 			case req.Method == http.MethodDelete && req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/prompt/queue/queue-1":
 				return newHTTPResponse(http.StatusAccepted, `{"prompt":{"status":"canceled","delivery":"none","message_id":"msg-2","idempotency_key":"idem-2","replayed":false,"queue_entry_id":"queue-1"}}`), nil
 			default:
@@ -292,7 +292,9 @@ func TestUnixSocketClientSessionInputMethods(t *testing.T) {
 		if err != nil {
 			t.Fatalf("SteerSessionPrompt() error = %v", err)
 		}
-		if record.Prompt.Status != "steering" || record.Prompt.QueueEntryID != "queue-1" {
+		if record.Prompt.Status != "steering" ||
+			record.Prompt.Delivery != contract.PromptDeliveryInterruptThenPrompt ||
+			record.Prompt.QueueEntryID != "queue-1" {
 			t.Fatalf("SteerSessionPrompt() = %#v", record)
 		}
 	})
@@ -306,7 +308,9 @@ func TestUnixSocketClientSessionInputMethods(t *testing.T) {
 		if err != nil {
 			t.Fatalf("PromoteSessionInput() error = %v", err)
 		}
-		if record.Prompt.Status != "steering" || record.Prompt.QueueEntryID != "queue-1" {
+		if record.Prompt.Status != "steering" ||
+			record.Prompt.Delivery != contract.PromptDeliveryInterruptThenPrompt ||
+			record.Prompt.QueueEntryID != "queue-1" {
 			t.Fatalf("PromoteSessionInput() = %#v", record)
 		}
 	})

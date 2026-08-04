@@ -7,11 +7,6 @@ import (
 	"time"
 )
 
-type Origin struct {
-	Kind OriginKind `json:"kind"`
-	Ref  string     `json:"ref"`
-}
-
 type OriginKind string
 
 type OwnerKind string
@@ -196,6 +191,8 @@ type ProbeResult struct {
 	CheckedAt  time.Time `json:"checked_at"`
 	DurationMS int64     `json:"duration_ms"`
 }
+
+type PromptDelivery string
 
 type PromptMode string
 

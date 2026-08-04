@@ -162,6 +162,18 @@ func TestGlobalDBSessionInputQueueGeneration(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("StageSessionSteer(new) error = %v", err)
 		}
+		queued, _, err := globalDB.EnqueueSessionInput(ctx, store.SessionInputQueueInsert{
+			ID:                "queue-after-steer",
+			SessionID:         sessionID,
+			Mode:              store.SessionInputQueueModeQueue,
+			Text:              "queued input",
+			SessionGeneration: generation,
+			QueueCap:          10,
+			Now:               now.Add(2500 * time.Millisecond),
+		})
+		if err != nil {
+			t.Fatalf("EnqueueSessionInput(queue) error = %v", err)
+		}
 
 		consumed, ok, err := globalDB.ClaimNextSessionInput(ctx, sessionID, now.Add(3*time.Second))
 		if err != nil {
@@ -173,12 +185,15 @@ func TestGlobalDBSessionInputQueueGeneration(t *testing.T) {
 		if consumed.ID != "steer-new" || consumed.Status != store.SessionInputQueueStatusDispatching {
 			t.Fatalf("consumed = %#v, want dispatching steer-new", consumed)
 		}
-		_, ok, err = globalDB.ClaimNextSessionInput(ctx, sessionID, now.Add(4*time.Second))
+		if err := globalDB.MarkSessionInputSent(ctx, sessionID, consumed.ID, now.Add(3500*time.Millisecond)); err != nil {
+			t.Fatalf("MarkSessionInputSent(steer) error = %v", err)
+		}
+		consumed, ok, err = globalDB.ClaimNextSessionInput(ctx, sessionID, now.Add(4*time.Second))
 		if err != nil {
 			t.Fatalf("ClaimNextSessionInput(second) error = %v", err)
 		}
-		if ok {
-			t.Fatal("ClaimNextSessionInput(second) ok = true, want false after one-shot lease")
+		if !ok || consumed.ID != queued.ID {
+			t.Fatalf("ClaimNextSessionInput(second) = %#v/%v, want queued input %q", consumed, ok, queued.ID)
 		}
 	})
 
@@ -1309,6 +1324,40 @@ func TestGlobalDBSessionPromptAdmission(t *testing.T) {
 		_, _, err := globalDB.ClaimSessionPromptAdmission(ctx, req)
 		if !errors.Is(err, store.ErrSessionPromptDispatchIndeterminate) {
 			t.Fatalf("ClaimSessionPromptAdmission(retry) error = %v", err)
+		}
+	})
+
+	t.Run("Should fence a completed queue admission after activation fails", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		sessionID := registerInputQueueSession(t, globalDB)
+		now := time.Date(2026, 7, 31, 12, 20, 0, 0, time.UTC)
+		req := promptAdmissionRequest("ws-input-queue-workspace", sessionID, "activation-failure", now)
+		req.Mode = store.SessionInputQueueModeSteer
+		queueReq := store.SessionInputQueueInsert{
+			ID: "steer-admitted-activation-failure", SessionID: sessionID, Text: "steer once",
+			TargetTurnID: "turn-active", Delivery: store.SessionInputDeliveryInterruptThenPrompt,
+			SessionGeneration: 0, QueueCap: 10, Now: now,
+		}
+		admission, _, created, err := globalDB.StageAdmittedSessionSteer(ctx, req, queueReq)
+		if err != nil || !created || admission.State != store.SessionPromptAdmissionCompleted {
+			t.Fatalf("StageAdmittedSessionSteer() = %#v created=%v error=%v", admission, created, err)
+		}
+		if err := globalDB.MarkSessionPromptAdmissionIndeterminate(
+			ctx,
+			req.WorkspaceID,
+			req.SessionID,
+			req.IdempotencyKey,
+			"active-turn cancellation failed",
+			now.Add(time.Second),
+		); err != nil {
+			t.Fatalf("MarkSessionPromptAdmissionIndeterminate(completed) error = %v", err)
+		}
+		_, _, _, err = globalDB.StageAdmittedSessionSteer(ctx, req, queueReq)
+		if !errors.Is(err, store.ErrSessionPromptDispatchIndeterminate) {
+			t.Fatalf("StageAdmittedSessionSteer(retry) error = %v, want dispatch indeterminate", err)
 		}
 	})
 }

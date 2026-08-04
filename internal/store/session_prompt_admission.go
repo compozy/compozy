@@ -19,6 +19,14 @@ const (
 	SessionPromptAdmissionIndeterminate     = "indeterminate"
 )
 
+const (
+	SessionPromptResultStatusAccepted     = "accepted"
+	SessionPromptResultStatusQueued       = "queued"
+	SessionPromptResultStatusSteering     = "steering"
+	SessionPromptResultStatusInterrupting = "interrupting"
+	SessionPromptResultStatusCanceled     = "canceled"
+)
+
 var (
 	ErrSessionPromptAdmissionInProgress   = errors.New("store: session prompt admission is in progress")
 	ErrSessionPromptIdempotencyConflict   = errors.New("store: session prompt idempotency conflict")

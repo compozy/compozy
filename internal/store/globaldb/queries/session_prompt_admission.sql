@@ -55,7 +55,7 @@ SET state = sqlc.arg(indeterminate_state), indeterminate_reason = sqlc.arg(indet
 WHERE workspace_id = sqlc.arg(workspace_id)
   AND session_id = sqlc.arg(session_id)
   AND idempotency_key = sqlc.arg(idempotency_key)
-  AND state = sqlc.arg(dispatch_committed_state);
+  AND state IN (sqlc.arg(dispatch_committed_state), sqlc.arg(completed_state));
 
 -- name: CommitQueuedSessionPromptAdmissionDispatch :execrows
 UPDATE session_prompt_admissions

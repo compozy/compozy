@@ -11,6 +11,8 @@ interface SessionComposerQueuedPromptsProps {
   onEdit: (prompt: QueuedPrompt) => void;
   onRemove: (id: string) => void;
   disabled?: boolean;
+  editDisabled?: boolean;
+  steerDisabled?: boolean;
 }
 
 /**
@@ -26,6 +28,8 @@ export function SessionComposerQueuedPrompts({
   onEdit,
   onRemove,
   disabled = false,
+  editDisabled = false,
+  steerDisabled = false,
 }: SessionComposerQueuedPromptsProps) {
   if (prompts.length === 0) {
     return null;
@@ -64,7 +68,7 @@ export function SessionComposerQueuedPrompts({
                 variant="ghost"
                 size="sm"
                 onClick={() => onSteer(prompt)}
-                disabled={disabled || !mutable}
+                disabled={disabled || steerDisabled || !mutable}
                 data-testid="composer-queued-steer"
                 className="text-muted hover:text-fg-strong"
               >
@@ -76,7 +80,7 @@ export function SessionComposerQueuedPrompts({
                 variant="ghost"
                 size="icon-xs"
                 onClick={() => onEdit(prompt)}
-                disabled={disabled || !mutable}
+                disabled={disabled || editDisabled || !mutable}
                 data-testid="composer-queued-edit"
                 aria-label="Edit queued prompt"
                 className="text-faint hover:text-fg"

@@ -11,7 +11,6 @@ import (
 )
 
 const (
-	promptStatusAccepted             = "accepted"
 	promptEvidenceQueueGenerationKey = "queue_generation"
 )
 
@@ -137,7 +136,7 @@ func (m *Manager) submitPreparedPrompt(
 		return SendPromptResult{}, err
 	}
 	return SendPromptResult{
-		Status:    promptStatusAccepted,
+		Status:    store.SessionPromptResultStatusAccepted,
 		Mode:      preparation.mode,
 		Delivery:  store.SessionInputDeliveryDirect,
 		Events:    events,
@@ -229,7 +228,7 @@ func (m *Manager) CancelQueuedPrompt(ctx context.Context, id string, queueEntryI
 		queueEntryEvidence(entry.ID, entry.SessionGeneration, entry.Status, entry.Mode, 0),
 	)
 	return SendPromptResult{
-		Status:          "canceled",
+		Status:          store.SessionPromptResultStatusCanceled,
 		Mode:            BusyInputMode(entry.Mode),
 		Delivery:        store.SessionInputDeliveryNone,
 		QueueEntryID:    entry.ID,
@@ -278,7 +277,7 @@ func (m *Manager) enqueueBusyPrompt(
 		queueEntryEvidence(entry.ID, entry.SessionGeneration, entry.Status, entry.Mode, position),
 	)
 	return SendPromptResult{
-		Status:          "queued",
+		Status:          store.SessionPromptResultStatusQueued,
 		Mode:            BusyInputModeQueue,
 		Delivery:        entry.Delivery,
 		QueueEntryID:    entry.ID,
@@ -315,7 +314,7 @@ func (m *Manager) stageSteerPrompt(
 		return SendPromptResult{}, err
 	}
 	if err := m.activateInterruptingInput(ctx, session, entry); err != nil {
-		return SendPromptResult{}, err
+		return SendPromptResult{}, m.cleanupInterruptingInputActivationFailure(ctx, entry, err)
 	}
 	m.emitTranscriptMarker(
 		ctx,
@@ -326,7 +325,7 @@ func (m *Manager) stageSteerPrompt(
 		queueEntryEvidence(entry.ID, entry.SessionGeneration, entry.Status, entry.Mode, 0),
 	)
 	return SendPromptResult{
-		Status:          "steering",
+		Status:          store.SessionPromptResultStatusSteering,
 		Mode:            BusyInputModeSteer,
 		Delivery:        entry.Delivery,
 		QueueEntryID:    entry.ID,
@@ -354,7 +353,7 @@ func (m *Manager) interruptAndSubmitPrompt(
 		return SendPromptResult{}, err
 	}
 	if err := m.activateInterruptingInput(ctx, session, entry); err != nil {
-		return SendPromptResult{}, err
+		return SendPromptResult{}, m.cleanupInterruptingInputActivationFailure(ctx, entry, err)
 	}
 	m.emitTranscriptMarker(
 		ctx,
@@ -369,7 +368,7 @@ func (m *Manager) interruptAndSubmitPrompt(
 		},
 	)
 	return SendPromptResult{
-		Status:                "interrupting",
+		Status:                store.SessionPromptResultStatusInterrupting,
 		Mode:                  BusyInputModeInterrupt,
 		Delivery:              entry.Delivery,
 		QueueEntryID:          entry.ID,

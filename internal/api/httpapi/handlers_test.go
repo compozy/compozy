@@ -2733,6 +2733,8 @@ func TestSteerSessionPromptHandlerPropagatesDurableIdentity(t *testing.T) {
 }
 
 func TestSessionInputHandlersExposeAuthoritativeQueueMutations(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 8, 3, 18, 0, 0, 0, time.UTC)
 	pending := session.PendingInput{
 		ID: "inq-1", SessionID: "sess-123", MessageID: "msg-1", IdempotencyKey: "idem-1",

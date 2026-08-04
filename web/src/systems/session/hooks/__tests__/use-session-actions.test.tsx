@@ -8,8 +8,10 @@ import {
   useClearSessionConversation,
   useCreateSession,
   useDeleteSession,
+  useInterruptSessionPrompt,
   useQueueSessionPrompt,
   useRepairSession,
+  useSteerSessionPrompt,
 } from "../use-session-actions";
 import {
   useCancelSessionInput,
@@ -53,6 +55,7 @@ import {
   promoteSessionInputToSteer,
   replaceSessionInput,
   sendSessionPrompt,
+  steerSessionPrompt,
 } from "../../adapters/session-api";
 const WORKSPACE_ID = "ws_alpha";
 
@@ -478,6 +481,33 @@ describe("session actions", () => {
 
     expect(sendSessionPrompt).not.toHaveBeenCalled();
   });
+
+  it.each([
+    ["interrupt", useInterruptSessionPrompt, sendSessionPrompt],
+    ["steer", useSteerSessionPrompt, steerSessionPrompt],
+  ] as const)(
+    "use%sSessionPrompt rejects a missing active-turn fence",
+    async (_mode, useAction, request) => {
+      const queryClient = new QueryClient({
+        defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+      });
+      const { result } = renderHook(() => useAction(), {
+        wrapper: createWrapper(queryClient),
+      });
+
+      await act(async () => {
+        await expect(
+          result.current.mutateAsync({
+            expectedTurnId: "   ",
+            id: createdSession.id,
+            message: "Replace the active work.",
+          })
+        ).rejects.toThrow("requires a non-empty expected_turn_id");
+      });
+
+      expect(request).not.toHaveBeenCalled();
+    }
+  );
 
   it("useReplaceSessionInput swaps the original durable id only in the owning queue", async () => {
     const replacement: SessionInputPayload = {

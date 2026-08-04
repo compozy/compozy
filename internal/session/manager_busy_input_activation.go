@@ -38,16 +38,11 @@ func (m *Manager) activateInterruptingInput(
 	}
 	activeTurnID := strings.TrimSpace(session.CurrentTurnID())
 	if activeTurnID != strings.TrimSpace(entry.TargetTurnID) {
-		return m.cancelUndeliverableInput(
-			ctx,
-			session.ID,
-			entry.ID,
-			fmt.Errorf(
-				"%w: expected %s, active %s",
-				ErrActiveTurnMismatch,
-				entry.TargetTurnID,
-				activeTurnID,
-			),
+		return fmt.Errorf(
+			"%w: expected %s, active %s",
+			ErrActiveTurnMismatch,
+			entry.TargetTurnID,
+			activeTurnID,
 		)
 	}
 	if err := m.CancelPrompt(ctx, session.ID); err != nil {
@@ -79,6 +74,17 @@ func (m *Manager) ensureInterruptingInputActivated(
 	default:
 		return fmt.Errorf("session: invalid interrupting input status %q", entry.Status)
 	}
+}
+
+func (m *Manager) cleanupInterruptingInputActivationFailure(
+	ctx context.Context,
+	entry store.SessionInputQueueEntry,
+	cause error,
+) error {
+	if entry.Status != store.SessionInputQueueStatusQueued {
+		return cause
+	}
+	return m.cancelUndeliverableInput(ctx, entry.SessionID, entry.ID, cause)
 }
 
 func (m *Manager) cancelUndeliverableInput(

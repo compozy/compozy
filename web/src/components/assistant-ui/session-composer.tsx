@@ -133,6 +133,8 @@ export function SessionComposer({
               onEdit={handleEditQueuedPrompt}
               onRemove={handleRemoveQueuedPrompt}
               disabled={isBusyInputPending}
+              editDisabled={!onReplaceQueuedPrompt}
+              steerDisabled={!busyInputFenceAvailable}
             />
           ) : null}
           <ComposerPrimitive.Root

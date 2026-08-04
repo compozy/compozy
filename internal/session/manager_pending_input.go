@@ -119,7 +119,7 @@ func (m *Manager) PromotePendingInputToSteer(
 		return SendPromptResult{}, err
 	}
 	if err := m.ensureInterruptingInputActivated(ctx, session, entry); err != nil {
-		return SendPromptResult{}, err
+		return SendPromptResult{}, m.cleanupInterruptingInputActivationFailure(ctx, entry, err)
 	}
 	if created {
 		m.emitTranscriptMarker(
@@ -136,7 +136,7 @@ func (m *Manager) PromotePendingInputToSteer(
 
 func promotedInputResult(entry store.SessionInputQueueEntry) SendPromptResult {
 	return SendPromptResult{
-		Status:          "steering",
+		Status:          store.SessionPromptResultStatusSteering,
 		Mode:            BusyInputModeSteer,
 		Delivery:        entry.Delivery,
 		MessageID:       entry.MessageID,

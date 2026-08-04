@@ -171,7 +171,8 @@ func (m *Manager) submitAdmittedDirectPrompt(
 		return SendPromptResult{}, err
 	}
 	result := SendPromptResult{
-		Status: promptStatusAccepted, Mode: mode, Delivery: store.SessionInputDeliveryDirect, Events: events,
+		Status: store.SessionPromptResultStatusAccepted,
+		Mode:   mode, Delivery: store.SessionInputDeliveryDirect, Events: events,
 		MessageID: admission.MessageID, IdempotencyKey: admission.IdempotencyKey,
 		NewTurnID: admission.TurnID,
 	}
@@ -262,7 +263,8 @@ func (m *Manager) stageAdmittedSteerPrompt(
 		return SendPromptResult{}, err
 	}
 	if err := m.ensureInterruptingInputActivated(ctx, session, entry); err != nil {
-		return SendPromptResult{}, err
+		activationErr := m.cleanupInterruptingInputActivationFailure(ctx, entry, err)
+		return SendPromptResult{}, m.promptDispatchIndeterminate(ctx, admission, activationErr)
 	}
 	if created {
 		m.emitTranscriptMarker(
@@ -285,6 +287,9 @@ func (m *Manager) interruptAdmittedPrompt(
 	req promptRequest,
 	admissionReq store.SessionPromptAdmissionRequest,
 ) (SendPromptResult, error) {
+	if m.inputQueue == nil {
+		return SendPromptResult{}, ErrPromptInProgress
+	}
 	previousTurnID, err := requireExpectedActiveTurn(session, req.expectedTurnID)
 	if err != nil {
 		return SendPromptResult{}, err
@@ -298,7 +303,8 @@ func (m *Manager) interruptAdmittedPrompt(
 		return SendPromptResult{}, err
 	}
 	if err := m.ensureInterruptingInputActivated(ctx, session, entry); err != nil {
-		return SendPromptResult{}, err
+		activationErr := m.cleanupInterruptingInputActivationFailure(ctx, entry, err)
+		return SendPromptResult{}, m.promptDispatchIndeterminate(ctx, admission, activationErr)
 	}
 	if created {
 		m.emitTranscriptMarker(

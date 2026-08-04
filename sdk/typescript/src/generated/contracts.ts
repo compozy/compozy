@@ -4276,7 +4276,9 @@ export interface SessionHealthUpdateAfterPayload {
   last_error?: string;
 }
 
-export type BusyInputMode = string;
+export type PromptMode = string;
+
+export type PromptDelivery = string;
 
 export type Speed = string;
 
@@ -4294,8 +4296,8 @@ export interface SessionInput {
   idempotency_key?: string;
   target_turn_id?: string;
   status: string;
-  mode: BusyInputMode;
-  delivery: string;
+  mode: PromptMode;
+  delivery: PromptDelivery;
   text: string;
   queue_generation: number;
   enqueued_at: ISODateTime;
@@ -4549,8 +4551,8 @@ export interface SessionPreStopPayload {
 
 export interface SessionPromptResult {
   status: string;
-  mode?: BusyInputMode;
-  delivery: string;
+  mode?: PromptMode;
+  delivery: PromptDelivery;
   message_id: string;
   idempotency_key: string;
   replayed: boolean;
@@ -4698,8 +4700,6 @@ export interface SessionsCreateParams {
 export interface SessionsListParams {
   workspace?: string;
 }
-
-export type PromptMode = string;
 
 export interface SessionsPromptParams {
   workspace_id: string;

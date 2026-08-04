@@ -1411,7 +1411,7 @@ func assertSessionPromptMutationOutputSchema(t *testing.T, owner string, raw jso
 		}
 		if identity.Type != "string" || identity.MinLength != 0 {
 			t.Fatalf(
-				"%s prompt.%s schema = %#v, want non-empty string",
+				"%s prompt.%s schema = %#v, want string without a minLength constraint",
 				owner,
 				field,
 				identity,
@@ -1462,6 +1462,7 @@ func assertSessionInputReplaceSchema(t *testing.T, descriptor toolspkg.Descripto
 	assertSessionInputMutationSchema(t, descriptor, []string{
 		"idempotency_key", "message_id", "queue_entry_id", "session_id", "text", "workspace",
 	}, []string{"session_id", "queue_entry_id", "text", "message_id", "idempotency_key"}, false)
+	assertSessionInputOutputSchema(t, descriptor.ID.String()+" output", descriptor.OutputSchema)
 }
 
 func assertSessionInputCancelSchema(t *testing.T, descriptor toolspkg.Descriptor) {
@@ -1522,9 +1523,6 @@ func assertSessionInputMutationSchema(
 		if expectedTurn.Type != "string" || expectedTurn.MinLength != 1 {
 			t.Fatalf("%s expected_turn_id schema = %#v, want non-empty string", descriptor.ID, expectedTurn)
 		}
-	}
-	if !requiresExpectedTurn {
-		assertSessionInputOutputSchema(t, descriptor.ID.String()+" output", descriptor.OutputSchema)
 	}
 }
 

@@ -884,6 +884,22 @@ func TestPromptRuntimeSelectionFromPayload(t *testing.T) {
 			t.Fatalf("PromptRuntimeSelectionFromPayload() = %#v, want canonical selection", selection)
 		}
 	})
+
+	t.Run("Should project a canonical payload and preserve nil", func(t *testing.T) {
+		t.Parallel()
+
+		if payload := contract.PromptRuntimeSelectionPayloadFromSelection(nil); payload != nil {
+			t.Fatalf("PromptRuntimeSelectionPayloadFromSelection(nil) = %#v, want nil", payload)
+		}
+		payload := contract.PromptRuntimeSelectionPayloadFromSelection(&session.RuntimeSelection{
+			Provider: " codex ", Model: " gpt-5.6 ", ReasoningEffort: " high ",
+			Speed: contract.SpeedFast,
+		})
+		if payload == nil || payload.Provider != "codex" || payload.Model != "gpt-5.6" ||
+			payload.ReasoningEffort != contract.ReasoningEffort("high") || payload.Speed != contract.SpeedFast {
+			t.Fatalf("PromptRuntimeSelectionPayloadFromSelection() = %#v, want canonical payload", payload)
+		}
+	})
 }
 
 func TestMemoryV2PublicContractJSONShape(t *testing.T) {

@@ -174,7 +174,7 @@ WHERE session_id = ?1
   AND dispatchable = 1
   AND owner_kind IS NULL
   AND session_generation = (SELECT input_generation FROM sessions WHERE id = ?1)
-ORDER BY CASE delivery WHEN 'interrupt_then_prompt' THEN 0 ELSE 1 END, enqueued_at ASC, id ASC
+ORDER BY delivery DESC, enqueued_at ASC, id ASC
 LIMIT 1
 `
 
@@ -460,7 +460,7 @@ WHERE session_id = ?1
   AND status IN (?2, ?3)
   AND session_generation = (SELECT input_generation FROM sessions WHERE id = ?1)
   AND owner_kind IS NULL
-ORDER BY CASE delivery WHEN 'interrupt_then_prompt' THEN 0 ELSE 1 END, enqueued_at ASC, id ASC
+ORDER BY delivery DESC, enqueued_at ASC, id ASC
 `
 
 type ListPendingSessionInputsParams struct {
@@ -667,7 +667,7 @@ WHERE session_id = ?1
   AND session_generation = (SELECT input_generation FROM sessions WHERE id = ?1)
   AND ((owner_kind IS NULL AND dispatchable = 1)
        OR (owner_kind = 'goal' AND dispatchable = 0 AND fence_kind IS NULL))
-ORDER BY CASE delivery WHEN 'interrupt_then_prompt' THEN 0 ELSE 1 END, enqueued_at ASC, id ASC
+ORDER BY delivery DESC, enqueued_at ASC, id ASC
 LIMIT 1
 `
 

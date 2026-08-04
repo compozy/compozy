@@ -141,6 +141,7 @@ function isOperationalPromptKind(kind: string | undefined): boolean {
     "prompt_steered",
     "prompt_interrupted",
     "prompt_dropped",
+    "prompt_cancel",
     "prompt_canceled",
     "prompt_cancelled",
   ].some(operation => value.includes(operation));

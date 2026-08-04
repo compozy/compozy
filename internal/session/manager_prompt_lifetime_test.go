@@ -205,19 +205,21 @@ func TestPromptTranscriptMarkerClassifiesStructuredMCPAuthReason(t *testing.T) {
 }
 
 func TestPromptTranscriptMarkerSuppressesExpectedCancellation(t *testing.T) {
-	t.Parallel()
+	t.Run("Should suppress expected cancellation transcript markers", func(t *testing.T) {
+		t.Parallel()
 
-	_, _, _, ok := promptTranscriptMarker(acp.AgentEvent{
-		Type:  acp.EventTypeError,
-		Error: context.Canceled.Error(),
-		Failure: &store.SessionFailure{
-			Kind:    store.FailureCanceled,
-			Summary: context.Canceled.Error(),
-		},
+		_, _, _, ok := promptTranscriptMarker(acp.AgentEvent{
+			Type:  acp.EventTypeError,
+			Error: context.Canceled.Error(),
+			Failure: &store.SessionFailure{
+				Kind:    store.FailureCanceled,
+				Summary: context.Canceled.Error(),
+			},
+		})
+		if ok {
+			t.Fatal("promptTranscriptMarker() ok = true for expected cancellation, want false")
+		}
 	})
-	if ok {
-		t.Fatal("promptTranscriptMarker() ok = true for expected cancellation, want false")
-	}
 }
 
 func TestPromptFileMutationVerifier(t *testing.T) {

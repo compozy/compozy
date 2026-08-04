@@ -93,11 +93,7 @@ func SessionInputPayloadFromSession(input session.PendingInput) contract.Session
 		QueueGeneration: input.QueueGeneration, EnqueuedAt: input.EnqueuedAt,
 	}
 	if input.Runtime != nil {
-		payload.Runtime = &contract.PromptRuntimeSelectionPayload{
-			Provider: input.Runtime.Provider, Model: input.Runtime.Model,
-			ReasoningEffort: contract.ReasoningEffort(input.Runtime.ReasoningEffort),
-			Speed:           contract.Speed(input.Runtime.Speed),
-		}
+		payload.Runtime = contract.PromptRuntimeSelectionPayloadFromSelection(input.Runtime)
 	}
 	return payload
 }

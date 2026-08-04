@@ -689,7 +689,7 @@ func TestHostAPIHandlerSessionsPromptReturnsInterruptRuntimeAdmission(t *testing
 
 		var admission hostAPISessionPromptResult
 		decodeResult(t, result, &admission)
-		if admission.Status != "interrupting" || admission.Mode != session.BusyInputModeInterrupt ||
+		if admission.Status != "interrupting" || admission.Mode != apicontract.PromptModeInterrupt ||
 			admission.Delivery != store.SessionInputDeliveryInterruptThenPrompt || admission.QueueEntryID != "input-queued" ||
 			admission.QueueGeneration != 7 {
 			t.Fatalf("sessions/prompt admission = %#v, want interrupt admission metadata", admission)

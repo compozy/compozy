@@ -8,6 +8,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/gin-gonic/gin"
 )
 
@@ -21,8 +22,9 @@ func PromptResponseFromSession(result session.SendPromptResult) (int, any, error
 	if result.Goal != nil {
 		status = GoalCommandHTTPStatus(*payload.Goal)
 	}
-	if result.Goal == nil && (result.Status == "queued" || result.Status == "steering" ||
-		result.Status == "interrupting" || result.Replayed) {
+	if result.Goal == nil && (result.Status == store.SessionPromptResultStatusQueued ||
+		result.Status == store.SessionPromptResultStatusSteering ||
+		result.Status == store.SessionPromptResultStatusInterrupting || result.Replayed) {
 		status = http.StatusAccepted
 	}
 	return status, contract.SendPromptResultResponse{Prompt: payload}, nil

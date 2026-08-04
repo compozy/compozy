@@ -58,8 +58,8 @@ func (n *daemonNativeTools) sessionInputsList(
 		return toolspkg.ToolResult{}, err
 	}
 	payloads := make([]contract.SessionInputPayload, 0, len(inputs))
-	for _, input := range inputs {
-		payloads = append(payloads, core.SessionInputPayloadFromSession(input))
+	for _, pendingInput := range inputs {
+		payloads = append(payloads, core.SessionInputPayloadFromSession(pendingInput))
 	}
 	return structuredResult(
 		contract.SessionInputListResponse{Inputs: payloads},
@@ -76,12 +76,6 @@ func (n *daemonNativeTools) sessionInputReplace(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	sessionID, entryID, err := n.nativeSessionInputMutationScope(
-		ctx, scope, req.ToolID, input.Workspace, input.SessionID, input.QueueEntryID,
-	)
-	if err != nil {
-		return toolspkg.ToolResult{}, err
-	}
 	text, err := requiredNativeString(req.ToolID, nativeToolsTextKey, input.Text)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
@@ -91,6 +85,12 @@ func (n *daemonNativeTools) sessionInputReplace(
 		return toolspkg.ToolResult{}, err
 	}
 	idempotencyKey, err := requiredNativeString(req.ToolID, "idempotency_key", input.IdempotencyKey)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	sessionID, entryID, err := n.nativeSessionInputMutationScope(
+		ctx, scope, req.ToolID, input.Workspace, input.SessionID, input.QueueEntryID,
+	)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -135,12 +135,6 @@ func (n *daemonNativeTools) sessionInputPromote(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	sessionID, entryID, err := n.nativeSessionInputMutationScope(
-		ctx, scope, req.ToolID, input.Workspace, input.SessionID, input.QueueEntryID,
-	)
-	if err != nil {
-		return toolspkg.ToolResult{}, err
-	}
 	text, err := requiredNativeString(req.ToolID, nativeToolsTextKey, input.Text)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
@@ -154,6 +148,12 @@ func (n *daemonNativeTools) sessionInputPromote(
 		return toolspkg.ToolResult{}, err
 	}
 	expectedTurnID, err := requiredNativeString(req.ToolID, "expected_turn_id", input.ExpectedTurnID)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	sessionID, entryID, err := n.nativeSessionInputMutationScope(
+		ctx, scope, req.ToolID, input.Workspace, input.SessionID, input.QueueEntryID,
+	)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -183,6 +183,16 @@ func (n *daemonNativeTools) nativeSessionInputScope(
 	if err != nil {
 		return "", err
 	}
+	return n.nativeSessionInputWorkspaceScope(ctx, scope, toolID, workspaceRef, sessionID)
+}
+
+func (n *daemonNativeTools) nativeSessionInputWorkspaceScope(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	toolID toolspkg.ToolID,
+	workspaceRef string,
+	sessionID string,
+) (string, error) {
 	resolved, err := n.nativeResolvedWorkspace(ctx, toolID, workspaceRef, scope)
 	if err != nil {
 		return "", err
@@ -205,11 +215,15 @@ func (n *daemonNativeTools) nativeSessionInputMutationScope(
 	sessionRef string,
 	entryRef string,
 ) (string, string, error) {
-	sessionID, err := n.nativeSessionInputScope(ctx, scope, toolID, workspaceRef, sessionRef)
+	sessionID, err := requiredNativeString(toolID, "session_id", sessionRef)
 	if err != nil {
 		return "", "", err
 	}
 	entryID, err := requiredNativeString(toolID, "queue_entry_id", entryRef)
+	if err != nil {
+		return "", "", err
+	}
+	sessionID, err = n.nativeSessionInputWorkspaceScope(ctx, scope, toolID, workspaceRef, sessionID)
 	if err != nil {
 		return "", "", err
 	}

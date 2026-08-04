@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
+import { createClientId } from "@/lib/client-id";
 import {
   cancelQueuedSessionPrompt,
   clearSessionConversation,
@@ -214,9 +215,17 @@ export interface CancelQueuedSessionPromptParams {
 
 function createPromptIdentity(): { idempotencyKey: string; messageId: string } {
   return {
-    idempotencyKey: globalThis.crypto.randomUUID(),
-    messageId: globalThis.crypto.randomUUID(),
+    idempotencyKey: createClientId(),
+    messageId: createClientId(),
   };
+}
+
+function requireExpectedTurnId(expectedTurnId: string | undefined): string {
+  const value = expectedTurnId?.trim() ?? "";
+  if (value.length === 0) {
+    throw new Error("A session steer or interrupt action requires a non-empty expected_turn_id");
+  }
+  return value;
 }
 
 const actionPromptIdentities = new WeakMap<
@@ -314,12 +323,14 @@ export function useInterruptSessionPrompt(options: UseSessionWorkspaceOptions = 
   const workspaceId = resolveWorkspaceId(options.workspaceId, activeWorkspaceId);
 
   return useMutation<SessionPromptResult, Error, SessionPromptActionParams>({
-    mutationFn: params =>
-      sendSessionPrompt(
+    mutationFn: params => {
+      const expectedTurnId = requireExpectedTurnId(params.expectedTurnId);
+      return sendSessionPrompt(
         requireWorkspace(workspaceId),
         params.id,
-        promptRequestFromAction(params, "interrupt")
-      ),
+        promptRequestFromAction({ ...params, expectedTurnId }, "interrupt")
+      );
+    },
     onSettled: (_data, _error, params) => {
       if (workspaceId) void invalidateSessionMutationQueries(queryClient, workspaceId, params.id);
     },
@@ -333,9 +344,10 @@ export function useSteerSessionPrompt(options: UseSessionWorkspaceOptions = {}) 
 
   return useMutation<SessionPromptPayload, Error, SessionPromptActionParams>({
     mutationFn: params => {
+      const expectedTurnId = requireExpectedTurnId(params.expectedTurnId);
       const identity = promptIdentityForAction(params);
       return steerSessionPrompt(requireWorkspace(workspaceId), params.id, {
-        expected_turn_id: params.expectedTurnId ?? "",
+        expected_turn_id: expectedTurnId,
         idempotency_key: identity.idempotencyKey,
         message_id: identity.messageId,
         text: params.message,

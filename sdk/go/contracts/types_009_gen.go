@@ -4,11 +4,6 @@ package contracts
 
 import "time"
 
-type HeartbeatHistoryResponse struct {
-	Revisions  []HeartbeatRevisionPayload `json:"revisions"`
-	NextCursor string                     `json:"next_cursor,omitempty"`
-}
-
 type HeartbeatMutationResponse struct {
 	Heartbeat HeartbeatPolicyPayload   `json:"heartbeat"`
 	Revision  HeartbeatRevisionPayload `json:"revision"`
@@ -208,3 +203,34 @@ type HookDecl struct {
 type HookEventFamily string
 
 type HookExecutorKind string
+
+type HookMatcher struct {
+	AgentName           string           `json:"agent_name,omitempty"`
+	AgentType           string           `json:"agent_type,omitempty"`
+	WorkspaceID         string           `json:"workspace_id,omitempty"`
+	WorkspaceRoot       string           `json:"workspace_root,omitempty"`
+	SessionType         string           `json:"session_type,omitempty"`
+	SandboxID           string           `json:"sandbox_id,omitempty"`
+	SandboxBackend      string           `json:"sandbox_backend,omitempty"`
+	SandboxProfile      string           `json:"sandbox_profile,omitempty"`
+	SyncDirection       string           `json:"sync_direction,omitempty"`
+	InputClass          string           `json:"input_class,omitempty"`
+	ACPEventType        string           `json:"acp_event_type,omitempty"`
+	TurnID              string           `json:"turn_id,omitempty"`
+	ToolID              string           `json:"tool_id,omitempty"`
+	ToolName            string           `json:"tool_name,omitempty"`
+	ToolReadOnly        *bool            `json:"tool_read_only,omitempty"`
+	DecisionClass       string           `json:"decision_class,omitempty"`
+	MessageRole         string           `json:"message_role,omitempty"`
+	MessageDeltaType    string           `json:"message_delta_type,omitempty"`
+	Channel             string           `json:"channel,omitempty"`
+	Surface             string           `json:"surface,omitempty"`
+	Kind                string           `json:"kind,omitempty"`
+	Direction           string           `json:"direction,omitempty"`
+	WorkState           string           `json:"work_state,omitempty"`
+	ParticipationMode   string           `json:"participation_mode,omitempty"`
+	ParticipationSource string           `json:"participation_source,omitempty"`
+	Reason              string           `json:"compaction_reason,omitempty"`
+	Strategy            string           `json:"compaction_strategy,omitempty"`
+	Autonomy            *AutonomyMatcher `json:"autonomy,omitempty"`
+}

@@ -91,8 +91,6 @@ type BridgesMessagesIngestResult struct {
 	RoutingKey   RoutingKey `json:"routing_key"`
 }
 
-type BusyInputMode string
-
 type CatalogScope string
 
 type CatalogSort string
@@ -132,3 +130,8 @@ const (
 	CommandFlagTypeInteger CommandFlagType = "integer"
 	CommandFlagTypeNumber  CommandFlagType = "number"
 )
+
+type CompactionMatcher struct {
+	Reason   string `json:"compaction_reason,omitempty"`
+	Strategy string `json:"compaction_strategy,omitempty"`
+}

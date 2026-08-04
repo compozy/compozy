@@ -136,7 +136,7 @@ func (g *SessionRepo) CompleteSessionPromptAdmission(
 	return admission, nil
 }
 
-// MarkSessionPromptAdmissionIndeterminate permanently fences an uncertain external effect.
+// MarkSessionPromptAdmissionIndeterminate permanently fences an uncertain post-admission effect.
 func (g *SessionRepo) MarkSessionPromptAdmissionIndeterminate(
 	ctx context.Context,
 	workspaceID string,
@@ -172,6 +172,7 @@ func (g *SessionRepo) MarkSessionPromptAdmissionIndeterminate(
 					IndeterminateReason: reason, UpdatedAt: store.FormatTimestamp(now),
 					WorkspaceID: workspaceID, SessionID: sessionID, IdempotencyKey: idempotencyKey,
 					DispatchCommittedState: store.SessionPromptAdmissionDispatchCommitted,
+					CompletedState:         store.SessionPromptAdmissionCompleted,
 				},
 			)
 			if markErr != nil {

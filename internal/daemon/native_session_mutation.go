@@ -97,8 +97,9 @@ func (n *daemonNativeTools) sessionPrompt(
 		return toolspkg.ToolResult{}, err
 	}
 	mode := session.BusyInputMode(strings.TrimSpace(input.Mode))
+	expectedTurnID := strings.TrimSpace(input.ExpectedTurnID)
 	if (mode == session.BusyInputModeSteer || mode == session.BusyInputModeInterrupt) &&
-		strings.TrimSpace(input.ExpectedTurnID) == "" {
+		expectedTurnID == "" {
 		return toolspkg.ToolResult{}, nativeNetworkInputError(
 			req.ToolID,
 			errors.New("expected_turn_id is required for steer and interrupt mode"),
@@ -117,7 +118,7 @@ func (n *daemonNativeTools) sessionPrompt(
 	}
 	result, err := n.deps.Sessions.SendPrompt(ctx, sessionID, session.SendPromptOpts{
 		Message: message, MessageID: messageID, IdempotencyKey: idempotencyKey,
-		Mode: mode, ExpectedTurnID: input.ExpectedTurnID,
+		Mode: mode, ExpectedTurnID: expectedTurnID,
 		Runtime: core.PromptRuntimeSelectionFromPayload(input.Runtime),
 	})
 	if err != nil {

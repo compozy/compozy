@@ -1,3 +1,4 @@
+import { createClientId } from "@/lib/client-id";
 import type { NetworkSendRequest } from "../types";
 import type {
   OptimisticConversationMessage,
@@ -5,11 +6,7 @@ import type {
 } from "./network-action-types";
 
 export function generateClientMessageId(): string {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID();
-  }
-  const random = () => Math.floor(Math.random() * 0xffffffff).toString(16);
-  return `${random()}${random()}-${random()}-${random()}-${random()}-${random()}${random()}${random()}`;
+  return createClientId();
 }
 
 export function buildSendRequest(

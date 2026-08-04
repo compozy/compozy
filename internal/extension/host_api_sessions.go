@@ -297,19 +297,13 @@ func hostAPISessionInputFromPending(input session.PendingInput) hostAPISessionIn
 		IdempotencyKey:  input.IdempotencyKey,
 		TargetTurnID:    input.TargetTurnID,
 		Status:          input.Status,
-		Mode:            input.Mode,
-		Delivery:        input.Delivery,
+		Mode:            apicontract.PromptMode(input.Mode),
+		Delivery:        apicontract.PromptDelivery(input.Delivery),
 		Text:            input.Text,
 		QueueGeneration: input.QueueGeneration,
 		EnqueuedAt:      input.EnqueuedAt,
 	}
-	if input.Runtime != nil {
-		result.Runtime = &apicontract.PromptRuntimeSelectionPayload{
-			Provider: input.Runtime.Provider, Model: input.Runtime.Model,
-			ReasoningEffort: apicontract.ReasoningEffort(input.Runtime.ReasoningEffort),
-			Speed:           apicontract.Speed(input.Runtime.Speed),
-		}
-	}
+	result.Runtime = apicontract.PromptRuntimeSelectionPayloadFromSelection(input.Runtime)
 	return result
 }
 
@@ -330,8 +324,8 @@ func hostAPISessionPromptResultFromSubmission(
 
 	result := hostAPISessionPromptResult{
 		Status:                strings.TrimSpace(admission.Status),
-		Mode:                  admission.Mode,
-		Delivery:              admission.Delivery,
+		Mode:                  apicontract.PromptMode(admission.Mode),
+		Delivery:              apicontract.PromptDelivery(admission.Delivery),
 		MessageID:             admission.MessageID,
 		IdempotencyKey:        admission.IdempotencyKey,
 		Replayed:              admission.Replayed,

@@ -39,8 +39,8 @@ type SessionInput struct {
 	IdempotencyKey  string                         `json:"idempotency_key,omitempty"`
 	TargetTurnID    string                         `json:"target_turn_id,omitempty"`
 	Status          string                         `json:"status"`
-	Mode            BusyInputMode                  `json:"mode"`
-	Delivery        string                         `json:"delivery"`
+	Mode            PromptMode                     `json:"mode"`
+	Delivery        PromptDelivery                 `json:"delivery"`
 	Text            string                         `json:"text"`
 	QueueGeneration int64                          `json:"queue_generation"`
 	EnqueuedAt      time.Time                      `json:"enqueued_at"`
@@ -293,19 +293,19 @@ type SessionPreStopPayload struct {
 }
 
 type SessionPromptResult struct {
-	Status                string        `json:"status"`
-	Mode                  BusyInputMode `json:"mode,omitempty"`
-	Delivery              string        `json:"delivery"`
-	MessageID             string        `json:"message_id"`
-	IdempotencyKey        string        `json:"idempotency_key"`
-	Replayed              bool          `json:"replayed"`
-	TurnID                string        `json:"turn_id,omitempty"`
-	QueueEntryID          string        `json:"queue_entry_id,omitempty"`
-	QueuePosition         int           `json:"queue_position,omitempty"`
-	QueueGeneration       int64         `json:"queue_generation,omitempty"`
-	EstimatedSendAt       *time.Time    `json:"estimated_send_at,omitempty"`
-	PreviousTurnID        string        `json:"previous_turn_id,omitempty"`
-	CanceledQueuedEntries int           `json:"canceled_queued_entries,omitempty"`
+	Status                string         `json:"status"`
+	Mode                  PromptMode     `json:"mode,omitempty"`
+	Delivery              PromptDelivery `json:"delivery"`
+	MessageID             string         `json:"message_id"`
+	IdempotencyKey        string         `json:"idempotency_key"`
+	Replayed              bool           `json:"replayed"`
+	TurnID                string         `json:"turn_id,omitempty"`
+	QueueEntryID          string         `json:"queue_entry_id,omitempty"`
+	QueuePosition         int            `json:"queue_position,omitempty"`
+	QueueGeneration       int64          `json:"queue_generation,omitempty"`
+	EstimatedSendAt       *time.Time     `json:"estimated_send_at,omitempty"`
+	PreviousTurnID        string         `json:"previous_turn_id,omitempty"`
+	CanceledQueuedEntries int            `json:"canceled_queued_entries,omitempty"`
 }
 
 type SessionRuntimePayload struct {

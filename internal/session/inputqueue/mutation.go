@@ -11,6 +11,25 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
+type mutationApply func(
+	context.Context,
+	string,
+	string,
+	store.SessionInputQueueInsert,
+) (store.SessionInputQueueEntry, bool, error)
+
+type mutationSpec struct {
+	sessionID      string
+	entryID        string
+	text           string
+	targetTurnID   string
+	messageID      string
+	idempotencyKey string
+	mode           string
+	delivery       string
+	apply          mutationApply
+}
+
 // Replace atomically replaces one queued input with a new queue identity.
 func (s *Service) Replace(
 	ctx context.Context,
@@ -20,42 +39,16 @@ func (s *Service) Replace(
 	messageID string,
 	idempotencyKey string,
 ) (store.SessionInputQueueEntry, bool, error) {
-	targetSessionID := strings.TrimSpace(sessionID)
-	targetEntryID := strings.TrimSpace(entryID)
-	mutationID := durableMutationID(targetSessionID, targetEntryID, idempotencyKey)
-	if replayed, ok, err := s.replayMutation(
-		ctx,
-		targetSessionID,
-		mutationID,
-		text,
-		messageID,
-		idempotencyKey,
-		store.SessionInputQueueModeQueue,
-		store.SessionInputDeliveryAfterTurn,
-		"",
-	); err != nil || ok {
-		return replayed, false, err
-	}
-	existing, err := s.Get(ctx, sessionID, entryID)
-	if err != nil {
-		return store.SessionInputQueueEntry{}, false, err
-	}
-	replacement, err := s.newInsert(
-		sessionID,
-		text,
-		store.SessionInputQueueModeQueue,
-		store.SessionInputDeliveryAfterTurn,
-		"",
-		existing.SessionGeneration,
-		existing.Runtime,
-	)
-	if err != nil {
-		return store.SessionInputQueueEntry{}, false, err
-	}
-	replacement.ID = mutationID
-	replacement.MessageID = strings.TrimSpace(messageID)
-	replacement.IdempotencyKey = strings.TrimSpace(idempotencyKey)
-	return s.store.ReplaceSessionInput(ctx, targetSessionID, targetEntryID, replacement)
+	return s.mutate(ctx, mutationSpec{
+		sessionID:      sessionID,
+		entryID:        entryID,
+		text:           text,
+		messageID:      messageID,
+		idempotencyKey: idempotencyKey,
+		mode:           store.SessionInputQueueModeQueue,
+		delivery:       store.SessionInputDeliveryAfterTurn,
+		apply:          s.store.ReplaceSessionInput,
+	})
 }
 
 // PromoteToSteer atomically replaces one queued input with priority steering input.
@@ -68,47 +61,59 @@ func (s *Service) PromoteToSteer(
 	messageID string,
 	idempotencyKey string,
 ) (store.SessionInputQueueEntry, bool, error) {
-	targetSessionID := strings.TrimSpace(sessionID)
-	targetEntryID := strings.TrimSpace(entryID)
-	mutationID := durableMutationID(targetSessionID, targetEntryID, idempotencyKey)
+	return s.mutate(ctx, mutationSpec{
+		sessionID:      sessionID,
+		entryID:        entryID,
+		text:           text,
+		targetTurnID:   targetTurnID,
+		messageID:      messageID,
+		idempotencyKey: idempotencyKey,
+		mode:           store.SessionInputQueueModeSteer,
+		delivery:       store.SessionInputDeliveryInterruptThenPrompt,
+		apply:          s.store.PromoteSessionInputToSteer,
+	})
+}
+
+func (s *Service) mutate(
+	ctx context.Context,
+	spec mutationSpec,
+) (store.SessionInputQueueEntry, bool, error) {
+	targetSessionID := strings.TrimSpace(spec.sessionID)
+	targetEntryID := strings.TrimSpace(spec.entryID)
+	mutationID := durableMutationID(targetSessionID, targetEntryID, spec.idempotencyKey)
 	if replayed, ok, err := s.replayMutation(
 		ctx,
 		targetSessionID,
 		mutationID,
-		text,
-		messageID,
-		idempotencyKey,
-		store.SessionInputQueueModeSteer,
-		store.SessionInputDeliveryInterruptThenPrompt,
-		targetTurnID,
+		spec.text,
+		spec.messageID,
+		spec.idempotencyKey,
+		spec.mode,
+		spec.delivery,
+		spec.targetTurnID,
 	); err != nil || ok {
 		return replayed, false, err
 	}
-	existing, err := s.Get(ctx, sessionID, entryID)
+	existing, err := s.Get(ctx, targetSessionID, targetEntryID)
 	if err != nil {
 		return store.SessionInputQueueEntry{}, false, err
 	}
-	replacement, err := s.newInsert(
-		sessionID,
-		text,
-		store.SessionInputQueueModeSteer,
-		store.SessionInputDeliveryInterruptThenPrompt,
-		targetTurnID,
-		existing.SessionGeneration,
-		existing.Runtime,
-	)
+	replacement, err := s.newInsert(insertSpec{
+		sessionID:    targetSessionID,
+		text:         spec.text,
+		mode:         spec.mode,
+		delivery:     spec.delivery,
+		targetTurnID: spec.targetTurnID,
+		generation:   existing.SessionGeneration,
+		runtime:      existing.Runtime,
+	})
 	if err != nil {
 		return store.SessionInputQueueEntry{}, false, err
 	}
 	replacement.ID = mutationID
-	replacement.MessageID = strings.TrimSpace(messageID)
-	replacement.IdempotencyKey = strings.TrimSpace(idempotencyKey)
-	return s.store.PromoteSessionInputToSteer(
-		ctx,
-		targetSessionID,
-		targetEntryID,
-		replacement,
-	)
+	replacement.MessageID = strings.TrimSpace(spec.messageID)
+	replacement.IdempotencyKey = strings.TrimSpace(spec.idempotencyKey)
+	return spec.apply(ctx, targetSessionID, targetEntryID, replacement)
 }
 
 // ReplayPromotion returns an exact prior queue-to-steer mutation without changing queue state.

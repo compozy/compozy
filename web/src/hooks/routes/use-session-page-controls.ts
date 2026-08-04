@@ -2,6 +2,7 @@ import { useSelector } from "@xstate/store-react";
 import { useAui, useAuiState } from "@assistant-ui/react";
 import { toast } from "sonner";
 
+import { createClientId } from "@/lib/client-id";
 import { awaitStoreRequest } from "@/lib/store-request";
 import { useStoreBinding } from "@/hooks/use-store-binding";
 import {
@@ -195,8 +196,8 @@ export function useSessionPageControls(
         queueEntryId: prompt.id,
         request: {
           expected_turn_id: activeTurnId,
-          idempotency_key: globalThis.crypto.randomUUID(),
-          message_id: globalThis.crypto.randomUUID(),
+          idempotency_key: createClientId(),
+          message_id: createClientId(),
           text: prompt.text,
         },
       },
@@ -212,8 +213,8 @@ export function useSessionPageControls(
     return replaceSessionInput.mutateAsync({
       queueEntryId: prompt.id,
       request: {
-        idempotency_key: globalThis.crypto.randomUUID(),
-        message_id: globalThis.crypto.randomUUID(),
+        idempotency_key: createClientId(),
+        message_id: createClientId(),
         text,
       },
     });

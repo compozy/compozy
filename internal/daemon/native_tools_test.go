@@ -5312,9 +5312,12 @@ func TestDaemonNativeTools(t *testing.T) {
 		stableWorkspaceID := "ws-stable"
 		registryWorkspaceID := "ws-1"
 		foreignStableWorkspaceID := "ws-foreign-stable"
+		workspaceGetCalls := 0
+		workspaceResolveCalls := 0
 		var seenListQuery session.ListQuery
 		var acceptedCreate session.CreateAcceptedOpts
 		var submittedPrompt session.SendPromptOpts
+		promptSubmitCalls := 0
 		var listedInputSessionID string
 		var replacedInput struct {
 			sessionID string
@@ -5342,6 +5345,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		workspaces := apitest.StubWorkspaceService{
 			GetFn: func(_ context.Context, ref string) (workspacepkg.Workspace, error) {
+				workspaceGetCalls++
 				switch ref {
 				case stableWorkspaceID, registryWorkspaceID:
 					return workspacepkg.Workspace{ID: registryWorkspaceID}, nil
@@ -5352,6 +5356,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				}
 			},
 			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+				workspaceResolveCalls++
 				switch ref {
 				case stableWorkspaceID, registryWorkspaceID:
 					return workspacepkg.ResolvedWorkspace{
@@ -5406,6 +5411,7 @@ func TestDaemonNativeTools(t *testing.T) {
 					if id != "sess-1" {
 						return session.SendPromptResult{}, session.ErrSessionNotFound
 					}
+					promptSubmitCalls++
 					submittedPrompt = opts
 					close(promptAccepted)
 					return session.SendPromptResult{
@@ -5588,6 +5594,62 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		requireNativeStructuredContains(t, createdResult, []byte(`"sess-created"`))
 
+		_, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionPrompt,
+				Input: json.RawMessage(
+					`{"workspace":"ws-stable","session_id":"sess-1","message":"review","message_id":"msg-native-missing-fence","idempotency_key":"idem-native-missing-fence","mode":"steer"}`,
+				),
+			},
+		)
+		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
+		if promptSubmitCalls != 0 {
+			t.Fatalf("SendPrompt calls = %d, want 0 without expected_turn_id", promptSubmitCalls)
+		}
+
+		workspaceCallsBeforeInvalidInput := workspaceGetCalls + workspaceResolveCalls
+		inputAdapter := &daemonNativeTools{deps: &daemonNativeToolsDeps{
+			Workspaces: workspaces,
+			Sessions:   manager,
+		}}
+		for _, testCase := range []struct {
+			name   string
+			toolID toolspkg.ToolID
+			input  json.RawMessage
+			call   toolspkg.NativeToolFunc
+		}{
+			{
+				name:   "replace validates identity before workspace lookup",
+				toolID: toolspkg.ToolIDSessionInputReplace,
+				input: json.RawMessage(
+					`{"workspace":"ws-stable","session_id":"sess-1","queue_entry_id":"input-queued","text":"revised review","message_id":"msg-revised","idempotency_key":" "}`,
+				),
+				call: inputAdapter.sessionInputReplace,
+			},
+			{
+				name:   "promote validates turn fence before workspace lookup",
+				toolID: toolspkg.ToolIDSessionInputPromote,
+				input: json.RawMessage(
+					`{"workspace":"ws-stable","session_id":"sess-1","queue_entry_id":"input-queued","text":"steer now","message_id":"msg-steer","idempotency_key":"idem-steer","expected_turn_id":" "}`,
+				),
+				call: inputAdapter.sessionInputPromote,
+			},
+		} {
+			t.Run(testCase.name, func(t *testing.T) {
+				_, callErr := testCase.call(
+					t.Context(),
+					toolspkg.Scope{Operator: true},
+					toolspkg.CallRequest{ToolID: testCase.toolID, Input: testCase.input},
+				)
+				requireToolReason(t, callErr, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
+				if got := workspaceGetCalls + workspaceResolveCalls; got != workspaceCallsBeforeInvalidInput {
+					t.Fatalf("workspace lookup calls = %d, want %d before local validation", got, workspaceCallsBeforeInvalidInput)
+				}
+			})
+		}
+
 		type promptCall struct {
 			result toolspkg.ToolResult
 			err    error
@@ -5600,7 +5662,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				toolspkg.CallRequest{
 					ToolID: toolspkg.ToolIDSessionPrompt,
 					Input: json.RawMessage(
-						`{"workspace":"ws-stable","session_id":"sess-1","message":"review","message_id":"msg-native","idempotency_key":"idem-native","mode":"steer","expected_turn_id":"turn-active","runtime":{"provider":"codex","model":"gpt-5.6-sol","reasoning_effort":"high","speed":"fast"}}`,
+						`{"workspace":"ws-stable","session_id":"sess-1","message":"review","message_id":"msg-native","idempotency_key":"idem-native","mode":"steer","expected_turn_id":"  turn-active  ","runtime":{"provider":"codex","model":"gpt-5.6-sol","reasoning_effort":"high","speed":"fast"}}`,
 					),
 				},
 			)

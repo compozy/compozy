@@ -180,7 +180,7 @@ CREATE INDEX idx_session_input_queue_goal_owner
 			ON session_input_queue(loop_run_id, task_run_id, owner_epoch, status, dispatchable, fence_kind);
 
 	CREATE INDEX idx_session_input_queue_pending
-			ON session_input_queue(session_id, status, delivery, enqueued_at, id);
+			ON session_input_queue(session_id, status, delivery DESC, enqueued_at ASC, id ASC);
 
 	CREATE UNIQUE INDEX uq_session_input_queue_prompt_admission
 			ON session_input_queue(prompt_admission_id)

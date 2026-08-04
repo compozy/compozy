@@ -111,31 +111,21 @@ describe("RuntimeActivityNotice", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("suppresses durable prompt acknowledgement markers already represented by input state", () => {
+  it.each([
+    "prompt_queued",
+    "prompt_steered",
+    "prompt_accepted",
+    "prompt_interrupted",
+    "prompt_dropped",
+    "prompt_cancel",
+  ])("suppresses %s acknowledgement markers represented by input state", markerKind => {
     const { container } = render(
       <RuntimeActivityNotice
         event={{
           type: "transcript_marker.created",
           marker: {
-            kind: "transcript_marker.prompt_queued",
-            summary: "Input queued for the next turn.",
-            occurred_at: "2026-08-03T18:00:00Z",
-          },
-        }}
-      />
-    );
-
-    expect(container).toBeEmptyDOMElement();
-  });
-
-  it("suppresses interrupted prompt acknowledgement markers already represented by input state", () => {
-    const { container } = render(
-      <RuntimeActivityNotice
-        event={{
-          type: "transcript_marker.created",
-          marker: {
-            kind: "transcript_marker.prompt_interrupted",
-            summary: "Replacement input accepted and the active turn was interrupted.",
+            kind: `transcript_marker.${markerKind}`,
+            summary: "Prompt lifecycle acknowledgement.",
             occurred_at: "2026-08-03T18:00:00Z",
           },
         }}

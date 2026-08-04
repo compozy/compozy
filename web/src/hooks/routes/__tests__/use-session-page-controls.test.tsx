@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const routeHookMocks = vi.hoisted(() => ({
   auiState: { thread: { isRunning: false, messages: [] as Array<{ id: string }> } },
@@ -106,6 +106,10 @@ function createDeferredPromise<T>() {
 }
 
 describe("useSessionPageControls", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   beforeEach(() => {
     routeHookMocks.auiState.thread.isRunning = false;
     routeHookMocks.auiState.thread.messages = [];
@@ -245,6 +249,19 @@ describe("useSessionPageControls", () => {
     });
   });
 
+  it("Should block steer and interrupt when no active turn fence exists", async () => {
+    routeHookMocks.auiState.thread.isRunning = true;
+    const { result } = renderControls(makeSession("active"));
+
+    await act(async () => {
+      await result.current.handleSteerPrompt("new constraint");
+      await result.current.handleInterruptPrompt("replace the work");
+    });
+
+    expect(routeHookMocks.steerPromptMutation.mutateAsync).not.toHaveBeenCalled();
+    expect(routeHookMocks.interruptPromptMutation.mutateAsync).not.toHaveBeenCalled();
+  });
+
   it("Should promote a durable queue entry with one atomic request", () => {
     const { result } = renderControls(makeSession("active", "turn-live"));
     act(() => result.current.handleSteerQueuedPrompt({ id: "inq-1", text: "steer me" }));
@@ -283,6 +300,45 @@ describe("useSessionPageControls", () => {
         text: "new queued text",
       },
     });
+  });
+
+  it("Should generate durable mutation identities without randomUUID", async () => {
+    let fill = 1;
+    const getRandomValues = vi.fn((bytes: Uint8Array) => {
+      bytes.fill(fill);
+      fill += 1;
+      return bytes;
+    });
+    vi.stubGlobal("crypto", { getRandomValues });
+    routeHookMocks.replaceInputMutation.mutateAsync.mockResolvedValue({ id: "inq-2" });
+    const { result } = renderControls(makeSession("active", "turn-live"));
+
+    act(() => result.current.handleSteerQueuedPrompt({ id: "inq-1", text: "steer me" }));
+    await act(async () => {
+      await result.current.handleReplaceQueuedPrompt(
+        { id: "inq-1", text: "old" },
+        "new queued text"
+      );
+    });
+
+    expect(getRandomValues).toHaveBeenCalledTimes(4);
+    expect(routeHookMocks.promoteInputMutation.mutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        request: expect.objectContaining({
+          idempotency_key: expect.any(String),
+          message_id: expect.any(String),
+        }),
+      }),
+      expect.any(Object)
+    );
+    expect(routeHookMocks.replaceInputMutation.mutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        request: expect.objectContaining({
+          idempotency_key: expect.any(String),
+          message_id: expect.any(String),
+        }),
+      })
+    );
   });
 
   it("Should report a durable queue mutation failure without removing server state", () => {

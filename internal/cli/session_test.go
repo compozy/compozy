@@ -1847,9 +1847,7 @@ func TestSessionPromptBusyInputActions(t *testing.T) {
 		})
 
 		_, _, err := executeRootCommand(t, deps, "session", "prompt", "sess-1", "replace", "--interrupt")
-		if err == nil || !strings.Contains(err.Error(), "--expected-turn-id is required") {
-			t.Fatalf("executeRootCommand(session prompt --interrupt) error = %v, want expected turn id validation", err)
-		}
+		assertErrorContains(t, err, "--expected-turn-id is required")
 	})
 
 	t.Run("Should use steer endpoint", func(t *testing.T) {
@@ -1916,9 +1914,7 @@ func TestSessionPromptBusyInputActions(t *testing.T) {
 		})
 
 		_, _, err := executeRootCommand(t, deps, "session", "prompt", "sess-1", "prefer small patch", "--steer")
-		if err == nil || !strings.Contains(err.Error(), "--expected-turn-id is required") {
-			t.Fatalf("executeRootCommand(session prompt --steer) error = %v, want expected turn id validation", err)
-		}
+		assertErrorContains(t, err, "--expected-turn-id is required")
 	})
 
 	t.Run("Should reject mutually exclusive busy actions", func(t *testing.T) {
@@ -2053,13 +2049,14 @@ func TestSessionInputCommands(t *testing.T) {
 				}
 				received = request
 				return SessionPromptRecord{Prompt: SessionPromptResultRecord{
-					Status: "steering", Mode: contract.PromptModeSteer, Delivery: contract.PromptDeliveryAfterTurn,
+					Status: "steering", Mode: contract.PromptModeSteer,
+					Delivery:     contract.PromptDeliveryInterruptThenPrompt,
 					QueueEntryID: inputID,
 				}}, nil
 			},
 		})
 
-		_, _, err := executeRootCommand(
+		stdout, _, err := executeRootCommand(
 			t,
 			deps,
 			"session",
@@ -2070,12 +2067,25 @@ func TestSessionInputCommands(t *testing.T) {
 			"Prefer the smaller patch.",
 			"--expected-turn-id",
 			"turn-1",
+			"-o",
+			"json",
 		)
 		if err != nil {
 			t.Fatalf("executeRootCommand(session input steer) error = %v", err)
 		}
 		if received.ExpectedTurnID != "turn-1" || received.MessageID == "" || received.IdempotencyKey == "" {
 			t.Fatalf("PromoteSessionInput() request = %#v", received)
+		}
+		var decoded SessionPromptRecord
+		if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
+			t.Fatalf("json.Unmarshal(session input steer) error = %v", err)
+		}
+		if decoded.Prompt.Delivery != contract.PromptDeliveryInterruptThenPrompt {
+			t.Fatalf(
+				"session input steer delivery = %q, want %q",
+				decoded.Prompt.Delivery,
+				contract.PromptDeliveryInterruptThenPrompt,
+			)
 		}
 	})
 
@@ -2104,9 +2114,7 @@ func TestSessionInputCommands(t *testing.T) {
 			"queue-1",
 			"Prefer the smaller patch.",
 		)
-		if err == nil || !strings.Contains(err.Error(), "expected-turn-id") {
-			t.Fatalf("executeRootCommand(session input steer) error = %v, want expected turn id validation", err)
-		}
+		assertErrorContains(t, err, "expected-turn-id")
 	})
 
 	t.Run("Should cancel queued input through the input surface", func(t *testing.T) {
@@ -2133,9 +2141,7 @@ func TestSessionInputCommands(t *testing.T) {
 		t.Parallel()
 
 		_, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, &stubClient{}), "session", "prompt", "sess-1", "--cancel", "queue-1")
-		if err == nil || !strings.Contains(err.Error(), "unknown flag: --cancel") {
-			t.Fatalf("executeRootCommand(session prompt --cancel) error = %v, want unknown flag", err)
-		}
+		assertErrorContains(t, err, "unknown flag: --cancel")
 	})
 }
 

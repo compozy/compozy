@@ -286,9 +286,9 @@ func queuedPromptAdmissionResult(
 	position int,
 	canceled int,
 ) store.SessionPromptAdmissionResult {
-	status := "queued"
+	status := store.SessionPromptResultStatusQueued
 	if entry.Mode == store.SessionInputQueueModeInterrupt {
-		status = "interrupting"
+		status = store.SessionPromptResultStatusInterrupting
 	}
 	return store.SessionPromptAdmissionResult{
 		Status:                status,
@@ -303,7 +303,7 @@ func queuedPromptAdmissionResult(
 
 func stagedPromptAdmissionResult(entry *store.SessionInputQueueEntry) store.SessionPromptAdmissionResult {
 	return store.SessionPromptAdmissionResult{
-		Status:          "steering",
+		Status:          store.SessionPromptResultStatusSteering,
 		Mode:            store.SessionInputQueueModeSteer,
 		QueueEntryID:    entry.ID,
 		QueueGeneration: entry.SessionGeneration,

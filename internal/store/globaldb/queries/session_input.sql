@@ -12,7 +12,7 @@ WHERE session_id = sqlc.arg(session_id)
   AND dispatchable = 1
   AND owner_kind IS NULL
   AND session_generation = (SELECT input_generation FROM sessions WHERE id = sqlc.arg(session_id))
-ORDER BY CASE delivery WHEN 'interrupt_then_prompt' THEN 0 ELSE 1 END, enqueued_at ASC, id ASC
+ORDER BY delivery DESC, enqueued_at ASC, id ASC
 LIMIT 1;
 
 -- name: ClaimSessionInput :execrows
@@ -30,7 +30,7 @@ WHERE session_id = sqlc.arg(session_id)
   AND session_generation = (SELECT input_generation FROM sessions WHERE id = sqlc.arg(session_id))
   AND ((owner_kind IS NULL AND dispatchable = 1)
        OR (owner_kind = 'goal' AND dispatchable = 0 AND fence_kind IS NULL))
-ORDER BY CASE delivery WHEN 'interrupt_then_prompt' THEN 0 ELSE 1 END, enqueued_at ASC, id ASC
+ORDER BY delivery DESC, enqueued_at ASC, id ASC
 LIMIT 1;
 
 -- name: ListPendingSessionInputs :many
@@ -39,7 +39,7 @@ WHERE session_id = sqlc.arg(session_id)
   AND status IN (sqlc.arg(queued_status), sqlc.arg(dispatching_status))
   AND session_generation = (SELECT input_generation FROM sessions WHERE id = sqlc.arg(session_id))
   AND owner_kind IS NULL
-ORDER BY CASE delivery WHEN 'interrupt_then_prompt' THEN 0 ELSE 1 END, enqueued_at ASC, id ASC;
+ORDER BY delivery DESC, enqueued_at ASC, id ASC;
 
 -- name: GetSessionInputQueueEntry :one
 SELECT * FROM session_input_queue
