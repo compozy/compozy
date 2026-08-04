@@ -15,11 +15,18 @@ type SessionRuntimePayload struct {
 	ACPCaps           *ACPCapsPayload                `json:"acp_caps,omitempty"`
 }
 
+type SessionRuntimeSelectionPayload struct {
+	Provider        string `json:"provider"`
+	Model           string `json:"model,omitempty"`
+	ReasoningEffort Effort `json:"reasoning_effort,omitempty"`
+	Speed           Speed  `json:"speed,omitempty"`
+}
+
 type SessionRuntimeSetParams struct {
-	WorkspaceID      string                        `json:"workspace_id"`
-	SessionID        string                        `json:"session_id"`
-	Runtime          PromptRuntimeSelectionPayload `json:"runtime"`
-	ExpectedRevision *int64                        `json:"expected_revision"`
+	WorkspaceID      string                         `json:"workspace_id"`
+	SessionID        string                         `json:"session_id"`
+	Runtime          SessionRuntimeSelectionPayload `json:"runtime"`
+	ExpectedRevision *int64                         `json:"expected_revision"`
 }
 
 type SessionRuntimeStatus string
@@ -146,14 +153,3 @@ type SkillsListParams struct {
 type Source string
 
 type SourceKind string
-
-type SourceRef struct {
-	Kind            SourceKind `json:"kind"`
-	Owner           string     `json:"owner"`
-	RawServerName   string     `json:"raw_server_name,omitempty"`
-	RawToolName     string     `json:"raw_tool_name,omitempty"`
-	ResourceID      string     `json:"resource_id,omitempty"`
-	ResourceVersion string     `json:"resource_version,omitempty"`
-	WorkspaceID     string     `json:"workspace_id,omitempty"`
-	Scope           string     `json:"scope,omitempty"`
-}

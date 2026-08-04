@@ -7,7 +7,9 @@ import (
 
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
+	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/network/participation"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 )
 
 const (
@@ -167,10 +169,18 @@ type SessionsPromptParams struct {
 
 // SessionRuntimeSetParams durably selects the default runtime for future prompts.
 type SessionRuntimeSetParams struct {
-	WorkspaceID      string                                    `json:"workspace_id"`
-	SessionID        string                                    `json:"session_id"`
-	Runtime          apicontract.PromptRuntimeSelectionPayload `json:"runtime"`
-	ExpectedRevision *int64                                    `json:"expected_revision"`
+	WorkspaceID      string                         `json:"workspace_id"`
+	SessionID        string                         `json:"session_id"`
+	Runtime          SessionRuntimeSelectionPayload `json:"runtime"`
+	ExpectedRevision *int64                         `json:"expected_revision"`
+}
+
+// SessionRuntimeSelectionPayload is the extension-owned wire shape for a durable runtime choice.
+type SessionRuntimeSelectionPayload struct {
+	Provider        string                       `json:"provider"`
+	Model           string                       `json:"model,omitempty"`
+	ReasoningEffort modelcatalog.ReasoningEffort `json:"reasoning_effort,omitempty"`
+	Speed           speedpkg.Speed               `json:"speed,omitempty"`
 }
 
 // SessionRuntimeClearParams clears the durable runtime selection.

@@ -4,9 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"strings"
 
-	apicontract "github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/session"
 )
 
 func (h *HostAPIHandler) handleSessionsRuntimeSet(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -28,10 +29,15 @@ func (h *HostAPIHandler) handleSessionsRuntimeSet(ctx context.Context, raw json.
 	if err != nil {
 		return nil, err
 	}
-	selection := apicontract.PromptRuntimeSelectionFromPayload(&params.Runtime)
-	info, err := manager.SetRuntimeSelection(ctx, params.SessionID, *selection, *params.ExpectedRevision)
+	selection := session.RuntimeSelection{
+		Provider:        strings.TrimSpace(params.Runtime.Provider),
+		Model:           strings.TrimSpace(params.Runtime.Model),
+		ReasoningEffort: strings.TrimSpace(string(params.Runtime.ReasoningEffort)),
+		Speed:           params.Runtime.Speed,
+	}
+	info, err := manager.SetRuntimeSelection(ctx, params.SessionID, selection, *params.ExpectedRevision)
 	if err != nil {
-		return nil, err
+		return nil, mapHostAPISessionRuntimeRPCError(err)
 	}
 	return hostAPISessionStatusFromInfo(info), nil
 }
@@ -57,9 +63,20 @@ func (h *HostAPIHandler) handleSessionsRuntimeClear(ctx context.Context, raw jso
 	}
 	info, err := manager.ClearRuntimeSelection(ctx, params.SessionID, *params.ExpectedRevision)
 	if err != nil {
-		return nil, err
+		return nil, mapHostAPISessionRuntimeRPCError(err)
 	}
 	return hostAPISessionStatusFromInfo(info), nil
+}
+
+func mapHostAPISessionRuntimeRPCError(err error) error {
+	if errors.Is(err, session.ErrRuntimeSelectionConflict) {
+		return hostAPIStatusRPCError(
+			http.StatusConflict,
+			http.StatusText(http.StatusConflict),
+			map[string]string{extensionStateError: err.Error()},
+		)
+	}
+	return err
 }
 
 func validateHostAPISessionRuntimeTarget(workspaceID, sessionID string, expectedRevision *int64) error {

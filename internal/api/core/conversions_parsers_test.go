@@ -45,7 +45,7 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 				Provider:        "claude",
 				Model:           "claude-fable-5",
 				ReasoningEffort: "max",
-				Speed:           speedpkg.SpeedNormal,
+				Speed:           speedpkg.SpeedFast,
 			},
 			RuntimeSelectionRevision: 7,
 			SpeedResolution: &speedpkg.Resolution{
@@ -154,7 +154,8 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 		}
 		if payload.Runtime.Selected == nil || payload.Runtime.Selected.Provider != "claude" ||
 			payload.Runtime.Selected.Model != "claude-fable-5" ||
-			payload.Runtime.Selected.ReasoningEffort != "max" || payload.Runtime.SelectionRevision != 7 {
+			payload.Runtime.Selected.ReasoningEffort != "max" ||
+			payload.Runtime.Selected.Speed != contract.SpeedFast || payload.Runtime.SelectionRevision != 7 {
 			t.Fatalf(
 				"payload selected runtime = %#v revision %d, want Claude selection at revision 7",
 				payload.Runtime.Selected,

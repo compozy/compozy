@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+type TaskCatalogStatusFacetPayload struct {
+	Status Status `json:"status"`
+	Count  int    `json:"count"`
+}
+
 type TaskContext struct {
 	TaskID                       string `json:"task_id,omitempty"`
 	ParentTaskID                 string `json:"parent_task_id,omitempty"`
@@ -251,12 +256,4 @@ type TaskHealth struct {
 	DuplicateIngressSinceStart int                `json:"duplicate_ingress_since_start"`
 	ChannelMismatchSinceStart  int                `json:"channel_mismatch_since_start"`
 	RecoverySinceStart         TaskRecoveryTotals `json:"recovery_since_start"`
-}
-
-type TaskInbox struct {
-	UnreadTotal   int                         `json:"unread_total"`
-	ArchivedTotal int                         `json:"archived_total"`
-	Groups        []TaskInboxLaneGroupPayload `json:"groups"`
-	Page          CountedCursorPagePayload    `json:"page"`
-	Facets        TaskInboxFacetsPayload      `json:"facets"`
 }

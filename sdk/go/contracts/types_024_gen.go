@@ -7,6 +7,14 @@ import (
 	"time"
 )
 
+type TaskRunConversationRefPayload struct {
+	WorkspaceID string `json:"workspace_id"`
+	Channel     string `json:"channel"`
+	Surface     string `json:"surface"`
+	ThreadID    string `json:"thread_id"`
+	StreamURL   string `json:"stream_url"`
+}
+
 type TaskRunDetail struct {
 	Run     TaskRun                          `json:"run"`
 	Task    *TaskReferencePayload            `json:"task,omitempty"`
@@ -408,5 +416,3 @@ type TaskRunsParams struct {
 	ParticipationChannel string        `json:"participation_channel,omitempty"`
 	Limit                int           `json:"limit,omitempty"`
 }
-
-type TaskScope string

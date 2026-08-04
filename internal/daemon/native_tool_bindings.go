@@ -14,7 +14,10 @@ func (n *daemonNativeTools) bindings() map[toolspkg.ToolID]nativeToolBinding {
 		bindings,
 		n.networkToolBindings(availability.network, availability.networkRead, availability.networkUsage),
 	)
-	addNativeToolBindings(bindings, n.sessionToolBindings(availability.sessions, availability.sessionCatalog))
+	addNativeToolBindings(
+		bindings,
+		n.sessionToolBindings(availability.sessions, availability.sessionCatalog, availability.sessionRuntime),
+	)
 	addNativeToolBindings(
 		bindings,
 		n.authoredContextToolBindings(

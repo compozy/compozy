@@ -152,7 +152,7 @@ describe("useSessionPromptRuntime", () => {
       })
     );
 
-    const { result } = renderHook(() => useSessionPromptRuntime(store), { wrapper });
+    const { result, unmount } = renderHook(() => useSessionPromptRuntime(store), { wrapper });
 
     await waitFor(() => expect(result.current.canSelectRuntime).toBe(true));
     expect(result.current.catalog.providers.map(entry => entry.id)).toEqual(["codex", "groq"]);
@@ -186,8 +186,17 @@ describe("useSessionPromptRuntime", () => {
             reasoning_effort: "max",
           },
         },
+        signal: expect.any(AbortSignal),
       },
-      expect.objectContaining({ onError: expect.any(Function), onSuccess: expect.any(Function) })
+      expect.objectContaining({
+        onError: expect.any(Function),
+        onSettled: expect.any(Function),
+        onSuccess: expect.any(Function),
+      })
     );
+    const signal = runtimeSelectionMutation.mutate.mock.calls[0]?.[0].signal as AbortSignal;
+    expect(signal.aborted).toBe(false);
+    unmount();
+    expect(signal.aborted).toBe(true);
   });
 });

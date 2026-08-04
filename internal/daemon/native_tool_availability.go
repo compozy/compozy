@@ -18,6 +18,7 @@ type nativeToolAvailabilitySet struct {
 	networkUsage        toolspkg.NativeAvailabilityFunc
 	sessions            toolspkg.NativeAvailabilityFunc
 	sessionCatalog      toolspkg.NativeAvailabilityFunc
+	sessionRuntime      toolspkg.NativeAvailabilityFunc
 	sessionHealth       toolspkg.NativeAvailabilityFunc
 	heartbeatStatus     toolspkg.NativeAvailabilityFunc
 	heartbeatWake       toolspkg.NativeAvailabilityFunc
@@ -80,6 +81,7 @@ func (n *daemonNativeTools) baseNativeToolAvailability() nativeToolAvailabilityS
 			_, ok := n.deps.Sessions.(core.SessionPageManager)
 			return ok
 		}),
+		sessionRuntime: n.sessionRuntimeAvailability(),
 		sessionHealth: n.dependencyAvailability(func() bool {
 			return n.deps.SessionHealth != nil
 		}),
@@ -132,6 +134,13 @@ func (n *daemonNativeTools) baseNativeToolAvailability() nativeToolAvailabilityS
 		}),
 		mcpAuth: n.dependencyAvailability(func() bool { return n.mcpAuthProvider() != nil }),
 	}
+}
+
+func (n *daemonNativeTools) sessionRuntimeAvailability() toolspkg.NativeAvailabilityFunc {
+	return n.dependencyAvailability(func() bool {
+		_, ok := n.deps.Sessions.(core.SessionRuntimeSelectionManager)
+		return ok
+	})
 }
 
 func (n *daemonNativeTools) sessionCreateAvailability() toolspkg.NativeAvailabilityFunc {

@@ -362,6 +362,13 @@ func TestScanSessionInfoHandlesNullStopReason(t *testing.T) {
 		if info.ACPSessionID != nil {
 			t.Fatalf("info.ACPSessionID = %#v, want nil", info.ACPSessionID)
 		}
+		if info.SelectedRuntime != nil || info.RuntimeSelectionRevision != 0 {
+			t.Fatalf(
+				"selected runtime = %#v revision %d, want nil selection at revision 0",
+				info.SelectedRuntime,
+				info.RuntimeSelectionRevision,
+			)
+		}
 		if info.SoulSnapshotID != "" || info.SoulDigest != "" || info.ParentSoulDigest != "" {
 			t.Fatalf(
 				"Soul provenance = %#v/%q/%q, want empty",

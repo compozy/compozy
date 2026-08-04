@@ -31,32 +31,33 @@ vi.mock("sonner", () => ({
   toast: { error: routeHookMocks.toastError, success: routeHookMocks.toastSuccess },
 }));
 
-vi.mock("@/systems/session", () => ({
-  canPromptSession: (session: { state?: string; type?: string }) =>
-    (session.type ?? "user") === "user" &&
-    (session.state === "active" || session.state === "stopped"),
-  cancelSessionPrompt: routeHookMocks.cancelSessionPrompt,
-  isSessionRunning: (session: {
-    state?: string;
-    badge?: string;
-    activity?: { turn_id?: string };
-  }) =>
-    session.state !== "stopped" &&
-    (Boolean(session.activity?.turn_id) || session.badge === "running"),
-  isUserControllableSession: (session: { type?: string }) => (session.type ?? "user") === "user",
-  useCancelSessionInput: () => routeHookMocks.cancelInputMutation,
-  useClearSessionConversation: () => routeHookMocks.clearMutation,
-  useDeleteSession: () => routeHookMocks.deleteMutation,
-  useInterruptSessionPrompt: () => routeHookMocks.interruptPromptMutation,
-  usePromoteSessionInput: () => routeHookMocks.promoteInputMutation,
-  useQueueSessionPrompt: () => routeHookMocks.queuePromptMutation,
-  useReplaceSessionInput: () => routeHookMocks.replaceInputMutation,
-  useResumeSession: () => routeHookMocks.resumeMutation,
-  useSessionInputs: () => routeHookMocks.sessionInputsQuery,
-  useSessionTranscriptThreadMessages: () => routeHookMocks.transcriptMessages,
-  useSteerSessionPrompt: () => routeHookMocks.steerPromptMutation,
-  useStopSession: () => routeHookMocks.stopMutation,
-}));
+vi.mock("@/systems/session", async () => {
+  const { canPromptSession } = await import("@/systems/session/lib/session-running");
+  return {
+    canPromptSession,
+    cancelSessionPrompt: routeHookMocks.cancelSessionPrompt,
+    isSessionRunning: (session: {
+      state?: string;
+      badge?: string;
+      activity?: { turn_id?: string };
+    }) =>
+      session.state !== "stopped" &&
+      (Boolean(session.activity?.turn_id) || session.badge === "running"),
+    isUserControllableSession: (session: { type?: string }) => (session.type ?? "user") === "user",
+    useCancelSessionInput: () => routeHookMocks.cancelInputMutation,
+    useClearSessionConversation: () => routeHookMocks.clearMutation,
+    useDeleteSession: () => routeHookMocks.deleteMutation,
+    useInterruptSessionPrompt: () => routeHookMocks.interruptPromptMutation,
+    usePromoteSessionInput: () => routeHookMocks.promoteInputMutation,
+    useQueueSessionPrompt: () => routeHookMocks.queuePromptMutation,
+    useReplaceSessionInput: () => routeHookMocks.replaceInputMutation,
+    useResumeSession: () => routeHookMocks.resumeMutation,
+    useSessionInputs: () => routeHookMocks.sessionInputsQuery,
+    useSessionTranscriptThreadMessages: () => routeHookMocks.transcriptMessages,
+    useSteerSessionPrompt: () => routeHookMocks.steerPromptMutation,
+    useStopSession: () => routeHookMocks.stopMutation,
+  };
+});
 
 import type { SessionPayload } from "@/systems/session";
 import { useSessionPageControls } from "../use-session-page-controls";

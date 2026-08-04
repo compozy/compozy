@@ -69,8 +69,11 @@ func (m *Manager) waitForSessionResumes(ctx context.Context) error {
 	}
 	m.resumeMu.Unlock()
 	for _, run := range runs {
-		if _, err := waitForSessionResume(ctx, run); err != nil {
-			return err
+		select {
+		case <-run.done:
+			continue
+		case <-ctx.Done():
+			return ctx.Err()
 		}
 	}
 	return nil

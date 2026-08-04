@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useSelector } from "@xstate/store-react";
 import { toast } from "sonner";
 
@@ -79,6 +79,7 @@ export function useSessionPromptRuntime(store: SessionPromptRuntimeStore) {
   const selectedValue = useSelector(store, snapshot => snapshot.context.selectedValue);
   const selectedSpeed = useSelector(store, snapshot => snapshot.context.selectedSpeed);
   const runtimeSelection = useSetSessionRuntime(input.workspaceId);
+  const runtimeSelectionController = useRef<AbortController | null>(null);
   const workspace = useWorkspace(input.workspaceId, { enabled: input.canPrompt });
   const globalProviders = useProviders();
   const agents = useAgents(input.workspaceId, { enabled: input.canPrompt });
@@ -97,6 +98,13 @@ export function useSessionPromptRuntime(store: SessionPromptRuntimeStore) {
       value: fallback.provider.length > 0 ? fallback : agentRuntime,
     });
   }, [agentRuntime, input.effectiveRuntime, store]);
+  useEffect(
+    () => () => {
+      runtimeSelectionController.current?.abort();
+      runtimeSelectionController.current = null;
+    },
+    []
+  );
   const providers = runtimeProviderOptions(
     workspace.data?.providers,
     globalProviders.data?.providers
@@ -124,6 +132,61 @@ export function useSessionPromptRuntime(store: SessionPromptRuntimeStore) {
     !globalProviders.isLoading &&
     availabilityError === null &&
     providers.length > 0;
+
+  const persistRuntimeSelection = (nextValue: RuntimeSelectorValue, nextSpeed: RuntimeSpeed) => {
+    runtimeSelectionController.current?.abort();
+    runtimeSelectionController.current = null;
+
+    const runtime = snapshotFromSelection(nextValue, nextSpeed);
+    if (!runtime) {
+      store.trigger.runtimePersistenceFailed({
+        sessionId: input.sessionId,
+        workspaceId: input.workspaceId,
+      });
+      return;
+    }
+
+    const controller = new AbortController();
+    runtimeSelectionController.current = controller;
+    runtimeSelection.mutate(
+      {
+        id: input.sessionId,
+        request: {
+          expected_revision: input.selectionRevision,
+          runtime,
+        },
+        signal: controller.signal,
+      },
+      {
+        onSuccess: session => {
+          if (controller.signal.aborted) return;
+          store.trigger.runtimePersisted({
+            revision: session.runtime.selection_revision,
+            runtime: session.runtime.selected ?? undefined,
+            sessionId: input.sessionId,
+            workspaceId: input.workspaceId,
+          });
+        },
+        onError: error => {
+          if (controller.signal.aborted) return;
+          store.trigger.runtimePersistenceFailed({
+            sessionId: input.sessionId,
+            workspaceId: input.workspaceId,
+          });
+          toast.error(
+            error instanceof Error && error.message.trim().length > 0
+              ? error.message
+              : "Couldn't save the session runtime."
+          );
+        },
+        onSettled: () => {
+          if (runtimeSelectionController.current === controller) {
+            runtimeSelectionController.current = null;
+          }
+        },
+      }
+    );
+  };
 
   return {
     availabilityError,
@@ -155,39 +218,6 @@ export function useSessionPromptRuntime(store: SessionPromptRuntimeStore) {
     speed,
     value,
   };
-
-  function persistRuntimeSelection(nextValue: RuntimeSelectorValue, nextSpeed: RuntimeSpeed) {
-    const runtime = snapshotFromSelection(nextValue, nextSpeed);
-    if (!runtime) {
-      store.trigger.runtimePersistenceFailed({});
-      return;
-    }
-    runtimeSelection.mutate(
-      {
-        id: input.sessionId,
-        request: {
-          expected_revision: input.selectionRevision,
-          runtime,
-        },
-      },
-      {
-        onSuccess: session => {
-          store.trigger.runtimePersisted({
-            revision: session.runtime.selection_revision,
-            runtime: session.runtime.selected ?? undefined,
-          });
-        },
-        onError: error => {
-          store.trigger.runtimePersistenceFailed({});
-          toast.error(
-            error instanceof Error && error.message.trim().length > 0
-              ? error.message
-              : "Couldn't save the session runtime."
-          );
-        },
-      }
-    );
-  }
 }
 
 export function getSessionPromptRuntimeSnapshot(

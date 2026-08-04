@@ -77,7 +77,38 @@ describe("sessionPromptRuntimeStore", () => {
     store.trigger.runtimePersisted({
       revision: 4,
       runtime: { provider: "codex", model: "gpt-5.6-terra", reasoning_effort: "high" },
+      sessionId: input.sessionId,
+      workspaceId: input.workspaceId,
     });
+    expect(getSessionPromptRuntimeSnapshot(store)).toEqual({
+      provider: "codex",
+      model: "gpt-5.6-terra",
+      reasoning_effort: "high",
+    });
+
+    store.trigger.inputUpdated({
+      ...input,
+      selectedRuntime: {
+        provider: "claude",
+        model: "claude-fable-5",
+        reasoning_effort: "max",
+      },
+      selectionRevision: 3,
+    });
+    expect(store.getSnapshot().context.input.selectionRevision).toBe(4);
+    expect(getSessionPromptRuntimeSnapshot(store)).toEqual({
+      provider: "codex",
+      model: "gpt-5.6-terra",
+      reasoning_effort: "high",
+    });
+
+    store.trigger.runtimePersisted({
+      revision: 3,
+      runtime: { provider: "claude", model: "claude-fable-5", reasoning_effort: "max" },
+      sessionId: input.sessionId,
+      workspaceId: input.workspaceId,
+    });
+    expect(store.getSnapshot().context.input.selectionRevision).toBe(4);
     expect(getSessionPromptRuntimeSnapshot(store)).toEqual({
       provider: "codex",
       model: "gpt-5.6-terra",

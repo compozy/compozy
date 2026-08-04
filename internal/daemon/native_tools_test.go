@@ -1440,6 +1440,22 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
+	t.Run("Should require runtime selection capability for runtime mutation tools", func(t *testing.T) {
+		t.Parallel()
+
+		managerWithoutRuntimeSelection := struct{ SessionManager }{}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: managerWithoutRuntimeSelection,
+		}, nativeApproveAllPolicyInputs())
+		views, err := registry.List(t.Context(), toolspkg.Scope{Operator: true})
+		if err != nil {
+			t.Fatalf("Registry.List(operator) error = %v", err)
+		}
+		requireNativeToolAvailable(t, views, toolspkg.ToolIDSessionPrompt)
+		requireNativeToolUnavailableReason(t, views, toolspkg.ToolIDSessionRuntimeSet)
+		requireNativeToolUnavailableReason(t, views, toolspkg.ToolIDSessionRuntimeClear)
+	})
+
 	t.Run("Should mark bridge catalog tools unavailable without the bounded observer capability", func(t *testing.T) {
 		t.Parallel()
 

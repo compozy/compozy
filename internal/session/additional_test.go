@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -368,38 +369,47 @@ func TestPromptErrorPaths(t *testing.T) {
 				t.Fatalf("Stop(resumed) error = %v", err)
 			}
 		})
-		if got := len(h.driver.startCalls); got != 2 {
-			t.Fatalf("driver start calls = %d, want 2 after restart resume", got)
+		h.driver.mu.Lock()
+		startCalls := len(h.driver.startCalls)
+		h.driver.mu.Unlock()
+		if startCalls != 2 {
+			t.Fatalf("driver start calls = %d, want 2 after restart resume", startCalls)
 		}
 	})
 
-	h := newHarness(t)
-	session := createSession(t, h)
+	t.Run("Should resume a stopped session through a normal prompt", func(t *testing.T) {
+		t.Parallel()
 
-	if _, err := h.manager.Prompt(testutil.Context(t), session.ID, "   "); err == nil {
-		t.Fatal("Prompt(empty) error = nil, want non-nil")
-	}
-	if _, err := h.manager.Prompt(testutil.Context(t), "missing", "hello"); err == nil {
-		t.Fatal("Prompt(missing) error = nil, want non-nil")
-	}
-	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
-		t.Fatalf("Stop() error = %v", err)
-	}
-	events, err := h.manager.Prompt(testutil.Context(t), session.ID, "after-stop")
-	if err != nil {
-		t.Fatalf("Prompt(stopped) error = %v", err)
-	}
-	collectEvents(t, events)
-	resumed, ok := h.manager.Get(session.ID)
-	if !ok {
-		t.Fatalf("Get(%q) found = false, want true after prompt resume", session.ID)
-	}
-	if got := resumed.Info().State; got != StateActive {
-		t.Fatalf("resumed state = %q, want %q", got, StateActive)
-	}
-	if got := len(h.driver.startCalls); got != 2 {
-		t.Fatalf("driver start calls = %d, want 2 after prompt resume", got)
-	}
+		h := newHarness(t)
+		session := createSession(t, h)
+		if _, err := h.manager.Prompt(testutil.Context(t), session.ID, "   "); err == nil {
+			t.Fatal("Prompt(empty) error = nil, want non-nil")
+		}
+		if _, err := h.manager.Prompt(testutil.Context(t), "missing", "hello"); err == nil {
+			t.Fatal("Prompt(missing) error = nil, want non-nil")
+		}
+		if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+		events, err := h.manager.Prompt(testutil.Context(t), session.ID, "after-stop")
+		if err != nil {
+			t.Fatalf("Prompt(stopped) error = %v", err)
+		}
+		collectEvents(t, events)
+		resumed, ok := h.manager.Get(session.ID)
+		if !ok {
+			t.Fatalf("Get(%q) found = false, want true after prompt resume", session.ID)
+		}
+		if got := resumed.Info().State; got != StateActive {
+			t.Fatalf("resumed state = %q, want %q", got, StateActive)
+		}
+		h.driver.mu.Lock()
+		startCalls := len(h.driver.startCalls)
+		h.driver.mu.Unlock()
+		if startCalls != 2 {
+			t.Fatalf("driver start calls = %d, want 2 after prompt resume", startCalls)
+		}
+	})
 
 	t.Run("Should return the runtime bind failure for an unbound session", func(t *testing.T) {
 		t.Parallel()
@@ -411,9 +421,11 @@ func TestPromptErrorPaths(t *testing.T) {
 			t.Fatalf("unbound session runtime status = %q, want %q", got, RuntimeStatusUnbound)
 		}
 		bindErr := errors.New("runtime bind unavailable")
+		h.driver.mu.Lock()
 		h.driver.startHook = func(_ acp.StartOpts, _ int) (*fakeProcess, error) {
 			return nil, bindErr
 		}
+		h.driver.mu.Unlock()
 		if _, err := h.manager.Prompt(testutil.Context(t), session.ID, "bind-runtime"); !errors.Is(err, bindErr) {
 			t.Fatalf("Prompt(unbound) error = %v, want runtime bind failure", err)
 		}
@@ -442,6 +454,14 @@ func TestResumeReturnsExistingActiveSession(t *testing.T) {
 // session. Owning layer: session Manager lifecycle. Canonical suite: resume coverage in this file.
 func TestConcurrentResumeSharesOneStart(t *testing.T) {
 	t.Parallel()
+	t.Run("Should share one runtime start across concurrent callers", func(t *testing.T) {
+		t.Parallel()
+		testConcurrentResumeSharesOneStart(t)
+	})
+}
+
+func testConcurrentResumeSharesOneStart(t *testing.T) {
+	t.Helper()
 
 	h := newHarness(t)
 	session := createSession(t, h)
@@ -449,13 +469,19 @@ func TestConcurrentResumeSharesOneStart(t *testing.T) {
 		t.Fatalf("Stop() error = %v", err)
 	}
 
-	startEntered := make(chan struct{})
+	startEntered := make(chan struct{}, 2)
 	releaseStart := make(chan struct{})
+	var releaseStartOnce sync.Once
+	t.Cleanup(func() {
+		releaseStartOnce.Do(func() { close(releaseStart) })
+	})
+	h.driver.mu.Lock()
 	h.driver.startHook = func(opts acp.StartOpts, _ int) (*fakeProcess, error) {
-		close(startEntered)
+		startEntered <- struct{}{}
 		<-releaseStart
 		return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, "acp-resumed"), nil
 	}
+	h.driver.mu.Unlock()
 
 	type result struct {
 		session *Session
@@ -468,8 +494,23 @@ func TestConcurrentResumeSharesOneStart(t *testing.T) {
 	}
 	go resume()
 	<-startEntered
-	go resume()
-	close(releaseStart)
+	secondWaitEntered := make(chan struct{})
+	secondContext, cancelSecond := context.WithCancel(testutil.Context(t))
+	t.Cleanup(cancelSecond)
+	waitContext := &resumeWaitObservedContext{
+		Context: secondContext,
+		entered: secondWaitEntered,
+	}
+	go func() {
+		resumed, err := h.manager.Resume(waitContext, session.ID)
+		results <- result{session: resumed, err: err}
+	}()
+	select {
+	case <-secondWaitEntered:
+	case <-time.After(2 * time.Second):
+		t.Fatal("second Resume() did not enter the shared waiter")
+	}
+	releaseStartOnce.Do(func() { close(releaseStart) })
 
 	first := <-results
 	second := <-results
@@ -491,6 +532,54 @@ func TestConcurrentResumeSharesOneStart(t *testing.T) {
 			t.Errorf("Stop() cleanup error = %v", err)
 		}
 	})
+}
+
+type resumeWaitObservedContext struct {
+	context.Context
+	once    sync.Once
+	entered chan struct{}
+}
+
+func (c *resumeWaitObservedContext) Done() <-chan struct{} {
+	c.once.Do(func() { close(c.entered) })
+	return c.Context.Done()
+}
+
+// Invariant: shutdown observes every admitted resume even when one resume fails.
+// Owning layer: session Manager lifecycle. Canonical suite: resume coverage in this file.
+func TestWaitForSessionResumesDrainsAllCapturedRuns(t *testing.T) {
+	t.Parallel()
+	t.Run("Should drain every captured run after an ordinary resume failure", func(t *testing.T) {
+		t.Parallel()
+		testWaitForSessionResumesDrainsAllCapturedRuns(t)
+	})
+}
+
+func testWaitForSessionResumesDrainsAllCapturedRuns(t *testing.T) {
+	t.Helper()
+
+	failed := &sessionResumeRun{done: make(chan struct{}), err: errors.New("resume failed")}
+	close(failed.done)
+	pending := &sessionResumeRun{done: make(chan struct{})}
+	manager := &Manager{resumeRuns: map[string]*sessionResumeRun{
+		"failed":  failed,
+		"pending": pending,
+	}}
+
+	waitDone := make(chan error, 1)
+	go func() {
+		waitDone <- manager.waitForSessionResumes(testutil.Context(t))
+	}()
+
+	select {
+	case err := <-waitDone:
+		t.Fatalf("waitForSessionResumes() returned before all runs drained: %v", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+	close(pending.done)
+	if err := <-waitDone; err != nil {
+		t.Fatalf("waitForSessionResumes() error = %v, want ordinary resume failures ignored", err)
+	}
 }
 
 func TestNewManagerOptionsAndValidation(t *testing.T) {

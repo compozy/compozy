@@ -788,20 +788,23 @@ describe("SessionChatRuntimeProvider", () => {
 
   it("Should unmount a running readonly thread safely under StrictMode", async () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
-    const view = renderSessionThread({ isSessionRunning: true, strictMode: true });
+    try {
+      const view = renderSessionThread({ isSessionRunning: true, strictMode: true });
 
-    expect(
-      await screen.findByText("Summarize the launch blockers before the 18:30 UTC cutover.")
-    ).toBeInTheDocument();
-    expect(() => view.unmount()).not.toThrow();
-    expect(
-      consoleError.mock.calls.some(call =>
-        call.some(value =>
-          String(value).includes("Tried to unmount a fiber that is already unmounted")
+      expect(
+        await screen.findByText("Summarize the launch blockers before the 18:30 UTC cutover.")
+      ).toBeInTheDocument();
+      expect(() => view.unmount()).not.toThrow();
+      expect(
+        consoleError.mock.calls.some(call =>
+          call.some(value =>
+            String(value).includes("Tried to unmount a fiber that is already unmounted")
+          )
         )
-      )
-    ).toBe(false);
-    consoleError.mockRestore();
+      ).toBe(false);
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 
   it("Should still render from cache after fake timers advance beyond the old 5-minute gcTime default", async () => {

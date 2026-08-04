@@ -661,8 +661,40 @@ func TestHostAPIHandlerSessionRuntime(t *testing.T) {
 		var selected hostAPISessionStatus
 		decodeResult(t, setResult, &selected)
 		if selected.Runtime.Selected == nil || selected.Runtime.Selected.Provider != "fake-alt" ||
+			selected.Runtime.Selected.Model != "model-max" ||
+			selected.Runtime.Selected.ReasoningEffort != "max" ||
+			selected.Runtime.Selected.Speed != "fast" ||
 			selected.Runtime.SelectionRevision != 1 {
 			t.Fatalf("sessions/runtime/set runtime = %#v, want selected fake-alt at revision 1", selected.Runtime)
+		}
+
+		_, err = env.call(t, "ext-runtime", "sessions/runtime/set", map[string]any{
+			"workspace_id": env.workspaceID,
+			"session_id":   sess.ID,
+			"runtime": map[string]any{
+				"provider": "fake",
+				"model":    "stale-model",
+			},
+			"expected_revision": 0,
+		})
+		assertRPCErrorCode(t, err, 409)
+
+		_, err = env.call(t, "ext-runtime", "sessions/runtime/clear", map[string]any{
+			"workspace_id":      env.workspaceID,
+			"session_id":        sess.ID,
+			"expected_revision": 0,
+		})
+		assertRPCErrorCode(t, err, 409)
+
+		unchanged, err := env.sessions.Status(testutil.Context(t), sess.ID)
+		if err != nil {
+			t.Fatalf("Status(after stale runtime mutations) error = %v", err)
+		}
+		if unchanged.SelectedRuntime == nil || unchanged.SelectedRuntime.Provider != "fake-alt" ||
+			unchanged.SelectedRuntime.Model != "model-max" ||
+			unchanged.SelectedRuntime.ReasoningEffort != "max" ||
+			unchanged.SelectedRuntime.Speed != "fast" || unchanged.RuntimeSelectionRevision != 1 {
+			t.Fatalf("runtime after stale mutations = %#v, want unchanged revision 1", unchanged)
 		}
 
 		clearResult, err := env.call(t, "ext-runtime", "sessions/runtime/clear", map[string]any{

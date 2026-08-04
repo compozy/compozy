@@ -63,10 +63,11 @@ type hostAPIAcceptanceNetworkSessionManagerAdapter struct {
 }
 
 var (
-	_ hostAPIPromptOptsSessionManager = (*hostAPISessionManagerAdapter)(nil)
-	_ hostAPIPromptOptsSessionManager = (*hostAPINetworkSessionManagerAdapter)(nil)
-	_ core.SessionAcceptanceManager   = (*hostAPIAcceptanceSessionManagerAdapter)(nil)
-	_ core.SessionAcceptanceManager   = (*hostAPIAcceptanceNetworkSessionManagerAdapter)(nil)
+	_ hostAPIPromptOptsSessionManager     = (*hostAPISessionManagerAdapter)(nil)
+	_ hostAPIPromptOptsSessionManager     = (*hostAPINetworkSessionManagerAdapter)(nil)
+	_ core.SessionRuntimeSelectionManager = (*hostAPISessionManagerAdapter)(nil)
+	_ core.SessionAcceptanceManager       = (*hostAPIAcceptanceSessionManagerAdapter)(nil)
+	_ core.SessionAcceptanceManager       = (*hostAPIAcceptanceNetworkSessionManagerAdapter)(nil)
 )
 
 func newHostAPISessionManagerAdapter(sessions SessionManager) hostAPIExtensionSessionManager {

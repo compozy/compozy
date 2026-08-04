@@ -36,11 +36,19 @@ interface SessionPromptRuntimeStoreContext {
 type SessionPromptRuntimeStoreEvents = {
   defaultRuntimeResolved: { speed: RuntimeSpeed; value: RuntimeSelectorValue };
   inputUpdated: SessionPromptRuntimeInput;
-  runtimePersistenceFailed: {};
-  runtimePersisted: { revision: number; runtime: SessionRuntimeSelection | undefined };
+  runtimePersistenceFailed: SessionRuntimeIdentity;
+  runtimePersisted: SessionRuntimeIdentity & {
+    revision: number;
+    runtime: SessionRuntimeSelection | undefined;
+  };
   runtimeSelected: { value: RuntimeSelectorValue };
   speedSelected: { speed: RuntimeSpeed };
 };
+
+interface SessionRuntimeIdentity {
+  sessionId: string;
+  workspaceId: string;
+}
 
 export const sessionPromptRuntimeStoreLogic = createStoreLogic<
   SessionPromptRuntimeStoreContext,
@@ -59,29 +67,41 @@ export const sessionPromptRuntimeStoreLogic = createStoreLogic<
             defaultValue: event.value,
           },
     inputUpdated: (context, event) => {
-      if (sameInput(context.input, event)) return undefined;
+      const nextInput = preserveNewerRuntimeSelection(context.input, event);
+      if (sameInput(context.input, nextInput)) return undefined;
       const selectionChanged =
-        context.input.selectionRevision !== event.selectionRevision ||
-        !sameRuntimeSelection(context.input.selectedRuntime, event.selectedRuntime);
+        context.input.selectionRevision !== nextInput.selectionRevision ||
+        !sameRuntimeSelection(context.input.selectedRuntime, nextInput.selectedRuntime);
       return {
         ...context,
-        input: event,
-        ...(selectionChanged ? selectedContext(event.selectedRuntime) : {}),
+        input: nextInput,
+        ...(selectionChanged ? selectedContext(nextInput.selectedRuntime) : {}),
       };
     },
-    runtimePersistenceFailed: context => ({
-      ...context,
-      ...selectedContext(context.input.selectedRuntime),
-    }),
-    runtimePersisted: (context, event) => ({
-      ...context,
-      input: {
-        ...context.input,
-        selectedRuntime: event.runtime,
-        selectionRevision: event.revision,
-      },
-      ...selectedContext(event.runtime),
-    }),
+    runtimePersistenceFailed: (context, event) =>
+      sameSessionIdentity(context.input, event)
+        ? {
+            ...context,
+            ...selectedContext(context.input.selectedRuntime),
+          }
+        : undefined,
+    runtimePersisted: (context, event) => {
+      if (
+        !sameSessionIdentity(context.input, event) ||
+        event.revision < context.input.selectionRevision
+      ) {
+        return undefined;
+      }
+      return {
+        ...context,
+        input: {
+          ...context.input,
+          selectedRuntime: event.runtime,
+          selectionRevision: event.revision,
+        },
+        ...selectedContext(event.runtime),
+      };
+    },
     runtimeSelected: (context, event) =>
       sameValue(context.selectedValue, event.value)
         ? undefined
@@ -157,6 +177,27 @@ function sameInput(left: SessionPromptRuntimeInput, right: SessionPromptRuntimeI
     left.selectionRevision === right.selectionRevision &&
     sameRuntimeSelection(left.selectedRuntime, right.selectedRuntime)
   );
+}
+
+function preserveNewerRuntimeSelection(
+  current: SessionPromptRuntimeInput,
+  incoming: SessionPromptRuntimeInput
+): SessionPromptRuntimeInput {
+  if (
+    !sameSessionIdentity(current, incoming) ||
+    incoming.selectionRevision >= current.selectionRevision
+  ) {
+    return incoming;
+  }
+  return {
+    ...incoming,
+    selectedRuntime: current.selectedRuntime,
+    selectionRevision: current.selectionRevision,
+  };
+}
+
+function sameSessionIdentity(left: SessionRuntimeIdentity, right: SessionRuntimeIdentity): boolean {
+  return left.sessionId === right.sessionId && left.workspaceId === right.workspaceId;
 }
 
 function sameRuntimeSelection(

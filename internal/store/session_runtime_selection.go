@@ -9,10 +9,10 @@ import (
 
 // SessionRuntimeSelection is the durable runtime preference for future prompts.
 type SessionRuntimeSelection struct {
-	Provider        string
-	Model           string
-	ReasoningEffort string
-	Speed           speedpkg.Speed
+	Provider        string         `json:"provider"`
+	Model           string         `json:"model,omitempty"`
+	ReasoningEffort string         `json:"reasoning_effort,omitempty"`
+	Speed           speedpkg.Speed `json:"speed,omitempty"`
 }
 
 // SessionRuntimeSelectionState keeps a selected runtime and its revision together.

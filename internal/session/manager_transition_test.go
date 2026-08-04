@@ -332,6 +332,25 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 		if !errors.Is(err, ErrRuntimeSelectionConflict) {
 			t.Fatalf("ClearRuntimeSelection(stale revision) error = %v, want revision conflict", err)
 		}
+		cleared, err := h.manager.ClearRuntimeSelection(testutil.Context(t), active.ID, 1)
+		if err != nil {
+			t.Fatalf("ClearRuntimeSelection(active) error = %v", err)
+		}
+		if cleared.State != StateActive || cleared.SelectedRuntime != nil ||
+			cleared.RuntimeSelectionRevision != 2 {
+			t.Fatalf("ClearRuntimeSelection(active) info = %#v, want active clear at revision 2", cleared)
+		}
+		clearedMeta := readMeta(t, active.MetaPath())
+		clearedSelection, clearedRevision := store.SessionRuntimeSelectionStateValues(clearedMeta.RuntimeSelection)
+		clearedCatalog, ok := catalog.get(active.ID)
+		if !ok || clearedSelection != nil || clearedCatalog.SelectedRuntime != nil ||
+			clearedRevision != 2 || clearedCatalog.RuntimeSelectionRevision != 2 {
+			t.Fatalf(
+				"cleared active selection meta = %#v catalog = %#v, want revision 2",
+				clearedSelection,
+				clearedCatalog.SelectedRuntime,
+			)
+		}
 	})
 
 	t.Run("Should update selected runtime while stopped without starting ACP", func(t *testing.T) {
@@ -358,6 +377,25 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 		if updated.State != StateStopped || updated.SelectedRuntime == nil ||
 			updated.SelectedRuntime.Model != "claude-fable-5" || updated.RuntimeSelectionRevision != 1 {
 			t.Fatalf("SetRuntimeSelection(stopped) info = %#v, want stopped Claude selection at revision 1", updated)
+		}
+		cleared, err := h.manager.ClearRuntimeSelection(testutil.Context(t), active.ID, 1)
+		if err != nil {
+			t.Fatalf("ClearRuntimeSelection(stopped) error = %v", err)
+		}
+		if cleared.State != StateStopped || cleared.SelectedRuntime != nil ||
+			cleared.RuntimeSelectionRevision != 2 {
+			t.Fatalf("ClearRuntimeSelection(stopped) info = %#v, want stopped clear at revision 2", cleared)
+		}
+		clearedMeta := readMeta(t, active.MetaPath())
+		clearedSelection, clearedRevision := store.SessionRuntimeSelectionStateValues(clearedMeta.RuntimeSelection)
+		clearedCatalog, ok := catalog.get(active.ID)
+		if !ok || clearedSelection != nil || clearedCatalog.SelectedRuntime != nil ||
+			clearedRevision != 2 || clearedCatalog.RuntimeSelectionRevision != 2 {
+			t.Fatalf(
+				"cleared stopped selection meta = %#v catalog = %#v, want revision 2",
+				clearedSelection,
+				clearedCatalog.SelectedRuntime,
+			)
 		}
 		h.driver.mu.Lock()
 		startsAfter := len(h.driver.startCalls)

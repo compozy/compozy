@@ -4577,10 +4577,17 @@ export interface SessionRuntimeClearParams {
   expected_revision?: number;
 }
 
+export interface SessionRuntimeSelectionPayload {
+  provider: string;
+  model?: string;
+  reasoning_effort?: ReasoningEffort;
+  speed?: Speed;
+}
+
 export interface SessionRuntimeSetParams {
   workspace_id: string;
   session_id: string;
-  runtime: PromptRuntimeSelectionPayload;
+  runtime: SessionRuntimeSelectionPayload;
   expected_revision?: number;
 }
 

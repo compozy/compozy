@@ -12,7 +12,7 @@ import (
 )
 
 // Resume restarts a stopped session from its persisted metadata and event history.
-func (m *Manager) Resume(ctx context.Context, id string) (_ *Session, err error) {
+func (m *Manager) Resume(ctx context.Context, id string) (resumed *Session, err error) {
 	if ctx == nil {
 		return nil, errors.New("session: resume context is required")
 	}
@@ -32,9 +32,10 @@ func (m *Manager) Resume(ctx context.Context, id string) (_ *Session, err error)
 		return waitForSessionResume(ctx, run)
 	}
 
-	resumed, resumeErr := m.resumeSession(ctx, target)
-	m.finishSessionResume(target, run, resumed, resumeErr)
-	return resumed, resumeErr
+	defer func() {
+		m.finishSessionResume(target, run, resumed, err)
+	}()
+	return m.resumeSession(ctx, target)
 }
 
 func (m *Manager) resumeSession(ctx context.Context, target string) (*Session, error) {

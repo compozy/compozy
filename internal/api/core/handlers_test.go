@@ -721,7 +721,10 @@ func TestSessionRuntimeSelectionHandlers(t *testing.T) {
 			updated.RuntimeSelectionRevision = 1
 			return &updated, nil
 		},
-		ClearRuntimeSelectionFn: func(_ context.Context, _ string, _ int64) (*session.Info, error) {
+		ClearRuntimeSelectionFn: func(_ context.Context, id string, expectedRevision int64) (*session.Info, error) {
+			if id != base.ID || expectedRevision != 0 {
+				t.Fatalf("ClearRuntimeSelection() = id %q revision %d", id, expectedRevision)
+			}
 			return nil, session.ErrRuntimeSelectionConflict
 		},
 	}
@@ -769,6 +772,13 @@ func TestSessionRuntimeSelectionHandlers(t *testing.T) {
 		if response.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want %d; body=%s", response.Code, http.StatusBadRequest, response.Body.String())
 		}
+		var payload contract.ErrorPayload
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(runtime revision error) error = %v", err)
+		}
+		if payload.Error != "expected_revision is required and must not be negative" {
+			t.Fatalf("runtime revision error = %q, want missing revision contract", payload.Error)
+		}
 	})
 
 	t.Run("Should reject a stale clear revision", func(t *testing.T) {
@@ -781,6 +791,13 @@ func TestSessionRuntimeSelectionHandlers(t *testing.T) {
 		)
 		if response.Code != http.StatusConflict {
 			t.Fatalf("status = %d, want %d; body=%s", response.Code, http.StatusConflict, response.Body.String())
+		}
+		var payload contract.ErrorPayload
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(runtime conflict error) error = %v", err)
+		}
+		if payload.Error != session.ErrRuntimeSelectionConflict.Error() {
+			t.Fatalf("runtime conflict error = %q, want %q", payload.Error, session.ErrRuntimeSelectionConflict)
 		}
 	})
 }

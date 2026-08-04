@@ -162,7 +162,7 @@ func TestSessionRuntimeCommandsPersistSelection(t *testing.T) {
 			) (SessionRecord, error) {
 				if id != "sess-1" || request.ExpectedRevision == nil || *request.ExpectedRevision != 5 ||
 					request.Runtime.Provider != "claude" || request.Runtime.Model != "claude-fable-5" ||
-					request.Runtime.ReasoningEffort != "max" {
+					request.Runtime.ReasoningEffort != "max" || request.Runtime.Speed != contract.SpeedNormal {
 					t.Fatalf("SetSessionRuntime() id = %q request = %#v", id, request)
 				}
 				return SessionRecord{

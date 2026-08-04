@@ -1,7 +1,9 @@
 package session
 
 import (
+	"encoding/json"
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -9,6 +11,7 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -229,7 +232,7 @@ func TestSessionInfoAndMetaIncludeStopFields(t *testing.T) {
 func TestSessionMetadataRoundTrip(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should persist and reload provider in session metadata", func(t *testing.T) {
+	t.Run("Should persist and reload provider and selected runtime in session metadata", func(t *testing.T) {
 		t.Parallel()
 
 		now := time.Date(2026, 4, 21, 12, 0, 0, 0, time.UTC)
@@ -242,6 +245,7 @@ func TestSessionMetadataRoundTrip(t *testing.T) {
 				Provider:        "claude",
 				Model:           "claude-fable-5",
 				ReasoningEffort: "max",
+				Speed:           speedpkg.SpeedFast,
 			},
 			RuntimeSelectionRevision: 3,
 			RuntimeStatus:            RuntimeStatusReady,
@@ -262,7 +266,7 @@ func TestSessionMetadataRoundTrip(t *testing.T) {
 		}
 		if selectedRuntime == nil || selectedRuntime.Provider != "claude" ||
 			selectedRuntime.Model != "claude-fable-5" || selectedRuntime.ReasoningEffort != "max" ||
-			selectionRevision != 3 {
+			selectedRuntime.Speed != speedpkg.SpeedFast || selectionRevision != 3 {
 			t.Fatalf(
 				"Meta() selected runtime = %#v revision %d, want durable Claude selection at revision 3",
 				selectedRuntime,
@@ -279,7 +283,7 @@ func TestSessionMetadataRoundTrip(t *testing.T) {
 		}
 		if info.SelectedRuntime == nil || info.SelectedRuntime.Provider != "claude" ||
 			info.SelectedRuntime.Model != "claude-fable-5" || info.SelectedRuntime.ReasoningEffort != "max" ||
-			info.RuntimeSelectionRevision != 3 {
+			info.SelectedRuntime.Speed != speedpkg.SpeedFast || info.RuntimeSelectionRevision != 3 {
 			t.Fatalf(
 				"Info() selected runtime = %#v revision %d, want durable Claude selection at revision 3",
 				info.SelectedRuntime,
@@ -295,6 +299,30 @@ func TestSessionMetadataRoundTrip(t *testing.T) {
 		if err := store.WriteSessionMeta(metaPath, meta); err != nil {
 			t.Fatalf("WriteSessionMeta() error = %v", err)
 		}
+		rawMeta, err := os.ReadFile(metaPath)
+		if err != nil {
+			t.Fatalf("os.ReadFile(meta) error = %v", err)
+		}
+		var persisted struct {
+			RuntimeSelection struct {
+				Selected map[string]json.RawMessage `json:"selected"`
+			} `json:"runtime_selection"`
+		}
+		if err := json.Unmarshal(rawMeta, &persisted); err != nil {
+			t.Fatalf("json.Unmarshal(meta) error = %v", err)
+		}
+		if _, ok := persisted.RuntimeSelection.Selected["reasoning_effort"]; !ok {
+			t.Fatalf(
+				"persisted selected runtime keys = %#v, want reasoning_effort",
+				persisted.RuntimeSelection.Selected,
+			)
+		}
+		if _, ok := persisted.RuntimeSelection.Selected["ReasoningEffort"]; ok {
+			t.Fatalf(
+				"persisted selected runtime keys = %#v, want no ReasoningEffort",
+				persisted.RuntimeSelection.Selected,
+			)
+		}
 
 		readBack, err := store.ReadSessionMeta(metaPath)
 		if err != nil {
@@ -306,7 +334,8 @@ func TestSessionMetadataRoundTrip(t *testing.T) {
 		readSelection, readRevision := store.SessionRuntimeSelectionStateValues(readBack.RuntimeSelection)
 		if readSelection == nil || readSelection.Provider != "claude" ||
 			readSelection.Model != "claude-fable-5" ||
-			readSelection.ReasoningEffort != "max" || readRevision != 3 {
+			readSelection.ReasoningEffort != "max" ||
+			readSelection.Speed != speedpkg.SpeedFast || readRevision != 3 {
 			t.Fatalf(
 				"ReadSessionMeta() selected runtime = %#v revision %d, want durable Claude selection at revision 3",
 				readSelection,

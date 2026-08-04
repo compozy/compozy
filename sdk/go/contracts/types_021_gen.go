@@ -7,6 +7,17 @@ import (
 	"time"
 )
 
+type SourceRef struct {
+	Kind            SourceKind `json:"kind"`
+	Owner           string     `json:"owner"`
+	RawServerName   string     `json:"raw_server_name,omitempty"`
+	RawToolName     string     `json:"raw_tool_name,omitempty"`
+	ResourceID      string     `json:"resource_id,omitempty"`
+	ResourceVersion string     `json:"resource_version,omitempty"`
+	WorkspaceID     string     `json:"workspace_id,omitempty"`
+	Scope           string     `json:"scope,omitempty"`
+}
+
 type SpawnContext struct {
 	ParentSessionID              string `json:"parent_session_id,omitempty"`
 	RootSessionID                string `json:"root_session_id,omitempty"`
@@ -364,9 +375,4 @@ type TaskCatalogRunPayload struct {
 	StartedAt                    *time.Time     `json:"started_at,omitempty"`
 	EndedAt                      *time.Time     `json:"ended_at,omitempty"`
 	Error                        string         `json:"error,omitempty"`
-}
-
-type TaskCatalogStatusFacetPayload struct {
-	Status Status `json:"status"`
-	Count  int    `json:"count"`
 }
