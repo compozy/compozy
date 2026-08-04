@@ -41,7 +41,6 @@ type AgentProcess struct {
 	terminals       *terminalManager
 	processRegistry *toolruntime.Registry
 	processRecord   *toolruntime.Handle
-	steerSource     SteerSource
 
 	terminalOwnershipMu sync.RWMutex
 	terminalOwnership   map[string]terminalOwnership

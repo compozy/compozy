@@ -126,7 +126,7 @@ func TestGlobalDBSessionInputQueueGeneration(t *testing.T) {
 		}
 	})
 
-	t.Run("Should consume the latest current-generation steer once", func(t *testing.T) {
+	t.Run("Should dispatch current-generation steer before queued input", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
@@ -137,6 +137,8 @@ func TestGlobalDBSessionInputQueueGeneration(t *testing.T) {
 		if _, err := globalDB.StageSessionSteer(ctx, store.SessionInputQueueInsert{
 			ID:                "steer-old",
 			SessionID:         sessionID,
+			TargetTurnID:      "turn-old",
+			Delivery:          store.SessionInputDeliveryInterruptThenPrompt,
 			Text:              "old steer",
 			SessionGeneration: 0,
 			QueueCap:          10,
@@ -151,6 +153,8 @@ func TestGlobalDBSessionInputQueueGeneration(t *testing.T) {
 		if _, err := globalDB.StageSessionSteer(ctx, store.SessionInputQueueInsert{
 			ID:                "steer-new",
 			SessionID:         sessionID,
+			TargetTurnID:      "turn-active",
+			Delivery:          store.SessionInputDeliveryInterruptThenPrompt,
 			Text:              "new steer",
 			SessionGeneration: generation,
 			QueueCap:          10,
@@ -158,23 +162,38 @@ func TestGlobalDBSessionInputQueueGeneration(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("StageSessionSteer(new) error = %v", err)
 		}
-
-		consumed, ok, err := globalDB.ConsumeSessionSteer(ctx, sessionID, now.Add(3*time.Second))
+		queued, _, err := globalDB.EnqueueSessionInput(ctx, store.SessionInputQueueInsert{
+			ID:                "queue-after-steer",
+			SessionID:         sessionID,
+			Mode:              store.SessionInputQueueModeQueue,
+			Text:              "queued input",
+			SessionGeneration: generation,
+			QueueCap:          10,
+			Now:               now.Add(2500 * time.Millisecond),
+		})
 		if err != nil {
-			t.Fatalf("ConsumeSessionSteer(first) error = %v", err)
+			t.Fatalf("EnqueueSessionInput(queue) error = %v", err)
+		}
+
+		consumed, ok, err := globalDB.ClaimNextSessionInput(ctx, sessionID, now.Add(3*time.Second))
+		if err != nil {
+			t.Fatalf("ClaimNextSessionInput(first) error = %v", err)
 		}
 		if !ok {
-			t.Fatal("ConsumeSessionSteer(first) ok = false, want true")
+			t.Fatal("ClaimNextSessionInput(first) ok = false, want true")
 		}
 		if consumed.ID != "steer-new" || consumed.Status != store.SessionInputQueueStatusDispatching {
 			t.Fatalf("consumed = %#v, want dispatching steer-new", consumed)
 		}
-		_, ok, err = globalDB.ConsumeSessionSteer(ctx, sessionID, now.Add(4*time.Second))
-		if err != nil {
-			t.Fatalf("ConsumeSessionSteer(second) error = %v", err)
+		if err := globalDB.MarkSessionInputSent(ctx, sessionID, consumed.ID, now.Add(3500*time.Millisecond)); err != nil {
+			t.Fatalf("MarkSessionInputSent(steer) error = %v", err)
 		}
-		if ok {
-			t.Fatal("ConsumeSessionSteer(second) ok = true, want false after one-shot consume")
+		consumed, ok, err = globalDB.ClaimNextSessionInput(ctx, sessionID, now.Add(4*time.Second))
+		if err != nil {
+			t.Fatalf("ClaimNextSessionInput(second) error = %v", err)
+		}
+		if !ok || consumed.ID != queued.ID {
+			t.Fatalf("ClaimNextSessionInput(second) = %#v/%v, want queued input %q", consumed, ok, queued.ID)
 		}
 	})
 
@@ -188,20 +207,22 @@ func TestGlobalDBSessionInputQueueGeneration(t *testing.T) {
 
 		if _, err := globalDB.StageSessionSteer(ctx, store.SessionInputQueueInsert{
 			ID: "steer-dispatching", SessionID: sessionID, Text: "already dispatching",
+			TargetTurnID: "turn-active", Delivery: store.SessionInputDeliveryInterruptThenPrompt,
 			SessionGeneration: 0, QueueCap: 10, Now: now,
 		}); err != nil {
 			t.Fatalf("StageSessionSteer(dispatching) error = %v", err)
 		}
-		leased, ok, err := globalDB.ConsumeSessionSteer(ctx, sessionID, now.Add(time.Second))
+		leased, ok, err := globalDB.ClaimNextSessionInput(ctx, sessionID, now.Add(time.Second))
 		if err != nil {
-			t.Fatalf("ConsumeSessionSteer() error = %v", err)
+			t.Fatalf("ClaimNextSessionInput() error = %v", err)
 		}
 		if !ok || leased.Status != store.SessionInputQueueStatusDispatching {
-			t.Fatalf("ConsumeSessionSteer() = %#v/%v, want dispatching lease", leased, ok)
+			t.Fatalf("ClaimNextSessionInput() = %#v/%v, want dispatching lease", leased, ok)
 		}
 
 		if _, err := globalDB.StageSessionSteer(ctx, store.SessionInputQueueInsert{
 			ID: "steer-newer", SessionID: sessionID, Text: "newer staged steer",
+			TargetTurnID: "turn-active", Delivery: store.SessionInputDeliveryInterruptThenPrompt,
 			SessionGeneration: 0, QueueCap: 10, Now: now.Add(2 * time.Second),
 		}); err != nil {
 			t.Fatalf("StageSessionSteer(newer) error = %v", err)
@@ -249,6 +270,8 @@ func TestGlobalDBSessionInputQueueGeneration(t *testing.T) {
 		if _, err := globalDB.StageSessionSteer(ctx, store.SessionInputQueueInsert{
 			ID:                "steer-current-summary",
 			SessionID:         sessionID,
+			TargetTurnID:      "turn-active",
+			Delivery:          store.SessionInputDeliveryInterruptThenPrompt,
 			Text:              "current steer",
 			SessionGeneration: generation,
 			QueueCap:          10,
@@ -285,6 +308,182 @@ func TestGlobalDBSessionInputQueueGeneration(t *testing.T) {
 		if summary.PendingActive != 2 || summary.PendingQueued != 1 ||
 			summary.PendingSteer != 1 || summary.PendingLeased != 1 {
 			t.Fatalf("SessionInputQueueSummary() = %#v, want active=2 queued=1 steer=1 leased=1", summary)
+		}
+	})
+
+	t.Run("Should reject cancel after dispatch ownership has transferred", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		sessionID := registerInputQueueSession(t, globalDB)
+		now := time.Date(2026, 8, 3, 16, 55, 0, 0, time.UTC)
+		queued, _, err := globalDB.EnqueueSessionInput(ctx, store.SessionInputQueueInsert{
+			ID: "inq-dispatch-owned", SessionID: sessionID, Mode: store.SessionInputQueueModeQueue,
+			Text: "dispatch-owned input", SessionGeneration: 0, QueueCap: 10, Now: now,
+		})
+		if err != nil {
+			t.Fatalf("EnqueueSessionInput() error = %v", err)
+		}
+		claimed, ok, err := globalDB.ClaimNextSessionInput(ctx, sessionID, now.Add(time.Second))
+		if err != nil || !ok || claimed.ID != queued.ID {
+			t.Fatalf("ClaimNextSessionInput() = %#v/%t/%v", claimed, ok, err)
+		}
+
+		_, err = globalDB.CancelSessionInput(ctx, sessionID, queued.ID, now.Add(2*time.Second))
+		if !errors.Is(err, store.ErrSessionInputQueueEntryNotQueued) {
+			t.Fatalf("CancelSessionInput(dispatching) error = %v, want ErrSessionInputQueueEntryNotQueued", err)
+		}
+		preserved, err := globalDB.GetSessionInputQueueEntry(ctx, sessionID, queued.ID)
+		if err != nil {
+			t.Fatalf("GetSessionInputQueueEntry() error = %v", err)
+		}
+		if preserved.Status != store.SessionInputQueueStatusDispatching {
+			t.Fatalf("dispatch-owned status = %q, want dispatching", preserved.Status)
+		}
+	})
+
+	t.Run("Should atomically replace one queued input without losing its position owner", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		sessionID := registerInputQueueSession(t, globalDB)
+		now := time.Date(2026, 8, 3, 17, 0, 0, 0, time.UTC)
+		original, _, err := globalDB.EnqueueSessionInput(ctx, store.SessionInputQueueInsert{
+			ID: "inq-replace-original", SessionID: sessionID, Mode: store.SessionInputQueueModeQueue,
+			Text: "original input", SessionGeneration: 0, QueueCap: 10, Now: now,
+		})
+		if err != nil {
+			t.Fatalf("EnqueueSessionInput() error = %v", err)
+		}
+
+		replacementRequest := store.SessionInputQueueInsert{
+			ID: "inq-replace-new", Text: "replacement input", MessageID: "message-replace",
+			IdempotencyKey: "idem-replace", QueueCap: 10, Now: now.Add(time.Second),
+		}
+		replacement, created, err := globalDB.ReplaceSessionInput(ctx, sessionID, original.ID, replacementRequest)
+		if err != nil {
+			t.Fatalf("ReplaceSessionInput() error = %v", err)
+		}
+		if !created {
+			t.Fatal("ReplaceSessionInput() created = false, want true")
+		}
+		if replacement.ID != "inq-replace-new" || replacement.Mode != store.SessionInputQueueModeQueue ||
+			replacement.Delivery != store.SessionInputDeliveryAfterTurn || replacement.Text != "replacement input" {
+			t.Fatalf("replacement = %#v, want new queued input", replacement)
+		}
+		canceled, err := globalDB.GetSessionInputQueueEntry(ctx, sessionID, original.ID)
+		if err != nil {
+			t.Fatalf("GetSessionInputQueueEntry(original) error = %v", err)
+		}
+		if canceled.Status != store.SessionInputQueueStatusCanceled {
+			t.Fatalf("original status = %q, want canceled", canceled.Status)
+		}
+		pending, err := globalDB.ListPendingSessionInputs(ctx, sessionID)
+		if err != nil {
+			t.Fatalf("ListPendingSessionInputs() error = %v", err)
+		}
+		if len(pending) != 1 || pending[0].ID != replacement.ID {
+			t.Fatalf("pending inputs = %#v, want only replacement", pending)
+		}
+		replayed, replayCreated, err := globalDB.ReplaceSessionInput(
+			ctx,
+			sessionID,
+			original.ID,
+			replacementRequest,
+		)
+		if err != nil {
+			t.Fatalf("ReplaceSessionInput(replay) error = %v", err)
+		}
+		if replayCreated || replayed.ID != replacement.ID {
+			t.Fatalf("ReplaceSessionInput(replay) = %#v/%t, want same identity without creation", replayed, replayCreated)
+		}
+		conflictingRequest := replacementRequest
+		conflictingRequest.Text = "different replacement"
+		_, _, err = globalDB.ReplaceSessionInput(ctx, sessionID, original.ID, conflictingRequest)
+		if !errors.Is(err, store.ErrSessionInputMutationConflict) {
+			t.Fatalf("ReplaceSessionInput(conflict) error = %v, want ErrSessionInputMutationConflict", err)
+		}
+	})
+
+	t.Run("Should leave the original queued when replacement validation fails", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		sessionID := registerInputQueueSession(t, globalDB)
+		now := time.Date(2026, 8, 3, 17, 5, 0, 0, time.UTC)
+		original, _, err := globalDB.EnqueueSessionInput(ctx, store.SessionInputQueueInsert{
+			ID: "inq-invalid-replace-original", SessionID: sessionID, Mode: store.SessionInputQueueModeQueue,
+			Text: "preserve me", SessionGeneration: 0, QueueCap: 10, Now: now,
+		})
+		if err != nil {
+			t.Fatalf("EnqueueSessionInput() error = %v", err)
+		}
+		_, _, err = globalDB.ReplaceSessionInput(ctx, sessionID, original.ID, store.SessionInputQueueInsert{
+			ID: "inq-invalid-replace-new", Text: "", QueueCap: 10, Now: now.Add(time.Second),
+		})
+		if err == nil {
+			t.Fatal("ReplaceSessionInput() error = nil, want validation failure")
+		}
+		preserved, err := globalDB.GetSessionInputQueueEntry(ctx, sessionID, original.ID)
+		if err != nil {
+			t.Fatalf("GetSessionInputQueueEntry(original) error = %v", err)
+		}
+		if preserved.Status != store.SessionInputQueueStatusQueued {
+			t.Fatalf("original status = %q, want queued", preserved.Status)
+		}
+	})
+
+	t.Run("Should atomically promote queued input and supersede older steering", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		sessionID := registerInputQueueSession(t, globalDB)
+		now := time.Date(2026, 8, 3, 17, 10, 0, 0, time.UTC)
+		if _, err := globalDB.StageSessionSteer(ctx, store.SessionInputQueueInsert{
+			ID: "inq-prior-steer", SessionID: sessionID, TargetTurnID: "turn-live",
+			Delivery: store.SessionInputDeliveryInterruptThenPrompt, Text: "older steer",
+			SessionGeneration: 0, QueueCap: 10, Now: now,
+		}); err != nil {
+			t.Fatalf("StageSessionSteer() error = %v", err)
+		}
+		queued, _, err := globalDB.EnqueueSessionInput(ctx, store.SessionInputQueueInsert{
+			ID: "inq-promote-original", SessionID: sessionID, Mode: store.SessionInputQueueModeQueue,
+			Text: "promote me", SessionGeneration: 0, QueueCap: 10, Now: now.Add(time.Second),
+		})
+		if err != nil {
+			t.Fatalf("EnqueueSessionInput() error = %v", err)
+		}
+		promoted, created, err := globalDB.PromoteSessionInputToSteer(
+			ctx,
+			sessionID,
+			queued.ID,
+			store.SessionInputQueueInsert{
+				ID: "inq-promoted-steer", TargetTurnID: "turn-live", Text: "promoted steer",
+				MessageID: "message-promote", IdempotencyKey: "idem-promote", QueueCap: 10,
+				Now: now.Add(2 * time.Second),
+			},
+		)
+		if err != nil {
+			t.Fatalf("PromoteSessionInputToSteer() error = %v", err)
+		}
+		if !created {
+			t.Fatal("PromoteSessionInputToSteer() created = false, want true")
+		}
+		if promoted.Mode != store.SessionInputQueueModeSteer ||
+			promoted.Delivery != store.SessionInputDeliveryInterruptThenPrompt ||
+			promoted.TargetTurnID != "turn-live" {
+			t.Fatalf("promoted input = %#v, want interrupt-then-prompt steer", promoted)
+		}
+		pending, err := globalDB.ListPendingSessionInputs(ctx, sessionID)
+		if err != nil {
+			t.Fatalf("ListPendingSessionInputs() error = %v", err)
+		}
+		if len(pending) != 1 || pending[0].ID != promoted.ID {
+			t.Fatalf("pending inputs = %#v, want only promoted steer", pending)
 		}
 	})
 }
@@ -884,25 +1083,26 @@ func TestGlobalDBSessionPromptAdmission(t *testing.T) {
 		admissionReq.Mode = store.SessionInputQueueModeSteer
 		queueReq := store.SessionInputQueueInsert{
 			ID: "steer-admitted-lease", SessionID: sessionID, Text: "steer once",
+			TargetTurnID: "turn-active", Delivery: store.SessionInputDeliveryInterruptThenPrompt,
 			SessionGeneration: 0, QueueCap: 10, Now: now,
 		}
 		_, staged, _, err := globalDB.StageAdmittedSessionSteer(ctx, admissionReq, queueReq)
 		if err != nil {
 			t.Fatalf("StageAdmittedSessionSteer() error = %v", err)
 		}
-		consumed, ok, err := globalDB.ConsumeSessionSteer(ctx, sessionID, now.Add(time.Second))
+		consumed, ok, err := globalDB.ClaimNextSessionInput(ctx, sessionID, now.Add(time.Second))
 		if err != nil {
-			t.Fatalf("ConsumeSessionSteer(first) error = %v", err)
+			t.Fatalf("ClaimNextSessionInput(first) error = %v", err)
 		}
 		if !ok || consumed.ID != staged.ID || consumed.Status != store.SessionInputQueueStatusDispatching {
-			t.Fatalf("ConsumeSessionSteer(first) = %#v/%v, want dispatching %q", consumed, ok, staged.ID)
+			t.Fatalf("ClaimNextSessionInput(first) = %#v/%v, want dispatching %q", consumed, ok, staged.ID)
 		}
-		_, ok, err = globalDB.ConsumeSessionSteer(ctx, sessionID, now.Add(2*time.Second))
+		_, ok, err = globalDB.ClaimNextSessionInput(ctx, sessionID, now.Add(2*time.Second))
 		if err != nil {
-			t.Fatalf("ConsumeSessionSteer(second) error = %v", err)
+			t.Fatalf("ClaimNextSessionInput(second) error = %v", err)
 		}
 		if ok {
-			t.Fatal("ConsumeSessionSteer(second) ok = true, want false while lease is active")
+			t.Fatal("ClaimNextSessionInput(second) ok = true, want false while lease is active")
 		}
 		_, _, err = globalDB.ClaimSessionPromptAdmission(ctx, admissionReq)
 		if !errors.Is(err, store.ErrSessionPromptDispatchIndeterminate) {
@@ -1025,6 +1225,7 @@ func TestGlobalDBSessionPromptAdmission(t *testing.T) {
 		firstAdmission.Mode = store.SessionInputQueueModeSteer
 		firstQueue := store.SessionInputQueueInsert{
 			ID: "steer-admitted-a", SessionID: sessionID, Text: "first steer",
+			TargetTurnID: "turn-active", Delivery: store.SessionInputDeliveryInterruptThenPrompt,
 			SessionGeneration: 0, QueueCap: 10, Now: now,
 		}
 		_, firstEntry, created, err := globalDB.StageAdmittedSessionSteer(ctx, firstAdmission, firstQueue)
@@ -1041,6 +1242,7 @@ func TestGlobalDBSessionPromptAdmission(t *testing.T) {
 		secondAdmission.Mode = store.SessionInputQueueModeSteer
 		secondQueue := store.SessionInputQueueInsert{
 			ID: "steer-admitted-b", SessionID: sessionID, Text: "second steer",
+			TargetTurnID: "turn-active", Delivery: store.SessionInputDeliveryInterruptThenPrompt,
 			SessionGeneration: 0, QueueCap: 10, Now: now.Add(time.Second),
 		}
 		_, secondEntry, created, err := globalDB.StageAdmittedSessionSteer(ctx, secondAdmission, secondQueue)
@@ -1061,12 +1263,12 @@ func TestGlobalDBSessionPromptAdmission(t *testing.T) {
 			replayedEntry.Status != store.SessionInputQueueStatusCanceled {
 			t.Fatalf("replayed entry = %#v, created=%v", replayedEntry, created)
 		}
-		consumed, ok, err := globalDB.ConsumeSessionSteer(ctx, sessionID, now.Add(2*time.Second))
+		consumed, ok, err := globalDB.PeekNextSessionInput(ctx, sessionID)
 		if err != nil {
-			t.Fatalf("ConsumeSessionSteer() error = %v", err)
+			t.Fatalf("PeekNextSessionInput() error = %v", err)
 		}
 		if !ok || consumed.ID != secondEntry.ID {
-			t.Fatalf("ConsumeSessionSteer() = %#v/%v, want %q", consumed, ok, secondEntry.ID)
+			t.Fatalf("PeekNextSessionInput() = %#v/%v, want %q", consumed, ok, secondEntry.ID)
 		}
 	})
 
@@ -1122,6 +1324,40 @@ func TestGlobalDBSessionPromptAdmission(t *testing.T) {
 		_, _, err := globalDB.ClaimSessionPromptAdmission(ctx, req)
 		if !errors.Is(err, store.ErrSessionPromptDispatchIndeterminate) {
 			t.Fatalf("ClaimSessionPromptAdmission(retry) error = %v", err)
+		}
+	})
+
+	t.Run("Should fence a completed queue admission after activation fails", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		sessionID := registerInputQueueSession(t, globalDB)
+		now := time.Date(2026, 7, 31, 12, 20, 0, 0, time.UTC)
+		req := promptAdmissionRequest("ws-input-queue-workspace", sessionID, "activation-failure", now)
+		req.Mode = store.SessionInputQueueModeSteer
+		queueReq := store.SessionInputQueueInsert{
+			ID: "steer-admitted-activation-failure", SessionID: sessionID, Text: "steer once",
+			TargetTurnID: "turn-active", Delivery: store.SessionInputDeliveryInterruptThenPrompt,
+			SessionGeneration: 0, QueueCap: 10, Now: now,
+		}
+		admission, _, created, err := globalDB.StageAdmittedSessionSteer(ctx, req, queueReq)
+		if err != nil || !created || admission.State != store.SessionPromptAdmissionCompleted {
+			t.Fatalf("StageAdmittedSessionSteer() = %#v created=%v error=%v", admission, created, err)
+		}
+		if err := globalDB.MarkSessionPromptAdmissionIndeterminate(
+			ctx,
+			req.WorkspaceID,
+			req.SessionID,
+			req.IdempotencyKey,
+			"active-turn cancellation failed",
+			now.Add(time.Second),
+		); err != nil {
+			t.Fatalf("MarkSessionPromptAdmissionIndeterminate(completed) error = %v", err)
+		}
+		_, _, _, err = globalDB.StageAdmittedSessionSteer(ctx, req, queueReq)
+		if !errors.Is(err, store.ErrSessionPromptDispatchIndeterminate) {
+			t.Fatalf("StageAdmittedSessionSteer(retry) error = %v, want dispatch indeterminate", err)
 		}
 	})
 }

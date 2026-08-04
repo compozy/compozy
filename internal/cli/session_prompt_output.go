@@ -9,10 +9,9 @@ import (
 )
 
 const (
-	goalLiveKey            = "live"
-	idempotencyKeyField    = "idempotency_key"
-	idempotencyKeyLabel    = "Idempotency Key"
-	sessionPromptQueuedKey = "queued"
+	goalLiveKey         = "live"
+	idempotencyKeyField = "idempotency_key"
+	idempotencyKeyLabel = "Idempotency Key"
 )
 
 func sessionPromptBundle(record SessionPromptRecord) outputBundle {
@@ -121,6 +120,9 @@ func sessionPromptRows(result SessionPromptResultRecord) []keyValue {
 	if result.Mode != "" {
 		rows = append(rows, keyValue{Label: bridgeModeValue, Value: string(result.Mode)})
 	}
+	if result.Delivery != "" {
+		rows = append(rows, keyValue{Label: "Delivery", Value: string(result.Delivery)})
+	}
 	if result.QueueEntryID != "" {
 		rows = append(rows, keyValue{Label: "Queue Entry", Value: result.QueueEntryID})
 	}
@@ -139,14 +141,6 @@ func sessionPromptRows(result SessionPromptResultRecord) []keyValue {
 	if result.CanceledQueuedEntries > 0 {
 		rows = append(rows, keyValue{Label: "Canceled Queued", Value: strconv.Itoa(result.CanceledQueuedEntries)})
 	}
-	if result.FallbackModeIfNoToolResult != "" {
-		rows = append(rows, keyValue{Label: "Fallback Mode", Value: string(result.FallbackModeIfNoToolResult)})
-	}
-	rows = append(rows,
-		keyValue{Label: "Queued", Value: strconv.FormatBool(result.Queued)},
-		keyValue{Label: "Staged", Value: strconv.FormatBool(result.Staged)},
-		keyValue{Label: "Interrupted", Value: strconv.FormatBool(result.Interrupted)},
-	)
 	return rows
 }
 
@@ -154,16 +148,13 @@ func sessionPromptFields() []string {
 	return []string{
 		sessionStatusKey,
 		bridgeModeKey,
-		sessionPromptQueuedKey,
-		"staged",
-		"interrupted",
+		"delivery",
 		"queue_entry_id",
 		"queue_position",
 		"queue_generation",
 		"previous_turn_id",
 		"new_turn_id",
 		"canceled_queued_entries",
-		"fallback_mode_if_no_tool_result",
 	}
 }
 
@@ -171,15 +162,12 @@ func sessionPromptValues(result SessionPromptResultRecord) []string {
 	return []string{
 		result.Status,
 		string(result.Mode),
-		strconv.FormatBool(result.Queued),
-		strconv.FormatBool(result.Staged),
-		strconv.FormatBool(result.Interrupted),
+		string(result.Delivery),
 		result.QueueEntryID,
 		strconv.Itoa(result.QueuePosition),
 		strconv.FormatInt(result.QueueGeneration, 10),
 		result.PreviousTurnID,
 		result.NewTurnID,
 		strconv.Itoa(result.CanceledQueuedEntries),
-		string(result.FallbackModeIfNoToolResult),
 	}
 }

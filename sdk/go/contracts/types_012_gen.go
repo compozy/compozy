@@ -7,8 +7,6 @@ import (
 	"time"
 )
 
-type MemoryScope string
-
 type MemoryStoreParams struct {
 	Key       string      `json:"key"`
 	Content   string      `json:"content"`
@@ -252,4 +250,9 @@ type NetworkBudgetUsagePayload struct {
 	OutputTokensUsed    int64               `json:"output_tokens_used"`
 	ExhaustedReason     string              `json:"exhausted_reason,omitempty"`
 	UpdatedAt           time.Time           `json:"updated_at"`
+}
+
+type NetworkCapabilityBriefPayload struct {
+	ID      string `json:"id"`
+	Summary string `json:"summary"`
 }

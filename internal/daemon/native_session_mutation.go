@@ -25,6 +25,8 @@ type sessionPromptInput struct {
 	Message        string                                  `json:"message"`
 	MessageID      string                                  `json:"message_id"`
 	IdempotencyKey string                                  `json:"idempotency_key"`
+	Mode           string                                  `json:"mode,omitempty"`
+	ExpectedTurnID string                                  `json:"expected_turn_id,omitempty"`
 	Runtime        *contract.PromptRuntimeSelectionPayload `json:"runtime,omitempty"`
 }
 
@@ -94,6 +96,15 @@ func (n *daemonNativeTools) sessionPrompt(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	mode := session.BusyInputMode(strings.TrimSpace(input.Mode))
+	expectedTurnID := strings.TrimSpace(input.ExpectedTurnID)
+	if (mode == session.BusyInputModeSteer || mode == session.BusyInputModeInterrupt) &&
+		expectedTurnID == "" {
+		return toolspkg.ToolResult{}, nativeNetworkInputError(
+			req.ToolID,
+			errors.New("expected_turn_id is required for steer and interrupt mode"),
+		)
+	}
 	resolved, err := n.nativeResolvedWorkspace(ctx, req.ToolID, input.Workspace, scope)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
@@ -107,6 +118,7 @@ func (n *daemonNativeTools) sessionPrompt(
 	}
 	result, err := n.deps.Sessions.SendPrompt(ctx, sessionID, session.SendPromptOpts{
 		Message: message, MessageID: messageID, IdempotencyKey: idempotencyKey,
+		Mode: mode, ExpectedTurnID: expectedTurnID,
 		Runtime: core.PromptRuntimeSelectionFromPayload(input.Runtime),
 	})
 	if err != nil {
@@ -117,9 +129,5 @@ func (n *daemonNativeTools) sessionPrompt(
 			continue
 		}
 	}
-	payload, err := core.PromptResultPayloadFromSession(result)
-	if err != nil {
-		return toolspkg.ToolResult{}, err
-	}
-	return structuredResult(map[string]any{"prompt": payload}, payload.Status)
+	return n.nativeSessionPromptResult(result)
 }

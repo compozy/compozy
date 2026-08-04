@@ -12,8 +12,10 @@ func registrySessionOperations() []OperationSpec {
 		stopSessionOperationSpec(),
 		attachSessionOperationSpec(),
 		sendSessionPromptOperationSpec(),
-		interruptSessionPromptOperationSpec(),
 		steerSessionPromptOperationSpec(),
+		listSessionInputsOperationSpec(),
+		replaceSessionInputOperationSpec(),
+		promoteSessionInputOperationSpec(),
 		cancelQueuedSessionPromptOperationSpec(),
 		getSessionRecapOperationSpec(),
 		getSessionUsageOperationSpec(),
@@ -180,33 +182,13 @@ func sendSessionPromptOperationSpec() OperationSpec {
 		RequestBody: contract.SendPromptRequest{},
 		Responses: []ResponseSpec{
 			promptSuccessResponse(200, "Prompt accepted or Goal command completed"),
-			promptSuccessResponse(202, "Prompt queued, staged, or Goal command started"),
+			promptSuccessResponse(202, "Prompt queued, steering accepted, or Goal command started"),
 			{Status: 400, Description: "Invalid prompt request", Body: contract.ErrorPayload{}},
 			promptGoalErrorResponse(404, specSessionNotFoundDescription),
 			promptGoalErrorResponse(409, specSessionPromptConflictDescription),
 			{Status: 413, Description: "Session input queue is full", Body: contract.ErrorPayload{}},
 			promptGoalErrorResponse(422, "Goal command is invalid or cannot transition"),
 			{Status: 503, Description: specNewWorkAdmissionUnavailableDescription, Body: contract.ErrorPayload{}},
-			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-		},
-	}
-}
-func interruptSessionPromptOperationSpec() OperationSpec {
-	return OperationSpec{
-		Method:      httpMethodPost,
-		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/interrupt",
-		OperationID: "interruptSessionPrompt",
-		Summary:     "Interrupt the active prompt turn for a session",
-		Tags:        []string{specSessionsKey},
-		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
-			pathParam("workspace_id", "Workspace id"),
-			pathParam("session_id", "Session id"),
-		},
-		Responses: []ResponseSpec{
-			{Status: 200, Description: "Prompt interrupted", Body: contract.SendPromptResultResponse{}},
-			{Status: 404, Description: specSessionNotFoundDescription, Body: contract.ErrorPayload{}},
-			{Status: 409, Description: specSessionPromptConflictDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	}
@@ -225,7 +207,7 @@ func steerSessionPromptOperationSpec() OperationSpec {
 		},
 		RequestBody: contract.SteerPromptRequest{},
 		Responses: []ResponseSpec{
-			{Status: 202, Description: "Prompt steering staged", Body: contract.SendPromptResultResponse{}},
+			{Status: 202, Description: "Prompt steering accepted", Body: contract.SendPromptResultResponse{}},
 			{Status: 400, Description: "Invalid steer request", Body: contract.ErrorPayload{}},
 			{Status: 404, Description: specSessionNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 409, Description: specSessionPromptConflictDescription, Body: contract.ErrorPayload{}},
@@ -249,6 +231,73 @@ func cancelQueuedSessionPromptOperationSpec() OperationSpec {
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "Queued prompt canceled", Body: contract.SendPromptResultResponse{}},
 			{Status: 404, Description: specSessionNotFoundDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	}
+}
+
+func listSessionInputsOperationSpec() OperationSpec {
+	return OperationSpec{
+		Method:      httpMethodGet,
+		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue",
+		OperationID: "listSessionInputs",
+		Summary:     "List pending session input",
+		Tags:        []string{specSessionsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("workspace_id", "Workspace id"),
+			pathParam("session_id", "Session id"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "Pending session input", Body: contract.SessionInputListResponse{}},
+			{Status: 404, Description: specSessionNotFoundDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	}
+}
+
+func replaceSessionInputOperationSpec() OperationSpec {
+	return OperationSpec{
+		Method:      httpMethodPut,
+		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue/{queue_entry_id}",
+		OperationID: "replaceSessionInput",
+		Summary:     "Replace queued session input atomically",
+		Tags:        []string{specSessionsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("workspace_id", "Workspace id"),
+			pathParam("session_id", "Session id"),
+			pathParam("queue_entry_id", "Queue entry id"),
+		},
+		RequestBody: contract.ReplaceSessionInputRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "Queued input replaced", Body: contract.SessionInputResponse{}},
+			{Status: 400, Description: "Invalid input replacement", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: specSessionNotFoundDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	}
+}
+
+func promoteSessionInputOperationSpec() OperationSpec {
+	return OperationSpec{
+		Method:      httpMethodPost,
+		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue/{queue_entry_id}/steer",
+		OperationID: "promoteSessionInput",
+		Summary:     "Promote queued session input to steering",
+		Tags:        []string{specSessionsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("workspace_id", "Workspace id"),
+			pathParam("session_id", "Session id"),
+			pathParam("queue_entry_id", "Queue entry id"),
+		},
+		RequestBody: contract.PromoteSessionInputRequest{},
+		Responses: []ResponseSpec{
+			{Status: 202, Description: "Queued input promoted to steering", Body: contract.SendPromptResultResponse{}},
+			{Status: 400, Description: "Invalid steering promotion", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: specSessionNotFoundDescription, Body: contract.ErrorPayload{}},
+			{Status: 409, Description: specSessionPromptConflictDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	}

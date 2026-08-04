@@ -32,7 +32,10 @@ type sessionClientAPI interface {
 	PromptSession(context.Context, string, string) ([]AgentEventRecord, error)
 	SendSessionPrompt(context.Context, string, SessionPromptRequest) (SessionPromptRecord, error)
 	SteerSessionPrompt(context.Context, string, contract.SteerPromptRequest) (SessionPromptRecord, error)
-	CancelQueuedSessionPrompt(context.Context, string, string) (SessionPromptRecord, error)
+	ListSessionInputs(context.Context, string) (SessionInputListRecord, error)
+	ReplaceSessionInput(context.Context, string, string, ReplaceSessionInputRequest) (SessionInputRecord, error)
+	PromoteSessionInput(context.Context, string, string, PromoteSessionInputRequest) (SessionPromptRecord, error)
+	CancelSessionInput(context.Context, string, string) (SessionPromptRecord, error)
 	StreamPromptSession(context.Context, string, SessionPromptRequest, SSEHandler) error
 	SessionEvents(context.Context, string, SessionEventQuery) ([]SessionEventRecord, error)
 	StreamSessionEvents(context.Context, string, SessionEventQuery, string, SSEHandler) error

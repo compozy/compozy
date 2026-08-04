@@ -25,13 +25,19 @@ type hostAPIPromptSubmission struct {
 	Admission          session.SendPromptResult
 }
 
+type hostAPIPromptRequest struct {
+	Message        string
+	MessageID      string
+	IdempotencyKey string
+	Mode           session.BusyInputMode
+	ExpectedTurnID string
+	Runtime        *session.RuntimeSelection
+}
+
 func (h *HostAPIHandler) submitPrompt(
 	ctx context.Context,
 	sessionID string,
-	message string,
-	messageID string,
-	idempotencyKey string,
-	runtime *session.RuntimeSelection,
+	request hostAPIPromptRequest,
 ) (hostAPIPromptSubmission, error) {
 	if h.sessions == nil {
 		return hostAPIPromptSubmission{}, errors.New("extension: session manager is not configured")
@@ -46,10 +52,7 @@ func (h *HostAPIHandler) submitPrompt(
 	admission, err := h.submitRuntimePrompt(
 		promptCtx,
 		sessionID,
-		message,
-		messageID,
-		idempotencyKey,
-		runtime,
+		request,
 	)
 	if err != nil {
 		return hostAPIPromptSubmission{}, err
@@ -77,10 +80,7 @@ func (h *HostAPIHandler) submitPrompt(
 func (h *HostAPIHandler) submitRuntimePrompt(
 	ctx context.Context,
 	sessionID string,
-	message string,
-	messageID string,
-	idempotencyKey string,
-	runtime *session.RuntimeSelection,
+	request hostAPIPromptRequest,
 ) (session.SendPromptResult, error) {
 	prompter, ok := h.sessions.(hostAPIRuntimePromptSessionManager)
 	if !ok {
@@ -89,7 +89,12 @@ func (h *HostAPIHandler) submitRuntimePrompt(
 		)
 	}
 	result, err := prompter.SendPrompt(ctx, sessionID, session.SendPromptOpts{
-		Message: message, MessageID: messageID, IdempotencyKey: idempotencyKey, Runtime: runtime,
+		Message:        request.Message,
+		MessageID:      request.MessageID,
+		IdempotencyKey: request.IdempotencyKey,
+		Mode:           request.Mode,
+		ExpectedTurnID: request.ExpectedTurnID,
+		Runtime:        request.Runtime,
 	})
 	if err != nil {
 		return session.SendPromptResult{}, err

@@ -12,17 +12,21 @@ import {
   SessionLedgerUnavailableError,
   SessionNotFoundError,
   buildSessionStreamUrl,
+  cancelQueuedSessionPrompt,
   cancelSessionPrompt,
   clearSessionConversation,
   createSession,
   deleteSession,
   fetchSession,
   fetchSessionEvents,
+  fetchSessionInputs,
   fetchSessionLedger,
   fetchSessionRecap,
   fetchSessionTranscript,
   fetchSessions,
   repairSession,
+  promoteSessionInputToSteer,
+  replaceSessionInput,
   resumeSession,
   sendSessionPrompt,
   steerSessionPrompt,
@@ -428,9 +432,10 @@ describe("sendSessionPrompt", () => {
 
 describe("steerSessionPrompt", () => {
   it("sends the required durable prompt identities with steering text", async () => {
-    mockJsonResponse({ prompt: { status: "staged" } }, { status: 202 });
+    mockJsonResponse({ prompt: { status: "steering" } }, { status: 202 });
 
     await steerSessionPrompt(WORKSPACE_ID, "sess-001", {
+      expected_turn_id: "turn-001",
       idempotency_key: "idempotency-002",
       message_id: "message-002",
       text: "Focus on the failing test.",
@@ -438,12 +443,108 @@ describe("steerSessionPrompt", () => {
 
     await expectFetchRequest({
       body: {
+        expected_turn_id: "turn-001",
         idempotency_key: "idempotency-002",
         message_id: "message-002",
         text: "Focus on the failing test.",
       },
       method: "POST",
       path: "/api/workspaces/ws_alpha/sessions/sess-001/steer",
+    });
+  });
+});
+
+describe("session input queue operations", () => {
+  const input = {
+    delivery: "after_turn" as const,
+    enqueued_at: "2026-08-03T18:00:00Z",
+    id: "input-001",
+    mode: "queue" as const,
+    queue_generation: 2,
+    session_id: "sess-001",
+    status: "queued",
+    text: "Run the next check.",
+  };
+
+  it("lists the daemon-owned pending queue in workspace scope", async () => {
+    mockJsonResponse({ inputs: [input] });
+
+    await expect(fetchSessionInputs(WORKSPACE_ID, "sess-001")).resolves.toEqual({
+      inputs: [input],
+    });
+
+    await expectFetchRequest({
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/prompt/queue",
+    });
+  });
+
+  it("replaces the exact queued entry with a fresh durable identity", async () => {
+    const replacement = { ...input, id: "input-002", text: "Run focused tests." };
+    mockJsonResponse({ input: replacement });
+
+    await expect(
+      replaceSessionInput(WORKSPACE_ID, "sess-001", input.id, {
+        idempotency_key: "idem-edit-001",
+        message_id: "message-edit-001",
+        text: replacement.text,
+      })
+    ).resolves.toEqual(replacement);
+
+    await expectFetchRequest({
+      body: {
+        idempotency_key: "idem-edit-001",
+        message_id: "message-edit-001",
+        text: replacement.text,
+      },
+      method: "PUT",
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/prompt/queue/input-001",
+    });
+  });
+
+  it("promotes and cancels the exact queued entry", async () => {
+    mockJsonResponse({
+      prompt: {
+        delivery: "interrupt_then_prompt",
+        idempotency_key: "idem-steer-001",
+        message_id: "message-steer-001",
+        replayed: false,
+        status: "steering",
+      },
+    });
+
+    await promoteSessionInputToSteer(WORKSPACE_ID, "sess-001", input.id, {
+      expected_turn_id: "turn-active",
+      idempotency_key: "idem-steer-001",
+      message_id: "message-steer-001",
+      text: input.text,
+    });
+
+    await expectFetchRequest({
+      body: {
+        expected_turn_id: "turn-active",
+        idempotency_key: "idem-steer-001",
+        message_id: "message-steer-001",
+        text: input.text,
+      },
+      method: "POST",
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/prompt/queue/input-001/steer",
+    });
+
+    mockJsonResponse({
+      prompt: {
+        delivery: "none",
+        idempotency_key: "",
+        message_id: "",
+        replayed: false,
+        status: "canceled",
+      },
+    });
+    await cancelQueuedSessionPrompt(WORKSPACE_ID, "sess-001", input.id);
+
+    await expectFetchRequest({
+      callIndex: 1,
+      method: "DELETE",
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/prompt/queue/input-001",
     });
   });
 });

@@ -13,7 +13,6 @@ import (
 
 const (
 	sessionUpdateConfigOption = "config_option_update"
-	steerDispatchTimeout      = 10 * time.Second
 )
 
 type wireSessionNotification struct {

@@ -208,6 +208,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/health",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/history",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/inspect",
+		"GET /api/workspaces/:workspace_id/sessions/:session_id/prompt/queue",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/recap",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/usage",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/status",
@@ -383,8 +384,8 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/clear",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/prompt",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/prompt/cancel",
-		"POST /api/workspaces/:workspace_id/sessions/:session_id/interrupt",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/steer",
+		"POST /api/workspaces/:workspace_id/sessions/:session_id/prompt/queue/:queue_entry_id/steer",
 		"DELETE /api/workspaces/:workspace_id/sessions/:session_id/prompt/queue/:queue_entry_id",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/repair",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/attach",
@@ -450,6 +451,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"PUT /api/workspaces/:workspace_id/network/channels/:channel/subscriptions",
 		"PUT /api/tasks/:id/execution-profile",
 		"PUT /api/vault/secrets",
+		"PUT /api/workspaces/:workspace_id/sessions/:session_id/prompt/queue/:queue_entry_id",
 		"DELETE /api/workspaces/:workspace_id/loops/:name",
 		"DELETE /api/workspaces/:workspace_id/loops/:name/input-defaults/:key",
 		"DELETE /api/agents/:name",
@@ -2542,7 +2544,7 @@ func TestPromptSessionHandlerReturnsBusyInputDecision(t *testing.T) {
 				return session.SendPromptResult{
 					Status:          "queued",
 					Mode:            session.BusyInputModeQueue,
-					Queued:          true,
+					Delivery:        store.SessionInputDeliveryAfterTurn,
 					QueueEntryID:    "inq-1",
 					QueuePosition:   2,
 					QueueGeneration: 4,
@@ -2580,7 +2582,8 @@ func TestPromptSessionHandlerReturnsBusyInputDecision(t *testing.T) {
 		if err := json.Unmarshal(recorder.Body.Bytes(), &decoded); err != nil {
 			t.Fatalf("json.Unmarshal(prompt result) error = %v; body=%s", err, recorder.Body.String())
 		}
-		if decoded.Prompt.Status != "queued" || decoded.Prompt.QueueEntryID != "inq-1" || !decoded.Prompt.Queued {
+		if decoded.Prompt.Status != "queued" || decoded.Prompt.QueueEntryID != "inq-1" ||
+			decoded.Prompt.Delivery != contract.PromptDeliveryAfterTurn {
 			t.Fatalf("decoded prompt = %#v, want queued inq-1", decoded.Prompt)
 		}
 	})
@@ -2652,7 +2655,7 @@ func TestPromptSessionHandlerReturnsDurableReplayEnvelope(t *testing.T) {
 					MessageID:      opts.MessageID,
 					IdempotencyKey: opts.IdempotencyKey,
 					Replayed:       true,
-					Queued:         true,
+					Delivery:       store.SessionInputDeliveryAfterTurn,
 					QueueEntryID:   "inq-replayed",
 				}, nil
 			},
@@ -2693,10 +2696,10 @@ func TestSteerSessionPromptHandlerPropagatesDurableIdentity(t *testing.T) {
 				}
 				gotOpts = opts
 				return session.SendPromptResult{
-					Status:         "staged",
+					Status:         "steering",
 					MessageID:      opts.MessageID,
 					IdempotencyKey: opts.IdempotencyKey,
-					Staged:         true,
+					Delivery:       store.SessionInputDeliveryInterruptThenPrompt,
 					QueueEntryID:   "inq-steer",
 				}, nil
 			},
@@ -2707,22 +2710,150 @@ func TestSteerSessionPromptHandlerPropagatesDurableIdentity(t *testing.T) {
 			engine,
 			http.MethodPost,
 			"/api/workspaces/ws-workspace/sessions/sess-123/steer",
-			[]byte(`{"text":"focus on the race","message_id":"msg-steer","idempotency_key":"idem-steer"}`),
+			[]byte(`{"text":"focus on the race","message_id":"msg-steer","idempotency_key":"idem-steer","expected_turn_id":"turn-live"}`),
 		)
 		if recorder.Code != http.StatusAccepted {
 			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusAccepted, recorder.Body.String())
 		}
 		if gotOpts.Message != "focus on the race" || gotOpts.MessageID != "msg-steer" ||
-			gotOpts.IdempotencyKey != "idem-steer" {
+			gotOpts.IdempotencyKey != "idem-steer" || gotOpts.ExpectedTurnID != "turn-live" {
 			t.Fatalf("SteerPrompt() opts = %#v, want canonical identity", gotOpts)
 		}
 		var decoded contract.SendPromptResultResponse
 		if err := json.Unmarshal(recorder.Body.Bytes(), &decoded); err != nil {
 			t.Fatalf("json.Unmarshal(steer result) error = %v; body=%s", err, recorder.Body.String())
 		}
-		if !decoded.Prompt.Staged || decoded.Prompt.MessageID != "msg-steer" ||
+		if decoded.Prompt.Status != "steering" ||
+			decoded.Prompt.Delivery != contract.PromptDeliveryInterruptThenPrompt ||
+			decoded.Prompt.MessageID != "msg-steer" ||
 			decoded.Prompt.IdempotencyKey != "idem-steer" || decoded.Prompt.QueueEntryID != "inq-steer" {
 			t.Fatalf("steer response = %#v", decoded.Prompt)
+		}
+	})
+}
+
+func TestSessionInputHandlersExposeAuthoritativeQueueMutations(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 3, 18, 0, 0, 0, time.UTC)
+	pending := session.PendingInput{
+		ID: "inq-1", SessionID: "sess-123", MessageID: "msg-1", IdempotencyKey: "idem-1",
+		Status: store.SessionInputQueueStatusQueued, Mode: session.BusyInputModeQueue,
+		Delivery: store.SessionInputDeliveryAfterTurn, Text: "queued input",
+		QueueGeneration: 4, EnqueuedAt: now,
+	}
+	var replaceOpts session.ReplacePendingInputOpts
+	var promoteOpts session.PromotePendingInputOpts
+	manager := stubSessionManager{
+		ListPendingInputsFn: func(_ context.Context, id string) ([]session.PendingInput, error) {
+			if id != "sess-123" {
+				t.Fatalf("ListPendingInputs() id = %q, want sess-123", id)
+			}
+			return []session.PendingInput{pending}, nil
+		},
+		ReplacePendingInputFn: func(
+			_ context.Context,
+			id string,
+			entryID string,
+			opts session.ReplacePendingInputOpts,
+		) (session.PendingInput, error) {
+			if id != "sess-123" || entryID != "inq-1" {
+				t.Fatalf("ReplacePendingInput() target = %q/%q, want sess-123/inq-1", id, entryID)
+			}
+			replaceOpts = opts
+			replaced := pending
+			replaced.ID = "inq-2"
+			replaced.Text = opts.Text
+			replaced.MessageID = opts.MessageID
+			replaced.IdempotencyKey = opts.IdempotencyKey
+			return replaced, nil
+		},
+		PromotePendingInputFn: func(
+			_ context.Context,
+			id string,
+			entryID string,
+			opts session.PromotePendingInputOpts,
+		) (session.SendPromptResult, error) {
+			if id != "sess-123" || entryID != "inq-1" {
+				t.Fatalf("PromotePendingInputToSteer() target = %q/%q, want sess-123/inq-1", id, entryID)
+			}
+			promoteOpts = opts
+			return session.SendPromptResult{
+				Status: "steering", Mode: session.BusyInputModeSteer,
+				Delivery:  store.SessionInputDeliveryInterruptThenPrompt,
+				MessageID: opts.MessageID, IdempotencyKey: opts.IdempotencyKey, QueueEntryID: "inq-3",
+			}, nil
+		},
+	}
+	engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
+
+	t.Run("Should list current pending input", func(t *testing.T) {
+		recorder := performRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/api/workspaces/ws-workspace/sessions/sess-123/prompt/queue",
+			nil,
+		)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200; body=%s", recorder.Code, recorder.Body.String())
+		}
+		var response contract.SessionInputListResponse
+		if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+			t.Fatalf("json.Unmarshal(list inputs) error = %v", err)
+		}
+		if len(response.Inputs) != 1 || response.Inputs[0].ID != pending.ID ||
+			response.Inputs[0].Delivery != contract.PromptDeliveryAfterTurn {
+			t.Fatalf("inputs = %#v, want authoritative pending input", response.Inputs)
+		}
+	})
+
+	t.Run("Should atomically replace one queued input", func(t *testing.T) {
+		recorder := performRequest(
+			t,
+			engine,
+			http.MethodPut,
+			"/api/workspaces/ws-workspace/sessions/sess-123/prompt/queue/inq-1",
+			[]byte(`{"text":"replacement","message_id":"msg-2","idempotency_key":"idem-2"}`),
+		)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200; body=%s", recorder.Code, recorder.Body.String())
+		}
+		if replaceOpts.Text != "replacement" || replaceOpts.MessageID != "msg-2" ||
+			replaceOpts.IdempotencyKey != "idem-2" {
+			t.Fatalf("ReplacePendingInput() opts = %#v", replaceOpts)
+		}
+		var response contract.SessionInputResponse
+		if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+			t.Fatalf("json.Unmarshal(replace input) error = %v", err)
+		}
+		if response.Input.ID != "inq-2" || response.Input.Text != "replacement" {
+			t.Fatalf("replacement input = %#v", response.Input)
+		}
+	})
+
+	t.Run("Should atomically promote queued input with an expected turn fence", func(t *testing.T) {
+		recorder := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/api/workspaces/ws-workspace/sessions/sess-123/prompt/queue/inq-1/steer",
+			[]byte(`{"text":"steer now","message_id":"msg-3","idempotency_key":"idem-3","expected_turn_id":"turn-live"}`),
+		)
+		if recorder.Code != http.StatusAccepted {
+			t.Fatalf("status = %d, want 202; body=%s", recorder.Code, recorder.Body.String())
+		}
+		if promoteOpts.Text != "steer now" || promoteOpts.ExpectedTurnID != "turn-live" ||
+			promoteOpts.MessageID != "msg-3" || promoteOpts.IdempotencyKey != "idem-3" {
+			t.Fatalf("PromotePendingInputToSteer() opts = %#v", promoteOpts)
+		}
+		var response contract.SendPromptResultResponse
+		if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+			t.Fatalf("json.Unmarshal(promote input) error = %v", err)
+		}
+		if response.Prompt.Status != "steering" ||
+			response.Prompt.Delivery != contract.PromptDeliveryInterruptThenPrompt {
+			t.Fatalf("promote response = %#v", response.Prompt)
 		}
 	})
 }

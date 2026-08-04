@@ -2,7 +2,90 @@
 
 package contracts
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
+
+type ToolResult struct {
+	Content    []ToolContent              `json:"content,omitempty"`
+	Structured json.RawMessage            `json:"structured,omitempty"`
+	Preview    string                     `json:"preview,omitempty"`
+	Artifacts  []ArtifactRef              `json:"artifacts,omitempty"`
+	Metadata   map[string]json.RawMessage `json:"metadata,omitempty"`
+	Redactions []Redaction                `json:"redactions,omitempty"`
+	Truncated  bool                       `json:"truncated"`
+	Bytes      int64                      `json:"bytes"`
+	DurationMS int64                      `json:"duration_ms"`
+}
+
+type ToolResultPatch struct {
+	Deny       bool            `json:"deny,omitempty"`
+	DenyReason string          `json:"deny_reason,omitempty"`
+	Title      *string         `json:"title,omitempty"`
+	ToolResult json.RawMessage `json:"tool_result,omitempty"`
+	Error      *string         `json:"error,omitempty"`
+}
+
+type ToolsetID string
+
+type Trigger struct {
+	ID                   string            `json:"id"`
+	Scope                Scope             `json:"scope"`
+	Name                 string            `json:"name"`
+	TargetKind           TargetKind        `json:"target_kind"`
+	AgentName            string            `json:"agent_name"`
+	WorkspaceID          string            `json:"workspace_id,omitempty"`
+	Prompt               string            `json:"prompt"`
+	Event                string            `json:"event"`
+	Filter               map[string]string `json:"filter,omitempty"`
+	LoopTarget           *LoopTarget       `json:"loop_target,omitempty"`
+	Enabled              bool              `json:"enabled"`
+	Retry                RetryConfig       `json:"retry"`
+	FireLimit            FireLimitConfig   `json:"fire_limit"`
+	Source               JobSource         `json:"source"`
+	WebhookID            string            `json:"webhook_id,omitempty"`
+	EndpointSlug         string            `json:"endpoint_slug,omitempty"`
+	WebhookSecretPresent bool              `json:"webhook_secret_present"`
+	WebhookSecretHash    string            `json:"webhook_secret_hash,omitempty"`
+	CreatedAt            time.Time         `json:"created_at"`
+	UpdatedAt            time.Time         `json:"updated_at"`
+}
+
+type TriggerResult struct {
+	Matched int   `json:"matched"`
+	Runs    []Run `json:"runs,omitempty"`
+}
+
+type TurnContext struct {
+	TurnID string `json:"turn_id,omitempty"`
+}
+
+type TurnEndPatch struct {
+	Deny       bool              `json:"deny,omitempty"`
+	DenyReason string            `json:"deny_reason,omitempty"`
+	Labels     map[string]string `json:"labels,omitempty"`
+}
+
+type TurnEndPayload struct {
+	Event          HookEvent `json:"event"`
+	Timestamp      time.Time `json:"timestamp"`
+	SessionID      string    `json:"session_id,omitempty"`
+	SessionName    string    `json:"session_name,omitempty"`
+	SessionType    string    `json:"session_type,omitempty"`
+	AgentName      string    `json:"agent_name,omitempty"`
+	WorkspaceID    string    `json:"workspace_id,omitempty"`
+	Workspace      string    `json:"workspace,omitempty"`
+	ACPSessionID   string    `json:"acp_session_id,omitempty"`
+	State          string    `json:"state,omitempty"`
+	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string    `json:"soul_digest,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+	TurnID         string    `json:"turn_id,omitempty"`
+	InputClass     string    `json:"input_class,omitempty"`
+	UserMessage    string    `json:"user_message,omitempty"`
+}
 
 type TurnPatch struct {
 	Deny       bool              `json:"deny,omitempty"`
@@ -151,28 +234,6 @@ type WindowManagerStackUngroupedPayload struct {
 }
 
 type WindowManagerWindowClosedPayload struct {
-	Event       HookEvent            `json:"event"`
-	Timestamp   time.Time            `json:"timestamp"`
-	WorkspaceID string               `json:"workspace_id"`
-	Revision    uint64               `json:"revision"`
-	CommandID   string               `json:"command_id"`
-	Changes     WindowManagerChanges `json:"changes"`
-	Actor       WindowManagerActor   `json:"actor"`
-	Origin      string               `json:"origin,omitempty"`
-}
-
-type WindowManagerWindowMovedPayload struct {
-	Event       HookEvent            `json:"event"`
-	Timestamp   time.Time            `json:"timestamp"`
-	WorkspaceID string               `json:"workspace_id"`
-	Revision    uint64               `json:"revision"`
-	CommandID   string               `json:"command_id"`
-	Changes     WindowManagerChanges `json:"changes"`
-	Actor       WindowManagerActor   `json:"actor"`
-	Origin      string               `json:"origin,omitempty"`
-}
-
-type WindowManagerWindowOpenedPayload struct {
 	Event       HookEvent            `json:"event"`
 	Timestamp   time.Time            `json:"timestamp"`
 	WorkspaceID string               `json:"workspace_id"`

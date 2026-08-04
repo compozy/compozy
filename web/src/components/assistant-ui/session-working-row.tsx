@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
 import { TypingDots } from "@compozy/ui";
-import { usePrefersReducedMotion } from "./hooks/use-prefers-reduced-motion";
 import { formatWorkingElapsed } from "./session-working-row.logic";
 import type { SessionWorkingRow } from "./session-timeline.logic";
 
@@ -71,6 +70,8 @@ export function WorkingIndicator({
 }
 
 export function SessionWorkingRowView({ row }: { row: SessionWorkingRow }) {
-  const reducedMotion = usePrefersReducedMotion();
-  return <WorkingIndicator startedAt={row.startedAt} reducedMotion={reducedMotion} />;
+  // Timeline working rows still keep live turns from being folded. The visible
+  // status is intentionally rendered once in SessionThread above the composer.
+  void row;
+  return null;
 }

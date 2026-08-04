@@ -13,6 +13,21 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
+// ReplaySessionPromptAdmission returns an exact prior receipt without claiming a new identity.
+func (g *SessionRepo) ReplaySessionPromptAdmission(
+	ctx context.Context,
+	req store.SessionPromptAdmissionRequest,
+) (store.SessionPromptAdmission, bool, error) {
+	if err := g.checkReady(ctx, "replay session prompt admission"); err != nil {
+		return store.SessionPromptAdmission{}, false, err
+	}
+	req = req.Normalize()
+	if err := req.Validate(); err != nil {
+		return store.SessionPromptAdmission{}, false, err
+	}
+	return findPromptAdmissionReplay(ctx, g.db, req)
+}
+
 // ClaimSessionPromptAdmission reserves one exact external prompt command.
 func (g *SessionRepo) ClaimSessionPromptAdmission(
 	ctx context.Context,
@@ -121,7 +136,7 @@ func (g *SessionRepo) CompleteSessionPromptAdmission(
 	return admission, nil
 }
 
-// MarkSessionPromptAdmissionIndeterminate permanently fences an uncertain external effect.
+// MarkSessionPromptAdmissionIndeterminate permanently fences an uncertain post-admission effect.
 func (g *SessionRepo) MarkSessionPromptAdmissionIndeterminate(
 	ctx context.Context,
 	workspaceID string,
@@ -157,6 +172,7 @@ func (g *SessionRepo) MarkSessionPromptAdmissionIndeterminate(
 					IndeterminateReason: reason, UpdatedAt: store.FormatTimestamp(now),
 					WorkspaceID: workspaceID, SessionID: sessionID, IdempotencyKey: idempotencyKey,
 					DispatchCommittedState: store.SessionPromptAdmissionDispatchCommitted,
+					CompletedState:         store.SessionPromptAdmissionCompleted,
 				},
 			)
 			if markErr != nil {

@@ -120,6 +120,13 @@ func (h *HostAPIHandler) handleSessionsPrompt(ctx context.Context, raw json.RawM
 	if strings.TrimSpace(params.IdempotencyKey) == "" {
 		return nil, invalidParamsRPCError(errors.New("idempotency_key is required"))
 	}
+	mode := session.BusyInputMode(strings.TrimSpace(string(params.Mode)))
+	if (mode == session.BusyInputModeSteer || mode == session.BusyInputModeInterrupt) &&
+		strings.TrimSpace(params.ExpectedTurnID) == "" {
+		return nil, invalidParamsRPCError(
+			errors.New("expected_turn_id is required for steer and interrupt mode"),
+		)
+	}
 	if _, err := h.requireHostAPISessionWorkspace(ctx, params.WorkspaceID, params.SessionID); err != nil {
 		return nil, err
 	}
@@ -127,16 +134,177 @@ func (h *HostAPIHandler) handleSessionsPrompt(ctx context.Context, raw json.RawM
 	submission, err := h.submitPrompt(
 		ctx,
 		params.SessionID,
-		params.Message,
-		params.MessageID,
-		params.IdempotencyKey,
-		hostAPIPromptRuntimeSelection(params.Runtime),
+		hostAPIPromptRequest{
+			Message:        params.Message,
+			MessageID:      params.MessageID,
+			IdempotencyKey: params.IdempotencyKey,
+			Mode:           mode,
+			ExpectedTurnID: params.ExpectedTurnID,
+			Runtime:        hostAPIPromptRuntimeSelection(params.Runtime),
+		},
 	)
 	if err != nil {
 		return nil, err
 	}
 
 	return hostAPISessionPromptResultFromSubmission(submission), nil
+}
+
+func (h *HostAPIHandler) handleSessionsInputsList(ctx context.Context, raw json.RawMessage) (any, error) {
+	var params hostAPISessionInputsListParams
+	if err := decodeHostAPIParams(raw, &params); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(params.SessionID) == "" {
+		return nil, invalidParamsRPCError(errors.New("session_id is required"))
+	}
+	if _, err := h.requireHostAPISessionWorkspace(ctx, params.WorkspaceID, params.SessionID); err != nil {
+		return nil, err
+	}
+	manager, err := h.pendingInputManager()
+	if err != nil {
+		return nil, err
+	}
+	inputs, err := manager.ListPendingInputs(ctx, params.SessionID)
+	if err != nil {
+		return nil, err
+	}
+	result := hostAPISessionInputListResult{Inputs: make([]hostAPISessionInput, 0, len(inputs))}
+	for _, input := range inputs {
+		result.Inputs = append(result.Inputs, hostAPISessionInputFromPending(input))
+	}
+	return result, nil
+}
+
+func (h *HostAPIHandler) handleSessionsInputsReplace(ctx context.Context, raw json.RawMessage) (any, error) {
+	var params hostAPISessionInputReplaceParams
+	if err := decodeHostAPIParams(raw, &params); err != nil {
+		return nil, err
+	}
+	if err := validateHostAPISessionInputTarget(params.WorkspaceID, params.SessionID, params.QueueEntryID); err != nil {
+		return nil, err
+	}
+	request := apicontract.ReplaceSessionInputRequest{
+		Text: params.Text, MessageID: params.MessageID, IdempotencyKey: params.IdempotencyKey,
+	}
+	if err := request.Validate(); err != nil {
+		return nil, invalidParamsRPCError(err)
+	}
+	if _, err := h.requireHostAPISessionWorkspace(ctx, params.WorkspaceID, params.SessionID); err != nil {
+		return nil, err
+	}
+	manager, err := h.pendingInputManager()
+	if err != nil {
+		return nil, err
+	}
+	input, err := manager.ReplacePendingInput(ctx, params.SessionID, params.QueueEntryID, session.ReplacePendingInputOpts{
+		Text: request.Text, MessageID: request.MessageID, IdempotencyKey: request.IdempotencyKey,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return hostAPISessionInputResult{Input: hostAPISessionInputFromPending(input)}, nil
+}
+
+func (h *HostAPIHandler) handleSessionsInputsCancel(ctx context.Context, raw json.RawMessage) (any, error) {
+	var params hostAPISessionInputTargetParams
+	if err := decodeHostAPIParams(raw, &params); err != nil {
+		return nil, err
+	}
+	if err := validateHostAPISessionInputTarget(params.WorkspaceID, params.SessionID, params.QueueEntryID); err != nil {
+		return nil, err
+	}
+	if _, err := h.requireHostAPISessionWorkspace(ctx, params.WorkspaceID, params.SessionID); err != nil {
+		return nil, err
+	}
+	manager, err := h.pendingInputManager()
+	if err != nil {
+		return nil, err
+	}
+	result, err := manager.CancelQueuedPrompt(ctx, params.SessionID, params.QueueEntryID)
+	if err != nil {
+		return nil, err
+	}
+	return hostAPISessionPromptResultFromAdmission(result), nil
+}
+
+func (h *HostAPIHandler) handleSessionsInputsPromote(ctx context.Context, raw json.RawMessage) (any, error) {
+	var params hostAPISessionInputPromoteParams
+	if err := decodeHostAPIParams(raw, &params); err != nil {
+		return nil, err
+	}
+	if err := validateHostAPISessionInputTarget(params.WorkspaceID, params.SessionID, params.QueueEntryID); err != nil {
+		return nil, err
+	}
+	request := apicontract.PromoteSessionInputRequest{
+		Text: params.Text, MessageID: params.MessageID, IdempotencyKey: params.IdempotencyKey,
+		ExpectedTurnID: params.ExpectedTurnID,
+	}
+	if err := request.Validate(); err != nil {
+		return nil, invalidParamsRPCError(err)
+	}
+	if _, err := h.requireHostAPISessionWorkspace(ctx, params.WorkspaceID, params.SessionID); err != nil {
+		return nil, err
+	}
+	manager, err := h.pendingInputManager()
+	if err != nil {
+		return nil, err
+	}
+	result, err := manager.PromotePendingInputToSteer(
+		ctx,
+		params.SessionID,
+		params.QueueEntryID,
+		session.PromotePendingInputOpts{
+			Text: request.Text, MessageID: request.MessageID, IdempotencyKey: request.IdempotencyKey,
+			ExpectedTurnID: request.ExpectedTurnID,
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	return hostAPISessionPromptResultFromAdmission(result), nil
+}
+
+func validateHostAPISessionInputTarget(workspaceID string, sessionID string, queueEntryID string) error {
+	if strings.TrimSpace(workspaceID) == "" {
+		return invalidParamsRPCError(errors.New("workspace_id is required"))
+	}
+	if strings.TrimSpace(sessionID) == "" {
+		return invalidParamsRPCError(errors.New("session_id is required"))
+	}
+	if strings.TrimSpace(queueEntryID) == "" {
+		return invalidParamsRPCError(errors.New("queue_entry_id is required"))
+	}
+	return nil
+}
+
+func (h *HostAPIHandler) pendingInputManager() (hostAPIPendingInputSessionManager, error) {
+	if h == nil || h.sessions == nil {
+		return nil, errors.New("extension: session manager is not configured")
+	}
+	manager, ok := h.sessions.(hostAPIPendingInputSessionManager)
+	if !ok {
+		return nil, errors.New("extension: session manager does not support durable pending input")
+	}
+	return manager, nil
+}
+
+func hostAPISessionInputFromPending(input session.PendingInput) hostAPISessionInput {
+	result := hostAPISessionInput{
+		ID:              input.ID,
+		SessionID:       input.SessionID,
+		MessageID:       input.MessageID,
+		IdempotencyKey:  input.IdempotencyKey,
+		TargetTurnID:    input.TargetTurnID,
+		Status:          input.Status,
+		Mode:            apicontract.PromptMode(input.Mode),
+		Delivery:        apicontract.PromptDelivery(input.Delivery),
+		Text:            input.Text,
+		QueueGeneration: input.QueueGeneration,
+		EnqueuedAt:      input.EnqueuedAt,
+	}
+	result.Runtime = apicontract.PromptRuntimeSelectionPayloadFromSelection(input.Runtime)
+	return result
 }
 
 func hostAPIPromptRuntimeSelection(
@@ -155,27 +323,30 @@ func hostAPISessionPromptResultFromSubmission(
 	}
 
 	result := hostAPISessionPromptResult{
-		Status:                     strings.TrimSpace(admission.Status),
-		Mode:                       admission.Mode,
-		MessageID:                  admission.MessageID,
-		IdempotencyKey:             admission.IdempotencyKey,
-		Replayed:                   admission.Replayed,
-		TurnID:                     turnID,
-		QueueEntryID:               strings.TrimSpace(admission.QueueEntryID),
-		QueuePosition:              admission.QueuePosition,
-		QueueGeneration:            admission.QueueGeneration,
-		PreviousTurnID:             strings.TrimSpace(admission.PreviousTurnID),
-		Interrupted:                admission.Interrupted,
-		Staged:                     admission.Staged,
-		Queued:                     admission.Queued,
-		CanceledQueuedEntries:      admission.CanceledQueuedEntries,
-		FallbackModeIfNoToolResult: strings.TrimSpace(admission.FallbackModeIfNoToolResult),
+		Status:                strings.TrimSpace(admission.Status),
+		Mode:                  apicontract.PromptMode(admission.Mode),
+		Delivery:              apicontract.PromptDelivery(admission.Delivery),
+		MessageID:             admission.MessageID,
+		IdempotencyKey:        admission.IdempotencyKey,
+		Replayed:              admission.Replayed,
+		TurnID:                turnID,
+		QueueEntryID:          strings.TrimSpace(admission.QueueEntryID),
+		QueuePosition:         admission.QueuePosition,
+		QueueGeneration:       admission.QueueGeneration,
+		PreviousTurnID:        strings.TrimSpace(admission.PreviousTurnID),
+		CanceledQueuedEntries: admission.CanceledQueuedEntries,
 	}
 	if admission.EstimatedSendAt != nil {
 		estimated := admission.EstimatedSendAt.UTC()
 		result.EstimatedSendAt = &estimated
 	}
 	return result
+}
+
+func hostAPISessionPromptResultFromAdmission(
+	admission session.SendPromptResult,
+) hostAPISessionPromptResult {
+	return hostAPISessionPromptResultFromSubmission(hostAPIPromptSubmission{Admission: admission})
 }
 
 func (h *HostAPIHandler) handleSessionsStop(ctx context.Context, raw json.RawMessage) (any, error) {

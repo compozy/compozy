@@ -62,6 +62,5 @@ func (p *AgentProcess) handleSessionUpdateWithContext(ctx context.Context, param
 	}
 	event = p.markToolEventPrechecked(event)
 	p.emitPromptEvent(event)
-	p.injectSteerAfterToolResult(ctx, event)
 	return nil
 }

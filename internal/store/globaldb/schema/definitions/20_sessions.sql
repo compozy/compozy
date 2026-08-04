@@ -56,9 +56,12 @@ CREATE TABLE session_health (
 			message_id TEXT NOT NULL DEFAULT '',
 			idempotency_key TEXT NOT NULL DEFAULT '',
 			turn_id TEXT NOT NULL DEFAULT '',
+			target_turn_id TEXT NOT NULL DEFAULT '',
 			event_id TEXT NOT NULL DEFAULT '',
 			status TEXT NOT NULL CHECK (status IN ('queued', 'dispatching', 'sent', 'failed', 'canceled')),
-			mode TEXT NOT NULL CHECK (mode IN ('queue', 'steer')),
+			mode TEXT NOT NULL CHECK (mode IN ('queue', 'steer', 'interrupt')),
+			delivery TEXT NOT NULL DEFAULT 'after_turn'
+				CHECK (delivery IN ('after_turn', 'interrupt_then_prompt')),
 			text TEXT NOT NULL,
 			runtime_provider TEXT NOT NULL DEFAULT '',
 			runtime_model TEXT NOT NULL DEFAULT '',
@@ -177,7 +180,7 @@ CREATE INDEX idx_session_input_queue_goal_owner
 			ON session_input_queue(loop_run_id, task_run_id, owner_epoch, status, dispatchable, fence_kind);
 
 	CREATE INDEX idx_session_input_queue_pending
-			ON session_input_queue(session_id, status, enqueued_at, id);
+			ON session_input_queue(session_id, status, delivery DESC, enqueued_at ASC, id ASC);
 
 	CREATE UNIQUE INDEX uq_session_input_queue_prompt_admission
 			ON session_input_queue(prompt_admission_id)

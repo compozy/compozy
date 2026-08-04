@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import type { AgentEventPayload, RuntimeActivityPayload } from "../../types";
 import {
+  isOperationalStatusEvent,
   isSessionErrorEvent,
   isRuntimeActivityEvent,
   isTranscriptMarkerEvent,
@@ -51,6 +52,19 @@ describe("RuntimeActivityNotice", () => {
     expect(isTranscriptMarkerEvent({ type: "runtime_warning" })).toBe(false);
   });
 
+  it("recognizes prompt lifecycle events as operational status", () => {
+    for (const type of [
+      "prompt_queued",
+      "prompt_steered",
+      "prompt_accepted",
+      "prompt_dropped",
+      "canceled",
+    ]) {
+      expect(isOperationalStatusEvent({ type })).toBe(true);
+    }
+    expect(isOperationalStatusEvent({ type: "runtime_warning" })).toBe(false);
+  });
+
   it("renders progress as a quiet neutral marker line", () => {
     const event: AgentEventPayload = {
       type: "runtime_progress",
@@ -87,6 +101,38 @@ describe("RuntimeActivityNotice", () => {
     expect(screen.getByTestId("runtime-activity-detail")).toHaveTextContent(
       "no provider activity observed"
     );
+  });
+
+  it("suppresses prompt lifecycle acknowledgements already represented by input state", () => {
+    const { container } = render(
+      <RuntimeActivityNotice event={{ type: "prompt_queued", text: "Prompt queued" }} />
+    );
+
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it.each([
+    "prompt_queued",
+    "prompt_steered",
+    "prompt_accepted",
+    "prompt_interrupted",
+    "prompt_dropped",
+    "prompt_cancel",
+  ])("suppresses %s acknowledgement markers represented by input state", markerKind => {
+    const { container } = render(
+      <RuntimeActivityNotice
+        event={{
+          type: "transcript_marker.created",
+          marker: {
+            kind: `transcript_marker.${markerKind}`,
+            summary: "Prompt lifecycle acknowledgement.",
+            occurred_at: "2026-08-03T18:00:00Z",
+          },
+        }}
+      />
+    );
+
+    expect(container).toBeEmptyDOMElement();
   });
 
   it("renders session errors with alert semantics and failure detail", () => {

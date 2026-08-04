@@ -38,6 +38,10 @@ export async function invalidateSessionLiveQueries(
       queryKey: sessionKeys.history(workspaceId, sessionId),
       exact: true,
     }),
+    queryClient.invalidateQueries({
+      queryKey: sessionKeys.inputQueue(workspaceId, sessionId),
+      exact: true,
+    }),
     invalidateWorkspaceSessionCatalog(queryClient, workspaceId),
   ]);
 }

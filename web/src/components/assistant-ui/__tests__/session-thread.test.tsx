@@ -136,6 +136,7 @@ function renderThreadState({
   error = null,
   retry = vi.fn(),
   isSessionRunning = false,
+  workingStartedAt,
   acpSessionId,
   sessionState,
   failure = null,
@@ -145,6 +146,7 @@ function renderThreadState({
   error?: Error | null;
   retry?: () => void;
   isSessionRunning?: boolean;
+  workingStartedAt?: number;
   acpSessionId?: string;
   sessionState?: SessionState;
   failure?: SessionFailurePayload | null;
@@ -169,6 +171,7 @@ function renderThreadState({
             canPrompt
             onCancelPrompt={() => {}}
             isSessionRunning={isSessionRunning}
+            workingStartedAt={workingStartedAt}
             acpSessionId={acpSessionId}
             sessionState={sessionState}
             failure={failure}
@@ -1062,10 +1065,9 @@ describe("SessionThread transcript states", () => {
     }
   });
 
-  it("Should render the working row with stepped dots and a live timer while a turn streams, and drop it once settled", async () => {
-    // A streaming reasoning part marks the live turn; the settled turn carries only
-    // a done text part. The working row must appear once (live turn), never on the
-    // settled turn, and it must be the stepped 4px dots + timer, not the old spinner.
+  it("Should render one working row between the transcript and composer while a turn streams", async () => {
+    // The active turn retains its timeline shape for folding, but the active work
+    // status is a single composer-adjacent row rather than a duplicate in history.
     const startedAtIso = new Date(Date.now() - 5000).toISOString();
     const transcript = [
       {
@@ -1096,11 +1098,16 @@ describe("SessionThread transcript states", () => {
       } as SessionMessage,
     ];
 
-    renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
+    renderThreadState({
+      status: "success",
+      messages: toReadonlyThreadMessages(transcript),
+      isSessionRunning: true,
+      workingStartedAt: Date.parse(startedAtIso),
+    });
 
     const workingRow = await screen.findByTestId("session-working-row");
-    // Only the streaming turn carries the indicator; the settled turn drops it.
     expect(screen.getAllByTestId("session-working-row")).toHaveLength(1);
+    expect(screen.getByTestId("chat-view")).not.toContainElement(workingRow);
     // Three stepped 4px dots on the duty cycle; the old spinner row is gone.
     expect(workingRow.querySelector('[data-slot="typing-dots"]')?.children).toHaveLength(3);
     expect(workingRow.querySelector(".animate-spin")).toBeNull();
@@ -1141,7 +1148,12 @@ describe("SessionThread transcript states", () => {
         } as SessionMessage,
       ];
 
-      renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
+      renderThreadState({
+        status: "success",
+        messages: toReadonlyThreadMessages(transcript),
+        isSessionRunning: true,
+        workingStartedAt: Date.parse("2026-07-07T12:00:00Z"),
+      });
 
       const workingRow = await screen.findByTestId("session-working-row");
       expect(workingRow).toHaveTextContent(/Working for/);
@@ -1457,6 +1469,23 @@ describe("SessionThread composer running semantics", () => {
     expect((textarea as HTMLTextAreaElement).value).toBe("queue this follow-up");
   });
 
+  it("Should catch a synchronous queue failure and preserve the draft", async () => {
+    const user = userEvent.setup();
+    const onQueuePrompt = vi.fn(() => {
+      throw new Error("queue failed synchronously");
+    });
+    renderComposer({ isSessionRunning: true, allowBusyInput: true, onQueuePrompt });
+
+    const textarea = await screen.findByTestId("composer-textarea");
+    await user.type(textarea, "queue this follow-up");
+    await user.click(screen.getByTestId("composer-queue-button"));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("queue failed synchronously");
+    });
+    expect((textarea as HTMLTextAreaElement).value).toBe("queue this follow-up");
+  });
+
   it("Should steer the current draft while running and clear it after success", async () => {
     const user = userEvent.setup();
     const onSteerPrompt = vi.fn(() => Promise.resolve());
@@ -1470,6 +1499,23 @@ describe("SessionThread composer running semantics", () => {
       expect(onSteerPrompt).toHaveBeenCalledWith("steer with this constraint");
       expect(textarea).toHaveValue("");
     });
+  });
+
+  it("Should keep queue available but fence steer and interrupt until the active turn id arrives", async () => {
+    const user = userEvent.setup();
+    renderComposer({
+      busyInputFenceAvailable: false,
+      isSessionRunning: true,
+      onInterruptPrompt: vi.fn(),
+      onQueuePrompt: vi.fn(),
+      onSteerPrompt: vi.fn(),
+    });
+
+    await user.type(await screen.findByTestId("composer-textarea"), "wait for the turn fence");
+
+    expect(screen.getByTestId("composer-queue-button")).toBeEnabled();
+    expect(screen.getByTestId("composer-steer-button")).toBeDisabled();
+    expect(screen.getByTestId("composer-interrupt-button")).toBeDisabled();
   });
 
   it("Should silently preserve the draft when the queue owner is replaced", async () => {
@@ -1510,12 +1556,14 @@ describe("SessionThread composer running semantics", () => {
     const user = userEvent.setup();
     const onSteerQueuedPrompt = vi.fn();
     const onRemoveQueuedPrompt = vi.fn();
+    const onReplaceQueuedPrompt = vi.fn().mockResolvedValue(undefined);
     renderComposer({
       isSessionRunning: true,
       allowBusyInput: true,
       onQueuePrompt: vi.fn(() => Promise.resolve()),
       onSteerQueuedPrompt,
       onRemoveQueuedPrompt,
+      onReplaceQueuedPrompt,
       queuedPrompts: [
         { id: "inq-1", text: "Add a regression test." },
         { id: "inq-2", text: "Then update the docs." },
@@ -1535,13 +1583,70 @@ describe("SessionThread composer running semantics", () => {
     await user.click(within(rows[1]).getByTestId("composer-queued-remove"));
     expect(onRemoveQueuedPrompt).toHaveBeenCalledWith("inq-2");
 
-    // Edit moves the queued text back into the composer and drops the queued entry.
+    // Edit keeps the durable row until one atomic replacement acknowledgement succeeds.
     await user.click(within(rows[0]).getByTestId("composer-queued-edit"));
     const textarea = screen.getByTestId("composer-textarea") as HTMLTextAreaElement;
     await waitFor(() => {
       expect(textarea.value).toBe("Add a regression test.");
     });
-    expect(onRemoveQueuedPrompt).toHaveBeenCalledWith("inq-1");
+    expect(onRemoveQueuedPrompt).not.toHaveBeenCalledWith("inq-1");
+    await user.click(screen.getByTestId("composer-queue-button"));
+    await waitFor(() =>
+      expect(onReplaceQueuedPrompt).toHaveBeenCalledWith(
+        { id: "inq-1", text: "Add a regression test." },
+        "Add a regression test."
+      )
+    );
+  });
+
+  it("Should not queue a second entry when the queued-edit handler disappears", async () => {
+    const user = userEvent.setup();
+    const onQueuePrompt = vi.fn(() => Promise.resolve());
+    const onReplaceQueuedPrompt = vi.fn().mockResolvedValue(undefined);
+    const queuedPrompts = [{ id: "inq-1", text: "Edit this queued prompt." }];
+    const { rerender } = renderComposerRerenderable({
+      allowBusyInput: true,
+      isSessionRunning: true,
+      onQueuePrompt,
+      onReplaceQueuedPrompt,
+      onRemoveQueuedPrompt: vi.fn(),
+      onSteerQueuedPrompt: vi.fn(),
+      queuedPrompts,
+    });
+
+    const row = await screen.findByTestId("composer-queued-prompt-row");
+    await user.click(within(row).getByTestId("composer-queued-edit"));
+    rerender({
+      allowBusyInput: true,
+      isSessionRunning: true,
+      onQueuePrompt,
+      onRemoveQueuedPrompt: vi.fn(),
+      onSteerQueuedPrompt: vi.fn(),
+      queuedPrompts,
+    });
+    await user.click(screen.getByTestId("composer-queue-button"));
+
+    expect(onQueuePrompt).not.toHaveBeenCalled();
+    expect(onReplaceQueuedPrompt).not.toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalledWith("Couldn't update queued prompt.");
+  });
+
+  it("Should disable queued steer when the active-turn fence is unavailable", async () => {
+    renderComposer({
+      allowBusyInput: true,
+      busyInputFenceAvailable: false,
+      isSessionRunning: true,
+      onQueuePrompt: vi.fn(),
+      onRemoveQueuedPrompt: vi.fn(),
+      onReplaceQueuedPrompt: vi.fn().mockResolvedValue(undefined),
+      onSteerQueuedPrompt: vi.fn(),
+      queuedPrompts: [{ id: "inq-1", text: "Wait for a turn fence." }],
+    });
+
+    const row = await screen.findByTestId("composer-queued-prompt-row");
+    expect(within(row).getByTestId("composer-queued-steer")).toBeDisabled();
+    expect(within(row).getByTestId("composer-queued-edit")).toBeEnabled();
+    expect(within(row).getByTestId("composer-queued-remove")).toBeEnabled();
   });
 
   it("Should not overwrite an existing draft when editing a queued prompt", async () => {
@@ -1551,6 +1656,7 @@ describe("SessionThread composer running semantics", () => {
       isSessionRunning: true,
       allowBusyInput: true,
       onQueuePrompt: vi.fn(() => Promise.resolve()),
+      onReplaceQueuedPrompt: vi.fn().mockResolvedValue(undefined),
       onSteerQueuedPrompt: vi.fn(),
       onRemoveQueuedPrompt,
       queuedPrompts: [{ id: "inq-1", text: "Queued prompt text." }],
@@ -1566,6 +1672,23 @@ describe("SessionThread composer running semantics", () => {
     expect(toast.warning).toHaveBeenCalledWith(
       "Send or clear the current draft before editing a queued prompt."
     );
+  });
+
+  it("Should render dispatching input as immutable while the daemon owns delivery", async () => {
+    renderComposer({
+      isSessionRunning: true,
+      onQueuePrompt: vi.fn(),
+      onSteerQueuedPrompt: vi.fn(),
+      onRemoveQueuedPrompt: vi.fn(),
+      queuedPrompts: [
+        { id: "inq-dispatching", status: "dispatching", text: "Already leaving the queue." },
+      ],
+    });
+
+    const row = await screen.findByTestId("composer-queued-prompt-row");
+    expect(within(row).getByTestId("composer-queued-steer")).toBeDisabled();
+    expect(within(row).getByTestId("composer-queued-edit")).toBeDisabled();
+    expect(within(row).getByTestId("composer-queued-remove")).toBeDisabled();
   });
 });
 

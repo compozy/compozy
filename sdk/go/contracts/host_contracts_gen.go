@@ -13,6 +13,10 @@ var HostAPISessionsListContract = HostAPIMethodContract[SessionsListParams, []Se
 }
 var HostAPISessionsCreateContract = HostAPIMethodContract[SessionsCreateParams, SessionCreateResult]{Method: HostAPIMethodSessionsCreate}
 var HostAPISessionsPromptContract = HostAPIMethodContract[SessionsPromptParams, SessionPromptResult]{Method: HostAPIMethodSessionsPrompt}
+var HostAPISessionsInputsListContract = HostAPIMethodContract[SessionInputsListParams, SessionInputListResult]{Method: HostAPIMethodSessionsInputsList}
+var HostAPISessionsInputsReplaceContract = HostAPIMethodContract[SessionInputReplaceParams, SessionInputResult]{Method: HostAPIMethodSessionsInputsReplace}
+var HostAPISessionsInputsCancelContract = HostAPIMethodContract[SessionInputTargetParams, SessionPromptResult]{Method: HostAPIMethodSessionsInputsCancel}
+var HostAPISessionsInputsPromoteContract = HostAPIMethodContract[SessionInputPromoteParams, SessionPromptResult]{Method: HostAPIMethodSessionsInputsPromote}
 var HostAPISessionsStopContract = HostAPIMethodContract[SessionTargetParams, EmptyResult]{Method: HostAPIMethodSessionsStop}
 var HostAPISessionsStatusContract = HostAPIMethodContract[SessionTargetParams, SessionStatus]{Method: HostAPIMethodSessionsStatus}
 var HostAPISessionsEventsContract = HostAPIMethodContract[SessionEventsParams, []SessionEvent]{Method: HostAPIMethodSessionsEvents}

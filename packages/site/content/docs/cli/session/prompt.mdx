@@ -24,21 +24,25 @@ compozy session prompt <id> <message> [flags]
   # Queue input while the session is busy
   compozy session prompt sess_1234 "Run the next check." --queue
 
-  # Steer the current turn after the next tool result
-  compozy session prompt sess_1234 "Prefer the smaller patch." --steer
+  # Replace the fenced active turn with steering guidance
+  compozy session prompt sess_1234 "Prefer the smaller patch." --steer --expected-turn-id turn_1234
+
+  # Interrupt the fenced active turn before sending a replacement
+  compozy session prompt sess_1234 "Use this direction instead." --interrupt --expected-turn-id turn_1234
+
+  # Manage an already queued input
+  compozy session input list sess_1234
+  compozy session input cancel sess_1234 queue_entry_1234
 
   # Retry the same submission with its original identities
   compozy session prompt sess_1234 "Run the next check." \
     --message-id msg_1234 --idempotency-key idem_1234
-
-  # Cancel queued input by entry id
-  compozy session prompt sess_1234 --cancel queue_entry_1234
 ```
 
 ### Options
 
 ```
-      --cancel string             Cancel a queued prompt entry by id
+      --expected-turn-id string   Active turn id that this steer or interrupt request must match
   -h, --help                      help for prompt
       --idempotency-key string    Stable command idempotency key for an explicit retry
       --interrupt                 Interrupt the active turn before sending this prompt
@@ -48,7 +52,7 @@ compozy session prompt <id> <message> [flags]
       --queue                     Queue the prompt if the session is busy
       --reasoning-effort string   Runtime reasoning effort for this prompt (none|minimal|low|medium|high|xhigh|max)
       --speed string              Runtime speed for this prompt (normal|fast)
-      --steer                     Stage steering guidance for the active turn
+      --steer                     Replace the fenced active turn with steering guidance
 ```
 
 ### Options inherited from parent commands

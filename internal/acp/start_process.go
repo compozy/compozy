@@ -118,7 +118,6 @@ func (d *Driver) newAgentProcess(
 		systemPrompt:         normalized.SystemPrompt,
 		systemPromptDelivery: normalized.SystemPromptDelivery,
 		promptCacheControl:   promptCacheControlForStartOpts(normalized),
-		steerSource:          d.steerSource,
 	}
 }
 

@@ -21,6 +21,10 @@ var sessionTools = []toolspkg.Descriptor{
 	sessionListDescriptor(),
 	sessionCreateDescriptor(),
 	sessionPromptDescriptor(),
+	sessionInputsListDescriptor(),
+	sessionInputReplaceDescriptor(),
+	sessionInputCancelDescriptor(),
+	sessionInputPromoteDescriptor(),
 	nativeDescriptor(
 		toolspkg.ToolIDSessionStatus,
 		"session_status",
@@ -128,15 +132,91 @@ func sessionPromptDescriptor() toolspkg.Descriptor {
 		toolspkg.ToolIDSessionPrompt,
 		"session_prompt",
 		"Session Prompt",
-		"Send a prompt to a session, optionally selecting the runtime for that prompt.",
+		"Send a prompt to a session. While it is busy, choose queue, interrupt, or steer; steering uses the expected active turn.",
 		sessionPromptInputSchema,
 		toolspkg.RiskMutating,
 		false,
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDSessions},
-		[]string{sessionsSessionsKey, "prompt", "runtime"},
-		[]string{"session prompt", "select runtime", "switch model"},
+		[]string{sessionsSessionsKey, "prompt", "runtime", "queue", "steer", "interrupt"},
+		[]string{"session prompt", "queue input", "steer active turn", "interrupt session turn"},
+	)
+	descriptor.OutputSchema = json.RawMessage(sessionPromptOutputSchema)
+	return descriptor
+}
+
+func sessionInputsListDescriptor() toolspkg.Descriptor {
+	descriptor := nativeDescriptor(
+		toolspkg.ToolIDSessionInputsList,
+		"session_inputs_list",
+		"Session Inputs List",
+		"List durable pending input for one session in dispatch order.",
+		sessionIDInputSchema,
+		toolspkg.RiskRead,
+		true,
+		false,
+		false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDSessions},
+		[]string{sessionsSessionsKey, "inputs", sessionsListKey},
+		[]string{"pending session input", "queued session input"},
+	)
+	descriptor.OutputSchema = json.RawMessage(sessionInputsListOutputSchema)
+	return descriptor
+}
+
+func sessionInputReplaceDescriptor() toolspkg.Descriptor {
+	descriptor := nativeDescriptor(
+		toolspkg.ToolIDSessionInputReplace,
+		"session_input_replace",
+		"Session Input Replace",
+		"Atomically replace one queued session input with new text and durable message identity.",
+		sessionInputReplaceInputSchema,
+		toolspkg.RiskMutating,
+		false,
+		false,
+		false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDSessions},
+		[]string{sessionsSessionsKey, "input", "replace", "queue"},
+		[]string{"replace queued input", "update session input"},
+	)
+	descriptor.OutputSchema = json.RawMessage(sessionInputOutputSchema)
+	return descriptor
+}
+
+func sessionInputCancelDescriptor() toolspkg.Descriptor {
+	descriptor := nativeDescriptor(
+		toolspkg.ToolIDSessionInputCancel,
+		"session_input_cancel",
+		"Session Input Cancel",
+		"Cancel one queued session input so it will not be delivered.",
+		sessionInputCancelInputSchema,
+		toolspkg.RiskDestructive,
+		false,
+		true,
+		false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDSessions},
+		[]string{sessionsSessionsKey, "input", "cancel", "queue"},
+		[]string{"cancel queued input", "drop session input"},
+	)
+	descriptor.OutputSchema = json.RawMessage(sessionPromptOutputSchema)
+	return descriptor
+}
+
+func sessionInputPromoteDescriptor() toolspkg.Descriptor {
+	descriptor := nativeDescriptor(
+		toolspkg.ToolIDSessionInputPromote,
+		"session_input_promote",
+		"Session Input Promote",
+		"Atomically replace queued input with steering for the expected active turn.",
+		sessionInputPromoteInputSchema,
+		toolspkg.RiskMutating,
+		false,
+		false,
+		false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDSessions},
+		[]string{sessionsSessionsKey, "input", "promote", "steer", "queue"},
+		[]string{"promote queued input", "steer queued input"},
 	)
 	descriptor.OutputSchema = json.RawMessage(sessionPromptOutputSchema)
 	return descriptor
@@ -180,6 +260,8 @@ const sessionPromptInputSchema = `{
 		"message":{"type":"string","minLength":1},
 		"message_id":{"type":"string","minLength":1},
 		"idempotency_key":{"type":"string","minLength":1},
+		"mode":{"type":"string","enum":["queue","interrupt","steer"]},
+		"expected_turn_id":{"type":"string","minLength":1},
 		"runtime":{
 			"type":"object",
 			"required":["provider"],
@@ -252,16 +334,14 @@ const sessionPromptOutputSchema = `{
 	"properties":{
 		"prompt":{
 			"type":"object",
-			"required":["status","message_id","idempotency_key","replayed"],
+			"required":["status","delivery","message_id","idempotency_key","replayed"],
 			"properties":{
 				"status":{"type":"string"},
-				"message_id":{"type":"string","minLength":1},
-				"idempotency_key":{"type":"string","minLength":1},
-				"replayed":{"type":"boolean"},
 				"mode":{"type":"string","enum":["queue","interrupt","steer"]},
-				"queued":{"type":"boolean"},
-				"staged":{"type":"boolean"},
-				"interrupted":{"type":"boolean"},
+				"delivery":{"type":"string","enum":["none","direct","after_turn","interrupt_then_prompt"]},
+				"message_id":{"type":"string"},
+				"idempotency_key":{"type":"string"},
+				"replayed":{"type":"boolean"},
 				"queue_entry_id":{"type":"string"},
 				"queue_position":{"type":"integer"},
 				"queue_generation":{"type":"integer"},
@@ -269,8 +349,95 @@ const sessionPromptOutputSchema = `{
 				"previous_turn_id":{"type":"string"},
 				"new_turn_id":{"type":"string"},
 				"canceled_queued_entries":{"type":"integer"},
-				"fallback_mode_if_no_tool_result":{"type":"string","enum":["queue","interrupt","steer"]},
 				"goal":{"type":"object"}
+			},
+			"additionalProperties":false
+		}
+	},
+	"additionalProperties":false
+}`
+
+const sessionInputReplaceInputSchema = `{
+	"type":"object",
+	"required":["session_id","queue_entry_id","text","message_id","idempotency_key"],
+	"properties":{
+		"workspace":{"type":"string"},
+		"session_id":{"type":"string","minLength":1},
+		"queue_entry_id":{"type":"string","minLength":1},
+		"text":{"type":"string","minLength":1},
+		"message_id":{"type":"string","minLength":1},
+		"idempotency_key":{"type":"string","minLength":1}
+	},
+	"additionalProperties":false
+}`
+
+const sessionInputCancelInputSchema = `{
+	"type":"object",
+	"required":["session_id","queue_entry_id"],
+	"properties":{
+		"workspace":{"type":"string"},
+		"session_id":{"type":"string","minLength":1},
+		"queue_entry_id":{"type":"string","minLength":1}
+	},
+	"additionalProperties":false
+}`
+
+const sessionInputPromoteInputSchema = `{
+	"type":"object",
+	"required":["session_id","queue_entry_id","text","message_id","idempotency_key","expected_turn_id"],
+	"properties":{
+		"workspace":{"type":"string"},
+		"session_id":{"type":"string","minLength":1},
+		"queue_entry_id":{"type":"string","minLength":1},
+		"text":{"type":"string","minLength":1},
+		"message_id":{"type":"string","minLength":1},
+		"idempotency_key":{"type":"string","minLength":1},
+		"expected_turn_id":{"type":"string","minLength":1}
+	},
+	"additionalProperties":false
+}`
+
+const sessionInputsListOutputSchema = `{
+	"type":"object",
+	"required":["inputs"],
+	"properties":{
+		"inputs":{"type":"array","items":` + sessionInputPayloadSchema + `}
+	},
+	"additionalProperties":false
+}`
+
+const sessionInputOutputSchema = `{
+	"type":"object",
+	"required":["input"],
+	"properties":{
+		"input":` + sessionInputPayloadSchema + `
+	},
+	"additionalProperties":false
+}`
+
+const sessionInputPayloadSchema = `{
+	"type":"object",
+	"required":["id","session_id","status","mode","delivery","text","queue_generation","enqueued_at"],
+	"properties":{
+		"id":{"type":"string","minLength":1},
+		"session_id":{"type":"string","minLength":1},
+		"message_id":{"type":"string"},
+		"idempotency_key":{"type":"string"},
+		"target_turn_id":{"type":"string"},
+		"status":{"type":"string"},
+		"mode":{"type":"string","enum":["queue","interrupt","steer"]},
+		"delivery":{"type":"string","enum":["none","direct","after_turn","interrupt_then_prompt"]},
+		"text":{"type":"string","minLength":1},
+		"queue_generation":{"type":"integer"},
+		"enqueued_at":{"type":"string","format":"date-time"},
+		"runtime":{
+			"type":"object",
+			"required":["provider"],
+			"properties":{
+				"provider":{"type":"string","minLength":1},
+				"model":{"type":"string"},
+				"reasoning_effort":{"type":"string","enum":["none","minimal","low","medium","high","xhigh","max"]},
+				"speed":{"type":"string","enum":["normal","fast"]}
 			},
 			"additionalProperties":false
 		}

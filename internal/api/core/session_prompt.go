@@ -8,6 +8,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/gin-gonic/gin"
 )
 
@@ -21,7 +22,9 @@ func PromptResponseFromSession(result session.SendPromptResult) (int, any, error
 	if result.Goal != nil {
 		status = GoalCommandHTTPStatus(*payload.Goal)
 	}
-	if result.Goal == nil && (result.Queued || result.Staged || result.Replayed) {
+	if result.Goal == nil && (result.Status == store.SessionPromptResultStatusQueued ||
+		result.Status == store.SessionPromptResultStatusSteering ||
+		result.Status == store.SessionPromptResultStatusInterrupting || result.Replayed) {
 		status = http.StatusAccepted
 	}
 	return status, contract.SendPromptResultResponse{Prompt: payload}, nil
@@ -43,12 +46,10 @@ func PromptResultPayloadFromSession(result session.SendPromptResult) (contract.S
 	payload := contract.SendPromptResultPayload{
 		Status:                strings.TrimSpace(result.Status),
 		Mode:                  contract.PromptMode(strings.TrimSpace(string(result.Mode))),
+		Delivery:              contract.PromptDelivery(strings.TrimSpace(result.Delivery)),
 		MessageID:             strings.TrimSpace(result.MessageID),
 		IdempotencyKey:        strings.TrimSpace(result.IdempotencyKey),
 		Replayed:              result.Replayed,
-		Queued:                result.Queued,
-		Staged:                result.Staged,
-		Interrupted:           result.Interrupted,
 		QueueEntryID:          strings.TrimSpace(result.QueueEntryID),
 		QueuePosition:         result.QueuePosition,
 		QueueGeneration:       result.QueueGeneration,
@@ -56,9 +57,6 @@ func PromptResultPayloadFromSession(result session.SendPromptResult) (contract.S
 		PreviousTurnID:        strings.TrimSpace(result.PreviousTurnID),
 		NewTurnID:             strings.TrimSpace(result.NewTurnID),
 		CanceledQueuedEntries: result.CanceledQueuedEntries,
-	}
-	if fallbackMode := strings.TrimSpace(result.FallbackModeIfNoToolResult); fallbackMode != "" {
-		payload.FallbackModeIfNoToolResult = contract.PromptMode(fallbackMode)
 	}
 	if result.Goal != nil {
 		goal, err := GoalCommandResultPayloadFromSession(result.Goal)

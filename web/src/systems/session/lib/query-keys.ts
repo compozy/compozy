@@ -42,6 +42,8 @@ export const sessionKeys = {
   goal: (workspace: string, id: string) => [...sessionKeys.detail(workspace, id), "goal"] as const,
   clarifications: (workspace: string, id: string) =>
     [...sessionKeys.detail(workspace, id), "clarifications"] as const,
+  inputQueue: (workspace: string, id: string) =>
+    [...sessionKeys.detail(workspace, id), "input-queue"] as const,
   recap: (workspace: string, id: string, limit?: number) =>
     [...sessionKeys.detail(workspace, id), "recap", limit ?? "default"] as const,
   ledger: (workspace: string, id: string) =>

@@ -36,6 +36,16 @@ type Service struct {
 	cfg   Config
 }
 
+type insertSpec struct {
+	sessionID    string
+	text         string
+	mode         string
+	delivery     string
+	targetTurnID string
+	generation   int64
+	runtime      store.SessionInputRuntime
+}
+
 // Option customizes a Service.
 type Option func(*Service)
 
@@ -100,7 +110,14 @@ func (s *Service) Enqueue(
 	generation int64,
 	runtime store.SessionInputRuntime,
 ) (store.SessionInputQueueEntry, int, error) {
-	insert, err := s.newInsert(sessionID, text, store.SessionInputQueueModeQueue, generation, runtime)
+	insert, err := s.newInsert(insertSpec{
+		sessionID:  sessionID,
+		text:       text,
+		mode:       store.SessionInputQueueModeQueue,
+		delivery:   store.SessionInputDeliveryAfterTurn,
+		generation: generation,
+		runtime:    runtime,
+	})
 	if err != nil {
 		return store.SessionInputQueueEntry{}, 0, err
 	}
@@ -120,11 +137,11 @@ func (s *Service) EnqueueAdmitted(
 	admission store.SessionPromptAdmissionRequest,
 	generation int64,
 ) (store.SessionPromptAdmission, store.SessionInputQueueEntry, int, bool, error) {
-	admissionStore, insert, err := s.prepareAdmittedEntry(
-		admission,
-		generation,
-		store.SessionInputQueueModeQueue,
-	)
+	admissionStore, insert, err := s.prepareAdmittedEntry(admission, insertSpec{
+		mode:       store.SessionInputQueueModeQueue,
+		delivery:   store.SessionInputDeliveryAfterTurn,
+		generation: generation,
+	})
 	if err != nil {
 		return store.SessionPromptAdmission{}, store.SessionInputQueueEntry{}, 0, false, err
 	}
@@ -143,32 +160,83 @@ func (s *Service) EnqueueAdmitted(
 	return receipt, entry, position, created, nil
 }
 
-// StageSteer stages replacement steering guidance while a turn is active.
+// EnqueueInterrupt persists replacement input before the active turn is canceled.
+func (s *Service) EnqueueInterrupt(
+	ctx context.Context,
+	sessionID string,
+	text string,
+	targetTurnID string,
+	runtime store.SessionInputRuntime,
+) (store.SessionInputQueueEntry, int, error) {
+	insert, err := s.newInsert(insertSpec{
+		sessionID:    sessionID,
+		text:         text,
+		mode:         store.SessionInputQueueModeInterrupt,
+		delivery:     store.SessionInputDeliveryInterruptThenPrompt,
+		targetTurnID: targetTurnID,
+		runtime:      runtime,
+	})
+	if err != nil {
+		return store.SessionInputQueueEntry{}, 0, err
+	}
+	return s.store.EnqueueInterruptSessionInput(ctx, insert)
+}
+
+// EnqueueAdmittedInterrupt atomically persists a replacement command receipt and queue entry.
+func (s *Service) EnqueueAdmittedInterrupt(
+	ctx context.Context,
+	admission store.SessionPromptAdmissionRequest,
+	targetTurnID string,
+) (store.SessionPromptAdmission, store.SessionInputQueueEntry, bool, error) {
+	admissionStore, insert, err := s.prepareAdmittedEntry(admission, insertSpec{
+		mode:         store.SessionInputQueueModeInterrupt,
+		delivery:     store.SessionInputDeliveryInterruptThenPrompt,
+		targetTurnID: targetTurnID,
+	})
+	if err != nil {
+		return store.SessionPromptAdmission{}, store.SessionInputQueueEntry{}, false, err
+	}
+	receipt, entry, _, created, err := admissionStore.EnqueueAdmittedSessionInput(ctx, admission, insert)
+	return receipt, entry, created, err
+}
+
+// StageSteer persists replacement steering guidance while a turn is active.
 func (s *Service) StageSteer(
 	ctx context.Context,
 	sessionID string,
 	text string,
+	targetTurnID string,
 	generation int64,
 	runtime store.SessionInputRuntime,
 ) (store.SessionInputQueueEntry, error) {
-	insert, err := s.newInsert(sessionID, text, store.SessionInputQueueModeSteer, generation, runtime)
+	insert, err := s.newInsert(insertSpec{
+		sessionID:    sessionID,
+		text:         text,
+		mode:         store.SessionInputQueueModeSteer,
+		delivery:     store.SessionInputDeliveryInterruptThenPrompt,
+		targetTurnID: targetTurnID,
+		generation:   generation,
+		runtime:      runtime,
+	})
 	if err != nil {
 		return store.SessionInputQueueEntry{}, err
 	}
 	return s.store.StageSessionSteer(ctx, insert)
 }
 
-// StageAdmittedSteer atomically persists one external receipt and its staged steer entry.
+// StageAdmittedSteer atomically persists one external receipt and its steering entry.
 func (s *Service) StageAdmittedSteer(
 	ctx context.Context,
 	admission store.SessionPromptAdmissionRequest,
+	targetTurnID string,
 	generation int64,
 ) (store.SessionPromptAdmission, store.SessionInputQueueEntry, bool, error) {
-	admissionStore, insert, err := s.prepareAdmittedEntry(
-		admission,
-		generation,
-		store.SessionInputQueueModeSteer,
-	)
+	admissionStore, insert, err := s.prepareAdmittedEntry(admission, insertSpec{
+		mode:         store.SessionInputQueueModeSteer,
+		delivery:     store.SessionInputDeliveryInterruptThenPrompt,
+		targetTurnID: targetTurnID,
+		generation:   generation,
+	})
 	if err != nil {
 		return store.SessionPromptAdmission{}, store.SessionInputQueueEntry{}, false, err
 	}
@@ -177,8 +245,7 @@ func (s *Service) StageAdmittedSteer(
 
 func (s *Service) prepareAdmittedEntry(
 	admission store.SessionPromptAdmissionRequest,
-	generation int64,
-	mode string,
+	spec insertSpec,
 ) (store.SessionPromptAdmissionStore, store.SessionInputQueueInsert, error) {
 	admissionStore, ok := s.store.(store.SessionPromptAdmissionStore)
 	if !ok {
@@ -186,25 +253,14 @@ func (s *Service) prepareAdmittedEntry(
 			"inputqueue: prompt admission store is required",
 		)
 	}
-	insert, err := s.newInsert(
-		admission.SessionID,
-		admission.AuthoredText,
-		mode,
-		generation,
-		admission.Runtime,
-	)
+	spec.sessionID = admission.SessionID
+	spec.text = admission.AuthoredText
+	spec.runtime = admission.Runtime
+	insert, err := s.newInsert(spec)
 	if err != nil {
 		return nil, store.SessionInputQueueInsert{}, err
 	}
 	return admissionStore, insert, nil
-}
-
-// ConsumeSteer atomically consumes the current staged steer entry, if any.
-func (s *Service) ConsumeSteer(
-	ctx context.Context,
-	sessionID string,
-) (store.SessionInputQueueEntry, bool, error) {
-	return s.store.ConsumeSessionSteer(ctx, strings.TrimSpace(sessionID), s.now())
 }
 
 // ClaimNext leases the next input eligible for dispatch.
@@ -256,6 +312,19 @@ func (s *Service) Get(
 	return entry, nil
 }
 
+// List returns current pending operator inputs in dispatch order.
+func (s *Service) List(
+	ctx context.Context,
+	sessionID string,
+) ([]store.SessionInputQueueEntry, error) {
+	target := strings.TrimSpace(sessionID)
+	entries, err := s.store.ListPendingSessionInputs(ctx, target)
+	if err != nil {
+		return nil, fmt.Errorf("inputqueue: list inputs for session %q: %w", target, err)
+	}
+	return entries, nil
+}
+
 // MarkSent records successful dispatch.
 func (s *Service) MarkSent(ctx context.Context, sessionID string, entryID string) error {
 	return s.store.MarkSessionInputSent(ctx, sessionID, entryID, s.now())
@@ -276,33 +345,14 @@ func (s *Service) Cancel(ctx context.Context, sessionID string, entryID string) 
 	return s.store.CancelSessionInput(ctx, sessionID, entryID, s.now())
 }
 
-// AdvanceGeneration fences older entries and returns the new generation.
-func (s *Service) AdvanceGeneration(ctx context.Context, sessionID string) (int64, int, error) {
-	generation, err := s.store.AdvanceSessionInputGeneration(ctx, sessionID, s.now())
-	if err != nil {
-		return 0, 0, err
-	}
-	canceled, err := s.store.CancelPendingSessionInputs(ctx, sessionID, generation, s.now())
-	if err != nil {
-		return 0, 0, err
-	}
-	return generation, canceled, nil
-}
-
 // CurrentGeneration reads the current persisted generation for queue fencing.
 func (s *Service) CurrentGeneration(ctx context.Context, sessionID string) (int64, error) {
 	return s.store.CurrentSessionInputGeneration(ctx, sessionID)
 }
 
-func (s *Service) newInsert(
-	sessionID string,
-	text string,
-	mode string,
-	generation int64,
-	runtime store.SessionInputRuntime,
-) (store.SessionInputQueueInsert, error) {
-	target := strings.TrimSpace(sessionID)
-	message := strings.TrimSpace(text)
+func (s *Service) newInsert(spec insertSpec) (store.SessionInputQueueInsert, error) {
+	target := strings.TrimSpace(spec.sessionID)
+	message := strings.TrimSpace(spec.text)
 	if target == "" {
 		return store.SessionInputQueueInsert{}, errors.New("inputqueue: session id is required")
 	}
@@ -318,10 +368,12 @@ func (s *Service) newInsert(
 	return store.SessionInputQueueInsert{
 		ID:                strings.TrimSpace(s.newID()),
 		SessionID:         target,
-		Mode:              mode,
+		Mode:              spec.mode,
+		Delivery:          spec.delivery,
+		TargetTurnID:      strings.TrimSpace(spec.targetTurnID),
 		Text:              message,
-		Runtime:           runtime,
-		SessionGeneration: generation,
+		Runtime:           spec.runtime,
+		SessionGeneration: spec.generation,
 		QueueCap:          s.cfg.QueueCap,
 		Now:               s.now(),
 	}, nil

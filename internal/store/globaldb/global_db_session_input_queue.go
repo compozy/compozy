@@ -26,6 +26,9 @@ func (g *SessionRepo) EnqueueSessionInput(
 	if normalized.Mode == "" {
 		normalized.Mode = store.SessionInputQueueModeQueue
 	}
+	if normalized.Delivery == "" {
+		normalized.Delivery = store.SessionInputDeliveryAfterTurn
+	}
 	if err := normalized.Validate(); err != nil {
 		return store.SessionInputQueueEntry{}, 0, err
 	}
@@ -70,6 +73,7 @@ func (g *SessionRepo) StageSessionSteer(
 	}
 	normalized := req.Normalize()
 	normalized.Mode = store.SessionInputQueueModeSteer
+	normalized.Delivery = store.SessionInputDeliveryInterruptThenPrompt
 	if err := normalized.Validate(); err != nil {
 		return store.SessionInputQueueEntry{}, err
 	}
@@ -105,69 +109,6 @@ func validateCallerOwnedQueueIdentity(req store.SessionInputQueueInsert) error {
 		return errors.New("store: prompt admission identity is reserved for admitted session input")
 	}
 	return nil
-}
-
-// ConsumeSessionSteer atomically leases the staged steer entry for one dispatch attempt.
-func (g *SessionRepo) ConsumeSessionSteer(
-	ctx context.Context,
-	sessionID string,
-	now time.Time,
-) (entry store.SessionInputQueueEntry, ok bool, err error) {
-	if err := g.checkReady(ctx, "consume session steer"); err != nil {
-		return store.SessionInputQueueEntry{}, false, err
-	}
-	target := strings.TrimSpace(sessionID)
-	if target == "" {
-		return store.SessionInputQueueEntry{}, false, errors.New("store: session id is required")
-	}
-	if now.IsZero() {
-		now = g.now()
-	}
-	now = now.UTC()
-
-	err = g.withImmediateTransaction(ctx, "consume session steer", func(exec globalSQLExecutor) error {
-		queries := sqlcgen.New(exec)
-		row, scanErr := queries.GetQueuedSessionSteer(ctx, sqlcgen.GetQueuedSessionSteerParams{
-			SessionID: target, SteerMode: store.SessionInputQueueModeSteer,
-			QueuedStatus: store.SessionInputQueueStatusQueued,
-		})
-		if errors.Is(scanErr, sql.ErrNoRows) {
-			return nil
-		}
-		if scanErr != nil {
-			return scanErr
-		}
-		staged, scanErr := sessionInputQueueFromGenerated(&row)
-		if scanErr != nil {
-			return scanErr
-		}
-		nowRaw := store.FormatTimestamp(now)
-		if admissionErr := commitQueuedPromptAdmissionDispatch(ctx, exec, &staged, nowRaw); admissionErr != nil {
-			return admissionErr
-		}
-		affected, updateErr := queries.ClaimSessionInput(ctx, sqlcgen.ClaimSessionInputParams{
-			DispatchingStatus: store.SessionInputQueueStatusDispatching,
-			Now:               nullableSessionTime(now), UpdatedAt: nowRaw,
-			ID: staged.ID, SessionID: target, QueuedStatus: store.SessionInputQueueStatusQueued,
-		})
-		if updateErr != nil {
-			return fmt.Errorf("store: lease session steer: %w", updateErr)
-		}
-		if affected != 1 {
-			return goalControlStaleError("lease session steer lost compare-and-swap")
-		}
-		refreshed, getErr := getSessionInputQueueEntry(ctx, exec, target, staged.ID)
-		if getErr != nil {
-			return getErr
-		}
-		entry = refreshed
-		ok = true
-		return nil
-	})
-	if err != nil {
-		return store.SessionInputQueueEntry{}, false, err
-	}
-	return entry, ok, nil
 }
 
 // ClaimNextSessionInput atomically leases the next eligible input for dispatch.
@@ -398,9 +339,9 @@ func insertSessionInputQueueEntry(
 			Valid:  normalized.PromptAdmissionID != "",
 		},
 		MessageID: normalized.MessageID, IdempotencyKey: normalized.IdempotencyKey,
-		TurnID: normalized.TurnID, EventID: normalized.EventID,
+		TurnID: normalized.TurnID, TargetTurnID: normalized.TargetTurnID, EventID: normalized.EventID,
 		Status: store.SessionInputQueueStatusQueued,
-		Mode:   normalized.Mode, Text: normalized.Text,
+		Mode:   normalized.Mode, Delivery: normalized.Delivery, Text: normalized.Text,
 		RuntimeProvider: normalized.Runtime.Provider, RuntimeModel: normalized.Runtime.Model,
 		RuntimeReasoningEffort: normalized.Runtime.ReasoningEffort, RuntimeSpeed: normalized.Runtime.Speed,
 		SessionGeneration: normalized.SessionGeneration,

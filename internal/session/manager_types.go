@@ -121,8 +121,6 @@ type Manager struct {
 	promptAdmissionLocks map[string]*promptAdmissionLock
 	resumeReplayMu       sync.Mutex
 	resumeReplays        map[string]string
-	interruptSalvageMu   sync.Mutex
-	interruptSalvages    map[string]interruptedPromptSalvage
 	compactionMu         sync.Mutex
 	compactions          map[string]*sessionCompactionState
 	compactionWG         sync.WaitGroup

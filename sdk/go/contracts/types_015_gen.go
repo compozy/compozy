@@ -7,11 +7,6 @@ import (
 	"time"
 )
 
-type Origin struct {
-	Kind OriginKind `json:"kind"`
-	Ref  string     `json:"ref"`
-}
-
 type OriginKind string
 
 type OwnerKind string
@@ -197,6 +192,10 @@ type ProbeResult struct {
 	DurationMS int64     `json:"duration_ms"`
 }
 
+type PromptDelivery string
+
+type PromptMode string
+
 type PromptPatch struct {
 	Deny          bool           `json:"deny,omitempty"`
 	DenyReason    string         `json:"deny_reason,omitempty"`
@@ -223,11 +222,4 @@ type PromptPayload struct {
 	InputClass     string         `json:"input_class,omitempty"`
 	Prompt         string         `json:"prompt,omitempty"`
 	ContextBlocks  []ContextBlock `json:"context_blocks,omitempty"`
-}
-
-type PromptRuntimeSelectionPayload struct {
-	Provider        string `json:"provider"`
-	Model           string `json:"model,omitempty"`
-	ReasoningEffort Effort `json:"reasoning_effort,omitempty"`
-	Speed           Speed  `json:"speed,omitempty"`
 }

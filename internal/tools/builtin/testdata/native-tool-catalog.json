@@ -2241,6 +2241,58 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
+    "tool_id": "compozy__session_input_cancel",
+    "native_name": "session_input_cancel",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "destructive",
+    "read_only": false,
+    "destructive": true,
+    "open_world": false,
+    "input_schema_digest": "1cede79f62ef1f4eebd14db87352220f79a26db2c1948a47dc96ef1fc3f67dcb",
+    "output_schema_digest": "6bfe42af616ce76f2d303ffc1e98fb3a27f3f8665cef1dd03b1cee33a2b1b37f"
+  },
+  {
+    "tool_id": "compozy__session_input_promote",
+    "native_name": "session_input_promote",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "4a693fe50c118507a0e2cd4ef75a36b77171d9033e3cf06dd2ad1e5688fb61b1",
+    "output_schema_digest": "6bfe42af616ce76f2d303ffc1e98fb3a27f3f8665cef1dd03b1cee33a2b1b37f"
+  },
+  {
+    "tool_id": "compozy__session_input_replace",
+    "native_name": "session_input_replace",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "3139f3765c8e09acdfbd7379892b7bebc517caa8383e77d6de4205acd3d84bd2",
+    "output_schema_digest": "f7326f96f359a55153a26d1e0524168315e1c66a073afd8bf86f9dd93d72e9b1"
+  },
+  {
+    "tool_id": "compozy__session_inputs_list",
+    "native_name": "session_inputs_list",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "7d11b95a06235b3bd74486bcb6af083f20b2dc1bf261af21d0f1cc8f2562b32f",
+    "output_schema_digest": "9eaabbb4403e07a7e567d25d82a6b5e625e875641fcc08d01e2e6bd5ea223a7e"
+  },
+  {
     "tool_id": "compozy__session_list",
     "native_name": "session_list",
     "toolsets": [
@@ -2263,8 +2315,8 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "906fe39bea0f4e798607011a1624bffee8bb1ca822cd3e96cc236587e894c006",
-    "output_schema_digest": "573f71101e07fdfedc63ee1c6e2e52d73334099f32ffc92f438370912f94a36a"
+    "input_schema_digest": "6bf90be75f8543e6ae6938538653bb48677896c3535f871442556e99d2b3d0cc",
+    "output_schema_digest": "6bfe42af616ce76f2d303ffc1e98fb3a27f3f8665cef1dd03b1cee33a2b1b37f"
   },
   {
     "tool_id": "compozy__session_status",

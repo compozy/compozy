@@ -235,22 +235,6 @@ func (c *unixSocketClient) SteerSessionPrompt(
 	return c.doSessionPrompt(ctx, http.MethodPost, path, nil, request)
 }
 
-func (c *unixSocketClient) CancelQueuedSessionPrompt(
-	ctx context.Context,
-	id string,
-	queueEntryID string,
-) (SessionPromptRecord, error) {
-	entryID, err := requireNetworkPathValue("queue_entry_id", queueEntryID)
-	if err != nil {
-		return SessionPromptRecord{}, err
-	}
-	path, err := c.sessionScopedPath(ctx, id, "/prompt/queue/"+url.PathEscape(entryID))
-	if err != nil {
-		return SessionPromptRecord{}, err
-	}
-	return c.doSessionPrompt(ctx, http.MethodDelete, path, nil, nil)
-}
-
 func (c *unixSocketClient) SessionEvents(
 	ctx context.Context,
 	id string,

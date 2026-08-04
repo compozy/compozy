@@ -52,7 +52,6 @@ func (d *Daemon) applySessionManagerFactoryDefault() {
 			session.WithDriver(session.NewACPDriverAdapter(acp.New(
 				acp.WithLogger(deps.Logger),
 				acp.WithProcessRegistry(deps.ProcessRegistry),
-				acp.WithSteerSource(sessionSteerSource{queue: deps.SessionInputQueue, now: d.now}),
 			))),
 		)
 	}

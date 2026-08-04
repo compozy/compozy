@@ -79,7 +79,7 @@ before `Run`/`start`.
 ## Permissions And Consent
 
 `permissions.requires` is the single authored list: the Host API method paths the extension calls,
-validated against a closed 87-method set at build, validate, install, and load. An unknown value is a
+validated against the closed Host API method set at build, validate, install, and load. An unknown value is a
 hard error, never a silent no-op. Both SDKs export the method names as typed constants.
 
 Compozy derives operator-facing consent areas (`area:access`, such as `sessions:read` or
@@ -92,6 +92,26 @@ extensions get every declared method. Published installs (`curated`, `github`, `
 marketplace tier, limited to `logs.read`, `memory.read`, `observe.read`, `session.read`,
 `skills.read`, and `tool.read`; anything outside is dropped at grant time with a recorded diagnostic.
 Design a mutating extension as a local or dev-linked install, not a published one.
+
+### Durable session input
+
+An extension that guides a busy session must use the daemon-owned input operations. `sessions/prompt`
+accepts `mode` (`queue`, `interrupt`, or `steer`). Both `interrupt` and `steer` require
+`expected_turn_id`; its result reports
+`status` and `delivery`. Treat those fields as the admission decision. A transcript marker only records
+history; it is not an action result.
+
+| Intent                                          | Host API method           | Permission      |
+| ----------------------------------------------- | ------------------------- | --------------- |
+| Read pending input in dispatch order            | `sessions/inputs/list`    | `session.read`  |
+| Replace a queued input and its durable identity | `sessions/inputs/replace` | `session.write` |
+| Remove a queued input                           | `sessions/inputs/cancel`  | `session.write` |
+| Promote a queued input into steering            | `sessions/inputs/promote` | `session.write` |
+
+Every mutating input operation names `workspace_id`, `session_id`, and `queue_entry_id`. Replace and
+promote also require fresh `text`, `message_id`, and `idempotency_key`; promote requires the current
+`expected_turn_id`. Read the list again after an action instead of maintaining a private queue or
+assuming an input was delivered from its position alone.
 
 ## Provide Surfaces
 

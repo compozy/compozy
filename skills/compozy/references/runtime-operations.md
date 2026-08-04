@@ -59,7 +59,9 @@ not restart `stopped`, and stopped sessions reject attach.
 
 After prompt admission, the daemon owns the turn lifetime. Closing a browser tab, navigating away from the web app, dropping an SSE stream, or disconnecting a CLI/UDS response only detaches that viewer; it does not cancel the accepted prompt. Use explicit runtime intent such as `compozy session stop`, prompt cancel, or interrupt controls when cancellation is required.
 
-A dedicated prompt interrupt followed by steer submits the canceled authored prompt plus the explicit correction once under the new input generation. A plain interrupt replacement discards the canceled text. Do not retry a consumed salvage or bypass generation fencing.
+Use `interrupt` with replacement text to cancel the expected active turn and submit that replacement
+as the next generation-fenced input. Use `steer` for the same fenced replacement semantics when the
+operator intent is guidance. Neither mode reuses or combines the canceled authored prompt.
 
 The event store and materialized transcript are the durable source of truth for reattach. Transcript GET returns the newest bounded `entries` page plus `epoch`, `generation`, `max_sequence`, and `has_older`; request older entries with `before_sequence=next_before_sequence`. Each entry carries immutable `start_sequence` identity and its latest shaping `sequence`. Do not reconstruct session state from UI cache, memory notes, or JSONL sidecars.
 
@@ -122,6 +124,20 @@ unbound. A queued prompt retains its submitted snapshot until dispatch. An inter
 input generation, drops stale queued entries, then applies the replacement prompt's snapshot only
 after the current turn becomes idle. Inspect the prompt result's queue ID, queue position, and queue
 generation instead of assuming a busy input ran immediately.
+
+Busy-input admission is explicit. Submit `mode=queue`, `mode=interrupt`, or `mode=steer` with a
+prompt, then use the returned `status` and `delivery` as the authoritative result. `queue` returns a
+durable queue entry for later dispatch; `interrupt` and promotion require the active turn's
+`expected_turn_id`, which prevents a stale client from replacing a newer turn. Transcript markers may
+describe a queued, steered, interrupted, or canceled action, but they are history, not a second
+operator result channel.
+
+HTTP and UDS expose the same daemon-owned queue at
+`GET /api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue`. Replace one item with
+`PUT .../prompt/queue/{queue_entry_id}`, remove it with `DELETE` on that path, or promote it with
+`POST .../prompt/queue/{queue_entry_id}/steer`. Replace and promotion submit new `message_id` and
+`idempotency_key`; promotion also submits `expected_turn_id`. Re-read the queue after each mutation
+instead of keeping a client-side shadow list.
 
 ### Prompt identities and explicit retries
 

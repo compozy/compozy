@@ -20,9 +20,11 @@ func sessionInputQueueFromGenerated(row *sqlcgen.SessionInputQueue) (store.Sessi
 		MessageID:         strings.TrimSpace(row.MessageID),
 		IdempotencyKey:    strings.TrimSpace(row.IdempotencyKey),
 		TurnID:            strings.TrimSpace(row.TurnID),
+		TargetTurnID:      strings.TrimSpace(row.TargetTurnID),
 		EventID:           strings.TrimSpace(row.EventID),
 		Status:            row.Status,
 		Mode:              row.Mode,
+		Delivery:          row.Delivery,
 		Text:              row.Text,
 		Runtime: store.SessionInputRuntime{
 			Provider:        row.RuntimeProvider,

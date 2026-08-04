@@ -7,6 +7,13 @@ import (
 	"time"
 )
 
+type PromptRuntimeSelectionPayload struct {
+	Provider        string `json:"provider"`
+	Model           string `json:"model,omitempty"`
+	ReasoningEffort Effort `json:"reasoning_effort,omitempty"`
+	Speed           Speed  `json:"speed,omitempty"`
+}
+
 type ProviderModelListResponse struct {
 	Models []ProviderModelPayload `json:"models"`
 }
@@ -129,18 +136,4 @@ type ResourcesListParams struct {
 type ResourcesSnapshotParams struct {
 	SourceVersion int64                    `json:"source_version"`
 	Records       []ResourceSnapshotRecord `json:"records"`
-}
-
-type RetentionHealth struct {
-	Enabled                  bool       `json:"enabled"`
-	RetentionDays            int        `json:"retention_days"`
-	SweepIntervalSeconds     int64      `json:"sweep_interval_seconds"`
-	LastSweepStatus          string     `json:"last_sweep_status"`
-	LastSweepAt              *time.Time `json:"last_sweep_at,omitempty"`
-	LastCutoffAt             *time.Time `json:"last_cutoff_at,omitempty"`
-	LastSweepError           string     `json:"last_sweep_error,omitempty"`
-	DeletedEventSummaries    int64      `json:"deleted_event_summaries"`
-	DeletedTokenStats        int64      `json:"deleted_token_stats"`
-	DeletedTokenUsageDaily   int64      `json:"deleted_token_usage_daily"`
-	DeletedPermissionLogRows int64      `json:"deleted_permission_log_rows"`
 }

@@ -7,11 +7,6 @@ import (
 	"time"
 )
 
-type NetworkCapabilityBriefPayload struct {
-	ID      string `json:"id"`
-	Summary string `json:"summary"`
-}
-
 type NetworkChannelPayload struct {
 	Channel                    string     `json:"channel"`
 	WorkspaceID                string     `json:"workspace_id,omitempty"`
@@ -252,4 +247,26 @@ type NetworkPeerCardPayload struct {
 	ArtifactsSupported  []string                        `json:"artifacts_supported"`
 	TrustModesSupported []string                        `json:"trust_modes_supported"`
 	Ext                 map[string]json.RawMessage      `json:"ext,omitempty"`
+}
+
+type NetworkPeerJoinedPayload struct {
+	Event       HookEvent  `json:"event"`
+	Timestamp   time.Time  `json:"timestamp"`
+	WorkspaceID string     `json:"workspace_id,omitempty"`
+	SessionID   string     `json:"session_id,omitempty"`
+	Channel     string     `json:"channel,omitempty"`
+	Surface     string     `json:"surface,omitempty"`
+	ThreadID    string     `json:"thread_id,omitempty"`
+	DirectID    string     `json:"direct_id,omitempty"`
+	MessageID   string     `json:"message_id,omitempty"`
+	Kind        string     `json:"kind,omitempty"`
+	Direction   string     `json:"direction,omitempty"`
+	WorkID      string     `json:"work_id,omitempty"`
+	WorkState   string     `json:"work_state,omitempty"`
+	PeerID      string     `json:"peer_id,omitempty"`
+	PeerFrom    string     `json:"peer_from,omitempty"`
+	PeerTo      string     `json:"peer_to,omitempty"`
+	LastSeenAt  *time.Time `json:"last_seen_at,omitempty"`
+	TraceID     string     `json:"trace_id,omitempty"`
+	CausationID string     `json:"causation_id,omitempty"`
 }

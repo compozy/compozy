@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-
 	"strconv"
 	"strings"
 
@@ -18,7 +17,7 @@ type sessionPromptCommandFlags struct {
 	queue          bool
 	interrupt      bool
 	steer          bool
-	cancelEntry    string
+	expectedTurnID string
 	messageID      string
 	idempotencyKey string
 	runtime        sessionPromptRuntimeFlags
@@ -34,8 +33,13 @@ func newSessionPromptCommand(deps commandDeps) *cobra.Command {
 	cmd := newSessionPromptCobraCommand(deps, flags)
 	cmd.Flags().BoolVar(&flags.queue, "queue", false, "Queue the prompt if the session is busy")
 	cmd.Flags().BoolVar(&flags.interrupt, "interrupt", false, "Interrupt the active turn before sending this prompt")
-	cmd.Flags().BoolVar(&flags.steer, "steer", false, "Stage steering guidance for the active turn")
-	cmd.Flags().StringVar(&flags.cancelEntry, "cancel", "", "Cancel a queued prompt entry by id")
+	cmd.Flags().BoolVar(&flags.steer, "steer", false, "Replace the fenced active turn with steering guidance")
+	cmd.Flags().StringVar(
+		&flags.expectedTurnID,
+		"expected-turn-id",
+		"",
+		"Active turn id that this steer or interrupt request must match",
+	)
 	cmd.Flags().StringVar(&flags.messageID, "message-id", "", "Stable authored message id for an explicit retry")
 	cmd.Flags().StringVar(
 		&flags.idempotencyKey,
@@ -61,45 +65,43 @@ func newSessionPromptCobraCommand(deps commandDeps, flags *sessionPromptCommandF
   # Queue input while the session is busy
   compozy session prompt sess_1234 "Run the next check." --queue
 
-  # Steer the current turn after the next tool result
-  compozy session prompt sess_1234 "Prefer the smaller patch." --steer
+  # Replace the fenced active turn with steering guidance
+  compozy session prompt sess_1234 "Prefer the smaller patch." --steer --expected-turn-id turn_1234
+
+  # Interrupt the fenced active turn before sending a replacement
+  compozy session prompt sess_1234 "Use this direction instead." --interrupt --expected-turn-id turn_1234
+
+  # Manage an already queued input
+  compozy session input list sess_1234
+  compozy session input cancel sess_1234 queue_entry_1234
 
   # Retry the same submission with its original identities
   compozy session prompt sess_1234 "Run the next check." \
-    --message-id msg_1234 --idempotency-key idem_1234
-
-  # Cancel queued input by entry id
-  compozy session prompt sess_1234 --cancel queue_entry_1234`,
+    --message-id msg_1234 --idempotency-key idem_1234`,
 		Args: flags.validateArgs,
 		RunE: flags.run(deps),
 	}
 }
 
 func (flags *sessionPromptCommandFlags) validateArgs(cmd *cobra.Command, args []string) error {
-	cancelChanged := cmd.Flags().Changed("cancel")
 	modeCount := 0
-	for _, enabled := range []bool{flags.queue, flags.interrupt, flags.steer, cancelChanged} {
+	for _, enabled := range []bool{flags.queue, flags.interrupt, flags.steer} {
 		if enabled {
 			modeCount++
 		}
 	}
 	if modeCount > 1 {
-		return errors.New("cli: choose only one of --queue, --interrupt, --steer, or --cancel")
+		return errors.New("cli: choose only one of --queue, --interrupt, or --steer")
 	}
-	if !cancelChanged {
-		if len(args) != 2 {
-			return fmt.Errorf("cli: session prompt accepts 2 args, received %d", len(args))
+	if flags.steer || flags.interrupt {
+		if _, err := changedNonEmptyStringFlag(cmd, "expected-turn-id", flags.expectedTurnID); err != nil {
+			return err
 		}
-		return nil
+	} else if cmd.Flags().Changed("expected-turn-id") {
+		return errors.New("cli: --expected-turn-id applies only to --steer or --interrupt")
 	}
-	if strings.TrimSpace(flags.cancelEntry) == "" {
-		return errors.New("cli: --cancel requires a queue entry id")
-	}
-	if len(args) != 1 {
-		return fmt.Errorf("cli: session prompt --cancel accepts 1 arg, received %d", len(args))
-	}
-	if cmd.Flags().Changed("message-id") || cmd.Flags().Changed("idempotency-key") {
-		return errors.New("cli: prompt identity flags do not apply to --cancel")
+	if len(args) != 2 {
+		return fmt.Errorf("cli: session prompt accepts 2 args, received %d", len(args))
 	}
 	return nil
 }
@@ -118,7 +120,7 @@ func (flags *sessionPromptCommandFlags) run(deps commandDeps) func(*cobra.Comman
 		if err != nil {
 			return err
 		}
-		if runtimeSelection != nil && (flags.steer || cmd.Flags().Changed("cancel")) {
+		if runtimeSelection != nil && flags.steer {
 			return errors.New("cli: runtime selection applies only to submitted prompts")
 		}
 		if mode == OutputJSONL {
@@ -138,7 +140,7 @@ func (flags *sessionPromptCommandFlags) streamJSONL(
 	args []string,
 	runtime *contract.PromptRuntimeSelectionPayload,
 ) error {
-	if flags.queue || flags.interrupt || flags.steer || cmd.Flags().Changed("cancel") {
+	if flags.queue || flags.interrupt || flags.steer {
 		return errors.New("cli: busy-input prompt actions do not support jsonl output")
 	}
 	messageID, idempotencyKey, err := flags.promptIdentity(cmd)
@@ -163,16 +165,17 @@ func runSessionPromptAction(
 	if client == nil {
 		return SessionPromptRecord{}, errors.New("cli: daemon client is required")
 	}
-	if cmd.Flags().Changed("cancel") {
-		return client.CancelQueuedSessionPrompt(cmd.Context(), args[0], strings.TrimSpace(flags.cancelEntry))
-	}
 	messageID, idempotencyKey, err := flags.promptIdentity(cmd)
 	if err != nil {
 		return SessionPromptRecord{}, err
 	}
 	if flags.steer {
+		expectedTurnID, err := changedNonEmptyStringFlag(cmd, "expected-turn-id", flags.expectedTurnID)
+		if err != nil {
+			return SessionPromptRecord{}, err
+		}
 		return client.SteerSessionPrompt(cmd.Context(), args[0], contract.SteerPromptRequest{
-			Text: args[1], MessageID: messageID, IdempotencyKey: idempotencyKey,
+			Text: args[1], MessageID: messageID, IdempotencyKey: idempotencyKey, ExpectedTurnID: expectedTurnID,
 		})
 	}
 	request := SessionPromptRequest{
@@ -183,11 +186,23 @@ func runSessionPromptAction(
 	}
 	if flags.interrupt {
 		request.Mode = contract.PromptModeInterrupt
+		expectedTurnID, err := changedNonEmptyStringFlag(cmd, "expected-turn-id", flags.expectedTurnID)
+		if err != nil {
+			return SessionPromptRecord{}, err
+		}
+		request.ExpectedTurnID = expectedTurnID
 	}
 	return client.SendSessionPrompt(cmd.Context(), args[0], request)
 }
 
 func (flags *sessionPromptCommandFlags) promptIdentity(cmd *cobra.Command) (string, string, error) {
+	return promptIdentityFromFlags(cmd, flags.messageID, flags.idempotencyKey)
+}
+
+func promptIdentityFromFlags(cmd *cobra.Command, rawMessageID string, rawIdempotencyKey string) (string, string, error) {
+	if cmd == nil {
+		return "", "", errors.New("cli: command is required")
+	}
 	messageChanged := cmd.Flags().Changed("message-id")
 	idempotencyChanged := cmd.Flags().Changed("idempotency-key")
 	if messageChanged != idempotencyChanged {
@@ -196,8 +211,8 @@ func (flags *sessionPromptCommandFlags) promptIdentity(cmd *cobra.Command) (stri
 	if !messageChanged {
 		return store.NewID("msg"), store.NewID("idem"), nil
 	}
-	messageID := strings.TrimSpace(flags.messageID)
-	idempotencyKey := strings.TrimSpace(flags.idempotencyKey)
+	messageID := strings.TrimSpace(rawMessageID)
+	idempotencyKey := strings.TrimSpace(rawIdempotencyKey)
 	if messageID == "" || idempotencyKey == "" {
 		return "", "", errPromptIdentityBlank
 	}

@@ -4,15 +4,15 @@ area: ET
 title: Session transcript renders the calm-surface grammar
 persona: Théo
 journey: J-14
-expected: Settled tool runs rest as one semantic summary line ("Ran N commands · Edited N files", distinct-file counts) that expands to plain 24px tool rows; the live tail shows the last 4 calls behind a "+N previous tool calls" toggle; failed calls stay individually visible and collapsed with the red × glyph and error-first-line preview (row text never turns red, success check is grey); settled turns fold behind "Worked for Ns" (the only border), interrupted turns never fold; runtime events render as one-line markers (kind as mono meta, consecutive same-kind ×N), never tinted Alert cards; the user message is a borderless 4.5% ink bubble clamping at 176px with "Show more"; TodoWrite renders as a plan list, never JSON; changed files render as an "Edited N files +A −D" line expanding to bare mono file lines (cap 8).
+expected: Settled tool runs rest as one semantic summary line ("Ran N commands · Edited N files", distinct-file counts) that expands to plain 24px tool rows; the live tail shows the last 4 calls behind a "+N previous tool calls" toggle; failed calls stay individually visible and collapsed with the red × glyph and error-first-line preview (row text never turns red, success check is grey); settled turns fold behind "Worked for Ns" (the only border), interrupted turns never fold; normal queue, steer, interrupt, and dropped-input lifecycle markers do not render as warning noise; the active turn has one working row immediately above the composer; runtime events render as calm one-line markers, never tinted Alert cards; the user message, TodoWrite plan, and changed-file roll-up retain their compact semantic treatments.
 entry_points: web session window transcript; session transcript REST + SSE
-qa_status: blocked-verify
-bug_ids:
-fix_status:
-retest_status:
+qa_status: pass
+bug_ids: BUG-20260803-prompt-cancel-warning-noise
+fix_status: fixed
+retest_status: pass
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-07-28-untested-full.md
+evidence: docs/qa/evidence/2026-08-03-session-input-coderabbit/01-working-queued-calm.png; /Users/pedronauck/dev/qa-labs/compozy-session-input-coderabbit-20260804-003939-559639-lab/qa-artifacts/qa/evidence/prompt-cancel-warning-before.txt
+last_report: docs/qa/reports/2026-08-03-session-input-coderabbit.md
 overlaps: RT-session-message-reload, ET-tool-result-artifact-recovery, ET-web-session-thread-full-bleed
 ---
 
@@ -21,3 +21,11 @@ story: As a person supervising agent work I read a calm, text-first transcript w
 errors:
 
 inventory: Needs QA — introduced by the session transcript redesign (calm-surface vocabulary, 2026-07-29).
+
+QA impact 2026-08-03: reset for calm busy-input feedback and the single active-turn working row.
+
+QA pass 2026-08-03: lifecycle markers stayed durable but invisible as warning noise; expected cancellation no longer projected provider failure; active turns rendered exactly one working row above the composer.
+
+QA impact 2026-08-03 (CodeRabbit remediation): reset after a live steer/interrupt walk exposed the singular `transcript_marker.prompt_cancel` as duplicate warning noise.
+
+QA pass 2026-08-03 (CodeRabbit remediation): after the canonical lifecycle filter fix, a fresh load rendered no prompt-cancel warning while preserving the settled replacement conversation and one active-turn Working row.

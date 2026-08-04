@@ -33,6 +33,10 @@ const (
 	HostAPIMethodSessionsList                = extensionprotocol.HostAPIMethodSessionsList
 	HostAPIMethodSessionsCreate              = extensionprotocol.HostAPIMethodSessionsCreate
 	HostAPIMethodSessionsPrompt              = extensionprotocol.HostAPIMethodSessionsPrompt
+	HostAPIMethodSessionsInputsList          = extensionprotocol.HostAPIMethodSessionsInputsList
+	HostAPIMethodSessionsInputsReplace       = extensionprotocol.HostAPIMethodSessionsInputsReplace
+	HostAPIMethodSessionsInputsCancel        = extensionprotocol.HostAPIMethodSessionsInputsCancel
+	HostAPIMethodSessionsInputsPromote       = extensionprotocol.HostAPIMethodSessionsInputsPromote
 	HostAPIMethodSessionsStop                = extensionprotocol.HostAPIMethodSessionsStop
 	HostAPIMethodSessionsStatus              = extensionprotocol.HostAPIMethodSessionsStatus
 	HostAPIMethodSessionsEvents              = extensionprotocol.HostAPIMethodSessionsEvents
@@ -154,7 +158,40 @@ type SessionsPromptParams struct {
 	Message        string                                     `json:"message"`
 	MessageID      string                                     `json:"message_id"`
 	IdempotencyKey string                                     `json:"idempotency_key"`
+	Mode           apicontract.PromptMode                     `json:"mode,omitempty"`
+	ExpectedTurnID string                                     `json:"expected_turn_id,omitempty"`
 	Runtime        *apicontract.PromptRuntimeSelectionPayload `json:"runtime,omitempty"`
+}
+
+// SessionInputsListParams identifies the pending inputs for one session.
+type SessionInputsListParams = SessionTargetParams
+
+// SessionInputTargetParams identifies one durable pending input.
+type SessionInputTargetParams struct {
+	WorkspaceID  string `json:"workspace_id"`
+	SessionID    string `json:"session_id"`
+	QueueEntryID string `json:"queue_entry_id"`
+}
+
+// SessionInputReplaceParams atomically replaces one queued input and its durable identity.
+type SessionInputReplaceParams struct {
+	WorkspaceID    string `json:"workspace_id"`
+	SessionID      string `json:"session_id"`
+	QueueEntryID   string `json:"queue_entry_id"`
+	Text           string `json:"text"`
+	MessageID      string `json:"message_id"`
+	IdempotencyKey string `json:"idempotency_key"`
+}
+
+// SessionInputPromoteParams atomically promotes one queued input to fenced steering.
+type SessionInputPromoteParams struct {
+	WorkspaceID    string `json:"workspace_id"`
+	SessionID      string `json:"session_id"`
+	QueueEntryID   string `json:"queue_entry_id"`
+	Text           string `json:"text"`
+	MessageID      string `json:"message_id"`
+	IdempotencyKey string `json:"idempotency_key"`
+	ExpectedTurnID string `json:"expected_turn_id"`
 }
 
 // SessionTargetParams identifies an existing session.

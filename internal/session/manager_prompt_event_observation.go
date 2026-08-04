@@ -43,20 +43,12 @@ func promptTranscriptMarker(event acp.AgentEvent) (string, string, map[string]an
 		"event_type": event.Type,
 	}
 	switch {
-	case event.Type == acp.EventTypeUserMessage && event.Action == acp.PromptActionSteered:
-		if queueEntryID := strings.TrimSpace(event.RequestID); queueEntryID != "" {
-			evidence["queue_entry_id"] = queueEntryID
-		}
-		if generation := strings.TrimSpace(event.Decision); generation != "" {
-			evidence[promptEvidenceQueueGenerationKey] = generation
-		}
-		return transcript.MarkerPromptSteered,
-			firstNonEmpty(summary, "Steering input injected at tool result boundary."),
-			evidence,
-			true
 	case event.Type == acp.EventTypeError && event.Failure != nil:
 		failure := event.Failure.Normalize()
 		evidence["failure_kind"] = string(failure.Kind)
+		if failure.Kind == store.FailureCanceled {
+			return "", "", nil, false
+		}
 		if failure.Kind == store.FailureProviderAuth || failure.Kind == store.FailurePermission {
 			if eventHasMCPAuthReason(event) {
 				return transcript.MarkerMCPAuthRequired,

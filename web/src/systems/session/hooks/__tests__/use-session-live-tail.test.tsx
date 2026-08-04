@@ -727,6 +727,12 @@ describe("useSessionLiveTail", () => {
       queryKey: sessionKeys.clarifications(WORKSPACE_ID, SESSION_ID),
       exact: true,
     });
+    await waitFor(() =>
+      expect(invalidateQueries).toHaveBeenCalledWith({
+        queryKey: sessionKeys.inputQueue(WORKSPACE_ID, SESSION_ID),
+        exact: true,
+      })
+    );
   });
 
   it("Should reject a mismatched delta and reconnect without replacing history", async () => {

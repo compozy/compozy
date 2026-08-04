@@ -10,28 +10,34 @@ import (
 )
 
 type sessionManagerStub struct {
-	create            func(context.Context, session.CreateOpts) (*session.Session, error)
-	list              func() []*session.Info
-	listAll           func(context.Context) ([]*session.Info, error)
-	listPage          func(context.Context, session.ListQuery) (session.ListPage, error)
-	status            func(context.Context, string) (*session.Info, error)
-	events            func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error)
-	latestEvent       func(context.Context, string, string) (*store.SessionEvent, error)
-	history           func(context.Context, string, store.EventQuery) ([]store.TurnHistory, error)
-	transcriptPage    func(context.Context, string, transcript.PageQuery) (transcript.Page, error)
-	transcriptChanges func(context.Context, string, transcript.ChangeQuery) (transcript.ChangePage, error)
-	inputQueueSummary func(context.Context, string) (session.InputQueueSummary, error)
-	repairSession     func(context.Context, session.RepairOpts) (*session.RepairResult, error)
-	delete            func(context.Context, string) error
-	stop              func(context.Context, string) error
-	stopWithCause     func(context.Context, string, session.StopCause, string) error
-	resume            func(context.Context, string) (*session.Session, error)
-	clearConversation func(context.Context, string) (*session.Session, error)
-	prompt            func(context.Context, string, string) (<-chan acp.AgentEvent, error)
-	promptSynthetic   func(context.Context, string, session.SyntheticPromptOpts) (<-chan acp.AgentEvent, error)
-	sendPrompt        func(context.Context, string, session.SendPromptOpts) (session.SendPromptResult, error)
-	interruptPrompt   func(context.Context, string) (session.SendPromptResult, error)
-	steerPrompt       func(context.Context, string, session.SteerPromptOpts) (session.SendPromptResult, error)
+	create              func(context.Context, session.CreateOpts) (*session.Session, error)
+	list                func() []*session.Info
+	listAll             func(context.Context) ([]*session.Info, error)
+	listPage            func(context.Context, session.ListQuery) (session.ListPage, error)
+	status              func(context.Context, string) (*session.Info, error)
+	events              func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error)
+	latestEvent         func(context.Context, string, string) (*store.SessionEvent, error)
+	history             func(context.Context, string, store.EventQuery) ([]store.TurnHistory, error)
+	transcriptPage      func(context.Context, string, transcript.PageQuery) (transcript.Page, error)
+	transcriptChanges   func(context.Context, string, transcript.ChangeQuery) (transcript.ChangePage, error)
+	inputQueueSummary   func(context.Context, string) (session.InputQueueSummary, error)
+	repairSession       func(context.Context, session.RepairOpts) (*session.RepairResult, error)
+	delete              func(context.Context, string) error
+	stop                func(context.Context, string) error
+	stopWithCause       func(context.Context, string, session.StopCause, string) error
+	resume              func(context.Context, string) (*session.Session, error)
+	clearConversation   func(context.Context, string) (*session.Session, error)
+	prompt              func(context.Context, string, string) (<-chan acp.AgentEvent, error)
+	promptSynthetic     func(context.Context, string, session.SyntheticPromptOpts) (<-chan acp.AgentEvent, error)
+	sendPrompt          func(context.Context, string, session.SendPromptOpts) (session.SendPromptResult, error)
+	steerPrompt         func(context.Context, string, session.SteerPromptOpts) (session.SendPromptResult, error)
+	listPendingInputs   func(context.Context, string) ([]session.PendingInput, error)
+	replacePendingInput func(
+		context.Context, string, string, session.ReplacePendingInputOpts,
+	) (session.PendingInput, error)
+	promotePendingInput func(
+		context.Context, string, string, session.PromotePendingInputOpts,
+	) (session.SendPromptResult, error)
 	cancelQueued      func(context.Context, string, string) (session.SendPromptResult, error)
 	cancelPrompt      func(context.Context, string) error
 	approvePermission func(context.Context, string, acp.ApproveRequest) error
@@ -221,13 +227,6 @@ func (s sessionManagerStub) SendPrompt(
 	return session.SendPromptResult{}, session.ErrSessionNotFound
 }
 
-func (s sessionManagerStub) InterruptPrompt(ctx context.Context, id string) (session.SendPromptResult, error) {
-	if s.interruptPrompt != nil {
-		return s.interruptPrompt(ctx, id)
-	}
-	return session.SendPromptResult{}, session.ErrSessionNotFound
-}
-
 func (s sessionManagerStub) SteerPrompt(
 	ctx context.Context,
 	id string,
@@ -246,6 +245,40 @@ func (s sessionManagerStub) CancelQueuedPrompt(
 ) (session.SendPromptResult, error) {
 	if s.cancelQueued != nil {
 		return s.cancelQueued(ctx, id, queueEntryID)
+	}
+	return session.SendPromptResult{}, session.ErrSessionNotFound
+}
+
+func (s sessionManagerStub) ListPendingInputs(
+	ctx context.Context,
+	id string,
+) ([]session.PendingInput, error) {
+	if s.listPendingInputs != nil {
+		return s.listPendingInputs(ctx, id)
+	}
+	return []session.PendingInput{}, nil
+}
+
+func (s sessionManagerStub) ReplacePendingInput(
+	ctx context.Context,
+	id string,
+	entryID string,
+	opts session.ReplacePendingInputOpts,
+) (session.PendingInput, error) {
+	if s.replacePendingInput != nil {
+		return s.replacePendingInput(ctx, id, entryID, opts)
+	}
+	return session.PendingInput{}, session.ErrSessionNotFound
+}
+
+func (s sessionManagerStub) PromotePendingInputToSteer(
+	ctx context.Context,
+	id string,
+	entryID string,
+	opts session.PromotePendingInputOpts,
+) (session.SendPromptResult, error) {
+	if s.promotePendingInput != nil {
+		return s.promotePendingInput(ctx, id, entryID, opts)
 	}
 	return session.SendPromptResult{}, session.ErrSessionNotFound
 }

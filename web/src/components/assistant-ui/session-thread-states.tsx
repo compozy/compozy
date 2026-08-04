@@ -10,8 +10,6 @@ import type {
 } from "@/systems/session";
 
 import { formatMessageError } from "./session-thread-error";
-import { usePrefersReducedMotion } from "./hooks/use-prefers-reduced-motion";
-import { WorkingIndicator } from "./session-working-row";
 
 const STATE_PANE_FRAME = "flex min-h-full w-full min-w-0 flex-1 items-center justify-center py-12";
 const RUNTIME_RECOVERY_FAILURE_KINDS = new Set<SessionFailurePayload["kind"]>([
@@ -89,15 +87,6 @@ function ThreadEmpty({ agentName }: { agentName: string }) {
           over the daemon stream.
         </p>
       </div>
-    </div>
-  );
-}
-
-function ThreadActive() {
-  const reducedMotion = usePrefersReducedMotion();
-  return (
-    <div className="flex min-h-full w-full min-w-0 flex-1 items-start py-6">
-      <WorkingIndicator reducedMotion={reducedMotion} />
     </div>
   );
 }
@@ -229,7 +218,9 @@ export function ThreadStatePane({
     return <ThreadError error={error} onRetry={onRetry} />;
   }
   if (isSessionRunning) {
-    return <ThreadActive />;
+    // The sole live-status indicator lives between the viewport and composer.
+    // Keep this viewport blank until durable transcript content arrives.
+    return null;
   }
   return <ThreadEmpty agentName={agentName} />;
 }

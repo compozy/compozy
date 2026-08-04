@@ -17,6 +17,7 @@ type promptRequest struct {
 	authoredMessage        string
 	messageID              string
 	idempotencyKey         string
+	expectedTurnID         string
 	eventID                string
 	runtime                *RuntimeSelection
 	turnSource             TurnSource

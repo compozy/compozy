@@ -20,3 +20,18 @@ func PromptRuntimeSelectionFromPayload(
 		Speed:           payload.Speed,
 	}
 }
+
+// PromptRuntimeSelectionPayloadFromSelection converts an optional runtime selection into its wire shape.
+func PromptRuntimeSelectionPayloadFromSelection(
+	selection *session.RuntimeSelection,
+) *PromptRuntimeSelectionPayload {
+	if selection == nil {
+		return nil
+	}
+	return &PromptRuntimeSelectionPayload{
+		Provider:        strings.TrimSpace(selection.Provider),
+		Model:           strings.TrimSpace(selection.Model),
+		ReasoningEffort: ReasoningEffort(strings.TrimSpace(selection.ReasoningEffort)),
+		Speed:           selection.Speed,
+	}
+}

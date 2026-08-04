@@ -2,7 +2,6 @@
 package acp
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -161,28 +160,6 @@ type PromptActivityReport struct {
 	Timestamp time.Time
 	Kind      string
 	Detail    string
-}
-
-const (
-	// PromptActionSteered identifies a user message injected from the busy-input steer queue.
-	PromptActionSteered = "prompt_steered"
-)
-
-// SteerInput is one staged operator message consumed at a tool-result boundary.
-type SteerInput struct {
-	Text            string
-	QueueEntryID    string
-	QueueGeneration int64
-	MessageID       string
-	TurnID          string
-	EventID         string
-}
-
-// SteerSource is the ACP-side consumption boundary for staged steer input.
-type SteerSource interface {
-	ConsumeSteer(ctx context.Context, sessionID string) (SteerInput, bool, error)
-	CompleteSteer(ctx context.Context, sessionID string, queueEntryID string) error
-	FailSteer(ctx context.Context, sessionID string, queueEntryID string, summary string) error
 }
 
 // Caps captures the usable capabilities exposed by an ACP agent.

@@ -22,6 +22,8 @@ var (
 	ErrPromptInProgress = errors.New("session: prompt already in progress")
 	// ErrPromptNotInProgress reports that an operation requires an active prompt turn.
 	ErrPromptNotInProgress = errors.New("session: prompt is not in progress")
+	// ErrActiveTurnMismatch reports that a busy-input command targeted a different active turn.
+	ErrActiveTurnMismatch = errors.New("session: active turn mismatch")
 )
 
 // State is the lifecycle state of a managed runtime session.

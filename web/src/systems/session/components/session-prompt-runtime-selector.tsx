@@ -26,8 +26,8 @@ export function SessionPromptRuntimeSelector({ canPrompt }: SessionPromptRuntime
 
   return (
     <div className="flex min-w-0 items-center gap-1">
-      <span id="session-prompt-runtime-label" className="text-form-hint text-faint">
-        Next prompt
+      <span id="session-prompt-runtime-label" className="sr-only">
+        Runtime for next prompt
       </span>
       <RuntimeSelector
         ariaLabelledby="session-prompt-runtime-label"

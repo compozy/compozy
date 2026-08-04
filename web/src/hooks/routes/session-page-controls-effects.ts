@@ -19,7 +19,8 @@ export function enqueueBusyInput(
 ) {
   enqueue.effect(async ({ trigger }) => {
     try {
-      trigger.busyInputSucceeded({ requestId, result: await execute() });
+      await execute();
+      trigger.busyInputSucceeded({ requestId });
     } catch (error) {
       trigger.busyInputFailed({ requestId, error: normalizeError(error, "Busy input failed") });
     }
@@ -41,55 +42,6 @@ export function enqueueStop(
         error: normalizeError(error, "Failed to stop session."),
         failureMessage,
         requestId,
-      });
-    }
-  });
-}
-
-export function enqueueQueueRemoval(
-  execute: () => Promise<void>,
-  enqueue: SessionPageControlsEnqueue,
-  requestId: number
-) {
-  enqueue.effect(async ({ trigger }) => {
-    try {
-      await execute();
-      trigger.queuedPromptEditSucceeded({ requestId });
-    } catch (error) {
-      trigger.queuedPromptEditFailed({
-        error: normalizeError(error, "Couldn't remove queued prompt."),
-        requestId,
-        stage: "cancel",
-      });
-    }
-  });
-}
-
-export function enqueueQueuedSteer(
-  steer: () => Promise<void>,
-  cancel: () => Promise<void>,
-  enqueue: SessionPageControlsEnqueue,
-  requestId: number
-) {
-  enqueue.effect(async ({ trigger }) => {
-    try {
-      await steer();
-    } catch (error) {
-      trigger.queuedPromptEditFailed({
-        error: normalizeError(error, "Couldn't steer queued prompt."),
-        requestId,
-        stage: "steer",
-      });
-      return;
-    }
-    try {
-      await cancel();
-      trigger.queuedPromptEditSucceeded({ requestId });
-    } catch (error) {
-      trigger.queuedPromptEditFailed({
-        error: normalizeError(error, "Steer staged, but couldn't remove queued prompt."),
-        requestId,
-        stage: "cancel",
       });
     }
   });

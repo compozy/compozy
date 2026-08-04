@@ -29,30 +29,16 @@ func (m *Manager) submitAdmittedSteerCommand(
 	}
 	unlock := m.lockPromptAdmission(workspaceID, session.ID, admissionReq.IdempotencyKey)
 	defer unlock()
-	if salvage, ok := m.pendingInterruptedPromptSalvage(session.ID); ok {
-		admission, replayed, claimErr := m.claimPromptAdmission(ctx, admissionReq)
-		if claimErr != nil {
-			return SendPromptResult{}, claimErr
-		}
-		if replayed != nil {
-			return *replayed, nil
-		}
-		req = bindPromptAdmissionRequest(req, admission)
-		if err := m.commitPromptAdmissionDispatch(ctx, admission); err != nil {
+	if replayed, err := m.replayPromptAdmission(ctx, admissionReq); err != nil || replayed != nil {
+		if err != nil {
 			return SendPromptResult{}, err
 		}
-		result, submitErr := m.submitInterruptedPromptSalvage(ctx, session, req, salvage)
-		if submitErr != nil {
-			return SendPromptResult{}, m.promptDispatchIndeterminate(ctx, admission, submitErr)
-		}
-		result.MessageID = admission.MessageID
-		result.IdempotencyKey = admission.IdempotencyKey
-		return m.completePromptAdmission(ctx, admission, result)
+		return *replayed, nil
 	}
 	if !session.IsPrompting() {
 		return SendPromptResult{}, fmt.Errorf("%w: %s", ErrPromptNotInProgress, session.ID)
 	}
-	return m.stageAdmittedSteerPrompt(ctx, session, admissionReq)
+	return m.stageAdmittedSteerPrompt(ctx, session, req, admissionReq)
 }
 
 func (m *Manager) submitAdmittedGoalByTarget(
@@ -122,11 +108,33 @@ func (m *Manager) submitAdmittedPrompt(
 	}
 	unlock := m.lockPromptAdmission(workspaceID, session.ID, admissionReq.IdempotencyKey)
 	defer unlock()
+	if replayed, err := m.replayPromptAdmission(ctx, admissionReq); err != nil || replayed != nil {
+		if err != nil {
+			return SendPromptResult{}, err
+		}
+		return *replayed, nil
+	}
 
 	if session.IsPrompting() {
 		return m.submitAdmittedBusyPrompt(ctx, session, preparation.request, preparation.mode, admissionReq)
 	}
 	return m.submitAdmittedDirectPrompt(ctx, session, preparation.request, preparation.mode, admissionReq)
+}
+
+func (m *Manager) replayPromptAdmission(
+	ctx context.Context,
+	req store.SessionPromptAdmissionRequest,
+) (*SendPromptResult, error) {
+	admission, found, err := m.promptAdmissionStore.ReplaySessionPromptAdmission(ctx, req)
+	if err != nil || !found || admission.State != store.SessionPromptAdmissionCompleted {
+		return nil, err
+	}
+	result, err := sendPromptResultFromAdmission(admission)
+	if err != nil {
+		return nil, err
+	}
+	result.Replayed = true
+	return &result, nil
 }
 
 func (m *Manager) submitAdmittedDirectPrompt(
@@ -163,7 +171,8 @@ func (m *Manager) submitAdmittedDirectPrompt(
 		return SendPromptResult{}, err
 	}
 	result := SendPromptResult{
-		Status: promptStatusAccepted, Mode: mode, Events: events,
+		Status: store.SessionPromptResultStatusAccepted,
+		Mode:   mode, Delivery: store.SessionInputDeliveryDirect, Events: events,
 		MessageID: admission.MessageID, IdempotencyKey: admission.IdempotencyKey,
 		NewTurnID: admission.TurnID,
 	}
@@ -181,7 +190,7 @@ func (m *Manager) submitAdmittedBusyPrompt(
 	case BusyInputModeQueue:
 		return m.enqueueAdmittedBusyPrompt(ctx, session, admissionReq)
 	case BusyInputModeSteer:
-		return m.stageAdmittedSteerPrompt(ctx, session, admissionReq)
+		return m.stageAdmittedSteerPrompt(ctx, session, req, admissionReq)
 	case BusyInputModeInterrupt:
 		return m.interruptAdmittedPrompt(ctx, session, req, admissionReq)
 	default:
@@ -230,23 +239,37 @@ func (m *Manager) enqueueAdmittedBusyPrompt(
 func (m *Manager) stageAdmittedSteerPrompt(
 	ctx context.Context,
 	session *Session,
+	req promptRequest,
 	admissionReq store.SessionPromptAdmissionRequest,
 ) (SendPromptResult, error) {
 	if m.inputQueue == nil {
 		return SendPromptResult{}, ErrPromptInProgress
 	}
+	targetTurnID, err := requireExpectedActiveTurn(session, req.expectedTurnID)
+	if err != nil {
+		return SendPromptResult{}, err
+	}
 	generation, err := m.currentInputGeneration(ctx, session.ID)
 	if err != nil {
 		return SendPromptResult{}, err
 	}
-	admission, entry, created, err := m.inputQueue.StageAdmittedSteer(ctx, admissionReq, generation)
+	admission, entry, created, err := m.inputQueue.StageAdmittedSteer(
+		ctx,
+		admissionReq,
+		targetTurnID,
+		generation,
+	)
 	if err != nil {
 		return SendPromptResult{}, err
 	}
+	if err := m.ensureInterruptingInputActivated(ctx, session, entry); err != nil {
+		activationErr := m.cleanupInterruptingInputActivationFailure(ctx, entry, err)
+		return SendPromptResult{}, m.promptDispatchIndeterminate(ctx, admission, activationErr)
+	}
 	if created {
 		m.emitTranscriptMarker(
-			ctx, session, session.CurrentTurnID(), transcript.MarkerPromptSteered,
-			"Steering input staged while the session is busy.",
+			ctx, session, targetTurnID, transcript.MarkerPromptSteered,
+			"Steering input accepted for the active turn.",
 			queueEntryEvidence(entry.ID, entry.SessionGeneration, entry.Status, entry.Mode, 0),
 		)
 	}
@@ -264,24 +287,44 @@ func (m *Manager) interruptAdmittedPrompt(
 	req promptRequest,
 	admissionReq store.SessionPromptAdmissionRequest,
 ) (SendPromptResult, error) {
-	admission, replayed, err := m.claimPromptAdmission(ctx, admissionReq)
+	if m.inputQueue == nil {
+		return SendPromptResult{}, ErrPromptInProgress
+	}
+	previousTurnID, err := requireExpectedActiveTurn(session, req.expectedTurnID)
 	if err != nil {
 		return SendPromptResult{}, err
 	}
-	if replayed != nil {
-		return *replayed, nil
-	}
-	req = bindPromptAdmissionRequest(req, admission)
-	if err := m.commitPromptAdmissionDispatch(ctx, admission); err != nil {
+	admission, entry, created, err := m.inputQueue.EnqueueAdmittedInterrupt(
+		ctx,
+		admissionReq,
+		previousTurnID,
+	)
+	if err != nil {
 		return SendPromptResult{}, err
 	}
-	result, err := m.interruptAndSubmitPrompt(ctx, session, req)
-	if err != nil {
-		return SendPromptResult{}, m.promptDispatchIndeterminate(ctx, admission, err)
+	if err := m.ensureInterruptingInputActivated(ctx, session, entry); err != nil {
+		activationErr := m.cleanupInterruptingInputActivationFailure(ctx, entry, err)
+		return SendPromptResult{}, m.promptDispatchIndeterminate(ctx, admission, activationErr)
 	}
-	result.MessageID = admission.MessageID
-	result.IdempotencyKey = admission.IdempotencyKey
-	return m.completePromptAdmission(ctx, admission, result)
+	if created {
+		m.emitTranscriptMarker(
+			ctx,
+			session,
+			previousTurnID,
+			transcript.MarkerPromptInterrupted,
+			"Replacement input accepted and the active turn was interrupted.",
+			map[string]any{
+				promptEvidenceQueueGenerationKey: entry.SessionGeneration,
+				"queue_entry_id":                 entry.ID,
+			},
+		)
+	}
+	result, err := sendPromptResultFromAdmission(admission)
+	if err != nil {
+		return SendPromptResult{}, err
+	}
+	result.Replayed = !created
+	return result, nil
 }
 
 func (m *Manager) submitAdmittedGoalPrompt(

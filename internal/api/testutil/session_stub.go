@@ -41,9 +41,15 @@ type StubSessionManager struct {
 		string,
 		session.SyntheticPromptOpts,
 	) (<-chan acp.AgentEvent, error)
-	SendPromptFn   func(context.Context, string, session.SendPromptOpts) (session.SendPromptResult, error)
-	InterruptFn    func(context.Context, string) (session.SendPromptResult, error)
-	SteerFn        func(context.Context, string, session.SteerPromptOpts) (session.SendPromptResult, error)
+	SendPromptFn          func(context.Context, string, session.SendPromptOpts) (session.SendPromptResult, error)
+	SteerFn               func(context.Context, string, session.SteerPromptOpts) (session.SendPromptResult, error)
+	ListPendingInputsFn   func(context.Context, string) ([]session.PendingInput, error)
+	ReplacePendingInputFn func(
+		context.Context, string, string, session.ReplacePendingInputOpts,
+	) (session.PendingInput, error)
+	PromotePendingInputFn func(
+		context.Context, string, string, session.PromotePendingInputOpts,
+	) (session.SendPromptResult, error)
 	CancelQueuedFn func(context.Context, string, string) (session.SendPromptResult, error)
 	CancelPromptFn func(context.Context, string) error
 	ApproveFn      func(context.Context, string, acp.ApproveRequest) error
@@ -364,16 +370,6 @@ func (s StubSessionManager) SendPrompt(
 	return session.SendPromptResult{Status: "accepted", Events: events}, nil
 }
 
-func (s StubSessionManager) InterruptPrompt(ctx context.Context, id string) (session.SendPromptResult, error) {
-	if s.InterruptFn != nil {
-		return s.InterruptFn(ctx, id)
-	}
-	if err := s.CancelPrompt(ctx, id); err != nil {
-		return session.SendPromptResult{}, err
-	}
-	return session.SendPromptResult{Status: "interrupted", Interrupted: true}, nil
-}
-
 func (s StubSessionManager) SteerPrompt(
 	ctx context.Context,
 	id string,
@@ -382,7 +378,9 @@ func (s StubSessionManager) SteerPrompt(
 	if s.SteerFn != nil {
 		return s.SteerFn(ctx, id, opts)
 	}
-	return session.SendPromptResult{Status: "staged", Staged: true}, nil
+	return session.SendPromptResult{
+		Status: "steering", Delivery: store.SessionInputDeliveryInterruptThenPrompt,
+	}, nil
 }
 
 func (s StubSessionManager) CancelQueuedPrompt(
@@ -394,6 +392,40 @@ func (s StubSessionManager) CancelQueuedPrompt(
 		return s.CancelQueuedFn(ctx, id, queueEntryID)
 	}
 	return session.SendPromptResult{Status: "canceled", QueueEntryID: queueEntryID}, nil
+}
+
+func (s StubSessionManager) ListPendingInputs(
+	ctx context.Context,
+	id string,
+) ([]session.PendingInput, error) {
+	if s.ListPendingInputsFn != nil {
+		return s.ListPendingInputsFn(ctx, id)
+	}
+	return []session.PendingInput{}, nil
+}
+
+func (s StubSessionManager) ReplacePendingInput(
+	ctx context.Context,
+	id string,
+	entryID string,
+	opts session.ReplacePendingInputOpts,
+) (session.PendingInput, error) {
+	if s.ReplacePendingInputFn != nil {
+		return s.ReplacePendingInputFn(ctx, id, entryID, opts)
+	}
+	return session.PendingInput{}, session.ErrSessionNotFound
+}
+
+func (s StubSessionManager) PromotePendingInputToSteer(
+	ctx context.Context,
+	id string,
+	entryID string,
+	opts session.PromotePendingInputOpts,
+) (session.SendPromptResult, error) {
+	if s.PromotePendingInputFn != nil {
+		return s.PromotePendingInputFn(ctx, id, entryID, opts)
+	}
+	return session.SendPromptResult{}, session.ErrSessionNotFound
 }
 
 func (s StubSessionManager) CancelPrompt(ctx context.Context, id string) error {

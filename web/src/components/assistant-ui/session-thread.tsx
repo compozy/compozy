@@ -5,6 +5,7 @@ import { SessionGoalCommandErrorNotice } from "@/systems/session/components/goal
 import { SessionDecisionDock } from "@/systems/session";
 import type { SessionFailurePayload, SessionState } from "@/systems/session";
 import { useSessionComposerState } from "./hooks/use-session-composer-state";
+import { usePrefersReducedMotion } from "./hooks/use-prefers-reduced-motion";
 import { SessionComposer, type SessionComposerProps } from "./session-composer";
 import { SessionComposerPrefillProvider } from "./session-composer-prefill-context";
 import { useSessionPromptDispatch } from "./hooks/use-session-prompt-dispatch";
@@ -13,6 +14,7 @@ import {
   ThreadContentRail,
 } from "./session-thread-content-rail";
 import { ThreadViewport } from "./session-thread-viewport";
+import { WorkingIndicator } from "./session-working-row";
 
 const EMPTY_QUEUED_PROMPTS: NonNullable<SessionComposerProps["queuedPrompts"]> = [];
 
@@ -23,6 +25,7 @@ interface SessionThreadProps extends SessionComposerProps {
   acpSessionId?: string;
   sessionState?: SessionState;
   failure?: SessionFailurePayload | null;
+  workingStartedAt?: number;
 }
 
 /**
@@ -42,16 +45,20 @@ export function SessionThread({
   isBusyInputPending = false,
   isSessionRunning = false,
   allowBusyInput = true,
+  busyInputFenceAvailable = true,
   queuedPrompts = EMPTY_QUEUED_PROMPTS,
   onRemoveQueuedPrompt,
+  onReplaceQueuedPrompt,
   onSteerQueuedPrompt,
   contentInset = SESSION_THREAD_CONTENT_INSET_DEFAULT,
   acpSessionId,
   sessionState,
   failure,
+  workingStartedAt,
   runtimeControl,
 }: SessionThreadProps) {
   const aui = useAui();
+  const reducedMotion = usePrefersReducedMotion();
   const composerState = useSessionComposerState(sessionId);
   const promptDispatch = useSessionPromptDispatch();
   const promptDispatchPending = promptDispatch.pending;
@@ -88,10 +95,12 @@ export function SessionThread({
           sessionState={sessionState}
           failure={failure}
           startupFailed={startupFailed}
-          showPromptDispatchWorking={promptDispatchPending && !renderedComposerState.isRunning}
         />
         <ThreadContentRail inset={contentInset} className="pt-2">
           <SessionGoalCommandErrorNotice sessionId={sessionId} />
+          {runtimeRunning ? (
+            <WorkingIndicator startedAt={workingStartedAt} reducedMotion={reducedMotion} />
+          ) : null}
         </ThreadContentRail>
         <SessionComposer
           composerState={renderedComposerState}
@@ -109,8 +118,10 @@ export function SessionThread({
           isBusyInputPending={isBusyInputPending}
           isSessionRunning={runtimeRunning}
           allowBusyInput={allowBusyInput}
+          busyInputFenceAvailable={busyInputFenceAvailable}
           queuedPrompts={queuedPrompts}
           onRemoveQueuedPrompt={onRemoveQueuedPrompt}
+          onReplaceQueuedPrompt={onReplaceQueuedPrompt}
           onSteerQueuedPrompt={onSteerQueuedPrompt}
           inactivePlaceholder={
             sessionState === "starting"

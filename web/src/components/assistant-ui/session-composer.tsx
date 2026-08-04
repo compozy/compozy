@@ -1,12 +1,15 @@
 import { ComposerPrimitive } from "@assistant-ui/react";
 import { ArrowUp, CornerDownRight, FilePenLine, ListPlus, Scissors, Square, X } from "lucide-react";
-import type { KeyboardEvent, ReactNode } from "react";
-import { toast } from "sonner";
+import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 import type { QueuedPrompt } from "@/systems/session";
 import { Button } from "@compozy/ui";
 import { SessionComposerQueuedPrompts } from "./session-composer-queued-prompts";
+import {
+  useSessionBusyInputActions,
+  type SessionBusyInputHandler,
+} from "./hooks/use-session-busy-input-actions";
 import type { SessionComposerState } from "./hooks/use-session-composer-state";
 import {
   SESSION_THREAD_CONTENT_INSET_DEFAULT,
@@ -14,7 +17,7 @@ import {
   type SessionThreadContentInset,
 } from "./session-thread-content-rail";
 
-export type SessionBusyInputHandler = (message: string) => void | Promise<void>;
+export type { SessionBusyInputHandler } from "./hooks/use-session-busy-input-actions";
 
 const EMPTY_QUEUED_PROMPTS: QueuedPrompt[] = [];
 
@@ -27,8 +30,10 @@ export interface SessionComposerProps {
   isBusyInputPending?: boolean;
   isSessionRunning?: boolean;
   allowBusyInput?: boolean;
+  busyInputFenceAvailable?: boolean;
   queuedPrompts?: QueuedPrompt[];
   onRemoveQueuedPrompt?: (id: string) => void;
+  onReplaceQueuedPrompt?: (prompt: QueuedPrompt, message: string) => Promise<unknown>;
   onSteerQueuedPrompt?: (prompt: QueuedPrompt) => void;
   contentInset?: SessionThreadContentInset;
   inactivePlaceholder?: string;
@@ -38,24 +43,11 @@ export interface SessionComposerProps {
   runtimeControl?: ReactNode;
 }
 
-function describeComposerActionError(error: unknown, fallback: string): string {
-  if (error instanceof Error && error.message.trim().length > 0) {
-    return error.message;
-  }
-  return fallback;
-}
-
-function isAbortError(error: unknown): boolean {
-  return (
-    typeof error === "object" && error !== null && "name" in error && error.name === "AbortError"
-  );
-}
-
 /**
  * The session prompt composer. Idle: an accent Send disc submits to the runtime.
  * While a turn runs the phase changes coherently — Enter queues the draft (with a
  * visible hint), the primary disc becomes a danger Stop, and Queue/Interrupt stay
- * available. A direct Steer action injects the current draft into the live turn;
+ * available. A direct Steer action replaces the fenced active turn with the current draft;
  * queued follow-ups keep their separate steer/edit/remove actions.
  */
 export function SessionComposer({
@@ -69,8 +61,10 @@ export function SessionComposer({
   isBusyInputPending = false,
   isSessionRunning = false,
   allowBusyInput = true,
+  busyInputFenceAvailable = true,
   queuedPrompts = EMPTY_QUEUED_PROMPTS,
   onRemoveQueuedPrompt,
+  onReplaceQueuedPrompt,
   onSteerQueuedPrompt,
   inactivePlaceholder = "Session is not active",
   decisionDock,
@@ -98,52 +92,29 @@ export function SessionComposer({
   const canQueueFromInput = allowBusyInput && Boolean(onQueuePrompt);
   const hasQueuedPrompts = queuedPrompts.length > 0;
   const showQueuedStrip = hasQueuedPrompts && Boolean(onRemoveQueuedPrompt && onSteerQueuedPrompt);
-
-  const handleBusyInputAction = (
-    handler: SessionBusyInputHandler | undefined,
-    failureMessage: string
-  ) => {
-    if (!handler || !canSubmitBusyInput) {
-      return;
-    }
-
-    void Promise.resolve(handler(trimmedComposerText))
-      .then(clearComposer)
-      .catch(error => {
-        if (isAbortError(error)) return;
-        toast.error(describeComposerActionError(error, failureMessage));
-      });
-  };
-
-  // While a turn runs, Enter has ONE defined meaning: queue the draft (matching the
-  // primary visible affordance + the "Enter to queue" hint). Intercepting here with
-  // preventDefault also suppresses assistant-ui's own Enter-submit, because
-  // ComposerPrimitive.Input wires `onKeyDown` through
-  // composeEventHandlers(onKeyDown, handleKeyPress): our handler runs first and its
-  // preventDefault short-circuits the internal submit.
-  const handleInputKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (
-      runtimeRunning &&
-      canQueueFromInput &&
-      event.key === "Enter" &&
-      !event.shiftKey &&
-      !event.ctrlKey &&
-      !event.metaKey &&
-      !event.nativeEvent.isComposing
-    ) {
-      event.preventDefault();
-      handleBusyInputAction(onQueuePrompt, "Couldn't queue prompt.");
-    }
-  };
-
-  const handleEditQueuedPrompt = (prompt: QueuedPrompt) => {
-    if (trimmedComposerText.length > 0 && trimmedComposerText !== prompt.text.trim()) {
-      toast.warning("Send or clear the current draft before editing a queued prompt.");
-      return;
-    }
-    setComposerText(prompt.text);
-    onRemoveQueuedPrompt?.(prompt.id);
-  };
+  const {
+    handleComposerChange,
+    handleEditQueuedPrompt,
+    handleInputKeyDown,
+    handleInterruptAction,
+    handleQueueAction,
+    handleRemoveQueuedPrompt,
+    handleSteerAction,
+  } = useSessionBusyInputActions({
+    canQueueFromInput,
+    canSubmitBusyInput,
+    clearComposer,
+    persistComposerText,
+    onInterruptPrompt,
+    onQueuePrompt,
+    onRemoveQueuedPrompt,
+    onReplaceQueuedPrompt,
+    onSteerPrompt,
+    queuedPrompts,
+    runtimeRunning,
+    setComposerText,
+    trimmedComposerText,
+  });
 
   return (
     // The composer zone continues the canvas — no top border; the transcript's
@@ -160,8 +131,10 @@ export function SessionComposer({
               prompts={queuedPrompts}
               onSteer={onSteerQueuedPrompt!}
               onEdit={handleEditQueuedPrompt}
-              onRemove={onRemoveQueuedPrompt!}
+              onRemove={handleRemoveQueuedPrompt}
               disabled={isBusyInputPending}
+              editDisabled={!onReplaceQueuedPrompt}
+              steerDisabled={!busyInputFenceAvailable}
             />
           ) : null}
           <ComposerPrimitive.Root
@@ -183,7 +156,7 @@ export function SessionComposer({
               rows={1}
               maxRows={12}
               submitMode="enter"
-              onChange={event => persistComposerText(event.currentTarget.value)}
+              onChange={handleComposerChange}
               onKeyDown={handleInputKeyDown}
               className={cn(
                 "min-h-6 w-full resize-none border-none bg-transparent p-0 text-small-body leading-relaxed",
@@ -236,7 +209,7 @@ export function SessionComposer({
                       type="button"
                       variant="ghost"
                       size="sm"
-                      onClick={() => handleBusyInputAction(onQueuePrompt, "Couldn't queue prompt.")}
+                      onClick={handleQueueAction}
                       disabled={!canSubmitBusyInput}
                       data-testid="composer-queue-button"
                     >
@@ -249,8 +222,8 @@ export function SessionComposer({
                       type="button"
                       variant="ghost"
                       size="sm"
-                      onClick={() => handleBusyInputAction(onSteerPrompt, "Couldn't steer prompt.")}
-                      disabled={!canSubmitBusyInput}
+                      onClick={handleSteerAction}
+                      disabled={!canSubmitBusyInput || !busyInputFenceAvailable}
                       data-testid="composer-steer-button"
                     >
                       <CornerDownRight className="size-3" />
@@ -262,10 +235,8 @@ export function SessionComposer({
                       type="button"
                       variant="ghost"
                       size="sm"
-                      onClick={() =>
-                        handleBusyInputAction(onInterruptPrompt, "Couldn't interrupt prompt.")
-                      }
-                      disabled={!canSubmitBusyInput}
+                      onClick={handleInterruptAction}
+                      disabled={!canSubmitBusyInput || !busyInputFenceAvailable}
                       data-testid="composer-interrupt-button"
                     >
                       <Scissors className="size-3" />

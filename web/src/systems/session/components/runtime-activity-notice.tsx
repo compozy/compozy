@@ -5,6 +5,7 @@ import { formatDuration as formatCanonicalDuration, Marker, MarkerMeta } from "@
 import type { AgentEventPayload, RuntimeActivityPayload, TranscriptMarkerPayload } from "../types";
 import {
   hasText,
+  isOperationalStatusEvent,
   isRuntimeActivityEvent,
   isSessionErrorEvent,
   isTranscriptMarkerEvent,
@@ -132,6 +133,20 @@ function markerTone(marker: TranscriptMarkerPayload | null) {
   return "warning" as const;
 }
 
+function isOperationalPromptKind(kind: string | undefined): boolean {
+  const value = kind ?? "";
+  return [
+    "prompt_accepted",
+    "prompt_queued",
+    "prompt_steered",
+    "prompt_interrupted",
+    "prompt_dropped",
+    "prompt_cancel",
+    "prompt_canceled",
+    "prompt_cancelled",
+  ].some(operation => value.includes(operation));
+}
+
 function markerLabel(marker: TranscriptMarkerPayload | null, event: AgentEventPayload): string {
   return marker?.kind || event.title || event.type;
 }
@@ -180,6 +195,9 @@ export function RuntimeActivityNotice({
 
   if (isTranscriptMarkerEvent(event)) {
     const marker = markerFromEvent(event);
+    if (isOperationalPromptKind(marker?.kind)) {
+      return null;
+    }
     const tone = markerTone(marker);
     const Icon = tone === "info" ? Info : AlertTriangle;
     return (
@@ -197,6 +215,10 @@ export function RuntimeActivityNotice({
         <ClusterCount count={count} />
       </Marker>
     );
+  }
+
+  if (isOperationalStatusEvent(event)) {
+    return null;
   }
 
   if (!isRuntimeActivityEvent(event)) {

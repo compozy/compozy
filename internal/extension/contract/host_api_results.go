@@ -52,22 +52,45 @@ type SessionCreateResult struct {
 
 // SessionPromptResult reports an immediate or deferred prompt admission.
 type SessionPromptResult struct {
-	Status                     string                `json:"status"`
-	Mode                       session.BusyInputMode `json:"mode,omitempty"`
-	MessageID                  string                `json:"message_id"`
-	IdempotencyKey             string                `json:"idempotency_key"`
-	Replayed                   bool                  `json:"replayed"`
-	TurnID                     string                `json:"turn_id,omitempty"`
-	QueueEntryID               string                `json:"queue_entry_id,omitempty"`
-	QueuePosition              int                   `json:"queue_position,omitempty"`
-	QueueGeneration            int64                 `json:"queue_generation,omitempty"`
-	EstimatedSendAt            *time.Time            `json:"estimated_send_at,omitempty"`
-	PreviousTurnID             string                `json:"previous_turn_id,omitempty"`
-	Interrupted                bool                  `json:"interrupted,omitempty"`
-	Staged                     bool                  `json:"staged,omitempty"`
-	Queued                     bool                  `json:"queued,omitempty"`
-	CanceledQueuedEntries      int                   `json:"canceled_queued_entries,omitempty"`
-	FallbackModeIfNoToolResult string                `json:"fallback_mode_if_no_tool_result,omitempty"`
+	Status                string                     `json:"status"`
+	Mode                  apicontract.PromptMode     `json:"mode,omitempty"`
+	Delivery              apicontract.PromptDelivery `json:"delivery"`
+	MessageID             string                     `json:"message_id"`
+	IdempotencyKey        string                     `json:"idempotency_key"`
+	Replayed              bool                       `json:"replayed"`
+	TurnID                string                     `json:"turn_id,omitempty"`
+	QueueEntryID          string                     `json:"queue_entry_id,omitempty"`
+	QueuePosition         int                        `json:"queue_position,omitempty"`
+	QueueGeneration       int64                      `json:"queue_generation,omitempty"`
+	EstimatedSendAt       *time.Time                 `json:"estimated_send_at,omitempty"`
+	PreviousTurnID        string                     `json:"previous_turn_id,omitempty"`
+	CanceledQueuedEntries int                        `json:"canceled_queued_entries,omitempty"`
+}
+
+// SessionInput is one durable operator input waiting for session dispatch.
+type SessionInput struct {
+	ID              string                                     `json:"id"`
+	SessionID       string                                     `json:"session_id"`
+	MessageID       string                                     `json:"message_id,omitempty"`
+	IdempotencyKey  string                                     `json:"idempotency_key,omitempty"`
+	TargetTurnID    string                                     `json:"target_turn_id,omitempty"`
+	Status          string                                     `json:"status"`
+	Mode            apicontract.PromptMode                     `json:"mode"`
+	Delivery        apicontract.PromptDelivery                 `json:"delivery"`
+	Text            string                                     `json:"text"`
+	QueueGeneration int64                                      `json:"queue_generation"`
+	EnqueuedAt      time.Time                                  `json:"enqueued_at"`
+	Runtime         *apicontract.PromptRuntimeSelectionPayload `json:"runtime,omitempty"`
+}
+
+// SessionInputListResult returns pending input in daemon dispatch order.
+type SessionInputListResult struct {
+	Inputs []SessionInput `json:"inputs"`
+}
+
+// SessionInputResult returns one durable pending input.
+type SessionInputResult struct {
+	Input SessionInput `json:"input"`
 }
 
 // SandboxSummary is one active sandbox in the host-visible list response.

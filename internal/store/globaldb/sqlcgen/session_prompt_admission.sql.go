@@ -364,7 +364,7 @@ SET state = ?1, indeterminate_reason = ?2,
 WHERE workspace_id = ?4
   AND session_id = ?5
   AND idempotency_key = ?6
-  AND state = ?7
+  AND state IN (?7, ?8)
 `
 
 type MarkSessionPromptAdmissionIndeterminateParams struct {
@@ -375,6 +375,7 @@ type MarkSessionPromptAdmissionIndeterminateParams struct {
 	SessionID              string `json:"session_id"`
 	IdempotencyKey         string `json:"idempotency_key"`
 	DispatchCommittedState string `json:"dispatch_committed_state"`
+	CompletedState         string `json:"completed_state"`
 }
 
 func (q *Queries) MarkSessionPromptAdmissionIndeterminate(ctx context.Context, arg MarkSessionPromptAdmissionIndeterminateParams) (int64, error) {
@@ -386,6 +387,7 @@ func (q *Queries) MarkSessionPromptAdmissionIndeterminate(ctx context.Context, a
 		arg.SessionID,
 		arg.IdempotencyKey,
 		arg.DispatchCommittedState,
+		arg.CompletedState,
 	)
 	if err != nil {
 		return 0, err

@@ -140,36 +140,50 @@ modes so operators and agents do not have to guess what happens when a prompt is
 `session.busy_input.default_mode` defaults to `queue`; `session.busy_input.queue_cap` bounds
 the persisted queue.
 
-| Mode        | CLI                                                | HTTP shape                                                                                                                                                                                  | Result                                                                                                                                                                                        |
-| ----------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `queue`     | `compozy session prompt <id> "<text>" --queue`     | `POST /api/workspaces/:workspace/sessions/:id/prompt` with `{"mode":"queue","message":"...","message_id":"msg_queue_1234","idempotency_key":"idem_queue_1234","runtime":{...}}`             | Persists the input and its runtime snapshot in FIFO order, then returns `202` with `queue_entry_id`, position, and generation.                                                                |
-| `interrupt` | `compozy session prompt <id> "<text>" --interrupt` | `POST /api/workspaces/:workspace/sessions/:id/prompt` with `{"mode":"interrupt","message":"...","message_id":"msg_interrupt_1234","idempotency_key":"idem_interrupt_1234","runtime":{...}}` | Cancels the active turn through the session cancellation path, advances the queue generation, drops stale queued input, and starts the replacement prompt with its accepted runtime snapshot. |
-| `steer`     | `compozy session prompt <id> "<text>" --steer`     | `POST /api/workspaces/:workspace/sessions/:id/steer` with `{"text":"...","message_id":"msg_steer_1234","idempotency_key":"idem_steer_1234"}`                                                | Stages steering text for the next ACP `tool_result` boundary and reports `fallback_mode_if_no_tool_result: "queue"`.                                                                          |
+| Mode        | CLI                                                                             | HTTP shape                                                                                                                                                                                                                 | Result                                                                                                                                                      |
+| ----------- | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `queue`     | `compozy session prompt <id> "<text>" --queue`                                  | `POST /api/workspaces/:workspace/sessions/:id/prompt` with `{"mode":"queue","message":"...","message_id":"msg_queue_1234","idempotency_key":"idem_queue_1234","runtime":{...}}`                                            | Persists the input and runtime snapshot in FIFO order. The result reports `status: "queued"`, `delivery: "after_turn"`, queue ID, position, and generation. |
+| `interrupt` | `compozy session prompt <id> "<text>" --interrupt --expected-turn-id turn_1234` | `POST /api/workspaces/:workspace/sessions/:id/prompt` with `{"mode":"interrupt","expected_turn_id":"turn_1234","message":"...","message_id":"msg_interrupt_1234","idempotency_key":"idem_interrupt_1234","runtime":{...}}` | Requires the active-turn fence, advances the queue generation, and returns `status: "interrupting"` with `delivery: "interrupt_then_prompt"`.               |
+| `steer`     | `compozy session prompt <id> "<text>" --steer --expected-turn-id turn_1234`     | `POST /api/workspaces/:workspace/sessions/:id/steer` with `{"text":"...","message_id":"msg_steer_1234","idempotency_key":"idem_steer_1234","expected_turn_id":"turn_1234"}`                                                | Requires the active-turn fence and returns the daemon's `status` and `delivery` decision.                                                                   |
 
-Queued entries can be canceled when the caller has the queue entry id:
+The prompt response is authoritative. Use its `status` and `delivery` fields to decide what happened;
+transcript markers retain history but are not a second action result channel.
+
+### Managing queued input
+
+Use the queue entry ID from a queued result or from `session input list`. The daemon owns the list, so
+read it again after each mutation instead of keeping a client-side queue.
 
 ```bash
-compozy session prompt sess-1234 --cancel queue_entry_1234
+compozy session input list sess-1234
+compozy session input edit sess-1234 queue_entry_1234 "Run the focused test first."
+compozy session input steer sess-1234 queue_entry_1234 "Prefer the smaller patch." \
+  --expected-turn-id turn_1234
+compozy session input cancel sess-1234 queue_entry_1234
 ```
 
-```bash
-curl -X DELETE \
-  http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234/prompt/queue/queue_entry_1234
-```
+`edit` and `steer` author a replacement `message_id` and `idempotency_key`; provide both original
+values together only to retry the exact same mutation. `steer` requires `--expected-turn-id`, which
+rejects a request that targets an older turn. HTTP and UDS expose the same daemon-owned operations:
 
-`POST /api/workspaces/:workspace/sessions/:id/interrupt` is the dedicated cancel-current-turn
-operation when the caller wants to interrupt without supplying a replacement prompt. Every busy-input
-transition writes transcript marker evidence for recap, replay, and audit: queued, accepted,
-interrupted, steered, and dropped stale input are visible instead of being hidden client behavior.
+| Operation        | Endpoint                                                                                                  |
+| ---------------- | --------------------------------------------------------------------------------------------------------- |
+| List             | `GET /api/workspaces/:workspace/sessions/:id/prompt/queue`                                                |
+| Edit             | `PUT /api/workspaces/:workspace/sessions/:id/prompt/queue/:queue_entry_id`                                |
+| Promote to steer | `POST /api/workspaces/:workspace/sessions/:id/prompt/queue/:queue_entry_id/steer` with `expected_turn_id` |
+| Cancel           | `DELETE /api/workspaces/:workspace/sessions/:id/prompt/queue/:queue_entry_id`                             |
+
+Use `POST /api/workspaces/:workspace/sessions/:id/prompt/cancel` to stop the current turn without a
+replacement. Use prompt mode `interrupt` or `steer` with `expected_turn_id` when replacement text must
+run next. Every busy-input transition writes transcript marker evidence for recap, replay, and audit.
 
 Queue and interrupt preserve the runtime snapshot accepted with their replacement input. A queued
 prompt therefore runs with the selected provider, model, reasoning effort, and speed even if a later
 prompt changes the session binding first.
 
-A dedicated interrupt followed by `steer` preserves the canceled authored prompt once and submits
-it with the explicit correction as the next generation-fenced input. A second steer cannot reuse
-that salvage. The `--interrupt` mode shown above supplies a plain replacement prompt, so it discards
-the canceled text instead of composing it into the replacement.
+Both `interrupt` and `steer` submit only the explicit replacement text. They never salvage, reuse, or
+combine the canceled authored prompt. The expected turn fence rejects stale actions before they can
+affect a newer turn.
 
 ### Runtime activity supervision
 

@@ -196,6 +196,9 @@ func statusForSessionConflictError(err error) (int, bool) {
 	switch {
 	case errors.Is(err, session.ErrPromptInProgress),
 		errors.Is(err, session.ErrPromptNotInProgress),
+		errors.Is(err, session.ErrActiveTurnMismatch),
+		errors.Is(err, store.ErrSessionInputQueueEntryNotQueued),
+		errors.Is(err, store.ErrSessionInputMutationConflict),
 		errors.Is(err, session.ErrPendingPermissionNotFound),
 		errors.Is(err, session.ErrPendingPermissionConflict),
 		errors.Is(err, store.ErrSessionAttachLocked),

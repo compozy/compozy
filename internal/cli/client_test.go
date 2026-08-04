@@ -196,6 +196,138 @@ func TestUnixSocketClientSessionPromptShouldDecodeStructuredGoalJSON(t *testing.
 	})
 }
 
+func TestUnixSocketClientSessionInputMethods(t *testing.T) {
+	t.Parallel()
+
+	client := &unixSocketClient{
+		socketPath: "/tmp/compozy.sock",
+		httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+			switch {
+			case req.Method == http.MethodGet && req.URL.Path == "/api/sessions/sess-1":
+				return newHTTPResponse(
+					http.StatusOK,
+					`{"session":{"id":"sess-1","workspace_id":"ws-1","state":"active","available_commands":[],"created_at":"2026-07-10T20:00:00Z","updated_at":"2026-07-10T20:00:00Z"}}`,
+				), nil
+			case req.Method == http.MethodGet && req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/prompt/queue":
+				return newHTTPResponse(http.StatusOK, `{"inputs":[{"id":"queue-1","session_id":"sess-1","status":"queued","mode":"queue","delivery":"after_turn","text":"Run the test.","queue_generation":2,"enqueued_at":"2026-07-10T20:00:00Z"}]}`), nil
+			case req.Method == http.MethodPut && req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/prompt/queue/queue-1":
+				var body contract.ReplaceSessionInputRequest
+				if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+					return nil, fmt.Errorf("decode replace input request: %w", err)
+				}
+				if err := req.Body.Close(); err != nil {
+					return nil, fmt.Errorf("close replace input request: %w", err)
+				}
+				if body.Text != "Run the focused test." || body.MessageID != "msg-1" || body.IdempotencyKey != "idem-1" {
+					return nil, fmt.Errorf("replace input request = %#v", body)
+				}
+				return newHTTPResponse(http.StatusOK, `{"input":{"id":"queue-1","session_id":"sess-1","message_id":"msg-1","idempotency_key":"idem-1","status":"queued","mode":"queue","delivery":"after_turn","text":"Run the focused test.","queue_generation":3,"enqueued_at":"2026-07-10T20:00:00Z"}}`), nil
+			case req.Method == http.MethodPost && req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/steer":
+				var body contract.SteerPromptRequest
+				if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+					return nil, fmt.Errorf("decode steer prompt request: %w", err)
+				}
+				if err := req.Body.Close(); err != nil {
+					return nil, fmt.Errorf("close steer prompt request: %w", err)
+				}
+				if body.Text != "Prefer the smaller patch." || body.MessageID != "msg-2" ||
+					body.IdempotencyKey != "idem-2" || body.ExpectedTurnID != "turn-1" {
+					return nil, fmt.Errorf("steer prompt request = %#v", body)
+				}
+				return newHTTPResponse(http.StatusAccepted, `{"prompt":{"status":"steering","mode":"steer","delivery":"interrupt_then_prompt","message_id":"msg-2","idempotency_key":"idem-2","replayed":false,"queue_entry_id":"queue-1"}}`), nil
+			case req.Method == http.MethodPost && req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/prompt/queue/queue-1/steer":
+				var body contract.PromoteSessionInputRequest
+				if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+					return nil, fmt.Errorf("decode promote input request: %w", err)
+				}
+				if err := req.Body.Close(); err != nil {
+					return nil, fmt.Errorf("close promote input request: %w", err)
+				}
+				if body.Text != "Prefer the smaller patch." || body.MessageID != "msg-2" ||
+					body.IdempotencyKey != "idem-2" || body.ExpectedTurnID != "turn-1" {
+					return nil, fmt.Errorf("promote input request = %#v", body)
+				}
+				return newHTTPResponse(http.StatusAccepted, `{"prompt":{"status":"steering","mode":"steer","delivery":"interrupt_then_prompt","message_id":"msg-2","idempotency_key":"idem-2","replayed":false,"queue_entry_id":"queue-1"}}`), nil
+			case req.Method == http.MethodDelete && req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/prompt/queue/queue-1":
+				return newHTTPResponse(http.StatusAccepted, `{"prompt":{"status":"canceled","delivery":"none","message_id":"msg-2","idempotency_key":"idem-2","replayed":false,"queue_entry_id":"queue-1"}}`), nil
+			default:
+				return nil, fmt.Errorf("unexpected request = %s %s", req.Method, req.URL.Path)
+			}
+		})},
+	}
+	client.streamClient = client.httpClient
+
+	t.Run("Should list pending input in workspace session scope", func(t *testing.T) {
+		t.Parallel()
+
+		inputs, err := client.ListSessionInputs(t.Context(), "sess-1")
+		if err != nil {
+			t.Fatalf("ListSessionInputs() error = %v", err)
+		}
+		if len(inputs.Inputs) != 1 || inputs.Inputs[0].ID != "queue-1" || inputs.Inputs[0].QueueGeneration != 2 {
+			t.Fatalf("ListSessionInputs() = %#v", inputs)
+		}
+	})
+
+	t.Run("Should replace queued input in workspace session scope", func(t *testing.T) {
+		t.Parallel()
+
+		input, err := client.ReplaceSessionInput(t.Context(), "sess-1", "queue-1", ReplaceSessionInputRequest{
+			Text: "Run the focused test.", MessageID: "msg-1", IdempotencyKey: "idem-1",
+		})
+		if err != nil {
+			t.Fatalf("ReplaceSessionInput() error = %v", err)
+		}
+		if input.ID != "queue-1" || input.Text != "Run the focused test." || input.QueueGeneration != 3 {
+			t.Fatalf("ReplaceSessionInput() = %#v", input)
+		}
+	})
+
+	t.Run("Should send direct steering with its active turn fence", func(t *testing.T) {
+		t.Parallel()
+
+		record, err := client.SteerSessionPrompt(t.Context(), "sess-1", contract.SteerPromptRequest{
+			Text: "Prefer the smaller patch.", MessageID: "msg-2", IdempotencyKey: "idem-2", ExpectedTurnID: "turn-1",
+		})
+		if err != nil {
+			t.Fatalf("SteerSessionPrompt() error = %v", err)
+		}
+		if record.Prompt.Status != "steering" ||
+			record.Prompt.Delivery != contract.PromptDeliveryInterruptThenPrompt ||
+			record.Prompt.QueueEntryID != "queue-1" {
+			t.Fatalf("SteerSessionPrompt() = %#v", record)
+		}
+	})
+
+	t.Run("Should promote queued input with its active turn fence", func(t *testing.T) {
+		t.Parallel()
+
+		record, err := client.PromoteSessionInput(t.Context(), "sess-1", "queue-1", PromoteSessionInputRequest{
+			Text: "Prefer the smaller patch.", MessageID: "msg-2", IdempotencyKey: "idem-2", ExpectedTurnID: "turn-1",
+		})
+		if err != nil {
+			t.Fatalf("PromoteSessionInput() error = %v", err)
+		}
+		if record.Prompt.Status != "steering" ||
+			record.Prompt.Delivery != contract.PromptDeliveryInterruptThenPrompt ||
+			record.Prompt.QueueEntryID != "queue-1" {
+			t.Fatalf("PromoteSessionInput() = %#v", record)
+		}
+	})
+
+	t.Run("Should cancel queued input in workspace session scope", func(t *testing.T) {
+		t.Parallel()
+
+		record, err := client.CancelSessionInput(t.Context(), "sess-1", "queue-1")
+		if err != nil {
+			t.Fatalf("CancelSessionInput() error = %v", err)
+		}
+		if record.Prompt.Status != "canceled" || record.Prompt.QueueEntryID != "queue-1" {
+			t.Fatalf("CancelSessionInput() = %#v", record)
+		}
+	})
+}
+
 func TestUnixSocketClientAgentDefinitionMethods(t *testing.T) {
 	t.Parallel()
 
