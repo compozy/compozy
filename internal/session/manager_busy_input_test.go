@@ -471,6 +471,82 @@ func TestManagerBusyInputActivationCleanup(t *testing.T) {
 			collectEvents(t, active.Events)
 		})
 	}
+
+	t.Run("Should fence canceled promotion replay after active-turn cancellation fails", func(t *testing.T) {
+		t.Parallel()
+
+		queueStore := openManagerInputQueueStore(t)
+		h := newHarness(t, WithSessionInputQueueStore(queueStore))
+		registerManagerInputQueueWorkspace(t, queueStore, h)
+		sess := createSession(t, h)
+		registerManagerInputQueueSession(t, queueStore, h, sess)
+		activeEntered := make(chan struct{})
+		releaseActive := make(chan struct{})
+		var releaseOnce sync.Once
+		t.Cleanup(func() {
+			releaseOnce.Do(func() { close(releaseActive) })
+			if err := h.manager.Stop(testutil.Context(t), sess.ID); err != nil {
+				t.Errorf("Stop() error = %v", err)
+			}
+		})
+		h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			events := make(chan acp.AgentEvent)
+			go func() {
+				defer close(events)
+				if req.Message == "active prompt" {
+					close(activeEntered)
+					<-releaseActive
+				}
+				emitDonePromptEvents(events, sess.ID, req.TurnID)
+			}()
+			return events, nil
+		}
+
+		active, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, SendPromptOpts{Message: "active prompt"})
+		if err != nil {
+			t.Fatalf("SendPrompt(active) error = %v", err)
+		}
+		<-activeEntered
+		targetTurnID := sess.CurrentTurnID()
+		queued, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, SendPromptOpts{
+			Message: "queued before promotion replay", Mode: BusyInputModeQueue,
+		})
+		if err != nil {
+			t.Fatalf("SendPrompt(queue) error = %v", err)
+		}
+		cancelErr := errors.New("driver cancellation failed")
+		h.driver.cancelHook = func(*fakeProcess) error { return cancelErr }
+		opts := PromotePendingInputOpts{
+			Text: "promoted after cancellation", ExpectedTurnID: targetTurnID,
+			MessageID: "message-promote-canceled-replay", IdempotencyKey: "idem-promote-canceled-replay",
+		}
+		_, err = h.manager.PromotePendingInputToSteer(
+			testutil.Context(t), sess.ID, queued.QueueEntryID, opts,
+		)
+		if !errors.Is(err, cancelErr) {
+			t.Fatalf("PromotePendingInputToSteer(first) error = %v, want cancellation failure", err)
+		}
+
+		_, err = h.manager.PromotePendingInputToSteer(
+			testutil.Context(t), sess.ID, queued.QueueEntryID, opts,
+		)
+		if !errors.Is(err, store.ErrSessionPromptDispatchIndeterminate) {
+			t.Fatalf("PromotePendingInputToSteer(replay) error = %v, want dispatch indeterminate", err)
+		}
+		pending, listErr := h.manager.ListPendingInputs(testutil.Context(t), sess.ID)
+		if listErr != nil {
+			t.Fatalf("ListPendingInputs() error = %v", listErr)
+		}
+		if len(pending) != 0 {
+			t.Fatalf("pending inputs after promotion replay = %#v, want none", pending)
+		}
+		if got := managerCancelCalls(h); got != 1 {
+			t.Fatalf("driver cancel calls = %d, want one", got)
+		}
+
+		releaseOnce.Do(func() { close(releaseActive) })
+		collectEvents(t, active.Events)
+	})
 }
 
 func TestManagerPromptAdmissionReplay(t *testing.T) {

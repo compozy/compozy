@@ -126,7 +126,7 @@ func (s *Service) ReplayPromotion(
 	messageID string,
 	idempotencyKey string,
 ) (store.SessionInputQueueEntry, bool, error) {
-	return s.replayMutation(
+	entry, found, err := s.replayMutation(
 		ctx,
 		strings.TrimSpace(sessionID),
 		durableMutationID(sessionID, entryID, idempotencyKey),
@@ -137,6 +137,19 @@ func (s *Service) ReplayPromotion(
 		store.SessionInputDeliveryInterruptThenPrompt,
 		targetTurnID,
 	)
+	if err != nil || !found {
+		return entry, found, err
+	}
+	if entry.Status == store.SessionInputQueueStatusCanceled ||
+		entry.Status == store.SessionInputQueueStatusFailed {
+		return store.SessionInputQueueEntry{}, false, fmt.Errorf(
+			"%w: input %s is %s",
+			store.ErrSessionPromptDispatchIndeterminate,
+			entry.ID,
+			entry.Status,
+		)
+	}
+	return entry, true, nil
 }
 
 func (s *Service) replayMutation(
