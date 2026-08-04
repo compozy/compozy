@@ -2,8 +2,8 @@ package config
 
 import "github.com/compozy/compozy/internal/loop/dsl"
 
-func cloneLoopsConfig(source LoopsConfig) LoopsConfig {
-	cloned := source
+func cloneLoopsConfig(source *LoopsConfig) LoopsConfig {
+	cloned := *source
 	cloned.Defaults.Delivery = cloneLoopDefaultConfig(source.Defaults.Delivery)
 	cloned.Defaults.Watch = cloneLoopDefaultConfig(source.Defaults.Watch)
 	cloned.Inputs = cloneLoopInputDefaults(source.Inputs)

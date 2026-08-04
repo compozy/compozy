@@ -134,32 +134,14 @@ func (g *TaskRepo) completeCoordinatorAndEnqueueNextWithExecutor(
 	if err != nil {
 		return taskpkg.CoordinatorCompletionResult{}, err
 	}
-	if result.Settlement == nil {
-		return taskpkg.CoordinatorCompletionResult{}, fmt.Errorf(
-			"%w: coordinator completion settlement is required",
-			taskpkg.ErrValidation,
-		)
-	}
-	completionEvent, err := taskpkg.NewCoordinatorRunCompletedEvent(
+	completionEvent, err := appendCoordinatorCompletionEventWithExecutor(
+		ctx,
+		exec,
 		completionEventID,
-		result.Run,
-		result.Settlement.Task,
-		completion.Actor,
-		completion.Now,
+		*completion,
+		&result,
 	)
 	if err != nil {
-		return taskpkg.CoordinatorCompletionResult{}, err
-	}
-	if err := appendTaskEventWithExecutor(ctx, exec, EventRecordInsert{
-		ID:        completionEvent.ID,
-		TaskID:    completionEvent.TaskID,
-		RunID:     completionEvent.RunID,
-		EventType: completionEvent.EventType,
-		Actor:     completionEvent.Actor,
-		Origin:    completionEvent.Origin,
-		Payload:   completionEvent.Payload,
-		Timestamp: completionEvent.Timestamp,
-	}); err != nil {
 		return taskpkg.CoordinatorCompletionResult{}, err
 	}
 	result.CompletionEvent = completionEvent
