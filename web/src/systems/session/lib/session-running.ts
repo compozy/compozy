@@ -60,3 +60,10 @@ export function idleAttachableAgentNames(sessions: SessionPayload[] | undefined)
 export function isUserControllableSession(session: SessionPayload): boolean {
   return (session.type ?? "user") === "user";
 }
+
+export function canPromptSession(session: SessionPayload): boolean {
+  return (
+    isUserControllableSession(session) &&
+    (session.state === "active" || session.state === "stopped")
+  );
+}

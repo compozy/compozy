@@ -36,7 +36,7 @@ All classes live in `docs/design/opendesign/session/session.css`. Production equ
 | `.t-row` / `.t-row--turn-end` | 7px in-turn / 18px between-turn rhythm; no other margins |
 | `.msg-user__bubble` | right-aligned, max-w 80%, `--chat-fill-user` (4.5% ink), radius-lg, **no border**; clamp at 176px with mask + "Show more" |
 | `.msg-assistant.md` | naked markdown, full column, `--fg`, 13.5px/1.62 |
-| `.msg-meta` | hover-revealed timestamp · copy · use-as-goal; terminal message of settled turn only |
+| `.msg-meta` | hover-revealed timestamp · copy; terminal message of settled turn only |
 | `.trow` | 24px line: 18px icon well · verb (500, `--muted`) · mono preview (`--subtle`) · optional `.diffstat` · chevron · status glyph; hover brightens verb, `--row-hover` fill only when expandable |
 | `.trow__detail` | expanded body: `margin-left: 25px`, 1px `--line` rail, mono 11px `--muted`, max-h 240px; diff/stderr colored **text**, no tinted blocks |
 | `.trow__artifact` | retained-result affordance inside `.trow__detail` (`ToolResultArtifact`): the truncated preview stays in the mono pre; below it a quiet `--info` text action "Open full result" with faint mono byte meta; content loads paginated **in place** ("Load more" + byte progress); load failure = danger text line + "Retry" — never an Alert card |

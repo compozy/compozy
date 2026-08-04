@@ -160,7 +160,7 @@ func recoveredSessionFromMeta(meta store.SessionMeta) recoveredSession {
 		SpeedResolution:   speedpkg.CloneResolution(meta.SpeedResolution),
 		RuntimeStatus:     meta.RuntimeStatus,
 		RuntimeTransition: meta.RuntimeTransition,
-		RuntimeFailure:    strings.TrimSpace(meta.RuntimeFailure),
+		RuntimeFailure:    store.SessionRuntimeFailureValue(meta.RuntimeFailure),
 		WorkspaceID:       meta.WorkspaceID,
 		SessionType:       meta.SessionType,
 		Lineage:           store.CloneSessionLineage(meta.Lineage),

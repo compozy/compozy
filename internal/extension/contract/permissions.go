@@ -113,6 +113,8 @@ var consentByHostAPIMethod = map[string]string{
 	"sessions/inputs/replace":        permissionSessionWrite,
 	"sessions/list":                  permissionSessionRead,
 	"sessions/prompt":                permissionSessionWrite,
+	"sessions/runtime/clear":         permissionSessionWrite,
+	"sessions/runtime/set":           permissionSessionWrite,
 	"sessions/soul/refresh":          "soul.write",
 	"sessions/status":                permissionSessionRead,
 	"sessions/status/get":            permissionSessionRead,

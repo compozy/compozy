@@ -339,6 +339,40 @@ func TestResumeErrorBranches(t *testing.T) {
 func TestPromptErrorPaths(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should resume a stopped persisted session after manager restart", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		session := createSession(t, h)
+		first, err := h.manager.Prompt(testutil.Context(t), session.ID, "first")
+		if err != nil {
+			t.Fatalf("Prompt(first) error = %v", err)
+		}
+		collectEvents(t, first)
+		if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+
+		restarted := newManagerWithHarness(t, h)
+		second, err := restarted.Prompt(testutil.Context(t), session.ID, "after-restart")
+		if err != nil {
+			t.Fatalf("Prompt(stopped after restart) error = %v", err)
+		}
+		collectEvents(t, second)
+		resumed, ok := restarted.Get(session.ID)
+		if !ok {
+			t.Fatalf("Get(%q) found = false, want resumed session", session.ID)
+		}
+		t.Cleanup(func() {
+			if err := restarted.Stop(testutil.Context(t), resumed.ID); err != nil {
+				t.Fatalf("Stop(resumed) error = %v", err)
+			}
+		})
+		if got := len(h.driver.startCalls); got != 2 {
+			t.Fatalf("driver start calls = %d, want 2 after restart resume", got)
+		}
+	})
+
 	h := newHarness(t)
 	session := createSession(t, h)
 
@@ -351,15 +385,20 @@ func TestPromptErrorPaths(t *testing.T) {
 	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
 		t.Fatalf("Stop() error = %v", err)
 	}
-	if _, err := h.manager.Prompt(testutil.Context(t), session.ID, "after-stop"); err == nil {
-		t.Fatal("Prompt(stopped) error = nil, want non-nil")
-	} else {
-		if !errors.Is(err, ErrSessionNotActive) {
-			t.Fatalf("Prompt(stopped) error = %v, want ErrSessionNotActive", err)
-		}
-		if !strings.Contains(err.Error(), string(StateStopped)) {
-			t.Fatalf("Prompt(stopped) error = %v, want stopped state context", err)
-		}
+	events, err := h.manager.Prompt(testutil.Context(t), session.ID, "after-stop")
+	if err != nil {
+		t.Fatalf("Prompt(stopped) error = %v", err)
+	}
+	collectEvents(t, events)
+	resumed, ok := h.manager.Get(session.ID)
+	if !ok {
+		t.Fatalf("Get(%q) found = false, want true after prompt resume", session.ID)
+	}
+	if got := resumed.Info().State; got != StateActive {
+		t.Fatalf("resumed state = %q, want %q", got, StateActive)
+	}
+	if got := len(h.driver.startCalls); got != 2 {
+		t.Fatalf("driver start calls = %d, want 2 after prompt resume", got)
 	}
 
 	t.Run("Should return the runtime bind failure for an unbound session", func(t *testing.T) {
@@ -397,6 +436,61 @@ func TestResumeReturnsExistingActiveSession(t *testing.T) {
 	if resumed != session {
 		t.Fatalf("Resume(active) returned %p, want %p", resumed, session)
 	}
+}
+
+// Invariant: concurrent callers share one stopped-session resume and receive the same active
+// session. Owning layer: session Manager lifecycle. Canonical suite: resume coverage in this file.
+func TestConcurrentResumeSharesOneStart(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	session := createSession(t, h)
+	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+
+	startEntered := make(chan struct{})
+	releaseStart := make(chan struct{})
+	h.driver.startHook = func(opts acp.StartOpts, _ int) (*fakeProcess, error) {
+		close(startEntered)
+		<-releaseStart
+		return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, "acp-resumed"), nil
+	}
+
+	type result struct {
+		session *Session
+		err     error
+	}
+	results := make(chan result, 2)
+	resume := func() {
+		resumed, err := h.manager.Resume(context.Background(), session.ID)
+		results <- result{session: resumed, err: err}
+	}
+	go resume()
+	<-startEntered
+	go resume()
+	close(releaseStart)
+
+	first := <-results
+	second := <-results
+	if first.err != nil || second.err != nil {
+		t.Fatalf("concurrent Resume() errors = (%v, %v), want nil", first.err, second.err)
+	}
+	if first.session == nil || second.session != first.session {
+		t.Fatalf("concurrent Resume() sessions = (%p, %p), want one shared session", first.session, second.session)
+	}
+	h.driver.mu.Lock()
+	startCalls := len(h.driver.startCalls)
+	h.driver.mu.Unlock()
+	if startCalls != 2 {
+		t.Fatalf("driver Start() calls = %d, want one create and one shared resume", startCalls)
+	}
+	t.Cleanup(func() {
+		if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil &&
+			!errors.Is(err, ErrSessionNotFound) {
+			t.Errorf("Stop() cleanup error = %v", err)
+		}
+	})
 }
 
 func TestNewManagerOptionsAndValidation(t *testing.T) {

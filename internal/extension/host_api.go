@@ -162,6 +162,16 @@ type hostAPIRuntimePromptSessionManager interface {
 	SendPrompt(ctx context.Context, id string, opts session.SendPromptOpts) (session.SendPromptResult, error)
 }
 
+type hostAPIRuntimeSelectionSessionManager interface {
+	SetRuntimeSelection(
+		ctx context.Context,
+		id string,
+		selection session.RuntimeSelection,
+		expectedRevision int64,
+	) (*session.Info, error)
+	ClearRuntimeSelection(ctx context.Context, id string, expectedRevision int64) (*session.Info, error)
+}
+
 type hostAPIPendingInputSessionManager interface {
 	ListPendingInputs(ctx context.Context, id string) ([]session.PendingInput, error)
 	ReplacePendingInput(

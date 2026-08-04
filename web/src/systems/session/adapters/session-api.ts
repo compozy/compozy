@@ -14,6 +14,7 @@ import type {
   SessionRecapPayload,
   SessionRepairPayload,
   SessionRepairQuery,
+  SetSessionRuntimeRequest,
   SessionUsagePayload,
   TurnHistoryPayload,
 } from "../types";
@@ -209,6 +210,48 @@ export async function resumeSession(
     throwSessionRequestError(response, error, `Failed to resume session "${id}"`, id);
   }
   return requireResponseData(data, response, `Failed to resume session "${id}"`).session;
+}
+
+export async function setSessionRuntime(
+  workspaceId: string,
+  id: string,
+  params: SetSessionRuntimeRequest,
+  signal?: AbortSignal
+): Promise<SessionPayload> {
+  const { data, error, response } = await apiClient.PUT(
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/runtime",
+    {
+      params: { path: { workspace_id: workspaceId, session_id: id } },
+      body: params,
+      signal,
+    }
+  );
+  if (apiRequestFailed(response, error)) {
+    throwSessionRequestError(response, error, `Failed to save runtime for session "${id}"`, id);
+  }
+  return requireResponseData(data, response, `Failed to save runtime for session "${id}"`).session;
+}
+
+export async function clearSessionRuntime(
+  workspaceId: string,
+  id: string,
+  expectedRevision: number,
+  signal?: AbortSignal
+): Promise<SessionPayload> {
+  const { data, error, response } = await apiClient.DELETE(
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/runtime",
+    {
+      params: {
+        path: { workspace_id: workspaceId, session_id: id },
+        query: { expected_revision: expectedRevision },
+      },
+      signal,
+    }
+  );
+  if (apiRequestFailed(response, error)) {
+    throwSessionRequestError(response, error, `Failed to clear runtime for session "${id}"`, id);
+  }
+  return requireResponseData(data, response, `Failed to clear runtime for session "${id}"`).session;
 }
 
 export async function fetchSessionRecap(

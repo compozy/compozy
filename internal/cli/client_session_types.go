@@ -12,6 +12,9 @@ type CreateSessionRequest = contract.CreateSessionRequest
 // SessionRecord is the shared daemon session payload.
 type SessionRecord = contract.SessionPayload
 
+// SetSessionRuntimeRequest selects the default runtime for future prompts.
+type SetSessionRuntimeRequest = contract.SetSessionRuntimeRequest
+
 // SessionRecapRecord is the shared deterministic session recap payload.
 type SessionRecapRecord = contract.RecapPayload
 

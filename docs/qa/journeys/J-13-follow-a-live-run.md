@@ -13,6 +13,9 @@ flowchart TD
     E --> C{Composer while running}
     C -->|Enter| Q[Draft queued + visible hint; queued rows editable]
     C -->|Stop| STP[Turn stops; primary flips to Send; badge reflects immediately]
+    STP --> READY[Stopped thread keeps its history and composer available]
+    READY --> RESTART[Next normal prompt restarts the same logical session]
+    RESTART --> SAME[Prior transcript remains; one new turn streams]
     C -->|Steer / Interrupt| SI[Compozy busy controls preserved]
     Q --> DQ[Side effect: queued prompts dispatch in order after the turn ends]
     W --> SET[Turn settles]
@@ -22,6 +25,7 @@ flowchart TD
     C -.->|clear during a transient disconnect| CLR[Clear-convergence: zero pre-clear rows after reconnect]
     E -.->|backgrounds the tab mid-run| AB[Abandon: resume via J-11]
     F --> TE[True end: settled turn readable, no premature success glyphs, status truthful, queued prompts landed in order]
+    SAME --> TE
 ```
 
 ```yaml
@@ -46,10 +50,13 @@ journey:
     - step: 4
       verb: "Stop the turn (or let it settle)"
       expected_observable: "Stop flips the primary back to Send and reflects the badge immediately; on natural settle the turn folds behind 'Worked for Xs' with the terminal message below, a changed-files roll-up if files were edited, and a hover copy+timestamp toolbar"
+    - step: 5
+      verb: "Send a normal prompt after the session is stopped"
+      expected_observable: "The composer remains available; submitting restarts the same logical session, preserves the prior transcript, and streams exactly one new turn without a separate resume action"
   goal:
-    observable: "The live turn is smooth to follow and steer; queued prompts dispatch in order after the turn ends; the settled turn is truthful (no premature success glyph)"
-    side_effects: [queued-prompts-dispatched-in-order, tool-events-streamed, changed-files-rolled-up]
-  true_end_state: "After the turn settles: the fold reads correctly, queued prompts ran in the order queued (verified at landing, not enqueue), and the status matches reality; clearing during a transient disconnect leaves zero pre-clear rows after reconnect."
+    observable: "The live turn is smooth to follow and steer; queued prompts dispatch in order after the turn ends; after Stop, a normal prompt continues the same durable history"
+    side_effects: [queued-prompts-dispatched-in-order, tool-events-streamed, changed-files-rolled-up, stopped-session-auto-resumed]
+  true_end_state: "After Stop and a normal follow-up prompt, reload the same permalink: the earlier transcript and the new turn remain under one session id, the status matches reality, and clearing during a transient disconnect still leaves zero pre-clear rows after reconnect."
   exit:
     natural: "Operator has a settled, readable turn and either follows the next turn or reads the finished transcript (J-14)."
   abandonment:
@@ -59,6 +66,9 @@ journey:
     - at_step: 3
       how: "Queues two prompts then leaves before the turn ends."
       resume: "Both queued prompts must still dispatch in order server-side; a lost or reordered prompt is the finding."
+    - at_step: 5
+      how: "Stops the session, closes the app, and returns after a daemon restart."
+      resume: "The same permalink remains promptable; the first normal prompt restarts the session with its prior history intact."
   crosses: [SSE-broadcaster, incremental-frame-apply, scroll-anchoring, composer-queue, transcript-epoch-reset, changed-files-rollup]
 
 design_reference:

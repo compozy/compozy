@@ -21,8 +21,25 @@ func (m *Manager) Resume(ctx context.Context, id string) (_ *Session, err error)
 	if err != nil {
 		return nil, err
 	}
+	if session, ok := m.Get(target); ok && session.Info().State == StateActive {
+		return m.waitForResumedSession(ctx, target, session)
+	}
+	run, owner, err := m.beginSessionResume(target)
+	if err != nil {
+		return nil, err
+	}
+	if !owner {
+		return waitForSessionResume(ctx, run)
+	}
+
+	resumed, resumeErr := m.resumeSession(ctx, target)
+	m.finishSessionResume(target, run, resumed, resumeErr)
+	return resumed, resumeErr
+}
+
+func (m *Manager) resumeSession(ctx context.Context, target string) (*Session, error) {
 	if session, ok := m.Get(target); ok {
-		return session, nil
+		return m.waitForResumedSession(ctx, target, session)
 	}
 	if err := m.checkNewWorkAdmission(ctx); err != nil {
 		return nil, err
@@ -50,6 +67,27 @@ func (m *Manager) Resume(ctx context.Context, id string) (_ *Session, err error)
 	}
 
 	return m.startResumedSession(ctx, target, meta, &spec)
+}
+
+func (m *Manager) waitForResumedSession(
+	ctx context.Context,
+	target string,
+	session *Session,
+) (*Session, error) {
+	if run := m.sessionStartRun(target); run != nil {
+		if err := waitForSessionStartRun(ctx, run); err != nil {
+			return nil, err
+		}
+		active, ok := m.Get(target)
+		if !ok {
+			return nil, fmt.Errorf("%w: %s", ErrSessionNotFound, target)
+		}
+		session = active
+	}
+	if state := session.Info().State; state != StateActive {
+		return nil, fmt.Errorf("%w: %s (%s)", ErrSessionNotActive, target, state)
+	}
+	return session, nil
 }
 
 func resumeTarget(id string) (string, error) {

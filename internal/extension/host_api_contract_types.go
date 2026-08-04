@@ -8,6 +8,10 @@ type hostAPISessionCreateParams = extensioncontract.SessionsCreateParams
 
 type hostAPISessionPromptParams = extensioncontract.SessionsPromptParams
 
+type hostAPISessionRuntimeSetParams = extensioncontract.SessionRuntimeSetParams
+
+type hostAPISessionRuntimeClearParams = extensioncontract.SessionRuntimeClearParams
+
 type hostAPISessionInputsListParams = extensioncontract.SessionInputsListParams
 
 type hostAPISessionInputTargetParams = extensioncontract.SessionInputTargetParams

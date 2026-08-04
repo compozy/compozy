@@ -1,7 +1,7 @@
 import { useEffect, type ReactNode } from "react";
 
 import { useStoreBinding } from "@/hooks/use-store-binding";
-import type { SessionPayload, SessionRuntimeEffective } from "../types";
+import type { SessionPayload, SessionRuntimeEffective, SessionRuntimeSelection } from "../types";
 import {
   sessionPromptRuntimeInput,
   sessionPromptRuntimeStoreLogic,
@@ -18,10 +18,16 @@ function runtimeInputFromValues(
   agentName: string,
   canPrompt: boolean,
   workspaceId: string | undefined,
+  sessionId: string,
   provider: SessionRuntimeEffective["provider"] | undefined,
   model: SessionRuntimeEffective["model"] | undefined,
   reasoningEffort: SessionRuntimeEffective["reasoning_effort"] | undefined,
-  speed: SessionRuntimeEffective["speed"] | undefined
+  speed: SessionRuntimeEffective["speed"] | undefined,
+  selectedProvider: SessionRuntimeSelection["provider"] | undefined,
+  selectedModel: SessionRuntimeSelection["model"] | undefined,
+  selectedReasoningEffort: SessionRuntimeSelection["reasoning_effort"] | undefined,
+  selectedSpeed: SessionRuntimeSelection["speed"] | undefined,
+  selectionRevision: number
 ) {
   return sessionPromptRuntimeInput({
     agentName,
@@ -35,6 +41,19 @@ function runtimeInputFromValues(
             ...(reasoningEffort === undefined ? {} : { reasoning_effort: reasoningEffort }),
             ...(speed === undefined ? {} : { speed }),
           },
+    selectedRuntime:
+      selectedProvider === undefined
+        ? undefined
+        : {
+            provider: selectedProvider,
+            ...(selectedModel === undefined ? {} : { model: selectedModel }),
+            ...(selectedReasoningEffort === undefined
+              ? {}
+              : { reasoning_effort: selectedReasoningEffort }),
+            ...(selectedSpeed === undefined ? {} : { speed: selectedSpeed }),
+          },
+    selectionRevision,
+    sessionId,
     workspaceId,
   });
 }
@@ -48,16 +67,27 @@ export function SessionPromptRuntimeProvider({
   const effectiveModel = session.runtime?.effective?.model;
   const effectiveReasoningEffort = session.runtime?.effective?.reasoning_effort;
   const effectiveSpeed = session.runtime?.effective?.speed;
+  const selectedProvider = session.runtime?.selected?.provider;
+  const selectedModel = session.runtime?.selected?.model;
+  const selectedReasoningEffort = session.runtime?.selected?.reasoning_effort;
+  const selectedSpeed = session.runtime?.selected?.speed;
+  const selectionRevision = session.runtime.selection_revision;
   const { store } = useStoreBinding(session.id, () =>
     sessionPromptRuntimeStoreLogic.createStore(
       runtimeInputFromValues(
         session.agent_name,
         canPrompt,
         session.workspace_id,
+        session.id,
         effectiveProvider,
         effectiveModel,
         effectiveReasoningEffort,
-        effectiveSpeed
+        effectiveSpeed,
+        selectedProvider,
+        selectedModel,
+        selectedReasoningEffort,
+        selectedSpeed,
+        selectionRevision
       )
     )
   );
@@ -68,10 +98,16 @@ export function SessionPromptRuntimeProvider({
         session.agent_name,
         canPrompt,
         session.workspace_id,
+        session.id,
         effectiveProvider,
         effectiveModel,
         effectiveReasoningEffort,
-        effectiveSpeed
+        effectiveSpeed,
+        selectedProvider,
+        selectedModel,
+        selectedReasoningEffort,
+        selectedSpeed,
+        selectionRevision
       )
     );
   }, [
@@ -80,7 +116,13 @@ export function SessionPromptRuntimeProvider({
     effectiveProvider,
     effectiveReasoningEffort,
     effectiveSpeed,
+    selectedModel,
+    selectedProvider,
+    selectedReasoningEffort,
+    selectedSpeed,
+    selectionRevision,
     session.agent_name,
+    session.id,
     session.workspace_id,
     store,
   ]);

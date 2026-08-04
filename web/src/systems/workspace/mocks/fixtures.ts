@@ -22,6 +22,7 @@ function sessionRuntime(provider: string) {
     status: "ready",
     transition: "initial_bind",
     effective: { provider },
+    selection_revision: 0,
   };
 }
 

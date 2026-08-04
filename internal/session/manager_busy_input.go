@@ -40,7 +40,10 @@ func (m *Manager) SendPrompt(ctx context.Context, id string, opts SendPromptOpts
 			return m.submitAdmittedGoalByTarget(ctx, preparation, opts)
 		}
 	}
-	session, err := m.lookupPromptSession(ctx, preparation.request.target)
+	if preparation.request.hasPromptAdmissionIdentity() {
+		return m.submitAdmittedPromptByTarget(ctx, preparation)
+	}
+	session, err := m.lookupOrResumePromptSession(ctx, preparation.request.target)
 	if err != nil {
 		return SendPromptResult{}, err
 	}
@@ -52,10 +55,29 @@ func (m *Manager) SendPrompt(ctx context.Context, id string, opts SendPromptOpts
 	if err != nil {
 		return SendPromptResult{}, err
 	}
-	if preparation.request.hasPromptAdmissionIdentity() {
-		return m.submitAdmittedPrompt(ctx, session, preparation)
-	}
 	return m.submitPreparedPrompt(ctx, session, preparation)
+}
+
+func normalizePromptRuntimeSelectionFromMeta(
+	meta store.SessionMeta,
+	requested *RuntimeSelection,
+) (*RuntimeSelection, error) {
+	selection := requested
+	if selection == nil {
+		selected, _ := store.SessionRuntimeSelectionStateValues(meta.RuntimeSelection)
+		selection = runtimeSelectionFromSessionStore(selected)
+	}
+	if selection == nil {
+		selection = &RuntimeSelection{
+			Provider: meta.Provider, Model: meta.Model,
+			ReasoningEffort: meta.ReasoningEffort, Speed: meta.Speed,
+		}
+	}
+	normalized, err := NormalizeRuntimeSelection(*selection)
+	if err != nil {
+		return nil, err
+	}
+	return &normalized, nil
 }
 
 func (m *Manager) resolvePromptRuntimeAtAdmission(

@@ -190,6 +190,7 @@
   },
   "patchedDependencies": {
     "@assistant-ui/store@0.3.2": "patches/@assistant-ui%2Fstore@0.3.2.patch",
+    "@assistant-ui/tap@0.9.7": "patches/@assistant-ui%2Ftap@0.9.7.patch",
   },
   "overrides": {
     "assistant-stream": "0.3.31",

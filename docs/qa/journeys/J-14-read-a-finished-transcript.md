@@ -41,7 +41,7 @@ journey:
       expected_observable: "The cluster expands to the full chronological work; a tool row expands inline to structured Input JSON + per-tool Output (selectable text) for any tool kind; settled turns fold behind 'Worked for Xs'"
     - step: 3
       verb: "Copy a message and check the Usage surface"
-      expected_observable: "Hover reveals a copy+timestamp toolbar copying the markdown source; the inspector Usage tab shows real token/cost data — or does not exist at all (no permanently-empty metric surface)"
+      expected_observable: "Hover reveals only the relevant copy+timestamp toolbar, with no Goal shortcut; copy uses the markdown source. The inspector Usage tab shows real token/cost data — or does not exist at all (no permanently-empty metric surface)"
     - step: 4
       verb: "Scroll up in a very long session (and clear it)"
       expected_observable: "Older pages load gap-free on scroll via `before_sequence`; clearing removes the messages AND keeps them removed after reload; a truly-empty session shows a true ThreadEmpty (success + 0)"

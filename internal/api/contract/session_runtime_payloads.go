@@ -67,12 +67,20 @@ type SessionPayload struct {
 
 // SessionRuntimePayload reports the current ACP binding and its effective runtime.
 type SessionRuntimePayload struct {
-	Status       session.RuntimeStatus             `json:"status"`
-	Transition   session.RuntimeTransitionStrategy `json:"transition,omitempty"`
-	Failure      string                            `json:"failure,omitempty"`
-	Effective    *RuntimeSelectionPayload          `json:"effective,omitempty"`
-	ACPSessionID string                            `json:"acp_session_id,omitempty"`
-	ACPCaps      *ACPCapsPayload                   `json:"acp_caps,omitempty"`
+	Status            session.RuntimeStatus             `json:"status"`
+	Transition        session.RuntimeTransitionStrategy `json:"transition,omitempty"`
+	Failure           string                            `json:"failure,omitempty"`
+	Selected          *PromptRuntimeSelectionPayload    `json:"selected,omitempty"`
+	SelectionRevision int64                             `json:"selection_revision"`
+	Effective         *RuntimeSelectionPayload          `json:"effective,omitempty"`
+	ACPSessionID      string                            `json:"acp_session_id,omitempty"`
+	ACPCaps           *ACPCapsPayload                   `json:"acp_caps,omitempty"`
+}
+
+// SetSessionRuntimeRequest durably selects the default runtime for future prompts.
+type SetSessionRuntimeRequest struct {
+	Runtime          PromptRuntimeSelectionPayload `json:"runtime"`
+	ExpectedRevision *int64                        `json:"expected_revision"`
 }
 
 // RuntimeSelectionPayload is the effective runtime bound to a logical session.

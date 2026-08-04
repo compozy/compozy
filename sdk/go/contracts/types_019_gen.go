@@ -308,11 +308,8 @@ type SessionPromptResult struct {
 	CanceledQueuedEntries int            `json:"canceled_queued_entries,omitempty"`
 }
 
-type SessionRuntimePayload struct {
-	Status       SessionRuntimeStatus     `json:"status"`
-	Transition   SessionRuntimeTransition `json:"transition,omitempty"`
-	Failure      string                   `json:"failure,omitempty"`
-	Effective    *RuntimeSelectionPayload `json:"effective,omitempty"`
-	ACPSessionID string                   `json:"acp_session_id,omitempty"`
-	ACPCaps      *ACPCapsPayload          `json:"acp_caps,omitempty"`
+type SessionRuntimeClearParams struct {
+	WorkspaceID      string `json:"workspace_id"`
+	SessionID        string `json:"session_id"`
+	ExpectedRevision *int64 `json:"expected_revision"`
 }

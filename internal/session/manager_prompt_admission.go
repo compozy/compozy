@@ -65,14 +65,11 @@ func (m *Manager) submitAdmittedGoalByTarget(
 			return SendPromptResult{}, err
 		}
 		workspaceID = meta.WorkspaceID
-		resolved, err := NormalizeRuntimeSelection(RuntimeSelection{
-			Provider: meta.Provider, Model: meta.Model,
-			ReasoningEffort: meta.ReasoningEffort, Speed: meta.Speed,
-		})
+		resolved, err := normalizePromptRuntimeSelectionFromMeta(meta, preparation.request.runtime)
 		if err != nil {
 			return SendPromptResult{}, err
 		}
-		preparation.request.runtime = &resolved
+		preparation.request.runtime = resolved
 	}
 	admissionReq, err := m.newPromptAdmissionRequest(
 		workspaceID,
@@ -88,14 +85,34 @@ func (m *Manager) submitAdmittedGoalByTarget(
 	return m.submitAdmittedGoalPrompt(ctx, session, preparation, opts, admissionReq)
 }
 
-func (m *Manager) submitAdmittedPrompt(
+func (m *Manager) submitAdmittedPromptByTarget(
 	ctx context.Context,
-	session *Session,
 	preparation sendPromptPreparation,
 ) (SendPromptResult, error) {
-	workspaceID, err := sessionPromptWorkspaceID(session)
-	if err != nil {
-		return SendPromptResult{}, err
+	var session *Session
+	workspaceID := ""
+	if active, ok := m.Get(preparation.request.target); ok {
+		session = active
+		resolved, err := m.resolvePromptRuntimeAtAdmission(ctx, active, preparation.request.runtime)
+		if err != nil {
+			return SendPromptResult{}, err
+		}
+		preparation.request.runtime = resolved
+		workspaceID, err = sessionPromptWorkspaceID(active)
+		if err != nil {
+			return SendPromptResult{}, err
+		}
+	} else {
+		meta, err := m.readMetaWithContext(ctx, preparation.request.target)
+		if err != nil {
+			return SendPromptResult{}, err
+		}
+		workspaceID = meta.WorkspaceID
+		resolved, err := normalizePromptRuntimeSelectionFromMeta(meta, preparation.request.runtime)
+		if err != nil {
+			return SendPromptResult{}, err
+		}
+		preparation.request.runtime = resolved
 	}
 	admissionReq, err := m.newPromptAdmissionRequest(
 		workspaceID,
@@ -106,13 +123,19 @@ func (m *Manager) submitAdmittedPrompt(
 	if err != nil {
 		return SendPromptResult{}, err
 	}
-	unlock := m.lockPromptAdmission(workspaceID, session.ID, admissionReq.IdempotencyKey)
+	unlock := m.lockPromptAdmission(workspaceID, preparation.request.target, admissionReq.IdempotencyKey)
 	defer unlock()
 	if replayed, err := m.replayPromptAdmission(ctx, admissionReq); err != nil || replayed != nil {
 		if err != nil {
 			return SendPromptResult{}, err
 		}
 		return *replayed, nil
+	}
+	if session == nil {
+		session, err = m.lookupOrResumePromptSession(ctx, preparation.request.target)
+		if err != nil {
+			return SendPromptResult{}, err
+		}
 	}
 
 	if session.IsPrompting() {
@@ -356,11 +379,10 @@ func (m *Manager) submitAdmittedGoalPrompt(
 		return m.completePromptAdmission(ctx, admission, *goalResult)
 	}
 	if session == nil {
-		return SendPromptResult{}, m.promptDispatchIndeterminate(
-			ctx,
-			admission,
-			fmt.Errorf("%w: %s", ErrSessionNotActive, preparation.request.target),
-		)
+		session, err = m.lookupOrResumePromptSession(ctx, preparation.request.target)
+		if err != nil {
+			return SendPromptResult{}, m.promptDispatchIndeterminate(ctx, admission, err)
+		}
 	}
 	preparation.rejectIfBusy = rejectIfBusy
 	result, err := m.submitPreparedPrompt(ctx, session, preparation)

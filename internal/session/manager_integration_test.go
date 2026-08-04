@@ -58,21 +58,20 @@ func TestManagerIntegrationFullLifecycle(t *testing.T) {
 		t.Fatalf("Stop() error = %v", err)
 	}
 
-	resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
+	secondPrompt, err := h.manager.Prompt(testutil.Context(t), session.ID, "second")
 	if err != nil {
-		t.Fatalf("Resume() error = %v", err)
-	}
-	if got := h.driver.startCalls[1].Cwd; got != canonicalSessionCWD {
-		t.Fatalf("Resume() CWD = %q, want persisted %q", got, canonicalSessionCWD)
-	}
-
-	secondPrompt, err := h.manager.Prompt(testutil.Context(t), resumed.ID, "second")
-	if err != nil {
-		t.Fatalf("Prompt(second) error = %v", err)
+		t.Fatalf("Prompt(stopped, second) error = %v", err)
 	}
 	secondEvents := collectEvents(t, secondPrompt)
 	if len(secondEvents) != 2 {
 		t.Fatalf("second prompt events = %d, want 2", len(secondEvents))
+	}
+	resumed, ok := h.manager.Get(session.ID)
+	if !ok {
+		t.Fatalf("Get(%q) found = false, want resumed session", session.ID)
+	}
+	if got := h.driver.startCalls[1].Cwd; got != canonicalSessionCWD {
+		t.Fatalf("prompt resume CWD = %q, want persisted %q", got, canonicalSessionCWD)
 	}
 
 	if err := h.manager.Stop(testutil.Context(t), resumed.ID); err != nil {

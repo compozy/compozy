@@ -27,41 +27,42 @@ type SessionSandboxMeta struct {
 
 // SessionMeta is the atomically-written session metadata document.
 type SessionMeta struct {
-	ID                   string                     `json:"id"`
-	Name                 string                     `json:"name,omitempty"`
-	AgentName            string                     `json:"agent_name"`
-	Provider             string                     `json:"provider,omitempty"`
-	Model                string                     `json:"model,omitempty"`
-	ReasoningEffort      string                     `json:"reasoning_effort,omitempty"`
-	Speed                speedpkg.Speed             `json:"speed,omitempty"`
-	SpeedResolution      *speedpkg.Resolution       `json:"speed_resolution,omitempty"`
-	RuntimeStatus        SessionRuntimeStatus       `json:"runtime_status"`
-	RuntimeTransition    SessionRuntimeTransition   `json:"runtime_transition,omitempty"`
-	RuntimeFailure       string                     `json:"runtime_failure,omitempty"`
-	EffectivePermissions string                     `json:"effective_permissions,omitempty"`
-	WorkspaceID          string                     `json:"workspace_id,omitempty"`
-	CWD                  string                     `json:"cwd,omitempty"`
-	NetworkParticipation *participation.Spec        `json:"network_participation"`
-	SessionType          string                     `json:"session_type,omitempty"`
-	Lineage              *SessionLineage            `json:"lineage,omitempty"`
-	State                string                     `json:"state"`
-	StopReason           *StopReason                `json:"stop_reason,omitempty"`
-	StopDetail           string                     `json:"stop_detail,omitempty"`
-	Failure              *SessionFailure            `json:"failure,omitempty"`
-	ACPSessionID         *string                    `json:"acp_session_id,omitempty"`
-	Liveness             *SessionLivenessMeta       `json:"liveness,omitempty"`
-	Sandbox              *SessionSandboxMeta        `json:"sandbox,omitempty"`
-	CreationProfile      *SessionCreationProfile    `json:"creation_profile,omitempty"`
-	CreationOptions      *SessionCreationOptions    `json:"creation_options,omitempty"`
-	CreationProfileRef   string                     `json:"creation_profile_ref,omitempty"`
-	PolicySpecDigest     string                     `json:"policy_spec_digest,omitempty"`
-	CreationDigest       string                     `json:"creation_digest,omitempty"`
-	AdvertisedCommands   []SessionAdvertisedCommand `json:"advertised_commands,omitempty"`
-	SoulSnapshotID       string                     `json:"soul_snapshot_id,omitempty"`
-	SoulDigest           string                     `json:"soul_digest,omitempty"`
-	ParentSoulDigest     string                     `json:"parent_soul_digest,omitempty"`
-	CreatedAt            time.Time                  `json:"created_at"`
-	UpdatedAt            time.Time                  `json:"updated_at"`
+	ID                   string                        `json:"id"`
+	Name                 string                        `json:"name,omitempty"`
+	AgentName            string                        `json:"agent_name"`
+	Provider             string                        `json:"provider,omitempty"`
+	Model                string                        `json:"model,omitempty"`
+	ReasoningEffort      string                        `json:"reasoning_effort,omitempty"`
+	Speed                speedpkg.Speed                `json:"speed,omitempty"`
+	SpeedResolution      *speedpkg.Resolution          `json:"speed_resolution,omitempty"`
+	RuntimeStatus        SessionRuntimeStatus          `json:"runtime_status"`
+	RuntimeTransition    SessionRuntimeTransition      `json:"runtime_transition,omitempty"`
+	RuntimeFailure       *string                       `json:"runtime_failure,omitempty"`
+	RuntimeSelection     *SessionRuntimeSelectionState `json:"runtime_selection,omitempty"`
+	EffectivePermissions string                        `json:"effective_permissions,omitempty"`
+	WorkspaceID          string                        `json:"workspace_id,omitempty"`
+	CWD                  string                        `json:"cwd,omitempty"`
+	NetworkParticipation *participation.Spec           `json:"network_participation"`
+	SessionType          string                        `json:"session_type,omitempty"`
+	Lineage              *SessionLineage               `json:"lineage,omitempty"`
+	State                string                        `json:"state"`
+	StopReason           *StopReason                   `json:"stop_reason,omitempty"`
+	StopDetail           string                        `json:"stop_detail,omitempty"`
+	Failure              *SessionFailure               `json:"failure,omitempty"`
+	ACPSessionID         *string                       `json:"acp_session_id,omitempty"`
+	Liveness             *SessionLivenessMeta          `json:"liveness,omitempty"`
+	Sandbox              *SessionSandboxMeta           `json:"sandbox,omitempty"`
+	CreationProfile      *SessionCreationProfile       `json:"creation_profile,omitempty"`
+	CreationOptions      *SessionCreationOptions       `json:"creation_options,omitempty"`
+	CreationProfileRef   string                        `json:"creation_profile_ref,omitempty"`
+	PolicySpecDigest     string                        `json:"policy_spec_digest,omitempty"`
+	CreationDigest       string                        `json:"creation_digest,omitempty"`
+	AdvertisedCommands   []SessionAdvertisedCommand    `json:"advertised_commands,omitempty"`
+	SoulSnapshotID       string                        `json:"soul_snapshot_id,omitempty"`
+	SoulDigest           string                        `json:"soul_digest,omitempty"`
+	ParentSoulDigest     string                        `json:"parent_soul_digest,omitempty"`
+	CreatedAt            time.Time                     `json:"created_at"`
+	UpdatedAt            time.Time                     `json:"updated_at"`
 }
 
 // Validate ensures the metadata file remains aligned with the session index schema.
@@ -103,7 +104,14 @@ func (m SessionMeta) Validate() error {
 	if err := validateSessionSpeedMetadata(m.Speed, m.SpeedResolution); err != nil {
 		return err
 	}
-	if err := validateSessionRuntime(m.RuntimeStatus, m.RuntimeTransition, m.RuntimeFailure); err != nil {
+	if err := validateSessionRuntime(
+		m.RuntimeStatus,
+		m.RuntimeTransition,
+		SessionRuntimeFailureValue(m.RuntimeFailure),
+	); err != nil {
+		return err
+	}
+	if err := ValidateSessionRuntimeSelectionState(m.RuntimeSelection); err != nil {
 		return err
 	}
 	seenCommands := make(map[string]struct{}, len(m.AdvertisedCommands))

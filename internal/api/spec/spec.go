@@ -19,6 +19,7 @@ const (
 
 const (
 	specContentTypeEventStream = "text/event-stream"
+	specExpectedRevisionKey    = "expected_revision"
 	specFormatInt64            = "int64"
 )
 

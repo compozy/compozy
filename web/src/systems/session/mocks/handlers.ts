@@ -128,7 +128,7 @@ export const handlers: HttpHandler[] = [
           name: body.name ?? primarySessionFixture.name,
           agent_name: body.agent_name ?? primarySessionFixture.agent_name,
           state: "active",
-          runtime: { status: "unbound" },
+          runtime: { status: "unbound", selection_revision: 0 },
           workspace_id: workspaceId,
           workspace_path:
             body.workspace_path ?? body.workspace ?? primarySessionFixture.workspace_path,

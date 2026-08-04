@@ -7,9 +7,9 @@ The web UI is another surface on the same daemon you already used in Quick Start
 page is not to start a second run; it is to inspect the exact same runtime state in a browser.
 
 **Before you begin:** Complete [Quick Start](/docs/getting-started/quick-start) through the
-history step, but leave its cleanup step until the end of this tutorial. You need an active session
-to send the comparison prompt below. If you already stopped it, create a new session instead of
-trying to attach to the terminal record.
+history step, but leave its cleanup step until the end of this tutorial. If you already stopped the
+session, keep using it: the comparison prompt below restarts its agent process and continues the same
+history. `session resume` only attaches another client while the process is live.
 
 ## 1. Open the runtime in your browser
 
@@ -76,7 +76,8 @@ compozy session stop sess_1234
 compozy session history sess_1234
 ```
 
-The stopped session remains visible as history, but it is no longer attachable.
+The stopped session remains visible and promptable, but it is no longer attachable until a normal
+prompt restarts its agent process.
 
 ## Change the HTTP address if needed
 

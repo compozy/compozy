@@ -68,6 +68,10 @@ const (
 	ToolIDSessionCreate ToolID = "compozy__session_create"
 	// ToolIDSessionPrompt submits one prompt with an optional runtime snapshot.
 	ToolIDSessionPrompt ToolID = "compozy__session_prompt"
+	// ToolIDSessionRuntimeSet selects the default runtime for future prompts.
+	ToolIDSessionRuntimeSet ToolID = "compozy__session_runtime_set"
+	// ToolIDSessionRuntimeClear clears the default runtime for future prompts.
+	ToolIDSessionRuntimeClear ToolID = "compozy__session_runtime_clear"
 	// ToolIDSessionInputsList lists durable pending session input in dispatch order.
 	ToolIDSessionInputsList ToolID = "compozy__session_inputs_list"
 	// ToolIDSessionInputReplace atomically replaces one queued session input.

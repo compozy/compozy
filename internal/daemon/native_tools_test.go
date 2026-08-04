@@ -5317,6 +5317,9 @@ func TestDaemonNativeTools(t *testing.T) {
 		var seenListQuery session.ListQuery
 		var acceptedCreate session.CreateAcceptedOpts
 		var submittedPrompt session.SendPromptOpts
+		var selectedRuntime session.RuntimeSelection
+		var selectedRuntimeRevision int64
+		var clearedRuntimeRevision int64
 		promptSubmitCalls := 0
 		var listedInputSessionID string
 		var replacedInput struct {
@@ -5401,6 +5404,34 @@ func TestDaemonNativeTools(t *testing.T) {
 					if id != "sess-1" {
 						return nil, session.ErrSessionNotFound
 					}
+					return info, nil
+				},
+				SetRuntimeSelectionFn: func(
+					_ context.Context,
+					id string,
+					selection session.RuntimeSelection,
+					expectedRevision int64,
+				) (*session.Info, error) {
+					if id != info.ID {
+						return nil, session.ErrSessionNotFound
+					}
+					selectedRuntime = selection
+					selectedRuntimeRevision = expectedRevision
+					info.SelectedRuntime = &selection
+					info.RuntimeSelectionRevision = expectedRevision + 1
+					return info, nil
+				},
+				ClearRuntimeSelectionFn: func(
+					_ context.Context,
+					id string,
+					expectedRevision int64,
+				) (*session.Info, error) {
+					if id != info.ID {
+						return nil, session.ErrSessionNotFound
+					}
+					clearedRuntimeRevision = expectedRevision
+					info.SelectedRuntime = nil
+					info.RuntimeSelectionRevision = expectedRevision + 1
 					return info, nil
 				},
 				SendPromptFn: func(
@@ -5567,6 +5598,41 @@ func TestDaemonNativeTools(t *testing.T) {
 				requireNativeStructuredContains(t, result, tc.want)
 			})
 		}
+
+		setRuntimeResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionRuntimeSet,
+				Input: json.RawMessage(
+					`{"workspace":"ws-stable","session_id":"sess-1","runtime":{"provider":"claude","model":"claude-fable-5","reasoning_effort":"max"}}`,
+				),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(session_runtime_set) error = %v", err)
+		}
+		if selectedRuntime.Provider != "claude" || selectedRuntime.Model != "claude-fable-5" ||
+			selectedRuntime.ReasoningEffort != "max" || selectedRuntimeRevision != 0 {
+			t.Fatalf("session_runtime_set selection = %#v revision %d", selectedRuntime, selectedRuntimeRevision)
+		}
+		requireNativeStructuredContains(t, setRuntimeResult, []byte(`"selection_revision":1`))
+
+		clearRuntimeResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionRuntimeClear,
+				Input:  json.RawMessage(`{"workspace":"ws-stable","session_id":"sess-1"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(session_runtime_clear) error = %v", err)
+		}
+		if clearedRuntimeRevision != 1 {
+			t.Fatalf("session_runtime_clear revision = %d, want 1", clearedRuntimeRevision)
+		}
+		requireNativeStructuredContains(t, clearRuntimeResult, []byte(`"selection_revision":2`))
 
 		createdResult, err := registry.Call(
 			t.Context(),

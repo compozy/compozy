@@ -569,7 +569,7 @@ func TestHostAPIHandlerSessionsStatusReturnsAuthorizedState(t *testing.T) {
 	assertRPCErrorCode(t, err, HostAPINotFoundCode)
 }
 
-func TestHostAPIHandlerSessionReadsProjectNestedRuntime(t *testing.T) {
+func TestHostAPIHandlerSessionRuntime(t *testing.T) {
 	t.Parallel()
 	t.Run("Should project nested runtime through session reads", func(t *testing.T) {
 		t.Parallel()
@@ -630,6 +630,57 @@ func TestHostAPIHandlerSessionReadsProjectNestedRuntime(t *testing.T) {
 		var status hostAPISessionStatus
 		decodeResult(t, statusResult, &status)
 		assertHostAPISessionRuntimePayload(t, status.Runtime)
+	})
+
+	t.Run("Should set and clear the durable runtime selection with CAS", func(t *testing.T) {
+		t.Parallel()
+
+		env := newHostAPITestEnv(t)
+		env.grant(
+			"ext-runtime",
+			[]string{"sessions/runtime/set", "sessions/runtime/clear"},
+			[]string{"session.write"},
+		)
+		sess := env.createSession(t)
+		startsBeforeMutation := env.driver.startSeq.Load()
+
+		setResult, err := env.call(t, "ext-runtime", "sessions/runtime/set", map[string]any{
+			"workspace_id": env.workspaceID,
+			"session_id":   sess.ID,
+			"runtime": map[string]any{
+				"provider":         "fake-alt",
+				"model":            "model-max",
+				"reasoning_effort": "max",
+				"speed":            "fast",
+			},
+			"expected_revision": 0,
+		})
+		if err != nil {
+			t.Fatalf("Handle(sessions/runtime/set) error = %v", err)
+		}
+		var selected hostAPISessionStatus
+		decodeResult(t, setResult, &selected)
+		if selected.Runtime.Selected == nil || selected.Runtime.Selected.Provider != "fake-alt" ||
+			selected.Runtime.SelectionRevision != 1 {
+			t.Fatalf("sessions/runtime/set runtime = %#v, want selected fake-alt at revision 1", selected.Runtime)
+		}
+
+		clearResult, err := env.call(t, "ext-runtime", "sessions/runtime/clear", map[string]any{
+			"workspace_id":      env.workspaceID,
+			"session_id":        sess.ID,
+			"expected_revision": 1,
+		})
+		if err != nil {
+			t.Fatalf("Handle(sessions/runtime/clear) error = %v", err)
+		}
+		var cleared hostAPISessionStatus
+		decodeResult(t, clearResult, &cleared)
+		if cleared.Runtime.Selected != nil || cleared.Runtime.SelectionRevision != 2 {
+			t.Fatalf("sessions/runtime/clear runtime = %#v, want no selection at revision 2", cleared.Runtime)
+		}
+		if got := env.driver.startSeq.Load(); got != startsBeforeMutation {
+			t.Fatalf("runtime selection process starts = %d, want unchanged %d", got, startsBeforeMutation)
+		}
 	})
 }
 

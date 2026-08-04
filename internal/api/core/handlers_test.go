@@ -696,6 +696,95 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 	})
 }
 
+func TestSessionRuntimeSelectionHandlers(t *testing.T) {
+	t.Parallel()
+
+	base := testutil.NewSessionInfo("sess-runtime")
+	base.WorkspaceID = "ws-runtime"
+	base.State = session.StateStopped
+	manager := testutil.StubSessionManager{
+		ListAllFn: func(context.Context) ([]*session.Info, error) {
+			return []*session.Info{base}, nil
+		},
+		SetRuntimeSelectionFn: func(
+			_ context.Context,
+			id string,
+			selection session.RuntimeSelection,
+			expectedRevision int64,
+		) (*session.Info, error) {
+			if id != base.ID || expectedRevision != 0 || selection.Provider != "claude" ||
+				selection.Model != "claude-fable-5" || selection.ReasoningEffort != "max" {
+				t.Fatalf("SetRuntimeSelection() = id %q selection %#v revision %d", id, selection, expectedRevision)
+			}
+			updated := *base
+			updated.SelectedRuntime = &selection
+			updated.RuntimeSelectionRevision = 1
+			return &updated, nil
+		},
+		ClearRuntimeSelectionFn: func(_ context.Context, _ string, _ int64) (*session.Info, error) {
+			return nil, session.ErrRuntimeSelectionConflict
+		},
+	}
+	fixture := newHandlerFixture(
+		t,
+		manager,
+		testutil.StubObserver{},
+		testutil.StubWorkspaceService{},
+		nil,
+		nil,
+	)
+
+	t.Run("Should set a durable runtime selection", func(t *testing.T) {
+		body := []byte(
+			`{"runtime":{"provider":"claude","model":"claude-fable-5","reasoning_effort":"max"},"expected_revision":0}`,
+		)
+		response := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPut,
+			"/workspaces/ws-runtime/sessions/sess-runtime/runtime",
+			body,
+		)
+		if response.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body.String())
+		}
+		var payload contract.SessionResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		if payload.Session.Runtime.Selected == nil || payload.Session.Runtime.Selected.Model != "claude-fable-5" ||
+			payload.Session.Runtime.SelectionRevision != 1 {
+			t.Fatalf("runtime payload = %#v, want selected runtime revision 1", payload.Session.Runtime)
+		}
+	})
+
+	t.Run("Should require a compare-and-set revision", func(t *testing.T) {
+		response := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPut,
+			"/workspaces/ws-runtime/sessions/sess-runtime/runtime",
+			[]byte(`{"runtime":{"provider":"claude"}}`),
+		)
+		if response.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want %d; body=%s", response.Code, http.StatusBadRequest, response.Body.String())
+		}
+	})
+
+	t.Run("Should reject a stale clear revision", func(t *testing.T) {
+		response := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodDelete,
+			"/workspaces/ws-runtime/sessions/sess-runtime/runtime?expected_revision=0",
+			nil,
+		)
+		if response.Code != http.StatusConflict {
+			t.Fatalf("status = %d, want %d; body=%s", response.Code, http.StatusConflict, response.Body.String())
+		}
+	})
+}
+
 func TestSessionRecapUsesSingleBoundedTranscriptRead(t *testing.T) {
 	t.Parallel()
 

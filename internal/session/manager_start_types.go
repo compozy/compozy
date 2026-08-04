@@ -22,6 +22,8 @@ type sessionStartSpec struct {
 	model                    string
 	reasoningEffort          string
 	speed                    speedpkg.Speed
+	selectedRuntime          *RuntimeSelection
+	runtimeSelectionRevision int64
 	permissions              compozyconfig.PermissionMode
 	sandboxDisabled          bool
 	workspace                workspacepkg.ResolvedWorkspace

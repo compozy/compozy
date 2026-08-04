@@ -75,13 +75,27 @@ func normalizePromptRuntimeSelection(
 	if requested != nil {
 		selection = *requested
 	} else if session != nil {
-		selection = session.runtimeBindingSnapshot().selection
+		selected := session.selectedRuntimeSnapshot()
+		if selected != nil {
+			selection = *selected
+		} else {
+			selection = session.runtimeBindingSnapshot().selection
+		}
 	}
 	normalized, err := NormalizeRuntimeSelection(selection)
 	if err != nil {
 		return nil, err
 	}
 	return &normalized, nil
+}
+
+func (s *Session) selectedRuntimeSnapshot() *RuntimeSelection {
+	if s == nil {
+		return nil
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return cloneRuntimeSelection(s.SelectedRuntime)
 }
 
 func runtimeSelectionsEqual(left RuntimeSelection, right RuntimeSelection) bool {
@@ -97,6 +111,31 @@ func cloneRuntimeSelection(selection *RuntimeSelection) *RuntimeSelection {
 	}
 	cloned := *selection
 	return &cloned
+}
+
+func storeSessionRuntimeSelection(selection *RuntimeSelection) *store.SessionRuntimeSelection {
+	if selection == nil {
+		return nil
+	}
+	return store.NormalizeSessionRuntimeSelection(&store.SessionRuntimeSelection{
+		Provider:        selection.Provider,
+		Model:           selection.Model,
+		ReasoningEffort: selection.ReasoningEffort,
+		Speed:           selection.Speed,
+	})
+}
+
+func runtimeSelectionFromSessionStore(selection *store.SessionRuntimeSelection) *RuntimeSelection {
+	if selection == nil {
+		return nil
+	}
+	normalized := store.NormalizeSessionRuntimeSelection(selection)
+	return &RuntimeSelection{
+		Provider:        normalized.Provider,
+		Model:           normalized.Model,
+		ReasoningEffort: normalized.ReasoningEffort,
+		Speed:           normalized.Speed,
+	}
 }
 
 func storeRuntimeSelection(selection *RuntimeSelection) store.SessionInputRuntime {

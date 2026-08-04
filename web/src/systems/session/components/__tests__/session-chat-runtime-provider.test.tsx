@@ -395,6 +395,7 @@ function renderSessionThread(
     queryClient?: QueryClient;
     includeTranscriptStateProbe?: boolean;
     includeDecisionDock?: boolean;
+    isSessionRunning?: boolean;
     liveTailEnabled?: boolean;
     onCancelPrompt?: () => void;
     onRuntimeTranscriptCommit?: (sample: RuntimeTranscriptCommit) => void;
@@ -425,6 +426,7 @@ function renderSessionThread(
             workspaceId={options.includeDecisionDock ? fixtureWorkspaceId() : undefined}
             sessionState={options.includeDecisionDock ? "active" : undefined}
             canPrompt
+            isSessionRunning={options.isSessionRunning}
             onCancelPrompt={options.onCancelPrompt ?? (() => {})}
           />
           {options.includeToaster ? <Toaster duration={500} /> : null}
@@ -453,6 +455,9 @@ function withRuntimeSnapshot(
       agentName: primarySessionFixture.agent_name,
       canPrompt: true,
       effectiveRuntime: primarySessionFixture.runtime.effective,
+      selectedRuntime: primarySessionFixture.runtime.selected,
+      selectionRevision: primarySessionFixture.runtime.selection_revision,
+      sessionId: primarySessionFixture.id,
       workspaceId: primarySessionFixture.workspace_id,
     })
   );
@@ -779,6 +784,24 @@ describe("SessionChatRuntimeProvider", () => {
     act(() => {
       sessionStore.trigger.sessionInteractionRemoved({ sessionId: primarySessionFixture.id });
     });
+  });
+
+  it("Should unmount a running readonly thread safely under StrictMode", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const view = renderSessionThread({ isSessionRunning: true, strictMode: true });
+
+    expect(
+      await screen.findByText("Summarize the launch blockers before the 18:30 UTC cutover.")
+    ).toBeInTheDocument();
+    expect(() => view.unmount()).not.toThrow();
+    expect(
+      consoleError.mock.calls.some(call =>
+        call.some(value =>
+          String(value).includes("Tried to unmount a fiber that is already unmounted")
+        )
+      )
+    ).toBe(false);
+    consoleError.mockRestore();
   });
 
   it("Should still render from cache after fake timers advance beyond the old 5-minute gcTime default", async () => {
@@ -1416,103 +1439,6 @@ describe("SessionChatRuntimeProvider", () => {
     const merged = mergeSessionThreadReadModel({ transcriptMessages, runtimeMessages });
 
     expect(merged.map(message => message.id)).toEqual(["client_user_001", "server_assistant_001"]);
-  });
-
-  it("Should expose one focused and cancellable Goal draft without submitting the response", async () => {
-    const response =
-      "Validate that one event creates one automation run and one terminal loop result.";
-    transcriptMessages = [
-      {
-        id: "assistant-earlier-goal",
-        role: "assistant",
-        parts: [
-          {
-            type: "text",
-            text: "Confirm the trigger is disabled before changing its configuration.",
-            state: "done",
-          },
-        ],
-      },
-      {
-        id: "assistant-draft-goal",
-        role: "assistant",
-        parts: [
-          {
-            type: "text",
-            text: response,
-            state: "done",
-          },
-        ],
-      },
-    ];
-    const user = userEvent.setup();
-    renderSessionThread({ includeToaster: true });
-
-    const actions = await screen.findAllByRole("button", { name: "Use as Goal" });
-    expect(actions).toHaveLength(2);
-    await user.click(actions[1]!);
-    const composer = screen.getByRole("textbox", { name: "Session prompt" });
-    expect(composer).toHaveValue(`/goal ${response}`);
-    expect(composer).toHaveFocus();
-    expect(screen.getByRole("status")).toHaveTextContent("Goal command draft");
-    expect(countPromptFetches(fetchMock)).toBe(0);
-
-    await user.click(screen.getByRole("button", { name: "Discard Goal command" }));
-    expect(composer).toHaveValue("");
-    expect(screen.queryByText("Goal command draft")).not.toBeInTheDocument();
-    expect(countPromptFetches(fetchMock)).toBe(0);
-
-    await user.type(composer, "Keep this operator draft.");
-    await user.click(screen.getAllByRole("button", { name: "Use as Goal" })[1]!);
-    expect(composer).toHaveValue("Keep this operator draft.");
-    expect(composer).toHaveFocus();
-    expect(
-      screen.getByText("Send or discard the current draft before prefilling a Goal command.")
-    ).toBeVisible();
-    expect(countPromptFetches(fetchMock)).toBe(0);
-    await user.clear(composer);
-    expect(composer).toHaveValue("");
-  });
-
-  it("Should activate Use as Goal from the keyboard without duplicate submission", async () => {
-    transcriptMessages = [
-      {
-        id: "assistant-earlier-keyboard-goal",
-        role: "assistant",
-        parts: [
-          {
-            type: "text",
-            text: "Inspect the existing run before retrying it.",
-            state: "done",
-          },
-        ],
-      },
-      {
-        id: "assistant-keyboard-goal",
-        role: "assistant",
-        parts: [
-          {
-            type: "text",
-            text: "Expand the release checks and cite each result.",
-            state: "done",
-          },
-        ],
-      },
-    ];
-    const user = userEvent.setup();
-    renderSessionThread();
-
-    const actions = await screen.findAllByRole("button", { name: "Use as Goal" });
-    expect(actions).toHaveLength(2);
-    const action = actions[1]!;
-    action.focus();
-    await user.keyboard("{Enter}");
-
-    expect(screen.getByRole("textbox", { name: "Session prompt" })).toHaveValue(
-      "/goal Expand the release checks and cite each result."
-    );
-    expect(countPromptFetches(fetchMock)).toBe(0);
-    await user.click(screen.getByRole("button", { name: "Discard Goal command" }));
   });
 
   it("Should let an empty authoritative transcript replace a stale runtime tail", () => {

@@ -994,24 +994,15 @@ describe("SessionThread transcript states", () => {
     expect(
       await screen.findByText("The launch note is ready and the checks are green.")
     ).toBeInTheDocument();
-    // The settled, incomplete, and persisted-failure text remain copyable. The
-    // streaming turn renders no toolbar, and only the two successful turns expose Goal.
+    // Settled, incomplete, and persisted-failure text remain copyable. The
+    // streaming turn renders no toolbar.
     const assistantToolbars = screen.getAllByTestId("assistant-message-actions");
     expect(assistantToolbars).toHaveLength(5);
-    expect(screen.getAllByRole("button", { name: "Use as Goal" })).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: "Use as Goal" })).not.toBeInTheDocument();
     expect(screen.getAllByTestId("assistant-message-actions-copy")).toHaveLength(5);
     const successfulToolbar = assistantToolbars[0]!;
     expect(
-      within(successfulToolbar).getByRole("button", { name: "Use as Goal" })
-    ).toBeInTheDocument();
-    expect(
       within(successfulToolbar).getByTestId("assistant-message-actions-timestamp")
-    ).toBeInTheDocument();
-    expect(within(assistantToolbars[1]!).queryByRole("button", { name: "Use as Goal" })).toBeNull();
-    expect(within(assistantToolbars[2]!).queryByRole("button", { name: "Use as Goal" })).toBeNull();
-    expect(within(assistantToolbars[3]!).queryByRole("button", { name: "Use as Goal" })).toBeNull();
-    expect(
-      within(assistantToolbars[4]!).getByRole("button", { name: "Use as Goal" })
     ).toBeInTheDocument();
     // Both user prompts expose the copy affordance.
     expect(screen.getAllByTestId("user-message-actions")).toHaveLength(2);

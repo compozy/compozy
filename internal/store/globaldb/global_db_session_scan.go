@@ -15,6 +15,10 @@ type sessionInfoRow struct {
 	session              store.SessionInfo
 	name                 sql.NullString
 	speedResolutionJSON  string
+	selectedProvider     string
+	selectedModel        string
+	selectedReasoning    string
+	selectedSpeed        string
 	networkSpecJSON      string
 	networkMode          string
 	networkChannel       sql.NullString
@@ -75,6 +79,12 @@ func scanSessionInfo(scanner rowScanner) (store.SessionInfo, error) {
 	session.RuntimeStatus = row.session.RuntimeStatus
 	session.RuntimeTransition = row.session.RuntimeTransition
 	session.RuntimeFailure = strings.TrimSpace(row.session.RuntimeFailure)
+	session.SelectedRuntime = decodeSelectedRuntime(
+		row.selectedProvider,
+		row.selectedModel,
+		row.selectedReasoning,
+		row.selectedSpeed,
+	)
 	if err := store.ValidateSessionRuntime(
 		session.RuntimeStatus,
 		session.RuntimeTransition,
@@ -223,6 +233,11 @@ func scanSessionInfoRow(scanner rowScanner) (sessionInfoRow, error) {
 		&row.session.RuntimeStatus,
 		&row.session.RuntimeTransition,
 		&row.session.RuntimeFailure,
+		&row.selectedProvider,
+		&row.selectedModel,
+		&row.selectedReasoning,
+		&row.selectedSpeed,
+		&row.session.RuntimeSelectionRevision,
 		&row.session.WorkspaceID,
 		&row.networkSpecJSON,
 		&row.networkMode,

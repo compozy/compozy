@@ -12,7 +12,6 @@ import {
   recordSessionDebugEvent,
   SESSION_DEBUG_EVENTS,
 } from "@/systems/session/lib/session-observability";
-import { threadProviderIdentity } from "./hooks/use-thread-provider-identity";
 import { AssistantMessage } from "./session-assistant-message";
 import { ThreadStatePane } from "./session-thread-states";
 import { UserMessage } from "./session-user-message";
@@ -96,8 +95,6 @@ export function ThreadMessages({
     });
   }, [agentName, emptyWhileActive, messageCount, sessionId, transcriptStatus]);
 
-  const transcriptIdentity = threadProviderIdentity(transcriptMessages);
-
   if (messageCount === 0) {
     return (
       <ThreadStatePane
@@ -113,13 +110,8 @@ export function ThreadMessages({
     );
   }
 
-  // `ReadonlyThreadProvider` applies changed `messages` in a passive effect, but
-  // appended/removed message ids change which indexes are valid immediately.
-  // Keying only on the id sequence rebuilds that provider with the correct core
-  // size synchronously while leaving the outer virtualizer and its scroll machine
-  // alive across the remount.
   return (
-    <ReadonlyThreadProvider key={transcriptIdentity} messages={transcriptMessages}>
+    <ReadonlyThreadProvider messages={transcriptMessages}>
       <ThreadMessageRows messageCount={messageCount} transcriptMessages={transcriptMessages} />
     </ReadonlyThreadProvider>
   );

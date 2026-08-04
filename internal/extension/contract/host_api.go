@@ -33,6 +33,8 @@ const (
 	HostAPIMethodSessionsList                = extensionprotocol.HostAPIMethodSessionsList
 	HostAPIMethodSessionsCreate              = extensionprotocol.HostAPIMethodSessionsCreate
 	HostAPIMethodSessionsPrompt              = extensionprotocol.HostAPIMethodSessionsPrompt
+	HostAPIMethodSessionsRuntimeSet          = extensionprotocol.HostAPIMethodSessionsRuntimeSet
+	HostAPIMethodSessionsRuntimeClear        = extensionprotocol.HostAPIMethodSessionsRuntimeClear
 	HostAPIMethodSessionsInputsList          = extensionprotocol.HostAPIMethodSessionsInputsList
 	HostAPIMethodSessionsInputsReplace       = extensionprotocol.HostAPIMethodSessionsInputsReplace
 	HostAPIMethodSessionsInputsCancel        = extensionprotocol.HostAPIMethodSessionsInputsCancel
@@ -161,6 +163,21 @@ type SessionsPromptParams struct {
 	Mode           apicontract.PromptMode                     `json:"mode,omitempty"`
 	ExpectedTurnID string                                     `json:"expected_turn_id,omitempty"`
 	Runtime        *apicontract.PromptRuntimeSelectionPayload `json:"runtime,omitempty"`
+}
+
+// SessionRuntimeSetParams durably selects the default runtime for future prompts.
+type SessionRuntimeSetParams struct {
+	WorkspaceID      string                                    `json:"workspace_id"`
+	SessionID        string                                    `json:"session_id"`
+	Runtime          apicontract.PromptRuntimeSelectionPayload `json:"runtime"`
+	ExpectedRevision *int64                                    `json:"expected_revision"`
+}
+
+// SessionRuntimeClearParams clears the durable runtime selection.
+type SessionRuntimeClearParams struct {
+	WorkspaceID      string `json:"workspace_id"`
+	SessionID        string `json:"session_id"`
+	ExpectedRevision *int64 `json:"expected_revision"`
 }
 
 // SessionInputsListParams identifies the pending inputs for one session.

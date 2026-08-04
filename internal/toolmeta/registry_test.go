@@ -258,6 +258,8 @@ func expectedNativeEntries() map[string]toolmeta.Entry {
 		"compozy__session_inputs_list":            expectedNativeEntry("Reading", " ", false, "💬", "auto"),
 		"compozy__session_list":                   expectedNativeEntry("Reading", " ", false, "💬", "auto"),
 		"compozy__session_prompt":                 expectedNativeEntry("Sending", " ", false, "💬", "auto"),
+		"compozy__session_runtime_clear":          expectedNativeEntry("Clearing", " ", false, "💬", "auto"),
+		"compozy__session_runtime_set":            expectedNativeEntry("Selecting", " ", false, "💬", "auto"),
 		"compozy__session_status":                 expectedNativeEntry("Reading", " ", false, "💬", "auto"),
 		"compozy__skill_list":                     expectedNativeEntry("Reading", " ", false, "🧰", "auto"),
 		"compozy__skill_search":                   expectedNativeEntry("Searching", " for ", false, "🧰", "query"),

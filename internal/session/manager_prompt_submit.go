@@ -9,7 +9,11 @@ import (
 )
 
 func (m *Manager) submitPromptRequest(ctx context.Context, req promptRequest) (<-chan acp.AgentEvent, error) {
-	session, err := m.lookupPromptSession(ctx, req.target)
+	lookup := m.lookupPromptSession
+	if req.resumeStopped {
+		lookup = m.lookupOrResumePromptSession
+	}
+	session, err := lookup(ctx, req.target)
 	if err != nil {
 		return nil, err
 	}

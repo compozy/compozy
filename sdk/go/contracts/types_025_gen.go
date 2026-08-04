@@ -7,6 +7,34 @@ import (
 	"time"
 )
 
+type TaskStatusChangedPayload struct {
+	Event                        HookEvent `json:"event"`
+	Timestamp                    time.Time `json:"timestamp"`
+	TaskID                       string    `json:"task_id,omitempty"`
+	ParentTaskID                 string    `json:"parent_task_id,omitempty"`
+	WorkspaceID                  string    `json:"workspace_id,omitempty"`
+	WorkflowID                   string    `json:"workflow_id,omitempty"`
+	ResolvedNetworkParticipation *Spec     `json:"resolved_network_participation,omitempty"`
+	AgentName                    string    `json:"agent_name,omitempty"`
+	ActorKind                    string    `json:"actor_kind,omitempty"`
+	ActorID                      string    `json:"actor_id,omitempty"`
+	OriginKind                   string    `json:"origin_kind,omitempty"`
+	OriginRef                    string    `json:"origin_ref,omitempty"`
+	TaskStatus                   string    `json:"task_status,omitempty"`
+	RunID                        string    `json:"run_id,omitempty"`
+	ReleaseReason                string    `json:"release_reason,omitempty"`
+	ClaimTokenHash               string    `json:"claim_token_hash,omitempty"`
+	FromStatus                   string    `json:"from_status"`
+	ToStatus                     string    `json:"to_status"`
+}
+
+type TaskStatusTotal struct {
+	Scope     TaskScope `json:"scope"`
+	Status    Status    `json:"status"`
+	ChannelID string    `json:"channel_id,omitempty"`
+	Count     int       `json:"count"`
+}
+
 type TaskSummaryPayload struct {
 	ID                           string                           `json:"id"`
 	Identifier                   string                           `json:"identifier,omitempty"`
@@ -293,17 +321,3 @@ type ToolPreCallPayload struct {
 	ReadOnly       bool            `json:"read_only,omitempty"`
 	ToolInput      json.RawMessage `json:"tool_input,omitempty"`
 }
-
-type ToolProgress struct {
-	ToolCallID string            `json:"tool_call_id"`
-	ToolID     string            `json:"tool_id"`
-	Phase      ToolProgressPhase `json:"phase"`
-	Label      string            `json:"label"`
-	Preview    string            `json:"preview,omitempty"`
-	Emoji      string            `json:"emoji,omitempty"`
-	DurationMS int64             `json:"duration_ms,omitempty"`
-	Error      string            `json:"error,omitempty"`
-	Index      int               `json:"index"`
-}
-
-type ToolProgressPhase string

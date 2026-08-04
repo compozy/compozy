@@ -174,7 +174,7 @@ func TestPromptRuntimeReplacementLifecycle(t *testing.T) {
 		restored := readMeta(t, session.MetaPath())
 		if restored.Provider != previous.Provider || restored.Model != previous.Model ||
 			restored.RuntimeStatus != previous.RuntimeStatus || restored.RuntimeTransition != previous.RuntimeTransition ||
-			restored.RuntimeFailure == "" {
+			store.SessionRuntimeFailureValue(restored.RuntimeFailure) == "" {
 			t.Fatalf("durable runtime after failed replacement = %#v, want restored binding with failure", restored)
 		}
 		if inputs := managerUserPromptEvents(t, h, session.ID); len(inputs) != 0 {

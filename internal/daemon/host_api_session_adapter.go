@@ -39,7 +39,8 @@ type hostAPIPromptOptsSessionManager interface {
 
 type hostAPISessionManagerAdapter struct {
 	core.SessionManager
-	exec sandboxExecSessionManager
+	exec             sandboxExecSessionManager
+	runtimeSelection core.SessionRuntimeSelectionManager
 }
 
 type hostAPINetworkSessionManagerAdapter struct {
@@ -73,6 +74,9 @@ func newHostAPISessionManagerAdapter(sessions SessionManager) hostAPIExtensionSe
 	if exec, ok := sessions.(sandboxExecSessionManager); ok {
 		adapter.exec = exec
 	}
+	if runtimeSelection, ok := sessions.(core.SessionRuntimeSelectionManager); ok {
+		adapter.runtimeSelection = runtimeSelection
+	}
 	bridgePrompts, supportsBridgePrompts := sessions.(hostAPIBridgePromptSessionManager)
 	acceptance, supportsAcceptance := sessions.(core.SessionAcceptanceManager)
 	networkAdapter := hostAPINetworkSessionManagerAdapter{
@@ -96,6 +100,29 @@ func newHostAPISessionManagerAdapter(sessions SessionManager) hostAPIExtensionSe
 	default:
 		return adapter
 	}
+}
+
+func (a hostAPISessionManagerAdapter) SetRuntimeSelection(
+	ctx context.Context,
+	id string,
+	selection session.RuntimeSelection,
+	expectedRevision int64,
+) (*session.Info, error) {
+	if a.runtimeSelection == nil {
+		return nil, errors.New("daemon: session manager does not support runtime selection")
+	}
+	return a.runtimeSelection.SetRuntimeSelection(ctx, id, selection, expectedRevision)
+}
+
+func (a hostAPISessionManagerAdapter) ClearRuntimeSelection(
+	ctx context.Context,
+	id string,
+	expectedRevision int64,
+) (*session.Info, error) {
+	if a.runtimeSelection == nil {
+		return nil, errors.New("daemon: session manager does not support runtime selection")
+	}
+	return a.runtimeSelection.ClearRuntimeSelection(ctx, id, expectedRevision)
 }
 
 func (a hostAPISessionAcceptance) CreateAccepted(

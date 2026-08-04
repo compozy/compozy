@@ -189,7 +189,7 @@ func TestReconciliationPreservesDurableSessionProjectionMetadata(t *testing.T) {
 				Provider:             "claude",
 				Model:                " gpt-5.6 ",
 				ReasoningEffort:      " high ",
-				RuntimeFailure:       " runtime warning ",
+				RuntimeFailure:       store.SessionRuntimeFailurePointer(" runtime warning "),
 				WorkspaceID:          h.workspaceID,
 				NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
 				SessionType:          "worker",

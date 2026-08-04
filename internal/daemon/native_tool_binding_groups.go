@@ -61,6 +61,14 @@ func (n *daemonNativeTools) sessionToolBindings(
 			call:         n.sessionPrompt,
 			availability: availability,
 		},
+		toolspkg.ToolIDSessionRuntimeSet: {
+			call:         n.sessionRuntimeSet,
+			availability: availability,
+		},
+		toolspkg.ToolIDSessionRuntimeClear: {
+			call:         n.sessionRuntimeClear,
+			availability: availability,
+		},
 		toolspkg.ToolIDSessionInputsList: {
 			call:         n.sessionInputsList,
 			availability: availability,

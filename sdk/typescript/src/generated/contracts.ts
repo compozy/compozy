@@ -71,6 +71,8 @@ export type HostAPIMethod =
   | "sessions/inputs/replace"
   | "sessions/list"
   | "sessions/prompt"
+  | "sessions/runtime/clear"
+  | "sessions/runtime/set"
   | "sessions/soul/refresh"
   | "sessions/status"
   | "sessions/status/get"
@@ -4569,6 +4571,19 @@ export interface SessionPromptResult {
   canceled_queued_entries?: number;
 }
 
+export interface SessionRuntimeClearParams {
+  workspace_id: string;
+  session_id: string;
+  expected_revision?: number;
+}
+
+export interface SessionRuntimeSetParams {
+  workspace_id: string;
+  session_id: string;
+  runtime: PromptRuntimeSelectionPayload;
+  expected_revision?: number;
+}
+
 export interface SessionSoulRefreshParams {
   workspace_id: string;
   session_id: string;
@@ -4628,6 +4643,8 @@ export interface SessionRuntimePayload {
   status: SessionRuntimeStatus;
   transition?: SessionRuntimeTransition;
   failure?: string;
+  selected?: PromptRuntimeSelectionPayload;
+  selection_revision: number;
   effective?: RuntimeSelectionPayload;
   acp_session_id?: string;
   acp_caps?: ACPCapsPayload;
@@ -6769,6 +6786,14 @@ export interface HostAPIMethodMap {
   "sessions/prompt": {
     params: SessionsPromptParams;
     result: SessionPromptResult;
+  };
+  "sessions/runtime/set": {
+    params: SessionRuntimeSetParams;
+    result: SessionStatus;
+  };
+  "sessions/runtime/clear": {
+    params: SessionRuntimeClearParams;
+    result: SessionStatus;
   };
   "sessions/inputs/list": {
     params: SessionInputsListParams;

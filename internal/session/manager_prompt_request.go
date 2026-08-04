@@ -39,9 +39,59 @@ func (m *Manager) parsePromptRequest(ctx context.Context, id string, opts Prompt
 		authoredMessage: message,
 		turnSource:      turnSource,
 		meta:            meta,
+		resumeStopped:   true,
 		deliveryCtx:     opts.DeliveryContext,
 		prepareDelivery: opts.PrepareDelivery,
 	}, nil
+}
+
+func (m *Manager) lookupOrResumePromptSession(ctx context.Context, target string) (*Session, error) {
+	session, err := m.lookup(target)
+	if err == nil {
+		state := session.Info().State
+		if run := m.sessionStartRun(session.ID); run != nil {
+			if err := waitForSessionStartRun(ctx, run); err != nil {
+				return nil, err
+			}
+			return m.lookupPromptSession(ctx, target)
+		}
+		if state == StateActive {
+			return session, nil
+		}
+		if state == StateStopping || state == StateStopped {
+			waited, waitErr := m.waitForSessionFinalization(ctx, target)
+			if waitErr != nil {
+				return nil, waitErr
+			}
+			if waited {
+				return m.lookupOrResumePromptSession(ctx, target)
+			}
+		}
+		return nil, fmt.Errorf("%w: %s (%s)", ErrSessionNotActive, target, state)
+	}
+	if !errors.Is(err, ErrSessionNotFound) {
+		return nil, err
+	}
+	meta, metaErr := m.readMetaWithContext(ctx, target)
+	if metaErr != nil {
+		if errors.Is(metaErr, ErrSessionNotFound) {
+			return nil, err
+		}
+		return nil, metaErr
+	}
+	if State(meta.State) != StateStopped {
+		return nil, fmt.Errorf("%w: %s (%s)", ErrSessionNotActive, target, meta.State)
+	}
+	resumed, err := m.Resume(ctx, target)
+	if err != nil {
+		return nil, err
+	}
+	if run := m.sessionStartRun(resumed.ID); run != nil {
+		if err := waitForSessionStartRun(ctx, run); err != nil {
+			return nil, err
+		}
+	}
+	return m.lookupPromptSession(ctx, target)
 }
 
 func normalizePromptMeta(

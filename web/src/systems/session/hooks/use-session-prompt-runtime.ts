@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useSelector } from "@xstate/store-react";
+import { toast } from "sonner";
 
 import { isReasoningEffort, type RuntimeSpeed } from "@/lib/api-contract";
 import { resolveAgentRuntimeValue, useAgents } from "@/systems/agent";
@@ -15,6 +16,7 @@ import { useWorkspace, type SessionProviderOption } from "@/systems/workspace";
 import type { SessionPromptRuntimeSnapshot } from "../contexts/session-prompt-runtime-context-value";
 import type { SessionPromptRuntimeStore } from "../stores/session-prompt-runtime-store";
 import type { SessionRuntimeEffective } from "../types";
+import { useSetSessionRuntime } from "./use-session-runtime-selection";
 
 function runtimeValueFromEffective(
   effective: SessionRuntimeEffective | undefined
@@ -76,6 +78,7 @@ export function useSessionPromptRuntime(store: SessionPromptRuntimeStore) {
   const input = useSelector(store, snapshot => snapshot.context.input);
   const selectedValue = useSelector(store, snapshot => snapshot.context.selectedValue);
   const selectedSpeed = useSelector(store, snapshot => snapshot.context.selectedSpeed);
+  const runtimeSelection = useSetSessionRuntime(input.workspaceId);
   const workspace = useWorkspace(input.workspaceId, { enabled: input.canPrompt });
   const globalProviders = useProviders();
   const agents = useAgents(input.workspaceId, { enabled: input.canPrompt });
@@ -116,6 +119,7 @@ export function useSessionPromptRuntime(store: SessionPromptRuntimeStore) {
   });
   const canSelectRuntime =
     input.canPrompt &&
+    !runtimeSelection.isPending &&
     !workspace.isLoading &&
     !globalProviders.isLoading &&
     availabilityError === null &&
@@ -142,13 +146,48 @@ export function useSessionPromptRuntime(store: SessionPromptRuntimeStore) {
     },
     onRuntimeChange: (next: RuntimeSelectorValue) => {
       store.trigger.runtimeSelected({ value: next });
+      persistRuntimeSelection(next, speed);
     },
     onSpeedChange: (next: RuntimeSpeed) => {
       store.trigger.speedSelected({ speed: next });
+      persistRuntimeSelection(value, next);
     },
     speed,
     value,
   };
+
+  function persistRuntimeSelection(nextValue: RuntimeSelectorValue, nextSpeed: RuntimeSpeed) {
+    const runtime = snapshotFromSelection(nextValue, nextSpeed);
+    if (!runtime) {
+      store.trigger.runtimePersistenceFailed({});
+      return;
+    }
+    runtimeSelection.mutate(
+      {
+        id: input.sessionId,
+        request: {
+          expected_revision: input.selectionRevision,
+          runtime,
+        },
+      },
+      {
+        onSuccess: session => {
+          store.trigger.runtimePersisted({
+            revision: session.runtime.selection_revision,
+            runtime: session.runtime.selected ?? undefined,
+          });
+        },
+        onError: error => {
+          store.trigger.runtimePersistenceFailed({});
+          toast.error(
+            error instanceof Error && error.message.trim().length > 0
+              ? error.message
+              : "Couldn't save the session runtime."
+          );
+        },
+      }
+    );
+  }
 }
 
 export function getSessionPromptRuntimeSnapshot(

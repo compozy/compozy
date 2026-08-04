@@ -146,6 +146,8 @@ type stubClient struct {
 	stopSessionFn                func(context.Context, string) error
 	deleteSessionFn              func(context.Context, string) error
 	resumeSessionFn              func(context.Context, string) (SessionRecord, error)
+	setSessionRuntimeFn          func(context.Context, string, SetSessionRuntimeRequest) (SessionRecord, error)
+	clearSessionRuntimeFn        func(context.Context, string, int64) (SessionRecord, error)
 	sessionRecapFn               func(context.Context, string, int) (SessionRecapRecord, error)
 	repairSessionFn              func(context.Context, string, SessionRepairQuery) (SessionRepairRecord, error)
 	approveSessionFn             func(context.Context, string, SessionApprovalRequest) (SessionApprovalRecord, error)
@@ -1565,6 +1567,24 @@ func (s *stubClient) ResumeSession(ctx context.Context, id string) (SessionRecor
 		return s.resumeSessionFn(ctx, id)
 	}
 	return SessionRecord{}, errors.New("unexpected ResumeSession call")
+}
+
+func (s *stubClient) SetSessionRuntime(
+	ctx context.Context,
+	id string,
+	request SetSessionRuntimeRequest,
+) (SessionRecord, error) {
+	if s.setSessionRuntimeFn != nil {
+		return s.setSessionRuntimeFn(ctx, id, request)
+	}
+	return SessionRecord{}, errors.New("unexpected SetSessionRuntime call")
+}
+
+func (s *stubClient) ClearSessionRuntime(ctx context.Context, id string, revision int64) (SessionRecord, error) {
+	if s.clearSessionRuntimeFn != nil {
+		return s.clearSessionRuntimeFn(ctx, id, revision)
+	}
+	return SessionRecord{}, errors.New("unexpected ClearSessionRuntime call")
 }
 
 func (s *stubClient) SessionRecap(ctx context.Context, id string, limit int) (SessionRecapRecord, error) {

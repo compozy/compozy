@@ -28,6 +28,7 @@ function session(
       status: "ready",
       transition: "initial_bind",
       effective: { provider: "codex" },
+      selection_revision: 0,
     },
     workspace_id: "workspace-compozy",
     workspace_path: "/workspace/compozy",

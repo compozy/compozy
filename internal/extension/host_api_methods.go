@@ -86,6 +86,8 @@ func registerHostAPISessionMethodHandlers(
 	handlers[string(extensioncontract.HostAPIMethodSessionsHealthGet)] = handler.handleSessionsHealthGet
 	handlers[hostAPISessionsListPath] = handler.handleSessionsList
 	handlers[hostAPISessionsPromptPath] = handler.handleSessionsPrompt
+	handlers[string(extensioncontract.HostAPIMethodSessionsRuntimeSet)] = handler.handleSessionsRuntimeSet
+	handlers[string(extensioncontract.HostAPIMethodSessionsRuntimeClear)] = handler.handleSessionsRuntimeClear
 	handlers[hostAPISessionsInputsListPath] = handler.handleSessionsInputsList
 	handlers[hostAPISessionsInputsReplacePath] = handler.handleSessionsInputsReplace
 	handlers[hostAPISessionsInputsCancelPath] = handler.handleSessionsInputsCancel

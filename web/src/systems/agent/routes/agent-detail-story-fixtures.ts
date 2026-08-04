@@ -25,6 +25,7 @@ const fallbackFraudSession: SessionPayload = {
     status: "ready",
     transition: "initial_bind",
     effective: { provider: "claude" },
+    selection_revision: 0,
   },
   workspace_id: storyWorkspaceIds.risk,
   workspace_path: storyWorkspacePaths.risk,

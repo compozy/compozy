@@ -2276,7 +2276,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "c6ada21f22c6b67fbb10223b4026a7dfe28b0475f86b15a1ed93234d42f0c9f9",
-    "output_schema_digest": "4e2876896ce1a929f19fa5fec6efa36524c1db0cbdb85184de20fd06078cba37"
+    "output_schema_digest": "b97eb6ea4bc792cd27f46f8065e5e6001d3180f8c16a669df6f9f1347802ca00"
   },
   {
     "tool_id": "compozy__session_describe",
@@ -2408,6 +2408,32 @@
     "open_world": false,
     "input_schema_digest": "6bf90be75f8543e6ae6938538653bb48677896c3535f871442556e99d2b3d0cc",
     "output_schema_digest": "6bfe42af616ce76f2d303ffc1e98fb3a27f3f8665cef1dd03b1cee33a2b1b37f"
+  },
+  {
+    "tool_id": "compozy__session_runtime_clear",
+    "native_name": "session_runtime_clear",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "35859824a0d0fb604016eb8cdcbdfec60770301cde6cf225b6b7fdc15cd69b2c",
+    "output_schema_digest": "b97eb6ea4bc792cd27f46f8065e5e6001d3180f8c16a669df6f9f1347802ca00"
+  },
+  {
+    "tool_id": "compozy__session_runtime_set",
+    "native_name": "session_runtime_set",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "829d61468d2b0d0f3d8561153394678af9567dd291ed56257eca6cef53cf5273",
+    "output_schema_digest": "b97eb6ea4bc792cd27f46f8065e5e6001d3180f8c16a669df6f9f1347802ca00"
   },
   {
     "tool_id": "compozy__session_status",

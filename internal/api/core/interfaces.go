@@ -139,6 +139,17 @@ type SessionAttachManager interface {
 	AttachSession(ctx context.Context, req store.SessionAttachRequest) (store.SessionAttach, error)
 }
 
+// SessionRuntimeSelectionManager owns durable compare-and-set runtime preferences.
+type SessionRuntimeSelectionManager interface {
+	SetRuntimeSelection(
+		ctx context.Context,
+		id string,
+		selection session.RuntimeSelection,
+		expectedRevision int64,
+	) (*session.Info, error)
+	ClearRuntimeSelection(ctx context.Context, id string, expectedRevision int64) (*session.Info, error)
+}
+
 // SessionCatalog exposes daemon-owned session catalog operations that must not
 // create a second live session authority.
 type SessionCatalog interface {

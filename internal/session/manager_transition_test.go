@@ -53,7 +53,7 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 			stoppingCatalog.ReasoningEffort != stoppingMeta.ReasoningEffort || stoppingCatalog.Speed != stoppingMeta.Speed ||
 			stoppingCatalog.RuntimeStatus != stoppingMeta.RuntimeStatus ||
 			stoppingCatalog.RuntimeTransition != stoppingMeta.RuntimeTransition ||
-			stoppingCatalog.RuntimeFailure != stoppingMeta.RuntimeFailure {
+			stoppingCatalog.RuntimeFailure != store.SessionRuntimeFailureValue(stoppingMeta.RuntimeFailure) {
 			t.Fatalf(
 				"catalog runtime after request stop = %#v, want metadata runtime %#v",
 				stoppingCatalog,
@@ -285,6 +285,87 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 			t.Fatalf("active info after failed CAS = %#v, want unchanged %#v", after, before)
 		}
 	})
+
+	t.Run("Should persist selected runtime without changing the active effective runtime", func(t *testing.T) {
+		t.Parallel()
+
+		catalog := newRecordingSessionCatalog()
+		h := newHarness(t, WithSessionCatalog(catalog))
+		active := createSession(t, h)
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), active.ID); err != nil &&
+				!errors.Is(err, ErrSessionNotFound) {
+				t.Errorf("Stop() cleanup error = %v", err)
+			}
+		})
+		before := active.Info()
+		updated, err := h.manager.SetRuntimeSelection(
+			testutil.Context(t),
+			active.ID,
+			RuntimeSelection{Provider: "claude", Model: "claude-fable-5", ReasoningEffort: "max"},
+			0,
+		)
+		if err != nil {
+			t.Fatalf("SetRuntimeSelection() error = %v", err)
+		}
+		if updated.SelectedRuntime == nil || updated.SelectedRuntime.Provider != "claude" ||
+			updated.SelectedRuntime.Model != "claude-fable-5" ||
+			updated.SelectedRuntime.ReasoningEffort != "max" || updated.RuntimeSelectionRevision != 1 {
+			t.Fatalf("SetRuntimeSelection() info = %#v, want Claude selection at revision 1", updated)
+		}
+		if updated.Provider != before.Provider || updated.Model != before.Model ||
+			updated.ReasoningEffort != before.ReasoningEffort || updated.RuntimeStatus != before.RuntimeStatus {
+			t.Fatalf("effective runtime after selection = %#v, want unchanged %#v", updated, before)
+		}
+		meta := readMeta(t, active.MetaPath())
+		selectedRuntime, selectionRevision := store.SessionRuntimeSelectionStateValues(meta.RuntimeSelection)
+		catalogInfo, ok := catalog.get(active.ID)
+		if !ok || selectedRuntime == nil || catalogInfo.SelectedRuntime == nil ||
+			selectionRevision != 1 || catalogInfo.RuntimeSelectionRevision != 1 {
+			t.Fatalf(
+				"durable selection meta = %#v catalog = %#v, want revision 1",
+				selectedRuntime,
+				catalogInfo.SelectedRuntime,
+			)
+		}
+		_, err = h.manager.ClearRuntimeSelection(testutil.Context(t), active.ID, 0)
+		if !errors.Is(err, ErrRuntimeSelectionConflict) {
+			t.Fatalf("ClearRuntimeSelection(stale revision) error = %v, want revision conflict", err)
+		}
+	})
+
+	t.Run("Should update selected runtime while stopped without starting ACP", func(t *testing.T) {
+		t.Parallel()
+
+		catalog := newRecordingSessionCatalog()
+		h := newHarness(t, WithSessionCatalog(catalog))
+		active := createSession(t, h)
+		if err := h.manager.Stop(testutil.Context(t), active.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+		h.driver.mu.Lock()
+		startsBefore := len(h.driver.startCalls)
+		h.driver.mu.Unlock()
+		updated, err := h.manager.SetRuntimeSelection(
+			testutil.Context(t),
+			active.ID,
+			RuntimeSelection{Provider: "claude", Model: "claude-fable-5", ReasoningEffort: "max"},
+			0,
+		)
+		if err != nil {
+			t.Fatalf("SetRuntimeSelection(stopped) error = %v", err)
+		}
+		if updated.State != StateStopped || updated.SelectedRuntime == nil ||
+			updated.SelectedRuntime.Model != "claude-fable-5" || updated.RuntimeSelectionRevision != 1 {
+			t.Fatalf("SetRuntimeSelection(stopped) info = %#v, want stopped Claude selection at revision 1", updated)
+		}
+		h.driver.mu.Lock()
+		startsAfter := len(h.driver.startCalls)
+		h.driver.mu.Unlock()
+		if got := startsAfter; got != startsBefore {
+			t.Fatalf("driver starts after stopped selection = %d, want %d", got, startsBefore)
+		}
+	})
 }
 
 type recordingSessionCatalog struct {
@@ -340,6 +421,10 @@ func (c *recordingSessionCatalog) UpdateSessionState(_ context.Context, update s
 		current.RuntimeStatus = update.RuntimeStatus
 		current.RuntimeTransition = update.RuntimeTransition
 		current.RuntimeFailure = update.RuntimeFailure
+	}
+	if update.SelectedRuntimeSet {
+		current.SelectedRuntime = store.CloneSessionRuntimeSelection(update.SelectedRuntime)
+		current.RuntimeSelectionRevision = update.RuntimeSelectionRevision
 	}
 	if update.StopReasonSet {
 		current.StopReason = store.StopReason("")

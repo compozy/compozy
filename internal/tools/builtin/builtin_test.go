@@ -167,6 +167,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		descriptors := descriptorMap(NativeDescriptors())
 		assertSessionCreateMutationSchema(t, descriptors[toolspkg.ToolIDSessionCreate])
 		assertSessionPromptMutationSchema(t, descriptors[toolspkg.ToolIDSessionPrompt])
+		assertSessionRuntimeMutationSchemas(t, descriptors)
 		assertSessionInputSchemas(t, descriptors)
 	})
 
@@ -1145,6 +1146,10 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__session_prompt", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__session_runtime_clear", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__session_runtime_set", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__session_status", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__skill_list", risk: toolspkg.RiskRead,
@@ -1448,6 +1453,34 @@ func assertSessionPromptMutationSchema(t *testing.T, descriptor toolspkg.Descrip
 		t.Fatalf("%s expected_turn_id schema = %#v, want non-empty string", descriptor.ID, expectedTurn)
 	}
 	assertSessionPromptMutationOutputSchema(t, descriptor.ID.String()+" output", descriptor.OutputSchema)
+}
+
+func assertSessionRuntimeMutationSchemas(
+	t *testing.T,
+	descriptors map[toolspkg.ToolID]toolspkg.Descriptor,
+) {
+	t.Helper()
+	for _, id := range []toolspkg.ToolID{
+		toolspkg.ToolIDSessionRuntimeSet,
+		toolspkg.ToolIDSessionRuntimeClear,
+	} {
+		descriptor := descriptors[id]
+		var input nativeObjectSchema
+		if err := json.Unmarshal(descriptor.InputSchema, &input); err != nil {
+			t.Fatalf("%s input schema unmarshal error = %v", id, err)
+		}
+		wantFields := []string{"expected_revision", "session_id", "workspace"}
+		if id == toolspkg.ToolIDSessionRuntimeSet {
+			wantFields = append(wantFields, "runtime")
+		}
+		slices.Sort(wantFields)
+		assertClosedObjectSchema(t, id.String()+" input", input, wantFields)
+		if !slices.Contains(input.Required, "session_id") ||
+			(id == toolspkg.ToolIDSessionRuntimeSet && !slices.Contains(input.Required, "runtime")) {
+			t.Fatalf("%s required = %#v, want session_id and set runtime", id, input.Required)
+		}
+		assertSessionMutationEnvelopeSchema(t, id.String()+" output", descriptor.OutputSchema, "session")
+	}
 }
 
 func assertSessionPromptMutationOutputSchema(t *testing.T, owner string, raw json.RawMessage) {

@@ -57,3 +57,20 @@ func validateSessionRuntime(status SessionRuntimeStatus, transition SessionRunti
 func ValidateSessionRuntime(status SessionRuntimeStatus, transition SessionRuntimeTransition, failure string) error {
 	return validateSessionRuntime(status, transition, failure)
 }
+
+// SessionRuntimeFailurePointer normalizes an optional persisted runtime diagnostic.
+func SessionRuntimeFailurePointer(value string) *string {
+	normalized := strings.TrimSpace(value)
+	if normalized == "" {
+		return nil
+	}
+	return &normalized
+}
+
+// SessionRuntimeFailureValue returns the normalized runtime diagnostic value.
+func SessionRuntimeFailureValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return strings.TrimSpace(*value)
+}

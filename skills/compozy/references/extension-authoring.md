@@ -113,6 +113,14 @@ promote also require fresh `text`, `message_id`, and `idempotency_key`; promote 
 `expected_turn_id`. Read the list again after an action instead of maintaining a private queue or
 assuming an input was delivered from its position alone.
 
+### Durable session runtime
+
+Use `sessions/runtime/set` and `sessions/runtime/clear` with `session.write` when an extension must
+change next-prompt runtime intent. Both require `workspace_id`, `session_id`, and the current
+`expected_revision`; set also requires the complete runtime selection. They return `SessionStatus`,
+do not start or reconfigure ACP, and reject a stale revision. Read session status again after a
+conflict rather than retrying the old selection.
+
 ## Provide Surfaces
 
 Closed set, validated at build, install, and load.

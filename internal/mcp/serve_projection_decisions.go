@@ -16,6 +16,8 @@ var hostAPIProjectionDecisions = map[extensionprotocol.HostAPIMethod]projectionD
 	extensionprotocol.HostAPIMethodSessionsList:          {Publish: true},
 	extensionprotocol.HostAPIMethodSessionsCreate:        {Publish: true},
 	extensionprotocol.HostAPIMethodSessionsPrompt:        {Publish: true},
+	extensionprotocol.HostAPIMethodSessionsRuntimeSet:    {Publish: true},
+	extensionprotocol.HostAPIMethodSessionsRuntimeClear:  {Publish: true},
 	extensionprotocol.HostAPIMethodSessionsInputsList:    {Publish: true},
 	extensionprotocol.HostAPIMethodSessionsInputsReplace: {Publish: true},
 	extensionprotocol.HostAPIMethodSessionsInputsCancel:  {Publish: true},

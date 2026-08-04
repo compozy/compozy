@@ -137,6 +137,39 @@ func (c *unixSocketClient) ResumeSession(ctx context.Context, id string) (Sessio
 	return response.Session, nil
 }
 
+func (c *unixSocketClient) SetSessionRuntime(
+	ctx context.Context,
+	id string,
+	request SetSessionRuntimeRequest,
+) (SessionRecord, error) {
+	var response contract.SessionResponse
+	path, err := c.sessionScopedPath(ctx, id, "/runtime")
+	if err != nil {
+		return SessionRecord{}, err
+	}
+	if err := c.doJSON(ctx, http.MethodPut, path, nil, request, &response); err != nil {
+		return SessionRecord{}, err
+	}
+	return response.Session, nil
+}
+
+func (c *unixSocketClient) ClearSessionRuntime(
+	ctx context.Context,
+	id string,
+	expectedRevision int64,
+) (SessionRecord, error) {
+	var response contract.SessionResponse
+	path, err := c.sessionScopedPath(ctx, id, "/runtime")
+	if err != nil {
+		return SessionRecord{}, err
+	}
+	query := url.Values{"expected_revision": []string{strconv.FormatInt(expectedRevision, 10)}}
+	if err := c.doJSON(ctx, http.MethodDelete, path, query, nil, &response); err != nil {
+		return SessionRecord{}, err
+	}
+	return response.Session, nil
+}
+
 func (c *unixSocketClient) SessionRecap(ctx context.Context, id string, limit int) (SessionRecapRecord, error) {
 	var response struct {
 		Recap SessionRecapRecord `json:"recap"`

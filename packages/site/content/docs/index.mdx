@@ -173,8 +173,8 @@ agent instead of flattening everything into one abstraction layer.
 ### Keep sessions durable, replayable, and auditable
 
 Each session becomes a durable unit of work. While it is active, another client can acquire an
-attach lease with `compozy session resume`. After it stops, the public lifecycle is terminal, but
-its status, recap, event history, and transcript remain available for review.
+attach lease with `compozy session resume`. After it stops, its status, recap, event history, and
+transcript remain available, and a normal prompt can restart the provider against the same history.
 
 Instead of losing the context after a crash, restart, or handoff, Compozy keeps the operational record
 around the work itself.

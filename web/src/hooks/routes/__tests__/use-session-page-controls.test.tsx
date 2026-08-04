@@ -32,6 +32,9 @@ vi.mock("sonner", () => ({
 }));
 
 vi.mock("@/systems/session", () => ({
+  canPromptSession: (session: { state?: string; type?: string }) =>
+    (session.type ?? "user") === "user" &&
+    (session.state === "active" || session.state === "stopped"),
   cancelSessionPrompt: routeHookMocks.cancelSessionPrompt,
   isSessionRunning: (session: {
     state?: string;
@@ -67,6 +70,7 @@ function makeSession(state: SessionPayload["state"], turnId?: string): SessionPa
     runtime: {
       status: state === "stopped" ? "unbound" : "ready",
       effective: { provider: "codex" },
+      selection_revision: 0,
     },
     workspace_id: WORKSPACE_ID,
     workspace_path: "/workspace",
@@ -164,6 +168,13 @@ describe("useSessionPageControls", () => {
       cancellation.resolve();
       await cancellation.promise;
     });
+  });
+
+  it("Should allow a normal prompt to resume a stopped user session", () => {
+    const { result } = renderControls(makeSession("stopped"));
+
+    expect(result.current.canPrompt).toBe(true);
+    expect(result.current.isSessionRunning).toBe(false);
   });
 
   it("Should block clear while work is running and allow durable transcript content when idle", () => {

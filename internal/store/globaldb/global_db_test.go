@@ -1239,11 +1239,18 @@ func TestGlobalDBRegisterUpdateAndListSessions(t *testing.T) {
 		SpeedResolution:   &speedpkg.Resolution{Requested: speedpkg.SpeedFast, Status: speedpkg.ResolutionApplied},
 		RuntimeStatus:     store.SessionRuntimeReady,
 		RuntimeTransition: store.SessionRuntimeTransitionLiveConfiguration,
-		WorkspaceID:       workspaceID,
-		SessionType:       "dream",
-		State:             "active",
-		CreatedAt:         createdAt,
-		UpdatedAt:         createdAt,
+		SelectedRuntime: &store.SessionRuntimeSelection{
+			Provider:        "claude",
+			Model:           "claude-fable-5",
+			ReasoningEffort: "max",
+			Speed:           speedpkg.SpeedFast,
+		},
+		RuntimeSelectionRevision: 4,
+		WorkspaceID:              workspaceID,
+		SessionType:              "dream",
+		State:                    "active",
+		CreatedAt:                createdAt,
+		UpdatedAt:                createdAt,
 	}
 
 	if err := globalDB.RegisterSession(testutil.Context(t), session); err != nil {
@@ -1314,6 +1321,17 @@ func TestGlobalDBRegisterUpdateAndListSessions(t *testing.T) {
 		sessions[0].RuntimeStatus != store.SessionRuntimeReady ||
 		sessions[0].RuntimeTransition != store.SessionRuntimeTransitionProcessReplacement {
 		t.Fatalf("sessions[0] runtime projection = %#v", sessions[0])
+	}
+	if sessions[0].SelectedRuntime == nil || sessions[0].SelectedRuntime.Provider != "claude" ||
+		sessions[0].SelectedRuntime.Model != "claude-fable-5" ||
+		sessions[0].SelectedRuntime.ReasoningEffort != "max" ||
+		sessions[0].SelectedRuntime.Speed != speedpkg.SpeedFast ||
+		sessions[0].RuntimeSelectionRevision != 4 {
+		t.Fatalf(
+			"sessions[0] selected runtime = %#v revision %d, want durable Claude selection at revision 4",
+			sessions[0].SelectedRuntime,
+			sessions[0].RuntimeSelectionRevision,
+		)
 	}
 	if sessions[0].ACPSessionID == nil || *sessions[0].ACPSessionID != "acp-123" {
 		t.Fatalf("sessions[0].ACPSessionID = %#v, want acp-123", sessions[0].ACPSessionID)
@@ -2624,6 +2642,11 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 			"runtime_status",
 			"runtime_transition",
 			"runtime_failure",
+			"selected_provider",
+			"selected_model",
+			"selected_reasoning_effort",
+			"selected_speed",
+			"runtime_selection_revision",
 			"workspace_id",
 			"session_type",
 			"state",
