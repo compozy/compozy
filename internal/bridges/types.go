@@ -470,7 +470,7 @@ func requireField(value string, label string) error {
 }
 
 func requireOpaqueDeliveryID(value string, label string) error {
-	if isBlank(value) {
+	if value == "" {
 		return fmt.Errorf("bridges: %s is required", label)
 	}
 	if !utf8.ValidString(value) {
