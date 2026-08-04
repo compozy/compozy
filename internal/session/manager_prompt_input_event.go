@@ -26,6 +26,7 @@ type promptRequest struct {
 	prepareDelivery        PromptDeliveryPreparer
 	inputRecorded          bool
 	releaseSlotBeforeHooks bool
+	resumeStopped          bool
 	commitDispatch         func(context.Context) error
 }
 

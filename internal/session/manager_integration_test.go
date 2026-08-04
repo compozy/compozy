@@ -53,26 +53,35 @@ func TestManagerIntegrationFullLifecycle(t *testing.T) {
 	if len(firstEvents) != 2 {
 		t.Fatalf("first prompt events = %d, want 2", len(firstEvents))
 	}
+	acpSessionIDBeforeStop := session.Info().ACPSessionID
+	if strings.TrimSpace(acpSessionIDBeforeStop) == "" {
+		t.Fatal("ACP session ID before stop is empty")
+	}
 
 	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
 		t.Fatalf("Stop() error = %v", err)
 	}
 
-	resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
+	secondPrompt, err := h.manager.Prompt(testutil.Context(t), session.ID, "second")
 	if err != nil {
-		t.Fatalf("Resume() error = %v", err)
-	}
-	if got := h.driver.startCalls[1].Cwd; got != canonicalSessionCWD {
-		t.Fatalf("Resume() CWD = %q, want persisted %q", got, canonicalSessionCWD)
-	}
-
-	secondPrompt, err := h.manager.Prompt(testutil.Context(t), resumed.ID, "second")
-	if err != nil {
-		t.Fatalf("Prompt(second) error = %v", err)
+		t.Fatalf("Prompt(stopped, second) error = %v", err)
 	}
 	secondEvents := collectEvents(t, secondPrompt)
 	if len(secondEvents) != 2 {
 		t.Fatalf("second prompt events = %d, want 2", len(secondEvents))
+	}
+	resumed, ok := h.manager.Get(session.ID)
+	if !ok {
+		t.Fatalf("Get(%q) found = false, want resumed session", session.ID)
+	}
+	h.driver.mu.Lock()
+	resumeStart := h.driver.startCalls[1]
+	h.driver.mu.Unlock()
+	if got := resumeStart.Cwd; got != canonicalSessionCWD {
+		t.Fatalf("prompt resume CWD = %q, want persisted %q", got, canonicalSessionCWD)
+	}
+	if got := resumeStart.ResumeSessionID; got != acpSessionIDBeforeStop {
+		t.Fatalf("prompt resume ACP session ID = %q, want persisted %q", got, acpSessionIDBeforeStop)
 	}
 
 	if err := h.manager.Stop(testutil.Context(t), resumed.ID); err != nil {

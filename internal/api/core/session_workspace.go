@@ -195,6 +195,7 @@ func statusForSessionValidationError(err error) (int, bool) {
 func statusForSessionConflictError(err error) (int, bool) {
 	switch {
 	case errors.Is(err, session.ErrPromptInProgress),
+		errors.Is(err, session.ErrRuntimeSelectionConflict),
 		errors.Is(err, session.ErrPromptNotInProgress),
 		errors.Is(err, session.ErrActiveTurnMismatch),
 		errors.Is(err, store.ErrSessionInputQueueEntryNotQueued),

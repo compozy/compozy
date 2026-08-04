@@ -27,6 +27,8 @@ var sessionTools = []toolspkg.Descriptor{
 	sessionListDescriptor(),
 	sessionCreateDescriptor(),
 	sessionPromptDescriptor(),
+	sessionRuntimeSetDescriptor(),
+	sessionRuntimeClearDescriptor(),
 	sessionInputsListDescriptor(),
 	sessionInputReplaceDescriptor(),
 	sessionInputCancelDescriptor(),
@@ -328,6 +330,8 @@ const sessionCreateOutputSchema = `{
 						"status":{"type":"string","enum":["unbound","binding","ready","reconfiguring","failed"]},
 						"transition":{"type":"string","enum":["","initial_bind","live_configuration","process_replacement"]},
 						"failure":{"type":"string"},
+						"selected":{"type":"object"},
+						"selection_revision":{"type":"integer","minimum":0},
 						"effective":{"type":"object"},
 						"acp_session_id":{"type":"string"},
 						"acp_caps":{"type":"object"}

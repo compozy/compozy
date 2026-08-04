@@ -3,11 +3,14 @@ import { createStoreLogic } from "@xstate/store";
 import { type RuntimeSpeed } from "@/lib/api-contract";
 import type { RuntimeSelectorValue } from "@/systems/runtime";
 
-import type { SessionRuntimeEffective } from "../types";
+import type { SessionRuntimeEffective, SessionRuntimeSelection } from "../types";
 
 interface SessionPromptRuntimeInput {
   canPrompt: boolean;
   effectiveRuntime: SessionRuntimeEffective | undefined;
+  selectedRuntime: SessionRuntimeSelection | undefined;
+  selectionRevision: number;
+  sessionId: string;
   workspaceId: string;
   agentName: string;
 }
@@ -16,6 +19,9 @@ export interface SessionPromptRuntimeInputSource {
   agentName: string;
   canPrompt: boolean;
   effectiveRuntime: SessionRuntimeEffective | null | undefined;
+  selectedRuntime: SessionRuntimeSelection | null | undefined;
+  selectionRevision: number;
+  sessionId: string;
   workspaceId: string | undefined;
 }
 
@@ -30,9 +36,19 @@ interface SessionPromptRuntimeStoreContext {
 type SessionPromptRuntimeStoreEvents = {
   defaultRuntimeResolved: { speed: RuntimeSpeed; value: RuntimeSelectorValue };
   inputUpdated: SessionPromptRuntimeInput;
+  runtimePersistenceFailed: SessionRuntimeIdentity;
+  runtimePersisted: SessionRuntimeIdentity & {
+    revision: number;
+    runtime: SessionRuntimeSelection | undefined;
+  };
   runtimeSelected: { value: RuntimeSelectorValue };
   speedSelected: { speed: RuntimeSpeed };
 };
+
+interface SessionRuntimeIdentity {
+  sessionId: string;
+  workspaceId: string;
+}
 
 export const sessionPromptRuntimeStoreLogic = createStoreLogic<
   SessionPromptRuntimeStoreContext,
@@ -40,17 +56,7 @@ export const sessionPromptRuntimeStoreLogic = createStoreLogic<
   {},
   SessionPromptRuntimeInput
 >({
-  context: input => ({
-    defaultSpeed: input.effectiveRuntime?.speed ?? "normal",
-    defaultValue: {
-      model: input.effectiveRuntime?.model?.trim() ?? "",
-      provider: input.effectiveRuntime?.provider?.trim() ?? "",
-      reasoning_effort: input.effectiveRuntime?.reasoning_effort ?? "",
-    },
-    input,
-    selectedSpeed: null,
-    selectedValue: null,
-  }),
+  context: input => selectionContext(input),
   on: {
     defaultRuntimeResolved: (context, event) =>
       context.defaultSpeed === event.speed && sameValue(context.defaultValue, event.value)
@@ -60,13 +66,42 @@ export const sessionPromptRuntimeStoreLogic = createStoreLogic<
             defaultSpeed: event.speed,
             defaultValue: event.value,
           },
-    inputUpdated: (context, event) =>
-      sameInput(context.input, event)
-        ? undefined
-        : {
+    inputUpdated: (context, event) => {
+      const nextInput = preserveNewerRuntimeSelection(context.input, event);
+      if (sameInput(context.input, nextInput)) return undefined;
+      const selectionChanged =
+        context.input.selectionRevision !== nextInput.selectionRevision ||
+        !sameRuntimeSelection(context.input.selectedRuntime, nextInput.selectedRuntime);
+      return {
+        ...context,
+        input: nextInput,
+        ...(selectionChanged ? selectedContext(nextInput.selectedRuntime) : {}),
+      };
+    },
+    runtimePersistenceFailed: (context, event) =>
+      sameSessionIdentity(context.input, event)
+        ? {
             ...context,
-            input: event,
-          },
+            ...selectedContext(context.input.selectedRuntime),
+          }
+        : undefined,
+    runtimePersisted: (context, event) => {
+      if (
+        !sameSessionIdentity(context.input, event) ||
+        event.revision < context.input.selectionRevision
+      ) {
+        return undefined;
+      }
+      return {
+        ...context,
+        input: {
+          ...context.input,
+          selectedRuntime: event.runtime,
+          selectionRevision: event.revision,
+        },
+        ...selectedContext(event.runtime),
+      };
+    },
     runtimeSelected: (context, event) =>
       sameValue(context.selectedValue, event.value)
         ? undefined
@@ -96,7 +131,36 @@ export function sessionPromptRuntimeInput(
     agentName: source.agentName,
     canPrompt: source.canPrompt && workspaceId.length > 0,
     effectiveRuntime: source.effectiveRuntime ?? undefined,
+    selectedRuntime: source.selectedRuntime ?? undefined,
+    selectionRevision: source.selectionRevision,
+    sessionId: source.sessionId,
     workspaceId,
+  };
+}
+
+function selectionContext(input: SessionPromptRuntimeInput): SessionPromptRuntimeStoreContext {
+  return {
+    defaultSpeed: input.effectiveRuntime?.speed ?? "normal",
+    defaultValue: runtimeValue(input.effectiveRuntime),
+    input,
+    ...selectedContext(input.selectedRuntime),
+  };
+}
+
+function selectedContext(runtime: SessionRuntimeSelection | undefined) {
+  return {
+    selectedSpeed: runtime ? (runtime.speed ?? "normal") : null,
+    selectedValue: runtime ? runtimeValue(runtime) : null,
+  };
+}
+
+function runtimeValue(
+  runtime: SessionRuntimeEffective | SessionRuntimeSelection | undefined
+): RuntimeSelectorValue {
+  return {
+    model: runtime?.model?.trim() ?? "",
+    provider: runtime?.provider?.trim() ?? "",
+    reasoning_effort: runtime?.reasoning_effort ?? "",
   };
 }
 
@@ -104,11 +168,47 @@ function sameInput(left: SessionPromptRuntimeInput, right: SessionPromptRuntimeI
   return (
     left.agentName === right.agentName &&
     left.canPrompt === right.canPrompt &&
+    left.sessionId === right.sessionId &&
     left.workspaceId === right.workspaceId &&
     left.effectiveRuntime?.provider === right.effectiveRuntime?.provider &&
     left.effectiveRuntime?.model === right.effectiveRuntime?.model &&
     left.effectiveRuntime?.reasoning_effort === right.effectiveRuntime?.reasoning_effort &&
-    left.effectiveRuntime?.speed === right.effectiveRuntime?.speed
+    left.effectiveRuntime?.speed === right.effectiveRuntime?.speed &&
+    left.selectionRevision === right.selectionRevision &&
+    sameRuntimeSelection(left.selectedRuntime, right.selectedRuntime)
+  );
+}
+
+function preserveNewerRuntimeSelection(
+  current: SessionPromptRuntimeInput,
+  incoming: SessionPromptRuntimeInput
+): SessionPromptRuntimeInput {
+  if (
+    !sameSessionIdentity(current, incoming) ||
+    incoming.selectionRevision >= current.selectionRevision
+  ) {
+    return incoming;
+  }
+  return {
+    ...incoming,
+    selectedRuntime: current.selectedRuntime,
+    selectionRevision: current.selectionRevision,
+  };
+}
+
+function sameSessionIdentity(left: SessionRuntimeIdentity, right: SessionRuntimeIdentity): boolean {
+  return left.sessionId === right.sessionId && left.workspaceId === right.workspaceId;
+}
+
+function sameRuntimeSelection(
+  left: SessionRuntimeSelection | undefined,
+  right: SessionRuntimeSelection | undefined
+): boolean {
+  return (
+    left?.provider === right?.provider &&
+    left?.model === right?.model &&
+    left?.reasoning_effort === right?.reasoning_effort &&
+    left?.speed === right?.speed
   );
 }
 

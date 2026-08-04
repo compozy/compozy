@@ -13,30 +13,32 @@ import (
 )
 
 type StubSessionManager struct {
-	CreateFn            func(context.Context, session.CreateOpts) (*session.Session, error)
-	CreateAcceptedFn    func(context.Context, session.CreateAcceptedOpts) (*session.Info, error)
-	ListFn              func() []*session.Info
-	ListAllFn           func(context.Context) ([]*session.Info, error)
-	ListPageFn          func(context.Context, session.ListQuery) (session.ListPage, error)
-	SubscribeCatalogFn  func(context.Context) (<-chan session.CatalogEvent, func(), error)
-	MetricsByAgentFn    func(context.Context, string) (map[string]session.AgentSessionMetrics, error)
-	ListSessionsFn      func(context.Context, store.SessionListQuery) ([]store.SessionInfo, error)
-	StatusFn            func(context.Context, string) (*session.Info, error)
-	EventsFn            func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error)
-	LatestEventFn       func(context.Context, string, string) (*store.SessionEvent, error)
-	HistoryFn           func(context.Context, string, store.EventQuery) ([]store.TurnHistory, error)
-	TranscriptPageFn    func(context.Context, string, transcript.PageQuery) (transcript.Page, error)
-	TranscriptChangesFn func(context.Context, string, transcript.ChangeQuery) (transcript.ChangePage, error)
-	RepairFn            func(context.Context, session.RepairOpts) (*session.RepairResult, error)
-	DeleteFn            func(context.Context, string) error
-	StopFn              func(context.Context, string) error
-	StopWithCauseFn     func(context.Context, string, session.StopCause, string) error
-	ResumeFn            func(context.Context, string) (*session.Session, error)
-	AttachSessionFn     func(context.Context, store.SessionAttachRequest) (store.SessionAttach, error)
-	ClearFn             func(context.Context, string) (*session.Session, error)
-	PromptFn            func(context.Context, string, string) (<-chan acp.AgentEvent, error)
-	PromptWithOptsFn    func(context.Context, string, session.PromptOpts) (<-chan acp.AgentEvent, error)
-	PromptSyntheticFn   func(
+	CreateFn                func(context.Context, session.CreateOpts) (*session.Session, error)
+	CreateAcceptedFn        func(context.Context, session.CreateAcceptedOpts) (*session.Info, error)
+	ListFn                  func() []*session.Info
+	ListAllFn               func(context.Context) ([]*session.Info, error)
+	ListPageFn              func(context.Context, session.ListQuery) (session.ListPage, error)
+	SubscribeCatalogFn      func(context.Context) (<-chan session.CatalogEvent, func(), error)
+	MetricsByAgentFn        func(context.Context, string) (map[string]session.AgentSessionMetrics, error)
+	ListSessionsFn          func(context.Context, store.SessionListQuery) ([]store.SessionInfo, error)
+	StatusFn                func(context.Context, string) (*session.Info, error)
+	EventsFn                func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error)
+	LatestEventFn           func(context.Context, string, string) (*store.SessionEvent, error)
+	HistoryFn               func(context.Context, string, store.EventQuery) ([]store.TurnHistory, error)
+	TranscriptPageFn        func(context.Context, string, transcript.PageQuery) (transcript.Page, error)
+	TranscriptChangesFn     func(context.Context, string, transcript.ChangeQuery) (transcript.ChangePage, error)
+	RepairFn                func(context.Context, session.RepairOpts) (*session.RepairResult, error)
+	DeleteFn                func(context.Context, string) error
+	StopFn                  func(context.Context, string) error
+	StopWithCauseFn         func(context.Context, string, session.StopCause, string) error
+	ResumeFn                func(context.Context, string) (*session.Session, error)
+	AttachSessionFn         func(context.Context, store.SessionAttachRequest) (store.SessionAttach, error)
+	SetRuntimeSelectionFn   func(context.Context, string, session.RuntimeSelection, int64) (*session.Info, error)
+	ClearRuntimeSelectionFn func(context.Context, string, int64) (*session.Info, error)
+	ClearFn                 func(context.Context, string) (*session.Session, error)
+	PromptFn                func(context.Context, string, string) (<-chan acp.AgentEvent, error)
+	PromptWithOptsFn        func(context.Context, string, session.PromptOpts) (<-chan acp.AgentEvent, error)
+	PromptSyntheticFn       func(
 		context.Context,
 		string,
 		session.SyntheticPromptOpts,

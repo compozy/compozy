@@ -135,7 +135,7 @@ kbd{font-family:var(--font-mono);font-size:10px;color:var(--subtle)}
    no bubble, no background, no border, no label. */
 .msg-assistant{min-width:0;font-size:13.5px;line-height:1.62;color:var(--fg)}
 
-/* Hover-revealed meta (timestamp · copy · use-as-goal). Only on the
+/* Hover-revealed meta (timestamp · copy). Only on the
    terminal message of a settled turn — never mid-work. */
 .msg-meta{
   display:flex;align-items:center;gap:8px;margin-top:3px;

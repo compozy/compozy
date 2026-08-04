@@ -31,6 +31,7 @@ export function sessionRuntime(
     status: "ready",
     transition: "initial_bind",
     effective: { provider },
+    selection_revision: 0,
     ...(acpCaps ? { acp_caps: acpCaps } : {}),
   };
 }

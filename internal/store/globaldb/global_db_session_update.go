@@ -22,6 +22,7 @@ func buildUpdateSessionStateStatement(update store.SessionStateUpdate, updatedAt
 	if err != nil {
 		return "", nil, err
 	}
+	assignments, args = appendSelectedRuntimeAssignments(assignments, args, update)
 	if update.StopReasonSet {
 		assignments = append(assignments, "stop_reason = ?", "stop_detail = ?")
 		args = append(args, store.NullableStringPointer(update.StopReason), store.NullableString(update.StopDetail))
@@ -47,6 +48,33 @@ func buildUpdateSessionStateStatement(update store.SessionStateUpdate, updatedAt
 	assignments = append(assignments, "updated_at = ?")
 	args = append(args, store.FormatTimestamp(updatedAt), update.ID)
 	return fmt.Sprintf("UPDATE sessions SET %s WHERE id = ?", strings.Join(assignments, ", ")), args, nil
+}
+
+func appendSelectedRuntimeAssignments(
+	assignments []string,
+	args []any,
+	update store.SessionStateUpdate,
+) ([]string, []any) {
+	if !update.SelectedRuntimeSet {
+		return assignments, args
+	}
+	selection := store.NormalizeSessionRuntimeSelection(update.SelectedRuntime)
+	provider, model, reasoningEffort, speed := "", "", "", ""
+	if selection != nil {
+		provider = selection.Provider
+		model = selection.Model
+		reasoningEffort = selection.ReasoningEffort
+		speed = string(selection.Speed)
+	}
+	assignments = append(assignments,
+		"selected_provider = ?",
+		"selected_model = ?",
+		"selected_reasoning_effort = ?",
+		"selected_speed = ?",
+		"runtime_selection_revision = ?",
+	)
+	args = append(args, provider, model, reasoningEffort, speed, update.RuntimeSelectionRevision)
+	return assignments, args
 }
 
 func appendSessionRuntimeAssignments(

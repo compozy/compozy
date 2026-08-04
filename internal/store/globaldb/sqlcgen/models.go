@@ -1343,6 +1343,11 @@ type Session struct {
 	RuntimeStatus            string         `json:"runtime_status"`
 	RuntimeTransition        string         `json:"runtime_transition"`
 	RuntimeFailure           string         `json:"runtime_failure"`
+	SelectedProvider         string         `json:"selected_provider"`
+	SelectedModel            string         `json:"selected_model"`
+	SelectedReasoningEffort  string         `json:"selected_reasoning_effort"`
+	SelectedSpeed            string         `json:"selected_speed"`
+	RuntimeSelectionRevision int64          `json:"runtime_selection_revision"`
 	WorkspaceID              string         `json:"workspace_id"`
 	SessionType              string         `json:"session_type"`
 	State                    string         `json:"state"`

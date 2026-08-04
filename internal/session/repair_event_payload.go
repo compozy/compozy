@@ -15,7 +15,7 @@ func interruptedToolResultRaw(toolCallID string, toolName string) (json.RawMessa
 	}
 	payload := map[string]any{
 		"sessionUpdate": "tool_call_update",
-		repairStatusKey: "failed",
+		repairStatusKey: managedInputOutcomeFailed,
 		"toolCallId":    strings.TrimSpace(toolCallID),
 		"rawOutput": map[string]string{
 			"stderr": repairInterruptedToolMessage,

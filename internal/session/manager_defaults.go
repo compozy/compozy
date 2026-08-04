@@ -37,26 +37,15 @@ func (m *Manager) applyRuntimeDefaults() error {
 			return time.Now().UTC()
 		}
 	}
-	if m.newSessionID == nil {
-		m.newSessionID = func() string {
-			return newID("sess")
-		}
-	}
-	if m.newSandboxID == nil {
-		m.newSandboxID = func() string {
-			return newID("env")
-		}
-	}
-	if m.newTurnID == nil {
-		m.newTurnID = func() string {
-			return newID("turn")
-		}
-	}
+	m.applyRuntimeIDDefaults()
 	if m.promptBufSize <= 0 {
 		m.promptBufSize = defaultPromptBufferSize
 	}
 	if m.soulLocks == nil {
 		m.soulLocks = make(map[string]chan struct{})
+	}
+	if m.resumeRuns == nil {
+		m.resumeRuns = make(map[string]*sessionResumeRun)
 	}
 	if m.sessionHealthHookLast == nil {
 		m.sessionHealthHookLast = make(map[string]time.Time)
@@ -83,6 +72,18 @@ func (m *Manager) applyRuntimeDefaults() error {
 		m.sessionHealthHookMinInterval = compozyconfig.DefaultHeartbeatConfig().SessionHealthHookMinInterval
 	}
 	return nil
+}
+
+func (m *Manager) applyRuntimeIDDefaults() {
+	if m.newSessionID == nil {
+		m.newSessionID = func() string { return newID("sess") }
+	}
+	if m.newSandboxID == nil {
+		m.newSandboxID = func() string { return newID("env") }
+	}
+	if m.newTurnID == nil {
+		m.newTurnID = func() string { return newID("turn") }
+	}
 }
 
 func (m *Manager) applyInputQueueDefaults() error {

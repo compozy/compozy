@@ -6,11 +6,6 @@ import (
 	bridgepkg "github.com/compozy/compozy/internal/bridges/contract"
 )
 
-const (
-	hostAPISessionsPromptParamsValue = "SessionsPromptParams"
-	hostAPISessionPromptResultValue  = "SessionPromptResult"
-)
-
 var hostAPIMethodSpecs = []HostAPIMethodSpec{
 	{
 		Method:         HostAPIMethodSessionsList,
@@ -27,6 +22,16 @@ var hostAPIMethodSpecs = []HostAPIMethodSpec{
 		Method: HostAPIMethodSessionsPrompt,
 		Params: NamedType{Name: hostAPISessionsPromptParamsValue, Value: SessionsPromptParams{}},
 		Result: NamedType{Name: hostAPISessionPromptResultValue, Value: SessionPromptResult{}},
+	},
+	{
+		Method: HostAPIMethodSessionsRuntimeSet,
+		Params: NamedType{Name: "SessionRuntimeSetParams", Value: SessionRuntimeSetParams{}},
+		Result: NamedType{Name: hostAPISessionStatusValue, Value: SessionStatus{}},
+	},
+	{
+		Method: HostAPIMethodSessionsRuntimeClear,
+		Params: NamedType{Name: "SessionRuntimeClearParams", Value: SessionRuntimeClearParams{}},
+		Result: NamedType{Name: hostAPISessionStatusValue, Value: SessionStatus{}},
 	},
 	{
 		Method: HostAPIMethodSessionsInputsList,
@@ -56,7 +61,7 @@ var hostAPIMethodSpecs = []HostAPIMethodSpec{
 	{
 		Method: HostAPIMethodSessionsStatus,
 		Params: NamedType{Name: "SessionTargetParams", Value: SessionTargetParams{}},
-		Result: NamedType{Name: "SessionStatus", Value: SessionStatus{}},
+		Result: NamedType{Name: hostAPISessionStatusValue, Value: SessionStatus{}},
 	},
 	{
 		Method: HostAPIMethodSessionsEvents,
@@ -491,9 +496,4 @@ var hostAPIMethodSpecs = []HostAPIMethodSpec{
 		Params: NamedType{Name: "BridgesInstancesReportStateParams", Value: BridgesInstancesReportStateParams{}},
 		Result: NamedType{Name: hostAPIBridgeInstanceValue, Value: bridgepkg.BridgeInstance{}},
 	},
-}
-
-// HostAPIMethodSpecs returns the canonical Host API method registry in wire order.
-func HostAPIMethodSpecs() []HostAPIMethodSpec {
-	return append(append([]HostAPIMethodSpec(nil), hostAPIMethodSpecs...), clarifyHostAPIMethodSpec())
 }

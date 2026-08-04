@@ -68,6 +68,7 @@ function sessionFixture(overrides: Partial<SessionPayload> = {}): SessionPayload
       status: "ready",
       transition: "initial_bind",
       effective: { provider: "codex" },
+      selection_revision: 0,
     },
     workspace_id: "workspace:main",
     workspace_path: "/workspace/compozy",

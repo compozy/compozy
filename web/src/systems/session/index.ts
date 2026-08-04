@@ -50,12 +50,14 @@ export type {
   SessionRepairPayload,
   SessionRepairQuery,
   SessionRepairResponse,
+  SessionRuntimeSelection,
   SessionResponse,
   SessionState,
   SessionListFilters,
   SessionTranscriptPage,
   SessionsResponse,
   SessionsQuery,
+  SetSessionRuntimeRequest,
   SessionTranscriptResponse,
   TranscriptMarkerPayload,
   SessionDataParts,
@@ -90,6 +92,7 @@ export {
   approveSession,
   cancelQueuedSessionPrompt,
   cancelSessionPrompt,
+  clearSessionRuntime,
   ClarificationNotAnswerableError,
   createSession,
   fetchSessionClarifications,
@@ -109,12 +112,17 @@ export {
   replaceSessionInput,
   resumeSession,
   sendSessionPrompt,
+  setSessionRuntime,
   SessionApiError,
   SessionLedgerUnavailableError,
   SessionNotFoundError,
   steerSessionPrompt,
   stopSession,
 } from "./adapters/session-api";
+export {
+  useSetSessionRuntime,
+  type SetSessionRuntimeVariables,
+} from "./hooks/use-session-runtime-selection";
 
 // Query infrastructure
 export { formatMessageTimestamp, formatMessageTimestampFull } from "./lib/format-timestamp";
@@ -163,6 +171,7 @@ export {
   type ReplaceSessionInputVariables,
 } from "./hooks/use-session-inputs";
 export {
+  canPromptSession,
   hasRunningSession,
   idleAttachableAgentNames,
   isSessionRunning,

@@ -7,6 +7,8 @@ const (
 	HostAPIMethodSessionsList                HostAPIMethod = "sessions/list"
 	HostAPIMethodSessionsCreate              HostAPIMethod = "sessions/create"
 	HostAPIMethodSessionsPrompt              HostAPIMethod = "sessions/prompt"
+	HostAPIMethodSessionsRuntimeSet          HostAPIMethod = "sessions/runtime/set"
+	HostAPIMethodSessionsRuntimeClear        HostAPIMethod = "sessions/runtime/clear"
 	HostAPIMethodSessionsInputsList          HostAPIMethod = "sessions/inputs/list"
 	HostAPIMethodSessionsInputsReplace       HostAPIMethod = "sessions/inputs/replace"
 	HostAPIMethodSessionsInputsCancel        HostAPIMethod = "sessions/inputs/cancel"
@@ -119,6 +121,8 @@ func preNetworkHostAPIMethods() []HostAPIMethod {
 		HostAPIMethodSessionsList,
 		HostAPIMethodSessionsCreate,
 		HostAPIMethodSessionsPrompt,
+		HostAPIMethodSessionsRuntimeSet,
+		HostAPIMethodSessionsRuntimeClear,
 		HostAPIMethodSessionsInputsList,
 		HostAPIMethodSessionsInputsReplace,
 		HostAPIMethodSessionsInputsCancel,

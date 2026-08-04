@@ -7,6 +7,30 @@ import (
 	"time"
 )
 
+type TaskInbox struct {
+	UnreadTotal   int                         `json:"unread_total"`
+	ArchivedTotal int                         `json:"archived_total"`
+	Groups        []TaskInboxLaneGroupPayload `json:"groups"`
+	Page          CountedCursorPagePayload    `json:"page"`
+	Facets        TaskInboxFacetsPayload      `json:"facets"`
+}
+
+type TaskInboxFacetsPayload struct {
+	Statuses   []TaskInboxStatusFacetPayload   `json:"statuses"`
+	Priorities []TaskInboxPriorityFacetPayload `json:"priorities"`
+}
+
+type TaskInboxItemPayload struct {
+	Task             TaskInboxTaskPayload   `json:"task"`
+	Lane             TaskInboxLane          `json:"lane"`
+	ApprovalPolicy   ApprovalPolicy         `json:"approval_policy,omitempty"`
+	ApprovalState    ApprovalState          `json:"approval_state,omitempty"`
+	BlockingReason   string                 `json:"blocking_reason,omitempty"`
+	LatestActivityAt time.Time              `json:"latest_activity_at"`
+	Run              *TaskCatalogRunPayload `json:"run,omitempty"`
+	Triage           TaskTriageStatePayload `json:"triage"`
+}
+
 type TaskInboxLane string
 
 type TaskInboxLaneGroupPayload struct {
@@ -254,27 +278,4 @@ type TaskRunContext struct {
 	LeaseUntil                   time.Time `json:"lease_until"`
 	ReleaseReason                string    `json:"release_reason,omitempty"`
 	Error                        string    `json:"error,omitempty"`
-}
-
-type TaskRunConversationRefPayload struct {
-	WorkspaceID string `json:"workspace_id"`
-	Channel     string `json:"channel"`
-	Surface     string `json:"surface"`
-	ThreadID    string `json:"thread_id"`
-	StreamURL   string `json:"stream_url"`
-}
-
-type TaskRunDetail struct {
-	Run     TaskRun                          `json:"run"`
-	Task    *TaskReferencePayload            `json:"task,omitempty"`
-	Session *TaskRunSessionPayload           `json:"session,omitempty"`
-	Summary TaskRunOperationalSummaryPayload `json:"summary"`
-	Network *TaskRunNetworkPayload           `json:"network,omitempty"`
-}
-
-type TaskRunEnqueueParams struct {
-	TaskID               string          `json:"task_id"`
-	IdempotencyKey       string          `json:"idempotency_key,omitempty"`
-	NetworkParticipation *Request        `json:"network_participation,omitempty"`
-	Metadata             json.RawMessage `json:"metadata,omitempty"`
 }

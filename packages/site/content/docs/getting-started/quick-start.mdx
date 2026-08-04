@@ -133,10 +133,10 @@ compozy session status sess_1234 -o json
 compozy session history sess_1234
 ```
 
-Stopping ends the live provider process and moves the public session lifecycle to terminal
-`stopped`. It preserves the session directory, catalog record, and history. A later
-`compozy session resume sess_1234` is expected to fail because stopped sessions are not attachable;
-start a new session when you need new work.
+Stopping ends the live provider process and moves the session to `stopped`. It preserves the session
+directory, catalog record, runtime choice, and history. A later `compozy session resume sess_1234`
+is expected to fail because stopped sessions are not attachable. Send a normal prompt to restart the
+provider with the same history, or create a new session when you want a clean slate.
 
 ## What you just proved
 
@@ -146,7 +146,7 @@ You verified that Compozy can:
 2. attach work to one explicit repository
 3. persist session events durably
 4. attach another client while the session is live
-5. stop live work without losing its inspectable history
+5. stop live work without losing its reusable history
 
 ## Next steps
 

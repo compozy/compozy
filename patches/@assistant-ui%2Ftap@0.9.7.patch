@@ -1,0 +1,25 @@
+diff --git a/dist/core/ResourceFiber.js b/dist/core/ResourceFiber.js
+--- a/dist/core/ResourceFiber.js
++++ b/dist/core/ResourceFiber.js
+@@ -29,7 +29,7 @@ function createResourceFiber(hook, root, markDirty = void 0, strictMode) {
+ 	};
+ }
+ function unmountResourceFiber(fiber) {
+-	if (!fiber.isMounted) throw new Error("Tried to unmount a fiber that is already unmounted");
++	if (!fiber.isMounted) return;
+ 	fiber.isMounted = false;
+ 	cleanupAllEffects(fiber);
+ }
+diff --git a/src/core/ResourceFiber.ts b/src/core/ResourceFiber.ts
+--- a/src/core/ResourceFiber.ts
++++ b/src/core/ResourceFiber.ts
+@@ -36,8 +36,7 @@ export function createResourceFiber<R>(
+ }
+ 
+ export function unmountResourceFiber<R>(fiber: ResourceFiber<R>): void {
+-  if (!fiber.isMounted)
+-    throw new Error("Tried to unmount a fiber that is already unmounted");
++  if (!fiber.isMounted) return;
+ 
+   fiber.isMounted = false;
+   cleanupAllEffects(fiber);

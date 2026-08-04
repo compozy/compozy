@@ -19,6 +19,7 @@ import {
   useStopSession,
   useSessionInputs,
   useSessionTranscriptThreadMessages,
+  canPromptSession,
   isSessionRunning,
   isUserControllableSession,
   type QueuedPrompt,
@@ -71,7 +72,7 @@ export function useSessionPageControls(
   const userControllable = isUserControllableSession(session);
   const effectiveRunning = isRunning || daemonRunning;
   const promptControlsAvailable = effectiveRunning && userControllable;
-  const canPrompt = session.state === "active" && userControllable;
+  const canPrompt = canPromptSession(session);
   const bindingKey = `${workspaceId}\u0000${sessionId}`;
   const { store } = useStoreBinding(bindingKey, () =>
     createSessionPageControlsLogic().createStore()

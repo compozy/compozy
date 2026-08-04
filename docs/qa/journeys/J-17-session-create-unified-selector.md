@@ -3,7 +3,8 @@
 Session creation is a lightweight, durable launch boundary. The operator chooses the agent and
 optional launch details, creates one logical session, and lands in its composer. Runtime selection
 and the first message are not creation fields: the composer owns one **Next prompt** selector whose
-chosen provider, model, reasoning, and speed apply to precisely the submitted prompt.
+chosen provider, model, reasoning, and speed persist immediately as the session preference and apply
+when the next prompt is submitted.
 
 ```mermaid
 flowchart TD
@@ -20,9 +21,12 @@ flowchart TD
     ACT --> NAV[Navigate and focus the created session composer]
     NAV --> SEL[Composer shows Next prompt runtime selector]
     SEL --> PICK[Choose provider, model, reasoning, and speed or keep effective default]
-    PICK --> SEND[Submit first separate prompt]
-    SEND --> SNAP[Prompt captures one immutable runtime snapshot]
+    PICK --> SAVE[Selection persists immediately with a revision]
+    SAVE --> SEND[Submit first separate prompt]
+    SEND --> SNAP[Prompt captures one immutable runtime snapshot from the saved selection]
     SNAP --> RUN[Agent work begins]
+    SAVE -.->|stop, reopen, or daemon restart| RESTORE[Composer restores the saved selection]
+    RESTORE --> SEND
     D -.->|close or cancel| ABORT[No session created]
     A -.->|invalid launch detail| FIX[Inline error; preserve valid launch input]
     SEL -.->|runtime unavailable| RECOVER[Choose a supported runtime; no prompt dispatched]
@@ -51,11 +55,11 @@ journey:
       expected_observable: "Create gives immediate truthful feedback, persists one durable logical session without queuing a prompt, activates the returned owner workspace, and navigates to the created session."
     - step: 4
       verb: "Choose the runtime for the next prompt in the composer"
-      expected_observable: "The destination composer exposes one accessible Next prompt selector; its provider, model, reasoning, and speed choice is captured only when that prompt is submitted."
+      expected_observable: "The destination composer exposes one accessible Next prompt selector; its provider, model, reasoning, and speed choice persists immediately and is captured when the next prompt is submitted."
   goal:
-    observable: "A session launches once and its composer remains the persistent place to choose or change the runtime for every prompt."
-    side_effects: [logical-session-created, owner-workspace-activated, prompt-runtime-snapshotted-on-dispatch]
-  true_end_state: "A fresh read shows one session with no prompt before the first send; after a send, the transcript and runtime evidence identify that prompt's snapshot while the agent default remains unchanged."
+    observable: "A session launches once and its composer remains the durable place to choose or change the runtime for the next prompt."
+    side_effects: [logical-session-created, owner-workspace-activated, session-runtime-selection-persisted, prompt-runtime-snapshotted-on-dispatch]
+  true_end_state: "After Stop, reopen, and daemon restart, a fresh read restores the selected runtime and revision; the next send uses that selection while earlier prompt history and the agent default remain unchanged."
   exit:
     natural: "Operator is in the created session composer and continues through J-13 to send, queue, or change prompt runtime."
   abandonment:
@@ -65,6 +69,9 @@ journey:
     - at_step: 4
       how: "The chosen provider or model is unavailable."
       resume: "The composer names the unavailable choice and lets the operator select a supported runtime; it never dispatches against a substituted runtime."
+    - at_step: 4
+      how: "The operator closes the app after choosing a runtime but before sending."
+      resume: "Reopening the session restores the saved selection; clearing it explicitly returns to the effective default."
   crosses: [session-create, owner-workspace-activation, session-composer, runtime-selector, prompt-runtime-snapshot, workspace-providers]
 
 design_reference:

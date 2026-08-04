@@ -40,14 +40,15 @@ Compozy sessions are daemon-owned runtimes. Common states:
 - starting - the daemon accepted the session and is booting the provider.
 - active - the logical session accepts prompts; its runtime may be `unbound` or ready.
 - stopping - shutdown has started.
-- stopped - the runtime exited. The durable record remains inspectable, but the public lifecycle is terminal.
+- stopped - the runtime exited. The durable record and transcript remain promptable.
 
 Creation and runtime binding are separate. `compozy session new` creates an `active` logical session
 without starting a provider process: its nested status is `runtime.status="unbound"` and it has no
 `runtime.effective` selection. Send the first prompt to bind a provider. Read the nested `runtime`
 object from `session status -o json` (or any session read), rather than inferring process state from
-the top-level session state: it reports `status`, `transition`, redacted `failure`, `effective`, ACP
-session ID, and advertised ACP capabilities.
+the top-level session state: it reports `status`, `transition`, redacted `failure`, `selected`,
+`selection_revision`, `effective`, ACP session ID, and advertised ACP capabilities. `selected` is
+durable next-prompt intent; `effective` is the runtime already bound to the current process.
 
 Session types include user sessions and daemon-managed sessions such as dream, system, coordinator, worker, and reviewer sessions. Do not infer authority from a session type alone. Use the session context and daemon tools to confirm what the current session may do.
 
@@ -56,6 +57,10 @@ With `roles.auto_title.enabled = true`, an unnamed user session receives at most
 Attachability is explicit live runtime state. Use `compozy session list --resumable -o json` before
 `compozy session resume`. The command acquires an attach lease for an eligible live session; it does
 not restart `stopped`, and stopped sessions reject attach.
+
+A normal prompt to a stopped user session restarts its ACP process, reloads the durable provider
+history, and submits the prompt against the same session ID. Concurrent prompts share one restart.
+Attach, queue management, steer, interrupt, and other control operations never trigger this restart.
 
 After prompt admission, the daemon owns the turn lifetime. Closing a browser tab, navigating away from the web app, dropping an SSE stream, or disconnecting a CLI/UDS response only detaches that viewer; it does not cancel the accepted prompt. Use explicit runtime intent such as `compozy session stop`, prompt cancel, or interrupt controls when cancellation is required.
 
@@ -101,6 +106,8 @@ cannot be validated fail closed.
     compozy session history <session-id>
     compozy session history <session-id> --last 20 --after 42
     compozy session prompt <session-id> "Summarize the last three tool results."
+    compozy session runtime set <session-id> --provider claude --model claude-fable-5 --reasoning-effort max
+    compozy session runtime clear <session-id>
     compozy session resume <session-id>
     compozy session resume --latest --workspace checkout-api
     compozy session stop <session-id>
@@ -118,9 +125,14 @@ unbound session; use its ID in a later `compozy session prompt`. A prompt to an 
 select `--provider`; `--model`, `--reasoning-effort`, and `--speed` refine that prompt's snapshot.
 `--speed` defaults to `normal`; `fast` applies only through an unambiguous ACP select/value-ID option.
 
+`session runtime set` persists the complete default selection without starting or reconfiguring ACP;
+the next prompt applies it. `session runtime clear` returns resolution to the effective/agent default.
+Both commands use `runtime.selection_revision` as a compare-and-swap fence; omit
+`--expected-revision` to let the CLI read the current value, or pass it for an explicitly fenced write.
+
 Each accepted prompt records its immutable runtime snapshot with the authored user event. Omitting
-runtime flags reuses the session's current effective selection; this is invalid while the session is
-unbound. A queued prompt retains its submitted snapshot until dispatch. An interrupt advances the
+runtime flags uses the durable `selected` value first, then the current `effective` selection; both
+being absent is invalid while the session is unbound. A queued prompt retains its submitted snapshot until dispatch. An interrupt advances the
 input generation, drops stale queued entries, then applies the replacement prompt's snapshot only
 after the current turn becomes idle. Inspect the prompt result's queue ID, queue position, and queue
 generation instead of assuming a busy input ran immediately.
@@ -228,7 +240,8 @@ reasoning rate from output.
 
 Prefer `compozy session usage <session-id> -o json` when an agent needs the same aggregate over UDS.
 
-`compozy session stop` preserves durable history and ends attach eligibility. `compozy session remove`
+`compozy session stop` preserves durable history and ends attach eligibility; a later normal prompt
+restarts the same logical session. `compozy session remove`
 is destructive: it stops an active runtime when necessary, then removes the catalog row and persisted
 session directory. Use removal only when the operator intends to discard that history.
 

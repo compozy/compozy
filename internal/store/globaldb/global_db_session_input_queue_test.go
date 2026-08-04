@@ -808,7 +808,7 @@ func openSessionPromptAdmissionMigrationFixture(t *testing.T) sessionPromptAdmis
 		},
 	}
 	prefixGlobalDB.initializeRepositories(openConfig{})
-	sessionID := registerInputQueueSession(t, prefixGlobalDB)
+	sessionID := registerInputQueueMigrationPrefixSession(t, prefixGlobalDB, now)
 	if _, err := prefixDB.ExecContext(
 		ctx,
 		`INSERT INTO session_input_queue (
@@ -1410,6 +1410,34 @@ func registerInputQueueSession(t *testing.T, globalDB *GlobalDB) string {
 		UpdatedAt:     time.Date(2026, 5, 21, 11, 0, 0, 0, time.UTC),
 	}); err != nil {
 		t.Fatalf("RegisterSession() error = %v", err)
+	}
+	return sessionID
+}
+
+func registerInputQueueMigrationPrefixSession(t *testing.T, globalDB *GlobalDB, now time.Time) string {
+	t.Helper()
+
+	workspaceID := registerWorkspaceForGlobalTests(
+		t,
+		globalDB,
+		"input-queue-workspace",
+		filepath.Join(t.TempDir(), "workspace"),
+	)
+	sessionID := "sess-input-queue"
+	if _, err := globalDB.db.ExecContext(
+		testutil.Context(t),
+		`INSERT INTO sessions (
+			id, agent_name, provider, workspace_id, state, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		sessionID,
+		"coder",
+		"claude",
+		workspaceID,
+		"active",
+		store.FormatTimestamp(now),
+		store.FormatTimestamp(now),
+	); err != nil {
+		t.Fatalf("seed 00033 session error = %v", err)
 	}
 	return sessionID
 }

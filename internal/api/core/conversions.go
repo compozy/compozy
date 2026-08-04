@@ -39,10 +39,12 @@ func sessionPayloadFromInfoAt(info *session.Info, now time.Time) contract.Sessio
 		Name:      info.Name,
 		AgentName: info.AgentName,
 		Runtime: contract.SessionRuntimePayload{
-			Status:       info.RuntimeStatus,
-			Transition:   info.RuntimeTransition,
-			Failure:      diagnostics.RedactAndBound(info.RuntimeFailure, maxDiagnosticPayloadBytes),
-			ACPSessionID: info.ACPSessionID,
+			Status:            info.RuntimeStatus,
+			Transition:        info.RuntimeTransition,
+			Failure:           diagnostics.RedactAndBound(info.RuntimeFailure, maxDiagnosticPayloadBytes),
+			Selected:          contract.PromptRuntimeSelectionPayloadFromSelection(info.SelectedRuntime),
+			SelectionRevision: info.RuntimeSelectionRevision,
+			ACPSessionID:      info.ACPSessionID,
 		},
 		WorkspaceID:                  ref.WorkspaceID,
 		WorkspacePath:                ref.WorkspacePath,
@@ -81,42 +83,44 @@ func sessionPayloadFromInfoAt(info *session.Info, now time.Time) contract.Sessio
 func SessionPayloadFromStoreInfo(info store.SessionInfo) contract.SessionPayload {
 	state := session.State(strings.TrimSpace(info.State))
 	converted := &session.Info{
-		ID:                   strings.TrimSpace(info.ID),
-		Name:                 strings.TrimSpace(info.Name),
-		AgentName:            strings.TrimSpace(info.AgentName),
-		RuntimeStatus:        info.RuntimeStatus,
-		RuntimeTransition:    info.RuntimeTransition,
-		RuntimeFailure:       strings.TrimSpace(info.RuntimeFailure),
-		Provider:             strings.TrimSpace(info.Provider),
-		Model:                strings.TrimSpace(info.Model),
-		ReasoningEffort:      strings.TrimSpace(info.ReasoningEffort),
-		Speed:                info.Speed,
-		SpeedResolution:      speedpkg.CloneResolution(info.SpeedResolution),
-		WorkspaceID:          strings.TrimSpace(info.WorkspaceID),
-		NetworkParticipation: info.NetworkSpecSnapshot(),
-		Type:                 session.Type(strings.TrimSpace(info.SessionType)),
-		State:                state,
-		StopReason:           info.StopReason,
-		StopDetail:           strings.TrimSpace(info.StopDetail),
-		Failure:              store.CloneSessionFailure(info.Failure),
-		ACPSessionID:         stringPointerValue(info.ACPSessionID),
-		Lineage:              store.NormalizeSessionLineage(info.ID, info.Lineage),
-		Liveness:             store.CloneSessionLivenessMeta(info.Liveness),
-		Sandbox:              cloneStoreSessionSandboxMeta(info.Sandbox),
-		SoulSnapshotID:       strings.TrimSpace(info.SoulSnapshotID),
-		SoulDigest:           strings.TrimSpace(info.SoulDigest),
-		ParentSoulDigest:     strings.TrimSpace(info.ParentSoulDigest),
-		AttachedTo:           strings.TrimSpace(info.AttachedTo),
-		AttachExpiresAt:      cloneTimePtr(info.AttachExpiresAt),
-		TranscriptEpoch:      info.TranscriptEpoch,
-		CreatedAt:            info.CreatedAt,
-		UpdatedAt:            info.UpdatedAt,
+		ID:                       strings.TrimSpace(info.ID),
+		Name:                     strings.TrimSpace(info.Name),
+		AgentName:                strings.TrimSpace(info.AgentName),
+		RuntimeStatus:            info.RuntimeStatus,
+		RuntimeTransition:        info.RuntimeTransition,
+		RuntimeFailure:           strings.TrimSpace(info.RuntimeFailure),
+		Provider:                 strings.TrimSpace(info.Provider),
+		Model:                    strings.TrimSpace(info.Model),
+		ReasoningEffort:          strings.TrimSpace(info.ReasoningEffort),
+		Speed:                    info.Speed,
+		SpeedResolution:          speedpkg.CloneResolution(info.SpeedResolution),
+		SelectedRuntime:          runtimeSelectionFromStoreInfo(info.SelectedRuntime),
+		RuntimeSelectionRevision: info.RuntimeSelectionRevision,
+		WorkspaceID:              strings.TrimSpace(info.WorkspaceID),
+		NetworkParticipation:     info.NetworkSpecSnapshot(),
+		Type:                     session.Type(strings.TrimSpace(info.SessionType)),
+		State:                    state,
+		StopReason:               info.StopReason,
+		StopDetail:               strings.TrimSpace(info.StopDetail),
+		Failure:                  store.CloneSessionFailure(info.Failure),
+		ACPSessionID:             stringPointerValue(info.ACPSessionID),
+		Lineage:                  store.NormalizeSessionLineage(info.ID, info.Lineage),
+		Liveness:                 store.CloneSessionLivenessMeta(info.Liveness),
+		Sandbox:                  cloneStoreSessionSandboxMeta(info.Sandbox),
+		SoulSnapshotID:           strings.TrimSpace(info.SoulSnapshotID),
+		SoulDigest:               strings.TrimSpace(info.SoulDigest),
+		ParentSoulDigest:         strings.TrimSpace(info.ParentSoulDigest),
+		AttachedTo:               strings.TrimSpace(info.AttachedTo),
+		AttachExpiresAt:          cloneTimePtr(info.AttachExpiresAt),
+		TranscriptEpoch:          info.TranscriptEpoch,
+		CreatedAt:                info.CreatedAt,
+		UpdatedAt:                info.UpdatedAt,
 	}
 	return SessionPayloadFromInfo(converted)
 }
 
 func runtimeSelectionPayloadFromInfo(info *session.Info) *contract.RuntimeSelectionPayload {
-	if info == nil || !runtimeHasEffectiveSelection(info.RuntimeStatus) || strings.TrimSpace(info.Provider) == "" {
+	if info == nil || !runtimeHasEffectiveSelection(info) || strings.TrimSpace(info.Provider) == "" {
 		return nil
 	}
 	return &contract.RuntimeSelectionPayload{
@@ -128,12 +132,30 @@ func runtimeSelectionPayloadFromInfo(info *session.Info) *contract.RuntimeSelect
 	}
 }
 
-func runtimeHasEffectiveSelection(status session.RuntimeStatus) bool {
-	switch status {
+func runtimeHasEffectiveSelection(info *session.Info) bool {
+	if info == nil {
+		return false
+	}
+	switch info.RuntimeStatus {
 	case session.RuntimeStatusReady, session.RuntimeStatusReconfiguring, session.RuntimeStatusFailed:
 		return true
+	case session.RuntimeStatusUnbound:
+		return info.RuntimeTransition != session.RuntimeTransitionNone
 	default:
 		return false
+	}
+}
+
+func runtimeSelectionFromStoreInfo(selection *store.SessionRuntimeSelection) *session.RuntimeSelection {
+	if selection == nil {
+		return nil
+	}
+	normalized := store.NormalizeSessionRuntimeSelection(selection)
+	return &session.RuntimeSelection{
+		Provider:        normalized.Provider,
+		Model:           normalized.Model,
+		ReasoningEffort: normalized.ReasoningEffort,
+		Speed:           normalized.Speed,
 	}
 }
 

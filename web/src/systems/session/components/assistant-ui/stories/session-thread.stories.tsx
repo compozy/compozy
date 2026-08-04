@@ -9,7 +9,7 @@ import { compozyApiMock } from "@/storybook/openapi-msw";
 import { HttpResponse } from "msw";
 import { SessionChatRuntimeProvider } from "@/systems/session/components/session-chat-runtime-provider";
 import { SessionTranscriptThreadProvider } from "@/systems/session/lib/session-transcript-thread-context";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, within } from "storybook/test";
 
 import {
   changedFilesTranscript,
@@ -278,8 +278,7 @@ export const ChangedFilesRollup: Story = {
 };
 
 /**
- * Goal prefill — the settled response exposes its Goal action immediately, then
- * pointer and keyboard activation both fill and focus the cancellable local draft.
+ * Hover toolbar — settled assistant output exposes copy without extra actions.
  */
 export const HoverToolbar: Story = {
   args: {
@@ -299,16 +298,8 @@ export const HoverToolbar: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const action = await canvas.findByRole("button", { name: "Use as Goal" });
+    const action = await canvas.findByRole("button", { name: "Copy message" });
     await expect(action).toBeVisible();
-    await userEvent.click(action);
-    await expect(canvas.getByRole("textbox", { name: "Session prompt" })).toHaveFocus();
-    await expect(canvas.getByRole("status")).toHaveTextContent("Goal command draft");
-    await userEvent.click(canvas.getByRole("button", { name: "Discard Goal command" }));
-    action.focus();
-    await userEvent.keyboard("{Enter}");
-    await expect(canvas.getByRole("textbox", { name: "Session prompt" })).toHaveFocus();
-    await expect(canvas.getByRole("status")).toHaveTextContent("Goal command draft");
   },
 };
 

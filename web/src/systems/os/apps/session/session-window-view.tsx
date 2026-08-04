@@ -3,7 +3,7 @@ import { AlertCircle } from "lucide-react";
 import { Spinner } from "@compozy/ui";
 
 import {
-  isUserControllableSession,
+  canPromptSession,
   SessionChatRuntimeProvider,
   SessionPromptRuntimeProvider,
   type SessionPayload,
@@ -48,11 +48,7 @@ export function SessionWindowView({
 
   const resolvedAgentName = session.agent_name || name;
   return (
-    <SessionPromptRuntimeProvider
-      key={id}
-      canPrompt={session.state === "active" && isUserControllableSession(session)}
-      session={session}
-    >
+    <SessionPromptRuntimeProvider key={id} canPrompt={canPromptSession(session)} session={session}>
       <SessionChatRuntimeProvider
         sessionId={id}
         workspaceId={sessionWorkspaceId}

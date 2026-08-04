@@ -126,9 +126,9 @@ table.map{width:100%;border-collapse:collapse;font-size:12px;margin-top:12px}
   <div class="spec-head"><span class="spec-num">03</span><h2>Messages</h2></div>
   <p>User = right-aligned borderless block on a 4.5% ink wash, max-width 80%, radius
      <code>--radius-lg</code>. Assistant = naked markdown at full column width, <code>--fg</code>.
-     No avatars, no role labels, no borders, no shadows. Meta (timestamp · copy · use as goal) is
+     No avatars, no role labels, no borders, no shadows. Meta (timestamp · copy) is
      hover-revealed and only appears on the terminal message of a settled turn.</p>
-  <p class="replaces">Replaces <code>UserMessage</code> bordered bubble (<code>session-thread.tsx:89</code>) and the <code>MessageActions</code> always-visible "Use as Goal" (<code>message-actions.tsx:31</code>).</p>
+  <p class="replaces">Replaces the bordered <code>UserMessage</code> bubble (<code>session-thread.tsx:89</code>) and always-visible message actions with focused settled-message metadata.</p>
   <div class="demo demo--col">
     <div class="transcript" style="padding:0">
       <div class="t-row t-msg msg-user">
@@ -142,7 +142,7 @@ table.map{width:100%;border-collapse:collapse;font-size:12px;margin-top:12px}
           <ul><li>the fold keeps permission receipts outside, so decisions stay auditable</li>
           <li>interrupted turns never fold — you keep your place</li></ul>
         </div>
-        <div class="msg-meta"><button type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button><button type="button">Use as goal</button><span>14:33</span></div>
+        <div class="msg-meta"><button type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2 2v1"/></svg>Copy</button><span>14:33</span></div>
       </div>
     </div>
     <p class="demo-cap">Long user message — clamped with a mask, never truncated</p>

@@ -14,6 +14,7 @@ import {
   buildSessionStreamUrl,
   cancelQueuedSessionPrompt,
   cancelSessionPrompt,
+  clearSessionRuntime,
   clearSessionConversation,
   createSession,
   deleteSession,
@@ -29,6 +30,7 @@ import {
   replaceSessionInput,
   resumeSession,
   sendSessionPrompt,
+  setSessionRuntime,
   steerSessionPrompt,
   stopSession,
 } from "../session-api";
@@ -323,6 +325,48 @@ describe("stopSession", () => {
     await expect(stopSession(WORKSPACE_ID, "sess-001")).rejects.toThrow(
       'Failed to stop session "sess-001": 500'
     );
+  });
+});
+
+describe("session runtime selection", () => {
+  it("persists the complete selection with the current revision", async () => {
+    mockJsonResponse({ session: mockSession });
+
+    await setSessionRuntime(WORKSPACE_ID, "sess-001", {
+      expected_revision: 4,
+      runtime: {
+        provider: "claude",
+        model: "claude-fable-5",
+        reasoning_effort: "max",
+        speed: "fast",
+      },
+    });
+
+    await expectFetchRequest({
+      body: {
+        expected_revision: 4,
+        runtime: {
+          provider: "claude",
+          model: "claude-fable-5",
+          reasoning_effort: "max",
+          speed: "fast",
+        },
+      },
+      method: "PUT",
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/runtime",
+    });
+  });
+
+  it("clears the selection with an explicit revision fence", async () => {
+    mockJsonResponse({ session: mockSession });
+
+    await clearSessionRuntime(WORKSPACE_ID, "sess-001", 5);
+
+    const request = await fetchRequest();
+    const url = new URL(request.url);
+    expect(request.method).toBe("DELETE");
+    expect(url.pathname).toBe("/api/workspaces/ws_alpha/sessions/sess-001/runtime");
+    expect(url.searchParams.get("expected_revision")).toBe("5");
   });
 });
 

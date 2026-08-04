@@ -18,10 +18,12 @@ func hostAPISessionRuntimePayloadFromInfo(info *session.Info) apicontract.Sessio
 	}
 
 	payload := apicontract.SessionRuntimePayload{
-		Status:       info.RuntimeStatus,
-		Transition:   info.RuntimeTransition,
-		Failure:      diagnostics.RedactAndBound(info.RuntimeFailure, maxHostAPIRuntimeDiagnosticBytes),
-		ACPSessionID: strings.TrimSpace(info.ACPSessionID),
+		Status:            info.RuntimeStatus,
+		Transition:        info.RuntimeTransition,
+		Failure:           diagnostics.RedactAndBound(info.RuntimeFailure, maxHostAPIRuntimeDiagnosticBytes),
+		Selected:          apicontract.PromptRuntimeSelectionPayloadFromSelection(info.SelectedRuntime),
+		SelectionRevision: info.RuntimeSelectionRevision,
+		ACPSessionID:      strings.TrimSpace(info.ACPSessionID),
 	}
 	if hostAPIRuntimeHasEffectiveSelection(info) {
 		payload.Effective = &apicontract.RuntimeSelectionPayload{
@@ -43,6 +45,8 @@ func hostAPIRuntimeHasEffectiveSelection(info *session.Info) bool {
 	switch info.RuntimeStatus {
 	case session.RuntimeStatusReady, session.RuntimeStatusReconfiguring, session.RuntimeStatusFailed:
 		return true
+	case session.RuntimeStatusUnbound:
+		return info.RuntimeTransition != session.RuntimeTransitionNone
 	default:
 		return false
 	}

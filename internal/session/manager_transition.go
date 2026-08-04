@@ -18,6 +18,12 @@ func (m *Manager) persistSessionLifecycleState(ctx context.Context, session *Ses
 	if session == nil {
 		return fmt.Errorf("session: session is required")
 	}
+	session.persistMu.Lock()
+	defer session.persistMu.Unlock()
+	return m.persistSessionLifecycleStateLocked(ctx, session, register)
+}
+
+func (m *Manager) persistSessionLifecycleStateLocked(ctx context.Context, session *Session, register bool) error {
 	if err := m.writeMeta(session); err != nil {
 		return err
 	}
@@ -70,6 +76,8 @@ func (m *Manager) persistSessionMetadataOnly(session *Session) error {
 	if session == nil {
 		return fmt.Errorf("session: session is required")
 	}
+	session.persistMu.Lock()
+	defer session.persistMu.Unlock()
 	return m.writeMeta(session)
 }
 
@@ -121,33 +129,35 @@ func sessionCatalogInfoFromRuntime(info *Info) store.SessionInfo {
 		return store.SessionInfo{}
 	}
 	result := store.SessionInfo{
-		ID:                info.ID,
-		Name:              info.Name,
-		AgentName:         info.AgentName,
-		Provider:          info.Provider,
-		Model:             info.Model,
-		ReasoningEffort:   info.ReasoningEffort,
-		Speed:             info.Speed,
-		SpeedResolution:   speedpkg.CloneResolution(info.SpeedResolution),
-		RuntimeStatus:     info.RuntimeStatus,
-		RuntimeTransition: info.RuntimeTransition,
-		RuntimeFailure:    info.RuntimeFailure,
-		WorkspaceID:       info.WorkspaceID,
-		SessionType:       string(info.Type),
-		Lineage:           store.CloneSessionLineage(info.Lineage),
-		State:             string(info.State),
-		ACPSessionID:      stringPointer(info.ACPSessionID),
-		StopReason:        info.StopReason,
-		StopDetail:        info.StopDetail,
-		Failure:           store.CloneSessionFailure(info.Failure),
-		Liveness:          store.CloneSessionLivenessMeta(info.Liveness),
-		Sandbox:           cloneSessionSandboxMeta(info.Sandbox),
-		SoulSnapshotID:    strings.TrimSpace(info.SoulSnapshotID),
-		SoulDigest:        strings.TrimSpace(info.SoulDigest),
-		ParentSoulDigest:  strings.TrimSpace(info.ParentSoulDigest),
-		TranscriptEpoch:   info.TranscriptEpoch,
-		CreatedAt:         info.CreatedAt,
-		UpdatedAt:         info.UpdatedAt,
+		ID:                       info.ID,
+		Name:                     info.Name,
+		AgentName:                info.AgentName,
+		Provider:                 info.Provider,
+		Model:                    info.Model,
+		ReasoningEffort:          info.ReasoningEffort,
+		Speed:                    info.Speed,
+		SpeedResolution:          speedpkg.CloneResolution(info.SpeedResolution),
+		RuntimeStatus:            info.RuntimeStatus,
+		RuntimeTransition:        info.RuntimeTransition,
+		RuntimeFailure:           info.RuntimeFailure,
+		SelectedRuntime:          storeSessionRuntimeSelection(info.SelectedRuntime),
+		RuntimeSelectionRevision: info.RuntimeSelectionRevision,
+		WorkspaceID:              info.WorkspaceID,
+		SessionType:              string(info.Type),
+		Lineage:                  store.CloneSessionLineage(info.Lineage),
+		State:                    string(info.State),
+		ACPSessionID:             stringPointer(info.ACPSessionID),
+		StopReason:               info.StopReason,
+		StopDetail:               info.StopDetail,
+		Failure:                  store.CloneSessionFailure(info.Failure),
+		Liveness:                 store.CloneSessionLivenessMeta(info.Liveness),
+		Sandbox:                  cloneSessionSandboxMeta(info.Sandbox),
+		SoulSnapshotID:           strings.TrimSpace(info.SoulSnapshotID),
+		SoulDigest:               strings.TrimSpace(info.SoulDigest),
+		ParentSoulDigest:         strings.TrimSpace(info.ParentSoulDigest),
+		TranscriptEpoch:          info.TranscriptEpoch,
+		CreatedAt:                info.CreatedAt,
+		UpdatedAt:                info.UpdatedAt,
 	}
 	result.SetNetworkSpec(info.NetworkParticipation)
 	return result
@@ -158,25 +168,28 @@ func sessionCatalogStateUpdate(info *Info) store.SessionStateUpdate {
 		return store.SessionStateUpdate{}
 	}
 	return store.SessionStateUpdate{
-		ID:                info.ID,
-		State:             string(info.State),
-		ACPSessionID:      stringPointer(info.ACPSessionID),
-		RuntimeSet:        true,
-		Provider:          info.Provider,
-		Model:             info.Model,
-		ReasoningEffort:   info.ReasoningEffort,
-		Speed:             info.Speed,
-		SpeedResolution:   speedpkg.CloneResolution(info.SpeedResolution),
-		RuntimeStatus:     info.RuntimeStatus,
-		RuntimeTransition: info.RuntimeTransition,
-		RuntimeFailure:    info.RuntimeFailure,
-		StopReasonSet:     true,
-		StopReason:        stringPointer(string(info.StopReason)),
-		StopDetail:        info.StopDetail,
-		FailureSet:        true,
-		Failure:           store.CloneSessionFailure(info.Failure),
-		Liveness:          store.CloneSessionLivenessMeta(info.Liveness),
-		Sandbox:           cloneSessionSandboxMeta(info.Sandbox),
-		UpdatedAt:         info.UpdatedAt,
+		ID:                       info.ID,
+		State:                    string(info.State),
+		ACPSessionID:             stringPointer(info.ACPSessionID),
+		RuntimeSet:               true,
+		Provider:                 info.Provider,
+		Model:                    info.Model,
+		ReasoningEffort:          info.ReasoningEffort,
+		Speed:                    info.Speed,
+		SpeedResolution:          speedpkg.CloneResolution(info.SpeedResolution),
+		RuntimeStatus:            info.RuntimeStatus,
+		RuntimeTransition:        info.RuntimeTransition,
+		RuntimeFailure:           info.RuntimeFailure,
+		SelectedRuntimeSet:       true,
+		SelectedRuntime:          storeSessionRuntimeSelection(info.SelectedRuntime),
+		RuntimeSelectionRevision: info.RuntimeSelectionRevision,
+		StopReasonSet:            true,
+		StopReason:               stringPointer(string(info.StopReason)),
+		StopDetail:               info.StopDetail,
+		FailureSet:               true,
+		Failure:                  store.CloneSessionFailure(info.Failure),
+		Liveness:                 store.CloneSessionLivenessMeta(info.Liveness),
+		Sandbox:                  cloneSessionSandboxMeta(info.Sandbox),
+		UpdatedAt:                info.UpdatedAt,
 	}
 }

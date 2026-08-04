@@ -5,14 +5,11 @@ import {
   formatMessageTimestamp,
   formatMessageTimestampFull,
 } from "@/systems/session/lib/format-timestamp";
-import { Button, CopyIconButton } from "@compozy/ui";
-import { useSessionComposerPrefill } from "./hooks/use-session-composer-prefill";
+import { CopyIconButton } from "@compozy/ui";
 import { deriveMessageActions } from "./message-actions.logic";
 
 const ACTIONS_CLASS_NAME = "flex items-center gap-2 text-small-body text-muted tabular-nums";
 
-// Non-Goal actions reveal on hover/focus. A Goal action stays visible so its
-// pointer target exists before hover and on devices without hover support.
 const REVEAL_CLASS_NAME = cn(
   ACTIONS_CLASS_NAME,
   "opacity-0 pointer-events-none transition-opacity duration-slow motion-reduce:transition-none",
@@ -25,24 +22,13 @@ export interface MessageActionsProps {
   align: "start" | "end";
   copyLabel: string;
   testId: string;
-  goalPrefill?: boolean;
 }
 
-export function MessageActions({
-  align,
-  copyLabel,
-  testId,
-  goalPrefill = false,
-}: MessageActionsProps) {
-  const setComposerText = useSessionComposerPrefill();
+export function MessageActions({ align, copyLabel, testId }: MessageActionsProps) {
   const message = useAuiState(
     state => state.message as { content?: unknown; status?: { type?: string } }
   );
-  const { source, timestampMs, visible, goalEligible } = deriveMessageActions(message);
-  const prefillGoal =
-    goalPrefill && goalEligible && setComposerText
-      ? () => setComposerText(`/goal ${source}`)
-      : null;
+  const { source, timestampMs, visible } = deriveMessageActions(message);
 
   if (!visible) {
     return null;
@@ -69,26 +55,10 @@ export function MessageActions({
       data-testid={`${testId}-copy`}
     />
   );
-  const useAsGoal = prefillGoal ? (
-    <Button
-      type="button"
-      variant="ghost"
-      size="xs"
-      className="px-1 text-muted hover:text-fg"
-      data-testid={`${testId}-goal-prefill`}
-      onClick={prefillGoal}
-    >
-      Use as Goal
-    </Button>
-  ) : null;
-
   return (
     <div
       data-testid={testId}
-      className={cn(
-        prefillGoal ? ACTIONS_CLASS_NAME : REVEAL_CLASS_NAME,
-        align === "end" ? "justify-end" : "justify-start"
-      )}
+      className={cn(REVEAL_CLASS_NAME, align === "end" ? "justify-end" : "justify-start")}
     >
       {align === "end" ? (
         <>
@@ -98,7 +68,6 @@ export function MessageActions({
       ) : (
         <>
           {copy}
-          {useAsGoal}
           {timestamp}
         </>
       )}

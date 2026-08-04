@@ -83,6 +83,7 @@ function makeSession(id: string, workspaceId: string, name: string): OwnedSessio
       status: "ready",
       transition: "initial_bind",
       effective: { provider: "codex" },
+      selection_revision: 0,
     },
     workspace_id: workspaceId,
     workspace_path: `/workspace/${name}`,

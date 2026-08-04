@@ -105,6 +105,12 @@ type sessionReservation struct {
 	workspaceID string
 }
 
+type sessionResumeRun struct {
+	done    chan struct{}
+	session *Session
+	err     error
+}
+
 // Manager owns active session lifecycle and runtime orchestration.
 type Manager struct {
 	mu                   sync.RWMutex
@@ -129,6 +135,9 @@ type Manager struct {
 	startRuns            map[string]*sessionStartRun
 	startWG              sync.WaitGroup
 	startClosing         bool
+	resumeMu             sync.Mutex
+	resumeRuns           map[string]*sessionResumeRun
+	resumeClosing        bool
 	processWatchMu       sync.Mutex
 	processWatchWG       sync.WaitGroup
 	processWatchCtx      context.Context

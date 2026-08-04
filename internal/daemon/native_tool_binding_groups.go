@@ -47,6 +47,7 @@ func (n *daemonNativeTools) skillToolBindings(
 func (n *daemonNativeTools) sessionToolBindings(
 	availability toolspkg.NativeAvailabilityFunc,
 	catalogAvailability toolspkg.NativeAvailabilityFunc,
+	runtimeAvailability toolspkg.NativeAvailabilityFunc,
 ) map[toolspkg.ToolID]nativeToolBinding {
 	return map[toolspkg.ToolID]nativeToolBinding{
 		toolspkg.ToolIDSessionList: {
@@ -60,6 +61,14 @@ func (n *daemonNativeTools) sessionToolBindings(
 		toolspkg.ToolIDSessionPrompt: {
 			call:         n.sessionPrompt,
 			availability: availability,
+		},
+		toolspkg.ToolIDSessionRuntimeSet: {
+			call:         n.sessionRuntimeSet,
+			availability: runtimeAvailability,
+		},
+		toolspkg.ToolIDSessionRuntimeClear: {
+			call:         n.sessionRuntimeClear,
+			availability: runtimeAvailability,
 		},
 		toolspkg.ToolIDSessionInputsList: {
 			call:         n.sessionInputsList,

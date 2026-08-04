@@ -31,29 +31,33 @@ vi.mock("sonner", () => ({
   toast: { error: routeHookMocks.toastError, success: routeHookMocks.toastSuccess },
 }));
 
-vi.mock("@/systems/session", () => ({
-  cancelSessionPrompt: routeHookMocks.cancelSessionPrompt,
-  isSessionRunning: (session: {
-    state?: string;
-    badge?: string;
-    activity?: { turn_id?: string };
-  }) =>
-    session.state !== "stopped" &&
-    (Boolean(session.activity?.turn_id) || session.badge === "running"),
-  isUserControllableSession: (session: { type?: string }) => (session.type ?? "user") === "user",
-  useCancelSessionInput: () => routeHookMocks.cancelInputMutation,
-  useClearSessionConversation: () => routeHookMocks.clearMutation,
-  useDeleteSession: () => routeHookMocks.deleteMutation,
-  useInterruptSessionPrompt: () => routeHookMocks.interruptPromptMutation,
-  usePromoteSessionInput: () => routeHookMocks.promoteInputMutation,
-  useQueueSessionPrompt: () => routeHookMocks.queuePromptMutation,
-  useReplaceSessionInput: () => routeHookMocks.replaceInputMutation,
-  useResumeSession: () => routeHookMocks.resumeMutation,
-  useSessionInputs: () => routeHookMocks.sessionInputsQuery,
-  useSessionTranscriptThreadMessages: () => routeHookMocks.transcriptMessages,
-  useSteerSessionPrompt: () => routeHookMocks.steerPromptMutation,
-  useStopSession: () => routeHookMocks.stopMutation,
-}));
+vi.mock("@/systems/session", async () => {
+  const { canPromptSession } = await import("@/systems/session/lib/session-running");
+  return {
+    canPromptSession,
+    cancelSessionPrompt: routeHookMocks.cancelSessionPrompt,
+    isSessionRunning: (session: {
+      state?: string;
+      badge?: string;
+      activity?: { turn_id?: string };
+    }) =>
+      session.state !== "stopped" &&
+      (Boolean(session.activity?.turn_id) || session.badge === "running"),
+    isUserControllableSession: (session: { type?: string }) => (session.type ?? "user") === "user",
+    useCancelSessionInput: () => routeHookMocks.cancelInputMutation,
+    useClearSessionConversation: () => routeHookMocks.clearMutation,
+    useDeleteSession: () => routeHookMocks.deleteMutation,
+    useInterruptSessionPrompt: () => routeHookMocks.interruptPromptMutation,
+    usePromoteSessionInput: () => routeHookMocks.promoteInputMutation,
+    useQueueSessionPrompt: () => routeHookMocks.queuePromptMutation,
+    useReplaceSessionInput: () => routeHookMocks.replaceInputMutation,
+    useResumeSession: () => routeHookMocks.resumeMutation,
+    useSessionInputs: () => routeHookMocks.sessionInputsQuery,
+    useSessionTranscriptThreadMessages: () => routeHookMocks.transcriptMessages,
+    useSteerSessionPrompt: () => routeHookMocks.steerPromptMutation,
+    useStopSession: () => routeHookMocks.stopMutation,
+  };
+});
 
 import type { SessionPayload } from "@/systems/session";
 import { useSessionPageControls } from "../use-session-page-controls";
@@ -67,6 +71,7 @@ function makeSession(state: SessionPayload["state"], turnId?: string): SessionPa
     runtime: {
       status: state === "stopped" ? "unbound" : "ready",
       effective: { provider: "codex" },
+      selection_revision: 0,
     },
     workspace_id: WORKSPACE_ID,
     workspace_path: "/workspace",
@@ -164,6 +169,13 @@ describe("useSessionPageControls", () => {
       cancellation.resolve();
       await cancellation.promise;
     });
+  });
+
+  it("Should allow a normal prompt to resume a stopped user session", () => {
+    const { result } = renderControls(makeSession("stopped"));
+
+    expect(result.current.canPrompt).toBe(true);
+    expect(result.current.isSessionRunning).toBe(false);
   });
 
   it("Should block clear while work is running and allow durable transcript content when idle", () => {

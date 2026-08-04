@@ -31,6 +31,8 @@ var hostAPIWorkspaceBindings = map[extensionprotocol.HostAPIMethod]HostAPIWorksp
 	extensionprotocol.HostAPIMethodSessionsList:                HostAPIWorkspaceBindingPath,
 	extensionprotocol.HostAPIMethodSessionsCreate:              HostAPIWorkspaceBindingPath,
 	extensionprotocol.HostAPIMethodSessionsPrompt:              HostAPIWorkspaceBindingID,
+	extensionprotocol.HostAPIMethodSessionsRuntimeSet:          HostAPIWorkspaceBindingID,
+	extensionprotocol.HostAPIMethodSessionsRuntimeClear:        HostAPIWorkspaceBindingID,
 	extensionprotocol.HostAPIMethodSessionsInputsList:          HostAPIWorkspaceBindingID,
 	extensionprotocol.HostAPIMethodSessionsInputsReplace:       HostAPIWorkspaceBindingID,
 	extensionprotocol.HostAPIMethodSessionsInputsCancel:        HostAPIWorkspaceBindingID,

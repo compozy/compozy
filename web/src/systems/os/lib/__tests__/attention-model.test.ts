@@ -20,6 +20,7 @@ function session(overrides: Partial<SessionPayload> = {}): SessionPayload {
       status: "ready",
       transition: "initial_bind",
       effective: { provider: "codex" },
+      selection_revision: 0,
     },
     workspace_id: "workspace-1",
     workspace_path: "/workspace/compozy",

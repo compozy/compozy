@@ -145,6 +145,77 @@ func TestSessionPromptPassesRuntimeSelection(t *testing.T) {
 	})
 }
 
+func TestSessionRuntimeCommandsPersistSelection(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should fetch the current revision before setting runtime", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			getSessionFn: func(_ context.Context, id string) (SessionRecord, error) {
+				return SessionRecord{ID: id, Runtime: contract.SessionRuntimePayload{SelectionRevision: 5}}, nil
+			},
+			setSessionRuntimeFn: func(
+				_ context.Context,
+				id string,
+				request SetSessionRuntimeRequest,
+			) (SessionRecord, error) {
+				if id != "sess-1" || request.ExpectedRevision == nil || *request.ExpectedRevision != 5 ||
+					request.Runtime.Provider != "claude" || request.Runtime.Model != "claude-fable-5" ||
+					request.Runtime.ReasoningEffort != "max" || request.Runtime.Speed != contract.SpeedNormal {
+					t.Fatalf("SetSessionRuntime() id = %q request = %#v", id, request)
+				}
+				return SessionRecord{
+					ID: id,
+					Runtime: contract.SessionRuntimePayload{
+						Selected:          &request.Runtime,
+						SelectionRevision: 6,
+					},
+				}, nil
+			},
+		})
+
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"session", "runtime", "set", "sess-1",
+			"--provider", "claude", "--model", "claude-fable-5", "--reasoning-effort", "max",
+			"-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(session runtime set) error = %v", err)
+		}
+		var decoded SessionRecord
+		if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		if decoded.Runtime.Selected == nil || decoded.Runtime.Selected.Model != "claude-fable-5" ||
+			decoded.Runtime.SelectionRevision != 6 {
+			t.Fatalf("decoded runtime = %#v, want selected Claude runtime at revision 6", decoded.Runtime)
+		}
+	})
+
+	t.Run("Should pass an explicit revision when clearing runtime", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			clearSessionRuntimeFn: func(_ context.Context, id string, revision int64) (SessionRecord, error) {
+				if id != "sess-1" || revision != 8 {
+					t.Fatalf("ClearSessionRuntime() id = %q revision = %d", id, revision)
+				}
+				return SessionRecord{ID: id, Runtime: contract.SessionRuntimePayload{SelectionRevision: 9}}, nil
+			},
+		})
+		if _, _, err := executeRootCommand(
+			t,
+			deps,
+			"session", "runtime", "clear", "sess-1", "--expected-revision", "8", "-o", "json",
+		); err != nil {
+			t.Fatalf("executeRootCommand(session runtime clear) error = %v", err)
+		}
+	})
+}
+
 func TestSessionPromptIdentity(t *testing.T) {
 	t.Parallel()
 

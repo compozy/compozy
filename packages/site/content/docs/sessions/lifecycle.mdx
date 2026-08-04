@@ -16,7 +16,8 @@ That Compozy session ID identifies one durable lifecycle and its retained record
 <OperatorNote>
   Creation is promptless. It returns an `active` logical session with `runtime.status: "unbound"`;
   no ACP process or ACP session exists yet. The first prompt binds the selected runtime. No public
-  transition leaves `stopped`. `compozy session resume` only attaches to an eligible live session.
+  attach operation leaves `stopped`; a normal prompt restarts it with the same durable history.
+  `compozy session resume` only attaches to an eligible live session.
 </OperatorNote>
 
 ## State machine
@@ -24,6 +25,8 @@ That Compozy session ID identifies one durable lifecycle and its retained record
 <Mermaid
   chart={`stateDiagram-v2
 [*] --> active: create
+stopped --> starting: normal prompt
+starting --> active: runtime restored
 active --> stopping: stop requested
 active --> stopping: shutdown or process exit
 stopping --> stopped: finalization complete`}
@@ -32,9 +35,10 @@ stopping --> stopped: finalization complete`}
 
 | State      | Meaning                                                                                                                                                                            | Valid live transition |
 | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
+| `starting` | A prompt to a stopped session is restoring the ACP process and durable provider history.                                                                                           | `starting -> active`  |
 | `active`   | Compozy has durably allocated the session ID, prepared its storage, and accepts prompts. Before the first prompt, its runtime is `unbound`; after binding, it can emit ACP events. | `active -> stopping`  |
-| `stopping` | Compozy has accepted a stop request and is draining the session toward a terminal state.                                                                                           | `stopping -> stopped` |
-| `stopped`  | Final metadata is written, the recorder is closed, and the durable record remains available for listing, history, recap, and repair.                                               | none                  |
+| `stopping` | Compozy has accepted a stop request and is draining the session toward a stopped state.                                                                                            | `stopping -> stopped` |
+| `stopped`  | Final metadata is written and the recorder is closed. Reads remain available, and a normal user prompt can restore the runtime against the same session ID and transcript.         | `stopped -> starting` |
 
 ## Creating a session
 
@@ -132,6 +136,27 @@ Two operational details matter here:
   health, but the two are distinct authorities — supervision owns timers and persisted progress
   events, health is consumed by `HEARTBEAT.md` wake decisions and the
   `compozy session health|status|inspect` surfaces.
+
+### Selecting the next runtime
+
+Persist next-prompt runtime intent without starting or reconfiguring ACP:
+
+```bash
+compozy session runtime set sess-1234 \
+  --provider claude \
+  --model claude-fable-5 \
+  --reasoning-effort max
+```
+
+Session reads expose `runtime.selected`, `runtime.selection_revision`, and `runtime.effective`.
+`selected` survives stops and daemon restarts; `effective` describes the runtime already applied to
+the current process. A normal prompt uses its explicit runtime first, then `selected`, then
+`effective`.
+
+HTTP and UDS use `PUT /api/workspaces/:workspace/sessions/:id/runtime` with the complete `runtime`
+and current `expected_revision`. Clear the selection with
+`DELETE /api/workspaces/:workspace/sessions/:id/runtime?expected_revision=<revision>`. A stale
+revision returns `409`; read the session again before deciding what to save.
 
 ### Busy input modes
 
@@ -234,8 +259,9 @@ The stop path is cooperative first and forceful only when needed:
 8. close the recorder and write final metadata
 9. `stopping -> stopped`
 
-Stopping preserves the session directory, catalog row, metadata, and events. It ends attach
-eligibility because `stopped` is terminal in the public contract.
+Stopping preserves the session directory, catalog row, metadata, events, and selected runtime. It
+ends attach eligibility. A later normal prompt restores the provider history and continues under the
+same Compozy session ID; attach, queue, steer, interrupt, and other control operations do not restart it.
 
 ### Timeout behavior
 

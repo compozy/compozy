@@ -80,7 +80,7 @@ export const Loading: Story = {
 };
 
 /**
- * Stopped-session branch that swaps the header action set and hides the composer.
+ * Stopped-session branch that keeps the composer available while attach remains disabled.
  */
 export const Stopped: Story = {
   args: {},

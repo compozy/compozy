@@ -66,6 +66,11 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 			'ready',
 			'live_configuration',
 			'',
+			'claude',
+			'claude-fable-5',
+			'max',
+			'normal',
+			4,
 			'ws-1',
 			?,
 			'live',
@@ -150,6 +155,17 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 		}
 		if got, want := info.RuntimeTransition, store.SessionRuntimeTransitionLiveConfiguration; got != want {
 			t.Fatalf("info.RuntimeTransition = %q, want %q", got, want)
+		}
+		if info.SelectedRuntime == nil || info.SelectedRuntime.Provider != "claude" ||
+			info.SelectedRuntime.Model != "claude-fable-5" ||
+			info.SelectedRuntime.ReasoningEffort != "max" ||
+			info.SelectedRuntime.Speed != speedpkg.SpeedNormal ||
+			info.RuntimeSelectionRevision != 4 {
+			t.Fatalf(
+				"info selected runtime = %#v revision %d, want Claude Fable max at revision 4",
+				info.SelectedRuntime,
+				info.RuntimeSelectionRevision,
+			)
 		}
 		if info.SpeedResolution == nil || info.SpeedResolution.Requested != "fast" ||
 			info.SpeedResolution.Status != "applied" {
@@ -275,6 +291,11 @@ func TestScanSessionInfoHandlesNullStopReason(t *testing.T) {
 			'unbound',
 			'',
 			'',
+			'',
+			'',
+			'',
+			'',
+			0,
 			'ws-1',
 			'{"version":"network-participation/v1","mode":"local","source":"built_in_local"}',
 			'local',
@@ -341,6 +362,13 @@ func TestScanSessionInfoHandlesNullStopReason(t *testing.T) {
 		if info.ACPSessionID != nil {
 			t.Fatalf("info.ACPSessionID = %#v, want nil", info.ACPSessionID)
 		}
+		if info.SelectedRuntime != nil || info.RuntimeSelectionRevision != 0 {
+			t.Fatalf(
+				"selected runtime = %#v revision %d, want nil selection at revision 0",
+				info.SelectedRuntime,
+				info.RuntimeSelectionRevision,
+			)
+		}
 		if info.SoulSnapshotID != "" || info.SoulDigest != "" || info.ParentSoulDigest != "" {
 			t.Fatalf(
 				"Soul provenance = %#v/%q/%q, want empty",
@@ -372,6 +400,11 @@ func TestScanSessionInfoRejectsInvalidSandboxLastSyncAt(t *testing.T) {
 			'unbound',
 			'',
 			'',
+			'',
+			'',
+			'',
+			'',
+			0,
 			'ws-1',
 			'{"version":"network-participation/v1","mode":"local","source":"built_in_local"}',
 			'local',
@@ -449,6 +482,11 @@ func TestScanSessionInfoRejectsStallStateWithoutReason(t *testing.T) {
 			'unbound',
 			'',
 			'',
+			'',
+			'',
+			'',
+			'',
+			0,
 			'ws-1',
 			'{"version":"network-participation/v1","mode":"local","source":"built_in_local"}',
 			'local',

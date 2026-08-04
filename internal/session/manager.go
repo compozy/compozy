@@ -54,6 +54,7 @@ func NewManager(opts ...Option) (*Manager, error) {
 		promptAdmissionLocks:  make(map[string]*promptAdmissionLock),
 		compactions:           make(map[string]*sessionCompactionState),
 		startRuns:             make(map[string]*sessionStartRun),
+		resumeRuns:            make(map[string]*sessionResumeRun),
 		syntheticQueues:       make(map[string][]queuedSyntheticPrompt),
 		syntheticDispatching:  make(map[string]bool),
 		soulLocks:             make(map[string]chan struct{}),

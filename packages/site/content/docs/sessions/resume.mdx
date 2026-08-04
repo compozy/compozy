@@ -26,7 +26,8 @@ eligible for an explicit holder:
 - after listing resumable sessions and choosing the same Compozy session ID
 
 Use a new session when you want a clean slate. Use history, repair, and recap when the session is
-already terminal and you need to understand what happened before deciding the next action.
+stopped and you need to understand what happened before either sending a normal prompt to continue
+it or creating new work.
 
 ## Finding an attachable session
 
@@ -202,8 +203,9 @@ lease on the same Compozy session ID.
 
 ### Attach after a terminal stop
 
-Attach is intentionally refused. Inspect the recap, history, status, and repair output before
-starting new work.
+Attach is intentionally refused. Inspect recap, history, status, and repair output, then send a
+normal prompt when you want Compozy to restore the provider history and continue the same session.
+Only normal prompt dispatch triggers that restart.
 
 ### Resume does not rewrite history
 
@@ -218,5 +220,5 @@ key off the HTTP operation and response payload, not the English verb in the CLI
 ## Next steps
 
 - Use [Event Streaming](/docs/sessions/events) to inspect the stored event log and live SSE stream.
-- Use [Session Lifecycle](/docs/sessions/lifecycle) to understand terminal states and repair.
+- Use [Session Lifecycle](/docs/sessions/lifecycle) to understand stopped-session continuation and repair.
 - Use [Permissions](/docs/sessions/permissions) to understand what requires approval before and after attach.

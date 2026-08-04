@@ -52,12 +52,7 @@ export function AssistantMessage() {
           <AssistantMessageTimeline />
         </SessionThreadErrorBoundary>
         <SessionMessageErrorNotice />
-        <MessageActions
-          align="start"
-          copyLabel="Copy message"
-          goalPrefill
-          testId="assistant-message-actions"
-        />
+        <MessageActions align="start" copyLabel="Copy message" testId="assistant-message-actions" />
       </div>
     </MessagePrimitive.Root>
   );

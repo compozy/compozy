@@ -7,7 +7,9 @@ import (
 
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
+	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/network/participation"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 )
 
 const (
@@ -33,6 +35,8 @@ const (
 	HostAPIMethodSessionsList                = extensionprotocol.HostAPIMethodSessionsList
 	HostAPIMethodSessionsCreate              = extensionprotocol.HostAPIMethodSessionsCreate
 	HostAPIMethodSessionsPrompt              = extensionprotocol.HostAPIMethodSessionsPrompt
+	HostAPIMethodSessionsRuntimeSet          = extensionprotocol.HostAPIMethodSessionsRuntimeSet
+	HostAPIMethodSessionsRuntimeClear        = extensionprotocol.HostAPIMethodSessionsRuntimeClear
 	HostAPIMethodSessionsInputsList          = extensionprotocol.HostAPIMethodSessionsInputsList
 	HostAPIMethodSessionsInputsReplace       = extensionprotocol.HostAPIMethodSessionsInputsReplace
 	HostAPIMethodSessionsInputsCancel        = extensionprotocol.HostAPIMethodSessionsInputsCancel
@@ -161,6 +165,29 @@ type SessionsPromptParams struct {
 	Mode           apicontract.PromptMode                     `json:"mode,omitempty"`
 	ExpectedTurnID string                                     `json:"expected_turn_id,omitempty"`
 	Runtime        *apicontract.PromptRuntimeSelectionPayload `json:"runtime,omitempty"`
+}
+
+// SessionRuntimeSetParams durably selects the default runtime for future prompts.
+type SessionRuntimeSetParams struct {
+	WorkspaceID      string                         `json:"workspace_id"`
+	SessionID        string                         `json:"session_id"`
+	Runtime          SessionRuntimeSelectionPayload `json:"runtime"`
+	ExpectedRevision *int64                         `json:"expected_revision"`
+}
+
+// SessionRuntimeSelectionPayload is the extension-owned wire shape for a durable runtime choice.
+type SessionRuntimeSelectionPayload struct {
+	Provider        string                       `json:"provider"`
+	Model           string                       `json:"model,omitempty"`
+	ReasoningEffort modelcatalog.ReasoningEffort `json:"reasoning_effort,omitempty"`
+	Speed           speedpkg.Speed               `json:"speed,omitempty"`
+}
+
+// SessionRuntimeClearParams clears the durable runtime selection.
+type SessionRuntimeClearParams struct {
+	WorkspaceID      string `json:"workspace_id"`
+	SessionID        string `json:"session_id"`
+	ExpectedRevision *int64 `json:"expected_revision"`
 }
 
 // SessionInputsListParams identifies the pending inputs for one session.

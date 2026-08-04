@@ -83,6 +83,7 @@ const createdSession: SessionPayload = {
     status: "ready",
     transition: "initial_bind",
     effective: { provider: "claude" },
+    selection_revision: 0,
   },
   workspace_id: "ws_alpha",
   workspace_path: "/workspace/alpha",

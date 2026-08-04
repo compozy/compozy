@@ -7,6 +7,42 @@ import (
 	"time"
 )
 
+type ToolPreCallPayload struct {
+	Event          HookEvent       `json:"event"`
+	Timestamp      time.Time       `json:"timestamp"`
+	SessionID      string          `json:"session_id,omitempty"`
+	SessionName    string          `json:"session_name,omitempty"`
+	SessionType    string          `json:"session_type,omitempty"`
+	AgentName      string          `json:"agent_name,omitempty"`
+	WorkspaceID    string          `json:"workspace_id,omitempty"`
+	Workspace      string          `json:"workspace,omitempty"`
+	ACPSessionID   string          `json:"acp_session_id,omitempty"`
+	State          string          `json:"state,omitempty"`
+	SoulSnapshotID string          `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string          `json:"soul_digest,omitempty"`
+	CreatedAt      time.Time       `json:"created_at"`
+	UpdatedAt      time.Time       `json:"updated_at"`
+	TurnID         string          `json:"turn_id,omitempty"`
+	ToolCallID     string          `json:"tool_call_id,omitempty"`
+	ToolID         string          `json:"tool_id,omitempty"`
+	ReadOnly       bool            `json:"read_only,omitempty"`
+	ToolInput      json.RawMessage `json:"tool_input,omitempty"`
+}
+
+type ToolProgress struct {
+	ToolCallID string            `json:"tool_call_id"`
+	ToolID     string            `json:"tool_id"`
+	Phase      ToolProgressPhase `json:"phase"`
+	Label      string            `json:"label"`
+	Preview    string            `json:"preview,omitempty"`
+	Emoji      string            `json:"emoji,omitempty"`
+	DurationMS int64             `json:"duration_ms,omitempty"`
+	Error      string            `json:"error,omitempty"`
+	Index      int               `json:"index"`
+}
+
+type ToolProgressPhase string
+
 type ToolResult struct {
 	Content    []ToolContent              `json:"content,omitempty"`
 	Structured json.RawMessage            `json:"structured,omitempty"`
@@ -201,39 +237,6 @@ type WindowManagerLayoutAppliedPayload struct {
 type WindowManagerObservationPatch struct{}
 
 type WindowManagerStackActivatedPayload struct {
-	Event       HookEvent            `json:"event"`
-	Timestamp   time.Time            `json:"timestamp"`
-	WorkspaceID string               `json:"workspace_id"`
-	Revision    uint64               `json:"revision"`
-	CommandID   string               `json:"command_id"`
-	Changes     WindowManagerChanges `json:"changes"`
-	Actor       WindowManagerActor   `json:"actor"`
-	Origin      string               `json:"origin,omitempty"`
-}
-
-type WindowManagerStackGroupedPayload struct {
-	Event       HookEvent            `json:"event"`
-	Timestamp   time.Time            `json:"timestamp"`
-	WorkspaceID string               `json:"workspace_id"`
-	Revision    uint64               `json:"revision"`
-	CommandID   string               `json:"command_id"`
-	Changes     WindowManagerChanges `json:"changes"`
-	Actor       WindowManagerActor   `json:"actor"`
-	Origin      string               `json:"origin,omitempty"`
-}
-
-type WindowManagerStackUngroupedPayload struct {
-	Event       HookEvent            `json:"event"`
-	Timestamp   time.Time            `json:"timestamp"`
-	WorkspaceID string               `json:"workspace_id"`
-	Revision    uint64               `json:"revision"`
-	CommandID   string               `json:"command_id"`
-	Changes     WindowManagerChanges `json:"changes"`
-	Actor       WindowManagerActor   `json:"actor"`
-	Origin      string               `json:"origin,omitempty"`
-}
-
-type WindowManagerWindowClosedPayload struct {
 	Event       HookEvent            `json:"event"`
 	Timestamp   time.Time            `json:"timestamp"`
 	WorkspaceID string               `json:"workspace_id"`

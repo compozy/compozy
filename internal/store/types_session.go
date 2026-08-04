@@ -56,18 +56,20 @@ func ValidStopReason(r StopReason) bool {
 
 // SessionInfo is the canonical session index row stored in the global database.
 type SessionInfo struct {
-	ID                string
-	Name              string
-	AgentName         string
-	Provider          string
-	Model             string
-	ReasoningEffort   string
-	Speed             speedpkg.Speed
-	SpeedResolution   *speedpkg.Resolution
-	RuntimeStatus     SessionRuntimeStatus
-	RuntimeTransition SessionRuntimeTransition
-	RuntimeFailure    string
-	WorkspaceID       string
+	ID                       string
+	Name                     string
+	AgentName                string
+	Provider                 string
+	Model                    string
+	ReasoningEffort          string
+	Speed                    speedpkg.Speed
+	SpeedResolution          *speedpkg.Resolution
+	RuntimeStatus            SessionRuntimeStatus
+	RuntimeTransition        SessionRuntimeTransition
+	RuntimeFailure           string
+	SelectedRuntime          *SessionRuntimeSelection
+	RuntimeSelectionRevision int64
+	WorkspaceID              string
 	*SessionNetworkState
 	SessionType      string
 	Lineage          *SessionLineage
@@ -112,6 +114,9 @@ func (s SessionInfo) Validate() error {
 		return err
 	}
 	if err := validateSessionSpeedMetadata(s.Speed, s.SpeedResolution); err != nil {
+		return err
+	}
+	if err := ValidateSessionRuntimeSelection(s.SelectedRuntime, s.RuntimeSelectionRevision); err != nil {
 		return err
 	}
 	if err := s.Liveness.Validate(); err != nil {
@@ -208,26 +213,29 @@ type SessionAttach struct {
 
 // SessionStateUpdate updates only the stateful fields of an indexed session.
 type SessionStateUpdate struct {
-	ID                string
-	State             string
-	ACPSessionID      *string
-	RuntimeSet        bool
-	Provider          string
-	Model             string
-	ReasoningEffort   string
-	Speed             speedpkg.Speed
-	SpeedResolution   *speedpkg.Resolution
-	RuntimeStatus     SessionRuntimeStatus
-	RuntimeTransition SessionRuntimeTransition
-	RuntimeFailure    string
-	StopReasonSet     bool
-	StopReason        *string
-	StopDetail        string
-	FailureSet        bool
-	Failure           *SessionFailure
-	Liveness          *SessionLivenessMeta
-	Sandbox           *SessionSandboxMeta
-	UpdatedAt         time.Time
+	ID                       string
+	State                    string
+	ACPSessionID             *string
+	RuntimeSet               bool
+	Provider                 string
+	Model                    string
+	ReasoningEffort          string
+	Speed                    speedpkg.Speed
+	SpeedResolution          *speedpkg.Resolution
+	RuntimeStatus            SessionRuntimeStatus
+	RuntimeTransition        SessionRuntimeTransition
+	RuntimeFailure           string
+	SelectedRuntimeSet       bool
+	SelectedRuntime          *SessionRuntimeSelection
+	RuntimeSelectionRevision int64
+	StopReasonSet            bool
+	StopReason               *string
+	StopDetail               string
+	FailureSet               bool
+	Failure                  *SessionFailure
+	Liveness                 *SessionLivenessMeta
+	Sandbox                  *SessionSandboxMeta
+	UpdatedAt                time.Time
 }
 
 // SessionSoulSnapshotUpdate updates the Soul provenance attached to a session.
@@ -263,6 +271,11 @@ func (u SessionStateUpdate) Validate() error {
 			return err
 		}
 		if err := validateSessionSpeedMetadata(u.Speed, u.SpeedResolution); err != nil {
+			return err
+		}
+	}
+	if u.SelectedRuntimeSet {
+		if err := ValidateSessionRuntimeSelection(u.SelectedRuntime, u.RuntimeSelectionRevision); err != nil {
 			return err
 		}
 	}

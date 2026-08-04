@@ -4,9 +4,18 @@
 // Boundary OUT: HTTP adapters and rendered selector behavior, owned by adapter and RuntimeSelector suites.
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const runtimeSelectionMutation = vi.hoisted(() => ({
+  isPending: false,
+  mutate: vi.fn(),
+}));
+
+vi.mock("../use-session-runtime-selection", () => ({
+  useSetSessionRuntime: () => runtimeSelectionMutation,
+}));
 
 import { agentKeys, type AgentPayload } from "@/systems/agent";
 import {
@@ -72,6 +81,11 @@ function createHarness() {
 }
 
 describe("useSessionPromptRuntime", () => {
+  beforeEach(() => {
+    runtimeSelectionMutation.isPending = false;
+    runtimeSelectionMutation.mutate.mockReset();
+  });
+
   it("Should combine workspace scope with global provider authentication", async () => {
     const workspaceId = workspaceDetailFixture.workspace.id;
     const workspace: WorkspaceDetailPayload = {
@@ -113,6 +127,8 @@ describe("useSessionPromptRuntime", () => {
         status: "ready" as const,
         transition: "initial_bind" as const,
         effective: { provider: "codex" },
+        selected: undefined,
+        selection_revision: 0,
       },
       workspace_id: workspaceId,
     };
@@ -129,11 +145,14 @@ describe("useSessionPromptRuntime", () => {
         agentName: session.agent_name,
         canPrompt: true,
         effectiveRuntime: session.runtime.effective,
+        selectedRuntime: session.runtime.selected,
+        selectionRevision: session.runtime.selection_revision,
+        sessionId: session.id,
         workspaceId: session.workspace_id,
       })
     );
 
-    const { result } = renderHook(() => useSessionPromptRuntime(store), { wrapper });
+    const { result, unmount } = renderHook(() => useSessionPromptRuntime(store), { wrapper });
 
     await waitFor(() => expect(result.current.canSelectRuntime).toBe(true));
     expect(result.current.catalog.providers.map(entry => entry.id)).toEqual(["codex", "groq"]);
@@ -148,5 +167,36 @@ describe("useSessionPromptRuntime", () => {
       disabled_reason: "Sign in",
     });
     expect(result.current.catalog.models.some(entry => entry.provider === "claude")).toBe(false);
+
+    act(() => {
+      result.current.onRuntimeChange({
+        provider: "claude",
+        model: "claude-fable-5",
+        reasoning_effort: "max",
+      });
+    });
+    expect(runtimeSelectionMutation.mutate).toHaveBeenCalledWith(
+      {
+        id: session.id,
+        request: {
+          expected_revision: 0,
+          runtime: {
+            provider: "claude",
+            model: "claude-fable-5",
+            reasoning_effort: "max",
+          },
+        },
+        signal: expect.any(AbortSignal),
+      },
+      expect.objectContaining({
+        onError: expect.any(Function),
+        onSettled: expect.any(Function),
+        onSuccess: expect.any(Function),
+      })
+    );
+    const signal = runtimeSelectionMutation.mutate.mock.calls[0]?.[0].signal as AbortSignal;
+    expect(signal.aborted).toBe(false);
+    unmount();
+    expect(signal.aborted).toBe(true);
   });
 });

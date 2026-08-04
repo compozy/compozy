@@ -41,6 +41,13 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 			Speed:             speedpkg.SpeedFast,
 			RuntimeStatus:     session.RuntimeStatusReady,
 			RuntimeTransition: session.RuntimeTransitionLiveConfiguration,
+			SelectedRuntime: &session.RuntimeSelection{
+				Provider:        "claude",
+				Model:           "claude-fable-5",
+				ReasoningEffort: "max",
+				Speed:           speedpkg.SpeedFast,
+			},
+			RuntimeSelectionRevision: 7,
 			SpeedResolution: &speedpkg.Resolution{
 				Requested: speedpkg.SpeedFast,
 				Status:    speedpkg.ResolutionUnsupported,
@@ -143,6 +150,16 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 				"payload speed fields = %q, %#v, want fast unsupported capability_absent",
 				payload.Runtime.Effective.Speed,
 				payload.Runtime.Effective.SpeedResolution,
+			)
+		}
+		if payload.Runtime.Selected == nil || payload.Runtime.Selected.Provider != "claude" ||
+			payload.Runtime.Selected.Model != "claude-fable-5" ||
+			payload.Runtime.Selected.ReasoningEffort != "max" ||
+			payload.Runtime.Selected.Speed != contract.SpeedFast || payload.Runtime.SelectionRevision != 7 {
+			t.Fatalf(
+				"payload selected runtime = %#v revision %d, want Claude selection at revision 7",
+				payload.Runtime.Selected,
+				payload.Runtime.SelectionRevision,
 			)
 		}
 		if payload.State != session.StateActive || payload.Runtime.ACPSessionID != "acp-123" {
@@ -259,6 +276,27 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 		}
 		if payload.Runtime.ACPCaps != nil {
 			t.Fatalf("catalog runtime caps = %#v, want nil without a live ACP process", payload.Runtime.ACPCaps)
+		}
+	})
+
+	t.Run("Should retain the last effective runtime after a previously bound session stops", func(t *testing.T) {
+		t.Parallel()
+
+		payload := core.SessionPayloadFromInfo(&session.Info{
+			ID:                "sess-stopped-runtime",
+			AgentName:         "coder",
+			Provider:          "claude",
+			Model:             "claude-fable-5",
+			ReasoningEffort:   "max",
+			Speed:             speedpkg.SpeedNormal,
+			RuntimeStatus:     session.RuntimeStatusUnbound,
+			RuntimeTransition: session.RuntimeTransitionProcessReplacement,
+			State:             session.StateStopped,
+		})
+		if payload.Runtime.Effective == nil || payload.Runtime.Effective.Provider != "claude" ||
+			payload.Runtime.Effective.Model != "claude-fable-5" ||
+			payload.Runtime.Effective.ReasoningEffort != "max" {
+			t.Fatalf("stopped effective runtime = %#v, want last applied Claude runtime", payload.Runtime.Effective)
 		}
 	})
 }
