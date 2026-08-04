@@ -5,12 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 0.3.0 - 2026-08-01
+## 0.3.0 - 2026-08-04
 
 ### ♻️ Refactoring
 
 - State management with xstate-store (#268)
 - Site improvements (#277)
+- Replace bundles with extension kits (#291)
 
 ### 🎉 Features
 
@@ -26,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **BREAKING:** MCP catalogs now require manifest_version 2 and public
   MCP transport no longer accepts SSE.
 - Add support for window tabs (#287)
+- Adopt feedback semantics for durable Loops (#290)
+- Add complete Loop node lifecycle (#305)
 
 ### 🐛 Bug Fixes
 
@@ -36,6 +39,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Untested cases from qa (#276)
 - Remaining untested qa (#279)
 - Durable session messaging (#288)
+- Assistant-ui version
+- Changelog generation (#292)
+- Make busy-session inputs durable (#304)
 
 ## 0.2.15 - 2026-07-17
 

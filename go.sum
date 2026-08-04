@@ -136,8 +136,8 @@ github.com/codahale/rfc6979 v0.0.0-20141003034818-6a90f24967eb h1:EDmT6Q9Zs+SbUo
 github.com/codahale/rfc6979 v0.0.0-20141003034818-6a90f24967eb/go.mod h1:ZjrT6AXHbDs86ZSdt/osfBi5qfexBrKUdONk989Wnk4=
 github.com/coder/acp-go-sdk v0.13.5 h1:LI9jq5xon7xslaYlnoktvTVyDlE37yIk2daT7N9ASYk=
 github.com/coder/acp-go-sdk v0.13.5/go.mod h1:yKzM/3R9uELp4+nBAwwtkS0aN1FOFjo11CNPy37yFko=
-github.com/compozy/compozy-web-assets v0.0.36 h1:yWkRMy+XWbbL84QeceuRBh+cBG2GOOS8t4t1IFrX0UE=
-github.com/compozy/compozy-web-assets v0.0.36/go.mod h1:+vAAEpoIVLAjo8/BbhgSB7IMWX+SG7uS/S5edn+suBo=
+github.com/compozy/compozy-web-assets v0.0.48 h1:MWonjMrKGYgcAbiRr0r6Tchr3dyuQBU2GRtVJGXSRjU=
+github.com/compozy/compozy-web-assets v0.0.48/go.mod h1:+vAAEpoIVLAjo8/BbhgSB7IMWX+SG7uS/S5edn+suBo=
 github.com/coreos/go-oidc/v3 v3.17.0 h1:hWBGaQfbi0iVviX4ibC7bk8OKT5qNr4klBaCHVNvehc=
 github.com/coreos/go-oidc/v3 v3.17.0/go.mod h1:wqPbKFrVnE90vty060SB40FCJ8fTHTxSwyXJqZH+sI8=
 github.com/coreos/go-semver v0.3.1 h1:yi21YpKnrx1gt5R+la8n5WgS0kCrsPp33dmEyHReZr4=
