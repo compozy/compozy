@@ -311,7 +311,9 @@ type WatchPollRequest struct {
 
 // WatchPollResponse is returned by a watch-source handler.
 type WatchPollResponse struct {
-	Ready       bool            `json:"ready"`
+	Ready bool `json:"ready"`
+	// EventKey is the required stable delivery identity. Compozy trims it, normalizes it to UTF-8 NFC,
+	// and rejects empty values or values longer than 256 bytes.
 	EventKey    string          `json:"event_key"`
 	StateDigest string          `json:"state_digest,omitempty"`
 	Payload     json.RawMessage `json:"payload,omitempty"`

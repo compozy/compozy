@@ -311,8 +311,8 @@ func (c *unixSocketClient) loopRunAction(
 	request any,
 	credentials agentidentity.Credentials,
 ) error {
-	path := loopRunPath(workspaceID, runID) + "/" + strings.TrimSpace(action)
-	return c.doAgentJSON(ctx, http.MethodPost, path, nil, request, credentials, nil)
+	_, err := c.loopRunLifecycleAction(ctx, workspaceID, runID, action, request, credentials)
+	return err
 }
 
 func (c *unixSocketClient) loopRunLifecycleAction(

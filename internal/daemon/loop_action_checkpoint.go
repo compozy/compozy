@@ -40,7 +40,13 @@ func (r *loopActionRuntime) captureDeathResumeCheckpoint(
 	for _, event := range events {
 		partial, found, err := deathResumePartialFromEvent(event)
 		if err != nil {
-			return nil, err
+			r.logger.Warn(
+				"daemon: skip malformed dead Loop action checkpoint event",
+				"session_id", sessionID,
+				"sequence", event.Sequence,
+				"error", err,
+			)
+			continue
 		}
 		if found {
 			checkpoint.Partials = append(checkpoint.Partials, partial)

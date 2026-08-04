@@ -49,5 +49,5 @@ func appendManualNodePauseEffects(
 	if err != nil {
 		return err
 	}
-	return insertLoopEffectIntentsWithExecutor(ctx, exec, run, sourceID, intents, mutation.RequestedAt)
+	return insertLoopEffectIntentsWithExecutor(ctx, exec, run, sourceID, intents, mutation.RequestedAt.UTC())
 }

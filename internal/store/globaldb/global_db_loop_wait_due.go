@@ -31,10 +31,12 @@ func (g *LoopRepo) ResumeDueLoopWaitsPage(
 		return nil, looppkg.WaitDueCursor{}, err
 	}
 	runs := make([]taskpkg.Run, 0, len(cells))
+	definitions := make(map[looppkg.RunID]*looppkg.ResolvedDefinition)
+	completed := cursor
 	for _, cell := range cells {
-		admissionAttempts, configErr := g.waitDueAdmissionAttempts(ctx, cell)
+		admissionAttempts, configErr := g.waitDueAdmissionAttempts(ctx, cell, definitions)
 		if configErr != nil {
-			return runs, next, configErr
+			return runs, completed, configErr
 		}
 		result, resumeErr := g.ResumeWait(ctx, looppkg.WaitResumeMutation{
 			WorkspaceID: cell.workspaceID, RunID: cell.runID, Generation: cell.generation,
@@ -43,26 +45,36 @@ func (g *LoopRepo) ResumeDueLoopWaitsPage(
 			AdmissionAttempts: admissionAttempts, RequestedAt: now.UTC(),
 		})
 		if errors.Is(resumeErr, looppkg.ErrTransitionConflict) || errors.Is(resumeErr, looppkg.ErrInvalidTransition) {
+			completed = waitDueCursorForCell(cell)
 			continue
 		}
 		if resumeErr != nil {
-			return runs, next, resumeErr
+			return runs, completed, resumeErr
 		}
 		if result.Won && result.Coordinator != nil {
 			runs = append(runs, *result.Coordinator)
 		}
+		completed = waitDueCursorForCell(cell)
 	}
 	return runs, next, nil
 }
 
-func (g *LoopRepo) waitDueAdmissionAttempts(ctx context.Context, cell waitDueCell) (int, error) {
-	run, err := getLoopRunByIDWithExecutor(ctx, g.db, cell.runID)
-	if err != nil {
-		return 0, err
-	}
-	resolved, err := loadWaitExecutedDefinition(ctx, g.db, run)
-	if err != nil {
-		return 0, err
+func (g *LoopRepo) waitDueAdmissionAttempts(
+	ctx context.Context,
+	cell waitDueCell,
+	definitions map[looppkg.RunID]*looppkg.ResolvedDefinition,
+) (int, error) {
+	resolved := definitions[cell.runID]
+	if resolved == nil {
+		run, err := getLoopRunByIDWithExecutor(ctx, g.db, cell.runID)
+		if err != nil {
+			return 0, err
+		}
+		resolved, err = loadWaitExecutedDefinition(ctx, g.db, run)
+		if err != nil {
+			return 0, err
+		}
+		definitions[cell.runID] = resolved
 	}
 	node, found := loopWaitNodeByRuntimeID(resolved.Definition.Graph, "", string(cell.nodeID))
 	if !found {
@@ -77,6 +89,13 @@ func (g *LoopRepo) waitDueAdmissionAttempts(ctx context.Context, cell waitDueCel
 		return 0, fmt.Errorf("store: resolve due Loop wait lifecycle: %w", err)
 	}
 	return lifecycle.WaitAdmissionAttempts, nil
+}
+
+func waitDueCursorForCell(cell waitDueCell) looppkg.WaitDueCursor {
+	return looppkg.WaitDueCursor{
+		ResumeAt: cell.resumeAt, LoopRunID: cell.runID, Generation: cell.generation,
+		NodeID: cell.nodeID, ItemIndex: cell.itemIndex,
+	}
 }
 
 func (g *LoopRepo) listDueLoopWaits(

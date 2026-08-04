@@ -252,32 +252,37 @@ func TestLoopHandlersExposeCatalogRunConfigAnnotationsAndEvents(t *testing.T) {
 			t.Fatalf("GET /loop-runs/:run_id payload = %#v", runDetailPayload)
 		}
 
-		assertLoopOKMutation(t, engine, http.MethodPost, "/workspaces/ws-1/loop-runs/run-1/cancel", nil)
-		assertLoopOKMutation(t, engine, http.MethodPost, "/workspaces/ws-1/loop-runs/run-1/kill", nil)
+		assertLoopOKMutation(t, engine, http.MethodPost, "/workspaces/ws-1/loop-runs/run-1/cancel", nil, "run-1", "")
+		assertLoopOKMutation(t, engine, http.MethodPost, "/workspaces/ws-1/loop-runs/run-1/kill", nil, "run-1", "")
 		assertLoopOKMutation(
 			t, engine, http.MethodPost,
 			"/workspaces/ws-1/loop-runs/run-1/nodes/worker/pause",
 			[]byte(`{"mode":"drain","reason":"repair"}`),
+			"run-1", "worker",
 		)
 		assertLoopOKMutation(
 			t, engine, http.MethodPost,
 			"/workspaces/ws-1/loop-runs/run-1/nodes/worker/resume",
 			[]byte(`{"mode":"plain"}`),
+			"run-1", "worker",
 		)
 		assertLoopOKMutation(
 			t, engine, http.MethodPost,
 			"/workspaces/ws-1/loop-runs/run-1/nodes/worker/cancel",
 			[]byte(`{"reason":"repair"}`),
+			"run-1", "worker",
 		)
 		assertLoopOKMutation(
 			t, engine, http.MethodPost,
 			"/workspaces/ws-1/loop-runs/run-1/nodes/worker/kill",
 			[]byte(`{"reason":"repair"}`),
+			"run-1", "worker",
 		)
 		assertLoopOKMutation(
 			t, engine, http.MethodPost,
 			"/workspaces/ws-1/loop-runs/run-1/nodes/worker/requeue",
 			[]byte(`{"reason":"repaired"}`),
+			"run-1", "worker",
 		)
 		nodesResp := performRequest(
 			t,
@@ -292,14 +297,15 @@ func TestLoopHandlersExposeCatalogRunConfigAnnotationsAndEvents(t *testing.T) {
 		if nodesPayload.Items == nil {
 			t.Fatalf("GET /loop-nodes payload = %#v, want truthful empty items", nodesPayload)
 		}
-		assertLoopOKMutation(t, engine, http.MethodPost, "/workspaces/ws-1/loop-runs/run-1/pause", nil)
-		assertLoopOKMutation(t, engine, http.MethodPost, "/workspaces/ws-1/loop-runs/run-1/resume", nil)
+		assertLoopOKMutation(t, engine, http.MethodPost, "/workspaces/ws-1/loop-runs/run-1/pause", nil, "", "")
+		assertLoopOKMutation(t, engine, http.MethodPost, "/workspaces/ws-1/loop-runs/run-1/resume", nil, "", "")
 		assertLoopOKMutation(
 			t,
 			engine,
 			http.MethodPost,
 			"/workspaces/ws-1/loop-runs/run-1/approve",
 			[]byte(`{"gate_id":"review","decision":"approve"}`),
+			"", "",
 		)
 		stopResp := performRequest(t, engine, http.MethodPost, "/workspaces/ws-1/loop-runs/run-1/stop", nil)
 		assertLoopStatus(t, stopResp.Code, http.StatusNotFound, stopResp.Body.String())
@@ -1081,6 +1087,36 @@ func TestLoopHandlersExposeValidationAndConflictBodies(t *testing.T) {
 		var payload contract.ErrorPayload
 		testutil.DecodeJSONResponse(t, resp, &payload)
 		assertLoopErrorPayloadContains(t, payload, agentidentity.ErrIdentityStale.Error())
+	})
+
+	t.Run("Should authorize Loop node inventory before reading another workspace", func(t *testing.T) {
+		t.Parallel()
+
+		service := happyLoopService(t)
+		service.listLoopNodesFn = func(
+			context.Context,
+			string,
+			core.LoopNodeListQuery,
+		) (contract.LoopNodeInventoryResponse, error) {
+			t.Fatal("ListLoopNodes() should not be called when workspace authorization fails")
+			return contract.LoopNodeInventoryResponse{}, nil
+		}
+		gin.SetMode(gin.TestMode)
+		engine := gin.New()
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+			TransportName: "udsapi",
+			Loops:         service,
+			TaskActorContextResolver: func(_ *gin.Context, action string) (taskpkg.ActorContext, error) {
+				if action != "loop_node_list" {
+					t.Fatalf("actor action = %q, want loop_node_list", action)
+				}
+				return taskpkg.ActorContext{}, agentidentity.ErrIdentityUnauthorized
+			},
+		})
+		registerLoopTestRoutes(engine, handlers)
+
+		resp := performRequest(t, engine, http.MethodGet, "/workspaces/ws-other/loop-nodes", nil)
+		assertLoopStatus(t, resp.Code, http.StatusForbidden, resp.Body.String())
 	})
 
 	t.Run("Should pass approve caller identity through the shared Loop handler", func(t *testing.T) {
@@ -1993,17 +2029,34 @@ func fixedLoopTime() time.Time {
 	return time.Date(2026, 7, 5, 12, 0, 0, 0, time.UTC)
 }
 
-func assertLoopOKMutation(t *testing.T, engine http.Handler, method string, path string, body []byte) {
+func assertLoopOKMutation(
+	t *testing.T,
+	engine http.Handler,
+	method string,
+	path string,
+	body []byte,
+	wantRunID string,
+	wantNodeID string,
+) {
 	t.Helper()
 
 	resp := performRequest(t, engine, method, path, body)
 	assertLoopStatus(t, resp.Code, http.StatusOK, resp.Body.String())
-	var payload struct {
-		OK bool `json:"ok"`
-	}
+	var payload contract.LoopMutationResponse
 	testutil.DecodeJSONResponse(t, resp, &payload)
 	if !payload.OK {
 		t.Fatalf("%s %s payload = %#v, want ok=true", method, path, payload)
+	}
+	if payload.RunID != wantRunID || payload.NodeID != wantNodeID {
+		t.Fatalf(
+			"%s %s identity = %q/%q, want %q/%q",
+			method,
+			path,
+			payload.RunID,
+			payload.NodeID,
+			wantRunID,
+			wantNodeID,
+		)
 	}
 }
 

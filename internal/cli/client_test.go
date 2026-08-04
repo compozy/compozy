@@ -612,7 +612,7 @@ func TestUnixSocketClientLoopMutationsSendIdentityHeaders(t *testing.T) {
 					if payload.GateID != "human" || payload.Decision != contract.LoopGateDecisionApprove {
 						t.Fatalf("approve body = %#v, want human/approve", payload)
 					}
-					return newHTTPResponse(http.StatusNoContent, ""), nil
+					return newHTTPResponse(http.StatusOK, `{"ok":true}`), nil
 				default:
 					t.Fatalf("unexpected request = %s %s", req.Method, req.URL.Path)
 					return nil, nil

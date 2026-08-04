@@ -660,7 +660,10 @@ func TestLoopCoordinatorBootGate(t *testing.T) {
 			t.Fatalf("observer backstop before activation = (%d, %d calls), want (0, 0)", started, len(backstop.calls))
 		}
 
-		schedulerSource := schedulerTaskSource{coordinatorBackstop: gate}
+		schedulerSource := schedulerTaskSource{
+			coordinatorBackstop: gate,
+			store:               &recordingRegistry{},
+		}
 		started, err = schedulerSource.RunLoopCoordinatorBackstop(testutil.Context(t), now, actor)
 		if err != nil {
 			t.Fatalf("scheduler backstop before activation error = %v", err)
@@ -7511,6 +7514,10 @@ var (
 
 func (r *recordingRegistry) Path() string {
 	return r.path
+}
+
+func (r *recordingRegistry) SweepAdmissionClaims(context.Context, time.Time, int) (int, error) {
+	return 0, nil
 }
 
 func (r *recordingRegistry) InsertWorkspace(_ context.Context, ws workspacepkg.Workspace) error {

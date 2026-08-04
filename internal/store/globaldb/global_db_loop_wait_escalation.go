@@ -30,15 +30,25 @@ func (g *LoopRepo) EscalateDueLoopWaitsPage(
 	if err != nil {
 		return looppkg.WaitEscalationCursor{}, err
 	}
+	completed := cursor
 	for _, cell := range cells {
 		if err := g.escalateDueLoopWait(ctx, now.UTC(), cell); err != nil {
 			if errors.Is(err, looppkg.ErrTransitionConflict) || errors.Is(err, looppkg.ErrInvalidTransition) {
+				completed = waitEscalationCursorForCell(cell)
 				continue
 			}
-			return next, err
+			return completed, err
 		}
+		completed = waitEscalationCursorForCell(cell)
 	}
 	return next, nil
+}
+
+func waitEscalationCursorForCell(cell waitEscalationCell) looppkg.WaitEscalationCursor {
+	return looppkg.WaitEscalationCursor{
+		NextEscalationAt: cell.nextEscalationAt, LoopRunID: cell.runID,
+		Generation: cell.generation, NodeID: cell.nodeID, ItemIndex: cell.itemIndex,
+	}
 }
 
 func (g *LoopRepo) listDueLoopWaitEscalations(

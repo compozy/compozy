@@ -64,16 +64,7 @@ func (g *LoopRepo) resolveExpiredWaitRoute(
 		return err
 	}
 	if err := appendLoopRunEventWithExecutor(ctx, exec, due.run.ID, due.run.WorkspaceID,
-		loopRunEventNodeWaitResumed, map[string]any{
-			loopRunEventPayloadKeyGeneration:  due.wait.Generation,
-			loopRunEventPayloadKeyNodeID:      due.wait.NodeID,
-			loopRunEventPayloadKeyItemIndex:   due.wait.ItemIndex,
-			loopRunEventPayloadKeyIssuedEpoch: due.wait.IssuedEpoch,
-			loopRunEventPayloadKeyActorKind:   loopWaitClaimedByExpiry,
-			loopRunEventPayloadKeyActorID:     route,
-			loopRunEventPayloadKeyWaitKind:    due.wait.Kind,
-			loopRunEventPayloadKeyRoute:       route,
-		}, now); err != nil {
+		loopRunEventNodeWaitResumed, expiredWaitResumeEventPayload(due, route, payload), now); err != nil {
 		return err
 	}
 	_, _, err = g.reserveLoopCoordinatorRunWithExecutor(
@@ -114,16 +105,7 @@ func (g *LoopRepo) resolveExpiredApprovalRoute(
 	}
 	due.run.Status = looppkg.StatusRunning
 	if err := appendLoopRunEventWithExecutor(ctx, exec, due.run.ID, due.run.WorkspaceID,
-		loopRunEventNodeWaitResumed, map[string]any{
-			loopRunEventPayloadKeyGeneration: due.wait.Generation,
-			loopRunEventPayloadKeyNodeID:     due.wait.NodeID, loopRunEventPayloadKeyItemIndex: due.wait.ItemIndex,
-			loopRunEventPayloadKeyIssuedEpoch: due.wait.IssuedEpoch,
-			loopRunEventPayloadKeyActorKind:   loopWaitClaimedByExpiry,
-			loopRunEventPayloadKeyActorID:     route,
-			loopRunEventPayloadKeyWaitKind:    due.wait.Kind,
-			loopRunEventPayloadKeyRoute:       route,
-			eventSummaryContentPayloadKey:     json.RawMessage(payload),
-		}, now); err != nil {
+		loopRunEventNodeWaitResumed, expiredWaitResumeEventPayload(due, route, payload), now); err != nil {
 		return err
 	}
 	_, _, err = g.reserveLoopCoordinatorRunWithExecutor(
@@ -132,4 +114,22 @@ func (g *LoopRepo) resolveExpiredApprovalRoute(
 			due.wait.NodeID, due.wait.ItemIndex, due.wait.IssuedEpoch),
 	)
 	return err
+}
+
+func expiredWaitResumeEventPayload(
+	due *dueWaitEscalation,
+	route string,
+	payload []byte,
+) map[string]any {
+	return map[string]any{
+		loopRunEventPayloadKeyGeneration:  due.wait.Generation,
+		loopRunEventPayloadKeyNodeID:      due.wait.NodeID,
+		loopRunEventPayloadKeyItemIndex:   due.wait.ItemIndex,
+		loopRunEventPayloadKeyIssuedEpoch: due.wait.IssuedEpoch,
+		loopRunEventPayloadKeyActorKind:   loopWaitClaimedByExpiry,
+		loopRunEventPayloadKeyActorID:     route,
+		loopRunEventPayloadKeyWaitKind:    due.wait.Kind,
+		loopRunEventPayloadKeyRoute:       route,
+		eventSummaryContentPayloadKey:     json.RawMessage(payload),
+	}
 }

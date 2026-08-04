@@ -252,6 +252,28 @@ func TestLoopActionRuntimeEnforcesActionLiveness(t *testing.T) {
 		}
 	})
 
+	t.Run("Should not treat a stalled session without activity as fresh evidence", func(t *testing.T) {
+		t.Parallel()
+
+		base := time.Date(2026, 7, 19, 0, 0, 0, 0, time.UTC)
+		usage := newLoopActionUsageState(func() time.Time { return base })
+		usage.ReportActionSessionBound("sess-stalled")
+		runtime := &loopActionRuntime{sessions: loopActionSessionStatusStub{info: &session.Info{
+			Liveness: &store.SessionLivenessMeta{StallState: store.SessionStallStateDetected},
+		}}}
+
+		evidence, err := runtime.refreshActionProgress(context.Background(), usage)
+		if err != nil {
+			t.Fatalf("refreshActionProgress() error = %v", err)
+		}
+		if evidence {
+			t.Fatal("refreshActionProgress() evidence = true, want stalled session silence")
+		}
+		if got := usage.snapshot().progressAt; !got.Equal(base) {
+			t.Fatalf("progressAt = %s, want unchanged %s", got, base)
+		}
+	})
+
 	t.Run("Should not turn a liveness read failure into silence", func(t *testing.T) {
 		t.Parallel()
 
@@ -312,6 +334,9 @@ func TestLoopActionRuntimeEnforcesActionLiveness(t *testing.T) {
 				State: session.StateStopped, StopReason: store.StopAgentCrashed,
 				Failure: &store.SessionFailure{Kind: store.FailureProcess, Summary: "provider process exited"},
 			}, events: []store.SessionEvent{{
+				SessionID: "sess-crashed", Sequence: 13, Type: acp.EventTypeAgentMessage,
+				Content: `{"malformed":`,
+			}, {
 				SessionID: "sess-crashed", Sequence: 14, Type: acp.EventTypeAgentMessage, Content: partialContent,
 			}}},
 			discardLogger(),
@@ -335,9 +360,9 @@ func TestLoopActionRuntimeEnforcesActionLiveness(t *testing.T) {
 				actionStore.resumeRequest, actionStore.resumeCalls.Load())
 		}
 		checkpoint := actionStore.resumeRequest.Checkpoint
-		if checkpoint == nil || checkpoint.EventStartSeq != 14 || checkpoint.EventEndSeq != 14 ||
+		if checkpoint == nil || checkpoint.EventStartSeq != 13 || checkpoint.EventEndSeq != 14 ||
 			len(checkpoint.Partials) != 1 || checkpoint.Partials[0].Text != "checkpointed partial before crash" {
-			t.Fatalf("death-resume checkpoint = %#v, want persisted event 14 partial", checkpoint)
+			t.Fatalf("death-resume checkpoint = %#v, want malformed event skipped and event 14 preserved", checkpoint)
 		}
 		if manager.completedCalls.Load() != 0 || manager.failure.RunID != "" {
 			t.Fatalf("completion/failure after continuation = %d/%#v, want authority-owned retirement",
@@ -345,7 +370,7 @@ func TestLoopActionRuntimeEnforcesActionLiveness(t *testing.T) {
 		}
 	})
 
-	t.Run("Should keep ambiguous session failure on the ordinary failure path", func(t *testing.T) {
+	t.Run("Should keep a session status failure on the ordinary failure path", func(t *testing.T) {
 		t.Parallel()
 
 		manager, taskRecord, run := newLoopActionLivenessTestFixture()
@@ -353,14 +378,12 @@ func TestLoopActionRuntimeEnforcesActionLiveness(t *testing.T) {
 		manager.run = run
 		actionStore := &loopActionCapacityTestStore{taskRecord: taskRecord, run: run}
 		runnerErr := errors.New("temporary transport read failure")
+		statusErr := errors.New("session status transport unavailable")
 		runtime, err := newLoopActionRuntime(
 			manager,
 			actionStore,
 			&loopActionLivenessTestRunner{sessionID: "sess-degraded", executeErr: runnerErr},
-			loopActionSessionStatusStub{info: &session.Info{
-				State: session.StateStopped, StopReason: store.StopError,
-				Failure: &store.SessionFailure{Kind: store.FailureTransport, Summary: "transport unavailable"},
-			}},
+			loopActionSessionStatusStub{err: statusErr},
 			discardLogger(),
 			nil,
 		)
@@ -369,7 +392,7 @@ func TestLoopActionRuntimeEnforcesActionLiveness(t *testing.T) {
 		}
 		err = runtime.executeQueuedRun(context.Background(), taskRecord, run, loopActionRuntimeReasonEnqueued)
 		if !errors.Is(err, runnerErr) {
-			t.Fatalf("executeQueuedRun(ambiguous) error = %v, want ordinary runner failure", err)
+			t.Fatalf("executeQueuedRun(status failure) error = %v, want ordinary runner failure", err)
 		}
 		if actionStore.resumeCalls.Load() != 0 || manager.failure.RunID != run.ID {
 			t.Fatalf("ambiguous failure resume/failure = %d/%#v, want no death continuation",

@@ -22,11 +22,20 @@ func (r *loopActionRuntime) resumeConfirmedDeadAction(
 	if r == nil || r.sessions == nil || strings.TrimSpace(sessionID) == "" {
 		return false, nil
 	}
-	info, err := r.sessions.Status(ctx, strings.TrimSpace(sessionID))
-	if err != nil || !confirmedLoopActionSessionDeath(info) {
+	sessionID = strings.TrimSpace(sessionID)
+	info, err := r.sessions.Status(ctx, sessionID)
+	if err != nil {
+		r.logger.Warn(
+			"daemon: inspect Loop action session before confirmed-death continuation",
+			"session_id", sessionID,
+			"error", err,
+		)
 		return false, nil
 	}
-	checkpoint, err := r.captureDeathResumeCheckpoint(ctx, strings.TrimSpace(sessionID))
+	if !confirmedLoopActionSessionDeath(info) {
+		return false, nil
+	}
+	checkpoint, err := r.captureDeathResumeCheckpoint(ctx, sessionID)
 	if err != nil {
 		return false, err
 	}
@@ -37,7 +46,7 @@ func (r *loopActionRuntime) resumeConfirmedDeadAction(
 	request, err := looppkg.DeadNodeResumeRequestForTaskRun(
 		run,
 		workspaceID,
-		strings.TrimSpace(sessionID),
+		sessionID,
 		checkpoint,
 		deathStreakLimit,
 		confirmedLoopActionDeathCause(info),

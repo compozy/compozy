@@ -17,6 +17,10 @@ var errLoopRetryDueWakeStoreRequired = errors.New(
 	"daemon: scheduler task store must support loop retry due-time recovery",
 )
 
+var errLoopAdmissionClaimSweeperRequired = errors.New(
+	"daemon: scheduler task store must support loop admission claim sweeping",
+)
+
 var _ loopRetryDueWakeStore = (*globaldb.GlobalDB)(nil)
 
 var _ loopWaitDueStore = (*globaldb.GlobalDB)(nil)
@@ -125,8 +129,11 @@ func (s schedulerTaskSource) resumeDueLoopWaits(ctx context.Context, now time.Ti
 	_, next, err := store.ResumeDueLoopWaitsPage(
 		ctx, now, s.loopWaitDueScan.cursor, defaultLoopRetryDueScanPageSize,
 	)
+	if err != nil {
+		return err
+	}
 	s.loopWaitDueScan.cursor = next
-	return err
+	return nil
 }
 
 func (s schedulerTaskSource) escalateDueLoopWaits(ctx context.Context, now time.Time) error {
@@ -142,14 +149,17 @@ func (s schedulerTaskSource) escalateDueLoopWaits(ctx context.Context, now time.
 	next, err := store.EscalateDueLoopWaitsPage(
 		ctx, now, s.loopWaitEscalationScan.cursor, defaultLoopRetryDueScanPageSize,
 	)
+	if err != nil {
+		return err
+	}
 	s.loopWaitEscalationScan.cursor = next
-	return err
+	return nil
 }
 
 func (s schedulerTaskSource) sweepLoopAdmissionClaims(ctx context.Context, now time.Time) error {
 	sweeper, ok := s.store.(loopAdmissionClaimSweeper)
 	if !ok {
-		return nil
+		return errLoopAdmissionClaimSweeperRequired
 	}
 	_, err := sweeper.SweepAdmissionClaims(
 		ctx,

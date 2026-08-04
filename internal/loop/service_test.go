@@ -407,6 +407,30 @@ func TestServiceTransitionShouldEnforceTruthyStatusFSM(t *testing.T) {
 			t.Fatalf("Transition(watching -> paused) error = %v, want ErrInvalidTransition", err)
 		}
 	})
+
+	t.Run("Should require an operator cancellation cause for live statuses", func(t *testing.T) {
+		t.Parallel()
+
+		for _, from := range []loop.Status{loop.StatusRunning, loop.StatusWatching} {
+			t.Run("Should gate "+string(from)+" to canceled", func(t *testing.T) {
+				t.Parallel()
+
+				store := newFakeLoopStore()
+				run := seedFakeRun(store, from)
+				svc := newTestService(t, store, validDefinition())
+				if err := svc.Transition(
+					context.Background(), run.ID, loop.StatusCanceled, loop.TransitionCauseContract,
+				); !errors.Is(err, loop.ErrInvalidTransition) {
+					t.Fatalf("Transition(%s -> canceled, contract) error = %v, want ErrInvalidTransition", from, err)
+				}
+				if err := svc.Transition(
+					context.Background(), run.ID, loop.StatusCanceled, loop.TransitionCauseOperatorCancel,
+				); err != nil {
+					t.Fatalf("Transition(%s -> canceled, operator) error = %v", from, err)
+				}
+			})
+		}
+	})
 }
 
 func TestEffectiveConfigShouldMergeLayersAndClampCeilings(t *testing.T) {
@@ -2179,6 +2203,9 @@ func TestServiceCancellationShouldRecordCanceledTerminalTruth(t *testing.T) {
 		if got := store.mustRun(t, run.ID).Status; got != loop.StatusDone {
 			t.Fatalf("stored status = %q, want done", got)
 		}
+		if len(store.cancellationStates) != 0 {
+			t.Fatalf("terminal cancellation states = %#v, want no delivery or advancement", store.cancellationStates)
+		}
 	})
 
 	t.Run("Should make repeated cooperative cancel a no-op", func(t *testing.T) {
@@ -2310,10 +2337,72 @@ func TestServiceCancellationShouldRecordCanceledTerminalTruth(t *testing.T) {
 	})
 }
 
+func TestServiceNodePauseShouldRetryCancellationDelivery(t *testing.T) {
+	t.Parallel()
+
+	base := newFakeLoopStore()
+	store := &nodePauseRetryStore{Store: base}
+	deliveries := 0
+	svc := newTestServiceWithOptions(
+		t,
+		store,
+		validDefinition(),
+		loop.WithCancellationSessionController(loop.CancellationSessionControllerFuncs{
+			Cancel: func(context.Context, string, string) error {
+				deliveries++
+				if deliveries == 1 {
+					return errors.New("temporary cancellation delivery failure")
+				}
+				return nil
+			},
+		}),
+	)
+	nodes := svc.(loop.NodeLifecycleService)
+	actor := humanActor(t)
+	if _, err := nodes.PauseNode(
+		context.Background(), "ws-1", "run-1", "worker", loop.NodePauseCancel, "repair", actor,
+	); err == nil {
+		t.Fatal("PauseNode(first) error = nil, want delivery failure")
+	}
+	result, err := nodes.PauseNode(
+		context.Background(), "ws-1", "run-1", "worker", loop.NodePauseCancel, "repair", actor,
+	)
+	if err != nil {
+		t.Fatalf("PauseNode(retry) error = %v", err)
+	}
+	if result.Applied || deliveries != 2 {
+		t.Fatalf("PauseNode(retry) = %#v deliveries=%d, want replayed control and redelivery", result, deliveries)
+	}
+}
+
 func newTestService(t *testing.T, store *fakeLoopStore, def dsl.Definition) loop.Service {
 	t.Helper()
 
 	return newTestServiceWithOptions(t, store, def)
+}
+
+type nodePauseRetryStore struct {
+	loop.Store
+	calls int
+}
+
+func (s *nodePauseRetryStore) PauseNode(
+	context.Context,
+	loop.NodePauseMutation,
+) (loop.NodePauseResult, error) {
+	s.calls++
+	return loop.NodePauseResult{
+		Control:    loop.NodeControl{LoopRunID: "run-1", NodeID: "worker", Paused: true},
+		SessionIDs: []string{"session-worker"},
+		Applied:    s.calls == 1,
+	}, nil
+}
+
+func (s *nodePauseRetryStore) ResumeNode(
+	context.Context,
+	loop.NodeResumeMutation,
+) (loop.NodeResumeResult, error) {
+	return loop.NodeResumeResult{}, errors.New("unexpected ResumeNode call")
 }
 
 func newTestServiceWithOptions(

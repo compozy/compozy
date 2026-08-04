@@ -35,26 +35,29 @@ func (g *TaskRepo) CompleteCoordinatorAndEnqueueNext(
 	}
 
 	var result taskpkg.CoordinatorCompletionResult
+	committed := normalized
 	if err := g.withTaskImmediateTransaction(
 		ctx,
 		"complete coordinator and enqueue next",
 		func(exec taskSQLExecutor) error {
+			attempt := normalized
 			applied, applyErr := g.completeCoordinatorAndEnqueueNextWithExecutor(
 				ctx,
 				exec,
-				&normalized,
+				&attempt,
 				finalizer,
 			)
 			if applyErr != nil {
 				return applyErr
 			}
 			result = applied
+			committed = attempt
 			return nil
 		},
 	); err != nil {
 		return taskpkg.CoordinatorCompletionResult{}, err
 	}
-	if err := g.enqueueCoordinatorPostCommitWakes(ctx, normalized); err != nil {
+	if err := g.enqueueCoordinatorPostCommitWakes(ctx, committed); err != nil {
 		return result, err
 	}
 	return result, nil

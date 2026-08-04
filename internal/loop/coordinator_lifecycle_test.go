@@ -917,6 +917,13 @@ func runLifecyclePayloadFailurePlan(
 func TestCoordinatorQuarantineShouldPreserveDiagnosableSanitizedHistory(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should append sanitized diagnosable history", testCoordinatorQuarantineSanitizedHistory)
+	t.Run("Should bound oversized encoded history", testCoordinatorQuarantineBoundedHistory)
+}
+
+func testCoordinatorQuarantineSanitizedHistory(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, time.August, 2, 23, 0, 0, 0, time.UTC)
 	failureClass := FailureTransport
 	oldEntry, err := encodeQuarantineEntry(QuarantineEntry{
@@ -989,6 +996,13 @@ func TestCoordinatorQuarantineShouldPreserveDiagnosableSanitizedHistory(t *testi
 		event.Kind != GenerationLifecycleEventNodeQuarantined || event.Disposition != AttemptQuarantined {
 		t.Fatalf("mutation/event = %#v / %#v, want atomic quarantine intents", mutation, event)
 	}
+}
+
+func testCoordinatorQuarantineBoundedHistory(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.August, 2, 23, 0, 0, 0, time.UTC)
+	failureClass := FailureTransport
 
 	oversized := QuarantineEntry{NodeID: "fetch", InputRef: quarantineInputRef(
 		Run{ID: "looprun-quarantine-history"}, "fetch",
@@ -1026,6 +1040,31 @@ func TestCoordinatorQuarantineShouldPreserveDiagnosableSanitizedHistory(t *testi
 		len(boundedEntry.Requeues) == 0 ||
 		boundedEntry.Requeues[len(boundedEntry.Requeues)-1].Generation != maxQuarantineEpisodes+8 {
 		t.Fatalf("bounded quarantine entry = %#v, want latest evidence with truncation marker", boundedEntry)
+	}
+}
+
+func TestCoordinatorPausedNodeControlsShouldPreserveSettledPlan(t *testing.T) {
+	t.Parallel()
+
+	run := Run{ID: "looprun-paused-settled", WorkspaceID: "ws-1"}
+	runner := &CoordinatorRunner{controls: coordinatorNodeControlReaderStub{controls: []NodeControl{{
+		LoopRunID: run.ID, NodeID: "work", Paused: true,
+	}}}}
+	plan := task.CoordinatorCompletionPlan{
+		Snapshot: task.GenerationSnapshot{Payload: GenerationSnapshotPayload{Outputs: []GenerationOutput{{
+			Generation: 1, NodeID: "work", Status: generationOutputSucceeded,
+		}}}},
+		Terminal: &task.CoordinatorTerminal{Status: string(StatusDone)},
+	}
+
+	updated, err := runner.applyPausedNodeControls(context.Background(), run, plan)
+	if err != nil {
+		t.Fatalf("applyPausedNodeControls() error = %v", err)
+	}
+	payload := coordinatorSnapshotPayloadForTest(t, updated)
+	if updated.Terminal == nil || updated.Yield || updated.GenerationInFlight ||
+		payload.Outputs[0].Status != generationOutputSucceeded {
+		t.Fatalf("settled paused-node plan = %#v payload=%#v, want unchanged terminal truth", updated, payload)
 	}
 }
 

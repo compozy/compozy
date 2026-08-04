@@ -34,6 +34,7 @@ type nodeLivenessCell struct {
 	itemIndex  int
 	last       *time.Time
 	attention  string
+	reason     string
 }
 
 func recordNodeLivenessWithExecutor(
@@ -126,8 +127,10 @@ func loadLiveLivenessCell(
 		itemIndex:  metadata.ItemIndex,
 	}
 	var last sql.NullTime
-	err = exec.QueryRowContext(ctx, `SELECT last_evidence_at, attention_flag FROM loop_node_controls
-		WHERE loop_run_id = ? AND node_id = ?`, observation.LoopRunID, metadata.NodeID).Scan(&last, &cell.attention)
+	err = exec.QueryRowContext(ctx, `SELECT last_evidence_at, attention_flag, attention_reason
+		FROM loop_node_controls WHERE loop_run_id = ? AND node_id = ?`,
+		observation.LoopRunID, metadata.NodeID,
+	).Scan(&last, &cell.attention, &cell.reason)
 	if errors.Is(err, sql.ErrNoRows) {
 		return cell, true, nil
 	}
@@ -153,22 +156,19 @@ func upsertNodeLivenessControl(
 		last = &observedAt
 	}
 	attention := cell.attention
-	reason := ""
+	reason := cell.reason
 	if observation.Evidence {
 		if attention == looppkg.AttentionSilence {
 			attention = ""
+			reason = ""
 		}
 	} else if observation.SilenceAfter > 0 && observedAt.Sub(last.UTC()) >= observation.SilenceAfter &&
 		(attention == "" || attention == looppkg.AttentionSilence) {
 		attention = looppkg.AttentionSilence
 		reason = "No liveness evidence was observed within the configured silence window."
 	}
-	if attention == cell.attention && cell.last != nil && last.Equal(cell.last.UTC()) {
+	if attention == cell.attention && reason == cell.reason && cell.last != nil && last.Equal(cell.last.UTC()) {
 		return nil
-	}
-	deathStreak := "death_resume_streak"
-	if observation.Evidence {
-		deathStreak = "0"
 	}
 	_, err := exec.ExecContext(ctx, `INSERT INTO loop_node_controls (
 		loop_run_id, node_id, attention_flag, attention_reason, last_evidence_at, death_resume_streak, revision, updated_at
@@ -177,10 +177,9 @@ func upsertNodeLivenessControl(
 		attention_flag = excluded.attention_flag,
 		attention_reason = excluded.attention_reason,
 		last_evidence_at = excluded.last_evidence_at,
-		death_resume_streak = `+deathStreak+`,
-		revision = loop_node_controls.revision + 1,
+		death_resume_streak = CASE WHEN ? THEN 0 ELSE loop_node_controls.death_resume_streak END,
 		updated_at = excluded.updated_at`,
-		observation.LoopRunID, cell.nodeID, attention, reason, last.UTC(), observedAt,
+		observation.LoopRunID, cell.nodeID, attention, reason, last.UTC(), observedAt, observation.Evidence,
 	)
 	if err != nil {
 		return fmt.Errorf("store: upsert Loop node liveness control: %w", err)

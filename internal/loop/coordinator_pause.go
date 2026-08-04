@@ -33,9 +33,9 @@ func (r *CoordinatorRunner) applyPausedNodeControls(
 		if _, found := paused[NodeID(payload.Outputs[index].NodeID)]; !found {
 			continue
 		}
-		parked = true
 		switch payload.Outputs[index].Status {
 		case generationOutputPending, generationOutputEnqueued, generationOutputRetrying:
+			parked = true
 			payload.Outputs[index].Status = generationOutputPaused
 			payload.Outputs[index].TaskRunID = ""
 			payload.Outputs[index].Epoch++

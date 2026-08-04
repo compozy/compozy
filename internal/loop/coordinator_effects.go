@@ -146,6 +146,10 @@ func attachPauseEventEffects(
 			event.Kind != GenerationLifecycleEventNodeWaitStarted {
 			continue
 		}
+		if event.Kind == GenerationLifecycleEventNodeWaitStarted &&
+			hasMatchingWaitResumeEvent(*payload, *event) {
+			continue
+		}
 		node, found := graphNode(graph, dsl.NodeID(event.NodeID))
 		if !found {
 			return fmt.Errorf("%w: pause effect event references unknown node %q", ErrValidation, event.NodeID)
@@ -163,6 +167,19 @@ func attachPauseEventEffects(
 		event.Effects = append(event.Effects, intents...)
 	}
 	return nil
+}
+
+func hasMatchingWaitResumeEvent(payload GenerationSnapshotPayload, started GenerationLifecycleEventIntent) bool {
+	for _, event := range payload.Events {
+		if event.Kind == GenerationLifecycleEventNodeWaitResumed &&
+			event.NodeID == started.NodeID &&
+			event.ItemIndex == started.ItemIndex &&
+			event.Attempt == started.Attempt &&
+			event.IssuedEpoch == started.IssuedEpoch {
+			return true
+		}
+	}
+	return false
 }
 
 func attachQuarantineEffectIntents(

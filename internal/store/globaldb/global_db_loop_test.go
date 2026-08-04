@@ -306,6 +306,13 @@ func TestGlobalDBLoopRunCancellationShouldFenceBeforeTerminalizing(t *testing.T)
 				taskpkg.IsTerminalRunStatus(result.Coordinator.Status)) {
 			t.Fatalf("draining coordinator = %#v, want an open wake for the canceled Run", result.Coordinator)
 		}
+		if state == looppkg.CancelStateDraining &&
+			!strings.Contains(cancellationWakeIdempotencyKey(mutation), ".run:"+string(run.ID)+".") {
+			t.Fatalf(
+				"run cancellation wake key = %q, want explicit run scope",
+				cancellationWakeIdempotencyKey(mutation),
+			)
+		}
 	}
 	if result.Terminal || result.Run.Status != looppkg.StatusRunning {
 		t.Fatalf("draining cancellation = %#v, want non-terminal running truth", result)
@@ -524,6 +531,13 @@ func TestGlobalDBLoopNodeCancellationShouldCloseAttemptsAndEffectsAtomically(t *
 				t.Fatalf(
 					"draining node coordinator = %#v, want an open wake for the canceled node",
 					advanced.Coordinator,
+				)
+			}
+			if state == looppkg.CancelStateDraining &&
+				!strings.Contains(cancellationWakeIdempotencyKey(mutation), ".node:work.") {
+				t.Fatalf(
+					"node cancellation wake key = %q, want explicit node scope",
+					cancellationWakeIdempotencyKey(mutation),
 				)
 			}
 		}
@@ -759,6 +773,29 @@ func TestGlobalDBLoopNodeLivenessShouldRaiseAndSelfClearSilenceAttention(t *test
 	if countLoopEventKindForTest(events, loopRunEventNodeAttentionFlagged) != 1 ||
 		countLoopEventKindForTest(events, loopRunEventNodeAttentionCleared) != 1 {
 		t.Fatalf("attention events = %#v, want one flagged and one cleared", events)
+	}
+	if _, err := globalDB.db.ExecContext(ctx, `UPDATE loop_node_controls SET
+		attention_flag = 'expired_wait', attention_reason = 'operator intervention required',
+		death_resume_streak = 2, revision = 9 WHERE loop_run_id = ? AND node_id = 'work'`, run.ID); err != nil {
+		t.Fatalf("seed unrelated attention error = %v", err)
+	}
+	observation.ObservedAt = now.Add(33 * time.Minute)
+	if err := globalDB.RecordNodeLiveness(ctx, observation); err != nil {
+		t.Fatalf("RecordNodeLiveness(unrelated attention) error = %v", err)
+	}
+	var attention, reason string
+	var revision, deathStreak int
+	var lastEvidenceAt time.Time
+	if err := globalDB.db.QueryRowContext(ctx, `SELECT attention_flag, attention_reason,
+		revision, death_resume_streak, last_evidence_at FROM loop_node_controls
+		WHERE loop_run_id = ? AND node_id = 'work'`, run.ID).
+		Scan(&attention, &reason, &revision, &deathStreak, &lastEvidenceAt); err != nil {
+		t.Fatalf("read unrelated attention truth error = %v", err)
+	}
+	if attention != "expired_wait" || reason != "operator intervention required" ||
+		revision != 9 || deathStreak != 0 || !lastEvidenceAt.Equal(observation.ObservedAt) {
+		t.Fatalf("unrelated attention truth = %q/%q/r%d/streak%d/%v, want preserved alert without revision bump",
+			attention, reason, revision, deathStreak, lastEvidenceAt)
 	}
 }
 
@@ -2820,6 +2857,44 @@ func TestGlobalDBLoopNodePauseShouldFenceAndRestoreRetryState(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reload cancellation sessions when a cancel pause is replayed", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, time.August, 4, 9, 48, 0, 0, time.UTC)
+		run, taskRunID := seedLiveLoopLivenessCellForTest(t, globalDB, now)
+		if _, err := globalDB.db.ExecContext(ctx, `UPDATE task_runs
+			SET metadata_json = json_set(metadata_json, '$.node_id', 'finish') WHERE id = ?`, taskRunID); err != nil {
+			t.Fatalf("retarget pause task metadata error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(ctx, `UPDATE loop_generation_outputs
+			SET node_id = 'finish' WHERE loop_run_id = ? AND task_run_id = ?`, run.ID, taskRunID); err != nil {
+			t.Fatalf("retarget pause output error = %v", err)
+		}
+		seedLoopCancellationBindingForTest(
+			t, globalDB, string(run.ID), string(run.WorkspaceID), "main", 1, "session-work", now,
+		)
+		mutation := looppkg.NodePauseMutation{
+			WorkspaceID: run.WorkspaceID, RunID: run.ID, NodeID: "finish",
+			Mode: looppkg.NodePauseCancel, Reason: "repair active work",
+			Actor: operatorActorContextForTest("operator:pause-retry"), RequestedAt: now.Add(time.Minute),
+		}
+		first, err := globalDB.PauseNode(ctx, mutation)
+		if err != nil {
+			t.Fatalf("PauseNode(first cancel pause) error = %v", err)
+		}
+		replay, err := globalDB.PauseNode(ctx, mutation)
+		if err != nil {
+			t.Fatalf("PauseNode(replayed cancel pause) error = %v", err)
+		}
+		if !first.Applied || replay.Applied ||
+			!slices.Equal(first.SessionIDs, []string{"session-work"}) ||
+			!slices.Equal(replay.SessionIDs, first.SessionIDs) {
+			t.Fatalf("cancel pause first/replay = %#v / %#v, want durable session redelivery", first, replay)
+		}
+	})
+
 	t.Run("Should reject a pause on a terminal run", func(t *testing.T) {
 		t.Parallel()
 
@@ -3149,6 +3224,40 @@ func TestGlobalDBLoopWaitResumeShouldClaimExactlyOnce(t *testing.T) {
 		result, err := globalDB.ResumeWait(ctx, mutation)
 		if err != nil || !result.Won || result.Coordinator == nil {
 			t.Fatalf("ResumeWait(after rollback) = %#v, %v, want one committed winner", result, err)
+		}
+	})
+
+	t.Run("Should classify a missing wait output as a transition conflict", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, time.August, 4, 10, 28, 0, 0, time.UTC)
+		run, err := globalDB.CreateLoopRunForStart(
+			ctx,
+			testLoopRun("looprun-wait-resume-missing-output", now, looppkg.StatusRunning),
+			dsl.ConcurrencyAllow,
+		)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		completeInitialCoordinatorForParkedFixture(t, globalDB, run, now)
+		seedLoopWaitCellForTest(
+			t, globalDB, run, "wait_without_output", 0, "event", 3,
+			json.RawMessage(`{"type":"object"}`), nil, nil, now,
+		)
+		if _, err := globalDB.db.ExecContext(ctx, `DELETE FROM loop_generation_outputs
+			WHERE loop_run_id = ? AND node_id = 'wait_without_output'`, run.ID); err != nil {
+			t.Fatalf("delete wait output error = %v", err)
+		}
+		_, err = globalDB.ResumeWait(ctx, looppkg.WaitResumeMutation{
+			WorkspaceID: run.WorkspaceID, RunID: run.ID, Generation: 1,
+			NodeID: "wait_without_output", ItemIndex: 0, Payload: []byte(`{}`),
+			ClaimedByKind: "operator", ClaimedByID: "operator:missing-output",
+			AdmissionAttempts: 3, RequestedAt: now.Add(time.Minute),
+		})
+		if !errors.Is(err, looppkg.ErrTransitionConflict) {
+			t.Fatalf("ResumeWait(missing output) error = %v, want ErrTransitionConflict", err)
 		}
 	})
 }
@@ -3493,6 +3602,7 @@ func TestGlobalDBLoopWaitEscalationShouldUseRelayAndHonorDecision(t *testing.T) 
 			t.Fatalf("routed expiry = %s/%s/%s/%s/%s, want resumed expiry timeout route",
 				claimState, claimedByKind, claimedByID, outputStatus, outputRef)
 		}
+		assertExpiredWaitResumeEventPayloadForTest(t, globalDB, created, "timeout", looppkg.NodeWaitKindTimer)
 	})
 
 	t.Run("Should flag terminal expiry when no timeout route exists", func(t *testing.T) {
@@ -3702,6 +3812,27 @@ func TestGlobalDBLoopWaitEscalationShouldUseRelayAndHonorDecision(t *testing.T) 
 			!stored.StartedAt.Equal(now.Add(2*time.Minute)) {
 			t.Fatalf("routed approval = status:%s gate:%s state:%s output:%s started:%s",
 				stored.Status, stored.ActiveGateID, state, outputRef, stored.StartedAt)
+		}
+		assertExpiredWaitResumeEventPayloadForTest(
+			t, globalDB, created, "timed_out", looppkg.NodeWaitKindApprovalEscalation,
+		)
+	})
+
+	t.Run("Should classify a missing escalation output as a transition conflict", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, time.August, 4, 15, 15, 0, 0, time.UTC)
+		err := validateDueWaitEscalationCell(ctx, globalDB.db, waitEscalationCell{
+			nextEscalationAt: now,
+			runID:            "looprun-missing-escalation-output",
+			generation:       1,
+			nodeID:           "wait_for_ack",
+			itemIndex:        0,
+		}, looppkg.NodeWait{Kind: looppkg.NodeWaitKindTimer, IssuedEpoch: 3})
+		if !errors.Is(err, looppkg.ErrTransitionConflict) {
+			t.Fatalf("validateDueWaitEscalationCell(missing output) error = %v, want ErrTransitionConflict", err)
 		}
 	})
 }
@@ -4200,6 +4331,42 @@ func countLoopEventKindForTest(events []looppkg.RunEvent, kind string) int {
 		}
 	}
 	return count
+}
+
+func assertExpiredWaitResumeEventPayloadForTest(
+	t *testing.T,
+	globalDB *GlobalDB,
+	run looppkg.Run,
+	route string,
+	waitKind string,
+) {
+	t.Helper()
+	events, err := globalDB.ListLoopRunEvents(testutil.Context(t), looppkg.RunEventQuery{
+		WorkspaceID: run.WorkspaceID,
+		RunID:       run.ID,
+		Limit:       100,
+	})
+	if err != nil {
+		t.Fatalf("ListLoopRunEvents(expired wait) error = %v", err)
+	}
+	for _, event := range events {
+		if event.Kind != loopRunEventNodeWaitResumed {
+			continue
+		}
+		var payload map[string]any
+		if err := json.Unmarshal(event.Payload, &payload); err != nil {
+			t.Fatalf("json.Unmarshal(expired wait event) error = %v", err)
+		}
+		content, ok := payload[eventSummaryContentPayloadKey].(map[string]any)
+		if !ok || content[loopRunEventPayloadKeyExpired] != true ||
+			content[loopRunEventPayloadKeyRoute] != route ||
+			payload[loopRunEventPayloadKeyActorKind] != loopWaitClaimedByExpiry ||
+			payload[loopRunEventPayloadKeyWaitKind] != waitKind {
+			t.Fatalf("expired wait event payload = %#v, want shared expiry payload for %q", payload, waitKind)
+		}
+		return
+	}
+	t.Fatalf("expired wait events = %#v, want node_wait_resumed", events)
 }
 
 func countLoopRunsByStatus(

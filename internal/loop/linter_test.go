@@ -312,6 +312,29 @@ func TestLinterShouldValidateGenerationHistoryReferences(t *testing.T) {
 	}
 }
 
+func TestLinterShouldValidateWaitEventFilterReferences(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject unavailable node output references in wait event filters", func(t *testing.T) {
+		t.Parallel()
+
+		definition := singleNodeDefinition(dsl.Node{
+			ID: "wait_for_task", Class: dsl.NodeClassControl, Kind: string(dsl.ControlWait),
+			Params: dsl.NodeParams{"event": map[string]any{
+				"kind":   "task.status_changed",
+				"filter": `event.task_id == nodes.producer.output.task_id`,
+			}},
+		})
+		definition.Graph.Nodes = append(definition.Graph.Nodes, dsl.Node{
+			ID: "producer", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent),
+			Params: dsl.NodeParams{"agent": "codex", "prompt": "Produce a task id"},
+		})
+		definition.Graph.Edges = append(definition.Graph.Edges, dsl.Edge{From: "wait_for_task", To: "producer"})
+		errs := loop.NewLinter().Lint(definition)
+		requireLintDiagnostic(t, errs, refs.CodeUnresolvablePath, loop.SeverityWarning)
+	})
+}
+
 func TestLinterShouldRejectStructuralAndReferenceInvalidShapes(t *testing.T) {
 	t.Parallel()
 

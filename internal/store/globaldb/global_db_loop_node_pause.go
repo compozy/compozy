@@ -49,6 +49,16 @@ func (g *LoopRepo) PauseNode(
 		}
 		if found && control.Paused {
 			result.Control = control
+			if mutation.Mode == looppkg.NodePauseCancel {
+				result.SessionIDs, err = listNodeCancellationSessions(ctx, exec, looppkg.CancellationMutation{
+					WorkspaceID: mutation.WorkspaceID,
+					RunID:       mutation.RunID,
+					NodeID:      mutation.NodeID,
+				})
+				if err != nil {
+					return err
+				}
+			}
 			return nil
 		}
 		if mutation.Mode == looppkg.NodePauseCancel {

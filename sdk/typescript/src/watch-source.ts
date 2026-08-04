@@ -16,6 +16,7 @@ export interface WatchPollRequest {
 
 export interface WatchPollResponse {
   ready: boolean;
+  /** Stable delivery identity; trimmed, NFC-normalized, non-empty, and limited to 256 UTF-8 bytes. */
   event_key: string;
   state_digest?: string;
   payload?: JSONValue;

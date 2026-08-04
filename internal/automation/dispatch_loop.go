@@ -132,6 +132,9 @@ func (d *Dispatcher) dispatchLoopBackedAttempt(
 	if strings.TrimSpace(result.RunID) == "" {
 		return d.finishRun(ctx, scheduledRun, RunFailed, errors.New("automation: loop starter returned empty run id"))
 	}
+	if result.Suppressed {
+		scheduledRun.Metadata = loopSuppressionMetadata(scheduledRun.Metadata, result.SuppressedCount)
+	}
 
 	delegatedRun, err := d.delegateRunToLoop(ctx, scheduledRun, result.RunID)
 	if err != nil {
@@ -139,6 +142,16 @@ func (d *Dispatcher) dispatchLoopBackedAttempt(
 	}
 	d.dispatchPostFireHook(ctx, req, *delegatedRun)
 	return delegatedRun, nil
+}
+
+func loopSuppressionMetadata(existing map[string]any, suppressedCount int) map[string]any {
+	metadata := cloneJSONMap(existing)
+	if metadata == nil {
+		metadata = make(map[string]any, 2)
+	}
+	metadata["loop_suppressed"] = true
+	metadata["loop_suppressed_count"] = suppressedCount
+	return metadata
 }
 
 func loopAdmissionEventKey(envelope *ActivationEnvelope) string {

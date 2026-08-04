@@ -520,7 +520,13 @@ func TestCoordinatorRunnerEventWaitAheadArrival(t *testing.T) {
 		t.Parallel()
 
 		now := time.Date(2026, time.August, 4, 16, 0, 0, 0, time.UTC)
-		resolved, err := NewCompiler().Compile(eventWaitDefinitionForTest(dsl.WaitAheadConsumeOnEntry))
+		definition := eventWaitDefinitionForTest(dsl.WaitAheadConsumeOnEntry)
+		definition.Graph.Nodes[0].NodeLifecycleState = &dsl.NodeLifecycleState{
+			TriggerEffects: dsl.TriggerEffects{OnPause: []dsl.EffectSpec{{
+				Emit: &dsl.EmitSpec{Kind: "wait_paused"},
+			}}},
+		}
+		resolved, err := NewCompiler().Compile(definition)
 		if err != nil {
 			t.Fatalf("Compile() error = %v", err)
 		}
@@ -562,6 +568,11 @@ func TestCoordinatorRunnerEventWaitAheadArrival(t *testing.T) {
 		}
 		if len(payload.OutputBlobs) != 1 || len(payload.Events) != 2 {
 			t.Fatalf("ahead wait blobs/events = %d/%d, want 1/2", len(payload.OutputBlobs), len(payload.Events))
+		}
+		for _, event := range payload.Events {
+			if event.Kind == GenerationLifecycleEventNodeWaitStarted && len(event.Effects) != 0 {
+				t.Fatalf("ahead-consumed wait start effects = %#v, want no on_pause delivery", event.Effects)
+			}
 		}
 	})
 

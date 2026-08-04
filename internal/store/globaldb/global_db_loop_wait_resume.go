@@ -207,6 +207,9 @@ func validateWaitResumeCell(
 		WHERE output.loop_run_id = ? AND output.generation = ? AND output.node_id = ?
 		AND output.item_index = ?`, mutation.RunID, mutation.Generation, mutation.NodeID,
 		mutation.ItemIndex).Scan(&status, &epoch, &paused, &quarantined, &cancelState)
+	if errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("%w: wait cell no longer exists", looppkg.ErrTransitionConflict)
+	}
 	if err != nil {
 		return fmt.Errorf("store: load Loop wait cell: %w", err)
 	}

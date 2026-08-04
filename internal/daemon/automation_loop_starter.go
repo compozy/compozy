@@ -163,10 +163,12 @@ func (s *automationLoopStarter) StartLoop(
 }
 
 func automationLoopAdmission(req automationpkg.LoopStartRequest) *looppkg.AdmissionIdentity {
-	if strings.TrimSpace(req.SourceKey) == "" || strings.TrimSpace(req.EventKey) == "" {
+	sourceKey := strings.TrimSpace(req.SourceKey)
+	eventKey := strings.TrimSpace(req.EventKey)
+	if sourceKey == "" || eventKey == "" {
 		return nil
 	}
-	return &looppkg.AdmissionIdentity{SourceKey: req.SourceKey, EventKey: req.EventKey}
+	return &looppkg.AdmissionIdentity{SourceKey: sourceKey, EventKey: eventKey}
 }
 
 func automationLoopStartMetadata(req automationpkg.LoopStartRequest) map[string]any {

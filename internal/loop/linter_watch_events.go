@@ -118,6 +118,10 @@ func (c *lintContext) lintWatchEventsProduces(node dsl.Node) {
 }
 
 func (c *lintContext) lintWatchEventsFilterReferences(node dsl.Node, namespace refs.Namespace) {
+	if node.Class == dsl.NodeClassControl && dsl.ControlKind(node.Kind) == dsl.ControlWait {
+		c.lintWaitEventFilterReferences(node, namespace)
+		return
+	}
 	if node.Class != dsl.NodeClassSource || dsl.SourceKind(node.Kind) != dsl.SourceWatchEvents {
 		return
 	}
@@ -149,6 +153,29 @@ func (c *lintContext) lintWatchEventsFilterReferences(node dsl.Node, namespace r
 			c.warnUnknownOutputReferences(node.ID, condition.References, eventNamespace)
 		}
 		c.lintWatchEventsRequiredVars(node, idx, subscription, contract)
+	}
+}
+
+func (c *lintContext) lintWaitEventFilterReferences(node dsl.Node, namespace refs.Namespace) {
+	var params dsl.WaitParams
+	if err := node.Params.Decode(&params); err != nil || params.Event == nil ||
+		strings.TrimSpace(params.Event.Filter) == "" {
+		return
+	}
+	eventNamespace := namespaceWithEvent(namespace)
+	condition, err := c.compileCondition(params.Event.Filter, eventNamespace)
+	if err != nil {
+		c.add(
+			node.ID,
+			CodeWatchEventsFilterInvalid,
+			"wait params.event.filter for kind %q is invalid: %v",
+			params.Event.Kind,
+			err,
+		)
+		return
+	}
+	if condition != nil {
+		c.warnUnknownOutputReferences(node.ID, condition.References, eventNamespace)
 	}
 }
 

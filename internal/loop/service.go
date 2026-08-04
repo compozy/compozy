@@ -344,20 +344,18 @@ func allowedTransition(from Status, to Status, cause TransitionCause) bool {
 	case StatusRunning:
 		switch to {
 		case StatusWatching, StatusNeedsApproval, StatusPaused,
-			StatusDone, StatusNoOp, StatusBlocked, StatusFailed, StatusExhausted, StatusStalled,
-			StatusCanceled:
+			StatusDone, StatusNoOp, StatusBlocked, StatusFailed, StatusExhausted, StatusStalled:
 			return true
 		default:
-			return false
+			return cancelTransition(to, cause)
 		}
 	case StatusWatching:
 		switch to {
 		case StatusRunning, StatusNeedsApproval,
-			StatusDone, StatusNoOp, StatusBlocked, StatusFailed, StatusExhausted, StatusStalled,
-			StatusCanceled:
+			StatusDone, StatusNoOp, StatusBlocked, StatusFailed, StatusExhausted, StatusStalled:
 			return true
 		default:
-			return false
+			return cancelTransition(to, cause)
 		}
 	case StatusNeedsApproval:
 		return to == StatusRunning || to == StatusBlocked || cancelTransition(to, cause)

@@ -17,6 +17,7 @@ const (
 	loopActionNodeResume  = "loop_node_resume"
 	loopActionNodeCancel  = "loop_node_cancel"
 	loopActionNodeKill    = "loop_node_kill"
+	loopActionNodeList    = "loop_node_list"
 	loopActionNodeRequeue = "loop_node_requeue"
 )
 
@@ -134,6 +135,10 @@ func (h *BaseHandlers) RequeueLoopNode(c *gin.Context) {
 func (h *BaseHandlers) ListLoopNodes(c *gin.Context) {
 	service, ok := h.requireLoopService(c)
 	if !ok {
+		return
+	}
+	if _, err := h.taskActorContextForWorkspace(c, loopActionNodeList, c.Param("workspace_id")); err != nil {
+		h.respondLoopError(c, err)
 		return
 	}
 	query, err := ParseLoopNodeListQuery(c)

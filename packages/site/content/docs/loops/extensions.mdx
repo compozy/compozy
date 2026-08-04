@@ -62,15 +62,19 @@ An extension declares a watch source with the SDK:
 
 ```ts
 extension.watchSource("acme.pull_request", {/* options */}, async (spec, expectedStateDigest) => {
-  // return { ready, state_digest, payload, settled_at }
+  // return { ready, event_key, state_digest, payload, settled_at }
 });
 ```
 
 `extension.watchSource()` auto-declares the `loop.watch_source` capability and registers the
 `watch/poll` handler. The daemon calls it synchronously — `{ spec, expected_state_digest }` in,
-`{ ready, state_digest, payload, settled_at }` out — driven by the coordinator's own task run
+`{ ready, event_key, state_digest, payload, settled_at }` out — driven by the coordinator's own task run
 (claim → poll → yield → re-claim), never a parked goroutine. There is no push path in this version;
 the coordinator polls.
+
+Every poll response must include `event_key`, a stable deduplication identity for the observed
+delivery. Compozy trims it, normalizes it to UTF-8 NFC, and rejects an empty value or a value longer
+than 256 bytes. Reuse the same key when a poll observes the same delivery again.
 
 ### Watch runtime behavior
 

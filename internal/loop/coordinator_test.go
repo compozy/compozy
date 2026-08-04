@@ -193,6 +193,26 @@ func TestCoordinatorActionExecutionInputShouldCarryPinnedGoalPolicy(t *testing.T
 	})
 }
 
+func TestCoordinatorActionMetadataShouldDistinguishContinuationFailures(t *testing.T) {
+	t.Parallel()
+
+	base := `{"generation":1,"node_id":"work","item_index":0,"attempt":1,"epoch":1,`
+	_, unknownErr := parseCoordinatorActionRunMetadata(json.RawMessage(
+		base + `"continuation_kind":"unexpected","resume_from_task_run_id":"run-1",` +
+			`"resume_from_session_id":"session-1"}`,
+	))
+	if !errors.Is(unknownErr, ErrValidation) || !strings.Contains(unknownErr.Error(), `"unexpected"`) {
+		t.Fatalf("unknown continuation error = %v, want distinct kind validation", unknownErr)
+	}
+	_, incompleteErr := parseCoordinatorActionRunMetadata(json.RawMessage(
+		base + `"continuation_kind":"death_resume"}`,
+	))
+	if !errors.Is(incompleteErr, ErrValidation) ||
+		!strings.Contains(incompleteErr.Error(), "provenance is incomplete") {
+		t.Fatalf("incomplete continuation error = %v, want provenance validation", incompleteErr)
+	}
+}
+
 func TestCoordinatorRunnerShouldResolveNoProgressWindowFromWorkspaceDefaults(t *testing.T) {
 	t.Run("Should use workspace default no-progress window for stall detection", func(t *testing.T) {
 		t.Parallel()
@@ -749,8 +769,12 @@ func TestCoordinatorRunnerShouldClassifyAwaitedChildTerminalFailClosed(t *testin
 				failure.Code != childLoopStatusRef(testCase.status) {
 				t.Fatalf("classified child failure = %#v", failure)
 			}
-			if parent.Status != StatusRunning || parent.CancelRequested {
-				t.Fatalf("child terminal mutated parent = %#v", parent)
+			storedParent, err := runner.store.GetLoopRunByID(context.Background(), parent.ID)
+			if err != nil {
+				t.Fatalf("GetLoopRunByID(parent) error = %v", err)
+			}
+			if storedParent.Status != StatusRunning || storedParent.CancelRequested {
+				t.Fatalf("child terminal mutated persisted parent = %#v", storedParent)
 			}
 		})
 	}

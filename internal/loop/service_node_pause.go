@@ -32,7 +32,7 @@ func (s *service) PauseNode(
 		RequestedAt: s.now().UTC(),
 	}
 	result, err := store.PauseNode(ctx, mutation)
-	if err != nil || !result.Applied || mode != NodePauseCancel {
+	if err != nil || mode != NodePauseCancel || len(result.SessionIDs) == 0 {
 		return result, err
 	}
 	if err := s.deliverSessionCancellation(ctx, result.SessionIDs, RunCancelCancel, mutation.Reason); err != nil {

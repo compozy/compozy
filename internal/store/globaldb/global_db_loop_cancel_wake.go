@@ -8,8 +8,6 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
-const cancellationTargetRun = "run"
-
 func (g *LoopRepo) reserveCancellationCoordinator(
 	ctx context.Context,
 	exec taskSQLExecutor,
@@ -38,9 +36,9 @@ func cancellationWakeOrigin(mutation looppkg.CancellationMutation) taskpkg.Origi
 }
 
 func cancellationWakeIdempotencyKey(mutation looppkg.CancellationMutation) string {
-	target := cancellationTargetRun
+	target := "run:" + string(mutation.RunID)
 	if mutation.NodeID != "" {
-		target = string(mutation.NodeID)
+		target = "node:" + string(mutation.NodeID)
 	}
 	return fmt.Sprintf(
 		"loop.cancel.%s.%s.%s.%d",

@@ -13,6 +13,11 @@ import (
 	"github.com/compozy/compozy/internal/loop/dsl"
 )
 
+const (
+	expiredWaitAttentionFlag   = "expired_wait"
+	expiredWaitAttentionReason = "wait expired without a timeout route"
+)
+
 type dueWaitEscalation struct {
 	wait     looppkg.NodeWait
 	run      looppkg.Run
@@ -164,6 +169,9 @@ func validateDueWaitEscalationCell(
 		 AND control.node_id = output.node_id WHERE output.loop_run_id = ? AND output.generation = ?
 		 AND output.node_id = ? AND output.item_index = ?`, cell.runID, cell.generation,
 		cell.nodeID, cell.itemIndex).Scan(&status, &epoch, &paused, &quarantined, &cancelState)
+	if errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("%w: wait escalation cell no longer exists", looppkg.ErrTransitionConflict)
+	}
 	if err != nil {
 		return fmt.Errorf("store: load due wait escalation cell: %w", err)
 	}
@@ -270,10 +278,11 @@ func expireWaitWithAttention(
 	}
 	if _, err := exec.ExecContext(ctx, `INSERT INTO loop_node_controls (
 		loop_run_id, node_id, attention_flag, attention_reason, revision, updated_at
-	) VALUES (?, ?, 'expired_wait', 'wait expired without a timeout route', 1, ?)
-	ON CONFLICT(loop_run_id, node_id) DO UPDATE SET attention_flag = 'expired_wait',
-		attention_reason = 'wait expired without a timeout route', revision = revision + 1,
-		updated_at = excluded.updated_at`, due.wait.LoopRunID, due.wait.NodeID, now.UTC()); err != nil {
+	) VALUES (?, ?, ?, ?, 1, ?)
+	ON CONFLICT(loop_run_id, node_id) DO UPDATE SET attention_flag = excluded.attention_flag,
+		attention_reason = excluded.attention_reason, revision = revision + 1,
+		updated_at = excluded.updated_at`, due.wait.LoopRunID, due.wait.NodeID,
+		expiredWaitAttentionFlag, expiredWaitAttentionReason, now.UTC()); err != nil {
 		return fmt.Errorf("store: flag expired wait attention: %w", err)
 	}
 	return appendLoopRunEventWithExecutor(ctx, exec, due.run.ID, due.run.WorkspaceID,
@@ -281,7 +290,7 @@ func expireWaitWithAttention(
 			loopRunEventPayloadKeyGeneration: due.wait.Generation,
 			loopRunEventPayloadKeyNodeID:     due.wait.NodeID,
 			loopRunEventPayloadKeyItemIndex:  due.wait.ItemIndex,
-			"attention_flag":                 "expired_wait",
-			loopRunEventPayloadKeyReason:     "wait expired without a timeout route",
+			"attention_flag":                 expiredWaitAttentionFlag,
+			loopRunEventPayloadKeyReason:     expiredWaitAttentionReason,
 		}, now)
 }

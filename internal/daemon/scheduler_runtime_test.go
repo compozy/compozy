@@ -613,6 +613,71 @@ func TestSchedulerTaskSourceLoopRetryDueRecovery(t *testing.T) {
 		}
 	})
 
+	t.Run("Should preserve wait cursors when a page fails", func(t *testing.T) {
+		t.Parallel()
+
+		sentinel := errors.New("forced wait page failure")
+		initialDue := looppkg.WaitDueCursor{
+			ResumeAt:  time.Date(2026, 8, 2, 19, 0, 0, 0, time.UTC),
+			LoopRunID: "looprun-due-initial", Generation: 2, NodeID: "wait", ItemIndex: 1,
+		}
+		nextDue := looppkg.WaitDueCursor{
+			ResumeAt:  initialDue.ResumeAt.Add(time.Minute),
+			LoopRunID: "looprun-due-next", Generation: 3, NodeID: "wait", ItemIndex: 2,
+		}
+		dueState := newLoopWaitDueScanState()
+		dueState.cursor = initialDue
+		dueSource := schedulerTaskSource{
+			store: loopWaitDueErrorTaskStore{
+				taskStore: openDaemonTestGlobalDB(t), next: nextDue, err: sentinel,
+			},
+			loopWaitDueScan: dueState,
+		}
+		if err := dueSource.resumeDueLoopWaits(testutil.Context(t), initialDue.ResumeAt); !errors.Is(err, sentinel) {
+			t.Fatalf("resumeDueLoopWaits() error = %v, want sentinel", err)
+		}
+		if dueState.cursor != initialDue {
+			t.Fatalf("wait due cursor = %#v, want unchanged %#v", dueState.cursor, initialDue)
+		}
+
+		initialEscalation := looppkg.WaitEscalationCursor{
+			NextEscalationAt: initialDue.ResumeAt,
+			LoopRunID:        "looprun-escalation-initial", Generation: 2, NodeID: "gate", ItemIndex: 1,
+		}
+		nextEscalation := looppkg.WaitEscalationCursor{
+			NextEscalationAt: initialEscalation.NextEscalationAt.Add(time.Minute),
+			LoopRunID:        "looprun-escalation-next", Generation: 3, NodeID: "gate", ItemIndex: 2,
+		}
+		escalationState := newLoopWaitEscalationScanState()
+		escalationState.cursor = initialEscalation
+		escalationSource := schedulerTaskSource{
+			store: loopWaitEscalationErrorTaskStore{
+				taskStore: openDaemonTestGlobalDB(t), next: nextEscalation, err: sentinel,
+			},
+			loopWaitEscalationScan: escalationState,
+		}
+		if err := escalationSource.escalateDueLoopWaits(
+			testutil.Context(t), initialEscalation.NextEscalationAt,
+		); !errors.Is(err, sentinel) {
+			t.Fatalf("escalateDueLoopWaits() error = %v, want sentinel", err)
+		}
+		if escalationState.cursor != initialEscalation {
+			t.Fatalf("wait escalation cursor = %#v, want unchanged %#v", escalationState.cursor, initialEscalation)
+		}
+	})
+
+	t.Run("Should require admission claim sweeping support", func(t *testing.T) {
+		t.Parallel()
+
+		source := schedulerTaskSource{
+			store: taskStoreWithoutWatchEventsGapWake{taskStore: openDaemonTestGlobalDB(t)},
+		}
+		err := source.sweepLoopAdmissionClaims(testutil.Context(t), time.Now().UTC())
+		if !errors.Is(err, errLoopAdmissionClaimSweeperRequired) {
+			t.Fatalf("sweepLoopAdmissionClaims() error = %v, want %v", err, errLoopAdmissionClaimSweeperRequired)
+		}
+	})
+
 	t.Run("Should reserve and start an epoch-current due retry wake", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t)
@@ -754,6 +819,36 @@ type retryDueErrorTaskStore struct {
 	taskStore
 	next looppkg.RetryDueCursor
 	err  error
+}
+
+type loopWaitDueErrorTaskStore struct {
+	taskStore
+	next looppkg.WaitDueCursor
+	err  error
+}
+
+func (s loopWaitDueErrorTaskStore) ResumeDueLoopWaitsPage(
+	context.Context,
+	time.Time,
+	looppkg.WaitDueCursor,
+	int,
+) ([]taskpkg.Run, looppkg.WaitDueCursor, error) {
+	return nil, s.next, s.err
+}
+
+type loopWaitEscalationErrorTaskStore struct {
+	taskStore
+	next looppkg.WaitEscalationCursor
+	err  error
+}
+
+func (s loopWaitEscalationErrorTaskStore) EscalateDueLoopWaitsPage(
+	context.Context,
+	time.Time,
+	looppkg.WaitEscalationCursor,
+	int,
+) (looppkg.WaitEscalationCursor, error) {
+	return s.next, s.err
 }
 
 func (s retryDueErrorTaskStore) EnqueueDueLoopRetryWakesPage(

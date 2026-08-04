@@ -242,8 +242,11 @@ func (r *loopActionRuntime) refreshActionProgress(
 	if info == nil {
 		return false, nil
 	}
-	if info.Liveness == nil || info.Liveness.Activity == nil {
+	if info.Liveness == nil {
 		return true, nil
+	}
+	if info.Liveness.Activity == nil {
+		return info.Liveness.StallState != store.SessionStallStateDetected, nil
 	}
 	activity := info.Liveness.Activity
 	if activity.LastActivityAt != nil && activity.LastActivityAt.After(snapshot.progressAt) {

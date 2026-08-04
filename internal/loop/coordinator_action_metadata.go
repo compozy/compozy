@@ -65,8 +65,14 @@ func validateCoordinatorContinuationMetadata(meta coordinatorActionRunMetadata) 
 		}
 		return nil
 	}
-	if meta.ContinuationKind != deathResumeContinuationKind || meta.ResumeFromTaskRunID == "" ||
-		meta.ResumeFromSessionID == "" {
+	if meta.ContinuationKind != deathResumeContinuationKind {
+		return fmt.Errorf(
+			"%w: action continuation kind %q is not supported",
+			ErrValidation,
+			meta.ContinuationKind,
+		)
+	}
+	if meta.ResumeFromTaskRunID == "" || meta.ResumeFromSessionID == "" {
 		return fmt.Errorf("%w: death-resume continuation provenance is incomplete", ErrValidation)
 	}
 	if meta.DeathCheckpoint != nil {
