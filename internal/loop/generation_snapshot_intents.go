@@ -280,63 +280,20 @@ func normalizeGenerationSnapshotIntents(payload GenerationSnapshotPayload) (Gene
 		return GenerationSnapshotPayload{}, err
 	}
 	payload.Controls = controls
-	if payload.GenerationProvenance != nil {
-		provenance := *payload.GenerationProvenance
-		if err := provenance.Validate(); err != nil {
-			return GenerationSnapshotPayload{}, err
-		}
-		payload.GenerationProvenance = &provenance
+	if err := normalizeGenerationSnapshotMetadata(&payload); err != nil {
+		return GenerationSnapshotPayload{}, err
 	}
-	if payload.BestUpdate != nil {
-		best := *payload.BestUpdate
-		if best.Generation < 1 || math.IsNaN(best.Score) || math.IsInf(best.Score, 0) {
-			return GenerationSnapshotPayload{}, fmt.Errorf("%w: generation best update is invalid", ErrValidation)
-		}
-		payload.BestUpdate = &best
+	payload.Verdicts, err = normalizeGenerationVerdictIntents(payload.Verdicts)
+	if err != nil {
+		return GenerationSnapshotPayload{}, err
 	}
-	if len(payload.Verdicts) > 0 {
-		verdicts := make([]gate.VerdictIntent, len(payload.Verdicts))
-		for index, verdict := range payload.Verdicts {
-			normalized, err := normalizeGenerationVerdictIntent(verdict)
-			if err != nil {
-				return GenerationSnapshotPayload{}, err
-			}
-			verdicts[index] = normalized
-		}
-		payload.Verdicts = verdicts
+	payload.Events, err = normalizeGenerationLifecycleEventIntents(payload.Events)
+	if err != nil {
+		return GenerationSnapshotPayload{}, err
 	}
-	if len(payload.Events) > 0 {
-		events := make([]GenerationLifecycleEventIntent, len(payload.Events))
-		for index, event := range payload.Events {
-			normalized := event.normalized()
-			if err := normalized.validate(); err != nil {
-				return GenerationSnapshotPayload{}, err
-			}
-			events[index] = normalized
-		}
-		payload.Events = events
-	}
-	if len(payload.BoundaryEffects) > 0 {
-		boundaryEffects := make(map[Status][]RenderedEffectIntent, len(payload.BoundaryEffects))
-		for status, effects := range payload.BoundaryEffects {
-			if !status.Terminal() && status != StatusNeedsApproval {
-				return GenerationSnapshotPayload{}, fmt.Errorf(
-					"%w: effect boundary status is not terminal or approval-gated: %q",
-					ErrValidation,
-					status,
-				)
-			}
-			cloned := make([]RenderedEffectIntent, len(effects))
-			for index, effect := range effects {
-				if err := effect.Validate(); err != nil {
-					return GenerationSnapshotPayload{}, err
-				}
-				effect.Entry = append(json.RawMessage(nil), effect.Entry...)
-				cloned[index] = effect
-			}
-			boundaryEffects[status] = cloned
-		}
-		payload.BoundaryEffects = boundaryEffects
+	payload.BoundaryEffects, err = normalizeBoundaryEffectIntents(payload.BoundaryEffects)
+	if err != nil {
+		return GenerationSnapshotPayload{}, err
 	}
 	return payload, nil
 }

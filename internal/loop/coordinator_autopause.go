@@ -81,7 +81,7 @@ func autopauseTarget(node dsl.Node, failure ClassifiedFailure) (string, string) 
 	family := "toolcall"
 	switch dsl.ActionKind(strings.TrimSpace(node.Kind)) {
 	case dsl.ActionRunAgent:
-		family = "run-agent"
+		family = string(dsl.ActionRunAgent)
 	case dsl.ActionRunLoop:
 		family = "run-loop"
 	case dsl.ActionTransform, dsl.ActionGoal:

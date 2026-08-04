@@ -151,20 +151,24 @@ func TestCoordinatorEffectsShouldAttachNodeAndTerminalTriggers(t *testing.T) {
 			}}},
 		}
 		plan := task.CoordinatorCompletionPlan{
-			Snapshot: task.GenerationSnapshot{LoopRunID: "run-effect", Generation: 2, Payload: GenerationSnapshotPayload{
-				Attempts: []NodeAttempt{
-					{LoopRunID: "run-effect", Generation: 2, NodeID: "fetch", Attempt: 1,
-						Disposition: AttemptRetried, FailureClass: &failureClass, FailureCode: "network",
-						Cause: "down", NextAttemptAt: &nextAttemptAt, StartedAt: nextAttemptAt.Add(-time.Second)},
-					{LoopRunID: "run-effect", Generation: 2, NodeID: "fetch", Attempt: 2,
-						Disposition: AttemptAbsorbed, FailureClass: &timeoutClass, FailureCode: "deadline",
-						Cause: "still down", StartedAt: nextAttemptAt},
+			Snapshot: task.GenerationSnapshot{
+				LoopRunID:  "run-effect",
+				Generation: 2,
+				Payload: GenerationSnapshotPayload{
+					Attempts: []NodeAttempt{
+						{LoopRunID: "run-effect", Generation: 2, NodeID: "fetch", Attempt: 1,
+							Disposition: AttemptRetried, FailureClass: &failureClass, FailureCode: "network",
+							Cause: "down", NextAttemptAt: &nextAttemptAt, StartedAt: nextAttemptAt.Add(-time.Second)},
+						{LoopRunID: "run-effect", Generation: 2, NodeID: "fetch", Attempt: 2,
+							Disposition: AttemptAbsorbed, FailureClass: &timeoutClass, FailureCode: "deadline",
+							Cause: "still down", StartedAt: nextAttemptAt},
+					},
+					Events: []GenerationLifecycleEventIntent{{
+						Kind: GenerationLifecycleEventNodeRetryScheduled, NodeID: "fetch", Attempt: 2,
+						IssuedEpoch: 2, NextAttemptAt: &nextAttemptAt, FailureClass: failureClass,
+					}},
 				},
-				Events: []GenerationLifecycleEventIntent{{
-					Kind: GenerationLifecycleEventNodeRetryScheduled, NodeID: "fetch", Attempt: 2,
-					IssuedEpoch: 2, NextAttemptAt: &nextAttemptAt, FailureClass: failureClass,
-				}},
-			}},
+			},
 			Terminal: &task.CoordinatorTerminal{Status: string(StatusFailed)},
 		}
 		if err := attachCoordinatorEffectIntents(
@@ -203,18 +207,22 @@ func TestCoordinatorEffectsShouldAttachNodeAndTerminalTriggers(t *testing.T) {
 		"episodes":[{"generation":2,"quarantined_at":"2026-08-02T12:01:00Z","attempts":[]}]
 	}`)
 		quarantinePlan := task.CoordinatorCompletionPlan{
-			Snapshot: task.GenerationSnapshot{LoopRunID: "run-effect", Generation: 2, Payload: GenerationSnapshotPayload{
-				Attempts: []NodeAttempt{{
-					LoopRunID: "run-effect", Generation: 2, NodeID: "fetch", Attempt: 3,
-					Disposition: AttemptQuarantined, FailureClass: &failureClass,
-					FailureCode: "network", Cause: "down", StartedAt: nextAttemptAt,
-				}},
-				Events: []GenerationLifecycleEventIntent{{
-					Kind: GenerationLifecycleEventNodeQuarantined, NodeID: "fetch", Attempt: 3,
-					Failure:     &ClassifiedFailure{Class: FailureTransport, Code: "network", Cause: "down"},
-					Disposition: AttemptQuarantined, QuarantineEntry: quarantineEntry,
-				}},
-			}},
+			Snapshot: task.GenerationSnapshot{
+				LoopRunID:  "run-effect",
+				Generation: 2,
+				Payload: GenerationSnapshotPayload{
+					Attempts: []NodeAttempt{{
+						LoopRunID: "run-effect", Generation: 2, NodeID: "fetch", Attempt: 3,
+						Disposition: AttemptQuarantined, FailureClass: &failureClass,
+						FailureCode: "network", Cause: "down", StartedAt: nextAttemptAt,
+					}},
+					Events: []GenerationLifecycleEventIntent{{
+						Kind: GenerationLifecycleEventNodeQuarantined, NodeID: "fetch", Attempt: 3,
+						Failure:     &ClassifiedFailure{Class: FailureTransport, Code: "network", Cause: "down"},
+						Disposition: AttemptQuarantined, QuarantineEntry: quarantineEntry,
+					}},
+				},
+			},
 		}
 		quarantineDefinition := dsl.Definition{Graph: dsl.Graph{Nodes: []dsl.Node{{
 			ID: "fetch", Class: dsl.NodeClassAction, Kind: "known__fetch",
@@ -250,12 +258,16 @@ func TestCoordinatorEffectsShouldAttachNodeAndTerminalTriggers(t *testing.T) {
 		t.Parallel()
 
 		plan := task.CoordinatorCompletionPlan{
-			Snapshot: task.GenerationSnapshot{LoopRunID: "run-effect", Generation: 2, Payload: GenerationSnapshotPayload{
-				Attempts: []NodeAttempt{{
-					LoopRunID: "run-effect", Generation: 2, NodeID: "fetch", Attempt: 1,
-					Disposition: AttemptQuarantined, FailureClass: &failureClass, StartedAt: nextAttemptAt,
-				}},
-			}},
+			Snapshot: task.GenerationSnapshot{
+				LoopRunID:  "run-effect",
+				Generation: 2,
+				Payload: GenerationSnapshotPayload{
+					Attempts: []NodeAttempt{{
+						LoopRunID: "run-effect", Generation: 2, NodeID: "fetch", Attempt: 1,
+						Disposition: AttemptQuarantined, FailureClass: &failureClass, StartedAt: nextAttemptAt,
+					}},
+				},
+			},
 		}
 		definition := dsl.Definition{Graph: dsl.Graph{Nodes: []dsl.Node{{
 			ID: "fetch", Class: dsl.NodeClassAction, Kind: "known__fetch",

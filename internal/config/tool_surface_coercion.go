@@ -70,42 +70,16 @@ func coerceConfigInt64(value any) (int64, error) {
 }
 
 func coerceConfigUint64(value any) (uint64, error) {
+	if unsigned, ok := configUnsignedInteger(value); ok {
+		return unsigned, nil
+	}
+	if signed, ok := configSignedInteger(value); ok {
+		if signed < 0 {
+			return 0, fmt.Errorf("config: unsigned integer value must be non-negative: %d", signed)
+		}
+		return uint64(signed), nil
+	}
 	switch typed := value.(type) {
-	case uint:
-		return uint64(typed), nil
-	case uint8:
-		return uint64(typed), nil
-	case uint16:
-		return uint64(typed), nil
-	case uint32:
-		return uint64(typed), nil
-	case uint64:
-		return typed, nil
-	case int:
-		if typed < 0 {
-			return 0, fmt.Errorf("config: unsigned integer value must be non-negative: %d", typed)
-		}
-		return uint64(typed), nil
-	case int8:
-		if typed < 0 {
-			return 0, fmt.Errorf("config: unsigned integer value must be non-negative: %d", typed)
-		}
-		return uint64(typed), nil
-	case int16:
-		if typed < 0 {
-			return 0, fmt.Errorf("config: unsigned integer value must be non-negative: %d", typed)
-		}
-		return uint64(typed), nil
-	case int32:
-		if typed < 0 {
-			return 0, fmt.Errorf("config: unsigned integer value must be non-negative: %d", typed)
-		}
-		return uint64(typed), nil
-	case int64:
-		if typed < 0 {
-			return 0, fmt.Errorf("config: unsigned integer value must be non-negative: %d", typed)
-		}
-		return uint64(typed), nil
 	case float64:
 		if math.IsNaN(typed) || math.IsInf(typed, 0) || typed < 0 || math.Trunc(typed) != typed ||
 			typed > maxExactConfigFloatInteger {
@@ -120,6 +94,40 @@ func coerceConfigUint64(value any) (uint64, error) {
 		return parsed, nil
 	default:
 		return 0, fmt.Errorf("config: expected unsigned integer value, got %T", value)
+	}
+}
+
+func configUnsignedInteger(value any) (uint64, bool) {
+	switch typed := value.(type) {
+	case uint:
+		return uint64(typed), true
+	case uint8:
+		return uint64(typed), true
+	case uint16:
+		return uint64(typed), true
+	case uint32:
+		return uint64(typed), true
+	case uint64:
+		return typed, true
+	default:
+		return 0, false
+	}
+}
+
+func configSignedInteger(value any) (int64, bool) {
+	switch typed := value.(type) {
+	case int:
+		return int64(typed), true
+	case int8:
+		return int64(typed), true
+	case int16:
+		return int64(typed), true
+	case int32:
+		return int64(typed), true
+	case int64:
+		return typed, true
+	default:
+		return 0, false
 	}
 }
 

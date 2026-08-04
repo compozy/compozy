@@ -6514,7 +6514,10 @@ func TestGlobalDBCompleteRunLeaseShouldCommitCoordinatorControlWithoutNodeSucces
 			globalDB.db,
 			current,
 			taskpkg.LeaseCompletion{Result: taskpkg.RunResult{
-				CoordinatorControl: &taskpkg.CoordinatorControlResult{Kind: "loop_action", Payload: json.RawMessage(`{}`)},
+				CoordinatorControl: &taskpkg.CoordinatorControlResult{
+					Kind:    "loop_action",
+					Payload: json.RawMessage(`{}`),
+				},
 			}},
 			"",
 			nil,

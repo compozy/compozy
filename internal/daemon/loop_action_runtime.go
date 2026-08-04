@@ -187,26 +187,10 @@ func (r *loopActionRuntime) executeQueuedRun(
 	if err != nil {
 		return err
 	}
-	actionTimeout, authoredTimeout, err := r.actionTimeoutSpecForRun(ctx, run)
+	policy, err := r.actionLivenessPolicyForRun(ctx, run)
 	if err != nil {
 		return err
 	}
-	silenceWindow, err := r.actionSilenceWindowForRun(ctx, run)
-	if err != nil {
-		return err
-	}
-	deathStreakLimit, err := r.actionDeathStreakLimitForRun(ctx, run)
-	if err != nil {
-		return err
-	}
-	timeoutReason := loopActionReasonNodeTimeout
-	if authoredTimeout {
-		timeoutReason, err = r.actionTimeoutReasonForRun(ctx, run)
-		if err != nil {
-			return err
-		}
-	}
-	leaseDuration := leaseDurationForActionTimeout(actionTimeout)
 	claim, err := r.manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
 		RunID:            strings.TrimSpace(run.ID),
 		Scope:            taskRecord.Scope.Normalize(),
@@ -217,7 +201,7 @@ func (r *loopActionRuntime) executeQueuedRun(
 			Kind: taskpkg.ActorKindDaemon,
 			Ref:  loopActionRuntimeActorRef,
 		},
-		LeaseDuration: leaseDuration,
+		LeaseDuration: policy.leaseDuration,
 		Now:           r.now().UTC(),
 	}, actor)
 	if err != nil {
@@ -230,12 +214,12 @@ func (r *loopActionRuntime) executeQueuedRun(
 		ctx,
 		claim,
 		actor,
-		leaseDuration,
-		actionTimeout,
-		timeoutReason,
+		policy.leaseDuration,
+		policy.actionTimeout,
+		policy.timeoutReason,
 		looppkg.WorkspaceID(taskRecord.WorkspaceID),
-		silenceWindow,
-		deathStreakLimit,
+		policy.silenceWindow,
+		policy.deathStreakLimit,
 	)
 	if controlled {
 		return err
