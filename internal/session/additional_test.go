@@ -364,6 +364,9 @@ func TestPromptErrorPaths(t *testing.T) {
 		if !ok {
 			t.Fatalf("Get(%q) found = false, want resumed session", session.ID)
 		}
+		if got := resumed.Info().State; got != StateActive {
+			t.Fatalf("resumed state = %q, want %q", got, StateActive)
+		}
 		t.Cleanup(func() {
 			if err := restarted.Stop(testutil.Context(t), resumed.ID); err != nil {
 				t.Fatalf("Stop(resumed) error = %v", err)
@@ -382,11 +385,12 @@ func TestPromptErrorPaths(t *testing.T) {
 
 		h := newHarness(t)
 		session := createSession(t, h)
-		if _, err := h.manager.Prompt(testutil.Context(t), session.ID, "   "); err == nil {
-			t.Fatal("Prompt(empty) error = nil, want non-nil")
+		_, err := h.manager.Prompt(testutil.Context(t), session.ID, "   ")
+		if err == nil || err.Error() != "session: prompt message is required" {
+			t.Fatalf("Prompt(empty) error = %v, want prompt message required", err)
 		}
-		if _, err := h.manager.Prompt(testutil.Context(t), "missing", "hello"); err == nil {
-			t.Fatal("Prompt(missing) error = nil, want non-nil")
+		if _, err := h.manager.Prompt(testutil.Context(t), "missing", "hello"); !errors.Is(err, ErrSessionNotFound) {
+			t.Fatalf("Prompt(missing) error = %v, want ErrSessionNotFound", err)
 		}
 		if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
 			t.Fatalf("Stop() error = %v", err)
@@ -545,41 +549,54 @@ func (c *resumeWaitObservedContext) Done() <-chan struct{} {
 	return c.Context.Done()
 }
 
-// Invariant: shutdown observes every admitted resume even when one resume fails.
+// Invariant: shutdown ignores completed resume failures and waits for every pending resume.
 // Owning layer: session Manager lifecycle. Canonical suite: resume coverage in this file.
 func TestWaitForSessionResumesDrainsAllCapturedRuns(t *testing.T) {
 	t.Parallel()
-	t.Run("Should drain every captured run after an ordinary resume failure", func(t *testing.T) {
+	t.Run("Should ignore an ordinary resume failure", func(t *testing.T) {
 		t.Parallel()
-		testWaitForSessionResumesDrainsAllCapturedRuns(t)
+
+		failed := &sessionResumeRun{done: make(chan struct{}), err: errors.New("resume failed")}
+		close(failed.done)
+		manager := &Manager{resumeRuns: map[string]*sessionResumeRun{"failed": failed}}
+
+		if err := manager.waitForSessionResumes(testutil.Context(t)); err != nil {
+			t.Fatalf("waitForSessionResumes() error = %v, want ordinary resume failure ignored", err)
+		}
 	})
-}
 
-func testWaitForSessionResumesDrainsAllCapturedRuns(t *testing.T) {
-	t.Helper()
+	t.Run("Should remain blocked until a pending resume completes", func(t *testing.T) {
+		t.Parallel()
 
-	failed := &sessionResumeRun{done: make(chan struct{}), err: errors.New("resume failed")}
-	close(failed.done)
-	pending := &sessionResumeRun{done: make(chan struct{})}
-	manager := &Manager{resumeRuns: map[string]*sessionResumeRun{
-		"failed":  failed,
-		"pending": pending,
-	}}
+		pending := &sessionResumeRun{done: make(chan struct{})}
+		var closePending sync.Once
+		t.Cleanup(func() { closePending.Do(func() { close(pending.done) }) })
+		manager := &Manager{resumeRuns: map[string]*sessionResumeRun{"pending": pending}}
+		waitEntered := make(chan struct{})
+		waitContext := &resumeWaitObservedContext{
+			Context: testutil.Context(t),
+			entered: waitEntered,
+		}
+		waitDone := make(chan error, 1)
+		go func() {
+			waitDone <- manager.waitForSessionResumes(waitContext)
+		}()
 
-	waitDone := make(chan error, 1)
-	go func() {
-		waitDone <- manager.waitForSessionResumes(testutil.Context(t))
-	}()
-
-	select {
-	case err := <-waitDone:
-		t.Fatalf("waitForSessionResumes() returned before all runs drained: %v", err)
-	case <-time.After(50 * time.Millisecond):
-	}
-	close(pending.done)
-	if err := <-waitDone; err != nil {
-		t.Fatalf("waitForSessionResumes() error = %v, want ordinary resume failures ignored", err)
-	}
+		select {
+		case <-waitEntered:
+		case <-time.After(2 * time.Second):
+			t.Fatal("waitForSessionResumes() did not enter the pending resume wait")
+		}
+		select {
+		case err := <-waitDone:
+			t.Fatalf("waitForSessionResumes() returned while resume was pending: %v", err)
+		default:
+		}
+		closePending.Do(func() { close(pending.done) })
+		if err := <-waitDone; err != nil {
+			t.Fatalf("waitForSessionResumes() error = %v, want nil after pending resume completed", err)
+		}
+	})
 }
 
 func TestNewManagerOptionsAndValidation(t *testing.T) {
