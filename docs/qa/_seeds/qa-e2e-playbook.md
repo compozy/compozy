@@ -386,7 +386,8 @@ Assertions:
 Important nuance:
 
 - `compozy session list` without `--all` only shows active sessions.
-- Use `compozy session list --all` when checking persistence after shutdown.
+- `--all` includes stopped sessions but still excludes archived sessions by default.
+- Use `compozy session list --all --include-archived` when checking the full persisted catalog after shutdown.
 
 ---
 

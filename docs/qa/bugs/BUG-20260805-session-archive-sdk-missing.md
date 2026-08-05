@@ -1,6 +1,6 @@
 # BUG-20260805-session-archive-sdk-missing: Extension authors cannot use typed session archive helpers
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Friction
 - **Severity:** Medium · **Priority:** P2
 - **Persona Affected:** Ada
@@ -10,10 +10,9 @@
 
 ## Summary
 
-An extension author can receive the `sessions/archive` and `sessions/unarchive` permissions, but the
-public Go method constants and TypeScript `HostAPI.sessions` facade omit both operations. The raw
-Host API remains callable, but authors lose the documented, type-safe path and must invent string
-literals or drop to an untyped request.
+An extension author could receive the `sessions/archive` and `sessions/unarchive` permissions, but
+the public SDK helpers omitted both operations. After those helpers were added, the daemon adapter
+still rejected the same calls instead of forwarding them to the archive-capable session manager.
 
 ## Reproduction
 
@@ -25,20 +24,23 @@ literals or drop to an untyped request.
 3. Compare the public helpers with the generated `HostAPIMethodMap`, which already includes both methods.
 
 **Expected:** Both SDKs expose the same archive and unarchive operations as the daemon contract.
-**Actual:** Only raw string-based requests can reach those two methods.
+**Actual:** The typed helpers were absent, and a raw Host API call reached an adapter that returned an
+internal error instead of archiving the session.
 
 ## Evidence
 
 - `sdk/go/contracts/host_methods_gen.go` and `sdk/typescript/src/generated/contracts.ts` contain the methods.
 - `sdk/go/host_api.go` and `sdk/typescript/src/host-api.ts` omit their public helpers before the fix.
-- `/Users/pedronauck/dev/qa-labs/compozy-session-archive-20260805-031044-743468-lab/qa-artifacts/qa/native-archive.json`
+- `/Users/pedronauck/dev/qa-labs/compozy-session-archive-20260805-031044-743468-lab/qa-artifacts/qa/notes/extension-host-api-first-attempt-copy.txt`
+- `/Users/pedronauck/dev/qa-labs/compozy-session-archive-20260805-031044-743468-lab/qa-artifacts/qa/extension-host-api.json`
 
 ## Fix
 
-- **Root cause:** Contract code generation updated the generated method maps, but the hand-authored public SDK facades were not included in the co-ship checklist.
-- **Fix commit:** pending final whole-diff commit.
-- **Regression test:** `sdk/go/runtime_contract_test.go`; `sdk/typescript/src/__tests__/host-api.test.ts`.
+- **Root cause:** Contract code generation updated the generated method maps, but the hand-authored public SDK facades were not included in the co-ship checklist. Separately, the daemon's extension adapter exposed only the base session manager interface and discarded archive operations implemented by the concrete manager.
+- **Fix commit:** e40dc76.
+- **Regression test:** `sdk/go/runtime_contract_test.go`; `sdk/typescript/src/__tests__/host-api.test.ts`; `internal/daemon/daemon_test.go` (`TestNewHostAPISessionManagerAdapter`).
 
 ## Verification
 
-Pending implementation and the original extension-author journey replay.
+- **Retested:** 2026-08-05, same persona/journey · **Report:** `docs/qa/reports/2026-08-04-session-archive.md`
+- **Result:** A live installed extension archived, listed, and restored the same stopped session through the typed Host API while preserving its workspace identity.

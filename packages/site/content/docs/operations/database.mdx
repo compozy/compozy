@@ -204,13 +204,14 @@ limit 20;
 
 ## Clean up old session directories
 
-Compozy does not currently expose a prune command for old session directories. Use a conservative
-archive flow instead of deleting files in place.
+`compozy session archive` removes a stopped session from default listings but does not reclaim its
+disk space. Compozy does not currently expose a prune command for old session directories. If you
+must move a directory, use the conservative filesystem procedure below instead of deleting it in place.
 
 1. List stopped sessions:
 
    ```bash
-   compozy session list --all
+   compozy session list --all --include-archived
    ```
 
 2. Stop the daemon:
@@ -234,7 +235,7 @@ archive flow instead of deleting files in place.
 
    ```bash
    compozy daemon start
-   compozy session list --all
+   compozy session list --all --include-archived
    ```
 
 At boot, Compozy reconciles the global catalog with the session directories on disk. Sessions missing
