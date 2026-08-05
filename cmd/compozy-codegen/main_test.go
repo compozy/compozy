@@ -755,7 +755,7 @@ func TestGenerateFormattedSDKContracts(t *testing.T) {
 }
 
 func TestGenerateFormattedLoopEnums(t *testing.T) {
-	t.Run("ShouldFormatGeneratedLoopEnums", func(t *testing.T) {
+	t.Run("Should format generated loop enums", func(t *testing.T) {
 		t.Parallel()
 
 		content, err := generateFormattedLoopEnums(
@@ -773,7 +773,36 @@ func TestGenerateFormattedLoopEnums(t *testing.T) {
 		}
 	})
 
-	t.Run("ShouldReturnContextErrorsFromFormatting", func(t *testing.T) {
+	t.Run("Should keep type backing constants private", func(t *testing.T) {
+		t.Parallel()
+
+		content, err := generateFormattedLoopEnums(
+			context.Background(),
+			filepath.Join(t.TempDir(), "web", "loop-enums.ts"),
+		)
+		if err != nil {
+			t.Fatalf("generateFormattedLoopEnums() error = %v", err)
+		}
+
+		privateDeclarations := []string{
+			"const LOOP_GENERATION_ORIGINS",
+			"const LOOP_GATE_VERDICT_OUTCOMES",
+			"const LOOP_METRIC_DIRECTIONS",
+		}
+		for _, declaration := range privateDeclarations {
+			if !bytes.Contains(content, []byte(declaration)) {
+				t.Errorf("generateFormattedLoopEnums() missing private declaration %q", declaration)
+			}
+			if bytes.Contains(content, []byte("export "+declaration)) {
+				t.Errorf("generateFormattedLoopEnums() exported private declaration %q", declaration)
+			}
+		}
+		if !bytes.Contains(content, []byte("export const LOOP_RUN_STATUSES")) {
+			t.Error("generateFormattedLoopEnums() did not export runtime-consumed constants")
+		}
+	})
+
+	t.Run("Should return context errors from formatting", func(t *testing.T) {
 		t.Parallel()
 
 		ctx, cancel := context.WithCancel(context.Background())
