@@ -131,6 +131,13 @@ change next-prompt runtime intent. Both require `workspace_id`, `session_id`, an
 do not start or reconfigure ACP, and reject a stale revision. Read session status again after a
 conflict rather than retrying the old selection.
 
+### Session catalog archive
+
+Use `sessions/archive` and `sessions/unarchive` with `session.write` to control catalog visibility
+without deleting history. Only stopped sessions can be archived. `sessions/list` excludes archived
+rows by default and accepts `archive` as `exclude`, `only`, or `include`. Archived sessions remain
+available through direct read methods, but must be unarchived before a prompt or resume operation.
+
 ## Provide Surfaces
 
 Closed set, validated at build, install, and load.

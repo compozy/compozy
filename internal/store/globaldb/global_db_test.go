@@ -2868,6 +2868,7 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 			"workspace_id",
 			"session_type",
 			"state",
+			"archived_at",
 			"acp_session_id",
 			"stop_reason",
 			"stop_detail",

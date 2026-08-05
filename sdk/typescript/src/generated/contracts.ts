@@ -62,6 +62,7 @@ export type HostAPIMethod =
   | "sandbox/exec"
   | "sandbox/info"
   | "sandbox/list"
+  | "sessions/archive"
   | "sessions/create"
   | "sessions/events"
   | "sessions/health/get"
@@ -77,6 +78,7 @@ export type HostAPIMethod =
   | "sessions/status"
   | "sessions/status/get"
   | "sessions/stop"
+  | "sessions/unarchive"
   | "skills/list"
   | "tasks"
   | "tasks/cancel"
@@ -4679,6 +4681,7 @@ export interface SessionStatus {
   workspace_id?: string;
   workspace?: string;
   state: State;
+  archived_at?: ISODateTime;
   stop_reason?: StopReason;
   stop_detail?: string;
   created_at: ISODateTime;
@@ -4711,6 +4714,7 @@ export interface SessionSummary {
   runtime: SessionRuntimePayload;
   workspace?: string;
   state: State;
+  archived_at?: ISODateTime;
   created_at: ISODateTime;
 }
 
@@ -4727,6 +4731,7 @@ export interface SessionsCreateParams {
 
 export interface SessionsListParams {
   workspace?: string;
+  archive?: string;
 }
 
 export interface SessionsPromptParams {
@@ -6821,6 +6826,14 @@ export interface HostAPIMethodMap {
   "sessions/stop": {
     params: SessionTargetParams;
     result: EmptyResult;
+  };
+  "sessions/archive": {
+    params: SessionTargetParams;
+    result: SessionStatus;
+  };
+  "sessions/unarchive": {
+    params: SessionTargetParams;
+    result: SessionStatus;
   };
   "sessions/status": {
     params: SessionTargetParams;

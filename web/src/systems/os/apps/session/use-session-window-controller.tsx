@@ -68,6 +68,7 @@ export function useSessionWindowController(input: {
     isDeleting: controls.isDeleting,
     isStopping: controls.isStopping,
     isResuming: controls.isResuming,
+    isUnarchiving: controls.isUnarchiving,
     isClearing: controls.isClearing,
     canClear: controls.canClear,
     inspectorOpen: inspector.open,
@@ -85,6 +86,7 @@ export function useSessionWindowController(input: {
     onDelete: deleteDialog.openDialog,
     onStop: controls.handleStop,
     onResume: controls.handleResume,
+    onUnarchive: controls.handleUnarchive,
     onClear: clearDialog.openDialog,
   });
 

@@ -1,17 +1,19 @@
 import { QueryClient, QueryClientProvider, type InfiniteData } from "@tanstack/react-query";
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { sessionStore } from "../../stores/session-store";
 import {
   useClearSessionConversation,
+  useArchiveSession,
   useCreateSession,
   useDeleteSession,
   useInterruptSessionPrompt,
   useQueueSessionPrompt,
   useRepairSession,
   useSteerSessionPrompt,
+  useUnarchiveSession,
 } from "../use-session-actions";
 import { useSessionRewind } from "../use-session-rewind";
 import {
@@ -31,6 +33,7 @@ import type {
 
 vi.mock("../../adapters/session-api", () => ({
   clearSessionConversation: vi.fn(),
+  archiveSession: vi.fn(),
   cancelQueuedSessionPrompt: vi.fn(),
   createSession: vi.fn(),
   deleteSession: vi.fn(),
@@ -42,14 +45,18 @@ vi.mock("../../adapters/session-api", () => ({
   resumeSession: vi.fn(),
   sendSessionPrompt: vi.fn(),
   steerSessionPrompt: vi.fn(),
+  unarchiveSession: vi.fn(),
 }));
 
 vi.mock("@/systems/workspace", () => ({
   useActiveWorkspace: () => ({ activeWorkspaceId: "ws_alpha" }),
 }));
 
+vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
+
 import {
   cancelQueuedSessionPrompt,
+  archiveSession,
   clearSessionConversation,
   createSession,
   deleteSession,
@@ -59,7 +66,10 @@ import {
   rewindSession,
   sendSessionPrompt,
   steerSessionPrompt,
+  unarchiveSession,
 } from "../../adapters/session-api";
+import { toast } from "sonner";
+import { useSessionLifecycleActions } from "../use-session-lifecycle-actions";
 const WORKSPACE_ID = "ws_alpha";
 
 const queuedInput: SessionInputPayload = {
@@ -93,6 +103,7 @@ const createdSession: SessionPayload = {
   state: "active",
   badge: "idle",
   attachable: true,
+  archived_at: null,
   available_commands: [],
   created_at: "2026-04-20T10:00:00Z",
   updated_at: "2026-04-20T10:00:01Z",
@@ -481,6 +492,54 @@ describe("session actions", () => {
     });
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: sessionKeys.workspaceLists(WORKSPACE_ID),
+    });
+  });
+
+  it("archive and unarchive invalidate the owning session query tree", async () => {
+    vi.mocked(archiveSession).mockResolvedValue({
+      ...createdSession,
+      archived_at: "2026-08-04T12:00:00Z",
+    });
+    vi.mocked(unarchiveSession).mockResolvedValue(createdSession);
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+    const { result } = renderHook(
+      () => ({ archive: useArchiveSession(), unarchive: useUnarchiveSession() }),
+      { wrapper: createWrapper(queryClient) }
+    );
+
+    await act(async () => {
+      await result.current.archive.mutateAsync(createdSession.id);
+      await result.current.unarchive.mutateAsync(createdSession.id);
+    });
+
+    expect(archiveSession).toHaveBeenCalledWith(WORKSPACE_ID, createdSession.id);
+    expect(unarchiveSession).toHaveBeenCalledWith(WORKSPACE_ID, createdSession.id);
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: sessionKeys.detail(WORKSPACE_ID, createdSession.id),
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: sessionKeys.workspaceLists(WORKSPACE_ID),
+    });
+  });
+
+  it("reports a lifecycle action failure without showing a success notification", async () => {
+    vi.mocked(archiveSession).mockRejectedValue(new Error("Archive is unavailable"));
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const { result } = renderHook(() => useSessionLifecycleActions(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    act(() => {
+      result.current.actions.onArchive(createdSession);
+    });
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("Archive is unavailable");
     });
   });
 

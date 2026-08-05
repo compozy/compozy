@@ -1,4 +1,4 @@
-import { Eraser, Trash2 } from "lucide-react";
+import { Eraser } from "lucide-react";
 
 import {
   Button,
@@ -10,66 +10,6 @@ import {
   DialogTitle,
   Spinner,
 } from "@compozy/ui";
-
-import type { SessionPayload } from "@/systems/session";
-
-export function SessionDeleteDialog({
-  open,
-  onOpenChange,
-  session,
-  isDeleting,
-  onConfirm,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  session: SessionPayload;
-  isDeleting: boolean;
-  onConfirm: () => void;
-}) {
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent showCloseButton={!isDeleting} className="max-w-md" data-testid="delete-dialog">
-        <DialogHeader>
-          <DialogTitle>Delete session</DialogTitle>
-          <DialogDescription>
-            This permanently removes <strong>{session.name?.trim() || session.id}</strong>,
-            including its transcript and history, and removes it from the session list.
-          </DialogDescription>
-        </DialogHeader>
-        <DialogFooter className="gap-2">
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => onOpenChange(false)}
-            disabled={isDeleting}
-            data-testid="delete-dialog-cancel"
-          >
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            variant="destructive"
-            onClick={onConfirm}
-            disabled={isDeleting}
-            data-testid="delete-dialog-confirm"
-          >
-            {isDeleting ? (
-              <>
-                <Spinner className="size-3" />
-                Deleting
-              </>
-            ) : (
-              <>
-                <Trash2 className="size-3" />
-                Delete session
-              </>
-            )}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 export function SessionClearDialog({
   open,

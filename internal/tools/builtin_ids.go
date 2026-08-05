@@ -66,6 +66,10 @@ const (
 	ToolIDNetworkWork ToolID = "compozy__network_work"
 	// ToolIDSessionList lists runtime sessions.
 	ToolIDSessionList ToolID = "compozy__session_list"
+	// ToolIDSessionArchive archives one stopped runtime session.
+	ToolIDSessionArchive ToolID = "compozy__session_archive"
+	// ToolIDSessionUnarchive restores one archived runtime session.
+	ToolIDSessionUnarchive ToolID = "compozy__session_unarchive"
 	// ToolIDSessionCreate accepts one unbound logical user session.
 	ToolIDSessionCreate ToolID = "compozy__session_create"
 	// ToolIDSessionPrompt submits one prompt with an optional runtime snapshot.

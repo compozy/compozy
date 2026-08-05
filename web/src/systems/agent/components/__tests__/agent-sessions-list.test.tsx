@@ -1,8 +1,9 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { SessionPayload } from "@/systems/session";
+import type { SessionLifecycleActionHandlers, SessionPayload } from "@/systems/session";
 import { primarySessionFixture } from "@/systems/session/testing";
 import { AgentSessionsList } from "../agent-sessions-list";
 
@@ -36,6 +37,17 @@ function makeSession(overrides: Partial<SessionPayload>): SessionPayload {
   };
 }
 
+function sessionActions(): SessionLifecycleActionHandlers {
+  return {
+    pendingAction: null,
+    pendingSessionId: null,
+    onArchive: vi.fn(),
+    onDelete: vi.fn(),
+    onStop: vi.fn(),
+    onUnarchive: vi.fn(),
+  };
+}
+
 describe("AgentSessionsList", () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -57,6 +69,27 @@ describe("AgentSessionsList", () => {
     expect(
       screen.getByText("Archived sessions for codex-agent appear after completed work.")
     ).toBeInTheDocument();
+  });
+
+  it("does not claim the agent has no sessions when only archived rows exist", () => {
+    render(
+      <AgentSessionsList
+        agentName="codex-agent"
+        sessions={[]}
+        archivedSessions={[
+          makeSession({
+            id: "sess_archived_only",
+            state: "stopped",
+            badge: "stopped",
+            archived_at: "2026-08-04T12:00:00Z",
+          }),
+        ]}
+        status="ready"
+      />
+    );
+
+    expect(screen.queryByTestId("agent-sessions-empty")).toBeNull();
+    expect(screen.getByTestId("agent-sessions-archived")).toBeInTheDocument();
   });
 
   it("renders the daemon-generated session name instead of fallback identity", () => {
@@ -291,5 +324,50 @@ describe("AgentSessionsList", () => {
       "aria-busy",
       "true"
     );
+  });
+
+  it("keeps archived sessions collapsed and gates each row menu by lifecycle state", async () => {
+    const user = userEvent.setup();
+    const actions = sessionActions();
+    const active = makeSession({ id: "sess_active", state: "active", badge: "running" });
+    const stopped = makeSession({ id: "sess_stopped", state: "stopped", badge: "stopped" });
+    const archived = makeSession({
+      id: "sess_archived",
+      state: "stopped",
+      badge: "stopped",
+      archived_at: "2026-08-04T12:00:00Z",
+    });
+
+    render(
+      <AgentSessionsList
+        agentName="codex-agent"
+        sessions={[active, stopped]}
+        archivedSessions={[archived]}
+        archivedTotal={4}
+        sessionActions={actions}
+        status="ready"
+      />
+    );
+
+    fireEvent.click(screen.getByTestId("session-row-actions-sess_active"));
+    expect(screen.getByTestId("session-row-stop-sess_active")).toBeInTheDocument();
+    expect(screen.queryByTestId("session-row-archive-sess_active")).toBeNull();
+    await user.keyboard("{Escape}");
+
+    fireEvent.click(screen.getByTestId("session-row-actions-sess_stopped"));
+    expect(screen.getByTestId("session-row-archive-sess_stopped")).toBeInTheDocument();
+    expect(screen.queryByTestId("session-row-stop-sess_stopped")).toBeNull();
+    await user.keyboard("{Escape}");
+
+    const archivedDisclosure = screen.getByRole("button", { name: "Archived sessions (4)" });
+    expect(archivedDisclosure).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByTestId("agent-session-row-sess_archived")).toBeNull();
+    await user.click(archivedDisclosure);
+    expect(screen.getByTestId("agent-session-row-sess_archived")).toHaveTextContent("ARCHIVED");
+
+    fireEvent.click(screen.getByTestId("session-row-actions-sess_archived"));
+    expect(screen.getByTestId("session-row-unarchive-sess_archived")).toBeInTheDocument();
+    expect(screen.queryByTestId("session-row-archive-sess_archived")).toBeNull();
+    expect(screen.queryByTestId("session-row-stop-sess_archived")).toBeNull();
   });
 });

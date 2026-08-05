@@ -22,6 +22,7 @@ import {
   canPromptSession,
   isSessionRunning,
   isUserControllableSession,
+  useUnarchiveSession,
   type QueuedPrompt,
   type SessionPayload,
   type SessionPromptRuntimeSnapshot,
@@ -58,6 +59,7 @@ export function useSessionPageControls(
   const deleteMutation = useDeleteSession({ workspaceId });
   const stopMutation = useStopSession({ workspaceId });
   const resumeMutation = useResumeSession({ workspaceId });
+  const unarchiveMutation = useUnarchiveSession({ workspaceId });
   const clearMutation = useClearSessionConversation({ workspaceId });
   const queuePromptMutation = useQueueSessionPrompt({ workspaceId });
   const interruptPromptMutation = useInterruptSessionPrompt({ workspaceId });
@@ -98,6 +100,7 @@ export function useSessionPageControls(
 
   const isStopping = controlsState.stop.phase === "pending";
   const isResuming = controlsState.resume.phase === "pending";
+  const isUnarchiving = unarchiveMutation.isPending;
   const isDeleting = deleteMutation.isPending;
   const isClearing = clearMutation.isPending;
   const busyInputPending =
@@ -105,7 +108,8 @@ export function useSessionPageControls(
     cancelSessionInput.isPending ||
     replaceSessionInput.isPending ||
     promoteSessionInput.isPending;
-  const controlsBusy = isStopping || isResuming || isDeleting || isClearing || busyInputPending;
+  const controlsBusy =
+    isStopping || isResuming || isUnarchiving || isDeleting || isClearing || busyInputPending;
   const hasConversationContent = messages.length > 0 || transcriptMessages.length > 0;
   const canClear = hasConversationContent && !controlsBusy && !effectiveRunning;
 
@@ -248,6 +252,18 @@ export function useSessionPageControls(
     });
   };
 
+  const handleUnarchive = () => {
+    if (controlsBusy || session.archived_at === null) {
+      return;
+    }
+
+    unarchiveMutation.mutate(sessionId, {
+      onError: error => {
+        toast.error(error instanceof Error ? error.message : "Failed to unarchive session");
+      },
+    });
+  };
+
   const handleDismissResumeFailure = () => {
     store.trigger.resumeFailureDismissed({});
   };
@@ -297,12 +313,14 @@ export function useSessionPageControls(
     handleSteerPrompt,
     handleSteerQueuedPrompt,
     handleStop,
+    handleUnarchive,
     isBusyInputPending: busyInputPending,
     isClearing,
     isDeleting,
     isResuming,
     isSessionRunning: daemonRunning,
     isStopping,
+    isUnarchiving,
     messages,
     queuedPrompts,
     resumeFailure: controlsState.resume.failure,

@@ -1310,6 +1310,59 @@ func TestBootExtensionsPreservesDevCycleDisableEnableState(t *testing.T) {
 func TestNewHostAPISessionManagerAdapter(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should expose and forward session archive operations when source supports them", func(t *testing.T) {
+		t.Parallel()
+
+		source := &fakeArchivingSessionManager{fakeSessionManager: &fakeSessionManager{}}
+		adapter := newHostAPISessionManagerAdapter(source)
+		archiveManager, ok := adapter.(core.SessionArchiveManager)
+		if !ok {
+			t.Fatalf("newHostAPISessionManagerAdapter() = %T, want session archive operations", adapter)
+		}
+
+		archived, err := archiveManager.Archive(testutil.Context(t), "ws-archive", "sess-archive")
+		if err != nil {
+			t.Fatalf("Archive() error = %v", err)
+		}
+		if got, want := archived.ID, "sess-archive"; got != want {
+			t.Fatalf("Archive() session ID = %q, want %q", got, want)
+		}
+		if got, want := source.archiveCall, (fakeSessionArchiveCall{
+			workspaceID: "ws-archive",
+			sessionID:   "sess-archive",
+		}); got != want {
+			t.Fatalf("Archive() call = %#v, want %#v", got, want)
+		}
+
+		unarchived, err := archiveManager.Unarchive(testutil.Context(t), "ws-unarchive", "sess-unarchive")
+		if err != nil {
+			t.Fatalf("Unarchive() error = %v", err)
+		}
+		if got, want := unarchived.ID, "sess-unarchive"; got != want {
+			t.Fatalf("Unarchive() session ID = %q, want %q", got, want)
+		}
+		if got, want := source.unarchiveCall, (fakeSessionArchiveCall{
+			workspaceID: "ws-unarchive",
+			sessionID:   "sess-unarchive",
+		}); got != want {
+			t.Fatalf("Unarchive() call = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("Should reject session archive operations when source does not support them", func(t *testing.T) {
+		t.Parallel()
+
+		adapter := newHostAPISessionManagerAdapter(&fakeSessionManager{})
+		archiveManager, ok := adapter.(core.SessionArchiveManager)
+		if !ok {
+			t.Fatalf("newHostAPISessionManagerAdapter() = %T, want session archive operations", adapter)
+		}
+		_, err := archiveManager.Archive(testutil.Context(t), "ws-archive", "sess-archive")
+		if err == nil {
+			t.Fatal("Archive() error = nil, want unsupported operation error")
+		}
+	})
+
 	t.Run("Should expose and forward durable acceptance when source supports it", func(t *testing.T) {
 		t.Parallel()
 
@@ -6897,6 +6950,35 @@ type fakeNetworkBindableSessionManager struct {
 type fakeAcceptingSessionManager struct {
 	*fakeSessionManager
 	acceptedCall session.CreateAcceptedOpts
+}
+
+type fakeSessionArchiveCall struct {
+	workspaceID string
+	sessionID   string
+}
+
+type fakeArchivingSessionManager struct {
+	*fakeSessionManager
+	archiveCall   fakeSessionArchiveCall
+	unarchiveCall fakeSessionArchiveCall
+}
+
+func (f *fakeArchivingSessionManager) Archive(
+	_ context.Context,
+	workspaceID string,
+	sessionID string,
+) (*session.Info, error) {
+	f.archiveCall = fakeSessionArchiveCall{workspaceID: workspaceID, sessionID: sessionID}
+	return &session.Info{ID: sessionID, WorkspaceID: workspaceID}, nil
+}
+
+func (f *fakeArchivingSessionManager) Unarchive(
+	_ context.Context,
+	workspaceID string,
+	sessionID string,
+) (*session.Info, error) {
+	f.unarchiveCall = fakeSessionArchiveCall{workspaceID: workspaceID, sessionID: sessionID}
+	return &session.Info{ID: sessionID, WorkspaceID: workspaceID}, nil
 }
 
 func (f *fakeAcceptingSessionManager) CreateAccepted(

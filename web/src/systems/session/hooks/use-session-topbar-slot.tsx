@@ -1,4 +1,4 @@
-import { Eraser, PanelRight, Play, Square, Trash2 } from "lucide-react";
+import { Eraser, PanelRight, Play, RotateCcw, Square, Trash2 } from "lucide-react";
 
 import {
   Button,
@@ -22,6 +22,7 @@ interface UseSessionTopbarSlotInput {
   isDeleting: boolean;
   isStopping: boolean;
   isResuming: boolean;
+  isUnarchiving: boolean;
   isClearing: boolean;
   canClear: boolean;
   inspectorOpen: boolean;
@@ -31,6 +32,7 @@ interface UseSessionTopbarSlotInput {
   onDelete: () => void;
   onStop: () => void;
   onResume: () => void;
+  onUnarchive: () => void;
   onClear: () => void;
 }
 
@@ -40,6 +42,7 @@ export function useSessionTopbarSlot({
   isDeleting,
   isStopping,
   isResuming,
+  isUnarchiving,
   isClearing,
   canClear,
   inspectorOpen,
@@ -48,15 +51,33 @@ export function useSessionTopbarSlot({
   onDelete,
   onStop,
   onResume,
+  onUnarchive,
   onClear,
 }: UseSessionTopbarSlotInput): void {
   const isActive = session.state === "active" || session.state === "starting";
+  const isArchived = session.archived_at !== null;
   const canResume =
-    session.attachable === true && isUserControllableSession(session) && !isSessionRunning(session);
+    session.archived_at === null &&
+    session.attachable === true &&
+    isUserControllableSession(session) &&
+    !isSessionRunning(session);
   const showStopAction = isActive && !canResume;
-  const controlsBusy = isStopping || isResuming || isDeleting;
+  const controlsBusy = isStopping || isResuming || isUnarchiving || isDeleting;
 
-  const primaryAction = showStopAction ? (
+  const primaryAction = isArchived ? (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon-sm"
+      className="size-11 focus-visible:shadow-focus-inset"
+      onClick={onUnarchive}
+      disabled={controlsBusy}
+      data-testid="unarchive-button"
+      aria-label="Unarchive session"
+    >
+      {isUnarchiving ? <Spinner className="size-3" /> : <RotateCcw className="size-3" />}
+    </Button>
+  ) : showStopAction ? (
     <Button
       type="button"
       variant="ghost"

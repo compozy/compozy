@@ -40,6 +40,7 @@ type hostAPIPromptOptsSessionManager interface {
 type hostAPISessionManagerAdapter struct {
 	core.SessionManager
 	exec             sandboxExecSessionManager
+	archive          core.SessionArchiveManager
 	runtimeSelection core.SessionRuntimeSelectionManager
 }
 
@@ -65,6 +66,7 @@ type hostAPIAcceptanceNetworkSessionManagerAdapter struct {
 var (
 	_ hostAPIPromptOptsSessionManager     = (*hostAPISessionManagerAdapter)(nil)
 	_ hostAPIPromptOptsSessionManager     = (*hostAPINetworkSessionManagerAdapter)(nil)
+	_ core.SessionArchiveManager          = (*hostAPISessionManagerAdapter)(nil)
 	_ core.SessionRuntimeSelectionManager = (*hostAPISessionManagerAdapter)(nil)
 	_ core.SessionAcceptanceManager       = (*hostAPIAcceptanceSessionManagerAdapter)(nil)
 	_ core.SessionAcceptanceManager       = (*hostAPIAcceptanceNetworkSessionManagerAdapter)(nil)
@@ -74,6 +76,9 @@ func newHostAPISessionManagerAdapter(sessions SessionManager) hostAPIExtensionSe
 	adapter := hostAPISessionManagerAdapter{SessionManager: sessions}
 	if exec, ok := sessions.(sandboxExecSessionManager); ok {
 		adapter.exec = exec
+	}
+	if archive, ok := sessions.(core.SessionArchiveManager); ok {
+		adapter.archive = archive
 	}
 	if runtimeSelection, ok := sessions.(core.SessionRuntimeSelectionManager); ok {
 		adapter.runtimeSelection = runtimeSelection
@@ -101,6 +106,28 @@ func newHostAPISessionManagerAdapter(sessions SessionManager) hostAPIExtensionSe
 	default:
 		return adapter
 	}
+}
+
+func (a hostAPISessionManagerAdapter) Archive(
+	ctx context.Context,
+	workspaceID string,
+	sessionID string,
+) (*session.Info, error) {
+	if a.archive == nil {
+		return nil, errors.New("daemon: session manager does not support session archiving")
+	}
+	return a.archive.Archive(ctx, workspaceID, sessionID)
+}
+
+func (a hostAPISessionManagerAdapter) Unarchive(
+	ctx context.Context,
+	workspaceID string,
+	sessionID string,
+) (*session.Info, error) {
+	if a.archive == nil {
+		return nil, errors.New("daemon: session manager does not support session archiving")
+	}
+	return a.archive.Unarchive(ctx, workspaceID, sessionID)
 }
 
 func (a hostAPISessionManagerAdapter) SetRuntimeSelection(

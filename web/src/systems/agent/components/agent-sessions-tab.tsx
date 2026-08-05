@@ -1,6 +1,6 @@
 import { PillGroup, Skeleton, type PillGroupItem } from "@compozy/ui";
 
-import type { SessionPayload } from "@/systems/session";
+import type { SessionLifecycleActionHandlers, SessionPayload } from "@/systems/session";
 
 import { filterAgentSessionsByStatus, type AgentSessionFilter } from "../lib/agent-detail-search";
 import { AgentSessionsList } from "./agent-sessions-list";
@@ -14,9 +14,13 @@ const FILTER_ITEMS: PillGroupItem<AgentSessionFilter>[] = [
   { value: "done", label: "Done", testId: "agent-sessions-filter-done" },
 ];
 
+const EMPTY_ARCHIVED_SESSIONS: SessionPayload[] = [];
+
 export interface AgentSessionsTabProps {
   agentName: string;
   sessions: SessionPayload[];
+  archivedSessions?: SessionPayload[];
+  archivedTotal?: number;
   total: number;
   active: number;
   failed: number | null;
@@ -27,7 +31,10 @@ export interface AgentSessionsTabProps {
   /** Row-list status only — independent of catalog metrics. */
   status: "loading" | "error" | "ready";
   paginationStatus?: "available" | "loading";
+  archivedPaginationStatus?: "available" | "loading";
   onLoadMore: () => void;
+  onLoadMoreArchived?: () => void;
+  sessionActions?: SessionLifecycleActionHandlers;
   filter: AgentSessionFilter;
   onFilterChange: (filter: AgentSessionFilter) => void;
   onNewSession: () => void;
@@ -37,6 +44,8 @@ export interface AgentSessionsTabProps {
 export function AgentSessionsTab({
   agentName,
   sessions,
+  archivedSessions = EMPTY_ARCHIVED_SESSIONS,
+  archivedTotal,
   total,
   active,
   failed,
@@ -46,7 +55,10 @@ export function AgentSessionsTab({
   lastActivityAt,
   status,
   paginationStatus,
+  archivedPaginationStatus,
   onLoadMore,
+  onLoadMoreArchived,
+  sessionActions,
   filter,
   onFilterChange,
   onNewSession,
@@ -112,12 +124,17 @@ export function AgentSessionsTab({
       <AgentSessionsList
         agentName={agentName}
         sessions={filtered}
+        archivedSessions={archivedSessions}
+        archivedTotal={archivedTotal}
         status={status}
         emptyTitle={emptyTitle}
         emptyDescription={emptyDescription}
         emptyAction={emptyAction}
         paginationStatus={paginationStatus}
         onLoadMore={onLoadMore}
+        archivedPaginationStatus={archivedPaginationStatus}
+        onLoadMoreArchived={onLoadMoreArchived}
+        sessionActions={sessionActions}
       />
     </div>
   );

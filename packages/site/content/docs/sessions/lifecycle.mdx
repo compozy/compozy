@@ -309,6 +309,34 @@ Stopping preserves the session directory, catalog row, metadata, events, and sel
 ends attach eligibility. A later normal prompt restores the provider history and continues under the
 same Compozy session ID; attach, queue, steer, interrupt, and other control operations do not restart it.
 
+## Archiving a stopped session
+
+Archive a stopped session when it should leave the default catalog but its history must remain:
+
+```bash
+compozy session archive sess-1234
+```
+
+The matching HTTP and UDS operation is:
+
+```bash
+curl -X POST http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234/archive
+```
+
+Archive is catalog metadata, separate from the session lifecycle state. Only a `stopped` session can
+be archived. Its metadata, events, ledger, runtime selection, and direct read operations remain
+available. Attach, prompt, and resume operations are rejected while it is archived.
+
+Restore the session to the default catalog before restarting it:
+
+```bash
+compozy session unarchive sess-1234
+```
+
+The matching HTTP and UDS endpoint ends in `/unarchive`. Unarchiving preserves the stopped state, so
+a later normal prompt can restart the same logical session. Use removal only when the complete
+session record should be deleted.
+
 ### Timeout behavior
 
 Compozy has separate timeout concepts:

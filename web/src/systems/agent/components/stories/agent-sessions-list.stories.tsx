@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { fn } from "storybook/test";
 
 import {
   storyAgentNames,
@@ -8,7 +9,7 @@ import {
   storyWorkspacePaths,
 } from "@/storybook/fintech-scenario";
 import { sessionFixtures } from "@/systems/session/mocks";
-import type { SessionPayload } from "@/systems/session/types";
+import type { SessionLifecycleActionHandlers, SessionPayload } from "@/systems/session";
 import { PanelSurface } from "@/storybook/story-layout";
 
 import { AgentSessionsList } from "../agent-sessions-list";
@@ -32,6 +33,7 @@ const fallbackFraudSession: SessionPayload = {
   state: "active",
   badge: "idle",
   attachable: true,
+  archived_at: null,
   available_commands: [],
   created_at: "2026-04-17T16:00:00Z",
   updated_at: "2026-04-17T18:10:00Z",
@@ -73,6 +75,26 @@ const readyFraudSessions: SessionPayload[] = fraudSessions.length
     )
   : [{ ...fallbackFraudSession, name: "Checkout Retry Fencing" }];
 
+const archivedFraudSessions: SessionPayload[] = [
+  {
+    ...failureBaseSession,
+    id: "sess_fraud_archived",
+    name: "Historical settlement audit",
+    state: "stopped",
+    badge: "stopped",
+    archived_at: "2026-08-04T12:00:00Z",
+  },
+];
+
+const sessionActions: SessionLifecycleActionHandlers = {
+  pendingAction: null,
+  pendingSessionId: null,
+  onArchive: fn(),
+  onDelete: fn(),
+  onStop: fn(),
+  onUnarchive: fn(),
+};
+
 const meta: Meta<typeof AgentSessionsList> = {
   title: "systems/agent/components/AgentSessionsList",
   component: AgentSessionsList,
@@ -83,6 +105,9 @@ const meta: Meta<typeof AgentSessionsList> = {
   args: {
     agentName: storyAgentNames.fraud,
     sessions: fraudSessions,
+    archivedSessions: archivedFraudSessions,
+    archivedTotal: archivedFraudSessions.length,
+    sessionActions,
     status: "ready",
   },
 };
@@ -103,8 +128,7 @@ function Frame({ children }: FrameProps) {
 }
 
 /**
- * Default -- table of sessions sorted by last activity with status chips and metadata.
- * The first row carries a daemon-generated session name (Checkout Retry Fencing).
+ * Default -- sessions sorted by last activity with state-gated row actions and a closed archive.
  */
 export const Default: Story = {
   args: { sessions: readyFraudSessions },

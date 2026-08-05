@@ -13,6 +13,8 @@ const (
 	HostAPIMethodSessionsInputsCancel        HostAPIMethod = "sessions/inputs/cancel"
 	HostAPIMethodSessionsInputsPromote       HostAPIMethod = "sessions/inputs/promote"
 	HostAPIMethodSessionsStop                HostAPIMethod = "sessions/stop"
+	HostAPIMethodSessionsArchive             HostAPIMethod = "sessions/archive"
+	HostAPIMethodSessionsUnarchive           HostAPIMethod = "sessions/unarchive"
 	HostAPIMethodSessionsStatus              HostAPIMethod = "sessions/status"
 	HostAPIMethodSessionsEvents              HostAPIMethod = "sessions/events"
 	HostAPIMethodSessionsSoulRefresh         HostAPIMethod = "sessions/soul/refresh"
@@ -109,6 +111,8 @@ var allHostAPIMethods = []HostAPIMethod{
 	HostAPIMethodSessionsInputsCancel,
 	HostAPIMethodSessionsInputsPromote,
 	HostAPIMethodSessionsStop,
+	HostAPIMethodSessionsArchive,
+	HostAPIMethodSessionsUnarchive,
 	HostAPIMethodSessionsStatus,
 	HostAPIMethodSessionsEvents,
 	HostAPIMethodSessionsSoulRefresh,

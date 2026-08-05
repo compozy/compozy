@@ -55,6 +55,8 @@ const ATTENTION: OsAttentionModel = {
   notificationCount: 2,
   rows: [],
   sessions: [],
+  archivedSessions: [],
+  archivedSessionsTotal: 0,
   sessionsDisconnected: false,
   tasksDisconnected: false,
   loading: false,

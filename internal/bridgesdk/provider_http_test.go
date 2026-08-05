@@ -21,6 +21,7 @@ func TestProviderHTTPServerOwnsListenerLifecycle(t *testing.T) {
 			Handler: http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 				writer.WriteHeader(http.StatusNoContent)
 			}),
+			RoutesReady: closedProviderRoutes(),
 			Go: func(run func()) bool {
 				wg.Go(run)
 				return true
@@ -72,6 +73,7 @@ func TestProviderHTTPServerOwnsListenerLifecycle(t *testing.T) {
 			Handler: http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 				writer.WriteHeader(http.StatusNoContent)
 			}),
+			RoutesReady: closedProviderRoutes(),
 			Go: func(run func()) bool {
 				wg.Go(run)
 				return true
@@ -109,6 +111,12 @@ func TestProviderHTTPServerOwnsListenerLifecycle(t *testing.T) {
 		}); err == nil {
 			t.Fatal("NewProviderHTTPServer(without Go) error = nil")
 		}
+		if _, err := NewProviderHTTPServer(ProviderHTTPConfig{
+			Handler: http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}),
+			Go:      func(func()) bool { return true },
+		}); err == nil {
+			t.Fatal("NewProviderHTTPServer(without routes readiness) error = nil")
+		}
 	})
 
 	t.Run("Should release the listener when lifecycle ownership rejects startup", func(t *testing.T) {
@@ -118,7 +126,8 @@ func TestProviderHTTPServerOwnsListenerLifecycle(t *testing.T) {
 		var server *ProviderHTTPServer
 		var err error
 		server, err = NewProviderHTTPServer(ProviderHTTPConfig{
-			Handler: http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}),
+			Handler:     http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}),
+			RoutesReady: closedProviderRoutes(),
 			Go: func(func()) bool {
 				boundAddress = server.Address()
 				return false
@@ -139,4 +148,10 @@ func TestProviderHTTPServerOwnsListenerLifecycle(t *testing.T) {
 			t.Fatalf("Close(rebound listener) error = %v", err)
 		}
 	})
+}
+
+func closedProviderRoutes() <-chan struct{} {
+	ready := make(chan struct{})
+	close(ready)
+	return ready
 }

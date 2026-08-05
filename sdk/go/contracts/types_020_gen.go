@@ -53,6 +53,7 @@ type SessionStatus struct {
 	WorkspaceID string                `json:"workspace_id,omitempty"`
 	Workspace   string                `json:"workspace,omitempty"`
 	State       State                 `json:"state"`
+	ArchivedAt  *time.Time            `json:"archived_at"`
 	StopReason  StopReason            `json:"stop_reason,omitempty"`
 	StopDetail  string                `json:"stop_detail,omitempty"`
 	CreatedAt   time.Time             `json:"created_at"`
@@ -79,13 +80,14 @@ type SessionStatusResponse struct {
 }
 
 type SessionSummary struct {
-	ID        string                `json:"id"`
-	Name      string                `json:"name,omitempty"`
-	Agent     string                `json:"agent"`
-	Runtime   SessionRuntimePayload `json:"runtime"`
-	Workspace string                `json:"workspace,omitempty"`
-	State     State                 `json:"state"`
-	CreatedAt time.Time             `json:"created_at"`
+	ID         string                `json:"id"`
+	Name       string                `json:"name,omitempty"`
+	Agent      string                `json:"agent"`
+	Runtime    SessionRuntimePayload `json:"runtime"`
+	Workspace  string                `json:"workspace,omitempty"`
+	State      State                 `json:"state"`
+	ArchivedAt *time.Time            `json:"archived_at"`
+	CreatedAt  time.Time             `json:"created_at"`
 }
 
 type SessionTargetParams struct {
@@ -101,6 +103,7 @@ type SessionsCreateParams struct {
 
 type SessionsListParams struct {
 	Workspace string `json:"workspace,omitempty"`
+	Archive   string `json:"archive,omitempty"`
 }
 
 type SessionsPromptParams struct {

@@ -72,6 +72,7 @@ func newTeamsProvider(stderr io.Writer) (*teamsProvider, error) {
 		ReadHeaderTimeout: teamsWebhookReadHeaderTimeout,
 		IdleTimeout:       teamsWebhookIdleTimeout,
 		Handler:           http.HandlerFunc(provider.serveWebhookHTTP),
+		RoutesReady:       lifecycle.RoutesReady(),
 		Go:                lifecycle.Go,
 		OnError:           provider.setLastError,
 	})

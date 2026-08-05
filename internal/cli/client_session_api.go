@@ -17,6 +17,8 @@ type sessionClientAPI interface {
 	InspectSession(context.Context, string, SessionInspectQuery) (SessionInspectRecord, error)
 	RefreshSessionSoul(context.Context, string, SessionSoulRefreshRequest) (AgentSoulRecord, error)
 	StopSession(context.Context, string) error
+	ArchiveSession(context.Context, string) (SessionRecord, error)
+	UnarchiveSession(context.Context, string) (SessionRecord, error)
 	DeleteSession(context.Context, string) error
 	ResumeSession(context.Context, string) (SessionRecord, error)
 	SetSessionRuntime(context.Context, string, SetSessionRuntimeRequest) (SessionRecord, error)

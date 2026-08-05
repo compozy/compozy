@@ -39,6 +39,7 @@ func (m *Manager) AggregateSessionsByAgent(
 
 	_, activeIDs, activeMatches := m.activeSessionCatalogRows(ListQuery{
 		WorkspaceID: workspaceID,
+		Archive:     ArchiveExclude,
 	})
 	durable, err := reader.AggregateSessionsByAgent(ctx, store.SessionAgentMetricsQuery{
 		WorkspaceID:         workspaceID,

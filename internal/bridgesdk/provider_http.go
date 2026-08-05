@@ -16,6 +16,7 @@ type ProviderHTTPConfig struct {
 	ReadHeaderTimeout time.Duration
 	IdleTimeout       time.Duration
 	Handler           http.Handler
+	RoutesReady       <-chan struct{}
 	Go                func(func()) bool
 	OnError           func(error)
 }
@@ -38,6 +39,9 @@ func NewProviderHTTPServer(config ProviderHTTPConfig) (*ProviderHTTPServer, erro
 	}
 	if config.Go == nil {
 		return nil, errors.New("bridgesdk: provider http goroutine owner is required")
+	}
+	if config.RoutesReady == nil {
+		return nil, errors.New("bridgesdk: provider http routes readiness is required")
 	}
 	return &ProviderHTTPServer{config: config}, nil
 }
@@ -67,7 +71,7 @@ func (s *ProviderHTTPServer) Start(listenAddr string) error {
 		return fmt.Errorf("bridgesdk: listen for provider webhook: %w", err)
 	}
 	server := &http.Server{
-		Handler:           s.config.Handler,
+		Handler:           http.HandlerFunc(s.serveWhenRoutesReady),
 		ReadHeaderTimeout: s.config.ReadHeaderTimeout,
 		IdleTimeout:       s.config.IdleTimeout,
 	}
@@ -86,6 +90,15 @@ func (s *ProviderHTTPServer) Start(listenAddr string) error {
 		return errors.Join(ErrProviderStopped, s.Shutdown(context.Background()))
 	}
 	return nil
+}
+
+func (s *ProviderHTTPServer) serveWhenRoutesReady(writer http.ResponseWriter, request *http.Request) {
+	select {
+	case <-s.config.RoutesReady:
+		s.config.Handler.ServeHTTP(writer, request)
+	case <-request.Context().Done():
+		http.Error(writer, "provider routes are not ready", http.StatusServiceUnavailable)
+	}
 }
 
 // Address returns the configured listen address while the server is active.

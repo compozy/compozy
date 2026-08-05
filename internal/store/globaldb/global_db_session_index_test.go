@@ -80,6 +80,102 @@ func TestListSessionsWorkspaceStateIndex(t *testing.T) {
 func TestPageSessionsVisibilityExclusion(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should keep archive state workspace scoped and outside lifecycle state", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(
+			t,
+			globalDB,
+			"workspace-session-archive",
+			filepath.Join(t.TempDir(), "workspace-session-archive"),
+		)
+		foreignWorkspaceID := registerWorkspaceForGlobalTests(
+			t,
+			globalDB,
+			"workspace-session-archive-foreign",
+			filepath.Join(t.TempDir(), "workspace-session-archive-foreign"),
+		)
+		baseAt := time.Date(2026, 8, 4, 20, 0, 0, 0, time.UTC)
+		globalDB.now = func() time.Time { return baseAt.Add(time.Minute) }
+		stopped := sessionInfoForWorkspaceStateIndexTest(
+			"sess-archive",
+			workspaceID,
+			globalDBSessionStateStopped,
+			baseAt,
+		)
+		active := sessionInfoForWorkspaceStateIndexTest(
+			"sess-live",
+			workspaceID,
+			globalDBSessionStateActive,
+			baseAt,
+		)
+		for _, info := range []store.SessionInfo{stopped, active} {
+			if err := globalDB.RegisterSession(ctx, info); err != nil {
+				t.Fatalf("RegisterSession(%q) error = %v", info.ID, err)
+			}
+		}
+
+		archived, err := globalDB.SetSessionArchived(ctx, workspaceID, stopped.ID, true)
+		if err != nil {
+			t.Fatalf("SetSessionArchived() error = %v", err)
+		}
+		if archived.ArchivedAt == nil || archived.State != globalDBSessionStateStopped {
+			t.Fatalf("SetSessionArchived() = %#v, want archived stopped session", archived)
+		}
+		idempotent, err := globalDB.SetSessionArchived(ctx, workspaceID, stopped.ID, true)
+		if err != nil || idempotent.ArchivedAt == nil || !idempotent.ArchivedAt.Equal(*archived.ArchivedAt) {
+			t.Fatalf("SetSessionArchived(idempotent) = %#v, %v, want stable timestamp", idempotent, err)
+		}
+		if _, err := globalDB.SetSessionArchived(ctx, foreignWorkspaceID, stopped.ID, false); !errors.Is(
+			err,
+			store.ErrSessionNotFound,
+		) {
+			t.Fatalf("SetSessionArchived(foreign workspace) error = %v, want ErrSessionNotFound", err)
+		}
+		if _, err := globalDB.SetSessionArchived(ctx, workspaceID, active.ID, true); !errors.Is(
+			err,
+			store.ErrSessionArchiveRequiresStopped,
+		) {
+			t.Fatalf("SetSessionArchived(active) error = %v, want ErrSessionArchiveRequiresStopped", err)
+		}
+		if err := globalDB.UpdateSessionState(ctx, store.SessionStateUpdate{
+			ID: stopped.ID, State: globalDBSessionStateActive, UpdatedAt: baseAt.Add(2 * time.Minute),
+		}); !errors.Is(err, store.ErrSessionArchived) {
+			t.Fatalf("UpdateSessionState(archived) error = %v, want ErrSessionArchived", err)
+		}
+
+		for _, testCase := range []struct {
+			name    string
+			archive store.SessionArchiveFilter
+			want    []string
+		}{
+			{name: "exclude", archive: store.SessionArchiveExclude, want: []string{active.ID}},
+			{name: "only", archive: store.SessionArchiveOnly, want: []string{stopped.ID}},
+			{name: "include", archive: store.SessionArchiveInclude, want: []string{stopped.ID, active.ID}},
+		} {
+			page, pageErr := globalDB.PageSessions(ctx, store.SessionCatalogPageQuery{
+				WorkspaceID: workspaceID,
+				Archive:     testCase.archive,
+				Sort:        sessionCatalogSortRecent,
+				Limit:       10,
+			})
+			if pageErr != nil {
+				t.Fatalf("PageSessions(%s) error = %v", testCase.name, pageErr)
+			}
+			got := sessionIDsForWorkspaceStateIndexTest(page.Sessions)
+			if !slices.Equal(got, testCase.want) || page.Total != len(testCase.want) {
+				t.Fatalf("PageSessions(%s) = %#v total=%d, want %#v", testCase.name, got, page.Total, testCase.want)
+			}
+		}
+
+		restored, err := globalDB.SetSessionArchived(ctx, workspaceID, stopped.ID, false)
+		if err != nil || restored.ArchivedAt != nil {
+			t.Fatalf("SetSessionArchived(false) = %#v, %v, want restored session", restored, err)
+		}
+	})
+
 	t.Run("Should preserve normal sessions with null spawn roles", func(t *testing.T) {
 		t.Parallel()
 

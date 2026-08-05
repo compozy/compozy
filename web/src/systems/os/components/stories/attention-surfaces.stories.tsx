@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn, userEvent, within } from "storybook/test";
 
 import { AgentCreateHostProvider } from "@/systems/agent";
-import type { SessionPayload } from "@/systems/session";
+import type { SessionLifecycleActionHandlers, SessionPayload } from "@/systems/session";
 import type { WorkspacePayload } from "@/systems/workspace";
 
 import { OsShellContext } from "../../contexts/os-shell-context";
@@ -35,6 +35,7 @@ function session(
     state: badge === "stopped" || badge === "failed" ? "stopped" : "active",
     badge,
     attachable: true,
+    archived_at: null,
     available_commands: [],
     created_at: "2026-07-20T12:00:00Z",
     updated_at: "2026-07-20T12:01:00Z",
@@ -50,6 +51,22 @@ const CATALOG: SessionPayload[] = [
   session("session-6", "Nightly dependency sweep", "infra", "stopped"),
   session("session-7", "Provider contract review", "infra", "idle"),
 ];
+
+const ARCHIVED_CATALOG: SessionPayload[] = [
+  {
+    ...session("session-archived", "Prior launch audit", "infra", "stopped"),
+    archived_at: "2026-08-04T12:00:00Z",
+  },
+];
+
+const SESSION_ACTIONS: SessionLifecycleActionHandlers = {
+  pendingAction: null,
+  pendingSessionId: null,
+  onArchive: fn(),
+  onDelete: fn(),
+  onStop: fn(),
+  onUnarchive: fn(),
+};
 
 const WORKSPACE: WorkspacePayload = {
   id: "workspace-compozy",
@@ -78,6 +95,8 @@ const ATTENTION: OsAttentionModel = {
     },
   ],
   sessions: CATALOG,
+  archivedSessions: ARCHIVED_CATALOG,
+  archivedSessionsTotal: ARCHIVED_CATALOG.length,
   sessionsDisconnected: false,
   tasksDisconnected: false,
   loading: false,
@@ -92,7 +111,15 @@ function SessionsModalFixture({ collapsedAgent }: { collapsedAgent?: string }) {
   return (
     <OsShellContext.Provider value={shell}>
       <DesktopShell dock={false} dockItems={dockItems}>
-        <OsSessionsModal open onOpenChange={fn()} sessions={CATALOG} disconnected={false} />
+        <OsSessionsModal
+          open
+          onOpenChange={fn()}
+          sessions={CATALOG}
+          archivedSessions={ARCHIVED_CATALOG}
+          archivedTotal={ARCHIVED_CATALOG.length}
+          disconnected={false}
+          sessionActions={SESSION_ACTIONS}
+        />
         <OsDockZone items={dockItems} onSelect={fn()} onNewSession={fn()} />
       </DesktopShell>
     </OsShellContext.Provider>
@@ -147,13 +174,29 @@ type Story = StoryObj<typeof meta>;
 
 /** Modal recent view with the runtime's raw status vocabulary and six-row recent limit. */
 export const SessionsRecent: Story = {
-  args: { open: true, onOpenChange: fn(), sessions: CATALOG, disconnected: false },
+  args: {
+    open: true,
+    onOpenChange: fn(),
+    sessions: CATALOG,
+    archivedSessions: ARCHIVED_CATALOG,
+    archivedTotal: ARCHIVED_CATALOG.length,
+    disconnected: false,
+    sessionActions: SESSION_ACTIONS,
+  },
   render: () => <SessionsModalFixture />,
 };
 
 /** Grouped catalog with the webgen agent persisted as collapsed. */
 export const SessionsGrouped: Story = {
-  args: { open: true, onOpenChange: fn(), sessions: CATALOG, disconnected: false },
+  args: {
+    open: true,
+    onOpenChange: fn(),
+    sessions: CATALOG,
+    archivedSessions: ARCHIVED_CATALOG,
+    archivedTotal: ARCHIVED_CATALOG.length,
+    disconnected: false,
+    sessionActions: SESSION_ACTIONS,
+  },
   render: () => <SessionsModalFixture collapsedAgent="webgen" />,
   play: async ({ canvasElement }) => {
     const body = canvasElement.ownerDocument.body;
@@ -163,13 +206,29 @@ export const SessionsGrouped: Story = {
 
 /** Open attention bell with one waiting session and one task awaiting approval. */
 export const BellPopulated: Story = {
-  args: { open: true, onOpenChange: fn(), sessions: CATALOG, disconnected: false },
+  args: {
+    open: true,
+    onOpenChange: fn(),
+    sessions: CATALOG,
+    archivedSessions: ARCHIVED_CATALOG,
+    archivedTotal: ARCHIVED_CATALOG.length,
+    disconnected: false,
+    sessionActions: SESSION_ACTIONS,
+  },
   render: () => <BellFixture />,
 };
 
 /** Projection-backed badges: sessions remains exact, while a large task count caps at 9+. */
 export const DockBadges: Story = {
-  args: { open: true, onOpenChange: fn(), sessions: CATALOG, disconnected: false },
+  args: {
+    open: true,
+    onOpenChange: fn(),
+    sessions: CATALOG,
+    archivedSessions: ARCHIVED_CATALOG,
+    archivedTotal: ARCHIVED_CATALOG.length,
+    disconnected: false,
+    sessionActions: SESSION_ACTIONS,
+  },
   render: () => (
     <DesktopShell
       dockItems={buildDeskItems({

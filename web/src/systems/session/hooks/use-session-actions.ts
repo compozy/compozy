@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { createClientId } from "@/lib/client-id";
 import {
+  archiveSession,
   cancelQueuedSessionPrompt,
   clearSessionConversation,
   createSession,
@@ -13,6 +14,7 @@ import {
   sendSessionPrompt,
   steerSessionPrompt,
   stopSession,
+  unarchiveSession,
 } from "../adapters/session-api";
 import { useActiveWorkspace } from "@/systems/workspace";
 import { sessionStore } from "../stores/session-store";
@@ -88,6 +90,32 @@ export function useDeleteSession(options: UseSessionWorkspaceOptions = {}) {
       queryClient.removeQueries({ queryKey: sessionKeys.detail(successWorkspaceId, id) });
 
       return invalidateWorkspaceSessionCatalog(queryClient, successWorkspaceId);
+    },
+  });
+}
+
+export function useArchiveSession(options: UseSessionWorkspaceOptions = {}) {
+  const queryClient = useQueryClient();
+  const { activeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = resolveWorkspaceId(options.workspaceId, activeWorkspaceId);
+
+  return useMutation({
+    mutationFn: (id: string) => archiveSession(requireWorkspace(workspaceId), id),
+    onSettled: (_data, _error, id) => {
+      if (workspaceId) void invalidateSessionMutationQueries(queryClient, workspaceId, id);
+    },
+  });
+}
+
+export function useUnarchiveSession(options: UseSessionWorkspaceOptions = {}) {
+  const queryClient = useQueryClient();
+  const { activeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = resolveWorkspaceId(options.workspaceId, activeWorkspaceId);
+
+  return useMutation({
+    mutationFn: (id: string) => unarchiveSession(requireWorkspace(workspaceId), id),
+    onSettled: (_data, _error, id) => {
+      if (workspaceId) void invalidateSessionMutationQueries(queryClient, workspaceId, id);
     },
   });
 }

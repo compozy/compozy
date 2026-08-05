@@ -1,6 +1,17 @@
 package store
 
-import "context"
+import (
+	"context"
+	"errors"
+	"time"
+)
+
+var (
+	// ErrSessionArchived reports an attempt to reactivate an archived session.
+	ErrSessionArchived = errors.New("store: session is archived")
+	// ErrSessionArchiveRequiresStopped reports an archive attempt for a live session.
+	ErrSessionArchiveRequiresStopped = errors.New("store: session must be stopped before archiving")
+)
 
 // SessionCatalog manages global session index records.
 type SessionCatalog interface {
@@ -10,6 +21,17 @@ type SessionCatalog interface {
 	ListSessions(ctx context.Context, query SessionListQuery) ([]SessionInfo, error)
 	AttachSession(ctx context.Context, req SessionAttachRequest) (SessionAttach, error)
 	ReconcileSessions(ctx context.Context, sessions []SessionInfo) (ReconcileResult, error)
+}
+
+// SessionArchiveStore owns the workspace-scoped archive metadata for sessions.
+type SessionArchiveStore interface {
+	SessionArchivedAt(ctx context.Context, workspaceID string, sessionID string) (*time.Time, error)
+	SetSessionArchived(
+		ctx context.Context,
+		workspaceID string,
+		sessionID string,
+		archived bool,
+	) (SessionInfo, error)
 }
 
 // SessionTranscriptEpochStore manages destructive transcript reset epochs.

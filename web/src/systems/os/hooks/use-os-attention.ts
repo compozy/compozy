@@ -21,6 +21,8 @@ export interface OsAttentionModel {
   notificationCount: number;
   rows: OsAttentionRow[];
   sessions: SessionPayload[];
+  archivedSessions: SessionPayload[];
+  archivedSessionsTotal: number;
   sessionsDisconnected: boolean;
   tasksDisconnected: boolean;
   loading: boolean;
@@ -39,6 +41,10 @@ export function useOsAttention(
     enabled: sessionsEnabled,
     filters: { include_health: true, limit: 100, sort: "last_activity" },
   });
+  const archivedSessionsQuery = useSessions(workspaceId, {
+    enabled: sessionsEnabled,
+    filters: { archive: "only", include_health: true, limit: 100, sort: "last_activity" },
+  });
   const dashboardQuery = useTaskDashboard(taskScope ?? {}, {
     enabled: tasksEnabled,
     refetchIntervalMs: ATTENTION_REFETCH_INTERVAL_MS,
@@ -54,13 +60,16 @@ export function useOsAttention(
   );
 
   const sessions = sessionsQuery.data ?? [];
+  const archivedSessions = archivedSessionsQuery.data ?? [];
   const dashboard = dashboardQuery.data ?? null;
   const tasks = tasksQuery.data ?? [];
   const sessionsDisconnected =
     !sessionsEnabled ||
     sessionCatalogStreamStatus !== "live" ||
     sessionsQuery.isError ||
-    sessionsQuery.data === undefined;
+    archivedSessionsQuery.isError ||
+    sessionsQuery.data === undefined ||
+    archivedSessionsQuery.data === undefined;
   const tasksDisconnected =
     !tasksEnabled ||
     dashboardQuery.isError ||
@@ -86,10 +95,12 @@ export function useOsAttention(
     notificationCount: attentionCount(badges),
     rows,
     sessions,
+    archivedSessions,
+    archivedSessionsTotal: archivedSessionsQuery.total,
     sessionsDisconnected,
     tasksDisconnected: taskRowsDisconnected,
     loading:
-      (sessionsEnabled && sessionsQuery.isLoading) ||
+      (sessionsEnabled && (sessionsQuery.isLoading || archivedSessionsQuery.isLoading)) ||
       (tasksEnabled && (dashboardQuery.isLoading || tasksQuery.isLoading)),
   };
 }

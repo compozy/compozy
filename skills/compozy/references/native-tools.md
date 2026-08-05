@@ -46,7 +46,8 @@ Session tools: `compozy__session_list`, `compozy__session_create`, `compozy__ses
 `compozy__session_rewind`,
 `compozy__session_status`, `compozy__session_history`, `compozy__session_events`,
 `compozy__session_describe`, `compozy__session_health`, `compozy__session_runtime_set`,
-`compozy__session_runtime_clear`.
+`compozy__session_runtime_clear`, `compozy__session_archive`,
+`compozy__session_unarchive`.
 
 `compozy__session_create` accepts only workspace, agent, and optional name. It creates an active
 logical session with `runtime.status="unbound"`; it does not accept or send a prompt or runtime.
@@ -79,7 +80,12 @@ Clarification: `compozy__clarify` asks one active-session question with at most 
 zero-based `{choice,text,fallback}`. It is not approval. CLI: `compozy session clarify pending|answer`
 (choice presentation is one-based).
 
-`compozy__session_list` returns one counted catalog page and accepts workspace, exact state, exact session `type`, exact agent, search, resumability, health, sort, cursor, and limit inputs. Use `type: "user"` when a workflow needs operator-created sessions without daemon-managed dream, system, coordinator, or spawned sessions.
+`compozy__session_list` returns one counted catalog page and accepts workspace, exact state, exact
+session `type`, exact agent, search, resumability, health, archive visibility, sort, cursor, and limit
+inputs. Archive visibility defaults to `exclude`; use `only` or `include` when the workflow needs
+archived rows. Use `type: "user"` when a workflow needs operator-created sessions without
+daemon-managed dream, system, coordinator, or spawned sessions. Archive only stopped sessions;
+unarchive before prompting or resuming one. Both archive operations preserve the session history.
 
 Authored context tools: `compozy__agent_heartbeat_status`, `compozy__agent_heartbeat_wake`.
 

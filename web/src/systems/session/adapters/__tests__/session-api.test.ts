@@ -12,6 +12,7 @@ import {
   SessionLedgerUnavailableError,
   SessionNotFoundError,
   buildSessionStreamUrl,
+  archiveSession,
   cancelQueuedSessionPrompt,
   cancelSessionPrompt,
   clearSessionRuntime,
@@ -34,6 +35,7 @@ import {
   setSessionRuntime,
   steerSessionPrompt,
   stopSession,
+  unarchiveSession,
 } from "../session-api";
 import { fetchSessionCommands } from "../session-command-api";
 
@@ -114,6 +116,7 @@ describe("fetchSessions", () => {
       agent: "claude-agent",
       state: "active",
       resumable: true,
+      archive: "only",
       sort: "last_activity",
       cursor: "cursor-1",
       limit: 25,
@@ -123,6 +126,7 @@ describe("fetchSessions", () => {
     expect(url.pathname).toBe("/api/sessions");
     expect(Object.fromEntries(url.searchParams)).toEqual({
       agent: "claude-agent",
+      archive: "only",
       cursor: "cursor-1",
       limit: "25",
       resumable: "true",
@@ -411,6 +415,30 @@ describe("deleteSession", () => {
     await expect(deleteSession(WORKSPACE_ID, "sess-001")).rejects.toThrow(
       'Failed to delete session "sess-001": 500'
     );
+  });
+});
+
+describe("session archive", () => {
+  it("archives a stopped session through its workspace endpoint", async () => {
+    const archivedSession = { ...mockSession, archived_at: "2026-08-04T12:00:00Z" };
+    mockJsonResponse({ session: archivedSession });
+
+    await expect(archiveSession(WORKSPACE_ID, mockSession.id)).resolves.toEqual(archivedSession);
+    await expectFetchRequest({
+      method: "POST",
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/archive",
+    });
+  });
+
+  it("restores an archived session through its workspace endpoint", async () => {
+    const restoredSession = { ...mockSession, archived_at: null };
+    mockJsonResponse({ session: restoredSession });
+
+    await expect(unarchiveSession(WORKSPACE_ID, mockSession.id)).resolves.toEqual(restoredSession);
+    await expectFetchRequest({
+      method: "POST",
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/unarchive",
+    });
   });
 });
 

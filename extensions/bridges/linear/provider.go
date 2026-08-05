@@ -274,6 +274,7 @@ func newLinearProvider(stderr io.Writer) (*linearProvider, error) {
 		ReadHeaderTimeout: linearWebhookReadHeaderTimeout,
 		IdleTimeout:       linearWebhookIdleTimeout,
 		Handler:           http.HandlerFunc(provider.serveWebhookHTTP),
+		RoutesReady:       lifecycle.RoutesReady(),
 		Go:                lifecycle.Go,
 		OnError:           provider.setLastError,
 	})

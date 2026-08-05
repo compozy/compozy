@@ -26,6 +26,8 @@ const (
 var sessionTools = []toolspkg.Descriptor{
 	sessionListDescriptor(),
 	commandListDescriptor(),
+	sessionArchiveDescriptor(true),
+	sessionArchiveDescriptor(false),
 	sessionCreateDescriptor(),
 	sessionPromptDescriptor(),
 	sessionRewindDescriptor(),
@@ -249,6 +251,7 @@ const sessionListInputSchema = `{
 		"agent":{"type":"string"},
 		"q":{"type":"string"},
 		"resumable":{"type":"boolean"},
+		"archive":{"type":"string","enum":["exclude","only","include"]},
 		"include_health":{"type":"boolean"},
 		"sort":{"type":"string","enum":["recent","last_activity"]},
 		"cursor":{"type":"string"},

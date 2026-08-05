@@ -29,6 +29,8 @@ type StubSessionManager struct {
 	RepairFn                func(context.Context, session.RepairOpts) (*session.RepairResult, error)
 	DeleteFn                func(context.Context, string) error
 	StopFn                  func(context.Context, string) error
+	ArchiveFn               func(context.Context, string, string) (*session.Info, error)
+	UnarchiveFn             func(context.Context, string, string) (*session.Info, error)
 	StopWithCauseFn         func(context.Context, string, session.StopCause, string) error
 	ResumeFn                func(context.Context, string) (*session.Session, error)
 	AttachSessionFn         func(context.Context, store.SessionAttachRequest) (store.SessionAttach, error)

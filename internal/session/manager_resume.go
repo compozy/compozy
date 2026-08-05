@@ -29,6 +29,13 @@ func (m *Manager) Resume(ctx context.Context, id string) (resumed *Session, err 
 	if session, ok := m.Get(target); ok && session.Info().State == StateActive {
 		return m.waitForResumedSession(ctx, target, session)
 	}
+	meta, err := m.readMetaWithContext(ctx, target)
+	if err != nil {
+		return nil, err
+	}
+	if err := m.requireSessionUnarchived(ctx, meta.WorkspaceID, target); err != nil {
+		return nil, err
+	}
 	run, owner, err := m.beginSessionResume(target)
 	if err != nil {
 		return nil, err

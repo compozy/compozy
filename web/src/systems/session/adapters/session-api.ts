@@ -25,6 +25,7 @@ import {
 } from "./session-api-errors";
 
 export { fetchSessions } from "./session-catalog-api";
+export { archiveSession, unarchiveSession } from "./session-archive-api";
 export { fetchSessionCommands } from "./session-command-api";
 export { fetchSessionGoal } from "./session-goal-api";
 export {

@@ -5669,6 +5669,8 @@ func TestDaemonNativeTools(t *testing.T) {
 		var selectedRuntime session.RuntimeSelection
 		var selectedRuntimeRevision int64
 		var clearedRuntimeRevision int64
+		var archiveTarget string
+		var unarchiveTarget string
 		promptSubmitCalls := 0
 		var listedInputSessionID string
 		var replacedInput struct {
@@ -5754,6 +5756,20 @@ func TestDaemonNativeTools(t *testing.T) {
 						return nil, session.ErrSessionNotFound
 					}
 					return info, nil
+				},
+				ArchiveFn: func(_ context.Context, workspaceID string, id string) (*session.Info, error) {
+					archiveTarget = workspaceID + "/" + id
+					archived := *info
+					archived.State = session.StateStopped
+					archivedAt := now.Add(time.Minute)
+					archived.ArchivedAt = &archivedAt
+					return &archived, nil
+				},
+				UnarchiveFn: func(_ context.Context, workspaceID string, id string) (*session.Info, error) {
+					unarchiveTarget = workspaceID + "/" + id
+					restored := *info
+					restored.State = session.StateStopped
+					return &restored, nil
 				},
 				SetRuntimeSelectionFn: func(
 					_ context.Context,
@@ -6290,7 +6306,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				ToolID: toolspkg.ToolIDSessionList,
 				Input: json.RawMessage(
 					`{"workspace":"ws-stable","state":"active","type":"user","agent":"coder","q":"review",` +
-						`"resumable":true,"include_health":true,"sort":"last_activity",` +
+						`"resumable":true,"archive":"only","include_health":true,"sort":"last_activity",` +
 						`"cursor":"cursor-prev","limit":2}`,
 				),
 			},
@@ -6301,7 +6317,8 @@ func TestDaemonNativeTools(t *testing.T) {
 		if seenListQuery.WorkspaceID == "" || seenListQuery.State != "active" ||
 			seenListQuery.SessionType != session.SessionTypeUser ||
 			seenListQuery.AgentName != "coder" || seenListQuery.Search != "review" ||
-			!seenListQuery.Resumable || seenListQuery.Sort != "last_activity" ||
+			!seenListQuery.Resumable || seenListQuery.Archive != session.ArchiveOnly ||
+			seenListQuery.Sort != "last_activity" ||
 			seenListQuery.Cursor != "cursor-prev" || seenListQuery.Limit != 2 {
 			t.Fatalf("session list query = %#v, want full paged filter parity", seenListQuery)
 		}
@@ -6323,6 +6340,30 @@ func TestDaemonNativeTools(t *testing.T) {
 		if health := listResponse.Sessions[0].Health; health == nil ||
 			health.State != contract.SessionHealthStateIdle || health.Health != contract.SessionHealthHealthy {
 			t.Fatalf("session_list health = %#v, want nested page health", health)
+		}
+
+		for _, testCase := range []struct {
+			id   toolspkg.ToolID
+			want []byte
+		}{
+			{id: toolspkg.ToolIDSessionArchive, want: []byte(`"archived_at":"`)},
+			{id: toolspkg.ToolIDSessionUnarchive, want: []byte(`"archived_at":null`)},
+		} {
+			result, callErr := registry.Call(
+				t.Context(),
+				toolspkg.Scope{Operator: true},
+				toolspkg.CallRequest{
+					ToolID: testCase.id,
+					Input:  json.RawMessage(`{"workspace":"ws-stable","session_id":"sess-1"}`),
+				},
+			)
+			if callErr != nil {
+				t.Fatalf("Registry.Call(%s) error = %v", testCase.id, callErr)
+			}
+			requireNativeStructuredContains(t, result, testCase.want)
+		}
+		if archiveTarget != "ws-1/sess-1" || unarchiveTarget != "ws-1/sess-1" {
+			t.Fatalf("archive targets = %q/%q, want ws-1/sess-1", archiveTarget, unarchiveTarget)
 		}
 
 		registryWithoutHealth := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{

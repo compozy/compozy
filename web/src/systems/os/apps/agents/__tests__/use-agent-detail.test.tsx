@@ -1,14 +1,19 @@
 import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockNavigate, mockUseAgent, mockUseAgentSessions, mockUseAgentCatalogMetrics } = vi.hoisted(
-  () => ({
-    mockNavigate: vi.fn<(input: unknown) => Promise<void>>(),
-    mockUseAgent: vi.fn(),
-    mockUseAgentSessions: vi.fn(),
-    mockUseAgentCatalogMetrics: vi.fn(),
-  })
-);
+const {
+  mockNavigate,
+  mockUseAgent,
+  mockUseAgentSessions,
+  mockUseAgentCatalogMetrics,
+  mockUseSessionLifecycleActions,
+} = vi.hoisted(() => ({
+  mockNavigate: vi.fn<(input: unknown) => Promise<void>>(),
+  mockUseAgent: vi.fn(),
+  mockUseAgentSessions: vi.fn(),
+  mockUseAgentCatalogMetrics: vi.fn(),
+  mockUseSessionLifecycleActions: vi.fn(),
+}));
 
 let mockActiveWorkspaceId: string | null = "ws_alpha";
 
@@ -52,6 +57,7 @@ vi.mock("@/systems/session", () => ({
   useSessionCreateHasActiveWorkspace: () => true,
   useSessionCreateIsCreating: () => false,
   useSessionCreatePendingAgentName: () => null,
+  useSessionLifecycleActions: (options: unknown) => mockUseSessionLifecycleActions(options),
 }));
 
 vi.mock("@/systems/workspace", () => ({
@@ -71,6 +77,7 @@ describe("useAgentDetailPage", () => {
     mockUseAgent.mockReset();
     mockUseAgentSessions.mockReset();
     mockUseAgentCatalogMetrics.mockReset();
+    mockUseSessionLifecycleActions.mockReset();
     mockUseAgent.mockReturnValue({
       data: { name: "categorized-multi", provider: "codex", prompt: "prompt" },
       error: null,
@@ -94,6 +101,23 @@ describe("useAgentDetailPage", () => {
       isLoading: false,
       isError: false,
     });
+    mockUseSessionLifecycleActions.mockReturnValue({
+      actions: {
+        pendingAction: null,
+        pendingSessionId: null,
+        onStop: vi.fn(),
+        onArchive: vi.fn(),
+        onUnarchive: vi.fn(),
+        onDelete: vi.fn(),
+      },
+      deleteDialog: {
+        open: false,
+        session: null,
+        isDeleting: false,
+        onOpenChange: vi.fn(),
+        onConfirm: vi.fn(),
+      },
+    });
   });
 
   it("Should load agent details in the active workspace context", () => {
@@ -102,6 +126,7 @@ describe("useAgentDetailPage", () => {
     expect(mockUseAgent).toHaveBeenCalledWith("categorized-multi", "ws_alpha");
     expect(mockUseAgentSessions).toHaveBeenCalledWith("ws_alpha", "categorized-multi");
     expect(mockUseAgentCatalogMetrics).toHaveBeenCalledWith("ws_alpha", "categorized-multi");
+    expect(mockUseSessionLifecycleActions).toHaveBeenCalledWith({ workspaceId: "ws_alpha" });
     expect(result.current.search).toEqual({
       tab: "overview",
       file: "agent",
@@ -117,6 +142,7 @@ describe("useAgentDetailPage", () => {
     expect(mockUseAgent).toHaveBeenCalledWith("global-agent", null);
     expect(mockUseAgentSessions).toHaveBeenCalledWith(null, "global-agent");
     expect(mockUseAgentCatalogMetrics).toHaveBeenCalledWith(null, "global-agent");
+    expect(mockUseSessionLifecycleActions).toHaveBeenCalledWith({ workspaceId: null });
   });
 
   it("exposes exact catalog session metrics and session-row pagination separately", () => {

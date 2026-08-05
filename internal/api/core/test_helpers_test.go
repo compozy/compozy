@@ -330,6 +330,8 @@ func newHandlerFixtureWithAutomationTasksAndBridges(
 	engine.GET("/workspaces/:workspace_id/sessions/:session_id/commands", handlers.GetSessionCommands)
 	engine.DELETE("/workspaces/:workspace_id/sessions/:session_id", handlers.DeleteSession)
 	engine.POST("/workspaces/:workspace_id/sessions/:session_id/stop", handlers.StopSession)
+	engine.POST("/workspaces/:workspace_id/sessions/:session_id/archive", handlers.ArchiveSession)
+	engine.POST("/workspaces/:workspace_id/sessions/:session_id/unarchive", handlers.UnarchiveSession)
 	engine.POST("/workspaces/:workspace_id/sessions/:session_id/attach", handlers.AttachSession)
 	engine.PUT("/workspaces/:workspace_id/sessions/:session_id/runtime", handlers.SetSessionRuntime)
 	engine.DELETE("/workspaces/:workspace_id/sessions/:session_id/runtime", handlers.ClearSessionRuntime)

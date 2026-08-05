@@ -131,6 +131,12 @@ type SessionPageManager interface {
 	ListPage(ctx context.Context, query session.ListQuery) (session.ListPage, error)
 }
 
+// SessionArchiveManager owns reversible workspace-scoped session catalog visibility.
+type SessionArchiveManager interface {
+	Archive(ctx context.Context, workspaceID string, sessionID string) (*session.Info, error)
+	Unarchive(ctx context.Context, workspaceID string, sessionID string) (*session.Info, error)
+}
+
 // AgentSessionMetricsReader exposes exact workspace-scoped session aggregates.
 type AgentSessionMetricsReader interface {
 	AggregateSessionsByAgent(

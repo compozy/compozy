@@ -23,7 +23,7 @@ const sessionInfoSelectQuery = `SELECT id, name, agent_name, provider, model, re
 	network_spec_json, network_mode, network_channel, network_source, session_type,
 	parent_session_id, root_session_id, spawn_depth, spawn_role, ttl_expires_at,
 	auto_stop_on_parent, spawn_budget_json, permission_policy_json,
-	state, acp_session_id, stop_reason, stop_detail,
+	state, archived_at, acp_session_id, stop_reason, stop_detail,
 	failure_kind, failure_summary, crash_bundle_path,
 	subprocess_pid, subprocess_started_at, last_update_at, stall_state, stall_reason,
 	activity_json, attached_to, attach_expires_at, transcript_epoch,
@@ -148,6 +148,7 @@ func sessionCatalogPageFilters(
 		where = append(where, sessionListResumableWhere)
 		args = append(args, now)
 	}
+	where, args = appendSessionArchiveFilter(where, args, query.Archive)
 
 	var err error
 	where, args, err = appendSessionCatalogExclusion(where, args, "id", query.ExcludeIDs)
@@ -173,6 +174,20 @@ func sessionCatalogPageFilters(
 		return nil, nil, err
 	}
 	return where, args, nil
+}
+
+func appendSessionArchiveFilter(
+	where []string,
+	args []any,
+	filter store.SessionArchiveFilter,
+) ([]string, []any) {
+	switch filter {
+	case store.SessionArchiveExclude:
+		where = append(where, "archived_at IS NULL")
+	case store.SessionArchiveOnly:
+		where = append(where, "archived_at IS NOT NULL")
+	}
+	return where, args
 }
 
 func appendSessionCatalogExclusion(

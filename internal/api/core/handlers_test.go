@@ -190,6 +190,24 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 			}
 			return nil
 		},
+		ArchiveFn: func(_ context.Context, workspaceID string, id string) (*session.Info, error) {
+			if workspaceID != "ws-workspace" || id != "sess-a" {
+				t.Fatalf("Archive target = %q/%q, want ws-workspace/sess-a", workspaceID, id)
+			}
+			info := testutil.NewSessionInfo(id)
+			info.State = session.StateStopped
+			archivedAt := now.Add(time.Minute)
+			info.ArchivedAt = &archivedAt
+			return info, nil
+		},
+		UnarchiveFn: func(_ context.Context, workspaceID string, id string) (*session.Info, error) {
+			if workspaceID != "ws-workspace" || id != "sess-a" {
+				t.Fatalf("Unarchive target = %q/%q, want ws-workspace/sess-a", workspaceID, id)
+			}
+			info := testutil.NewSessionInfo(id)
+			info.State = session.StateStopped
+			return info, nil
+		},
 		AttachSessionFn: func(_ context.Context, req store.SessionAttachRequest) (store.SessionAttach, error) {
 			attachCalls.Add(1)
 			attachTTL = req.TTL
@@ -462,6 +480,49 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 		}
 		if got := stopResp.Body.String(); got != "" {
 			t.Fatalf("stop body = %q, want empty", got)
+		}
+	})
+
+	t.Run("Should archive and restore stopped sessions", func(t *testing.T) {
+		archiveResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/workspaces/ws-workspace/sessions/sess-a/archive",
+			nil,
+		)
+		if archiveResp.Code != http.StatusOK {
+			t.Fatalf("archive status = %d body=%s, want %d", archiveResp.Code, archiveResp.Body.String(), http.StatusOK)
+		}
+		var archived contract.SessionResponse
+		if err := json.Unmarshal(archiveResp.Body.Bytes(), &archived); err != nil {
+			t.Fatalf("json.Unmarshal(archive response) error = %v", err)
+		}
+		if archived.Session.ArchivedAt == nil || archived.Session.State != session.StateStopped {
+			t.Fatalf("archive response = %#v, want archived stopped session", archived.Session)
+		}
+
+		unarchiveResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/workspaces/ws-workspace/sessions/sess-a/unarchive",
+			nil,
+		)
+		if unarchiveResp.Code != http.StatusOK {
+			t.Fatalf(
+				"unarchive status = %d body=%s, want %d",
+				unarchiveResp.Code,
+				unarchiveResp.Body.String(),
+				http.StatusOK,
+			)
+		}
+		var restored contract.SessionResponse
+		if err := json.Unmarshal(unarchiveResp.Body.Bytes(), &restored); err != nil {
+			t.Fatalf("json.Unmarshal(unarchive response) error = %v", err)
+		}
+		if restored.Session.ArchivedAt != nil {
+			t.Fatalf("unarchive response = %#v, want archive marker cleared", restored.Session)
 		}
 	})
 

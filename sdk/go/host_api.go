@@ -18,6 +18,10 @@ const (
 	HostAPIMethodSessionsPrompt HostAPIMethod = "sessions/prompt"
 	// HostAPIMethodSessionsStop stops a session.
 	HostAPIMethodSessionsStop HostAPIMethod = "sessions/stop"
+	// HostAPIMethodSessionsArchive archives a stopped session.
+	HostAPIMethodSessionsArchive HostAPIMethod = "sessions/archive"
+	// HostAPIMethodSessionsUnarchive restores an archived session to normal listings.
+	HostAPIMethodSessionsUnarchive HostAPIMethod = "sessions/unarchive"
 	// HostAPIMethodSessionsStatus returns session status.
 	HostAPIMethodSessionsStatus HostAPIMethod = "sessions/status"
 	// HostAPIMethodSessionsStatusGet returns authored-context session status.

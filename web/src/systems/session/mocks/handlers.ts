@@ -52,14 +52,17 @@ export const handlers: HttpHandler[] = [
     const agent = url.searchParams.get("agent")?.trim();
     const state = url.searchParams.get("state")?.trim();
     const resumable = url.searchParams.get("resumable");
+    const archive = url.searchParams.get("archive");
     const limit = Math.max(1, Number(url.searchParams.get("limit") ?? 50));
-    const sessions = sessionFixtures.filter(session => {
+    const sessions = [...sessionById.values()].filter(session => {
       if (workspace && session.workspace_id !== workspace && session.workspace_path !== workspace) {
         return false;
       }
       if (agent && session.agent_name !== agent) return false;
       if (state && session.state !== state) return false;
       if (resumable === "true" && !session.attachable) return false;
+      if (archive === "only" && session.archived_at === null) return false;
+      if (archive !== "include" && archive !== "only" && session.archived_at !== null) return false;
       return true;
     });
     const pageSessions = sessions.slice(0, limit);
@@ -163,6 +166,39 @@ export const handlers: HttpHandler[] = [
 
     return new HttpResponse(null, { status: 204 });
   }),
+  compozyApiMock.post(
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/archive",
+    ({ params }) => {
+      const id = String(params.session_id);
+      const session = sessionById.get(id);
+
+      if (!session) {
+        return HttpResponse.json({ error: `Session not found: ${id}` }, { status: 404 });
+      }
+
+      const archivedSession = {
+        ...session,
+        archived_at: "2026-04-17T18:15:00Z",
+      };
+      sessionById.set(id, archivedSession);
+      return HttpResponse.json({ session: archivedSession });
+    }
+  ),
+  compozyApiMock.post(
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/unarchive",
+    ({ params }) => {
+      const id = String(params.session_id);
+      const session = sessionById.get(id);
+
+      if (!session) {
+        return HttpResponse.json({ error: `Session not found: ${id}` }, { status: 404 });
+      }
+
+      const unarchivedSession = { ...session, archived_at: null };
+      sessionById.set(id, unarchivedSession);
+      return HttpResponse.json({ session: unarchivedSession });
+    }
+  ),
   compozyApiMock.post(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/attach",
     ({ params }) => {

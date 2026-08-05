@@ -35,6 +35,7 @@ type EmptyResult struct{}
 // SessionsListParams filters visible sessions.
 type SessionsListParams struct {
 	Workspace string `json:"workspace,omitempty"`
+	Archive   string `json:"archive,omitempty"`
 }
 
 // SessionsCreateParams starts a new session.

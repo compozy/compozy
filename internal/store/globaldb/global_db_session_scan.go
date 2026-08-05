@@ -32,6 +32,7 @@ type sessionInfoRow struct {
 	autoStopOnParent     bool
 	spawnBudgetJSON      string
 	permissionPolicyJSON string
+	archivedAt           sql.NullString
 	acpSessionID         sql.NullString
 	stopReason           sql.NullString
 	stopDetail           sql.NullString
@@ -209,6 +210,13 @@ func populateSessionScanParts(session *store.SessionInfo, row *sessionInfoRow) e
 		session.AttachExpiresAt = &attachExpiresAt
 	}
 	session.TranscriptEpoch = row.transcriptEpoch
+	if row.archivedAt.Valid && strings.TrimSpace(row.archivedAt.String) != "" {
+		archivedAt, parseErr := store.ParseTimestamp(row.archivedAt.String)
+		if parseErr != nil {
+			return fmt.Errorf("store: parse session archived at: %w", parseErr)
+		}
+		session.ArchivedAt = &archivedAt
+	}
 
 	createdAt, updatedAt, err := parseSessionInfoTimestamps(row.createdAtRaw, row.updatedAtRaw)
 	if err != nil {
@@ -253,6 +261,7 @@ func scanSessionInfoRow(scanner rowScanner) (sessionInfoRow, error) {
 		&row.spawnBudgetJSON,
 		&row.permissionPolicyJSON,
 		&row.session.State,
+		&row.archivedAt,
 		&row.acpSessionID,
 		&row.stopReason,
 		&row.stopDetail,

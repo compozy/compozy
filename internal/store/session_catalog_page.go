@@ -32,6 +32,7 @@ type SessionCatalogPageQuery struct {
 	AgentName           string
 	Search              string
 	Resumable           bool
+	Archive             SessionArchiveFilter
 	Sort                string
 	Limit               int
 	After               *SessionCatalogPosition
@@ -44,6 +45,9 @@ type SessionCatalogPageQuery struct {
 func (q SessionCatalogPageQuery) Validate() error {
 	if q.Limit <= 0 {
 		return fmt.Errorf("store: session catalog page limit must be positive")
+	}
+	if err := q.Archive.Validate(); err != nil {
+		return err
 	}
 	if q.After != nil {
 		if err := q.After.Validate(); err != nil {

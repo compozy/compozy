@@ -104,6 +104,7 @@ CREATE TABLE sessions (
 		workspace_id   TEXT NOT NULL REFERENCES workspaces(id),
 		session_type   TEXT NOT NULL DEFAULT 'user',
 		state          TEXT NOT NULL,
+		archived_at    TEXT,
 		acp_session_id TEXT,
 		stop_reason    TEXT,
 		stop_detail    TEXT,
@@ -208,6 +209,11 @@ CREATE INDEX idx_sessions_catalog_activity
 CREATE INDEX idx_sessions_catalog_recent
 			ON sessions(workspace_id, state, updated_at DESC, created_at DESC, id DESC);
 
+CREATE INDEX idx_sessions_catalog_archive_recent
+			ON sessions(
+				workspace_id, archived_at, state, updated_at DESC, created_at DESC, id DESC
+			);
+
 CREATE INDEX idx_sessions_parent ON sessions(parent_session_id);
 
 CREATE INDEX idx_sessions_resumable
@@ -221,6 +227,20 @@ CREATE INDEX idx_sessions_soul_snapshot
 CREATE INDEX idx_sessions_spawn_role ON sessions(spawn_role);
 
 CREATE INDEX idx_sessions_type_depth ON sessions(session_type, spawn_depth);
+
+CREATE TRIGGER trg_sessions_archive_insert_guard
+			BEFORE INSERT ON sessions
+			WHEN NEW.archived_at IS NOT NULL AND NEW.state != 'stopped'
+			BEGIN
+				SELECT RAISE(ABORT, 'session is archived');
+			END;
+
+CREATE TRIGGER trg_sessions_archive_update_guard
+			BEFORE UPDATE OF state, archived_at ON sessions
+			WHEN NEW.archived_at IS NOT NULL AND NEW.state != 'stopped'
+			BEGIN
+				SELECT RAISE(ABORT, 'session is archived');
+			END;
 
 CREATE INDEX idx_token_stats_session ON token_stats(session_id);
 

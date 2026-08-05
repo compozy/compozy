@@ -3,6 +3,9 @@ import { useState } from "react";
 
 import {
   Button,
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -17,7 +20,12 @@ import {
 } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
-import { getSessionDisplayTitle, type SessionPayload } from "@/systems/session";
+import {
+  getSessionDisplayTitle,
+  SessionRowActions,
+  type SessionLifecycleActionHandlers,
+  type SessionPayload,
+} from "@/systems/session";
 
 import { useOsSessionsModal } from "../hooks/use-os-sessions-modal";
 
@@ -32,7 +40,10 @@ export interface OsSessionsModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   sessions: readonly SessionPayload[];
+  archivedSessions: readonly SessionPayload[];
+  archivedTotal?: number;
   disconnected: boolean;
+  sessionActions: SessionLifecycleActionHandlers;
 }
 
 function statusTone(badge: string): PillTone {
@@ -50,58 +61,86 @@ function SessionStatusMark({ badge }: { badge: string }) {
   return <PillDot tone={statusTone(badge)} pulse={badge === "running"} size="sm" />;
 }
 
-function SessionRow({ session, onSelect }: { session: SessionPayload; onSelect: () => void }) {
+function SessionRow({
+  session,
+  onSelect,
+  sessionActions,
+}: {
+  session: SessionPayload;
+  onSelect: () => void;
+  sessionActions: SessionLifecycleActionHandlers;
+}) {
   return (
-    <button
-      type="button"
-      className="grid w-full grid-cols-[8px_minmax(0,1fr)_auto] items-start gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-row-hover focus-visible:shadow-focus-ring focus-visible:outline-none"
-      data-status={session.badge}
-      data-testid={`os-sessions-modal-session-${session.id}`}
-      onClick={onSelect}
-    >
-      <span className="mt-1.5 grid place-items-center">
-        <SessionStatusMark badge={session.badge} />
-      </span>
-      <span className="min-w-0">
-        <span className="block truncate text-small-body text-fg-strong">
-          {getSessionDisplayTitle(session)}
+    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-1">
+      <button
+        type="button"
+        className="grid min-w-0 grid-cols-[8px_minmax(0,1fr)_auto] items-start gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-row-hover focus-visible:shadow-focus-ring focus-visible:outline-none"
+        data-status={session.badge}
+        data-testid={`os-sessions-modal-session-${session.id}`}
+        onClick={onSelect}
+      >
+        <span className="mt-1.5 grid place-items-center">
+          <SessionStatusMark badge={session.badge} />
         </span>
-        <span className="block truncate text-micro text-subtle">
-          <span className="font-medium text-muted">{session.agent_name}</span>
-          <span aria-hidden="true"> · </span>
-          {session.badge}
+        <span className="min-w-0">
+          <span className="block truncate text-small-body text-fg-strong">
+            {getSessionDisplayTitle(session)}
+          </span>
+          <span className="block truncate text-micro text-subtle">
+            <span className="font-medium text-muted">{session.agent_name}</span>
+            <span aria-hidden="true"> · </span>
+            {session.badge}
+            {session.archived_at !== null ? (
+              <>
+                <span aria-hidden="true"> · </span>
+                Archived
+              </>
+            ) : null}
+          </span>
         </span>
-      </span>
-      <Time iso={session.updated_at} className="mt-0.5 font-mono text-micro text-subtle" />
-    </button>
+        <Time iso={session.updated_at} className="mt-0.5 font-mono text-micro text-subtle" />
+      </button>
+      <div className="pt-1">
+        <SessionRowActions session={session} actions={sessionActions} />
+      </div>
+    </div>
   );
 }
 
 function SessionsModalBody({
   sessions,
+  archivedSessions,
+  archivedTotal,
   disconnected,
   collapsedAgentIds,
   onToggleGroup,
   onSelectSession,
   onClose,
+  sessionActions,
 }: {
   sessions: readonly SessionPayload[];
+  archivedSessions: readonly SessionPayload[];
+  archivedTotal?: number;
   disconnected: boolean;
   collapsedAgentIds: readonly string[];
   onToggleGroup: (agentName: string) => void;
   onSelectSession: (session: SessionPayload) => void;
   onClose: () => void;
+  sessionActions: SessionLifecycleActionHandlers;
 }) {
   const [view, setView] = useState<ModalView>("recent");
   const [filter, setFilter] = useState("");
   const normalizedFilter = filter.trim().toLocaleLowerCase();
-  const filtered = sessions.filter(session => {
+  const matchesFilter = (session: SessionPayload) => {
     if (normalizedFilter === "") return true;
     return (
       getSessionDisplayTitle(session).toLocaleLowerCase().includes(normalizedFilter) ||
       session.agent_name.toLocaleLowerCase().includes(normalizedFilter)
     );
-  });
+  };
+  const filtered = sessions.filter(matchesFilter);
+  const filteredArchived = archivedSessions.filter(matchesFilter);
+  const filteredArchivedTotal = normalizedFilter === "" ? archivedTotal : undefined;
   const byAgent = new Map<string, SessionPayload[]>();
   for (const session of filtered) {
     const current = byAgent.get(session.agent_name) ?? [];
@@ -173,6 +212,7 @@ function SessionsModalBody({
                   key={session.id}
                   session={session}
                   onSelect={() => onSelectSession(session)}
+                  sessionActions={sessionActions}
                 />
               ))}
               {filtered.length === 0 ? (
@@ -229,6 +269,7 @@ function SessionsModalBody({
                           key={session.id}
                           session={session}
                           onSelect={() => onSelectSession(session)}
+                          sessionActions={sessionActions}
                         />
                       ))}
                     </div>
@@ -239,10 +280,67 @@ function SessionsModalBody({
             {groups.length === 0 ? (
               <p className="px-3 py-8 text-center text-small-body text-muted">No sessions match.</p>
             ) : null}
+            <ArchivedSessionsSection
+              sessions={filteredArchived}
+              total={filteredArchivedTotal}
+              onSelectSession={onSelectSession}
+              sessionActions={sessionActions}
+            />
           </div>
         </div>
       </div>
     </div>
+  );
+}
+
+function ArchivedSessionsSection({
+  sessions,
+  total,
+  onSelectSession,
+  sessionActions,
+}: {
+  sessions: SessionPayload[];
+  total?: number;
+  onSelectSession: (session: SessionPayload) => void;
+  sessionActions: SessionLifecycleActionHandlers;
+}) {
+  if (sessions.length === 0) return null;
+
+  return (
+    <section className="border-t border-line-soft pt-1" data-testid="os-sessions-modal-archived">
+      <Collapsible>
+        <CollapsibleTrigger
+          className="group/os-sessions-archived"
+          render={
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              aria-label={
+                total === undefined ? "Archived sessions" : `Archived sessions (${total})`
+              }
+              className="w-full justify-start gap-2 px-2 text-small-body text-subtle"
+            />
+          }
+        >
+          <ChevronRight className="size-3 transition-transform group-data-panel-open/os-sessions-archived:rotate-90" />
+          Archived
+          {total === undefined ? null : (
+            <span className="font-mono text-micro text-faint">{total}</span>
+          )}
+        </CollapsibleTrigger>
+        <CollapsibleContent className="pb-1 pl-2">
+          {sessions.map(session => (
+            <SessionRow
+              key={session.id}
+              session={session}
+              onSelect={() => onSelectSession(session)}
+              sessionActions={sessionActions}
+            />
+          ))}
+        </CollapsibleContent>
+      </Collapsible>
+    </section>
   );
 }
 
@@ -254,7 +352,10 @@ export function OsSessionsModal({
   open,
   onOpenChange,
   sessions,
+  archivedSessions,
+  archivedTotal,
   disconnected,
+  sessionActions,
 }: OsSessionsModalProps) {
   const { coordinator, manager, collapsedAgentIds } = useOsSessionsModal();
 
@@ -268,6 +369,13 @@ export function OsSessionsModal({
         search: {},
       },
     });
+  };
+  const actions: SessionLifecycleActionHandlers = {
+    ...sessionActions,
+    onDelete: session => {
+      onOpenChange(false);
+      sessionActions.onDelete(session);
+    },
   };
 
   return (
@@ -284,11 +392,14 @@ export function OsSessionsModal({
         </DialogDescription>
         <SessionsModalBody
           sessions={sessions}
+          archivedSessions={archivedSessions}
+          archivedTotal={archivedTotal}
           disconnected={disconnected}
           collapsedAgentIds={collapsedAgentIds}
           onToggleGroup={agentName => manager.toggleRailGroup(agentName)}
           onSelectSession={selectSession}
           onClose={() => onOpenChange(false)}
+          sessionActions={actions}
         />
       </DialogContent>
     </Dialog>

@@ -11,6 +11,7 @@ const routeHookMocks = vi.hoisted(() => ({
   clearMutation: { isPending: false, mutate: vi.fn() },
   deleteMutation: { isPending: false, mutate: vi.fn() },
   resumeMutation: { isPending: false, mutateAsync: vi.fn() },
+  unarchiveMutation: { isPending: false, mutate: vi.fn() },
   queuePromptMutation: { isPending: false, mutateAsync: vi.fn() },
   interruptPromptMutation: { isPending: false, mutateAsync: vi.fn() },
   steerPromptMutation: { isPending: false, mutateAsync: vi.fn() },
@@ -52,6 +53,7 @@ vi.mock("@/systems/session", async () => {
     useQueueSessionPrompt: () => routeHookMocks.queuePromptMutation,
     useReplaceSessionInput: () => routeHookMocks.replaceInputMutation,
     useResumeSession: () => routeHookMocks.resumeMutation,
+    useUnarchiveSession: () => routeHookMocks.unarchiveMutation,
     useSessionInputs: () => routeHookMocks.sessionInputsQuery,
     useSessionTranscriptThreadMessages: () => routeHookMocks.transcriptMessages,
     useSteerSessionPrompt: () => routeHookMocks.steerPromptMutation,
@@ -89,6 +91,7 @@ function makeSession(state: SessionPayload["state"], turnId?: string): SessionPa
         }
       : undefined,
     attachable: state !== "stopped",
+    archived_at: null,
     available_commands: [],
     type: "user",
     created_at: "2026-04-17T10:00:00Z",
@@ -135,6 +138,8 @@ describe("useSessionPageControls", () => {
     }
     routeHookMocks.resumeMutation.isPending = false;
     routeHookMocks.resumeMutation.mutateAsync.mockReset();
+    routeHookMocks.unarchiveMutation.isPending = false;
+    routeHookMocks.unarchiveMutation.mutate.mockReset();
     routeHookMocks.queuePromptMutation.isPending = false;
     routeHookMocks.queuePromptMutation.mutateAsync.mockReset();
     routeHookMocks.interruptPromptMutation.isPending = false;

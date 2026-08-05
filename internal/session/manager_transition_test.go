@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -498,6 +499,45 @@ func (c *recordingSessionCatalog) DeleteSession(ctx context.Context, id string) 
 	}
 	delete(c.sessions, id)
 	return nil
+}
+
+func (c *recordingSessionCatalog) SessionArchivedAt(
+	_ context.Context,
+	workspaceID string,
+	sessionID string,
+) (*time.Time, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	current, ok := c.sessions[sessionID]
+	if !ok || current.WorkspaceID != workspaceID {
+		return nil, fmt.Errorf("%w: %s", store.ErrSessionNotFound, sessionID)
+	}
+	return cloneTimePointer(current.ArchivedAt), nil
+}
+
+func (c *recordingSessionCatalog) SetSessionArchived(
+	_ context.Context,
+	workspaceID string,
+	sessionID string,
+	archived bool,
+) (store.SessionInfo, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	current, ok := c.sessions[sessionID]
+	if !ok || current.WorkspaceID != workspaceID {
+		return store.SessionInfo{}, fmt.Errorf("%w: %s", store.ErrSessionNotFound, sessionID)
+	}
+	if archived && current.State != string(StateStopped) {
+		return store.SessionInfo{}, fmt.Errorf("%w: %s", store.ErrSessionArchiveRequiresStopped, sessionID)
+	}
+	if archived {
+		now := time.Now().UTC()
+		current.ArchivedAt = &now
+	} else {
+		current.ArchivedAt = nil
+	}
+	c.sessions[sessionID] = current
+	return current, nil
 }
 func (c *recordingSessionCatalog) ListSessions(
 	_ context.Context,

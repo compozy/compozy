@@ -198,6 +198,9 @@ func statusForSessionValidationError(err error) (int, bool) {
 func statusForSessionConflictError(err error) (int, bool) {
 	switch {
 	case errors.Is(err, session.ErrPromptInProgress),
+		errors.Is(err, session.ErrSessionArchived),
+		errors.Is(err, session.ErrSessionArchiveRequiresStopped),
+		errors.Is(err, store.ErrSessionArchived),
 		errors.Is(err, session.ErrConversationRewindBusy),
 		errors.Is(err, session.ErrConversationRewindManaged),
 		errors.Is(err, session.ErrConversationRewindFenceConflict),
@@ -232,6 +235,8 @@ func statusForSessionAvailabilityError(err error) (int, bool) {
 		return http.StatusServiceUnavailable, true
 	case errors.Is(err, transcript.ErrProjectionCorrupt):
 		return http.StatusInternalServerError, true
+	case errors.Is(err, session.ErrSessionArchiveUnavailable):
+		return http.StatusServiceUnavailable, true
 	default:
 		return 0, false
 	}

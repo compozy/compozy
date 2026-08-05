@@ -393,6 +393,7 @@ func newSlackProvider(stderr io.Writer) (*slackProvider, error) {
 		ReadHeaderTimeout: slackWebhookReadHeaderTimeout,
 		IdleTimeout:       slackWebhookIdleTimeout,
 		Handler:           http.HandlerFunc(provider.serveWebhookHTTP),
+		RoutesReady:       lifecycle.RoutesReady(),
 		Go:                lifecycle.Go,
 		OnError:           provider.setLastError,
 	})

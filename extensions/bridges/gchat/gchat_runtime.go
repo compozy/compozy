@@ -74,6 +74,7 @@ func newGChatProvider(stderr io.Writer) (*gchatProvider, error) {
 		ReadHeaderTimeout: gchatWebhookReadHeaderTimeout,
 		IdleTimeout:       gchatWebhookIdleTimeout,
 		Handler:           http.HandlerFunc(provider.serveWebhookHTTP),
+		RoutesReady:       lifecycle.RoutesReady(),
 		Go:                lifecycle.Go,
 		OnError:           provider.setLastError,
 	})

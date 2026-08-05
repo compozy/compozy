@@ -846,6 +846,7 @@ func TestSessionListPassesServerOwnedPageFilters(t *testing.T) {
 		"--limit",
 		"2",
 		"--include-health",
+		"--archived",
 		"-o",
 		"json",
 	)
@@ -854,6 +855,7 @@ func TestSessionListPassesServerOwnedPageFilters(t *testing.T) {
 	}
 	if seenQuery.Workspace != "ws-filtered" || seenQuery.State != "stopped" || seenQuery.Type != "user" ||
 		seenQuery.Agent != "general" || seenQuery.Query != "demo" ||
+		seenQuery.Archive != string(session.ArchiveOnly) ||
 		!seenQuery.IncludeHealth ||
 		seenQuery.Sort != "last_activity" || seenQuery.Cursor != "cursor-prev" || seenQuery.Limit != 2 {
 		t.Fatalf("seenQuery = %#v, want all server-owned page filters", seenQuery)
@@ -867,6 +869,66 @@ func TestSessionListPassesServerOwnedPageFilters(t *testing.T) {
 		decoded.Sessions[0].Health == nil || decoded.Sessions[0].Health.Health != contract.SessionHealthHealthy ||
 		decoded.Page.NextCursor != "cursor-next" || decoded.Page.Total != 7 || !decoded.Page.HasMore {
 		t.Fatalf("decoded = %#v, want filtered session", decoded)
+	}
+}
+
+func TestSessionArchiveCommandsReturnUpdatedSession(t *testing.T) {
+	t.Parallel()
+
+	archivedAt := fixedTestNow.Add(time.Minute)
+	deps := newWorkspaceTestDeps(t, &stubClient{
+		archiveSessionFn: func(_ context.Context, id string) (SessionRecord, error) {
+			return SessionRecord{
+				ID: id, AgentName: "coder", WorkspaceID: "ws-1", State: session.StateStopped,
+				ArchivedAt: &archivedAt, CreatedAt: fixedTestNow, UpdatedAt: archivedAt,
+			}, nil
+		},
+		unarchiveSessionFn: func(_ context.Context, id string) (SessionRecord, error) {
+			return SessionRecord{
+				ID: id, AgentName: "coder", WorkspaceID: "ws-1", State: session.StateStopped,
+				CreatedAt: fixedTestNow, UpdatedAt: archivedAt,
+			}, nil
+		},
+	})
+
+	archiveOutput, _, err := executeRootCommand(t, deps, "session", "archive", "sess-1", "-o", "json")
+	if err != nil {
+		t.Fatalf("executeRootCommand(session archive) error = %v", err)
+	}
+	var archived SessionRecord
+	if err := json.Unmarshal([]byte(archiveOutput), &archived); err != nil {
+		t.Fatalf("json.Unmarshal(session archive) error = %v", err)
+	}
+	if archived.ArchivedAt == nil || archived.ID != "sess-1" {
+		t.Fatalf("session archive output = %#v, want archive marker", archived)
+	}
+
+	unarchiveOutput, _, err := executeRootCommand(t, deps, "session", "unarchive", "sess-1", "-o", "json")
+	if err != nil {
+		t.Fatalf("executeRootCommand(session unarchive) error = %v", err)
+	}
+	var restored SessionRecord
+	if err := json.Unmarshal([]byte(unarchiveOutput), &restored); err != nil {
+		t.Fatalf("json.Unmarshal(session unarchive) error = %v", err)
+	}
+	if restored.ArchivedAt != nil || restored.ID != "sess-1" {
+		t.Fatalf("session unarchive output = %#v, want restored session", restored)
+	}
+}
+
+func TestSessionListRejectsConflictingArchiveFilters(t *testing.T) {
+	t.Parallel()
+
+	_, _, err := executeRootCommand(
+		t,
+		newWorkspaceTestDeps(t, &stubClient{}),
+		"session",
+		"list",
+		"--archived",
+		"--include-archived",
+	)
+	if err == nil || !strings.Contains(err.Error(), "mutually exclusive") {
+		t.Fatalf("session list conflicting archive filters error = %v, want mutually exclusive", err)
 	}
 }
 

@@ -1353,6 +1353,7 @@ type Session struct {
 	WorkspaceID              string         `json:"workspace_id"`
 	SessionType              string         `json:"session_type"`
 	State                    string         `json:"state"`
+	ArchivedAt               sql.NullString `json:"archived_at"`
 	AcpSessionID             sql.NullString `json:"acp_session_id"`
 	StopReason               sql.NullString `json:"stop_reason"`
 	StopDetail               sql.NullString `json:"stop_detail"`

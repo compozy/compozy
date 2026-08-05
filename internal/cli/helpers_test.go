@@ -145,6 +145,8 @@ type stubClient struct {
 	inspectSessionFn             func(context.Context, string, SessionInspectQuery) (SessionInspectRecord, error)
 	refreshSessionSoulFn         func(context.Context, string, SessionSoulRefreshRequest) (AgentSoulRecord, error)
 	stopSessionFn                func(context.Context, string) error
+	archiveSessionFn             func(context.Context, string) (SessionRecord, error)
+	unarchiveSessionFn           func(context.Context, string) (SessionRecord, error)
 	deleteSessionFn              func(context.Context, string) error
 	resumeSessionFn              func(context.Context, string) (SessionRecord, error)
 	setSessionRuntimeFn          func(context.Context, string, SetSessionRuntimeRequest) (SessionRecord, error)
@@ -1566,6 +1568,20 @@ func (s *stubClient) StopSession(ctx context.Context, id string) error {
 		return s.stopSessionFn(ctx, id)
 	}
 	return errors.New("unexpected StopSession call")
+}
+
+func (s *stubClient) ArchiveSession(ctx context.Context, id string) (SessionRecord, error) {
+	if s.archiveSessionFn != nil {
+		return s.archiveSessionFn(ctx, id)
+	}
+	return SessionRecord{}, errors.New("unexpected ArchiveSession call")
+}
+
+func (s *stubClient) UnarchiveSession(ctx context.Context, id string) (SessionRecord, error) {
+	if s.unarchiveSessionFn != nil {
+		return s.unarchiveSessionFn(ctx, id)
+	}
+	return SessionRecord{}, errors.New("unexpected UnarchiveSession call")
 }
 
 func (s *stubClient) DeleteSession(ctx context.Context, id string) error {

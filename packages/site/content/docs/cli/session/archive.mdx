@@ -1,0 +1,42 @@
+---
+title: "compozy session archive"
+description: "Archive a stopped session"
+---
+
+## compozy session archive
+
+Archive a stopped session
+
+```
+compozy session archive <id> [flags]
+```
+
+### Options
+
+```
+  -h, --help   help for archive
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy session archive <id> -o json
+```

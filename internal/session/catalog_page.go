@@ -22,6 +22,10 @@ const (
 	ListSortRecent       = "recent"
 	ListSortLastActivity = "last_activity"
 
+	ArchiveExclude = store.SessionArchiveExclude
+	ArchiveOnly    = store.SessionArchiveOnly
+	ArchiveInclude = store.SessionArchiveInclude
+
 	sessionListCursorVersion = 1
 	sessionListCursorKind    = "sessions"
 )
@@ -41,6 +45,7 @@ type ListQuery struct {
 	AgentName   string
 	Search      string
 	Resumable   bool
+	Archive     store.SessionArchiveFilter
 	Sort        string
 	Cursor      string
 	Limit       int
@@ -56,13 +61,14 @@ type ListPage struct {
 }
 
 type sessionListFingerprint struct {
-	WorkspaceID string `json:"workspace_id"`
-	State       string `json:"state"`
-	SessionType Type   `json:"type"`
-	AgentName   string `json:"agent"`
-	Search      string `json:"q"`
-	Resumable   bool   `json:"resumable"`
-	Sort        string `json:"sort"`
+	WorkspaceID string                     `json:"workspace_id"`
+	State       string                     `json:"state"`
+	SessionType Type                       `json:"type"`
+	AgentName   string                     `json:"agent"`
+	Search      string                     `json:"q"`
+	Resumable   bool                       `json:"resumable"`
+	Archive     store.SessionArchiveFilter `json:"archive"`
+	Sort        string                     `json:"sort"`
 }
 
 // ListPage returns a stable, bounded union of durable and active sessions.
@@ -97,6 +103,7 @@ func (m *Manager) ListPage(ctx context.Context, query ListQuery) (ListPage, erro
 		AgentName:           normalized.AgentName,
 		Search:              normalized.Search,
 		Resumable:           normalized.Resumable,
+		Archive:             normalized.Archive,
 		Sort:                normalized.Sort,
 		Limit:               normalized.Limit + 1,
 		After:               after,
@@ -171,10 +178,17 @@ func normalizeListQuery(query ListQuery) (ListQuery, error) {
 	query.SessionType = Type(strings.TrimSpace(string(query.SessionType)))
 	query.AgentName = strings.TrimSpace(query.AgentName)
 	query.Search = strings.ToLower(strings.TrimSpace(query.Search))
+	query.Archive = store.SessionArchiveFilter(strings.TrimSpace(string(query.Archive)))
 	query.Sort = strings.TrimSpace(query.Sort)
 	query.Cursor = strings.TrimSpace(query.Cursor)
 	if query.Sort == "" {
 		query.Sort = ListSortRecent
+	}
+	if query.Archive == "" {
+		query.Archive = ArchiveExclude
+	}
+	if err := query.Archive.Validate(); err != nil {
+		return ListQuery{}, fmt.Errorf("%w: %w", ErrListQueryInvalid, err)
 	}
 	if query.Limit == 0 {
 		query.Limit = DefaultListLimit
@@ -222,6 +236,9 @@ func sessionMatchesListQuery(info *Info, query ListQuery, now time.Time) bool {
 	if query.Resumable && !AttachableForInfo(info, now) {
 		return false
 	}
+	if !sessionMatchesArchiveFilter(info, query.Archive) {
+		return false
+	}
 	search := strings.ToLower(strings.TrimSpace(query.Search))
 	if search == "" {
 		return true
@@ -238,6 +255,18 @@ func sessionMatchesListQuery(info *Info, query ListQuery, now time.Time) bool {
 		}
 	}
 	return false
+}
+
+func sessionMatchesArchiveFilter(info *Info, filter store.SessionArchiveFilter) bool {
+	archived := info != nil && info.ArchivedAt != nil
+	switch filter {
+	case ArchiveExclude:
+		return !archived
+	case ArchiveOnly:
+		return archived
+	default:
+		return true
+	}
 }
 
 func sessionCatalogPosition(info store.SessionInfo, sortKey string) store.SessionCatalogPosition {
@@ -286,6 +315,7 @@ func sessionListFingerprintForQuery(query ListQuery) (string, error) {
 		AgentName:   query.AgentName,
 		Search:      query.Search,
 		Resumable:   query.Resumable,
+		Archive:     query.Archive,
 		Sort:        query.Sort,
 	})
 	if err != nil {
@@ -376,6 +406,7 @@ func sessionInfoFromCatalog(info store.SessionInfo) *Info {
 		AttachedTo:           strings.TrimSpace(info.AttachedTo),
 		AttachExpiresAt:      cloneTimePointer(info.AttachExpiresAt),
 		TranscriptEpoch:      info.TranscriptEpoch,
+		ArchivedAt:           cloneTimePointer(info.ArchivedAt),
 		CreatedAt:            info.CreatedAt,
 		UpdatedAt:            info.UpdatedAt,
 	}

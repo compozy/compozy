@@ -534,6 +534,30 @@ describe("HostAPI", () => {
       expect(params).toEqual({ workspace_id: "ws-1", session_id: "sess-1" });
       return {};
     });
+    pair.host.handle("sessions/archive", async params => {
+      expect(params).toEqual({ workspace_id: "ws-1", session_id: "sess-1" });
+      return {
+        session_id: "sess-1",
+        agent: "claude",
+        runtime: { status: "unbound" },
+        state: "stopped",
+        archived_at: "2026-04-10T12:02:00.000Z",
+        created_at: "2026-04-10T12:00:00.000Z",
+        updated_at: "2026-04-10T12:02:00.000Z",
+      };
+    });
+    pair.host.handle("sessions/unarchive", async params => {
+      expect(params).toEqual({ workspace_id: "ws-1", session_id: "sess-1" });
+      return {
+        session_id: "sess-1",
+        agent: "claude",
+        runtime: { status: "unbound" },
+        state: "stopped",
+        archived_at: null,
+        created_at: "2026-04-10T12:00:00.000Z",
+        updated_at: "2026-04-10T12:03:00.000Z",
+      };
+    });
     pair.host.handle("sessions/status", async () => ({
       session_id: "sess-1",
       agent: "claude",
@@ -657,6 +681,12 @@ describe("HostAPI", () => {
     await expect(
       host.sessions.stop({ workspace_id: "ws-1", session_id: "sess-1" })
     ).resolves.toEqual({});
+    await expect(
+      host.sessions.archive({ workspace_id: "ws-1", session_id: "sess-1" })
+    ).resolves.toMatchObject({ session_id: "sess-1", archived_at: "2026-04-10T12:02:00.000Z" });
+    await expect(
+      host.sessions.unarchive({ workspace_id: "ws-1", session_id: "sess-1" })
+    ).resolves.toMatchObject({ session_id: "sess-1", archived_at: null });
     await expect(
       host.sessions.status({ workspace_id: "ws-1", session_id: "sess-1" })
     ).resolves.toMatchObject({

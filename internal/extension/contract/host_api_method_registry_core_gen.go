@@ -59,6 +59,16 @@ var hostAPIMethodSpecsCore = []HostAPIMethodSpec{
 		Result: NamedType{Name: "EmptyResult", Value: EmptyResult{}},
 	},
 	{
+		Method: HostAPIMethod("sessions/archive"),
+		Params: NamedType{Name: "SessionTargetParams", Value: SessionTargetParams{}},
+		Result: NamedType{Name: "SessionStatus", Value: SessionStatus{}},
+	},
+	{
+		Method: HostAPIMethod("sessions/unarchive"),
+		Params: NamedType{Name: "SessionTargetParams", Value: SessionTargetParams{}},
+		Result: NamedType{Name: "SessionStatus", Value: SessionStatus{}},
+	},
+	{
 		Method: HostAPIMethod("sessions/status"),
 		Params: NamedType{Name: "SessionTargetParams", Value: SessionTargetParams{}},
 		Result: NamedType{Name: "SessionStatus", Value: SessionStatus{}},

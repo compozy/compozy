@@ -19,6 +19,7 @@ const (
 	sessionListSortActivity   = "last_activity"
 	sessionListResumableWhere = "state = 'active' AND (failure_kind IS NULL OR trim(failure_kind) = '') AND " +
 		"(stall_state IS NULL OR trim(stall_state) = '') AND " +
+		"archived_at IS NULL AND " +
 		"(attached_to = '' OR attach_expires_at IS NULL OR attach_expires_at <= ?)"
 )
 
@@ -66,7 +67,11 @@ func (g *SessionRepo) UpdateSessionState(ctx context.Context, update store.Sessi
 	// dynamic-sql: the mutable session-state field set is explicitly partial and alters assignments.
 	result, err := g.db.ExecContext(ctx, query, args...)
 	if err != nil {
-		return fmt.Errorf("store: update session state %q: %w", update.ID, err)
+		return fmt.Errorf(
+			"store: update session state %q: %w",
+			update.ID,
+			mapSessionArchivedConstraint(update.ID, err),
+		)
 	}
 	affected, err := result.RowsAffected()
 	if err != nil {
@@ -112,6 +117,7 @@ func (g *SessionRepo) ListSessions(
 		)
 		args = append(args, store.FormatTimestamp(now))
 	}
+	where, args = appendSessionArchiveFilter(where, args, query.Archive)
 	sqlQuery = store.AppendWhere(sqlQuery, where)
 	sqlQuery += sessionListOrderClause(query.Sort)
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, query.Limit)
@@ -328,7 +334,7 @@ func (g *SessionRepo) registerSession(ctx context.Context, exec globalSQLExecuto
 	queries := sqlcgen.New(exec)
 	affected, err := queries.UpsertSession(ctx, params)
 	if err != nil {
-		return err
+		return mapSessionArchivedConstraint(session.ID, err)
 	}
 	if affected == 0 {
 		existingWorkspaceID, err := queries.GetSessionWorkspaceID(ctx, session.ID)

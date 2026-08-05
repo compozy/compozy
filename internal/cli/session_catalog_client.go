@@ -19,6 +19,7 @@ type SessionListQuery struct {
 	Agent         string
 	Query         string
 	Resumable     bool
+	Archive       string
 	IncludeHealth bool
 	Limit         int
 	Sort          string
@@ -92,6 +93,9 @@ func sessionListValues(query SessionListQuery) url.Values {
 	}
 	if query.Resumable {
 		values.Set("resumable", "true")
+	}
+	if archive := strings.TrimSpace(query.Archive); archive != "" {
+		values.Set("archive", archive)
 	}
 	if query.IncludeHealth {
 		values.Set("include_health", "true")

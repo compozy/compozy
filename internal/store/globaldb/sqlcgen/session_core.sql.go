@@ -18,6 +18,7 @@ SET attached_to = ?1,
     updated_at = ?3
 WHERE id = ?4
   AND state = 'active'
+  AND archived_at IS NULL
   AND (failure_kind IS NULL OR trim(failure_kind) = '')
   AND (stall_state IS NULL OR trim(stall_state) = '')
   AND (attached_to = '' OR attach_expires_at IS NULL OR attach_expires_at <= ?3)

@@ -3,6 +3,7 @@
     "pages": [
         "index",
         "approve",
+        "archive",
         "commands",
         "events",
         "health",
@@ -18,6 +19,7 @@
         "rewind",
         "status",
         "stop",
+        "unarchive",
         "usage",
         "wait",
         "clarify",

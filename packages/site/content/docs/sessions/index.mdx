@@ -39,6 +39,10 @@ operator-created sessions ordered by their latest runtime activity. The response
 `sessions` and reports exact `total`, applied `limit`, `has_more`, and `next_cursor` values under
 `page`.
 
+Archived sessions are omitted by default. Use `--archived` to return only archived sessions, or
+`--include-archived` to return archived and unarchived sessions together. Archiving changes catalog
+visibility, not the runtime state, and preserves the complete session record.
+
 Use `--cursor` to continue with the same filters and sort. A cursor from another workspace or query
 is rejected instead of crossing catalog boundaries. See the generated
 [`compozy session list`](/docs/cli/session/list) reference for every flag.

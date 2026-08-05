@@ -119,6 +119,8 @@ var consentByHostAPIMethod = map[string]string{
 	"sessions/status":                permissionSessionRead,
 	"sessions/status/get":            permissionSessionRead,
 	"sessions/stop":                  permissionSessionWrite,
+	"sessions/archive":               permissionSessionWrite,
+	"sessions/unarchive":             permissionSessionWrite,
 	"skills/list":                    "skills.read",
 	"clarify/ask":                    "clarify.ask",
 }

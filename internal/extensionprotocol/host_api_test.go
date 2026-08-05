@@ -19,6 +19,8 @@ func TestAllHostAPIMethodsReturnsCanonicalWireOrder(t *testing.T) {
 			HostAPIMethodSessionsInputsCancel,
 			HostAPIMethodSessionsInputsPromote,
 			HostAPIMethodSessionsStop,
+			HostAPIMethodSessionsArchive,
+			HostAPIMethodSessionsUnarchive,
 			HostAPIMethodSessionsStatus,
 			HostAPIMethodSessionsEvents,
 			HostAPIMethodSessionsSoulRefresh,
