@@ -21,6 +21,11 @@ func (m *Manager) Delete(ctx context.Context, id string) error {
 	if err != nil {
 		return fmt.Errorf("session: normalize delete id %q: %w", id, err)
 	}
+	unlockConversation, err := m.lockConversationOperation(ctx, target)
+	if err != nil {
+		return err
+	}
+	defer unlockConversation()
 
 	m.lifecycleMu.Lock()
 	defer m.lifecycleMu.Unlock()

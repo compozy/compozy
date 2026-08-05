@@ -8,6 +8,28 @@ import (
 	"database/sql"
 )
 
+type ConversationRewindReceipt struct {
+	IdempotencyKey       string `json:"idempotency_key"`
+	RequestHash          string `json:"request_hash"`
+	TargetMessageID      string `json:"target_message_id"`
+	ArchivedFromSequence int64  `json:"archived_from_sequence"`
+	ArchivedToSequence   int64  `json:"archived_to_sequence"`
+	ArchivedEventCount   int64  `json:"archived_event_count"`
+	Generation           int64  `json:"generation"`
+	MaxSequence          int64  `json:"max_sequence"`
+	TranscriptEpoch      int64  `json:"transcript_epoch"`
+	DraftText            string `json:"draft_text"`
+	CreatedAt            string `json:"created_at"`
+}
+
+type ConversationRewindState struct {
+	Singleton              int64  `json:"singleton"`
+	TargetMessageID        string `json:"target_message_id"`
+	CoveredThroughSequence int64  `json:"covered_through_sequence"`
+	MessagesJson           string `json:"messages_json"`
+	UpdatedAt              string `json:"updated_at"`
+}
+
 type Event struct {
 	ID                 string `json:"id"`
 	Sequence           int64  `json:"sequence"`

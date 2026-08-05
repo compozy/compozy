@@ -42,6 +42,24 @@ func (q *Queries) ArchiveEventRange(ctx context.Context, arg ArchiveEventRangePa
 	return result.RowsAffected()
 }
 
+const clearConversationRewindReceipts = `-- name: ClearConversationRewindReceipts :exec
+DELETE FROM conversation_rewind_receipts
+`
+
+func (q *Queries) ClearConversationRewindReceipts(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, clearConversationRewindReceipts)
+	return err
+}
+
+const clearConversationRewindState = `-- name: ClearConversationRewindState :exec
+DELETE FROM conversation_rewind_state
+`
+
+func (q *Queries) ClearConversationRewindState(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, clearConversationRewindState)
+	return err
+}
+
 const clearEvents = `-- name: ClearEvents :exec
 DELETE FROM events
 `
@@ -87,6 +105,128 @@ func (q *Queries) ClearTranscriptToolRoutes(ctx context.Context) error {
 	return err
 }
 
+const countArchivedTranscriptEventsBeforeSequence = `-- name: CountArchivedTranscriptEventsBeforeSequence :one
+SELECT COUNT(*)
+FROM events
+JOIN transcript_entries
+  ON transcript_entries.entry_key = events.transcript_entry_key
+WHERE events.archived = 1
+  AND transcript_entries.start_sequence < ?1
+`
+
+func (q *Queries) CountArchivedTranscriptEventsBeforeSequence(ctx context.Context, beforeSequence int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countArchivedTranscriptEventsBeforeSequence, beforeSequence)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const deleteTranscriptEntriesFromSequence = `-- name: DeleteTranscriptEntriesFromSequence :exec
+DELETE FROM transcript_entries
+WHERE start_sequence >= ?1
+`
+
+func (q *Queries) DeleteTranscriptEntriesFromSequence(ctx context.Context, fromSequence int64) error {
+	_, err := q.db.ExecContext(ctx, deleteTranscriptEntriesFromSequence, fromSequence)
+	return err
+}
+
+const deleteTranscriptToolRoutesFromSequence = `-- name: DeleteTranscriptToolRoutesFromSequence :exec
+DELETE FROM transcript_tool_routes
+WHERE entry_key IN (
+    SELECT entry_key FROM transcript_entries WHERE start_sequence >= ?1
+)
+`
+
+func (q *Queries) DeleteTranscriptToolRoutesFromSequence(ctx context.Context, fromSequence int64) error {
+	_, err := q.db.ExecContext(ctx, deleteTranscriptToolRoutesFromSequence, fromSequence)
+	return err
+}
+
+const getConversationRewindReceipt = `-- name: GetConversationRewindReceipt :one
+SELECT idempotency_key, request_hash, target_message_id,
+       archived_from_sequence, archived_to_sequence, archived_event_count,
+       generation, max_sequence, transcript_epoch, draft_text, created_at
+FROM conversation_rewind_receipts
+WHERE idempotency_key = ?1
+`
+
+func (q *Queries) GetConversationRewindReceipt(ctx context.Context, idempotencyKey string) (ConversationRewindReceipt, error) {
+	row := q.db.QueryRowContext(ctx, getConversationRewindReceipt, idempotencyKey)
+	var i ConversationRewindReceipt
+	err := row.Scan(
+		&i.IdempotencyKey,
+		&i.RequestHash,
+		&i.TargetMessageID,
+		&i.ArchivedFromSequence,
+		&i.ArchivedToSequence,
+		&i.ArchivedEventCount,
+		&i.Generation,
+		&i.MaxSequence,
+		&i.TranscriptEpoch,
+		&i.DraftText,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getConversationRewindState = `-- name: GetConversationRewindState :one
+SELECT target_message_id, covered_through_sequence, messages_json, updated_at
+FROM conversation_rewind_state
+WHERE singleton = 1
+`
+
+type GetConversationRewindStateRow struct {
+	TargetMessageID        string `json:"target_message_id"`
+	CoveredThroughSequence int64  `json:"covered_through_sequence"`
+	MessagesJson           string `json:"messages_json"`
+	UpdatedAt              string `json:"updated_at"`
+}
+
+func (q *Queries) GetConversationRewindState(ctx context.Context) (GetConversationRewindStateRow, error) {
+	row := q.db.QueryRowContext(ctx, getConversationRewindState)
+	var i GetConversationRewindStateRow
+	err := row.Scan(
+		&i.TargetMessageID,
+		&i.CoveredThroughSequence,
+		&i.MessagesJson,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getConversationRewindTarget = `-- name: GetConversationRewindTarget :one
+SELECT kind, message_id, start_sequence, complete, message_json
+FROM transcript_entries
+WHERE message_id = ?1
+  AND EXISTS (
+    SELECT 1 FROM events
+    WHERE events.sequence = transcript_entries.start_sequence
+      AND events.archived = 0
+  )
+`
+
+type GetConversationRewindTargetRow struct {
+	Kind          string         `json:"kind"`
+	MessageID     sql.NullString `json:"message_id"`
+	StartSequence int64          `json:"start_sequence"`
+	Complete      int64          `json:"complete"`
+	MessageJson   sql.NullString `json:"message_json"`
+}
+
+func (q *Queries) GetConversationRewindTarget(ctx context.Context, messageID sql.NullString) (GetConversationRewindTargetRow, error) {
+	row := q.db.QueryRowContext(ctx, getConversationRewindTarget, messageID)
+	var i GetConversationRewindTargetRow
+	err := row.Scan(
+		&i.Kind,
+		&i.MessageID,
+		&i.StartSequence,
+		&i.Complete,
+		&i.MessageJson,
+	)
+	return i, err
+}
+
 const getEventByID = `-- name: GetEventByID :one
 SELECT id, sequence, turn_id, type, agent_name, content, archived, timestamp
 FROM events
@@ -128,6 +268,51 @@ INSERT OR IGNORE INTO transcript_projection_state (
 
 func (q *Queries) InitializeTranscriptProjectionState(ctx context.Context, projectionVersion int64) error {
 	_, err := q.db.ExecContext(ctx, initializeTranscriptProjectionState, projectionVersion)
+	return err
+}
+
+const insertConversationRewindReceipt = `-- name: InsertConversationRewindReceipt :exec
+INSERT INTO conversation_rewind_receipts (
+    idempotency_key, request_hash, target_message_id,
+    archived_from_sequence, archived_to_sequence, archived_event_count,
+    generation, max_sequence, transcript_epoch, draft_text, created_at
+) VALUES (
+    ?1, ?2, ?3,
+    ?4, ?5,
+    ?6, ?7, ?8,
+    ?9,
+    ?10, ?11
+)
+`
+
+type InsertConversationRewindReceiptParams struct {
+	IdempotencyKey       string `json:"idempotency_key"`
+	RequestHash          string `json:"request_hash"`
+	TargetMessageID      string `json:"target_message_id"`
+	ArchivedFromSequence int64  `json:"archived_from_sequence"`
+	ArchivedToSequence   int64  `json:"archived_to_sequence"`
+	ArchivedEventCount   int64  `json:"archived_event_count"`
+	Generation           int64  `json:"generation"`
+	MaxSequence          int64  `json:"max_sequence"`
+	TranscriptEpoch      int64  `json:"transcript_epoch"`
+	DraftText            string `json:"draft_text"`
+	CreatedAt            string `json:"created_at"`
+}
+
+func (q *Queries) InsertConversationRewindReceipt(ctx context.Context, arg InsertConversationRewindReceiptParams) error {
+	_, err := q.db.ExecContext(ctx, insertConversationRewindReceipt,
+		arg.IdempotencyKey,
+		arg.RequestHash,
+		arg.TargetMessageID,
+		arg.ArchivedFromSequence,
+		arg.ArchivedToSequence,
+		arg.ArchivedEventCount,
+		arg.Generation,
+		arg.MaxSequence,
+		arg.TranscriptEpoch,
+		arg.DraftText,
+		arg.CreatedAt,
+	)
 	return err
 }
 
@@ -212,6 +397,17 @@ func (q *Queries) InsertHookRun(ctx context.Context, arg InsertHookRunParams) er
 	return err
 }
 
+const maxActiveEventSequence = `-- name: MaxActiveEventSequence :one
+SELECT CAST(COALESCE(MAX(sequence), 0) AS INTEGER) FROM events WHERE archived = 0
+`
+
+func (q *Queries) MaxActiveEventSequence(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, maxActiveEventSequence)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const maxEventSequence = `-- name: MaxEventSequence :one
 SELECT CAST(COALESCE(MAX(sequence), 0) AS INTEGER) FROM events
 `
@@ -221,6 +417,37 @@ func (q *Queries) MaxEventSequence(ctx context.Context) (int64, error) {
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err
+}
+
+const upsertConversationRewindState = `-- name: UpsertConversationRewindState :exec
+INSERT INTO conversation_rewind_state (
+    singleton, target_message_id, covered_through_sequence, messages_json, updated_at
+) VALUES (
+    1, ?1, ?2,
+    ?3, ?4
+)
+ON CONFLICT(singleton) DO UPDATE SET
+    target_message_id = excluded.target_message_id,
+    covered_through_sequence = excluded.covered_through_sequence,
+    messages_json = excluded.messages_json,
+    updated_at = excluded.updated_at
+`
+
+type UpsertConversationRewindStateParams struct {
+	TargetMessageID        string `json:"target_message_id"`
+	CoveredThroughSequence int64  `json:"covered_through_sequence"`
+	MessagesJson           string `json:"messages_json"`
+	UpdatedAt              string `json:"updated_at"`
+}
+
+func (q *Queries) UpsertConversationRewindState(ctx context.Context, arg UpsertConversationRewindStateParams) error {
+	_, err := q.db.ExecContext(ctx, upsertConversationRewindState,
+		arg.TargetMessageID,
+		arg.CoveredThroughSequence,
+		arg.MessagesJson,
+		arg.UpdatedAt,
+	)
+	return err
 }
 
 const upsertTokenUsage = `-- name: UpsertTokenUsage :exec

@@ -28,6 +28,7 @@ import {
   repairSession,
   promoteSessionInputToSteer,
   replaceSessionInput,
+  rewindSession,
   resumeSession,
   sendSessionPrompt,
   setSessionRuntime,
@@ -494,6 +495,39 @@ describe("steerSessionPrompt", () => {
       },
       method: "POST",
       path: "/api/workspaces/ws_alpha/sessions/sess-001/steer",
+    });
+  });
+});
+
+describe("rewindSession", () => {
+  it("sends the durable message identity and transcript fence, then returns the draft", async () => {
+    mockJsonResponse({
+      rewind: { draft_text: "Use the earlier plan instead." },
+      session: mockSession,
+    });
+
+    const result = await rewindSession(WORKSPACE_ID, "sess-001", {
+      expected_epoch: 3,
+      expected_generation: 7,
+      expected_max_sequence: 19,
+      idempotency_key: "rewind-idempotency-001",
+      message_id: "message-001",
+    });
+
+    expect(result).toEqual({
+      rewind: { draft_text: "Use the earlier plan instead." },
+      session: mockSession,
+    });
+    await expectFetchRequest({
+      body: {
+        expected_epoch: 3,
+        expected_generation: 7,
+        expected_max_sequence: 19,
+        idempotency_key: "rewind-idempotency-001",
+        message_id: "message-001",
+      },
+      method: "POST",
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/rewind",
     });
   });
 });

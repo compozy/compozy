@@ -181,6 +181,7 @@ var nativeEntries = map[string]Entry{
 	"compozy__session_inputs_list":            nativeEntry("Reading", " ", false, "💬", "auto"),
 	"compozy__session_list":                   nativeEntry("Reading", " ", false, "💬", "auto"),
 	"compozy__session_prompt":                 nativeEntry("Sending", " ", false, "💬", "auto"),
+	"compozy__session_rewind":                 nativeEntry("Rewinding", " ", false, "💬", "auto"),
 	"compozy__session_runtime_clear":          nativeEntry("Clearing", " ", false, "💬", "auto"),
 	"compozy__session_runtime_set":            nativeEntry("Selecting", " ", false, "💬", "auto"),
 	"compozy__session_status":                 nativeEntry("Reading", " ", false, "💬", "auto"),

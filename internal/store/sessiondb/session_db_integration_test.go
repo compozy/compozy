@@ -152,6 +152,38 @@ func TestSessionDBSupportsConcurrentReadersWithSingleWriter(t *testing.T) {
 func TestReadOnlyPoolLifecycle(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should preserve conversation rewind reads through a pooled lease", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		pool := NewReadOnlyPool(ReadOnlyPoolConfig{
+			Open: func(context.Context, store.SessionDBOwner, string) (store.EventReadCloser, error) {
+				return &readOnlyPoolTestReader{}, nil
+			},
+		})
+		lease, err := pool.Open(ctx, testSessionDBOwner("sess-rewind-reader"), "rewind.db")
+		if err != nil {
+			t.Fatalf("Open() error = %v", err)
+		}
+		reader, ok := lease.(store.ConversationRewindReader)
+		if !ok {
+			t.Fatalf("pooled lease = %T, want ConversationRewindReader", lease)
+		}
+		target, err := reader.ConversationRewindTarget(ctx, "msg-rewind")
+		if err != nil {
+			t.Fatalf("ConversationRewindTarget() error = %v", err)
+		}
+		if target.MessageID != "msg-rewind" {
+			t.Fatalf("ConversationRewindTarget() = %#v", target)
+		}
+		if err := lease.Close(ctx); err != nil {
+			t.Fatalf("Close(lease) error = %v", err)
+		}
+		if err := pool.Close(ctx); err != nil {
+			t.Fatalf("Close(pool) error = %v", err)
+		}
+	})
+
 	t.Run("Should keep the same session path isolated by workspace owner", func(t *testing.T) {
 		t.Parallel()
 
@@ -2388,6 +2420,7 @@ type readOnlyPoolTestReader struct {
 type readOnlyPoolTestContextKey struct{}
 
 var _ store.EventReadCloser = (*readOnlyPoolTestReader)(nil)
+var _ store.ConversationRewindReader = (*readOnlyPoolTestReader)(nil)
 
 func (r *readOnlyPoolTestReader) Query(
 	context.Context,
@@ -2401,6 +2434,27 @@ func (r *readOnlyPoolTestReader) History(
 	store.EventQuery,
 ) ([]store.TurnHistory, error) {
 	return nil, nil
+}
+
+func (*readOnlyPoolTestReader) ConversationRewindTarget(
+	_ context.Context,
+	messageID string,
+) (store.ConversationRewindTarget, error) {
+	return store.ConversationRewindTarget{MessageID: messageID}, nil
+}
+
+func (*readOnlyPoolTestReader) ConversationRewindState(
+	context.Context,
+) (store.ConversationRewindState, bool, error) {
+	return store.ConversationRewindState{}, false, nil
+}
+
+func (*readOnlyPoolTestReader) ConversationRewindReceipt(
+	context.Context,
+	string,
+	string,
+) (store.ConversationRewindResult, bool, error) {
+	return store.ConversationRewindResult{}, false, nil
 }
 
 func (r *readOnlyPoolTestReader) Close(ctx context.Context) error {

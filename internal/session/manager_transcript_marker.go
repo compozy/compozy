@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/compozy/compozy/internal/transcript"
 )
@@ -54,6 +55,10 @@ func (m *Manager) persistResumeReplayMarker(
 	if !spec.resumeReplay {
 		return nil
 	}
+	fallbackReason := strings.TrimSpace(spec.resumeReplayReason)
+	if fallbackReason == "" {
+		fallbackReason = "session_load_unavailable"
+	}
 	turnID, err := m.newPromptTurnID()
 	if err != nil {
 		return startupFailure(
@@ -70,7 +75,7 @@ func (m *Manager) persistResumeReplayMarker(
 		map[string]any{
 			transcriptMarkerEvidenceSourceKey: "events.db",
 			"message_count":                   spec.resumeReplayMessageCount,
-			"fallback_reason":                 "session_load_unavailable",
+			"fallback_reason":                 fallbackReason,
 		},
 	); err != nil {
 		return startupFailure(

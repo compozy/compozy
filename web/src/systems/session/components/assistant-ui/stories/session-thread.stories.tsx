@@ -9,7 +9,7 @@ import { compozyApiMock } from "@/storybook/openapi-msw";
 import { HttpResponse } from "msw";
 import { SessionChatRuntimeProvider } from "@/systems/session/components/session-chat-runtime-provider";
 import { SessionTranscriptThreadProvider } from "@/systems/session/lib/session-transcript-thread-context";
-import { expect, within } from "storybook/test";
+import { expect, userEvent, within } from "storybook/test";
 
 import {
   changedFilesTranscript,
@@ -278,7 +278,7 @@ export const ChangedFilesRollup: Story = {
 };
 
 /**
- * Hover toolbar — settled assistant output exposes copy without extra actions.
+ * Hover toolbar — durable user output exposes copy and conversation rewind.
  */
 export const HoverToolbar: Story = {
   args: {
@@ -298,8 +298,8 @@ export const HoverToolbar: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const action = await canvas.findByRole("button", { name: "Copy message" });
-    await expect(action).toBeVisible();
+    await userEvent.hover(await canvas.findByText("Summarize the launch readiness in one line."));
+    await expect(await canvas.findByRole("button", { name: "Rewind to here" })).toBeVisible();
   },
 };
 

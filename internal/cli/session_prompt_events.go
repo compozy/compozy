@@ -252,6 +252,7 @@ func newSessionEventsCommand(deps commandDeps) *cobra.Command {
 		afterSequence int64
 		sinceRaw      string
 		follow        bool
+		archive       string
 	)
 
 	cmd := &cobra.Command{
@@ -281,6 +282,7 @@ func newSessionEventsCommand(deps commandDeps) *cobra.Command {
 				Last:          last,
 				AfterSequence: afterSequence,
 				Since:         since,
+				Archive:       archive,
 			}
 
 			if follow {
@@ -299,6 +301,7 @@ func newSessionEventsCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().Int64Var(&afterSequence, "after", 0, "Show events after the supplied sequence")
 	cmd.Flags().StringVar(&sinceRaw, "since", "", "Show events since an RFC3339 timestamp or relative duration")
 	cmd.Flags().BoolVar(&follow, "follow", false, "Stream new events over SSE")
+	cmd.Flags().StringVar(&archive, "archive", "active", "Select active, archived, or all events")
 	return cmd
 }
 
@@ -336,6 +339,7 @@ func newSessionHistoryCommand(deps commandDeps) *cobra.Command {
 	var (
 		last          int
 		afterSequence int64
+		archive       string
 	)
 
 	cmd := &cobra.Command{
@@ -359,6 +363,7 @@ func newSessionHistoryCommand(deps commandDeps) *cobra.Command {
 			history, err := client.SessionHistory(cmd.Context(), args[0], SessionEventQuery{
 				Last:          last,
 				AfterSequence: afterSequence,
+				Archive:       archive,
 			})
 			if err != nil {
 				return err
@@ -368,6 +373,7 @@ func newSessionHistoryCommand(deps commandDeps) *cobra.Command {
 	}
 	cmd.Flags().IntVar(&last, "last", 0, "Show only the most recent N turns")
 	cmd.Flags().Int64Var(&afterSequence, "after", 0, "Show turns after the supplied event sequence")
+	cmd.Flags().StringVar(&archive, "archive", "active", "Select active, archived, or all events")
 	return cmd
 }
 

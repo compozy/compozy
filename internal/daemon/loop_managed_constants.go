@@ -10,5 +10,5 @@ const (
 	daemonAgentField               = "agent"
 	goalSnapshotStatusComplete     = "complete"
 	goalSnapshotStatusBlocked      = "blocked"
-	goalSnapshotStatusActive       = "active"
+	goalSnapshotStatusActive       = nativeFilterActiveValue
 )

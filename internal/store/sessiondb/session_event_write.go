@@ -227,6 +227,13 @@ func (s *SessionDB) writeEventIfAbsent(
 			return err
 		}
 		event.Sequence = sequence
+		if event.Archived {
+			if err := insertSessionEvent(ctx, tx, event, ""); err != nil {
+				return err
+			}
+			persisted = event
+			return nil
+		}
 		state, err := loadProjectionState(ctx, tx)
 		if err != nil {
 			return err
@@ -262,7 +269,7 @@ func sessionEventsHaveIdenticalIdentity(existing store.SessionEvent, candidate s
 	return existing.ID == candidate.ID && existing.SessionID == candidate.SessionID &&
 		existing.TurnID == candidate.TurnID && existing.Type == candidate.Type &&
 		existing.AgentName == candidate.AgentName && existing.Content == candidate.Content &&
-		existing.Timestamp.Equal(candidate.Timestamp)
+		existing.Archived == candidate.Archived && existing.Timestamp.Equal(candidate.Timestamp)
 }
 
 func (s *SessionDB) writeEventBatch(
@@ -307,6 +314,12 @@ func (s *SessionDB) writeEventBatch(
 		affected := make(map[string]struct{})
 		for idx := range persisted {
 			persisted[idx].Sequence = nextSequence + int64(idx)
+			if persisted[idx].Archived {
+				if err := insertSessionEvent(ctx, tx, persisted[idx], ""); err != nil {
+					return err
+				}
+				continue
+			}
 			assignment, assignErr := projector.Assign(ctx, persisted[idx])
 			if assignErr != nil {
 				return assignErr

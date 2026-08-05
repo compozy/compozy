@@ -1,6 +1,8 @@
 import { createContext } from "react";
 
 export interface SessionRuntimeRenderContextValue {
+  resetRuntime?: () => void;
+  rewindBlocked?: boolean;
   sessionId: string;
   workspaceId: string;
 }

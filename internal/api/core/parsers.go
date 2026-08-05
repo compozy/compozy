@@ -29,6 +29,10 @@ func ParseSessionEventQuery(c *gin.Context) (store.EventQuery, error) {
 	if err != nil {
 		return store.EventQuery{}, err
 	}
+	archive, err := parseSessionEventArchive(c.Query("archive"))
+	if err != nil {
+		return store.EventQuery{}, err
+	}
 
 	return store.EventQuery{
 		Type:          strings.TrimSpace(c.Query("type")),
@@ -37,7 +41,21 @@ func ParseSessionEventQuery(c *gin.Context) (store.EventQuery, error) {
 		Since:         since,
 		Limit:         limit,
 		AfterSequence: afterSequence,
+		Archive:       archive,
 	}, nil
+}
+
+func parseSessionEventArchive(raw string) (store.EventArchiveFilter, error) {
+	switch strings.TrimSpace(raw) {
+	case "", queryFilterActiveValue:
+		return store.EventArchiveUnarchived, nil
+	case "archived":
+		return store.EventArchiveArchived, nil
+	case queryFilterAllValue:
+		return store.EventArchiveAll, nil
+	default:
+		return "", fmt.Errorf("invalid archive query %q: expected active, archived, or all", raw)
+	}
 }
 
 // ParseLogsQuery parses the shared logs query parameters.

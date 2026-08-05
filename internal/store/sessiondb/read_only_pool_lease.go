@@ -19,6 +19,7 @@ type readOnlyPoolLease struct {
 
 var _ store.EventReadCloser = (*readOnlyPoolLease)(nil)
 var _ transcript.Reader = (*readOnlyPoolLease)(nil)
+var _ store.ConversationRewindReader = (*readOnlyPoolLease)(nil)
 
 func newReadOnlyPoolLease(
 	pool *ReadOnlyPool,
@@ -78,6 +79,50 @@ func (l *readOnlyPoolLease) TranscriptChanges(
 		return transcript.ChangePage{}, errors.New("store: pooled recorder has no transcript projection")
 	}
 	return reader.TranscriptChanges(ctx, query)
+}
+
+func (l *readOnlyPoolLease) ConversationRewindTarget(
+	ctx context.Context,
+	messageID string,
+) (store.ConversationRewindTarget, error) {
+	reader, err := l.conversationRewindReader()
+	if err != nil {
+		return store.ConversationRewindTarget{}, err
+	}
+	return reader.ConversationRewindTarget(ctx, messageID)
+}
+
+func (l *readOnlyPoolLease) ConversationRewindState(
+	ctx context.Context,
+) (store.ConversationRewindState, bool, error) {
+	reader, err := l.conversationRewindReader()
+	if err != nil {
+		return store.ConversationRewindState{}, false, err
+	}
+	return reader.ConversationRewindState(ctx)
+}
+
+func (l *readOnlyPoolLease) ConversationRewindReceipt(
+	ctx context.Context,
+	idempotencyKey string,
+	requestHash string,
+) (store.ConversationRewindResult, bool, error) {
+	reader, err := l.conversationRewindReader()
+	if err != nil {
+		return store.ConversationRewindResult{}, false, err
+	}
+	return reader.ConversationRewindReceipt(ctx, idempotencyKey, requestHash)
+}
+
+func (l *readOnlyPoolLease) conversationRewindReader() (store.ConversationRewindReader, error) {
+	if l == nil || l.entry == nil || l.entry.recorder == nil {
+		return nil, errors.New("store: read-only pool lease recorder is required")
+	}
+	reader, ok := l.entry.recorder.(store.ConversationRewindReader)
+	if !ok {
+		return nil, errors.New("store: pooled recorder has no conversation rewind projection")
+	}
+	return reader, nil
 }
 
 func (l *readOnlyPoolLease) Close(context.Context) error {

@@ -27,6 +27,7 @@ type sessionManagerStub struct {
 	stopWithCause       func(context.Context, string, session.StopCause, string) error
 	resume              func(context.Context, string) (*session.Session, error)
 	clearConversation   func(context.Context, string) (*session.Session, error)
+	rewindConversation  func(context.Context, string, session.ConversationRewindOptions) (session.ConversationRewindResult, error)
 	prompt              func(context.Context, string, string) (<-chan acp.AgentEvent, error)
 	promptSynthetic     func(context.Context, string, session.SyntheticPromptOpts) (<-chan acp.AgentEvent, error)
 	sendPrompt          func(context.Context, string, session.SendPromptOpts) (session.SendPromptResult, error)
@@ -188,6 +189,17 @@ func (s sessionManagerStub) ClearConversation(ctx context.Context, id string) (*
 		return s.clearConversation(ctx, id)
 	}
 	return nil, session.ErrSessionNotFound
+}
+
+func (s sessionManagerStub) RewindConversation(
+	ctx context.Context,
+	id string,
+	opts session.ConversationRewindOptions,
+) (session.ConversationRewindResult, error) {
+	if s.rewindConversation != nil {
+		return s.rewindConversation(ctx, id, opts)
+	}
+	return session.ConversationRewindResult{}, session.ErrSessionNotFound
 }
 
 func (s sessionManagerStub) Prompt(ctx context.Context, id string, msg string) (<-chan acp.AgentEvent, error) {

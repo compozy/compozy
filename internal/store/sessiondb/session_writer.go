@@ -77,6 +77,9 @@ func (s *SessionDB) executeWrite(req sessionWriteRequest) sessionWriteResult {
 	case sessionWriteArchive:
 		result, err := s.writeArchiveEvents(req.ctx, req.archive)
 		return sessionWriteResult{archive: result, err: err}
+	case sessionWriteConversationRewind:
+		result, err := s.writeConversationRewind(req.ctx, req.rewind)
+		return sessionWriteResult{rewind: result, err: err}
 	case sessionWriteClear:
 		err := clearSessionSQLite(req.ctx, s.db)
 		if err != nil {
@@ -94,7 +97,7 @@ func sessionWriteCheckpointWeight(req sessionWriteRequest, result sessionWriteRe
 		return 1
 	case sessionWriteEventBatch:
 		return len(result.events)
-	case sessionWriteUsage, sessionWriteHookRun, sessionWriteArchive:
+	case sessionWriteUsage, sessionWriteHookRun, sessionWriteArchive, sessionWriteConversationRewind:
 		return 1
 	default:
 		return 0

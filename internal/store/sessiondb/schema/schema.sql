@@ -67,6 +67,34 @@ CREATE TABLE transcript_tool_routes (
 		entry_key TEXT NOT NULL
 	);
 
+CREATE TABLE conversation_rewind_state (
+		singleton INTEGER PRIMARY KEY CHECK(singleton = 1),
+		target_message_id TEXT NOT NULL,
+		covered_through_sequence INTEGER NOT NULL CHECK(covered_through_sequence >= 0),
+		messages_json TEXT NOT NULL CHECK(json_valid(messages_json)),
+		updated_at TEXT NOT NULL
+	);
+
+CREATE TABLE conversation_rewind_receipts (
+		idempotency_key TEXT PRIMARY KEY,
+		request_hash TEXT NOT NULL,
+		target_message_id TEXT NOT NULL,
+		archived_from_sequence INTEGER NOT NULL,
+		archived_to_sequence INTEGER NOT NULL,
+		archived_event_count INTEGER NOT NULL,
+		generation INTEGER NOT NULL,
+		max_sequence INTEGER NOT NULL,
+		transcript_epoch INTEGER NOT NULL,
+		draft_text TEXT NOT NULL,
+		created_at TEXT NOT NULL,
+		CHECK(archived_from_sequence > 0),
+		CHECK(archived_to_sequence >= archived_from_sequence),
+		CHECK(archived_event_count >= 0),
+		CHECK(generation >= 0),
+		CHECK(max_sequence >= 0),
+		CHECK(transcript_epoch > 0)
+	);
+
 CREATE TABLE session_db_owner (
 		singleton INTEGER PRIMARY KEY CHECK(singleton = 1),
 		session_id TEXT NOT NULL CHECK(length(trim(session_id)) > 0),

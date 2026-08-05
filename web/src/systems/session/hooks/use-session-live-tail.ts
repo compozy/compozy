@@ -62,6 +62,7 @@ interface UseSessionLiveTailOptions {
   sessionId: string;
   enabled?: boolean;
   eventSourceFactory?: SessionStreamEventSourceFactory;
+  resetGeneration?: number;
 }
 
 const TRANSCRIPT_SNAPSHOT_EVENT = "transcript_snapshot";
@@ -136,6 +137,7 @@ export function useSessionLiveTail({
   sessionId,
   enabled = true,
   eventSourceFactory,
+  resetGeneration = 0,
 }: UseSessionLiveTailOptions) {
   const queryClient = useQueryClient();
   const reloadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -450,6 +452,7 @@ export function useSessionLiveTail({
     eventSourceFactory,
     hasCustomFactory,
     queryClient,
+    resetGeneration,
     sessionId,
     sourceFactory,
     streamShouldOpen,

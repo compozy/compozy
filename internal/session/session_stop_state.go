@@ -45,6 +45,9 @@ func (s *Session) beginExclusivePromptSetup() (*AgentProcess, error) {
 	if s.State != StateActive {
 		return nil, fmt.Errorf("%w: %s", ErrSessionNotActive, s.ID)
 	}
+	if s.conversationRewindReserved {
+		return nil, fmt.Errorf("%w: %s", ErrSessionNotActive, s.ID)
+	}
 	if s.promptSetupCount > 0 || s.currentTurnSource != "" {
 		return nil, ErrPromptInProgress
 	}
@@ -56,6 +59,34 @@ func (s *Session) beginExclusivePromptSetup() (*AgentProcess, error) {
 	}
 	s.promptSetupCount++
 	return s.process, nil
+}
+
+func (s *Session) reserveConversationRewind() error {
+	if s == nil {
+		return errors.New("session: session is required")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.State != StateActive {
+		return fmt.Errorf("%w: %s", ErrSessionNotActive, s.ID)
+	}
+	if s.conversationRewindReserved || s.promptSetupCount > 0 || s.currentTurnSource != "" || s.currentTurnID != "" {
+		return fmt.Errorf("%w: %s", ErrConversationRewindBusy, s.ID)
+	}
+	if s.process != nil && s.process.HasPendingPermission() {
+		return fmt.Errorf("%w: %s", ErrConversationRewindBusy, s.ID)
+	}
+	s.conversationRewindReserved = true
+	return nil
+}
+
+func (s *Session) releaseConversationRewind() {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	s.conversationRewindReserved = false
+	s.mu.Unlock()
 }
 
 func (s *Session) finishPromptSetup() {
@@ -138,7 +169,8 @@ func (s *Session) stopWasRequested() bool {
 	defer s.mu.RUnlock()
 
 	switch s.stopCause {
-	case CauseFailed, CauseUserRequested, CauseShutdown, CauseHookDenied, CauseTimeout, CauseClearConversation:
+	case CauseFailed, CauseUserRequested, CauseShutdown, CauseHookDenied, CauseTimeout, CauseClearConversation,
+		CauseConversationRewind:
 		return true
 	default:
 		return false

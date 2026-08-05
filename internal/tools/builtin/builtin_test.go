@@ -1146,6 +1146,8 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__session_prompt", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__session_rewind", risk: toolspkg.RiskDestructive,
+			readOnly: false, destructive: true, openWorld: false},
 		{id: "compozy__session_runtime_clear", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__session_runtime_set", risk: toolspkg.RiskMutating,
@@ -2238,6 +2240,7 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 		if !slices.Contains(sessions, toolspkg.ToolIDSessionList) ||
 			!slices.Contains(sessions, toolspkg.ToolIDSessionCreate) ||
 			!slices.Contains(sessions, toolspkg.ToolIDSessionPrompt) ||
+			!slices.Contains(sessions, toolspkg.ToolIDSessionRewind) ||
 			!slices.Contains(sessions, toolspkg.ToolIDSessionInputsList) ||
 			!slices.Contains(sessions, toolspkg.ToolIDSessionInputReplace) ||
 			!slices.Contains(sessions, toolspkg.ToolIDSessionInputCancel) ||

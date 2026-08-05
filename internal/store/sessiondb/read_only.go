@@ -80,6 +80,37 @@ type ReadOnlySessionDB struct {
 
 var _ store.EventReadCloser = (*ReadOnlySessionDB)(nil)
 var _ store.EventMetadataReadCloser = (*ReadOnlySessionDB)(nil)
+var _ store.ConversationRewindReader = (*ReadOnlySessionDB)(nil)
+
+func (s *ReadOnlySessionDB) ConversationRewindTarget(
+	ctx context.Context,
+	messageID string,
+) (store.ConversationRewindTarget, error) {
+	if s == nil {
+		return store.ConversationRewindTarget{}, errors.New("store: read-only session database is required")
+	}
+	return conversationRewindTarget(ctx, s.db, messageID)
+}
+
+func (s *ReadOnlySessionDB) ConversationRewindState(
+	ctx context.Context,
+) (store.ConversationRewindState, bool, error) {
+	if s == nil {
+		return store.ConversationRewindState{}, false, errors.New("store: read-only session database is required")
+	}
+	return conversationRewindState(ctx, s.db)
+}
+
+func (s *ReadOnlySessionDB) ConversationRewindReceipt(
+	ctx context.Context,
+	idempotencyKey string,
+	requestHash string,
+) (store.ConversationRewindResult, bool, error) {
+	if s == nil {
+		return store.ConversationRewindResult{}, false, errors.New("store: read-only session database is required")
+	}
+	return conversationRewindReceipt(ctx, s.db, idempotencyKey, requestHash)
+}
 
 // OpenSessionDBReadOnly opens an existing per-session events database in
 // SQLite read-only mode. It intentionally fails for missing paths instead of

@@ -1,0 +1,47 @@
+---
+title: "compozy session rewind"
+description: "Rewind a session before a user message"
+---
+
+## compozy session rewind
+
+Rewind a session before a user message
+
+```
+compozy session rewind <session-id> [flags]
+```
+
+### Options
+
+```
+      --expected-epoch int          Transcript epoch returned by the transcript API
+      --expected-generation int     Transcript generation returned by the transcript API
+      --expected-max-sequence int   Maximum event sequence returned by the transcript API
+  -h, --help                        help for rewind
+      --idempotency-key string      Stable retry key (generated when omitted)
+      --message-id string           Durable user message to rewind before
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy session rewind <session-id> -o json
+```

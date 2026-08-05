@@ -40,6 +40,9 @@ INSERT INTO hook_runs (
 -- name: MaxEventSequence :one
 SELECT CAST(COALESCE(MAX(sequence), 0) AS INTEGER) FROM events;
 
+-- name: MaxActiveEventSequence :one
+SELECT CAST(COALESCE(MAX(sequence), 0) AS INTEGER) FROM events WHERE archived = 0;
+
 -- name: GetEventByID :one
 SELECT id, sequence, turn_id, type, agent_name, content, archived, timestamp
 FROM events
@@ -80,3 +83,75 @@ DELETE FROM events;
 UPDATE transcript_projection_state
 SET generation = generation + 1, active_entry_key = NULL
 WHERE singleton = 1;
+
+-- name: GetConversationRewindTarget :one
+SELECT kind, message_id, start_sequence, complete, message_json
+FROM transcript_entries
+WHERE message_id = sqlc.arg(message_id)
+  AND EXISTS (
+    SELECT 1 FROM events
+    WHERE events.sequence = transcript_entries.start_sequence
+      AND events.archived = 0
+  );
+
+-- name: CountArchivedTranscriptEventsBeforeSequence :one
+SELECT COUNT(*)
+FROM events
+JOIN transcript_entries
+  ON transcript_entries.entry_key = events.transcript_entry_key
+WHERE events.archived = 1
+  AND transcript_entries.start_sequence < sqlc.arg(before_sequence);
+
+-- name: DeleteTranscriptToolRoutesFromSequence :exec
+DELETE FROM transcript_tool_routes
+WHERE entry_key IN (
+    SELECT entry_key FROM transcript_entries WHERE start_sequence >= sqlc.arg(from_sequence)
+);
+
+-- name: DeleteTranscriptEntriesFromSequence :exec
+DELETE FROM transcript_entries
+WHERE start_sequence >= sqlc.arg(from_sequence);
+
+-- name: UpsertConversationRewindState :exec
+INSERT INTO conversation_rewind_state (
+    singleton, target_message_id, covered_through_sequence, messages_json, updated_at
+) VALUES (
+    1, sqlc.arg(target_message_id), sqlc.arg(covered_through_sequence),
+    sqlc.arg(messages_json), sqlc.arg(updated_at)
+)
+ON CONFLICT(singleton) DO UPDATE SET
+    target_message_id = excluded.target_message_id,
+    covered_through_sequence = excluded.covered_through_sequence,
+    messages_json = excluded.messages_json,
+    updated_at = excluded.updated_at;
+
+-- name: GetConversationRewindState :one
+SELECT target_message_id, covered_through_sequence, messages_json, updated_at
+FROM conversation_rewind_state
+WHERE singleton = 1;
+
+-- name: GetConversationRewindReceipt :one
+SELECT idempotency_key, request_hash, target_message_id,
+       archived_from_sequence, archived_to_sequence, archived_event_count,
+       generation, max_sequence, transcript_epoch, draft_text, created_at
+FROM conversation_rewind_receipts
+WHERE idempotency_key = sqlc.arg(idempotency_key);
+
+-- name: InsertConversationRewindReceipt :exec
+INSERT INTO conversation_rewind_receipts (
+    idempotency_key, request_hash, target_message_id,
+    archived_from_sequence, archived_to_sequence, archived_event_count,
+    generation, max_sequence, transcript_epoch, draft_text, created_at
+) VALUES (
+    sqlc.arg(idempotency_key), sqlc.arg(request_hash), sqlc.arg(target_message_id),
+    sqlc.arg(archived_from_sequence), sqlc.arg(archived_to_sequence),
+    sqlc.arg(archived_event_count), sqlc.arg(generation), sqlc.arg(max_sequence),
+    sqlc.arg(transcript_epoch),
+    sqlc.arg(draft_text), sqlc.arg(created_at)
+);
+
+-- name: ClearConversationRewindState :exec
+DELETE FROM conversation_rewind_state;
+
+-- name: ClearConversationRewindReceipts :exec
+DELETE FROM conversation_rewind_receipts;

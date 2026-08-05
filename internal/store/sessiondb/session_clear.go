@@ -20,6 +20,8 @@ func clearSessionSQLite(ctx context.Context, db *sql.DB) error {
 	return store.ExecuteWrite(ctx, db, func(ctx context.Context, tx *store.WriteTx) error {
 		queries := sqlcgen.New(tx)
 		clearSteps := []func(context.Context) error{
+			queries.ClearConversationRewindReceipts,
+			queries.ClearConversationRewindState,
 			queries.ClearHookRuns,
 			queries.ClearTokenUsage,
 			queries.ClearTranscriptToolRoutes,

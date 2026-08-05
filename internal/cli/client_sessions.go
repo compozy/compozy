@@ -213,6 +213,39 @@ func (c *unixSocketClient) RepairSession(
 	return response.Repair, nil
 }
 
+func (c *unixSocketClient) RewindSession(
+	ctx context.Context,
+	id string,
+	request SessionRewindRequest,
+) (SessionRewindRecord, error) {
+	var response SessionRewindRecord
+	path, err := c.sessionScopedPath(ctx, id, "/rewind")
+	if err != nil {
+		return SessionRewindRecord{}, err
+	}
+	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
+		return SessionRewindRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) GetSessionTranscript(
+	ctx context.Context,
+	id string,
+) (SessionTranscriptRecord, error) {
+	var response SessionTranscriptRecord
+	path, err := c.sessionScopedPath(ctx, id, "/transcript")
+	if err != nil {
+		return SessionTranscriptRecord{}, err
+	}
+	query := url.Values{}
+	query.Set("limit", "1")
+	if err := c.doJSON(ctx, http.MethodGet, path, query, nil, &response); err != nil {
+		return SessionTranscriptRecord{}, err
+	}
+	return response, nil
+}
+
 func (c *unixSocketClient) ApproveSession(
 	ctx context.Context,
 	id string,

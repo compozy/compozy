@@ -21,6 +21,11 @@ func (m *Manager) Resume(ctx context.Context, id string) (resumed *Session, err 
 	if err != nil {
 		return nil, err
 	}
+	unlockConversation, err := m.lockConversationOperation(ctx, target)
+	if err != nil {
+		return nil, err
+	}
+	defer unlockConversation()
 	if session, ok := m.Get(target); ok && session.Info().State == StateActive {
 		return m.waitForResumedSession(ctx, target, session)
 	}
@@ -178,6 +183,7 @@ func (m *Manager) resumeWithContextReplay(
 		return nil, errors.Join(startErr, err)
 	}
 	fallbackSpec.resumeReplay = true
+	fallbackSpec.resumeReplayReason = resumeFallbackReason(startErr)
 
 	session, err := m.startSession(ctx, &fallbackSpec)
 	if err != nil {

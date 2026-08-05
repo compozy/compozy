@@ -163,6 +163,7 @@ func statusForSessionLookupError(err error) (int, bool) {
 	switch {
 	case errors.Is(err, session.ErrSessionNotFound),
 		errors.Is(err, store.ErrSessionNotFound),
+		errors.Is(err, store.ErrConversationRewindTargetNotFound),
 		errors.Is(err, store.ErrSessionInputQueueEntryNotFound),
 		errors.Is(err, os.ErrNotExist),
 		errors.Is(err, workspacepkg.ErrWorkspaceNotFound):
@@ -179,6 +180,8 @@ func statusForSessionValidationError(err error) (int, bool) {
 	case errors.Is(err, workspacepkg.ErrAgentNotAvailable),
 		errors.Is(err, compozyconfig.ErrSandboxProfileNotFound),
 		errors.Is(err, compozyconfig.ErrProviderUnavailable),
+		errors.Is(err, session.ErrValidation),
+		errors.Is(err, store.ErrConversationRewindTargetInvalid),
 		errors.Is(err, session.ErrInvalidRuntimeOverride),
 		errors.Is(err, session.ErrInvalidPermissionDecision),
 		errors.Is(err, session.ErrSessionNotActive):
@@ -195,6 +198,11 @@ func statusForSessionValidationError(err error) (int, bool) {
 func statusForSessionConflictError(err error) (int, bool) {
 	switch {
 	case errors.Is(err, session.ErrPromptInProgress),
+		errors.Is(err, session.ErrConversationRewindBusy),
+		errors.Is(err, session.ErrConversationRewindManaged),
+		errors.Is(err, session.ErrConversationRewindFenceConflict),
+		errors.Is(err, store.ErrConversationRewindFenceConflict),
+		errors.Is(err, store.ErrConversationRewindIdempotencyConflict),
 		errors.Is(err, session.ErrRuntimeSelectionConflict),
 		errors.Is(err, session.ErrPromptNotInProgress),
 		errors.Is(err, session.ErrActiveTurnMismatch),

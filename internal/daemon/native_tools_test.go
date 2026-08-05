@@ -5386,6 +5386,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		var seenListQuery session.ListQuery
 		var acceptedCreate session.CreateAcceptedOpts
 		var submittedPrompt session.SendPromptOpts
+		var submittedRewind session.ConversationRewindOptions
 		var selectedRuntime session.RuntimeSelection
 		var selectedRuntimeRevision int64
 		var clearedRuntimeRevision int64
@@ -5519,6 +5520,30 @@ func TestDaemonNativeTools(t *testing.T) {
 						Delivery:  store.SessionInputDeliveryDirect,
 						NewTurnID: "turn-native",
 						Events:    promptEvents,
+					}, nil
+				},
+				RewindFn: func(
+					_ context.Context,
+					id string,
+					opts session.ConversationRewindOptions,
+				) (session.ConversationRewindResult, error) {
+					if id != info.ID {
+						return session.ConversationRewindResult{}, session.ErrSessionNotFound
+					}
+					submittedRewind = opts
+					return session.ConversationRewindResult{
+						Session: &session.Session{
+							ID: info.ID, AgentName: info.AgentName, WorkspaceID: info.WorkspaceID,
+							State: info.State, CreatedAt: info.CreatedAt, UpdatedAt: info.UpdatedAt,
+						},
+						TranscriptEpoch: 4,
+						TargetMessageID: "msg-native-rewind",
+						ArchivedFrom:    18,
+						ArchivedThrough: 26,
+						ArchivedEvents:  9,
+						Generation:      7,
+						MaxSequence:     17,
+						DraftText:       "try another path",
 					}, nil
 				},
 				ListPendingInputsFn: func(_ context.Context, id string) ([]session.PendingInput, error) {
@@ -5833,6 +5858,45 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("session_prompt opts = %#v", submittedPrompt)
 		}
 		requireNativeStructuredContains(t, promptCallResult.result, []byte(`"delivery":"direct"`))
+
+		rewindResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionRewind,
+				Input: json.RawMessage(
+					`{"workspace":"ws-stable","session_id":"sess-1","message_id":"msg-native-rewind",` +
+						`"idempotency_key":"idem-native-rewind","expected_epoch":3,` +
+						`"expected_generation":6,"expected_max_sequence":26}`,
+				),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(session_rewind) error = %v", err)
+		}
+		if submittedRewind.MessageID != "msg-native-rewind" ||
+			submittedRewind.IdempotencyKey != "idem-native-rewind" ||
+			submittedRewind.ExpectedEpoch != 3 || submittedRewind.ExpectedGeneration != 6 ||
+			submittedRewind.ExpectedMaxSequence != 26 {
+			t.Fatalf("session_rewind opts = %#v", submittedRewind)
+		}
+		requireNativeStructuredContains(t, rewindResult, []byte(`"draft_text":"try another path"`))
+
+		_, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionRewind,
+				Input: json.RawMessage(
+					`{"workspace":"ws-foreign-stable","session_id":"sess-1","message_id":"msg-native-rewind",` +
+						`"idempotency_key":"idem-foreign","expected_epoch":3,` +
+						`"expected_generation":6,"expected_max_sequence":26}`,
+				),
+			},
+		)
+		if err == nil {
+			t.Fatal("Registry.Call(session_rewind foreign workspace) error = nil")
+		}
 
 		inputsResult, err := registry.Call(
 			t.Context(),

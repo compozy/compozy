@@ -6574,6 +6574,14 @@ func (f *fakeSessionManager) ClearConversation(
 	}, nil
 }
 
+func (f *fakeSessionManager) RewindConversation(
+	context.Context,
+	string,
+	session.ConversationRewindOptions,
+) (session.ConversationRewindResult, error) {
+	return session.ConversationRewindResult{}, nil
+}
+
 func TestFakeSessionManagerClearConversationTreatsMissingSessionAsFreshConversation(t *testing.T) {
 	t.Parallel()
 

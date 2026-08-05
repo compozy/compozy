@@ -13,6 +13,7 @@ import {
   useRepairSession,
   useSteerSessionPrompt,
 } from "../use-session-actions";
+import { useSessionRewind } from "../use-session-rewind";
 import {
   useCancelSessionInput,
   usePromoteSessionInput,
@@ -36,6 +37,7 @@ vi.mock("../../adapters/session-api", () => ({
   repairSession: vi.fn(),
   promoteSessionInputToSteer: vi.fn(),
   replaceSessionInput: vi.fn(),
+  rewindSession: vi.fn(),
   stopSession: vi.fn(),
   resumeSession: vi.fn(),
   sendSessionPrompt: vi.fn(),
@@ -54,6 +56,7 @@ import {
   repairSession,
   promoteSessionInputToSteer,
   replaceSessionInput,
+  rewindSession,
   sendSessionPrompt,
   steerSessionPrompt,
 } from "../../adapters/session-api";
@@ -282,6 +285,63 @@ describe("session actions", () => {
       historySnapshot
     );
     expect(sessionStore.getSnapshot().context.drafts[createdSession.id]).toBe("keep me");
+  });
+
+  it("useSessionRewind sends the current durable fence and refreshes the transcript", async () => {
+    vi.mocked(rewindSession).mockResolvedValue({
+      rewind: { draft_text: "Return to this request." },
+      session: createdSession,
+    });
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const freshTranscript = transcriptCache("message-rewound");
+    const fetchInfiniteQuery = vi
+      .spyOn(queryClient, "fetchInfiniteQuery")
+      .mockResolvedValue(freshTranscript);
+    const cachedTranscript = transcriptCache("message-001");
+    queryClient.setQueryData(sessionKeys.transcript(WORKSPACE_ID, createdSession.id), {
+      ...cachedTranscript,
+      pages: [
+        {
+          ...cachedTranscript.pages[0]!,
+          epoch: 3,
+          generation: 7,
+          max_sequence: 19,
+        },
+      ],
+    });
+
+    const { result } = renderHook(() => useSessionRewind(WORKSPACE_ID), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        idempotencyKey: "rewind-idempotency-001",
+        messageId: "message-001",
+        sessionId: createdSession.id,
+      });
+    });
+
+    expect(rewindSession).toHaveBeenCalledWith(WORKSPACE_ID, createdSession.id, {
+      expected_epoch: 3,
+      expected_generation: 7,
+      expected_max_sequence: 19,
+      idempotency_key: "rewind-idempotency-001",
+      message_id: "message-001",
+    });
+    expect(queryClient.getQueryData(sessionKeys.detail(WORKSPACE_ID, createdSession.id))).toEqual(
+      createdSession
+    );
+    expect(
+      queryClient.getQueryData(sessionKeys.transcript(WORKSPACE_ID, createdSession.id))
+    ).toBeUndefined();
+    expect(fetchInfiniteQuery).toHaveBeenCalledWith(
+      expect.objectContaining({
+        queryKey: sessionKeys.transcript(WORKSPACE_ID, createdSession.id),
+      })
+    );
   });
 
   it("useDeleteSession removes cached session data and clears the draft", async () => {

@@ -107,7 +107,7 @@ func queryTranscriptPage(
 		return transcript.Page{}, err
 	}
 	page.Generation = state.Generation
-	page.MaxSequence, err = sqlcgen.New(tx).MaxEventSequence(ctx)
+	page.MaxSequence, err = sqlcgen.New(tx).MaxActiveEventSequence(ctx)
 	if err != nil {
 		return transcript.Page{}, fmt.Errorf("store: query transcript max sequence: %w", err)
 	}
@@ -205,7 +205,7 @@ func queryTranscriptChanges(
 		return transcript.ChangePage{}, err
 	}
 	page.Generation = state.Generation
-	page.MaxSequence, err = sqlcgen.New(tx).MaxEventSequence(ctx)
+	page.MaxSequence, err = sqlcgen.New(tx).MaxActiveEventSequence(ctx)
 	if err != nil {
 		return transcript.ChangePage{}, fmt.Errorf("store: query transcript changes max sequence: %w", err)
 	}

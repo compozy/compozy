@@ -1,0 +1,5 @@
+-- +goose Up
+-- create "conversation_rewind_state" table
+CREATE TABLE `conversation_rewind_state` (`singleton` integer NULL, `target_message_id` text NOT NULL, `covered_through_sequence` integer NOT NULL, `messages_json` text NOT NULL, `updated_at` text NOT NULL, PRIMARY KEY (`singleton`), CHECK (singleton = 1), CHECK (covered_through_sequence >= 0), CHECK (json_valid(messages_json)));
+-- create "conversation_rewind_receipts" table
+CREATE TABLE `conversation_rewind_receipts` (`idempotency_key` text NULL, `request_hash` text NOT NULL, `target_message_id` text NOT NULL, `archived_from_sequence` integer NOT NULL, `archived_to_sequence` integer NOT NULL, `archived_event_count` integer NOT NULL, `generation` integer NOT NULL, `max_sequence` integer NOT NULL, `transcript_epoch` integer NOT NULL, `draft_text` text NOT NULL, `created_at` text NOT NULL, PRIMARY KEY (`idempotency_key`), CHECK (archived_from_sequence > 0), CHECK (archived_to_sequence >= archived_from_sequence), CHECK (archived_event_count >= 0), CHECK (generation >= 0), CHECK (max_sequence >= 0), CHECK (transcript_epoch > 0));
