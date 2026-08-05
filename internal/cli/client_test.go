@@ -276,9 +276,7 @@ func TestUnixSocketClientSessionPromptTerminalContract(t *testing.T) {
 			nil,
 			SessionPromptRequest{Message: "hello"},
 		)
-		if err == nil || !strings.Contains(err.Error(), "peer disconnected before response") {
-			t.Fatalf("doSessionPrompt() error = %v, want terminal process failure", err)
-		}
+		assertErrorContains(t, err, "peer disconnected before response")
 		if got, want := len(record.Events), 2; got != want {
 			t.Fatalf("doSessionPrompt() events = %d, want %d", got, want)
 		}
@@ -334,9 +332,7 @@ func TestUnixSocketClientSessionPromptTerminalContract(t *testing.T) {
 				return nil
 			},
 		)
-		if err == nil || !strings.Contains(err.Error(), "peer disconnected before response") {
-			t.Fatalf("StreamPromptSession() error = %v, want terminal process failure", err)
-		}
+		assertErrorContains(t, err, "peer disconnected before response")
 		if got, want := len(events), 4; got != want {
 			t.Fatalf("StreamPromptSession() forwarded events = %d, want %d", got, want)
 		}
@@ -368,8 +364,46 @@ func TestUnixSocketClientSessionPromptTerminalContract(t *testing.T) {
 			nil,
 			SessionPromptRequest{Message: "hello"},
 		)
-		if err == nil || !strings.Contains(err.Error(), "ended before a terminal event") {
-			t.Fatalf("doSessionPrompt() error = %v, want incomplete stream failure", err)
+		assertErrorContains(t, err, "ended before a terminal event")
+	})
+
+	t.Run("Should preserve malformed streamed JSON as the terminal decode failure", func(t *testing.T) {
+		t.Parallel()
+
+		transport := roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+			switch {
+			case req.Method == http.MethodGet && req.URL.Path == "/api/sessions/sess-1":
+				return newHTTPResponse(
+					http.StatusOK,
+					`{"session":{"id":"sess-1","workspace_id":"ws-1","state":"active","created_at":"2026-08-05T12:00:00Z","updated_at":"2026-08-05T12:00:00Z"}}`,
+				), nil
+			case req.Method == http.MethodPost &&
+				req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/prompt":
+				response := newHTTPResponse(http.StatusOK, "data: {\"type\":\n\n")
+				response.Header.Set("Content-Type", "text/event-stream")
+				response.Request = req
+				return response, nil
+			default:
+				t.Fatalf("unexpected request = %s %s", req.Method, req.URL.Path)
+				return nil, errors.New("unexpected request")
+			}
+		})
+		client := &unixSocketClient{
+			socketPath: "/tmp/compozy.sock",
+			httpClient: &http.Client{Transport: transport},
+		}
+		client.streamClient = client.httpClient
+
+		err := client.StreamPromptSession(
+			t.Context(),
+			"sess-1",
+			SessionPromptRequest{Message: "hello"},
+			func(SSEEvent) error { return nil },
+		)
+		assertErrorContains(t, err, "decode prompt stream event")
+		var syntaxErr *json.SyntaxError
+		if !errors.As(err, &syntaxErr) {
+			t.Fatalf("StreamPromptSession() error = %T %[1]v, want *json.SyntaxError", err)
 		}
 	})
 }

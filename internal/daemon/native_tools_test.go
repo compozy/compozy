@@ -6160,6 +6160,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("Registry.Call(session_prompt) returned before its live stream closed: %#v", call)
 		default:
 		}
+		promptEvents <- acp.AgentEvent{Type: acp.EventTypeDone, TurnID: "turn-native"}
 		close(promptEvents)
 		promptCallResult := <-promptCalls
 		if promptCallResult.err != nil {
@@ -6202,6 +6203,35 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		if !strings.Contains(toolErr.Message, "runtime process exited") {
 			t.Fatalf("Registry.Call(session_prompt) message = %q, want clear process failure", toolErr.Message)
+		}
+
+		promptEvents = make(chan acp.AgentEvent, 1)
+		promptEvents <- acp.AgentEvent{
+			Type: acp.EventTypeAgentMessage,
+			Text: "partial before EOF",
+		}
+		close(promptEvents)
+		promptAccepted = make(chan struct{})
+		_, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionPrompt,
+				Input: json.RawMessage(
+					`{"workspace":"ws-stable","session_id":"sess-1","message":"retry","message_id":"msg-native-incomplete","idempotency_key":"idem-native-incomplete"}`,
+				),
+			},
+		)
+		toolErr, ok = errors.AsType[*toolspkg.ToolError](err)
+		if !ok || toolErr.Code != toolspkg.ErrorCodeBackendFailed ||
+			!slices.Contains(toolErr.ReasonCodes, toolspkg.ReasonBackendUnhealthy) {
+			t.Fatalf("Registry.Call(session_prompt incomplete) error = %#v, want backend unhealthy", err)
+		}
+		if !strings.Contains(toolErr.Message, "ended before a terminal event") {
+			t.Fatalf(
+				"Registry.Call(session_prompt incomplete) message = %q, want explicit EOF failure",
+				toolErr.Message,
+			)
 		}
 
 		rewindResult, err := registry.Call(

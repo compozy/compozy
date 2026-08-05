@@ -9,8 +9,10 @@ import (
 )
 
 type promptPumpFatal struct {
-	failure   *store.SessionFailure
-	errorText string
+	failure           *store.SessionFailure
+	errorText         string
+	finalizationOwned bool
+	waitErr           error
 }
 
 func (f *promptPumpFatal) capture(failure *store.SessionFailure, errorText string) {
@@ -19,6 +21,14 @@ func (f *promptPumpFatal) capture(failure *store.SessionFailure, errorText strin
 	}
 	f.failure = failure
 	f.errorText = errorText
+}
+
+func (f *promptPumpFatal) ownFinalization(waitErr error) {
+	if f == nil {
+		return
+	}
+	f.finalizationOwned = true
+	f.waitErr = waitErr
 }
 
 type promptPumpRun struct {
@@ -49,8 +59,10 @@ func (m *Manager) runPromptPumpLoop(run *promptPumpRun) {
 			continue
 		}
 		if !ok {
-			m.flushPromptPumpRun(run, &loop, coalescer)
-			return
+			if m.flushPromptPumpRun(run, &loop, coalescer) {
+				return
+			}
+			break
 		}
 		if coalescer.append(event, runtimeEvent) {
 			if !coalescer.shouldFlush() {
@@ -77,6 +89,41 @@ func (m *Manager) runPromptPumpLoop(run *promptPumpRun) {
 			return
 		}
 	}
+	if terminal, ok := promptStreamFailureWithoutTerminal(run, &loop); ok {
+		m.handlePromptPumpRun(run, &loop, terminal, false)
+	}
+}
+
+func promptStreamFailureWithoutTerminal(
+	run *promptPumpRun,
+	loop *promptPumpLoopState,
+) (acp.AgentEvent, bool) {
+	if run == nil || loop == nil || run.lifecycleCtx.Err() != nil || loop.turnEnded {
+		return acp.AgentEvent{}, false
+	}
+	if run.session == nil {
+		return acp.PromptStreamIncompleteEvent(), true
+	}
+	info := run.session.Info()
+	if info == nil || info.State != StateActive {
+		return acp.AgentEvent{}, false
+	}
+	proc := run.session.processHandle()
+	if isProcessDone(proc) {
+		return promptProcessExitEvent(proc), true
+	}
+	if run.turnState != nil && run.session.promptCancellationRequested(run.turnState.turnID) {
+		return promptCancellationTerminalEvent(), true
+	}
+	return acp.PromptStreamIncompleteEvent(), true
+}
+
+func promptCancellationTerminalEvent() acp.AgentEvent {
+	return acp.AgentEvent{
+		Type:             acp.EventTypeDone,
+		StopReason:       string(acp.PromptStopReasonCancelled),
+		PromptStopReason: acp.PromptStopReasonCancelled,
+	}
 }
 
 func (m *Manager) flushPromptPumpRun(
@@ -92,6 +139,7 @@ func (m *Manager) flushPromptPumpRun(
 		run.out,
 		loop,
 		coalescer,
+		run.fatal,
 	)
 	run.fatal.capture(failure, errorText)
 	return stop
@@ -112,6 +160,7 @@ func (m *Manager) handlePromptPumpRun(
 		loop,
 		event,
 		runtimeEvent,
+		run.fatal,
 	)
 	run.fatal.capture(failure, errorText)
 	return stop
@@ -124,9 +173,12 @@ func (m *Manager) finishPromptPump(
 	activity *promptActivitySupervisor,
 	releaseExecution context.CancelFunc,
 	out chan<- acp.AgentEvent,
-	fatalPromptFailure *store.SessionFailure,
-	fatalPromptError string,
+	fatal *promptPumpFatal,
 ) {
+	var fatalPromptFailure *store.SessionFailure
+	if fatal != nil {
+		fatalPromptFailure = fatal.failure
+	}
 	if releaseExecution != nil {
 		releaseExecution()
 	}
@@ -140,12 +192,16 @@ func (m *Manager) finishPromptPump(
 	}
 	m.finishManagedInputPrompt(lifecycleCtx, session, turnState)
 	if session != nil {
+		if turnState != nil {
+			session.clearPromptCancellation(turnState.turnID)
+		}
 		session.clearCurrentTurnID()
 		session.clearCurrentTurnSource()
 		session.clearCurrentPromptMessage()
 		session.clearCurrentPromptMeta()
 		session.clearCurrentSkillInvocations()
 		session.clearCurrentPromptCancel()
+		session.finishCurrentPromptCompletion()
 	}
 	if fatalPromptFailure == nil {
 		notifier := m.currentTurnEndNotifier()
@@ -158,7 +214,11 @@ func (m *Manager) finishPromptPump(
 		return
 	}
 	if fatalPromptFailure != nil {
-		m.stopSessionAfterFatalPromptFailure(lifecycleCtx, session, fatalPromptFailure, fatalPromptError)
+		if fatal.finalizationOwned {
+			m.finalizeSessionAfterFatalPromptFailure(lifecycleCtx, session, fatal)
+			return
+		}
+		m.stopSessionAfterFatalPromptFailure(lifecycleCtx, session, fatal.failure, fatal.errorText)
 		return
 	}
 	m.startNextQueuedInputPrompt(session.ID)

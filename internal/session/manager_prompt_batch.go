@@ -18,10 +18,11 @@ func (m *Manager) handlePromptPumpChunkBatch(
 	out chan<- acp.AgentEvent,
 	loop *promptPumpLoopState,
 	events []acp.AgentEvent,
+	fatal *promptPumpFatal,
 ) (*store.SessionFailure, string, bool) {
 	normalized := make([]acp.AgentEvent, 0, len(events))
 	for _, event := range events {
-		next, skip := m.preparePromptPumpEventForDelivery(ctx, session, turnState, loop, event, false)
+		next, skip := m.preparePromptPumpEventForDelivery(ctx, session, turnState, loop, event, false, fatal)
 		if skip {
 			continue
 		}

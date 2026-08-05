@@ -8,6 +8,15 @@ type ExitStatus struct {
 	Signal   string
 }
 
+// ExitCodeValue returns a real numeric exit code. Unix uses -1 when a signal
+// terminated the process, which is not an exit code and must not be serialized.
+func (s ExitStatus) ExitCodeValue() (int, bool) {
+	if s.ExitCode < 0 || s.Signal != "" {
+		return 0, false
+	}
+	return s.ExitCode, true
+}
+
 // ExitStatusFromProcessState extracts portable process-exit diagnostics.
 func ExitStatusFromProcessState(state *os.ProcessState) (ExitStatus, bool) {
 	if state == nil {

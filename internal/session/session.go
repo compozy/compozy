@@ -162,6 +162,8 @@ type Session struct {
 	currentPromptMeta       acp.PromptMeta
 	currentSkillInvocations []commandpkg.Invocation
 	currentPromptCancel     context.CancelFunc
+	currentPromptCancelTurn string
+	currentPromptDone       chan struct{}
 	providerRedactions      []func()
 }
 

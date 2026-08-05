@@ -9,13 +9,25 @@ import (
 )
 
 func drainNativeSessionPromptEvents(events <-chan acp.AgentEvent) error {
-	var terminalErr error
 	for event := range events {
-		if terminalErr == nil && event.Type == acp.EventTypeError {
-			terminalErr = nativeSessionPromptEventError(event)
+		switch event.Type {
+		case acp.EventTypeDone:
+			return nil
+		case acp.EventTypeError:
+			return nativeSessionPromptEventError(event)
 		}
 	}
-	return terminalErr
+	return nativeSessionPromptIncompleteError()
+}
+
+func nativeSessionPromptIncompleteError() error {
+	return toolspkg.NewToolError(
+		toolspkg.ErrorCodeBackendFailed,
+		toolspkg.ToolIDSessionPrompt,
+		acp.ErrPromptStreamIncomplete.Error(),
+		fmt.Errorf("%w: %w", toolspkg.ErrToolBackendFailed, acp.ErrPromptStreamIncomplete),
+		toolspkg.ReasonBackendUnhealthy,
+	)
 }
 
 func nativeSessionPromptEventError(event acp.AgentEvent) error {

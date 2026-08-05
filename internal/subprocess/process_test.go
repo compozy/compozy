@@ -101,8 +101,13 @@ func TestProcessExitDiagnostics(t *testing.T) {
 		if err := process.cmd.Process.Kill(); err != nil {
 			t.Fatalf("Process.Kill() error = %v", err)
 		}
-		if err := process.Wait(); err == nil {
+		waitErr := process.Wait()
+		if waitErr == nil {
 			t.Fatal("Wait() error = nil, want signal termination error")
+		}
+		var exitErr *exec.ExitError
+		if !errors.As(waitErr, &exitErr) {
+			t.Fatalf("Wait() error = %T %[1]v, want *exec.ExitError", waitErr)
 		}
 
 		status, ok := process.ExitStatus()
@@ -113,6 +118,38 @@ func TestProcessExitDiagnostics(t *testing.T) {
 			t.Fatalf("ExitStatus().Signal = %q, want terminating signal", status.Signal)
 		}
 	})
+}
+
+func TestExitStatusExitCodeValue(t *testing.T) {
+	t.Parallel()
+
+	for _, testCase := range []struct {
+		name   string
+		status ExitStatus
+		want   int
+		ok     bool
+	}{
+		{
+			name:   "expose a Windows-style numeric exit code",
+			status: ExitStatus{ExitCode: 23},
+			want:   23,
+			ok:     true,
+		},
+		{
+			name:   "omit the Unix negative sentinel when a signal is present",
+			status: ExitStatus{ExitCode: -1, Signal: "killed"},
+			ok:     false,
+		},
+	} {
+		t.Run("Should "+testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, ok := testCase.status.ExitCodeValue()
+			if got != testCase.want || ok != testCase.ok {
+				t.Fatalf("ExitCodeValue() = %d, %t; want %d, %t", got, ok, testCase.want, testCase.ok)
+			}
+		})
+	}
 }
 
 func TestEnvironmentLookupUsesPlatformSemantics(t *testing.T) {

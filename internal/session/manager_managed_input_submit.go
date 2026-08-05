@@ -98,7 +98,7 @@ func (m *Manager) startManagedInputPrompt(session *Session, entry managedInput) 
 	stateOwned := true
 	defer func() {
 		if stateOwned {
-			clearManagedInputPromptState(session)
+			clearManagedInputPromptState(session, setup.request.turnID)
 		}
 	}()
 	dispatchMessage, err := m.promptDispatchMessage(setup.leaseCtx, session, message)
@@ -261,12 +261,14 @@ func setManagedInputPromptState(session *Session, request promptRequest) {
 	session.setCurrentSkillInvocations(nil)
 }
 
-func clearManagedInputPromptState(session *Session) {
+func clearManagedInputPromptState(session *Session, turnID string) {
+	session.clearPromptCancellation(turnID)
 	session.clearCurrentTurnID()
 	session.clearCurrentTurnSource()
 	session.clearCurrentPromptMessage()
 	session.clearCurrentPromptMeta()
 	session.clearCurrentSkillInvocations()
+	session.finishCurrentPromptCompletion()
 }
 
 func managedInputOwnerFromEntry(entry managedInput) (ManagedInputOwner, error) {

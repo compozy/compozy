@@ -88,8 +88,7 @@ func (c *unixSocketClient) doSessionPrompt(
 				payload.Type = event.Event
 			}
 			events = append(events, payload)
-			state.observe(event)
-			return nil
+			return state.observe(event)
 		})
 		record := SessionPromptRecord{Events: events}
 		if decodeErr != nil || state.failure != nil {
@@ -145,7 +144,9 @@ func (c *unixSocketClient) StreamPromptSession(
 		}
 		state := sessionPromptStreamState{}
 		decodeErr := decodeSSE(ctx, response.Body, func(event SSEEvent) error {
-			state.observe(event)
+			if err := state.observe(event); err != nil {
+				return err
+			}
 			return handler(event)
 		})
 		if decodeErr != nil || state.failure != nil {
@@ -169,10 +170,10 @@ func (c *unixSocketClient) StreamPromptSession(
 	return handler(SSEEvent{Event: promptResultEventName, Data: body})
 }
 
-func (s *sessionPromptStreamState) observe(event SSEEvent) {
+func (s *sessionPromptStreamState) observe(event SSEEvent) error {
 	if strings.TrimSpace(string(event.Data)) == "[DONE]" {
 		s.terminal = true
-		return
+		return nil
 	}
 	var payload struct {
 		Type      string                          `json:"type"`
@@ -180,8 +181,10 @@ func (s *sessionPromptStreamState) observe(event SSEEvent) {
 		ErrorText string                          `json:"errorText"`
 		Failure   *contract.SessionFailurePayload `json:"failure"`
 	}
-	if len(event.Data) > 0 && json.Unmarshal(event.Data, &payload) != nil {
-		return
+	if len(event.Data) > 0 {
+		if err := json.Unmarshal(event.Data, &payload); err != nil {
+			return fmt.Errorf("cli: decode prompt stream event: %w", err)
+		}
 	}
 	eventType := strings.TrimSpace(payload.Type)
 	if eventType == "" {
@@ -204,6 +207,7 @@ func (s *sessionPromptStreamState) observe(event SSEEvent) {
 	case promptDoneEventName, promptFinishEventName, promptResultEventName:
 		s.terminal = true
 	}
+	return nil
 }
 
 func sessionPromptIsEventStream(response *http.Response) bool {

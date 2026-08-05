@@ -207,6 +207,23 @@ func (m *Manager) prepareStopWithCause(
 	cause StopCause,
 	detail string,
 ) (*Session, *AgentProcess, bool, bool, bool, error) {
+	return m.prepareStopWithCauseMode(ctx, id, cause, detail, stopPreparationDefault)
+}
+
+type stopPreparationMode uint8
+
+const (
+	stopPreparationDefault stopPreparationMode = iota
+	stopPreparationFatalPromptFailure
+)
+
+func (m *Manager) prepareStopWithCauseMode(
+	ctx context.Context,
+	id string,
+	cause StopCause,
+	detail string,
+	mode stopPreparationMode,
+) (*Session, *AgentProcess, bool, bool, bool, error) {
 	session, finalization, err := m.stopTarget(id)
 	if err != nil {
 		return nil, nil, false, false, false, err
@@ -224,15 +241,16 @@ func (m *Manager) prepareStopWithCause(
 	process := session.processHandle()
 	stopWasAlreadyRequested := session.stopWasRequested()
 	observedProcessExit := isProcessDone(process)
+	fatalPromptFailure := mode == stopPreparationFatalPromptFailure
 
 	appliedCause := cause
 	appliedDetail := detail
-	if observedProcessExit && !stopWasAlreadyRequested {
+	if observedProcessExit && !stopWasAlreadyRequested && !fatalPromptFailure {
 		appliedCause = CauseNone
 		appliedDetail = ""
 	}
 
-	if session.Info().State == StateActive && !observedProcessExit {
+	if session.Info().State == StateActive && (!observedProcessExit || fatalPromptFailure) {
 		if err := m.dispatchSessionPreStop(ctx, session); err != nil {
 			return nil, nil, false, false, false, fmt.Errorf("session: prepare stop pre-stop hooks for %q: %w", id, err)
 		}

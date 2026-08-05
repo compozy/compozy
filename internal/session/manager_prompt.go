@@ -81,7 +81,12 @@ func isFatalPromptFailureEvent(event acp.AgentEvent) bool {
 	if event.Type != acp.EventTypeError || event.Failure == nil {
 		return false
 	}
-	return event.Failure.Kind == store.FailureProcess
+	switch event.Failure.Kind {
+	case store.FailureProcess, store.FailureTransport:
+		return true
+	default:
+		return false
+	}
 }
 
 // Prompt sends one prompt turn to an active session and mirrors the runtime stream into storage and observers.
@@ -152,13 +157,14 @@ func (m *Manager) CancelPrompt(ctx context.Context, id string) error {
 		}
 		return nil
 	}
-	if !session.IsPrompting() {
+	turnID, proc, cancelPrompt, prompting := session.requestCurrentPromptCancellation()
+	if !prompting {
 		return nil
 	}
-	turnID := session.CurrentTurnID()
-	session.cancelCurrentPrompt()
+	if cancelPrompt != nil {
+		cancelPrompt()
+	}
 
-	proc := session.processHandle()
 	if proc == nil {
 		m.emitTranscriptMarker(
 			ctx,

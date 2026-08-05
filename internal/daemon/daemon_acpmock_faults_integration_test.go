@@ -36,10 +36,15 @@ func TestDaemonE2EACPmockCrashMidStreamProjectsRuntimeFailure(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
 
+		promptStarted := time.Now()
 		stream, err := harness.PromptSessionHTTP(ctx, session.ID, "trigger crash mid-stream")
 		if err != nil {
 			t.Fatalf("PromptSessionHTTP() error = %v", err)
 		}
+		if elapsed := time.Since(promptStarted); elapsed > 15*time.Second {
+			t.Fatalf("PromptSessionHTTP() elapsed = %s, want terminal stream closure within 15s", elapsed)
+		}
+		assertRawProcessFailureTerminal(t, ctx, harness, session.ID)
 		assertFaultPromptProjection(
 			t,
 			ctx,
@@ -55,8 +60,9 @@ func TestDaemonE2EACPmockCrashMidStreamProjectsRuntimeFailure(t *testing.T) {
 			t.Fatalf("PromptSessionHTTP(recovery) error = %v", err)
 		}
 		if !e2etest.RecordsContainTextDelta(recoveryStream, "recovered after disconnect") ||
-			sseStreamContainsEvent(recoveryStream, "error") {
-			t.Fatalf("recovery prompt stream = %#v, want recovered text and clean completion", recoveryStream)
+			sseStreamContainsEvent(recoveryStream, "error") ||
+			!sseStreamContainsEvent(recoveryStream, "finish") {
+			t.Fatalf("recovery prompt stream = %#v, want recovered text and terminal finish", recoveryStream)
 		}
 		transcript := mustSessionTranscript(t, ctx, harness, session.ID)
 		content := joinTranscriptContent(sessionTranscriptMessages(transcript))
@@ -506,6 +512,23 @@ func assertFaultPromptProjection(
 	if !containsAgentEvent(events, compozycontract.AgentEventPayload{Type: "error"}) {
 		t.Fatalf("events = %#v, want error event", events)
 	}
+	var errorEvent *compozycontract.AgentEventPayload
+	for index := range events {
+		if events[index].Type == "error" {
+			errorEvent = &events[index]
+			break
+		}
+	}
+	if errorEvent == nil || errorEvent.Failure == nil {
+		t.Fatalf("events = %#v, want typed error failure", events)
+	}
+	if got, want := errorEvent.Failure.Kind, store.FailureProcess; got != want {
+		t.Fatalf("error event failure kind = %q, want %q", got, want)
+	}
+	if got, want := errorEvent.Failure.CrashBundlePath, udsSession.Failure.CrashBundlePath; got != want {
+		t.Fatalf("error event crash bundle = %q, want final session bundle %q", got, want)
+	}
+	assertCrashBundleExitCode(t, errorEvent.Failure.CrashBundlePath, 23)
 	if containsAgentEvent(events, compozycontract.AgentEventPayload{Type: "done"}) {
 		t.Fatalf("events = %#v, want no done event after runtime failure", events)
 	}
@@ -528,6 +551,51 @@ func assertFaultPromptProjection(
 	assertArtifactExists(t, harness, e2etest.ArtifactKindSessionSandbox)
 }
 
+func assertRawProcessFailureTerminal(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	sessionID string,
+) {
+	t.Helper()
+
+	records, err := harness.StreamSessionRawHTTPUntil(ctx, sessionID, func(event e2etest.SSEEvent) bool {
+		return event.Event == "session_stopped"
+	})
+	if err != nil {
+		t.Fatalf("StreamSessionRawHTTPUntil(session_stopped) error = %v", err)
+	}
+
+	errorIndex := -1
+	stoppedIndex := -1
+	var terminal compozycontract.AgentEventPayload
+	for index, record := range records {
+		switch record.Event {
+		case "error":
+			if errorIndex >= 0 {
+				continue
+			}
+			var envelope compozycontract.SessionEventPayload
+			if err := json.Unmarshal(record.Data, &envelope); err != nil {
+				t.Fatalf("json.Unmarshal(raw error envelope) error = %v; data=%s", err, record.Data)
+			}
+			if err := json.Unmarshal(envelope.Content, &terminal); err != nil {
+				t.Fatalf("json.Unmarshal(raw error content) error = %v; content=%s", err, envelope.Content)
+			}
+			errorIndex = index
+		case "session_stopped":
+			stoppedIndex = index
+		}
+	}
+	if errorIndex < 0 || stoppedIndex < 0 || errorIndex >= stoppedIndex {
+		t.Fatalf("raw session records = %#v, want error before session_stopped", records)
+	}
+	if terminal.Type != "error" || terminal.Failure == nil || terminal.Failure.Kind != store.FailureProcess {
+		t.Fatalf("raw terminal event = %#v, want process_exit error", terminal)
+	}
+	assertCrashBundleExitCode(t, terminal.Failure.CrashBundlePath, 23)
+}
+
 func assertCrashBundleExitCode(t testing.TB, path string, want int) {
 	t.Helper()
 	if strings.TrimSpace(path) == "" {
@@ -548,6 +616,9 @@ func assertCrashBundleExitCode(t testing.TB, path string, want int) {
 	}
 	if bundle.Process == nil || bundle.Process.ExitCode == nil || *bundle.Process.ExitCode != want {
 		t.Fatalf("crash bundle process = %#v, want exit_code %d", bundle.Process, want)
+	}
+	if bundle.Process.Signal != "" {
+		t.Fatalf("crash bundle signal = %q, want empty for numeric exit", bundle.Process.Signal)
 	}
 }
 
