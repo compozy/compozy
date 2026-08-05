@@ -676,6 +676,7 @@ func TestLiveProviderSourceRegistration(t *testing.T) {
 		}
 		for _, want := range []string{
 			"provider_live:codex",
+			"provider_live:cursor",
 			"provider_live:claude",
 			"provider_live:gemini",
 			"provider_live:openrouter",
@@ -690,6 +691,30 @@ func TestLiveProviderSourceRegistration(t *testing.T) {
 			if !slices.Contains(sourceIDs, want) {
 				t.Fatalf("source ids = %#v, want %q registered", sourceIDs, want)
 			}
+		}
+		var cursorSource *LiveProviderSource
+		for _, source := range sources {
+			if source.ID() == SourceKindProviderLiveID("cursor") {
+				var ok bool
+				cursorSource, ok = source.(*LiveProviderSource)
+				if !ok {
+					t.Fatalf("Cursor live source type = %T, want *LiveProviderSource", source)
+				}
+				break
+			}
+		}
+		if cursorSource == nil {
+			t.Fatal("Cursor live source = nil, want registered source")
+		}
+		if !cursorSource.BootstrapOnList() {
+			t.Fatal("Cursor BootstrapOnList() = false, want pre-session discovery")
+		}
+		target, targetErr := cursorSource.discoveryTarget(cursorSource.providerSnapshot())
+		if targetErr != nil {
+			t.Fatalf("Cursor discoveryTarget() error = %v", targetErr)
+		}
+		if target.kind != liveDiscoveryCommand || target.command != "cursor-agent models" {
+			t.Fatalf("Cursor discovery target = %#v, want cursor-agent models command", target)
 		}
 	})
 

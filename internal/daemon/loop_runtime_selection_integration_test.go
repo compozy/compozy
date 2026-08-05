@@ -142,6 +142,14 @@ func TestLoopRuntimeSelectionIntegration(t *testing.T) {
 					cursorAccepted,
 				)
 			}
+			cursorWorker := cursorAccepted.DryRun.EffectiveConfig.RuntimeDefaults.Worker
+			if cursorWorker.Provider != "cursor" || cursorWorker.Model != "composer-2.5" {
+				t.Fatalf(
+					"%s exact Cursor effective worker = %#v, want cursor/composer-2.5",
+					transport.name,
+					cursorWorker,
+				)
+			}
 
 			var accepted contract.RunLoopResponse
 			status = loopRuntimeRawJSON(
@@ -161,6 +169,30 @@ func TestLoopRuntimeSelectionIntegration(t *testing.T) {
 					accepted,
 				)
 			}
+		}
+		var cursorCLI contract.RunLoopResponse
+		if err := harness.CLI.RunJSONInDir(
+			ctx,
+			harness.WorkspaceRoot,
+			&cursorCLI,
+			"loop", "run",
+			"--workspace", harness.WorkspaceRoot,
+			"--name", definition.Meta.Name,
+			"--runtime", "worker=cursor/composer-2.5",
+			"--dry-run",
+			"-o", "json",
+		); err != nil {
+			t.Fatalf("CLI exact Cursor dry-run error = %v", err)
+		}
+		if cursorCLI.DryRun == nil {
+			t.Fatalf("CLI exact Cursor dry-run = %#v, want plan", cursorCLI)
+		}
+		cursorWorker := cursorCLI.DryRun.EffectiveConfig.RuntimeDefaults.Worker
+		if cursorWorker.Provider != "cursor" || cursorWorker.Model != "composer-2.5" {
+			t.Fatalf(
+				"CLI exact Cursor effective worker = %#v, want cursor/composer-2.5",
+				cursorWorker,
+			)
 		}
 
 		assertLoopRuntimeRunCount(t, ctx, harness, 0)

@@ -275,6 +275,29 @@ func (s *LiveProviderSource) ReplaceProvider(provider compozyconfig.ProviderConf
 	return changed
 }
 
+// CloneWithProvider copies a live source with a staged provider configuration.
+func (s *LiveProviderSource) CloneWithProvider(
+	provider compozyconfig.ProviderConfig,
+) (*LiveProviderSource, bool, error) {
+	if s == nil {
+		return nil, false, errors.New("model catalog: live provider source is required")
+	}
+	next := compozyconfig.CloneProviderConfig(provider)
+	changed := liveDiscoveryConfigChanged(s.providerSnapshot(), next)
+	clone, err := NewLiveProviderSource(s.providerID, next, LiveProviderSourcesConfig{
+		HomePaths:       s.homePaths,
+		BaseEnv:         s.baseEnv,
+		SecretResolver:  s.secretResolver,
+		HTTPClient:      s.httpClient,
+		CommandExecutor: s.commandExecutor,
+		DefaultTimeout:  s.defaultTimeout,
+	})
+	if err != nil {
+		return nil, false, err
+	}
+	return clone, changed, nil
+}
+
 func liveDiscoveryConfigChanged(
 	current compozyconfig.ProviderConfig,
 	next compozyconfig.ProviderConfig,

@@ -89,6 +89,14 @@ export function RuntimeSelector({
     controller.startExactEntry();
     searchRef.current?.focus();
   };
+  const handleCancelExactEntry = () => {
+    controller.cancelExactEntry();
+    searchRef.current?.focus();
+  };
+  const handleCommitCustom = (modelId: string) => {
+    const restoreSearchFocus = controller.entryMode === "exact";
+    if (controller.commitCustom(modelId) && restoreSearchFocus) searchRef.current?.focus();
+  };
 
   // Provider Settings closes the popup FIRST, then hands off to the surface (which
   // closes its own dialog/flow and navigates to /settings/providers) — never an
@@ -171,7 +179,7 @@ export function RuntimeSelector({
               <button
                 type="button"
                 aria-label="Return to model search"
-                onClick={controller.cancelExactEntry}
+                onClick={handleCancelExactEntry}
                 className="grid size-6 shrink-0 place-items-center rounded-sm text-subtle outline-none transition-colors hover:bg-row-hover hover:text-fg-strong focus-visible:bg-row-hover focus-visible:ring-2 focus-visible:ring-accent"
               >
                 <X aria-hidden="true" className="size-3.5" />
@@ -219,7 +227,7 @@ export function RuntimeSelector({
             onSelect={controller.pickModel}
             onHover={controller.highlightRow}
             onToggleFavorite={row => controller.toggleFavoriteFor(row.model)}
-            onCustomCommit={controller.pickCustom}
+            onCustomCommit={handleCommitCustom}
             onStartExactEntry={handleStartExactEntry}
           />
           <SelectorFooter

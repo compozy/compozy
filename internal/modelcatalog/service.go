@@ -19,14 +19,18 @@ type sourceTTLProvider interface {
 
 // CatalogService refreshes sources and projects stored model catalog rows.
 type CatalogService struct {
-	store          Store
-	sources        []Source
-	sourceByID     map[string]Source
-	mergeMu        sync.RWMutex
-	mergeOptions   MergeOptions
-	lockMu         sync.Mutex
-	refreshFlights map[string]*refreshFlight
-	onFlightWait   func(providerID string)
+	store            Store
+	sources          []Source
+	sourceByID       map[string]Source
+	mergeMu          sync.RWMutex
+	mergeOptions     MergeOptions
+	refreshGate      catalogRWGate
+	lockMu           sync.Mutex
+	refreshFlights   map[string]*refreshFlight
+	onFlightWait     func(providerID string)
+	bootstrapMu      sync.Mutex
+	bootstrapFlights map[string]*bootstrapFlight
+	onBootstrapWait  func(sourceID string, providerID string)
 }
 
 type refreshFlight struct {
@@ -34,6 +38,13 @@ type refreshFlight struct {
 	done     chan struct{}
 	statuses []SourceStatus
 	err      error
+}
+
+type bootstrapFlight struct {
+	done      chan struct{}
+	statuses  []SourceStatus
+	err       error
+	retryable bool
 }
 
 var _ Service = (*CatalogService)(nil)
@@ -68,11 +79,12 @@ func NewService(store Store, sources []Source, mergeOptions MergeOptions) (*Cata
 		return normalizedSources[i].ID() < normalizedSources[j].ID()
 	})
 	return &CatalogService{
-		store:          store,
-		sources:        normalizedSources,
-		sourceByID:     sourceByID,
-		mergeOptions:   cloneMergeOptions(mergeOptions),
-		refreshFlights: make(map[string]*refreshFlight),
+		store:            store,
+		sources:          normalizedSources,
+		sourceByID:       sourceByID,
+		mergeOptions:     cloneMergeOptions(mergeOptions),
+		refreshFlights:   make(map[string]*refreshFlight),
+		bootstrapFlights: make(map[string]*bootstrapFlight),
 	}, nil
 }
 
@@ -152,6 +164,17 @@ func (s *CatalogService) Refresh(ctx context.Context, opts RefreshOptions) ([]So
 		return nil, err
 	}
 	providerKey := strings.TrimSpace(opts.ProviderID)
+	scopeKey := refreshFlightScopeKey(providerKey, opts)
+	if providerKey != "" {
+		if statuses, joined, joinErr := s.joinExistingRefreshFlight(ctx, providerKey, scopeKey); joined {
+			return statuses, joinErr
+		}
+	}
+	release, err := s.refreshGate.lock(ctx, providerKey != "")
+	if err != nil {
+		return nil, fmt.Errorf("model catalog: wait for refresh generation: %w", err)
+	}
+	defer release()
 	if providerKey == "" {
 		return s.refreshAllProviders(ctx, sources, opts, now)
 	}
@@ -160,7 +183,6 @@ func (s *CatalogService) Refresh(ctx context.Context, opts RefreshOptions) ([]So
 		return nil, err
 	}
 	sources = filterSourcesByProvider(sources, providerKey, ownedSourceIDs)
-	scopeKey := refreshFlightScopeKey(providerKey, opts)
 
 	return s.withRefreshFlight(ctx, providerKey, scopeKey, func() ([]SourceStatus, error) {
 		return s.refreshSources(ctx, sources, opts, now)

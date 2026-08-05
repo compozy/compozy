@@ -61,10 +61,7 @@ func (s *CatalogService) refreshSources(
 				degradedErrs = append(degradedErrs, err)
 			} else if !errors.Is(err, ErrSourceDisabled) {
 				failures++
-				failedErrs = append(
-					failedErrs,
-					fmt.Errorf("model catalog source %q failed: %s", source.ID(), RedactString(err.Error())),
-				)
+				failedErrs = append(failedErrs, &sourceRefreshError{sourceID: source.ID(), err: err})
 			}
 		}
 		switch outcome {
@@ -321,6 +318,29 @@ func (s *CatalogService) withRefreshFlight(
 		if flight.scopeKey == scopeKey {
 			return cloneSourceStatuses(flight.statuses), flight.err
 		}
+	}
+}
+
+func (s *CatalogService) joinExistingRefreshFlight(
+	ctx context.Context,
+	providerID string,
+	scopeKey string,
+) ([]SourceStatus, bool, error) {
+	s.lockMu.Lock()
+	flight := s.refreshFlights[providerID]
+	if flight == nil || flight.scopeKey != scopeKey {
+		s.lockMu.Unlock()
+		return nil, false, nil
+	}
+	s.lockMu.Unlock()
+	if hook := s.onFlightWait; hook != nil {
+		hook(providerID)
+	}
+	select {
+	case <-flight.done:
+		return cloneSourceStatuses(flight.statuses), true, flight.err
+	case <-ctx.Done():
+		return nil, true, ctx.Err()
 	}
 }
 

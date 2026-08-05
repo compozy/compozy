@@ -737,6 +737,10 @@ describe("RuntimeSelector custom model id", () => {
       model: "custom-unknown-model",
       reasoning_effort: "",
     });
+    expect(screen.getByTestId("runtime-selector-popup")).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Search models and providers" })).toHaveValue(
+      "custom-unknown-model"
+    );
   });
 
   it("Should commit an exact model id on Enter from the dedicated entry", async () => {
@@ -757,6 +761,14 @@ describe("RuntimeSelector custom model id", () => {
       model: "auto",
       reasoning_effort: "",
     });
+    await waitFor(() =>
+      expect(screen.queryByRole("textbox", { name: "Exact model ID" })).not.toBeInTheDocument()
+    );
+    const catalogSearch = screen.getByRole("combobox", {
+      name: "Search models and providers",
+    });
+    expect(catalogSearch).toHaveFocus();
+    expect(screen.getByTestId("runtime-selector-popup")).toBeInTheDocument();
   });
 
   it("Should expose a visible exact-id field and commit its value", async () => {
@@ -782,6 +794,33 @@ describe("RuntimeSelector custom model id", () => {
       model: "composer-2.5",
       reasoning_effort: "",
     });
+    await waitFor(() =>
+      expect(screen.queryByRole("textbox", { name: "Exact model ID" })).not.toBeInTheDocument()
+    );
+    expect(screen.getByRole("combobox", { name: "Search models and providers" })).toHaveFocus();
+    expect(screen.getByTestId("runtime-selector-popup")).toBeInTheDocument();
+  });
+
+  it("Should cancel exact entry and restore focus to the catalog search", async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderSelector({
+      value: { provider: "codex", model: "", reasoning_effort: "" },
+      models: [model("known", { name: "Known" })],
+    });
+
+    await openSelector(user);
+    await user.click(screen.getByTestId("runtime-selector-custom"));
+    const exactInput = screen.getByRole("textbox", { name: "Exact model ID" });
+    await user.type(exactInput, "discard-me");
+    await user.click(screen.getByRole("button", { name: "Return to model search" }));
+
+    const catalogSearch = screen.getByRole("combobox", {
+      name: "Search models and providers",
+    });
+    expect(catalogSearch).toHaveValue("");
+    expect(catalogSearch).toHaveFocus();
+    expect(screen.getByTestId("runtime-selector-popup")).toBeInTheDocument();
+    expect(onChange).not.toHaveBeenCalled();
   });
 
   it("Should keep exact-id entry available while the catalog is loading", async () => {

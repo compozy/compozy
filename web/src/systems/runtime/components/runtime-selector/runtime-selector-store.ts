@@ -28,6 +28,7 @@ export type RuntimeSelectorPopupState = RuntimeSelectorPopupClosed | RuntimeSele
 type RuntimeSelectorPopupEvents = {
   activeRowChanged: { row: RuntimeSelectorActiveRow | null };
   exactEntryCanceled: {};
+  exactEntryCommitted: {};
   exactEntryStarted: {};
   favoriteAnnounced: { message: string };
   popupClosed: {};
@@ -47,6 +48,11 @@ function openPopupState(): RuntimeSelectorPopupOpen {
   };
 }
 
+function returnToCatalog(context: RuntimeSelectorPopupState): RuntimeSelectorPopupState {
+  if (context.phase !== "open" || context.entryMode !== "exact") return context;
+  return { ...context, activeRow: null, entryMode: "catalog", query: "" };
+}
+
 export const runtimeSelectorPopupLogic = createStoreLogic<
   RuntimeSelectorPopupState,
   RuntimeSelectorPopupEvents
@@ -57,10 +63,8 @@ export const runtimeSelectorPopupLogic = createStoreLogic<
       if (context.phase !== "open") return context;
       return { ...context, activeRow: event.row };
     },
-    exactEntryCanceled: context => {
-      if (context.phase !== "open") return context;
-      return { ...context, activeRow: null, entryMode: "catalog", query: "" };
-    },
+    exactEntryCanceled: returnToCatalog,
+    exactEntryCommitted: returnToCatalog,
     exactEntryStarted: context => {
       if (context.phase !== "open") return context;
       return { ...context, activeRow: null, entryMode: "exact", query: "" };

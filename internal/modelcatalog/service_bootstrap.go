@@ -42,19 +42,29 @@ func (s *CatalogService) bootstrapSourcesOnList(
 			providers = []string{requestedProvider}
 		}
 		for _, providerID := range providers {
-			attempted, statusErr := s.sourceRefreshAttempted(ctx, source.ID(), providerID)
-			if statusErr != nil {
-				return statuses, handled, statusErr
-			}
 			handled = true
-			if attempted {
-				continue
-			}
-			refreshed, refreshErr := s.Refresh(ctx, RefreshOptions{
-				ProviderID: providerID,
-				SourceID:   source.ID(),
-				Now:        now,
-			})
+			refreshed, refreshErr := s.withBootstrapFlight(
+				ctx,
+				source.ID(),
+				providerID,
+				func(retry bool) ([]SourceStatus, error) {
+					if !retry {
+						attempted, statusErr := s.sourceRefreshAttempted(ctx, source.ID(), providerID)
+						if statusErr != nil {
+							return nil, statusErr
+						}
+						if attempted {
+							return nil, nil
+						}
+					}
+					return s.Refresh(ctx, RefreshOptions{
+						ProviderID: providerID,
+						SourceID:   source.ID(),
+						Force:      retry,
+						Now:        now,
+					})
+				},
+			)
 			statuses = append(statuses, refreshed...)
 			if refreshErr != nil {
 				refreshErrs = append(refreshErrs, refreshErr)
@@ -62,6 +72,52 @@ func (s *CatalogService) bootstrapSourcesOnList(
 		}
 	}
 	return statuses, handled, errors.Join(refreshErrs...)
+}
+
+func (s *CatalogService) withBootstrapFlight(
+	ctx context.Context,
+	sourceID string,
+	providerID string,
+	fn func(retry bool) ([]SourceStatus, error),
+) ([]SourceStatus, error) {
+	key := sourceID + "\x00" + providerID
+	retry := false
+	for {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		s.bootstrapMu.Lock()
+		flight := s.bootstrapFlights[key]
+		if flight == nil {
+			flight = &bootstrapFlight{done: make(chan struct{})}
+			s.bootstrapFlights[key] = flight
+			s.bootstrapMu.Unlock()
+
+			flight.statuses, flight.err = fn(retry)
+			flight.retryable = ctx.Err() != nil &&
+				(errors.Is(flight.err, context.Canceled) || errors.Is(flight.err, context.DeadlineExceeded))
+			s.bootstrapMu.Lock()
+			close(flight.done)
+			delete(s.bootstrapFlights, key)
+			s.bootstrapMu.Unlock()
+			return cloneSourceStatuses(flight.statuses), flight.err
+		}
+		s.bootstrapMu.Unlock()
+
+		if hook := s.onBootstrapWait; hook != nil {
+			hook(sourceID, providerID)
+		}
+		select {
+		case <-flight.done:
+			if flight.retryable {
+				retry = true
+				continue
+			}
+			return cloneSourceStatuses(flight.statuses), flight.err
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
 }
 
 func (s *CatalogService) sourceRefreshAttempted(

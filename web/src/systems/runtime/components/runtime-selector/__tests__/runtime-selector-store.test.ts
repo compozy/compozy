@@ -38,6 +38,40 @@ describe("runtime selector stores", () => {
     expect(closed.context).toEqual({ phase: "closed" });
   });
 
+  it("Should return exact commits and cancellations to a clean catalog state", () => {
+    const store = runtimeSelectorPopupLogic.createStore();
+    const enterExactState = () => {
+      const [opened] = store.transition(store.getInitialSnapshot(), { type: "popupOpened" });
+      const [filtered] = store.transition(opened, {
+        type: "railChanged",
+        railFilter: "codex",
+      });
+      const [exact] = store.transition(filtered, { type: "exactEntryStarted" });
+      const [queried] = store.transition(exact, {
+        type: "queryChanged",
+        query: "composer-2.5",
+      });
+      const [highlighted] = store.transition(queried, {
+        type: "activeRowChanged",
+        row: { cursor: "custom:cursor:composer-2.5", key: "cursor:composer-2.5" },
+      });
+      return highlighted;
+    };
+
+    const [committed] = store.transition(enterExactState(), { type: "exactEntryCommitted" });
+    const [canceled] = store.transition(enterExactState(), { type: "exactEntryCanceled" });
+    const want = {
+      phase: "open",
+      entryMode: "catalog",
+      railFilter: "codex",
+      query: "",
+      activeRow: null,
+      favoriteAnnouncement: "",
+    };
+    expect(committed.context).toEqual(want);
+    expect(canceled.context).toEqual(want);
+  });
+
   it("Should preserve cross-catalog preferences and reject catalog-foreign mutations", () => {
     const store = createStore(runtimeFavoritesConfig);
     store.trigger.storageHydrated({

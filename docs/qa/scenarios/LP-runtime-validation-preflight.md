@@ -11,8 +11,8 @@ bug_ids:
 fix_status:
 retest_status: pass
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/loop-parity/invalid-input.stdout.json; /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/loop-parity/invalid-runtime.http.json; /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/loop-parity/runs-before-invalid.normalized.json; /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/loop-parity/runs-after-invalid.normalized.json; /Users/pedronauck/dev/qa-labs/compozy-issue-312-cursor-models-20260805-200518-943803-lab/qa-artifacts/qa/issue-312-evidence.md
-last_report: docs/qa/reports/2026-08-05-issue-312-cursor-models.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/loop-parity/invalid-input.stdout.json; /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/loop-parity/invalid-runtime.http.json; /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/loop-parity/runs-before-invalid.normalized.json; /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/loop-parity/runs-after-invalid.normalized.json; /Users/pedronauck/dev/qa-labs/compozy-issue-312-cursor-models-20260805-200518-943803-lab/qa-artifacts/qa/issue-312-evidence.md;/Users/pedronauck/dev/qa-labs/compozy-issue-312-review-remediation-final-20260805-230015-520918-lab/qa-artifacts/qa/issue-312-review-evidence.md
+last_report: docs/qa/reports/2026-08-05-issue-312-review-remediation.md
 overlaps: LP-022; LP-runtime-selection-overrides
 ---
 
@@ -27,3 +27,9 @@ dry-run walk proving unknown-provider rejection and exact-model passthrough with
 
 QA 2026-08-05: CLI/UDS and HTTP dry-runs preserved `cursor/composer-2.5`, rejected
 `flarp/anything` as `unknown_provider`, and left the durable run count at zero.
+
+QA impact 2026-08-05 (review remediation): the Cursor registration and exact-model effective-config
+contract gained stronger integration coverage. Reset for the exact-ID public readback canary.
+
+QA 2026-08-05 (review remediation): CLI, HTTP, and UDS dry-runs preserved
+`worker=cursor/composer-2.5`; unknown provider still failed and no Loop run was created.

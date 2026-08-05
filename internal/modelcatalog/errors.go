@@ -57,6 +57,29 @@ type StaleFallbackError struct {
 	Err      error
 }
 
+type sourceRefreshError struct {
+	sourceID string
+	err      error
+}
+
+func (e *sourceRefreshError) Error() string {
+	if e == nil || e.err == nil {
+		return "model catalog source refresh failed"
+	}
+	return fmt.Sprintf(
+		"model catalog source %q failed: %s",
+		e.sourceID,
+		RedactString(e.err.Error()),
+	)
+}
+
+func (e *sourceRefreshError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.err
+}
+
 func (e *StaleFallbackError) Error() string {
 	if e == nil {
 		return "model catalog: stale fallback"
