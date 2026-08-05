@@ -235,6 +235,80 @@ func TestCoordinatorRunnerShouldExecutePinnedDefinitionSnapshot(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("Should round trip templated parent and child Loop actions", func(t *testing.T) {
+		t.Parallel()
+
+		definition, err := dsl.Parse([]byte(`apiVersion: compozy.loop/v1
+kind: Loop
+meta:
+  name: parent-loop
+  version: 1
+inputs:
+  slug: { type: string, required: true }
+contract:
+  goal: Deliver the requested change
+  definition_of_done: The child Loops complete
+  iteration_cap: 1
+  no_progress: { window: 1 }
+  budget: { on_exceeded: halt }
+graph:
+  nodes:
+    - id: draft
+      class: action
+      kind: run-agent
+      params:
+        agent: codex
+        prompt: Draft {{ .inputs.slug }}
+        output_schema:
+          summary: string
+    - id: workspace_child
+      class: action
+      kind: run-loop
+      params:
+        loop: workspace-child
+        inputs:
+          slug: "{{ .inputs.slug }}"
+          summary: "{{ .nodes.draft.output.summary }}"
+    - id: marketplace_child
+      class: action
+      kind: run-loop
+      params:
+        loop: review-and-fix
+        inputs:
+          slug: "{{ .inputs.slug }}"
+          summary: "{{ .nodes.draft.output.summary }}"
+  edges:
+    - { from: draft, to: workspace_child }
+    - { from: workspace_child, to: marketplace_child }
+start: [{ kind: manual }]
+`))
+		if err != nil {
+			t.Fatalf("Parse(parent and child Loops) error = %v", err)
+		}
+		resolved, err := NewCompiler().Compile(definition)
+		if err != nil {
+			t.Fatalf("Compile(parent and child Loops) error = %v", err)
+		}
+		raw, digest, err := BuildExecutedDefinitionSnapshot(resolved, snapshotEffectiveConfig())
+		if err != nil {
+			t.Fatalf("BuildExecutedDefinitionSnapshot() error = %v", err)
+		}
+		hydrated, err := LoadExecutedDefinitionSnapshot(raw, digest)
+		if err != nil {
+			t.Fatalf("LoadExecutedDefinitionSnapshot() error = %v", err)
+		}
+		for _, key := range []string{
+			"nodes.workspace_child.params.inputs.slug",
+			"nodes.workspace_child.params.inputs.summary",
+			"nodes.marketplace_child.params.inputs.slug",
+			"nodes.marketplace_child.params.inputs.summary",
+		} {
+			if hydrated.Templates[key] == nil {
+				t.Fatalf("hydrated template %q is nil", key)
+			}
+		}
+	})
 }
 
 func TestExecutedDefinitionSnapshotShouldCanonicalizeTypedNodeParams(t *testing.T) {

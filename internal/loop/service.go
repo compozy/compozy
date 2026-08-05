@@ -123,6 +123,9 @@ func (s *service) DryRun(
 	if err := validateLoopParticipation(resolved.Definition.Graph, networkSpec); err != nil {
 		return nil, err
 	}
+	if _, _, err := BuildExecutedDefinitionSnapshot(resolved, effective); err != nil {
+		return nil, err
+	}
 	return &PlanPreview{
 		LoopName:                     loopName,
 		ResolvedInputs:               resolvedInputs.Values,

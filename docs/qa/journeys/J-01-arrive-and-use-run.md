@@ -57,7 +57,7 @@ journey:
       expected_observable: "6 numeric fields each show per-loop default / daemon ceiling and clamp at ceiling; NO Cost cap (USD) input; canonical defaults render (iteration cap 50, unbounded as ∞)"
     - step: 4
       verb: "Preview optional per-task runtime overrides"
-      expected_observable: "Dry-run reports the ordered effective runtime layers and input origins without creating a run or ACP session"
+      expected_observable: "Dry-run reports the ordered effective runtime layers and input origins, and proves the executed definition can be saved and loaded without creating a run or ACP session"
     - step: 5
       verb: "Run the Loop"
       expected_observable: "loop_run created (201); CLI/JSON/TOON identify the same persisted run and effective-port Web URL; the run page shows applied runtime provenance as read-only truth"
@@ -77,7 +77,7 @@ journey:
     - at_step: 4
       how: "Closes the browser tab while the run is still running."
       resume: "Run continues server-side; user re-finds it via global Runs (runs.html) and resumes observing — state and meters intact."
-  crosses: [catalog-projection, run-form-schema, runtime-resolver, daemon-binder, CLI, HTTP, UDS, native-tools, coordinator/task_runs, SQLite-provenance, generation-history, SSE-stream, web-run-inspect, global-runs-index]
+  crosses: [catalog-projection, run-form-schema, runtime-resolver, executed-definition-snapshot, daemon-binder, CLI, HTTP, UDS, native-tools, coordinator/task_runs, SQLite-provenance, generation-history, SSE-stream, web-run-inspect, global-runs-index]
 
 design_reference:
   screens:
