@@ -144,6 +144,9 @@ func TestProviderHTTPServerOwnsListenerLifecycle(t *testing.T) {
 		if response.Code != http.StatusServiceUnavailable {
 			t.Fatalf("status = %d, want %d", response.Code, http.StatusServiceUnavailable)
 		}
+		if body := response.Body.String(); body != "provider routes are not ready\n" {
+			t.Fatalf("body = %q, want %q", body, "provider routes are not ready\n")
+		}
 	})
 
 	t.Run("Should reject incomplete server configuration", func(t *testing.T) {
