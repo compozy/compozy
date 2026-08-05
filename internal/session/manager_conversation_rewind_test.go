@@ -40,23 +40,33 @@ func (r *rewindBaselineRecorder) ConversationRewindReceipt(
 func TestConversationRewindReplayBaselinePreservesEmptyState(t *testing.T) {
 	t.Parallel()
 
-	recorder := &rewindBaselineRecorder{
-		fakeEventRecorder: &fakeEventRecorder{},
-		state:             store.ConversationRewindState{MessagesJSON: "null"},
-	}
-	messages, found, err := conversationRewindReplayBaseline(t.Context(), recorder)
-	if err != nil {
-		t.Fatalf("conversationRewindReplayBaseline() error = %v", err)
-	}
-	if !found || len(messages) != 0 {
-		t.Fatalf("conversationRewindReplayBaseline() = (%#v, %t), want present empty baseline", messages, found)
-	}
+	t.Run("Should preserve an empty replay baseline", func(t *testing.T) {
+		t.Parallel()
+
+		recorder := &rewindBaselineRecorder{
+			fakeEventRecorder: &fakeEventRecorder{},
+			state:             store.ConversationRewindState{MessagesJSON: "null"},
+		}
+		messages, found, err := conversationRewindReplayBaseline(t.Context(), recorder)
+		if err != nil {
+			t.Fatalf("conversationRewindReplayBaseline() error = %v", err)
+		}
+		if !found || len(messages) != 0 {
+			t.Fatalf(
+				"conversationRewindReplayBaseline() = (%#v, %t), want present empty baseline",
+				messages,
+				found,
+			)
+		}
+	})
 }
 
 func TestConversationRewindRestartsSameSessionFromRetainedPrefix(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should cut before the selected user message and replay only the retained prefix", func(t *testing.T) {
+		t.Parallel()
+
 		h := newHarness(t)
 		created := createSession(t, h)
 		for _, prompt := range []string{"keep this path", "take the wrong path"} {
@@ -160,6 +170,8 @@ func TestConversationRewindRestartsSameSessionFromRetainedPrefix(t *testing.T) {
 	})
 
 	t.Run("Should rewind and restart an already stopped user session", func(t *testing.T) {
+		t.Parallel()
+
 		h := newHarness(t)
 		created := createSession(t, h)
 		events, err := h.manager.Prompt(testutil.Context(t), created.ID, "replace this request")

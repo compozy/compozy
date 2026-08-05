@@ -74,25 +74,32 @@ export function useSessionRewindMessageAction() {
     abortControllerRef.current?.abort();
     const controller = new AbortController();
     abortControllerRef.current = controller;
+    let result;
     try {
-      const result = await rewind.mutateAsync({
+      result = await rewind.mutateAsync({
         idempotencyKey,
         messageId,
         sessionId,
         signal: controller.signal,
       });
-      if (controller.signal.aborted) return;
-      resetRuntime();
-      composerPrefill(result.rewind.draft_text);
-      setOpen(false);
     } catch {
-      if (controller.signal.aborted) return;
-      toast.error("Couldn't rewind this session. Refresh the conversation and try again.");
-    } finally {
       if (abortControllerRef.current === controller) {
         abortControllerRef.current = null;
       }
+      if (!controller.signal.aborted) {
+        toast.error("Couldn't rewind this session. Refresh the conversation and try again.");
+      }
+      return;
     }
+    if (controller.signal.aborted) {
+      if (abortControllerRef.current === controller) {
+        abortControllerRef.current = null;
+      }
+      return;
+    }
+    resetRuntime();
+    composerPrefill(result.rewind.draft_text);
+    setOpen(false);
   };
 
   return { available, busy, confirm, isPending: rewind.isPending, open, setOpen, trigger };
