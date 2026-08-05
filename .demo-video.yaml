@@ -1,0 +1,37 @@
+# demo-video skill config for Compozy (.agents/skills/demo-video).
+
+app:
+  url: http://localhost:2123
+  start: make dev # dev shell; :2123 answers once daemon + web are up
+  ready_selector: "[data-testid=os-desktop]"
+
+capture:
+  viewport: { width: 1920, height: 1080 }
+  surface: { width: 2880, height: 1620 } # 1.5x — measured sweet spot for fps vs detail
+  color_scheme: dark
+
+# Gitignored (web/.tmp/**) and inside the web workspace so @playwright/test resolves.
+workdir: web/.tmp/demos
+
+locators:
+  - web/e2e/__tests__/ # canonical selector usage in e2e specs
+  - web/src/systems/ # data-testid definitions per domain system
+
+state: |
+  Demos start from a clean desktop. Reset via HTTP API before capture:
+  - GET /api/sessions, then DELETE /api/workspaces/{workspace_id}/sessions/{id} for each.
+  - Per workspace (GET /api/workspaces): GET /api/workspaces/{id}/window-manager, drop only
+    windows with app == "session", PUT .../window-manager/layout with the filtered document,
+    expected_revision from the snapshot, actor {kind: "demo", id: "recorder"}, origin "demo-video".
+    Leave non-session windows untouched.
+  Seed richer states (agents, tasks, loops) through the same HTTP API; for a fully populated
+  demo home, the scripts/demo-seed Go tool (internal/demoseed) seeds one offline.
+
+publish:
+  pr:
+    repo: compozy/compozy
+    max_mb: 10
+  social:
+    max_seconds: 140
+    fps: 60
+  evidence_dir: docs/qa/evidence # skeeper-managed sidecar; cite by repo-relative path

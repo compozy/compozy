@@ -1,0 +1,37 @@
+# demo-video project config — copy to the repo root as `.demo-video.yaml`.
+# The agent reads this file; scripts receive values through the flow file/env.
+
+app:
+  url: http://localhost:3000        # where the running app answers
+  start: npm run dev                # how to boot it when the health check fails
+  ready_selector: "#root"           # selector that marks the UI as settled
+
+capture:
+  viewport: { width: 1920, height: 1080 }   # CSS px — what the layout sees
+  surface: { width: 2880, height: 1620 }    # real px — surface = viewport x 1.5 or x 2 only
+  color_scheme: dark
+
+# Directory for flow files + outputs. MUST be gitignored and live under a
+# package that resolves `@playwright/test` (Node resolves imports upward from
+# the flow file's location).
+workdir: .tmp/demos
+
+# Where stable selectors/testids are defined — scout these before choreographing.
+locators:
+  - e2e/
+  - src/
+
+# Free-text recipe for driving the app into a clean starting state (APIs to
+# call, fixtures to seed, windows to close). The flow's prepare() implements it.
+state: |
+  <how to reset/seed demo state>
+
+publish:
+  pr:
+    repo: owner/repo
+    max_mb: 10                      # GitHub video attachment limit (free plan; 100 on paid)
+  social:
+    max_seconds: 140                # X/Twitter standard-account ceiling
+    fps: 60
+  # Optional: where committed QA evidence lives; cite demos from reports by path.
+  # evidence_dir: docs/qa/evidence
