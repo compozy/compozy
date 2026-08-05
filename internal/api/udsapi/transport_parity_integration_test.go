@@ -1972,17 +1972,12 @@ func TestUDSTransportObserveHarnessLifecycleParityMatchesHTTP(t *testing.T) {
 	if !strings.Contains(httpHarnessEvents[2].Summary, "surface=turn") {
 		t.Fatalf("turn summary = %q, want turn surface", httpHarnessEvents[2].Summary)
 	}
-	if !strings.Contains(httpHarnessEvents[3].Summary, "augmenter=workspace_knowledge") {
-		t.Fatalf("augmenter summary = %q, want workspace knowledge metadata", httpHarnessEvents[3].Summary)
-	}
-	if !strings.Contains(httpHarnessEvents[4].Summary, "augmenter=durable_memory") {
-		t.Fatalf("augmenter summary = %q, want durable memory metadata", httpHarnessEvents[4].Summary)
-	}
-	if !strings.Contains(httpHarnessEvents[5].Summary, "augmenter=skills") {
-		t.Fatalf("augmenter summary = %q, want skills metadata", httpHarnessEvents[5].Summary)
-	}
-	if !strings.Contains(httpHarnessEvents[6].Summary, "augmenter=situation") {
-		t.Fatalf("augmenter summary = %q, want situation metadata", httpHarnessEvents[6].Summary)
+	for _, augmenter := range []string{"workspace_knowledge", "skills", "situation", "durable_memory"} {
+		if !slices.ContainsFunc(httpHarnessEvents[3:], func(event compozycontract.LogEventPayload) bool {
+			return strings.Contains(event.Summary, "augmenter="+augmenter+" ")
+		}) {
+			t.Fatalf("harness events = %#v, want %q augmenter metadata", httpHarnessEvents, augmenter)
+		}
 	}
 }
 
