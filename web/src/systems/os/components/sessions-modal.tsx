@@ -222,14 +222,22 @@ function SessionsModalBody({
                 </p>
               ) : null}
             </div>
-            <button
-              type="button"
-              className="flex w-full shrink-0 items-center justify-center gap-1.5 border-t border-line-soft px-2 py-2.5 text-small-body font-medium text-subtle transition-colors hover:bg-row-hover hover:text-fg focus-visible:shadow-focus-ring focus-visible:outline-none"
-              onClick={() => setView("all")}
-            >
-              Show all sessions
-              <Icon as={ChevronRight} size="sm" />
-            </button>
+            <div className="shrink-0">
+              <ArchivedSessionsSection
+                sessions={filteredArchived}
+                total={filteredArchivedTotal}
+                onSelectSession={onSelectSession}
+                sessionActions={sessionActions}
+              />
+              <button
+                type="button"
+                className="flex w-full items-center justify-center gap-1.5 border-t border-line-soft px-2 py-2.5 text-small-body font-medium text-subtle transition-colors hover:bg-row-hover hover:text-fg focus-visible:shadow-focus-ring focus-visible:outline-none"
+                onClick={() => setView("all")}
+              >
+                Show all sessions
+                <Icon as={ChevronRight} size="sm" />
+              </button>
+            </div>
           </div>
           <div className="h-full w-1/2 shrink-0 overflow-y-auto px-2.5 pb-3">
             {groups.map(group => {
@@ -281,12 +289,6 @@ function SessionsModalBody({
             {groups.length === 0 ? (
               <p className="px-3 py-8 text-center text-small-body text-muted">No sessions match.</p>
             ) : null}
-            <ArchivedSessionsSection
-              sessions={filteredArchived}
-              total={filteredArchivedTotal}
-              onSelectSession={onSelectSession}
-              sessionActions={sessionActions}
-            />
           </div>
         </div>
       </div>
@@ -308,7 +310,7 @@ function ArchivedSessionsSection({
   if (sessions.length === 0) return null;
 
   return (
-    <section className="border-t border-line-soft pt-1" data-testid="os-sessions-modal-archived">
+    <section className="px-2.5 py-4" data-testid="os-sessions-modal-archived">
       <Collapsible>
         <CollapsibleTrigger
           className="group/os-sessions-archived"
@@ -320,7 +322,7 @@ function ArchivedSessionsSection({
               aria-label={
                 total === undefined ? "Archived sessions" : `Archived sessions (${total})`
               }
-              className="w-full justify-start gap-2 px-2 text-small-body text-subtle"
+              className="w-full justify-start pl-2 gap-2 text-small-body text-subtle"
             />
           }
         >
@@ -330,7 +332,7 @@ function ArchivedSessionsSection({
             <span className="font-mono text-micro text-faint">{total}</span>
           )}
         </CollapsibleTrigger>
-        <CollapsibleContent className="pb-1 pl-2">
+        <CollapsibleContent className="pb-1">
           {sessions.map(session => (
             <SessionRow
               key={session.id}

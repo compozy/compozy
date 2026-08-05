@@ -161,10 +161,12 @@ function DialogContent({
               className
             )}
             style={{
+              // Host % ceilings only — never force maxWidth here: inline wins over
+              // preferred classes (sm:max-w-*, dialogShellClass) and stretches w-full
+              // panels to nearly the full OS window.
               ...(windowScoped
                 ? {
                     maxHeight: "calc(100% - 2rem)",
-                    maxWidth: "calc(100% - 2rem)",
                   }
                 : undefined),
               ...style,

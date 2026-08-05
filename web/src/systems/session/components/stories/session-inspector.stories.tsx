@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn, userEvent, within } from "storybook/test";
+import { userEvent, within } from "storybook/test";
 
 import { Button } from "@compozy/ui";
 
@@ -38,7 +38,6 @@ const baseArgs: SessionInspectorProps = {
     { path: "web/src/systems/session/components/session-inspector.tsx", readCount: 3 },
     { path: "internal/session/runtime.go", readCount: 1 },
   ],
-  onViewAllTrace: fn(),
 };
 
 const meta: Meta<typeof SessionInspector> = {
@@ -66,8 +65,8 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 /**
- * Inline inspector at >= 1440 px viewport renders 5 flat tabs
- * (Trace, Usage, Memory, Files, Vault) inside the DetailInspector chrome.
+ * Inline inspector at >= 1440 px viewport renders 4 flat tabs
+ * (Usage, Memory, Files, Vault) inside the DetailInspector chrome.
  */
 export const Inline: Story = {
   args: baseArgs,
@@ -224,6 +223,5 @@ export const Empty: Story = {
     usage: null,
     vaultSecrets: [],
     files: [],
-    onViewAllTrace: fn(),
   },
 };

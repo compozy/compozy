@@ -5,16 +5,12 @@ import { SessionVaultPanel, type VaultSecret } from "@/systems/vault";
 
 import {
   deriveFileReads,
-  deriveTraceEvents,
-  TRACE_LIMIT_DEFAULT,
   type InspectorFileEntry,
-  type InspectorTraceEvent,
   type ThreadMessageState,
 } from "./session-inspector.logic";
 import { SessionInspectorMemorySection } from "./session-inspector-memory";
 import {
   SessionInspectorFilesSection,
-  SessionInspectorTraceSection,
   SessionInspectorUsageSection,
 } from "./session-inspector-sections";
 import type { InspectorMemoryState, InspectorUsage } from "./session-inspector-types";
@@ -28,10 +24,9 @@ export type {
 const EMPTY_VAULT_SECRETS: readonly VaultSecret[] = [];
 const EMPTY_MEMORY_STATE: InspectorMemoryState = Object.freeze({});
 
-type InspectorTabId = "trace" | "usage" | "memory" | "files" | "vault";
+type InspectorTabId = "usage" | "memory" | "files" | "vault";
 
 const SESSION_INSPECTOR_TABS = [
-  { id: "trace", label: "Trace" },
   { id: "usage", label: "Usage" },
   { id: "memory", label: "Memory" },
   { id: "files", label: "Files" },
@@ -39,7 +34,6 @@ const SESSION_INSPECTOR_TABS = [
 ] as const satisfies ReadonlyArray<{ id: InspectorTabId; label: string }>;
 
 const SESSION_INSPECTOR_TAB_TESTIDS: Record<InspectorTabId, string> = {
-  trace: "session-inspector-tab-trace",
   usage: "session-inspector-tab-usage",
   memory: "session-inspector-tab-memory",
   files: "session-inspector-tab-files",
@@ -55,9 +49,6 @@ export interface SessionInspectorProps {
   vaultIsLoading?: boolean;
   vaultError?: Error | null;
   files?: InspectorFileEntry[];
-  totalTraceEvents?: number;
-  traceLimit?: number;
-  onViewAllTrace?: () => void;
   drawerOpen?: boolean;
   onDrawerOpenChange?: (open: boolean) => void;
   className?: string;
@@ -65,10 +56,6 @@ export interface SessionInspectorProps {
 
 interface InspectorTabRendererProps {
   activeTab: InspectorTabId;
-  traceEvents: InspectorTraceEvent[];
-  traceTotal: number;
-  traceLimit: number;
-  onViewAllTrace?: () => void;
   usage: InspectorUsage | null | undefined;
   memory: InspectorMemoryState;
   sessionId?: string;
@@ -80,15 +67,6 @@ interface InspectorTabRendererProps {
 
 function InspectorTabRenderer(props: InspectorTabRendererProps) {
   switch (props.activeTab) {
-    case "trace":
-      return (
-        <SessionInspectorTraceSection
-          events={props.traceEvents}
-          total={props.traceTotal}
-          limit={props.traceLimit}
-          onViewAll={props.onViewAllTrace}
-        />
-      );
     case "usage":
       return <SessionInspectorUsageSection usage={props.usage} />;
     case "memory":
@@ -116,14 +94,11 @@ export function SessionInspector({
   vaultIsLoading = false,
   vaultError = null,
   files,
-  totalTraceEvents,
-  traceLimit = TRACE_LIMIT_DEFAULT,
-  onViewAllTrace,
   drawerOpen,
   onDrawerOpenChange,
   className,
 }: SessionInspectorProps) {
-  const [activeTab, setActiveTab] = useState<InspectorTabId>("trace");
+  const [activeTab, setActiveTab] = useState<InspectorTabId>("usage");
   const handleTabChange = (id: string) => {
     if (SESSION_INSPECTOR_TABS.some(tab => tab.id === id)) setActiveTab(id as InspectorTabId);
   };
@@ -151,11 +126,7 @@ export function SessionInspector({
           activeTab={activeTab}
           files={files ?? deriveFileReads(messages)}
           memory={memory ?? EMPTY_MEMORY_STATE}
-          onViewAllTrace={onViewAllTrace}
           sessionId={sessionId}
-          traceEvents={deriveTraceEvents(messages, traceLimit)}
-          traceLimit={traceLimit}
-          traceTotal={totalTraceEvents ?? messages.length}
           usage={usage}
           vaultError={vaultError}
           vaultIsLoading={vaultIsLoading}

@@ -70,15 +70,25 @@ function openUsageTab() {
 }
 
 describe("SessionInspector — DetailInspector chrome (/ §3)", () => {
-  it("Should consume <DetailInspector> with 5 tabs in a single flat tab strip", () => {
+  it("Should consume <DetailInspector> with 4 tabs in a single flat tab strip", () => {
     const ledger = makeLedger();
     render(<SessionInspector messages={[]} sessionId="sess_123" memory={{ ledger }} />);
 
-    expect(screen.getByTestId("session-inspector-tab-trace")).toBeInTheDocument();
+    expect(screen.queryByTestId("session-inspector-tab-trace")).not.toBeInTheDocument();
     expect(screen.getByTestId("session-inspector-tab-usage")).toBeInTheDocument();
     expect(screen.getByTestId("session-inspector-tab-memory")).toBeInTheDocument();
     expect(screen.getByTestId("session-inspector-tab-files")).toBeInTheDocument();
     expect(screen.getByTestId("session-inspector-tab-vault")).toBeInTheDocument();
+  });
+
+  it("Should default the active tab to Usage", () => {
+    render(<SessionInspector messages={[]} sessionId="sess_123" memory={{ ledger: null }} />);
+
+    expect(screen.getByTestId("session-inspector-panel")).toHaveAttribute(
+      "data-active-tab",
+      "usage"
+    );
+    expect(screen.getByTestId("session-inspector-usage")).toBeInTheDocument();
   });
 
   it("Should render inline at >= 1440 px viewport (data-mode=inline) at 320 px width", () => {

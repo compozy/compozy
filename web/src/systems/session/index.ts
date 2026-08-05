@@ -349,11 +349,4 @@ export {
   type InspectorUsage,
   type SessionInspectorProps,
 } from "./components/session-inspector";
-export {
-  deriveFileReads,
-  deriveTraceEvents,
-  type InspectorFileEntry,
-  type InspectorTraceEvent,
-  type InspectorTraceKind,
-  type InspectorTraceStatus,
-} from "./components/session-inspector.logic";
+export { deriveFileReads, type InspectorFileEntry } from "./components/session-inspector.logic";

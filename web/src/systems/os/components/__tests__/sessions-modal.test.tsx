@@ -179,10 +179,10 @@ describe("OsSessionsModal", () => {
       4
     );
 
-    await user.click(screen.getByRole("button", { name: "Show all sessions" }));
     const archivedDisclosure = screen.getByRole("button", { name: "Archived sessions (4)" });
     expect(archivedDisclosure).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByTestId("os-sessions-modal-session-session-archived")).toBeNull();
+    expect(screen.getByRole("button", { name: "Show all sessions" })).toBeInTheDocument();
 
     await user.click(archivedDisclosure);
     expect(screen.getByTestId("os-sessions-modal-session-session-archived")).toHaveTextContent(
