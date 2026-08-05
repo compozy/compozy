@@ -465,7 +465,7 @@ test("E2E-006: two session windows stream independently through minimize and res
   if (!primaryBox || !secondaryBox) throw new Error("session windows must have visible bounds");
   expect(primaryBox.x + primaryBox.width).toBeLessThanOrEqual(secondaryBox.x);
 
-  const primaryComposer = primaryWindow.getByTestId("composer-textarea");
+  const primaryComposer = primaryWindow.getByRole("textbox", { name: "Session prompt" });
   const primaryTranscript = primaryWindow.getByTestId("chat-view");
   await primaryComposer.fill("observe primary stream");
   await primaryComposer.press("Enter");
@@ -482,7 +482,7 @@ test("E2E-006: two session windows stream independently through minimize and res
   });
   expect(parkedScrollTop).toBeGreaterThan(0);
 
-  const secondaryComposer = secondaryWindow.getByTestId("composer-textarea");
+  const secondaryComposer = secondaryWindow.getByRole("textbox", { name: "Session prompt" });
   const secondaryTranscript = secondaryWindow.getByTestId("chat-view");
   await secondaryComposer.fill("reply in secondary window");
   await secondaryComposer.press("Enter");
@@ -537,7 +537,7 @@ test("E2E-008: palette stays global while RuntimeSelector owns scoped ⌘J", asy
   const sessionWin = sessionWindow(appPage, session.id);
   await expect(sessionWin).toBeVisible();
   await expect(palette).toHaveCount(0);
-  const composer = sessionWin.getByTestId("composer-textarea");
+  const composer = sessionWin.getByRole("textbox", { name: "Session prompt" });
   await expect(composer).toBeVisible();
   await composer.focus();
   await appPage.keyboard.press("ControlOrMeta+K");
@@ -795,7 +795,7 @@ test("E2E-024: a Tasks confirm stays scoped while a session remains interactive"
   await expect(sessionsModal).toHaveCount(0);
   const sessionWin = sessionWindow(appPage, session.id);
   const sessionWindowID = await windowID(sessionWin);
-  const composer = sessionWin.getByTestId("composer-textarea");
+  const composer = sessionWin.getByRole("textbox", { name: "Session prompt" });
   await composer.fill("observe primary stream");
   await composer.press("Enter");
   await expect(sessionWin.getByTestId("chat-view")).toContainText("Primary stream is warming up.");
@@ -840,7 +840,7 @@ test("E2E-024: a Tasks confirm stays scoped while a session remains interactive"
   ).toHaveCount(0);
 
   await composer.fill("session remains interactive while Tasks confirms");
-  await expect(composer).toHaveValue("session remains interactive while Tasks confirms");
+  await expect(composer).toHaveText("session remains interactive while Tasks confirms");
 
   const [windowBefore, dialogBefore] = await Promise.all([
     windowPosition(appPage, tasksWindow),
@@ -868,7 +868,7 @@ test("E2E-024: a Tasks confirm stays scoped while a session remains interactive"
   expect((await deleteResponsePromise).ok()).toBe(true);
   await expect(dialog).toHaveCount(0);
   await expect(sessionWin).toBeVisible();
-  await expect(composer).toHaveValue("session remains interactive while Tasks confirms");
+  await expect(composer).toHaveText("session remains interactive while Tasks confirms");
 });
 
 test("E2E-017: palette unwinds above the bell one overlay at a time", async ({
@@ -2281,7 +2281,7 @@ test("E2E-040 (logical E2E-007): Cmd+W closes an attention-bearing session tab a
     .filter({ hasText: /Layout reconnecting|Live layout disconnected/ });
   await expect(shell.tab(sessionID)).toBeVisible();
   await shell.tab(sessionID).click();
-  const composer = shell.window(sessionID).getByTestId("composer-textarea");
+  const composer = shell.window(sessionID).getByRole("textbox", { name: "Session prompt" });
   await composer.fill("exercise permission hardening");
   await composer.press("Enter");
   await expect(shell.window(sessionID).getByTestId("permission-dock")).toBeVisible();
@@ -2305,7 +2305,9 @@ test("E2E-040 (logical E2E-007): Cmd+W closes an attention-bearing session tab a
   await expect(shell.window(secondSessionID)).toBeVisible();
   await appPage.keyboard.press("ControlOrMeta+Shift+T");
   await expect(shell.window(sessionID)).toBeVisible();
-  await expect(shell.window(sessionID).getByTestId("composer-textarea")).toBeVisible();
+  await expect(
+    shell.window(sessionID).getByRole("textbox", { name: "Session prompt" })
+  ).toBeVisible();
 });
 
 test("E2E-041 (logical E2E-003): Task root, Task Run, and session document heads survive deck switches", async ({
@@ -2344,7 +2346,7 @@ test("E2E-041 (logical E2E-003): Task root, Task Run, and session document heads
     task.title
   );
   await shell.tab(sessionID).click();
-  const composer = shell.window(sessionID).getByTestId("composer-textarea");
+  const composer = shell.window(sessionID).getByRole("textbox", { name: "Session prompt" });
   await composer.fill("draft survives a deck switch");
 
   await expect(shell.window(sessionID).locator('[data-slot="topbar-title"]')).toContainText(
@@ -2353,7 +2355,7 @@ test("E2E-041 (logical E2E-003): Task root, Task Run, and session document heads
   await shell.tab(tasksID).click();
   await expect(shell.window(tasksID).locator('[data-slot="topbar-title"]')).toContainText("Tasks");
   await shell.tab(sessionID).click();
-  await expect(composer).toHaveValue("draft survives a deck switch");
+  await expect(composer).toHaveText("draft survives a deck switch");
 });
 
 test("E2E-042 (logical E2E-009): breadcrumb back pops only the active tab navigation stack", async ({
@@ -2424,7 +2426,7 @@ test("E2E-043 (logical E2E-011): CLI close removes an attention tab without losi
   const shell = osShellSelectors(appPage);
   const sessionWindow = shell.window(sessionID);
   await shell.tab(sessionID).click();
-  const composer = sessionWindow.getByTestId("composer-textarea");
+  const composer = sessionWindow.getByRole("textbox", { name: "Session prompt" });
   await composer.fill("exercise permission hardening");
   await composer.press("Enter");
   await expect(sessionWindow.getByTestId("permission-dock")).toBeVisible();

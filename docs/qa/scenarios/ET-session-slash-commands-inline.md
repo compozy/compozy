@@ -6,7 +6,7 @@ persona: Théo
 journey: J-use-session-slash-commands
 expected: The session composer opens its native command menu after slash at the start or after whitespace, limits inline results to effective skills, replaces only the active query, preserves surrounding text and Unicode, and keeps the authored prompt exact after reload.
 entry_points: web session composer; web session deep link
-qa_status: pass
+qa_status: untested
 bug_ids: BUG-20260805-command-menu-hook-order
 fix_status: fixed
 retest_status: pass
@@ -23,3 +23,5 @@ QA verdict 2026-08-05: passed after one governed fix. A fresh browser walk opene
 QA impact 2026-08-05 (review remediation): reset because directive whitespace rendering and composer draft synchronization changed. Re-walk adjacent repeated directives, reload persistence, and exact surrounding text on the reviewed head.
 
 QA verdict 2026-08-05 (reviewed head): passed in fresh lab `session-slash-review-20260805-071845-995212`. The native assistant-ui menu inserted adjacent `/browser-qa` markers after an emoji, the runtime retained the authored text `Revisão 😊 /browser-qa /browser-qa antes   do lançamento`, deduplicated the repeated skill to one source-qualified invocation, and restored the exact submitted prompt after reload. At 320 px, the Skills section exposed `/browser-qa` and `/compozy` but not the agent-disabled `/hidden-skill`; page and console errors were empty.
+
+QA impact 2026-08-05 (composer redesign): reset — the slash menu was rebuilt as one flat categorized list (no Built-in/Skills drill-down), rows gained icons, humanized titles, inline descriptions, and token/scope trailing meta, and selecting a skill now materializes an inline chip instead of raw text. Re-walk trigger detection at start/mid-text, inline skill restriction, exact text preservation around the chip, and reload persistence.

@@ -1,4 +1,4 @@
-import { useRef, type ChangeEvent, type KeyboardEvent } from "react";
+import { useRef } from "react";
 import { toast } from "sonner";
 
 import type { QueuedPrompt } from "@/systems/session";
@@ -6,17 +6,14 @@ import type { QueuedPrompt } from "@/systems/session";
 export type SessionBusyInputHandler = (message: string) => void | Promise<unknown>;
 
 interface UseSessionBusyInputActionsOptions {
-  canQueueFromInput: boolean;
   canSubmitBusyInput: boolean;
   clearComposer: () => void;
-  persistComposerText: (text: string) => void;
   onInterruptPrompt?: SessionBusyInputHandler;
   onQueuePrompt?: SessionBusyInputHandler;
   onRemoveQueuedPrompt?: (id: string) => void;
   onReplaceQueuedPrompt?: (prompt: QueuedPrompt, message: string) => Promise<unknown>;
   onSteerPrompt?: SessionBusyInputHandler;
   queuedPrompts: QueuedPrompt[];
-  runtimeRunning: boolean;
   setComposerText: (text: string) => void;
   trimmedComposerText: string;
 }
@@ -35,17 +32,14 @@ function isAbortError(error: unknown): boolean {
 }
 
 export function useSessionBusyInputActions({
-  canQueueFromInput,
   canSubmitBusyInput,
   clearComposer,
-  persistComposerText,
   onInterruptPrompt,
   onQueuePrompt,
   onRemoveQueuedPrompt,
   onReplaceQueuedPrompt,
   onSteerPrompt,
   queuedPrompts,
-  runtimeRunning,
   setComposerText,
   trimmedComposerText,
 }: UseSessionBusyInputActionsOptions) {
@@ -92,31 +86,12 @@ export function useSessionBusyInputActions({
     handleBusyInputAction(onQueuePrompt, "Couldn't queue prompt.");
   };
 
-  const handleComposerChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
-    persistComposerText(event.currentTarget.value);
-  };
-
   const handleSteerAction = () => {
     handleBusyInputAction(onSteerPrompt, "Couldn't steer prompt.");
   };
 
   const handleInterruptAction = () => {
     handleBusyInputAction(onInterruptPrompt, "Couldn't interrupt prompt.");
-  };
-
-  const handleInputKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (
-      runtimeRunning &&
-      canQueueFromInput &&
-      event.key === "Enter" &&
-      !event.shiftKey &&
-      !event.ctrlKey &&
-      !event.metaKey &&
-      !event.nativeEvent.isComposing
-    ) {
-      event.preventDefault();
-      handleQueueAction();
-    }
   };
 
   const handleEditQueuedPrompt = (prompt: QueuedPrompt) => {
@@ -137,9 +112,7 @@ export function useSessionBusyInputActions({
 
   return {
     handleBusyInputAction,
-    handleComposerChange,
     handleEditQueuedPrompt,
-    handleInputKeyDown,
     handleInterruptAction,
     handleQueueAction,
     handleRemoveQueuedPrompt,

@@ -6,7 +6,7 @@ persona: Bruno
 journey: J-17
 expected: In a newly created session, sequential keyboard entry preserves every character including spaces, opening and closing the Next prompt runtime selector does not alter the draft, and the same behavior remains correct after a refresh and deep-link return.
 entry_points: web agent detail New session; web destination session composer; web session deep link
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status: fixed
 retest_status: pass
@@ -27,3 +27,5 @@ QA verdict 2026-08-05: passed in a newly created `slash-operator` session. Seque
 QA impact 2026-08-05 (review remediation): reset because programmatic assistant-ui changes now synchronize through the composer-state owner. Re-walk exact text and refresh persistence on the reviewed head.
 
 QA verdict 2026-08-05 (reviewed head): passed. The composer and persisted transcript retained the Unicode text and repeated spacing in `Revisão 😊 /browser-qa /browser-qa antes   do lançamento`; the same text remained in the session history after a cold Web reload.
+
+QA impact 2026-08-05 (composer redesign): reset — the composer input moved from a textarea to a Lexical contenteditable (@assistant-ui/react-lexical). Re-walk exact character preservation (spaces, Unicode, newlines), draft persistence across remount/refresh/deep link, and runtime-selector interaction with the draft.

@@ -57,6 +57,7 @@ export function SessionThread({
   workingStartedAt,
   runtimeControl,
   commandCatalog,
+  commandCatalogStatus,
   onCommandCatalogOpen,
 }: SessionThreadProps) {
   const aui = useAui();
@@ -134,6 +135,7 @@ export function SessionThread({
           }
           runtimeControl={runtimeControl}
           commandCatalog={commandCatalog}
+          commandCatalogStatus={commandCatalogStatus}
           onCommandCatalogOpen={onCommandCatalogOpen}
         />
       </SessionComposerPrefillProvider>

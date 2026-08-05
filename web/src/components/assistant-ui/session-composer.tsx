@@ -1,14 +1,24 @@
 import { ComposerPrimitive } from "@assistant-ui/react";
+import { LexicalComposerInput } from "@assistant-ui/react-lexical";
 import { ArrowUp, CornerDownRight, ListPlus, Scissors, Square } from "lucide-react";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 import type { QueuedPrompt } from "@/systems/session";
 import { Button } from "@compozy/ui";
+import { createSessionCommandFormatter } from "./session-command-formatter";
+import { SessionCommandChip } from "./session-composer-chip";
 import {
   SessionComposerCommandMenu,
+  type CommandCatalogScope,
   type SessionComposerCommandCatalog,
 } from "./session-composer-command-menu";
+import {
+  SessionBusyEnterPlugin,
+  SessionCommandScopePlugin,
+  SessionComposerHandleBridge,
+  SessionDirectiveBoundaryPlugin,
+} from "./session-composer-lexical-plugins";
 import { SessionComposerQueuedPrompts } from "./session-composer-queued-prompts";
 import {
   useSessionBusyInputActions,
@@ -28,6 +38,8 @@ const EMPTY_QUEUED_PROMPTS: QueuedPrompt[] = [];
 export interface SessionComposerProps {
   /** Daemon-owned commands projected by the session page into the composer. */
   commandCatalog?: SessionComposerCommandCatalog;
+  /** "loading" while the command catalog query has not resolved yet. */
+  commandCatalogStatus?: "loading" | "ready";
   /** Notifies session orchestration when the native command catalog opens. */
   onCommandCatalogOpen?: () => void;
   canPrompt: boolean;
@@ -80,16 +92,15 @@ export function SessionComposer({
   decisionDock,
   runtimeControl,
   commandCatalog,
+  commandCatalogStatus,
   onCommandCatalogOpen,
 }: SessionComposerProps & { composerState: SessionComposerState }) {
-  const {
-    clearComposer,
-    persistComposerText,
-    setComposerInputElement,
-    setComposerText,
-    composerText,
-    isRunning,
-  } = composerState;
+  const { clearComposer, setComposerInputElement, setComposerText, composerText, isRunning } =
+    composerState;
+  const [commandScope, setCommandScope] = useState<CommandCatalogScope>("inline");
+  const commandFormatter = createSessionCommandFormatter(
+    commandCatalog ?? { standaloneSections: [], inlineSkills: [] }
+  );
   const trimmedComposerText = composerText.trim();
   const runtimeRunning = isRunning || isSessionRunning;
   const canSubmitBusyInput =
@@ -103,25 +114,20 @@ export function SessionComposer({
   const hasQueuedPrompts = queuedPrompts.length > 0;
   const showQueuedStrip = hasQueuedPrompts && Boolean(onRemoveQueuedPrompt && onSteerQueuedPrompt);
   const {
-    handleComposerChange,
     handleEditQueuedPrompt,
-    handleInputKeyDown,
     handleInterruptAction,
     handleQueueAction,
     handleRemoveQueuedPrompt,
     handleSteerAction,
   } = useSessionBusyInputActions({
-    canQueueFromInput,
     canSubmitBusyInput,
     clearComposer,
-    persistComposerText,
     onInterruptPrompt,
     onQueuePrompt,
     onRemoveQueuedPrompt,
     onReplaceQueuedPrompt,
     onSteerPrompt,
     queuedPrompts,
-    runtimeRunning,
     setComposerText,
     trimmedComposerText,
   });
@@ -148,7 +154,12 @@ export function SessionComposer({
             />
           ) : null}
           <ComposerPrimitive.Unstable_TriggerPopoverRoot>
-            <SessionComposerCommandMenu catalog={commandCatalog} onOpen={onCommandCatalogOpen} />
+            <SessionComposerCommandMenu
+              catalog={commandCatalog}
+              scope={commandScope}
+              isCatalogLoading={commandCatalogStatus === "loading"}
+              onOpen={onCommandCatalogOpen}
+            />
             <ComposerPrimitive.Root
               className={cn(
                 "flex flex-col gap-[7px] rounded-lg border border-line bg-elevated shadow-highlight",
@@ -159,24 +170,36 @@ export function SessionComposer({
                 showQueuedStrip ? "rounded-t-none" : null
               )}
             >
-              <ComposerPrimitive.Input
-                ref={setComposerInputElement}
-                aria-label="Session prompt"
-                data-testid="composer-textarea"
-                disabled={!canPrompt}
+              <LexicalComposerInput
+                data-testid="composer-input"
+                inert={!canPrompt}
                 placeholder={canPrompt ? "Send a message…" : inactivePlaceholder}
-                rows={1}
-                maxRows={12}
                 submitMode="enter"
-                onChange={handleComposerChange}
-                onKeyDown={handleInputKeyDown}
+                formatter={commandFormatter}
+                directiveChip={SessionCommandChip}
                 className={cn(
-                  "min-h-6 w-full resize-none border-none bg-transparent p-0 text-small-body leading-relaxed",
-                  "text-fg placeholder:text-subtle",
-                  "outline-none focus-visible:border-transparent focus-visible:ring-0",
-                  "dark:bg-transparent"
+                  "max-h-72 min-h-6 w-full text-small-body leading-relaxed text-fg",
+                  !canPrompt ? "opacity-60" : null
                 )}
-              />
+              >
+                <SessionComposerHandleBridge
+                  onHandle={setComposerInputElement}
+                  editableAriaLabel="Session prompt"
+                />
+                <SessionBusyEnterPlugin
+                  queueActive={runtimeRunning && canQueueFromInput}
+                  steerActive={
+                    runtimeRunning &&
+                    allowBusyInput &&
+                    Boolean(onSteerPrompt) &&
+                    busyInputFenceAvailable
+                  }
+                  onQueue={handleQueueAction}
+                  onSteer={handleSteerAction}
+                />
+                <SessionCommandScopePlugin setScope={setCommandScope} />
+                <SessionDirectiveBoundaryPlugin />
+              </LexicalComposerInput>
               <div className="flex min-h-7 flex-wrap items-center gap-2">
                 {runtimeControl ? (
                   <div className="flex min-w-0 items-center">{runtimeControl}</div>

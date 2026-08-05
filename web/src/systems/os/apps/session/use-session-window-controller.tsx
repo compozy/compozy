@@ -97,6 +97,7 @@ export function useSessionWindowController(input: {
     deleteDialog,
     clearDialog,
     commandCatalog: sessionCommands.catalog,
+    commandCatalogStatus: sessionCommands.isPending ? ("loading" as const) : ("ready" as const),
     refreshCommandCatalog: () => {
       void sessionCommands.refetch();
     },

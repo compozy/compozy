@@ -1,8 +1,8 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useAui, useAuiState, type ThreadMessage } from "@assistant-ui/react";
-import { StrictMode, useLayoutEffect, useState } from "react";
+import { StrictMode, useEffect, useLayoutEffect, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SessionThread } from "@/components/assistant-ui/session-thread";
@@ -386,6 +386,41 @@ function RetryLatestAssistantMessageButton() {
   );
 }
 
+// The composer input is a Lexical contenteditable, so authored text lives in the
+// runtime composer rather than a textarea `value`. The probe exposes the same `aui`
+// handle the composer uses, so tests can author and read canonical prompt text.
+let composerAui: ReturnType<typeof useAui> | null = null;
+
+function ComposerAuiProbe() {
+  const aui = useAui();
+  useEffect(() => {
+    composerAui = aui;
+    return () => {
+      composerAui = null;
+    };
+  }, [aui]);
+  return null;
+}
+
+function requireComposerAui() {
+  if (!composerAui) {
+    throw new Error("composer runtime probe is not mounted");
+  }
+  return composerAui;
+}
+
+/** Typing-equivalent: replaces the whole composer text and parks the cursor at its end. */
+async function setComposerText(text: string) {
+  const aui = requireComposerAui();
+  await act(async () => {
+    aui.composer.setText(text);
+  });
+}
+
+function composerText(): string {
+  return requireComposerAui().composer.getState().text;
+}
+
 function renderSessionThread(
   options: {
     eventSourceFactory?: (url: string) => FakeSessionEventSource;
@@ -414,6 +449,7 @@ function renderSessionThread(
           eventSourceFactory={options.eventSourceFactory}
           liveTailEnabled={options.liveTailEnabled}
         >
+          <ComposerAuiProbe />
           {options.onRuntimeTranscriptCommit ? (
             <RuntimeTranscriptCoherenceProbe onCommit={options.onRuntimeTranscriptCommit} />
           ) : null}
@@ -654,6 +690,7 @@ describe("SessionChatRuntimeProvider", () => {
   let fetchMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
+    composerAui = null;
     sessionStore.trigger.sessionInteractionRemoved({ sessionId: primarySessionFixture.id });
     transcriptMessages = sessionTranscriptFixture.slice(0, 2);
     sessionDetailResponse = primarySessionFixture;
@@ -1033,17 +1070,18 @@ describe("SessionChatRuntimeProvider", () => {
     });
 
     try {
-      const composer = await screen.findByRole("textbox", { name: "Session prompt" });
+      const composer = await screen.findByTestId("composer-input");
       await waitFor(() => {
         expect(screen.getAllByTestId("thread-message-row")).toHaveLength(2);
-        expect(composer).toBeEnabled();
+        // The Lexical composer opts out of interaction via `inert`, not `disabled`.
+        expect(composer).not.toHaveAttribute("inert");
         expect(sources).toHaveLength(2);
         expect(sources[0]?.closed).toBe(true);
         expect(sources[1]?.closed).toBe(false);
       });
       expect(countPromptFetches(fetchMock)).toBe(0);
 
-      fireEvent.change(composer, { target: { value: prompt } });
+      await setComposerText(prompt);
       await user.click(screen.getByTestId("composer-send-button"));
 
       await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(1));
@@ -1060,9 +1098,9 @@ describe("SessionChatRuntimeProvider", () => {
       await waitFor(() => {
         expect((promptRequest?.[1] as RequestInit | undefined)?.signal?.aborted).toBe(true);
         expect(screen.queryByTestId("composer-stop-button")).not.toBeInTheDocument();
-        const idleComposer = screen.getByRole("textbox", { name: "Session prompt" });
-        expect(idleComposer).toBeEnabled();
-        expect(idleComposer).toHaveValue("");
+        const idleComposer = screen.getByTestId("composer-input");
+        expect(idleComposer).not.toHaveAttribute("inert");
+        expect(composerText()).toBe("");
         expect(screen.getByTestId("composer-send-button")).toBeDisabled();
       });
     } finally {
@@ -1084,8 +1122,8 @@ describe("SessionChatRuntimeProvider", () => {
     const user = userEvent.setup();
     const { rerenderSessionThread } = renderSessionThread({ includeRuntimeRetryControl: true });
 
-    const composer = await screen.findByRole("textbox", { name: "Session prompt" });
-    await user.type(composer, "Retry this answer after the provider rerenders");
+    await screen.findByTestId("composer-input");
+    await setComposerText("Retry this answer after the provider rerenders");
     await user.click(screen.getByTestId("composer-send-button"));
 
     await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(1));
@@ -1134,8 +1172,8 @@ describe("SessionChatRuntimeProvider", () => {
       const user = userEvent.setup();
       renderSessionThread();
 
-      const composer = await screen.findByRole("textbox", { name: "Session prompt" });
-      fireEvent.change(composer, { target: { value: prompt } });
+      const composer = await screen.findByTestId("composer-input");
+      await setComposerText(prompt);
       await user.click(screen.getByTestId("composer-send-button"));
 
       await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(1));
@@ -1145,9 +1183,9 @@ describe("SessionChatRuntimeProvider", () => {
       ).toBe(reasonCode);
       expect(await screen.findByRole("alert")).toHaveTextContent(guidance);
       expect(screen.queryByText(reasonCode)).not.toBeInTheDocument();
-      expect(composer).toBeEnabled();
-      await user.type(composer, "Retry draft");
-      expect(composer).toHaveValue("Retry draft");
+      expect(composer).not.toHaveAttribute("inert");
+      await setComposerText("Retry draft");
+      expect(composerText()).toBe("Retry draft");
       expect(screen.getByRole("alert")).toHaveTextContent(guidance);
       expect(screen.getByTestId("composer-send-button")).toBeEnabled();
       expect(countPromptFetches(fetchMock)).toBe(1);
@@ -1171,9 +1209,7 @@ describe("SessionChatRuntimeProvider", () => {
       expect(screen.getByText("Launch readiness snapshot")).toBeInTheDocument();
     });
 
-    fireEvent.change(screen.getByTestId("composer-textarea"), {
-      target: { value: "Continue from the reattached thread" },
-    });
+    await setComposerText("Continue from the reattached thread");
     await user.click(screen.getByTestId("composer-send-button"));
 
     await waitFor(() => {
@@ -1265,8 +1301,8 @@ describe("SessionChatRuntimeProvider", () => {
     const user = userEvent.setup();
     renderSessionThread({ onRuntimeTranscriptCommit: sample => commits.push(sample) });
 
-    const composer = await screen.findByRole("textbox", { name: "Session prompt" });
-    await user.type(composer, "Finish in one turn");
+    await screen.findByTestId("composer-input");
+    await setComposerText("Finish in one turn");
     await user.click(screen.getByTestId("composer-send-button"));
     expect(
       await screen.findByText("Live runtime answer before transcript reconciliation.")
@@ -1294,9 +1330,8 @@ describe("SessionChatRuntimeProvider", () => {
     const user = userEvent.setup();
     renderSessionThread({ runtimeSnapshot: runtime });
 
-    fireEvent.change(screen.getByTestId("composer-textarea"), {
-      target: { value: "Use the selected runtime for this prompt" },
-    });
+    await screen.findByTestId("composer-input");
+    await setComposerText("Use the selected runtime for this prompt");
     await user.click(screen.getByTestId("composer-send-button"));
 
     await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(1));
@@ -1334,8 +1369,8 @@ describe("SessionChatRuntimeProvider", () => {
     const view = renderSessionThread({ includeDecisionDock: true });
 
     try {
-      const composer = await screen.findByRole("textbox", { name: "Session prompt" });
-      await user.type(composer, "Request permission");
+      await screen.findByTestId("composer-input");
+      await setComposerText("Request permission");
       await user.click(screen.getByTestId("composer-send-button"));
 
       expect(await screen.findByTestId("permission-dock")).toBeInTheDocument();
@@ -1353,9 +1388,9 @@ describe("SessionChatRuntimeProvider", () => {
     const user = userEvent.setup();
     renderSessionThread({ includeClearAction: true, includeTranscriptStateProbe: true });
 
-    const composer = await screen.findByRole("textbox", { name: "Session prompt" });
+    await screen.findByTestId("composer-input");
     const prompt = "Clear me";
-    await user.type(composer, prompt);
+    await setComposerText(prompt);
     await user.click(screen.getByTestId("composer-send-button"));
 
     expect(await screen.findByText(prompt)).toBeInTheDocument();

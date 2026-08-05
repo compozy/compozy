@@ -17,6 +17,32 @@
   min-height: 100%;
 }
 
+/* Session composer Lexical editor — @assistant-ui/react-lexical renders fixed
+   aui-lexical-* class names on library-owned nodes, so tokens style them here
+   instead of Tailwind utilities. */
+.aui-lexical-editor {
+  position: relative;
+}
+
+.aui-lexical-input {
+  outline: none;
+  white-space: pre-wrap;
+  word-break: break-word;
+  caret-color: var(--color-fg);
+}
+
+.aui-lexical-input p {
+  margin: 0;
+}
+
+.aui-lexical-placeholder {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  pointer-events: none;
+  color: var(--color-subtle);
+}
+
 /* Marketplace install flash — domain animation using the shared motion scale. */
 @keyframes marketplace-card-flash {
   0% {

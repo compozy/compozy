@@ -97,4 +97,11 @@ if (typeof window !== "undefined") {
   if (typeof Element !== "undefined" && !Element.prototype.scrollTo) {
     Element.prototype.scrollTo = function scrollTo() {};
   }
+  // jsdom has no layout for Ranges, so Lexical's scroll-into-view path — reached
+  // whenever a focused editor commits a collapsed selection — throws without this.
+  if (typeof Range !== "undefined" && typeof Range.prototype.getBoundingClientRect !== "function") {
+    Range.prototype.getBoundingClientRect = function getBoundingClientRect() {
+      return new DOMRect();
+    };
+  }
 }

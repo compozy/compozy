@@ -1,4 +1,4 @@
-import { primarySessionFixture } from "@/systems/session/mocks";
+import { primarySessionFixture, sessionCommandCatalogFixture } from "@/systems/session/mocks";
 import { type ComponentProps, type ReactNode, useEffect } from "react";
 import { sessionStore } from "@/systems/session/stores/session-store";
 import type { Meta, StoryObj } from "@storybook/react-vite";
@@ -9,7 +9,7 @@ import { compozyApiMock } from "@/storybook/openapi-msw";
 import { HttpResponse } from "msw";
 import { SessionChatRuntimeProvider } from "@/systems/session/components/session-chat-runtime-provider";
 import { SessionTranscriptThreadProvider } from "@/systems/session/lib/session-transcript-thread-context";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import {
   changedFilesTranscript,
@@ -146,40 +146,7 @@ export const Empty: Story = {
 export const SlashCommandCatalog: Story = {
   args: {
     ...baseArgs,
-    commandCatalog: {
-      standaloneSections: [
-        {
-          id: "built-in",
-          label: "Built-in",
-          commands: [{ id: "goal", token: "/goal", label: "Goal" }],
-        },
-        {
-          id: "agent",
-          label: "Agent",
-          commands: [{ id: "review", token: "/review", label: "Review" }],
-        },
-        {
-          id: "skills",
-          label: "Skills",
-          commands: [
-            {
-              id: "frontend-qa",
-              token: "/frontend-qa",
-              label: "Frontend QA",
-              description: "Run the browser quality pass.",
-            },
-          ],
-        },
-      ],
-      inlineSkills: [
-        {
-          id: "frontend-qa",
-          token: "/frontend-qa",
-          label: "Frontend QA",
-          description: "Run the browser quality pass.",
-        },
-      ],
-    },
+    commandCatalog: sessionCommandCatalogFixture,
   },
   parameters: {
     ...storybookMswParameters({
@@ -197,8 +164,14 @@ export const SlashCommandCatalog: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.type(await canvas.findByLabelText("Session prompt"), "/");
-    await expect(await canvas.findByLabelText("Session commands")).toBeVisible();
+    const input = await canvas.findByLabelText("Session prompt");
+    // Retype per attempt: the trigger only opens once the composer's cursor
+    // plugin has registered, which can land after the first keystroke.
+    await waitFor(async () => {
+      await userEvent.clear(input);
+      await userEvent.type(input, "/");
+      await expect(canvas.getByLabelText("Session commands")).toBeVisible();
+    });
   },
 };
 

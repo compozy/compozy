@@ -38,6 +38,7 @@ export function SessionWindowContent({
     deleteDialog,
     clearDialog,
     commandCatalog,
+    commandCatalogStatus,
     refreshCommandCatalog,
   } = page;
 
@@ -82,6 +83,7 @@ export function SessionWindowContent({
           onSteerQueuedPrompt={controls.handleSteerQueuedPrompt}
           runtimeControl={<SessionPromptRuntimeSelector canPrompt={controls.canPrompt} />}
           commandCatalog={commandCatalog}
+          commandCatalogStatus={commandCatalogStatus}
           onCommandCatalogOpen={refreshCommandCatalog}
         />
       </div>

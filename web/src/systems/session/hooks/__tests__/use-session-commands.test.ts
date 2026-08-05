@@ -64,6 +64,26 @@ describe("sessionCommandMenuCatalog", () => {
     ).toEqual(["/goal", "/compact", "/review"]);
     expect(catalog.inlineSkills.map(item => item.token)).toEqual(["/review"]);
   });
+
+  it("Should humanize builtin/agent titles, keep skill identity, and carry lane + scope", () => {
+    const catalog = sessionCommandMenuCatalog([
+      command("builtin:goal", "/goal", "builtin", ["standalone"]),
+      command("agent:compact-context", "/compact-context", "agent", ["standalone"]),
+      command("skill:workspace::frontend-qa", "/frontend-qa", "skill", ["standalone", "inline"]),
+    ]);
+
+    expect(
+      catalog.standaloneSections.flatMap(section => section.commands.map(item => item.label))
+    ).toEqual(["Goal", "Compact Context", "frontend-qa"]);
+    expect(
+      catalog.standaloneSections.flatMap(section => section.commands.map(item => item.lane))
+    ).toEqual(["builtin", "agent", "skill"]);
+    expect(catalog.inlineSkills[0]).toMatchObject({
+      lane: "skill",
+      scope: "session",
+      label: "frontend-qa",
+    });
+  });
 });
 
 describe("useSessionCommands", () => {

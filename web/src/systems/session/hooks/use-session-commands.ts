@@ -3,11 +3,16 @@ import { useQuery } from "@tanstack/react-query";
 import type { SessionCommandPayload } from "../types";
 import { sessionCommandsOptions } from "../lib/query-options";
 
+export type SessionCommandMenuLane = "builtin" | "agent" | "skill";
+
 export interface SessionCommandMenuItem {
   id: string;
   token: string;
   label: string;
   description?: string;
+  lane: SessionCommandMenuLane;
+  /** Daemon source scope (session/workspace/agent/global); surfaced for skills. */
+  scope?: string;
 }
 
 export interface SessionCommandMenuSection {
@@ -27,12 +32,36 @@ const COMMAND_SECTIONS = [
   { id: "skill", label: "Skills" },
 ] as const;
 
-function commandMenuItem(command: SessionCommandPayload): SessionCommandMenuItem {
+/**
+ * The daemon's display_name is the canonical token ("/goal"); the menu shows a
+ * human title instead. Built-in/agent names humanize to Title Case while skill
+ * names keep their exact kebab identity.
+ */
+function humanizeCommandLabel(displayName: string, lane: SessionCommandMenuLane): string {
+  const bare = displayName.startsWith("/") ? displayName.slice(1) : displayName;
+  if (lane === "skill") return bare;
+  return bare
+    .split(/[-_]/u)
+    .map(part => (part.length > 0 ? part.charAt(0).toLocaleUpperCase() + part.slice(1) : part))
+    .join(" ");
+}
+
+function commandMenuLane(lane: string): SessionCommandMenuLane | null {
+  return lane === "builtin" || lane === "agent" || lane === "skill" ? lane : null;
+}
+
+function commandMenuItem(
+  command: SessionCommandPayload,
+  lane: SessionCommandMenuLane
+): SessionCommandMenuItem {
+  const scope = command.source?.scope;
   return {
     id: command.id,
     token: command.canonical_token,
-    label: command.display_name,
+    label: humanizeCommandLabel(command.display_name, lane),
+    lane,
     ...(command.description ? { description: command.description } : {}),
+    ...(scope ? { scope } : {}),
   };
 }
 
@@ -51,23 +80,15 @@ export function sessionCommandMenuCatalog(
   const inlineSkills: SessionCommandMenuItem[] = [];
 
   for (const command of commands) {
+    const lane = commandMenuLane(command.lane);
+    if (lane === null) continue;
     const isStandalone = command.placements.includes("standalone");
-    const isInlineSkill = command.lane === "skill" && command.placements.includes("inline");
+    const isInlineSkill = lane === "skill" && command.placements.includes("inline");
     if (!isStandalone && !isInlineSkill) continue;
 
-    const item = commandMenuItem(command);
+    const item = commandMenuItem(command, lane);
     if (isStandalone) {
-      switch (command.lane) {
-        case "builtin":
-          standaloneByLane.builtin.push(item);
-          break;
-        case "agent":
-          standaloneByLane.agent.push(item);
-          break;
-        case "skill":
-          standaloneByLane.skill.push(item);
-          break;
-      }
+      standaloneByLane[lane].push(item);
     }
     if (isInlineSkill) {
       inlineSkills.push(item);
