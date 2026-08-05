@@ -32,7 +32,7 @@ Confirming a rewind failed before changing the conversation because the pooled r
 
 - **Root cause:** `readOnlyPoolLease` forwarded ordinary event queries but did not implement `store.ConversationRewindReader`, so manager preflight rejected the leased recorder even though the underlying recorder supported rewind.
 - **Correction:** The lease forwards rewind target, state, and receipt reads to the underlying recorder.
-- **Fix commit:** pending branch commit
+- **Fix commit:** `6c8deff`
 - **Regression test:** `internal/store/sessiondb/session_db_integration_test.go` verifies the pooled read-only lease exposes the complete rewind reader contract against a real session database.
 
 ## Verification

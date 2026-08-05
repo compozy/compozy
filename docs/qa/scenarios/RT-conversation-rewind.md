@@ -10,7 +10,7 @@ qa_status: pass
 bug_ids: BUG-20260805-rewind-reader-unavailable
 fix_status: verified
 retest_status: pass
-fix_commits: pending-branch-commit
+fix_commits: 6c8deff
 evidence: docs/qa/evidence/session-rewind/rewind-confirmation.png; /Users/pedronauck/dev/qa-labs/compozy-session-rewind-20260805-024938-234761-lab/qa-artifacts/qa/verification-report.md; /Users/pedronauck/dev/qa-labs/compozy-session-rewind-20260805-024938-234761-lab/qa-artifacts/qa/teardown.json
 last_report: docs/qa/reports/2026-08-04-session-rewind.md
 overlaps:

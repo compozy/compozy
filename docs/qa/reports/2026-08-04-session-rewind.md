@@ -20,7 +20,7 @@
 
 | # | Charter | Journey / Scenario | Persona | Tour | Status | Issue | Fix commit |
 |---|---|---|---|---|---|---|---|
-| 1 | CH-rewind-conversation | J-rewind-conversation / RT-conversation-rewind | Théo | data-tour | Fixed | BUG-20260805-rewind-reader-unavailable | pending branch commit |
+| 1 | CH-rewind-conversation | J-rewind-conversation / RT-conversation-rewind | Théo | data-tour | Fixed | BUG-20260805-rewind-reader-unavailable | 6c8deff |
 | 2 | CH-rewind-conversation | J-rewind-conversation / RT-conversation-rewind | Ada | feature-tour | Pass | | |
 
 Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) | Blocked (human decision)`
