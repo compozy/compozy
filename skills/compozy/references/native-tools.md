@@ -31,7 +31,7 @@ Management-only surfaces include diagnostics, support bundles, scheduler control
 ## Discovery And Catalog Toolsets
 
 - Toolset `compozy__bootstrap`: `compozy__tool_list`, `compozy__tool_search`, `compozy__tool_info`.
-- Toolset `compozy__catalog`: skill catalog access plus bootstrap tools.
+- Toolset `compozy__catalog`: command and skill catalog access plus bootstrap tools.
 
 Bare managed sessions receive the full availability-gated callable catalog through hosted MCP. Compozy
 does not add an automatic bootstrap/catalog allowlist over the hosted projection. Explicit agent
@@ -151,7 +151,13 @@ fallbacks are `compozy desktop|window|layout`; read `window-management.md` for m
 
 ## Skills And Memory Tools
 
-Skill tools: `compozy__skill_list`, `compozy__skill_search`, `compozy__skill_view`.
+Command catalog tool: `compozy__command_list`. Pass `session_id`; optional `workspace` defaults to the
+bound session workspace. The result is the daemon-owned command projection for that session.
+
+Skill tools: `compozy__skill_list`, `compozy__skill_search`, `compozy__skill_view`. Use `name` for a
+normal registry read. Use exactly one source-qualified `command_id` from `compozy__command_list` when
+the operator selected a slash skill; `command_id` requires a session-bound caller and never switches
+to another skill source.
 
 Resolve canonical `compozy__skill_view`, then use its returned tool reference with a file/resource argument when reading `skills/compozy/references/*.md` from inside Compozy.
 

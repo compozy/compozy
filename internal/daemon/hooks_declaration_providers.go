@@ -195,7 +195,7 @@ func logBlockedSkillHook(
 	attrs := []any{
 		"skill_name", skill.Meta.Name,
 		hooksBridgeWorkspaceIDKey, resolvedHookWorkspaceID(resolved),
-		"source", skills.SkillSourceName(skill.Source),
+		bootSourceKey, skills.SkillSourceName(skill.Source),
 	}
 	if agentName != "" {
 		attrs = append(attrs, "agent_name", agentName)

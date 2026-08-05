@@ -26,6 +26,15 @@ type managedInputExecution struct {
 	submission ManagedInputSubmission
 }
 
+type managedInputPromptSetup struct {
+	lifecycle ManagedInputLifecycle
+	owner     ManagedInputOwner
+	execution *managedInputExecution
+	request   promptRequest
+	process   *AgentProcess
+	leaseCtx  context.Context
+}
+
 type managedInput struct {
 	id            string
 	sessionID     string
@@ -64,32 +73,108 @@ func (m *Manager) startManagedInputPrompt(session *Session, entry managedInput) 
 	if m == nil || session == nil {
 		return
 	}
+	setup := m.prepareManagedInputPrompt(session, entry)
+	if setup == nil {
+		return
+	}
+	defer session.finishPromptSetup()
+	proc, err := m.ensurePromptRuntime(setup.leaseCtx, session, setup.request.runtime, setup.process)
+	if err != nil {
+		m.failManagedInputPrompt(setup, err)
+		return
+	}
+	message, err := m.dispatchInputPreSubmit(
+		setup.leaseCtx,
+		session,
+		setup.request.turnID,
+		setup.request.turnSource,
+		setup.request.message,
+	)
+	if err != nil {
+		m.failManagedInputPrompt(setup, err)
+		return
+	}
+	setManagedInputPromptState(session, setup.request)
+	stateOwned := true
+	defer func() {
+		if stateOwned {
+			clearManagedInputPromptState(session)
+		}
+	}()
+	dispatchMessage, err := m.promptDispatchMessage(setup.leaseCtx, session, message)
+	if err != nil {
+		m.failManagedInputPrompt(setup, err)
+		return
+	}
+	turnState := newPromptTurnDispatchState(
+		session,
+		setup.request.turnID,
+		setup.request.turnSource,
+		message,
+	)
+	turnState.managed = setup.execution
+	if err := m.dispatchTurnStart(setup.leaseCtx, turnState); err != nil {
+		m.failManagedInputPrompt(setup, err)
+		return
+	}
+	events, err := m.submitPromptInReservedSlot(
+		setup.leaseCtx,
+		session,
+		proc,
+		setup.request,
+		message,
+		dispatchMessage,
+		turnState,
+	)
+	if err != nil {
+		m.failManagedInputPrompt(setup, err)
+		return
+	}
+	stateOwned = false
+	m.startTrackedPromptTask(func() {
+		drainPromptSource(events)
+	})
+}
+
+func (m *Manager) prepareManagedInputPrompt(
+	session *Session,
+	entry managedInput,
+) *managedInputPromptSetup {
 	lifecycle := m.currentManagedInputLifecycle()
 	if lifecycle == nil {
 		m.sessionLogger(session).Error(
 			"session: managed input lifecycle is unavailable",
 			"entry_id", entry.id,
 		)
-		return
+		return nil
 	}
 	owner, err := managedInputOwnerFromEntry(entry)
 	if err != nil {
-		m.sessionLogger(session).Error("session: invalid managed input owner", "entry_id", entry.id, "error", err)
-		return
+		m.sessionLogger(session).Error(
+			"session: invalid managed input owner",
+			"entry_id", entry.id,
+			"error", err,
+		)
+		return nil
 	}
 	proc, err := session.beginExclusivePromptSetup()
 	if err != nil {
 		if !errors.Is(err, ErrPromptInProgress) {
 			m.sessionLogger(session).Warn("session: reserve managed prompt slot failed", "error", err)
 		}
-		return
+		return nil
 	}
-	defer session.finishPromptSetup()
+	transferred := false
+	defer func() {
+		if !transferred {
+			session.finishPromptSetup()
+		}
+	}()
 	leaseCtx, cancelLease := context.WithCancel(m.fallbackLifecycleContext())
 	if err := m.registerManagedInputLease(owner, cancelLease); err != nil {
 		cancelLease()
 		m.sessionLogger(session).Warn("session: register managed input lease failed", "error", err)
-		return
+		return nil
 	}
 	submission, err := lifecycle.BeginSubmission(leaseCtx, ManagedInputClaim{
 		Owner:       owner,
@@ -98,48 +183,90 @@ func (m *Manager) startManagedInputPrompt(session *Session, entry managedInput) 
 	if err != nil {
 		m.handleManagedInputBeginError(leaseCtx, lifecycle, owner, err)
 		m.releaseManagedInputLease(owner)
-		return
+		return nil
 	}
+	request, ok := m.validatedManagedInputPromptRequest(
+		leaseCtx,
+		lifecycle,
+		owner,
+		entry,
+		submission,
+	)
+	if !ok {
+		return nil
+	}
+	transferred = true
+	return &managedInputPromptSetup{
+		lifecycle: lifecycle,
+		owner:     owner,
+		execution: &managedInputExecution{
+			lifecycle:  lifecycle,
+			submission: submission,
+		},
+		request:  request,
+		process:  proc,
+		leaseCtx: leaseCtx,
+	}
+}
+
+func (m *Manager) validatedManagedInputPromptRequest(
+	leaseCtx context.Context,
+	lifecycle ManagedInputLifecycle,
+	owner ManagedInputOwner,
+	entry managedInput,
+	submission ManagedInputSubmission,
+) (promptRequest, bool) {
 	if err := validateManagedInputSubmission(owner, submission); err != nil {
-		m.recordManagedInputAmbiguous(leaseCtx, lifecycle, submission, managedInputReasonRecoveryAmbiguous, err)
+		m.recordManagedInputAmbiguous(
+			leaseCtx,
+			lifecycle,
+			submission,
+			managedInputReasonRecoveryAmbiguous,
+			err,
+		)
 		m.releaseManagedInputLease(owner)
-		return
+		return promptRequest{}, false
 	}
-	execution := &managedInputExecution{lifecycle: lifecycle, submission: submission}
-	req, err := managedInputPromptRequest(entry, submission)
+	request, err := managedInputPromptRequest(entry, submission)
 	if err != nil {
-		m.recordManagedInputAmbiguous(leaseCtx, lifecycle, submission, managedInputReasonRecoveryAmbiguous, err)
+		m.recordManagedInputAmbiguous(
+			leaseCtx,
+			lifecycle,
+			submission,
+			managedInputReasonRecoveryAmbiguous,
+			err,
+		)
 		m.releaseManagedInputLease(owner)
-		return
+		return promptRequest{}, false
 	}
-	proc, err = m.ensurePromptRuntime(leaseCtx, session, req.runtime, proc)
-	if err != nil {
-		m.recordManagedInputAmbiguous(leaseCtx, lifecycle, submission, managedInputReasonRecoveryAmbiguous, err)
-		m.releaseManagedInputLease(owner)
-		return
-	}
-	message, err := m.dispatchInputPreSubmit(leaseCtx, session, req.turnID, req.turnSource, req.message)
-	if err != nil {
-		m.recordManagedInputAmbiguous(leaseCtx, lifecycle, submission, managedInputReasonRecoveryAmbiguous, err)
-		m.releaseManagedInputLease(owner)
-		return
-	}
-	turnState := newPromptTurnDispatchState(session, req.turnID, req.turnSource, message)
-	turnState.managed = execution
-	if err := m.dispatchTurnStart(leaseCtx, turnState); err != nil {
-		m.recordManagedInputAmbiguous(leaseCtx, lifecycle, submission, managedInputReasonRecoveryAmbiguous, err)
-		m.releaseManagedInputLease(owner)
-		return
-	}
-	events, err := m.submitPromptInReservedSlot(leaseCtx, session, proc, req, message, turnState)
-	if err != nil {
-		m.recordManagedInputAmbiguous(leaseCtx, lifecycle, submission, managedInputReasonRecoveryAmbiguous, err)
-		m.releaseManagedInputLease(owner)
-		return
-	}
-	m.startTrackedPromptTask(func() {
-		drainPromptSource(events)
-	})
+	return request, true
+}
+
+func (m *Manager) failManagedInputPrompt(setup *managedInputPromptSetup, err error) {
+	m.recordManagedInputAmbiguous(
+		setup.leaseCtx,
+		setup.lifecycle,
+		setup.execution.submission,
+		managedInputReasonRecoveryAmbiguous,
+		err,
+	)
+	m.releaseManagedInputLease(setup.owner)
+}
+
+func setManagedInputPromptState(session *Session, request promptRequest) {
+	session.setCurrentTurnID(request.turnID)
+	session.setCurrentTurnSource(request.turnSource)
+	session.setCurrentPromptMessage(request.authoredMessage)
+	session.setCurrentPromptMeta(request.meta)
+	session.setCurrentSkillInvocations(nil)
+}
+
+func clearManagedInputPromptState(session *Session) {
+	session.clearCurrentTurnID()
+	session.clearCurrentTurnSource()
+	session.clearCurrentPromptMessage()
+	session.clearCurrentPromptMeta()
+	session.clearCurrentSkillInvocations()
 }
 
 func managedInputOwnerFromEntry(entry managedInput) (ManagedInputOwner, error) {

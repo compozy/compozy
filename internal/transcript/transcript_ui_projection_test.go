@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	commandpkg "github.com/compozy/compozy/internal/command"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -110,6 +111,64 @@ func TestToUIMessagesPreservesUserMessageIdentity(t *testing.T) {
 		}
 		if got, want := messages[0].Parts[0].Text, authoredText; got != want {
 			t.Fatalf("projected user text = %q, want exact authored text %q", got, want)
+		}
+	})
+
+	t.Run("Should project authored skill markers from durable invocation metadata", func(t *testing.T) {
+		t.Parallel()
+
+		timestamp := time.Date(2026, 8, 4, 15, 0, 0, 0, time.UTC)
+		event := (acp.AgentEvent{
+			Type:      acp.EventTypeUserMessage,
+			TurnID:    "turn-skill-marker",
+			Timestamp: timestamp,
+			Text:      "provider input with injected instructions",
+		}).WithSkillInvocations([]commandpkg.Invocation{{
+			Ref: commandpkg.SkillRef{
+				CommandID: "skill:extension:ops:review",
+				Name:      "review",
+				Source: commandpkg.Source{
+					Kind: "extension", ID: "ops", Key: "ops", Scope: "workspace",
+				},
+			},
+			Token: "/ops:review", Start: 7, End: 18,
+		}})
+		authoredText := "Please /ops:review this change"
+		payload, err := MarshalPromptInputEvent(event, authoredText)
+		if err != nil {
+			t.Fatalf("MarshalPromptInputEvent() error = %v", err)
+		}
+		messages, err := ToUIMessages([]store.SessionEvent{{
+			ID: "ev-skill-marker", SessionID: "sess-skill-marker", TurnID: event.TurnID,
+			Sequence: 1, Type: event.Type, Content: payload, Timestamp: timestamp,
+		}})
+		if err != nil {
+			t.Fatalf("ToUIMessages() error = %v", err)
+		}
+		if len(messages) != 1 || messages[0].Parts[0].Text != authoredText {
+			t.Fatalf("messages = %#v, want exact authored text", messages)
+		}
+		var metadata struct {
+			SkillInvocations []struct {
+				CommandID string `json:"command_id"`
+				Token     string `json:"token"`
+				Label     string `json:"label"`
+				Source    string `json:"source"`
+				Start     int    `json:"start"`
+				End       int    `json:"end"`
+			} `json:"skill_invocations"`
+		}
+		if err := json.Unmarshal(messages[0].Metadata, &metadata); err != nil {
+			t.Fatalf("json.Unmarshal(metadata) error = %v", err)
+		}
+		if len(metadata.SkillInvocations) != 1 ||
+			metadata.SkillInvocations[0].CommandID != event.SkillInvocations()[0].Ref.CommandID ||
+			metadata.SkillInvocations[0].Token != "/ops:review" ||
+			metadata.SkillInvocations[0].Label != "review" ||
+			metadata.SkillInvocations[0].Source != "extension:ops" ||
+			metadata.SkillInvocations[0].Start != 7 ||
+			metadata.SkillInvocations[0].End != 18 {
+			t.Fatalf("skill invocation metadata = %#v", metadata.SkillInvocations)
 		}
 	})
 }

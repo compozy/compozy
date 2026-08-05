@@ -5246,6 +5246,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/commands": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List commands available to a session */
+    get: operations["getSessionCommands"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/workspaces/{workspace_id}/sessions/{session_id}/events": {
     parameters: {
       query?: never;
@@ -105320,6 +105337,135 @@ export interface operations {
       };
     };
   };
+  getSessionCommands: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            commands: {
+              canonical_token: string;
+              description: string;
+              display_name: string;
+              id: string;
+              input_hint?: string;
+              lane: string;
+              placements: string[];
+              source: {
+                id?: string;
+                key?: string;
+                kind: string;
+                scope: string;
+              };
+            }[];
+            revision: string;
+          };
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Command catalog unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
   listSessionEvents: {
     parameters: {
       query?: {
@@ -107442,6 +107588,19 @@ export interface operations {
                 speed?: "normal" | "fast";
               } | null;
               session_id: string;
+              skill_invocations?: {
+                command_id: string;
+                end: number;
+                name: string;
+                source: {
+                  id?: string;
+                  key?: string;
+                  kind: string;
+                  scope: string;
+                };
+                start: number;
+                token: string;
+              }[];
               status: string;
               target_turn_id?: string;
               text: string;
@@ -107560,6 +107719,19 @@ export interface operations {
                 speed?: "normal" | "fast";
               } | null;
               session_id: string;
+              skill_invocations?: {
+                command_id: string;
+                end: number;
+                name: string;
+                source: {
+                  id?: string;
+                  key?: string;
+                  kind: string;
+                  scope: string;
+                };
+                start: number;
+                token: string;
+              }[];
               status: string;
               target_turn_id?: string;
               text: string;
@@ -111074,6 +111246,10 @@ export interface operations {
               workflow_id?: string;
               workspace_id?: string;
               workspace_path?: string;
+            } | null;
+            session_commands_changed?: {
+              revision: string;
+              session_id: string;
             } | null;
             session_stopped?: {
               actor_id?: string;

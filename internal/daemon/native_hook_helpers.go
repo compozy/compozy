@@ -272,7 +272,7 @@ func nativeHookDeclPayload(decl hookspkg.HookDecl) map[string]any {
 	payload := map[string]any{
 		nativeConfigHookToolsNameKey: decl.Name,
 		loopEventIdentity:            decl.Event.String(),
-		"source":                     decl.Source.String(),
+		bootSourceKey:                decl.Source.String(),
 		"mode":                       string(decl.Mode),
 		"required":                   decl.Required,
 		"priority":                   decl.Priority,

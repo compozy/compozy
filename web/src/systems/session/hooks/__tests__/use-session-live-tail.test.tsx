@@ -1,8 +1,10 @@
 // Suite: useSessionLiveTail
 // Invariants: the infinite transcript cache owns cursor/fences, preserves loaded history, and
 // retains readonly array identity while the exact message sequence is unchanged; Goal snapshot
-// frames invalidate only the exact Goal cache without mutating transcript pages.
-// Boundary IN: REST transcript pages, transcript SSE frames, Goal frames, and terminal frames.
+// frames invalidate only their exact read models without mutating transcript pages.
+// Owning layer: session live-tail query orchestration.
+// Canonical suite: this hook's existing live-tail test suite.
+// Boundary IN: REST transcript pages, transcript SSE frames, Goal/command frames, and terminal frames.
 // Boundary OUT: real HTTP transport and final thread visuals.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
@@ -689,6 +691,53 @@ describe("useSessionLiveTail", () => {
     expect(sources[1]?.url).toBe(`${STREAM_URL}&after_sequence=4&epoch=1&generation=1`);
   });
 
+  it("Should wake only the exact session command projection", async () => {
+    const queryClient = createQueryClient();
+    seedActiveSession(queryClient);
+    const transcriptKey = sessionKeys.transcript(WORKSPACE_ID, SESSION_ID);
+    const commandsKey = sessionKeys.commands(WORKSPACE_ID, SESSION_ID);
+    const otherWorkspaceCommandsKey = sessionKeys.commands("ws_other", SESSION_ID);
+    const otherSessionCommandsKey = sessionKeys.commands(WORKSPACE_ID, "sess_other");
+    queryClient.setQueryData(
+      transcriptKey,
+      seededTranscriptData(transcriptPage([textMessage("tail-1", "Tail")]))
+    );
+    queryClient.setQueryData(commandsKey, { commands: [], revision: "before" });
+    queryClient.setQueryData(otherWorkspaceCommandsKey, {
+      commands: [],
+      revision: "other-workspace",
+    });
+    queryClient.setQueryData(otherSessionCommandsKey, {
+      commands: [],
+      revision: "other-session",
+    });
+    const transcriptBefore = queryClient.getQueryData<SessionTranscriptData>(transcriptKey);
+    const { sources } = renderLiveTail({ queryClient });
+    await act(async () => {
+      await vi.waitFor(() => expect(sources).toHaveLength(1));
+    });
+    const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries");
+
+    act(() => {
+      sources[0]?.emit(
+        "session_commands_changed",
+        { session_id: SESSION_ID, revision: "after" },
+        ""
+      );
+    });
+
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: commandsKey, exact: true });
+    expect(invalidateQueries).not.toHaveBeenCalledWith({
+      queryKey: otherWorkspaceCommandsKey,
+      exact: true,
+    });
+    expect(invalidateQueries).not.toHaveBeenCalledWith({
+      queryKey: otherSessionCommandsKey,
+      exact: true,
+    });
+    expect(queryClient.getQueryData<SessionTranscriptData>(transcriptKey)).toBe(transcriptBefore);
+  });
+
   it("Should wake the exact clarifications projection on a clarify transcript delta", async () => {
     vi.mocked(fetchSessionTranscript).mockResolvedValue(
       transcriptResponse([textMessage("m1", "hi")])
@@ -812,6 +861,8 @@ describe("useSessionLiveTail", () => {
       await vi.waitFor(() => expect(result.current.status).toBe("success"));
     });
     vi.mocked(fetchSessionTranscript).mockClear();
+
+    expect(sources[0]?.listeners.has("error")).toBe(false);
 
     act(() => sources[0]?.onerror?.(new Event("error")));
     await act(async () => vi.advanceTimersByTimeAsync(250));

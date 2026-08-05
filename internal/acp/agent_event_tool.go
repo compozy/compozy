@@ -3,18 +3,21 @@ package acp
 import (
 	"encoding/json"
 	"strings"
+
+	commandpkg "github.com/compozy/compozy/internal/command"
 )
 
 type agentEventPayload struct {
-	eventID         string
-	messageID       string
-	toolName        string
-	toolKind        string
-	toolInput       json.RawMessage
-	toolErrorDetail string
-	toolFailed      bool
-	hasTool         bool
-	promptRuntime   *PromptRuntime
+	eventID          string
+	messageID        string
+	toolName         string
+	toolKind         string
+	toolInput        json.RawMessage
+	toolErrorDetail  string
+	toolFailed       bool
+	hasTool          bool
+	promptRuntime    *PromptRuntime
+	skillInvocations []commandpkg.Invocation
 }
 
 func (e AgentEvent) clonePayload() *agentEventPayload {
@@ -24,15 +27,32 @@ func (e AgentEvent) clonePayload() *agentEventPayload {
 	cloned := *e.payload
 	cloned.toolInput = CloneRawMessage(e.payload.toolInput)
 	cloned.promptRuntime = ClonePromptRuntime(e.payload.promptRuntime)
+	cloned.skillInvocations = append([]commandpkg.Invocation(nil), e.payload.skillInvocations...)
 	return &cloned
 }
 
 func normalizeAgentEventPayload(payload *agentEventPayload) *agentEventPayload {
 	if payload == nil || payload.eventID == "" && payload.messageID == "" &&
-		!payload.hasTool && payload.promptRuntime == nil {
+		!payload.hasTool && payload.promptRuntime == nil && len(payload.skillInvocations) == 0 {
 		return nil
 	}
 	return payload
+}
+
+// WithSkillInvocations returns an event carrying isolated admitted slash metadata.
+func (e AgentEvent) WithSkillInvocations(invocations []commandpkg.Invocation) AgentEvent {
+	payload := e.clonePayload()
+	payload.skillInvocations = append([]commandpkg.Invocation(nil), invocations...)
+	e.payload = normalizeAgentEventPayload(payload)
+	return e
+}
+
+// SkillInvocations returns an isolated copy of admitted slash metadata.
+func (e AgentEvent) SkillInvocations() []commandpkg.Invocation {
+	if e.payload == nil {
+		return nil
+	}
+	return append([]commandpkg.Invocation(nil), e.payload.skillInvocations...)
 }
 
 // WithEventID returns an event carrying its stable durable event identity.

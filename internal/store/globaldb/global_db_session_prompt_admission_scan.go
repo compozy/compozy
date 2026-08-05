@@ -36,6 +36,12 @@ func sessionPromptAdmissionFromGenerated(
 		EventID:             strings.TrimSpace(row.EventID),
 		IndeterminateReason: strings.TrimSpace(row.IndeterminateReason),
 	}
+	if err := json.Unmarshal([]byte(row.SkillInvocationsJson), &admission.SkillInvocations); err != nil {
+		return store.SessionPromptAdmission{}, fmt.Errorf(
+			"store: decode session prompt admission skill invocations: %w",
+			err,
+		)
+	}
 	if row.ResultJson.Valid {
 		var result store.SessionPromptAdmissionResult
 		if err := json.Unmarshal([]byte(row.ResultJson.String), &result); err != nil {

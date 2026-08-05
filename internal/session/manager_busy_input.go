@@ -30,7 +30,7 @@ func (m *Manager) SendPrompt(ctx context.Context, id string, opts SendPromptOpts
 	if goalResult != nil {
 		return *goalResult, nil
 	}
-	if preparation.request.hasPromptAdmissionIdentity() && opts.AllowGoalCommands {
+	if preparation.request.hasPromptAdmissionIdentity() && opts.AllowCommands {
 		_, matched, parseErr := ParseGoalCommand(preparation.request.authoredMessage)
 		if parseErr != nil && !matched {
 			return SendPromptResult{}, fmt.Errorf("session: parse Goal command: %w", parseErr)
@@ -107,6 +107,9 @@ func (m *Manager) prepareSendPrompt(
 	id string,
 	opts SendPromptOpts,
 ) (sendPromptPreparation, *SendPromptResult, error) {
+	if err := validateCommandIngress(opts.AllowCommands, opts.Caller); err != nil {
+		return sendPromptPreparation{}, nil, err
+	}
 	mode, err := m.normalizeBusyInputMode(opts.Mode)
 	if err != nil {
 		return sendPromptPreparation{}, nil, err
@@ -127,6 +130,11 @@ func (m *Manager) prepareSendPrompt(
 	req.expectedTurnID = strings.TrimSpace(opts.ExpectedTurnID)
 	req.runtime = cloneRuntimeSelection(opts.Runtime)
 	req.resumeStopped = strings.TrimSpace(string(opts.Mode)) == ""
+	if opts.AllowCommands {
+		if err := m.preparePromptSkillInvocations(ctx, &req); err != nil {
+			return sendPromptPreparation{}, nil, err
+		}
+	}
 	if err := req.validatePromptAdmissionIdentity(); err != nil {
 		return sendPromptPreparation{}, nil, err
 	}
@@ -197,6 +205,9 @@ func (m *Manager) SteerPrompt(ctx context.Context, id string, opts SteerPromptOp
 	if ctx == nil {
 		return SendPromptResult{}, errors.New("session: steer prompt context is required")
 	}
+	if err := validateCommandIngress(opts.AllowCommands, opts.Caller); err != nil {
+		return SendPromptResult{}, err
+	}
 	req, err := m.parsePromptRequest(ctx, id, PromptOpts{Message: opts.Message, TurnSource: TurnSourceUser})
 	if err != nil {
 		return SendPromptResult{}, err
@@ -204,6 +215,11 @@ func (m *Manager) SteerPrompt(ctx context.Context, id string, opts SteerPromptOp
 	req.messageID = strings.TrimSpace(opts.MessageID)
 	req.idempotencyKey = strings.TrimSpace(opts.IdempotencyKey)
 	req.expectedTurnID = strings.TrimSpace(opts.ExpectedTurnID)
+	if opts.AllowCommands {
+		if err := m.preparePromptSkillInvocations(ctx, &req); err != nil {
+			return SendPromptResult{}, err
+		}
+	}
 	if err := req.validatePromptAdmissionIdentity(); err != nil {
 		return SendPromptResult{}, err
 	}
@@ -278,6 +294,7 @@ func (m *Manager) enqueueBusyPrompt(
 		req.message,
 		generation,
 		storeRuntimeSelection(req.runtime),
+		req.skillInvocations,
 	)
 	if err != nil {
 		if errors.Is(err, store.ErrSessionInputQueueFull) {
@@ -333,6 +350,7 @@ func (m *Manager) stageSteerPrompt(
 		targetTurnID,
 		generation,
 		storeRuntimeSelection(req.runtime),
+		req.skillInvocations,
 	)
 	if err != nil {
 		return SendPromptResult{}, err
@@ -372,6 +390,7 @@ func (m *Manager) interruptAndSubmitPrompt(
 		req.message,
 		previousTurnID,
 		storeRuntimeSelection(req.runtime),
+		req.skillInvocations,
 	)
 	if err != nil {
 		return SendPromptResult{}, err
@@ -400,6 +419,19 @@ func (m *Manager) interruptAndSubmitPrompt(
 		QueueGeneration:       entry.SessionGeneration,
 		CanceledQueuedEntries: canceled,
 	}, nil
+}
+
+func validateCommandIngress(allowCommands bool, caller PromptCaller) error {
+	if !allowCommands {
+		return nil
+	}
+	if err := caller.Validate(); err != nil {
+		return fmt.Errorf("session: authorize slash commands: %w", err)
+	}
+	if !strings.EqualFold(strings.TrimSpace(caller.Kind), "human") {
+		return errors.New("session: slash commands require human operator ingress")
+	}
+	return nil
 }
 
 func (m *Manager) normalizeBusyInputMode(mode BusyInputMode) (BusyInputMode, error) {

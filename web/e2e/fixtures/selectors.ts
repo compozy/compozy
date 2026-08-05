@@ -35,7 +35,6 @@ export const sessionWindowTestIds = {
   chatView: "chat-view",
   composerClearButton: "composer-clear-button",
   composerSendButton: "composer-send-button",
-  composerTextarea: "composer-textarea",
   deleteButton: "delete-button",
   permissionAllowAlways: "permission-allow-always",
   permissionAllowOnce: "permission-allow-once",

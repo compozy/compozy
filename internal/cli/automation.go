@@ -30,6 +30,7 @@ const (
 	automationPathValue      = "Path"
 	automationScopeValue     = "Scope"
 	automationSessionValue   = "Session"
+	automationSourceHeader   = "SOURCE"
 	automationSourceValue    = "Source"
 	automationStartedValue   = "Started"
 	automationStatusValue    = "Status"

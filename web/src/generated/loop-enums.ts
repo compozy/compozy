@@ -70,7 +70,7 @@ export const LOOP_RUN_EVENT_KINDS = [
 
 export type LoopRunEventKindValue = (typeof LOOP_RUN_EVENT_KINDS)[number];
 
-export const LOOP_GENERATION_ORIGINS = [
+const LOOP_GENERATION_ORIGINS = [
   "initial",
   "stop_when",
   "reattempt",
@@ -83,7 +83,7 @@ export const LOOP_GENERATION_ORIGINS = [
 
 export type LoopGenerationOriginValue = (typeof LOOP_GENERATION_ORIGINS)[number];
 
-export const LOOP_GATE_VERDICT_OUTCOMES = [
+const LOOP_GATE_VERDICT_OUTCOMES = [
   "approved",
   "rejected",
   "awaiting_approval",
@@ -95,7 +95,7 @@ export const LOOP_GATE_VERDICT_OUTCOMES = [
 
 export type LoopGateVerdictOutcomeValue = (typeof LOOP_GATE_VERDICT_OUTCOMES)[number];
 
-export const LOOP_METRIC_DIRECTIONS = ["maximize", "minimize"] as const;
+const LOOP_METRIC_DIRECTIONS = ["maximize", "minimize"] as const;
 
 export type LoopMetricDirectionValue = (typeof LOOP_METRIC_DIRECTIONS)[number];
 

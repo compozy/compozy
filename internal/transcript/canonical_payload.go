@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	commandpkg "github.com/compozy/compozy/internal/command"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -36,6 +37,7 @@ type canonicalEventPayload struct {
 	Synthetic         *acp.PromptSyntheticMeta         `json:"synthetic,omitempty"`
 	Goal              *acp.GoalPromptMeta              `json:"goal,omitempty"`
 	AvailableCommands []store.SessionAdvertisedCommand `json:"available_commands,omitempty"`
+	SkillInvocations  []commandpkg.Invocation          `json:"skill_invocations,omitempty"`
 	Usage             *acp.TokenUsage                  `json:"usage,omitempty"`
 	Runtime           *acp.RuntimeActivity             `json:"runtime,omitempty"`
 	PromptRuntime     *acp.PromptRuntime               `json:"prompt_runtime,omitempty"`

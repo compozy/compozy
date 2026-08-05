@@ -26,6 +26,8 @@ const (
 	ToolIDSkillSearch ToolID = "compozy__skill_search"
 	// ToolIDSkillView reads one skill and its verified body.
 	ToolIDSkillView ToolID = "compozy__skill_view"
+	// ToolIDCommandList lists the unified command catalog for one session.
+	ToolIDCommandList ToolID = "compozy__command_list"
 	// ToolIDNetworkPeers lists visible network peers.
 	ToolIDNetworkPeers ToolID = "compozy__network_peers"
 	// ToolIDNetworkStatus reads daemon-owned network runtime status.

@@ -27,6 +27,7 @@ func (d *Daemon) applySessionManagerFactoryDefault() {
 			session.WithPromptAssembler(deps.PromptAssembler),
 			session.WithStartupPromptOverlay(deps.StartupPromptOverlay),
 			session.WithPromptInputAugmenter(deps.PromptInputAugmenter),
+			session.WithCommandService(deps.CommandService),
 			session.WithWorkAdmissionChecker(deps.WorkAdmission),
 			session.WithAgentResolver(deps.AgentResolver),
 			session.WithSkillRegistry(deps.SkillRegistry),

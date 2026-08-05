@@ -58,15 +58,15 @@ func (h *BaseHandlers) DispatchSessionPrompt(c *gin.Context) (*PromptDispatch, b
 		context.WithoutCancel(c.Request.Context()),
 		sessionID,
 		session.SendPromptOpts{
-			Message:           input.Message,
-			MessageID:         input.MessageID,
-			IdempotencyKey:    input.IdempotencyKey,
-			Mode:              session.BusyInputMode(request.Mode),
-			ExpectedTurnID:    request.ExpectedTurnID,
-			Runtime:           PromptRuntimeSelectionFromPayload(request.Runtime),
-			DeliveryContext:   deliveryContext,
-			Caller:            caller,
-			AllowGoalCommands: true,
+			Message:         input.Message,
+			MessageID:       input.MessageID,
+			IdempotencyKey:  input.IdempotencyKey,
+			Mode:            session.BusyInputMode(request.Mode),
+			ExpectedTurnID:  request.ExpectedTurnID,
+			Runtime:         PromptRuntimeSelectionFromPayload(request.Runtime),
+			DeliveryContext: deliveryContext,
+			Caller:          caller,
+			AllowCommands:   true,
 		},
 	)
 	if err != nil {
@@ -157,12 +157,17 @@ func (h *BaseHandlers) DispatchSessionSteer(c *gin.Context) (session.SendPromptR
 	if !ok {
 		return session.SendPromptResult{}, false
 	}
+	caller, err := h.PromptCallerForWorkspace(c, c.Param("workspace_id"))
+	if err != nil {
+		h.respondError(c, http.StatusForbidden, err)
+		return session.SendPromptResult{}, false
+	}
 	result, err := h.Sessions.SteerPrompt(
 		context.WithoutCancel(c.Request.Context()),
 		sessionID,
 		session.SteerPromptOpts{
 			Message: request.Text, MessageID: request.MessageID, IdempotencyKey: request.IdempotencyKey,
-			ExpectedTurnID: request.ExpectedTurnID,
+			ExpectedTurnID: request.ExpectedTurnID, AllowCommands: true, Caller: caller,
 		},
 	)
 	if err != nil {

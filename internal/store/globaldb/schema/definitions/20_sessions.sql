@@ -32,6 +32,7 @@ CREATE TABLE session_health (
 		state TEXT NOT NULL CHECK (state IN ('reserved', 'dispatch_committed', 'completed', 'indeterminate')),
 		mode TEXT NOT NULL DEFAULT '',
 		authored_text TEXT NOT NULL DEFAULT '',
+		skill_invocations_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(skill_invocations_json)),
 		runtime_provider TEXT NOT NULL DEFAULT '',
 		runtime_model TEXT NOT NULL DEFAULT '',
 		runtime_reasoning_effort TEXT NOT NULL DEFAULT '',
@@ -63,6 +64,7 @@ CREATE TABLE session_health (
 			delivery TEXT NOT NULL DEFAULT 'after_turn'
 				CHECK (delivery IN ('after_turn', 'interrupt_then_prompt')),
 			text TEXT NOT NULL,
+			skill_invocations_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(skill_invocations_json)),
 			runtime_provider TEXT NOT NULL DEFAULT '',
 			runtime_model TEXT NOT NULL DEFAULT '',
 			runtime_reasoning_effort TEXT NOT NULL DEFAULT '',

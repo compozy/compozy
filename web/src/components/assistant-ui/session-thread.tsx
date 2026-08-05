@@ -56,6 +56,9 @@ export function SessionThread({
   failure,
   workingStartedAt,
   runtimeControl,
+  commandCatalog,
+  commandCatalogStatus,
+  onCommandCatalogOpen,
 }: SessionThreadProps) {
   const aui = useAui();
   const reducedMotion = usePrefersReducedMotion();
@@ -131,6 +134,9 @@ export function SessionThread({
                 : undefined
           }
           runtimeControl={runtimeControl}
+          commandCatalog={commandCatalog}
+          commandCatalogStatus={commandCatalogStatus}
+          onCommandCatalogOpen={onCommandCatalogOpen}
         />
       </SessionComposerPrefillProvider>
     </ThreadPrimitive.Root>

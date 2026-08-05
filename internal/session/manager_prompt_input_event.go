@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
+	commandpkg "github.com/compozy/compozy/internal/command"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -28,6 +29,7 @@ type promptRequest struct {
 	releaseSlotBeforeHooks bool
 	resumeStopped          bool
 	commitDispatch         func(context.Context) error
+	skillInvocations       []commandpkg.Invocation
 }
 
 func (m *Manager) recordPromptInputEvent(
@@ -54,6 +56,7 @@ func (m *Manager) recordPromptInputEvent(
 		Text:      req.message,
 	}
 	event = event.WithPromptRuntime(promptRuntimeFromSelectionPointer(req.runtime))
+	event = event.WithSkillInvocations(req.skillInvocations)
 	if messageID := strings.TrimSpace(req.messageID); messageID != "" {
 		event = event.WithMessageID(messageID)
 	}

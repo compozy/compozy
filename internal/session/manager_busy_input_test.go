@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	commandpkg "github.com/compozy/compozy/internal/command"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
@@ -42,7 +43,7 @@ func TestManagerBusyInputQueue(t *testing.T) {
 				operation: store.SessionPromptOperationPrompt,
 				mode:      store.SessionInputQueueModeQueue,
 				call: func(ctx context.Context, queue *inputqueue.Service, sessionID string, _ store.SessionPromptAdmissionRequest) error {
-					_, _, err := queue.Enqueue(ctx, sessionID, "queued prompt", 0, store.SessionInputRuntime{})
+					_, _, err := queue.Enqueue(ctx, sessionID, "queued prompt", 0, store.SessionInputRuntime{}, nil)
 					return err
 				},
 			},
@@ -59,6 +60,7 @@ func TestManagerBusyInputQueue(t *testing.T) {
 						"turn-active",
 						0,
 						store.SessionInputRuntime{},
+						nil,
 					)
 					return err
 				},
@@ -291,6 +293,180 @@ func TestManagerBusyInputQueue(t *testing.T) {
 			t.Fatalf("queued dispatch turn source = %q, want user", got)
 		}
 	})
+
+	t.Run("Should preserve admitted skill invocations through busy modes until dispatch", func(t *testing.T) {
+		t.Parallel()
+
+		modes := []struct {
+			name string
+			mode BusyInputMode
+		}{
+			{name: "queue", mode: BusyInputModeQueue},
+			{name: "steer", mode: BusyInputModeSteer},
+			{name: "interrupt", mode: BusyInputModeInterrupt},
+		}
+		for _, test := range modes {
+			t.Run("Should preserve "+test.name+" skill invocation", func(t *testing.T) {
+				t.Parallel()
+
+				queueStore := openManagerInputQueueStore(t)
+				catalog, err := commandpkg.BuildCatalog(
+					commandpkg.DefaultBuiltins(),
+					nil,
+					[]commandpkg.SkillSpec{{
+						Name: "review", Description: "Review carefully", Available: true,
+						Source: commandpkg.Source{Kind: "workspace", Scope: "workspace"},
+					}},
+				)
+				if err != nil {
+					t.Fatalf("BuildCatalog() error = %v", err)
+				}
+				service := &busyInputCommandService{
+					catalog:  catalog,
+					expanded: make(chan []commandpkg.Invocation, 1),
+				}
+				h := newHarness(
+					t,
+					WithSessionInputQueueStore(queueStore),
+					WithSessionBusyInputConfig(compozyconfig.SessionBusyInputConfig{
+						DefaultMode:  string(BusyInputModeQueue),
+						QueueCap:     3,
+						MaxTextBytes: 4096,
+					}),
+					WithCommandService(service),
+				)
+				registerManagerInputQueueWorkspace(t, queueStore, h)
+				sess := createSession(t, h)
+				registerManagerInputQueueSession(t, queueStore, h, sess)
+
+				activeEntered := make(chan struct{})
+				releaseActive := make(chan struct{})
+				dispatched := make(chan struct{})
+				var releaseActiveOnce sync.Once
+				var dispatchedOnce sync.Once
+				t.Cleanup(func() {
+					releaseActiveOnce.Do(func() { close(releaseActive) })
+					if err := h.manager.Stop(testutil.Context(t), sess.ID); err != nil {
+						t.Errorf("Stop() error = %v", err)
+					}
+				})
+
+				h.driver.cancelHook = func(*fakeProcess) error {
+					releaseActiveOnce.Do(func() { close(releaseActive) })
+					return nil
+				}
+				h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+					events := make(chan acp.AgentEvent, 2)
+					go func() {
+						defer close(events)
+						switch {
+						case req.Message == "active prompt":
+							close(activeEntered)
+							<-releaseActive
+						case strings.HasSuffix(req.Message, "queue /review"),
+							strings.HasSuffix(req.Message, "steer /review"),
+							strings.HasSuffix(req.Message, "interrupt /review"):
+							dispatchedOnce.Do(func() { close(dispatched) })
+						}
+						emitDonePromptEvents(events, sess.ID, req.TurnID)
+					}()
+					return events, nil
+				}
+
+				authored := test.name + " /review"
+				wantInvocations, err := commandpkg.ParseSkillInvocations(authored, catalog)
+				if err != nil {
+					t.Fatalf("ParseSkillInvocations() error = %v", err)
+				}
+				if len(wantInvocations) != 1 {
+					t.Fatalf("ParseSkillInvocations() = %#v, want one invocation", wantInvocations)
+				}
+
+				active, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, SendPromptOpts{
+					Message: "active prompt",
+				})
+				if err != nil {
+					t.Fatalf("SendPrompt(active) error = %v", err)
+				}
+				<-activeEntered
+
+				caller := PromptCaller{Kind: "human", ID: "operator", Source: "http"}
+				var result SendPromptResult
+				switch test.mode {
+				case BusyInputModeSteer:
+					result, err = h.manager.SteerPrompt(testutil.Context(t), sess.ID, SteerPromptOpts{
+						Message: authored, ExpectedTurnID: sess.CurrentTurnID(),
+						AllowCommands: true, Caller: caller,
+					})
+				default:
+					result, err = h.manager.SendPrompt(testutil.Context(t), sess.ID, SendPromptOpts{
+						Message: authored, Mode: test.mode,
+						ExpectedTurnID: sess.CurrentTurnID(),
+						AllowCommands:  true, Caller: caller,
+					})
+				}
+				if err != nil {
+					t.Fatalf("busy %s submission error = %v", test.name, err)
+				}
+				if result.QueueEntryID == "" {
+					t.Fatalf("busy %s result = %#v, want durable queue entry", test.name, result)
+				}
+
+				entry, err := h.manager.inputQueue.Get(testutil.Context(t), sess.ID, result.QueueEntryID)
+				if err != nil {
+					t.Fatalf("inputQueue.Get(%q) error = %v", result.QueueEntryID, err)
+				}
+				if !slices.Equal(entry.SkillInvocations, wantInvocations) {
+					t.Fatalf(
+						"%s queue skill invocations = %#v, want %#v",
+						test.name,
+						entry.SkillInvocations,
+						wantInvocations,
+					)
+				}
+
+				releaseActiveOnce.Do(func() { close(releaseActive) })
+				collectEvents(t, active.Events)
+				select {
+				case got := <-service.expanded:
+					if !slices.Equal(got, wantInvocations) {
+						t.Fatalf("%s dispatched skill invocations = %#v, want %#v", test.name, got, wantInvocations)
+					}
+				case <-time.After(time.Second):
+					t.Fatalf("%s skill invocation did not reach command expansion", test.name)
+				}
+				select {
+				case <-dispatched:
+				case <-time.After(time.Second):
+					t.Fatalf("%s prompt did not dispatch", test.name)
+				}
+			})
+		}
+	})
+}
+
+type busyInputCommandService struct {
+	catalog  commandpkg.Catalog
+	expanded chan []commandpkg.Invocation
+}
+
+func (s *busyInputCommandService) Catalog(
+	context.Context,
+	*Info,
+	compozyconfig.AgentDef,
+) (commandpkg.Catalog, error) {
+	return s.catalog, nil
+}
+
+func (s *busyInputCommandService) Expand(
+	_ context.Context,
+	_ *Info,
+	_ compozyconfig.AgentDef,
+	invocations []commandpkg.Invocation,
+	message string,
+) (string, error) {
+	s.expanded <- append([]commandpkg.Invocation(nil), invocations...)
+	return "EXPANDED\n\n" + message, nil
 }
 
 func TestManagerBusyInputExpectedTurnFence(t *testing.T) {
@@ -1379,7 +1555,7 @@ func TestManagerGoalCommandDispatchShouldPreserveIngressAndDraftAdmission(t *tes
 		})
 
 		result, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, SendPromptOpts{
-			Message: "/goal status", AllowGoalCommands: true,
+			Message: "/goal status", AllowCommands: true,
 			MessageID:      "client-goal-status",
 			IdempotencyKey: "idem-goal-status",
 			Caller:         PromptCaller{Kind: "human", ID: "operator", Source: "http"},
@@ -1443,7 +1619,7 @@ func TestManagerGoalCommandDispatchShouldPreserveIngressAndDraftAdmission(t *tes
 		}
 
 		result, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, SendPromptOpts{
-			Message: "/goal clear", AllowGoalCommands: true,
+			Message: "/goal clear", AllowCommands: true,
 			MessageID:      "client-goal-clear",
 			IdempotencyKey: "idem-goal-clear",
 			Caller:         PromptCaller{Kind: "human", ID: "operator", Source: "http"},
@@ -1502,7 +1678,7 @@ func TestManagerGoalCommandDispatchShouldPreserveIngressAndDraftAdmission(t *tes
 		caller := PromptCaller{Kind: "human", ID: "operator", Source: "http"}
 
 		admitted, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, SendPromptOpts{
-			Message: "/goal draft improve objective", AllowGoalCommands: true, Caller: caller,
+			Message: "/goal draft improve objective", AllowCommands: true, Caller: caller,
 			MessageID: "client-goal-draft", IdempotencyKey: "idem-goal-draft",
 		})
 		if err != nil {
@@ -1543,7 +1719,7 @@ func TestManagerGoalCommandDispatchShouldPreserveIngressAndDraftAdmission(t *tes
 		<-entered
 		busy, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, SendPromptOpts{
 			Message: "/goal draft another", Mode: BusyInputModeQueue,
-			AllowGoalCommands: true, Caller: caller,
+			AllowCommands: true, Caller: caller,
 		})
 		if err != nil {
 			t.Fatalf("SendPrompt(busy draft) error = %v", err)
@@ -1639,7 +1815,7 @@ func TestManagerGoalCommandDispatchShouldPreserveIngressAndDraftAdmission(t *tes
 		draftResultC := make(chan draftResult, 1)
 		go func() {
 			result, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, SendPromptOpts{
-				Message: "/goal draft race objective", AllowGoalCommands: true,
+				Message: "/goal draft race objective", AllowCommands: true,
 				Caller: PromptCaller{Kind: "human", ID: "operator", Source: "http"},
 			})
 			draftResultC <- draftResult{result: result, err: err}

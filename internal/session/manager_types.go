@@ -159,6 +159,7 @@ type Manager struct {
 	participationResolver        participation.Resolver
 	turnEndNotifier              TurnEndNotifier
 	inputAugmenter               PromptInputAugmenter
+	commandService               CommandService
 	inputQueue                   *inputqueue.Service
 	inputQueueStore              store.SessionInputQueueStore
 	promptAdmissionStore         store.SessionPromptAdmissionStore

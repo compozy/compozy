@@ -5,6 +5,7 @@ import { reconcileInstalledExtensionCaches } from "@/integrations/tanstack-query
 import { updateExtension } from "@/systems/extensions/adapters/extensions-api";
 import { settingsKeys } from "@/systems/settings";
 import { skillKeys } from "@/systems/skill";
+import { sessionKeys } from "@/systems/session";
 
 import {
   installMarketplaceExtension,
@@ -97,6 +98,7 @@ export function useInstallMarketplaceSkill() {
       Promise.all([
         invalidateMarketplace(queryClient),
         queryClient.invalidateQueries({ queryKey: skillKeys.all }),
+        queryClient.invalidateQueries({ queryKey: sessionKeys.commandsRoot }),
       ]),
   });
 }
@@ -109,6 +111,7 @@ export function useUpdateMarketplaceSkill() {
       Promise.all([
         invalidateMarketplace(queryClient),
         queryClient.invalidateQueries({ queryKey: skillKeys.all }),
+        queryClient.invalidateQueries({ queryKey: sessionKeys.commandsRoot }),
       ]),
   });
 }

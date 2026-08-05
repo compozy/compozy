@@ -15,6 +15,7 @@ func registerSessionRoutes(api gin.IRouter, handlers *Handlers) {
 	{
 		workspaceSessions.GET("/:session_id", handlers.GetSession)
 		workspaceSessions.GET("/:session_id/goal", handlers.GetSessionGoal)
+		workspaceSessions.GET("/:session_id/commands", handlers.GetSessionCommands)
 		workspaceSessions.POST("/:session_id/soul/refresh", handlers.RefreshSessionSoul)
 		workspaceSessions.GET("/:session_id/health", handlers.GetSessionHealth)
 		workspaceSessions.GET("/:session_id/status", handlers.GetSessionStatus)

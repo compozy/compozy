@@ -5,15 +5,18 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	commandpkg "github.com/compozy/compozy/internal/command"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/transcript"
 )
 
 func TestPromptUsesPatchedInputMessage(t *testing.T) {
@@ -63,6 +66,101 @@ func TestPromptUsesPatchedInputMessage(t *testing.T) {
 	if !strings.Contains(userMessage.Content, `"authored_text":"original message"`) {
 		t.Fatalf("stored user message content = %q, want exact authored text", userMessage.Content)
 	}
+}
+
+func TestPromptInputHookReconcilesSkillInvocations(t *testing.T) {
+	t.Parallel()
+	t.Run("Should retain only admitted skill invocations that survive the hook", func(t *testing.T) {
+		t.Parallel()
+
+		catalog, err := commandpkg.BuildCatalog(
+			commandpkg.DefaultBuiltins(),
+			nil,
+			[]commandpkg.SkillSpec{
+				{
+					Name: "review", Description: "Review carefully", Available: true,
+					Source: commandpkg.Source{Kind: "workspace", Scope: "workspace"},
+				},
+				{
+					Name: "docs", Description: "Read the docs", Available: true,
+					Source: commandpkg.Source{Kind: "workspace", Scope: "workspace"},
+				},
+				{
+					Name: "new", Description: "New task", Available: true,
+					Source: commandpkg.Source{Kind: "workspace", Scope: "workspace"},
+				},
+			},
+		)
+		if err != nil {
+			t.Fatalf("BuildCatalog() error = %v", err)
+		}
+		authored := "Use /review and /docs"
+		wantAdmitted, err := commandpkg.ParseSkillInvocations(authored, catalog)
+		if err != nil {
+			t.Fatalf("ParseSkillInvocations() error = %v", err)
+		}
+		if len(wantAdmitted) != 2 {
+			t.Fatalf("ParseSkillInvocations() = %#v, want review and docs", wantAdmitted)
+		}
+
+		dispatcher := &spyHookDispatcher{
+			dispatchInputPreSubmitFn: func(
+				_ context.Context,
+				payload hookspkg.InputPreSubmitPayload,
+			) (hookspkg.InputPreSubmitPayload, error) {
+				payload.Message = "Use /docs and add /new"
+				return payload, nil
+			},
+		}
+		service := &busyInputCommandService{
+			catalog:  catalog,
+			expanded: make(chan []commandpkg.Invocation, 1),
+		}
+		h := newHarness(t, WithCommandService(service), WithHookSet(fullHookSet(dispatcher)))
+		sess := createSession(t, h)
+		t.Cleanup(func() {
+			reportSessionStop(t, h, sess.ID)
+		})
+
+		result, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, SendPromptOpts{
+			Message:       authored,
+			AllowCommands: true,
+			Caller:        PromptCaller{Kind: "human", ID: "operator", Source: "http"},
+		})
+		if err != nil {
+			t.Fatalf("SendPrompt() error = %v", err)
+		}
+		_ = collectEvents(t, result.Events)
+
+		select {
+		case got := <-service.expanded:
+			wantSurvivor := wantAdmitted[1:]
+			if !slices.Equal(got, wantSurvivor) {
+				t.Fatalf("Expand() invocations = %#v, want only authored docs invocation %#v", got, wantSurvivor)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("hook-reconciled skill invocation did not reach expansion")
+		}
+
+		if got, want := h.driver.promptCalls[0].Message, "EXPANDED\n\nUse /docs and add /new"; got != want {
+			t.Fatalf("driver prompt message = %q, want %q", got, want)
+		}
+		stored := storedEventByType(t, readStoredEvents(t, sess), acp.EventTypeUserMessage)
+		decoded, err := transcript.UnmarshalAgentEvent(stored.Content)
+		if err != nil {
+			t.Fatalf("UnmarshalAgentEvent() error = %v", err)
+		}
+		storedInvocations := decoded.SkillInvocations()
+		if len(storedInvocations) != 1 {
+			t.Fatalf("stored skill invocations = %#v, want only surviving docs invocation", storedInvocations)
+		}
+		got := storedInvocations[0]
+		want := wantAdmitted[1]
+		if got.Ref.CommandID != want.Ref.CommandID || got.Ref.Name != want.Ref.Name ||
+			got.Ref.Source != want.Ref.Source || got.Start != want.Start || got.End != want.End {
+			t.Fatalf("stored surviving invocation = %#v, want authored docs identity and offsets %#v", got, want)
+		}
+	})
 }
 
 func TestRecordEventDispatchesAroundPersistence(t *testing.T) {

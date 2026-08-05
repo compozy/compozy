@@ -35,6 +35,8 @@ export type SessionHistoryResponse = OperationResponse<"getSessionHistory", 200>
 export type TurnHistoryPayload = SessionHistoryResponse["history"][number];
 
 export type SessionTranscriptResponse = OperationResponse<"getSessionTranscript", 200>;
+export type SessionCommandsResponse = OperationResponse<"getSessionCommands", 200>;
+export type SessionCommandPayload = SessionCommandsResponse["commands"][number];
 export type SessionTranscriptEntry = SessionTranscriptResponse["entries"][number];
 export type SessionTranscriptQuery = OperationQuery<"getSessionTranscript">;
 export type SessionStreamResponse = OperationResponse<"streamSession", 200>;

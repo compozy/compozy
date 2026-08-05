@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	commandpkg "github.com/compozy/compozy/internal/command"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 )
@@ -172,6 +173,21 @@ func TestUnmarshalAgentEventRoundTripPreservesStructuredFieldsWithoutRaw(t *test
 	t.Run("Should round-trip structured fields without restoring canonical raw payloads", func(t *testing.T) {
 		t.Parallel()
 
+		wantInvocations := []commandpkg.Invocation{{
+			Ref: commandpkg.SkillRef{
+				CommandID: "skill:extension:ops-4f1:review",
+				Name:      "review",
+				Source: commandpkg.Source{
+					Kind:  "extension",
+					ID:    "ops",
+					Key:   "ops",
+					Scope: "workspace",
+				},
+			},
+			Token: "/ops:review",
+			Start: 7,
+			End:   18,
+		}}
 		event := (acp.AgentEvent{
 			Type:             acp.EventTypeAgentMessage,
 			SessionID:        "acp-1",
@@ -187,7 +203,7 @@ func TestUnmarshalAgentEventRoundTripPreservesStructuredFieldsWithoutRaw(t *test
 				{Name: "review", Description: "Review changes"},
 			}),
 			Raw: json.RawMessage(`{"chunk":1}`),
-		}).WithPromptRuntime(&acp.PromptRuntime{
+		}).WithSkillInvocations(wantInvocations).WithPromptRuntime(&acp.PromptRuntime{
 			Provider:        "codex",
 			Model:           "gpt-5.6",
 			ReasoningEffort: "high",
@@ -233,6 +249,9 @@ func TestUnmarshalAgentEventRoundTripPreservesStructuredFieldsWithoutRaw(t *test
 			{Name: "review", Description: "Review changes"},
 		}; !slices.EqualFunc(got, want, store.SessionAdvertisedCommandsEqual) {
 			t.Fatalf("AvailableCommands = %#v, want %#v", got, want)
+		}
+		if !slices.Equal(event.SkillInvocations(), wantInvocations) {
+			t.Fatalf("SkillInvocations = %#v, want %#v", event.SkillInvocations(), wantInvocations)
 		}
 		if len(event.Raw) != 0 {
 			t.Fatalf("Raw = %s, want empty canonical raw payload", string(event.Raw))

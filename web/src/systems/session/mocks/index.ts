@@ -17,6 +17,7 @@ export {
   sessionRuntime,
   searchToolMessageFixture,
   sessionApprovalFixture,
+  sessionCommandCatalogFixture,
   sessionEventsFixture,
   sessionFixtures,
   sessionHistoryFixture,

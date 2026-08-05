@@ -46,16 +46,12 @@ import {
   parseSessionStreamPayload,
   terminalFailureMessage,
 } from "./session-live-tail-helpers";
-
-interface SessionStreamEventSource {
-  addEventListener: (type: string, listener: EventListenerOrEventListenerObject) => void;
-  removeEventListener?: (type: string, listener: EventListenerOrEventListenerObject) => void;
-  close: () => void;
-  onmessage: ((event: MessageEvent) => void) | null;
-  onerror: ((event: Event) => void) | null;
-}
-
-type SessionStreamEventSourceFactory = (url: string) => SessionStreamEventSource;
+import {
+  attachSessionStreamSource,
+  defaultEventSourceFactory,
+  type SessionStreamEventSource,
+  type SessionStreamEventSourceFactory,
+} from "./session-stream-source";
 
 interface UseSessionLiveTailOptions {
   workspaceId: string;
@@ -65,52 +61,10 @@ interface UseSessionLiveTailOptions {
   resetGeneration?: number;
 }
 
-const TRANSCRIPT_SNAPSHOT_EVENT = "transcript_snapshot";
-const TRANSCRIPT_DELTA_EVENT = "transcript_delta";
-const GOAL_SNAPSHOT_CHANGED_EVENT = "goal_snapshot_changed";
-const SESSION_STOPPED_EVENT = "session_stopped";
-const SESSION_DONE_EVENT = "done";
-const STREAM_ERROR_EVENT = "error";
 const RECONNECT_BASE_DELAY_MS = 250;
 const RECONNECT_MAX_DELAY_MS = 4_000;
 const TRANSCRIPT_ERROR_RECOVERY_DELAY_MS = 5_000;
 type TranscriptApplyFrame = "snapshot" | "delta";
-
-function defaultEventSourceFactory(url: string): SessionStreamEventSource {
-  return new EventSource(url);
-}
-
-interface SessionStreamListeners {
-  delta: EventListener;
-  error: EventListener;
-  goalSnapshot: EventListener;
-  snapshot: EventListener;
-  terminal: EventListener;
-}
-
-function attachSessionStreamSource(
-  source: SessionStreamEventSource,
-  handleError: (event: Event) => void,
-  listeners: SessionStreamListeners
-): () => void {
-  source.onmessage = null;
-  source.onerror = handleError;
-  source.addEventListener(TRANSCRIPT_SNAPSHOT_EVENT, listeners.snapshot);
-  source.addEventListener(TRANSCRIPT_DELTA_EVENT, listeners.delta);
-  source.addEventListener(GOAL_SNAPSHOT_CHANGED_EVENT, listeners.goalSnapshot);
-  source.addEventListener(SESSION_STOPPED_EVENT, listeners.terminal);
-  source.addEventListener(SESSION_DONE_EVENT, listeners.terminal);
-  source.addEventListener(STREAM_ERROR_EVENT, listeners.error);
-  return () => {
-    if (!source.removeEventListener) return;
-    source.removeEventListener(TRANSCRIPT_SNAPSHOT_EVENT, listeners.snapshot);
-    source.removeEventListener(TRANSCRIPT_DELTA_EVENT, listeners.delta);
-    source.removeEventListener(GOAL_SNAPSHOT_CHANGED_EVENT, listeners.goalSnapshot);
-    source.removeEventListener(SESSION_STOPPED_EVENT, listeners.terminal);
-    source.removeEventListener(SESSION_DONE_EVENT, listeners.terminal);
-    source.removeEventListener(STREAM_ERROR_EVENT, listeners.error);
-  };
-}
 
 async function normalizeEntries(
   entries: TranscriptSnapshotPayload["entries"] | TranscriptDeltaPayload["entries"]
@@ -412,6 +366,13 @@ export function useSessionLiveTail({
         exact: true,
       });
     };
+    const handleCommandsChanged = () => {
+      reconnectAttempt = 0;
+      void queryClient.invalidateQueries({
+        queryKey: sessionKeys.commands(workspaceId, sessionId),
+        exact: true,
+      });
+    };
     const handleError = () => {
       scheduleSurfaceRefresh();
       scheduleReconnect();
@@ -420,8 +381,8 @@ export function useSessionLiveTail({
     const snapshotListener = applySnapshot as EventListener;
     const deltaListener = applyDelta as EventListener;
     const goalSnapshotListener = handleGoalSnapshotChanged as EventListener;
+    const commandsChangedListener = handleCommandsChanged as EventListener;
     const terminalListener = handleTerminalEvent as EventListener;
-    const streamErrorListener = handleError as EventListener;
 
     function openSource() {
       if (disposed) return;
@@ -434,8 +395,8 @@ export function useSessionLiveTail({
         workspace_id: workspaceId,
       });
       detachSourceListeners = attachSessionStreamSource(nextSource, handleError, {
+        commandsChanged: commandsChangedListener,
         delta: deltaListener,
-        error: streamErrorListener,
         goalSnapshot: goalSnapshotListener,
         snapshot: snapshotListener,
         terminal: terminalListener,
@@ -489,4 +450,7 @@ export function useSessionLiveTail({
   };
 }
 
-export type { SessionStreamEventSource, SessionStreamEventSourceFactory };
+export type {
+  SessionStreamEventSource,
+  SessionStreamEventSourceFactory,
+} from "./session-stream-source";

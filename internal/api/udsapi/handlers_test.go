@@ -202,6 +202,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"GET /api/workspaces/:workspace_id/sessions/:session_id",
 			"GET /api/workspaces/:workspace_id/sessions/:session_id/clarifications",
 			"GET /api/workspaces/:workspace_id/sessions/:session_id/events",
+			"GET /api/workspaces/:workspace_id/sessions/:session_id/commands",
 			"GET /api/workspaces/:workspace_id/sessions/:session_id/goal",
 			"GET /api/workspaces/:workspace_id/sessions/:session_id/health",
 			"GET /api/workspaces/:workspace_id/sessions/:session_id/history",
@@ -2044,7 +2045,7 @@ func TestPromptSessionHandlerReturnsStructuredGoalDecision(t *testing.T) {
 		if got := recorder.Header().Get("Content-Type"); got != "application/json; charset=utf-8" {
 			t.Fatalf("Content-Type = %q", got)
 		}
-		if !gotOpts.AllowGoalCommands || gotOpts.Caller.Kind != string(taskpkg.ActorKindHuman) ||
+		if !gotOpts.AllowCommands || gotOpts.Caller.Kind != string(taskpkg.ActorKindHuman) ||
 			gotOpts.Caller.ID != "local-user" || gotOpts.Caller.Source != string(taskpkg.OriginKindUDS) {
 			t.Fatalf("SendPrompt() authenticated opts = %#v", gotOpts)
 		}

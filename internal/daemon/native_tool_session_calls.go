@@ -2,17 +2,13 @@ package daemon
 
 import (
 	"context"
-
 	"errors"
 	"fmt"
-
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
-
 	"github.com/compozy/compozy/internal/heartbeat"
-
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -43,6 +39,52 @@ func (n *daemonNativeTools) sessionStatus(
 	}
 	payload := core.SessionPayloadFromInfo(info)
 	return structuredResult(map[string]any{nativeToolsSessionKey: payload}, payload.ID)
+}
+
+func (n *daemonNativeTools) commandList(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	var input sessionIDInput
+	if err := decodeNativeInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	sessionID, err := requiredNativeString(req.ToolID, "session_id", input.SessionID)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	resolved, err := n.nativeResolvedWorkspace(ctx, req.ToolID, input.WorkspaceID, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	workspaceID, err := nativeResolvedRegistryWorkspaceID(&resolved)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+	}
+	if _, err := n.nativeSessionInWorkspace(ctx, req.ToolID, workspaceID, sessionID); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	manager, ok := n.deps.Sessions.(core.SessionCommandCatalogManager)
+	if !ok {
+		return toolspkg.ToolResult{}, nativeCommandDependencyError(
+			req.ToolID,
+			"session command catalog is unavailable",
+		)
+	}
+	catalog, err := manager.CommandCatalog(ctx, sessionID)
+	if err != nil {
+		return toolspkg.ToolResult{}, fmt.Errorf(
+			"daemon: list commands for session %q: %w",
+			sessionID,
+			err,
+		)
+	}
+	payload := core.SessionCommandsResponseFromCatalog(catalog)
+	return structuredResult(map[string]any{
+		"commands": payload.Commands,
+		"revision": payload.Revision,
+	}, fmt.Sprintf("%d commands", len(payload.Commands)))
 }
 
 func (n *daemonNativeTools) sessionHealth(

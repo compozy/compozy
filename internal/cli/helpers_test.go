@@ -136,6 +136,7 @@ type stubClient struct {
 	registerBridgeWebhookFn      func(context.Context, string) (BridgeWebhookRegistrationRecord, error)
 	listSessionsFn               func(context.Context, SessionListQuery) ([]SessionRecord, error)
 	listSessionPageFn            func(context.Context, SessionListQuery) (SessionListPage, error)
+	listSessionCommandsFn        func(context.Context, string) (SessionCommandsRecord, error)
 	createSessionFn              func(context.Context, CreateSessionRequest) (SessionRecord, error)
 	getSessionFn                 func(context.Context, string) (SessionRecord, error)
 	getSessionHealthFn           func(context.Context, string) (SessionHealthRecord, error)
@@ -1488,6 +1489,16 @@ func (s *stubClient) ListSessions(
 		}, err
 	}
 	return SessionListPage{}, errors.New("unexpected ListSessions call")
+}
+
+func (s *stubClient) ListSessionCommands(
+	ctx context.Context,
+	id string,
+) (SessionCommandsRecord, error) {
+	if s.listSessionCommandsFn != nil {
+		return s.listSessionCommandsFn(ctx, id)
+	}
+	return SessionCommandsRecord{}, errors.New("unexpected ListSessionCommands call")
 }
 
 func (s *stubClient) CreateSession(

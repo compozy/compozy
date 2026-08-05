@@ -428,6 +428,7 @@ func sensitiveFieldName(key string, configured []string) bool {
 
 func publicDiagnosticFieldName(normalized string) bool {
 	return normalized == "token_present" ||
+		normalized == "canonical_token" ||
 		normalized == "max_input_tokens" ||
 		normalized == "max_output_tokens"
 }

@@ -42,6 +42,7 @@ type skillSearchInput struct {
 
 type skillViewInput struct {
 	Name        string `json:"name"`
+	CommandID   string `json:"command_id,omitempty"`
 	WorkspaceID string `json:"workspace,omitempty"`
 	File        string `json:"file,omitempty"`
 }

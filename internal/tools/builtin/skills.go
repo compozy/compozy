@@ -81,11 +81,15 @@ const skillSearchInputSchema = `{
 
 const skillViewInputSchema = `{
 	"type":"object",
-	"required":["name"],
 	"properties":{
-		"name":{"type":"string"},
+		"name":{"type":"string","description":"Skill name. Provide exactly one of name or command_id."},
+		"command_id":{
+			"type":"string",
+			"description":"Source-qualified session command id. Provide exactly one of command_id or name."
+		},
 		"workspace":{"type":"string"},
 		"file":{"type":"string"}
 	},
+	"not":{"required":["name","command_id"]},
 	"additionalProperties":false
 }`

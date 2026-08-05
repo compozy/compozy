@@ -42,12 +42,19 @@ func (h *BaseHandlers) HandleReplaceSessionInput(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
+	caller, err := h.PromptCallerForWorkspace(c, c.Param("workspace_id"))
+	if err != nil {
+		h.respondError(c, http.StatusForbidden, err)
+		return
+	}
 	input, err := h.Sessions.ReplacePendingInput(
 		c.Request.Context(),
 		sessionID,
 		entryID,
 		session.ReplacePendingInputOpts{
 			Text: request.Text, MessageID: request.MessageID, IdempotencyKey: request.IdempotencyKey,
+			AllowCommands: true,
+			Caller:        caller,
 		},
 	)
 	if err != nil {
@@ -72,13 +79,18 @@ func (h *BaseHandlers) HandlePromoteSessionInput(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
+	caller, err := h.PromptCallerForWorkspace(c, c.Param("workspace_id"))
+	if err != nil {
+		h.respondError(c, http.StatusForbidden, err)
+		return
+	}
 	result, err := h.Sessions.PromotePendingInputToSteer(
 		c.Request.Context(),
 		sessionID,
 		entryID,
 		session.PromotePendingInputOpts{
 			Text: request.Text, MessageID: request.MessageID, IdempotencyKey: request.IdempotencyKey,
-			ExpectedTurnID: request.ExpectedTurnID,
+			ExpectedTurnID: request.ExpectedTurnID, AllowCommands: true, Caller: caller,
 		},
 	)
 	if err != nil {
@@ -99,6 +111,16 @@ func SessionInputPayloadFromSession(input session.PendingInput) contract.Session
 	}
 	if input.Runtime != nil {
 		payload.Runtime = contract.PromptRuntimeSelectionPayloadFromSelection(input.Runtime)
+	}
+	for _, invocation := range input.SkillInvocations {
+		payload.SkillInvocations = append(payload.SkillInvocations, contract.SessionSkillInvocationPayload{
+			CommandID: invocation.Ref.CommandID, Token: invocation.Token, Name: invocation.Ref.Name,
+			Source: contract.SessionCommandSource{
+				Kind: invocation.Ref.Source.Kind, ID: invocation.Ref.Source.ID,
+				Key: invocation.Ref.Source.Key, Scope: invocation.Ref.Source.Scope,
+			},
+			Start: invocation.Start, End: invocation.End,
+		})
 	}
 	return payload
 }

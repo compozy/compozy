@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	commandpkg "github.com/compozy/compozy/internal/command"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/network/participation"
 	speedpkg "github.com/compozy/compozy/internal/speed"
@@ -151,15 +152,16 @@ type Session struct {
 	recorder   EventRecorder
 	process    *AgentProcess
 
-	sandboxDestroyOnStop bool
-	promptSetupCount     int
-	promptSetupDone      chan struct{}
-	currentTurnID        string
-	currentTurnSource    TurnSource
-	currentPromptMessage string
-	currentPromptMeta    acp.PromptMeta
-	currentPromptCancel  context.CancelFunc
-	providerRedactions   []func()
+	sandboxDestroyOnStop    bool
+	promptSetupCount        int
+	promptSetupDone         chan struct{}
+	currentTurnID           string
+	currentTurnSource       TurnSource
+	currentPromptMessage    string
+	currentPromptMeta       acp.PromptMeta
+	currentSkillInvocations []commandpkg.Invocation
+	currentPromptCancel     context.CancelFunc
+	providerRedactions      []func()
 }
 
 func (s *Session) processHandle() *AgentProcess {

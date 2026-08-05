@@ -318,6 +318,9 @@ func TestDaemonE2EAutomationTaskBackedJobDelegatesTaskRun(t *testing.T) {
 	if strings.TrimSpace(startedRun.SessionID) == "" {
 		t.Fatal("startedRun.SessionID = empty, want linked task session")
 	}
+	if got, want := startedRun.SessionID, worker.ID; got != want {
+		t.Fatalf("startedRun.SessionID = %q, want claiming worker session %q", got, want)
+	}
 
 	registerAutomationTaskArtifacts(t, harness, job.ID, run.TaskID, startedRun.SessionID, registration)
 
@@ -333,7 +336,7 @@ func TestDaemonE2EAutomationTaskBackedJobDelegatesTaskRun(t *testing.T) {
 	}
 
 	taskMeta := mustReadSessionMeta(t, harness, startedRun.SessionID)
-	if got, want := taskMeta.SessionType, string(sessionpkg.SessionTypeSystem); got != want {
+	if got, want := taskMeta.SessionType, string(sessionpkg.SessionTypeUser); got != want {
 		t.Fatalf("task session meta type = %q, want %q", got, want)
 	}
 	if got, want := taskMeta.AgentName, automationTaskFixtureAgentName; got != want {

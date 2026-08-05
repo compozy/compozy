@@ -173,7 +173,7 @@ func (q *Queries) GetQueuedSessionPromptAdmissionState(ctx context.Context, arg 
 }
 
 const getSessionPromptAdmissionByIdempotencyKey = `-- name: GetSessionPromptAdmissionByIdempotencyKey :one
-SELECT id, workspace_id, session_id, message_id, idempotency_key, operation, fingerprint_version, request_fingerprint, state, mode, authored_text, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, turn_id, event_id, result_json, indeterminate_reason, created_at, dispatch_committed_at, completed_at, updated_at FROM session_prompt_admissions
+SELECT id, workspace_id, session_id, message_id, idempotency_key, operation, fingerprint_version, request_fingerprint, state, mode, authored_text, skill_invocations_json, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, turn_id, event_id, result_json, indeterminate_reason, created_at, dispatch_committed_at, completed_at, updated_at FROM session_prompt_admissions
 WHERE workspace_id = ?1
   AND session_id = ?2
   AND idempotency_key = ?3
@@ -200,6 +200,7 @@ func (q *Queries) GetSessionPromptAdmissionByIdempotencyKey(ctx context.Context,
 		&i.State,
 		&i.Mode,
 		&i.AuthoredText,
+		&i.SkillInvocationsJson,
 		&i.RuntimeProvider,
 		&i.RuntimeModel,
 		&i.RuntimeReasoningEffort,
@@ -217,7 +218,7 @@ func (q *Queries) GetSessionPromptAdmissionByIdempotencyKey(ctx context.Context,
 }
 
 const getSessionPromptAdmissionByMessageID = `-- name: GetSessionPromptAdmissionByMessageID :one
-SELECT id, workspace_id, session_id, message_id, idempotency_key, operation, fingerprint_version, request_fingerprint, state, mode, authored_text, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, turn_id, event_id, result_json, indeterminate_reason, created_at, dispatch_committed_at, completed_at, updated_at FROM session_prompt_admissions
+SELECT id, workspace_id, session_id, message_id, idempotency_key, operation, fingerprint_version, request_fingerprint, state, mode, authored_text, skill_invocations_json, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, turn_id, event_id, result_json, indeterminate_reason, created_at, dispatch_committed_at, completed_at, updated_at FROM session_prompt_admissions
 WHERE workspace_id = ?1
   AND session_id = ?2
   AND message_id = ?3
@@ -244,6 +245,7 @@ func (q *Queries) GetSessionPromptAdmissionByMessageID(ctx context.Context, arg 
 		&i.State,
 		&i.Mode,
 		&i.AuthoredText,
+		&i.SkillInvocationsJson,
 		&i.RuntimeProvider,
 		&i.RuntimeModel,
 		&i.RuntimeReasoningEffort,
@@ -264,15 +266,17 @@ const insertSessionPromptAdmission = `-- name: InsertSessionPromptAdmission :exe
 INSERT INTO session_prompt_admissions (
   id, workspace_id, session_id, message_id, idempotency_key, operation,
   fingerprint_version, request_fingerprint, state, mode, authored_text,
+	 skill_invocations_json,
   runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed,
   turn_id, event_id, created_at, updated_at
 ) VALUES (
   ?1, ?2, ?3, ?4,
   ?5, ?6, ?7,
   ?8, ?9, ?10, ?11,
-  ?12, ?13, ?14,
-  ?15, ?16, ?17,
-  ?18, ?19
+	 ?12,
+  ?13, ?14, ?15,
+  ?16, ?17, ?18,
+  ?19, ?20
 )
 `
 
@@ -288,6 +292,7 @@ type InsertSessionPromptAdmissionParams struct {
 	State                  string `json:"state"`
 	Mode                   string `json:"mode"`
 	AuthoredText           string `json:"authored_text"`
+	SkillInvocationsJson   string `json:"skill_invocations_json"`
 	RuntimeProvider        string `json:"runtime_provider"`
 	RuntimeModel           string `json:"runtime_model"`
 	RuntimeReasoningEffort string `json:"runtime_reasoning_effort"`
@@ -311,6 +316,7 @@ func (q *Queries) InsertSessionPromptAdmission(ctx context.Context, arg InsertSe
 		arg.State,
 		arg.Mode,
 		arg.AuthoredText,
+		arg.SkillInvocationsJson,
 		arg.RuntimeProvider,
 		arg.RuntimeModel,
 		arg.RuntimeReasoningEffort,

@@ -1,4 +1,4 @@
-import { primarySessionFixture } from "@/systems/session/mocks";
+import { primarySessionFixture, sessionCommandCatalogFixture } from "@/systems/session/mocks";
 import { type ComponentProps, type ReactNode, useEffect } from "react";
 import { sessionStore } from "@/systems/session/stores/session-store";
 import type { Meta, StoryObj } from "@storybook/react-vite";
@@ -9,7 +9,7 @@ import { compozyApiMock } from "@/storybook/openapi-msw";
 import { HttpResponse } from "msw";
 import { SessionChatRuntimeProvider } from "@/systems/session/components/session-chat-runtime-provider";
 import { SessionTranscriptThreadProvider } from "@/systems/session/lib/session-transcript-thread-context";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import {
   changedFilesTranscript,
@@ -64,7 +64,7 @@ const meta: Meta<typeof SessionThread> = {
     docs: {
       description: {
         component:
-          "Shell wrapping `@assistant-ui/react` ThreadPrimitive + ComposerPrimitive. The composer input box is raised onto `--elevated` with a `--line-strong` ring so it reads distinctly against the `--canvas-soft` shell; focus-within shifts the ring to `--accent`. Idle shows an `--accent` send disc (`--accent-ink` glyph, never raw white); while a turn runs the primary disc becomes a `--danger` Stop, Enter queues the draft (with a visible hint), and queued prompts fuse onto the composer top as steer/edit/remove rows. Clear-conversation lives in the topbar, not the composer.",
+          "Shell wrapping `@assistant-ui/react` ThreadPrimitive + ComposerPrimitive. The composer input box is raised onto `--elevated` with a `--line-strong` ring so it reads distinctly against the `--canvas-soft` shell; focus-within shifts the ring to `--accent`. The native slash trigger inserts canonical tokens without sending: leading prompts offer the catalog sections and inline prompts offer skills. Idle shows an `--accent` send disc (`--accent-ink` glyph, never raw white); while a turn runs the primary disc becomes a `--danger` Stop, Enter queues the draft (with a visible hint), and queued prompts fuse onto the composer top as steer/edit/remove rows. Clear-conversation lives in the topbar, not the composer.",
       },
     },
   },
@@ -137,6 +137,42 @@ export const TranscriptError: Story = {
  */
 export const Empty: Story = {
   args: baseArgs,
+};
+
+/**
+ * Slash catalog — type `/` to browse built-in, agent, and skill sections; add
+ * prompt text before `/` to see the inline skills-only projection.
+ */
+export const SlashCommandCatalog: Story = {
+  args: {
+    ...baseArgs,
+    commandCatalog: sessionCommandCatalogFixture,
+  },
+  parameters: {
+    ...storybookMswParameters({
+      session: [
+        compozyApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}", () =>
+          HttpResponse.json({
+            session: { ...primarySessionFixture, state: "stopped" },
+          })
+        ),
+        compozyApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}/transcript", () =>
+          HttpResponse.json(transcriptPayload([]))
+        ),
+      ],
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const input = await canvas.findByLabelText("Session prompt");
+    // Retype per attempt: the trigger only opens once the composer's cursor
+    // plugin has registered, which can land after the first keystroke.
+    await waitFor(async () => {
+      await userEvent.clear(input);
+      await userEvent.type(input, "/");
+      await expect(canvas.getByLabelText("Session commands")).toBeVisible();
+    });
+  },
 };
 
 /**

@@ -45,7 +45,7 @@ func skillSourceName(source SkillSource) string {
 	case SourceAgentLocal:
 		return registryAgentLocalValue
 	default:
-		return "unknown"
+		return skillSourceUnknownName
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -19,6 +20,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
+	commandpkg "github.com/compozy/compozy/internal/command"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/heartbeat"
@@ -32,7 +34,106 @@ import (
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/transcript"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/gin-gonic/gin"
 )
+
+type sessionCommandCatalogManagerStub struct {
+	testutil.StubSessionManager
+	catalog commandpkg.Catalog
+	calls   *atomic.Int32
+}
+
+func (s sessionCommandCatalogManagerStub) CommandCatalog(
+	ctx context.Context,
+	id string,
+) (commandpkg.Catalog, error) {
+	if err := ctx.Err(); err != nil {
+		return commandpkg.Catalog{}, err
+	}
+	if id != "sess-command" {
+		return commandpkg.Catalog{}, fmt.Errorf("command catalog session = %q", id)
+	}
+	if s.calls != nil {
+		s.calls.Add(1)
+	}
+	return s.catalog, nil
+}
+
+func TestBaseHandlersSessionCommandsUseWorkspaceFenceAndUnifiedCatalog(t *testing.T) {
+	t.Parallel()
+	t.Run("Should return a workspace-fenced command catalog", func(t *testing.T) {
+		t.Parallel()
+
+		catalog, err := commandpkg.BuildCatalog(
+			commandpkg.DefaultBuiltins(),
+			[]commandpkg.AgentSpec{{Name: "compact", Description: "Compact context", SourceID: "coder"}},
+			[]commandpkg.SkillSpec{{
+				Name: "review", Description: "Review carefully", Available: true,
+				Source: commandpkg.Source{Kind: "workspace", Scope: "workspace"},
+			}},
+		)
+		if err != nil {
+			t.Fatalf("BuildCatalog() error = %v", err)
+		}
+		var calls atomic.Int32
+		manager := sessionCommandCatalogManagerStub{
+			StubSessionManager: testutil.StubSessionManager{
+				StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+					return &session.Info{ID: id, WorkspaceID: "ws-command", AgentName: "coder"}, nil
+				},
+			},
+			catalog: catalog,
+			calls:   &calls,
+		}
+		workspaces := testutil.StubWorkspaceService{
+			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+				return workspacepkg.ResolvedWorkspace{
+					Workspace:   workspacepkg.Workspace{ID: ref, Name: ref},
+					WorkspaceID: ref,
+				}, nil
+			},
+		}
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+			TransportName: "api-core-test", Sessions: manager, Workspaces: workspaces,
+			Logger: testutil.DiscardLogger(),
+		})
+		engine := gin.New()
+		engine.GET("/workspaces/:workspace_id/sessions/:session_id/commands", handlers.GetSessionCommands)
+
+		response := performRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/workspaces/ws-command/sessions/sess-command/commands",
+			nil,
+		)
+		if response.Code != http.StatusOK {
+			t.Fatalf("commands status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body.String())
+		}
+		var payload contract.SessionCommandsResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(commands) error = %v", err)
+		}
+		if payload.Revision != catalog.Revision || len(payload.Commands) != 3 ||
+			payload.Commands[2].CanonicalToken != "/review" || payload.Commands[2].Source.Key != "" {
+			t.Fatalf("commands payload = %#v, want unified path-free catalog", payload)
+		}
+
+		wrongWorkspace := performRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/workspaces/ws-other/sessions/sess-command/commands",
+			nil,
+		)
+		if wrongWorkspace.Code != http.StatusNotFound {
+			t.Fatalf("wrong-workspace status = %d, want %d", wrongWorkspace.Code, http.StatusNotFound)
+		}
+		if got, want := calls.Load(), int32(1); got != want {
+			t.Fatalf("CommandCatalog() calls = %d, want %d after workspace fence", got, want)
+		}
+	})
+}
 
 func TestBaseHandlersSessionEndpoints(t *testing.T) {
 	t.Parallel()

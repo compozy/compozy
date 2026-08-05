@@ -2,13 +2,11 @@ package daemon
 
 import (
 	"context"
-
 	"fmt"
-
 	"strings"
 
 	core "github.com/compozy/compozy/internal/api/core"
-
+	skillspkg "github.com/compozy/compozy/internal/skills"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -123,7 +121,7 @@ func (n *daemonNativeTools) skillView(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	skill, err := n.resolveSkill(ctx, scope, input.WorkspaceID, input.Name)
+	skill, err := n.resolveSkillViewTarget(ctx, scope, input)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -141,6 +139,10 @@ func (n *daemonNativeTools) skillView(
 		"skill":   core.SkillPayloadFromSkill(skill),
 		"content": content,
 	}
+	if commandID := strings.TrimSpace(input.CommandID); commandID != "" {
+		payload["command_id"] = commandID
+		payload["skill"] = sourceQualifiedSkillViewPayload(skill)
+	}
 	if file != "" {
 		payload["file"] = file
 	}
@@ -150,4 +152,90 @@ func (n *daemonNativeTools) skillView(
 	}
 	result.Content = []toolspkg.ToolContent{{Type: nativeToolsTextKey, Text: content}}
 	return result, nil
+}
+
+func sourceQualifiedSkillViewPayload(skill *skillspkg.Skill) map[string]any {
+	if skill == nil {
+		return map[string]any{}
+	}
+	source := skillspkg.CommandSourceForSkill(skill)
+	return map[string]any{
+		bootNameKey:   skill.Meta.Name,
+		"description": skill.Meta.Description,
+		"version":     skill.Meta.Version,
+		bootSourceKey: source,
+		"enabled":     skill.Enabled,
+	}
+}
+
+func (n *daemonNativeTools) resolveSkillViewTarget(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	input skillViewInput,
+) (*skillspkg.Skill, error) {
+	commandID := strings.TrimSpace(input.CommandID)
+	name := strings.TrimSpace(input.Name)
+	if (commandID == "") == (name == "") {
+		return nil, nativeCommandInvalidInputError(
+			toolspkg.ToolIDSkillView,
+			"exactly one of skill name or command_id is required",
+		)
+	}
+	if commandID == "" {
+		return n.resolveSkill(ctx, scope, input.WorkspaceID, name)
+	}
+	sessionID := strings.TrimSpace(scope.SessionID)
+	if sessionID == "" {
+		return nil, nativeCommandInvalidInputError(
+			toolspkg.ToolIDSkillView,
+			"command_id skill view requires a session-scoped caller",
+		)
+	}
+	resolved, err := n.nativeResolvedWorkspace(ctx, toolspkg.ToolIDSkillView, input.WorkspaceID, scope)
+	if err != nil {
+		return nil, err
+	}
+	workspaceID, err := nativeResolvedRegistryWorkspaceID(&resolved)
+	if err != nil {
+		return nil, nativeNetworkInputError(toolspkg.ToolIDSkillView, err)
+	}
+	info, err := n.nativeSessionInWorkspace(ctx, toolspkg.ToolIDSkillView, workspaceID, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	agent, ok, err := n.sessionAgentDefinition(sessionID)
+	if err != nil {
+		return nil, nativeCommandDependencyError(
+			toolspkg.ToolIDSkillView,
+			err.Error(),
+		)
+	}
+	if !ok {
+		return nil, nativeCommandDependencyError(
+			toolspkg.ToolIDSkillView,
+			"command_id skill view requires a concrete session agent",
+		)
+	}
+	registry, ok := n.deps.Skills.(sessionCommandSkills)
+	if !ok {
+		return nil, nativeCommandDependencyError(
+			toolspkg.ToolIDSkillView,
+			"source-qualified skill registry is unavailable",
+		)
+	}
+	service := newSessionCommandService(registry, func() promptSkillsWorkspaceResolver {
+		return n.deps.WorkspaceResolver
+	})
+	_, byCommandID, err := service.project(ctx, info, agent)
+	if err != nil {
+		return nil, err
+	}
+	skill := byCommandID[commandID]
+	if skill == nil {
+		return nil, nativeCommandNotFoundError(
+			toolspkg.ToolIDSkillView,
+			fmt.Sprintf("skill command %q not found", commandID),
+		)
+	}
+	return skill, nil
 }

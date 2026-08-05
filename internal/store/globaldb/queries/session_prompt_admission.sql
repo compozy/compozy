@@ -14,12 +14,14 @@ WHERE workspace_id = sqlc.arg(workspace_id)
 INSERT INTO session_prompt_admissions (
   id, workspace_id, session_id, message_id, idempotency_key, operation,
   fingerprint_version, request_fingerprint, state, mode, authored_text,
+	 skill_invocations_json,
   runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed,
   turn_id, event_id, created_at, updated_at
 ) VALUES (
   sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(session_id), sqlc.arg(message_id),
   sqlc.arg(idempotency_key), sqlc.arg(operation), sqlc.arg(fingerprint_version),
   sqlc.arg(request_fingerprint), sqlc.arg(state), sqlc.arg(mode), sqlc.arg(authored_text),
+	 sqlc.arg(skill_invocations_json),
   sqlc.arg(runtime_provider), sqlc.arg(runtime_model), sqlc.arg(runtime_reasoning_effort),
   sqlc.arg(runtime_speed), sqlc.arg(turn_id), sqlc.arg(event_id),
   sqlc.arg(created_at), sqlc.arg(updated_at)

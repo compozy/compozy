@@ -1,5 +1,5 @@
 import { StrictMode, useEffect, useState, type ComponentProps } from "react";
-import type { ThreadMessage } from "@assistant-ui/react";
+import { useAui, type ThreadMessage } from "@assistant-ui/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -293,12 +293,11 @@ describe("SessionThread transcript states", () => {
     expect(pane).toHaveAttribute("role", "status");
     expect(pane).toHaveTextContent("The session is saved");
     expect(screen.queryByTestId("thread-transcript-skeleton")).not.toBeInTheDocument();
-    expect(screen.getByTestId("composer-textarea")).toBeDisabled();
+    // The Lexical composer is inerted (not focusable, not editable) instead of
+    // carrying a `disabled` attribute, and renders its placeholder as visible text.
+    expect(screen.getByTestId("composer-input")).toHaveAttribute("inert");
     expect(screen.getByTestId("composer-send-button")).toBeDisabled();
-    expect(screen.getByTestId("composer-textarea")).toHaveAttribute(
-      "placeholder",
-      "Session is starting…"
-    );
+    expect(screen.getByTestId("composer-input")).toHaveTextContent("Session is starting…");
   });
 
   it("Should surface durable startup failure and link to the agent runtime settings", async () => {
@@ -317,12 +316,9 @@ describe("SessionThread transcript states", () => {
     expect(pane).toHaveTextContent("The configured model is unavailable.");
     expect(within(pane).getByRole("button", { name: "Review agent runtime" })).toBeInTheDocument();
     expect(screen.queryByTestId("thread-transcript-error")).not.toBeInTheDocument();
-    expect(screen.getByTestId("composer-textarea")).toBeDisabled();
+    expect(screen.getByTestId("composer-input")).toHaveAttribute("inert");
     expect(screen.getByTestId("composer-send-button")).toBeDisabled();
-    expect(screen.getByTestId("composer-textarea")).toHaveAttribute(
-      "placeholder",
-      "Session failed to start"
-    );
+    expect(screen.getByTestId("composer-input")).toHaveTextContent("Session failed to start");
   });
 
   it("Should surface a preactivation process failure without an unrelated runtime action", async () => {
@@ -339,7 +335,7 @@ describe("SessionThread transcript states", () => {
     const pane = await screen.findByTestId("thread-session-startup-failure");
     expect(pane).toHaveTextContent("The provider process exited before activation.");
     expect(within(pane).queryByRole("button", { name: "Review agent runtime" })).toBeNull();
-    expect(screen.getByTestId("composer-textarea")).toBeDisabled();
+    expect(screen.getByTestId("composer-input")).toHaveAttribute("inert");
   });
 
   it("Should keep post-activation failures in the transcript lifecycle", async () => {
@@ -399,6 +395,112 @@ describe("SessionThread transcript states", () => {
     const rewind = await screen.findByRole("button", { name: "Rewind to here" });
     await waitFor(() => expect(rewind).toBeEnabled());
     expect(screen.getAllByTestId("user-message-rewind")).toHaveLength(1);
+  });
+
+  it("Should render verified skill invocation tokens from persisted user-message metadata", async () => {
+    const transcript = [
+      {
+        id: "user-skill-invocation",
+        role: "user",
+        content: "Review /frontend-qa before the release.",
+        metadata: {
+          skill_invocations: [
+            {
+              command_id: "skill:workspace:frontend-qa:sha256:abc123",
+              token: "/frontend-qa",
+              label: "Frontend QA",
+              source: "workspace",
+              start: 7,
+              end: 19,
+            },
+          ],
+        },
+        parts: [
+          {
+            type: "text",
+            text: "Review /frontend-qa before the release.",
+            state: "done",
+          },
+        ],
+      } as SessionMessage,
+    ];
+
+    renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
+
+    const directive = await screen.findByTestId("session-skill-directive");
+    expect(directive).toHaveAttribute("data-raw-token", "/frontend-qa");
+    expect(directive).toHaveAttribute(
+      "data-command-id",
+      "skill:workspace:frontend-qa:sha256:abc123"
+    );
+    expect(directive).toHaveTextContent("/frontend-qa");
+    expect(screen.getByTestId("user-message-bubble")).toHaveTextContent(
+      "Review /frontend-qa before the release."
+    );
+  });
+
+  it("Should render only the server-admitted skill occurrence", async () => {
+    const transcript = [
+      {
+        id: "user-repeated-skill-invocation",
+        role: "user",
+        content: "/review then /review",
+        metadata: {
+          skill_invocations: [
+            {
+              command_id: "skill:workspace:review:sha256:def456",
+              token: "/review",
+              label: "Review",
+              source: "workspace",
+              start: 13,
+              end: 20,
+            },
+          ],
+        },
+        parts: [{ type: "text", text: "/review then /review", state: "done" }],
+      } as SessionMessage,
+    ];
+
+    renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
+
+    expect(await screen.findAllByTestId("session-skill-directive")).toHaveLength(1);
+    expect(screen.getByTestId("user-message-bubble")).toHaveTextContent("/review then /review");
+  });
+
+  it("Should preserve spacing between adjacent verified directives", async () => {
+    const transcript = [
+      {
+        id: "user-adjacent-skill-invocations",
+        role: "user",
+        content: "/review /review",
+        metadata: {
+          skill_invocations: [
+            {
+              command_id: "skill:workspace:review:sha256:def456",
+              token: "/review",
+              label: "Review",
+              source: "workspace",
+              start: 0,
+              end: 7,
+            },
+            {
+              command_id: "skill:workspace:review:sha256:def456",
+              token: "/review",
+              label: "Review",
+              source: "workspace",
+              start: 8,
+              end: 15,
+            },
+          ],
+        },
+        parts: [{ type: "text", text: "/review /review", state: "done" }],
+      } as SessionMessage,
+    ];
+
+    renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
+
+    expect(await screen.findAllByTestId("session-skill-directive")).toHaveLength(2);
+    expect(screen.getByTestId("user-message-bubble").textContent).toBe("/review /review");
   });
 
   it.each([
@@ -1404,6 +1506,76 @@ describe("SessionThread streaming render-count", () => {
 // queued-strip wiring.
 // Boundary OUT: queue/steer/cancel API orchestration, covered by use-session-page-controls.test.tsx.
 
+// The composer input is a Lexical contenteditable, so the runtime composer — not a
+// textarea `value` — is the source of truth for authored text. The probe exposes the
+// same `aui` handle the composer uses, so tests drive and read canonical raw text
+// (tokens, not the chip labels the contenteditable renders).
+let composerAui: ReturnType<typeof useAui> | null = null;
+
+function ComposerAuiProbe() {
+  const aui = useAui();
+  useEffect(() => {
+    composerAui = aui;
+    return () => {
+      composerAui = null;
+    };
+  }, [aui]);
+  return null;
+}
+
+function requireComposerAui() {
+  if (!composerAui) {
+    throw new Error("composer runtime probe is not mounted");
+  }
+  return composerAui;
+}
+
+/** Typing-equivalent: replaces the whole composer text and parks the cursor at its end. */
+async function setComposerText(text: string) {
+  const aui = requireComposerAui();
+  await act(async () => {
+    aui.composer.setText(text);
+  });
+}
+
+function composerText(): string {
+  return requireComposerAui().composer.getState().text;
+}
+
+/** Lexical listens for key events on the contenteditable, not on the labelled wrapper. */
+async function findComposerEditable(): Promise<HTMLElement> {
+  const input = await screen.findByTestId("composer-input");
+  const editable = input.querySelector<HTMLElement>('[contenteditable="true"]');
+  if (!editable) {
+    throw new Error("composer contenteditable is not mounted");
+  }
+  return editable;
+}
+
+/**
+ * Moves the caret inside the rendered line. `setComposerText` always parks it at
+ * the end, so mid-text trigger scopes need a real DOM selection that Lexical
+ * reconciles back into its own editor state.
+ */
+async function placeComposerCursor(offset: number) {
+  const editable = await findComposerEditable();
+  const walker = document.createTreeWalker(editable, NodeFilter.SHOW_TEXT);
+  const textNode = walker.nextNode();
+  if (!textNode) {
+    throw new Error("composer line has no rendered text node");
+  }
+  await act(async () => {
+    editable.focus();
+    const selection = document.getSelection();
+    const range = document.createRange();
+    range.setStart(textNode, offset);
+    range.collapse(true);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    document.dispatchEvent(new Event("selectionchange"));
+  });
+}
+
 function renderComposer(overrides: Partial<ComponentProps<typeof SessionThread>>) {
   const queryClient = createQueryClient();
   return render(
@@ -1413,6 +1585,7 @@ function renderComposer(overrides: Partial<ComponentProps<typeof SessionThread>>
           sessionId={primarySessionFixture.id}
           workspaceId={fixtureWorkspaceId()}
         >
+          <ComposerAuiProbe />
           <SessionTranscriptThreadProvider
             messages={[]}
             status="success"
@@ -1435,6 +1608,7 @@ function renderComposer(overrides: Partial<ComponentProps<typeof SessionThread>>
 
 describe("SessionThread composer running semantics", () => {
   beforeEach(() => {
+    composerAui = null;
     vi.stubGlobal("fetch", createFetchMock());
     vi.mocked(toast.error).mockClear();
     vi.mocked(toast.warning).mockClear();
@@ -1449,28 +1623,251 @@ describe("SessionThread composer running semantics", () => {
   });
 
   it("Should restore the active session draft after the composer remounts", async () => {
-    const user = userEvent.setup();
     const firstView = renderComposer({ isSessionRunning: false });
 
-    const textarea = await screen.findByTestId("composer-textarea");
-    await user.type(textarea, "keep this draft");
-    expect(textarea).toHaveValue("keep this draft");
-    expect(sessionStore.getSnapshot().context.drafts[primarySessionFixture.id]).toBe(
-      "keep this draft"
-    );
+    await screen.findByTestId("composer-input");
+    await setComposerText("keep this draft");
+    expect(composerText()).toBe("keep this draft");
+    await waitFor(() => {
+      expect(sessionStore.getSnapshot().context.drafts[primarySessionFixture.id]).toBe(
+        "keep this draft"
+      );
+    });
 
     firstView.unmount();
     renderComposer({ isSessionRunning: false });
 
-    expect(await screen.findByTestId("composer-textarea")).toHaveValue("keep this draft");
+    expect(await screen.findByTestId("composer-input")).toHaveTextContent("keep this draft");
+    await waitFor(() => expect(composerText()).toBe("keep this draft"));
+  });
+
+  it("Should insert a standalone command token without submitting the prompt", async () => {
+    const user = userEvent.setup();
+    const onCommandCatalogOpen = vi.fn();
+    renderComposer({
+      onCommandCatalogOpen,
+      commandCatalog: {
+        standaloneSections: [
+          {
+            id: "built-in",
+            label: "Built-in",
+            commands: [{ id: "goal", token: "/goal", label: "Goal", lane: "builtin" as const }],
+          },
+          {
+            id: "agent",
+            label: "Agent",
+            commands: [{ id: "review", token: "/review", label: "Review", lane: "agent" as const }],
+          },
+          {
+            id: "skills",
+            label: "Skills",
+            commands: [
+              {
+                id: "frontend-qa",
+                token: "/frontend-qa",
+                label: "Frontend QA",
+                lane: "skill" as const,
+                scope: "workspace",
+              },
+            ],
+          },
+        ],
+        inlineSkills: [
+          {
+            id: "frontend-qa",
+            token: "/frontend-qa",
+            label: "Frontend QA",
+            lane: "skill" as const,
+            scope: "workspace",
+          },
+        ],
+      },
+    });
+
+    await screen.findByTestId("composer-input");
+    expect(onCommandCatalogOpen).not.toHaveBeenCalled();
+    await setComposerText("/");
+
+    const menu = await screen.findByTestId("composer-command-menu");
+    expect(onCommandCatalogOpen).toHaveBeenCalledTimes(1);
+    // One flat list: category headers are decoration, every command is directly selectable.
+    expect(
+      within(menu)
+        .getAllByTestId("composer-command-section")
+        .map(section => section.textContent)
+    ).toEqual(["Built-in", "Agent", "Skills"]);
+    expect(within(menu).getAllByRole("option")).toHaveLength(3);
+    await user.click(within(menu).getByRole("option", { name: /Frontend QA/i }));
+
+    await waitFor(() => {
+      expect(composerText()).toBe("/frontend-qa ");
+      expect(sessionStore.getSnapshot().context.drafts[primarySessionFixture.id]).toBe(
+        "/frontend-qa "
+      );
+    });
+    // Selecting a command closes the menu; the token survives only as an inline chip.
+    expect(screen.queryByTestId("composer-command-menu")).not.toBeInTheDocument();
+    expect(screen.queryByText("Frontend QA")).not.toBeInTheDocument();
+  });
+
+  it("Should preserve hook order when the command menu closes and reopens", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    try {
+      renderComposer({
+        commandCatalog: {
+          standaloneSections: [
+            {
+              id: "skills",
+              label: "Skills",
+              commands: [
+                {
+                  id: "frontend-qa",
+                  token: "/frontend-qa",
+                  label: "Frontend QA",
+                  lane: "skill" as const,
+                },
+              ],
+            },
+          ],
+          inlineSkills: [
+            {
+              id: "frontend-qa",
+              token: "/frontend-qa",
+              label: "Frontend QA",
+              lane: "skill" as const,
+            },
+          ],
+        },
+      });
+
+      const editable = await findComposerEditable();
+      await setComposerText("/");
+      expect(await screen.findByTestId("composer-command-menu")).toBeInTheDocument();
+
+      await act(async () => {
+        fireEvent.keyDown(editable, { key: "Escape" });
+      });
+      await waitFor(() => {
+        expect(screen.queryByTestId("composer-command-menu")).not.toBeInTheDocument();
+      });
+
+      await setComposerText("");
+      await setComposerText("/");
+      expect(await screen.findByTestId("composer-command-menu")).toBeInTheDocument();
+
+      const hookOrderErrors = consoleError.mock.calls
+        .flatMap(args => args.map(String))
+        .filter(message =>
+          /change in the order of Hooks|Rendered (?:more|fewer) hooks than expected/i.test(message)
+        );
+      expect(hookOrderErrors).toEqual([]);
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
+  it("Should restrict an inline slash menu to skills", async () => {
+    const user = userEvent.setup();
+    renderComposer({
+      commandCatalog: {
+        standaloneSections: [
+          {
+            id: "built-in",
+            label: "Built-in",
+            commands: [{ id: "goal", token: "/goal", label: "Goal", lane: "builtin" as const }],
+          },
+          {
+            id: "skills",
+            label: "Skills",
+            commands: [
+              {
+                id: "frontend-qa",
+                token: "/frontend-qa",
+                label: "Frontend QA",
+                lane: "skill" as const,
+              },
+            ],
+          },
+        ],
+        inlineSkills: [
+          {
+            id: "frontend-qa",
+            token: "/frontend-qa",
+            label: "Frontend QA",
+            lane: "skill" as const,
+          },
+        ],
+      },
+    });
+
+    await screen.findByTestId("composer-input");
+    // A non-blank prefix before the trigger makes the scope inline — skills only,
+    // no standalone controls — and the insertion keeps the trailing prompt text.
+    await setComposerText("Review / then");
+    await placeComposerCursor("Review /".length);
+
+    const menu = await screen.findByTestId("composer-command-menu");
+    expect(
+      within(menu)
+        .getAllByTestId("composer-command-section")
+        .map(section => section.textContent)
+    ).toEqual(["Skills"]);
+    expect(within(menu).queryByRole("option", { name: /Goal/i })).not.toBeInTheDocument();
+    await user.click(within(menu).getByRole("option", { name: /Frontend QA/i }));
+
+    await waitFor(() => {
+      expect(composerText()).toBe("Review /frontend-qa then");
+    });
+  });
+
+  it("Should expose standalone controls after leading whitespace with trailing text", async () => {
+    renderComposer({
+      commandCatalog: {
+        standaloneSections: [
+          {
+            id: "built-in",
+            label: "Built-in",
+            commands: [{ id: "goal", token: "/goal", label: "Goal", lane: "builtin" as const }],
+          },
+          {
+            id: "agent",
+            label: "Agent",
+            commands: [{ id: "review", token: "/review", label: "Review", lane: "agent" as const }],
+          },
+        ],
+        inlineSkills: [
+          {
+            id: "frontend-qa",
+            token: "/frontend-qa",
+            label: "Frontend QA",
+            lane: "skill" as const,
+          },
+        ],
+      },
+    });
+
+    await screen.findByTestId("composer-input");
+    // Only whitespace precedes the trigger, so the scope stays standalone — the
+    // prompt text that trails the caret must not pull it back to inline.
+    await setComposerText("  / remaining prompt");
+    await placeComposerCursor(3);
+
+    const menu = await screen.findByTestId("composer-command-menu");
+    expect(
+      within(menu)
+        .getAllByTestId("composer-command-section")
+        .map(section => section.textContent)
+    ).toEqual(["Built-in", "Agent"]);
+    expect(within(menu).getByRole("option", { name: /Goal/i })).toBeInTheDocument();
+    expect(within(menu).getByRole("option", { name: /Review/i })).toBeInTheDocument();
   });
 
   it("Should preserve live composer text when a stale persisted draft arrives", async () => {
-    const user = userEvent.setup();
     renderComposer({ isSessionRunning: false });
 
-    const textarea = await screen.findByTestId("composer-textarea");
-    await user.type(textarea, "Live draft");
+    await screen.findByTestId("composer-input");
+    await setComposerText("Live draft");
 
     act(() => {
       sessionStore.trigger.composerDraftChanged({
@@ -1479,26 +1876,27 @@ describe("SessionThread composer running semantics", () => {
       });
     });
 
-    expect(textarea).toHaveValue("Live draft");
+    expect(composerText()).toBe("Live draft");
   });
 
   it("Should queue the draft on Enter while running and suppress the runtime send", async () => {
-    const user = userEvent.setup();
     const onQueuePrompt = vi.fn(() => Promise.resolve());
     renderComposer({ isSessionRunning: true, allowBusyInput: true, onQueuePrompt });
 
-    const textarea = await screen.findByTestId("composer-textarea");
-    await user.type(textarea, "queue this follow-up");
+    const editable = await findComposerEditable();
+    await setComposerText("queue this follow-up");
     // While running, assistant-ui's own thread is idle, so a plain Enter would submit
     // to the runtime; our interception must queue instead and clear the draft.
-    await user.type(textarea, "{Enter}");
+    await act(async () => {
+      fireEvent.keyDown(editable, { key: "Enter" });
+    });
 
     await waitFor(() => {
       expect(onQueuePrompt).toHaveBeenCalledWith("queue this follow-up");
     });
     expect(onQueuePrompt).toHaveBeenCalledTimes(1);
     await waitFor(() => {
-      expect((textarea as HTMLTextAreaElement).value).toBe("");
+      expect(composerText()).toBe("");
     });
     // The runtime send never fired, so no user message entered the thread.
     expect(screen.queryByText("queue this follow-up")).not.toBeInTheDocument();
@@ -1509,14 +1907,14 @@ describe("SessionThread composer running semantics", () => {
     const onQueuePrompt = vi.fn(() => Promise.reject(new Error("queue failed")));
     renderComposer({ isSessionRunning: true, allowBusyInput: true, onQueuePrompt });
 
-    const textarea = await screen.findByTestId("composer-textarea");
-    await user.type(textarea, "queue this follow-up");
+    await screen.findByTestId("composer-input");
+    await setComposerText("queue this follow-up");
     await user.click(screen.getByTestId("composer-queue-button"));
 
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith("queue failed");
     });
-    expect((textarea as HTMLTextAreaElement).value).toBe("queue this follow-up");
+    expect(composerText()).toBe("queue this follow-up");
   });
 
   it("Should catch a synchronous queue failure and preserve the draft", async () => {
@@ -1526,14 +1924,14 @@ describe("SessionThread composer running semantics", () => {
     });
     renderComposer({ isSessionRunning: true, allowBusyInput: true, onQueuePrompt });
 
-    const textarea = await screen.findByTestId("composer-textarea");
-    await user.type(textarea, "queue this follow-up");
+    await screen.findByTestId("composer-input");
+    await setComposerText("queue this follow-up");
     await user.click(screen.getByTestId("composer-queue-button"));
 
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith("queue failed synchronously");
     });
-    expect((textarea as HTMLTextAreaElement).value).toBe("queue this follow-up");
+    expect(composerText()).toBe("queue this follow-up");
   });
 
   it("Should steer the current draft while running and clear it after success", async () => {
@@ -1541,18 +1939,38 @@ describe("SessionThread composer running semantics", () => {
     const onSteerPrompt = vi.fn(() => Promise.resolve());
     renderComposer({ isSessionRunning: true, allowBusyInput: true, onSteerPrompt });
 
-    const textarea = await screen.findByTestId("composer-textarea");
-    await user.type(textarea, "steer with this constraint");
+    await screen.findByTestId("composer-input");
+    await setComposerText("steer with this constraint");
     await user.click(screen.getByTestId("composer-steer-button"));
 
     await waitFor(() => {
       expect(onSteerPrompt).toHaveBeenCalledWith("steer with this constraint");
-      expect(textarea).toHaveValue("");
+      expect(composerText()).toBe("");
+    });
+  });
+
+  it("Should steer the active turn with Cmd/Ctrl+Shift+Enter while running", async () => {
+    const onSteerPrompt = vi.fn(() => Promise.resolve());
+    renderComposer({ isSessionRunning: true, allowBusyInput: true, onSteerPrompt });
+
+    const editable = await findComposerEditable();
+    // The contenteditable itself carries the accessible name (screen readers
+    // and Playwright role queries target it, not the wrapper div).
+    await waitFor(() => {
+      expect(editable).toHaveAttribute("aria-label", "Session prompt");
+    });
+    await setComposerText("steer to the new direction");
+    await act(async () => {
+      fireEvent.keyDown(editable, { key: "Enter", shiftKey: true, metaKey: true });
+    });
+
+    await waitFor(() => {
+      expect(onSteerPrompt).toHaveBeenCalledWith("steer to the new direction");
+      expect(composerText()).toBe("");
     });
   });
 
   it("Should keep queue available but fence steer and interrupt until the active turn id arrives", async () => {
-    const user = userEvent.setup();
     renderComposer({
       busyInputFenceAvailable: false,
       isSessionRunning: true,
@@ -1561,7 +1979,8 @@ describe("SessionThread composer running semantics", () => {
       onSteerPrompt: vi.fn(),
     });
 
-    await user.type(await screen.findByTestId("composer-textarea"), "wait for the turn fence");
+    await screen.findByTestId("composer-input");
+    await setComposerText("wait for the turn fence");
 
     expect(screen.getByTestId("composer-queue-button")).toBeEnabled();
     expect(screen.getByTestId("composer-steer-button")).toBeDisabled();
@@ -1575,13 +1994,13 @@ describe("SessionThread composer running semantics", () => {
     );
     renderComposer({ isSessionRunning: true, allowBusyInput: true, onQueuePrompt });
 
-    const textarea = await screen.findByTestId("composer-textarea");
-    await user.type(textarea, "queue this follow-up");
+    await screen.findByTestId("composer-input");
+    await setComposerText("queue this follow-up");
     await user.click(screen.getByTestId("composer-queue-button"));
 
     await waitFor(() => expect(onQueuePrompt).toHaveBeenCalledOnce());
     expect(toast.error).not.toHaveBeenCalled();
-    expect((textarea as HTMLTextAreaElement).value).toBe("queue this follow-up");
+    expect(composerText()).toBe("queue this follow-up");
   });
 
   it("Should show the accent Send disc while idle and the danger Stop disc while running", async () => {
@@ -1635,9 +2054,8 @@ describe("SessionThread composer running semantics", () => {
 
     // Edit keeps the durable row until one atomic replacement acknowledgement succeeds.
     await user.click(within(rows[0]).getByTestId("composer-queued-edit"));
-    const textarea = screen.getByTestId("composer-textarea") as HTMLTextAreaElement;
     await waitFor(() => {
-      expect(textarea.value).toBe("Add a regression test.");
+      expect(composerText()).toBe("Add a regression test.");
     });
     expect(onRemoveQueuedPrompt).not.toHaveBeenCalledWith("inq-1");
     await user.click(screen.getByTestId("composer-queue-button"));
@@ -1712,12 +2130,12 @@ describe("SessionThread composer running semantics", () => {
       queuedPrompts: [{ id: "inq-1", text: "Queued prompt text." }],
     });
 
-    const textarea = await screen.findByTestId("composer-textarea");
-    await user.type(textarea, "Existing draft");
+    await screen.findByTestId("composer-input");
+    await setComposerText("Existing draft");
     const row = await screen.findByTestId("composer-queued-prompt-row");
     await user.click(within(row).getByTestId("composer-queued-edit"));
 
-    expect((textarea as HTMLTextAreaElement).value).toBe("Existing draft");
+    expect(composerText()).toBe("Existing draft");
     expect(onRemoveQueuedPrompt).not.toHaveBeenCalled();
     expect(toast.warning).toHaveBeenCalledWith(
       "Send or clear the current draft before editing a queued prompt."
@@ -1757,6 +2175,7 @@ function renderComposerRerenderable(overrides: Partial<ComponentProps<typeof Ses
         sessionId={primarySessionFixture.id}
         workspaceId={fixtureWorkspaceId()}
       >
+        <ComposerAuiProbe />
         <SessionTranscriptThreadProvider
           messages={[]}
           status="success"

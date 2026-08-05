@@ -689,3 +689,89 @@ export const permissionRequestFixture: PermissionRequest = {
   action: "execute",
   resource: "bun run --cwd apps/launch-site test -- --run hero-banner",
 };
+
+/** Storybook/session catalog for the composer slash menu — one command per lane shape. */
+export const sessionCommandCatalogFixture = {
+  standaloneSections: [
+    {
+      id: "built-in",
+      label: "Built-in",
+      commands: [
+        {
+          id: "goal",
+          token: "/goal",
+          label: "Goal",
+          description: "Set, inspect, pause, resume, replace, or clear the session Goal.",
+          lane: "builtin" as const,
+        },
+      ],
+    },
+    {
+      id: "agent",
+      label: "Agent",
+      commands: [
+        {
+          id: "clear",
+          token: "/clear",
+          label: "Clear",
+          description: "Start a fresh thread and clear the conversation context.",
+          lane: "agent" as const,
+        },
+        {
+          id: "compact",
+          token: "/compact",
+          label: "Compact",
+          description: "Compact the current thread context to free space.",
+          lane: "agent" as const,
+        },
+        {
+          id: "review",
+          token: "/review",
+          label: "Review",
+          description: "Start a code review for current changes.",
+          lane: "agent" as const,
+        },
+      ],
+    },
+    {
+      id: "skills",
+      label: "Skills",
+      commands: [
+        {
+          id: "frontend-qa",
+          token: "/frontend-qa",
+          label: "frontend-qa",
+          description: "Run the browser quality pass.",
+          lane: "skill" as const,
+          scope: "workspace",
+        },
+        {
+          id: "release-notes",
+          token: "/release-notes",
+          label: "release-notes",
+          description: "Draft release notes from the merged changes.",
+          lane: "skill" as const,
+          scope: "global",
+        },
+      ],
+    },
+  ],
+  inlineSkills: [
+    {
+      id: "frontend-qa",
+      token: "/frontend-qa",
+      label: "frontend-qa",
+      description: "Run the browser quality pass.",
+      lane: "skill" as const,
+      scope: "workspace",
+    },
+    {
+      id: "release-notes",
+      token: "/release-notes",
+      label: "release-notes",
+      description: "Draft release notes from the merged changes.",
+      lane: "skill" as const,
+      scope: "global",
+    },
+  ],
+};

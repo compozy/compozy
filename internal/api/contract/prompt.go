@@ -74,18 +74,19 @@ type SendPromptResultPayload struct {
 
 // SessionInputPayload is one durable operator input waiting for session dispatch.
 type SessionInputPayload struct {
-	ID              string                         `json:"id"`
-	SessionID       string                         `json:"session_id"`
-	MessageID       string                         `json:"message_id,omitempty"`
-	IdempotencyKey  string                         `json:"idempotency_key,omitempty"`
-	TargetTurnID    string                         `json:"target_turn_id,omitempty"`
-	Status          string                         `json:"status"`
-	Mode            PromptMode                     `json:"mode"`
-	Delivery        PromptDelivery                 `json:"delivery"`
-	Text            string                         `json:"text"`
-	QueueGeneration int64                          `json:"queue_generation"`
-	EnqueuedAt      time.Time                      `json:"enqueued_at"`
-	Runtime         *PromptRuntimeSelectionPayload `json:"runtime,omitempty"`
+	ID               string                          `json:"id"`
+	SessionID        string                          `json:"session_id"`
+	MessageID        string                          `json:"message_id,omitempty"`
+	IdempotencyKey   string                          `json:"idempotency_key,omitempty"`
+	TargetTurnID     string                          `json:"target_turn_id,omitempty"`
+	Status           string                          `json:"status"`
+	Mode             PromptMode                      `json:"mode"`
+	Delivery         PromptDelivery                  `json:"delivery"`
+	Text             string                          `json:"text"`
+	QueueGeneration  int64                           `json:"queue_generation"`
+	EnqueuedAt       time.Time                       `json:"enqueued_at"`
+	Runtime          *PromptRuntimeSelectionPayload  `json:"runtime,omitempty"`
+	SkillInvocations []SessionSkillInvocationPayload `json:"skill_invocations,omitempty"`
 }
 
 // SessionInputListResponse returns current-generation pending input in dispatch order.

@@ -6,8 +6,10 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
+	commandpkg "github.com/compozy/compozy/internal/command"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -19,15 +21,16 @@ type mutationApply func(
 ) (store.SessionInputQueueEntry, bool, error)
 
 type mutationSpec struct {
-	sessionID      string
-	entryID        string
-	text           string
-	targetTurnID   string
-	messageID      string
-	idempotencyKey string
-	mode           string
-	delivery       string
-	apply          mutationApply
+	sessionID        string
+	entryID          string
+	text             string
+	targetTurnID     string
+	messageID        string
+	idempotencyKey   string
+	mode             string
+	delivery         string
+	skillInvocations []commandpkg.Invocation
+	apply            mutationApply
 }
 
 // Replace atomically replaces one queued input with a new queue identity.
@@ -38,16 +41,18 @@ func (s *Service) Replace(
 	text string,
 	messageID string,
 	idempotencyKey string,
+	skillInvocations []commandpkg.Invocation,
 ) (store.SessionInputQueueEntry, bool, error) {
 	return s.mutate(ctx, mutationSpec{
-		sessionID:      sessionID,
-		entryID:        entryID,
-		text:           text,
-		messageID:      messageID,
-		idempotencyKey: idempotencyKey,
-		mode:           store.SessionInputQueueModeQueue,
-		delivery:       store.SessionInputDeliveryAfterTurn,
-		apply:          s.store.ReplaceSessionInput,
+		sessionID:        sessionID,
+		entryID:          entryID,
+		text:             text,
+		messageID:        messageID,
+		idempotencyKey:   idempotencyKey,
+		skillInvocations: append([]commandpkg.Invocation(nil), skillInvocations...),
+		mode:             store.SessionInputQueueModeQueue,
+		delivery:         store.SessionInputDeliveryAfterTurn,
+		apply:            s.store.ReplaceSessionInput,
 	})
 }
 
@@ -60,17 +65,19 @@ func (s *Service) PromoteToSteer(
 	targetTurnID string,
 	messageID string,
 	idempotencyKey string,
+	skillInvocations []commandpkg.Invocation,
 ) (store.SessionInputQueueEntry, bool, error) {
 	return s.mutate(ctx, mutationSpec{
-		sessionID:      sessionID,
-		entryID:        entryID,
-		text:           text,
-		targetTurnID:   targetTurnID,
-		messageID:      messageID,
-		idempotencyKey: idempotencyKey,
-		mode:           store.SessionInputQueueModeSteer,
-		delivery:       store.SessionInputDeliveryInterruptThenPrompt,
-		apply:          s.store.PromoteSessionInputToSteer,
+		sessionID:        sessionID,
+		entryID:          entryID,
+		text:             text,
+		targetTurnID:     targetTurnID,
+		messageID:        messageID,
+		idempotencyKey:   idempotencyKey,
+		skillInvocations: append([]commandpkg.Invocation(nil), skillInvocations...),
+		mode:             store.SessionInputQueueModeSteer,
+		delivery:         store.SessionInputDeliveryInterruptThenPrompt,
+		apply:            s.store.PromoteSessionInputToSteer,
 	})
 }
 
@@ -91,6 +98,7 @@ func (s *Service) mutate(
 		spec.mode,
 		spec.delivery,
 		spec.targetTurnID,
+		spec.skillInvocations,
 	); err != nil || ok {
 		return replayed, false, err
 	}
@@ -99,13 +107,14 @@ func (s *Service) mutate(
 		return store.SessionInputQueueEntry{}, false, err
 	}
 	replacement, err := s.newInsert(insertSpec{
-		sessionID:    targetSessionID,
-		text:         spec.text,
-		mode:         spec.mode,
-		delivery:     spec.delivery,
-		targetTurnID: spec.targetTurnID,
-		generation:   existing.SessionGeneration,
-		runtime:      existing.Runtime,
+		sessionID:        targetSessionID,
+		text:             spec.text,
+		mode:             spec.mode,
+		delivery:         spec.delivery,
+		targetTurnID:     spec.targetTurnID,
+		generation:       existing.SessionGeneration,
+		runtime:          existing.Runtime,
+		skillInvocations: append([]commandpkg.Invocation(nil), spec.skillInvocations...),
 	})
 	if err != nil {
 		return store.SessionInputQueueEntry{}, false, err
@@ -125,6 +134,7 @@ func (s *Service) ReplayPromotion(
 	targetTurnID string,
 	messageID string,
 	idempotencyKey string,
+	skillInvocations []commandpkg.Invocation,
 ) (store.SessionInputQueueEntry, bool, error) {
 	entry, found, err := s.replayMutation(
 		ctx,
@@ -136,6 +146,7 @@ func (s *Service) ReplayPromotion(
 		store.SessionInputQueueModeSteer,
 		store.SessionInputDeliveryInterruptThenPrompt,
 		targetTurnID,
+		skillInvocations,
 	)
 	if err != nil || !found {
 		return entry, found, err
@@ -162,6 +173,7 @@ func (s *Service) replayMutation(
 	mode string,
 	delivery string,
 	targetTurnID string,
+	skillInvocations []commandpkg.Invocation,
 ) (store.SessionInputQueueEntry, bool, error) {
 	entry, err := s.store.GetSessionInputQueueEntry(ctx, sessionID, mutationID)
 	if errors.Is(err, store.ErrSessionInputQueueEntryNotFound) {
@@ -170,7 +182,7 @@ func (s *Service) replayMutation(
 	if err != nil {
 		return store.SessionInputQueueEntry{}, false, err
 	}
-	if !sameMutation(&entry, text, messageID, idempotencyKey, mode, delivery, targetTurnID) {
+	if !sameMutation(&entry, text, messageID, idempotencyKey, mode, delivery, targetTurnID, skillInvocations) {
 		return store.SessionInputQueueEntry{}, false, fmt.Errorf(
 			"%w: %s",
 			store.ErrSessionInputMutationConflict,
@@ -197,11 +209,13 @@ func sameMutation(
 	mode string,
 	delivery string,
 	targetTurnID string,
+	skillInvocations []commandpkg.Invocation,
 ) bool {
 	return entry.Text == strings.TrimSpace(text) &&
 		entry.MessageID == strings.TrimSpace(messageID) &&
 		entry.IdempotencyKey == strings.TrimSpace(idempotencyKey) &&
 		entry.Mode == mode &&
 		entry.Delivery == delivery &&
-		entry.TargetTurnID == strings.TrimSpace(targetTurnID)
+		entry.TargetTurnID == strings.TrimSpace(targetTurnID) &&
+		slices.Equal(entry.SkillInvocations, skillInvocations)
 }

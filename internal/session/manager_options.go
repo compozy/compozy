@@ -225,6 +225,13 @@ func WithPromptInputAugmenter(augmenter PromptInputAugmenter) Option {
 	}
 }
 
+// WithCommandService injects the daemon-owned slash command authority.
+func WithCommandService(service CommandService) Option {
+	return func(manager *Manager) {
+		manager.commandService = service
+	}
+}
+
 // WithSessionInputQueueStore injects durable busy-input queue storage.
 func WithSessionInputQueueStore(queueStore store.SessionInputQueueStore) Option {
 	return func(manager *Manager) {

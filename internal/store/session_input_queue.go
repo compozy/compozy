@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	commandpkg "github.com/compozy/compozy/internal/command"
 )
 
 const (
@@ -81,6 +83,7 @@ type SessionInputQueueEntry struct {
 	Delivery                 string
 	Text                     string
 	Runtime                  SessionInputRuntime
+	SkillInvocations         []commandpkg.Invocation
 	SessionGeneration        int64
 	TaskRunID                string
 	RunGeneration            *int64
@@ -142,6 +145,7 @@ type SessionInputQueueInsert struct {
 	Delivery          string
 	Text              string
 	Runtime           SessionInputRuntime
+	SkillInvocations  []commandpkg.Invocation
 	SessionGeneration int64
 	TaskRunID         string
 	RunGeneration     *int64
@@ -167,6 +171,7 @@ func (r SessionInputQueueInsert) Normalize() SessionInputQueueInsert {
 	}
 	normalized.Text = strings.TrimSpace(normalized.Text)
 	normalized.Runtime = normalized.Runtime.Normalize()
+	normalized.SkillInvocations = append([]commandpkg.Invocation(nil), normalized.SkillInvocations...)
 	normalized.TaskRunID = strings.TrimSpace(normalized.TaskRunID)
 	if normalized.Now.IsZero() {
 		normalized.Now = time.Now().UTC()

@@ -10,10 +10,11 @@ import (
 	"strings"
 	"sync"
 
+	commandpkg "github.com/compozy/compozy/internal/command"
 	"github.com/compozy/compozy/internal/store"
 )
 
-const sessionPromptFingerprintVersion = "session-prompt/v1"
+const sessionPromptFingerprintVersion = "session-prompt/v2"
 
 type promptAdmissionLock struct {
 	mu   sync.Mutex
@@ -100,6 +101,7 @@ func (m *Manager) newPromptAdmissionRequest(
 		Mode:               string(mode),
 		AuthoredText:       req.authoredMessage,
 		Runtime:            storeRuntimeSelection(req.runtime),
+		SkillInvocations:   append([]commandpkg.Invocation(nil), req.skillInvocations...),
 		TurnID:             req.turnID,
 		EventID:            eventID,
 		Now:                m.now(),
@@ -113,22 +115,24 @@ func promptAdmissionFingerprint(
 ) (string, error) {
 	runtime := storeRuntimeSelection(req.runtime).Normalize()
 	canonical := struct {
-		Version         string `json:"version"`
-		Operation       string `json:"operation"`
-		MessageID       string `json:"message_id"`
-		AuthoredText    string `json:"authored_text"`
-		Mode            string `json:"mode"`
-		Provider        string `json:"provider"`
-		Model           string `json:"model"`
-		ReasoningEffort string `json:"reasoning_effort"`
-		Speed           string `json:"speed"`
-		ExpectedTurnID  string `json:"expected_turn_id,omitempty"`
+		Version          string                  `json:"version"`
+		Operation        string                  `json:"operation"`
+		MessageID        string                  `json:"message_id"`
+		AuthoredText     string                  `json:"authored_text"`
+		Mode             string                  `json:"mode"`
+		Provider         string                  `json:"provider"`
+		Model            string                  `json:"model"`
+		ReasoningEffort  string                  `json:"reasoning_effort"`
+		Speed            string                  `json:"speed"`
+		ExpectedTurnID   string                  `json:"expected_turn_id,omitempty"`
+		SkillInvocations []commandpkg.Invocation `json:"skill_invocations,omitempty"`
 	}{
 		Version: sessionPromptFingerprintVersion, Operation: strings.TrimSpace(operation),
 		MessageID: strings.TrimSpace(req.messageID), AuthoredText: strings.TrimSpace(req.authoredMessage),
 		Mode: strings.TrimSpace(string(mode)), Provider: runtime.Provider, Model: runtime.Model,
 		ReasoningEffort: runtime.ReasoningEffort, Speed: runtime.Speed,
-		ExpectedTurnID: strings.TrimSpace(req.expectedTurnID),
+		ExpectedTurnID:   strings.TrimSpace(req.expectedTurnID),
+		SkillInvocations: append([]commandpkg.Invocation(nil), req.skillInvocations...),
 	}
 	encoded, err := json.Marshal(canonical)
 	if err != nil {
@@ -167,6 +171,7 @@ func bindPromptAdmissionRequest(req promptRequest, admission store.SessionPrompt
 	req.eventID = admission.EventID
 	req.messageID = admission.MessageID
 	req.idempotencyKey = admission.IdempotencyKey
+	req.skillInvocations = append([]commandpkg.Invocation(nil), admission.SkillInvocations...)
 	return req
 }
 

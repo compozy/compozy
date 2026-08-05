@@ -188,7 +188,11 @@ func roleBundle(role RoleRecord) outputBundle {
 					[]string{cliProviderKey, agentKernelModelKey, "reasoning_effort"},
 					roleFallbackRows(role),
 				),
-				renderToonArray("provenance", []string{cliFieldKey, "source"}, roleProvenanceRows(role)),
+				renderToonArray(
+					"provenance",
+					[]string{cliFieldKey, automationSourceKey},
+					roleProvenanceRows(role),
+				),
 				renderToonArray(
 					"diagnostics",
 					[]string{"code", clientMessageKey, agentAgentKey},
