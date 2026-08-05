@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -235,6 +236,48 @@ func TestAgentProcessExitLifecycle(t *testing.T) {
 		}
 		if _, admitted := proc.beginChildTask(); admitted {
 			t.Fatal("beginChildTask() admitted work after Done()")
+		}
+	})
+
+	t.Run("Should remove the managed agent transport before closing Done", func(t *testing.T) {
+		if runtime.GOOS == terminalWindowsKey {
+			t.Skip("managed Unix transport is not available on Windows")
+		}
+		t.Parallel()
+
+		transport, socketPath, err := startManagedAgentTransport(
+			testutil.Context(t),
+			"/tmp/compozy-daemon.sock",
+			"sess-managed",
+			"general",
+			testDiscardLogger(),
+		)
+		if err != nil {
+			t.Fatalf("startManagedAgentTransport() error = %v", err)
+		}
+		transportDir := transport.socketDir
+		t.Cleanup(func() {
+			if closeErr := closeManagedAgentTransport(transport); closeErr != nil {
+				t.Errorf("closeManagedAgentTransport() cleanup error = %v", closeErr)
+			}
+		})
+		if _, err := os.Stat(socketPath); err != nil {
+			t.Fatalf("os.Stat(managed transport socket) error = %v", err)
+		}
+
+		handle := newFakeHandle(t.TempDir())
+		proc := &AgentProcess{
+			handle:         handle,
+			agentTransport: transport,
+			done:           make(chan struct{}),
+		}
+		go proc.waitForExit(testutil.Context(t), defaultProcessRecordTimeout)
+		if err := handle.finish(); err != nil {
+			t.Fatalf("handle.finish() error = %v", err)
+		}
+		<-proc.Done()
+		if _, err := os.Stat(transportDir); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("os.Stat(transport directory) error = %v, want not exist", err)
 		}
 	})
 }

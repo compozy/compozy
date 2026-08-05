@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"log/slog"
+	"strings"
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -201,6 +202,13 @@ func WithLogger(logger *slog.Logger) Option {
 func WithHomePaths(homePaths compozyconfig.HomePaths) Option {
 	return func(manager *Manager) {
 		manager.homePaths = homePaths
+	}
+}
+
+// WithDaemonSocket sets the daemon transport available to managed agent processes.
+func WithDaemonSocket(socketPath string) Option {
+	return func(manager *Manager) {
+		manager.daemonSocket = strings.TrimSpace(socketPath)
 	}
 }
 

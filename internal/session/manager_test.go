@@ -1470,6 +1470,37 @@ func TestCreateWithoutChannelOmitsNetworkChannelEnv(t *testing.T) {
 	}
 }
 
+func TestCreatePassesManagedProcessIdentity(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should pass daemon identity and socket to the ACP process runtime", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t, WithPromptAssembler(nil))
+		created, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder",
+			Workspace: h.workspaceID,
+		})
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		t.Cleanup(func() {
+			reportSessionStop(t, h, created.ID)
+		})
+
+		started := h.driver.startCalls[0]
+		if got, want := started.DaemonSocket, h.homePaths.DaemonSocket; got != want {
+			t.Fatalf("DaemonSocket = %q, want %q", got, want)
+		}
+		if got, ok := lookupEnvValue(started.TerminalEnv, "COMPOZY_SESSION_ID"); !ok || got != created.ID {
+			t.Fatalf("terminal COMPOZY_SESSION_ID = %q, %v, want %q", got, ok, created.ID)
+		}
+		if got, ok := lookupEnvValue(started.TerminalEnv, "COMPOZY_AGENT"); !ok || got != "coder" {
+			t.Fatalf("terminal COMPOZY_AGENT = %q, %v, want %q", got, ok, "coder")
+		}
+	})
+}
+
 func TestACPDriverAdapterErrorPaths(t *testing.T) {
 	t.Parallel()
 

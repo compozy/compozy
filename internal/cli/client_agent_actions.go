@@ -240,7 +240,7 @@ func (c *unixSocketClient) skillAction(
 ) (SkillActionRecord, error) {
 	var response SkillActionRecord
 	path := "/api/skills/" + url.PathEscape(name) + "/" + strings.TrimSpace(action)
-	if err := c.doJSON(ctx, http.MethodPost, path, skillValues(query), nil, &response); err != nil {
+	if err := c.doAgentJSON(ctx, http.MethodPost, path, skillValues(query), nil, query.Caller, &response); err != nil {
 		return SkillActionRecord{}, err
 	}
 	return response, nil

@@ -150,6 +150,13 @@ or extension-specific browse endpoints.
 Scan roots allow groups at any depth (300 `SKILL.md` max); frontmatter `name` stays identity. Scaffold
 with `compozy skill create <name> --group <path>`. Resolve skill search/view through the harness.
 
+When the native skill view is denied or unavailable, run `compozy skill view <name>`. Inside a managed
+session, the CLI uses a session-bound, read-only local transport; leave `--workspace` and `--for-agent`
+unset to use that session's scope. Never set or replace `COMPOZY_SESSION_ID`, `COMPOZY_AGENT`, or
+`COMPOZY_AGENT_TRANSPORT_SOCKET`. Explicit cross-workspace reads still use the session permission
+policy, and another agent scope is rejected. An operator shell outside a managed session keeps explicit
+operator scope.
+
 Repeated `<current-available-skills>` or `<compozy-situation-context>` sections may be `unchanged`.
 Reuse the latest full section for that ACP session and workspace; live surfaces remain authoritative.
 

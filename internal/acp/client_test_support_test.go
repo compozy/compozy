@@ -72,6 +72,9 @@ func startHelperProcess(
 	if overrides.Env != nil {
 		opts.Env = overrides.Env
 	}
+	if overrides.TerminalEnv != nil {
+		opts.TerminalEnv = append([]string(nil), overrides.TerminalEnv...)
+	}
 	if overrides.Permissions != "" {
 		opts.Permissions = overrides.Permissions
 	}
@@ -680,6 +683,41 @@ func (a *helperACPAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest
 			Command:   "sh",
 			Args:      []string{"-c", "printf terminal-ok"},
 			Cwd:       new(cwd),
+		})
+		if err != nil {
+			return acpsdk.PromptResponse{}, err
+		}
+		if _, err := a.conn.WaitForTerminalExit(ctx, acpsdk.WaitForTerminalExitRequest{
+			SessionId:  params.SessionId,
+			TerminalId: createResp.TerminalId,
+		}); err != nil {
+			return acpsdk.PromptResponse{}, err
+		}
+		outputResp, err := a.conn.TerminalOutput(ctx, acpsdk.TerminalOutputRequest{
+			SessionId:  params.SessionId,
+			TerminalId: createResp.TerminalId,
+		})
+		if err != nil {
+			return acpsdk.PromptResponse{}, err
+		}
+		if sendErr := a.conn.SessionUpdate(ctx, acpsdk.SessionNotification{
+			SessionId: params.SessionId,
+			Update:    acpsdk.UpdateAgentMessageText(outputResp.Output),
+		}); sendErr != nil {
+			return acpsdk.PromptResponse{}, sendErr
+		}
+	case "terminal_identity":
+		createResp, err := a.conn.CreateTerminal(ctx, acpsdk.CreateTerminalRequest{
+			SessionId: params.SessionId,
+			Command:   "sh",
+			Args: []string{
+				"-c",
+				`printf '%s|%s' "$COMPOZY_SESSION_ID" "$COMPOZY_AGENT"`,
+			},
+			Env: []acpsdk.EnvVariable{
+				{Name: "COMPOZY_SESSION_ID", Value: "sess-forged"},
+				{Name: "COMPOZY_AGENT", Value: "forged-agent"},
+			},
 		})
 		if err != nil {
 			return acpsdk.PromptResponse{}, err

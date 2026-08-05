@@ -1,6 +1,9 @@
 package cli
 
-import "github.com/compozy/compozy/internal/api/contract"
+import (
+	"github.com/compozy/compozy/internal/agentidentity"
+	"github.com/compozy/compozy/internal/api/contract"
+)
 
 // AgentSoulRecord is the dedicated managed Soul read model.
 type AgentSoulRecord = contract.AgentSoulPayload
@@ -81,6 +84,7 @@ type SkillProvenanceRecord = contract.ProvenancePayload
 type SkillQuery struct {
 	Workspace string
 	ForAgent  string
+	Caller    agentidentity.Credentials
 }
 
 // SkillActionRecord is the shared skill enable/disable response payload.

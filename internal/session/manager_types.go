@@ -184,6 +184,7 @@ type Manager struct {
 	transcriptEpochStore         store.SessionTranscriptEpochStore
 	ledgerMaterializer           LedgerMaterializer
 	homePaths                    compozyconfig.HomePaths
+	daemonSocket                 string
 	workspace                    workspacepkg.RuntimeResolver
 	workspaceAccess              workspaceaccess.Policy
 	readSessionMeta              sessionMetaReader

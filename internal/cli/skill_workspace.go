@@ -8,6 +8,7 @@ import (
 
 	"strings"
 
+	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/skills"
@@ -72,6 +73,7 @@ func resolveSkillCommandScope(
 	cmd *cobra.Command,
 	deps commandDeps,
 ) (skillCommandScope, error) {
+	caller := agentCredentialsFromEnv(deps)
 	workspaceRef, err := commandWorkspaceFlag(cmd)
 	if err != nil {
 		return skillCommandScope{}, err
@@ -80,25 +82,37 @@ func resolveSkillCommandScope(
 	if err != nil {
 		return skillCommandScope{}, err
 	}
+	managedTransport := strings.TrimSpace(deps.getenv(agentidentity.EnvTransportSocket)) != ""
+	if managedTransport || strings.TrimSpace(caller.SessionID) != "" || strings.TrimSpace(caller.AgentName) != "" {
+		return skillCommandScope{
+			query: SkillQuery{
+				Workspace: workspaceRef,
+				ForAgent:  agentRef,
+				Caller:    caller,
+			},
+			useDaemon: true,
+		}, nil
+	}
 
 	client, err := clientFromDeps(deps)
 	if err != nil {
 		if workspaceRef != "" || strings.TrimSpace(deps.getenv(workspaceEnvName)) != "" {
 			return skillCommandScope{}, err
 		}
-		return skillCommandScope{query: SkillQuery{ForAgent: agentRef}}, nil
+		return skillCommandScope{query: SkillQuery{ForAgent: agentRef, Caller: caller}}, nil
 	}
 	resolution, resolved, err := resolveContextualCommandWorkspace(ctx, cmd, deps, client, workspaceRef)
 	if err != nil {
 		if workspaceRef != "" || strings.TrimSpace(deps.getenv(workspaceEnvName)) != "" {
 			return skillCommandScope{}, err
 		}
-		return skillCommandScope{query: SkillQuery{ForAgent: agentRef}}, nil
+		return skillCommandScope{query: SkillQuery{ForAgent: agentRef, Caller: caller}}, nil
 	}
 
 	scope := skillCommandScope{
 		query: SkillQuery{
 			ForAgent: agentRef,
+			Caller:   caller,
 		},
 		useDaemon: resolved,
 	}

@@ -20,6 +20,7 @@ func (d *Daemon) applySessionManagerFactoryDefault() {
 		}
 		return session.NewManager(
 			session.WithHomePaths(deps.HomePaths),
+			session.WithDaemonSocket(deps.DaemonSocket),
 			session.WithLifecycleContext(ctx),
 			session.WithLogger(deps.Logger),
 			session.WithNotifier(deps.Notifier),

@@ -18,6 +18,7 @@ import (
 // SessionManagerDeps captures the composition-root dependencies needed to create a session manager.
 type SessionManagerDeps struct {
 	HomePaths              compozyconfig.HomePaths
+	DaemonSocket           string
 	Logger                 *slog.Logger
 	Notifier               session.Notifier
 	Hooks                  session.HookSet
@@ -52,9 +53,10 @@ type SessionManagerDeps struct {
 
 func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 	return SessionManagerDeps{
-		HomePaths: d.homePaths,
-		Logger:    state.logger,
-		Notifier:  d.sessionNotifier(state),
+		HomePaths:    d.homePaths,
+		DaemonSocket: state.cfg.Daemon.Socket,
+		Logger:       state.logger,
+		Notifier:     d.sessionNotifier(state),
 		Hooks: session.HookSet{
 			Session:         state.notifier,
 			Sandbox:         state.notifier,

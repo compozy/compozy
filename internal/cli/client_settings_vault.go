@@ -31,6 +31,17 @@ func NewClient(socketPath string) (DaemonClient, error) {
 	if path == "" {
 		return nil, errors.New("cli: daemon socket path is required")
 	}
+	managedHTTPClient, managedStreamClient, managed, err := managedAgentTransportClients()
+	if err != nil {
+		return nil, err
+	}
+	if managed {
+		return &unixSocketClient{
+			socketPath:   managedAgentTransportLabel,
+			httpClient:   managedHTTPClient,
+			streamClient: managedStreamClient,
+		}, nil
+	}
 
 	transport := &http.Transport{
 		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {

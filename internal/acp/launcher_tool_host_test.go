@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,6 +20,7 @@ import (
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
+	identityprotocol "github.com/compozy/compozy/internal/agentidentity/protocol"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	diagcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
@@ -489,6 +492,283 @@ func TestLocalToolHostCreateTerminalUsesResolvedCwd(t *testing.T) {
 	if got, want := strings.TrimSpace(output), mustCanonicalDir(t, cwd); got != want {
 		t.Fatalf("terminal cwd output = %q, want %q", got, want)
 	}
+}
+
+func TestManagedTerminalEnv(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should keep daemon identity authoritative without forwarding provider secrets", func(t *testing.T) {
+		t.Parallel()
+
+		managed := managedTerminalEnvFromStartEnv([]string{
+			"COMPOZY_SESSION_ID=sess-managed",
+			"COMPOZY_AGENT=general",
+			"COMPOZY_AGENT_TRANSPORT_SOCKET=/tmp/session.sock",
+			"COMPOZY_HOME=/tmp/compozy-managed",
+			"COMPOZY_SESSION_CHANNEL=builders",
+			"OPENAI_API_KEY=secret",
+		})
+		merged := mergeManagedTerminalEnv([]acpsdk.EnvVariable{
+			{Name: "compozy_session_id", Value: "sess-forged"},
+			{Name: "COMPOZY_AGENT", Value: "forged-agent"},
+			{Name: "COMPOZY_AGENT_TRANSPORT_SOCKET", Value: "/tmp/forged.sock"},
+			{Name: "PATH", Value: "/workspace/bin"},
+		}, managed)
+
+		if got, want := terminalEnvValue(merged, "COMPOZY_SESSION_ID"), "sess-managed"; got != want {
+			t.Fatalf("COMPOZY_SESSION_ID = %q, want %q", got, want)
+		}
+		if got, want := terminalEnvValue(merged, "COMPOZY_AGENT"), "general"; got != want {
+			t.Fatalf("COMPOZY_AGENT = %q, want %q", got, want)
+		}
+		if got, want := terminalEnvValue(merged, "COMPOZY_AGENT_TRANSPORT_SOCKET"), "/tmp/session.sock"; got != want {
+			t.Fatalf("COMPOZY_AGENT_TRANSPORT_SOCKET = %q, want %q", got, want)
+		}
+		if got, want := terminalEnvValue(merged, "COMPOZY_SESSION_CHANNEL"), "builders"; got != want {
+			t.Fatalf("COMPOZY_SESSION_CHANNEL = %q, want %q", got, want)
+		}
+		if got, want := terminalEnvValue(merged, "COMPOZY_HOME"), "/tmp/compozy-managed"; got != want {
+			t.Fatalf("COMPOZY_HOME = %q, want %q", got, want)
+		}
+		if got, want := terminalEnvValue(merged, "PATH"), "/workspace/bin"; got != want {
+			t.Fatalf("PATH = %q, want %q", got, want)
+		}
+		if got := terminalEnvValue(merged, "OPENAI_API_KEY"); got != "" {
+			t.Fatalf("OPENAI_API_KEY = %q, want omitted", got)
+		}
+	})
+}
+
+func TestManagedAgentTransport(t *testing.T) {
+	if runtime.GOOS == terminalWindowsKey {
+		t.Skip("managed Unix transport is not available on Windows")
+	}
+
+	t.Run("Should bind skill access to daemon identity and reject other routes", func(t *testing.T) {
+		t.Parallel()
+
+		socketDir, err := os.MkdirTemp("/tmp", "cz-acp-")
+		if err != nil {
+			t.Fatalf("os.MkdirTemp(short socket path) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := os.RemoveAll(socketDir); err != nil {
+				t.Errorf("os.RemoveAll(short socket path) error = %v", err)
+			}
+		})
+		socketPath := filepath.Join(socketDir, "daemon.sock")
+		var listenConfig net.ListenConfig
+		listener, err := listenConfig.Listen(testutil.Context(t), "unix", socketPath)
+		if err != nil {
+			t.Fatalf("net.Listen(unix) error = %v", err)
+		}
+		requests := make(chan *http.Request, 1)
+		server := &http.Server{
+			Handler: http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+				requests <- request.Clone(request.Context())
+				writer.Header().Set("Content-Type", "application/json")
+				if _, err := writer.Write([]byte(`{"content":"HELIX-SKILL-314"}`)); err != nil {
+					t.Errorf("writer.Write() error = %v", err)
+				}
+			}),
+			ReadHeaderTimeout: time.Second,
+		}
+		serveDone := make(chan error, 1)
+		go func() {
+			serveDone <- server.Serve(listener)
+		}()
+		t.Cleanup(func() {
+			if err := server.Close(); err != nil {
+				t.Errorf("server.Close() error = %v", err)
+			}
+			if err := <-serveDone; err != nil && !errors.Is(err, http.ErrServerClosed) {
+				t.Errorf("server.Serve() error = %v", err)
+			}
+		})
+
+		transport, capabilitySocket, err := startManagedAgentTransport(
+			testutil.Context(t),
+			socketPath,
+			"sess-managed",
+			"general",
+			testDiscardLogger(),
+		)
+		if err != nil {
+			t.Fatalf("startManagedAgentTransport() error = %v", err)
+		}
+		transportDir := transport.socketDir
+		t.Cleanup(func() {
+			if closeErr := closeManagedAgentTransport(transport); closeErr != nil {
+				t.Errorf("closeManagedAgentTransport() cleanup error = %v", closeErr)
+			}
+		})
+		client := &http.Client{Transport: &http.Transport{
+			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+				var dialer net.Dialer
+				return dialer.DialContext(ctx, "unix", capabilitySocket)
+			},
+		}}
+
+		request, err := http.NewRequestWithContext(
+			testutil.Context(t),
+			http.MethodGet,
+			agentTransportBaseURL+"/api/skills/release-signal/content",
+			http.NoBody,
+		)
+		if err != nil {
+			t.Fatalf("http.NewRequestWithContext() error = %v", err)
+		}
+		request.Header.Set(identityprotocol.HeaderSessionID, "sess-forged")
+		request.Header.Set(identityprotocol.HeaderAgent, "forged-agent")
+		response, err := client.Do(request)
+		if err != nil {
+			t.Fatalf("client.Do(skill) error = %v", err)
+		}
+		body, err := io.ReadAll(response.Body)
+		if err != nil {
+			t.Fatalf("io.ReadAll(skill response) error = %v", err)
+		}
+		if err := response.Body.Close(); err != nil {
+			t.Fatalf("response.Body.Close() error = %v", err)
+		}
+		if response.StatusCode != http.StatusOK || !strings.Contains(string(body), "HELIX-SKILL-314") {
+			t.Fatalf("skill response = (%d, %q), want marker", response.StatusCode, body)
+		}
+
+		select {
+		case request := <-requests:
+			if got, want := request.Header.Get(identityprotocol.HeaderSessionID), "sess-managed"; got != want {
+				t.Fatalf("session header = %q, want %q", got, want)
+			}
+			if got, want := request.Header.Get(identityprotocol.HeaderAgent), "general"; got != want {
+				t.Fatalf("agent header = %q, want %q", got, want)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("upstream skill request was not received")
+		}
+
+		deniedRequest, err := http.NewRequestWithContext(
+			testutil.Context(t),
+			http.MethodGet,
+			agentTransportBaseURL+"/api/status",
+			http.NoBody,
+		)
+		if err != nil {
+			t.Fatalf("http.NewRequestWithContext(denied) error = %v", err)
+		}
+		deniedResponse, err := client.Do(deniedRequest)
+		if err != nil {
+			t.Fatalf("client.Do(denied) error = %v", err)
+		}
+		deniedBody, err := io.ReadAll(deniedResponse.Body)
+		if err != nil {
+			t.Fatalf("io.ReadAll(denied response) error = %v", err)
+		}
+		if err := deniedResponse.Body.Close(); err != nil {
+			t.Fatalf("deniedResponse.Body.Close() error = %v", err)
+		}
+		if deniedResponse.StatusCode != http.StatusForbidden ||
+			!strings.Contains(string(deniedBody), "managed_transport_denied") {
+			t.Fatalf("denied response = (%d, %q), want restricted-route denial", deniedResponse.StatusCode, deniedBody)
+		}
+
+		mutationRequest, err := http.NewRequestWithContext(
+			testutil.Context(t),
+			http.MethodPost,
+			agentTransportBaseURL+"/api/skills/release-signal/disable",
+			http.NoBody,
+		)
+		if err != nil {
+			t.Fatalf("http.NewRequestWithContext(mutation) error = %v", err)
+		}
+		mutationResponse, err := client.Do(mutationRequest)
+		if err != nil {
+			t.Fatalf("client.Do(mutation) error = %v", err)
+		}
+		mutationBody, err := io.ReadAll(mutationResponse.Body)
+		if err != nil {
+			t.Fatalf("io.ReadAll(mutation response) error = %v", err)
+		}
+		if err := mutationResponse.Body.Close(); err != nil {
+			t.Fatalf("mutationResponse.Body.Close() error = %v", err)
+		}
+		if mutationResponse.StatusCode != http.StatusForbidden ||
+			!strings.Contains(string(mutationBody), "managed_transport_denied") {
+			t.Fatalf(
+				"mutation response = (%d, %q), want read-only transport denial",
+				mutationResponse.StatusCode,
+				mutationBody,
+			)
+		}
+
+		if err := closeManagedAgentTransport(transport); err != nil {
+			t.Fatalf("closeManagedAgentTransport() error = %v", err)
+		}
+		if _, err := os.Stat(transportDir); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("os.Stat(transport directory) error = %v, want not exist", err)
+		}
+	})
+
+	t.Run("Should expose one socket to the provider process and its terminals", func(t *testing.T) {
+		t.Parallel()
+
+		next, transport, err := bindManagedAgentTransport(testutil.Context(t), StartOpts{
+			DaemonSocket: "/tmp/compozy-daemon.sock",
+			Env:          []string{"PATH=/usr/bin"},
+			TerminalEnv: []string{
+				"COMPOZY_SESSION_ID=sess-managed",
+				"COMPOZY_AGENT=general",
+			},
+		}, testDiscardLogger())
+		if err != nil {
+			t.Fatalf("bindManagedAgentTransport() error = %v", err)
+		}
+		if transport == nil {
+			t.Fatal("bindManagedAgentTransport() transport = nil, want transport")
+		}
+		t.Cleanup(func() {
+			if closeErr := closeManagedAgentTransport(transport); closeErr != nil {
+				t.Errorf("closeManagedAgentTransport() cleanup error = %v", closeErr)
+			}
+		})
+		providerSocket, ok := envValue(next.Env, identityprotocol.EnvTransportSocket)
+		if !ok || strings.TrimSpace(providerSocket) == "" {
+			t.Fatalf("provider transport socket = %q, %v, want bound socket", providerSocket, ok)
+		}
+		terminalSocket, ok := envValue(next.TerminalEnv, identityprotocol.EnvTransportSocket)
+		if !ok || terminalSocket != providerSocket {
+			t.Fatalf("terminal transport socket = %q, %v, want %q", terminalSocket, ok, providerSocket)
+		}
+		if _, err := os.Stat(providerSocket); err != nil {
+			t.Fatalf("os.Stat(provider transport socket) error = %v", err)
+		}
+	})
+
+	t.Run("Should clear an inherited socket from launchers without local transport support", func(t *testing.T) {
+		t.Parallel()
+
+		next := withoutManagedAgentTransport(StartOpts{
+			Env:         []string{"COMPOZY_AGENT_TRANSPORT_SOCKET=/tmp/provider.sock"},
+			TerminalEnv: []string{"COMPOZY_AGENT_TRANSPORT_SOCKET=/tmp/terminal.sock"},
+		})
+		providerSocket, _ := envValue(next.Env, identityprotocol.EnvTransportSocket)
+		if providerSocket != "" {
+			t.Fatalf("provider transport socket = %q, want empty", providerSocket)
+		}
+		terminalSocket, _ := envValue(next.TerminalEnv, identityprotocol.EnvTransportSocket)
+		if terminalSocket != "" {
+			t.Fatalf("terminal transport socket = %q, want empty", terminalSocket)
+		}
+	})
+}
+
+func terminalEnvValue(env []acpsdk.EnvVariable, name string) string {
+	for _, variable := range env {
+		if strings.EqualFold(variable.Name, name) {
+			return variable.Value
+		}
+	}
+	return ""
 }
 
 func TestLocalToolHostCreateTerminalRegistersProcess(t *testing.T) {

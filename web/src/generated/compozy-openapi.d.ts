@@ -56857,7 +56857,12 @@ export interface operations {
         /** @description Logical agent name for agent-local resolution */
         for_agent?: string;
       };
-      header?: never;
+      header?: {
+        /** @description Daemon-issued active session id for managed callers */
+        "X-Compozy-Session-ID"?: string;
+        /** @description Daemon-issued session agent name for managed callers */
+        "X-Compozy-Agent"?: string;
+      };
       path?: never;
       cookie?: never;
     };
@@ -56955,6 +56960,64 @@ export interface operations {
       };
       /** @description Invalid skill lookup */
       400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Managed caller identity is missing or invalid */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Managed caller is not authorized for the requested skill scope */
+      403: {
         headers: {
           [name: string]: unknown;
         };
@@ -57626,7 +57689,12 @@ export interface operations {
         /** @description Logical agent name for agent-local resolution */
         for_agent?: string;
       };
-      header?: never;
+      header?: {
+        /** @description Daemon-issued active session id for managed callers */
+        "X-Compozy-Session-ID"?: string;
+        /** @description Daemon-issued session agent name for managed callers */
+        "X-Compozy-Agent"?: string;
+      };
       path: {
         /** @description Skill name */
         name: string;
@@ -57727,6 +57795,64 @@ export interface operations {
       };
       /** @description Invalid skill lookup */
       400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Managed caller identity is missing or invalid */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Managed caller is not authorized for the requested skill scope */
+      403: {
         headers: {
           [name: string]: unknown;
         };
@@ -57880,7 +58006,12 @@ export interface operations {
         /** @description Logical agent name for agent-local resolution */
         for_agent?: string;
       };
-      header?: never;
+      header?: {
+        /** @description Daemon-issued active session id for managed callers */
+        "X-Compozy-Session-ID"?: string;
+        /** @description Daemon-issued session agent name for managed callers */
+        "X-Compozy-Agent"?: string;
+      };
       path: {
         /** @description Skill name */
         name: string;
@@ -57902,6 +58033,64 @@ export interface operations {
       };
       /** @description Invalid skill lookup */
       400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Managed caller identity is missing or invalid */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Managed caller is not authorized for the requested skill scope */
+      403: {
         headers: {
           [name: string]: unknown;
         };
@@ -58055,7 +58244,12 @@ export interface operations {
         /** @description Logical agent name for agent-local resolution */
         for_agent?: string;
       };
-      header?: never;
+      header?: {
+        /** @description Daemon-issued active session id for managed callers */
+        "X-Compozy-Session-ID"?: string;
+        /** @description Daemon-issued session agent name for managed callers */
+        "X-Compozy-Agent"?: string;
+      };
       path: {
         /** @description Skill name */
         name: string;
@@ -58077,6 +58271,64 @@ export interface operations {
       };
       /** @description Invalid skill lookup */
       400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Managed caller identity is missing or invalid */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Managed caller is not authorized for the requested skill scope */
+      403: {
         headers: {
           [name: string]: unknown;
         };
@@ -58230,7 +58482,12 @@ export interface operations {
         /** @description Logical agent name for agent-local resolution */
         for_agent?: string;
       };
-      header?: never;
+      header?: {
+        /** @description Daemon-issued active session id for managed callers */
+        "X-Compozy-Session-ID"?: string;
+        /** @description Daemon-issued session agent name for managed callers */
+        "X-Compozy-Agent"?: string;
+      };
       path: {
         /** @description Skill name */
         name: string;
@@ -58252,6 +58509,64 @@ export interface operations {
       };
       /** @description Invalid skill lookup */
       400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Managed caller identity is missing or invalid */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Managed caller is not authorized for the requested skill scope */
+      403: {
         headers: {
           [name: string]: unknown;
         };
@@ -58405,7 +58720,12 @@ export interface operations {
         /** @description Logical agent name for agent-local resolution */
         for_agent?: string;
       };
-      header?: never;
+      header?: {
+        /** @description Daemon-issued active session id for managed callers */
+        "X-Compozy-Session-ID"?: string;
+        /** @description Daemon-issued session agent name for managed callers */
+        "X-Compozy-Agent"?: string;
+      };
       path: {
         /** @description Skill name */
         name: string;
@@ -58441,6 +58761,64 @@ export interface operations {
       };
       /** @description Invalid skill lookup */
       400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Managed caller identity is missing or invalid */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Managed caller is not authorized for the requested skill scope */
+      403: {
         headers: {
           [name: string]: unknown;
         };

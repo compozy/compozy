@@ -56,6 +56,8 @@ type StartOpts struct {
 	Cwd                  string
 	AdditionalDirs       []string
 	Env                  []string
+	TerminalEnv          []string
+	DaemonSocket         string
 	MCPServers           []compozyconfig.MCPServer
 	Permissions          compozyconfig.PermissionMode
 	SystemPrompt         string

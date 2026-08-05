@@ -22,3 +22,10 @@ func agentIdentityHeaderParameters() []ParameterSpec {
 		headerParam(agentidentity.HeaderAgent, "Daemon-issued session agent name"),
 	}
 }
+
+func optionalAgentIdentityHeaderParameters() []ParameterSpec {
+	return []ParameterSpec{
+		optionalHeaderParam(agentidentity.HeaderSessionID, "Daemon-issued active session id for managed callers"),
+		optionalHeaderParam(agentidentity.HeaderAgent, "Daemon-issued session agent name for managed callers"),
+	}
+}

@@ -23,6 +23,10 @@ func (d *Driver) launchAgentProcess(ctx context.Context, normalized StartOpts) (
 	}
 
 	launcher := d.launcherForStart(normalized)
+	normalized, agentTransport, err := prepareManagedAgentTransport(ctx, normalized, launcher, d.logger)
+	if err != nil {
+		return nil, err
+	}
 	identity := startOptsPreparedLaunchIdentity(normalized)
 
 	handle, err := launcher.Launch(ctx, sandbox.LaunchSpec{
@@ -34,13 +38,13 @@ func (d *Driver) launchAgentProcess(ctx context.Context, normalized StartOpts) (
 		Env:                append([]string(nil), normalized.Env...),
 	})
 	if err != nil {
-		return nil, fmt.Errorf(
+		return nil, errors.Join(fmt.Errorf(
 			"acp: start agent %q subprocess %q in %q: %w",
 			normalized.AgentName,
 			normalized.Command,
 			normalized.Cwd,
 			err,
-		)
+		), closeManagedAgentTransport(agentTransport))
 	}
 	procCtx, cancelProcess := context.WithCancel(context.WithoutCancel(ctx))
 
@@ -59,6 +63,7 @@ func (d *Driver) launchAgentProcess(ctx context.Context, normalized StartOpts) (
 	}
 
 	process := d.newAgentProcess(procCtx, cancelProcess, normalized, command, args, handle, toolHost, policy)
+	process.agentTransport = agentTransport
 	if localHost, ok := toolHost.(*localToolHost); ok {
 		if localHost.terminals != nil && localHost.terminals.registry == nil {
 			localHost.terminals.registry = d.processRegistry
@@ -75,10 +80,12 @@ func (d *Driver) launchAgentProcess(ctx context.Context, normalized StartOpts) (
 		cancelProcess()
 		stopCtx, cancelStop := context.WithTimeout(context.Background(), d.stopTimeout)
 		defer cancelStop()
-		if stopErr := handle.Stop(stopCtx); stopErr != nil {
-			return nil, errors.Join(err, fmt.Errorf("acp: cleanup unregistered agent process: %w", stopErr))
+		stopErr := handle.Stop(stopCtx)
+		transportErr := closeManagedAgentTransport(agentTransport)
+		if stopErr != nil {
+			stopErr = fmt.Errorf("acp: cleanup unregistered agent process: %w", stopErr)
 		}
-		return nil, err
+		return nil, errors.Join(err, stopErr, transportErr)
 	}
 
 	go process.waitForExit(ctx, d.processRecordTimeout)
@@ -115,6 +122,7 @@ func (d *Driver) newAgentProcess(
 		systemPrompt:         normalized.SystemPrompt,
 		systemPromptDelivery: normalized.SystemPromptDelivery,
 		promptCacheControl:   promptCacheControlForStartOpts(normalized),
+		terminalEnv:          managedTerminalEnvFromStartEnv(normalized.TerminalEnv),
 	}
 }
 
