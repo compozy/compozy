@@ -97,34 +97,35 @@ func (c *Compiler) Compile(def dsl.Definition) (*ResolvedDefinition, error) {
 		return nil, fmt.Errorf("normalize Loop definition participation: %w", err)
 	}
 
-	ctx := newLintContext(def, &DefinitionLinter{tools: c.tools})
+	definition := foldDefinitionDefaults(def)
+	ctx := newLintContext(definition, &DefinitionLinter{tools: c.tools})
 	ctx.indexGraphTrusted()
 
 	resolved := &ResolvedDefinition{
-		Definition:  foldDefinitionDefaults(def),
+		Definition:  definition,
 		Templates:   map[string]*refs.Template{},
 		Conditions:  map[string]*refs.Condition{},
 		ToolSchemas: map[string]ToolSchemaSnapshot{},
 		WatchEventsContracts: referencedWatchEventsContracts(
-			def,
+			definition,
 			SupportedWatchEvents(),
 		),
 		Defaults: ResolvedDefaults{
 			FanOutBatchSize: 1,
 			RunLoopMode:     dsl.RunLoopAwait,
-			Concurrency:     def.Concurrency,
+			Concurrency:     definition.Concurrency,
 		},
 		compiled: true,
 	}
 	resolved.DefinitionVersion = resolved.Definition.Meta.Version
 
-	if err := compileContract(resolved, def, ctx, ctx.namespace(false, false)); err != nil {
+	if err := compileContract(resolved, definition, ctx, ctx.namespace(false, false)); err != nil {
 		return nil, err
 	}
-	if err := compileStarts(resolved, def, ctx); err != nil {
+	if err := compileStarts(resolved, definition, ctx); err != nil {
 		return nil, err
 	}
-	for _, node := range def.Graph.Nodes {
+	for _, node := range definition.Graph.Nodes {
 		namespace := ctx.namespace(ctx.inFanoutScope(node.ID), ctx.hasTriggerStart())
 		if err := compileNode(resolved, node, namespace, ctx); err != nil {
 			return nil, err
@@ -136,7 +137,7 @@ func (c *Compiler) Compile(def dsl.Definition) (*ResolvedDefinition, error) {
 			}
 		}
 	}
-	if err := compileSubLoopBodies(resolved, def, c.tools); err != nil {
+	if err := compileSubLoopBodies(resolved, definition, c.tools); err != nil {
 		return nil, err
 	}
 	return resolved, nil

@@ -45,29 +45,3 @@ func hydrateExecutedDefinitionSnapshot(
 	}
 	return resolved, nil
 }
-
-func resolvedTemplateSources(resolved *ResolvedDefinition) map[string]string {
-	sources := map[string]string{}
-	if resolved == nil {
-		return sources
-	}
-	for key, template := range resolved.Templates {
-		if template != nil {
-			sources[key] = template.Raw
-		}
-	}
-	return sources
-}
-
-func resolvedConditionSources(resolved *ResolvedDefinition) map[string]string {
-	sources := map[string]string{}
-	if resolved == nil {
-		return sources
-	}
-	for key, condition := range resolved.Conditions {
-		if condition != nil {
-			sources[key] = condition.Raw
-		}
-	}
-	return sources
-}

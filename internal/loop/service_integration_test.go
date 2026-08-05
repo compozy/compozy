@@ -128,6 +128,91 @@ func TestServiceIntegrationDryRunShouldCreateNoState(t *testing.T) {
 	})
 }
 
+func TestServiceIntegrationExecutedDefinitionSnapshot(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should persist and hydrate templated parent and child Loop actions", func(t *testing.T) {
+		t.Parallel()
+
+		definition := validDefinition()
+		definition.Inputs = map[string]dsl.Input{
+			"slug": {Type: dsl.InputTypeString, Required: true},
+		}
+		definition.Contract.NoProgress.HashFields = []string{"nodes.draft.output.summary"}
+		definition.Graph = dsl.Graph{
+			Nodes: []dsl.Node{
+				{
+					ID: "draft", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent),
+					Params: dsl.NodeParams{
+						"agent": "codex", "prompt": "Draft {{ .inputs.slug }}",
+						"output_schema": map[string]any{"summary": "string"},
+					},
+				},
+				{
+					ID: "workspace_child", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunLoop),
+					Params: dsl.NodeParams{
+						"loop": "workspace-child",
+						"inputs": map[string]any{
+							"slug": "{{ .inputs.slug }}", "summary": "{{ .nodes.draft.output.summary }}",
+						},
+					},
+				},
+				{
+					ID: "marketplace_child", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunLoop),
+					Params: dsl.NodeParams{
+						"loop": "review-and-fix",
+						"inputs": map[string]any{
+							"slug": "{{ .inputs.slug }}", "summary": "{{ .nodes.draft.output.summary }}",
+						},
+					},
+				},
+			},
+			Edges: []dsl.Edge{
+				{From: "draft", To: "workspace_child"},
+				{From: "workspace_child", To: "marketplace_child"},
+			},
+		}
+		globalDB := openLoopServiceGlobalDB(t)
+		insertLoopServiceWorkspace(t, globalDB, "ws-1")
+		svc := newIntegrationService(t, globalDB, definition)
+		ctx := testutil.Context(t)
+
+		run, err := svc.Start(ctx, "ws-1", "valid-loop", loop.Inputs{
+			Values: map[string]any{"slug": "issue-313"},
+		}, humanActor(t))
+		if err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+		stored, err := globalDB.GetLoopRun(ctx, "ws-1", run.ID)
+		if err != nil {
+			t.Fatalf("GetLoopRun() error = %v", err)
+		}
+		if stored.DefinitionDigest != run.DefinitionDigest || stored.Status != loop.StatusRunning {
+			t.Fatalf("stored Run = %#v, want running with digest %q", stored, run.DefinitionDigest)
+		}
+		snapshot, err := globalDB.GetLoopDefinitionSnapshot(ctx, "ws-1", run.DefinitionDigest)
+		if err != nil {
+			t.Fatalf("GetLoopDefinitionSnapshot() error = %v", err)
+		}
+		hydrated, err := loop.LoadExecutedDefinitionSnapshot(snapshot.Definition, snapshot.Digest)
+		if err != nil {
+			t.Fatalf("LoadExecutedDefinitionSnapshot() error = %v", err)
+		}
+		for _, key := range []string{
+			"nodes.workspace_child.params.inputs.slug",
+			"nodes.workspace_child.params.inputs.summary",
+			"nodes.marketplace_child.params.inputs.slug",
+			"nodes.marketplace_child.params.inputs.summary",
+			"nodes.workspace_child.params.mode",
+			"nodes.marketplace_child.params.mode",
+		} {
+			if hydrated.Templates[key] == nil {
+				t.Fatalf("hydrated template %q is nil", key)
+			}
+		}
+	})
+}
+
 func TestServiceIntegrationParticipationShouldPersistOneSnapshotPerLoopRun(t *testing.T) {
 	t.Parallel()
 

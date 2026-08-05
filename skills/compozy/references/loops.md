@@ -87,7 +87,9 @@ Follow **inspect → validate → dry-run → publish (with `expected_version`) 
    per-node codes (`unknown_reference`, `node_id_invalid`, `verdict_policy_requires_judge`,
    `fan_out_ceiling_exceeded`).
 3. **dry-run** — `compozy__loop_run` with `dry: true` resolves inputs and returns the first generation's
-   plan without creating a run or spending budget.
+   plan without creating a run or spending budget. It also builds and reloads the executed-definition
+   snapshot used by submission; a template or condition manifest mismatch reports the exact key and
+   source before any run is created.
 4. **publish** — `compozy__loop_create` with `expected_version` set to the version from step one (or
    HTTP `PATCH /loops/:name`). This is compare-and-swap: a stale version is rejected `409` with the
    current version. Native: `tool_conflict`/`loop_version_conflict` with

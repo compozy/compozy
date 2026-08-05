@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"maps"
 	"strings"
 
 	"github.com/compozy/compozy/internal/hooks"
@@ -71,7 +70,12 @@ func BuildExecutedDefinitionSnapshot(
 	if err != nil {
 		return nil, "", err
 	}
-	return json.RawMessage(canonical), executedDefinitionDigest(canonical), nil
+	raw := json.RawMessage(canonical)
+	digest := executedDefinitionDigest(canonical)
+	if _, err := LoadExecutedDefinitionSnapshot(raw, digest); err != nil {
+		return nil, "", fmt.Errorf("loop: validate built executed definition snapshot: %w", err)
+	}
+	return raw, digest, nil
 }
 
 func canonicalExecutedDefinitionSnapshot(data []byte) ([]byte, error) {
@@ -134,11 +138,19 @@ func LoadExecutedDefinitionSnapshot(
 	if err != nil {
 		return nil, err
 	}
-	if !maps.Equal(resolvedTemplateSources(resolved), envelope.TemplateSources) {
-		return nil, fmt.Errorf("%w: executed definition template manifest changed", ErrValidation)
+	if err := validateExecutedManifestRoundTrip(
+		"template",
+		envelope.TemplateSources,
+		resolvedTemplateSources(resolved),
+	); err != nil {
+		return nil, err
 	}
-	if !maps.Equal(resolvedConditionSources(resolved), envelope.ConditionSources) {
-		return nil, fmt.Errorf("%w: executed definition condition manifest changed", ErrValidation)
+	if err := validateExecutedManifestRoundTrip(
+		"condition",
+		envelope.ConditionSources,
+		resolvedConditionSources(resolved),
+	); err != nil {
+		return nil, err
 	}
 	return resolved, nil
 }

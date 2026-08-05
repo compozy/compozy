@@ -24,7 +24,9 @@ is wrong before it ever costs anything.
     Resolve inputs and render the first generation's plan **without starting a run**. `compozy loop run
     --name <loop> --dry-run`, `POST /loops/:name/run?dry=true`, or `compozy__loop_run` with `dry: true`.
     It spends no budget, creates no run row, and returns a plan preview — resolved inputs, the
-    generation-1 nodes, the contract, and the effective config.
+    generation-1 nodes, the contract, and the effective config. Before returning the plan, the
+    daemon also checks that the compiled definition can be saved and loaded with the same template
+    and condition manifests. A mismatch names the exact key and source, and still creates no run.
   </WorkflowStep>
   <WorkflowStep title="Publish (compare-and-swap)">
     Persist the definition with `expected_version` set to the version you read in step one.

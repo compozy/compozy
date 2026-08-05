@@ -1891,6 +1891,47 @@ func TestServiceDryRunShouldReturnPlanPreviewWithoutState(t *testing.T) {
 			t.Fatalf("CreateLoopRun calls = %d, want 0 after runtime validation", store.createCount())
 		}
 	})
+
+	t.Run("Should reject a definition snapshot that cannot round trip", func(t *testing.T) {
+		t.Parallel()
+
+		resolved := compileDefinition(t, validDefinition())
+		delete(resolved.Templates, "nodes.agent.params.prompt")
+		store := newFakeLoopStore()
+		svc, err := loop.NewService(
+			store,
+			loop.DefinitionResolverFunc(func(
+				context.Context,
+				loop.WorkspaceID,
+				string,
+			) (*loop.ResolvedDefinition, error) {
+				return resolved, nil
+			}),
+			testGoalRunPolicyResolver(0.8),
+			loop.WithClock(func() time.Time {
+				return time.Date(2026, 7, 4, 12, 0, 0, 0, time.UTC)
+			}),
+			loop.WithRunIDFactory(func() (loop.RunID, error) {
+				return "looprun-preview", nil
+			}),
+		)
+		if err != nil {
+			t.Fatalf("NewService() error = %v", err)
+		}
+
+		_, err = svc.DryRun(context.Background(), "ws-1", "valid-loop", loop.Inputs{
+			Values: map[string]any{"tasks": "task-ref"},
+		})
+		if !errors.Is(err, loop.ErrValidation) || !strings.Contains(
+			err.Error(),
+			`template manifest key "nodes.agent.params.prompt" added during hydration`,
+		) {
+			t.Fatalf("DryRun() error = %v, want template key diagnostic", err)
+		}
+		if store.createCount() != 0 {
+			t.Fatalf("CreateLoopRun calls = %d, want 0 after snapshot validation", store.createCount())
+		}
+	})
 }
 
 func TestCostShouldBeDisplayOnly(t *testing.T) {
