@@ -211,7 +211,14 @@ func (s *service) buildProviderItems(ctx context.Context, cfg *compozyconfig.Con
 		if err != nil {
 			return nil, fmt.Errorf("settings: provider %q credential status: %w", name, err)
 		}
-		authStatus, err := providerAuthStatus(s.homePaths, name, resolved, credentials, s.commandLookPath)
+		authStatus, err := providerAuthStatus(
+			ctx,
+			s.homePaths,
+			name,
+			resolved,
+			credentials,
+			s.providerAuthCommandResolver,
+		)
 		if err != nil {
 			return nil, fmt.Errorf("settings: provider %q auth status: %w", name, err)
 		}
@@ -249,58 +256,67 @@ func (s *service) buildProviderItems(ctx context.Context, cfg *compozyconfig.Con
 }
 
 func providerAuthStatus(
+	ctx context.Context,
 	homePaths compozyconfig.HomePaths,
 	providerName string,
 	provider compozyconfig.ProviderConfig,
 	credentials []ProviderCredentialStatus,
-	lookPath func(string) (string, error),
+	resolver authproviders.ProviderAuthCommandResolver,
 ) (ProviderAuthStatus, error) {
 	status := ProviderAuthStatus{
 		Mode:       provider.EffectiveAuthMode(),
 		EnvPolicy:  provider.EffectiveEnvPolicy(),
 		HomePolicy: provider.EffectiveHomePolicy(),
 		StatusCmd:  strings.TrimSpace(provider.AuthStatusCmd),
-		LoginCmd:   strings.TrimSpace(provider.AuthLoginCmd),
 	}
-	classification, err := authproviders.ClassifyDeclared(context.Background(), provider, providerAuthStatusProbeEnv(
+	probeEnv, err := providerAuthStatusProbeEnv(
+		homePaths,
 		providerName,
+		provider,
 		credentials,
-		lookPath,
-	))
+		resolver,
+	)
+	if err != nil {
+		return ProviderAuthStatus{}, err
+	}
+	classification, err := authproviders.ClassifyDeclared(ctx, provider, probeEnv)
 	if err != nil {
 		return ProviderAuthStatus{}, err
 	}
 	status.State = string(classification.State)
 	status.Code = classification.Code
 	status.Message = classification.Message
+	status.Login = authproviders.DescribeProviderLogin(provider, nil, classification)
 	switch status.Mode {
 	case compozyconfig.ProviderAuthModeBoundSecret:
 		return status, nil
 	case compozyconfig.ProviderAuthModeNone:
 		return status, nil
 	default:
-		nativeCLI, err := providerauth.NativeCLIStatusForProvider(provider, lookPath)
+		nativeCLI, err := authproviders.NativeCLIStatus(ctx, provider, probeEnv)
 		if err != nil {
 			return ProviderAuthStatus{}, err
 		}
-		status.NativeCLI = nativeCLI
-		loginEnv, err := providerauth.NativeCLILoginEnv(homePaths, providerName, provider, os.Environ())
-		if err != nil {
-			return ProviderAuthStatus{}, err
-		}
-		status.LoginEnv = loginEnv
+		status.Login = authproviders.DescribeProviderLogin(provider, nativeCLI, classification)
 	}
 	return status, nil
 }
 
 func providerAuthStatusProbeEnv(
+	homePaths compozyconfig.HomePaths,
 	providerName string,
+	provider compozyconfig.ProviderConfig,
 	credentials []ProviderCredentialStatus,
-	lookPath func(string) (string, error),
-) *authproviders.ProbeEnv {
+	resolver authproviders.ProviderAuthCommandResolver,
+) (*authproviders.ProbeEnv, error) {
+	commandEnv, err := providerauth.DiagnosticCommandEnv(homePaths, providerName, provider, os.Environ())
+	if err != nil {
+		return nil, err
+	}
 	return &authproviders.ProbeEnv{
-		ProviderName: strings.TrimSpace(providerName),
-		LookPath:     lookPath,
+		ProviderName:   strings.TrimSpace(providerName),
+		CommandEnv:     commandEnv,
+		ResolveCommand: resolver,
 		LookupEnv: func(key string) (string, bool) {
 			for _, credential := range credentials {
 				if credential.Source != settingsCredentialSourceEnv || !credential.Present {
@@ -314,7 +330,7 @@ func providerAuthStatusProbeEnv(
 			return "", false
 		},
 		Vault: providerAuthStatusCredentialVault(credentials),
-	}
+	}, nil
 }
 
 type providerAuthStatusCredentialVault []ProviderCredentialStatus

@@ -22,6 +22,17 @@ type itemOptions struct {
 	evidence         map[string]any
 }
 
+// ItemSpec names the required fields for one canonical diagnostic item.
+type ItemSpec struct {
+	ID            string
+	Code          string
+	Category      string
+	Title         string
+	Message       string
+	Severity      string
+	DataFreshness string
+}
+
 const malformedDiagnosticID = "diagnostics.malformed"
 
 // WithSuggestedCommand records the exact recovery command for an operator or agent.
@@ -47,13 +58,7 @@ func WithEvidence(evidence map[string]any) ItemOption {
 
 // NewItem builds the canonical redacted DiagnosticItem.
 func NewItem(
-	id string,
-	code string,
-	category string,
-	title string,
-	message string,
-	severity string,
-	freshness string,
+	spec ItemSpec,
 	options ...ItemOption,
 ) contract.DiagnosticItem {
 	opts := itemOptions{}
@@ -64,15 +69,15 @@ func NewItem(
 	}
 
 	item := contract.DiagnosticItem{
-		ID:               strings.TrimSpace(id),
-		Code:             strings.TrimSpace(code),
-		Severity:         strings.TrimSpace(severity),
-		Category:         strings.TrimSpace(category),
-		Title:            Redact(strings.TrimSpace(title)),
-		Message:          Redact(strings.TrimSpace(message)),
+		ID:               strings.TrimSpace(spec.ID),
+		Code:             strings.TrimSpace(spec.Code),
+		Severity:         strings.TrimSpace(spec.Severity),
+		Category:         strings.TrimSpace(spec.Category),
+		Title:            Redact(strings.TrimSpace(spec.Title)),
+		Message:          Redact(strings.TrimSpace(spec.Message)),
 		SuggestedCommand: Redact(strings.TrimSpace(opts.suggestedCommand)),
 		DocURL:           Redact(strings.TrimSpace(opts.docURL)),
-		DataFreshness:    strings.TrimSpace(freshness),
+		DataFreshness:    strings.TrimSpace(spec.DataFreshness),
 		Evidence:         RedactEvidence(opts.evidence),
 	}
 	if err := contract.ValidateDiagnosticItem(item); err != nil {
@@ -341,6 +346,7 @@ func (e *StructuredError) DiagnosticItem() contract.DiagnosticItem {
 }
 
 type diagnosticItemCarrier interface {
+	error
 	DiagnosticItem() contract.DiagnosticItem
 }
 
@@ -349,8 +355,8 @@ func ItemFromError(err error) (contract.DiagnosticItem, bool) {
 	if err == nil {
 		return contract.DiagnosticItem{}, false
 	}
-	var carrier diagnosticItemCarrier
-	if !errors.As(err, &carrier) {
+	carrier, ok := errors.AsType[diagnosticItemCarrier](err)
+	if !ok {
 		return contract.DiagnosticItem{}, false
 	}
 	item := RedactItem(carrier.DiagnosticItem())

@@ -137,7 +137,9 @@ func (m *Manager) startManagedInputPrompt(session *Session, entry managedInput) 
 		m.releaseManagedInputLease(owner)
 		return
 	}
-	go drainPromptSource(events)
+	m.startTrackedPromptTask(func() {
+		drainPromptSource(events)
+	})
 }
 
 func managedInputOwnerFromEntry(entry managedInput) (ManagedInputOwner, error) {
@@ -154,7 +156,7 @@ func managedInputOwnerFromEntry(entry managedInput) (ManagedInputOwner, error) {
 		OwnerKind:     entry.ownerKind,
 		LoopRunID:     entry.loopRunID,
 		TaskRunID:     entry.taskRunID,
-		RunGeneration: int(*entry.runGeneration),
+		RunGeneration: *entry.runGeneration,
 		PromptAttempt: entry.promptAttempt,
 		ControlEpoch:  *entry.ownerEpoch,
 		BindingEpoch:  *entry.bindingEpoch,
@@ -208,8 +210,8 @@ func (m *Manager) handleManagedInputBeginError(
 	owner ManagedInputOwner,
 	cause error,
 ) {
-	var effectErr *ManagedInputEffectError
-	if !errors.As(cause, &effectErr) || effectErr.Finalized {
+	effectErr, ok := errors.AsType[*ManagedInputEffectError](cause)
+	if !ok || effectErr.Finalized {
 		return
 	}
 	switch effectErr.Certainty {

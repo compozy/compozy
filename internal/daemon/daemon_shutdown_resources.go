@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-func (d *Daemon) shutdownPersistentResources(ctx context.Context, targets shutdownTargets, errs *[]error) {
+func (d *Daemon) shutdownPersistentResources(ctx context.Context, targets *shutdownTargets, errs *[]error) {
 	if targets.windowManager != nil {
 		appendWrappedError(errs, "daemon: close window manager", targets.windowManager.Close())
 	}

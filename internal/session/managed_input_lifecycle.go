@@ -16,7 +16,7 @@ type ManagedInputOwner struct {
 	OwnerKind     string
 	LoopRunID     string
 	TaskRunID     string
-	RunGeneration int
+	RunGeneration int64
 	PromptAttempt int
 	ControlEpoch  int64
 	BindingEpoch  int64
@@ -36,7 +36,7 @@ type ManagedInputPromptMeta struct {
 	NodeID        string
 	PromptID      string
 	Kind          string
-	Generation    int
+	Generation    int64
 	ItemIndex     int
 	PromptAttempt int
 	Turn          *int

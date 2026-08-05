@@ -38,18 +38,18 @@ func (m *Manager) newSessionStartRun(base context.Context, sessionID string) (*s
 	}
 	run.launchCommit <- struct{}{}
 
-	m.startMu.Lock()
-	defer m.startMu.Unlock()
-	if m.startClosing {
+	m.startLifecycle.mu.Lock()
+	defer m.startLifecycle.mu.Unlock()
+	if m.startLifecycle.closing {
 		cancel(errors.New("session: manager is shutting down"))
 		return nil, errors.New("session: manager is shutting down")
 	}
-	if _, exists := m.startRuns[target]; exists {
+	if _, exists := m.startLifecycle.runs[target]; exists {
 		cancel(fmt.Errorf("session: start run %q already exists", target))
 		return nil, fmt.Errorf("session: start run %q already exists", target)
 	}
-	m.startWG.Add(1)
-	m.startRuns[target] = run
+	m.startLifecycle.wg.Add(1)
+	m.startLifecycle.runs[target] = run
 	return run, nil
 }
 
@@ -59,13 +59,13 @@ func (m *Manager) finishSessionStartRun(sessionID string, run *sessionStartRun, 
 	}
 	run.err = err
 	run.signalRecorderReady()
-	m.startMu.Lock()
-	if m.startRuns[strings.TrimSpace(sessionID)] == run {
-		delete(m.startRuns, strings.TrimSpace(sessionID))
+	m.startLifecycle.mu.Lock()
+	if m.startLifecycle.runs[strings.TrimSpace(sessionID)] == run {
+		delete(m.startLifecycle.runs, strings.TrimSpace(sessionID))
 	}
 	close(run.done)
-	m.startMu.Unlock()
-	m.startWG.Done()
+	m.startLifecycle.mu.Unlock()
+	m.startLifecycle.wg.Done()
 }
 
 func (r *sessionStartRun) signalRecorderReady() {
@@ -96,19 +96,16 @@ func acquireSessionStartLaunchCommit(
 	}
 	select {
 	case <-run.launchCommit:
-		var releaseOnce sync.Once
-		return func() {
-			releaseOnce.Do(func() { run.launchCommit <- struct{}{} })
-		}, nil
+		return sync.OnceFunc(func() { run.launchCommit <- struct{}{} }), nil
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
 }
 
 func (m *Manager) sessionStartRun(sessionID string) *sessionStartRun {
-	m.startMu.Lock()
-	defer m.startMu.Unlock()
-	return m.startRuns[strings.TrimSpace(sessionID)]
+	m.startLifecycle.mu.Lock()
+	defer m.startLifecycle.mu.Unlock()
+	return m.startLifecycle.runs[strings.TrimSpace(sessionID)]
 }
 
 // sessionInfoForRead returns the externally visible session snapshot.

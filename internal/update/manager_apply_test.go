@@ -10,6 +10,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"testing/iotest"
+
+	goselfupdate "github.com/creativeprojects/go-selfupdate/update"
 )
 
 func TestManagerApplyRelease(t *testing.T) {
@@ -287,6 +290,53 @@ func TestManagerApplyRelease(t *testing.T) {
 func TestManagerDownloadFile(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should bound early server-error response cleanup", func(t *testing.T) {
+		t.Parallel()
+
+		closeErr := errors.New("close response")
+		body := &updateReadCloserProbe{
+			reader:   strings.NewReader(strings.Repeat("x", int(maxUpdateResponseDrainBytes)+1)),
+			closeErr: closeErr,
+		}
+		manager, _ := newManagerWithExecutable(t, Config{
+			HTTPClient: &http.Client{
+				Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+					return &http.Response{
+						StatusCode: http.StatusInternalServerError,
+						Status:     "500 Internal Server Error",
+						Body:       body,
+					}, nil
+				}),
+			},
+		})
+		targetPath := filepath.Join(t.TempDir(), checksumsAssetName)
+
+		err := manager.downloadFile(
+			context.Background(),
+			"https://example.invalid/checksums.txt",
+			targetPath,
+			maxChecksumsBytes,
+		)
+		if err == nil {
+			t.Fatal("downloadFile() error = nil, want server and close failures")
+		}
+		if !strings.Contains(err.Error(), "500 Internal Server Error") {
+			t.Fatalf("downloadFile() error = %v, want server failure", err)
+		}
+		if !errors.Is(err, closeErr) {
+			t.Fatalf("downloadFile() error = %v, want close failure", err)
+		}
+		if !body.closed {
+			t.Fatal("response body closed = false, want true")
+		}
+		if body.read != maxUpdateResponseDrainBytes {
+			t.Fatalf("response body bytes drained = %d, want %d", body.read, maxUpdateResponseDrainBytes)
+		}
+		if _, statErr := os.Stat(targetPath); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("os.Stat(%q) error = %v, want no download target", targetPath, statErr)
+		}
+	})
+
 	t.Run("Should reject chunked downloads that exceed the limit", func(t *testing.T) {
 		t.Parallel()
 
@@ -320,6 +370,133 @@ func TestManagerDownloadFile(t *testing.T) {
 		}
 		if _, statErr := os.Stat(targetPath); !errors.Is(statErr, os.ErrNotExist) {
 			t.Fatalf("os.Stat(%q) error = %v, want partial file removed", targetPath, statErr)
+		}
+	})
+}
+
+func TestWriteDownloadTarget(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve write and close failures while closing the target", func(t *testing.T) {
+		t.Parallel()
+
+		writeErr := errors.New("write target")
+		closeErr := errors.New("close target")
+		target := &updateWriteCloserProbe{writeErr: writeErr, closeErr: closeErr}
+
+		err := writeDownloadTarget(
+			"download-target",
+			target,
+			iotest.OneByteReader(strings.NewReader("content")),
+			maxChecksumsBytes,
+		)
+		if err == nil {
+			t.Fatal("writeDownloadTarget() error = nil, want write and close failures")
+		}
+		if !errors.Is(err, writeErr) {
+			t.Fatalf("writeDownloadTarget() error = %v, want write failure", err)
+		}
+		if !errors.Is(err, closeErr) {
+			t.Fatalf("writeDownloadTarget() error = %v, want close failure", err)
+		}
+		if !target.closed {
+			t.Fatal("download target closed = false, want true")
+		}
+	})
+}
+
+func TestSelfBinaryApplierCleanup(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should atomically apply a replacement and retain its backup", func(t *testing.T) {
+		t.Parallel()
+
+		directory := t.TempDir()
+		sourcePath := filepath.Join(directory, "replacement")
+		targetPath := filepath.Join(directory, "compozy")
+		backupPath := filepath.Join(directory, "compozy.backup")
+		if err := os.WriteFile(sourcePath, []byte("replacement-binary"), 0o755); err != nil {
+			t.Fatalf("WriteFile(%q) error = %v", sourcePath, err)
+		}
+		if err := os.WriteFile(targetPath, []byte("current-binary"), 0o755); err != nil {
+			t.Fatalf("WriteFile(%q) error = %v", targetPath, err)
+		}
+
+		err := (selfBinaryApplier{}).ApplyBinary(sourcePath, targetPath, backupPath, 0o750)
+		if err != nil {
+			t.Fatalf("ApplyBinary() error = %v", err)
+		}
+		updated, err := os.ReadFile(targetPath)
+		if err != nil {
+			t.Fatalf("ReadFile(%q) error = %v", targetPath, err)
+		}
+		if string(updated) != "replacement-binary" {
+			t.Fatalf("updated target = %q, want replacement binary", updated)
+		}
+		backup, err := os.ReadFile(backupPath)
+		if err != nil {
+			t.Fatalf("ReadFile(%q) error = %v", backupPath, err)
+		}
+		if string(backup) != "current-binary" {
+			t.Fatalf("backup binary = %q, want current binary", backup)
+		}
+	})
+
+	t.Run("Should restore a backup binary", func(t *testing.T) {
+		t.Parallel()
+
+		directory := t.TempDir()
+		backupPath := filepath.Join(directory, "compozy.backup")
+		targetPath := filepath.Join(directory, "compozy")
+		if err := os.WriteFile(backupPath, []byte("backup-binary"), 0o755); err != nil {
+			t.Fatalf("WriteFile(%q) error = %v", backupPath, err)
+		}
+		if err := os.WriteFile(targetPath, []byte("broken-binary"), 0o755); err != nil {
+			t.Fatalf("WriteFile(%q) error = %v", targetPath, err)
+		}
+
+		err := (selfBinaryApplier{}).RestoreBinary(backupPath, targetPath, 0o750)
+		if err != nil {
+			t.Fatalf("RestoreBinary() error = %v", err)
+		}
+		restored, err := os.ReadFile(targetPath)
+		if err != nil {
+			t.Fatalf("ReadFile(%q) error = %v", targetPath, err)
+		}
+		if string(restored) != "backup-binary" {
+			t.Fatalf("restored target = %q, want backup binary", restored)
+		}
+	})
+
+	t.Run("Should preserve replacement read and close failures", func(t *testing.T) {
+		t.Parallel()
+
+		readErr := errors.New("read replacement")
+		closeErr := errors.New("close replacement")
+		source := &updateReadCloserProbe{
+			reader:   iotest.ErrReader(readErr),
+			closeErr: closeErr,
+		}
+
+		err := applySelfUpdate(
+			source,
+			"replacement-binary",
+			"replacement binary",
+			"apply binary",
+			"apply binary rollback failed",
+			goselfupdate.Options{TargetPath: filepath.Join(t.TempDir(), "compozy")},
+		)
+		if err == nil {
+			t.Fatal("applySelfUpdate() error = nil, want read and close failures")
+		}
+		if !errors.Is(err, readErr) {
+			t.Fatalf("applySelfUpdate() error = %v, want read failure", err)
+		}
+		if !errors.Is(err, closeErr) {
+			t.Fatalf("applySelfUpdate() error = %v, want close failure", err)
+		}
+		if !source.closed {
+			t.Fatal("replacement source closed = false, want true")
 		}
 	})
 }

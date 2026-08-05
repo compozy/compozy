@@ -31,11 +31,11 @@ func (r *RunReview) Normalize(now time.Time) (RunReview, error) {
 		normalized.Status = RunReviewStatusRequested
 	}
 	normalized.Outcome = normalized.Outcome.Normalize()
-	normalized.Reason = strings.TrimSpace(normalized.Reason)
+	normalized.Reason = RedactClaimTokens(strings.TrimSpace(normalized.Reason))
 	normalized.DeliveryID = strings.TrimSpace(normalized.DeliveryID)
-	normalized.MissingWork = normalizeReviewMissingWork(normalized.MissingWork)
-	normalized.NextRoundGuidance = strings.TrimSpace(normalized.NextRoundGuidance)
-	normalized.ReviewText = strings.TrimSpace(normalized.ReviewText)
+	normalized.MissingWork = RedactClaimTokenJSON(normalizeReviewMissingWork(normalized.MissingWork))
+	normalized.NextRoundGuidance = RedactClaimTokens(strings.TrimSpace(normalized.NextRoundGuidance))
+	normalized.ReviewText = RedactClaimTokens(strings.TrimSpace(normalized.ReviewText))
 	normalized.ReviewerSessionID = strings.TrimSpace(normalized.ReviewerSessionID)
 	normalized.ReviewerAgentName = strings.TrimSpace(normalized.ReviewerAgentName)
 	normalized.ReviewerPeerID = strings.TrimSpace(normalized.ReviewerPeerID)
@@ -81,7 +81,11 @@ func validateRunReviewIdentity(review *RunReview) error {
 	if strings.TrimSpace(review.RunID) == "" {
 		return fmt.Errorf("%w: task_run_review.run_id is required", ErrValidation)
 	}
-	return nil
+	return validateRunReviewSelectorFields(map[string]string{
+		reviewEvidenceIDKey: review.ReviewID,
+		taskEvidenceIDKey:   review.TaskID,
+		runEvidenceIDKey:    review.RunID,
+	}, "task_run_review")
 }
 
 func validateRunReviewLifecycle(review *RunReview) error {
@@ -115,7 +119,7 @@ func validateRunReviewLifecycle(review *RunReview) error {
 }
 
 func validateRunReviewContent(review *RunReview) error {
-	if err := validateBoundedReviewText(review.Reason, maxRunReviewReasonBytes, "task_run_review.reason"); err != nil {
+	if err := ValidateReasonSize(review.Reason, "task_run_review.reason"); err != nil {
 		return err
 	}
 	if err := validateRunReviewMissingWork(review.MissingWork); err != nil {

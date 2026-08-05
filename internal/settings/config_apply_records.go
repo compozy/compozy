@@ -45,7 +45,10 @@ func (r *configApplyRecordRepository) CreateApplyRecord(
 	if r == nil || r.db == nil {
 		return ApplyRecord{}, errors.New("settings: config apply record database is required")
 	}
-	normalized := r.normalizeForCreate(record)
+	normalized, err := r.normalizeForCreate(record)
+	if err != nil {
+		return ApplyRecord{}, err
+	}
 	diagnosticsJSON, err := marshalApplyDiagnostics(normalized.Diagnostics)
 	if err != nil {
 		return ApplyRecord{}, err
@@ -135,7 +138,7 @@ func (r *configApplyRecordRepository) UpdateApplyRecord(
 func (r *configApplyRecordRepository) ListApplyRecords(
 	ctx context.Context,
 	filter ApplyRecordFilter,
-) ([]ApplyRecord, error) {
+) (records []ApplyRecord, err error) {
 	if r == nil || r.db == nil {
 		return nil, errors.New("settings: config apply record database is required")
 	}
@@ -174,9 +177,9 @@ func (r *configApplyRecordRepository) ListApplyRecords(
 	if err != nil {
 		return nil, fmt.Errorf("settings: list config apply records: %w", err)
 	}
-	defer rows.Close()
+	defer closeApplyRecordRows(rows, &err)
 
-	records := []ApplyRecord{}
+	records = []ApplyRecord{}
 	for rows.Next() {
 		record, scanErr := scanApplyRecord(rows)
 		if scanErr != nil {
@@ -188,6 +191,15 @@ func (r *configApplyRecordRepository) ListApplyRecords(
 		return nil, fmt.Errorf("settings: iterate config apply records: %w", err)
 	}
 	return records, nil
+}
+
+func closeApplyRecordRows(rows *sql.Rows, target *error) {
+	if closeErr := rows.Close(); closeErr != nil {
+		*target = errors.Join(
+			*target,
+			fmt.Errorf("settings: close config apply record rows: %w", closeErr),
+		)
+	}
 }
 
 func (r *configApplyRecordRepository) LatestAppliedRecord(
@@ -228,11 +240,15 @@ func (r *configApplyRecordRepository) LatestAppliedRecord(
 	return &record, nil
 }
 
-func (r *configApplyRecordRepository) normalizeForCreate(record ApplyRecord) ApplyRecord {
+func (r *configApplyRecordRepository) normalizeForCreate(record ApplyRecord) (ApplyRecord, error) {
 	now := r.now().UTC()
 	normalized := record
 	if strings.TrimSpace(normalized.ID) == "" {
-		normalized.ID = store.NewID("cfgapp")
+		generatedID, err := store.NewID("cfgapp")
+		if err != nil {
+			return ApplyRecord{}, fmt.Errorf("settings: generate config apply record id: %w", err)
+		}
+		normalized.ID = generatedID
 	}
 	if strings.TrimSpace(normalized.Actor) == "" {
 		normalized.Actor = applyRecordActorRuntime
@@ -249,7 +265,7 @@ func (r *configApplyRecordRepository) normalizeForCreate(record ApplyRecord) App
 	if normalized.UpdatedAt.IsZero() {
 		normalized.UpdatedAt = normalized.CreatedAt
 	}
-	return normalized
+	return normalized, nil
 }
 
 func (r *configApplyRecordRepository) normalizeForUpdate(record ApplyRecord) ApplyRecord {

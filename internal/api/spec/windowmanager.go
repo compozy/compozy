@@ -182,7 +182,10 @@ func listWindowManagerLayoutProfilesOperation(
 	workspaceParam ParameterSpec,
 ) OperationSpec {
 	resourceError := contract.ErrorPayload{}
-	resourceOrWindowManagerError := []any{resourceError, contract.WindowManagerErrorPayload{}}
+	resourceOrWindowManagerError := responseBodiesOf(
+		responseBodyOf[contract.ErrorPayload](),
+		responseBodyOf[contract.WindowManagerErrorPayload](),
+	)
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        windowManagerPath + "/layout-profiles",
@@ -212,7 +215,10 @@ func putWindowManagerLayoutProfileOperation(
 	profileParam ParameterSpec,
 ) OperationSpec {
 	resourceError := contract.ErrorPayload{}
-	resourceOrWindowManagerError := []any{resourceError, contract.WindowManagerErrorPayload{}}
+	resourceOrWindowManagerError := responseBodiesOf(
+		responseBodyOf[contract.ErrorPayload](),
+		responseBodyOf[contract.WindowManagerErrorPayload](),
+	)
 	return OperationSpec{
 		Method:      httpMethodPut,
 		Path:        windowManagerPath + "/layout-profiles/{profile_id}",
@@ -250,7 +256,10 @@ func deleteWindowManagerLayoutProfileOperation(
 	profileParam ParameterSpec,
 ) OperationSpec {
 	resourceError := contract.ErrorPayload{}
-	resourceOrWindowManagerError := []any{resourceError, contract.WindowManagerErrorPayload{}}
+	resourceOrWindowManagerError := responseBodiesOf(
+		responseBodyOf[contract.ErrorPayload](),
+		responseBodyOf[contract.WindowManagerErrorPayload](),
+	)
 	return OperationSpec{
 		Method:      httpMethodDelete,
 		Path:        windowManagerPath + "/layout-profiles/{profile_id}",
@@ -317,12 +326,12 @@ func windowManagerStreamOperation(
 			{
 				Status:      101,
 				Description: "WebSocket upgrade and frame contract",
-				Bodies: []any{
-					contract.WindowManagerSnapshotFrame{},
-					contract.WindowManagerEventFrame{},
-					contract.WindowManagerClientFrame{},
-					contract.WindowManagerErrorFrame{},
-				},
+				Bodies: responseBodiesOf(
+					responseBodyOf[contract.WindowManagerSnapshotFrame](),
+					responseBodyOf[contract.WindowManagerEventFrame](),
+					responseBodyOf[contract.WindowManagerClientFrame](),
+					responseBodyOf[contract.WindowManagerErrorFrame](),
+				),
 			},
 			{Status: 404, Description: specWorkspaceNotFoundDescription, Body: errorBody},
 			{Status: 409, Description: "Requested revision is ahead", Body: errorBody},

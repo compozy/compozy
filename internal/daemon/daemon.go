@@ -25,11 +25,10 @@ import (
 	"github.com/compozy/compozy/internal/memory/consolidation"
 	"github.com/compozy/compozy/internal/network"
 	"github.com/compozy/compozy/internal/observe"
+	"github.com/compozy/compozy/internal/providers"
 
 	"github.com/compozy/compozy/internal/resources"
-	"github.com/compozy/compozy/internal/sandbox"
 	"github.com/compozy/compozy/internal/session"
-	"github.com/compozy/compozy/internal/situation"
 	"github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/soul"
 	"github.com/compozy/compozy/internal/store"
@@ -44,6 +43,8 @@ import (
 const defaultShutdownTimeout = 10 * time.Second
 
 var (
+	errDaemonBootInProgress         = errors.New("daemon: boot in progress")
+	errDaemonShutdownInProgress     = errors.New("daemon: shutdown in progress")
 	errMissingNetworkBindingSurface = errors.New(
 		"daemon: session manager does not implement the network binding surface",
 	)
@@ -68,11 +69,13 @@ type Observer interface {
 	Reconcile(ctx context.Context) (store.ReconcileResult, error)
 }
 
-// Registry is the narrowed global database surface shared by observe and workspace.
-type Registry interface {
+type daemonObserveRegistry interface {
 	observe.Registry
 	store.EventSummaryBatchWriter
 	store.SessionCatalog
+}
+
+type daemonNetworkRegistry interface {
 	store.NetworkAuditStore
 	store.NetworkChannelStore
 	store.NetworkConversationStore
@@ -80,10 +83,21 @@ type Registry interface {
 	store.NetworkPreferenceStore
 	store.NetworkAvailabilityStore
 	store.NetworkUsageStore
-	store.OnboardingStore
+}
+
+type daemonWorkspaceRegistry interface {
 	workspacepkg.Store
 	workspacepkg.CoordinationSettings
 	workspacepkg.CoordinationCommandStore
+}
+
+// Registry is the composition-root database surface grouped by owning domain.
+// Consumers depend on their local narrow interfaces instead of this aggregate.
+type Registry interface {
+	daemonObserveRegistry
+	daemonNetworkRegistry
+	daemonWorkspaceRegistry
+	store.OnboardingStore
 }
 
 // Server is a daemon-owned runtime component with explicit start and shutdown phases.
@@ -131,6 +145,10 @@ type networkBindableSessionManager interface {
 }
 
 type memoryProviderShutdowner interface {
+	Shutdown(context.Context) error
+}
+
+type supportBundleShutdowner interface {
 	Shutdown(context.Context) error
 }
 
@@ -254,57 +272,11 @@ type Daemon struct {
 	readyCh                      chan struct{}
 	readyClosed                  bool
 	booting                      bool
+	shutdown                     *daemonShutdownOperation
 	orphanGraceWait              time.Duration
 	orphanPollWait               time.Duration
 	config                       compozyconfig.Config
-	startedAt                    time.Time
-	info                         Info
 	admission                    admission.Gate
-	lock                         *Lock
-	harnessResolver              *HarnessContextResolver
-	registry                     Registry
-	memoryStore                  *memory.Store
-	memoryProviderRegistry       *extensionpkg.MemoryProviderRegistry
-	memoryExtractor              *daemonMemoryExtractor
-	runtimeWorkers               daemonRuntimeWorkers
-	localMemoryProvider          memoryProviderShutdowner
-	situationContext             *situation.Service
-	sessions                     SessionManager
-	tasks                        *taskRuntime
-	coordinator                  *coordinatorRuntime
-	spawnReaper                  *spawnReaper
-	scheduler                    *schedulerRuntime
-	network                      networkRuntime
-	networkWakeRunner            *networkWakeRunner
-	toolRegistry                 toolspkg.Registry
-	clarify                      *clarifyBridge
-	hooks                        hookRuntime
-	extensions                   extensionRuntime
-	observer                     Observer
-	resourceReconcile            resources.ReconcileDriver
-	agentCatalog                 *resourceCatalog[compozyconfig.AgentDef]
-	soulCatalog                  *resourceCatalog[soul.ResourceSpec]
-	heartbeatCatalog             *resourceCatalog[heartbeat.ResourceSpec]
-	toolCatalog                  *resourceCatalog[toolspkg.Tool]
-	mcpServerCatalog             *resourceCatalog[compozyconfig.MCPServer]
-	loopCatalog                  *resourceCatalog[looppkg.ResourceSpec]
-	automation                   automationRuntime
-	bridges                      *bridgeRuntime
-	httpServer                   Server
-	udsServer                    Server
-	dreamRuntime                 *consolidation.Runtime
-	workspaceResolver            workspacepkg.RuntimeResolver
-	sandboxRegistry              *sandbox.Registry
-	windowManagerRuntime
-	skillsRegistry    *skills.Registry
-	modelCatalog      *modelCatalogRuntime
-	marketplace       *marketplaceRuntime
-	skillsCancel      context.CancelFunc
-	skillsDone        chan struct{}
-	loopsCancel       context.CancelFunc
-	loopsDone         chan struct{}
-	goalOutboxCancel  context.CancelFunc
-	goalOutboxDone    chan struct{}
-	effectRelayCancel context.CancelFunc
-	effectRelayDone   chan struct{}
+	providerPreStarter           *providers.PreStarter
+	daemonRuntimeState
 }

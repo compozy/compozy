@@ -2,20 +2,23 @@ package acp
 
 import (
 	"context"
+	"errors"
 
 	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
-	"slices"
+	"runtime"
 
 	"strings"
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/fileutil"
 
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/toolruntime"
 )
 
@@ -29,9 +32,7 @@ func (p *AgentProcess) waitForExit(ctx context.Context, processRecordTimeout tim
 		waitErr = p.managed.Wait()
 	case p.cmd != nil:
 		waitErr = p.cmd.Wait()
-		if p.stopWasRequested() {
-			groupWaitErr = forceManagedProcessGroupExit(p.cmd, time.Second)
-		}
+		groupWaitErr = forceManagedProcessGroupExit(p.cmd, time.Second)
 	default:
 		waitErr = nil
 	}
@@ -40,12 +41,17 @@ func (p *AgentProcess) waitForExit(ctx context.Context, processRecordTimeout tim
 		if groupWaitErr != nil {
 			waitErr = fmt.Errorf("acp: wait for subprocess tree exit: %w", groupWaitErr)
 		}
-	} else if waitErr != nil {
-		waitErr = WrapFailure(
-			store.FailureProcess,
-			"ACP subprocess exited unexpectedly",
-			fmt.Errorf("acp: subprocess exited: %w", attachStderr(waitErr, p.Stderr())),
-		)
+	} else {
+		if waitErr != nil {
+			waitErr = WrapFailure(
+				store.FailureProcess,
+				"ACP subprocess exited unexpectedly",
+				fmt.Errorf("acp: subprocess exited: %w", attachStderr(waitErr, p.Stderr())),
+			)
+		}
+		if groupWaitErr != nil {
+			waitErr = errors.Join(waitErr, fmt.Errorf("acp: release subprocess tree: %w", groupWaitErr))
+		}
 	}
 	p.setWaitError(waitErr)
 	if p.processRecord != nil {
@@ -59,6 +65,7 @@ func (p *AgentProcess) waitForExit(ctx context.Context, processRecordTimeout tim
 	if p.cancelProcess != nil {
 		p.cancelProcess()
 	}
+	p.closeAndWaitChildTasks()
 	if p.terminals != nil {
 		p.terminals.closeAll()
 	}
@@ -68,9 +75,6 @@ func (p *AgentProcess) waitForExit(ctx context.Context, processRecordTimeout tim
 func processRecordContext(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
 	if timeout <= 0 {
 		timeout = defaultProcessRecordTimeout
-	}
-	if parent == nil {
-		parent = context.Background()
 	}
 	return context.WithTimeout(context.WithoutCancel(parent), timeout)
 }
@@ -86,6 +90,7 @@ func normalizeStartOpts(opts StartOpts) (StartOpts, error) {
 	}
 
 	normalized := opts
+	normalized.launchIdentity = clonePreparedLaunchIdentity(opts.launchIdentity)
 	normalized.Cwd = cwd
 	additionalDirs, err := normalizeAdditionalDirs(cwd, opts.AdditionalDirs)
 	if err != nil {
@@ -167,7 +172,7 @@ func prependPathEntry(pathValue string, entry string) string {
 	filtered := make([]string, 0, len(segments))
 	for _, segment := range segments {
 		trimmed := strings.TrimSpace(segment)
-		if trimmed == "" || trimmed == cleanEntry {
+		if trimmed == "" || samePathEntry(trimmed, cleanEntry) {
 			continue
 		}
 		filtered = append(filtered, trimmed)
@@ -175,51 +180,29 @@ func prependPathEntry(pathValue string, entry string) string {
 	return strings.Join(append([]string{cleanEntry}, filtered...), separator)
 }
 
-func envValue(env []string, key string) (string, bool) {
-	prefix := key + "="
-	for _, variable := range slices.Backward(env) {
-		if strings.HasPrefix(variable, prefix) {
-			return variable[len(prefix):], true
-		}
+func samePathEntry(left string, right string) bool {
+	left = filepath.Clean(left)
+	right = filepath.Clean(right)
+	if runtime.GOOS == terminalWindowsKey {
+		return strings.EqualFold(left, right)
 	}
-	return "", false
+	return left == right
+}
+
+func envValue(env []string, key string) (string, bool) {
+	return subprocess.LookupEnv(env, key)
 }
 
 func setEnvValue(env []string, key string, value string) []string {
-	prefix := key + "="
-	entry := prefix + value
-	filtered := env[:0]
-	for _, variable := range env {
-		if strings.HasPrefix(variable, prefix) {
-			continue
-		}
-		filtered = append(filtered, variable)
-	}
-	return append(filtered, entry)
+	return subprocess.SetEnvValue(env, key, value)
 }
 
 func normalizeWorkspaceDir(path string, field string) (string, error) {
-	target := strings.TrimSpace(path)
-	absPath, err := filepath.Abs(target)
+	canonicalPath, err := fileutil.CanonicalExistingDirectory(path)
 	if err != nil {
-		return "", fmt.Errorf("acp: resolve %s %q: %w", field, path, err)
+		return "", fmt.Errorf("acp: canonicalize %s %q: %w", field, path, err)
 	}
-	info, err := os.Stat(absPath)
-	if err != nil {
-		return "", fmt.Errorf("acp: stat %s %q: %w", field, absPath, err)
-	}
-	if !info.IsDir() {
-		return "", fmt.Errorf("acp: %s %q is not a directory", field, absPath)
-	}
-	resolvedPath, err := filepath.EvalSymlinks(absPath)
-	if err != nil {
-		return "", fmt.Errorf("acp: evaluate %s %q: %w", field, absPath, err)
-	}
-	canonicalPath, err := filepath.Abs(resolvedPath)
-	if err != nil {
-		return "", fmt.Errorf("acp: resolve canonical %s %q: %w", field, resolvedPath, err)
-	}
-	return filepath.Clean(canonicalPath), nil
+	return canonicalPath, nil
 }
 
 func normalizeAdditionalDirs(rootDir string, dirs []string) ([]string, error) {

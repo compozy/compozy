@@ -3,6 +3,7 @@ package compozysdk
 import (
 	"encoding/json"
 	"io"
+	"maps"
 	"slices"
 	"strings"
 
@@ -116,9 +117,5 @@ func cloneStringMap(values map[string]string) map[string]string {
 	if len(values) == 0 {
 		return nil
 	}
-	result := make(map[string]string, len(values))
-	for key, value := range values {
-		result[key] = value
-	}
-	return result
+	return maps.Clone(values)
 }

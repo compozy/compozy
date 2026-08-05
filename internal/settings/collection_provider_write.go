@@ -126,6 +126,10 @@ func (s *service) putProvider(
 		return MutationResult{}, err
 	}
 	settings = reconciledSettings
+	settings, err = s.preserveProviderAuthLoginCommand(ctx, name, settings)
+	if err != nil {
+		return MutationResult{}, err
+	}
 	values := providerSettingsMap(settings)
 	if len(values) == 0 && len(secrets) == 0 {
 		return MutationResult{}, validationError(errors.New("settings: provider overlay requires at least one field"))
@@ -174,6 +178,26 @@ func (s *service) putProvider(
 	}
 
 	return mutationResultForProvider(target.Kind(), classification.modelOnly && len(secretWrites) == 0), nil
+}
+
+func (s *service) preserveProviderAuthLoginCommand(
+	ctx context.Context,
+	name string,
+	settings ProviderSettings,
+) (ProviderSettings, error) {
+	if settings.AuthLoginCmdSet || strings.TrimSpace(settings.AuthLoginCmd) != "" {
+		return settings, nil
+	}
+	cfg, _, err := s.loadConfig(ctx, ScopeGlobal, "")
+	if err != nil {
+		return ProviderSettings{}, fmt.Errorf("settings: load provider %q write-only fields: %w", name, err)
+	}
+	provider, ok := cfg.Providers[name]
+	if !ok {
+		return settings, nil
+	}
+	settings.AuthLoginCmd = strings.TrimSpace(provider.AuthLoginCmd)
+	return settings, nil
 }
 
 type preparedSecretWrite struct {

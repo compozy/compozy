@@ -13,7 +13,13 @@ import (
 	registrypkg "github.com/compozy/compozy/internal/registry"
 )
 
-func validateCatalogForPublication(directory string) (err error) {
+func validateCatalogForPublication(ctx context.Context, directory string) (err error) {
+	if ctx == nil {
+		return errors.New("compozy-catalog: validation context is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("compozy-catalog: validate catalog: %w", err)
+	}
 	if err := marketplace.ValidateCatalogDirectory(directory); err != nil {
 		return err
 	}
@@ -34,14 +40,19 @@ func validateCatalogForPublication(directory string) (err error) {
 		err = errors.Join(err, removeCatalogValidationDirectory(temporaryRoot))
 	}()
 	for _, entry := range document.Entries {
-		if err := validateExtensionArtifact(directory, temporaryRoot, entry); err != nil {
+		if err := validateExtensionArtifact(ctx, directory, temporaryRoot, entry); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func validateExtensionArtifact(catalogDir string, temporaryRoot string, entry marketplace.Entry) error {
+func validateExtensionArtifact(
+	ctx context.Context,
+	catalogDir string,
+	temporaryRoot string,
+	entry marketplace.Entry,
+) error {
 	details, err := marketplace.ProjectEntry(entry)
 	if err != nil {
 		return fmt.Errorf("compozy-catalog: project extension %q: %w", entry.EntryID, err)
@@ -57,7 +68,7 @@ func validateExtensionArtifact(catalogDir string, temporaryRoot string, entry ma
 	result, err := registrypkg.NewInstaller(&catalogFileDownloader{
 		path: artifactPath, version: entry.Version,
 	}).Install(
-		context.Background(),
+		ctx,
 		entry.InstallSlug,
 		registrypkg.DownloadOpts{Version: entry.Version, ExpectedSHA256: entry.DigestSHA256},
 		filepath.Join(temporaryRoot, entry.EntryID),
@@ -99,10 +110,16 @@ type catalogFileDownloader struct {
 }
 
 func (d *catalogFileDownloader) Download(
-	_ context.Context,
+	ctx context.Context,
 	slug string,
 	_ registrypkg.DownloadOpts,
 ) (*registrypkg.DownloadResult, error) {
+	if ctx == nil {
+		return nil, errors.New("compozy-catalog: download context is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("compozy-catalog: download artifact: %w", err)
+	}
 	file, err := os.Open(d.path)
 	if err != nil {
 		return nil, fmt.Errorf("compozy-catalog: open artifact %q: %w", d.path, err)

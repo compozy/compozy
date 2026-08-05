@@ -25,13 +25,19 @@ const nativeProvider: SettingsProviderEntry = {
     env_policy: "filtered",
     home_policy: "operator",
     auth_status_command: "codex auth status",
-    auth_login_command: "codex login",
   },
   auth_status: {
     mode: "native_cli",
     env_policy: "filtered",
     home_policy: "operator",
-    state: "authenticated",
+    state: "needs_login",
+    login: {
+      configured: true,
+      executable: "codex",
+      presence: "present",
+      recommended_action: "login",
+      source: "auth_login_command",
+    },
   },
   source_metadata: {
     available_targets: ["global-config"],
@@ -148,7 +154,7 @@ describe("ProviderDetailDialog", () => {
     expect(screen.queryByTestId("runtime-selector-trigger")).not.toBeInTheDocument();
   });
 
-  it("Should hide credential controls under native_cli and show the provider-owned login command", () => {
+  it("Should hide native credentials and expose only the safe login descriptor", () => {
     renderDialog({ mode: "create" });
 
     expect(
@@ -157,7 +163,12 @@ describe("ProviderDetailDialog", () => {
     expect(
       screen.queryByTestId("settings-providers-editor-credential-slot-0")
     ).not.toBeInTheDocument();
-    expect(screen.getByTestId("settings-providers-editor-auth-login-command-input")).toBeVisible();
+    expect(
+      screen.queryByTestId("settings-providers-editor-auth-login-command-input")
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("settings-providers-editor-auth-login-descriptor")).toHaveTextContent(
+      "Not configured"
+    );
     expect(screen.getByTestId("settings-providers-editor-auth-status-command-input")).toBeVisible();
   });
 
@@ -281,6 +292,16 @@ describe("ProviderDetailDialog", () => {
     await user.click(screen.getByTestId("provider-detail-tab-overview"));
     expect(screen.getByTestId("inspect-auth-mode")).toBeVisible();
     expect(screen.queryByTestId("settings-providers-editor-basics")).not.toBeInTheDocument();
+  });
+
+  it("Should expose only the safe login descriptor while inspecting a provider", () => {
+    renderDialog({ mode: "inspect", entry: nativeProvider });
+
+    expect(screen.getByTestId("inspect-login-descriptor-executable")).toHaveTextContent("codex");
+    expect(screen.getByTestId("inspect-login-descriptor-action")).toHaveTextContent(
+      "Next: Sign in with the provider CLI."
+    );
+    expect(screen.queryByText("codex login")).not.toBeInTheDocument();
   });
 
   it("Should reopen on the Simple tier after an Advanced edit of another provider", async () => {

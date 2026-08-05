@@ -359,7 +359,9 @@ CREATE TABLE network_wake_events (
 	task_run_id TEXT NOT NULL,
 	owner_key TEXT NOT NULL CHECK (length(trim(owner_key)) > 0),
 	target_session_id TEXT NOT NULL,
-	event_type TEXT NOT NULL CHECK (event_type IN ('admitted', 'claimed', 'heartbeat', 'released', 'settled')),
+	event_type TEXT NOT NULL CHECK (
+		event_type IN ('admitted', 'claimed', 'heartbeat', 'released', 'recovered', 'settled')
+	),
 	state TEXT NOT NULL,
 	claim_token_hash TEXT NOT NULL DEFAULT '',
 	usage_state TEXT NOT NULL DEFAULT '' CHECK (usage_state IN ('', 'actual', 'usage_unavailable')),

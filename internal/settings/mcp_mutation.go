@@ -264,7 +264,7 @@ func (s *service) deleteMCPServer(
 		}
 		return s.writeMCPServer(root, name, target, deletedSource.Server)
 	}
-	_, err = s.withMCPAuthDefinitionMutation(
+	mutationOutcome, err := s.withMCPAuthDefinitionMutation(
 		ctx,
 		scope,
 		workspaceID,
@@ -272,6 +272,10 @@ func (s *service) deleteMCPServer(
 		func() error { return s.deleteMCPServerDefinition(root, name, target) },
 		rollbackDefinition,
 	)
+	if mutationOutcome == mcpDefinitionMutationCommitted &&
+		scope == ScopeWorkspace && s.mcpDefinitionRetirer != nil {
+		s.mcpDefinitionRetirer.ForgetMCPServer(workspaceID, name)
+	}
 	if err != nil {
 		return MutationResult{}, err
 	}

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 )
 
@@ -91,14 +90,14 @@ func (b *Broker) flushDirtyDeliveryMetrics(ctx context.Context, respectLifecycle
 }
 
 func (b *Broker) setDeliveryMetricPersistenceIssue(bridgeInstanceID string, err error) {
-	if b == nil || strings.TrimSpace(bridgeInstanceID) == "" || err == nil {
+	if b == nil || bridgeInstanceID == "" || err == nil {
 		return
 	}
 	b.mu.Lock()
 	if b.metricPersistIssues == nil {
 		b.metricPersistIssues = make(map[string]deliveryMetricPersistenceIssue)
 	}
-	b.metricPersistIssues[strings.TrimSpace(bridgeInstanceID)] = deliveryMetricPersistenceIssue{
+	b.metricPersistIssues[bridgeInstanceID] = deliveryMetricPersistenceIssue{
 		err: err,
 		at:  b.now(),
 	}
@@ -110,7 +109,7 @@ func (b *Broker) clearDeliveryMetricPersistenceIssue(bridgeInstanceID string) {
 		return
 	}
 	b.mu.Lock()
-	delete(b.metricPersistIssues, strings.TrimSpace(bridgeInstanceID))
+	delete(b.metricPersistIssues, bridgeInstanceID)
 	b.mu.Unlock()
 }
 

@@ -13,15 +13,17 @@ import (
 
 // StatusForToolError maps registry failures to stable transport statuses.
 func StatusForToolError(err error) int {
-	var toolErr *toolspkg.ToolError
-	var validation *toolspkg.ValidationError
-	switch {
-	case err == nil:
+	if err == nil {
 		return http.StatusOK
-	case errors.As(err, &validation):
+	}
+	var validation *toolspkg.ValidationError
+	if errors.As(err, &validation) {
 		return http.StatusBadRequest
-	case errors.As(err, &toolErr):
+	}
+	if toolErr, ok := errors.AsType[*toolspkg.ToolError](err); ok {
 		return statusForToolCode(toolErr.Code, toolErr.ReasonCodes)
+	}
+	switch {
 	case errors.Is(err, toolspkg.ErrToolInvalidInput):
 		return http.StatusBadRequest
 	case errors.Is(err, toolspkg.ErrToolNotFound):
@@ -100,32 +102,31 @@ func RespondToolError(c *gin.Context, err error, maskInternal bool) {
 
 // ToolErrorResponseForError builds the stable tool error response payload.
 func ToolErrorResponseForError(err error, status int, maskInternal bool) contract.ToolErrorResponse {
-	var toolErr *toolspkg.ToolError
 	payload := contract.ToolErrorPayload{
 		Code:    toolspkg.ErrorCodeBackendFailed,
 		Message: http.StatusText(status),
 	}
-	switch {
-	case errors.As(err, &toolErr):
+	if err == nil {
+		payload.Code = toolErrorCodeForStatus(status)
+		payload.Message = http.StatusText(status)
+	} else if toolErr, ok := errors.AsType[*toolspkg.ToolError](err); ok {
 		payload.Code = toolErr.Code
 		payload.Message = safeToolErrorMessage(status, toolErr.Code)
 		payload.ToolID = toolErr.ToolID
 		payload.ReasonCodes = append([]toolspkg.ReasonCode(nil), toolErr.ReasonCodes...)
 		payload.Layer = toolErrorLayer(toolErr.ReasonCodes)
+		payload.Details = contract.ToolOperatorFailureDetails(toolErr.Operator)
 		if toolErr.PartialResult != nil {
 			partial := *toolErr.PartialResult
 			payload.PartialResult = &partial
 		}
-	case err != nil:
+	} else {
 		payload.Code = toolErrorCodeForStatus(status)
 		payload.Message = safeToolErrorMessage(status, payload.Code)
 		if reason, ok := toolspkg.ReasonOf(err); ok {
 			payload.ReasonCodes = []toolspkg.ReasonCode{reason}
 			payload.Layer = toolErrorLayer(payload.ReasonCodes)
 		}
-	default:
-		payload.Code = toolErrorCodeForStatus(status)
-		payload.Message = http.StatusText(status)
 	}
 	if maskInternal && status >= http.StatusInternalServerError &&
 		payload.Code != toolspkg.ErrorCodeResultPersistenceFailed {

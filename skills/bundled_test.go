@@ -13,17 +13,17 @@ import (
 
 var expectedCompozyReferences = []string{
 	"references/agent-definitions.md",
-	"references/capabilities.md",
-	"references/contributing-to-compozy.md",
-	"references/docs-design-and-copy.md",
+	"references/configuration.md",
 	"references/extension-authoring.md",
+	"references/extensions.md",
+	"references/loops.md",
 	"references/memory.md",
 	"references/native-tools.md",
 	"references/network.md",
-	"references/qa-and-verification.md",
 	"references/runtime-operations.md",
 	"references/tasks-and-orchestration.md",
 	"references/tools-and-skills.md",
+	"references/window-management.md",
 }
 
 func TestBundledFSContainsOnlyCompozySkill(t *testing.T) {
@@ -85,6 +85,28 @@ func TestLoadContentReturnsSkillBody(t *testing.T) {
 
 func TestBundledReferencesAreEmbeddedAndReadable(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should embed exactly the expected reference set", func(t *testing.T) {
+		t.Parallel()
+
+		entries, err := fs.ReadDir(FS(), "compozy/references")
+		if err != nil {
+			t.Fatalf("ReadDir bundled references error = %v", err)
+		}
+		got := make([]string, 0, len(entries))
+		for _, entry := range entries {
+			if entry.IsDir() {
+				t.Fatalf("bundled references contain unexpected directory %q", entry.Name())
+			}
+			got = append(got, "references/"+entry.Name())
+		}
+		slices.Sort(got)
+		want := slices.Clone(expectedCompozyReferences)
+		slices.Sort(want)
+		if !slices.Equal(got, want) {
+			t.Fatalf("bundled references = %#v, want %#v", got, want)
+		}
+	})
 
 	for _, reference := range expectedCompozyReferences {
 		t.Run("Should read "+reference, func(t *testing.T) {

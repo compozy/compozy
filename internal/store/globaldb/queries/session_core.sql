@@ -139,7 +139,13 @@ ON CONFLICT(id) DO UPDATE SET
   sandbox_last_sync_at = excluded.sandbox_last_sync_at,
   sandbox_last_sync_error = excluded.sandbox_last_sync_error,
   updated_at = excluded.updated_at
-WHERE sessions.network_spec_json IS excluded.network_spec_json
+WHERE sessions.workspace_id = excluded.workspace_id
+  AND sessions.network_spec_json IS excluded.network_spec_json
   AND sessions.network_mode IS excluded.network_mode
   AND sessions.network_channel IS excluded.network_channel
   AND sessions.network_source IS excluded.network_source;
+
+-- name: GetSessionWorkspaceID :one
+SELECT workspace_id
+FROM sessions
+WHERE id = sqlc.arg(id);

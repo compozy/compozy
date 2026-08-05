@@ -166,15 +166,21 @@ compozy provider auth login <provider>
 ```
 
 `compozy provider auth login` requires the provider to define `auth_login_command`. Built-in `claude`,
-`codex`, `opencode`, and `pi` providers define one; for custom native providers, configure the
-command or run the provider's own login command outside Compozy. `compozy provider auth login` executes the
-configured login command locally by default and attaches the terminal when stdin, stdout, and stderr
-are TTYs, so provider prompts and OAuth URLs stay visible. For isolated provider homes, Compozy supplies
-the required environment prefix so native credentials land in Compozy's provider home. Use
-`compozy provider auth login <provider> --print-command` for one raw copyable shell command without
-executing it, `--no-tty` for deterministic non-interactive runs, and `--timeout` when scripts need a
-bounded attempt. HTTP/UDS and daemon pre-start checks never run login commands; they use
-non-interactive `auth_status_command` probes only.
+`codex`, `opencode`, and `pi` providers define one; for a custom native provider, add the command to
+`config.toml` or set `providers.<provider>.auth_login_command` with `compozy config set` or
+`compozy__config_set`. The input is write-only: its value is redacted in the write response and every
+config read. Do not expect a copyable command, arguments, environment prefix, or full executable path
+from provider status, doctor, Settings, HTTP, or UDS.
+
+`compozy provider auth login` executes the configured login command locally and attaches the terminal
+when stdin, stdout, and stderr are TTYs, so provider prompts and OAuth URLs stay visible. For isolated
+provider homes, it uses Compozy's provider home without displaying the environment setup. The command
+returns the redacted provider status and its safe `login` descriptor: configured state, the
+`auth_login_command` source, executable basename, `present`/`missing`/`unknown` presence, and a
+recommended action (`install_cli`, `login`, `bind_secret`, `retry`, `inspect`, or `no_retry`). Use
+`--no-tty` for deterministic non-interactive runs and `--timeout` for a bounded attempt. HTTP, UDS,
+and daemon pre-start checks never run login commands; they use non-interactive `auth_status_command`
+probes only. `--no-tty` and `--timeout` are the only login flags.
 
 See [Spawning](/docs/agents/spawning) for the exact launch and ACP negotiation flow.
 

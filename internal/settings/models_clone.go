@@ -31,11 +31,6 @@ func cloneProviderItem(value *ProviderItem) ProviderItem {
 	cloned := *value
 	cloned.Settings = cloneProviderSettings(value.Settings)
 	cloned.Credentials = append([]ProviderCredentialStatus(nil), value.Credentials...)
-	cloned.AuthStatus.LoginEnv = append([]string(nil), value.AuthStatus.LoginEnv...)
-	if value.AuthStatus.NativeCLI != nil {
-		nativeCLI := *value.AuthStatus.NativeCLI
-		cloned.AuthStatus.NativeCLI = &nativeCLI
-	}
 	cloned.SourceMetadata = cloneSourceMetadata(value.SourceMetadata)
 	if value.Fallback != nil {
 		fallback := *value.Fallback

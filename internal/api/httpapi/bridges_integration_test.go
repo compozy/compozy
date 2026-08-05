@@ -6,6 +6,8 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -221,45 +223,74 @@ func TestHTTPBridgeRoutesEndpointReturnsOnlyRequestedInstanceRoutes(t *testing.T
 	}
 }
 
-func TestHTTPBridgeTestDeliveryResolvesTargetWithoutLiveAdapter(t *testing.T) {
-	t.Parallel()
+func TestHTTPBridgeDeliveryContract(t *testing.T) {
+	t.Run("Should resolve a slash-containing opaque bridge id without a live adapter", func(t *testing.T) {
+		t.Parallel()
 
-	runtime := newIntegrationRuntime(t)
+		runtime := newIntegrationRuntime(t)
+		instance := createIntegrationBridge(t, runtime, bridgepkg.CreateInstanceRequest{
+			ID:               "brg/http+test-delivery",
+			Scope:            bridgepkg.ScopeGlobal,
+			Platform:         "telegram",
+			ExtensionName:    "ext-telegram",
+			DisplayName:      "Test Delivery",
+			Enabled:          true,
+			Status:           bridgepkg.BridgeStatusReady,
+			RoutingPolicy:    bridgepkg.RoutingPolicy{IncludePeer: true, IncludeThread: true},
+			DeliveryDefaults: []byte(`{"peer_id":"peer-default","mode":"reply"}`),
+		})
 
-	instance := createIntegrationBridge(t, runtime, bridgepkg.CreateInstanceRequest{
-		ID:               "brg-http-test-delivery",
-		Scope:            bridgepkg.ScopeGlobal,
-		Platform:         "telegram",
-		ExtensionName:    "ext-telegram",
-		DisplayName:      "Test Delivery",
-		Enabled:          true,
-		Status:           bridgepkg.BridgeStatusReady,
-		RoutingPolicy:    bridgepkg.RoutingPolicy{IncludePeer: true, IncludeThread: true},
-		DeliveryDefaults: []byte(`{"peer_id":"peer-default","mode":"reply"}`),
+		resp := mustHTTPRequest(
+			t,
+			runtime.client,
+			http.MethodPost,
+			mustURL(
+				runtime.host,
+				runtime.port,
+				"/api/bridges/"+url.PathEscape(instance.ID)+"/test-delivery",
+			),
+			[]byte(`{"message":"hello","target":{"thread_id":"thread-1"}}`),
+			nil,
+		)
+		if resp.StatusCode != http.StatusOK {
+			body := mustReadAll(t, resp.Body)
+			t.Fatalf("test delivery status = %d, want %d; body=%s", resp.StatusCode, http.StatusOK, body)
+		}
+
+		var payload contract.BridgeTestDeliveryResponse
+		decodeHTTPJSON(t, resp, &payload)
+		if payload.Status != "resolved" || payload.DeliveryTarget.BridgeInstanceID != instance.ID {
+			t.Fatalf("payload = %#v", payload)
+		}
+		if payload.DeliveryTarget.PeerID != "peer-default" || payload.DeliveryTarget.ThreadID != "thread-1" ||
+			payload.DeliveryTarget.Mode != bridgepkg.DeliveryModeReply {
+			t.Fatalf("delivery target = %#v", payload.DeliveryTarget)
+		}
 	})
 
-	resp := mustHTTPRequest(
-		t,
-		runtime.client,
-		http.MethodPost,
-		mustURL(runtime.host, runtime.port, "/api/bridges/"+instance.ID+"/test-delivery"),
-		[]byte(`{"message":"hello","target":{"thread_id":"thread-1"}}`),
-		nil,
-	)
-	if resp.StatusCode != http.StatusOK {
-		body := mustReadAll(t, resp.Body)
-		t.Fatalf("test delivery status = %d, want %d; body=%s", resp.StatusCode, http.StatusOK, body)
-	}
+	t.Run("Should reject raw invalid UTF-8 before resolving an HTTP target", func(t *testing.T) {
+		t.Parallel()
 
-	var payload contract.BridgeTestDeliveryResponse
-	decodeHTTPJSON(t, resp, &payload)
-	if payload.Status != "resolved" || payload.DeliveryTarget.BridgeInstanceID != instance.ID {
-		t.Fatalf("payload = %#v", payload)
-	}
-	if payload.DeliveryTarget.PeerID != "peer-default" || payload.DeliveryTarget.ThreadID != "thread-1" ||
-		payload.DeliveryTarget.Mode != bridgepkg.DeliveryModeReply {
-		t.Fatalf("delivery target = %#v", payload.DeliveryTarget)
-	}
+		runtime := newIntegrationRuntime(t)
+		body := []byte(`{"target":{"peer_id":"`)
+		body = append(body, 0xff)
+		body = append(body, []byte(`","mode":"reply"}}`)...)
+		resp := mustHTTPRequest(
+			t,
+			runtime.client,
+			http.MethodPost,
+			mustURL(runtime.host, runtime.port, "/api/bridges/brg-invalid/test-delivery"),
+			body,
+			nil,
+		)
+		responseBody := mustReadAll(t, resp.Body)
+		if got, want := resp.StatusCode, http.StatusBadRequest; got != want {
+			t.Fatalf("test delivery status = %d, want %d; body=%s", got, want, responseBody)
+		}
+		if !strings.Contains(responseBody, "valid UTF-8") {
+			t.Fatalf("test delivery body = %s, want valid UTF-8 error", responseBody)
+		}
+	})
 }
 
 func TestHTTPObserveHealthIncludesBridgeMetricsAndPreservesSessionFields(t *testing.T) {

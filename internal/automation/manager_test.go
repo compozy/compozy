@@ -1139,8 +1139,9 @@ func TestManagerCreateJobRejectsDaemonLifecycleCommands(t *testing.T) {
 			if !errors.Is(err, ErrDaemonLifecycleCommandBlocked) {
 				t.Fatalf("manager.CreateJob() error = %v, want ErrDaemonLifecycleCommandBlocked", err)
 			}
-			var blockedErr *DaemonLifecycleCommandError
-			if !errors.As(err, &blockedErr) {
+
+			blockedErr, blockedErrMatched := errors.AsType[*DaemonLifecycleCommandError](err)
+			if !blockedErrMatched {
 				t.Fatalf("manager.CreateJob() error = %T, want *DaemonLifecycleCommandError", err)
 			}
 			if blockedErr.Class != tt.wantClass {

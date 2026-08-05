@@ -444,27 +444,14 @@ func (h BridgeProviderConfigSchema) normalize() BridgeProviderConfigSchema {
 
 func (b BridgeSecretBinding) normalize() BridgeSecretBinding {
 	normalized := b
-	normalized.BridgeInstanceID = strings.TrimSpace(normalized.BridgeInstanceID)
 	normalized.BindingName = strings.TrimSpace(normalized.BindingName)
 	normalized.SecretRef = strings.TrimSpace(normalized.SecretRef)
 	normalized.Kind = strings.TrimSpace(normalized.Kind)
 	return normalized
 }
 
-func (t DeliveryTarget) normalize() DeliveryTarget {
-	return deliveryTargetFromContract(bridgecontract.NormalizeDeliveryTarget(deliveryTargetToContract(t)))
-}
-
 func (r IngestDedupRecord) normalize() IngestDedupRecord {
 	normalized := r
 	normalized.IdempotencyKey = strings.TrimSpace(normalized.IdempotencyKey)
-	normalized.BridgeInstanceID = strings.TrimSpace(normalized.BridgeInstanceID)
 	return normalized
-}
-
-func requireField(value string, label string) error {
-	if strings.TrimSpace(value) == "" {
-		return fmt.Errorf("bridges: %s is required", label)
-	}
-	return nil
 }

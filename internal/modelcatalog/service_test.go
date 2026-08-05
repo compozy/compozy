@@ -1484,6 +1484,93 @@ func TestCatalogServiceRefresh(t *testing.T) {
 		}
 	})
 
+	t.Run("Should fail without persisting stale status when reading prior status fails", func(t *testing.T) {
+		t.Parallel()
+
+		staleRow := testRow(
+			"provider_live:codex",
+			SourceKindProviderLive,
+			PriorityProviderLive,
+			"codex",
+			"gpt-5.4",
+			testTime(0),
+			nil,
+		)
+		for _, tc := range []struct {
+			name       string
+			sourceRows []ModelRow
+			storedRows []ModelRow
+		}{
+			{
+				name:       "Should reject stale persistence from stored rows",
+				storedRows: []ModelRow{staleRow},
+			},
+			{
+				name:       "Should reject stale persistence from returned rows",
+				sourceRows: []ModelRow{staleRow},
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				source := &fakeSource{
+					id:        "provider_live:codex",
+					kind:      SourceKindProviderLive,
+					priority:  PriorityProviderLive,
+					providers: []string{"codex"},
+					rows:      tc.sourceRows,
+					err:       errors.New("live source unavailable"),
+				}
+				backingStore := newMemoryStore()
+				statusKey := sourceProviderKey(source.ID(), "codex")
+				backingStore.rows[statusKey] = tc.storedRows
+				backingStore.statuses[statusKey] = SourceStatus{
+					SourceID:     source.ID(),
+					SourceKind:   source.Kind(),
+					ProviderID:   "codex",
+					Priority:     source.Priority(),
+					LastSuccess:  testTime(0),
+					RefreshState: RefreshStateSucceeded,
+					RowCount:     1,
+				}
+				priorStatusErr := errors.New("status store unavailable")
+				store := &failOnSourceStatusReadStore{
+					Store:   backingStore,
+					failAt:  2,
+					failErr: priorStatusErr,
+				}
+				service := newTestService(t, store, []Source{source})
+
+				statuses, err := service.Refresh(testutil.Context(t), RefreshOptions{
+					ProviderID: "codex",
+					Force:      true,
+					Now:        testTime(1),
+				})
+				if err == nil {
+					t.Fatal("Refresh() error = nil, want prior-status read failure")
+				}
+				if !strings.Contains(err.Error(), "list prior source status") ||
+					!strings.Contains(err.Error(), priorStatusErr.Error()) {
+					t.Fatalf("Refresh() error = %v, want contextual prior-status read failure", err)
+				}
+				if len(statuses) != 0 {
+					t.Fatalf("Refresh() statuses = %#v, want no persisted failed status", statuses)
+				}
+				storedStatuses, err := backingStore.ListSourceStatus(testutil.Context(t), "codex")
+				if err != nil {
+					t.Fatalf("ListSourceStatus() error = %v", err)
+				}
+				status := requireStatus(t, storedStatuses, source.ID())
+				if status.RefreshState != RefreshStateSucceeded || !status.LastSuccess.Equal(testTime(0)) {
+					t.Fatalf("stored status = %#v, want unchanged successful status", status)
+				}
+				if got := backingStore.replaceCount; got != 0 {
+					t.Fatalf("ReplaceSourceRows() calls = %d, want 0", got)
+				}
+			})
+		}
+	})
+
 	t.Run("Should reject invalid extension source id before persistence", func(t *testing.T) {
 		t.Parallel()
 
@@ -1822,8 +1909,9 @@ func TestCatalogServiceRefresh(t *testing.T) {
 			testutil.Context(t),
 			RefreshOptions{ProviderID: "codex", SourceID: source.ID(), Force: true, Now: testTime(54)},
 		)
-		var fallback *StaleFallbackError
-		if !errors.As(err, &fallback) {
+
+		fallback, fallbackMatched := errors.AsType[*StaleFallbackError](err)
+		if !fallbackMatched {
 			t.Fatalf("Refresh(stale fallback) error = %v, want StaleFallbackError", err)
 		}
 		if fallback.SourceID != source.ID() {
@@ -2294,6 +2382,30 @@ type memoryStore struct {
 	rows         map[string][]ModelRow
 	statuses     map[string]SourceStatus
 	replaceCount int
+}
+
+type failOnSourceStatusReadStore struct {
+	Store
+	mu      sync.Mutex
+	failAt  int
+	failErr error
+	calls   int
+}
+
+var _ Store = (*failOnSourceStatusReadStore)(nil)
+
+func (s *failOnSourceStatusReadStore) ListSourceStatus(
+	ctx context.Context,
+	providerID string,
+) ([]SourceStatus, error) {
+	s.mu.Lock()
+	s.calls++
+	fail := s.calls == s.failAt
+	s.mu.Unlock()
+	if fail {
+		return nil, s.failErr
+	}
+	return s.Store.ListSourceStatus(ctx, providerID)
 }
 
 func newMemoryStore() *memoryStore {

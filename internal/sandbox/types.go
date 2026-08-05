@@ -221,10 +221,15 @@ type SyncResult struct {
 
 // LaunchSpec describes the ACP-capable command to start inside a sandbox.
 type LaunchSpec struct {
-	Command        string
-	Cwd            string
-	AdditionalDirs []string
-	Env            []string
+	Command string
+	// ResolvedExecutable and Args carry a launcher's prepared terminal identity.
+	// A launcher that prepares them must execute this absolute identity without
+	// resolving Command again.
+	ResolvedExecutable string
+	Args               []string
+	Cwd                string
+	AdditionalDirs     []string
+	Env                []string
 }
 
 // Provider manages the lifecycle of an execution sandbox.
@@ -245,6 +250,38 @@ type Finder interface {
 // Launcher starts an ACP-capable agent process inside a sandbox.
 type Launcher interface {
 	Launch(ctx context.Context, spec LaunchSpec) (Handle, error)
+}
+
+// LaunchPreparer resolves one final launch specification inside the launcher's runtime.
+type LaunchPreparer interface {
+	PrepareLaunch(ctx context.Context, spec LaunchSpec) (LaunchSpec, error)
+}
+
+// CommandSpec identifies one already-resolved command in a sandbox runtime.
+type CommandSpec struct {
+	Executable string
+	Args       []string
+	Cwd        string
+	Env        []string
+}
+
+// CommandResult reports one completed sandbox command without interpreting its output.
+type CommandResult struct {
+	ExitCode int
+	Stdout   string
+	Stderr   string
+	Duration time.Duration
+}
+
+// CommandRuntime resolves and runs diagnostic commands inside one prepared sandbox.
+type CommandRuntime interface {
+	Resolve(ctx context.Context, command string, env []string, cwd string) (string, error)
+	Run(ctx context.Context, spec CommandSpec) (CommandResult, error)
+}
+
+// CommandRuntimeProvider exposes the command runtime bound to a prepared launcher.
+type CommandRuntimeProvider interface {
+	CommandRuntime() CommandRuntime
 }
 
 // Handle represents a running agent process.

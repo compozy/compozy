@@ -162,8 +162,7 @@ func ReasonOf(err error) (ReasonCode, bool) {
 	if validation, ok := errors.AsType[*ValidationError](err); ok {
 		return validation.Reason, true
 	}
-	var toolErr *ToolError
-	if errors.As(err, &toolErr) && len(toolErr.ReasonCodes) > 0 {
+	if toolErr, ok := errors.AsType[*ToolError](err); ok && len(toolErr.ReasonCodes) > 0 {
 		return toolErr.ReasonCodes[0], true
 	}
 	return "", false
@@ -180,6 +179,8 @@ func isNilInterface(value any) bool {
 	if value == nil {
 		return true
 	}
+	// An error interface can hold a typed nil of any nil-capable kind. Reflection
+	// is required to inspect that dynamic representation; this runs only on error paths.
 	reflected := reflect.ValueOf(value)
 	switch reflected.Kind() {
 	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:

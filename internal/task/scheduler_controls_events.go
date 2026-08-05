@@ -16,14 +16,15 @@ import (
 
 func terminalTaskPauseError(record Task) error {
 	status := record.Status.Normalize()
-	item := diagnosticitems.NewItem(
-		"task.pause."+diagnosticcontract.CodeTaskRunAlreadyTerminal,
-		diagnosticcontract.CodeTaskRunAlreadyTerminal,
-		diagnosticcontract.CategoryTask,
-		"Task is already terminal",
-		fmt.Sprintf("Task %s is %s and cannot be paused.", record.ID, status),
-		diagnosticcontract.SeverityInfo,
-		diagnosticcontract.FreshnessLive,
+	item := diagnosticitems.NewItem(diagnosticitems.ItemSpec{
+		ID:            "task.pause." + diagnosticcontract.CodeTaskRunAlreadyTerminal,
+		Code:          diagnosticcontract.CodeTaskRunAlreadyTerminal,
+		Category:      diagnosticcontract.CategoryTask,
+		Title:         "Task is already terminal",
+		Message:       fmt.Sprintf("Task %s is %s and cannot be paused.", record.ID, status),
+		Severity:      diagnosticcontract.SeverityInfo,
+		DataFreshness: diagnosticcontract.FreshnessLive,
+	},
 		diagnosticitems.WithSuggestedCommand(fmt.Sprintf("compozy task inspect %s", record.ID)),
 		diagnosticitems.WithEvidence(map[string]any{
 			taskEvidenceIDKey: record.ID,
@@ -34,9 +35,6 @@ func terminalTaskPauseError(record Task) error {
 }
 
 func detachedSchedulerDrainContext(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	drainWindow := timeout
 	if drainWindow <= 0 {
 		drainWindow = schedulerDrainPollInterval
@@ -133,10 +131,7 @@ func (m *Service) recordSchedulerEventBestEffort(
 			SchedulerReason: payload.Reason,
 		},
 	}
-	eventCtx := context.Background()
-	if ctx != nil {
-		eventCtx = context.WithoutCancel(ctx)
-	}
+	eventCtx := context.WithoutCancel(ctx)
 	if err := writer.WriteEventSummary(eventCtx, summary); err != nil {
 		return
 	}

@@ -17,15 +17,15 @@ func TestNewItemRedactsDiagnosticFields(t *testing.T) {
 	t.Run("Should redact message and nested evidence values", func(t *testing.T) {
 		t.Parallel()
 
-		item := NewItem(
-			"test.provider",
-			contract.CodeProviderNotAuthenticated,
-			contract.CategoryProvider,
-			"Provider token=title-secret",
-			"Provider failed with Authorization: Bearer message-secret and claim compozy_claim_live_secret_123",
-			contract.SeverityWarn,
-			contract.FreshnessLive,
-			WithSuggestedCommand("compozy provider auth login claude"),
+		item := NewItem(ItemSpec{
+			ID:            "test.provider",
+			Code:          contract.CodeProviderNotAuthenticated,
+			Category:      contract.CategoryProvider,
+			Title:         "Provider token=title-secret",
+			Message:       "Provider failed with Authorization: Bearer message-secret and claim compozy_claim_live_secret_123",
+			Severity:      contract.SeverityWarn,
+			DataFreshness: contract.FreshnessLive,
+		}, WithSuggestedCommand("compozy provider auth login claude"),
 			WithEvidence(map[string]any{
 				"api_key": "sk-live-secret",
 				"stderr":  "token=stderr-secret",
@@ -65,15 +65,15 @@ func TestNewItemDowngradesInvalidInput(t *testing.T) {
 	t.Run("Should downgrade unknown diagnostic code without panicking", func(t *testing.T) {
 		logs := captureDiagnosticWarnings(t)
 
-		item := NewItem(
-			"",
-			"not_registered",
-			"not_a_category",
-			"",
-			"",
-			"bad_severity",
-			"bad_freshness",
-		)
+		item := NewItem(ItemSpec{
+			ID:            "",
+			Code:          "not_registered",
+			Category:      "not_a_category",
+			Title:         "",
+			Message:       "",
+			Severity:      "bad_severity",
+			DataFreshness: "bad_freshness",
+		})
 
 		if item.ID != malformedDiagnosticID {
 			t.Fatalf("NewItem().ID = %q, want %q", item.ID, malformedDiagnosticID)
@@ -102,15 +102,15 @@ func TestNewItemDowngradesInvalidInput(t *testing.T) {
 	t.Run("Should downgrade invalid severity and freshness on known code", func(t *testing.T) {
 		logs := captureDiagnosticWarnings(t)
 
-		item := NewItem(
-			"test.config_invalid",
-			contract.CodeConfigInvalid,
-			contract.CategoryConfig,
-			"Config invalid",
-			"Config could not be applied",
-			"bad_severity",
-			"bad_freshness",
-		)
+		item := NewItem(ItemSpec{
+			ID:            "test.config_invalid",
+			Code:          contract.CodeConfigInvalid,
+			Category:      contract.CategoryConfig,
+			Title:         "Config invalid",
+			Message:       "Config could not be applied",
+			Severity:      "bad_severity",
+			DataFreshness: "bad_freshness",
+		})
 
 		if item.Code != contract.CodeConfigInvalid {
 			t.Fatalf("NewItem().Code = %q, want %q", item.Code, contract.CodeConfigInvalid)
@@ -192,16 +192,15 @@ func TestStructuredErrorCarriesDiagnosticAndCause(t *testing.T) {
 		t.Parallel()
 
 		cause := errors.New("connect: token=cause-secret")
-		item := NewItem(
-			"cli.daemon_unavailable",
-			contract.CodeDaemonUnavailable,
-			contract.CategoryDaemon,
-			"Daemon unavailable",
-			"socket token=message-secret",
-			contract.SeverityError,
-			contract.FreshnessOffline,
-			WithSuggestedCommand("compozy daemon start"),
-		)
+		item := NewItem(ItemSpec{
+			ID:            "cli.daemon_unavailable",
+			Code:          contract.CodeDaemonUnavailable,
+			Category:      contract.CategoryDaemon,
+			Title:         "Daemon unavailable",
+			Message:       "socket token=message-secret",
+			Severity:      contract.SeverityError,
+			DataFreshness: contract.FreshnessOffline,
+		}, WithSuggestedCommand("compozy daemon start"))
 		err := NewStructuredError(item, cause)
 		if !errors.Is(err, cause) {
 			t.Fatalf("errors.Is() = false, want cause preserved")

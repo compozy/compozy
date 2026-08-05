@@ -34,7 +34,8 @@ type sandboxReconcileSession struct {
 func (d *Daemon) reconcileDaemonSandboxes(ctx context.Context, state *bootState) {
 	logger := sandboxReconcileLogger(state)
 	if ctx == nil {
-		ctx = context.Background()
+		logger.Warn("daemon: sandbox reconciliation skipped", "error", "context is required")
+		return
 	}
 	if state == nil {
 		logger.Warn("daemon: sandbox reconciliation skipped", "error", "boot state is required")

@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -650,4 +651,67 @@ func TestLoadAgentCapabilitiesMissingCatalogIsOptional(t *testing.T) {
 	if catalog != nil {
 		t.Fatalf("LoadAgentCapabilities() = %#v, want nil for missing catalog", catalog)
 	}
+}
+
+func TestCapabilityCatalogAccessRejectsSymlinkedDirectoriesAndFiles(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink permissions vary on Windows")
+	}
+
+	t.Run("Should reject a symlinked catalog directory during dependency enumeration", func(t *testing.T) {
+		t.Parallel()
+
+		agentDir := t.TempDir()
+		targetDir := filepath.Join(agentDir, "actual-capabilities")
+		writeFile(t, filepath.Join(targetDir, "leaked.toml"), `
+id = "leaked-capability"
+summary = "LEAKED_CAPABILITY_DIRECTORY_SECRET"
+outcome = "Secret."
+`)
+		if err := os.Symlink(targetDir, filepath.Join(agentDir, capabilityCatalogDirName)); err != nil {
+			t.Fatalf("os.Symlink(capability catalog directory) error = %v", err)
+		}
+
+		_, err := AgentCapabilityCatalogDependencyPaths(agentDir)
+		if err == nil {
+			t.Fatal("AgentCapabilityCatalogDependencyPaths(symlinked directory) error = nil, want symlink rejection")
+		}
+		if !strings.Contains(err.Error(), "symlink") {
+			t.Fatalf("AgentCapabilityCatalogDependencyPaths(symlinked directory) error = %v, want symlink context", err)
+		}
+		if strings.Contains(err.Error(), "LEAKED_CAPABILITY_DIRECTORY_SECRET") {
+			t.Fatalf("AgentCapabilityCatalogDependencyPaths(symlinked directory) leaked target content: %v", err)
+		}
+	})
+
+	t.Run("Should reject a symlinked catalog file without reading the target", func(t *testing.T) {
+		t.Parallel()
+
+		agentDir := t.TempDir()
+		targetPath := filepath.Join(agentDir, "actual-capability.toml")
+		writeFile(t, targetPath, `
+id = "leaked-capability"
+summary = "LEAKED_CAPABILITY_FILE_SECRET"
+outcome = "Secret."
+`)
+		linkPath := filepath.Join(agentDir, capabilityCatalogDirName, "leaked.toml")
+		if err := os.MkdirAll(filepath.Dir(linkPath), 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(capability catalog directory) error = %v", err)
+		}
+		if err := os.Symlink(targetPath, linkPath); err != nil {
+			t.Fatalf("os.Symlink(capability catalog file) error = %v", err)
+		}
+
+		_, err := LoadAgentCapabilities(agentDir)
+		if err == nil {
+			t.Fatal("LoadAgentCapabilities(symlinked file) error = nil, want symlink rejection")
+		}
+		if !strings.Contains(err.Error(), "symlink") {
+			t.Fatalf("LoadAgentCapabilities(symlinked file) error = %v, want symlink context", err)
+		}
+		if strings.Contains(err.Error(), "LEAKED_CAPABILITY_FILE_SECRET") {
+			t.Fatalf("LoadAgentCapabilities(symlinked file) leaked target content: %v", err)
+		}
+	})
 }

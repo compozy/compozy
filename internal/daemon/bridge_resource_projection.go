@@ -50,6 +50,7 @@ func (r *bridgeRuntime) applyBridgeResourceState(
 	}
 	if reloadMode == bridgeResourceReloadDeferred ||
 		typed.OperationCount() == 0 || len(typed.ChangedExtensions()) == 0 {
+		r.forgetRemovedBridgeEntities(typed)
 		return nil
 	}
 	if err := r.reloadExtensions(ctx, "bridge.resource"); err != nil {
@@ -63,6 +64,7 @@ func (r *bridgeRuntime) applyBridgeResourceState(
 		}
 		return fmt.Errorf("daemon: apply bridge resource state: rolled back after reload failure: %w", err)
 	}
+	r.forgetRemovedBridgeEntities(typed)
 	return nil
 }
 

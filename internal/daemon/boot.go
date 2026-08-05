@@ -99,6 +99,7 @@ type bootState struct {
 	accessPolicy          workspaceaccess.Policy
 	accessConsent         *workspaceAccessConsentCache
 	toolRegistry          toolspkg.Registry
+	mcpToolProvider       daemonMCPToolProvider
 	toolArtifacts         toolspkg.ToolArtifactStore
 	toolsets              core.ToolsetRegistry
 	toolApprovals         toolspkg.ApprovalTokenIssuer
@@ -129,6 +130,7 @@ type bootState struct {
 	automation            automationRuntime
 	bridges               *bridgeRuntime
 	notificationPresets   *presetspkg.Service
+	supportBundles        supportBundleShutdowner
 	httpServer            Server
 	udsServer             Server
 	skillsCancel          context.CancelFunc
@@ -142,6 +144,11 @@ type bootState struct {
 	startedAt             time.Time
 	info                  Info
 	deps                  RuntimeDeps
+}
+
+type daemonMCPToolProvider interface {
+	ForgetMCPServer(workspaceID string, serverName string)
+	ForgetWorkspace(workspaceID string)
 }
 
 func (d *Daemon) boot(ctx context.Context) (err error) {
@@ -173,6 +180,21 @@ func (d *Daemon) beginBoot() error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
+	if d.shutdown != nil {
+		select {
+		case <-d.shutdown.done:
+			if d.shutdown.result != nil {
+				return fmt.Errorf("daemon: previous shutdown incomplete: %w", d.shutdown.result)
+			}
+			// Preserve the existing reusable composition-root behavior while
+			// rearming readiness for the new runtime generation.
+			d.shutdown = nil
+			d.readyCh = make(chan struct{})
+			d.readyClosed = false
+		default:
+			return errDaemonShutdownInProgress
+		}
+	}
 	if d.booting ||
 		d.lock != nil ||
 		d.registry != nil ||
@@ -222,6 +244,7 @@ func (d *Daemon) bootPromptProviders(ctx context.Context, state *bootState) erro
 		MemoryPromptSectionEnabled:          state.memoryStore != nil,
 		SkillsPromptSectionEnabled:          state.skillsRegistry != nil,
 		ToolsPromptSectionEnabled:           state.cfg.Tools.Enabled,
+		WorkspaceKnowledgeAugmenter:         true,
 		SkillsAugmenter:                     state.skillsRegistry != nil,
 		SituationAugmenter:                  state.situationContext != nil,
 		DurableMemoryAugmenter:              state.memoryStore != nil,
@@ -242,6 +265,7 @@ func (d *Daemon) bootPromptProviders(ctx context.Context, state *bootState) erro
 	)
 	state.startupOverlay = compozyRuntimePromptOverlay{}
 	promptAugmenterDescriptors := defaultPromptInputAugmenterDescriptors(
+		situation.WorkspaceKnowledgeAugmenter,
 		memory.NewRecallAugmenter(state.memoryStore),
 		newSkillsCatalogAugmenter(state.skillsRegistry, func() promptSkillsWorkspaceResolver {
 			return state.workspaceResolver
@@ -265,7 +289,7 @@ func (d *Daemon) bootMemoryPromptProvider(
 	ctx context.Context,
 	state *bootState,
 ) (session.PromptProvider, error) {
-	if err := d.configureMemoryStore(state); err != nil {
+	if err := d.configureMemoryStore(ctx, state); err != nil {
 		return nil, err
 	}
 	state.localMemoryProvider = localprovider.New(

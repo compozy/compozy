@@ -95,7 +95,7 @@ CREATE TABLE bridge_task_subscriptions (
 		);
 
 CREATE TABLE bridge_deliveries (
-			delivery_id        TEXT PRIMARY KEY CHECK (length(trim(delivery_id)) > 0),
+		delivery_id        TEXT PRIMARY KEY CHECK (length(delivery_id) > 0),
 			session_id         TEXT NOT NULL CHECK (length(trim(session_id)) > 0),
 			turn_id            TEXT NOT NULL CHECK (length(trim(turn_id)) > 0),
 			routing_key        TEXT NOT NULL CHECK (

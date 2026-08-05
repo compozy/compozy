@@ -95,14 +95,12 @@ func validationIssueForError(dir string, err error) (ValidationIssue, bool, erro
 		Message:  err.Error(),
 		Severity: IssueSeverityError,
 	}
-	var resourceErr *resourceValidationError
-	if errors.As(err, &resourceErr) && resourceErr != nil {
+	if resourceErr, ok := errors.AsType[*resourceValidationError](err); ok && resourceErr != nil {
 		issue.Path = strings.TrimSpace(resourceErr.Path)
 		err = resourceErr.Err
 	}
 
-	var parseErr toml.ParseError
-	if errors.As(err, &parseErr) {
+	if parseErr, ok := errors.AsType[toml.ParseError](err); ok {
 		issue.Line = parseErr.Position.Line
 		data, readErr := os.ReadFile(issue.Path)
 		if readErr != nil {
@@ -111,27 +109,24 @@ func validationIssueForError(dir string, err error) (ValidationIssue, bool, erro
 		issue.Column = sourceColumn(data, parseErr.Position.Start)
 		return issue, true, nil
 	}
-	var syntaxErr *json.SyntaxError
-	if errors.As(err, &syntaxErr) {
+	if syntaxErr, ok := errors.AsType[*json.SyntaxError](err); ok {
 		data, readErr := os.ReadFile(issue.Path)
 		if readErr != nil {
 			return ValidationIssue{}, false, fmt.Errorf("extension: read invalid source %q: %w", issue.Path, readErr)
 		}
-		issue.Line, issue.Column = sourcePosition(data, int(syntaxErr.Offset)-1)
+		issue.Line, issue.Column = sourcePositionFromJSONOffset(data, syntaxErr.Offset)
 		return issue, true, nil
 	}
-	var typeErr *json.UnmarshalTypeError
-	if errors.As(err, &typeErr) {
+	if typeErr, ok := errors.AsType[*json.UnmarshalTypeError](err); ok {
 		issue.Field = typeErr.Field
 		data, readErr := os.ReadFile(issue.Path)
 		if readErr != nil {
 			return ValidationIssue{}, false, fmt.Errorf("extension: read invalid source %q: %w", issue.Path, readErr)
 		}
-		issue.Line, issue.Column = sourcePosition(data, int(typeErr.Offset)-1)
+		issue.Line, issue.Column = sourcePositionFromJSONOffset(data, typeErr.Offset)
 		return issue, true, nil
 	}
-	var validationErr *ManifestValidationError
-	if errors.As(err, &validationErr) {
+	if validationErr, ok := errors.AsType[*ManifestValidationError](err); ok {
 		issue.Field = validationErr.Field
 		return issue, true, nil
 	}
@@ -140,8 +135,7 @@ func validationIssueForError(dir string, err error) (ValidationIssue, bool, erro
 		issue.Field = manifestMinCompozyVersionKey
 		return issue, true, nil
 	}
-	var notFoundErr *ManifestNotFoundError
-	if errors.As(err, &notFoundErr) {
+	if notFoundErr, ok := errors.AsType[*ManifestNotFoundError](err); ok {
 		issue.Path = strings.TrimSpace(notFoundErr.Dir)
 		return issue, true, nil
 	}
@@ -166,6 +160,14 @@ func sourcePosition(data []byte, offset int) (int, int) {
 	}
 	line := bytes.Count(data[:offset], []byte{'\n'}) + 1
 	return line, sourceColumn(data, offset)
+}
+
+func sourcePositionFromJSONOffset(data []byte, offset int64) (int, int) {
+	if offset <= 1 {
+		return sourcePosition(data, 0)
+	}
+	byteOffset := min(offset-1, int64(len(data)))
+	return sourcePosition(data, int(byteOffset))
 }
 
 func sourceColumn(data []byte, offset int) int {

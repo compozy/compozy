@@ -28,9 +28,7 @@ type migrationPlan struct {
 }
 
 type migrationPlanCacheEntry struct {
-	once sync.Once
-	plan *migrationPlan
-	err  error
+	prepare func() (*migrationPlan, error)
 }
 
 type migrationPlanCacheStore struct {
@@ -43,21 +41,25 @@ var migrationPlanCache = migrationPlanCacheStore{
 }
 
 func prepareMigrationPlan(directory migrationDirectory) (*migrationPlan, error) {
-	entry := migrationPlanCache.loadOrCreate(directory.sumDigest)
-	entry.once.Do(func() {
-		entry.plan, entry.err = compileMigrationPlan(directory)
-	})
-	return entry.plan, entry.err
+	entry := migrationPlanCache.loadOrCreate(directory.sumDigest, directory)
+	return entry.prepare()
 }
 
-func (c *migrationPlanCacheStore) loadOrCreate(digest string) *migrationPlanCacheEntry {
+func (c *migrationPlanCacheStore) loadOrCreate(
+	digest string,
+	directory migrationDirectory,
+) *migrationPlanCacheEntry {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	if entry := c.entries[digest]; entry != nil {
 		return entry
 	}
-	entry := &migrationPlanCacheEntry{}
+	entry := &migrationPlanCacheEntry{
+		prepare: sync.OnceValues(func() (*migrationPlan, error) {
+			return compileMigrationPlan(directory)
+		}),
+	}
 	c.entries[digest] = entry
 	return entry
 }

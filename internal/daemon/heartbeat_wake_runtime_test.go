@@ -36,6 +36,10 @@ func TestHeartbeatWakeHealthReader(t *testing.T) {
 
 func TestSchedulerHeartbeatWakeIntegration(t *testing.T) {
 	t.Parallel()
+	var missingContext context.Context
+	if _, err := newSchedulerSessionWaker(missingContext, nil, discardLogger()); err == nil {
+		t.Fatal("newSchedulerSessionWaker(nil context) error = nil, want context validation failure")
+	}
 
 	t.Run("Should wake eligible sessions through the heartbeat synthetic prompt path", func(t *testing.T) {
 		t.Parallel()
@@ -59,7 +63,10 @@ func TestSchedulerHeartbeatWakeIntegration(t *testing.T) {
 				sessionID: daemonEligibleHeartbeatHealth(sessionID, workspaceID, agentName, base),
 			},
 		}
-		waker := newSchedulerSessionWaker(ctx, sessions, discardLogger())
+		waker, err := newSchedulerSessionWaker(ctx, sessions, discardLogger())
+		if err != nil {
+			t.Fatalf("newSchedulerSessionWaker() error = %v", err)
+		}
 		t.Cleanup(func() {
 			if err := waker.shutdown(testutil.Context(t)); err != nil {
 				t.Errorf("scheduler waker shutdown error = %v", err)
@@ -69,7 +76,7 @@ func TestSchedulerHeartbeatWakeIntegration(t *testing.T) {
 			t.Fatalf("configureHeartbeatWake() error = %v", err)
 		}
 
-		err := waker.Wake(ctx, &schedulerpkg.WakeTarget{
+		err = waker.Wake(ctx, &schedulerpkg.WakeTarget{
 			Work: schedulerpkg.RunSnapshot{
 				Task: taskpkg.Task{ID: "task-heartbeat", WorkspaceID: workspaceID, Scope: taskpkg.ScopeWorkspace},
 				Run:  taskpkg.Run{ID: "run-heartbeat", TaskID: "task-heartbeat", Status: taskpkg.TaskRunStatusQueued},
@@ -116,7 +123,10 @@ func TestSchedulerHeartbeatWakeIntegration(t *testing.T) {
 					State:       session.StateActive,
 				}},
 			}
-			waker := newSchedulerSessionWaker(ctx, sessions, discardLogger())
+			waker, err := newSchedulerSessionWaker(ctx, sessions, discardLogger())
+			if err != nil {
+				t.Fatalf("newSchedulerSessionWaker() error = %v", err)
+			}
 			t.Cleanup(func() {
 				if err := waker.shutdown(testutil.Context(t)); err != nil {
 					t.Errorf("scheduler waker shutdown error = %v", err)
@@ -207,7 +217,10 @@ func TestSchedulerHeartbeatWakeIntegration(t *testing.T) {
 				"sess-batch-b": daemonEligibleHeartbeatHealth("sess-batch-b", workspaceID, agentName, base),
 			},
 		}
-		waker := newSchedulerSessionWaker(ctx, sessions, discardLogger())
+		waker, err := newSchedulerSessionWaker(ctx, sessions, discardLogger())
+		if err != nil {
+			t.Fatalf("newSchedulerSessionWaker() error = %v", err)
+		}
 		t.Cleanup(func() {
 			if err := waker.shutdown(testutil.Context(t)); err != nil {
 				t.Errorf("scheduler waker shutdown error = %v", err)
@@ -243,6 +256,48 @@ func TestSchedulerHeartbeatWakeIntegration(t *testing.T) {
 			},
 		)
 	})
+}
+
+func TestSchedulerSessionWakerShutdownClosesAdmissionAndJoinsDrains(t *testing.T) {
+	t.Parallel()
+
+	events := make(chan acp.AgentEvent)
+	sessions := &fakeSessionManager{
+		infos: []*session.Info{{ID: "sess-waker-shutdown", State: session.StateActive}},
+		syntheticPromptHook: func(
+			context.Context,
+			string,
+			session.SyntheticPromptOpts,
+		) (<-chan acp.AgentEvent, error) {
+			return events, nil
+		},
+	}
+	waker, err := newSchedulerSessionWaker(testutil.Context(t), sessions, discardLogger())
+	if err != nil {
+		t.Fatalf("newSchedulerSessionWaker() error = %v", err)
+	}
+	target := daemonHeartbeatWakeTarget(
+		"task-waker-shutdown",
+		"run-waker-shutdown",
+		"",
+		"",
+		"sess-waker-shutdown",
+	)
+	if err := waker.wakePendingTaskRun(testutil.Context(t), &target, "sess-waker-shutdown"); err != nil {
+		t.Fatalf("wakePendingTaskRun() error = %v", err)
+	}
+	if err := waker.shutdown(testutil.Context(t)); err != nil {
+		t.Fatalf("shutdown() error = %v", err)
+	}
+	if err := waker.shutdown(testutil.Context(t)); err != nil {
+		t.Fatalf("shutdown(retry) error = %v", err)
+	}
+	if err := waker.wakePendingTaskRun(testutil.Context(t), &target, "sess-waker-shutdown"); err == nil {
+		t.Fatal("wakePendingTaskRun(after shutdown) error = nil, want admission failure")
+	}
+	if got, want := sessions.syntheticPromptCount(), 1; got != want {
+		t.Fatalf("synthetic prompt count = %d, want %d", got, want)
+	}
 }
 
 func TestHarnessHeartbeatWakeIntegration(t *testing.T) {

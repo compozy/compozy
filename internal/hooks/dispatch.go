@@ -63,6 +63,7 @@ func (h *Hooks) DispatchSessionPreResume(
 			match:  matchSessionLifecycle,
 			apply:  applySessionLifecyclePatch,
 			denied: sessionCreatePatchDenied,
+			guard:  guardImmutableSessionWorkspacePatch,
 			denyErr: func(_ SessionPreResumePayload, report dispatchReport) error {
 				return hookDeniedError(HookSessionPreResume, report.DenyReason)
 			},
@@ -102,6 +103,7 @@ func (h *Hooks) DispatchSessionPreStop(
 			match:  matchSessionLifecycle,
 			apply:  applySessionLifecyclePatch,
 			denied: sessionCreatePatchDenied,
+			guard:  guardImmutableSessionWorkspacePatch,
 			denyErr: func(_ SessionPreStopPayload, report dispatchReport) error {
 				return hookDeniedError(HookSessionPreStop, report.DenyReason)
 			},

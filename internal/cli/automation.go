@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 
 	"strings"
@@ -8,6 +9,10 @@ import (
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	"github.com/spf13/cobra"
 )
+
+type automationJobReader interface {
+	GetAutomationJob(context.Context, string) (JobRecord, error)
+}
 
 const (
 	hooksValueKey = "value"
@@ -197,7 +202,7 @@ func newAutomationJobsUpdateCommand(deps commandDeps) *cobra.Command {
 
 func buildAutomationJobUpdateRequest(
 	cmd *cobra.Command,
-	client DaemonClient,
+	client automationJobReader,
 	input automationJobUpdateInput,
 ) (AutomationJobUpdateRequest, error) {
 	request := AutomationJobUpdateRequest{}

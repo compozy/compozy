@@ -2,10 +2,8 @@ package session
 
 import (
 	"context"
-
 	"errors"
 	"fmt"
-
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
@@ -110,7 +108,7 @@ func (m *Manager) dispatchSessionPreResume(ctx context.Context, meta store.Sessi
 		return meta, nil
 	}
 
-	payload, err := m.hooks.session().DispatchSessionPreResume(ctx, hookspkg.SessionPreResumePayload{
+	request := hookspkg.SessionPreResumePayload{
 		PayloadBase: hookspkg.PayloadBase{
 			Event:     hookspkg.HookSessionPreResume,
 			Timestamp: m.now(),
@@ -126,15 +124,18 @@ func (m *Manager) dispatchSessionPreResume(ctx context.Context, meta store.Sessi
 			CreatedAt:    meta.CreatedAt,
 			UpdatedAt:    meta.UpdatedAt,
 		},
-	})
+	}
+	payload, err := m.hooks.session().DispatchSessionPreResume(ctx, request)
 	if err != nil {
 		return store.SessionMeta{}, fmt.Errorf("session: dispatch session.pre_resume: %w", err)
+	}
+	if err := validateImmutableSessionWorkspace(request.SessionContext, payload.SessionContext); err != nil {
+		return store.SessionMeta{}, fmt.Errorf("session: validate session.pre_resume patch: %w", err)
 	}
 
 	next := meta
 	next.Name = strings.TrimSpace(payload.SessionName)
 	next.AgentName = strings.TrimSpace(payload.AgentName)
-	next.WorkspaceID = strings.TrimSpace(payload.WorkspaceID)
 	next.SessionType = string(normalizeSessionType(Type(strings.TrimSpace(payload.SessionType))))
 	return next, nil
 }
@@ -153,10 +154,13 @@ func (m *Manager) dispatchSessionPreStop(ctx context.Context, session *Session) 
 	}
 	ctx = hookDispatchContext(ctx, m, session)
 
-	payload, err := m.hooks.session().
-		DispatchSessionPreStop(ctx, hookSessionLifecyclePayload(session, hookspkg.HookSessionPreStop, m.now()))
+	request := hookSessionLifecyclePayload(session, hookspkg.HookSessionPreStop, m.now())
+	payload, err := m.hooks.session().DispatchSessionPreStop(ctx, request)
 	if err != nil {
 		return fmt.Errorf("session: dispatch session.pre_stop: %w", err)
+	}
+	if err := validateImmutableSessionWorkspace(request.SessionContext, payload.SessionContext); err != nil {
+		return fmt.Errorf("session: validate session.pre_stop patch: %w", err)
 	}
 
 	session.applyHookSessionContext(payload.SessionContext, m.now())
@@ -199,10 +203,7 @@ func (m *Manager) hookLifecycleContext(ctx context.Context) context.Context {
 }
 
 func (m *Manager) fallbackLifecycleContext() context.Context {
-	if m != nil && m.lifecycleCtx != nil {
-		return m.lifecycleCtx
-	}
-	return context.Background()
+	return m.lifecycleCtx
 }
 
 func (m *Manager) postLifecycleHookContext(ctx context.Context, session *Session) context.Context {

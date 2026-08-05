@@ -53,7 +53,7 @@ func newToolArtifactReadCommand(deps commandDeps) *cobra.Command {
 					),
 				))
 			}
-			return runToolCommand(cmd, deps, func(client DaemonClient) error {
+			return runToolArtifactCommand(cmd, deps, func(client toolArtifactClient) error {
 				resolution, err := resolveCommandWorkspace(
 					cmd.Context(),
 					cmd,

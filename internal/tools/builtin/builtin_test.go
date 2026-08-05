@@ -2019,6 +2019,27 @@ func assertStringEnumSchema(t *testing.T, owner string, raw json.RawMessage, wan
 func TestBuiltinNativeWorkspaceInputContract(t *testing.T) {
 	t.Parallel()
 
+	descriptors := descriptorMap(NativeDescriptors())
+	for _, id := range []toolspkg.ToolID{
+		toolspkg.ToolIDTaskNotificationSubscribe,
+		toolspkg.ToolIDTaskNotificationList,
+	} {
+		descriptor, ok := descriptors[id]
+		if !ok {
+			t.Fatalf("descriptor %q missing", id)
+		}
+		var schema nativeObjectSchema
+		if err := json.Unmarshal(descriptor.InputSchema, &schema); err != nil {
+			t.Fatalf("json.Unmarshal(%s schema) error = %v", id, err)
+		}
+		if _, ok := schema.Properties["workspace_id"]; !ok {
+			t.Fatalf("%s properties omit opaque workspace_id", id)
+		}
+		if _, ok := schema.Properties["workspace"]; ok {
+			t.Fatalf("%s properties retain removed workspace alias", id)
+		}
+	}
+
 	for _, descriptor := range NativeDescriptors() {
 		t.Run("Should preserve the canonical workspace input contract for "+descriptor.ID.String(), func(t *testing.T) {
 			t.Parallel()
@@ -2076,7 +2097,10 @@ func nativeWorkspaceContractFieldAllowed(owner string, field string) bool {
 		return false
 	}
 	switch owner {
-	case "compozy__layout_apply.document", "compozy__layout_validate.document":
+	case "compozy__layout_apply.document",
+		"compozy__layout_validate.document",
+		toolspkg.ToolIDTaskNotificationList.String(),
+		toolspkg.ToolIDTaskNotificationSubscribe.String():
 		return true
 	default:
 		return false

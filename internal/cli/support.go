@@ -41,6 +41,14 @@ type supportBundleResult struct {
 	Path      string                       `json:"path"`
 }
 
+type supportBundleStatusClient interface {
+	GetSupportBundle(context.Context, string) (SupportBundleOperationRecord, error)
+}
+
+type supportBundleDownloadClient interface {
+	DownloadSupportBundle(context.Context, string, io.Writer) error
+}
+
 func newSupportCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   supportCommandKey,
@@ -202,50 +210,41 @@ func resolveInheritedOutputFormat(cmd *cobra.Command) (OutputFormat, error) {
 func waitForSupportBundle(
 	ctx context.Context,
 	deps commandDeps,
-	client DaemonClient,
+	client supportBundleStatusClient,
 	operationID string,
 ) (SupportBundleOperationRecord, error) {
+	if err := requirePollingContext(ctx); err != nil {
+		return SupportBundleOperationRecord{}, err
+	}
 	operationID = strings.TrimSpace(operationID)
 	if operationID == "" {
 		return SupportBundleOperationRecord{}, errors.New("cli: support bundle operation id is required")
 	}
-	waitCtx := ctx
-	if waitCtx == nil {
-		waitCtx = context.Background()
-	}
-	if _, hasDeadline := waitCtx.Deadline(); !hasDeadline {
-		var cancel context.CancelFunc
-		waitCtx, cancel = context.WithTimeout(waitCtx, defaultSupportBundleTimeout)
-		defer cancel()
-	}
-
-	ticker := time.NewTicker(deps.pollInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-waitCtx.Done():
-			return SupportBundleOperationRecord{}, fmt.Errorf(
-				"cli: support bundle did not complete before timeout: %w",
-				waitCtx.Err(),
-			)
-		case <-ticker.C:
-			operation, err := client.GetSupportBundle(waitCtx, operationID)
+	return pollUntil(
+		ctx,
+		defaultSupportBundleTimeout,
+		deps.pollInterval,
+		nil,
+		"cli: support bundle did not complete before timeout",
+		func(pollCtx context.Context, _ pollEvent) (SupportBundleOperationRecord, bool, error) {
+			operation, err := client.GetSupportBundle(pollCtx, operationID)
 			if err != nil {
-				continue
+				return SupportBundleOperationRecord{}, false, nil
 			}
 			switch strings.TrimSpace(operation.Status) {
 			case supportStatusCompleted:
-				return operation, nil
+				return operation, true, nil
 			case supportStatusFailed:
 				reason := strings.TrimSpace(operation.FailureReason)
 				if reason == "" {
 					reason = "support bundle creation failed"
 				}
-				return operation, errors.New("cli: " + reason)
+				return operation, true, errors.New("cli: " + reason)
+			default:
+				return SupportBundleOperationRecord{}, false, nil
 			}
-		}
-	}
+		},
+	)
 }
 
 func resolveSupportBundleOutputPath(
@@ -282,7 +281,7 @@ func resolveSupportBundleOutputPath(
 
 func downloadSupportBundle(
 	ctx context.Context,
-	client DaemonClient,
+	client supportBundleDownloadClient,
 	operationID string,
 	path string,
 ) (err error) {

@@ -29,6 +29,7 @@ import (
 	bridgepkg "github.com/compozy/compozy/internal/bridges/contract"
 	"github.com/compozy/compozy/internal/bridgesdk"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
+	"github.com/compozy/compozy/internal/extensiontest"
 	"github.com/compozy/compozy/internal/subprocess"
 )
 
@@ -2170,6 +2171,15 @@ func TestResolveInstanceConfigAndInitialState(t *testing.T) {
 }
 
 func TestGChatTransportAndClassificationHelpers(t *testing.T) {
+	endpoint, err := newValidatedGChatURL("https://chat.googleapis.com/v1/spaces")
+	if err != nil {
+		t.Fatalf("newValidatedGChatURL() error = %v", err)
+	}
+	var nilContext context.Context
+	if _, err := newGChatRequest(nilContext, http.MethodGet, endpoint, nil); err == nil {
+		t.Fatal("newGChatRequest(nil context) error = nil, want context validation failure")
+	}
+
 	t.Run(
 		"Should use exact Google Chat transport contracts and classify failures",
 		testGChatTransportAndClassificationHelpers,
@@ -2200,8 +2210,9 @@ func TestGChatTransportAndClassificationHelpers(t *testing.T) {
 		if !errors.Is(err, readErr) {
 			t.Fatalf("GetMessage() error = %v, want response body read failure", err)
 		}
-		var authErr *bridgesdk.AuthError
-		if !errors.As(err, &authErr) {
+
+		authErr, authErrMatched := errors.AsType[*bridgesdk.AuthError](err)
+		if !authErrMatched {
 			t.Fatalf("GetMessage() error = %T %v, want AuthError", err, err)
 		}
 		if got, want := bridgesdk.ClassifyError(err).Class, bridgesdk.ErrorClassAuth; got != want {
@@ -2303,8 +2314,8 @@ func TestGChatTransportAndClassificationHelpers(t *testing.T) {
 				SpaceName: "spaces/AAA",
 				Text:      "hello",
 			})
-			var httpErr *bridgesdk.HTTPError
-			if !errors.As(err, &httpErr) || httpErr.StatusCode != testCase.statusCode {
+			httpErr, httpErrMatched := errors.AsType[*bridgesdk.HTTPError](err)
+			if !httpErrMatched || httpErr.StatusCode != testCase.statusCode {
 				t.Fatalf(
 					"CreateMessage(%d) error = %T %v, want first-response HTTPError",
 					testCase.statusCode,
@@ -2550,8 +2561,8 @@ func TestGChatWebhookHandlersUseRequestContext(t *testing.T) {
 		&cfg,
 		bridgesdk.WebhookRequest{Body: []byte(directWebhookPayload()), ReceivedAt: now},
 	)
-	var httpErr *bridgesdk.HTTPError
-	if !errors.As(err, &httpErr) || httpErr.StatusCode != http.StatusInternalServerError {
+	httpErr, httpErrMatched := errors.AsType[*bridgesdk.HTTPError](err)
+	if !httpErrMatched || httpErr.StatusCode != http.StatusInternalServerError {
 		t.Fatalf("handleDirectWebhook(canceled context) error = %v, want HTTP 500", err)
 	}
 
@@ -2562,7 +2573,8 @@ func TestGChatWebhookHandlersUseRequestContext(t *testing.T) {
 		&cfg,
 		bridgesdk.WebhookRequest{Body: []byte(pubSubReactionPayload(t)), ReceivedAt: now},
 	)
-	if !errors.As(err, &httpErr) || httpErr.StatusCode != http.StatusInternalServerError {
+	httpErr, httpErrMatched = errors.AsType[*bridgesdk.HTTPError](err)
+	if !httpErrMatched || httpErr.StatusCode != http.StatusInternalServerError {
 		t.Fatalf("handlePubSubWebhook(canceled context) error = %v, want HTTP 500", err)
 	}
 }
@@ -2571,6 +2583,13 @@ func TestGoogleX509KeyCacheReusesFreshKeysAndFallsBackToStaleEntries(t *testing.
 	server := newGChatProviderTestServer(t)
 	url := server.DirectCertsURL()
 	cache := newGoogleX509KeyCache(&http.Client{Timeout: time.Second}, time.Minute, time.Now)
+	var nilContext context.Context
+	if _, err := cache.fetch(nilContext, url); err == nil {
+		t.Fatal("cache.fetch(nil context) error = nil, want context validation failure")
+	}
+	if got := server.DirectCertHits(); got != 0 {
+		t.Fatalf("DirectCertHits() after rejected fetch = %d, want 0", got)
+	}
 
 	first, err := cache.fetch(context.Background(), url)
 	if err != nil {
@@ -2811,8 +2830,8 @@ func TestGChatWebhookAndBatchErrorPaths(t *testing.T) {
 		&cfg,
 		bridgesdk.WebhookRequest{Body: []byte(`{"bad":true}`), ReceivedAt: now},
 	)
-	var httpErr *bridgesdk.HTTPError
-	if !errors.As(err, &httpErr) || httpErr.StatusCode != http.StatusBadRequest {
+	httpErr, httpErrMatched := errors.AsType[*bridgesdk.HTTPError](err)
+	if !httpErrMatched || httpErr.StatusCode != http.StatusBadRequest {
 		t.Fatalf("handleWebhookRequest(invalid) error = %v, want HTTP 400", err)
 	}
 
@@ -2823,7 +2842,8 @@ func TestGChatWebhookAndBatchErrorPaths(t *testing.T) {
 		&cfg,
 		bridgesdk.WebhookRequest{Body: []byte(`{`), ReceivedAt: now},
 	)
-	if !errors.As(err, &httpErr) || httpErr.StatusCode != http.StatusBadRequest {
+	httpErr, httpErrMatched = errors.AsType[*bridgesdk.HTTPError](err)
+	if !httpErrMatched || httpErr.StatusCode != http.StatusBadRequest {
 		t.Fatalf("handleDirectWebhook(invalid json) error = %v, want HTTP 400", err)
 	}
 
@@ -2874,7 +2894,8 @@ func TestGChatWebhookAndBatchErrorPaths(t *testing.T) {
 		&cfg,
 		bridgesdk.WebhookRequest{Body: actionPayload, ReceivedAt: now},
 	)
-	if !errors.As(err, &httpErr) || httpErr.StatusCode != http.StatusInternalServerError {
+	httpErr, httpErrMatched = errors.AsType[*bridgesdk.HTTPError](err)
+	if !httpErrMatched || httpErr.StatusCode != http.StatusInternalServerError {
 		t.Fatalf("handleDirectWebhook(uninitialized session) error = %v, want HTTP 500", err)
 	}
 
@@ -2885,7 +2906,8 @@ func TestGChatWebhookAndBatchErrorPaths(t *testing.T) {
 		&cfg,
 		bridgesdk.WebhookRequest{Body: []byte(`{"message":{"data":"%%%"}}`), ReceivedAt: now},
 	)
-	if !errors.As(err, &httpErr) || httpErr.StatusCode != http.StatusBadRequest {
+	httpErr, httpErrMatched = errors.AsType[*bridgesdk.HTTPError](err)
+	if !httpErrMatched || httpErr.StatusCode != http.StatusBadRequest {
 		t.Fatalf("handlePubSubWebhook(invalid payload) error = %v, want HTTP 400", err)
 	}
 
@@ -2896,7 +2918,8 @@ func TestGChatWebhookAndBatchErrorPaths(t *testing.T) {
 		&cfg,
 		bridgesdk.WebhookRequest{Body: []byte(pubSubReactionPayload(t)), ReceivedAt: now},
 	)
-	if !errors.As(err, &httpErr) || httpErr.StatusCode != http.StatusInternalServerError {
+	httpErr, httpErrMatched = errors.AsType[*bridgesdk.HTTPError](err)
+	if !httpErrMatched || httpErr.StatusCode != http.StatusInternalServerError {
 		t.Fatalf("handlePubSubWebhook(uninitialized session) error = %v, want HTTP 500", err)
 	}
 
@@ -3597,50 +3620,16 @@ func generateRSAKeyAndCert(t *testing.T) (*rsa.PrivateKey, string) {
 func newRuntimePeerPair(t *testing.T) (*gchatProvider, *bridgesdk.Peer, func()) {
 	t.Helper()
 
-	hostConn, runtimeConn := net.Pipe()
 	runtime, err := newGChatProvider(io.Discard)
 	if err != nil {
 		t.Fatalf("newGChatProvider() error = %v", err)
 	}
-
-	hostPeer := bridgesdk.NewPeer(hostConn, hostConn)
-	ctx, cancel := context.WithCancel(context.Background())
-	errCh := make(chan error, 2)
-	go func() { errCh <- runtime.serve(runtimeConn, runtimeConn) }()
-	go func() { errCh <- hostPeer.Serve(ctx) }()
-
-	var once sync.Once
-	cleanup := func() {
-		once.Do(func() {
-			cancel()
-			runtime.lifecycle.Stop()
-			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 2*time.Second)
-			if err := runtime.http.Shutdown(shutdownCtx); err != nil {
-				t.Fatalf("provider HTTP shutdown error = %v", err)
-			}
-			shutdownCancel()
-			if err := hostConn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
-				t.Errorf("host connection close error = %v", err)
-			}
-			if err := runtimeConn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
-				t.Errorf("runtime connection close error = %v", err)
-			}
-			for range 2 {
-				err := <-errCh
-				if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, net.ErrClosed) {
-					continue
-				}
-				if strings.Contains(err.Error(), "closed") {
-					continue
-				}
-				t.Fatalf("runtime peer serve error = %v", err)
-			}
-			if err := runtime.lifecycle.Wait(context.Background()); err != nil {
-				t.Fatalf("provider lifecycle wait error = %v", err)
-			}
-		})
-	}
-
+	hostPeer, cleanup := extensiontest.NewRuntimePeerPair(t, extensiontest.RuntimePeerPairConfig{
+		ServeRuntime: runtime.serve,
+		Stop:         runtime.lifecycle.Stop,
+		Shutdown:     runtime.http.Shutdown,
+		Wait:         runtime.lifecycle.Wait,
+	})
 	return runtime, hostPeer, cleanup
 }
 

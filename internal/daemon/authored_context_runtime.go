@@ -32,12 +32,14 @@ type authoredContextDeps struct {
 	HeartbeatWake      core.HeartbeatWakeService
 	SessionHealth      core.SessionHealthReader
 	WakeEvents         core.HeartbeatWakeEventReader
+	wakePrompter       *apiHeartbeatWakePrompter
 }
 
 type apiHeartbeatWakePrompter struct {
 	ctx      context.Context
 	sessions SessionManager
 	logger   *slog.Logger
+	workers  *ownedWorkerGroup
 }
 
 type heartbeatWakeHealthReader struct {
@@ -70,7 +72,7 @@ func authoredContextRuntimeDeps(ctx context.Context, state *bootState, sessions 
 		}),
 		state.logger,
 	)
-	deps.HeartbeatWake = heartbeatWakeServiceDependency(
+	deps.HeartbeatWake, deps.wakePrompter = heartbeatWakeServiceDependency(
 		ctx,
 		state.registry,
 		sessions,
@@ -124,33 +126,42 @@ func heartbeatWakeServiceDependency(
 	sessions SessionManager,
 	config compozyconfig.HeartbeatConfig,
 	logger *slog.Logger,
-) core.HeartbeatWakeService {
+) (core.HeartbeatWakeService, *apiHeartbeatWakePrompter) {
+	if ctx == nil {
+		logAuthoredContextDependencyError(
+			logger,
+			"daemon: create heartbeat wake service",
+			errors.New("context is required"),
+		)
+		return nil, nil
+	}
 	wakeStore, ok := store.(heartbeat.WakeStore)
 	if !ok {
-		return nil
+		return nil, nil
 	}
 	healthReader, ok := sessions.(heartbeat.SessionHealthReader)
 	if !ok {
-		return nil
+		return nil, nil
+	}
+	lifecycleCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
+	prompter := &apiHeartbeatWakePrompter{
+		ctx:      lifecycleCtx,
+		sessions: sessions,
+		logger:   logger,
+		workers:  newOwnedWorkerGroup(cancel),
 	}
 	service, err := heartbeat.NewManagedWakeService(
 		wakeStore,
 		heartbeatWakeHealthReader{reader: healthReader},
-		&apiHeartbeatWakePrompter{ctx: authoredContextLifecycle(ctx), sessions: sessions, logger: logger},
+		prompter,
 		config,
 	)
 	if err != nil {
+		prompter.workers.Stop()
 		logAuthoredContextDependencyError(logger, "daemon: create heartbeat wake service", err)
-		return nil
+		return nil, nil
 	}
-	return service
-}
-
-func authoredContextLifecycle(ctx context.Context) context.Context {
-	if ctx == nil {
-		return context.Background()
-	}
-	return ctx
+	return service, prompter
 }
 
 func sessionHealthReaderDependency(sessions SessionManager) core.SessionHealthReader {
@@ -199,6 +210,10 @@ func (p *apiHeartbeatWakePrompter) PromptHeartbeatWake(
 			"daemon: api heartbeat prompter requires synthetic prompt support",
 		)
 	}
+	complete, admitted := p.workers.Begin()
+	if !admitted {
+		return heartbeat.SyntheticWakePromptResult{}, errors.New("daemon: API heartbeat prompter is stopping")
+	}
 	events, err := synthetic.PromptSynthetic(ctx, req.SessionID, session.SyntheticPromptOpts{
 		Message: req.Message,
 		TurnID:  req.TurnID,
@@ -218,24 +233,29 @@ func (p *apiHeartbeatWakePrompter) PromptHeartbeatWake(
 		SkipIfBusy: true,
 	})
 	if err != nil {
+		complete()
 		if errors.Is(err, session.ErrPromptInProgress) {
 			return heartbeat.SyntheticWakePromptResult{}, heartbeat.ErrSyntheticPromptBusy
 		}
 		return heartbeat.SyntheticWakePromptResult{}, err
 	}
-	p.drainEvents(req.SessionID, req.WakeEventID, events)
+	p.drainEvents(req.SessionID, req.WakeEventID, events, complete)
 	return heartbeat.SyntheticWakePromptResult{SyntheticPromptID: req.TurnID}, nil
 }
 
-func (p *apiHeartbeatWakePrompter) drainEvents(sessionID string, wakeEventID string, events <-chan acp.AgentEvent) {
+func (p *apiHeartbeatWakePrompter) drainEvents(
+	sessionID string,
+	wakeEventID string,
+	events <-chan acp.AgentEvent,
+	complete func(),
+) {
 	if events == nil {
+		complete()
 		return
 	}
-	drainCtx := context.Background()
-	if p != nil && p.ctx != nil {
-		drainCtx = p.ctx
-	}
+	drainCtx := p.ctx
 	go func() {
+		defer complete()
 		for {
 			select {
 			case <-drainCtx.Done():
@@ -254,6 +274,21 @@ func (p *apiHeartbeatWakePrompter) drainEvents(sessionID string, wakeEventID str
 			}
 		}
 	}()
+}
+
+func (p *apiHeartbeatWakePrompter) shutdown(ctx context.Context) error {
+	if p == nil {
+		return nil
+	}
+	if ctx == nil {
+		return errors.New("daemon: API heartbeat prompter shutdown context is required")
+	}
+	select {
+	case <-p.workers.Stop():
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("daemon: shutdown API heartbeat prompter: %w", ctx.Err())
+	}
 }
 
 func logAuthoredContextDependencyError(logger *slog.Logger, message string, err error) {

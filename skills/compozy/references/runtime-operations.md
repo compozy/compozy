@@ -2,9 +2,10 @@
 
 ## Contents
 
-- Operating model and beta distribution
+- Operating model and updating
 - Daemon drain
 - Session lifecycle and CLI
+- Session event store ownership
 - Background roles and usage cost
 - MCP serve and onboarding
 - Automation suggestions
@@ -16,16 +17,11 @@ Compozy is a local-first daemon that starts ACP-compatible agents as managed sub
 
 Do not manage runtime state by editing SQLite databases, process internals, or generated projections. Use public Compozy surfaces with structured output.
 
-## v0.3 Beta Distribution
+## Updating
 
-Keep beta installations on the beta line. Use the verified hosted installer,
-`npm install -g @compozy/cli@beta`, or
-`go install github.com/compozy/compozy@v0.3.0-beta.2`. A beta build's
-`compozy update` follows newer v0.3 beta releases and never offers the v0.2
-stable line. Homebrew remains on deprecated v0.2 during beta and returns with
-v0.3.0 stable; do not recommend it for a v0.3 beta install. Existing v0.2
-operators must follow the migration guide and use `legacy/v0.2` only for
-critical maintenance.
+`compozy update` follows the installed release line and never switches lines on its own; a beta
+build tracks newer beta releases. For install channels and moving between lines, follow the
+compozy.com docs instead of package managers, which may lag the active line.
 
 ## Daemon Drain
 
@@ -70,6 +66,18 @@ operator intent is guidance. Neither mode reuses or combines the canceled author
 
 The event store and materialized transcript are the durable source of truth for reattach. Transcript GET returns the newest bounded `entries` page plus `epoch`, `generation`, `max_sequence`, and `has_older`; request older entries with `before_sequence=next_before_sequence`. Each entry carries immutable `start_sequence` identity and its latest shaping `sequence`. Do not reconstruct session state from UI cache, memory notes, or JSONL sidecars.
 
+### Session event store ownership
+
+Each `events.db` is bound to one exact session and workspace. Session reads and writes through CLI,
+HTTP/UDS, or native tools must match that persisted owner. A missing or mismatched owner refuses the
+open before migration or data mutation; Compozy does not adopt, rebind, or repair the database.
+
+If an owner check fails, stop the daemon and preserve the complete containing `COMPOZY_HOME`, including
+the database and every SQLite sidecar. Restore a matching complete backup, or create a new session when
+discarding the retained state is acceptable. Never edit the owner row, move `events.db` between session
+directories, or use `compozy session repair` for this condition; session repair only appends transcript
+repair events to an already valid session store.
+
 Treat `transcript_marker.file_mutation_unverified` as a required verification signal: one or more persisted `edit` mutations failed without a later successful mutation for the same path in that turn. Inspect the bounded paths and verify them before trusting completion claims; the marker is advisory and does not replace filesystem inspection.
 
 Pressure compaction preserves complete prior turns in the workspace checkpoint before marking their
@@ -79,6 +87,20 @@ but degraded replay excludes them to avoid duplicating checkpoint-covered contex
 success verdict for the later archive.
 
 The HTTP/UDS stream defaults to `transcript_snapshot`, batched `transcript_delta`, and terminal `session_stopped` frames. Reconnect with the last SSE cursor plus the snapshot's `epoch` and `generation`; a fence mismatch returns an explicit reset snapshot. The removed `replay` query is invalid. Use `frames=raw` for persisted `SessionEventPayload` rows; `compozy session events --follow` already requests raw frames.
+
+### Workspace knowledge on live turns
+
+Markdown files under `<workspace>/knowledge/` are current workspace data. On each accepted user,
+Network, or synthetic turn, Compozy reopens the tree and supplies a bounded
+`<workspace-knowledge-snapshot>` with workspace-relative paths, current bytes, a revision digest,
+and omission metadata. Treat the newest snapshot as authoritative over earlier copies of the same
+file.
+
+The reader accepts regular `.md` files, does not follow symbolic links, and stays inside the session
+workspace. A file change does not wake a session. The next eligible turn—including task and
+Heartbeat wakes—carries the changed bytes without an additional operator prompt. This is prompt
+context, not durable Compozy memory; use the memory tools when information must be curated or
+searched.
 
 ## Session CLI
 
@@ -313,6 +335,8 @@ Use `compozy bridge manifest slack --instance <id>` for Slack app setup and `com
 An empty bridge `dm_policy` normalizes to permissive `open`. The current create/update CLI has no DM-policy flag; keep the bridge disabled and use the Web editor or `PATCH /api/bridges/:id` to set `allowlist` or `pairing` plus the complete `provider_config.dm` lists. `pairing` consumes pre-populated `paired_user_ids`/`paired_usernames` with allowlist fallback; it does not enroll or approve senders interactively. DM policy does not govern groups, channels, spaces, repositories, or issues.
 
 `compozy bridge verify <id> --json` asks the owning adapter for typed `pass|warn|fail|skipped` checks without changing instance lifecycle state; GitHub and Linear currently skip identity, so enabled runtime health owns their live auth result. Any failed check makes the command nonzero after it writes the records. `compozy doctor --only bridge --json` aggregates the same checks. After enablement, `compozy bridge send-test <id> --message ...` makes a real provider delivery. `compozy bridge test-delivery` remains a target-resolution dry run and sends nothing. HTTP and UDS expose `GET /api/bridges/providers/slack/manifest?instance=<id>` plus `POST /api/bridges/:id/verify`, `/send-test`, and `/webhook/register`; there is no `/api/bridges/setup` route.
+
+For `send-test` and `test-delivery`, preserve valid UTF-8 bridge, peer, thread, and group IDs exactly across CLI, HTTP, and UDS; URL-encode path IDs that contain `/`. Delivery mode is the literal `direct-send` or `reply`; aliases, case changes, surrounding whitespace, explicit empty strings, and `null` are invalid. Omitting mode uses the bridge instance default, then `direct-send` when no default exists.
 
 Credential-bearing API, OAuth, and service destinations are operator-owned adapter environment, not instance configuration. `provider_config` rejects `api_base_url`, `oauth_token_url`, `service_url`, `openid_metadata_url`, and `token_url`; use the provider's `COMPOZY_BRIDGE_*` process variables for trusted overrides. Provider clients use `bridgesdk.CredentialedHTTPClient`, returning the original `3xx` for classification without forwarding credentials or replaying mutation bodies. `webhook.public_url` must be public HTTPS, and verification blocks internal/special-use addresses, proxying, and redirects before reachability is attempted. Bridge reads expose the validated callback as optional `webhook_public_url`; clients use that projection for setup readiness instead of re-parsing `provider_config`.
 

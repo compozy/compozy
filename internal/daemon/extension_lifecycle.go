@@ -17,6 +17,7 @@ import (
 type extensionLifecycleCoordinator struct {
 	gate    *lifecycleRWGate
 	mu      sync.Mutex
+	changed chan struct{}
 	entries map[string]*extensionLifecycleEntry
 }
 
@@ -28,6 +29,7 @@ type extensionLifecycleEntry struct {
 func newExtensionLifecycleCoordinator() *extensionLifecycleCoordinator {
 	return &extensionLifecycleCoordinator{
 		gate:    &lifecycleRWGate{},
+		changed: make(chan struct{}),
 		entries: make(map[string]*extensionLifecycleEntry),
 	}
 }
@@ -146,6 +148,7 @@ func (c *extensionLifecycleCoordinator) retain(name string) *extensionLifecycleE
 		c.entries[name] = entry
 	}
 	entry.refs++
+	c.notifyLocked()
 	return entry
 }
 
@@ -156,6 +159,15 @@ func (c *extensionLifecycleCoordinator) release(name string, entry *extensionLif
 	if entry.refs == 0 {
 		delete(c.entries, name)
 	}
+	c.notifyLocked()
+}
+
+func (c *extensionLifecycleCoordinator) notifyLocked() {
+	if c.changed == nil {
+		c.changed = make(chan struct{})
+	}
+	close(c.changed)
+	c.changed = make(chan struct{})
 }
 
 func normalizeLifecycleNames(names []string) []string {

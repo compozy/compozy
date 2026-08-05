@@ -14,9 +14,11 @@ import (
 
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	bridgecontract "github.com/compozy/compozy/internal/bridges/contract"
+	"github.com/compozy/compozy/internal/deadentity"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/vault"
@@ -1818,6 +1820,95 @@ func TestBridgeRuntimeTransition(t *testing.T) {
 		}
 		if got, want := current.Status, bridgepkg.BridgeStatusReady; got != want {
 			t.Fatalf("GetInstance().Status = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should retire removed workspace bridge state only after projection commits", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name       string
+			reloadErr  error
+			wantRetain bool
+		}{
+			{name: "Should retire after successful projection"},
+			{
+				name:       "Should retain after reload rollback",
+				reloadErr:  errors.New("reload boom"),
+				wantRetain: true,
+			},
+		}
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctx := testutil.Context(t)
+				db := openDaemonTestGlobalDB(t)
+				now := time.Date(2026, 8, 3, 12, 0, 0, 0, time.UTC)
+				workspaceID := "ws-bridge-retirement"
+				if err := db.InsertWorkspace(ctx, workspacepkg.Workspace{
+					ID:        workspaceID,
+					RootDir:   filepath.Join(t.TempDir(), workspaceID),
+					Name:      workspaceID,
+					CreatedAt: now,
+					UpdatedAt: now,
+				}); err != nil {
+					t.Fatalf("InsertWorkspace() error = %v", err)
+				}
+				runtime := newBridgeRuntime(db, discardLogger(), func() time.Time { return now }, nil)
+				instance := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+					ID:            "brg-resource-retirement",
+					Scope:         bridgepkg.ScopeWorkspace,
+					WorkspaceID:   workspaceID,
+					Platform:      "slack",
+					ExtensionName: "ext-resource-retirement",
+					DisplayName:   "Retirement",
+					Enabled:       true,
+					Status:        bridgepkg.BridgeStatusReady,
+					DMPolicy:      bridgepkg.BridgeDMPolicyOpen,
+					RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+				})
+				deadService := deadentity.New(db, deadentity.WithPermanentFailureThreshold(1))
+				runtime.deadEntities = deadService
+				deadKey := store.DeadEntityKey{
+					WorkspaceID: instance.WorkspaceID,
+					Kind:        store.DeadEntityKindBridge,
+					EntityID:    instance.ID,
+				}
+				if err := deadService.RecordFailure(
+					ctx,
+					deadKey,
+					deadentity.FailurePermanent,
+					"invalid config",
+				); err != nil {
+					t.Fatalf("RecordFailure() error = %v", err)
+				}
+				if test.reloadErr != nil {
+					runtime.setExtensionRuntime(&fakeExtensionRuntime{reloadErr: test.reloadErr})
+				}
+
+				plan, err := runtime.BuildBridgeResourceState(ctx, nil)
+				if err != nil {
+					t.Fatalf("BuildBridgeResourceState() error = %v", err)
+				}
+				err = runtime.ApplyBridgeResourceState(ctx, plan)
+				if test.reloadErr == nil && err != nil {
+					t.Fatalf("ApplyBridgeResourceState() error = %v", err)
+				}
+				if test.reloadErr != nil && !errors.Is(err, test.reloadErr) {
+					t.Fatalf("ApplyBridgeResourceState() error = %v, want %v", err, test.reloadErr)
+				}
+				if err := db.ClearDeadEntity(ctx, deadKey.WorkspaceID, deadKey.Kind, deadKey.EntityID); err != nil {
+					t.Fatalf("ClearDeadEntity(test durable fixture) error = %v", err)
+				}
+				status, err := deadService.Status(ctx, deadKey)
+				if err != nil {
+					t.Fatalf("Status(after projection) error = %v", err)
+				}
+				if status.Dead != test.wantRetain {
+					t.Fatalf("Status(after projection) = %#v, want retained=%t", status, test.wantRetain)
+				}
+			})
 		}
 	})
 

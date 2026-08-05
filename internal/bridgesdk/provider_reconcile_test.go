@@ -211,6 +211,29 @@ func TestRouteTableWaitAndDeliveryStateStore(t *testing.T) {
 		}
 	})
 
+	t.Run("Should keep whitespace-distinct delivery state IDs independent", func(t *testing.T) {
+		t.Parallel()
+
+		store := NewDeliveryStateStore[providerReconcileTestConfig]()
+		store.Store("delivery", providerReconcileTestConfig{InstanceID: "plain", Generation: 1})
+		store.Store(" delivery ", providerReconcileTestConfig{InstanceID: "spaced", Generation: 2})
+
+		plain, plainOK := store.Load("delivery")
+		spaced, spacedOK := store.Load(" delivery ")
+		if !plainOK || plain.InstanceID != "plain" || plain.Generation != 1 {
+			t.Fatalf("Load(plain) = %#v, %t, want independent plain state", plain, plainOK)
+		}
+		if !spacedOK || spaced.InstanceID != "spaced" || spaced.Generation != 2 {
+			t.Fatalf("Load(spaced) = %#v, %t, want independent whitespace-bearing state", spaced, spacedOK)
+		}
+		if _, ok := store.Delete("delivery"); !ok {
+			t.Fatal("Delete(plain) = false, want true")
+		}
+		if remaining, ok := store.Load(" delivery "); !ok || remaining.InstanceID != "spaced" {
+			t.Fatalf("Load(spaced after plain delete) = %#v, %t, want spaced state", remaining, ok)
+		}
+	})
+
 	t.Run("Should create delivery state once under concurrent access", func(t *testing.T) {
 		t.Parallel()
 

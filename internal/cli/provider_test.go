@@ -6,11 +6,13 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	authproviders "github.com/compozy/compozy/internal/providers"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -39,8 +41,8 @@ func TestProviderAuthStatusCommand(t *testing.T) {
 		if len(record.Credentials) != 0 {
 			t.Fatalf("Credentials = %#v, want none for native CLI provider", record.Credentials)
 		}
-		if record.NativeCLI == nil || record.NativeCLI.Command != "claude" {
-			t.Fatalf("NativeCLI = %#v, want claude login command presence", record.NativeCLI)
+		if !record.Login.Configured || record.Login.Executable != "claude" {
+			t.Fatalf("Login = %#v, want configured claude descriptor", record.Login)
 		}
 	})
 
@@ -51,16 +53,29 @@ func TestProviderAuthStatusCommand(t *testing.T) {
 		deps.loadConfig = func() (compozyconfig.Config, error) {
 			cfg := compozyconfig.DefaultWithHome(mustTestHomePaths(t))
 			cfg.Providers["local"] = compozyconfig.ProviderConfig{
-				Command:  "local-agent acp",
-				AuthMode: compozyconfig.ProviderAuthModeNativeCLI,
+				Command:       "local-agent acp",
+				AuthMode:      compozyconfig.ProviderAuthModeNativeCLI,
+				AuthStatusCmd: "status-helper auth status",
 			}
 			return cfg, nil
 		}
-		deps.lookPath = func(name string) (string, error) {
-			if name != "local-agent" {
-				t.Fatalf("lookPath(%q), want local-agent", name)
+		resolveCalls := 0
+		deps.resolveProviderAuthCommand = func(_ context.Context, name string, _ []string, _ string) (string, error) {
+			resolveCalls++
+			if name != "status-helper" {
+				t.Fatalf("resolveProviderAuthCommand(%q), want status-helper", name)
 			}
-			return "", errors.New("permission denied scanning PATH")
+			if resolveCalls == 1 {
+				return "", errors.New("permission denied scanning PATH token=cli-resolution-secret")
+			}
+			return "/later/bin/status-helper", nil
+		}
+		deps.runProviderAuthCommand = func(
+			_ context.Context,
+			spec providerAuthCommandSpec,
+		) (providerAuthCommandResult, error) {
+			t.Fatalf("runProviderAuthCommand(%q) called after resolver failure", spec.Command)
+			return providerAuthCommandResult{}, nil
 		}
 
 		stdout, _, err := executeRootCommand(t, deps, "provider", "auth", "status", "local", "-o", "json")
@@ -72,11 +87,26 @@ func TestProviderAuthStatusCommand(t *testing.T) {
 		if err := json.Unmarshal([]byte(stdout), &record); err != nil {
 			t.Fatalf("json.Unmarshal(provider auth status) error = %v", err)
 		}
-		if got, want := record.State, "missing_cli"; got != want {
+		if got, want := record.State, "unknown"; got != want {
 			t.Fatalf("State = %q, want %q", got, want)
 		}
-		if record.NativeCLI == nil || record.NativeCLI.Error == "" {
-			t.Fatalf("NativeCLI = %#v, want lookup error", record.NativeCLI)
+		if got, want := record.Code, contract.CodeProviderClassificationUnknown; got != want {
+			t.Fatalf("Code = %q, want %q", got, want)
+		}
+		if strings.Contains(record.Message, "cli-resolution-secret") {
+			t.Fatalf("message = %q, leaked resolver secret", record.Message)
+		}
+		if !strings.Contains(record.Message, "[REDACTED]") {
+			t.Fatalf("message = %q, want redaction marker", record.Message)
+		}
+		if got := record.Login.Executable; got != "" {
+			t.Fatalf("login executable = %q, want no configured login descriptor", got)
+		}
+		if got, want := resolveCalls, 1; got != want {
+			t.Fatalf("auth status resolver calls = %d, want %d", got, want)
+		}
+		if strings.Contains(stdout, "cli-resolution-secret") {
+			t.Fatalf("stdout leaked resolver secret: %s", stdout)
 		}
 	})
 
@@ -130,7 +160,7 @@ func TestProviderAuthStatusCommand(t *testing.T) {
 			}
 			return cfg, nil
 		}
-		deps.lookPath = func(name string) (string, error) {
+		deps.resolveProviderAuthCommand = func(_ context.Context, name string, _ []string, _ string) (string, error) {
 			if name != "claude" {
 				t.Fatalf("lookPath(%q), want claude", name)
 			}
@@ -164,8 +194,86 @@ func TestProviderAuthStatusCommand(t *testing.T) {
 		if record.Probe == nil || record.Probe.Stdout != "logged in" {
 			t.Fatalf("Probe = %#v, want status command result", record.Probe)
 		}
-		if record.NativeCLI == nil || !record.NativeCLI.Present || record.NativeCLI.Source != "auth_status_command" {
-			t.Fatalf("NativeCLI = %#v, want present auth_status_command", record.NativeCLI)
+		if !record.Login.Configured || record.Login.Executable != "claude" ||
+			record.Login.Presence != authproviders.ProviderLoginPresencePresent {
+			t.Fatalf("Login = %#v, want present claude descriptor", record.Login)
+		}
+	})
+
+	t.Run("Should resolve the native status command once with its final runtime", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, nil)
+		deps.loadConfig = func() (compozyconfig.Config, error) {
+			cfg := compozyconfig.DefaultWithHome(mustTestHomePaths(t))
+			cfg.Providers["native"] = compozyconfig.ProviderConfig{
+				Command:       "native-agent acp",
+				AuthMode:      compozyconfig.ProviderAuthModeNativeCLI,
+				AuthStatusCmd: "status-helper auth status",
+			}
+			return cfg, nil
+		}
+
+		var resolveCalls int
+		var resolvedEnv []string
+		deps.resolveProviderAuthCommand = func(
+			_ context.Context,
+			command string,
+			env []string,
+			dir string,
+		) (string, error) {
+			resolveCalls++
+			if command != "status-helper" {
+				t.Fatalf("resolver command = %q, want status-helper", command)
+			}
+			if dir != "" {
+				t.Fatalf("resolver dir = %q, want empty", dir)
+			}
+			resolvedEnv = append([]string(nil), env...)
+			if resolveCalls > 1 {
+				return "", errors.New("second auth status resolution must not occur")
+			}
+			return "/final/bin/status-helper", nil
+		}
+		deps.runProviderAuthCommand = func(
+			_ context.Context,
+			spec providerAuthCommandSpec,
+		) (providerAuthCommandResult, error) {
+			if got, want := spec.Executable, "/final/bin/status-helper"; got != want {
+				t.Fatalf("Executable = %q, want %q", got, want)
+			}
+			if !slices.Equal(spec.Args, []string{"auth", "status"}) {
+				t.Fatalf("Args = %#v, want auth status", spec.Args)
+			}
+			if spec.Dir != "" {
+				t.Fatalf("Dir = %q, want empty", spec.Dir)
+			}
+			if !slices.Equal(spec.Env, resolvedEnv) {
+				t.Fatalf("Env = %#v, want resolver env %#v", spec.Env, resolvedEnv)
+			}
+			return providerAuthCommandResult{ExitCode: 0, Stdout: "logged in"}, nil
+		}
+
+		stdout, _, err := executeRootCommand(t, deps, "provider", "auth", "status", "native", "-o", "json")
+		if err != nil {
+			t.Fatalf("provider auth status error = %v", err)
+		}
+		if got, want := resolveCalls, 1; got != want {
+			t.Fatalf("auth status resolver calls = %d, want %d", got, want)
+		}
+
+		var record providerAuthStatusRecord
+		if err := json.Unmarshal([]byte(stdout), &record); err != nil {
+			t.Fatalf("json.Unmarshal(provider auth status) error = %v", err)
+		}
+		if got, want := record.State, "authenticated"; got != want {
+			t.Fatalf("State = %q, want %q", got, want)
+		}
+		if record.Login.Configured {
+			t.Fatalf("Login = %#v, want no configured login command", record.Login)
+		}
+		if strings.Contains(stdout, "/final/bin/status-helper") {
+			t.Fatalf("stdout leaked resolved CLI path: %s", stdout)
 		}
 	})
 
@@ -183,11 +291,16 @@ func TestProviderAuthStatusCommand(t *testing.T) {
 			}
 			return cfg, nil
 		}
-		deps.lookPath = func(name string) (string, error) {
+		resolveCalls := 0
+		deps.resolveProviderAuthCommand = func(_ context.Context, name string, _ []string, _ string) (string, error) {
+			resolveCalls++
 			if name != "missing-agent" {
 				t.Fatalf("lookPath(%q), want missing-agent", name)
 			}
-			return "", exec.ErrNotFound
+			if resolveCalls == 1 {
+				return "", exec.ErrNotFound
+			}
+			return "/later/bin/missing-agent", nil
 		}
 		deps.runProviderAuthCommand = func(
 			_ context.Context,
@@ -209,18 +322,28 @@ func TestProviderAuthStatusCommand(t *testing.T) {
 		if got, want := record.State, "missing_cli"; got != want {
 			t.Fatalf("State = %q, want %q", got, want)
 		}
-		if record.NativeCLI == nil || record.NativeCLI.Present || record.NativeCLI.Command != "missing-agent" {
-			t.Fatalf("NativeCLI = %#v, want missing missing-agent", record.NativeCLI)
+		if got, want := record.Code, contract.CodeProviderCLIMissing; got != want {
+			t.Fatalf("Code = %q, want %q", got, want)
+		}
+		if !record.Login.Configured || record.Login.Executable != "missing-agent" ||
+			record.Login.Presence != authproviders.ProviderLoginPresenceMissing {
+			t.Fatalf("Login = %#v, want missing missing-agent descriptor", record.Login)
 		}
 		if record.Probe != nil {
 			t.Fatalf("Probe = %#v, want no probe when native CLI is missing", record.Probe)
 		}
-		if !strings.Contains(record.Message, "missing-agent auth login") {
-			t.Fatalf("Message = %q, want login command guidance", record.Message)
+		if strings.Contains(record.Message, "missing-agent auth login") {
+			t.Fatalf("Message = %q, leaked full login command", record.Message)
+		}
+		if got, want := record.Login.RecommendedAction, authproviders.ProviderFailureActionInstallCLI; got != want {
+			t.Fatalf("Login.RecommendedAction = %q, want %q", got, want)
+		}
+		if got, want := resolveCalls, 1; got != want {
+			t.Fatalf("auth status resolver calls = %d, want %d", got, want)
 		}
 	})
 
-	t.Run("Should include login command when native status probe needs login", func(t *testing.T) {
+	t.Run("Should expose a safe login descriptor when native status probe needs login", func(t *testing.T) {
 		t.Parallel()
 
 		deps := newTestDeps(t, nil)
@@ -234,7 +357,7 @@ func TestProviderAuthStatusCommand(t *testing.T) {
 			}
 			return cfg, nil
 		}
-		deps.lookPath = func(name string) (string, error) {
+		deps.resolveProviderAuthCommand = func(_ context.Context, name string, _ []string, _ string) (string, error) {
 			if name != "claude" {
 				t.Fatalf("lookPath(%q), want claude", name)
 			}
@@ -262,11 +385,16 @@ func TestProviderAuthStatusCommand(t *testing.T) {
 		if got, want := record.State, "needs_login"; got != want {
 			t.Fatalf("State = %q, want %q", got, want)
 		}
-		if !strings.Contains(record.Message, "claude auth login") {
-			t.Fatalf("Message = %q, want login command guidance", record.Message)
+		if strings.Contains(record.Message, "claude auth login") {
+			t.Fatalf("Message = %q, leaked full login command", record.Message)
 		}
-		if record.NativeCLI == nil || !record.NativeCLI.Present || record.NativeCLI.Path != "/usr/local/bin/claude" {
-			t.Fatalf("NativeCLI = %#v, want present claude path", record.NativeCLI)
+		if !record.Login.Configured || record.Login.Executable != "claude" ||
+			record.Login.Presence != authproviders.ProviderLoginPresencePresent ||
+			record.Login.RecommendedAction != authproviders.ProviderFailureActionLogin {
+			t.Fatalf("Login = %#v, want present claude login action", record.Login)
+		}
+		if strings.Contains(stdout, "/usr/local/bin/claude") {
+			t.Fatalf("stdout leaked resolved CLI path: %s", stdout)
 		}
 	})
 }
@@ -401,11 +529,12 @@ func TestProviderAuthLoginCommand(t *testing.T) {
 	t.Run("Should run configured native login command locally", func(t *testing.T) {
 		t.Parallel()
 
+		const loginCommand = "QA_LOGIN_TOKEN=raw-env-secret codex login --tenant hidden-account"
 		deps := newTestDeps(t, nil)
 		deps.loadConfig = func() (compozyconfig.Config, error) {
 			cfg := compozyconfig.DefaultWithHome(mustTestHomePaths(t))
 			cfg.Providers["codex"] = compozyconfig.ProviderConfig{
-				AuthLoginCmd: "codex login",
+				AuthLoginCmd: loginCommand,
 			}
 			return cfg, nil
 		}
@@ -419,8 +548,8 @@ func TestProviderAuthLoginCommand(t *testing.T) {
 			_ context.Context,
 			spec providerAuthCommandSpec,
 		) (providerAuthCommandResult, error) {
-			if spec.Command != "codex login" {
-				t.Fatalf("Login command = %q, want codex login", spec.Command)
+			if spec.Command != loginCommand {
+				t.Fatalf("Login command = %q, want configured command", spec.Command)
 			}
 			return providerAuthCommandResult{ExitCode: 0}, nil
 		}
@@ -437,48 +566,47 @@ func TestProviderAuthLoginCommand(t *testing.T) {
 		if got, want := record.State, "unknown"; got != want {
 			t.Fatalf("State = %q, want %q", got, want)
 		}
-		if got, want := record.LoginCommand, "codex login"; got != want {
-			t.Fatalf("LoginCommand = %q, want %q", got, want)
-		}
 		if record.Code != "provider_classification_unknown" {
 			t.Fatalf("Code = %q, want provider_classification_unknown", record.Code)
 		}
-		if record.NativeCLI == nil || !record.NativeCLI.Present || record.NativeCLI.Command != "codex" {
-			t.Fatalf("NativeCLI = %#v, want present codex", record.NativeCLI)
+		if !record.Login.Configured || record.Login.Executable != "codex" ||
+			record.Login.Presence != authproviders.ProviderLoginPresencePresent {
+			t.Fatalf("Login = %#v, want present codex descriptor", record.Login)
+		}
+		for _, forbidden := range []string{
+			"QA_LOGIN_TOKEN",
+			"raw-env-secret",
+			"hidden-account",
+			"codex login",
+			`"login_command":`,
+		} {
+			if strings.Contains(stdout, forbidden) {
+				t.Fatalf("stdout leaked login detail %q: %s", forbidden, stdout)
+			}
 		}
 	})
 
-	t.Run("Should print only the resolved native login command", func(t *testing.T) {
+	t.Run("Should reject the removed print-command flag", func(t *testing.T) {
 		t.Parallel()
 
 		deps := newTestDeps(t, nil)
-		deps.loadConfig = func() (compozyconfig.Config, error) {
-			cfg := compozyconfig.DefaultWithHome(mustTestHomePaths(t))
-			cfg.Providers["codex"] = compozyconfig.ProviderConfig{
-				AuthLoginCmd: "codex login",
-			}
-			return cfg, nil
-		}
-		deps.lookPath = func(name string) (string, error) {
-			if name != "codex" {
-				t.Fatalf("lookPath(%q), want codex", name)
-			}
-			return "/usr/local/bin/codex", nil
-		}
-		deps.runProviderAuthCommand = func(
+		deps.runProviderAuthLoginCommand = func(
 			_ context.Context,
 			spec providerAuthCommandSpec,
 		) (providerAuthCommandResult, error) {
-			t.Fatalf("runProviderAuthCommand(%q) called, want print-only login command", spec.Command)
+			t.Fatalf("runProviderAuthLoginCommand(%q) called for removed flag", spec.Command)
 			return providerAuthCommandResult{}, nil
 		}
 
 		stdout, _, err := executeRootCommand(t, deps, "provider", "auth", "login", "codex", "--print-command")
-		if err != nil {
-			t.Fatalf("provider auth login --print-command error = %v", err)
+		if err == nil {
+			t.Fatal("provider auth login --print-command error = nil, want unknown flag")
 		}
-		if got, want := stdout, "codex login\n"; got != want {
-			t.Fatalf("stdout = %q, want %q", got, want)
+		if !strings.Contains(err.Error(), "unknown flag: --print-command") {
+			t.Fatalf("provider auth login --print-command error = %v, want unknown flag", err)
+		}
+		if strings.Contains(stdout, "codex login") {
+			t.Fatalf("stdout leaked raw login command: %s", stdout)
 		}
 	})
 
@@ -536,24 +664,26 @@ func TestProviderAuthLoginCommand(t *testing.T) {
 		if got, want := record.AuthMode, "native_cli"; got != want {
 			t.Fatalf("AuthMode = %q, want %q", got, want)
 		}
-		if got, want := record.LoginCommand, "npx -y pi-acp@latest --terminal-login"; got != want {
-			t.Fatalf("LoginCommand = %q, want %q", got, want)
-		}
-		if providerTestEnvValue(record.LoginEnv, "HOME") == "" {
-			t.Fatalf("LoginEnv = %#v, want isolated HOME", record.LoginEnv)
-		}
-		if providerTestEnvValue(record.LoginEnv, "PI_CODING_AGENT_DIR") == "" {
-			t.Fatalf("LoginEnv = %#v, want Pi auth directory", record.LoginEnv)
-		}
 		if got, want := record.State, "unknown"; got != want {
 			t.Fatalf("State = %q, want %q", got, want)
 		}
-		if record.NativeCLI == nil || !record.NativeCLI.Present || record.NativeCLI.Command != "npx" {
-			t.Fatalf("NativeCLI = %#v, want present npx", record.NativeCLI)
+		if !record.Login.Configured || record.Login.Executable != "npx" ||
+			record.Login.Presence != authproviders.ProviderLoginPresencePresent {
+			t.Fatalf("Login = %#v, want present npx descriptor", record.Login)
+		}
+		for _, forbidden := range []string{
+			"npx -y pi-acp@latest --terminal-login",
+			"PI_CODING_AGENT_DIR=",
+			`"login_env":`,
+			`"native_cli":`,
+		} {
+			if strings.Contains(stdout, forbidden) {
+				t.Fatalf("stdout leaked forbidden login detail %q: %s", forbidden, stdout)
+			}
 		}
 	})
 
-	t.Run("Should fail before printing when native login CLI is missing", func(t *testing.T) {
+	t.Run("Should fail safely when native login CLI is missing", func(t *testing.T) {
 		t.Parallel()
 
 		deps := newTestDeps(t, nil)
@@ -580,12 +710,15 @@ func TestProviderAuthLoginCommand(t *testing.T) {
 			return providerAuthCommandResult{}, nil
 		}
 
-		_, _, err := executeRootCommand(t, deps, "provider", "auth", "login", "local", "--print-command")
+		_, _, err := executeRootCommand(t, deps, "provider", "auth", "login", "local")
 		if err == nil {
 			t.Fatal("provider auth login missing CLI error = nil, want missing CLI error")
 		}
 		if !strings.Contains(err.Error(), `native CLI "missing-agent" was not found on PATH`) {
 			t.Fatalf("provider auth login missing CLI error = %v, want missing CLI guidance", err)
+		}
+		if strings.Contains(err.Error(), "missing-agent auth login") {
+			t.Fatalf("provider auth login missing CLI error leaked raw command: %v", err)
 		}
 	})
 
@@ -636,85 +769,6 @@ func TestProviderAuthLoginCommand(t *testing.T) {
 		}
 		if !strings.Contains(err.Error(), `provider "openrouter" does not define auth_login_command`) {
 			t.Fatalf("provider auth login openrouter error = %v, want missing auth_login_command", err)
-		}
-	})
-
-	t.Run("Should print isolated Pi login command with provider home environment", func(t *testing.T) {
-		t.Parallel()
-
-		homePaths := mustTestHomePaths(t)
-		deps := newTestDeps(t, nil)
-		deps.resolveHome = func() (compozyconfig.HomePaths, error) {
-			return homePaths, nil
-		}
-		deps.loadConfig = func() (compozyconfig.Config, error) {
-			cfg := compozyconfig.DefaultWithHome(homePaths)
-			cfg.Providers["pi"] = compozyconfig.ProviderConfig{
-				EnvPolicy:  compozyconfig.ProviderEnvPolicyIsolated,
-				HomePolicy: compozyconfig.ProviderHomePolicyIsolated,
-			}
-			return cfg, nil
-		}
-		deps.lookPath = func(name string) (string, error) {
-			if name != "npx" {
-				t.Fatalf("lookPath(%q), want npx", name)
-			}
-			return "/usr/local/bin/npx", nil
-		}
-		deps.runProviderAuthCommand = func(
-			_ context.Context,
-			spec providerAuthCommandSpec,
-		) (providerAuthCommandResult, error) {
-			t.Fatalf("runProviderAuthCommand(%q) called, want print-only login command", spec.Command)
-			return providerAuthCommandResult{}, nil
-		}
-
-		stdout, _, err := executeRootCommand(t, deps, "provider", "auth", "login", "pi", "--print-command")
-		if err != nil {
-			t.Fatalf("provider auth login pi --print-command error = %v", err)
-		}
-		if !strings.Contains(stdout, " HOME=") {
-			t.Fatalf("stdout = %q, want env HOME prefix", stdout)
-		}
-		if !strings.Contains(stdout, "PI_CODING_AGENT_DIR=") {
-			t.Fatalf("stdout = %q, want Pi auth directory", stdout)
-		}
-		if !strings.Contains(stdout, "npx -y pi-acp@latest --terminal-login") {
-			t.Fatalf("stdout = %q, want Pi terminal login command", stdout)
-		}
-	})
-
-	t.Run("Should reject print command with explicit output format", func(t *testing.T) {
-		t.Parallel()
-
-		deps := newTestDeps(t, nil)
-		deps.loadConfig = func() (compozyconfig.Config, error) {
-			cfg := compozyconfig.DefaultWithHome(mustTestHomePaths(t))
-			cfg.Providers["codex"] = compozyconfig.ProviderConfig{
-				AuthLoginCmd: "codex login",
-			}
-			return cfg, nil
-		}
-		deps.lookPath = func(name string) (string, error) {
-			if name != "codex" {
-				t.Fatalf("lookPath(%q), want codex", name)
-			}
-			return "/usr/local/bin/codex", nil
-		}
-		deps.runProviderAuthCommand = func(
-			_ context.Context,
-			spec providerAuthCommandSpec,
-		) (providerAuthCommandResult, error) {
-			t.Fatalf("runProviderAuthCommand(%q) called, want print-only login command", spec.Command)
-			return providerAuthCommandResult{}, nil
-		}
-
-		_, _, err := executeRootCommand(t, deps, "provider", "auth", "login", "codex", "--print-command", "-o", "json")
-		if err == nil {
-			t.Fatal("provider auth login --print-command -o json error = nil, want conflict")
-		}
-		if !strings.Contains(err.Error(), "--print-command emits raw shell text") {
-			t.Fatalf("provider auth login output conflict error = %v, want raw shell text guidance", err)
 		}
 	})
 }

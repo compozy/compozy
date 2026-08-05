@@ -102,6 +102,24 @@ type failedRunPayload struct {
 	ClaimTokenHash string          `json:"claim_token_hash,omitempty"`
 }
 
+// RunLeaseFailedEventPayload is the canonical audit payload for a token-fenced lease failure.
+type RunLeaseFailedEventPayload struct {
+	Status         RunStatus       `json:"status"`
+	Error          string          `json:"error"`
+	Metadata       json.RawMessage `json:"metadata,omitempty"`
+	ClaimTokenHash string          `json:"claim_token_hash,omitempty"`
+}
+
+// NewRunLeaseFailedEventPayload builds the public-safe payload from a canonical mutation.
+func NewRunLeaseFailedEventPayload(mutation *FailedRunLeaseMutation) RunLeaseFailedEventPayload {
+	return RunLeaseFailedEventPayload{
+		Status:         mutation.Run.Status,
+		Error:          mutation.Failure.Error,
+		Metadata:       cloneRawJSON(mutation.Failure.Metadata),
+		ClaimTokenHash: mutation.Run.ClaimTokenHash,
+	}
+}
+
 type cancelledRunPayload struct {
 	Status                   RunStatus       `json:"status"`
 	TaskStatus               Status          `json:"task_status,omitempty"`
@@ -139,19 +157,20 @@ type leaseExtendedPayload struct {
 }
 
 type releasedRunPayload struct {
-	Manual                          bool       `json:"manual,omitempty"`
-	ActorKind                       ActorKind  `json:"actor_kind,omitempty"`
-	ActorID                         string     `json:"actor_id,omitempty"`
-	PreviousStatus                  RunStatus  `json:"previous_status"`
-	Status                          RunStatus  `json:"status"`
-	TaskStatus                      Status     `json:"task_status"`
-	Reason                          string     `json:"reason,omitempty"`
-	SessionID                       string     `json:"session_id,omitempty"`
-	PreviousSessionID               string     `json:"previous_session_id,omitempty"`
-	PreviousClaimTokenHashTruncated string     `json:"previous_claim_token_hash_truncated,omitempty"`
-	PreviousLeaseUntil              *time.Time `json:"previous_lease_until,omitempty"`
-	QueueGeneration                 int64      `json:"queue_generation,omitempty"`
-	CanceledQueuedInputs            int        `json:"canceled_queued_inputs,omitempty"`
+	Manual                          bool            `json:"manual,omitempty"`
+	ActorKind                       ActorKind       `json:"actor_kind,omitempty"`
+	ActorID                         string          `json:"actor_id,omitempty"`
+	PreviousStatus                  RunStatus       `json:"previous_status"`
+	Status                          RunStatus       `json:"status"`
+	TaskStatus                      Status          `json:"task_status"`
+	Reason                          string          `json:"reason,omitempty"`
+	SessionID                       string          `json:"session_id,omitempty"`
+	PreviousSessionID               string          `json:"previous_session_id,omitempty"`
+	PreviousClaimTokenHashTruncated string          `json:"previous_claim_token_hash_truncated,omitempty"`
+	PreviousLeaseUntil              *time.Time      `json:"previous_lease_until,omitempty"`
+	QueueGeneration                 int64           `json:"queue_generation,omitempty"`
+	CanceledQueuedInputs            int             `json:"canceled_queued_inputs,omitempty"`
+	Metadata                        json.RawMessage `json:"metadata,omitempty"`
 }
 
 // ExpiredLeaseEventPayload is the canonical audit payload for an expired task-run lease.

@@ -26,8 +26,8 @@ func extensionOperationErrorPayload(
 	kind := classifyExtensionError(err)
 	switch kind {
 	case extensionErrorNetworkConfirmationRequired:
-		var confirmationErr *extensionpkg.NetworkConfirmationRequiredError
-		if errors.As(err, &confirmationErr) && confirmationErr != nil {
+		confirmationErr, ok := errors.AsType[*extensionpkg.NetworkConfirmationRequiredError](err)
+		if ok && confirmationErr != nil {
 			payload.CurrentDigest = strings.TrimSpace(confirmationErr.CurrentDigest)
 		}
 		payload.Code = diagnosticcontract.CodeExtensionNetworkConfirmRequired
@@ -39,8 +39,7 @@ func extensionOperationErrorPayload(
 			extensionNetworkRetryCommand(name, payload.CurrentDigest),
 		)
 	case extensionErrorAgentConflict:
-		var conflictErr *extensionpkg.AgentConflictError
-		if errors.As(err, &conflictErr) && conflictErr != nil {
+		if conflictErr, ok := errors.AsType[*extensionpkg.AgentConflictError](err); ok && conflictErr != nil {
 			payload.Agents = slices.Clone(conflictErr.Agents)
 			slices.Sort(payload.Agents)
 		}
@@ -53,8 +52,7 @@ func extensionOperationErrorPayload(
 			"",
 		)
 	case extensionErrorEnvBindingUndeclared, extensionErrorEnvBindingDangling, extensionErrorEnvBindingInvalid:
-		var bindingErr *extensionpkg.EnvBindingValidationError
-		if errors.As(err, &bindingErr) && bindingErr != nil {
+		if bindingErr, ok := errors.AsType[*extensionpkg.EnvBindingValidationError](err); ok && bindingErr != nil {
 			payload.EnvName = strings.TrimSpace(bindingErr.EnvName)
 			payload.DeclaredEnv = slices.Clone(bindingErr.Declared)
 			slices.Sort(payload.DeclaredEnv)
@@ -79,14 +77,15 @@ func extensionOperationDiagnostic(id, code, title, message, command string) *con
 	if strings.TrimSpace(command) != "" {
 		options = append(options, diagnosticspkg.WithSuggestedCommand(command))
 	}
-	item := diagnosticspkg.NewItem(
-		id,
-		code,
-		diagnosticcontract.CategoryExtension,
-		title,
-		message,
-		diagnosticcontract.SeverityError,
-		diagnosticcontract.FreshnessLive,
+	item := diagnosticspkg.NewItem(diagnosticspkg.ItemSpec{
+		ID:            id,
+		Code:          code,
+		Category:      diagnosticcontract.CategoryExtension,
+		Title:         title,
+		Message:       message,
+		Severity:      diagnosticcontract.SeverityError,
+		DataFreshness: diagnosticcontract.FreshnessLive,
+	},
 		options...,
 	)
 	return &item

@@ -221,12 +221,16 @@ func appendLoopDeliveryEventWithExecutor(
 		return err
 	}
 	deliveryKey := entry.DeliveryID + ":" + kind
+	eventID, err := store.NewID("loopevt")
+	if err != nil {
+		return fmt.Errorf("store: generate loop effect event id: %w", err)
+	}
 	_, err = exec.ExecContext(
 		ctx,
 		`INSERT OR IGNORE INTO loop_run_events (
 			id, loop_run_id, workspace_id, seq, kind, payload_json, at, delivery_key
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		store.NewID("loopevt"), string(entry.LoopRunID), string(entry.WorkspaceID),
+		eventID, string(entry.LoopRunID), string(entry.WorkspaceID),
 		seq, kind, string(payloadJSON), at.UTC(), deliveryKey,
 	)
 	if err != nil {

@@ -51,10 +51,7 @@ func (l *windowManagerStreamLifecycle) begin() (<-chan struct{}, func(), bool) {
 	l.active++
 	stop := l.stop
 	l.mu.Unlock()
-	var once sync.Once
-	return stop, func() {
-		once.Do(func() { l.end() })
-	}, true
+	return stop, sync.OnceFunc(l.end), true
 }
 
 func (l *windowManagerStreamLifecycle) end() {

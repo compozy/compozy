@@ -129,5 +129,6 @@ func UpdateSkill(
 	item.LatestVersion = firstNonEmpty(installedItem.Version, latestVersion)
 	item.Path = installedItem.Path
 	item.Status = UpdateStatusUpdated
+	item.CleanupDiagnostics = append(item.CleanupDiagnostics, installedItem.CleanupDiagnostics...)
 	return item, nil
 }

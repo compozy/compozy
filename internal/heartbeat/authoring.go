@@ -13,7 +13,6 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 
-	"github.com/compozy/compozy/internal/fileutil"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -148,7 +147,7 @@ func (e *AuthoringError) Unwrap() error {
 type ManagedHeartbeatAuthoringService struct {
 	store AuthoringStore
 	now   func() time.Time
-	newID func(prefix string) string
+	newID func(prefix string) (string, error)
 	mode  os.FileMode
 	mu    sync.Mutex
 }
@@ -168,7 +167,7 @@ func WithHeartbeatAuthoringClock(clock func() time.Time) AuthoringOption {
 }
 
 // WithHeartbeatAuthoringIDGenerator injects deterministic snapshot and revision ids.
-func WithHeartbeatAuthoringIDGenerator(generator func(prefix string) string) AuthoringOption {
+func WithHeartbeatAuthoringIDGenerator(generator func(prefix string) (string, error)) AuthoringOption {
 	return func(service *ManagedHeartbeatAuthoringService) {
 		if generator != nil {
 			service.newID = generator
@@ -260,7 +259,11 @@ func (s *ManagedHeartbeatAuthoringService) Put(ctx context.Context, req PutReque
 	if err := s.verifyUnchangedHeartbeat(ctx, target, &current); err != nil {
 		return MutationResult{}, err
 	}
-	if err := fileutil.AtomicWriteFile(target.heartbeatPath, []byte(req.Body), s.mode); err != nil {
+	snapshotID, revisionID, err := s.newPostMutationIDs()
+	if err != nil {
+		return MutationResult{}, err
+	}
+	if err := target.managedPath.Write([]byte(req.Body), s.mode); err != nil {
 		return MutationResult{}, authoringDiagnosticError(
 			diagnosticHeartbeatPathError,
 			target.sourcePath,
@@ -269,7 +272,16 @@ func (s *ManagedHeartbeatAuthoringService) Put(ctx context.Context, req PutReque
 			ErrAuthoringPathRejected,
 		)
 	}
-	return s.persistPostWrite(ctx, target, current.Digest, RevisionOperationWrite, req.Body, req.Actor)
+	return s.persistPostWrite(
+		ctx,
+		target,
+		snapshotID,
+		revisionID,
+		current.Digest,
+		RevisionOperationWrite,
+		req.Body,
+		req.Actor,
+	)
 }
 
 // Delete removes HEARTBEAT.md through CAS-protected managed authoring.
@@ -303,7 +315,11 @@ func (s *ManagedHeartbeatAuthoringService) Delete(
 	if err := s.verifyUnchangedHeartbeat(ctx, target, &current); err != nil {
 		return MutationResult{}, err
 	}
-	if err := fileutil.AtomicRemoveFile(target.heartbeatPath); err != nil {
+	snapshotID, revisionID, err := s.newPostMutationIDs()
+	if err != nil {
+		return MutationResult{}, err
+	}
+	if err := target.managedPath.Remove(); err != nil {
 		return MutationResult{}, authoringDiagnosticError(
 			diagnosticHeartbeatPathError,
 			target.sourcePath,
@@ -312,7 +328,15 @@ func (s *ManagedHeartbeatAuthoringService) Delete(
 			ErrAuthoringPathRejected,
 		)
 	}
-	return s.persistPostDelete(ctx, target, current.Digest, RevisionOperationDelete, req.Actor)
+	return s.persistPostDelete(
+		ctx,
+		target,
+		snapshotID,
+		revisionID,
+		current.Digest,
+		RevisionOperationDelete,
+		req.Actor,
+	)
 }
 
 // History lists managed HEARTBEAT.md revision history.
@@ -359,40 +383,7 @@ func (s *ManagedHeartbeatAuthoringService) Rollback(
 		return MutationResult{}, err
 	}
 	if rollback.absent {
-		if err := s.verifyUnchangedHeartbeat(ctx, target, &current); err != nil {
-			return MutationResult{}, err
-		}
-		if err := fileutil.AtomicRemoveFile(target.heartbeatPath); err != nil {
-			return MutationResult{}, authoringDiagnosticError(
-				diagnosticHeartbeatPathError,
-				target.sourcePath,
-				"HEARTBEAT.md could not be rolled back",
-				err,
-				ErrAuthoringPathRejected,
-			)
-		}
-		return s.persistPostDelete(ctx, target, current.Digest, RevisionOperationRollback, req.Actor)
+		return s.applyAbsentRollback(ctx, target, &current, req.Actor)
 	}
-	proposed, err := Parse(ctx, ParseRequest{
-		SourcePath:    target.heartbeatPath,
-		WorkspaceRoot: target.workspaceRoot,
-		Content:       []byte(rollback.body),
-		Config:        target.config,
-	})
-	if err != nil {
-		return MutationResult{Policy: proposed}, authoringInvalidError(proposed.Diagnostics)
-	}
-	if err := s.verifyUnchangedHeartbeat(ctx, target, &current); err != nil {
-		return MutationResult{}, err
-	}
-	if err := fileutil.AtomicWriteFile(target.heartbeatPath, []byte(rollback.body), s.mode); err != nil {
-		return MutationResult{}, authoringDiagnosticError(
-			diagnosticHeartbeatPathError,
-			target.sourcePath,
-			"HEARTBEAT.md could not be rolled back",
-			err,
-			ErrAuthoringPathRejected,
-		)
-	}
-	return s.persistPostWrite(ctx, target, current.Digest, RevisionOperationRollback, rollback.body, req.Actor)
+	return s.applyBodyRollback(ctx, target, &current, rollback.body, req.Actor)
 }

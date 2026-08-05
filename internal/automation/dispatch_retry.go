@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 
 	"strings"
 
@@ -141,7 +142,11 @@ func retryDelay(cfg RetryConfig, attempt int) (time.Duration, error) {
 	if attempt <= 1 {
 		return baseDelay, nil
 	}
-	return baseDelay * time.Duration(1<<(attempt-1)), nil
+	shift := attempt - 1
+	if shift >= 63 || baseDelay > time.Duration(math.MaxInt64>>shift) {
+		return 0, fmt.Errorf("automation: retry delay overflows at attempt %d", attempt)
+	}
+	return baseDelay << shift, nil
 }
 
 func collectPromptError(ctx context.Context, events <-chan acp.AgentEvent) error {

@@ -116,21 +116,11 @@ func providerAuthStatusRows(record providerAuthStatusRecord) []keyValue {
 		{Label: cliCodeValue, Value: stringOrDash(record.Code)},
 		{Label: providerMessageValue, Value: stringOrDash(record.Message)},
 		{Label: "Status Command", Value: stringOrDash(record.StatusCommand)},
-		{Label: "Login Command", Value: stringOrDash(record.LoginCommand)},
-	}
-	if len(record.LoginEnv) > 0 {
-		rows = append(rows, keyValue{Label: "Login Env", Value: strings.Join(record.LoginEnv, " ")})
-	}
-	if record.NativeCLI != nil {
-		rows = append(rows,
-			keyValue{Label: "Native CLI Command", Value: stringOrDash(record.NativeCLI.Command)},
-			keyValue{Label: "Native CLI Present", Value: boolString(record.NativeCLI.Present)},
-			keyValue{Label: "Native CLI Path", Value: stringOrDash(record.NativeCLI.Path)},
-			keyValue{Label: "Native CLI Source", Value: stringOrDash(record.NativeCLI.Source)},
-		)
-		if record.NativeCLI.Error != "" {
-			rows = append(rows, keyValue{Label: "Native CLI Error", Value: record.NativeCLI.Error})
-		}
+		{Label: "Login Configured", Value: boolString(record.Login.Configured)},
+		{Label: "Login Source", Value: stringOrDash(record.Login.Source)},
+		{Label: "Login Executable", Value: stringOrDash(record.Login.Executable)},
+		{Label: "Login Presence", Value: stringOrDash(string(record.Login.Presence))},
+		{Label: "Recommended Action", Value: stringOrDash(string(record.Login.RecommendedAction))},
 	}
 	if record.Probe != nil {
 		rows = append(rows,

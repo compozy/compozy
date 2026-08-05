@@ -41,8 +41,8 @@ func (m *Manager) dispatchGoalCommand(
 		return GoalDispatchDecision{}, true, err
 	}
 	if parseErr != nil {
-		var commandErr *GoalCommandError
-		if !errors.As(parseErr, &commandErr) {
+		commandErr, ok := errors.AsType[*GoalCommandError](parseErr)
+		if !ok {
 			return GoalDispatchDecision{}, true, parseErr
 		}
 		return goalErrorDecision(commandErr.Code), true, nil

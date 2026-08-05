@@ -122,9 +122,9 @@ func detectInspectOrphanRun(snapshot *inspectDiagnosticSnapshot) (diagnosticcont
 		diagnosticcontract.SeverityError,
 		fmt.Sprintf("compozy task release %s --reason \"orphaned\"", run.RunID),
 		inspectRunEvidence(snapshot, map[string]any{
-			"session_id":      inspectSessionID(snapshot.BoundSession),
-			"session_state":   inspectSessionState(snapshot.BoundSession),
-			"session_failure": inspectSessionFailure(snapshot.BoundSession),
+			sessionEvidenceIDKey: inspectSessionID(snapshot.BoundSession),
+			"session_state":      inspectSessionState(snapshot.BoundSession),
+			"session_failure":    inspectSessionFailure(snapshot.BoundSession),
 		}),
 	), true
 }
@@ -188,14 +188,15 @@ func inspectDiagnosticItem(
 	suggestedCommand string,
 	evidence map[string]any,
 ) diagnosticcontract.DiagnosticItem {
-	return diagnosticitems.NewItem(
-		"task.inspect."+code+"."+strings.TrimSpace(runID),
-		code,
-		diagnosticcontract.CategoryTask,
-		title,
-		message,
-		severity,
-		diagnosticcontract.FreshnessLive,
+	return diagnosticitems.NewItem(diagnosticitems.ItemSpec{
+		ID:            "task.inspect." + code + "." + strings.TrimSpace(runID),
+		Code:          code,
+		Category:      diagnosticcontract.CategoryTask,
+		Title:         title,
+		Message:       message,
+		Severity:      severity,
+		DataFreshness: diagnosticcontract.FreshnessLive,
+	},
 		diagnosticitems.WithSuggestedCommand(suggestedCommand),
 		diagnosticitems.WithDocURL(inspectDiagnosticsDocURL),
 		diagnosticitems.WithEvidence(evidence),

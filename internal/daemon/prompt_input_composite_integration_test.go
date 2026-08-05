@@ -4,12 +4,15 @@ package daemon
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/situation"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/sessiondb"
@@ -17,6 +20,10 @@ import (
 )
 
 func TestPromptInputCompositeIntegrationPreservesStoredMessagesAcrossUserAndNetworkTurns(t *testing.T) {
+	t.Run("Should preserve stored messages while augmenting user and network turns", testPromptInputCompositeIntegrationPreservesStoredMessages)
+}
+
+func testPromptInputCompositeIntegrationPreservesStoredMessages(t *testing.T) {
 	homePaths := integrationHomePaths(t)
 	cfg := testConfig(t, homePaths)
 	workspaceRoot := homePaths.HomeDir + "/workspace"
@@ -26,7 +33,7 @@ func TestPromptInputCompositeIntegrationPreservesStoredMessagesAcrossUserAndNetw
 	daemonInstance, capturedDeps := bootHarnessPolicyDaemon(t, homePaths, &cfg)
 	t.Cleanup(func() {
 		if err := daemonInstance.Shutdown(testutil.Context(t)); err != nil {
-			t.Fatalf("Shutdown() error = %v", err)
+			t.Errorf("Shutdown() error = %v", err)
 		}
 	})
 
@@ -46,6 +53,7 @@ func TestPromptInputCompositeIntegrationPreservesStoredMessagesAcrossUserAndNetw
 		nil,
 		append(
 			defaultPromptInputAugmenterDescriptors(
+				situation.WorkspaceKnowledgeAugmenter,
 				memory.NewRecallAugmenter(daemonInstance.memoryStore),
 				newSkillsCatalogAugmenter(daemonInstance.skillsRegistry, func() promptSkillsWorkspaceResolver {
 					return workspaceResolver
@@ -80,7 +88,9 @@ func TestPromptInputCompositeIntegrationPreservesStoredMessagesAcrossUserAndNetw
 		t.Fatalf("Create() error = %v", err)
 	}
 	t.Cleanup(func() {
-		_ = manager.Stop(testutil.Context(t), created.ID)
+		if err := manager.Stop(testutil.Context(t), created.ID); err != nil {
+			t.Errorf("Stop() error = %v", err)
+		}
 	})
 
 	waitForCondition(t, "current skills catalog ready", func() bool {
@@ -182,29 +192,6 @@ func TestPromptInputCompositeIntegrationPreservesStoredMessagesAcrossUserAndNetw
 		}
 	}
 
-	syntheticEvents, err := manager.PromptSynthetic(testutil.Context(t), created.ID, session.SyntheticPromptOpts{
-		Message: "daemon wake-up",
-		Metadata: acp.PromptSyntheticMeta{
-			TaskRunID: "run-1",
-			Reason:    "task_run_completed",
-			Summary:   "background work finished",
-		},
-	})
-	if err != nil {
-		t.Fatalf("PromptSynthetic() error = %v", err)
-	}
-	drainHarnessIntegrationEvents(syntheticEvents)
-
-	if got := driver.promptCalls[2].Message; got != "daemon wake-up" {
-		t.Fatalf("synthetic prompt message = %q, want canonical synthetic dispatch", got)
-	}
-	if got := driver.promptCalls[2].Meta.TurnSource; got != acp.PromptTurnSourceSynthetic {
-		t.Fatalf("synthetic prompt turn source = %q, want %q", got, acp.PromptTurnSourceSynthetic)
-	}
-	if got, want := len(compositeResolver.seenMeta), 2; got != want {
-		t.Fatalf("len(resolver seen meta) after synthetic prompt = %d, want %d", got, want)
-	}
-
 	storedMessages := loadStoredPromptMessages(t, created)
 	if got, want := len(storedMessages), 2; got != want {
 		t.Fatalf("len(storedMessages) = %d, want %d", got, want)
@@ -221,6 +208,108 @@ func TestPromptInputCompositeIntegrationPreservesStoredMessagesAcrossUserAndNetw
 	}
 	if strings.Contains(storedMessages[1], "SUFFIX CONTEXT") {
 		t.Fatalf("stored network message = %q, want no augmenter content", storedMessages[1])
+	}
+}
+
+func TestPromptInputCompositeIntegrationRefreshesWorkspaceKnowledgeOnSyntheticWake(t *testing.T) {
+	t.Run("Should deliver current confined knowledge bytes on every synthetic wake", func(t *testing.T) {
+		homePaths := integrationHomePaths(t)
+		cfg := testConfig(t, homePaths)
+		workspaceRoot := filepath.Join(homePaths.HomeDir, "workspace")
+		resolvedWorkspace := newHarnessIntegrationWorkspace(t, homePaths, cfg, workspaceRoot)
+		knowledgePath := filepath.Join(workspaceRoot, "knowledge", "workspace", "bench-harness-status.md")
+		writePromptKnowledgeFile(t, knowledgePath, "baseline_ms: 410\ncandidate_ms: 410\n")
+
+		daemonInstance, capturedDeps := bootHarnessPolicyDaemon(t, homePaths, &cfg)
+		t.Cleanup(func() {
+			if err := daemonInstance.Shutdown(testutil.Context(t)); err != nil {
+				t.Errorf("Shutdown() error = %v", err)
+			}
+		})
+
+		driver := newHarnessIntegrationDriver()
+		manager := newHarnessIntegrationManager(t, homePaths, capturedDeps, resolvedWorkspace, driver)
+		created, err := manager.Create(testutil.Context(t), session.CreateOpts{
+			AgentName: resolvedWorkspace.Agents[0].Name,
+			Name:      "knowledge-worker",
+			Workspace: resolvedWorkspace.ID,
+			Type:      session.SessionTypeSystem,
+		})
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := manager.Stop(testutil.Context(t), created.ID); err != nil {
+				t.Errorf("Stop() error = %v", err)
+			}
+		})
+
+		firstEvents, err := manager.PromptSynthetic(
+			testutil.Context(t),
+			created.ID,
+			session.SyntheticPromptOpts{
+				Message: "inspect the current benchmark",
+				Metadata: acp.PromptSyntheticMeta{
+					TaskRunID: "run-bench-1",
+					Reason:    "task_run_ready",
+				},
+			},
+		)
+		if err != nil {
+			t.Fatalf("PromptSynthetic(first) error = %v", err)
+		}
+		drainHarnessIntegrationEvents(firstEvents)
+		if got := driver.promptCalls[0].Message; !strings.Contains(got, `candidate_ms: 410\n`) {
+			t.Fatalf("first synthetic prompt = %q, want initial knowledge bytes", got)
+		}
+
+		writePromptKnowledgeFile(t, knowledgePath, "baseline_ms: 410\ncandidate_ms: 500\n")
+		outsideSecretPath := filepath.Join(t.TempDir(), "outside-secret.md")
+		writePromptKnowledgeFile(t, outsideSecretPath, "OUTSIDE_WORKSPACE_SECRET")
+		if err := os.Symlink(
+			outsideSecretPath,
+			filepath.Join(filepath.Dir(knowledgePath), "escaped.md"),
+		); err != nil {
+			t.Fatalf("Symlink() error = %v", err)
+		}
+
+		secondEvents, err := manager.PromptSynthetic(
+			testutil.Context(t),
+			created.ID,
+			session.SyntheticPromptOpts{
+				Message: "continue the benchmark review",
+				Metadata: acp.PromptSyntheticMeta{
+					TaskRunID: "run-bench-1",
+					Reason:    "task_run_progress",
+				},
+			},
+		)
+		if err != nil {
+			t.Fatalf("PromptSynthetic(second) error = %v", err)
+		}
+		drainHarnessIntegrationEvents(secondEvents)
+
+		got := driver.promptCalls[1].Message
+		if !strings.Contains(got, `candidate_ms: 500\n`) {
+			t.Fatalf("second synthetic prompt = %q, want refreshed knowledge bytes", got)
+		}
+		if strings.Contains(got, `candidate_ms: 410\n`) {
+			t.Fatalf("second synthetic prompt = %q, want no stale knowledge bytes", got)
+		}
+		if strings.Contains(got, "OUTSIDE_WORKSPACE_SECRET") {
+			t.Fatalf("second synthetic prompt = %q, want symlink target excluded", got)
+		}
+	})
+}
+
+func writePromptKnowledgeFile(t *testing.T, path string, content string) {
+	t.Helper()
+
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("MkdirAll(%q) error = %v", filepath.Dir(path), err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile(%q) error = %v", path, err)
 	}
 }
 
@@ -254,13 +343,17 @@ func (r *promptInputCompositeOverlayResolver) ResolvePrompt(
 func loadStoredPromptMessages(t *testing.T, sess *session.Session) []string {
 	t.Helper()
 
-	db, err := sessiondb.OpenSessionDB(testutil.Context(t), sess.ID, sess.DBPath())
+	db, err := sessiondb.OpenSessionDB(
+		testutil.Context(t),
+		store.SessionDBOwner{SessionID: sess.ID, WorkspaceID: sess.WorkspaceID},
+		sess.DBPath(),
+	)
 	if err != nil {
 		t.Fatalf("OpenSessionDB() error = %v", err)
 	}
 	t.Cleanup(func() {
 		if err := db.Close(testutil.Context(t)); err != nil {
-			t.Fatalf("Close() error = %v", err)
+			t.Errorf("Close() error = %v", err)
 		}
 	})
 

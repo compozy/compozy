@@ -21,7 +21,10 @@ func (m *Service) BulkForceReleaseRuns(
 	}
 	result := BulkForceRunResult{Items: make([]BulkForceRunItem, 0, len(normalized.RunIDs))}
 	for _, id := range normalized.RunIDs {
-		run, err := m.ForceReleaseRun(ctx, id, ForceReleaseRun{Reason: normalized.Reason}, actor)
+		run, err := m.ForceReleaseRun(ctx, id, ForceReleaseRun{
+			Reason:   normalized.Reason,
+			Metadata: normalized.Metadata,
+		}, actor)
 		result.Items = append(result.Items, bulkForceRunItem(id, run, err))
 	}
 	return result, nil
@@ -104,29 +107,4 @@ func (m *Service) requireForceRunRate(actor ActorContext, taskID string) error {
 		},
 		ErrForceOpRateLimited,
 	)
-}
-
-func (m *Service) invalidateForceRunInputs(ctx context.Context, previous Run) (int64, int, error) {
-	sessionID := strings.TrimSpace(previous.SessionID)
-	if sessionID == "" {
-		return 0, 0, nil
-	}
-	queueStore, ok := m.store.(inputQueueGenerationStore)
-	if !ok {
-		return 0, 0, nil
-	}
-	now := m.now().UTC()
-	generation, err := queueStore.AdvanceSessionInputGeneration(ctx, sessionID, now)
-	if err != nil {
-		return 0, 0, fmt.Errorf("task: advance input generation for force operation on session %q: %w", sessionID, err)
-	}
-	canceled, err := queueStore.CancelPendingSessionInputs(ctx, sessionID, generation, now)
-	if err != nil {
-		return 0, 0, fmt.Errorf(
-			"task: cancel stale input generation for force operation on session %q: %w",
-			sessionID,
-			err,
-		)
-	}
-	return generation, canceled, nil
 }

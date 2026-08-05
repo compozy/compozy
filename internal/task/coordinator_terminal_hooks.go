@@ -57,7 +57,9 @@ func (m *Service) dispatchCoordinatorTerminal(
 		},
 		Status: strings.TrimSpace(loopStatus),
 	}
-	_, err := dispatcher.DispatchLoopTerminal(taskRunObservationHookContext(ctx), payload)
+	hookCtx, cancel := taskRunObservationHookContext(ctx)
+	defer cancel()
+	_, err := dispatcher.DispatchLoopTerminal(hookCtx, payload)
 	m.reportTerminalHookFailure(hookspkg.HookLoopTerminal, err, payload)
 }
 

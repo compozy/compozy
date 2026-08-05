@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
@@ -88,13 +87,16 @@ func classifyExtensionError(err error) extensionErrorKind {
 		errors.Is(err, extensionpkg.ErrManifestNotFound),
 		errors.Is(err, extensionpkg.ErrExtensionGenerationInvalid),
 		errors.Is(err, extensionpkg.ErrExtensionSearchInvalid),
+		errors.Is(err, registrygit.ErrInvalidRepositoryRef),
 		errors.Is(err, os.ErrNotExist):
 		return extensionErrorBadRequest
 	case errors.Is(err, extensionpkg.ErrExtensionWorkspaceDenied),
+		errors.Is(err, registrygit.ErrRepositoryDestinationBlocked),
 		errors.Is(err, taskpkg.ErrPermissionDenied):
 		return extensionErrorForbidden
 	case errors.Is(err, extensionpkg.ErrMarketplaceSourceUnavailable),
-		errors.Is(err, registrygit.ErrGitUnavailable):
+		errors.Is(err, registrygit.ErrGitUnavailable),
+		errors.Is(err, registrygit.ErrGitVersionUnsupported):
 		return extensionErrorUnavailable
 	default:
 		return extensionErrorUnknown
@@ -116,8 +118,7 @@ func (h *BaseHandlers) respondExtensionError(c *gin.Context, status int, err err
 			Message:  diagnosticspkg.Redact(taskpkg.RedactClaimTokens(payload.Error)),
 			Severity: contract.IssueSeverityError,
 		}
-		var validationErr *extensionpkg.ManifestValidationError
-		if errors.As(err, &validationErr) && validationErr != nil {
+		if validationErr, ok := errors.AsType[*extensionpkg.ManifestValidationError](err); ok && validationErr != nil {
 			issue.Field = strings.TrimSpace(validationErr.Field)
 		}
 		c.JSON(status, contract.ExtensionValidationErrorPayload{
@@ -125,18 +126,8 @@ func (h *BaseHandlers) respondExtensionError(c *gin.Context, status int, err err
 		})
 		return
 	}
-	if errors.Is(err, registrygit.ErrGitUnavailable) {
+	if item, ok := ExtensionGitDependencyDiagnostic(err); ok {
 		payload := ErrorPayloadForStatus(status, err, mask)
-		item := diagnosticspkg.NewItem(
-			"extension.git_unavailable",
-			diagnosticcontract.CodeExtensionGitUnavailable,
-			diagnosticcontract.CategoryExtension,
-			"Git is unavailable",
-			"Install Git and ensure the git executable is available on PATH.",
-			diagnosticcontract.SeverityError,
-			diagnosticcontract.FreshnessLive,
-			diagnosticspkg.WithSuggestedCommand("git --version"),
-		)
 		payload.Diagnostic = &item
 		c.JSON(status, payload)
 		return

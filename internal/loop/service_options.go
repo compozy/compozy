@@ -70,7 +70,7 @@ func WithClock(now func() time.Time) Option {
 }
 
 // WithRunIDFactory injects a deterministic run ID factory.
-func WithRunIDFactory(factory func() RunID) Option {
+func WithRunIDFactory(factory func() (RunID, error)) Option {
 	return func(s *service) {
 		s.newRunID = factory
 	}

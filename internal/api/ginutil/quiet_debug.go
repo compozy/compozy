@@ -2,6 +2,8 @@
 package ginutil
 
 import (
+	"net/http"
+	"net/url"
 	"sync"
 
 	"github.com/gin-gonic/gin"
@@ -13,7 +15,22 @@ var debugModeMu sync.Mutex
 func NewEngine() *gin.Engine {
 	var engine *gin.Engine
 	QuietDebug(func() { engine = gin.New() })
+	engine.UseEscapedPath = true
+	engine.UnescapePathValues = false
+	engine.Use(decodeEscapedPathParams)
 	return engine
+}
+
+func decodeEscapedPathParams(context *gin.Context) {
+	for index := range context.Params {
+		decoded, err := url.PathUnescape(context.Params[index].Value)
+		if err != nil {
+			context.AbortWithStatus(http.StatusBadRequest)
+			return
+		}
+		context.Params[index].Value = decoded
+	}
+	context.Next()
 }
 
 // QuietDebug suppresses Gin's debug-mode setup output while fn constructs or registers a router.

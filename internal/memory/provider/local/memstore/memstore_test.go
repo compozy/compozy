@@ -29,10 +29,10 @@ func TestAdapter(t *testing.T) {
 		if err := adapter.EnsureDirs(); err != nil {
 			t.Fatalf("Adapter.EnsureDirs() error = %v", err)
 		}
-		if err := store.Write(memcontract.ScopeGlobal, "project_provider.md", adapterPayload(t)); err != nil {
+		if err := store.Write(ctx, memcontract.ScopeGlobal, "project_provider.md", adapterPayload(t)); err != nil {
 			t.Fatalf("Store.Write(global) error = %v", err)
 		}
-		content, truncated, err := adapter.LoadPromptIndex(memcontract.ScopeGlobal)
+		content, truncated, err := adapter.LoadPromptIndex(ctx, memcontract.ScopeGlobal)
 		if err != nil {
 			t.Fatalf("Adapter.LoadPromptIndex() error = %v", err)
 		}
@@ -42,7 +42,7 @@ func TestAdapter(t *testing.T) {
 		if !strings.Contains(content, "Provider Adapter") {
 			t.Fatalf("Adapter.LoadPromptIndex() = %q, want stored memory", content)
 		}
-		headers, err := adapter.List(memcontract.ScopeGlobal)
+		headers, err := adapter.List(ctx, memcontract.ScopeGlobal)
 		if err != nil {
 			t.Fatalf("Adapter.List() error = %v", err)
 		}
@@ -78,7 +78,7 @@ func TestAdapter(t *testing.T) {
 		if err := adapter.ApplyDecision(ctx, decision); err != nil {
 			t.Fatalf("Adapter.ApplyDecision() error = %v", err)
 		}
-		got, err := store.Read(memcontract.ScopeGlobal, "project_adapter_write.md")
+		got, err := store.Read(ctx, memcontract.ScopeGlobal, "project_adapter_write.md")
 		if err != nil {
 			t.Fatalf("Store.Read(adapter write) error = %v", err)
 		}
@@ -95,19 +95,20 @@ func TestAdapter(t *testing.T) {
 		t.Parallel()
 
 		adapter := memstore.New(nil)
+		ctx := testutil.Context(t)
 		if err := adapter.EnsureDirs(); err == nil {
 			t.Fatal("Adapter.EnsureDirs(nil store) error = nil, want error")
 		}
-		if _, _, err := adapter.LoadPromptIndex(memcontract.ScopeGlobal); err == nil {
+		if _, _, err := adapter.LoadPromptIndex(ctx, memcontract.ScopeGlobal); err == nil {
 			t.Fatal("Adapter.LoadPromptIndex(nil store) error = nil, want error")
 		}
-		if _, err := adapter.List(memcontract.ScopeGlobal); err == nil {
+		if _, err := adapter.List(ctx, memcontract.ScopeGlobal); err == nil {
 			t.Fatal("Adapter.List(nil store) error = nil, want error")
 		}
-		if _, err := adapter.Recall(testutil.Context(t), memcontract.Query{}, memcontract.RecallOptions{}); err == nil {
+		if _, err := adapter.Recall(ctx, memcontract.Query{}, memcontract.RecallOptions{}); err == nil {
 			t.Fatal("Adapter.Recall(nil store) error = nil, want error")
 		}
-		if err := adapter.ApplyDecision(testutil.Context(t), memcontract.Decision{}); err == nil {
+		if err := adapter.ApplyDecision(ctx, memcontract.Decision{}); err == nil {
 			t.Fatal("Adapter.ApplyDecision(nil store) error = nil, want error")
 		}
 		agentBackend := adapter.ForAgent("ws-alpha", "reviewer", memcontract.AgentTierWorkspace)

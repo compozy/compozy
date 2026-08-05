@@ -153,230 +153,231 @@ const (
 	HookSpawnReaped        HookEvent = "spawn.reaped"
 )
 
-type hookEventSpec struct {
+type hookEventDefinition struct {
+	event        HookEvent
 	family       HookEventFamily
 	syncEligible bool
 }
 
-var hookEventSpecs = mergeHookEventSpecs(map[HookEvent]hookEventSpec{
-	HookSessionPreCreate:  {family: HookEventFamilySession, syncEligible: true},
-	HookSessionPostCreate: {family: HookEventFamilySession, syncEligible: true},
-	HookSessionPreResume:  {family: HookEventFamilySession, syncEligible: true},
-	HookSessionPostResume: {family: HookEventFamilySession, syncEligible: true},
-	HookSessionPreStop:    {family: HookEventFamilySession, syncEligible: true},
-	HookSessionPostStop:   {family: HookEventFamilySession, syncEligible: true},
-	HookSessionMessagePersisted: {
+var baseHookEventDefinitions = []hookEventDefinition{
+	{event: HookSessionPreCreate, family: HookEventFamilySession, syncEligible: true},
+	{event: HookSessionPostCreate, family: HookEventFamilySession, syncEligible: true},
+	{event: HookSessionPreResume, family: HookEventFamilySession, syncEligible: true},
+	{event: HookSessionPostResume, family: HookEventFamilySession, syncEligible: true},
+	{event: HookSessionPreStop, family: HookEventFamilySession, syncEligible: true},
+	{event: HookSessionPostStop, family: HookEventFamilySession, syncEligible: true},
+	{event: HookSessionMessagePersisted,
 		family:       HookEventFamilySession,
 		syncEligible: false,
 	},
-	HookSandboxPrepare: {
+	{event: HookSandboxPrepare,
 		family:       HookEventFamilySandbox,
 		syncEligible: true,
 	},
-	HookSandboxReady: {
+	{event: HookSandboxReady,
 		family:       HookEventFamilySandbox,
 		syncEligible: false,
 	},
-	HookSandboxSyncBefore: {
+	{event: HookSandboxSyncBefore,
 		family:       HookEventFamilySandbox,
 		syncEligible: true,
 	},
-	HookSandboxSyncAfter: {
+	{event: HookSandboxSyncAfter,
 		family:       HookEventFamilySandbox,
 		syncEligible: false,
 	},
-	HookSandboxStop: {
+	{event: HookSandboxStop,
 		family:       HookEventFamilySandbox,
 		syncEligible: true,
 	},
-	HookInputPreSubmit: {family: HookEventFamilyInput, syncEligible: true},
-	HookPromptPostAssemble: {
+	{event: HookInputPreSubmit, family: HookEventFamilyInput, syncEligible: true},
+	{event: HookPromptPostAssemble,
 		family:       HookEventFamilyPrompt,
 		syncEligible: true,
 	},
-	HookEventPreRecord:  {family: HookEventFamilyEvent, syncEligible: false},
-	HookEventPostRecord: {family: HookEventFamilyEvent, syncEligible: false},
-	HookAutomationJobPreFire: {
+	{event: HookEventPreRecord, family: HookEventFamilyEvent, syncEligible: false},
+	{event: HookEventPostRecord, family: HookEventFamilyEvent, syncEligible: false},
+	{event: HookAutomationJobPreFire,
 		family:       HookEventFamilyAutomation,
 		syncEligible: true,
 	},
-	HookAutomationJobPostFire: {
+	{event: HookAutomationJobPostFire,
 		family:       HookEventFamilyAutomation,
 		syncEligible: false,
 	},
-	HookAutomationTriggerPreFire: {
+	{event: HookAutomationTriggerPreFire,
 		family:       HookEventFamilyAutomation,
 		syncEligible: true,
 	},
-	HookAutomationTriggerPostFire: {
+	{event: HookAutomationTriggerPostFire,
 		family:       HookEventFamilyAutomation,
 		syncEligible: false,
 	},
-	HookAutomationRunCompleted: {
+	{event: HookAutomationRunCompleted,
 		family:       HookEventFamilyAutomation,
 		syncEligible: false,
 	},
-	HookAutomationRunFailed: {
+	{event: HookAutomationRunFailed,
 		family:       HookEventFamilyAutomation,
 		syncEligible: false,
 	},
-	HookAgentPreStart: {family: HookEventFamilyAgent, syncEligible: true},
-	HookAgentSpawned:  {family: HookEventFamilyAgent, syncEligible: true},
-	HookAgentCrashed:  {family: HookEventFamilyAgent, syncEligible: true},
-	HookAgentStopped:  {family: HookEventFamilyAgent, syncEligible: true},
-	HookAgentSoulSnapshotResolved: {
+	{event: HookAgentPreStart, family: HookEventFamilyAgent, syncEligible: true},
+	{event: HookAgentSpawned, family: HookEventFamilyAgent, syncEligible: true},
+	{event: HookAgentCrashed, family: HookEventFamilyAgent, syncEligible: true},
+	{event: HookAgentStopped, family: HookEventFamilyAgent, syncEligible: true},
+	{event: HookAgentSoulSnapshotResolved,
 		family:       HookEventFamilyAgent,
 		syncEligible: false,
 	},
-	HookAgentSoulMutationAfter: {
+	{event: HookAgentSoulMutationAfter,
 		family:       HookEventFamilyAgent,
 		syncEligible: false,
 	},
-	HookAgentHeartbeatPolicyResolved: {
+	{event: HookAgentHeartbeatPolicyResolved,
 		family:       HookEventFamilyAgent,
 		syncEligible: false,
 	},
-	HookAgentHeartbeatWakeBefore: {
+	{event: HookAgentHeartbeatWakeBefore,
 		family:       HookEventFamilyAgent,
 		syncEligible: true,
 	},
-	HookAgentHeartbeatWakeAfter: {
+	{event: HookAgentHeartbeatWakeAfter,
 		family:       HookEventFamilyAgent,
 		syncEligible: false,
 	},
-	HookSessionHealthUpdateAfter: {
+	{event: HookSessionHealthUpdateAfter,
 		family:       HookEventFamilySession,
 		syncEligible: false,
 	},
-	HookTurnStart:     {family: HookEventFamilyTurn, syncEligible: true},
-	HookTurnEnd:       {family: HookEventFamilyTurn, syncEligible: true},
-	HookMessageStart:  {family: HookEventFamilyMessage, syncEligible: true},
-	HookMessageDelta:  {family: HookEventFamilyMessage, syncEligible: false},
-	HookMessageEnd:    {family: HookEventFamilyMessage, syncEligible: true},
-	HookToolPreCall:   {family: HookEventFamilyTool, syncEligible: true},
-	HookToolPostCall:  {family: HookEventFamilyTool, syncEligible: true},
-	HookToolPostError: {family: HookEventFamilyTool, syncEligible: true},
-	HookPermissionRequest: {
+	{event: HookTurnStart, family: HookEventFamilyTurn, syncEligible: true},
+	{event: HookTurnEnd, family: HookEventFamilyTurn, syncEligible: true},
+	{event: HookMessageStart, family: HookEventFamilyMessage, syncEligible: true},
+	{event: HookMessageDelta, family: HookEventFamilyMessage, syncEligible: false},
+	{event: HookMessageEnd, family: HookEventFamilyMessage, syncEligible: true},
+	{event: HookToolPreCall, family: HookEventFamilyTool, syncEligible: true},
+	{event: HookToolPostCall, family: HookEventFamilyTool, syncEligible: true},
+	{event: HookToolPostError, family: HookEventFamilyTool, syncEligible: true},
+	{event: HookPermissionRequest,
 		family:       HookEventFamilyPermission,
 		syncEligible: true,
 	},
-	HookPermissionResolved: {
+	{event: HookPermissionResolved,
 		family:       HookEventFamilyPermission,
 		syncEligible: false,
 	},
-	HookPermissionDenied: {
+	{event: HookPermissionDenied,
 		family:       HookEventFamilyPermission,
 		syncEligible: false,
 	},
-	HookContextPreCompact:  {family: HookEventFamilyContext, syncEligible: true},
-	HookContextPostCompact: {family: HookEventFamilyContext, syncEligible: true},
-	HookCoordinatorPreSpawn: {
+	{event: HookContextPreCompact, family: HookEventFamilyContext, syncEligible: true},
+	{event: HookContextPostCompact, family: HookEventFamilyContext, syncEligible: true},
+	{event: HookCoordinatorPreSpawn,
 		family:       HookEventFamilyCoordinator,
 		syncEligible: true,
 	},
-	HookCoordinatorSpawned: {
+	{event: HookCoordinatorSpawned,
 		family:       HookEventFamilyCoordinator,
 		syncEligible: true,
 	},
-	HookCoordinatorDecision: {
+	{event: HookCoordinatorDecision,
 		family:       HookEventFamilyCoordinator,
 		syncEligible: true,
 	},
-	HookCoordinatorStopped: {
+	{event: HookCoordinatorStopped,
 		family:       HookEventFamilyCoordinator,
 		syncEligible: true,
 	},
-	HookCoordinatorFailed: {
+	{event: HookCoordinatorFailed,
 		family:       HookEventFamilyCoordinator,
 		syncEligible: true,
 	},
-	HookTaskBlocked:        {family: HookEventFamilyTask, syncEligible: true},
-	HookTaskUnblocked:      {family: HookEventFamilyTask, syncEligible: true},
-	HookTaskNeedsAttention: {family: HookEventFamilyTask, syncEligible: true},
-	HookTaskRecovered:      {family: HookEventFamilyTask, syncEligible: true},
-	HookTaskStatusChanged:  {family: HookEventFamilyTask, syncEligible: false},
-	HookTaskRunEnqueued: {
+	{event: HookTaskBlocked, family: HookEventFamilyTask, syncEligible: true},
+	{event: HookTaskUnblocked, family: HookEventFamilyTask, syncEligible: true},
+	{event: HookTaskNeedsAttention, family: HookEventFamilyTask, syncEligible: true},
+	{event: HookTaskRecovered, family: HookEventFamilyTask, syncEligible: true},
+	{event: HookTaskStatusChanged, family: HookEventFamilyTask, syncEligible: false},
+	{event: HookTaskRunEnqueued,
 		family:       HookEventFamilyTaskRun,
 		syncEligible: true,
 	},
-	HookTaskRunPreClaim: {
+	{event: HookTaskRunPreClaim,
 		family:       HookEventFamilyTaskRun,
 		syncEligible: true,
 	},
-	HookTaskRunPostClaim: {
+	{event: HookTaskRunPostClaim,
 		family:       HookEventFamilyTaskRun,
 		syncEligible: true,
 	},
-	HookTaskRunLeaseExtended: {
+	{event: HookTaskRunLeaseExtended,
 		family:       HookEventFamilyTaskRun,
 		syncEligible: true,
 	},
-	HookTaskRunLeaseExpired: {
+	{event: HookTaskRunLeaseExpired,
 		family:       HookEventFamilyTaskRun,
 		syncEligible: true,
 	},
-	HookTaskRunLeaseRecovered: {
+	{event: HookTaskRunLeaseRecovered,
 		family:       HookEventFamilyTaskRun,
 		syncEligible: true,
 	},
-	HookTaskRunReleased: {
+	{event: HookTaskRunReleased,
 		family:       HookEventFamilyTaskRun,
 		syncEligible: true,
 	},
-	HookTaskRunCompleted: {
+	{event: HookTaskRunCompleted,
 		family:       HookEventFamilyTaskRun,
 		syncEligible: true,
 	},
-	HookTaskRunFailed: {
+	{event: HookTaskRunFailed,
 		family:       HookEventFamilyTaskRun,
 		syncEligible: true,
 	},
-	HookLoopStarted: {
+	{event: HookLoopStarted,
 		family:       HookEventFamilyLoop,
 		syncEligible: false,
 	},
-	HookLoopGenerationPre: {
+	{event: HookLoopGenerationPre,
 		family:       HookEventFamilyLoop,
 		syncEligible: true,
 	},
-	HookLoopGenerationPost: {
-		family:       HookEventFamilyLoop,
-		syncEligible: false,
-	},
-	HookLoopGatePre: {
-		family:       HookEventFamilyLoop,
-		syncEligible: true,
-	},
-	HookLoopGatePost: {
+	{event: HookLoopGenerationPost,
 		family:       HookEventFamilyLoop,
 		syncEligible: false,
 	},
-	HookLoopNodeTerminal: {
+	{event: HookLoopGatePre,
+		family:       HookEventFamilyLoop,
+		syncEligible: true,
+	},
+	{event: HookLoopGatePost,
 		family:       HookEventFamilyLoop,
 		syncEligible: false,
 	},
-	HookLoopTerminal: {
+	{event: HookLoopNodeTerminal,
 		family:       HookEventFamilyLoop,
 		syncEligible: false,
 	},
-	HookSpawnPreCreate: {
+	{event: HookLoopTerminal,
+		family:       HookEventFamilyLoop,
+		syncEligible: false,
+	},
+	{event: HookSpawnPreCreate,
 		family:       HookEventFamilySpawn,
 		syncEligible: true,
 	},
-	HookSpawnCreated: {
+	{event: HookSpawnCreated,
 		family:       HookEventFamilySpawn,
 		syncEligible: true,
 	},
-	HookSpawnParentStopped: {
+	{event: HookSpawnParentStopped,
 		family:       HookEventFamilySpawn,
 		syncEligible: true,
 	},
-	HookSpawnTTLExpired: {
+	{event: HookSpawnTTLExpired,
 		family:       HookEventFamilySpawn,
 		syncEligible: true,
 	},
-	HookSpawnReaped: {
+	{event: HookSpawnReaped,
 		family:       HookEventFamilySpawn,
 		syncEligible: true,
 	},
-}, networkHookEventSpecs(), windowManagerHookEventSpecs())
+}

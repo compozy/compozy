@@ -4,7 +4,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
-	"github.com/compozy/compozy/internal/providerauth"
+	authproviders "github.com/compozy/compozy/internal/providers"
 )
 
 // ProviderSettings is the editable provider overlay payload.
@@ -22,6 +22,7 @@ type ProviderSettings struct {
 	HomePolicy      compozyconfig.ProviderHomePolicy
 	AuthStatusCmd   string
 	AuthLoginCmd    string
+	AuthLoginCmdSet bool
 	CredentialSlots []compozyconfig.ProviderCredentialSlot
 }
 
@@ -36,9 +37,6 @@ type ProviderCredentialStatus struct {
 	Source    string
 }
 
-// ProviderNativeCLIStatus is a redacted provider-owned CLI availability diagnostic.
-type ProviderNativeCLIStatus = providerauth.NativeCLIStatus
-
 // ProviderAuthStatus is a redacted provider authentication readiness summary.
 type ProviderAuthStatus struct {
 	Mode       compozyconfig.ProviderAuthMode
@@ -48,9 +46,7 @@ type ProviderAuthStatus struct {
 	Code       string
 	Message    string
 	StatusCmd  string
-	LoginCmd   string
-	LoginEnv   []string
-	NativeCLI  *ProviderNativeCLIStatus
+	Login      authproviders.ProviderLoginDescriptor
 }
 
 // ProviderSecretWrite is one write-only provider secret mutation.

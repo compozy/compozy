@@ -92,7 +92,7 @@ func (c *discordBotClient) callJSON(
 	commitPolicy bridgesdk.HTTPResponseCommitPolicy,
 ) (err error) {
 	if ctx == nil {
-		ctx = context.Background()
+		return errors.New("discord: api context is required")
 	}
 	if c == nil {
 		return errors.New("discord: api client is required")

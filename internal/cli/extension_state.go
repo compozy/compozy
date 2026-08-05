@@ -13,6 +13,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
+type extensionCommandClient interface {
+	extensionClientAPI
+	toolInvocationClient
+}
+
 func loadExtensionRecords(cmd *cobra.Command, deps commandDeps, workspaceRef string) ([]ExtensionRecord, error) {
 	client, running, err := daemonClientIfRunning(cmd.Context(), deps)
 	if err != nil {
@@ -99,7 +104,7 @@ func extensionProvenance(ctx context.Context, deps commandDeps, name string) (Ex
 	return client.ExtensionProvenance(ctx, name)
 }
 
-func requireExtensionDaemonClient(ctx context.Context, deps commandDeps) (DaemonClient, error) {
+func requireExtensionDaemonClient(ctx context.Context, deps commandDeps) (extensionCommandClient, error) {
 	client, running, err := daemonClientIfRunning(ctx, deps)
 	if err != nil {
 		return nil, err

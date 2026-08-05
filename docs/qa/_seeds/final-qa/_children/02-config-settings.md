@@ -123,7 +123,7 @@ Workspace overlay layout: `<workspace>/.compozy/config.toml`, `<workspace>/.comp
 
 - Two ref schemes: `env:VAR` (`types.go:95-111`) and `vault:<namespace>/<path>` (`types.go:25-33, 113-148`).
 - Eight namespaces: `automation`, `bridges`, `extensions`, `hooks`, `mcp`, `providers`, `sandbox`, `sessions` — `types.go:25-44`.
-- Key scheme: AES-256-GCM with random nonce, `aes-gcm:` prefix, base64 payload — `crypto.go:18-19, 95-119`.
+- Ciphertext scheme: AES-256-GCM with a random nonce, `aes-gcm-v1:` prefix, and base64 payload. Versioned AEAD data length-binds the canonical secret ref and kind, so ciphertext cannot be reassigned between owners — `ciphertext.go`.
 - Key source: `COMPOZY_VAULT_KEY` env (base64 / hex / 32-byte raw) overrides `~/.compozy/vault.key` (auto-generated 0600) — `crypto.go:43-77`.
 - Service: `PutSecret`, `ResolveRef`, `GetMetadata`, `ListMetadata`, `DeleteSecret` — `service.go:69-194`. `ResolveRef` is daemon-internal-only; never returned to control surfaces.
 - `Metadata` struct (the only operator-visible shape) — `types.go:67-74`. Carries `Ref, Kind, Present, CreatedAt, UpdatedAt`. **No plaintext fields.**

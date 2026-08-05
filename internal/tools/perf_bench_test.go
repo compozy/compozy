@@ -93,7 +93,7 @@ func BenchmarkToolUnmarshalJSON(b *testing.B) {
 	for _, bench := range benchmarks {
 		b.Run(bench.name, func(b *testing.B) {
 			b.ReportAllocs()
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				var tool Tool
 				if err := json.Unmarshal(bench.data, &tool); err != nil {
 					b.Fatalf("json.Unmarshal(Tool) error = %v", err)

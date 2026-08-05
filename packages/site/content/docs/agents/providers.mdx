@@ -90,23 +90,23 @@ silently overriding a provider's own login state.
 
 Provider overrides and custom providers are configured in `config.toml`.
 
-| Field                 | Type   | Required                 | Runtime behavior                                                                                              |
-| --------------------- | ------ | ------------------------ | ------------------------------------------------------------------------------------------------------------- |
-| `command`             | string | yes for custom providers | Launch command for the ACP subprocess. Overrides a built-in command when set.                                 |
-| `display_name`        | string | no                       | Operator-facing label shown in settings and provider pickers.                                                 |
-| `models`              | table  | no                       | Nested model config block (`models.default`, `models.curated`, `models.discovery`). See "Provider models".    |
-| `harness`             | string | no                       | `acp` for direct ACP launch or `pi_acp` for providers launched through the Pi ACP adapter. Defaults to `acp`. |
-| `runtime_provider`    | string | no                       | Downstream provider id used by harnesses such as Pi. Defaults to the Compozy provider id.                     |
-| `transport`           | string | no                       | Optional Pi model-provider API family hint for custom providers.                                              |
-| `base_url`            | string | no                       | Optional Pi model-provider base URL for custom gateways.                                                      |
-| `auth_mode`           | string | no                       | `native_cli`, `bound_secret`, or `none`. Defaults from configured credential slots.                           |
-| `none_security`       | string | no                       | Safety rationale for `auth_mode = "none"`: `local_transport`, `external_identity`, or `public_readonly`.      |
-| `env_policy`          | string | no                       | `filtered` strips secret-shaped daemon env vars; `isolated` keeps only an operational allowlist.              |
-| `home_policy`         | string | no                       | `operator` uses the daemon user's home; `isolated` uses `$COMPOZY_HOME/providers/<provider>`.                 |
-| `auth_status_command` | string | no                       | Optional native CLI status probe used by `compozy provider auth status`.                                      |
-| `auth_login_command`  | string | no                       | Optional native CLI login command used by `compozy provider auth login`.                                      |
-| `credential_slots`    | array  | no                       | Bound launch-time secrets. Allowed only with `auth_mode = "bound_secret"`.                                    |
-| `mcp_servers`         | array  | no                       | Provider-level MCP servers merged before agent-level MCP servers.                                             |
+| Field                 | Type   | Required                 | Runtime behavior                                                                                                                              |
+| --------------------- | ------ | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `command`             | string | yes for custom providers | Launch command for the ACP subprocess. Overrides a built-in command when set.                                                                 |
+| `display_name`        | string | no                       | Operator-facing label shown in settings and provider pickers.                                                                                 |
+| `models`              | table  | no                       | Nested model config block (`models.default`, `models.curated`, `models.discovery`). See "Provider models".                                    |
+| `harness`             | string | no                       | `acp` for direct ACP launch or `pi_acp` for providers launched through the Pi ACP adapter. Defaults to `acp`.                                 |
+| `runtime_provider`    | string | no                       | Downstream provider id used by harnesses such as Pi. Defaults to the Compozy provider id.                                                     |
+| `transport`           | string | no                       | Optional Pi model-provider API family hint for custom providers.                                                                              |
+| `base_url`            | string | no                       | Optional Pi model-provider base URL for custom gateways.                                                                                      |
+| `auth_mode`           | string | no                       | `native_cli`, `bound_secret`, or `none`. Defaults from configured credential slots.                                                           |
+| `none_security`       | string | no                       | Safety rationale for `auth_mode = "none"`: `local_transport`, `external_identity`, or `public_readonly`.                                      |
+| `env_policy`          | string | no                       | `filtered` strips secret-shaped daemon env vars; `isolated` keeps only an operational allowlist.                                              |
+| `home_policy`         | string | no                       | `operator` uses the daemon user's home; `isolated` uses `$COMPOZY_HOME/providers/<provider>`.                                                 |
+| `auth_status_command` | string | no                       | Optional native CLI status probe used by `compozy provider auth status`.                                                                      |
+| `auth_login_command`  | string | no                       | Write-only native CLI login command used by `compozy provider auth login`; read surfaces return its safe login descriptor, never the command. |
+| `credential_slots`    | array  | no                       | Bound launch-time secrets. Allowed only with `auth_mode = "bound_secret"`.                                                                    |
+| `mcp_servers`         | array  | no                       | Provider-level MCP servers merged before agent-level MCP servers.                                                                             |
 
 `auth_mode = "none"` is an explicit `No auth required` contract, not an authenticated state. Set
 `none_security` to describe why the provider is safe without credentials: `local_transport` for
@@ -117,6 +117,25 @@ at config load time.
 
 Compozy overlays provider config on top of a built-in provider when the name matches. Unknown provider
 names are accepted only when they have a `[providers.<name>]` entry.
+
+### Configure and inspect native login
+
+`auth_login_command` is a write-only configuration input. Set it in `config.toml`, with the operator
+CLI, or through the `compozy__config_set` native tool. For example:
+
+```bash
+compozy config set providers.local-agent.auth_login_command "local-agent auth login" -o json
+```
+
+The command is accepted for the write but is redacted in the response. It is also redacted from
+`compozy config show`, `list`, `get`, and `diff`; configuration reads, provider status and doctor,
+Settings, HTTP, and UDS never reveal the command, its arguments, or its resolved path.
+
+Those read surfaces expose a `login` descriptor instead. It contains only `configured`, the fixed
+`source` value `auth_login_command`, the executable basename, `presence` (`present`, `missing`, or
+`unknown`), and a recovery `recommended_action`: `install_cli`, `login`, `bind_secret`, `retry`,
+`inspect`, or `no_retry`. Use that action and the provider auth state to decide what to do next; do
+not treat the descriptor as a command you can copy or execute.
 
 Built-in provider aliases are intentionally small and resolve before launch. Common aliases such as
 `claude-code`, `ai-gateway`, `vercel`, `kimi`, `glm`, `x.ai`, `grok`, `open-code`, and `qwen`
@@ -217,17 +236,16 @@ curated/all views, curation surfaces, and error codes.
 Native provider auth state belongs to the provider. Run the provider's own login command, such as
 `claude auth login`, `codex login`, `opencode auth login`, or Pi's `/login`, outside Compozy or through
 a configured `auth_login_command`. The built-in `claude`, `codex`, `opencode`, and `pi` providers
-expose those login commands through `compozy provider auth login <provider>`. By default, that command
-executes the configured login command locally and attaches the terminal when stdin, stdout, and
-stderr are TTYs, so OAuth URLs and provider prompts remain visible. Use
-`compozy provider auth login <provider> --print-command` when automation needs one copyable shell
-command without executing it, `--no-tty` for deterministic non-interactive runs, and `--timeout`
-when scripts need a bounded login attempt. When a provider uses `home_policy = "isolated"`, the
-resolved command includes the required `HOME`/provider-home environment prefix so the native login
-writes credentials where Compozy will read them. Remote HTTP/UDS surfaces never run login commands; they
-only run non-interactive `auth_status_command` probes. Wrapped API-key providers use their
-configured `credential_slots` instead of Pi login. Custom providers should set `auth_mode` to match
-the runtime's real authentication contract.
+expose those login commands through `compozy provider auth login <provider>`. That CLI command executes
+the configured login command locally and attaches the terminal when stdin, stdout, and stderr are TTYs,
+so OAuth URLs and provider prompts remain visible. It then returns the redacted provider status and
+safe login descriptor. Use `--no-tty` for deterministic non-interactive runs and `--timeout` when
+scripts need a bounded login attempt; these are its only flags. When a provider uses
+`home_policy = "isolated"`, Compozy runs the native login with its provider home so credentials land
+where Compozy will use them, without displaying the environment prefix or resolved command. HTTP and UDS
+never execute login commands; they only run non-interactive `auth_status_command` probes. Wrapped API-key
+providers use their configured `credential_slots` instead of Pi login. Custom providers should set
+`auth_mode` to match the runtime's real authentication contract.
 
 ## Override a built-in provider
 

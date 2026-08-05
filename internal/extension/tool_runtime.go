@@ -112,8 +112,8 @@ func (m *Manager) CallToolForInstance(
 }
 
 func extensionToolCallError(id toolspkg.ToolID, err error) error {
-	var rpcErr *subprocess.RPCError
-	if !errors.As(err, &rpcErr) || len(rpcErr.Data) == 0 {
+	rpcErr, ok := errors.AsType[*subprocess.RPCError](err)
+	if !ok || len(rpcErr.Data) == 0 {
 		return err
 	}
 	var toolErr toolspkg.ToolError

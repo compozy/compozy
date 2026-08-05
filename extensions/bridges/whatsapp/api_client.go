@@ -87,7 +87,7 @@ func (c *whatsappGraphClient) call(
 	commitPolicy bridgesdk.HTTPResponseCommitPolicy,
 ) (err error) {
 	if ctx == nil {
-		ctx = context.Background()
+		return errors.New("whatsapp: graph api context is required")
 	}
 	if c == nil {
 		return errors.New("whatsapp: graph api client is required")

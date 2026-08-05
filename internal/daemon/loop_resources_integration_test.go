@@ -241,6 +241,13 @@ func TestLoopWatcherIntegrationShouldResyncForkedFileBackedEdits(t *testing.T) {
 
 	t.Run("Should trigger sync when a forked file-backed Loop changes", func(t *testing.T) {
 		t.Parallel()
+		cancelCalled := false
+		if err := stopLoopWatcher(nil, func() { cancelCalled = true }, make(chan struct{})); err == nil {
+			t.Fatal("stopLoopWatcher(nil context) error = nil, want context validation failure")
+		}
+		if cancelCalled {
+			t.Fatal("stopLoopWatcher(nil context) canceled watcher")
+		}
 
 		sourceRoot := t.TempDir()
 		_, sourcePath, err := looppkg.WriteDefinition(

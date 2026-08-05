@@ -2,11 +2,15 @@ package providers
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"os/exec"
+	"strings"
 	"testing"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	diagcontract "github.com/compozy/compozy/internal/diagnosticcontract"
+	"github.com/compozy/compozy/internal/providerauth"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -45,15 +49,86 @@ func TestClassifyProviderAuth(t *testing.T) {
 		t.Parallel()
 
 		env := presentEnv()
+		resolveCalls := 0
 		env.LookPath = func(string) (string, error) {
-			return "", exec.ErrNotFound
+			resolveCalls++
+			if resolveCalls == 1 {
+				return "", exec.ErrNotFound
+			}
+			return "/later/bin/provider-cli", nil
 		}
-		got := ClassifyProbeResult(nativeProvider(), ProbeOutcome{ExitCode: 1}, env)
+		declared, err := ClassifyDeclared(testutil.Context(t), nativeProvider(), env)
+		if err != nil {
+			t.Fatalf("ClassifyDeclared() error = %v", err)
+		}
+		if declared.State != ProviderAuthStateMissingCLI {
+			t.Fatalf("declared State = %q, want %q", declared.State, ProviderAuthStateMissingCLI)
+		}
+		got := ClassifyProbeResult(
+			nativeProvider(),
+			ProbeOutcome{ExitCode: 0, Stdout: "logged in"},
+			env,
+		)
 		if got.State != ProviderAuthStateMissingCLI {
 			t.Fatalf("State = %q, want %q", got.State, ProviderAuthStateMissingCLI)
 		}
 		if got.Code != diagcontract.CodeProviderCLIMissing {
 			t.Fatalf("Code = %q, want %q", got.Code, diagcontract.CodeProviderCLIMissing)
+		}
+		if got.Action != ProviderFailureActionInstallCLI {
+			t.Fatalf("Action = %q, want %q", got.Action, ProviderFailureActionInstallCLI)
+		}
+		if resolveCalls != 1 {
+			t.Fatalf("status resolver calls = %d, want 1", resolveCalls)
+		}
+	})
+
+	t.Run("Should keep an operational lookup failure unknown through final classification", func(t *testing.T) {
+		t.Parallel()
+
+		resolverErr := errors.New("resolver failed token=classification-secret")
+		env := presentEnv()
+		resolveCalls := 0
+		env.LookPath = func(string) (string, error) {
+			resolveCalls++
+			if resolveCalls == 1 {
+				return "", resolverErr
+			}
+			return "/later/bin/provider-cli", nil
+		}
+		declared, err := ClassifyDeclared(testutil.Context(t), nativeProvider(), env)
+		if err != nil {
+			t.Fatalf("ClassifyDeclared() error = %v", err)
+		}
+		got := ClassifyProbeResult(
+			nativeProvider(),
+			ProbeOutcome{ExitCode: 0, Stdout: "logged in"},
+			env,
+		)
+		for name, classification := range map[string]Classification{
+			"declared": declared,
+			"final":    got,
+		} {
+			if classification.State != ProviderAuthStateUnknown {
+				t.Fatalf("%s State = %q, want %q", name, classification.State, ProviderAuthStateUnknown)
+			}
+			if classification.Code != diagcontract.CodeProviderClassificationUnknown {
+				t.Fatalf(
+					"%s Code = %q, want %q",
+					name,
+					classification.Code,
+					diagcontract.CodeProviderClassificationUnknown,
+				)
+			}
+			if classification.Action != ProviderFailureActionInspect {
+				t.Fatalf("%s Action = %q, want %q", name, classification.Action, ProviderFailureActionInspect)
+			}
+			if strings.Contains(classification.Message, "classification-secret") {
+				t.Fatalf("%s Message = %q, leaked resolver secret", name, classification.Message)
+			}
+		}
+		if resolveCalls != 1 {
+			t.Fatalf("status resolver calls = %d, want 1", resolveCalls)
 		}
 	})
 
@@ -151,6 +226,58 @@ func TestClassifyProviderAuth(t *testing.T) {
 		}
 		if got.Code != diagcontract.CodeProviderClassificationUnknown {
 			t.Fatalf("Code = %q, want %q", got.Code, diagcontract.CodeProviderClassificationUnknown)
+		}
+	})
+
+	t.Run("Should describe login readiness without retaining command details", func(t *testing.T) {
+		t.Parallel()
+
+		provider := nativeProvider()
+		provider.AuthLoginCmd = `QA_LOGIN_TOKEN=raw-env-secret "/opt/provider bin/provider-cli" login --token raw-login-secret`
+		nativeCLI, err := providerauth.NativeCLIStatusForCommand(
+			provider.AuthLoginCmd,
+			providerauth.NativeCLISourceAuthLogin,
+			func(command string) (string, error) {
+				if got, want := command, "/opt/provider bin/provider-cli"; got != want {
+					t.Fatalf("lookPath command = %q, want %q", got, want)
+				}
+				return `C:\Provider Bin\provider-cli.exe`, nil
+			},
+		)
+		if err != nil {
+			t.Fatalf("NativeCLIStatusForCommand() error = %v", err)
+		}
+		descriptor := DescribeProviderLogin(provider, nativeCLI, Classification{
+			State:  ProviderAuthStateNeedsLogin,
+			Action: ProviderFailureActionLogin,
+		})
+		if !descriptor.Configured || descriptor.Source != providerauth.NativeCLISourceAuthLogin {
+			t.Fatalf("DescribeProviderLogin() = %#v, want configured auth_login source", descriptor)
+		}
+		if got, want := descriptor.Executable, "provider-cli"; got != want {
+			t.Fatalf("Executable = %q, want %q", got, want)
+		}
+		if got, want := descriptor.Presence, ProviderLoginPresencePresent; got != want {
+			t.Fatalf("Presence = %q, want %q", got, want)
+		}
+		if got, want := descriptor.RecommendedAction, ProviderFailureActionLogin; got != want {
+			t.Fatalf("RecommendedAction = %q, want %q", got, want)
+		}
+		encoded, err := json.Marshal(descriptor)
+		if err != nil {
+			t.Fatalf("json.Marshal(descriptor) error = %v", err)
+		}
+		for _, forbidden := range []string{
+			"QA_LOGIN_TOKEN",
+			"raw-env-secret",
+			"raw-login-secret",
+			"/opt/provider",
+			`C:\Provider Bin`,
+			" login ",
+		} {
+			if strings.Contains(string(encoded), forbidden) {
+				t.Fatalf("descriptor leaked %q: %s", forbidden, encoded)
+			}
 		}
 	})
 }

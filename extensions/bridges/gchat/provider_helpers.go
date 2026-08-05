@@ -70,7 +70,7 @@ func newGChatRequest(
 	body io.Reader,
 ) (*http.Request, error) {
 	if ctx == nil {
-		ctx = context.Background()
+		return nil, errors.New("gchat: request context is required")
 	}
 	parsed, err := url.ParseRequestURI(string(endpoint))
 	if err != nil {

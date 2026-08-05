@@ -86,7 +86,11 @@ func lookupRecordWithExecutor(
 	}
 }
 
-func listSourceRecordsWithExecutor(ctx context.Context, exec sqlExecutor, source ResourceSource) ([]RawRecord, error) {
+func listSourceRecordsWithExecutor(
+	ctx context.Context,
+	exec sqlExecutor,
+	source ResourceSource,
+) (records []RawRecord, err error) {
 	rows, err := exec.QueryContext(
 		ctx,
 		selectSourceRecordsQuery,
@@ -96,12 +100,9 @@ func listSourceRecordsWithExecutor(ctx context.Context, exec sqlExecutor, source
 	if err != nil {
 		return nil, fmt.Errorf("resources: query source records %q/%q: %w", source.Kind, source.ID, err)
 	}
-	defer func() {
-		// Scan and iteration errors own the query result; Close only releases an already-consumed read cursor.
-		_ = rows.Close()
-	}()
+	defer closeResourceRows(rows, "source records", &err)
 
-	records := make([]RawRecord, 0)
+	records = make([]RawRecord, 0)
 	for rows.Next() {
 		record, scanErr := scanRawRecord(rows)
 		if scanErr != nil {
@@ -113,6 +114,15 @@ func listSourceRecordsWithExecutor(ctx context.Context, exec sqlExecutor, source
 		return nil, fmt.Errorf("resources: iterate source records %q/%q: %w", source.Kind, source.ID, err)
 	}
 	return records, nil
+}
+
+func closeResourceRows(rows *sql.Rows, operation string, target *error) {
+	if closeErr := rows.Close(); closeErr != nil {
+		*target = errors.Join(
+			*target,
+			fmt.Errorf("resources: close %s rows: %w", operation, closeErr),
+		)
+	}
 }
 
 func lookupSourceState(ctx context.Context, exec sqlExecutor, source ResourceSource) (sourceState, bool, error) {

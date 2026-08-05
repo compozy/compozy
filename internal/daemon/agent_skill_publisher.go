@@ -137,7 +137,7 @@ func resolveAgentSkillPublisherResources(state *bootState) (agentSkillPublisherR
 
 func daemonAgentSkillDeclarationProvider(
 	homePaths compozyconfig.HomePaths,
-	registry Registry,
+	registry workspaceRegistryReader,
 	workspaceResolver workspacepkg.RuntimeResolver,
 	skillsRegistry *skillspkg.Registry,
 	logger *slog.Logger,

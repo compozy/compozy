@@ -24,6 +24,7 @@ import (
 	bridgepkg "github.com/compozy/compozy/internal/bridges/contract"
 	"github.com/compozy/compozy/internal/bridgesdk"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
+	"github.com/compozy/compozy/internal/extensiontest"
 	"github.com/compozy/compozy/internal/subprocess"
 )
 
@@ -1354,8 +1355,9 @@ func TestClassifyWhatsAppHTTPError(t *testing.T) {
 		"5",
 		[]byte(`{"error":{"message":"slow down","code":130429}}`),
 	)
-	var rateErr *bridgesdk.RateLimitError
-	if !errors.As(rate, &rateErr) {
+
+	rateErr, rateErrMatched := errors.AsType[*bridgesdk.RateLimitError](rate)
+	if !rateErrMatched {
 		t.Fatalf("classifyWhatsAppHTTPError(rate) = %T, want *RateLimitError", rate)
 	}
 	if got, want := rateErr.RetryAfter, 5*time.Second; got != want {
@@ -1388,8 +1390,9 @@ func TestClassifyWhatsAppHTTPError(t *testing.T) {
 		"",
 		[]byte(`{"error":{"message":"bad request","code":100}}`),
 	)
-	var httpErr *bridgesdk.HTTPError
-	if !errors.As(permanent, &httpErr) {
+
+	httpErr, httpErrMatched := errors.AsType[*bridgesdk.HTTPError](permanent)
+	if !httpErrMatched {
 		t.Fatalf("classifyWhatsAppHTTPError(http) = %T, want *HTTPError", permanent)
 	}
 	if got, want := httpErr.Message, "bad request"; got != want {
@@ -1996,7 +1999,8 @@ func TestHandleWebhookRequestValidationAndBatching(t *testing.T) {
 	}
 	var batches []bridgesdk.InboundBatch
 	cfg.batcher, err = bridgesdk.NewInboundBatcher(bridgesdk.InboundBatcherConfig{
-		Delay: 0,
+		Context: t.Context(),
+		Delay:   0,
 		Dispatch: func(_ context.Context, batch bridgesdk.InboundBatch) error {
 			batches = append(batches, batch)
 			return nil
@@ -2335,6 +2339,10 @@ func TestWhatsAppGraphClientMethods(t *testing.T) {
 		accessToken: "access-token",
 		httpClient:  server.Client(),
 	}
+	var nilContext context.Context
+	if _, err := client.GetPhoneNumber(nilContext, "123456789"); err == nil {
+		t.Fatal("GetPhoneNumber(nil context) error = nil, want context validation failure")
+	}
 
 	phone, err := client.GetPhoneNumber(context.Background(), "123456789")
 	if err != nil {
@@ -2481,8 +2489,9 @@ func TestWhatsAppGraphClientMethods(t *testing.T) {
 		if !errors.Is(err, readErr) {
 			t.Fatalf("SendTextMessage() error = %v, want response body read failure", err)
 		}
-		var authErr *bridgesdk.AuthError
-		if !errors.As(err, &authErr) {
+
+		authErr, authErrMatched := errors.AsType[*bridgesdk.AuthError](err)
+		if !authErrMatched {
 			t.Fatalf("SendTextMessage() error = %T %v, want AuthError", err, err)
 		}
 		if got, want := bridgesdk.ClassifyError(err).Class, bridgesdk.ErrorClassAuth; got != want {
@@ -2544,8 +2553,8 @@ func TestWhatsAppGraphClientMethods(t *testing.T) {
 				"123456789",
 				whatsappSendMessageRequest{MessagingProduct: "whatsapp", To: "15551234567", Type: "text"},
 			)
-			var httpErr *bridgesdk.HTTPError
-			if !errors.As(err, &httpErr) || httpErr.StatusCode != testCase.statusCode {
+			httpErr, httpErrMatched := errors.AsType[*bridgesdk.HTTPError](err)
+			if !httpErrMatched || httpErr.StatusCode != testCase.statusCode {
 				t.Fatalf(
 					"SendTextMessage(%d) error = %T %v, want first-response HTTPError",
 					testCase.statusCode,
@@ -2821,50 +2830,16 @@ func (s *whatsappAPIServer) Calls() []whatsappAPICall {
 func newRuntimePeerPair(t *testing.T) (*whatsappProvider, *bridgesdk.Peer, func()) {
 	t.Helper()
 
-	hostConn, runtimeConn := net.Pipe()
 	runtime, err := newWhatsAppProvider(io.Discard)
 	if err != nil {
 		t.Fatalf("newWhatsAppProvider() error = %v", err)
 	}
-
-	hostPeer := bridgesdk.NewPeer(hostConn, hostConn)
-	ctx, cancel := context.WithCancel(context.Background())
-	errCh := make(chan error, 2)
-	go func() { errCh <- runtime.serve(runtimeConn, runtimeConn) }()
-	go func() { errCh <- hostPeer.Serve(ctx) }()
-
-	var once sync.Once
-	cleanup := func() {
-		once.Do(func() {
-			cancel()
-			runtime.lifecycle.Stop()
-			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 2*time.Second)
-			if err := runtime.http.Shutdown(shutdownCtx); err != nil {
-				t.Fatalf("provider HTTP shutdown error = %v", err)
-			}
-			shutdownCancel()
-			if err := hostConn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
-				t.Errorf("host connection close error = %v", err)
-			}
-			if err := runtimeConn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
-				t.Errorf("runtime connection close error = %v", err)
-			}
-			for range 2 {
-				err := <-errCh
-				if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, net.ErrClosed) {
-					continue
-				}
-				if strings.Contains(err.Error(), "closed") {
-					continue
-				}
-				t.Fatalf("runtime peer serve error = %v", err)
-			}
-			if err := runtime.lifecycle.Wait(context.Background()); err != nil {
-				t.Fatalf("provider lifecycle wait error = %v", err)
-			}
-		})
-	}
-
+	hostPeer, cleanup := extensiontest.NewRuntimePeerPair(t, extensiontest.RuntimePeerPairConfig{
+		ServeRuntime: runtime.serve,
+		Stop:         runtime.lifecycle.Stop,
+		Shutdown:     runtime.http.Shutdown,
+		Wait:         runtime.lifecycle.Wait,
+	})
 	return runtime, hostPeer, cleanup
 }
 
@@ -3138,7 +3113,7 @@ func TestWhatsAppResolvedConfigListenErrorsAndServe(t *testing.T) {
 	t.Run("Should serve an empty command stream through the shared runner", func(t *testing.T) {
 		t.Parallel()
 
-		if err := runServe(strings.NewReader(""), io.Discard, io.Discard); err != nil {
+		if err := runServe(io.NopCloser(strings.NewReader("")), io.Discard, io.Discard); err != nil {
 			t.Fatalf("runServe(empty input) error = %v", err)
 		}
 	})

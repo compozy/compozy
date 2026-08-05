@@ -18,14 +18,15 @@ func forceRunDiagnosticError(
 	evidence map[string]any,
 	cause error,
 ) error {
-	item := diagnosticitems.NewItem(
-		"task.force."+code,
-		code,
-		diagnosticcontract.CategoryTask,
-		title,
-		message,
-		severity,
-		diagnosticcontract.FreshnessLive,
+	item := diagnosticitems.NewItem(diagnosticitems.ItemSpec{
+		ID:            "task.force." + code,
+		Code:          code,
+		Category:      diagnosticcontract.CategoryTask,
+		Title:         title,
+		Message:       message,
+		Severity:      severity,
+		DataFreshness: diagnosticcontract.FreshnessLive,
+	},
 		diagnosticitems.WithDocURL(forceOpsDocURL),
 		diagnosticitems.WithSuggestedCommand(suggestedCommand),
 		diagnosticitems.WithEvidence(evidence),
@@ -65,13 +66,16 @@ type operatorRetryPayload struct {
 }
 
 type recoveredFromAttentionPayload struct {
-	Manual         bool      `json:"manual"`
-	ActorKind      ActorKind `json:"actor_kind"`
-	ActorID        string    `json:"actor_id"`
-	SourceRunID    string    `json:"source_run_id"`
-	NewRunID       string    `json:"new_run_id"`
-	PreviousStatus RunStatus `json:"previous_status"`
-	Status         RunStatus `json:"status"`
-	TaskStatus     Status    `json:"task_status"`
-	Reason         string    `json:"reason,omitempty"`
+	Manual               bool      `json:"manual"`
+	ActorKind            ActorKind `json:"actor_kind"`
+	ActorID              string    `json:"actor_id"`
+	SourceRunID          string    `json:"source_run_id"`
+	NewRunID             string    `json:"new_run_id"`
+	PreviousStatus       RunStatus `json:"previous_status"`
+	Status               RunStatus `json:"status"`
+	TaskStatus           Status    `json:"task_status"`
+	Reason               string    `json:"reason,omitempty"`
+	SessionID            string    `json:"session_id,omitempty"`
+	QueueGeneration      int64     `json:"queue_generation,omitempty"`
+	CanceledQueuedInputs int       `json:"canceled_queued_inputs,omitempty"`
 }

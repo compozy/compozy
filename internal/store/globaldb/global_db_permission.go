@@ -18,7 +18,11 @@ func (g *PermissionRepo) WritePermissionLog(ctx context.Context, entry store.Per
 		return err
 	}
 	if strings.TrimSpace(entry.ID) == "" {
-		entry.ID = store.NewID("perm")
+		generatedID, err := store.NewID("perm")
+		if err != nil {
+			return fmt.Errorf("store: generate permission log id: %w", err)
+		}
+		entry.ID = generatedID
 	}
 	if entry.Timestamp.IsZero() {
 		entry.Timestamp = g.now()

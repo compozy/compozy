@@ -105,10 +105,7 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		store := newTaskRoleRuntimeStore(taskRecord, run)
 		sessions := newBlockingTaskRoleRuntimeSessions()
 		runtime := newTaskRoleRuntimeForTest(t, store, sessions)
-		var releaseOnce sync.Once
-		t.Cleanup(func() {
-			releaseOnce.Do(func() { close(sessions.createRelease) })
-		})
+		t.Cleanup(sync.OnceFunc(func() { close(sessions.createRelease) }))
 
 		returned := make(chan struct{})
 		go func() {
@@ -171,7 +168,9 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), time.Second)
 		defer cancel()
 		var shutdownErrs []error
-		d.shutdownRuntimeWorkers(shutdownCtx, shutdownTargets{tasks: tasks, sessions: sessions}, &shutdownErrs)
+		d.shutdownRuntimeWorkers(shutdownCtx, &shutdownTargets{daemonRuntimeState: daemonRuntimeState{
+			tasks: tasks, sessions: sessions,
+		}}, &shutdownErrs)
 		if err := errors.Join(shutdownErrs...); err != nil {
 			t.Fatalf("shutdownRuntimeWorkers() error = %v", err)
 		}

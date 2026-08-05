@@ -2,64 +2,17 @@ package providers
 
 import (
 	"context"
-	"hash/fnv"
-	"strconv"
+	"errors"
 	"strings"
-	"sync"
-	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	diagcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 )
 
-const preStartCacheTTL = 30 * time.Second
-
 // PreStartReport carries a structured diagnostic when the pre-start probe fails.
 type PreStartReport struct {
-	Item *diagcontract.DiagnosticItem
-}
-
-type preStartCacheEntry struct {
-	report    PreStartReport
-	expiresAt time.Time
-}
-
-var (
-	preStartCacheMu sync.Mutex
-	preStartCache   = map[string]preStartCacheEntry{}
-)
-
-// PreStart classifies provider-auth readiness before a provider subprocess is spawned.
-func PreStart(
-	ctx context.Context,
-	provider compozyconfig.ProviderConfig,
-	env *ProbeEnv,
-) PreStartReport {
-	normalized := env.Normalize()
-	key := preStartCacheKey(provider, normalized)
-	now := time.Now()
-
-	preStartCacheMu.Lock()
-	cached, ok := preStartCache[key]
-	if ok && now.Before(cached.expiresAt) {
-		preStartCacheMu.Unlock()
-		return cached.report
-	}
-	preStartCacheMu.Unlock()
-
-	report := runPreStart(ctx, provider, &normalized)
-
-	preStartCacheMu.Lock()
-	preStartCache[key] = preStartCacheEntry{report: report, expiresAt: now.Add(preStartCacheTTL)}
-	preStartCacheMu.Unlock()
-	return report
-}
-
-// InvalidatePreStartCache clears all cached pre-start probe reports.
-func InvalidatePreStartCache() {
-	preStartCacheMu.Lock()
-	preStartCache = map[string]preStartCacheEntry{}
-	preStartCacheMu.Unlock()
+	Item  *diagcontract.DiagnosticItem
+	Cause error
 }
 
 func runPreStart(
@@ -67,13 +20,20 @@ func runPreStart(
 	provider compozyconfig.ProviderConfig,
 	env *ProbeEnv,
 ) PreStartReport {
+	if ctx == nil {
+		return preStartErrorReport(env.Normalize(), errors.New("providers: pre-start context is required"))
+	}
+	if err := ctx.Err(); err != nil {
+		return preStartErrorReport(env.Normalize(), err)
+	}
+
+	normalized := env.Normalize()
 	if provider.EffectiveAuthMode() == compozyconfig.ProviderAuthModeNone {
 		return PreStartReport{}
 	}
-	launchCLI, err := LaunchCommandStatus(provider, env)
+	launchCLI, err := LaunchCommandStatus(ctx, provider, &normalized)
 	if err != nil {
-		item := DiagnosticItem(env.ProviderName, ClassifyError(err))
-		return PreStartReport{Item: &item}
+		return preStartErrorReport(normalized, err)
 	}
 	if launchCLI != nil && launchCLI.Command != "" && !launchCLI.Present {
 		classification := Classification{
@@ -83,57 +43,44 @@ func runPreStart(
 			Kind:    ProviderFailureCLIMissing,
 			Action:  ProviderFailureActionInstallCLI,
 		}
-		item := DiagnosticItem(env.ProviderName, classification)
+		item := DiagnosticItem(normalized.ProviderName, classification)
 		return PreStartReport{Item: &item}
 	}
-	classification, err := ClassifyDeclared(ctx, provider, env)
+	classification, err := ClassifyDeclared(ctx, provider, &normalized)
 	if err != nil {
-		item := DiagnosticItem(env.ProviderName, ClassifyError(err))
-		return PreStartReport{Item: &item}
+		return preStartErrorReport(normalized, err)
 	}
 	if classification.Code != "" && classification.State != ProviderAuthStateUnknown {
-		item := DiagnosticItem(env.ProviderName, classification)
+		item := DiagnosticItem(normalized.ProviderName, classification)
 		return PreStartReport{Item: &item}
 	}
 	if strings.TrimSpace(provider.AuthStatusCmd) == "" {
 		return PreStartReport{}
 	}
-	result, err := env.RunCommand(ctx, ProviderAuthCommandSpec{
-		Command: strings.TrimSpace(provider.AuthStatusCmd),
-		Env:     append([]string(nil), env.CommandEnv...),
-		Timeout: DefaultProviderAuthCommandTimeout,
-		NoTTY:   true,
-	})
+	commandSpec, err := PrepareAuthStatusCommand(ctx, provider, &normalized)
 	if err != nil {
-		item := DiagnosticItem(env.ProviderName, ClassifyError(err))
-		return PreStartReport{Item: &item}
+		return preStartErrorReport(normalized, err)
 	}
-	probeClassification := ClassifyProbeResult(provider, ProbeOutcome{
+	result, err := normalized.RunCommand(ctx, commandSpec)
+	if err != nil {
+		return preStartErrorReport(normalized, err)
+	}
+	if err := ctx.Err(); err != nil {
+		return preStartErrorReport(normalized, err)
+	}
+	probeClassification := ClassifyProbeResultContext(ctx, provider, ProbeOutcome{
 		ExitCode: result.ExitCode,
 		Stdout:   result.Stdout,
 		Stderr:   result.Stderr,
-	}, env)
+	}, &normalized)
 	if probeClassification.Code == "" {
 		return PreStartReport{}
 	}
-	item := DiagnosticItem(env.ProviderName, probeClassification)
+	item := DiagnosticItem(normalized.ProviderName, probeClassification)
 	return PreStartReport{Item: &item}
 }
 
-func preStartCacheKey(provider compozyconfig.ProviderConfig, env ProbeEnv) string {
-	hash := fnv.New64a()
-	parts := []string{
-		strings.TrimSpace(env.ProviderName),
-		string(provider.EffectiveAuthMode()),
-		strings.TrimSpace(provider.Command),
-		strings.TrimSpace(provider.AuthStatusCmd),
-		strings.TrimSpace(provider.AuthLoginCmd),
-	}
-	for _, slot := range provider.EffectiveCredentialSlots() {
-		parts = append(parts, strings.TrimSpace(slot.SecretRef), strings.TrimSpace(slot.TargetEnv))
-	}
-	if _, err := hash.Write([]byte(strings.Join(parts, "\x00"))); err != nil {
-		return strings.TrimSpace(env.ProviderName)
-	}
-	return strings.TrimSpace(env.ProviderName) + ":" + strconv.FormatUint(hash.Sum64(), 16)
+func preStartErrorReport(env ProbeEnv, cause error) PreStartReport {
+	item := DiagnosticItem(env.ProviderName, ClassifyError(cause))
+	return PreStartReport{Item: &item, Cause: cause}
 }

@@ -26,7 +26,9 @@ func (m *Service) dispatchTaskRunEnqueued(
 		TaskRunContext: m.taskRunHookContext(run, taskRecord, actor),
 		IdempotencyKey: strings.TrimSpace(idempotencyKey),
 	}
-	_, err := m.taskHooks.DispatchTaskRunEnqueued(taskRunObservationHookContext(ctx), payload)
+	hookCtx, cancel := taskRunObservationHookContext(ctx)
+	defer cancel()
+	_, err := m.taskHooks.DispatchTaskRunEnqueued(hookCtx, payload)
 	m.reportTaskRunHookFailure(hookspkg.HookTaskRunEnqueued, err, run, taskRecord)
 }
 
@@ -44,7 +46,9 @@ func (m *Service) dispatchTaskRunPostClaim(
 		TaskRunContext: m.taskRunHookContext(run, taskRecord, actor),
 		ClaimedAt:      run.ClaimedAt,
 	}
-	_, err := m.taskHooks.DispatchTaskRunPostClaim(taskRunObservationHookContext(ctx), payload)
+	hookCtx, cancel := taskRunObservationHookContext(ctx)
+	defer cancel()
+	_, err := m.taskHooks.DispatchTaskRunPostClaim(hookCtx, payload)
 	m.reportTaskRunHookFailure(hookspkg.HookTaskRunPostClaim, err, run, taskRecord)
 }
 
@@ -68,7 +72,9 @@ func (m *Service) dispatchTaskRunLeaseRecovered(
 		RecoveryAction:    string(recovery.Action.Normalize()),
 		RecoveryReason:    strings.TrimSpace(recovery.Reason),
 	}
-	_, err := m.taskHooks.DispatchTaskRunLeaseRecovered(taskRunObservationHookContext(ctx), payload)
+	hookCtx, cancel := taskRunObservationHookContext(ctx)
+	defer cancel()
+	_, err := m.taskHooks.DispatchTaskRunLeaseRecovered(hookCtx, payload)
 	m.reportTaskRunHookFailure(hookspkg.HookTaskRunLeaseRecovered, err, run, taskRecord)
 }
 

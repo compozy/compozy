@@ -25,7 +25,7 @@ func benchmarkAtomicWriteFile(b *testing.B, size int) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		if err := AtomicWriteFile(path, payload, 0o600); err != nil {
 			b.Fatalf("AtomicWriteFile() error = %v", err)
 		}

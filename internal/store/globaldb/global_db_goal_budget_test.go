@@ -172,8 +172,8 @@ func TestGlobalDBGoalBudgetGuardShouldRejectStaleCheckpointOwner(t *testing.T) {
 		if _, err := globalDB.FlushAndCheck(ctx, snapshot); err == nil {
 			t.Fatal("FlushAndCheck(stale owner) error = nil")
 		} else {
-			var reason *looppkg.ReasonError
-			if !errors.As(err, &reason) || reason.Code != looppkg.ReasonCodeGoalControlStale {
+			reason, reasonMatched := errors.AsType[*looppkg.ReasonError](err)
+			if !reasonMatched || reason.Code != looppkg.ReasonCodeGoalControlStale {
 				t.Fatalf("FlushAndCheck(stale owner) error = %v, want goal_control_stale", err)
 			}
 		}

@@ -13,6 +13,7 @@ import (
 
 	automation "github.com/compozy/compozy/internal/automation/model"
 	"github.com/compozy/compozy/internal/config"
+	eventspkg "github.com/compozy/compozy/internal/events"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/store"
@@ -71,7 +72,7 @@ func TestSeed(t *testing.T) {
 		assertTaskStory(t, ctx, db, replaced.WorkspaceID)
 		assertNetworkStory(t, ctx, db, replaced.WorkspaceID)
 		assertAutomationStory(t, ctx, db)
-		assertLaunchTranscript(t, ctx, paths)
+		assertLaunchTranscript(t, ctx, paths, replaced.WorkspaceID)
 		assertLoopDefinition(t, replaced.WorkspaceRoot)
 	})
 }
@@ -121,6 +122,33 @@ func assertTaskStory(t *testing.T, ctx context.Context, db *globaldb.GlobalDB, w
 	}
 	if byID["task_northstar_launch_decision"].Status != task.TaskStatusCompleted {
 		t.Fatalf("launch decision task = %#v, want completed", byID["task_northstar_launch_decision"])
+	}
+	for taskID, runID := range map[string]string{
+		"task_northstar_partner_replay":  "run_northstar_partner_replay",
+		"task_northstar_compliance_copy": "run_northstar_compliance_copy",
+		taskSupportID:                    "run_northstar_support_handoff",
+		taskLaunchDecisionID:             "run_northstar_launch_decision",
+	} {
+		run, err := db.GetTaskRun(ctx, runID)
+		if err != nil {
+			t.Fatalf("GetTaskRun(%q) error = %v", runID, err)
+		}
+		if run.TaskID != taskID ||
+			run.WorkspaceID != workspaceID ||
+			run.Status.Normalize() != task.TaskRunStatusCompleted {
+			t.Fatalf("GetTaskRun(%q) = %#v, want completed workspace history for %q", runID, run, taskID)
+		}
+		events, err := db.ListTaskEvents(ctx, task.EventQuery{
+			TaskID:    taskID,
+			RunID:     runID,
+			EventType: eventspkg.TaskRunCompleted,
+		})
+		if err != nil {
+			t.Fatalf("ListTaskEvents(%q) error = %v", runID, err)
+		}
+		if got, want := len(events), 1; got != want {
+			t.Fatalf("completed history events for %q = %d, want %d", runID, got, want)
+		}
 	}
 	blocks, err := db.ListTaskBlocks(ctx, "task_northstar_mexico_replay", false)
 	if err != nil {
@@ -185,12 +213,12 @@ func assertAutomationStory(t *testing.T, ctx context.Context, db *globaldb.Globa
 	}
 }
 
-func assertLaunchTranscript(t *testing.T, ctx context.Context, paths config.HomePaths) {
+func assertLaunchTranscript(t *testing.T, ctx context.Context, paths config.HomePaths, workspaceID string) {
 	t.Helper()
 	sessionID := scenarioSessionIDs[3]
 	reader, err := sessiondb.OpenSessionDBReadOnly(
 		ctx,
-		sessionID,
+		store.SessionDBOwner{SessionID: sessionID, WorkspaceID: workspaceID},
 		store.SessionDBFile(filepath.Join(paths.SessionsDir, sessionID)),
 	)
 	if err != nil {

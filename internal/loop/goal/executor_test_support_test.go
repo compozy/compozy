@@ -723,6 +723,16 @@ type fakePromptRecovery struct {
 	calls  int
 }
 
+type blockingPromptRecovery struct{}
+
+func (blockingPromptRecovery) ReconcileTerminalFromEvents(
+	ctx context.Context,
+	_ PromptRecoveryIdentity,
+) (loop.ActionPromptResult, bool, error) {
+	<-ctx.Done()
+	return loop.ActionPromptResult{}, false, ctx.Err()
+}
+
 func (r *fakePromptRecovery) ReconcileTerminalFromEvents(
 	context.Context,
 	PromptRecoveryIdentity,

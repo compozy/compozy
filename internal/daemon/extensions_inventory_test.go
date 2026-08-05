@@ -221,8 +221,8 @@ func TestExtensionInventoryAndEnablePreview(t *testing.T) {
 		if !errors.Is(enableErr, extensionpkg.ErrExtensionAgentConflict) {
 			t.Fatalf("Enable() error = %v, want agent conflict", enableErr)
 		}
-		var conflictErr *extensionpkg.AgentConflictError
-		if !errors.As(enableErr, &conflictErr) || !slices.Equal(conflictErr.Agents, preview.AgentConflicts) {
+		conflictErr, conflictErrMatched := errors.AsType[*extensionpkg.AgentConflictError](enableErr)
+		if !conflictErrMatched || !slices.Equal(conflictErr.Agents, preview.AgentConflicts) {
 			t.Fatalf("Enable() conflict = %#v, want preview conflicts %#v", conflictErr, preview.AgentConflicts)
 		}
 		info, err := service.registry.Get("kit")

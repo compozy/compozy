@@ -284,40 +284,14 @@ type ForceRunMutationResult struct {
 	Run      Run `json:"run"`
 }
 
-// ForceReleaseRunMutation captures one transactional force-release write.
-type ForceReleaseRunMutation struct {
-	RunID string    `json:"run_id"`
-	Now   time.Time `json:"now"`
-}
-
-// ForceFailRunMutation captures one transactional force-fail write.
-type ForceFailRunMutation struct {
-	RunID  string    `json:"run_id"`
-	Reason string    `json:"reason"`
-	Now    time.Time `json:"now"`
-}
-
-// RetryRunMutation captures one transactional retry write.
-type RetryRunMutation struct {
-	SourceRunID string          `json:"source_run_id"`
-	NewRunID    string          `json:"new_run_id"`
-	Origin      Origin          `json:"origin"`
-	Metadata    json.RawMessage `json:"metadata,omitempty"`
-	QueuedAt    time.Time       `json:"queued_at"`
+// ForceRunInputInvalidation reports the session-input fence committed with a force mutation.
+type ForceRunInputInvalidation struct {
+	QueueGeneration int64 `json:"queue_generation,omitempty"`
+	CanceledInputs  int   `json:"canceled_inputs,omitempty"`
 }
 
 // RecoverRunRequest captures one operator/agent recovery request for a needs_attention run.
 type RecoverRunRequest struct {
 	Reason   string          `json:"reason,omitempty"`
 	Metadata json.RawMessage `json:"metadata,omitempty"`
-}
-
-// RecoverRunMutation captures one transactional recovery write (terminalize-then-requeue).
-type RecoverRunMutation struct {
-	SourceRunID string          `json:"source_run_id"`
-	NewRunID    string          `json:"new_run_id"`
-	Origin      Origin          `json:"origin"`
-	Reason      string          `json:"reason,omitempty"`
-	Metadata    json.RawMessage `json:"metadata,omitempty"`
-	QueuedAt    time.Time       `json:"queued_at"`
 }

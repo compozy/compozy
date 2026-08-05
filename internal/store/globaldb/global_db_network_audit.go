@@ -20,7 +20,11 @@ func (g *NetworkRepo) WriteNetworkAudit(ctx context.Context, entry store.Network
 		return err
 	}
 	if strings.TrimSpace(entry.ID) == "" {
-		entry.ID = store.NewID("naud")
+		generatedID, err := store.NewID("naud")
+		if err != nil {
+			return fmt.Errorf("store: generate network audit id: %w", err)
+		}
+		entry.ID = generatedID
 	}
 	if entry.Timestamp.IsZero() {
 		entry.Timestamp = g.now()

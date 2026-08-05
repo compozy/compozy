@@ -162,10 +162,10 @@ func TestDaemonE2ECompactionResumeSafety(t *testing.T) {
 			session.WithCompactionHandler(runtime),
 			session.WithStore(func(
 				ctx context.Context,
-				sessionID string,
+				owner store.SessionDBOwner,
 				path string,
 			) (session.EventRecorder, error) {
-				db, openErr := sessiondb.OpenSessionDB(ctx, sessionID, path)
+				db, openErr := sessiondb.OpenSessionDB(ctx, owner, path)
 				if openErr != nil {
 					return nil, openErr
 				}

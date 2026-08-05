@@ -3,12 +3,12 @@ package compozysdk
 import (
 	"context"
 	"encoding/json"
-
+	"errors"
 	"io"
 	"os"
-
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/compozy/compozy/sdk/go/contracts"
 )
@@ -45,16 +45,19 @@ type Extension struct {
 	sdkVersion string
 	host       *HostAPI
 
-	mu                 sync.RWMutex
-	handlers           map[string]ExtensionHandler
-	toolHandlers       map[string]registeredTool
-	commandGroups      []contracts.ExtensionCommandGroupSpec
-	watchHandlers      map[string]registeredWatchSource
-	readyCallbacks     []func(context.Context, *HostAPI, ExtensionSession) error
-	initialized        bool
-	shutdownStarted    bool
-	shutdownDeadlineMS int64
-	session            *ExtensionSession
+	mu                   sync.RWMutex
+	handlers             map[string]ExtensionHandler
+	toolHandlers         map[string]registeredTool
+	commandGroups        []contracts.ExtensionCommandGroupSpec
+	watchHandlers        map[string]registeredWatchSource
+	readyCallbacks       []func(context.Context, *HostAPI, ExtensionSession) error
+	readyLifecycle       *readyCallbackLifecycle
+	readyCallbacksClosed bool
+	initialized          bool
+	shutdownStarted      bool
+	shutdownDeadlineMS   int64
+	shutdownDeadlineAt   time.Time
+	session              *ExtensionSession
 }
 
 // Option configures an Extension.
@@ -97,13 +100,14 @@ func WithSDKVersion(version string) Option {
 // NewExtension creates a public Go extension runtime.
 func NewExtension(definition ExtensionDefinition, options ...Option) *Extension {
 	extension := &Extension{
-		definition:    definition,
-		transport:     NewStdioTransport(StdioTransportOptions{}),
-		stderr:        os.Stderr,
-		sdkVersion:    SDKVersion,
-		handlers:      make(map[string]ExtensionHandler),
-		toolHandlers:  make(map[string]registeredTool),
-		watchHandlers: make(map[string]registeredWatchSource),
+		definition:     definition,
+		transport:      NewStdioTransport(StdioTransportOptions{}),
+		stderr:         os.Stderr,
+		sdkVersion:     SDKVersion,
+		handlers:       make(map[string]ExtensionHandler),
+		toolHandlers:   make(map[string]registeredTool),
+		watchHandlers:  make(map[string]registeredWatchSource),
+		readyLifecycle: newReadyCallbackLifecycle(),
 	}
 	extension.host = newHostAPI(extension.transport, extension.ready)
 	for _, option := range options {
@@ -194,20 +198,31 @@ func Tool[TInput any](
 }
 
 // OnReady registers a callback that runs after initialize succeeds.
+//
+// Callbacks must return after ctx.Done. During shutdown, the runtime cancels
+// accepted callbacks and takes one bounded drain snapshot at the shutdown
+// request deadline, or at the negotiated runtime timeout when the transport
+// closes without a request. Observable completion wins when completion and the
+// deadline are both ready at that snapshot. Run returns callback failures in
+// the snapshot; failures recorded after a deadline decision are excluded. A
+// callback that outlives that decision may outlive Run. Callbacks registered
+// after shutdown or runtime closure are ignored.
 func (e *Extension) OnReady(callback func(context.Context, *HostAPI, ExtensionSession) error) {
 	if e == nil || callback == nil {
 		return
 	}
 	e.mu.Lock()
+	if e.shutdownStarted || e.readyCallbacksClosed {
+		e.mu.Unlock()
+		return
+	}
 	e.readyCallbacks = append(e.readyCallbacks, callback)
 	session := e.session
 	initialized := e.initialized && session != nil
 	host := e.host
 	e.mu.Unlock()
 	if initialized {
-		go func() {
-			e.runReadyCallback(context.Background(), callback, host, session)
-		}()
+		e.startReadyCallback(callback, host, session)
 	}
 }
 
@@ -222,5 +237,6 @@ func (e *Extension) Run(ctx context.Context) error {
 	if describeModeRequested(os.Args) {
 		return e.writeDescribe(os.Stdout)
 	}
-	return e.transport.Run(ctx)
+	runErr := e.transport.Run(ctx)
+	return errors.Join(runErr, e.stopReadyCallbacks())
 }

@@ -23,11 +23,23 @@ func normalizePauseTaskRequest(req PauseTaskRequest) (PauseTaskRequest, error) {
 	if err := ValidateMetadataSize(req.Metadata, "task_pause.metadata"); err != nil {
 		return PauseTaskRequest{}, err
 	}
+	req.Reason = strings.TrimSpace(RedactClaimTokens(req.Reason))
+	req.Metadata = RedactClaimTokenJSON(req.Metadata)
+	if err := ValidateReasonSize(req.Reason, "task_pause.reason"); err != nil {
+		return PauseTaskRequest{}, err
+	}
+	if err := ValidateMetadataSize(req.Metadata, "task_pause.metadata"); err != nil {
+		return PauseTaskRequest{}, err
+	}
 	return req, nil
 }
 
 func normalizeResumeTaskRequest(req ResumeTaskRequest) (ResumeTaskRequest, error) {
 	req.Metadata = normalizeRawJSON(req.Metadata)
+	if err := ValidateMetadataSize(req.Metadata, "task_resume.metadata"); err != nil {
+		return ResumeTaskRequest{}, err
+	}
+	req.Metadata = RedactClaimTokenJSON(req.Metadata)
 	if err := ValidateMetadataSize(req.Metadata, "task_resume.metadata"); err != nil {
 		return ResumeTaskRequest{}, err
 	}

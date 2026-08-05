@@ -49,9 +49,6 @@ func CreateAgentDefFile(path string, draft AgentDefinitionDraft, overwrite bool)
 	if err != nil {
 		return AgentDef{}, err
 	}
-	if err := ensureAgentDefinitionWritable(normalizedPath, overwrite); err != nil {
-		return AgentDef{}, err
-	}
 	write := writePersistedFile
 	if !overwrite {
 		write = writePersistedFileExclusive
@@ -176,21 +173,6 @@ func sortedAgentDefinitionAtoms(values []string) []string {
 	atoms := trimAgentDefinitionAtoms(values)
 	slices.Sort(atoms)
 	return slices.Compact(atoms)
-}
-
-func ensureAgentDefinitionWritable(path string, overwrite bool) error {
-	if overwrite {
-		return nil
-	}
-	if _, err := os.Stat(path); err == nil {
-		return errors.Join(
-			ErrAgentDefinitionExists,
-			fmt.Errorf("config: agent definition already exists at %s", path),
-		)
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("config: inspect agent definition %q: %w", path, err)
-	}
-	return nil
 }
 
 func trimAgentDefinitionAtoms(values []string) []string {

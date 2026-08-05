@@ -20,7 +20,9 @@ func (m *Service) dispatchTaskRunLeaseExtended(
 		},
 		TaskRunContext: m.taskRunHookContext(run, taskRecord, actor),
 	}
-	_, err := m.taskHooks.DispatchTaskRunLeaseExtended(taskRunObservationHookContext(ctx), payload)
+	hookCtx, cancel := taskRunObservationHookContext(ctx)
+	defer cancel()
+	_, err := m.taskHooks.DispatchTaskRunLeaseExtended(hookCtx, payload)
 	m.reportTaskRunHookFailure(hookspkg.HookTaskRunLeaseExtended, err, run, taskRecord)
 }
 
@@ -47,7 +49,9 @@ func (m *Service) dispatchTaskRunLeaseExpired(
 		PreviousSessionID: strings.TrimSpace(recovery.PreviousSessionID),
 		RecoveryReason:    strings.TrimSpace(recovery.Reason),
 	}
-	_, err := m.taskHooks.DispatchTaskRunLeaseExpired(taskRunObservationHookContext(ctx), payload)
+	hookCtx, cancel := taskRunObservationHookContext(ctx)
+	defer cancel()
+	_, err := m.taskHooks.DispatchTaskRunLeaseExpired(hookCtx, payload)
 	m.reportTaskRunHookFailure(hookspkg.HookTaskRunLeaseExpired, err, run, taskRecord)
 }
 
@@ -72,7 +76,9 @@ func (m *Service) dispatchTaskRunLeaseRecoveredFromExpiration(
 		RecoveryAction:    string(RunBootRecoveryRequeue),
 		RecoveryReason:    strings.TrimSpace(recovery.Reason),
 	}
-	_, err := m.taskHooks.DispatchTaskRunLeaseRecovered(taskRunObservationHookContext(ctx), payload)
+	hookCtx, cancel := taskRunObservationHookContext(ctx)
+	defer cancel()
+	_, err := m.taskHooks.DispatchTaskRunLeaseRecovered(hookCtx, payload)
 	m.reportTaskRunHookFailure(hookspkg.HookTaskRunLeaseRecovered, err, run, taskRecord)
 }
 
@@ -96,7 +102,9 @@ func (m *Service) dispatchTaskRunReleased(
 		PreviousSessionID: strings.TrimSpace(previous.SessionID),
 		RecoveryReason:    strings.TrimSpace(reason),
 	}
-	_, err := m.taskHooks.DispatchTaskRunReleased(taskRunObservationHookContext(ctx), payload)
+	hookCtx, cancel := taskRunObservationHookContext(ctx)
+	defer cancel()
+	_, err := m.taskHooks.DispatchTaskRunReleased(hookCtx, payload)
 	m.reportTaskRunHookFailure(hookspkg.HookTaskRunReleased, err, run, taskRecord)
 }
 
@@ -113,7 +121,9 @@ func (m *Service) dispatchTaskRunCompleted(
 		},
 		TaskRunContext: m.taskRunHookContext(run, taskRecord, actor),
 	}
-	_, err := m.taskHooks.DispatchTaskRunCompleted(taskRunObservationHookContext(ctx), payload)
+	hookCtx, cancel := taskRunObservationHookContext(ctx)
+	defer cancel()
+	_, err := m.taskHooks.DispatchTaskRunCompleted(hookCtx, payload)
 	m.reportTaskRunHookFailure(hookspkg.HookTaskRunCompleted, err, run, taskRecord)
 }
 
@@ -130,6 +140,8 @@ func (m *Service) dispatchTaskRunFailed(
 		},
 		TaskRunContext: m.taskRunHookContext(run, taskRecord, actor),
 	}
-	_, err := m.taskHooks.DispatchTaskRunFailed(taskRunObservationHookContext(ctx), payload)
+	hookCtx, cancel := taskRunObservationHookContext(ctx)
+	defer cancel()
+	_, err := m.taskHooks.DispatchTaskRunFailed(hookCtx, payload)
 	m.reportTaskRunHookFailure(hookspkg.HookTaskRunFailed, err, run, taskRecord)
 }

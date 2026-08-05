@@ -1,8 +1,6 @@
 package github
 
 import (
-	"context"
-
 	"errors"
 	"fmt"
 	"io"
@@ -12,8 +10,6 @@ import (
 	"os"
 
 	"strings"
-
-	"time"
 
 	"github.com/compozy/compozy/internal/registry"
 )
@@ -26,37 +22,6 @@ func joinErrors(errs ...error) error {
 		}
 	}
 	return errors.Join(filtered...)
-}
-
-func sleepContext(ctx context.Context, wait time.Duration) error {
-	if wait <= 0 {
-		return nil
-	}
-
-	timer := time.NewTimer(wait)
-	defer timer.Stop()
-
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-timer.C:
-		return nil
-	}
-}
-
-func nextBackoff(current time.Duration, maxDelay time.Duration) time.Duration {
-	if current <= 0 {
-		return defaultInitialBackoff
-	}
-	if maxDelay <= 0 {
-		maxDelay = defaultMaxBackoff
-	}
-
-	next := current * 2
-	if next > maxDelay {
-		return maxDelay
-	}
-	return next
 }
 
 func spoolDownloadResponse(body io.Reader, slug string, maxBytes int64) (_ io.ReadCloser, size int64, err error) {

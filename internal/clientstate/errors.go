@@ -1,6 +1,9 @@
 package clientstate
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+)
 
 var (
 	// ErrNotFound reports that no live value exists for a key.
@@ -25,4 +28,24 @@ var (
 	ErrSlowConsumer = errors.New("client state slow consumer")
 	// ErrClosed reports an operation attempted after service shutdown.
 	ErrClosed = errors.New("client state service closed")
+	// ErrStoreFormatTooNew reports a durable store written by a newer binary.
+	ErrStoreFormatTooNew = errors.New("client state store format is newer than supported")
 )
+
+// StoreFormatTooNewError records the incompatible durable and supported versions.
+type StoreFormatTooNewError struct {
+	Version          uint32
+	SupportedVersion uint32
+}
+
+func (e *StoreFormatTooNewError) Error() string {
+	return fmt.Sprintf(
+		"clientstate: store format version %d is newer than supported version %d",
+		e.Version,
+		e.SupportedVersion,
+	)
+}
+
+func (e *StoreFormatTooNewError) Unwrap() error {
+	return ErrStoreFormatTooNew
+}

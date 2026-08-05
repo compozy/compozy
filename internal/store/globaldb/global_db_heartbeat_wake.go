@@ -130,7 +130,14 @@ func (g *HeartbeatRepo) RecordHeartbeatWakeDecision(
 	}
 	normalizedEvent := event.Normalize()
 	if normalizedEvent.ID == "" {
-		normalizedEvent.ID = store.NewID("hwe")
+		generatedID, generateErr := store.NewID("hwe")
+		if generateErr != nil {
+			return heartbeat.WakeEvent{}, heartbeat.WakeState{}, fmt.Errorf(
+				"store: generate heartbeat wake event id: %w",
+				generateErr,
+			)
+		}
+		normalizedEvent.ID = generatedID
 	}
 	if normalizedEvent.CreatedAt.IsZero() {
 		normalizedEvent.CreatedAt = g.now()
@@ -194,7 +201,11 @@ func (g *HeartbeatRepo) AppendHeartbeatWakeEvent(
 	}
 	normalized := event.Normalize()
 	if normalized.ID == "" {
-		normalized.ID = store.NewID("hwe")
+		generatedID, err := store.NewID("hwe")
+		if err != nil {
+			return heartbeat.WakeEvent{}, fmt.Errorf("store: generate heartbeat wake event id: %w", err)
+		}
+		normalized.ID = generatedID
 	}
 	if normalized.CreatedAt.IsZero() {
 		normalized.CreatedAt = g.now()

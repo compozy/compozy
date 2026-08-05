@@ -3,11 +3,11 @@ package config
 import (
 	"errors"
 	"fmt"
-	"io"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/compozy/compozy/internal/fileutil"
 )
 
 // DuplicateAgentDefinition clones one complete authored directory into a new target directory.
@@ -24,100 +24,100 @@ func DuplicateAgentDefinition(
 	if cleanedTarget == "." {
 		return AgentDef{}, fmt.Errorf("config: duplicate target directory is required")
 	}
-	if _, statErr := os.Lstat(cleanedTarget); statErr == nil {
-		return AgentDef{}, errors.Join(
-			ErrAgentDefinitionExists,
-			fmt.Errorf("config: duplicate target directory already exists at %s", cleanedTarget),
-		)
-	} else if !errors.Is(statErr, os.ErrNotExist) {
-		return AgentDef{}, fmt.Errorf("config: inspect duplicate target directory %q: %w", cleanedTarget, statErr)
-	}
 
-	created := false
+	contents, agent, err := RenderAgentDefinition(draft)
+	if err != nil {
+		return AgentDef{}, err
+	}
+	sourceDirectory, err := fileutil.OpenDirectory(filepath.Dir(sourcePath))
+	if err != nil {
+		return AgentDef{}, fmt.Errorf("config: open source agent directory %q: %w", filepath.Dir(sourcePath), err)
+	}
 	defer func() {
-		if err == nil || !created {
-			return
-		}
-		if cleanupErr := os.RemoveAll(cleanedTarget); cleanupErr != nil {
+		if closeErr := sourceDirectory.Close(); closeErr != nil {
 			err = errors.Join(
 				err,
-				fmt.Errorf("config: clean failed duplicate directory %q: %w", cleanedTarget, cleanupErr),
+				fmt.Errorf("config: close source agent directory %q: %w", filepath.Dir(sourcePath), closeErr),
 			)
 		}
 	}()
 
-	targetPath := filepath.Join(cleanedTarget, AgentDefinitionFileName)
-	agent, err = CreateAgentDefFile(targetPath, draft, false)
+	targetParent, targetName, err := fileutil.OpenOrCreateParentDirectory(cleanedTarget, privateDirMode)
 	if err != nil {
+		return AgentDef{}, fmt.Errorf("config: open duplicate target parent %q: %w", cleanedTarget, err)
+	}
+	defer func() {
+		if closeErr := targetParent.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("config: close duplicate target parent %q: %w", cleanedTarget, closeErr))
+		}
+	}()
+
+	if err := duplicateAgentDefinitionInDirectories(
+		sourceDirectory,
+		targetParent,
+		targetName,
+		cleanedTarget,
+		contents,
+	); err != nil {
 		return AgentDef{}, err
 	}
-	created = true
-	if err := copyAgentDefinitionSiblings(filepath.Dir(sourcePath), cleanedTarget); err != nil {
-		return AgentDef{}, err
-	}
+
+	agent.SourcePath = filepath.Join(cleanedTarget, AgentDefinitionFileName)
 	return agent, nil
 }
 
-func copyAgentDefinitionSiblings(sourceDir string, targetDir string) error {
-	return filepath.WalkDir(sourceDir, func(path string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return fmt.Errorf("config: walk source agent directory %q: %w", path, walkErr)
+func duplicateAgentDefinitionInDirectories(
+	sourceDirectory *fileutil.Directory,
+	targetParent *fileutil.Directory,
+	targetName string,
+	cleanedTarget string,
+	contents []byte,
+) (err error) {
+	createdTarget, err := targetParent.CreateDirectory(targetName, privateDirMode)
+	if err != nil {
+		if errors.Is(err, os.ErrExist) {
+			return errors.Join(
+				ErrAgentDefinitionExists,
+				fmt.Errorf("config: duplicate target directory already exists at %s: %w", cleanedTarget, err),
+			)
 		}
-		relative, err := filepath.Rel(sourceDir, path)
-		if err != nil {
-			return fmt.Errorf("config: resolve source agent relative path %q: %w", path, err)
-		}
-		if relative == "." || relative == AgentDefinitionFileName {
-			return nil
-		}
-		target := filepath.Join(targetDir, relative)
-		info, err := entry.Info()
-		if err != nil {
-			return fmt.Errorf("config: inspect source agent entry %q: %w", path, err)
-		}
-		switch {
-		case entry.Type()&os.ModeSymlink != 0:
-			return fmt.Errorf("config: source agent entry %q must not be a symlink", path)
-		case entry.IsDir():
-			if mkdirErr := os.MkdirAll(target, privateDirMode); mkdirErr != nil {
-				return fmt.Errorf("config: create duplicate directory %q: %w", target, mkdirErr)
+		return fmt.Errorf("config: create duplicate target directory %q: %w", cleanedTarget, err)
+	}
+	targetClosed := false
+	defer func() {
+		if !targetClosed {
+			if closeErr := createdTarget.Close(); closeErr != nil {
+				err = errors.Join(
+					err,
+					fmt.Errorf("config: close duplicate target directory %q: %w", cleanedTarget, closeErr),
+				)
 			}
-			return nil
-		case info.Mode().IsRegular():
-			return copyAgentDefinitionFile(path, target, info.Mode())
-		default:
-			return fmt.Errorf("config: unsupported source agent entry %q", path)
 		}
-	})
-}
+		if err != nil {
+			if cleanupErr := targetParent.RemoveAll(targetName); cleanupErr != nil {
+				err = errors.Join(
+					err,
+					fmt.Errorf("config: clean failed duplicate directory %q: %w", cleanedTarget, cleanupErr),
+				)
+			}
+		}
+	}()
 
-func copyAgentDefinitionFile(sourcePath string, targetPath string, mode fs.FileMode) (err error) {
-	source, err := os.Open(sourcePath)
-	if err != nil {
-		return fmt.Errorf("config: open source agent file %q: %w", sourcePath, err)
+	if err := createdTarget.AtomicWriteFile(AgentDefinitionFileName, contents, privateFileMode, false); err != nil {
+		return fmt.Errorf("config: write duplicate agent definition %q: %w", cleanedTarget, err)
 	}
-	defer func() {
-		if closeErr := source.Close(); closeErr != nil {
-			err = errors.Join(err, fmt.Errorf("config: close source agent file %q: %w", sourcePath, closeErr))
+	if err := createdTarget.CopyContentsFrom(sourceDirectory, AgentDefinitionFileName); err != nil {
+		if errors.Is(err, fileutil.ErrSymlink) {
+			return fmt.Errorf("config: source agent entry must not be a symlink: %w", err)
 		}
-	}()
-	if err := os.MkdirAll(filepath.Dir(targetPath), privateDirMode); err != nil {
-		return fmt.Errorf("config: create duplicate file directory %q: %w", filepath.Dir(targetPath), err)
+		return fmt.Errorf("config: copy source agent siblings into %q: %w", cleanedTarget, err)
 	}
-	target, err := os.OpenFile(targetPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, mode.Perm())
-	if err != nil {
-		return fmt.Errorf("config: create duplicate agent file %q: %w", targetPath, err)
+	if err := createdTarget.Close(); err != nil {
+		return fmt.Errorf("config: close duplicate target directory %q: %w", cleanedTarget, err)
 	}
-	defer func() {
-		if closeErr := target.Close(); closeErr != nil {
-			err = errors.Join(err, fmt.Errorf("config: close duplicate agent file %q: %w", targetPath, closeErr))
-		}
-	}()
-	if _, err := io.Copy(target, source); err != nil {
-		return fmt.Errorf("config: copy agent file %q to %q: %w", sourcePath, targetPath, err)
-	}
-	if err := target.Sync(); err != nil {
-		return fmt.Errorf("config: sync duplicate agent file %q: %w", targetPath, err)
+	targetClosed = true
+	if err := targetParent.Sync(); err != nil {
+		return fmt.Errorf("config: sync duplicate target parent %q: %w", cleanedTarget, err)
 	}
 	return nil
 }

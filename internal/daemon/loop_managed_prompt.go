@@ -153,7 +153,7 @@ func (b *loopActionSessionBinder) CancelActionPrompts(
 		checkpoint.PromptAttempt != owner.PromptAttempt {
 		return fmt.Errorf("%w: managed Goal cancellation owner changed", looppkg.ErrTransitionConflict)
 	}
-	managedOwner := managedInputOwner(checkpoint, owner.Generation)
+	managedOwner := managedInputOwner(checkpoint, int64(owner.Generation))
 	b.managedInputs.CancelManagedInputLease(managedOwner)
 	if err := b.managedInputs.WaitManagedInputLease(ctx, managedOwner); err != nil {
 		return fmt.Errorf("daemon: drain managed Goal prompt: %w", err)
@@ -208,7 +208,7 @@ func (b *loopActionSessionBinder) promptNow() time.Time {
 	return time.Now().UTC()
 }
 
-func managedInputOwner(checkpoint goalpkg.Checkpoint, generation int) session.ManagedInputOwner {
+func managedInputOwner(checkpoint goalpkg.Checkpoint, generation int64) session.ManagedInputOwner {
 	return session.ManagedInputOwner{
 		QueueEntryID:  checkpoint.QueueEntryID,
 		SessionID:     checkpoint.SessionID,

@@ -1092,6 +1092,54 @@ describe("MarketplaceKindPage", () => {
     expect(mocks.installExtension).not.toHaveBeenCalled();
   });
 
+  it("Should accept only credential-free HTTPS Git repository URLs", async () => {
+    const user = userEvent.setup();
+    mocks.marketData = { ...marketplaceKindFixture("extension"), items: [], total: 0 };
+    renderKindPage("extension");
+
+    await user.click(screen.getByTestId("marketplace-extension-install"));
+    await user.click(screen.getByTestId("extension-install-source-git"));
+    expect(screen.getByText(/public HTTPS repository URL/)).toBeInTheDocument();
+
+    const ref = screen.getByTestId("extension-install-ref");
+    await user.type(ref, "ssh://git.example.com/acme/hello.git");
+    await user.click(screen.getByTestId("extension-install-submit"));
+    expect(await screen.findByTestId("extension-install-ref-error")).toHaveTextContent(
+      "public HTTPS repository URL"
+    );
+
+    await user.clear(ref);
+    await user.type(ref, "https://@git.example.com/acme/hello.git");
+    await user.click(screen.getByTestId("extension-install-submit"));
+    expect(await screen.findByTestId("extension-install-ref-error")).toHaveTextContent(
+      "Remove credentials"
+    );
+
+    await user.clear(ref);
+    await user.type(ref, "https://git.example.com/acme/hello.git?");
+    await user.click(screen.getByTestId("extension-install-submit"));
+    expect(await screen.findByTestId("extension-install-ref-error")).toHaveTextContent(
+      "Put the Git ref in the Version field"
+    );
+
+    await user.clear(ref);
+    await user.type(ref, "https://git.example.com./acme/hello.git");
+    await user.click(screen.getByTestId("extension-install-submit"));
+    expect(await screen.findByTestId("extension-install-ref-error")).toHaveTextContent(
+      "valid host and repository path"
+    );
+
+    await user.clear(ref);
+    await user.type(ref, "https://git.example.com/acme/hello.git@v1.2.3");
+    await user.click(screen.getByTestId("extension-install-submit"));
+    await waitFor(() =>
+      expect(mocks.installExtension).toHaveBeenCalledWith({
+        ref: "https://git.example.com/acme/hello.git@v1.2.3",
+        source: "git",
+      })
+    );
+  });
+
   it("Should open consent only for the daemon checksum diagnostic", async () => {
     const user = userEvent.setup();
     mocks.marketData = { ...marketplaceKindFixture("extension"), items: [], total: 0 };

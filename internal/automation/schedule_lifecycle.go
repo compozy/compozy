@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
 	"time"
 )
 
@@ -28,12 +27,17 @@ func (s *Scheduler) Start(ctx context.Context) error {
 	}
 
 	runtimeCtx, runtimeCancel := context.WithCancel(context.WithoutCancel(ctx))
-	s.runtimeCtx = runtimeCtx
-	s.runtimeCancel = runtimeCancel
+	runtime := &schedulerRuntime{
+		ctx:    runtimeCtx,
+		cancel: runtimeCancel,
+		done:   make(chan struct{}),
+	}
+	s.runtime = runtime
 	for jobID := range s.registrations {
 		s.startJobLoopLocked(jobID)
 	}
 	s.started = true
+	go s.ownRuntime(runtime)
 	s.logger.Info("automation.scheduler.started", "jobs_loaded", len(s.registrations))
 	return nil
 }
@@ -46,12 +50,13 @@ func (s *Scheduler) Stop(ctx context.Context) error {
 
 	s.mu.Lock()
 	if s.stopped {
+		runtime := s.runtime
 		s.mu.Unlock()
-		return nil
+		return s.waitForRuntime(ctx, runtime)
 	}
 	s.stopped = true
 	s.started = false
-	cancel := s.runtimeCancel
+	runtime := s.runtime
 	for jobID, registration := range s.registrations {
 		if registration.cancel != nil {
 			registration.cancel()
@@ -59,36 +64,54 @@ func (s *Scheduler) Stop(ctx context.Context) error {
 			s.registrations[jobID] = registration
 		}
 	}
+	if runtime == nil {
+		s.registrations = make(map[string]scheduledRegistration)
+	}
 	s.mu.Unlock()
 
-	if cancel != nil {
-		cancel()
+	if runtime == nil {
+		s.logger.Info("automation.scheduler.shutdown", "shutdown_duration_ms", int64(0))
+		return nil
 	}
 
-	startedAt := time.Now()
-	done := make(chan struct{})
-	go func() {
-		s.wg.Wait()
-		close(done)
-	}()
-
-	var shutdownErr error
-	select {
-	case <-done:
-	case <-ctx.Done():
-		shutdownErr = ctx.Err()
-	}
 	s.mu.Lock()
-	s.registrations = make(map[string]scheduledRegistration)
-	s.runtimeCtx = nil
-	s.runtimeCancel = nil
+	if runtime.stoppedAt.IsZero() {
+		runtime.stoppedAt = time.Now()
+	}
+	s.mu.Unlock()
+	runtime.cancel()
+	return s.waitForRuntime(ctx, runtime)
+}
+
+func (s *Scheduler) ownRuntime(runtime *schedulerRuntime) {
+	<-runtime.ctx.Done()
+	runtime.workers.Wait()
+
+	s.mu.Lock()
+	if s.runtime == runtime {
+		s.registrations = make(map[string]scheduledRegistration)
+		s.runtime = nil
+	}
+	stoppedAt := runtime.stoppedAt
 	s.mu.Unlock()
 
-	s.logger.Info("automation.scheduler.shutdown", "shutdown_duration_ms", time.Since(startedAt).Milliseconds())
-	if shutdownErr != nil {
-		return fmt.Errorf("automation: shutdown scheduler runtime: %w", shutdownErr)
+	close(runtime.done)
+	if stoppedAt.IsZero() {
+		stoppedAt = time.Now()
 	}
-	return nil
+	s.logger.Info("automation.scheduler.shutdown", "shutdown_duration_ms", time.Since(stoppedAt).Milliseconds())
+}
+
+func (s *Scheduler) waitForRuntime(ctx context.Context, runtime *schedulerRuntime) error {
+	if runtime == nil {
+		return nil
+	}
+	select {
+	case <-runtime.done:
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("automation: shutdown scheduler runtime: %w", ctx.Err())
+	}
 }
 
 // Shutdown is an alias for Stop to match daemon runtime conventions.

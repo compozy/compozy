@@ -64,6 +64,7 @@ type taskRoleRuntime struct {
 	now                 func() time.Time
 	promptInFlight      map[string]struct{}
 	wg                  sync.WaitGroup
+	done                chan struct{}
 }
 
 type taskRoleActivation struct {
@@ -115,6 +116,7 @@ func newTaskRoleRuntime(
 		logger:              logger,
 		now:                 now,
 		promptInFlight:      make(map[string]struct{}),
+		done:                make(chan struct{}),
 	}, nil
 }
 
@@ -175,7 +177,7 @@ func (r *taskRoleRuntime) Recover(ctx context.Context) {
 		return
 	}
 	if ctx == nil {
-		ctx = context.Background()
+		return
 	}
 	runs, err := r.store.ListTaskRunsByStatus(ctx, []taskpkg.RunStatus{taskpkg.TaskRunStatusQueued})
 	if err != nil {

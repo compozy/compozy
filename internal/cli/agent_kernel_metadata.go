@@ -73,7 +73,7 @@ func (f coordinationMetadataFlags) metadata(
 func requireAgentCommandIdentity(
 	ctx context.Context,
 	deps commandDeps,
-	client DaemonClient,
+	client agentSessionClient,
 	originRef string,
 ) (agentidentity.Credentials, error) {
 	if _, err := resolveAgentCallerFromEnv(ctx, deps, client, originRef); err != nil {

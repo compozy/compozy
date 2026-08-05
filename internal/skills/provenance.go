@@ -164,7 +164,7 @@ func VerifyHash(skillDir string, provenance *Provenance) error {
 	}
 }
 
-func writeHashEntry(hasher hash.Hash, root string, relPath string, buffer []byte) error {
+func writeHashEntry(hasher hash.Hash, root string, relPath string, buffer []byte) (err error) {
 	normalizedPath := filepath.ToSlash(relPath)
 	absPath := filepath.Join(root, relPath)
 
@@ -178,7 +178,11 @@ func writeHashEntry(hasher hash.Hash, root string, relPath string, buffer []byte
 		if err != nil {
 			return fmt.Errorf("skills: open hashed path %q: %w", absPath, err)
 		}
-		defer file.Close()
+		defer func() {
+			if closeErr := file.Close(); closeErr != nil {
+				err = errors.Join(err, fmt.Errorf("skills: close hashed path %q: %w", absPath, closeErr))
+			}
+		}()
 
 		if err := writeHashString(
 			hasher,

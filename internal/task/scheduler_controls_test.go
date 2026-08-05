@@ -2,7 +2,9 @@ package task
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -229,6 +231,165 @@ func TestSchedulerControls(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Should reject an oversized pause event before changing paused state", func(t *testing.T) {
+		t.Parallel()
+
+		store := newSchedulerControlTestStore()
+		store.tasks["task-pause-preflight"] = Task{
+			ID:     "task-pause-preflight",
+			Scope:  ScopeGlobal,
+			Title:  "Pause preflight",
+			Status: TaskStatusReady,
+		}
+		manager := newTaskManagerForTest(t, store)
+
+		_, err := manager.PauseTask(
+			context.Background(),
+			"task-pause-preflight",
+			PauseTaskRequest{Reason: strings.Repeat("<", 12*1024)},
+			validActorContext(),
+		)
+		if !errors.Is(err, ErrPayloadTooLarge) {
+			t.Fatalf("PauseTask() error = %v, want %v", err, ErrPayloadTooLarge)
+		}
+		if store.tasks["task-pause-preflight"].Paused {
+			t.Fatal("PauseTask() mutated paused state before rejecting the event payload")
+		}
+		if got := countTaskEventsByType(store.events, taskEventPaused); got != 0 {
+			t.Fatalf("paused events = %d, want 0", got)
+		}
+	})
+
+	t.Run("Should reject an oversized resume event before changing paused state", func(t *testing.T) {
+		t.Parallel()
+
+		metadata := json.RawMessage(`{"note":"` + strings.Repeat("<", 11_000) + `"}`)
+		if got := len(metadata); got >= MaxMetadataBytes {
+			t.Fatalf("resume metadata = %d bytes, want below %d", got, MaxMetadataBytes)
+		}
+
+		store := newSchedulerControlTestStore()
+		store.tasks["task-resume-preflight"] = Task{
+			ID:     "task-resume-preflight",
+			Scope:  ScopeGlobal,
+			Title:  "Resume preflight",
+			Status: TaskStatusReady,
+			Paused: true,
+		}
+		manager := newTaskManagerForTest(t, store)
+
+		_, err := manager.ResumeTask(
+			context.Background(),
+			"task-resume-preflight",
+			ResumeTaskRequest{Metadata: metadata},
+			validActorContext(),
+		)
+		if !errors.Is(err, ErrPayloadTooLarge) {
+			t.Fatalf("ResumeTask() error = %v, want %v", err, ErrPayloadTooLarge)
+		}
+		if !store.tasks["task-resume-preflight"].Paused {
+			t.Fatal("ResumeTask() mutated paused state before rejecting the event payload")
+		}
+		if got := countTaskEventsByType(store.events, taskEventResumed); got != 0 {
+			t.Fatalf("resumed events = %d, want 0", got)
+		}
+	})
+
+	t.Run("Should redact claim tokens from per-task pause audit data", func(t *testing.T) {
+		t.Parallel()
+
+		const rawToken = "compozy_claim_pause-secret"
+		store := newSchedulerControlTestStore()
+		store.tasks["task-pause-redaction"] = Task{
+			ID:     "task-pause-redaction",
+			Scope:  ScopeGlobal,
+			Title:  "Pause redaction",
+			Status: TaskStatusReady,
+		}
+		manager := newTaskManagerForTest(t, store)
+
+		_, err := manager.PauseTask(
+			context.Background(),
+			"task-pause-redaction",
+			PauseTaskRequest{
+				Reason: "operator supplied " + rawToken,
+				Metadata: json.RawMessage(
+					`{"claim_token":"` + rawToken + `","note":"worker supplied ` + rawToken + `","safe":true}`,
+				),
+			},
+			validActorContext(),
+		)
+		if err != nil {
+			t.Fatalf("PauseTask() error = %v", err)
+		}
+		if got := store.tasks["task-pause-redaction"].PausedReason; strings.Contains(got, rawToken) {
+			t.Fatalf("persisted pause reason = %q, want raw claim token redacted", got)
+		}
+		if got, want := countTaskEventsByType(store.events, taskEventPaused), 1; got != want {
+			t.Fatalf("paused events = %d, want %d", got, want)
+		}
+		if strings.Contains(string(store.events[0].Payload), rawToken) {
+			t.Fatalf("pause event payload leaked raw claim token: %s", store.events[0].Payload)
+		}
+
+		var payload taskPausePayload
+		if err := json.Unmarshal(store.events[0].Payload, &payload); err != nil {
+			t.Fatalf("Unmarshal(pause event payload) error = %v", err)
+		}
+		if strings.Contains(string(payload.Metadata), `"claim_token"`) {
+			t.Fatalf("pause event metadata retained claim_token field: %s", payload.Metadata)
+		}
+		if !strings.Contains(string(payload.Metadata), `"safe":true`) {
+			t.Fatalf("pause event metadata = %s, want preserved safe field", payload.Metadata)
+		}
+	})
+
+	t.Run("Should redact claim tokens from per-task resume audit data", func(t *testing.T) {
+		t.Parallel()
+
+		const rawToken = "compozy_claim_resume-secret"
+		store := newSchedulerControlTestStore()
+		store.tasks["task-resume-redaction"] = Task{
+			ID:     "task-resume-redaction",
+			Scope:  ScopeGlobal,
+			Title:  "Resume redaction",
+			Status: TaskStatusReady,
+			Paused: true,
+		}
+		manager := newTaskManagerForTest(t, store)
+
+		_, err := manager.ResumeTask(
+			context.Background(),
+			"task-resume-redaction",
+			ResumeTaskRequest{
+				Metadata: json.RawMessage(
+					`{"claim_token":"` + rawToken + `","note":"worker supplied ` + rawToken + `","safe":true}`,
+				),
+			},
+			validActorContext(),
+		)
+		if err != nil {
+			t.Fatalf("ResumeTask() error = %v", err)
+		}
+		if got, want := countTaskEventsByType(store.events, taskEventResumed), 1; got != want {
+			t.Fatalf("resumed events = %d, want %d", got, want)
+		}
+		if strings.Contains(string(store.events[0].Payload), rawToken) {
+			t.Fatalf("resume event payload leaked raw claim token: %s", store.events[0].Payload)
+		}
+
+		var payload taskResumePayload
+		if err := json.Unmarshal(store.events[0].Payload, &payload); err != nil {
+			t.Fatalf("Unmarshal(resume event payload) error = %v", err)
+		}
+		if strings.Contains(string(payload.Metadata), `"claim_token"`) {
+			t.Fatalf("resume event metadata retained claim_token field: %s", payload.Metadata)
+		}
+		if !strings.Contains(string(payload.Metadata), `"safe":true`) {
+			t.Fatalf("resume event metadata = %s, want preserved safe field", payload.Metadata)
+		}
+	})
 
 	t.Run("Should complete drain audit after request context is canceled", func(t *testing.T) {
 		t.Parallel()

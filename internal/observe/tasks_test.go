@@ -33,11 +33,11 @@ func TestQueryTaskSummaryAggregatesByScopeOriginChannelAndOwner(t *testing.T) {
 		UpdatedAt: h.now.Add(time.Minute),
 	})
 	createObserveTask(t, h, taskpkg.Task{
-		ID:          "task-workspace-blocked",
+		ID:          "task-workspace-running",
 		Scope:       taskpkg.ScopeWorkspace,
 		WorkspaceID: h.workspaceID,
-		Title:       "Workspace blocked",
-		Status:      taskpkg.TaskStatusBlocked,
+		Title:       "Workspace running",
+		Status:      taskpkg.TaskStatusInProgress,
 		Owner:       taskOwner(taskpkg.OwnerKindHuman, "alice"),
 		CreatedBy:   taskActor(taskpkg.ActorKindNetworkPeer, "peer-ops"),
 		Origin:      taskOrigin(taskpkg.OriginKindNetwork, "peer:peer-ops/channel:ops"),
@@ -68,7 +68,7 @@ func TestQueryTaskSummaryAggregatesByScopeOriginChannelAndOwner(t *testing.T) {
 	})
 	createObserveRun(t, h, taskpkg.Run{
 		ID:              "run-workspace-running",
-		TaskID:          "task-workspace-blocked",
+		TaskID:          "task-workspace-running",
 		Status:          taskpkg.TaskRunStatusRunning,
 		Attempt:         1,
 		ClaimedBy:       taskActorPtr(taskpkg.ActorKindDaemon, "scheduler"),
@@ -108,8 +108,8 @@ func TestQueryTaskSummaryAggregatesByScopeOriginChannelAndOwner(t *testing.T) {
 	if !containsTaskTotal(summary.TaskTotals, taskpkg.ScopeGlobal, taskpkg.TaskStatusReady, "", 1) {
 		t.Fatalf("summary.TaskTotals = %#v, want global/ready/unbound count 1", summary.TaskTotals)
 	}
-	if !containsTaskTotal(summary.TaskTotals, taskpkg.ScopeWorkspace, taskpkg.TaskStatusBlocked, "ops", 1) {
-		t.Fatalf("summary.TaskTotals = %#v, want workspace/blocked/ops count 1", summary.TaskTotals)
+	if !containsTaskTotal(summary.TaskTotals, taskpkg.ScopeWorkspace, taskpkg.TaskStatusInProgress, "ops", 1) {
+		t.Fatalf("summary.TaskTotals = %#v, want workspace/in_progress/ops count 1", summary.TaskTotals)
 	}
 	if !containsTaskOriginTotal(summary.TaskOrigins, taskpkg.OriginKindNetwork, "ops", 1) {
 		t.Fatalf("summary.TaskOrigins = %#v, want network/ops count 1", summary.TaskOrigins)
@@ -177,6 +177,17 @@ func TestTaskHealthFlagsStuckRunsByConfiguredThresholds(t *testing.T) {
 			CreatedAt:    liveStartedAt,
 			UpdatedAt:    liveStartedAt,
 		},
+		{
+			ID:           "sess-live-starting-stale",
+			Name:         "LIVE3",
+			AgentName:    "coder",
+			WorkspaceID:  h.workspaceID,
+			Workspace:    h.workspace,
+			State:        session.StateActive,
+			ACPSessionID: "acp-live-starting-stale",
+			CreatedAt:    liveStartedAt,
+			UpdatedAt:    liveStartedAt,
+		},
 	}
 
 	taskIDs := []string{"task-claimed", "task-starting-recent", "task-starting-stale", "task-running-stale"}
@@ -209,7 +220,7 @@ func TestTaskHealthFlagsStuckRunsByConfiguredThresholds(t *testing.T) {
 		TaskID:          "task-starting-recent",
 		Status:          taskpkg.TaskRunStatusStarting,
 		Attempt:         1,
-		SessionID:       "sess-live-starting",
+		SessionID:       "sess-live-starting-stale",
 		Origin:          taskOrigin(taskpkg.OriginKindCLI, "compozy task"),
 		QueuedAt:        now.Add(-15 * time.Minute),
 		ClaimedAt:       now.Add(-4 * time.Minute),
@@ -284,24 +295,26 @@ func TestQueryTaskMetricsCountsDuplicateIngressAndChannelMismatch(t *testing.T) 
 		UpdatedAt:   h.now,
 	})
 	createObserveRun(t, h, taskpkg.Run{
-		ID:              "run-net",
-		TaskID:          "task-net",
-		Status:          taskpkg.TaskRunStatusQueued,
-		Attempt:         1,
-		Origin:          taskOrigin(taskpkg.OriginKindNetwork, "peer:peer-ops/channel:ops"),
-		RunNetworkState: observeRunNetworkState(h.workspaceID, "ops"),
-		IdempotencyKey:  "idem-1",
-		QueuedAt:        h.now.Add(time.Minute),
+		ID:                 "run-net",
+		TaskID:             "task-net",
+		Status:             taskpkg.TaskRunStatusQueued,
+		Attempt:            1,
+		Origin:             taskOrigin(taskpkg.OriginKindNetwork, "peer:peer-ops/channel:ops"),
+		RunNetworkState:    observeRunNetworkState(h.workspaceID, "ops"),
+		DesignationGroupID: "metrics-cohort",
+		IdempotencyKey:     "idem-1",
+		QueuedAt:           h.now.Add(time.Minute),
 	})
 	createObserveRun(t, h, taskpkg.Run{
-		ID:              "run-net-current-eng",
-		TaskID:          "task-net",
-		Status:          taskpkg.TaskRunStatusQueued,
-		Attempt:         2,
-		Origin:          taskOrigin(taskpkg.OriginKindCLI, "compozy task run"),
-		RunNetworkState: observeRunNetworkState(h.workspaceID, "eng"),
-		IdempotencyKey:  "idem-2",
-		QueuedAt:        h.now.Add(6 * time.Minute),
+		ID:                 "run-net-current-eng",
+		TaskID:             "task-net",
+		Status:             taskpkg.TaskRunStatusQueued,
+		Attempt:            2,
+		Origin:             taskOrigin(taskpkg.OriginKindCLI, "compozy task run"),
+		RunNetworkState:    observeRunNetworkState(h.workspaceID, "eng"),
+		DesignationGroupID: "metrics-cohort",
+		IdempotencyKey:     "idem-2",
+		QueuedAt:           h.now.Add(6 * time.Minute),
 	})
 	createObserveEvent(t, h, taskpkg.Event{
 		ID:        "evt-run-enqueued",
@@ -1212,9 +1225,7 @@ func createObserveTask(t *testing.T, h *harness, record taskpkg.Task) {
 
 func createObserveRun(t *testing.T, h *harness, run taskpkg.Run) {
 	t.Helper()
-	if err := h.registry.CreateTaskRun(testutil.Context(t), run); err != nil {
-		t.Fatalf("CreateTaskRun(%q) error = %v", run.ID, err)
-	}
+	seedObserveRunSnapshot(t, h.registry, run)
 }
 
 func observeRunNetworkState(workspaceID, channel string) *taskpkg.RunNetworkState {

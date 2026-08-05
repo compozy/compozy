@@ -310,13 +310,13 @@ func (n *daemonMarketplaceNotifier) writeEvent(
 	if n == nil || n.writer == nil {
 		return nil
 	}
+	if ctx == nil {
+		return errors.New("daemon: marketplace event context is required")
+	}
 	if n.now != nil {
 		summary.Timestamp = n.now().UTC()
 	} else {
 		summary.Timestamp = time.Now().UTC()
-	}
-	if ctx == nil {
-		ctx = context.Background()
 	}
 	writeTimeout := n.writeTimeout
 	if writeTimeout <= 0 {

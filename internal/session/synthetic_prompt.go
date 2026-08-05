@@ -140,7 +140,10 @@ func (m *Manager) parseSyntheticPromptRequest(
 
 	turnID := strings.TrimSpace(opts.TurnID)
 	if turnID == "" {
-		turnID = m.newPromptTurnID()
+		turnID, err = m.newPromptTurnID()
+		if err != nil {
+			return promptRequest{}, err
+		}
 	}
 
 	return promptRequest{
@@ -229,7 +232,9 @@ func (m *Manager) startNextQueuedSyntheticPrompt(sessionID string) {
 		return
 	}
 
-	go m.forwardQueuedSyntheticPrompt(target, item.out, source)
+	m.startTrackedPromptTask(func() {
+		m.forwardQueuedSyntheticPrompt(target, item.out, source)
+	})
 }
 
 func (m *Manager) claimQueuedSyntheticPrompt(sessionID string) (queuedSyntheticPrompt, bool) {

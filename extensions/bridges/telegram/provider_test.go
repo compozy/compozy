@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -20,6 +19,7 @@ import (
 	bridgepkg "github.com/compozy/compozy/internal/bridges/contract"
 	"github.com/compozy/compozy/internal/bridgesdk"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
+	"github.com/compozy/compozy/internal/extensiontest"
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/testutil"
 )
@@ -2207,6 +2207,10 @@ func TestTelegramBotClientAndClassificationHelpers(t *testing.T) {
 		botToken:   "telegram-token",
 		httpClient: server.Client(),
 	}
+	var nilContext context.Context
+	if _, err := client.GetMe(nilContext); err == nil {
+		t.Fatal("GetMe(nil context) error = nil, want context validation failure")
+	}
 	if err := client.DeleteMessage(
 		context.Background(),
 		telegramDeleteMessageRequest{ChatID: "42", MessageID: 99},
@@ -2289,8 +2293,8 @@ func TestTelegramBotClientAndClassificationHelpers(t *testing.T) {
 		if !errors.Is(err, closeErr) {
 			t.Fatalf("callTelegram() error = %v, want response body close failure", err)
 		}
-		var rateLimitErr *bridgesdk.RateLimitError
-		if !errors.As(err, &rateLimitErr) || rateLimitErr.RetryAfter != 2*time.Second {
+		rateLimitErr, rateLimitErrMatched := errors.AsType[*bridgesdk.RateLimitError](err)
+		if !rateLimitErrMatched || rateLimitErr.RetryAfter != 2*time.Second {
 			t.Fatalf("callTelegram() error = %v, want rate limit with two-second retry", err)
 		}
 		if got, want := bridgesdk.ClassifyError(err).Class, bridgesdk.ErrorClassRateLimit; got != want {
@@ -2358,8 +2362,8 @@ func TestTelegramBotClientAndClassificationHelpers(t *testing.T) {
 				&result,
 				bridgesdk.HTTPResponseCommitOnSuccessStatus,
 			)
-			var httpErr *bridgesdk.HTTPError
-			if !errors.As(err, &httpErr) || httpErr.StatusCode != testCase.statusCode {
+			httpErr, httpErrMatched := errors.AsType[*bridgesdk.HTTPError](err)
+			if !httpErrMatched || httpErr.StatusCode != testCase.statusCode {
 				t.Fatalf(
 					"callTelegram(%d) error = %T %v, want first-response HTTPError",
 					testCase.statusCode,
@@ -2431,8 +2435,9 @@ func TestTelegramBotClientAndClassificationHelpers(t *testing.T) {
 	}
 
 	httpErr := classifyTelegramHTTPError(0, telegramAPIEnvelope[json.RawMessage]{ErrorCode: 502})
-	var typedHTTPErr *bridgesdk.HTTPError
-	if !errors.As(httpErr, &typedHTTPErr) {
+
+	typedHTTPErr, typedHTTPErrMatched := errors.AsType[*bridgesdk.HTTPError](httpErr)
+	if !typedHTTPErrMatched {
 		t.Fatalf("classifyTelegramHTTPError(default) = %T, want *HTTPError", httpErr)
 	}
 	if got, want := typedHTTPErr.Message, "telegram bot api error 502"; got != want {
@@ -2776,7 +2781,7 @@ func TestRunServeReturnsOnEOF(t *testing.T) {
 
 	done := make(chan error, 1)
 	go func() {
-		done <- run([]string{"serve"}, strings.NewReader(""), io.Discard, io.Discard)
+		done <- run([]string{"serve"}, io.NopCloser(strings.NewReader("")), io.Discard, io.Discard)
 	}()
 
 	select {
@@ -3017,50 +3022,16 @@ func writeTelegramAPIResponse(t *testing.T, w http.ResponseWriter, result any) {
 func newRuntimePeerPair(t *testing.T) (*telegramProvider, *bridgesdk.Peer, func()) {
 	t.Helper()
 
-	hostConn, runtimeConn := net.Pipe()
 	runtime, err := newTelegramProvider(io.Discard)
 	if err != nil {
 		t.Fatalf("newTelegramProvider() error = %v", err)
 	}
-
-	hostPeer := bridgesdk.NewPeer(hostConn, hostConn)
-	ctx, cancel := context.WithCancel(context.Background())
-	errCh := make(chan error, 2)
-	go func() { errCh <- runtime.serve(runtimeConn, runtimeConn) }()
-	go func() { errCh <- hostPeer.Serve(ctx) }()
-
-	var once sync.Once
-	cleanup := func() {
-		once.Do(func() {
-			cancel()
-			runtime.lifecycle.Stop()
-			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 2*time.Second)
-			if err := runtime.http.Shutdown(shutdownCtx); err != nil {
-				t.Fatalf("provider HTTP shutdown error = %v", err)
-			}
-			shutdownCancel()
-			if err := hostConn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
-				t.Errorf("host connection close error = %v", err)
-			}
-			if err := runtimeConn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
-				t.Errorf("runtime connection close error = %v", err)
-			}
-			for range 2 {
-				err := <-errCh
-				if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, net.ErrClosed) {
-					continue
-				}
-				if strings.Contains(err.Error(), "closed") {
-					continue
-				}
-				t.Fatalf("runtime peer serve error = %v", err)
-			}
-			if err := runtime.lifecycle.Wait(context.Background()); err != nil {
-				t.Fatalf("provider lifecycle wait error = %v", err)
-			}
-		})
-	}
-
+	hostPeer, cleanup := extensiontest.NewRuntimePeerPair(t, extensiontest.RuntimePeerPairConfig{
+		ServeRuntime: runtime.serve,
+		Stop:         runtime.lifecycle.Stop,
+		Shutdown:     runtime.http.Shutdown,
+		Wait:         runtime.lifecycle.Wait,
+	})
 	return runtime, hostPeer, cleanup
 }
 

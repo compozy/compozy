@@ -92,7 +92,7 @@ func newAutomationSuggestionDismissCommand(deps commandDeps, workspaceRef *strin
 func resolveSuggestionWorkspaceID(
 	cmd *cobra.Command,
 	deps commandDeps,
-	client DaemonClient,
+	client workspaceLookupClient,
 	workspaceRef string,
 ) (string, error) {
 	resolution, err := resolveCommandWorkspace(

@@ -9,7 +9,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -353,25 +352,26 @@ func postLinearProviderWebhook(t *testing.T, webhookURL string, payload map[stri
 		t.Fatalf("http.NewRequest() error = %v", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("linear-signature", linearProviderSignature(linearProviderWebhookSecret, body))
+	req.Header.Set("linear-signature", linearProviderSignature(t, linearProviderWebhookSecret, body))
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("webhook request error = %v", err)
 	}
 	defer func() {
-		_ = resp.Body.Close()
+		closeProviderIntegrationBody(t, resp.Body)
 	}()
 
-	bodyBytes, _ := io.ReadAll(resp.Body)
+	bodyBytes := readProviderIntegrationBody(t, resp.Body)
 	if got, want := resp.StatusCode, http.StatusOK; got != want {
 		t.Fatalf("webhook status = %d, want %d (body=%s)", got, want, strings.TrimSpace(string(bodyBytes)))
 	}
 }
 
-func linearProviderSignature(secret string, body []byte) string {
+func linearProviderSignature(t testing.TB, secret string, body []byte) string {
+	t.Helper()
 	mac := hmac.New(sha256.New, []byte(secret))
-	_, _ = mac.Write(body)
+	mustWriteProviderIntegrationHash(t, mac, body)
 	return hex.EncodeToString(mac.Sum(nil))
 }
 
@@ -465,9 +465,14 @@ func newLinearProviderAPIServer(t *testing.T) *linearProviderAPIServer {
 	mock.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/oauth/token":
-			bodyBytes, _ := io.ReadAll(r.Body)
-			_ = r.Body.Close()
-			values, _ := url.ParseQuery(string(bodyBytes))
+			bodyBytes := readProviderIntegrationBody(t, r.Body)
+			closeProviderIntegrationBody(t, r.Body)
+			values, err := url.ParseQuery(string(bodyBytes))
+			if err != nil {
+				t.Errorf("parse OAuth form error = %v", err)
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
 			mock.recordCall(linearProviderAPICall{
 				Operation: "oauth_token",
 				Path:      r.URL.Path,
@@ -476,18 +481,20 @@ func newLinearProviderAPIServer(t *testing.T) *linearProviderAPIServer {
 					"scope":      values.Get("scope"),
 				},
 			})
-			_ = json.NewEncoder(w).Encode(map[string]any{
+			writeProviderIntegrationJSON(t, w, map[string]any{
 				"access_token": "oauth-access-token",
 				"expires_in":   3600,
 			})
 			return
 		case "/graphql":
 			payload := map[string]any{}
-			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
+			decodeErr := json.NewDecoder(r.Body).Decode(&payload)
+			closeProviderIntegrationBody(t, r.Body)
+			if decodeErr != nil {
+				t.Errorf("decode GraphQL request error = %v", decodeErr)
+				http.Error(w, decodeErr.Error(), http.StatusBadRequest)
 				return
 			}
-			_ = r.Body.Close()
 			query, _ := payload["query"].(string)
 			variables, _ := payload["variables"].(map[string]any)
 			authHeader := r.Header.Get("Authorization")
@@ -505,7 +512,7 @@ func newLinearProviderAPIServer(t *testing.T) *linearProviderAPIServer {
 					Operation:     "viewer",
 					Path:          r.URL.Path,
 				})
-				_ = json.NewEncoder(w).Encode(map[string]any{
+				writeProviderIntegrationJSON(t, w, map[string]any{
 					"data": map[string]any{
 						"viewer": map[string]any{
 							"id":          viewerID,
@@ -529,7 +536,7 @@ func newLinearProviderAPIServer(t *testing.T) *linearProviderAPIServer {
 					Path:          r.URL.Path,
 					Variables:     variables,
 				})
-				_ = json.NewEncoder(w).Encode(map[string]any{
+				writeProviderIntegrationJSON(t, w, map[string]any{
 					"data": map[string]any{
 						"commentCreate": map[string]any{
 							"success": true,
@@ -555,7 +562,7 @@ func newLinearProviderAPIServer(t *testing.T) *linearProviderAPIServer {
 					Path:          r.URL.Path,
 					Variables:     variables,
 				})
-				_ = json.NewEncoder(w).Encode(map[string]any{
+				writeProviderIntegrationJSON(t, w, map[string]any{
 					"data": map[string]any{
 						"commentUpdate": map[string]any{
 							"success": true,
@@ -584,7 +591,7 @@ func newLinearProviderAPIServer(t *testing.T) *linearProviderAPIServer {
 					Path:          r.URL.Path,
 					Variables:     variables,
 				})
-				_ = json.NewEncoder(w).Encode(map[string]any{
+				writeProviderIntegrationJSON(t, w, map[string]any{
 					"data": map[string]any{
 						"agentActivityCreate": map[string]any{
 							"success": true,

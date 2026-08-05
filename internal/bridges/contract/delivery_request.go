@@ -104,6 +104,12 @@ func (s DeliverySnapshot) validateIdentity() error {
 		{s.TurnID, "delivery snapshot turn id"},
 		{s.BridgeInstanceID, "delivery snapshot bridge instance id"},
 	} {
+		if required.label == "delivery snapshot id" || required.label == "delivery snapshot bridge instance id" {
+			if err := requireOpaqueIdentity(required.value, required.label); err != nil {
+				return err
+			}
+			continue
+		}
 		if err := requireField(required.value, required.label); err != nil {
 			return err
 		}
@@ -166,12 +172,9 @@ func (s DeliverySnapshot) validateOperationReference() error {
 }
 
 func (s DeliverySnapshot) normalize() DeliverySnapshot {
-	s.DeliveryID = strings.TrimSpace(s.DeliveryID)
 	s.SessionID = strings.TrimSpace(s.SessionID)
 	s.TurnID = strings.TrimSpace(s.TurnID)
-	s.BridgeInstanceID = strings.TrimSpace(s.BridgeInstanceID)
 	s.RoutingKey = s.RoutingKey.normalize()
-	s.DeliveryTarget = s.DeliveryTarget.normalize()
 	s.LatestEventType = normalizeDeliveryEventType(s.LatestEventType)
 	s.Operation = s.Operation.Normalize()
 	if s.Operation == "" {

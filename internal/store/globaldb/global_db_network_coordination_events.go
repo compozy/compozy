@@ -132,12 +132,16 @@ func appendCoordinationEventSummary(
 	if err != nil {
 		return fmt.Errorf("store: marshal coordination event: %w", err)
 	}
+	eventID, err := store.NewID("sum")
+	if err != nil {
+		return fmt.Errorf("store: generate coordination event id: %w", err)
+	}
 	_, err = exec.ExecContext(
 		ctx,
 		`INSERT INTO event_summaries
         (id, workspace_id, type, content_json, task_id, run_id, actor_kind, actor_id, summary, timestamp)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		store.NewID("sum"),
+		eventID,
 		ref.WorkspaceID,
 		eventType,
 		string(content),

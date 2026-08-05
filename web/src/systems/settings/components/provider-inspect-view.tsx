@@ -10,6 +10,7 @@ import {
 } from "@/systems/model-catalog";
 
 import type { SettingsProviderEntry } from "../types";
+import { ProviderLoginDescriptorView } from "./provider-login-descriptor";
 import { SettingsSourceBadge } from "./settings-source-badge";
 
 interface ProviderInspectViewProps {
@@ -90,6 +91,14 @@ export function ProviderInspectView({ provider }: ProviderInspectViewProps) {
             <AuthStatusValue
               state={provider.auth_status.state}
               message={provider.auth_status.message}
+            />
+          </Row>
+        ) : null}
+        {provider.auth_status?.login ? (
+          <Row label="Login CLI" align="start">
+            <ProviderLoginDescriptorView
+              login={provider.auth_status.login}
+              testId="inspect-login-descriptor"
             />
           </Row>
         ) : null}

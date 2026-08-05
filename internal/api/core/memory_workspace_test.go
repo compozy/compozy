@@ -53,15 +53,14 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 		if err := os.MkdirAll(workspace, 0o755); err != nil {
 			t.Fatalf("MkdirAll(workspace) error = %v", err)
 		}
-		if err := store.Write(
+		if err := store.Write(t.Context(),
 			memcontract.ScopeGlobal,
 			"global.md",
-			[]byte(memoryDocument(t, "Global", memcontract.TypeUser, "hello")),
-		); err != nil {
+			[]byte(memoryDocument(t, "Global", memcontract.TypeUser, "hello"))); err != nil {
 			t.Fatalf("Write(global) error = %v", err)
 		}
-		if err := store.ForWorkspace(workspace).
-			Write(memcontract.ScopeWorkspace, "workspace.md", []byte(memoryDocument(t, "Workspace", memcontract.TypeProject, "world"))); err != nil {
+		if err := store.ForWorkspace(workspace).Write(t.Context(),
+			memcontract.ScopeWorkspace, "workspace.md", []byte(memoryDocument(t, "Workspace", memcontract.TypeProject, "world"))); err != nil {
 			t.Fatalf("Write(workspace) error = %v", err)
 		}
 
@@ -203,11 +202,10 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 			if err := agentStore.EnsureDirs(); err != nil {
 				t.Fatalf("Store.EnsureDirs(%s) error = %v", agentName, err)
 			}
-			if err := agentStore.Write(
+			if err := agentStore.Write(t.Context(),
 				memcontract.ScopeAgent,
 				agentName+".md",
-				[]byte(memoryDocument(t, agentName, memcontract.TypeFeedback, "agent memory")),
-			); err != nil {
+				[]byte(memoryDocument(t, agentName, memcontract.TypeFeedback, "agent memory"))); err != nil {
 				t.Fatalf("Store.Write(%s) error = %v", agentName, err)
 			}
 		}
@@ -469,6 +467,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 		for idx := range 205 {
 			filename := fmt.Sprintf("health-%03d.md", idx)
 			if err := workspaceStore.Write(
+				t.Context(),
 				memcontract.ScopeWorkspace,
 				filename,
 				[]byte(memoryDocument(t, fmt.Sprintf("Health %03d", idx), memcontract.TypeReference, "health count")),
@@ -577,11 +576,10 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 			t.Fatalf("EnsureDirs() error = %v", err)
 		}
 		openCoreTestMemoryCatalog(t, store)
-		if err := store.Write(
+		if err := store.Write(t.Context(),
 			memcontract.ScopeWorkspace,
 			"orphan.md",
-			[]byte(memoryDocument(t, "Orphan", memcontract.TypeProject, "orphan signal")),
-		); err != nil {
+			[]byte(memoryDocument(t, "Orphan", memcontract.TypeProject, "orphan signal"))); err != nil {
 			t.Fatalf("Write(workspace) error = %v", err)
 		}
 		if _, err := store.Search(context.Background(), "orphan signal", memcontract.SearchOptions{
@@ -630,11 +628,10 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 			t.Fatalf("EnsureDirs() error = %v", err)
 		}
 		openCoreTestMemoryCatalog(t, store)
-		if err := store.Write(
+		if err := store.Write(t.Context(),
 			memcontract.ScopeWorkspace,
 			"project.md",
-			[]byte(memoryDocument(t, "Project", memcontract.TypeProject, "common signal")),
-		); err != nil {
+			[]byte(memoryDocument(t, "Project", memcontract.TypeProject, "common signal"))); err != nil {
 			t.Fatalf("Write(workspace) error = %v", err)
 		}
 		since := time.Now().Add(-time.Second).UTC()

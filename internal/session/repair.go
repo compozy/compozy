@@ -225,7 +225,7 @@ func analyzeRepairEvents(events []store.SessionEvent) repairAnalysis {
 		if !ok {
 			continue
 		}
-		turnID := strings.TrimSpace(firstNonEmpty(event.TurnID, agentEvent.TurnID))
+		turnID := firstTrimmedNonEmpty(event.TurnID, agentEvent.TurnID)
 		if turnID == "" || eventType == EventTypeSessionStopped {
 			continue
 		}

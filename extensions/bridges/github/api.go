@@ -246,7 +246,7 @@ func (c *githubClient) newRequest(
 	installationID int64,
 ) (*http.Request, error) {
 	if ctx == nil {
-		ctx = context.Background()
+		return nil, errors.New("github: api request context is required")
 	}
 
 	endpoint, err := joinGitHubURL(c.cfg.apiBaseURL, path)

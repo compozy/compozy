@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	redactpkg "github.com/compozy/compozy/internal/redact"
 )
@@ -29,6 +30,8 @@ func NewBroker(transport DeliveryTransport, opts ...DeliveryBrokerOption) *Broke
 		metricPersistIssues: make(map[string]deliveryMetricPersistenceIssue),
 		metricWakeCh:        make(chan struct{}, 1),
 		registrationsReady:  true,
+		phase:               brokerPhaseRunning,
+		closed:              make(chan struct{}),
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -59,41 +62,6 @@ func NewBroker(transport DeliveryTransport, opts ...DeliveryBrokerOption) *Broke
 	return broker
 }
 
-// SetTransport swaps the negotiated extension-delivery transport used by the broker.
-func (b *Broker) SetTransport(transport DeliveryTransport) {
-	if b == nil {
-		return
-	}
-	b.mu.Lock()
-	b.transport = transport
-	routes := make([]*routeWorker, 0, len(b.routes))
-	for _, route := range b.routes {
-		routes = append(routes, route)
-	}
-	b.mu.Unlock()
-	for _, route := range routes {
-		b.signalRoute(route)
-	}
-}
-
-// Close stops every background route worker.
-func (b *Broker) Close() {
-	if b == nil {
-		return
-	}
-	if b.cancel != nil {
-		b.cancel()
-	}
-	b.wg.Wait()
-	if b.ledgerStore != nil {
-		flushCtx, cancel := context.WithTimeout(context.Background(), b.requestTimeout)
-		if err := b.flushDirtyDeliveryMetrics(flushCtx, false); err != nil {
-			b.setDeliveryMetricPersistenceError(err)
-		}
-		cancel()
-	}
-}
-
 // RegisterPromptDelivery binds one prompted session turn to a live delivery
 // projection and optionally seeds the broker from already-persisted turn events.
 func (b *Broker) RegisterPromptDelivery(
@@ -111,6 +79,12 @@ func (b *Broker) RegisterPromptDelivery(
 	}
 	b.registrationMu.Lock()
 	defer b.registrationMu.Unlock()
+	operationCtx, finishOperation, err := b.beginMutableOperation(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer finishOperation()
+	ctx = operationCtx
 
 	normalized := reg.normalize()
 	if err := normalized.Validate(); err != nil {
@@ -146,6 +120,9 @@ func (b *Broker) RegisterPromptDelivery(
 	b.mu.Unlock()
 
 	if err := b.createDeliveryLedgerRecord(ctx, delivery, createdAt); err != nil {
+		return nil, err
+	}
+	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 
@@ -220,7 +197,10 @@ func (b *Broker) reserveDeliveryIDLocked(requestedID string) (string, error) {
 		return requestedID, nil
 	}
 	for {
-		deliveryID := newDeliveryID()
+		deliveryID, err := newDeliveryID()
+		if err != nil {
+			return "", fmt.Errorf("bridges: generate delivery id: %w", err)
+		}
 		if _, exists := b.deliveries[deliveryID]; !exists {
 			return deliveryID, nil
 		}
@@ -238,6 +218,12 @@ func (b *Broker) Deliver(ctx context.Context, evt DeliveryEvent) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	operationCtx, finishOperation, err := b.beginMutableOperation(ctx)
+	if err != nil {
+		return err
+	}
+	defer finishOperation()
+	ctx = operationCtx
 
 	normalized := evt.normalize()
 	if err := normalized.Validate(); err != nil {
@@ -247,6 +233,9 @@ func (b *Broker) Deliver(ctx context.Context, evt DeliveryEvent) error {
 	routeHash, err := normalized.RoutingKey.Hash()
 	if err != nil {
 		return fmt.Errorf("bridges: hash delivery routing key: %w", err)
+	}
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 
 	b.mu.Lock()
@@ -292,13 +281,15 @@ func (b *Broker) Snapshot(ctx context.Context, deliveryID string) (*DeliverySnap
 		return nil, err
 	}
 
-	trimmed := strings.TrimSpace(deliveryID)
-	if trimmed == "" {
+	if deliveryID == "" {
 		return nil, errors.New("bridges: delivery snapshot id is required")
+	}
+	if !utf8.ValidString(deliveryID) {
+		return nil, errors.New("bridges: delivery snapshot id must be valid UTF-8")
 	}
 
 	b.mu.Lock()
-	delivery := b.deliveries[trimmed]
+	delivery := b.deliveries[deliveryID]
 	if delivery == nil {
 		b.mu.Unlock()
 		return nil, ErrDeliveryNotFound
@@ -320,11 +311,20 @@ func (b *Broker) ProjectEvent(ctx context.Context, sessionID string, event Deliv
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	operationCtx, finishOperation, err := b.beginMutableOperation(ctx)
+	if err != nil {
+		return err
+	}
+	defer finishOperation()
+	ctx = operationCtx
 
 	sessionID = strings.TrimSpace(sessionID)
 	turnID := strings.TrimSpace(event.TurnID)
 	if sessionID == "" || turnID == "" {
 		return nil
+	}
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 
 	b.mu.Lock()
@@ -364,6 +364,12 @@ func (b *Broker) FailSession(ctx context.Context, sessionID string, reason strin
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	operationCtx, finishOperation, err := b.beginMutableOperation(ctx)
+	if err != nil {
+		return err
+	}
+	defer finishOperation()
+	ctx = operationCtx
 
 	sessionID = strings.TrimSpace(sessionID)
 	if sessionID == "" {
@@ -374,6 +380,9 @@ func (b *Broker) FailSession(ctx context.Context, sessionID string, reason strin
 		reason = sessionStoppedDeliveryMessage
 	}
 	reason = redactpkg.String(reason)
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 
 	type pendingSignal struct {
 		route *routeWorker

@@ -12,36 +12,67 @@ func (m *Service) reconcileTaskWithStore(
 	record Task,
 	actor ActorContext,
 ) (Task, error) {
-	dependencies, err := store.ListDependencies(ctx, record.ID)
+	reconciled, transition, changed, err := m.reconcileTaskMutationWithStore(ctx, store, record, actor)
 	if err != nil {
 		return Task{}, err
 	}
+	if changed {
+		m.dispatchTaskStatusChangedAfterWrite(
+			ctx,
+			transition.Task,
+			transition.PreviousStatus,
+			transition.Task.Status,
+			actor,
+		)
+	}
+	return reconciled, nil
+}
+
+func (m *Service) reconcileTaskMutationWithStore(
+	ctx context.Context,
+	store DeleteTaskMutationStore,
+	record Task,
+	actor ActorContext,
+) (Task, StatusTransition, bool, error) {
+	return m.reconcileTaskMutationWithStoreAt(ctx, store, record, actor, m.now().UTC())
+}
+
+func (m *Service) reconcileTaskMutationWithStoreAt(
+	ctx context.Context,
+	store DeleteTaskMutationStore,
+	record Task,
+	actor ActorContext,
+	commandAt time.Time,
+) (Task, StatusTransition, bool, error) {
+	dependencies, err := store.ListDependencies(ctx, record.ID)
+	if err != nil {
+		return Task{}, StatusTransition{}, false, err
+	}
 	runs, err := store.ListTaskRuns(ctx, RunQuery{TaskID: record.ID})
 	if err != nil {
-		return Task{}, err
+		return Task{}, StatusTransition{}, false, err
 	}
 
 	canonicalStatus, err := m.canonicalTaskStatusWithStore(ctx, store, record, dependencies, runs)
 	if err != nil {
-		return Task{}, err
+		return Task{}, StatusTransition{}, false, err
 	}
 	if record.Status.Normalize() == canonicalStatus.Normalize() {
-		return record, nil
+		return record, StatusTransition{}, false, nil
 	}
 
 	previousStatus := record.Status
 	record.Status = canonicalStatus
-	record.UpdatedAt = m.now().UTC()
+	record.UpdatedAt = commandAt.UTC()
 	if isTerminalTaskStatus(record.Status) {
 		record.ClosedAt = record.UpdatedAt
 	} else {
 		record.ClosedAt = time.Time{}
 	}
 	if err := store.UpdateTask(ctx, record, actor); err != nil {
-		return Task{}, err
+		return Task{}, StatusTransition{}, false, err
 	}
-	m.dispatchTaskStatusChangedAfterWrite(ctx, record, previousStatus, record.Status, actor)
-	return record, nil
+	return record, StatusTransition{Task: record, PreviousStatus: previousStatus}, true, nil
 }
 
 func (m *Service) reconcileTaskCascade(ctx context.Context, taskID string, actor ActorContext) (Task, error) {

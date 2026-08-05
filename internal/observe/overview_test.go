@@ -105,9 +105,7 @@ func (f *overviewFixture) seedRun(t *testing.T, run taskpkg.Run) {
 	if run.QueuedAt.IsZero() {
 		run.QueuedAt = f.now.Add(-2 * time.Hour)
 	}
-	if err := f.registry.CreateTaskRun(observeTestContext(t), run); err != nil {
-		t.Fatalf("CreateTaskRun(%q) error = %v", run.ID, err)
-	}
+	seedObserveRunSnapshot(t, f.registry, run)
 }
 
 func (f *overviewFixture) seedUsage(
@@ -225,7 +223,9 @@ func TestQueryObserveOverviewComposition(t *testing.T) {
 		today := store.LocalDayStart(fixture.now, 0).Add(2 * time.Hour)
 		yesterday := store.LocalDayStart(fixture.now, 1).Add(2 * time.Hour)
 
-		fixture.seedTask(t, taskpkg.Task{ID: "task-a", Title: "Task A", Status: taskpkg.TaskStatusCompleted})
+		fixture.seedTask(t, taskpkg.Task{
+			ID: "task-a", Title: "Task A", Status: taskpkg.TaskStatusCompleted, MaxAttempts: 4,
+		})
 		fixture.seedRun(t, taskpkg.Run{
 			ID: "run-a1", TaskID: "task-a",
 			Status: taskpkg.TaskRunStatusCompleted, EndedAt: today,

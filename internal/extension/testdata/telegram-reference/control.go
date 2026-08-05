@@ -36,12 +36,3 @@ func referenceIdentityCheck() bridgepkg.BridgeCheckRecord {
 		"The reference adapter does not call Telegram identity APIs; use the bundled Telegram bridge to verify credentials.",
 	)
 }
-
-func (r *telegramReferenceRuntime) healthCheck() error {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	if strings.TrimSpace(r.lastError) == "" {
-		return nil
-	}
-	return errors.New(strings.TrimSpace(r.lastError))
-}

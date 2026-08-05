@@ -7,7 +7,10 @@ import (
 	"sync/atomic"
 )
 
-const minDynamicSecretLength = 8
+const (
+	minDynamicSecretLength  = 8
+	minRequiredSecretLength = 1
+)
 
 var dynamicSecrets = newDynamicSecretRegistry()
 
@@ -23,21 +26,26 @@ func newDynamicSecretRegistry() *dynamicSecretRegistry {
 	return registry
 }
 
-// RegisterDynamicSecret includes runtime-resolved material in subsequent redaction calls.
-// The returned cleanup is idempotent and removes one registration reference.
+// RegisterDynamicSecret registers heuristic runtime material and returns an idempotent cleanup.
 func RegisterDynamicSecret(value string) func() {
+	return registerSecret(value, minDynamicSecretLength)
+}
+
+// RegisterRequiredSecret registers nonblank caller-classified secret material and returns an idempotent cleanup.
+func RegisterRequiredSecret(value string) func() {
+	return registerSecret(value, minRequiredSecretLength)
+}
+
+func registerSecret(value string, minimumLength int) func() {
 	secret := strings.TrimSpace(value)
-	if len(secret) < minDynamicSecretLength {
+	if len(secret) < minimumLength {
 		return func() {}
 	}
 	dynamicSecrets.register(secret)
 
-	var once sync.Once
-	return func() {
-		once.Do(func() {
-			dynamicSecrets.unregister(secret)
-		})
-	}
+	return sync.OnceFunc(func() {
+		dynamicSecrets.unregister(secret)
+	})
 }
 
 func (r *dynamicSecretRegistry) register(secret string) {

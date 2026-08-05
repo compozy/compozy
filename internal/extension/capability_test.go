@@ -83,8 +83,8 @@ func TestCapabilityCheckerCheckShouldReturnCapabilityDenied(t *testing.T) {
 		t.Fatal("Check() error = nil, want capability denied")
 	}
 
-	var denied *ErrCapabilityDenied
-	if !errors.As(err, &denied) {
+	denied, deniedMatched := errors.AsType[*ErrCapabilityDenied](err)
+	if !deniedMatched {
 		t.Fatalf("Check() error type = %T, want *ErrCapabilityDenied", err)
 	}
 	if denied.Code() != CapabilityDeniedCode {
@@ -160,8 +160,8 @@ func TestCapabilityCheckerCheckHostAPIShouldEnforcePermissions(t *testing.T) {
 				t.Fatal("CheckHostAPI() error = nil, want capability denied")
 			}
 
-			var denied *ErrCapabilityDenied
-			if !errors.As(err, &denied) {
+			denied, deniedMatched := errors.AsType[*ErrCapabilityDenied](err)
+			if !deniedMatched {
 				t.Fatalf("CheckHostAPI() error type = %T, want *ErrCapabilityDenied", err)
 			}
 			if denied.Data.Method != tt.method {

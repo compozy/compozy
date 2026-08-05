@@ -116,6 +116,13 @@ The existing lifecycle routes remain under `/api/skills/marketplace`:
 Install, update, and remove mutations reject manual skills without marketplace provenance. Successful
 mutations refresh the daemon skills registry before returning.
 
+An install or update can succeed with `cleanup_diagnostics` after the new files are committed. Each
+diagnostic contains an `operation` such as `close_download_stream` or `remove_replaced_backup`.
+Structured CLI output and the HTTP/UDS response preserve this array; human and TOON output list the
+operation names. These warnings do not mean the install was rolled back. Inspect the named cleanup
+step and any local staging files before deciding whether manual cleanup is needed; do not retry the
+mutation automatically.
+
 ## Provenance And Verification
 
 Marketplace provenance looks like this:

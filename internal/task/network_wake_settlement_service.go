@@ -31,6 +31,7 @@ func (m *Service) SettleNetworkWake(
 		if _, err := m.publishCompletedLeaseSettlement(
 			ctx,
 			&CompletedRunSettlement{Run: result.Run},
+			"",
 			actor,
 		); err != nil {
 			return nil, err

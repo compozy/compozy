@@ -218,8 +218,12 @@ exact zones. In the browser every shared boundary — split or island — is one
 tiled unit's free edges and corners resize that unit alone, stopping at the nearest island.
 
 `--resource` is exclusive with inline arrangement fields. Declarative `window_layout` resources are
-discovered through `compozy__resources_list` and may be global or workspace-scoped; a workspace resource
-wins when IDs collide.
+data-only topology templates: strict, versioned, workspace-bound when scoped locally, with `any`,
+`landscape`, or `portrait` aspect variants plus explicit participant slots and overflow policy. A
+resource cannot execute code or receive pointer events. Discover them through
+`compozy__resources_list`; they may be global or workspace-scoped, and a workspace resource wins when
+IDs collide. Applying one runs the same preview, revision/CAS, validation, commit, event, and
+history pipeline as an inline arrange command.
 
 ## Native Tools
 

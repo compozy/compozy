@@ -82,6 +82,7 @@ func StatusForTaskError(err error) int {
 		errors.Is(err, taskpkg.ErrInvalidClaimToken),
 		errors.Is(err, taskpkg.ErrLeaseExpired),
 		errors.Is(err, taskpkg.ErrActiveRunLease),
+		errors.Is(err, taskpkg.ErrTerminalRunCommandInProgress),
 		errors.Is(err, taskpkg.ErrWorkspaceActiveRunCapReached):
 		return http.StatusConflict
 	default:

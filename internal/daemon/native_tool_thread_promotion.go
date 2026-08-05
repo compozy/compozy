@@ -149,7 +149,10 @@ func (n *daemonNativeTools) taskFanOutRuns(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	groupID := store.NewID("tdg")
+	groupID, err := store.NewID("tdg")
+	if err != nil {
+		return toolspkg.ToolResult{}, fmt.Errorf("daemon: generate task designation group id: %w", err)
+	}
 	runs := make([]taskpkg.Run, 0, len(input.Designations))
 	for index := range input.Designations {
 		run, enqueueErr := n.deps.Tasks.EnqueueRun(ctx, taskpkg.EnqueueRun{

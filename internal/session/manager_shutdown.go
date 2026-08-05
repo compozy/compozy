@@ -25,7 +25,9 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 	if err := m.shutdownCompactions(ctx); err != nil {
 		shutdownErr = errors.Join(shutdownErr, fmt.Errorf("session: shut down compactions: %w", err))
 	}
-	m.shutdownProcessWatchers()
+	if err := m.shutdownProcessWatchers(ctx); err != nil {
+		shutdownErr = errors.Join(shutdownErr, fmt.Errorf("session: shut down process watchers: %w", err))
+	}
 	if err := m.shutdownQueryStoreRuntime(ctx); err != nil {
 		shutdownErr = errors.Join(shutdownErr, fmt.Errorf("session: shut down query store runtime: %w", err))
 	}

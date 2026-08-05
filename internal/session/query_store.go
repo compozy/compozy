@@ -29,8 +29,8 @@ type queryStoreRuntime struct {
 func newDefaultQueryStoreRuntime(logger *slog.Logger) *queryStoreRuntime {
 	pool := sessiondb.NewReadOnlyPool(sessiondb.ReadOnlyPoolConfig{
 		TTL: defaultReadOnlyQueryStoreTTL,
-		Open: func(ctx context.Context, sessionID string, path string) (store.EventReadCloser, error) {
-			return sessiondb.OpenSessionDBReadOnly(ctx, sessionID, path)
+		Open: func(ctx context.Context, owner store.SessionDBOwner, path string) (store.EventReadCloser, error) {
+			return sessiondb.OpenSessionDBReadOnly(ctx, owner, path)
 		},
 	})
 	if logger == nil {
@@ -45,39 +45,40 @@ func newDefaultQueryStoreRuntime(logger *slog.Logger) *queryStoreRuntime {
 
 func (r *queryStoreRuntime) Open(
 	ctx context.Context,
-	sessionID string,
+	owner store.SessionDBOwner,
 	path string,
 ) (EventReadCloser, error) {
 	if r == nil || r.pool == nil {
 		return nil, errors.New("session: query store runtime is required")
 	}
-	return r.pool.Open(ctx, sessionID, path)
+	return r.pool.Open(ctx, owner, path)
 }
 
 func (r *queryStoreRuntime) Quiesce(
 	ctx context.Context,
-	sessionID string,
+	owner store.SessionDBOwner,
 	path string,
 ) (func(), error) {
 	if r == nil || r.pool == nil {
 		return func() {}, nil
 	}
-	return r.pool.Quiesce(ctx, sessionID, path)
+	return r.pool.Quiesce(ctx, owner, path)
 }
 
-func (r *queryStoreRuntime) Start(ctx context.Context) {
+func (r *queryStoreRuntime) Start(ctx context.Context) error {
 	if r == nil || r.pool == nil {
-		return
+		return nil
+	}
+	if ctx == nil {
+		return errors.New("session: start query store context is required")
 	}
 	r.startOnce.Do(func() {
-		if ctx == nil {
-			ctx = context.Background()
-		}
 		r.done = make(chan struct{})
 		runtimeCtx, cancel := context.WithCancel(ctx)
 		r.cancel = cancel
 		go r.sweep(runtimeCtx)
 	})
+	return nil
 }
 
 func (r *queryStoreRuntime) Shutdown(ctx context.Context) error {
@@ -118,16 +119,14 @@ func (r *queryStoreRuntime) sweep(ctx context.Context) {
 	}
 }
 
-func (m *Manager) ensureQueryStoreRuntime() {
+func (m *Manager) ensureQueryStoreRuntime() error {
 	if m.openQueryStore != nil {
-		return
+		return nil
 	}
 	runtime := newDefaultQueryStoreRuntime(m.logger)
 	m.queryStoreRuntime = runtime
 	m.openQueryStore = runtime.Open
-	if m.lifecycleCtx != nil {
-		runtime.Start(m.lifecycleCtx)
-	}
+	return runtime.Start(m.lifecycleCtx)
 }
 
 func (m *Manager) shutdownQueryStoreRuntime(ctx context.Context) error {

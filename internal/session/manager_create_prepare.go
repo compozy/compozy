@@ -40,9 +40,9 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 	if err != nil {
 		return sessionStartSpec{}, err
 	}
-	sandboxID := strings.TrimSpace(m.newSandboxID())
-	if sandboxID == "" {
-		return sessionStartSpec{}, errors.New("session: sandbox id generator returned empty id")
+	sandboxID, err := m.prepareCreateSandboxID(sandboxDisabled)
+	if err != nil {
+		return sessionStartSpec{}, err
 	}
 	lineage, err := m.normalizeCreateLineage(ctx, sessionID, sessionType, opts.Lineage)
 	if err != nil {
@@ -93,6 +93,21 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 	}, nil
 }
 
+func (m *Manager) prepareCreateSandboxID(disabled bool) (string, error) {
+	if disabled {
+		return "", nil
+	}
+	sandboxID, err := m.newSandboxID()
+	if err != nil {
+		return "", fmt.Errorf("session: generate sandbox id: %w", err)
+	}
+	sandboxID = strings.TrimSpace(sandboxID)
+	if sandboxID == "" {
+		return "", errors.New("session: sandbox id generator returned empty id")
+	}
+	return sandboxID, nil
+}
+
 func (m *Manager) prepareCreateParticipation(
 	ctx context.Context,
 	opts CreateOpts,
@@ -126,7 +141,11 @@ func (m *Manager) prepareCreateParticipation(
 func (m *Manager) createSessionID(desired string) (string, error) {
 	sessionID := strings.TrimSpace(desired)
 	if sessionID == "" {
-		sessionID = strings.TrimSpace(m.newSessionID())
+		generated, err := m.newSessionID()
+		if err != nil {
+			return "", fmt.Errorf("session: generate session id: %w", err)
+		}
+		sessionID = strings.TrimSpace(generated)
 		if sessionID == "" {
 			return "", errors.New("session: session id generator returned empty id")
 		}

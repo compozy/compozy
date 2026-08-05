@@ -11,7 +11,7 @@
     },
     "release_grade": {
       "type": "string",
-      "enum": ["broad", "feature"]
+      "enum": ["broad", "feature", "targeted"]
     },
     "scope_slug": {
       "type": "string",

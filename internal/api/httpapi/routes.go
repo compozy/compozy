@@ -11,6 +11,7 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	api := router.Group("/api")
 	registerWebhookRoutes(api, handlers)
 	api.GET("/mcp/oauth/callback", handlers.completeMCPAuthCallback)
+	api.Use(browserRequestProtectionMiddleware(handlers.boundHost))
 
 	if !isLoopbackHost(canonicalHost(handlers.boundHost)) {
 		api = api.Group("", loopbackAPIGuard(handlers.boundHost))

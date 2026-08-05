@@ -33,22 +33,23 @@ func (a *Adapter) EnsureDirs() error {
 
 // LoadPromptIndex returns the prompt-safe MEMORY.md content for a scope.
 func (a *Adapter) LoadPromptIndex(
+	ctx context.Context,
 	scope memcontract.Scope,
 ) (content string, truncated bool, err error) {
 	store, err := a.requireStore()
 	if err != nil {
 		return "", false, err
 	}
-	return store.LoadPromptIndex(scope)
+	return store.LoadPromptIndex(ctx, scope)
 }
 
 // List returns memory headers for one scope.
-func (a *Adapter) List(scope memcontract.Scope) ([]memcontract.Header, error) {
+func (a *Adapter) List(ctx context.Context, scope memcontract.Scope) ([]memcontract.Header, error) {
 	store, err := a.requireStore()
 	if err != nil {
 		return nil, err
 	}
-	return store.List(scope)
+	return store.List(ctx, scope)
 }
 
 // Recall delegates to Store.Recall.

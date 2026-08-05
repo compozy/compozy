@@ -37,9 +37,7 @@ type integrationStopCall struct {
 }
 
 type exactRunClaimStore interface {
-	GetTaskRun(context.Context, string) (taskpkg.Run, error)
-	GetTask(context.Context, string) (taskpkg.Task, error)
-	UpdateTaskRun(context.Context, taskpkg.Run) error
+	taskpkg.Store
 }
 
 type workspaceAccessIntegrationPolicy struct {
@@ -108,18 +106,43 @@ func seedNonLeasedClaimedRunIntegration(
 	if err != nil {
 		return nil, err
 	}
-	claimedBy := actor.Actor
-	run.Status = taskpkg.TaskRunStatusClaimed
-	run.ClaimedBy = &claimedBy
-	run.ClaimedAt = time.Now().UTC()
-	run.SessionID = ""
-	run.ClaimTokenHash = ""
-	run.LeaseUntil = time.Time{}
-	run.HeartbeatAt = time.Time{}
-	if err := claimStore.UpdateTaskRun(ctx, run); err != nil {
+	admissionManager, err := taskpkg.NewManager(
+		taskpkg.WithStore(claimStore),
+		taskpkg.WithManagerNow(time.Now),
+	)
+	if err != nil {
 		return nil, err
 	}
-	return &run, nil
+	_, startErr := admissionManager.StartRun(ctx, run.ID, taskpkg.StartRun{
+		IdempotencyKey: "fixture-admit:" + run.ID,
+	}, actor)
+	if startErr == nil {
+		return nil, fmt.Errorf(
+			"%w: fixture run %q unexpectedly advanced past direct admission",
+			taskpkg.ErrInvalidStatusTransition,
+			run.ID,
+		)
+	}
+	if !errors.Is(startErr, taskpkg.ErrValidation) {
+		return nil, fmt.Errorf(
+			"seed direct execution admission for run %q: expected missing session executor validation: %w",
+			run.ID,
+			startErr,
+		)
+	}
+	claimed, err := claimStore.GetTaskRun(ctx, run.ID)
+	if err != nil {
+		return nil, err
+	}
+	if claimed.Status.Normalize() != taskpkg.TaskRunStatusClaimed {
+		return nil, fmt.Errorf(
+			"%w: fixture run %q status = %q after admission",
+			taskpkg.ErrInvalidStatusTransition,
+			run.ID,
+			claimed.Status,
+		)
+	}
+	return &claimed, nil
 }
 
 type integrationSessionExecutor struct {
@@ -2633,7 +2656,7 @@ func TestTaskManagerListTasksReturnsEnrichedSummariesIntegration(t *testing.T) {
 
 	ctx := testutil.Context(t)
 	db := openTaskManagerGlobalDB(t)
-	manager := newTaskManagerIntegration(t, db)
+	manager := newTaskManagerIntegration(t, db, taskpkg.WithSessionExecutor(&integrationSessionExecutor{}))
 	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "compozy task list")
 	if err != nil {
 		t.Fatalf("DeriveHumanActorContext() error = %v", err)
@@ -2655,23 +2678,20 @@ func TestTaskManagerListTasksReturnsEnrichedSummariesIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateTask(second) error = %v", err)
 	}
+	betaRun, err := manager.EnqueueRun(ctx, taskpkg.EnqueueRun{TaskID: second.ID}, actor)
+	if err != nil {
+		t.Fatalf("EnqueueRun(second) error = %v", err)
+	}
+	betaRun, err = manager.StartRun(ctx, betaRun.ID, taskpkg.StartRun{}, actor)
+	if err != nil {
+		t.Fatalf("StartRun(second) error = %v", err)
+	}
 	if err := manager.AddDependency(ctx, taskpkg.AddDependency{
 		TaskID:          second.ID,
 		DependsOnTaskID: first.ID,
 		Kind:            taskpkg.DependencyKindBlocks,
 	}, actor); err != nil {
 		t.Fatalf("AddDependency() error = %v", err)
-	}
-	if err := db.CreateTaskRun(ctx, taskpkg.Run{
-		ID:        "run-beta",
-		TaskID:    second.ID,
-		Status:    taskpkg.TaskRunStatusRunning,
-		Attempt:   1,
-		Origin:    taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "scheduler"},
-		QueuedAt:  time.Date(2026, 4, 17, 12, 0, 0, 0, time.UTC),
-		StartedAt: time.Date(2026, 4, 17, 12, 5, 0, 0, time.UTC),
-	}); err != nil {
-		t.Fatalf("CreateTaskRun() error = %v", err)
 	}
 
 	byTitle, err := manager.ListTasks(ctx, taskpkg.Query{Search: "alpha"}, actor)
@@ -2692,8 +2712,8 @@ func TestTaskManagerListTasksReturnsEnrichedSummariesIntegration(t *testing.T) {
 	if got, want := byIdentifier[0].DependencyCount, int32(1); got != want {
 		t.Fatalf("byIdentifier[0].DependencyCount = %d, want %d", got, want)
 	}
-	if byIdentifier[0].ActiveRun == nil || byIdentifier[0].ActiveRun.ID != "run-beta" {
-		t.Fatalf("byIdentifier[0].ActiveRun = %#v, want run-beta", byIdentifier[0].ActiveRun)
+	if byIdentifier[0].ActiveRun == nil || byIdentifier[0].ActiveRun.ID != betaRun.ID {
+		t.Fatalf("byIdentifier[0].ActiveRun = %#v, want %q", byIdentifier[0].ActiveRun, betaRun.ID)
 	}
 	if len(byIdentifier[0].Dependencies) != 1 {
 		t.Fatalf("len(byIdentifier[0].Dependencies) = %d, want 1", len(byIdentifier[0].Dependencies))
@@ -2723,12 +2743,12 @@ func TestTaskManagerListTasksReturnsEnrichedSummariesIntegration(t *testing.T) {
 func TestTaskManagerCatalogMatchesCanonicalDependencyStatusIntegration(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should release a dependent when its stale dependency has a completed latest run", func(t *testing.T) {
+	t.Run("Should release a dependent when its dependency has a completed latest run", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
 		db := openTaskManagerGlobalDB(t)
-		manager := newTaskManagerIntegration(t, db)
+		manager := newTaskManagerIntegration(t, db, taskpkg.WithSessionExecutor(&integrationSessionExecutor{}))
 		actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "compozy task list")
 		if err != nil {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
@@ -2740,6 +2760,17 @@ func TestTaskManagerCatalogMatchesCanonicalDependencyStatusIntegration(t *testin
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask(dependency) error = %v", err)
+		}
+		run, err := manager.EnqueueRun(ctx, taskpkg.EnqueueRun{TaskID: dependency.ID}, actor)
+		if err != nil {
+			t.Fatalf("EnqueueRun(dependency) error = %v", err)
+		}
+		run, err = manager.StartRun(ctx, run.ID, taskpkg.StartRun{}, actor)
+		if err != nil {
+			t.Fatalf("StartRun(dependency) error = %v", err)
+		}
+		if _, err := manager.CompleteRun(ctx, run.ID, taskpkg.RunResult{}, actor); err != nil {
+			t.Fatalf("CompleteRun(dependency) error = %v", err)
 		}
 		dependent, err := manager.CreateTask(ctx, taskpkg.CreateTask{
 			Scope: taskpkg.ScopeGlobal,
@@ -2755,20 +2786,6 @@ func TestTaskManagerCatalogMatchesCanonicalDependencyStatusIntegration(t *testin
 		}, actor); err != nil {
 			t.Fatalf("AddDependency() error = %v", err)
 		}
-		now := time.Date(2026, 7, 10, 18, 0, 0, 0, time.UTC)
-		if err := db.CreateTaskRun(ctx, taskpkg.Run{
-			ID:        "run-canonical-dependency-completed",
-			TaskID:    dependency.ID,
-			Status:    taskpkg.TaskRunStatusCompleted,
-			Attempt:   1,
-			Origin:    taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "scheduler"},
-			QueuedAt:  now,
-			StartedAt: now.Add(time.Minute),
-			EndedAt:   now.Add(2 * time.Minute),
-		}); err != nil {
-			t.Fatalf("CreateTaskRun(completed) error = %v", err)
-		}
-
 		enriched, err := manager.ListTasks(ctx, taskpkg.Query{Search: dependent.Title}, actor)
 		if err != nil {
 			t.Fatalf("ListTasks() error = %v", err)
@@ -2890,7 +2907,6 @@ func TestTaskManagerRunLifecyclePersistsAndReconcilesAgainstStorage(t *testing.T
 		"task.run.completed",
 		"task.run_claimed",
 		"task.run_enqueued",
-		"task.run_session_bound",
 		"task.run_started",
 		"task.run_starting",
 		"task.status_changed",
@@ -2909,7 +2925,7 @@ func TestTaskManagerRecoverRunOnBootRequeuesBoundRunWithGlobalDB(t *testing.T) {
 
 		ctx := testutil.Context(t)
 		db := openTaskManagerGlobalDB(t)
-		manager := newTaskManagerIntegration(t, db)
+		manager := newTaskManagerIntegration(t, db, taskpkg.WithSessionExecutor(&integrationSessionExecutor{}))
 		operator, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "compozy task run")
 		if err != nil {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
@@ -3004,6 +3020,157 @@ func TestTaskManagerRecoverRunOnBootRequeuesBoundRunWithGlobalDB(t *testing.T) {
 		}
 		if got, want := retry.Run.NetworkSpecSnapshot(), originalSpec; got != want {
 			t.Fatalf("retry snapshot = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("Should reject oversized recovery audit payloads before mutating the run", func(t *testing.T) {
+		t.Parallel()
+
+		reason := strings.Repeat("<", taskpkg.MaxReasonBytes)
+		detail := strings.Repeat("<", 2*taskpkg.MaxReasonBytes)
+		sessionState := strings.Repeat("s", taskpkg.MaxReferenceBytes)
+		classification := strings.Repeat("c", taskpkg.MaxReferenceBytes)
+
+		testCases := []struct {
+			name    string
+			action  taskpkg.RunBootRecoveryAction
+			prepare func(
+				context.Context,
+				*taskpkg.Service,
+				*globaldb.GlobalDB,
+				string,
+				taskpkg.ActorContext,
+			) (*taskpkg.Run, error)
+		}{
+			{
+				name:   "Should preserve a claimed run when requeue recovery exceeds the event limit",
+				action: taskpkg.RunBootRecoveryRequeue,
+				prepare: func(
+					ctx context.Context,
+					manager *taskpkg.Service,
+					db *globaldb.GlobalDB,
+					runID string,
+					actor taskpkg.ActorContext,
+				) (*taskpkg.Run, error) {
+					claim, err := claimExactRunIntegration(ctx, manager, db, runID, actor)
+					if err != nil {
+						return nil, err
+					}
+					return &claim.Run, nil
+				},
+			},
+			{
+				name:   "Should preserve a claimed run when mark-running recovery exceeds the event limit",
+				action: taskpkg.RunBootRecoveryMarkRunning,
+				prepare: func(
+					ctx context.Context,
+					manager *taskpkg.Service,
+					db *globaldb.GlobalDB,
+					runID string,
+					actor taskpkg.ActorContext,
+				) (*taskpkg.Run, error) {
+					claim, err := claimExactRunIntegration(ctx, manager, db, runID, actor)
+					if err != nil {
+						return nil, err
+					}
+					return &claim.Run, nil
+				},
+			},
+			{
+				name:   "Should preserve a session-bound run when failed recovery exceeds the event limit",
+				action: taskpkg.RunBootRecoveryFail,
+				prepare: func(
+					ctx context.Context,
+					manager *taskpkg.Service,
+					db *globaldb.GlobalDB,
+					runID string,
+					actor taskpkg.ActorContext,
+				) (*taskpkg.Run, error) {
+					run, err := seedNonLeasedClaimedRunIntegration(ctx, manager, db, runID, actor)
+					if err != nil {
+						return nil, err
+					}
+					return manager.AttachRunSession(ctx, run.ID, "sess-oversized-recovery", actor)
+				},
+			},
+		}
+
+		for _, testCase := range testCases {
+			testCase := testCase
+			t.Run(testCase.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctx := testutil.Context(t)
+				db := openTaskManagerGlobalDB(t)
+				manager := newTaskManagerIntegration(t, db, taskpkg.WithSessionExecutor(&integrationSessionExecutor{}))
+				operator, err := taskpkg.DeriveHumanActorContext(
+					"oversized-recovery",
+					taskpkg.OriginKindCLI,
+					"compozy task recover",
+				)
+				if err != nil {
+					t.Fatalf("DeriveHumanActorContext() error = %v", err)
+				}
+				daemon, err := taskpkg.DeriveDaemonActorContext("boot-recovery", "daemon.boot")
+				if err != nil {
+					t.Fatalf("DeriveDaemonActorContext() error = %v", err)
+				}
+
+				taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+					Scope: taskpkg.ScopeGlobal,
+					Title: "Oversized boot recovery",
+				}, operator)
+				if err != nil {
+					t.Fatalf("CreateTask() error = %v", err)
+				}
+				enqueuedRun, err := manager.EnqueueRun(ctx, taskpkg.EnqueueRun{TaskID: taskRecord.ID}, operator)
+				if err != nil {
+					t.Fatalf("EnqueueRun() error = %v", err)
+				}
+				preparedRun, err := testCase.prepare(ctx, manager, db, enqueuedRun.ID, operator)
+				if err != nil {
+					t.Fatalf("prepare recovery run error = %v", err)
+				}
+				before, err := db.GetTaskRun(ctx, preparedRun.ID)
+				if err != nil {
+					t.Fatalf("GetTaskRun(before) error = %v", err)
+				}
+
+				_, err = manager.RecoverRunOnBoot(ctx, preparedRun.ID, taskpkg.RunBootRecovery{
+					Action:         testCase.action,
+					Reason:         reason,
+					SessionState:   sessionState,
+					Classification: classification,
+					Detail:         detail,
+				}, daemon)
+				if !errors.Is(err, taskpkg.ErrPayloadTooLarge) {
+					t.Fatalf("RecoverRunOnBoot(oversized audit) error = %v, want %v", err, taskpkg.ErrPayloadTooLarge)
+				}
+
+				stored, getRunErr := db.GetTaskRun(ctx, preparedRun.ID)
+				if getRunErr != nil {
+					t.Fatalf("GetTaskRun(after) error = %v", getRunErr)
+				}
+				if got, want := stored.Status.Normalize(), before.Status.Normalize(); got != want {
+					t.Fatalf("stored status = %q, want %q after rejected recovery", got, want)
+				}
+				if got, want := stored.SessionID, before.SessionID; got != want {
+					t.Fatalf("stored session_id = %q, want %q after rejected recovery", got, want)
+				}
+				if got, want := stored.Error, before.Error; got != want {
+					t.Fatalf("stored error = %q, want %q after rejected recovery", got, want)
+				}
+				if !stored.StartedAt.Equal(before.StartedAt) {
+					t.Fatalf(
+						"stored started_at = %v, want %v after rejected recovery",
+						stored.StartedAt,
+						before.StartedAt,
+					)
+				}
+				if !stored.EndedAt.Equal(before.EndedAt) {
+					t.Fatalf("stored ended_at = %v, want %v after rejected recovery", stored.EndedAt, before.EndedAt)
+				}
+			})
 		}
 	})
 }
@@ -3142,9 +3309,9 @@ func TestTaskManagerTimelineLiveReadsIntegration(t *testing.T) {
 		db,
 		taskpkg.WithSessionExecutor(executor),
 		taskpkg.WithManagerNow(func() time.Time { return fixedNow }),
-		taskpkg.WithIDGenerator(func(prefix string) string {
+		taskpkg.WithIDGenerator(func(prefix string) (string, error) {
 			counter++
-			return prefix + "-timeline-" + strconv.Itoa(counter)
+			return prefix + "-timeline-" + strconv.Itoa(counter), nil
 		}),
 	)
 	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "compozy task timeline")
@@ -3220,7 +3387,7 @@ func TestTaskManagerTimelineLiveReadsIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Timeline(page two) error = %v", err)
 	}
-	if got, want := len(pageTwo), 6; got != want {
+	if got, want := len(pageTwo), 5; got != want {
 		t.Fatalf("len(pageTwo) = %d, want %d", got, want)
 	}
 	if got, want := []string{
@@ -3229,11 +3396,9 @@ func TestTaskManagerTimelineLiveReadsIntegration(t *testing.T) {
 		pageTwo[2].EventType,
 		pageTwo[3].EventType,
 		pageTwo[4].EventType,
-		pageTwo[5].EventType,
 	}, []string{
 		"task.status_changed",
 		"task.run_starting",
-		"task.run_session_bound",
 		"task.run_started",
 		"task.run.completed",
 		"task.status_changed",
@@ -3244,7 +3409,7 @@ func TestTaskManagerTimelineLiveReadsIntegration(t *testing.T) {
 		if got, want := item.Sequence, int64(idx+4); got != want {
 			t.Fatalf("pageTwo[%d].Sequence = %d, want %d", idx, got, want)
 		}
-		if idx == 0 || idx == 5 {
+		if idx == 0 || idx == 4 {
 			if item.Run != nil {
 				t.Fatalf("pageTwo[%d].Run = %#v, want nil for task status event", idx, item.Run)
 			}
@@ -3272,9 +3437,9 @@ func TestTaskManagerRunDetailUsesPersistedRuntimeDataIntegration(t *testing.T) {
 		taskpkg.WithSessionExecutor(executor),
 		taskpkg.WithRuntimeViewReader(runtimeReader),
 		taskpkg.WithManagerNow(func() time.Time { return fixedNow }),
-		taskpkg.WithIDGenerator(func(prefix string) string {
+		taskpkg.WithIDGenerator(func(prefix string) (string, error) {
 			counter++
-			return prefix + "-detail-" + strconv.Itoa(counter)
+			return prefix + "-detail-" + strconv.Itoa(counter), nil
 		}),
 	)
 	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "compozy task run-detail")
@@ -3304,14 +3469,16 @@ func TestTaskManagerRunDetailUsesPersistedRuntimeDataIntegration(t *testing.T) {
 	}
 
 	sessionInfo := store.SessionInfo{
-		ID:          run.SessionID,
-		Name:        "Task detail session",
-		AgentName:   "codex",
-		WorkspaceID: workspaceID,
-		SessionType: "task",
-		State:       "running",
-		CreatedAt:   fixedNow,
-		UpdatedAt:   fixedNow.Add(5 * time.Minute),
+		ID:                run.SessionID,
+		Name:              "Task detail session",
+		AgentName:         "codex",
+		RuntimeStatus:     store.SessionRuntimeReady,
+		RuntimeTransition: store.SessionRuntimeTransitionInitialBind,
+		WorkspaceID:       workspaceID,
+		SessionType:       "task",
+		State:             "running",
+		CreatedAt:         fixedNow,
+		UpdatedAt:         fixedNow.Add(5 * time.Minute),
 	}
 	sessionInfo.SetNetworkSpec(run.NetworkSpecSnapshot())
 	if err := db.RegisterSession(ctx, sessionInfo); err != nil {
@@ -3322,7 +3489,9 @@ func TestTaskManagerRunDetailUsesPersistedRuntimeDataIntegration(t *testing.T) {
 	if err := os.MkdirAll(sessionDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll(%q) error = %v", sessionDir, err)
 	}
-	sessionDB, err := sessiondb.OpenSessionDB(ctx, run.SessionID, filepath.Join(sessionDir, store.SessionDatabaseName))
+	sessionDB, err := sessiondb.OpenSessionDB(ctx, store.SessionDBOwner{
+		SessionID: run.SessionID, WorkspaceID: workspaceID,
+	}, filepath.Join(sessionDir, store.SessionDatabaseName))
 	if err != nil {
 		t.Fatalf("OpenSessionDB() error = %v", err)
 	}
@@ -3469,9 +3638,9 @@ func TestTaskManagerTreeLiveViewIntegration(t *testing.T) {
 		db,
 		taskpkg.WithSessionExecutor(executor),
 		taskpkg.WithManagerNow(clock),
-		taskpkg.WithIDGenerator(func(prefix string) string {
+		taskpkg.WithIDGenerator(func(prefix string) (string, error) {
 			counter++
-			return prefix + "-tree-" + strconv.Itoa(counter)
+			return prefix + "-tree-" + strconv.Itoa(counter), nil
 		}),
 	)
 	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "compozy task live-tree")
@@ -3571,9 +3740,9 @@ func TestTaskManagerStreamSupportsReplayAndReconnectIntegration(t *testing.T) {
 		db,
 		taskpkg.WithSessionExecutor(executor),
 		taskpkg.WithManagerNow(clock),
-		taskpkg.WithIDGenerator(func(prefix string) string {
+		taskpkg.WithIDGenerator(func(prefix string) (string, error) {
 			counter++
-			return prefix + "-stream-" + strconv.Itoa(counter)
+			return prefix + "-stream-" + strconv.Itoa(counter), nil
 		}),
 	)
 	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "compozy task live-stream")
@@ -3660,17 +3829,14 @@ func TestTaskManagerStreamSupportsReplayAndReconnectIntegration(t *testing.T) {
 	}
 	liveStatusChanged := awaitIntegrationTaskStreamEvent(t, stream)
 	liveStarting := awaitIntegrationTaskStreamEvent(t, stream)
-	liveBound := awaitIntegrationTaskStreamEvent(t, stream)
 	liveStarted := awaitIntegrationTaskStreamEvent(t, stream)
 	if got, want := []string{
 		liveStatusChanged.Type,
 		liveStarting.Type,
-		liveBound.Type,
 		liveStarted.Type,
 	}, []string{
 		"task.status_changed",
 		"task.run_starting",
-		"task.run_session_bound",
 		"task.run_started",
 	}; !testutil.EqualStringSlices(got, want) {
 		t.Fatalf("live start event types = %#v, want %#v", got, want)
@@ -4051,6 +4217,230 @@ func TestTaskManagerGlobalBlockReleaseUnblockClaimableCycleIntegration(t *testin
 				reclaimed.ClaimToken,
 				reclaimed.Run.ClaimTokenHash,
 			)
+		}
+	})
+}
+
+func TestTaskManagerRejectsOversizedAuditTextBeforeMutationIntegration(t *testing.T) {
+	t.Parallel()
+
+	const oversizedAuditText = 12 * 1024
+	reason := strings.Repeat("<", oversizedAuditText)
+
+	t.Run("Should preserve a claimed run when force release audit text exceeds the event limit", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		db := openTaskManagerGlobalDB(t)
+		manager := newTaskManagerIntegration(t, db)
+		actor, err := taskpkg.DeriveHumanActorContext(
+			"oversized-force-release",
+			taskpkg.OriginKindCLI,
+			"compozy task release",
+		)
+		if err != nil {
+			t.Fatalf("DeriveHumanActorContext() error = %v", err)
+		}
+		taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+			Scope: taskpkg.ScopeGlobal,
+			Title: "Oversized force release",
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run, err := manager.EnqueueRun(ctx, taskpkg.EnqueueRun{TaskID: taskRecord.ID}, actor)
+		if err != nil {
+			t.Fatalf("EnqueueRun() error = %v", err)
+		}
+		if _, err := claimExactRunIntegration(ctx, manager, db, run.ID, actor); err != nil {
+			t.Fatalf("claimExactRunIntegration() error = %v", err)
+		}
+		beforeTask, err := db.GetTask(ctx, taskRecord.ID)
+		if err != nil {
+			t.Fatalf("GetTask(before) error = %v", err)
+		}
+
+		_, err = manager.ForceReleaseRun(ctx, run.ID, taskpkg.ForceReleaseRun{Reason: reason}, actor)
+		if !errors.Is(err, taskpkg.ErrPayloadTooLarge) {
+			t.Fatalf("ForceReleaseRun(oversized reason) error = %v, want %v", err, taskpkg.ErrPayloadTooLarge)
+		}
+		storedRun, getRunErr := db.GetTaskRun(ctx, run.ID)
+		if getRunErr != nil {
+			t.Fatalf("GetTaskRun() error = %v", getRunErr)
+		}
+		if got, want := storedRun.Status.Normalize(), taskpkg.TaskRunStatusClaimed; got != want {
+			t.Fatalf("stored run status = %q, want %q after rejected force release", got, want)
+		}
+		storedTask, getTaskErr := db.GetTask(ctx, taskRecord.ID)
+		if getTaskErr != nil {
+			t.Fatalf("GetTask(after) error = %v", getTaskErr)
+		}
+		if got, want := storedTask.Status.Normalize(), beforeTask.Status.Normalize(); got != want {
+			t.Fatalf("stored task status = %q, want %q after rejected force release", got, want)
+		}
+	})
+
+	t.Run("Should preserve a queued run when force fail audit text exceeds the event limit", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		db := openTaskManagerGlobalDB(t)
+		manager := newTaskManagerIntegration(t, db)
+		actor, err := taskpkg.DeriveHumanActorContext(
+			"oversized-force-fail",
+			taskpkg.OriginKindCLI,
+			"compozy task fail",
+		)
+		if err != nil {
+			t.Fatalf("DeriveHumanActorContext() error = %v", err)
+		}
+		taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+			Scope: taskpkg.ScopeGlobal,
+			Title: "Oversized force fail",
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run, err := manager.EnqueueRun(ctx, taskpkg.EnqueueRun{TaskID: taskRecord.ID}, actor)
+		if err != nil {
+			t.Fatalf("EnqueueRun() error = %v", err)
+		}
+		beforeTask, err := db.GetTask(ctx, taskRecord.ID)
+		if err != nil {
+			t.Fatalf("GetTask(before) error = %v", err)
+		}
+
+		_, err = manager.ForceFailRun(ctx, run.ID, taskpkg.ForceFailRun{Reason: reason}, actor)
+		if !errors.Is(err, taskpkg.ErrPayloadTooLarge) {
+			t.Fatalf("ForceFailRun(oversized reason) error = %v, want %v", err, taskpkg.ErrPayloadTooLarge)
+		}
+		storedRun, getRunErr := db.GetTaskRun(ctx, run.ID)
+		if getRunErr != nil {
+			t.Fatalf("GetTaskRun() error = %v", getRunErr)
+		}
+		if got, want := storedRun.Status.Normalize(), taskpkg.TaskRunStatusQueued; got != want {
+			t.Fatalf("stored run status = %q, want %q after rejected force failure", got, want)
+		}
+		storedTask, getTaskErr := db.GetTask(ctx, taskRecord.ID)
+		if getTaskErr != nil {
+			t.Fatalf("GetTask(after) error = %v", getTaskErr)
+		}
+		if got, want := storedTask.Status.Normalize(), beforeTask.Status.Normalize(); got != want {
+			t.Fatalf("stored task status = %q, want %q after rejected force failure", got, want)
+		}
+	})
+
+	t.Run("Should preserve a needs attention run when recovery audit text exceeds the event limit", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		db := openTaskManagerGlobalDB(t)
+		manager := newTaskManagerIntegration(t, db)
+		actor, err := taskpkg.DeriveHumanActorContext(
+			"oversized-recover",
+			taskpkg.OriginKindCLI,
+			"compozy task recover",
+		)
+		if err != nil {
+			t.Fatalf("DeriveHumanActorContext() error = %v", err)
+		}
+		taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+			Scope: taskpkg.ScopeGlobal,
+			Title: "Oversized recovery",
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run, err := manager.EnqueueRun(ctx, taskpkg.EnqueueRun{TaskID: taskRecord.ID}, actor)
+		if err != nil {
+			t.Fatalf("EnqueueRun() error = %v", err)
+		}
+		if _, err := manager.MarkRunNeedsAttention(ctx, run.ID, "operator investigation", actor); err != nil {
+			t.Fatalf("MarkRunNeedsAttention() error = %v", err)
+		}
+		beforeTask, err := db.GetTask(ctx, taskRecord.ID)
+		if err != nil {
+			t.Fatalf("GetTask(before) error = %v", err)
+		}
+
+		_, err = manager.RecoverRun(ctx, run.ID, taskpkg.RecoverRunRequest{Reason: reason}, actor)
+		if !errors.Is(err, taskpkg.ErrPayloadTooLarge) {
+			t.Fatalf("RecoverRun(oversized reason) error = %v, want %v", err, taskpkg.ErrPayloadTooLarge)
+		}
+		storedRun, getRunErr := db.GetTaskRun(ctx, run.ID)
+		if getRunErr != nil {
+			t.Fatalf("GetTaskRun() error = %v", getRunErr)
+		}
+		if got, want := storedRun.Status.Normalize(), taskpkg.TaskRunStatusNeedsAttention; got != want {
+			t.Fatalf("stored run status = %q, want %q after rejected recovery", got, want)
+		}
+		runs, listRunsErr := db.ListTaskRuns(ctx, taskpkg.RunQuery{TaskID: taskRecord.ID})
+		if listRunsErr != nil {
+			t.Fatalf("ListTaskRuns() error = %v", listRunsErr)
+		}
+		if got, want := len(runs), 1; got != want {
+			t.Fatalf("len(ListTaskRuns()) = %d, want %d after rejected recovery", got, want)
+		}
+		storedTask, getTaskErr := db.GetTask(ctx, taskRecord.ID)
+		if getTaskErr != nil {
+			t.Fatalf("GetTask(after) error = %v", getTaskErr)
+		}
+		if got, want := storedTask.Status.Normalize(), beforeTask.Status.Normalize(); got != want {
+			t.Fatalf("stored task status = %q, want %q after rejected recovery", got, want)
+		}
+	})
+
+	t.Run("Should preserve a starting run when failure text exceeds the event limit", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		db := openTaskManagerGlobalDB(t)
+		manager := newTaskManagerIntegration(t, db, taskpkg.WithSessionExecutor(&integrationSessionExecutor{}))
+		actor, err := taskpkg.DeriveHumanActorContext(
+			"oversized-failure",
+			taskpkg.OriginKindCLI,
+			"compozy task fail",
+		)
+		if err != nil {
+			t.Fatalf("DeriveHumanActorContext() error = %v", err)
+		}
+		taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+			Scope: taskpkg.ScopeGlobal,
+			Title: "Oversized failure",
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run, err := manager.EnqueueRun(ctx, taskpkg.EnqueueRun{TaskID: taskRecord.ID}, actor)
+		if err != nil {
+			t.Fatalf("EnqueueRun() error = %v", err)
+		}
+		run, err = manager.AttachRunSession(ctx, run.ID, "sess-oversized-failure", actor)
+		if err != nil {
+			t.Fatalf("AttachRunSession(starting) error = %v", err)
+		}
+		beforeTask, err := db.GetTask(ctx, taskRecord.ID)
+		if err != nil {
+			t.Fatalf("GetTask(before) error = %v", err)
+		}
+
+		_, err = manager.FailRun(ctx, run.ID, taskpkg.RunFailure{Error: reason}, actor)
+		if !errors.Is(err, taskpkg.ErrPayloadTooLarge) {
+			t.Fatalf("FailRun(oversized error) error = %v, want %v", err, taskpkg.ErrPayloadTooLarge)
+		}
+		storedRun, getRunErr := db.GetTaskRun(ctx, run.ID)
+		if getRunErr != nil {
+			t.Fatalf("GetTaskRun() error = %v", getRunErr)
+		}
+		if got, want := storedRun.Status.Normalize(), taskpkg.TaskRunStatusStarting; got != want {
+			t.Fatalf("stored run status = %q, want %q after rejected failure", got, want)
+		}
+		storedTask, getTaskErr := db.GetTask(ctx, taskRecord.ID)
+		if getTaskErr != nil {
+			t.Fatalf("GetTask(after) error = %v", getTaskErr)
+		}
+		if got, want := storedTask.Status.Normalize(), beforeTask.Status.Normalize(); got != want {
+			t.Fatalf("stored task status = %q, want %q after rejected failure", got, want)
 		}
 	})
 }

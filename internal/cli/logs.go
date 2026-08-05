@@ -1,12 +1,17 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
 
 	"github.com/spf13/cobra"
 )
+
+type logsStreamClient interface {
+	StreamLogs(context.Context, LogsListQuery, string, SSEHandler) error
+}
 
 const (
 	logsTypeKey      = "type"
@@ -129,7 +134,7 @@ func writeLogsOutput(cmd *cobra.Command, events []LogEventRecord) error {
 	return writeCommandOutput(cmd, logsBundle(events))
 }
 
-func streamLogs(cmd *cobra.Command, client DaemonClient, query LogsListQuery) error {
+func streamLogs(cmd *cobra.Command, client logsStreamClient, query LogsListQuery) error {
 	mode, err := resolveOutputFormat(cmd)
 	if err != nil {
 		return err

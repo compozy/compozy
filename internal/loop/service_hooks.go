@@ -23,7 +23,9 @@ func (s *service) dispatchLoopStarted(ctx context.Context, run Run, actor task.A
 		Status:      string(run.Status),
 		Cause:       string(TransitionCauseStart),
 	}
-	_, err := s.hooks.DispatchLoopStarted(loopHookContext(ctx), payload)
+	hookCtx, cancel := loopPostCommitContext(ctx)
+	defer cancel()
+	_, err := s.hooks.DispatchLoopStarted(hookCtx, payload)
 	s.reportTerminalHookFailure(hookspkg.HookLoopStarted, err, payload)
 }
 
@@ -45,7 +47,9 @@ func (s *service) dispatchCoordinatorTerminal(
 		Status:      string(run.Status),
 		Cause:       string(cause),
 	}
-	_, err := s.hooks.DispatchLoopTerminal(loopHookContext(ctx), payload)
+	hookCtx, cancel := loopPostCommitContext(ctx)
+	defer cancel()
+	_, err := s.hooks.DispatchLoopTerminal(hookCtx, payload)
 	s.reportTerminalHookFailure(hookspkg.HookLoopTerminal, err, payload)
 }
 
@@ -81,11 +85,4 @@ func serviceLoopContext(run Run, actor task.ActorContext) hookspkg.LoopContext {
 		OriginKind: string(actor.Origin.Kind.Normalize()),
 		OriginRef:  actor.Origin.Ref,
 	}
-}
-
-func loopHookContext(ctx context.Context) context.Context {
-	if ctx == nil {
-		return context.Background()
-	}
-	return context.WithoutCancel(ctx)
 }

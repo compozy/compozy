@@ -12,39 +12,6 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
-// ReserveQueuedRun atomically allocates one queued run attempt and optional idempotency binding.
-func (g *TaskRepo) ReserveQueuedRun(
-	ctx context.Context,
-	reservation taskpkg.QueueRunReservation,
-) (taskpkg.Task, taskpkg.Run, bool, error) {
-	if err := g.checkReady(ctx, "reserve queued task run"); err != nil {
-		return taskpkg.Task{}, taskpkg.Run{}, false, err
-	}
-
-	input, err := g.normalizeQueuedRunReservationInput(reservation)
-	if err != nil {
-		return taskpkg.Task{}, taskpkg.Run{}, false, err
-	}
-
-	var reservedTask taskpkg.Task
-	var reservedRun taskpkg.Run
-	var existing bool
-	if err := g.withTaskImmediateTransaction(ctx, "reserve queued task run", func(exec taskSQLExecutor) error {
-		taskRecord, runRecord, alreadyExists, err := g.reserveQueuedRunWithExecutor(ctx, exec, input)
-		if err != nil {
-			return err
-		}
-		reservedTask = taskRecord
-		reservedRun = runRecord
-		existing = alreadyExists
-		return nil
-	}); err != nil {
-		return taskpkg.Task{}, taskpkg.Run{}, false, err
-	}
-
-	return reservedTask, reservedRun, existing, nil
-}
-
 func (g *TaskRepo) normalizeQueuedRunReservationInput(
 	reservation taskpkg.QueueRunReservation,
 ) (queuedRunReservationInput, error) {

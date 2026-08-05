@@ -123,7 +123,7 @@ func startBootWiredCoordinatorWithTerminalStatus(
 	if _, err := db.CreateLoopRunForStart(ctx, loopRun, loopdsl.ConcurrencyAllow); err != nil {
 		t.Fatalf("CreateLoopRunForStart(%q) error = %v", loopRun.ID, err)
 	}
-	claim, err := db.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+	claim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
 		Scope:            taskpkg.ScopeWorkspace,
 		WorkspaceID:      workspaceID,
 		RunKind:          taskpkg.RunKindCoordinator,
@@ -131,7 +131,7 @@ func startBootWiredCoordinatorWithTerminalStatus(
 		ClaimedBy:        &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "loop"},
 		LeaseDuration:    time.Minute,
 		Now:              now,
-	})
+	}, actor)
 	if err != nil {
 		t.Fatalf("ClaimNextRun(%q) error = %v", status, err)
 	}

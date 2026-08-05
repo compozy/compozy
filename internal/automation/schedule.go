@@ -73,12 +73,18 @@ type Scheduler struct {
 	policyForJob SchedulerCatchUpPolicyResolver
 
 	mu            sync.RWMutex
-	runtimeCtx    context.Context
-	runtimeCancel context.CancelFunc
-	wg            sync.WaitGroup
+	runtime       *schedulerRuntime
 	started       bool
 	stopped       bool
 	registrations map[string]scheduledRegistration
+}
+
+type schedulerRuntime struct {
+	ctx       context.Context
+	cancel    context.CancelFunc
+	done      chan struct{}
+	workers   sync.WaitGroup
+	stoppedAt time.Time
 }
 
 type scheduledRegistration struct {

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"testing/iotest"
 	"time"
 
 	"github.com/compozy/compozy/internal/procutil"
@@ -17,6 +19,19 @@ import (
 )
 
 func TestSidecarSecurityBoundaries(t *testing.T) {
+	t.Run("Should return entropy failures without publishing a process ID", func(t *testing.T) {
+		t.Parallel()
+
+		entropyErr := errors.New("entropy unavailable")
+		id, err := randomIDFromReader(iotest.ErrReader(entropyErr))
+		if id != "" {
+			t.Fatalf("randomIDFromReader() id = %q, want empty", id)
+		}
+		if !errors.Is(err, entropyErr) {
+			t.Fatalf("randomIDFromReader() error = %v, want %v", err, entropyErr)
+		}
+	})
+
 	t.Run("Should bind control plane to loopback", func(t *testing.T) {
 		t.Parallel()
 
@@ -219,6 +234,39 @@ func TestSidecarOutputBoundaries(t *testing.T) {
 			t.Fatalf("stderrText length = %d, want <= %d", got, limit)
 		}
 	})
+
+	t.Run("Should report stdout and stderr pipe close failures", func(t *testing.T) {
+		t.Parallel()
+
+		stdoutCloseErr := errors.New("close stdout")
+		stdoutProcess := &managedProcess{stdout: newChunkQueue()}
+		stdoutProcess.captureStdout(&sidecarCloseErrorReader{
+			Reader:   strings.NewReader(""),
+			closeErr: stdoutCloseErr,
+		})
+		if stderr := stdoutProcess.stderrText(); !strings.Contains(stderr, stdoutCloseErr.Error()) {
+			t.Fatalf("stdout process stderr = %q, want close failure", stderr)
+		}
+
+		stderrCloseErr := errors.New("close stderr")
+		stderrProcess := &managedProcess{}
+		stderrProcess.captureStderr(&sidecarCloseErrorReader{
+			Reader:   strings.NewReader(""),
+			closeErr: stderrCloseErr,
+		})
+		if stderr := stderrProcess.stderrText(); !strings.Contains(stderr, stderrCloseErr.Error()) {
+			t.Fatalf("stderr process stderr = %q, want close failure", stderr)
+		}
+	})
+}
+
+type sidecarCloseErrorReader struct {
+	io.Reader
+	closeErr error
+}
+
+func (r *sidecarCloseErrorReader) Close() error {
+	return r.closeErr
 }
 
 func newWebSocketRequest(t *testing.T, origin string) *http.Request {

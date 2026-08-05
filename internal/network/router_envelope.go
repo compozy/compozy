@@ -26,7 +26,11 @@ type envelopeInput struct {
 func buildEnvelope(input envelopeInput, now time.Time, maxReplayAge time.Duration) (Envelope, error) {
 	id := normalizeOptionalIdentifier(input.id)
 	if id == nil {
-		id = new(store.NewID("msg"))
+		generatedID, err := store.NewID("msg")
+		if err != nil {
+			return Envelope{}, fmt.Errorf("network: generate message id: %w", err)
+		}
+		id = &generatedID
 	}
 	envelope := Envelope{
 		Protocol:    ProtocolV0,

@@ -898,18 +898,19 @@ func writeSkillFileAtomically(t *testing.T, path, content string) {
 	}
 
 	tempPath := tempFile.Name()
-	cleanup := func() {
-		_ = os.Remove(tempPath)
-	}
-	defer cleanup()
+	defer func() {
+		if removeErr := os.Remove(tempPath); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
+			t.Errorf("Remove(%q) error = %v", tempPath, removeErr)
+		}
+	}()
 
 	if _, err := tempFile.WriteString(content); err != nil {
-		_ = tempFile.Close()
-		t.Fatalf("WriteString(%q) error = %v", tempPath, err)
+		closeErr := tempFile.Close()
+		t.Fatalf("WriteString(%q) error = %v", tempPath, errors.Join(err, closeErr))
 	}
 	if err := tempFile.Chmod(0o644); err != nil {
-		_ = tempFile.Close()
-		t.Fatalf("Chmod(%q) error = %v", tempPath, err)
+		closeErr := tempFile.Close()
+		t.Fatalf("Chmod(%q) error = %v", tempPath, errors.Join(err, closeErr))
 	}
 	if err := tempFile.Close(); err != nil {
 		t.Fatalf("Close(%q) error = %v", tempPath, err)

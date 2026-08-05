@@ -62,7 +62,7 @@ func (s *Store) ProposeBatch(ctx context.Context, proposal BatchProposal) (Batch
 		return replay, nil
 	}
 
-	body, header, exists, err := s.loadBatchTarget(normalized)
+	body, header, exists, err := s.loadBatchTarget(ctx, normalized)
 	if err != nil {
 		return BatchApplyResult{}, err
 	}
@@ -150,8 +150,11 @@ func (s *Store) replayBatchDecision(
 	return batchApplyResult(result, outcomes, batchOutcomeAlreadyApplied), true, nil
 }
 
-func (s *Store) loadBatchTarget(proposal BatchProposal) (string, memcontract.Header, bool, error) {
-	raw, err := s.Read(proposal.Scope, proposal.Filename)
+func (s *Store) loadBatchTarget(
+	ctx context.Context,
+	proposal BatchProposal,
+) (string, memcontract.Header, bool, error) {
+	raw, err := s.Read(ctx, proposal.Scope, proposal.Filename)
 	if err == nil {
 		body, header, parseErr := s.parseControlledWriteDocument(proposal.Scope, proposal.Filename, raw, false)
 		return body, header, true, parseErr

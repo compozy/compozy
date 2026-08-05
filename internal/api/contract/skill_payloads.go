@@ -47,25 +47,32 @@ type SkillMarketplaceUpdateRequest struct {
 	CheckOnly bool   `json:"check_only,omitempty"`
 }
 
+// SkillMarketplaceCleanupDiagnosticPayload identifies cleanup degradation after a successful mutation.
+type SkillMarketplaceCleanupDiagnosticPayload struct {
+	Operation string `json:"operation"`
+}
+
 // SkillMarketplaceInstallPayload describes one completed marketplace install.
 type SkillMarketplaceInstallPayload struct {
-	Name     string `json:"name"`
-	Slug     string `json:"slug"`
-	Version  string `json:"version,omitempty"`
-	Registry string `json:"registry"`
-	Path     string `json:"path"`
-	Hash     string `json:"hash"`
-	Status   string `json:"status"`
+	Name               string                                     `json:"name"`
+	Slug               string                                     `json:"slug"`
+	Version            string                                     `json:"version,omitempty"`
+	Registry           string                                     `json:"registry"`
+	Path               string                                     `json:"path"`
+	Hash               string                                     `json:"hash"`
+	Status             string                                     `json:"status"`
+	CleanupDiagnostics []SkillMarketplaceCleanupDiagnosticPayload `json:"cleanup_diagnostics,omitempty"`
 }
 
 // SkillMarketplaceUpdatePayload describes one marketplace update outcome.
 type SkillMarketplaceUpdatePayload struct {
-	Name           string `json:"name"`
-	Slug           string `json:"slug"`
-	CurrentVersion string `json:"current_version,omitempty"`
-	LatestVersion  string `json:"latest_version,omitempty"`
-	Path           string `json:"path"`
-	Status         string `json:"status"`
+	Name               string                                     `json:"name"`
+	Slug               string                                     `json:"slug"`
+	CurrentVersion     string                                     `json:"current_version,omitempty"`
+	LatestVersion      string                                     `json:"latest_version,omitempty"`
+	Path               string                                     `json:"path"`
+	Status             string                                     `json:"status"`
+	CleanupDiagnostics []SkillMarketplaceCleanupDiagnosticPayload `json:"cleanup_diagnostics,omitempty"`
 }
 
 // SkillMarketplaceRemovePayload describes one removed marketplace skill.

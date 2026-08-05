@@ -25,12 +25,27 @@ func (h *RuntimeHarness) Stop(ctx context.Context) error {
 		return nil
 	}
 
-	h.stopOnce.Do(func() {
-		if err := h.stopWithContext(ctx); err != nil {
-			h.stopErr = err
-		}
-	})
-	return h.stopErr
+	h.stopMu.Lock()
+	defer h.stopMu.Unlock()
+	if h.stopDone {
+		return h.stopErr
+	}
+
+	stopErr := h.stopWithContext(ctx)
+	exited, completionErr := h.stopCompleted()
+	if exited {
+		h.stopDone = true
+		h.stopErr = stopErr
+		return stopErr
+	}
+	return errors.Join(stopErr, completionErr)
+}
+
+func (h *RuntimeHarness) stopCompleted() (bool, error) {
+	if h.process == nil && h.waitCh == nil {
+		return true, nil
+	}
+	return h.pollExit()
 }
 
 func (h *RuntimeHarness) stopWithContext(ctx context.Context) error {
@@ -54,8 +69,14 @@ func (h *RuntimeHarness) stopWithContext(ctx context.Context) error {
 	if waitErr == nil {
 		return nil
 	}
-	if signaledProcess && !errors.Is(waitErr, context.DeadlineExceeded) {
-		return nil
+	if exited, exitErr := h.pollExit(); exited {
+		if signaledProcess {
+			return nil
+		}
+		return exitErr
+	}
+	if !errors.Is(waitErr, context.DeadlineExceeded) {
+		return waitErr
 	}
 
 	if err := h.forceKillDaemonProcess(); err != nil {
@@ -104,10 +125,18 @@ func (h *RuntimeHarness) forceKillDaemonProcess() error {
 func (h *RuntimeHarness) waitAfterForceKill(ctx context.Context) error {
 	killCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
-	if killWaitErr := h.waitForExit(killCtx); killWaitErr != nil && !errors.Is(killWaitErr, context.DeadlineExceeded) {
-		return killWaitErr
+	killWaitErr := h.waitForExit(killCtx)
+	if killWaitErr == nil {
+		return nil
 	}
-	return nil
+	exited, exitErr := h.pollExit()
+	if exited {
+		return nil
+	}
+	return errors.Join(
+		fmt.Errorf("wait for daemon after force kill: %w", killWaitErr),
+		exitErr,
+	)
 }
 
 func (h *RuntimeHarness) cleanupFailedStart(ctx context.Context) error {

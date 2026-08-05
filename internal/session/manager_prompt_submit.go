@@ -9,11 +9,7 @@ import (
 )
 
 func (m *Manager) submitPromptRequest(ctx context.Context, req promptRequest) (<-chan acp.AgentEvent, error) {
-	lookup := m.lookupPromptSession
-	if req.resumeStopped {
-		lookup = m.lookupOrResumePromptSession
-	}
-	session, err := lookup(ctx, req.target)
+	session, err := m.lookupPromptRequestSession(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -172,7 +168,9 @@ func (m *Manager) abortPromptBeforePump(
 	cancelPromptExecution()
 	activity.stop()
 	activity.finish(m.now())
-	go drainPromptSource(source)
+	m.startTrackedPromptTask(func() {
+		drainPromptSource(source)
+	})
 }
 
 func (m *Manager) startPromptPump(
@@ -185,9 +183,7 @@ func (m *Manager) startPromptPump(
 	cancelPromptExecution context.CancelFunc,
 ) <-chan acp.AgentEvent {
 	out := make(chan acp.AgentEvent, m.promptBufSize)
-	finishDrain := m.trackPromptDrain()
-	go func() {
-		defer finishDrain()
+	m.startTrackedPromptTask(func() {
 		m.pumpPrompt(
 			lifecycleCtx,
 			callerCtx,
@@ -199,7 +195,7 @@ func (m *Manager) startPromptPump(
 			activity,
 			cancelPromptExecution,
 		)
-	}()
+	})
 	return out
 }
 

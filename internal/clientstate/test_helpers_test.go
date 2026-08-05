@@ -80,7 +80,7 @@ func newTestEngine(
 	resolver.register("w2", "w2-generation-1")
 	path := filepath.Join(t.TempDir(), "state", DatabaseName)
 	fixedNow := time.Date(2026, 7, 19, 12, 0, 0, 123, time.UTC)
-	engine, err := Open(path, resolver, limits, WithClock(func() time.Time { return fixedNow }))
+	engine, err := Open(context.Background(), path, resolver, limits, WithClock(func() time.Time { return fixedNow }))
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
 	}

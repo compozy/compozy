@@ -592,8 +592,9 @@ func TestUpdateSectionWindowManager(t *testing.T) {
 		if err == nil {
 			t.Fatal("UpdateSection(invalid window-manager) error = nil, want validation error")
 		}
-		var validationError compozyconfig.ValidationError
-		if !errors.As(err, &validationError) {
+
+		validationError, validationErrorMatched := errors.AsType[compozyconfig.ValidationError](err)
+		if !validationErrorMatched {
 			t.Fatalf("UpdateSection(invalid window-manager) error = %T %v, want config.ValidationError", err, err)
 		}
 		if got, want := validationError.Path, "window_manager.history_limit"; got != want {
@@ -2003,6 +2004,47 @@ func TestCollectionMutationsCodexNativeProviderOverlay(t *testing.T) {
 			t.Fatalf("codex native overlay write target = %q, want %q", got, want)
 		}
 	})
+
+	t.Run("Should preserve the write-only login command when a read projection is written back", func(t *testing.T) {
+		t.Parallel()
+
+		const rawLoginCommand = "codex login --tenant corp --token raw-login-secret"
+		ctx := context.Background()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig()+`
+
+[providers.codex]
+display_name = "Codex Enterprise"
+auth_login_command = "codex login --tenant corp --token raw-login-secret"
+`)
+		service := testService(t, homePaths, Dependencies{})
+		envelope, err := service.ListCollection(ctx, CollectionRequest{Collection: CollectionProviders})
+		if err != nil {
+			t.Fatalf("ListCollection(providers) error = %v", err)
+		}
+		codex := mustFindProviderItem(t, envelope.Providers, "codex")
+		if codex.Settings.AuthLoginCmd != "" || codex.Settings.AuthLoginCmdSet {
+			t.Fatalf("public provider settings retained write-only login command: %#v", codex.Settings)
+		}
+
+		settings := codex.Settings
+		settings.DisplayName = "Codex Enterprise Updated"
+		if _, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
+			CollectionRequest: CollectionRequest{Collection: CollectionProviders},
+			Name:              "codex",
+			Provider:          &settings,
+		}); err != nil {
+			t.Fatalf("PutCollectionItem(read projection) error = %v", err)
+		}
+
+		cfg, err := compozyconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome(after read projection write) error = %v", err)
+		}
+		if got := cfg.Providers["codex"].AuthLoginCmd; got != rawLoginCommand {
+			t.Fatalf("stored write-only login command = %q, want preserved value", got)
+		}
+	})
 }
 
 func TestProviderSecretOnlyMutationStoresVaultSecret(t *testing.T) {
@@ -2929,6 +2971,35 @@ func TestInstallMCPCatalogSerializesConcurrentMutations(t *testing.T) {
 }
 
 func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
+	t.Run("Should detach and bound the post-commit install notification context", func(t *testing.T) {
+		t.Parallel()
+
+		notifier := &contextRecordingMarketplaceInstallNotifier{
+			observed: make(chan marketplaceInstallContextObservation, 1),
+		}
+		service := &service{marketplaceInstallEvents: notifier}
+		callerCtx, cancelCaller := context.WithCancel(context.Background())
+		cancelCaller()
+		if warning := service.notifyMCPCatalogInstalled(callerCtx, "github"); warning != nil {
+			t.Fatalf("notifyMCPCatalogInstalled() warning = %#v, want nil", warning)
+		}
+		observation := <-notifier.observed
+		if observation.err != nil {
+			t.Fatalf("NotifyInstall() context error = %v, want active detached context", observation.err)
+		}
+		if !observation.hasDeadline {
+			t.Fatal("NotifyInstall() context has no deadline")
+		}
+		remaining := time.Until(observation.deadline)
+		if remaining <= 0 || remaining > mcpInstallNotificationTimeout {
+			t.Fatalf(
+				"NotifyInstall() deadline remaining = %s, want within (0,%s]",
+				remaining,
+				mcpInstallNotificationTimeout,
+			)
+		}
+	})
+
 	t.Run("Should install a feed-locked stdio entry with scoped refs and provenance", func(t *testing.T) {
 		t.Parallel()
 
@@ -3449,6 +3520,63 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run(
+		"Should retire a committed workspace definition before failed secret cleanup restores it",
+		func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+			homePaths := testHomePaths(t)
+			writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+			workspaceID := "ws-retired-mcp"
+			workspaceRoot := filepath.Join(t.TempDir(), "workspace")
+			secretStore := newFakeProviderSecretStore()
+			retirer := &recordingMCPDefinitionRetirer{}
+			service := testService(t, homePaths, Dependencies{
+				MCPCatalog:      fakeMCPCatalog{entry: stdioMCPCatalogEntry()},
+				ProviderSecrets: secretStore,
+				WorkspaceResolver: fakeWorkspaceResolver{resolved: map[string]workspacepkg.ResolvedWorkspace{
+					workspaceID: {Workspace: workspacepkg.Workspace{ID: workspaceID, RootDir: workspaceRoot}},
+				}},
+				MCPDefinitionRetirer: retirer,
+			})
+			result, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
+				EntryID:     "github",
+				Name:        "github",
+				Scope:       ScopeWorkspace,
+				WorkspaceID: workspaceID,
+				Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
+					"github_token": {Value: "owned-secret"},
+				}},
+			})
+			if err != nil {
+				t.Fatalf("InstallMCPCatalog(workspace) error = %v", err)
+			}
+
+			cleanupFailure := errors.New("forced owned secret cleanup failure")
+			secretStore.deleteErr = cleanupFailure
+			_, err = service.DeleteCollectionItem(ctx, CollectionItemDeleteRequest{
+				CollectionRequest: CollectionRequest{
+					Collection:  CollectionMCPServers,
+					Scope:       ScopeWorkspace,
+					WorkspaceID: workspaceID,
+				},
+				Name: result.Item.Name,
+			})
+			if !errors.Is(err, cleanupFailure) {
+				t.Fatalf("DeleteCollectionItem(cleanup failure) error = %v, want %v", err, cleanupFailure)
+			}
+			calls := retirer.Calls()
+			if len(calls) != 1 || calls[0].workspaceID != workspaceID || calls[0].serverName != result.Item.Name {
+				t.Fatalf("MCP retirement calls = %#v, want one call for %q/%q", calls, workspaceID, result.Item.Name)
+			}
+			sidecar := readFile(t, filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.MCPJSONName))
+			if !strings.Contains(sidecar, `"`+result.Item.Name+`"`) {
+				t.Fatalf("workspace MCP definition was not restored after cleanup failure:\n%s", sidecar)
+			}
+		},
+	)
 
 	t.Run("Should return authorize for OAuth without probing the remote server", func(t *testing.T) {
 		t.Parallel()
@@ -4699,6 +4827,31 @@ type fakeWorkspaceResolver struct {
 	listed   []workspacepkg.Workspace
 }
 
+type mcpDefinitionRetirementCall struct {
+	workspaceID string
+	serverName  string
+}
+
+type recordingMCPDefinitionRetirer struct {
+	mu    sync.Mutex
+	calls []mcpDefinitionRetirementCall
+}
+
+func (r *recordingMCPDefinitionRetirer) ForgetMCPServer(workspaceID string, serverName string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.calls = append(r.calls, mcpDefinitionRetirementCall{
+		workspaceID: workspaceID,
+		serverName:  serverName,
+	})
+}
+
+func (r *recordingMCPDefinitionRetirer) Calls() []mcpDefinitionRetirementCall {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]mcpDefinitionRetirementCall(nil), r.calls...)
+}
+
 func (f fakeWorkspaceResolver) Resolve(
 	_ context.Context,
 	idOrNameOrPath string,
@@ -4841,6 +4994,29 @@ type recordingMarketplaceInstallNotifier struct {
 	mu       sync.Mutex
 	outcomes []marketplace.InstallOutcome
 	err      error
+}
+
+type marketplaceInstallContextObservation struct {
+	err         error
+	deadline    time.Time
+	hasDeadline bool
+}
+
+type contextRecordingMarketplaceInstallNotifier struct {
+	observed chan marketplaceInstallContextObservation
+}
+
+func (n *contextRecordingMarketplaceInstallNotifier) NotifyInstall(
+	ctx context.Context,
+	_ marketplace.InstallOutcome,
+) error {
+	deadline, hasDeadline := ctx.Deadline()
+	n.observed <- marketplaceInstallContextObservation{
+		err:         ctx.Err(),
+		deadline:    deadline,
+		hasDeadline: hasDeadline,
+	}
+	return nil
 }
 
 func (n *recordingMarketplaceInstallNotifier) NotifyInstall(

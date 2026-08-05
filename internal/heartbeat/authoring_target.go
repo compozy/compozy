@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/managedsidecar"
 )
 
 type resolvedAuthoringTarget struct {
@@ -19,6 +20,7 @@ type resolvedAuthoringTarget struct {
 	agentPath     string
 	heartbeatPath string
 	sourcePath    string
+	managedPath   managedsidecar.Path
 	config        compozyconfig.HeartbeatConfig
 }
 
@@ -51,7 +53,10 @@ func (s *ManagedHeartbeatAuthoringService) resolveTarget(
 	if err := ensureAuthoringAgent(normalized.agentPath, normalized.agentName); err != nil {
 		return resolvedAuthoringTarget{}, err
 	}
-	heartbeatPath, sourcePath, err := resolveAuthoringHeartbeatPath(normalized.workspaceRoot, normalized.agentPath)
+	heartbeatPath, sourcePath, managedPath, err := resolveAuthoringHeartbeatPath(
+		normalized.workspaceRoot,
+		normalized.agentPath,
+	)
 	if err != nil {
 		return resolvedAuthoringTarget{}, err
 	}
@@ -62,6 +67,7 @@ func (s *ManagedHeartbeatAuthoringService) resolveTarget(
 		agentPath:     normalized.agentPath,
 		heartbeatPath: heartbeatPath,
 		sourcePath:    sourcePath,
+		managedPath:   managedPath,
 		config:        normalized.config,
 	}, nil
 }
@@ -142,10 +148,13 @@ func ensureAuthoringAgent(agentPath string, agentName string) error {
 	)
 }
 
-func resolveAuthoringHeartbeatPath(workspaceRoot string, agentPath string) (string, string, error) {
+func resolveAuthoringHeartbeatPath(
+	workspaceRoot string,
+	agentPath string,
+) (string, string, managedsidecar.Path, error) {
 	heartbeatPath, err := heartbeatPathForAgent(agentPath)
 	if err != nil {
-		return "", "", authoringDiagnosticError(
+		return "", "", managedsidecar.Path{}, authoringDiagnosticError(
 			"heartbeat_invalid_source_path",
 			safePathWithoutRoot(agentPath),
 			"HEARTBEAT.md source path is required",
@@ -155,13 +164,20 @@ func resolveAuthoringHeartbeatPath(workspaceRoot string, agentPath string) (stri
 	}
 	sourcePath, diagnostic := safeSourcePath(heartbeatPath, workspaceRoot)
 	if diagnostic != nil {
-		return "", "", authoringDiagnosticFromDiagnostic(diagnostic, ErrAuthoringPathRejected)
+		return "", "", managedsidecar.Path{}, authoringDiagnosticFromDiagnostic(
+			diagnostic,
+			ErrAuthoringPathRejected,
+		)
 	}
-	if diagnostic := validateManagedHeartbeatPath(workspaceRoot, heartbeatPath, FileName); diagnostic != nil {
+	managedPath, diagnostic := resolveManagedHeartbeatPath(workspaceRoot, heartbeatPath, FileName)
+	if diagnostic != nil {
 		diagnostic.SourcePath = firstNonEmpty(diagnostic.SourcePath, sourcePath)
-		return "", "", authoringDiagnosticFromDiagnostic(diagnostic, ErrAuthoringPathRejected)
+		return "", "", managedsidecar.Path{}, authoringDiagnosticFromDiagnostic(
+			diagnostic,
+			ErrAuthoringPathRejected,
+		)
 	}
-	return heartbeatPath, sourcePath, nil
+	return managedPath.Absolute(), sourcePath, managedPath, nil
 }
 
 func (s *ManagedHeartbeatAuthoringService) currentHeartbeatForMutation(

@@ -5,12 +5,22 @@ import (
 	"database/sql"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/internal/store"
-	"github.com/compozy/compozy/internal/testutil"
 )
 
+const globalMigrationTestTimeout = 3 * time.Minute
+
 var globalMigrationTestMu sync.Mutex
+
+func globalMigrationTestContext(t *testing.T) context.Context {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(t.Context(), globalMigrationTestTimeout)
+	t.Cleanup(cancel)
+	return ctx
+}
 
 func openGlobalMigrationPrefixDatabase(
 	t *testing.T,
@@ -22,7 +32,7 @@ func openGlobalMigrationPrefixDatabase(
 	defer globalMigrationTestMu.Unlock()
 
 	return store.OpenSQLiteDatabase(
-		testutil.Context(t),
+		globalMigrationTestContext(t),
 		path,
 		func(ctx context.Context, db *sql.DB) error {
 			return store.Apply(ctx, db, stream)
@@ -39,7 +49,7 @@ func applyGlobalMigrationPrefix(
 	globalMigrationTestMu.Lock()
 	defer globalMigrationTestMu.Unlock()
 
-	return store.Apply(testutil.Context(t), db, stream)
+	return store.Apply(globalMigrationTestContext(t), db, stream)
 }
 
 func openGlobalMigrationUpgrade(t *testing.T, path string) (*GlobalDB, error) {
@@ -47,5 +57,5 @@ func openGlobalMigrationUpgrade(t *testing.T, path string) (*GlobalDB, error) {
 	globalMigrationTestMu.Lock()
 	defer globalMigrationTestMu.Unlock()
 
-	return OpenGlobalDB(testutil.Context(t), path)
+	return OpenGlobalDB(globalMigrationTestContext(t), path)
 }

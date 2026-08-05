@@ -111,7 +111,7 @@ func renderIndexLine(header memcontract.Header) string {
 }
 
 func readIndexLines(path string) ([]string, error) {
-	content, err := os.ReadFile(path)
+	content, _, err := fileutil.ReadRegularFile(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, nil
@@ -132,7 +132,7 @@ func readIndexLines(path string) ([]string, error) {
 
 func writeIndexLines(path string, lines []string) error {
 	if len(lines) == 0 {
-		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		if err := fileutil.AtomicRemoveFile(path); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("memory: remove empty index %q: %w", path, err)
 		}
 		return nil

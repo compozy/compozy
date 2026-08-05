@@ -22,22 +22,14 @@ func (m *Service) FailRunLease(
 		return nil, err
 	}
 	normalized.Actor = actor
-	run, err := m.store.FailRunLease(ctx, normalized)
+	settlement, err := m.failRunLeaseSettlement(ctx, normalized, actor)
 	if err != nil {
 		return nil, err
 	}
-	defer m.restoreTaskRunNetworkBestEffort(ctx, run.SessionID, run.ID)
-	if run.IsNetworkWake() {
-		m.dispatchTaskRunFailed(ctx, run, Task{}, actor)
-		return &run, nil
-	}
-	reconciledTask, err := m.reconcileTaskCascade(ctx, run.TaskID, actor)
-	if err != nil {
-		return nil, err
-	}
-	m.dispatchTerminalWake(ctx, reconciledTask, run, actor)
-	m.dispatchTaskRunFailed(ctx, run, reconciledTask, actor)
-	return &run, nil
+	defer m.restoreTaskRunNetworkBestEffort(ctx, settlement.Run.SessionID, settlement.Run.ID)
+	m.dispatchTerminalWake(ctx, settlement.Task, settlement.Run, actor)
+	m.dispatchTaskRunFailed(ctx, settlement.Run, settlement.Task, actor)
+	return &settlement.Run, nil
 }
 
 type autoEnqueueTriggeredPayload struct {
@@ -45,28 +37,6 @@ type autoEnqueueTriggeredPayload struct {
 	RunStatus   RunStatus `json:"run_status"`
 	TriggerKind string    `json:"trigger_kind"`
 	TriggerRef  string    `json:"trigger_ref"`
-}
-
-func (m *Service) activeSessionRunLeases(ctx context.Context, sessionID string) ([]Run, error) {
-	statuses := []RunStatus{TaskRunStatusClaimed, TaskRunStatusStarting, TaskRunStatusRunning}
-	runs := make([]Run, 0, len(statuses))
-	for _, status := range statuses {
-		matches, err := m.store.ListTaskRuns(ctx, RunQuery{
-			SessionID: sessionID,
-			Status:    status,
-		})
-		if err != nil {
-			return nil, err
-		}
-		for _, run := range matches {
-			if strings.TrimSpace(run.SessionID) != strings.TrimSpace(sessionID) ||
-				strings.TrimSpace(run.ClaimTokenHash) == "" {
-				continue
-			}
-			runs = append(runs, run)
-		}
-	}
-	return runs, nil
 }
 
 // LookupActiveRunForSession resolves the internal claim token for a session-owned

@@ -258,8 +258,7 @@ Run the full repository gate once the change is ready:
 make verify
 ```
 
-Read [AGENTS.md](AGENTS.md), the surface-specific instructions, and the
-[contribution guide](skills/compozy/references/contributing-to-compozy.md) before editing.
+Read [AGENTS.md](AGENTS.md) and the surface-specific instructions before editing.
 
 ## Star History
 

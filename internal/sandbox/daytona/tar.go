@@ -28,15 +28,23 @@ type archiveEntry struct {
 	link string
 }
 
-func writeTar(ctx context.Context, root string, dst io.Writer, excludePatterns []string) (tarStats, error) {
+func writeTar(
+	ctx context.Context,
+	root string,
+	dst io.Writer,
+	excludePatterns []string,
+) (stats tarStats, err error) {
 	root = filepath.Clean(root)
 	entries, err := collectArchiveEntries(ctx, root, excludePatterns)
 	if err != nil {
 		return tarStats{}, err
 	}
 	writer := tar.NewWriter(dst)
-	defer writer.Close()
-	var stats tarStats
+	defer func() {
+		if closeErr := writer.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("sandbox/daytona: close tar writer: %w", closeErr))
+		}
+	}()
 	for _, entry := range entries {
 		header, err := tar.FileInfoHeader(entry.info, entry.link)
 		if err != nil {
@@ -142,122 +150,6 @@ func copyArchiveFile(writer io.Writer, entry archiveEntry) (int64, error) {
 	return written, nil
 }
 
-func extractTar(root string, src io.Reader) (tarStats, error) {
-	root = filepath.Clean(root)
-	if err := os.MkdirAll(root, 0o755); err != nil {
-		return tarStats{}, fmt.Errorf("sandbox/daytona: create extract root %q: %w", root, err)
-	}
-	realRoot, err := filepath.EvalSymlinks(root)
-	if err != nil {
-		return tarStats{}, fmt.Errorf("sandbox/daytona: evaluate extract root %q: %w", root, err)
-	}
-
-	reader := tar.NewReader(src)
-	var stats tarStats
-	for {
-		header, err := reader.Next()
-		if errors.Is(err, io.EOF) {
-			return stats, nil
-		}
-		if err != nil {
-			return tarStats{}, fmt.Errorf("sandbox/daytona: read tar header: %w", err)
-		}
-		if isArchiveRootMarker(header.Name) {
-			continue
-		}
-		entryStats, err := extractTarEntry(realRoot, header, reader)
-		if err != nil {
-			return tarStats{}, err
-		}
-		stats.Files += entryStats.Files
-		stats.Bytes += entryStats.Bytes
-	}
-}
-
-func extractTarEntry(realRoot string, header *tar.Header, reader io.Reader) (tarStats, error) {
-	target, err := archiveTargetPath(realRoot, header.Name)
-	if err != nil {
-		return tarStats{}, err
-	}
-	switch header.Typeflag {
-	case tar.TypeDir:
-		return tarStats{}, extractTarDirectory(target, header)
-	case tar.TypeReg:
-		written, err := extractTarRegularFile(realRoot, target, header, reader)
-		if err != nil {
-			return tarStats{}, err
-		}
-		return tarStats{Files: 1, Bytes: written}, nil
-	case tar.TypeSymlink:
-		return tarStats{}, extractTarSymlink(realRoot, target, header)
-	default:
-		return tarStats{}, fmt.Errorf(
-			"sandbox/daytona: unsupported tar entry %q mode %v",
-			header.Name,
-			header.Typeflag,
-		)
-	}
-}
-
-func archiveTargetPath(realRoot string, headerName string) (string, error) {
-	name, err := safeArchiveName(headerName)
-	if err != nil {
-		return "", err
-	}
-	target := filepath.Join(realRoot, filepath.FromSlash(name))
-	if !isWithinRoot(realRoot, target) {
-		return "", fmt.Errorf("%w: %q escapes %q", errUnsafeTarPath, headerName, realRoot)
-	}
-	return target, nil
-}
-
-func extractTarDirectory(target string, header *tar.Header) error {
-	if err := os.MkdirAll(target, modePerm(header.FileInfo().Mode(), 0o755)); err != nil {
-		return fmt.Errorf("sandbox/daytona: create directory %q: %w", target, err)
-	}
-	return nil
-}
-
-func extractTarRegularFile(realRoot string, target string, header *tar.Header, reader io.Reader) (int64, error) {
-	if err := ensureSafeParent(realRoot, target); err != nil {
-		return 0, err
-	}
-	file, err := os.OpenFile(
-		target,
-		os.O_CREATE|os.O_TRUNC|os.O_WRONLY,
-		modePerm(header.FileInfo().Mode(), 0o600),
-	)
-	if err != nil {
-		return 0, fmt.Errorf("sandbox/daytona: create extracted file %q: %w", target, err)
-	}
-	written, copyErr := io.CopyN(file, reader, header.Size)
-	closeErr := file.Close()
-	if copyErr != nil {
-		return 0, fmt.Errorf("sandbox/daytona: write extracted file %q: %w", target, copyErr)
-	}
-	if closeErr != nil {
-		return 0, fmt.Errorf("sandbox/daytona: close extracted file %q: %w", target, closeErr)
-	}
-	return written, nil
-}
-
-func extractTarSymlink(realRoot string, target string, header *tar.Header) error {
-	if err := ensureSafeParent(realRoot, target); err != nil {
-		return err
-	}
-	linkTarget, err := safeSymlinkTarget(realRoot, target, header.Linkname)
-	if err != nil {
-		return err
-	}
-	if err := os.RemoveAll(target); err != nil {
-		return fmt.Errorf("sandbox/daytona: replace symlink %q: %w", target, err)
-	}
-	if err := os.Symlink(linkTarget, target); err != nil {
-		return fmt.Errorf("sandbox/daytona: create symlink %q: %w", target, err)
-	}
-	return nil
-}
-
 func safeArchiveName(name string) (string, error) {
 	cleaned := path.Clean(strings.TrimSpace(name))
 	if cleaned == "." || cleaned == "" {
@@ -275,41 +167,6 @@ func safeArchiveName(name string) (string, error) {
 func isArchiveRootMarker(name string) bool {
 	cleaned := path.Clean(strings.TrimSpace(name))
 	return cleaned == "." || cleaned == ""
-}
-
-func safeSymlinkTarget(root string, target string, linkName string) (string, error) {
-	if strings.TrimSpace(linkName) == "" {
-		return "", fmt.Errorf("%w: empty symlink target", errUnsafeTarPath)
-	}
-	if filepath.IsAbs(linkName) {
-		if !isWithinRoot(root, linkName) {
-			return "", fmt.Errorf("%w: symlink %q escapes %q", errUnsafeTarPath, linkName, root)
-		}
-		return linkName, nil
-	}
-	resolved := filepath.Clean(filepath.Join(filepath.Dir(target), linkName))
-	if !isWithinRoot(root, resolved) {
-		return "", fmt.Errorf("%w: symlink %q escapes %q", errUnsafeTarPath, linkName, root)
-	}
-	return linkName, nil
-}
-
-func ensureSafeParent(root string, target string) error {
-	parent := filepath.Dir(target)
-	if err := os.MkdirAll(parent, 0o755); err != nil {
-		return fmt.Errorf("sandbox/daytona: create parent %q: %w", parent, err)
-	}
-	realParent, err := filepath.EvalSymlinks(parent)
-	if err != nil {
-		return fmt.Errorf("sandbox/daytona: evaluate parent %q: %w", parent, err)
-	}
-	if !isWithinRoot(root, realParent) {
-		return fmt.Errorf("%w: parent %q escapes %q", errUnsafeTarPath, realParent, root)
-	}
-	if info, err := os.Lstat(target); err == nil && info.Mode()&os.ModeSymlink != 0 {
-		return fmt.Errorf("%w: refusing to overwrite symlink %q", errUnsafeTarPath, target)
-	}
-	return nil
 }
 
 func shouldExcludeArchivePath(rel string, excludePatterns []string) bool {
@@ -349,15 +206,6 @@ func archivePatternMatches(pattern string, rel string) bool {
 		}
 	}
 	return false
-}
-
-func isWithinRoot(root string, target string) bool {
-	cleanRoot := filepath.Clean(root)
-	cleanTarget := filepath.Clean(target)
-	if cleanRoot == cleanTarget {
-		return true
-	}
-	return strings.HasPrefix(cleanTarget, cleanRoot+string(os.PathSeparator))
 }
 
 func modePerm(mode fs.FileMode, fallback fs.FileMode) fs.FileMode {

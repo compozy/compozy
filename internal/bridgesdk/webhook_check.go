@@ -98,8 +98,8 @@ func WebhookCheckRecords(
 }
 
 func webhookReachabilityErrorCheck(err error) bridgepkg.BridgeCheckRecord {
-	var netErr net.Error
-	if errors.Is(err, context.DeadlineExceeded) || errors.As(err, &netErr) && netErr.Timeout() {
+	netErr, isNetworkError := errors.AsType[net.Error](err)
+	if errors.Is(err, context.DeadlineExceeded) || isNetworkError && netErr != nil && netErr.Timeout() {
 		return bridgepkg.BridgeCheckRecord{
 			Check:       webhookReachabilityCheck,
 			Status:      bridgepkg.BridgeCheckStatusWarn,

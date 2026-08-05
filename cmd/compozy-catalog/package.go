@@ -75,6 +75,7 @@ func resolveCatalogPackagePaths(sourceDirectory string, outputArchive string) (s
 	if err != nil {
 		return "", "", fmt.Errorf("compozy-catalog: resolve package source: %w", err)
 	}
+	// #nosec G703 -- sourceRoot is the explicit local package directory selected by the operator.
 	info, err := os.Stat(sourceRoot)
 	if err != nil {
 		return "", "", fmt.Errorf("compozy-catalog: stat package source: %w", err)

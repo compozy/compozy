@@ -46,10 +46,15 @@ func (s *Store) Recall(
 		return memcontract.Packaged{}, err
 	}
 	options := []memoryrecall.Option{memoryrecall.WithLogger(s.logger)}
-	if recorder, recorderErr := s.recallSignalRecorder(ctx, query.WorkspaceID); recorderErr != nil {
+	lease, signalRecordingDisabled, recorderErr := s.recallSignalRecorder(ctx, query.WorkspaceID)
+	switch {
+	case recorderErr != nil:
 		s.warn("memory: create recall signal recorder failed", "error", recorderErr)
-	} else if recorder != nil {
-		options = append(options, memoryrecall.WithSignalRecorder(recorder))
+	case signalRecordingDisabled:
+		options = append(options, memoryrecall.WithoutSignalRecording())
+	case lease != nil:
+		defer lease.Release()
+		options = append(options, memoryrecall.WithSignalRecorder(lease))
 	}
 	recaller := memoryrecall.New(s, options...)
 	return recaller.Recall(ctx, query, opts)
@@ -58,31 +63,27 @@ func (s *Store) Recall(
 func (s *Store) recallSignalRecorder(
 	ctx context.Context,
 	workspaceID string,
-) (*memoryrecall.SignalRecorder, error) {
+) (*recallRecorderLease, bool, error) {
 	if s == nil || s.catalog == nil || s.recallRecorders == nil {
-		return nil, nil
+		return nil, false, nil
 	}
 	key := recallSignalRecorderKey(workspaceID)
-	s.recallRecorders.mu.Lock()
-	defer s.recallRecorders.mu.Unlock()
-	if recorder := s.recallRecorders.recorders[key]; recorder != nil {
-		return recorder, nil
-	}
-	recorder, err := memoryrecall.NewSignalRecorder(
-		context.WithoutCancel(ctx),
-		s,
-		memoryrecall.SignalRecorderConfig{
-			QueueCapacity:  s.recallSignals.queueCapacity,
-			WorkerRetryMax: s.recallSignals.workerRetryMax,
-			MetricsEnabled: s.recallSignals.metricsEnabled,
-		},
-		s.logger,
-	)
-	if err != nil {
-		return nil, err
-	}
-	s.recallRecorders.recorders[key] = recorder
-	return recorder, nil
+	return s.recallRecorders.acquire(ctx, key, func(
+		shouldStop func() bool,
+		onStopped func(),
+	) (*memoryrecall.SignalRecorder, error) {
+		return memoryrecall.NewSignalRecorder(
+			s.recallSignalLifecycle,
+			s,
+			memoryrecall.SignalRecorderConfig{
+				QueueCapacity:  s.recallSignals.queueCapacity,
+				WorkerRetryMax: s.recallSignals.workerRetryMax,
+			},
+			s.logger,
+			memoryrecall.WithIdleStop(shouldStop),
+			memoryrecall.WithStopped(onStopped),
+		)
+	})
 }
 
 func recallSignalRecorderKey(workspaceID string) string {

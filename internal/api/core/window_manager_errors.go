@@ -25,16 +25,14 @@ func windowManagerErrorPayload(
 	payload := contract.WindowManagerErrorPayload{
 		Error: string(code), Code: code, WorkspaceID: workspaceID,
 	}
-	var conflict *windowmanager.RevisionConflictError
-	if errors.As(err, &conflict) {
+	if conflict, ok := errors.AsType[*windowmanager.RevisionConflictError](err); ok {
 		if conflict.Current <= windowmanager.Revision(contract.WindowManagerMaxSafeRevision) {
 			current := contract.WindowManagerRevision(conflict.Current)
 			payload.CurrentRevision = &current
 		}
 		payload.Conflicts = append([]windowmanager.Conflict(nil), conflict.Details...)
 	}
-	var topology *windowmanager.TopologyError
-	if errors.As(err, &topology) {
+	if topology, ok := errors.AsType[*windowmanager.TopologyError](err); ok {
 		payload.Diagnostics = append([]windowmanager.Diagnostic(nil), topology.Diagnostics...)
 	}
 	return status, payload

@@ -279,6 +279,37 @@ func TestGlobalDBBridgeDeliveryStore(t *testing.T) {
 			t.Fatalf("CheckpointBridgeDelivery(missing) error = %v, want ErrDeliveryLedgerNotFound", err)
 		}
 	})
+
+	t.Run("Should retain a whitespace-only opaque delivery ID", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		insertBridgeDeliveryInstance(t, globalDB, bridges.ScopeGlobal, "", "brg-delivery-opaque")
+		record := bridgeDeliveryRecordForTest(
+			" ",
+			"brg-delivery-opaque",
+			bridges.ScopeGlobal,
+			"",
+			bridgeDeliveryTestTime(),
+		)
+
+		if err := globalDB.CreateBridgeDelivery(ctx, record); err != nil {
+			t.Fatalf("CreateBridgeDelivery() error = %v", err)
+		}
+		deliveries, err := globalDB.ListBridgeDeliveries(ctx, bridges.DeliveryLedgerQuery{
+			Scope: bridges.ScopeGlobal,
+		})
+		if err != nil {
+			t.Fatalf("ListBridgeDeliveries() error = %v", err)
+		}
+		if len(deliveries) != 1 {
+			t.Fatalf("ListBridgeDeliveries() returned %d deliveries, want 1", len(deliveries))
+		}
+		if got, want := deliveries[0].DeliveryID, record.DeliveryID; got != want {
+			t.Fatalf("stored delivery ID = %q, want exact opaque ID %q", got, want)
+		}
+	})
 }
 
 func TestGlobalDBBridgeDeliveryMetricsSurviveRestart(t *testing.T) {

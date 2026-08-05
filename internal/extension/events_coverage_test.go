@@ -191,14 +191,19 @@ func TestManagerCrashBackoffEmitsLifecycleEvent(t *testing.T) {
 		manager.devExtensions[key] = managed
 		manager.mu.Unlock()
 
-		backoff, disabled, owned := manager.recordOwnedInstanceFailure(
+		backoff, disableIdentity, owned := manager.recordOwnedInstanceFailure(
 			key,
 			managed,
 			process,
 			errors.New("subprocess exited"),
 		)
-		if backoff <= 0 || disabled || !owned {
-			t.Fatalf("recordOwnedInstanceFailure() = (%s, %t, %t), want backoff/false/true", backoff, disabled, owned)
+		if backoff <= 0 || disableIdentity != nil || !owned {
+			t.Fatalf(
+				"recordOwnedInstanceFailure() = (%s, %v, %t), want backoff/nil/true",
+				backoff,
+				disableIdentity,
+				owned,
+			)
 		}
 		events := sink.snapshot()
 		if len(events) != 1 || events[0].Type != eventspkg.ExtensionCrashLoopBackoff ||

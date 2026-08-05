@@ -30,7 +30,11 @@ func (h *HostAPIHandler) Handle(
 		return nil, methodNotFoundRPCError(method)
 	}
 
-	if err := h.capChecker.CheckHostAPI(extName, method); err != nil {
+	capabilityGrantID := hostAPICapabilityGrantIDFromContext(ctx)
+	if capabilityGrantID == "" {
+		capabilityGrantID = extName
+	}
+	if err := h.capChecker.CheckHostAPI(capabilityGrantID, method); err != nil {
 		return nil, rpcCapabilityDenied(err)
 	}
 	if err := h.limiter.Allow(extName, method); err != nil {

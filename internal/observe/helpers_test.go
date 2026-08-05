@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -453,19 +454,19 @@ func TestLoadSessionMetadataSkipsMissingMetaAndKeepsStoppedState(t *testing.T) {
 	}
 }
 
-func TestLoadSessionMetadataLogsOriginalSessionIDWhenLegacyProviderRepairFails(t *testing.T) {
+func TestLoadSessionMetadataLogsInvalidProviderSessionID(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
 	var logs bytes.Buffer
 	h.observer.logger = slog.New(slog.NewTextHandler(&logs, nil))
 
-	sessionDir := filepath.Join(h.home.SessionsDir, "sess-legacy")
+	sessionDir := filepath.Join(h.home.SessionsDir, "sess-without-provider")
 	if err := store.WriteSessionMeta(store.SessionMetaFile(sessionDir), store.SessionMeta{
-		ID:                   "sess-legacy",
-		Name:                 "Legacy",
+		ID:                   "sess-without-provider",
+		Name:                 "Missing Provider",
 		AgentName:            "coder",
-		WorkspaceID:          "missing-workspace",
+		WorkspaceID:          h.workspaceID,
 		NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
 		State:                "stopped",
 		RuntimeStatus:        store.SessionRuntimeUnbound,
@@ -480,9 +481,10 @@ func TestLoadSessionMetadataLogsOriginalSessionIDWhenLegacyProviderRepairFails(t
 		t.Fatalf("loadSessionMetadata() error = %v", err)
 	}
 	if got := len(sessions); got != 0 {
-		t.Fatalf("len(sessions) = %d, want 0 after repair failure", got)
+		t.Fatalf("len(sessions) = %d, want 0 for invalid provider metadata", got)
 	}
-	if !strings.Contains(logs.String(), "session_id=sess-legacy") {
+	if !strings.Contains(logs.String(), "session_id=sess-without-provider") ||
+		!strings.Contains(logs.String(), "skipping invalid session metadata") {
 		t.Fatalf("logs = %q, want original session_id", logs.String())
 	}
 }
@@ -563,9 +565,11 @@ type fakeObserveWorkspaceResolver struct {
 	expectedRef string
 	resolved    workspacepkg.ResolvedWorkspace
 	err         error
+	calls       atomic.Int64
 }
 
 func (r *fakeObserveWorkspaceResolver) Resolve(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+	r.calls.Add(1)
 	if r.err != nil {
 		return workspacepkg.ResolvedWorkspace{}, r.err
 	}
@@ -579,6 +583,7 @@ func (r *fakeObserveWorkspaceResolver) ResolveOrRegister(
 	_ context.Context,
 	ref string,
 ) (workspacepkg.ResolvedWorkspace, error) {
+	r.calls.Add(1)
 	if r.err != nil {
 		return workspacepkg.ResolvedWorkspace{}, r.err
 	}

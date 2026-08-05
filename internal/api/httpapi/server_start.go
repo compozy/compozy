@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
 	"net"
 	"net/http"
 	"strconv"
@@ -37,10 +36,23 @@ func (s *Server) Start(ctx context.Context) error {
 		return err
 	}
 
+	generation, startCtx, err := s.beginStart(ctx)
+	if err != nil {
+		return err
+	}
+	defer generation.startCancel()
+
 	address := net.JoinHostPort(strings.TrimSpace(s.host), strconv.Itoa(s.port))
 	var listenConfig net.ListenConfig
-	ln, err := listenConfig.Listen(ctx, "tcp", address)
+	listener, err := listenConfig.Listen(startCtx, "tcp", address)
 	if err != nil {
+		s.completeStart(generation, false)
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		if startCtx.Err() != nil {
+			return errServerShutdownInProgress
+		}
 		return fmt.Errorf("httpapi: listen on %q: %w", address, err)
 	}
 
@@ -51,47 +63,44 @@ func (s *Server) Start(ctx context.Context) error {
 		IdleTimeout:       defaultIdleTimeout,
 	}
 	httpServer.RegisterOnShutdown(streamCancel)
-	serveDone := make(chan struct{})
 
 	actualPort := s.port
-	if tcpAddr, ok := ln.Addr().(*net.TCPAddr); ok && tcpAddr.Port > 0 {
+	if tcpAddr, ok := listener.Addr().(*net.TCPAddr); ok && tcpAddr.Port > 0 {
 		actualPort = tcpAddr.Port
 	}
 
 	s.mu.Lock()
-	if s.started {
-		s.mu.Unlock()
-		streamCancel()
-		startErr := errors.New("httpapi: server already started")
-		if closeErr := ln.Close(); closeErr != nil {
-			return errors.Join(startErr, fmt.Errorf("httpapi: close duplicate listener: %w", closeErr))
-		}
-		return startErr
+	startCanceled := s.generation != generation || s.state != serverStateStarting || startCtx.Err() != nil
+	if !startCanceled {
+		generation.httpServer = httpServer
+		generation.listener = listener
+		generation.serveDone = make(chan struct{})
+		generation.streamCancel = streamCancel
+		s.handlers.setStreamDone(streamCtx.Done())
+		s.handlers.setHTTPPort(actualPort)
+		s.actualPort = actualPort
 	}
-	s.handlers.setStreamDone(streamCtx.Done())
-	s.handlers.setHTTPPort(actualPort)
-	s.httpServer = httpServer
-	s.listener = ln
-	s.serveDone = serveDone
-	s.serveErr = nil
-	s.streamCancel = streamCancel
-	s.started = true
-	s.actualPort = actualPort
 	s.mu.Unlock()
 
-	s.logger.Info("httpapi: static web assets source selected", "source", s.staticSource)
-
-	go func() {
-		defer close(serveDone)
-		if err := httpServer.Serve(
-			ln,
-		); err != nil && !errors.Is(err, http.ErrServerClosed) &&
-			!errors.Is(err, net.ErrClosed) {
-			s.mu.Lock()
-			s.serveErr = fmt.Errorf("httpapi: serve %q: %w", address, err)
-			s.mu.Unlock()
+	if startCanceled {
+		streamCancel()
+		closeErr := listener.Close()
+		s.completeStart(generation, false)
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			if closeErr != nil && !errors.Is(closeErr, net.ErrClosed) {
+				return errors.Join(ctxErr, fmt.Errorf("httpapi: close interrupted listener: %w", closeErr))
+			}
+			return ctxErr
 		}
-	}()
+		if closeErr != nil && !errors.Is(closeErr, net.ErrClosed) {
+			interruptedCloseErr := fmt.Errorf("httpapi: close interrupted listener: %w", closeErr)
+			return errors.Join(errServerShutdownInProgress, interruptedCloseErr)
+		}
+		return errServerShutdownInProgress
+	}
 
+	s.completeStart(generation, true)
+	s.logger.Info("httpapi: static web assets source selected", "source", s.staticSource)
+	go s.serve(generation, address)
 	return nil
 }

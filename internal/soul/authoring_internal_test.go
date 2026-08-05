@@ -64,8 +64,9 @@ func TestManagedSoulAuthoringServiceVerifyUnchangedSoul(t *testing.T) {
 		if !errors.Is(err, ErrAuthoringConflict) {
 			t.Fatalf("verifyUnchangedSoul() error = %v, want ErrAuthoringConflict", err)
 		}
-		var authoringErr *AuthoringError
-		if !errors.As(err, &authoringErr) {
+
+		authoringErr, authoringErrMatched := errors.AsType[*AuthoringError](err)
+		if !authoringErrMatched {
 			t.Fatalf("verifyUnchangedSoul() error = %T %[1]v, want *AuthoringError", err)
 		}
 		if authoringErr.Code != diagnosticSoulConflict {

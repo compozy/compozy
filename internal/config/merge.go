@@ -250,9 +250,8 @@ type memoryRecallFreshnessOverlay struct {
 }
 
 type memoryRecallSignalsOverlay struct {
-	QueueCapacity  *int  `toml:"queue_capacity"`
-	WorkerRetryMax *int  `toml:"worker_retry_max"`
-	MetricsEnabled *bool `toml:"metrics_enabled"`
+	QueueCapacity  *int `toml:"queue_capacity"`
+	WorkerRetryMax *int `toml:"worker_retry_max"`
 }
 
 type memoryDecisionsOverlay struct {

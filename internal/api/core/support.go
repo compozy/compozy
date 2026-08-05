@@ -82,14 +82,15 @@ func (h *BaseHandlers) DownloadSupportBundle(c *gin.Context) {
 func supportBundleConsentError() error {
 	detail := "Support bundle creation requires explicit consent because bundles include redacted config, " +
 		"log tails, provider metadata, event summaries, and status artifacts."
-	item := diagnostics.NewItem(
-		"support.bundle.consent_required",
-		contract.CodeBundleConsentRequired,
-		contract.CategoryDaemon,
-		"Support bundle consent required",
-		detail,
-		contract.SeverityError,
-		contract.FreshnessLive,
+	item := diagnostics.NewItem(diagnostics.ItemSpec{
+		ID:            "support.bundle.consent_required",
+		Code:          contract.CodeBundleConsentRequired,
+		Category:      contract.CategoryDaemon,
+		Title:         "Support bundle consent required",
+		Message:       detail,
+		Severity:      contract.SeverityError,
+		DataFreshness: contract.FreshnessLive,
+	},
 		diagnostics.WithSuggestedCommand("compozy support bundle --yes"),
 	)
 	return diagnostics.NewStructuredError(item, errSupportBundleConsentRequired)

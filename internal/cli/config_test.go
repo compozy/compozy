@@ -653,7 +653,7 @@ func TestConfigSetReloadsReachableDaemonWhenProcessTimestampMetadataLags(t *test
 	}
 }
 
-func TestConfigSetRejectsLegacyEnvironmentMutationPaths(t *testing.T) {
+func TestConfigSetRejectsRemovedMutationPaths(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -662,6 +662,7 @@ func TestConfigSetRejectsLegacyEnvironmentMutationPaths(t *testing.T) {
 	}{
 		{name: "Should reject legacy defaults environment", path: "defaults.environment"},
 		{name: "Should reject legacy environment profile", path: "environments.dev.backend"},
+		{name: "Should reject recall signal metrics", path: "memory.recall.signals.metrics_enabled"},
 	}
 
 	for _, tt := range tests {
@@ -1211,6 +1212,11 @@ backend = "local"
 
 	[sandboxes.dev.secret_env]
 	API_TOKEN = "vault:sandbox/dev/api-token"
+
+[providers.private]
+command = "private-acp"
+auth_mode = "native_cli"
+auth_login_command = "private login --token raw-login-secret"
 `)
 
 	listOut, _, err := executeRootCommand(t, deps, "config", "list", "-o", "json")
@@ -1218,7 +1224,8 @@ backend = "local"
 		t.Fatalf("config list error = %v", err)
 	}
 	if strings.Contains(listOut, "env:MCP_TOKEN") ||
-		strings.Contains(listOut, "vault:sandbox/dev/api-token") {
+		strings.Contains(listOut, "vault:sandbox/dev/api-token") ||
+		strings.Contains(listOut, "raw-login-secret") {
 		t.Fatalf("config list leaked secret values:\n%s", listOut)
 	}
 	if !strings.Contains(listOut, compozyconfig.RedactedValue()) {
@@ -1235,6 +1242,60 @@ backend = "local"
 	}
 	if valueRecord.Value != compozyconfig.RedactedValue() || !valueRecord.Redacted {
 		t.Fatalf("redacted config value = %#v, want placeholder/redacted", valueRecord)
+	}
+
+	loginGetOut, _, err := executeRootCommand(
+		t,
+		deps,
+		"config",
+		"get",
+		"providers.private.auth_login_command",
+		"-o",
+		"json",
+	)
+	if err != nil {
+		t.Fatalf("config get write-only provider login command error = %v", err)
+	}
+	var loginRecord configValueRecord
+	if err := json.Unmarshal([]byte(loginGetOut), &loginRecord); err != nil {
+		t.Fatalf("json.Unmarshal(config get provider login) error = %v", err)
+	}
+	if loginRecord.Value != compozyconfig.RedactedValue() || !loginRecord.Redacted {
+		t.Fatalf("provider login config value = %#v, want placeholder/redacted", loginRecord)
+	}
+
+	for _, command := range [][]string{{"config", "show", "-o", "json"}, {"config", "diff", "-o", "json"}} {
+		output, _, commandErr := executeRootCommand(t, deps, command...)
+		if commandErr != nil {
+			t.Fatalf("%s error = %v", strings.Join(command, " "), commandErr)
+		}
+		if strings.Contains(output, "raw-login-secret") || strings.Contains(output, "private login --token") {
+			t.Fatalf("%s leaked provider login command:\n%s", strings.Join(command, " "), output)
+		}
+	}
+
+	setOut, _, err := executeRootCommand(
+		t,
+		deps,
+		"config",
+		"set",
+		"providers.private.auth_login_command",
+		"private login --token replacement-secret",
+		"-o",
+		"json",
+	)
+	if err != nil {
+		t.Fatalf("config set write-only provider login command error = %v", err)
+	}
+	var loginSetRecord configSetRecord
+	if err := json.Unmarshal([]byte(setOut), &loginSetRecord); err != nil {
+		t.Fatalf("json.Unmarshal(config set provider login) error = %v", err)
+	}
+	if loginSetRecord.Value != compozyconfig.RedactedValue() || !loginSetRecord.Redacted {
+		t.Fatalf("provider login config set record = %#v, want placeholder/redacted", loginSetRecord)
+	}
+	if strings.Contains(setOut, "replacement-secret") || strings.Contains(setOut, "private login --token") {
+		t.Fatalf("config set leaked provider login command:\n%s", setOut)
 	}
 }
 

@@ -8,41 +8,6 @@ import (
 	"strings"
 )
 
-type runReviewRequestedEventPayload struct {
-	ReviewID    string       `json:"review_id"`
-	RunID       string       `json:"run_id"`
-	Policy      ReviewPolicy `json:"policy"`
-	ReviewRound int          `json:"review_round"`
-	Attempt     int          `json:"attempt"`
-	Created     bool         `json:"created"`
-}
-
-type runReviewBoundEventPayload struct {
-	ReviewID          string `json:"review_id"`
-	RunID             string `json:"run_id"`
-	SessionID         string `json:"session_id"`
-	ReviewerAgentName string `json:"reviewer_agent_name,omitempty"`
-	ReviewerPeerID    string `json:"reviewer_peer_id,omitempty"`
-	ReviewerChannelID string `json:"reviewer_channel_id,omitempty"`
-}
-
-type runReviewRecordedEventPayload struct {
-	ReviewID     string           `json:"review_id"`
-	RunID        string           `json:"run_id"`
-	Outcome      RunReviewOutcome `json:"outcome"`
-	Confidence   float64          `json:"confidence"`
-	DeliveryID   string           `json:"delivery_id"`
-	ReviewRound  int              `json:"review_round"`
-	Continuation string           `json:"continuation_run_id,omitempty"`
-}
-
-type runReviewRetryEnqueuedEventPayload struct {
-	ReviewID          string `json:"review_id"`
-	RunID             string `json:"run_id"`
-	ContinuationRunID string `json:"continuation_run_id"`
-	ReviewRound       int    `json:"review_round"`
-}
-
 // RequestRunReview persists or returns the idempotent review request for a terminal task run.
 func (m *Service) RequestRunReview(
 	ctx context.Context,
@@ -94,27 +59,22 @@ func (m *Service) RequestRunReview(
 		)
 	}
 
-	review := runReviewFromRequest(m.newID("review"), normalized, m.now().UTC())
+	reviewID, err := m.newID("review")
+	if err != nil {
+		return RunReview{}, false, fmt.Errorf("task: generate run review id: %w", err)
+	}
+	review := runReviewFromRequest(reviewID, normalized, m.now().UTC())
+	requestedEvent := runReviewRequestedEvent(review)
+	preparedEvents, err := m.prepareReviewTaskEvents(actor, []reviewTaskEvent{requestedEvent})
+	if err != nil {
+		return RunReview{}, false, err
+	}
 	stored, created, err := m.store.RequestRunReview(ctx, &review)
 	if err != nil {
 		return RunReview{}, false, err
 	}
 	if created {
-		if err := m.recordTaskEvent(
-			ctx,
-			stored.TaskID,
-			stored.RunID,
-			taskEventRunReviewRequested,
-			actor,
-			runReviewRequestedEventPayload{
-				ReviewID:    stored.ReviewID,
-				RunID:       stored.RunID,
-				Policy:      stored.Policy,
-				ReviewRound: stored.ReviewRound,
-				Attempt:     stored.Attempt,
-				Created:     created,
-			},
-		); err != nil {
+		if err := m.recordReviewTaskEvents(ctx, preparedEvents); err != nil {
 			return RunReview{}, false, err
 		}
 		m.notifyRunReviewRequestedBestEffort(ctx, &RunReviewRequestedNotification{
@@ -135,16 +95,14 @@ func (m *Service) notifyRunReviewRequestedBestEffort(
 		return
 	}
 
-	postCommitCtx := context.Background()
-	if ctx != nil {
-		postCommitCtx = context.WithoutCancel(ctx)
-	}
+	postCommitCtx, cancel := taskPostCommitContext(ctx)
+	defer cancel()
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			slog.Error(
 				"task: run review observer panicked during post-commit notification",
 				"panic", recovered,
-				"review_id", notification.Review.ReviewID,
+				reviewEvidenceIDKey, notification.Review.ReviewID,
 				"task_id", notification.Review.TaskID,
 				"run_id", notification.Review.RunID,
 			)
@@ -162,6 +120,9 @@ func (m *Service) GetRunReview(ctx context.Context, reviewID string, actor Actor
 	trimmedID := strings.TrimSpace(reviewID)
 	if trimmedID == "" {
 		return RunReview{}, fmt.Errorf("%w: review_id is required", ErrValidation)
+	}
+	if err := ValidateReferenceSize(trimmedID, reviewEvidenceIDKey); err != nil {
+		return RunReview{}, err
 	}
 	review, err := m.store.GetRunReview(ctx, trimmedID)
 	if err != nil {
@@ -193,23 +154,44 @@ func (m *Service) RecordRunReview(
 	if err := m.authorizeRunReviewResource(ctx, actor, review); err != nil {
 		return RunReviewResult{}, err
 	}
+	alreadyRecorded := review.Status.Normalize() == RunReviewStatusRecorded
+	// The store decides replay inside its transaction and discards this id when it replays.
+	continuationRunID := ""
+	if normalized.Verdict.Outcome.Normalize() == RunReviewOutcomeRejected {
+		continuationRunID, err = m.newID("run")
+		if err != nil {
+			return RunReviewResult{}, fmt.Errorf("task: generate review continuation run id: %w", err)
+		}
+	}
+	anticipated := anticipatedRunReviewResult(review, normalized.Verdict, continuationRunID)
+	anticipatedEvents := runReviewVerdictEvents(anticipated)
+	var preparedEvents []Event
+	if !alreadyRecorded {
+		preparedEvents, err = m.prepareReviewTaskEvents(actor, anticipatedEvents)
+		if err != nil {
+			return RunReviewResult{}, err
+		}
+	}
 
 	result, err := m.store.RecordRunReview(
 		ctx,
 		normalized,
 		actor,
 		m.now().UTC(),
-		m.newID("run"),
+		continuationRunID,
 	)
 	if err != nil {
 		return RunReviewResult{}, err
+	}
+	if alreadyRecorded || !sameRunReviewEventProjection(result, anticipated) {
+		return result, nil
 	}
 	if result.ContinuationRun != nil {
 		if _, err := m.reconcileTaskCascade(ctx, result.Review.TaskID, actor); err != nil {
 			return RunReviewResult{}, err
 		}
 	}
-	if err := m.recordRunReviewVerdictEvents(ctx, result, actor); err != nil {
+	if err := m.recordReviewTaskEvents(ctx, preparedEvents); err != nil {
 		return RunReviewResult{}, err
 	}
 	return result, nil
@@ -235,119 +217,20 @@ func (m *Service) BindRunReviewSession(
 	if err := m.authorizeRunReviewResource(ctx, actor, review); err != nil {
 		return RunReviewBinding{}, err
 	}
+	event := runReviewBoundEvent(review, normalized)
+	preparedEvents, err := m.prepareReviewTaskEvents(actor, []reviewTaskEvent{event})
+	if err != nil {
+		return RunReviewBinding{}, err
+	}
 
 	stored, err := m.store.BindRunReviewSession(ctx, normalized, m.now().UTC())
 	if err != nil {
 		return RunReviewBinding{}, err
 	}
-	if err := m.recordTaskEvent(
-		ctx,
-		stored.TaskID,
-		stored.RunID,
-		taskEventRunReviewBound,
-		actor,
-		runReviewBoundEventPayload{
-			ReviewID:          stored.ReviewID,
-			RunID:             stored.RunID,
-			SessionID:         stored.ReviewerSessionID,
-			ReviewerAgentName: stored.ReviewerAgentName,
-			ReviewerPeerID:    stored.ReviewerPeerID,
-			ReviewerChannelID: stored.ReviewerChannelID,
-		},
-	); err != nil {
+	if err := m.recordReviewTaskEvents(ctx, preparedEvents); err != nil {
 		return RunReviewBinding{}, err
 	}
 	return runReviewBindingFromReview(stored), nil
-}
-
-func (m *Service) recordRunReviewVerdictEvents(
-	ctx context.Context,
-	result RunReviewResult,
-	actor ActorContext,
-) error {
-	confidence := 0.0
-	if result.Review.Confidence != nil {
-		confidence = *result.Review.Confidence
-	}
-	payload := runReviewRecordedEventPayload{
-		ReviewID:    result.Review.ReviewID,
-		RunID:       result.Review.RunID,
-		Outcome:     result.Review.Outcome,
-		Confidence:  confidence,
-		DeliveryID:  result.Review.DeliveryID,
-		ReviewRound: result.Review.ReviewRound,
-	}
-	if result.ContinuationRun != nil {
-		payload.Continuation = result.ContinuationRun.ID
-	}
-	if err := m.recordTaskEvent(
-		ctx,
-		result.Review.TaskID,
-		result.Review.RunID,
-		taskEventRunReviewRecorded,
-		actor,
-		payload,
-	); err != nil {
-		return err
-	}
-	if err := m.recordRunReviewOutcomeEvent(ctx, result, actor, payload); err != nil {
-		return err
-	}
-	if result.ContinuationRun == nil {
-		return nil
-	}
-	return m.recordTaskEvent(
-		ctx,
-		result.ContinuationRun.TaskID,
-		result.ContinuationRun.ID,
-		taskEventRunReviewRetry,
-		actor,
-		runReviewRetryEnqueuedEventPayload{
-			ReviewID:          result.Review.ReviewID,
-			RunID:             result.Review.RunID,
-			ContinuationRunID: result.ContinuationRun.ID,
-			ReviewRound:       runReviewRound(result.ContinuationRun),
-		},
-	)
-}
-
-func runReviewRound(run *Run) int {
-	if run == nil || run.Review == nil {
-		return 0
-	}
-	return run.Review.ReviewRound
-}
-
-func (m *Service) recordRunReviewOutcomeEvent(
-	ctx context.Context,
-	result RunReviewResult,
-	actor ActorContext,
-	payload runReviewRecordedEventPayload,
-) error {
-	eventType := runReviewOutcomeEventType(result.Review.Outcome)
-	if eventType == "" {
-		return nil
-	}
-	return m.recordTaskEvent(ctx, result.Review.TaskID, result.Review.RunID, eventType, actor, payload)
-}
-
-func runReviewOutcomeEventType(outcome RunReviewOutcome) string {
-	switch outcome.Normalize() {
-	case RunReviewOutcomeApproved:
-		return taskEventRunReviewApproved
-	case RunReviewOutcomeRejected:
-		return taskEventRunReviewRejected
-	case RunReviewOutcomeBlocked:
-		return taskEventRunReviewBlocked
-	case RunReviewOutcomeError:
-		return taskEventRunReviewError
-	case RunReviewOutcomeTimeout:
-		return taskEventRunReviewTimeout
-	case RunReviewOutcomeInvalidOutput:
-		return taskEventRunReviewInvalid
-	default:
-		return ""
-	}
 }
 
 // LookupRunReviewForSession returns the active review bound to one reviewer session.
@@ -362,6 +245,9 @@ func (m *Service) LookupRunReviewForSession(
 	trimmedSessionID := strings.TrimSpace(sessionID)
 	if trimmedSessionID == "" {
 		return RunReviewBinding{}, fmt.Errorf("%w: reviewer session id is required", ErrValidation)
+	}
+	if err := ValidateReferenceSize(trimmedSessionID, "reviewer_session_id"); err != nil {
+		return RunReviewBinding{}, err
 	}
 	review, err := m.store.LookupRunReviewBySession(ctx, trimmedSessionID)
 	if err != nil {

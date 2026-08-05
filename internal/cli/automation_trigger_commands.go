@@ -108,7 +108,6 @@ func newAutomationTriggersUpdateCommand(deps commandDeps) *cobra.Command {
 
 			request, err := buildAutomationTriggerUpdateRequest(
 				cmd,
-				client,
 				automationTriggerCommandInput{
 					automationCreateTargetInput: automationCreateTargetInput{Prompt: prompt},
 					Name:                        name,

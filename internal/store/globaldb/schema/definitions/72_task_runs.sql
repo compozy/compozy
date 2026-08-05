@@ -164,6 +164,64 @@ CREATE TABLE "task_runs" (
 		UNIQUE (workspace_id, id)
 	);
 
+CREATE TABLE task_run_terminal_commands (
+		command_id             TEXT NOT NULL UNIQUE,
+		run_id                 TEXT NOT NULL PRIMARY KEY REFERENCES task_runs(id) ON DELETE CASCADE,
+		task_id                TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+		workspace_id           TEXT NOT NULL,
+		kind                   TEXT NOT NULL CHECK (
+			kind IN ('completed', 'failed', 'canceled', 'needs_attention')
+		),
+		phase                  TEXT NOT NULL CHECK (
+			phase IN ('admitted', 'stop_requested', 'stop_confirmed')
+		),
+		source_status          TEXT NOT NULL,
+		source_session_id      TEXT NOT NULL,
+		source_claim_token_hash TEXT NOT NULL,
+		source_lease_until     TEXT,
+		intent_json            TEXT NOT NULL CHECK (json_valid(intent_json)),
+		actor_json             TEXT NOT NULL CHECK (json_valid(actor_json)),
+		command_at             TEXT NOT NULL,
+		admitted_at            TEXT NOT NULL,
+		updated_at             TEXT NOT NULL
+	);
+
+CREATE INDEX idx_task_run_terminal_commands_phase
+		ON task_run_terminal_commands(phase, admitted_at, run_id);
+
+CREATE TRIGGER trg_task_runs_terminal_command_guard
+	BEFORE UPDATE ON task_runs
+	WHEN EXISTS (
+		SELECT 1
+		FROM task_run_terminal_commands
+		WHERE run_id = OLD.id
+	)
+	BEGIN
+		SELECT RAISE(ABORT, 'task run terminal command in progress');
+	END;
+
+CREATE TRIGGER trg_task_runs_terminal_command_delete_guard
+	BEFORE DELETE ON task_runs
+	WHEN EXISTS (
+		SELECT 1
+		FROM task_run_terminal_commands
+		WHERE run_id = OLD.id
+	)
+	BEGIN
+		SELECT RAISE(ABORT, 'task run terminal command in progress');
+	END;
+
+CREATE TRIGGER trg_tasks_terminal_command_delete_guard
+	BEFORE DELETE ON tasks
+	WHEN EXISTS (
+		SELECT 1
+		FROM task_run_terminal_commands
+		WHERE task_id = OLD.id
+	)
+	BEGIN
+		SELECT RAISE(ABORT, 'task run terminal command in progress');
+	END;
+
 CREATE INDEX idx_task_run_idempotency_run ON task_run_idempotency(run_id);
 
 CREATE INDEX idx_task_run_preferred_capabilities_capability

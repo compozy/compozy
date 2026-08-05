@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -103,6 +104,94 @@ func TestMultiRegistrySearchQueriesSourcesConcurrently(t *testing.T) {
 	if len(result.listings) != 2 {
 		t.Fatalf("Search() listings = %#v, want 2 results", result.listings)
 	}
+}
+
+func TestMultiRegistryDoesNotMutateSourceOwnedValues(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should clone listings before concurrent normalization", func(t *testing.T) {
+		t.Parallel()
+
+		shared := []Listing{{Slug: " pkg ", Name: "Package"}}
+		registry := NewMultiRegistry(testLogger(), &stubRegistrySource{
+			name: "source",
+			caps: SourceCaps{Search: true},
+			searchFunc: func(context.Context, string, SearchOpts) ([]Listing, error) {
+				return shared, nil
+			},
+		})
+		type outcome struct {
+			listings []Listing
+			err      error
+		}
+		outcomes := make(chan outcome, 32)
+		var wg sync.WaitGroup
+		for range 32 {
+			wg.Go(func() {
+				listings, err := registry.Search(t.Context(), "pkg", SearchOpts{})
+				outcomes <- outcome{listings: listings, err: err}
+			})
+		}
+		wg.Wait()
+		close(outcomes)
+		for result := range outcomes {
+			if result.err != nil {
+				t.Fatalf("Search() error = %v", result.err)
+			}
+			if len(result.listings) != 1 || result.listings[0].Slug != "pkg" || result.listings[0].Source != "source" {
+				t.Fatalf("Search() listings = %#v, want normalized clone", result.listings)
+			}
+		}
+		if shared[0].Slug != " pkg " || shared[0].Source != "" {
+			t.Fatalf("source-owned listings = %#v, want unchanged", shared)
+		}
+	})
+
+	t.Run("Should deep clone detail slices before concurrent normalization", func(t *testing.T) {
+		t.Parallel()
+
+		shared := &Detail{
+			Listing:    Listing{Slug: "pkg"},
+			MCPServers: []string{"server"},
+			Tags:       []string{"tag"},
+			Versions:   []string{"1.0.0"},
+		}
+		registry := NewMultiRegistry(testLogger(), &stubRegistrySource{
+			name: "source",
+			infoFunc: func(context.Context, string) (*Detail, error) {
+				return shared, nil
+			},
+		})
+		type outcome struct {
+			detail *Detail
+			err    error
+		}
+		outcomes := make(chan outcome, 32)
+		var wg sync.WaitGroup
+		for range 32 {
+			wg.Go(func() {
+				detail, err := registry.Info(t.Context(), "pkg")
+				outcomes <- outcome{detail: detail, err: err}
+			})
+		}
+		wg.Wait()
+		close(outcomes)
+		for result := range outcomes {
+			if result.err != nil {
+				t.Fatalf("Info() error = %v", result.err)
+			}
+			if result.detail == nil || result.detail.Source != "source" {
+				t.Fatalf("Info() detail = %#v, want source-owned clone", result.detail)
+			}
+			result.detail.MCPServers[0] = "changed-server"
+			result.detail.Tags[0] = "changed-tag"
+			result.detail.Versions[0] = "2.0.0"
+		}
+		if shared.Source != "" || shared.MCPServers[0] != "server" ||
+			shared.Tags[0] != "tag" || shared.Versions[0] != "1.0.0" {
+			t.Fatalf("source-owned detail = %#v, want unchanged", shared)
+		}
+	})
 }
 
 func TestMultiRegistrySearchMergesAndOverridesByPriority(t *testing.T) {
@@ -386,6 +475,7 @@ func TestMultiRegistryInfoHonorsCancellationAfterPartialResults(t *testing.T) {
 
 func TestMultiRegistryDownloadDelegatesToResolvedSource(t *testing.T) {
 	t.Parallel()
+	sharedResult := &DownloadResult{Reader: io.NopCloser(strings.NewReader("archive"))}
 
 	low := &stubRegistrySource{
 		name: "low",
@@ -401,11 +491,8 @@ func TestMultiRegistryDownloadDelegatesToResolvedSource(t *testing.T) {
 		infoFunc: func(context.Context, string) (*Detail, error) {
 			return &Detail{Listing: Listing{Slug: "pkg"}}, nil
 		},
-		downloadFunc: func(_ context.Context, slug string, _ DownloadOpts) (*DownloadResult, error) {
-			return &DownloadResult{
-				Slug:   slug,
-				Reader: io.NopCloser(strings.NewReader("archive")),
-			}, nil
+		downloadFunc: func(context.Context, string, DownloadOpts) (*DownloadResult, error) {
+			return sharedResult, nil
 		},
 	}
 
@@ -416,6 +503,9 @@ func TestMultiRegistryDownloadDelegatesToResolvedSource(t *testing.T) {
 	}
 	if result == nil || result.Slug != "pkg" {
 		t.Fatalf("Download() result = %#v, want slug pkg", result)
+	}
+	if result == sharedResult || sharedResult.Slug != "" {
+		t.Fatalf("Download() result = %#v, source-owned result = %#v; want cloned metadata", result, sharedResult)
 	}
 	if got := low.downloadCalls.Load(); got != 0 {
 		t.Fatalf("low.downloadCalls = %d, want 0", got)

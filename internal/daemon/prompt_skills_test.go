@@ -302,7 +302,7 @@ func BenchmarkSkillsCatalogAugmenterCatalogReplayModes(b *testing.B) {
 	promptSuffixBytes := len("\n\nnetwork note")
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		if _, err := augmenter(context.Background(), sess, "network note"); err != nil {
 			b.Fatalf("augmenter(repeated) error = %v", err)
 		}

@@ -55,8 +55,9 @@ func TestCapabilityCheckerModelHostAPIMethods(t *testing.T) {
 			if err == nil {
 				t.Fatalf("CheckHostAPI(%q) error = nil, want capability denied", tt.method)
 			}
-			var denied *ErrCapabilityDenied
-			if !errors.As(err, &denied) {
+
+			denied, deniedMatched := errors.AsType[*ErrCapabilityDenied](err)
+			if !deniedMatched {
 				t.Fatalf("CheckHostAPI(%q) error = %T, want *ErrCapabilityDenied", tt.method, err)
 			}
 			if !slices.Equal(denied.Data.Required, tt.wantNeeded) {

@@ -329,8 +329,8 @@ func TestVerifyHashReturnsExpectedAndActualHashWhenTampered(t *testing.T) {
 		t.Fatal("VerifyHash() error = nil, want hash mismatch")
 	}
 
-	var mismatch *HashMismatchError
-	if !errors.As(err, &mismatch) {
+	mismatch, mismatchMatched := errors.AsType[*HashMismatchError](err)
+	if !mismatchMatched {
 		t.Fatalf("VerifyHash() error = %v, want HashMismatchError", err)
 	}
 	if mismatch.ExpectedHash != originalHash {
@@ -375,8 +375,8 @@ func TestVerifyHashDetectsTamperingOutsideSkillMarkdown(t *testing.T) {
 		t.Fatal("VerifyHash() error = nil, want hash mismatch after helper tamper")
 	}
 
-	var mismatch *HashMismatchError
-	if !errors.As(err, &mismatch) {
+	mismatch, mismatchMatched := errors.AsType[*HashMismatchError](err)
+	if !mismatchMatched {
 		t.Fatalf("VerifyHash() error = %v, want HashMismatchError", err)
 	}
 	if mismatch.ExpectedHash != hash {

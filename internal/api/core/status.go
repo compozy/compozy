@@ -202,12 +202,8 @@ func (h *BaseHandlers) providerStatusPayloads(ctx context.Context) ([]contract.P
 			Code:          strings.TrimSpace(status.Code),
 			Message:       diagnostics.RedactAndBound(status.Message, maxDiagnosticPayloadBytes),
 			StatusCommand: diagnostics.RedactAndBound(status.StatusCmd, maxDiagnosticPayloadBytes),
-			LoginCommand:  diagnostics.RedactAndBound(status.LoginCmd, maxDiagnosticPayloadBytes),
+			Login:         status.Login,
 			LastProbeAt:   lastProbeAt,
-			SuggestedCommand: diagnostics.RedactAndBound(
-				providerSuggestedCommand(provider.Name, status),
-				maxDiagnosticPayloadBytes,
-			),
 		})
 	}
 	return payloads, nil

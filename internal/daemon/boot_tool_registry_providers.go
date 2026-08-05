@@ -33,6 +33,7 @@ func (d *Daemon) bootToolProviders(
 	}
 	mcpAuth = mcpAuthProvider
 	if mcpProvider != nil {
+		state.mcpToolProvider = mcpProvider
 		providers = append(providers, mcpProvider)
 	}
 	return providers, nil

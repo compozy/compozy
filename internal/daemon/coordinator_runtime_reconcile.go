@@ -160,6 +160,10 @@ func (r *coordinatorRuntime) promptCoordinator(
 	if sessionID == "" {
 		return errors.New("daemon: coordinator prompt requires session id")
 	}
+	complete, admitted := r.workers.Begin()
+	if !admitted {
+		return errors.New("daemon: coordinator runtime is stopping")
+	}
 	message := coordinatorWakeMessage(decision)
 	events, err := r.sessions.PromptSynthetic(ctx, sessionID, session.SyntheticPromptOpts{
 		Message: message,
@@ -174,19 +178,27 @@ func (r *coordinatorRuntime) promptCoordinator(
 		InterruptIfAgentWaiting: true,
 	})
 	if err != nil {
+		complete()
 		return fmt.Errorf("daemon: prompt coordinator session %q: %w", sessionID, err)
 	}
-	r.drainPromptEvents(sessionID, strings.TrimSpace(decision.RunID), events)
+	r.drainPromptEvents(sessionID, strings.TrimSpace(decision.RunID), events, complete)
 	return nil
 }
 
-func (r *coordinatorRuntime) drainPromptEvents(sessionID string, runID string, events <-chan acp.AgentEvent) {
+func (r *coordinatorRuntime) drainPromptEvents(
+	sessionID string,
+	runID string,
+	events <-chan acp.AgentEvent,
+	complete func(),
+) {
 	if r == nil || events == nil {
+		complete()
 		return
 	}
-	r.wg.Go(func() {
+	go func() {
+		defer complete()
 		drainCoordinatorPromptEvents(r.ctx, r.logger, sessionID, runID, events)
-	})
+	}()
 }
 
 func drainCoordinatorPromptEvents(

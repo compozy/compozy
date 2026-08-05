@@ -758,13 +758,41 @@ func TestManagerSessionHealthErrorPaths(t *testing.T) {
 		); err == nil {
 			t.Fatal("persistSessionHealthForSession(nil context) error = nil, want non-nil")
 		}
-		manager.lifecycleCtx = nil
+		type lifecycleKey struct{}
+		const lifecycleValue = "manager-owned"
+		lifecycleCtx, cancelLifecycle := context.WithCancel(
+			context.WithValue(testutil.Context(t), lifecycleKey{}, lifecycleValue),
+		)
+		manager.lifecycleCtx = lifecycleCtx
+		cancelLifecycle()
 		healthCtx, cancel := manager.detachedSessionHealthContext(nilContextForGuardTest())
 		defer cancel()
-		select {
-		case <-healthCtx.Done():
-			t.Fatal("detachedSessionHealthContext(nil) is already done, want usable background context")
-		default:
+		if err := healthCtx.Err(); err != nil {
+			t.Fatalf("detachedSessionHealthContext(nil) error = %v, want detached cleanup", err)
+		}
+		if got := healthCtx.Value(lifecycleKey{}); got != lifecycleValue {
+			t.Fatalf("detachedSessionHealthContext(nil) lifecycle value = %#v, want %q", got, lifecycleValue)
+		}
+		if _, ok := healthCtx.Deadline(); !ok {
+			t.Fatal("detachedSessionHealthContext(nil) deadline = none, want bounded cleanup")
+		}
+
+		type promptKey struct{}
+		const promptValue = "prompt-owned"
+		promptCtx, cancelPrompt := context.WithCancel(
+			context.WithValue(testutil.Context(t), promptKey{}, promptValue),
+		)
+		cancelPrompt()
+		detachedHealthCtx, cancelDetached := manager.detachedSessionHealthContext(promptCtx)
+		defer cancelDetached()
+		if err := detachedHealthCtx.Err(); err != nil {
+			t.Fatalf("detachedSessionHealthContext(canceled) error = %v, want detached cleanup", err)
+		}
+		if got := detachedHealthCtx.Value(promptKey{}); got != promptValue {
+			t.Fatalf("detachedSessionHealthContext(canceled) value = %#v, want %q", got, promptValue)
+		}
+		if _, ok := detachedHealthCtx.Deadline(); !ok {
+			t.Fatal("detachedSessionHealthContext(canceled) deadline = none, want bounded cleanup")
 		}
 	})
 

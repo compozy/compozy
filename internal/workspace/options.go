@@ -20,13 +20,15 @@ type ChangeHook func(context.Context) error
 // Option customizes a Resolver instance.
 type Option func(*resolverOptions)
 
+type idGenerator func(prefix string) (string, error)
+
 type resolverOptions struct {
 	homePaths   compozyconfig.HomePaths
 	loadConfig  ConfigLoader
 	logger      *slog.Logger
 	now         func() time.Time
 	cacheTTL    time.Duration
-	idGenerator func(prefix string) string
+	idGenerator idGenerator
 	changeHook  ChangeHook
 }
 
@@ -64,8 +66,8 @@ func WithCacheTTL(ttl time.Duration) Option {
 	}
 }
 
-// WithIDGenerator overrides workspace ID generation.
-func WithIDGenerator(generator func(prefix string) string) Option {
+// WithIDGenerator overrides workspace ID generation; errors abort registration.
+func WithIDGenerator(generator idGenerator) Option {
 	return func(opts *resolverOptions) {
 		opts.idGenerator = generator
 	}

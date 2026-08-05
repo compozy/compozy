@@ -66,6 +66,7 @@ type BaseHandlerConfig struct {
 	ModelCatalog                 ModelCatalogService
 	MarketplaceCatalog           MarketplaceCatalogService
 	ProviderAuthRunner           authproviders.ProviderAuthCommandRunner
+	ProviderAuthCommandResolver  authproviders.ProviderAuthCommandResolver
 	AgentContextService          AgentContextService
 	SoulAuthoring                SoulAuthoringService
 	SoulHistoryPurger            SoulHistoryPurger
@@ -144,6 +145,7 @@ type BaseHandlers struct {
 	ModelCatalog                 ModelCatalogService
 	MarketplaceCatalog           MarketplaceCatalogService
 	ProviderAuthRunner           authproviders.ProviderAuthCommandRunner
+	ProviderAuthCommandResolver  authproviders.ProviderAuthCommandResolver
 	AgentContextService          AgentContextService
 	SoulAuthoring                SoulAuthoringService
 	SoulHistoryPurger            SoulHistoryPurger
@@ -232,6 +234,7 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 		ModelCatalog:                 cfg.ModelCatalog,
 		MarketplaceCatalog:           cfg.MarketplaceCatalog,
 		ProviderAuthRunner:           defaults.providerAuthRunner,
+		ProviderAuthCommandResolver:  defaults.providerAuthCommandResolver,
 		AgentContextService:          cfg.AgentContextService,
 		SoulHistoryPurger:            cfg.SoulHistoryPurger,
 		HeartbeatHistoryPurger:       cfg.HeartbeatHistoryPurger,
@@ -266,11 +269,12 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 }
 
 type baseHandlerDefaults struct {
-	logger             *slog.Logger
-	now                func() time.Time
-	agentLoader        AgentLoader
-	pid                func() int
-	providerAuthRunner authproviders.ProviderAuthCommandRunner
+	logger                      *slog.Logger
+	now                         func() time.Time
+	agentLoader                 AgentLoader
+	pid                         func() int
+	providerAuthRunner          authproviders.ProviderAuthCommandRunner
+	providerAuthCommandResolver authproviders.ProviderAuthCommandResolver
 }
 
 func normalizeBaseHandlerConfig(cfg *BaseHandlerConfig) baseHandlerDefaults {
@@ -302,6 +306,10 @@ func normalizeBaseHandlerConfig(cfg *BaseHandlerConfig) baseHandlerDefaults {
 	if providerAuthRunner == nil {
 		providerAuthRunner = authproviders.DefaultProviderAuthCommandRunner
 	}
+	providerAuthCommandResolver := cfg.ProviderAuthCommandResolver
+	if providerAuthCommandResolver == nil {
+		providerAuthCommandResolver = authproviders.DefaultProviderAuthCommandResolver
+	}
 	if cfg.StreamDone == nil {
 		logger.Warn(
 			"api: stream shutdown bridge not provided; streaming handlers will rely on caller context " +
@@ -310,11 +318,12 @@ func normalizeBaseHandlerConfig(cfg *BaseHandlerConfig) baseHandlerDefaults {
 		cfg.StreamDone = make(chan struct{})
 	}
 	return baseHandlerDefaults{
-		logger:             logger,
-		now:                now,
-		agentLoader:        agentLoader,
-		pid:                pid,
-		providerAuthRunner: providerAuthRunner,
+		logger:                      logger,
+		now:                         now,
+		agentLoader:                 agentLoader,
+		pid:                         pid,
+		providerAuthRunner:          providerAuthRunner,
+		providerAuthCommandResolver: providerAuthCommandResolver,
 	}
 }
 

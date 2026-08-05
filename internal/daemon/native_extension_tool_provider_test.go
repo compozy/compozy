@@ -130,8 +130,8 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		if err == nil {
 			t.Fatal("Call() error = nil, want workspace scope error")
 		}
-		var toolErr *toolspkg.ToolError
-		if !errors.As(err, &toolErr) || !containsReason(toolErr.ReasonCodes, toolspkg.ReasonScopeMismatch) {
+		toolErr, toolErrMatched := errors.AsType[*toolspkg.ToolError](err)
+		if !toolErrMatched || !containsReason(toolErr.ReasonCodes, toolspkg.ReasonScopeMismatch) {
 			t.Fatalf("Call() error = %v, want scope mismatch", err)
 		}
 		if inner.handle.called {
@@ -219,8 +219,9 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		if err == nil {
 			t.Fatalf("Call() result = %#v, want error", result)
 		}
-		var toolErr *toolspkg.ToolError
-		if !errors.As(err, &toolErr) {
+
+		toolErr, toolErrMatched := errors.AsType[*toolspkg.ToolError](err)
+		if !toolErrMatched {
 			t.Fatalf("Call() error = %T %[1]v, want *tools.ToolError", err)
 		}
 		if toolErr.Code != toolspkg.ErrorCodeInvalidInput {
@@ -277,8 +278,9 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		if err == nil {
 			t.Fatalf("Call() result = %#v, want symlink escape error", result)
 		}
-		var toolErr *toolspkg.ToolError
-		if !errors.As(err, &toolErr) {
+
+		toolErr, toolErrMatched := errors.AsType[*toolspkg.ToolError](err)
+		if !toolErrMatched {
 			t.Fatalf("Call() error = %T %[1]v, want *tools.ToolError", err)
 		}
 		if !containsReason(toolErr.ReasonCodes, toolspkg.ReasonScopeMismatch) {
@@ -321,8 +323,9 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		if err == nil {
 			t.Fatalf("Call() result = %#v, want empty-pattern error", result)
 		}
-		var toolErr *toolspkg.ToolError
-		if !errors.As(err, &toolErr) {
+
+		toolErr, toolErrMatched := errors.AsType[*toolspkg.ToolError](err)
+		if !toolErrMatched {
 			t.Fatalf("Call() error = %T %[1]v, want *tools.ToolError", err)
 		}
 		if !containsReason(toolErr.ReasonCodes, toolspkg.ReasonScopeMismatch) {
@@ -365,8 +368,9 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		if err == nil {
 			t.Fatalf("Call() result = %#v, want error", result)
 		}
-		var toolErr *toolspkg.ToolError
-		if !errors.As(err, &toolErr) {
+
+		toolErr, toolErrMatched := errors.AsType[*toolspkg.ToolError](err)
+		if !toolErrMatched {
 			t.Fatalf("Call() error = %T %[1]v, want *tools.ToolError", err)
 		}
 		if toolErr.Code != toolspkg.ErrorCodeInvalidInput {
@@ -405,8 +409,9 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		if err == nil {
 			t.Fatalf("Call() result = %#v, want error", result)
 		}
-		var toolErr *toolspkg.ToolError
-		if !errors.As(err, &toolErr) {
+
+		toolErr, toolErrMatched := errors.AsType[*toolspkg.ToolError](err)
+		if !toolErrMatched {
 			t.Fatalf("Call() error = %T %[1]v, want *tools.ToolError", err)
 		}
 		if toolErr.Code != toolspkg.ErrorCodeInvalidInput {

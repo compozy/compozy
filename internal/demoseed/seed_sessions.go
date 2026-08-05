@@ -48,7 +48,7 @@ func seedSession(
 	if err := os.MkdirAll(sessionDir, 0o700); err != nil {
 		return fmt.Errorf("demo seed: create session directory %q: %w", sessionDir, err)
 	}
-	if err := writeSessionTranscript(ctx, sessionDir, story); err != nil {
+	if err := writeSessionTranscript(ctx, sessionDir, workspace.ID, story); err != nil {
 		return err
 	}
 
@@ -78,8 +78,16 @@ func seedSession(
 	return nil
 }
 
-func writeSessionTranscript(ctx context.Context, sessionDir string, story sessionStory) (err error) {
-	eventsDB, err := sessiondb.OpenSessionDB(ctx, story.ID, store.SessionDBFile(sessionDir))
+func writeSessionTranscript(
+	ctx context.Context,
+	sessionDir string,
+	workspaceID string,
+	story sessionStory,
+) (err error) {
+	eventsDB, err := sessiondb.OpenSessionDB(ctx, store.SessionDBOwner{
+		SessionID:   story.ID,
+		WorkspaceID: workspaceID,
+	}, store.SessionDBFile(sessionDir))
 	if err != nil {
 		return fmt.Errorf("demo seed: open transcript for session %q: %w", story.ID, err)
 	}

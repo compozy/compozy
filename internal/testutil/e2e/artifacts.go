@@ -239,23 +239,16 @@ type ArtifactCollector struct {
 	entries map[ArtifactKind]ArtifactEntry
 }
 
-// NewArtifactCollector creates a per-test artifact directory. Passing tests clean it up,
-// while failing tests keep it around for inspection.
+// NewArtifactCollector creates a stable directory under the test runtime's artifact owner.
+// Retention is controlled by the standard go test -artifacts flag.
 func NewArtifactCollector(t testing.TB) *ArtifactCollector {
 	t.Helper()
 
-	dir, err := os.MkdirTemp("", "compozy-e2e-"+sanitizePathComponent(t.Name())+"-")
+	dir, err := os.MkdirTemp(t.ArtifactDir(), "e2e-")
 	if err != nil {
 		t.Fatalf("os.MkdirTemp(artifacts) error = %v", err)
 	}
-
-	t.Cleanup(func() {
-		if t.Failed() {
-			t.Logf("retained E2E artifacts at %s", dir)
-			return
-		}
-		_ = os.RemoveAll(dir)
-	})
+	t.Attr("compozy.artifacts", dir)
 
 	return &ArtifactCollector{
 		rootDir:      dir,

@@ -1832,6 +1832,10 @@ func TestHandleInboundCreateTerminalUsesRequestContext(t *testing.T) {
 func TestToolHostOrDefaultUsesProcessLifecycleContext(t *testing.T) {
 	t.Parallel()
 
+	if _, err := (&AgentProcess{}).toolHostOrDefault(); !errors.Is(err, errProcessLifecycleUninitialized) {
+		t.Fatalf("toolHostOrDefault(uninitialized) error = %v, want %v", err, errProcessLifecycleUninitialized)
+	}
+
 	root := t.TempDir()
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -1853,9 +1857,13 @@ func TestToolHostOrDefaultUsesProcessLifecycleContext(t *testing.T) {
 		AgentName:     "direct",
 	}
 
-	host, ok := proc.toolHostOrDefault().(*localToolHost)
+	toolHost, err := proc.toolHostOrDefault()
+	if err != nil {
+		t.Fatalf("toolHostOrDefault() error = %v", err)
+	}
+	host, ok := toolHost.(*localToolHost)
 	if !ok {
-		t.Fatalf("toolHostOrDefault() type = %T, want *localToolHost", proc.toolHostOrDefault())
+		t.Fatalf("toolHostOrDefault() type = %T, want *localToolHost", toolHost)
 	}
 
 	cancel()

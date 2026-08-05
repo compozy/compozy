@@ -1,9 +1,13 @@
 package config
 
 import (
+	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 
+	"github.com/compozy/compozy/internal/fileutil"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 )
 
@@ -177,6 +181,64 @@ Prompt.
 	})
 }
 
+func TestEditAgentDefFileWritesThroughTheHeldParentAfterPathReplacement(t *testing.T) {
+	t.Parallel()
+	t.Run("Should write only through the opened agent parent", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("symlink permissions vary on Windows")
+		}
+
+		root := t.TempDir()
+		liveParent := filepath.Join(root, "live")
+		archivedParent := filepath.Join(root, "archived")
+		externalParent := filepath.Join(root, "external")
+		livePath := filepath.Join(liveParent, AgentDefinitionFileName)
+		externalPath := filepath.Join(externalParent, AgentDefinitionFileName)
+		if err := os.MkdirAll(liveParent, 0o700); err != nil {
+			t.Fatalf("os.MkdirAll(live parent) error = %v", err)
+		}
+		if err := os.MkdirAll(externalParent, 0o700); err != nil {
+			t.Fatalf("os.MkdirAll(external parent) error = %v", err)
+		}
+		writeFile(t, livePath, "---\nname: coder\nprovider: claude\nmodel: old\n---\n\nPrompt.\n")
+		sentinel := "---\nname: external\nprovider: claude\nmodel: sentinel\n---\n\nExternal.\n"
+		writeFile(t, externalPath, sentinel)
+
+		directory, err := fileutil.OpenDirectory(liveParent)
+		if err != nil {
+			t.Fatalf("fileutil.OpenDirectory(live parent) error = %v", err)
+		}
+		defer func() {
+			if closeErr := directory.Close(); closeErr != nil {
+				t.Errorf("Directory.Close() error = %v", closeErr)
+			}
+		}()
+		if err := os.Rename(liveParent, archivedParent); err != nil {
+			t.Fatalf("os.Rename(live parent) error = %v", err)
+		}
+		if err := os.Symlink(externalParent, liveParent); err != nil {
+			t.Fatalf("os.Symlink(external parent) error = %v", err)
+		}
+
+		_, err = editAgentDefFileInDirectory(directory, AgentDefinitionFileName, livePath, func(agent *AgentDef) error {
+			agent.Model = "updated"
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("editAgentDefFileInDirectory() error = %v", err)
+		}
+		assertConfigSentinelUnchanged(t, externalPath, sentinel)
+		updated, err := os.ReadFile(filepath.Join(archivedParent, AgentDefinitionFileName))
+		if err != nil {
+			t.Fatalf("os.ReadFile(archived definition) error = %v", err)
+		}
+		if !strings.Contains(string(updated), "model: updated") {
+			t.Fatalf("archived definition = %q, want updated model", updated)
+		}
+	})
+}
+
 func loadEditedAgentDefFile(t *testing.T, path string) AgentDef {
 	t.Helper()
 
@@ -194,4 +256,16 @@ func singleEditedAgentHook(t *testing.T, agent AgentDef) hookspkg.HookDecl {
 		t.Fatalf("len(LoadAgentDefFile().Hooks) = %d, want %d", got, want)
 	}
 	return agent.Hooks[0]
+}
+
+func assertConfigSentinelUnchanged(t *testing.T, path string, want string) {
+	t.Helper()
+
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("os.ReadFile(external sentinel) error = %v", err)
+	}
+	if string(got) != want {
+		t.Fatalf("external sentinel = %q, want %q", got, want)
+	}
 }

@@ -35,6 +35,9 @@ func (r *Recaller) recordSignals(ctx context.Context, query memcontract.Query, s
 		r.signalRecorder.Submit(ctx, query, signals)
 		return
 	}
+	if r.signalRecordingDisabled {
+		return
+	}
 	if err := r.source.RecordRecall(ctx, signals); err != nil {
 		r.warn("memory recall: record recall signal failed", "error", err)
 		if eventErr := r.source.RecordRecallSignalFailed(ctx, query, err); eventErr != nil {

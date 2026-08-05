@@ -22,10 +22,10 @@ type AgentProcess struct {
 	Args      []string
 	Cwd       string
 	SessionID string
-	Caps      Caps
 	StartedAt time.Time
 
 	capsMu          sync.RWMutex
+	caps            Caps
 	runtimeConfigMu sync.Mutex
 	managed         *subprocess.Process
 	handle          sandbox.Handle
@@ -71,6 +71,10 @@ type AgentProcess struct {
 
 	turnSourceProviderMu sync.RWMutex
 	turnSourceProvider   func() string
+
+	childTasksMu      sync.Mutex
+	childTasks        map[*processChildTask]struct{}
+	childTasksClosing bool
 }
 
 type pendingPermission struct {
@@ -122,7 +126,7 @@ func (p *AgentProcess) CapsSnapshot() Caps {
 	}
 	p.capsMu.RLock()
 	defer p.capsMu.RUnlock()
-	return CloneCaps(p.Caps)
+	return CloneCaps(p.caps)
 }
 
 func (p *AgentProcess) setCaps(caps Caps) {
@@ -131,7 +135,7 @@ func (p *AgentProcess) setCaps(caps Caps) {
 	}
 	p.capsMu.Lock()
 	defer p.capsMu.Unlock()
-	p.Caps = CloneCaps(caps)
+	p.caps = CloneCaps(caps)
 }
 
 func (p *AgentProcess) setConfigOptions(options []SessionConfigOption) {
@@ -140,7 +144,7 @@ func (p *AgentProcess) setConfigOptions(options []SessionConfigOption) {
 	}
 	p.capsMu.Lock()
 	defer p.capsMu.Unlock()
-	p.Caps.ConfigOptions = CloneSessionConfigOptions(options)
+	p.caps.ConfigOptions = CloneSessionConfigOptions(options)
 }
 
 func (p *AgentProcess) setSpeedResolution(resolution *speedpkg.Resolution) {
@@ -149,7 +153,7 @@ func (p *AgentProcess) setSpeedResolution(resolution *speedpkg.Resolution) {
 	}
 	p.capsMu.Lock()
 	defer p.capsMu.Unlock()
-	p.Caps.SpeedResolution = speedpkg.CloneResolution(resolution)
+	p.caps.SpeedResolution = speedpkg.CloneResolution(resolution)
 }
 
 // ToolHost returns the sandbox-owned tool host used by this process.

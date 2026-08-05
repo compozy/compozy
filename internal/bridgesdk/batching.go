@@ -63,13 +63,13 @@ func NewInboundBatcher(config InboundBatcherConfig) (*InboundBatcher, error) {
 	if config.Dispatch == nil {
 		return nil, errors.New("bridgesdk: inbound batch dispatch is required")
 	}
+	if config.Context == nil {
+		return nil, errors.New("bridgesdk: inbound batch context is required")
+	}
 	if config.Now == nil {
 		config.Now = func() time.Time {
 			return time.Now().UTC()
 		}
-	}
-	if config.Context == nil {
-		config.Context = context.Background()
 	}
 	ctx, cancel := context.WithCancel(config.Context)
 	if config.Delay < 0 {
@@ -180,7 +180,7 @@ func (b *InboundBatcher) FlushAll(ctx context.Context) error {
 		return errors.New("bridgesdk: inbound batcher is required")
 	}
 	if ctx == nil {
-		ctx = context.Background()
+		return errors.New("bridgesdk: inbound batch flush context is required")
 	}
 
 	b.mu.Lock()

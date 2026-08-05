@@ -1,6 +1,7 @@
 package loop
 
 import (
+	"maps"
 	"slices"
 	"strings"
 
@@ -69,10 +70,5 @@ func cloneLoopRecord(record resources.Record[ResourceSpec]) resources.Record[Res
 }
 
 func sortedKeys[T any](values map[string]T) []string {
-	keys := make([]string, 0, len(values))
-	for key := range values {
-		keys = append(keys, key)
-	}
-	slices.Sort(keys)
-	return keys
+	return slices.Sorted(maps.Keys(values))
 }

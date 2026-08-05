@@ -141,10 +141,20 @@ func (m *Service) autoEnqueueReadyTask(
 		}
 	}
 	key := trigger.idempotencyKey(taskID)
+	eventID, err := m.reserveTaskEventID()
+	if err != nil {
+		slog.Warn(
+			"task: auto-enqueue audit identity unavailable",
+			"task_id", taskID,
+			"trigger_kind", trigger.Kind,
+			"error", err,
+		)
+		return
+	}
 	run, enqErr := m.EnqueueRun(ctx, EnqueueRun{TaskID: taskID, IdempotencyKey: key}, actor)
 	switch {
 	case enqErr == nil:
-		m.recordAutoEnqueueTriggered(ctx, taskRecord, run, trigger, actor)
+		m.recordAutoEnqueueTriggered(ctx, eventID, taskRecord, run, trigger, actor)
 	case errors.Is(enqErr, ErrInvalidStatusTransition) || errors.Is(enqErr, ErrConflict):
 		// Expected dedup: store rejects a second run (open run) or replayed idempotency key.
 		slog.Debug(
@@ -165,6 +175,7 @@ func (m *Service) autoEnqueueReadyTask(
 
 func (m *Service) recordAutoEnqueueTriggered(
 	ctx context.Context,
+	eventID string,
 	taskRecord Task,
 	run *Run,
 	trigger autoEnqueueTrigger,
@@ -173,8 +184,9 @@ func (m *Service) recordAutoEnqueueTriggered(
 	if run == nil {
 		return
 	}
-	if err := m.recordTaskEvent(
+	if err := m.recordTaskEventWithID(
 		ctx,
+		eventID,
 		taskRecord.ID,
 		run.ID,
 		taskEventAutoEnqueueTriggered,

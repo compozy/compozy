@@ -35,6 +35,17 @@ type HookRun struct {
 	RecordedAt    string         `json:"recorded_at"`
 }
 
+type SessionDbIdentity struct {
+	Singleton  int64  `json:"singleton"`
+	DatabaseID string `json:"database_id"`
+}
+
+type SessionDbOwner struct {
+	Singleton   int64  `json:"singleton"`
+	SessionID   string `json:"session_id"`
+	WorkspaceID string `json:"workspace_id"`
+}
+
 type TokenUsage struct {
 	TurnID           string          `json:"turn_id"`
 	InputTokens      sql.NullInt64   `json:"input_tokens"`

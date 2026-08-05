@@ -151,8 +151,15 @@ func retireDeadTaskRun(
 	if !forceFailTaskRunStatusAllowed(current.Status) {
 		return fmt.Errorf("%w: dead task run %q is %s", taskpkg.ErrInvalidStatusTransition, current.ID, current.Status)
 	}
-	next := forceFailedTaskRun(current, request.Cause, request.ConfirmedAt.UTC())
-	if err := updateTaskRunRecordWithSnapshotCAS(ctx, exec, current, next); err != nil {
+	next, err := forceFailEligibleTaskRunWithExecutor(
+		ctx,
+		exec,
+		current,
+		taskpkg.NewRunMutationFence(current),
+		request.Cause,
+		request.ConfirmedAt.UTC(),
+	)
+	if err != nil {
 		return err
 	}
 	return updateTaskCurrentRunProjectionForRunUpdate(ctx, exec, current, next)

@@ -24,6 +24,7 @@ import (
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	bridgecontract "github.com/compozy/compozy/internal/bridges/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	eventspkg "github.com/compozy/compozy/internal/events"
 	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 	protocol "github.com/compozy/compozy/internal/extensionprotocol"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
@@ -1623,7 +1624,7 @@ func TestHostAPIHandlerMemoryStorePersistsContentWithTags(t *testing.T) {
 		t.Fatalf("Handle(memory/store) error = %v", err)
 	}
 
-	content, err := env.memory.Read(memcontract.ScopeGlobal, "deploy-script.md")
+	content, err := env.memory.Read(t.Context(), memcontract.ScopeGlobal, "deploy-script.md")
 	if err != nil {
 		t.Fatalf("memory.Read() error = %v", err)
 	}
@@ -1760,7 +1761,7 @@ func TestHostAPIHandlerMemoryForgetRemovesEntries(t *testing.T) {
 		t.Fatalf("Handle(memory/forget) error = %v", err)
 	}
 
-	if _, err := env.memory.Read(memcontract.ScopeGlobal, "scratch.md"); !errors.Is(err, os.ErrNotExist) {
+	if _, err := env.memory.Read(t.Context(), memcontract.ScopeGlobal, "scratch.md"); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("memory.Read() error = %v, want os.ErrNotExist", err)
 	}
 }
@@ -3085,29 +3086,43 @@ func TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities(t *tes
 
 func TestManagerWrapHostHandlerInjectsExtensionNameForHostAPIHandler(t *testing.T) {
 	t.Parallel()
+	t.Run("Should authorize the session grant while preserving the extension name", func(t *testing.T) {
+		t.Parallel()
 
-	env := newHostAPITestEnv(t)
-	env.grant("ext-wrapped", []string{"observe/health"}, []string{"observe.read"})
+		env := newHostAPITestEnv(t)
+		key := GlobalInstanceKey("ext-wrapped")
+		grantID := extensionCapabilityGrantID(key, "session-nonce")
+		env.grant(grantID, []string{"observe/health"}, []string{"observe.read"})
 
-	manager := NewManager(nil, WithCapabilityChecker(env.checker))
-	wrapped := manager.wrapHostHandler(
-		"ext-wrapped",
-		"observe/health",
-		nil,
-		nil,
-		env.handler.HandleMethod("observe/health"),
-	)
+		var handledExtensionName string
+		env.handler.methods["observe/health"] = func(ctx context.Context, _ json.RawMessage) (any, error) {
+			handledExtensionName = hostAPIExtensionNameFromContext(ctx)
+			return observepkg.Health{Status: "ok"}, nil
+		}
 
-	result, err := wrapped(testutil.Context(t), nil)
-	if err != nil {
-		t.Fatalf("wrapHostHandler(observe/health) error = %v", err)
-	}
+		manager := NewManager(nil, WithCapabilityChecker(env.checker))
+		wrapped := manager.wrapHostHandler(
+			key,
+			"observe/health",
+			nil,
+			&hostAPIResourceSession{Actor: resources.MutationActor{ID: grantID}},
+			env.handler.HandleMethod("observe/health"),
+		)
 
-	var health observepkg.Health
-	decodeResult(t, result, &health)
-	if health.Status != "ok" {
-		t.Fatalf("wrapped observe/health status = %q, want ok", health.Status)
-	}
+		result, err := wrapped(testutil.Context(t), nil)
+		if err != nil {
+			t.Fatalf("wrapHostHandler(observe/health) error = %v", err)
+		}
+
+		var health observepkg.Health
+		decodeResult(t, result, &health)
+		if health.Status != "ok" {
+			t.Fatalf("wrapped observe/health status = %q, want ok", health.Status)
+		}
+		if handledExtensionName != key.Name {
+			t.Fatalf("handled extension name = %q, want %q", handledExtensionName, key.Name)
+		}
+	})
 }
 
 func TestNormalizeHostAPIHandlerDefaultsFillsZeroValues(t *testing.T) {
@@ -3272,18 +3287,40 @@ func TestNormalizeHostAPIRPCErrorMapsResourceStatuses(t *testing.T) {
 
 	sameRPC := subprocess.NewRPCError(499, "unchanged", map[string]string{"error": "keep"})
 	sameErr := errors.New("boom")
+	const rawToken = "compozy_claim_host-api-error-secret"
 
 	tests := []struct {
-		name        string
-		method      string
-		err         error
-		wantCode    int
-		wantMessage string
-		wantSame    bool
+		name         string
+		method       string
+		err          error
+		wantCode     int
+		wantMessage  string
+		wantSame     bool
+		wantRedacted bool
 	}{
 		{name: "nil", method: "resources/list", err: nil},
 		{name: "non resource", method: "observe/health", err: sameErr, wantSame: true},
 		{name: "rpc passthrough", method: "resources/list", err: sameRPC, wantSame: true},
+		{
+			name:         "non resource raw claim error",
+			method:       "tasks/runs/start",
+			err:          fmt.Errorf("provider returned %s", rawToken),
+			wantRedacted: true,
+		},
+		{
+			name:   "rpc message and nested data raw claim error",
+			method: "tasks/runs/start",
+			err: subprocess.NewRPCError(451, "provider returned "+rawToken, map[string]any{
+				"claim_token": rawToken,
+				"nested": []any{
+					map[string]any{"detail": "provider returned " + rawToken},
+				},
+				rawToken: "discarded",
+			}),
+			wantCode:     451,
+			wantMessage:  "provider returned compozy_claim_[REDACTED]",
+			wantRedacted: true,
+		},
 		{
 			name:   "rate limited",
 			method: "resources/list",
@@ -3335,6 +3372,8 @@ func TestNormalizeHostAPIRPCErrorMapsResourceStatuses(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := normalizeHostAPIRPCError(tt.method, tt.err)
 			if tt.err == nil {
 				if got != nil {
@@ -3348,9 +3387,34 @@ func TestNormalizeHostAPIRPCErrorMapsResourceStatuses(t *testing.T) {
 				}
 				return
 			}
+			if tt.wantRedacted {
+				if strings.Contains(got.Error(), rawToken) {
+					t.Fatalf("normalizeHostAPIRPCError() = %q, leaked raw bearer", got)
+				}
+				if errors.Unwrap(got) != nil {
+					t.Fatalf("normalizeHostAPIRPCError() = %#v, want public error without raw cause", got)
+				}
+				rpcErr, rpcErrMatched := errors.AsType[*subprocess.RPCError](got)
+				if rpcErrMatched {
+					if strings.Contains(rpcErr.Message, rawToken) || strings.Contains(string(rpcErr.Data), rawToken) {
+						t.Fatalf("sanitized rpc error = %#v, leaked raw bearer", rpcErr)
+					}
+					if rpcErr.Code != tt.wantCode {
+						t.Fatalf("sanitized rpc error code = %d, want %d", rpcErr.Code, tt.wantCode)
+					}
+					if tt.wantMessage != "" && rpcErr.Message != tt.wantMessage {
+						t.Fatalf("sanitized rpc error message = %q, want %q", rpcErr.Message, tt.wantMessage)
+					}
+					var decoded any
+					if len(rpcErr.Data) > 0 && json.Unmarshal(rpcErr.Data, &decoded) != nil {
+						t.Fatalf("sanitized rpc data = %s, want valid JSON", rpcErr.Data)
+					}
+				}
+				return
+			}
 
-			var rpcErr *subprocess.RPCError
-			if !errors.As(got, &rpcErr) {
+			rpcErr, rpcErrMatched2 := errors.AsType[*subprocess.RPCError](got)
+			if !rpcErrMatched2 {
 				t.Fatalf("normalizeHostAPIRPCError() type = %T, want *subprocess.RPCError", got)
 			}
 			if rpcErr.Code != tt.wantCode {
@@ -4077,7 +4141,7 @@ func TestHostAPIHandlerTasksCreateUsesTrustedExtensionIdentity(t *testing.T) {
 	})
 }
 
-func TestHostAPIHandlerTaskRunStartRespectsManagerTransitions(t *testing.T) {
+func TestHostAPIHandlerTaskRunStartAdmitsDirectExecutionWithoutClaimToken(t *testing.T) {
 	t.Parallel()
 
 	env := newHostAPITestEnv(t)
@@ -4110,12 +4174,23 @@ func TestHostAPIHandlerTaskRunStartRespectsManagerTransitions(t *testing.T) {
 	var run apicontract.TaskRunPayload
 	decodeResult(t, enqueueResult, &run)
 
-	_, err = env.callFromWorkspace(t, "ext-tasks", "tasks/runs/start", map[string]any{
+	startResult, err := env.callFromWorkspace(t, "ext-tasks", "tasks/runs/start", map[string]any{
 		"id":              run.ID,
 		"idempotency_key": "start-guard",
 	})
-	assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
-	assertErrorContains(t, err, "invalid status transition")
+	if err != nil {
+		t.Fatalf("Handle(tasks/runs/start) error = %v", err)
+	}
+
+	var started apicontract.TaskRunPayload
+	decodeResult(t, startResult, &started)
+	if got, want := started.Status, taskpkg.TaskRunStatusRunning; got != want {
+		t.Fatalf("tasks/runs/start status = %q, want %q", got, want)
+	}
+	if strings.TrimSpace(started.SessionID) == "" {
+		t.Fatal("tasks/runs/start session_id = empty, want direct execution session")
+	}
+	env.assertDirectExecutionAdmission(t, created.ID, run.ID)
 }
 
 func TestHostAPIHandlerTasksListAndGetReturnFilteredDetail(t *testing.T) {
@@ -4433,7 +4508,6 @@ func TestHostAPIHandlerTaskReadAndAggregateMethodsReturnParityPayloads(t *testin
 	if err != nil {
 		t.Fatalf("tasks.EnqueueRun() error = %v", err)
 	}
-	seedHostAPIRunClaimed(t, env, queued.ID, "ext-reader")
 	started, err := env.tasks.StartRun(testutil.Context(t), queued.ID, taskpkg.StartRun{
 		IdempotencyKey: "host-api-read-start",
 	}, actor)
@@ -4809,8 +4883,6 @@ func TestHostAPIHandlerTaskRunLifecycleOperationsAndFiltering(t *testing.T) {
 		"phase": "extension",
 	})
 	assertMetadataPhase("tasks/runs/enqueue", completedQueued.Metadata, "extension")
-	seedHostAPIRunClaimed(t, env, completedQueued.ID, "ext-runs")
-
 	boundSession := env.createSession(t)
 	attachResult, err := env.callFromWorkspace(t, "ext-runs", "tasks/runs/attach_session", map[string]any{
 		"id":         completedQueued.ID,
@@ -4856,10 +4928,10 @@ func TestHostAPIHandlerTaskRunLifecycleOperationsAndFiltering(t *testing.T) {
 	if !strings.Contains(string(completed.Result), `"ok":true`) {
 		t.Fatalf("tasks/runs/complete result = %s, want ok marker", string(completed.Result))
 	}
+	env.assertDirectExecutionAdmission(t, completedTask.ID, completedQueued.ID)
 
 	failedTask := createTask("Failed run task")
 	failedQueued := enqueueRun(failedTask.ID, "enqueue-fail", nil)
-	seedHostAPIRunClaimed(t, env, failedQueued.ID, "ext-runs")
 	_, err = env.callFromWorkspace(t, "ext-runs", "tasks/runs/start", map[string]any{
 		"id":              failedQueued.ID,
 		"idempotency_key": "start-fail",
@@ -4886,10 +4958,10 @@ func TestHostAPIHandlerTaskRunLifecycleOperationsAndFiltering(t *testing.T) {
 	if got, want := failed.Error, "execution failed"; got != want {
 		t.Fatalf("tasks/runs/fail error = %q, want %q", got, want)
 	}
+	env.assertDirectExecutionAdmission(t, failedTask.ID, failedQueued.ID)
 
 	cancelledTask := createTask("Canceled run task")
 	cancelledQueued := enqueueRun(cancelledTask.ID, "enqueue-cancel", nil)
-	seedHostAPIRunClaimed(t, env, cancelledQueued.ID, "ext-runs")
 	cancelRunResult, err := env.callFromWorkspace(t, "ext-runs", "tasks/runs/cancel", map[string]any{
 		"id":     cancelledQueued.ID,
 		"reason": " no longer needed ",
@@ -5757,26 +5829,6 @@ type hostAPITestEnv struct {
 	handler        *HostAPIHandler
 }
 
-func seedHostAPIRunClaimed(t *testing.T, env *hostAPITestEnv, runID string, extensionName string) taskpkg.Run {
-	t.Helper()
-
-	ctx := testutil.Context(t)
-	run, err := env.registry.GetTaskRun(ctx, runID)
-	if err != nil {
-		t.Fatalf("registry.GetTaskRun(%q) error = %v", runID, err)
-	}
-	run.Status = taskpkg.TaskRunStatusClaimed
-	run.ClaimedBy = &taskpkg.ActorIdentity{
-		Kind: taskpkg.ActorKindExtension,
-		Ref:  extensionName,
-	}
-	run.ClaimedAt = env.currentTime().UTC()
-	if err := env.registry.UpdateTaskRun(ctx, run); err != nil {
-		t.Fatalf("registry.UpdateTaskRun(%q) error = %v", runID, err)
-	}
-	return run
-}
-
 type hostAPITestEnvConfig struct {
 	hooks             *hookspkg.Hooks
 	liveParticipation bool
@@ -6596,16 +6648,30 @@ func (e *hostAPITestEnv) submitPrompt(
 	sessionID string,
 	message string,
 ) (hostAPISessionPromptResult, error) {
+	return e.submitPromptWithRuntime(t, extName, sessionID, message, nil)
+}
+
+func (e *hostAPITestEnv) submitPromptWithRuntime(
+	t testing.TB,
+	extName string,
+	sessionID string,
+	message string,
+	runtimeSelection *apicontract.PromptRuntimeSelectionPayload,
+) (hostAPISessionPromptResult, error) {
 	t.Helper()
 
 	sequence := e.promptSequence.Add(1)
-	result, err := e.call(t, extName, "sessions/prompt", map[string]string{
+	params := map[string]any{
 		"workspace_id":    e.workspaceID,
 		"session_id":      sessionID,
 		"message":         message,
 		"message_id":      fmt.Sprintf("msg-host-%d", sequence),
 		"idempotency_key": fmt.Sprintf("idem-host-%d", sequence),
-	})
+	}
+	if runtimeSelection != nil {
+		params["runtime"] = runtimeSelection
+	}
+	result, err := e.call(t, extName, "sessions/prompt", params)
 	if err != nil {
 		return hostAPISessionPromptResult{}, err
 	}
@@ -6641,9 +6707,50 @@ func (e *hostAPITestEnv) createSession(t *testing.T) *session.Session {
 		t.Fatalf("sessions.Create() error = %v", err)
 	}
 	t.Cleanup(func() {
-		_ = e.sessions.Stop(testutil.Context(t), sess.ID)
+		if stopErr := e.sessions.Stop(testutil.Context(t), sess.ID); stopErr != nil &&
+			!errors.Is(stopErr, session.ErrSessionNotFound) {
+			t.Errorf("sessions.Stop(%q) cleanup error = %v", sess.ID, stopErr)
+		}
 	})
 	return sess
+}
+
+func (e *hostAPITestEnv) assertDirectExecutionAdmission(t testing.TB, taskID string, runID string) {
+	t.Helper()
+
+	ctx := testutil.Context(t)
+	stored, err := e.registry.GetTaskRun(ctx, runID)
+	if err != nil {
+		t.Fatalf("registry.GetTaskRun(%q) error = %v", runID, err)
+	}
+	if strings.TrimSpace(stored.ClaimTokenHash) != "" ||
+		!stored.LeaseUntil.IsZero() ||
+		!stored.HeartbeatAt.IsZero() {
+		t.Fatalf(
+			"direct run claim fence = hash:%q lease:%s heartbeat:%s, want tokenless claim",
+			stored.ClaimTokenHash,
+			stored.LeaseUntil,
+			stored.HeartbeatAt,
+		)
+	}
+
+	events, err := e.registry.ListTaskEvents(ctx, taskpkg.EventQuery{TaskID: taskID, RunID: runID})
+	if err != nil {
+		t.Fatalf("registry.ListTaskEvents(%q) error = %v", runID, err)
+	}
+	claimedCount := 0
+	for _, event := range events {
+		if event.EventType != eventspkg.TaskRunClaimed {
+			continue
+		}
+		claimedCount++
+		if strings.Contains(string(event.Payload), "claim_token") {
+			t.Fatalf("direct claim event payload exposes claim-token material: %s", event.Payload)
+		}
+	}
+	if claimedCount != 1 {
+		t.Fatalf("direct claim event count = %d, want 1", claimedCount)
+	}
 }
 
 func (e *hostAPITestEnv) createBridgeInstance(
@@ -7058,12 +7165,20 @@ func (d *hostAPIFakeDriver) promptCount() int {
 	return len(d.prompts)
 }
 
-func storeSessionDB(ctx context.Context, sessionID string, path string) (session.EventRecorder, error) {
-	return sessiondbOpen(ctx, sessionID, path)
+func storeSessionDB(
+	ctx context.Context,
+	owner store.SessionDBOwner,
+	path string,
+) (session.EventRecorder, error) {
+	return sessiondbOpen(ctx, owner, path)
 }
 
-func sessiondbOpen(ctx context.Context, sessionID string, path string) (session.EventRecorder, error) {
-	return sessiondb.OpenSessionDB(ctx, sessionID, path)
+func sessiondbOpen(
+	ctx context.Context,
+	owner store.SessionDBOwner,
+	path string,
+) (session.EventRecorder, error) {
+	return sessiondb.OpenSessionDB(ctx, owner, path)
 }
 
 func mustStoredPromptEvent(t *testing.T, id string, sequence int64, event acp.AgentEvent) store.SessionEvent {
@@ -7194,8 +7309,8 @@ func (s promptSessionManagerStub) ExecSandbox(
 
 func sequentialSessionIDGenerator(prefix string) session.IDGenerator {
 	var counter atomic.Int64
-	return func() string {
-		return fmt.Sprintf("%s-%d", prefix, counter.Add(1))
+	return func() (string, error) {
+		return fmt.Sprintf("%s-%d", prefix, counter.Add(1)), nil
 	}
 }
 
@@ -7259,8 +7374,8 @@ func assertCapabilityDenied(t testing.TB, err error, wantMethod string) {
 func assertRPCErrorCode(t testing.TB, err error, want int) {
 	t.Helper()
 
-	var rpcErr *subprocess.RPCError
-	if !errors.As(err, &rpcErr) {
+	rpcErr, rpcErrMatched := errors.AsType[*subprocess.RPCError](err)
+	if !rpcErrMatched {
 		t.Fatalf("error type = %T, want *subprocess.RPCError", err)
 	}
 	if rpcErr.Code != want {
@@ -7288,8 +7403,8 @@ func assertErrorContains(t testing.TB, err error, fragment string) {
 func decodeRPCData(t testing.TB, err error) map[string]any {
 	t.Helper()
 
-	var rpcErr *subprocess.RPCError
-	if !errors.As(err, &rpcErr) {
+	rpcErr, rpcErrMatched := errors.AsType[*subprocess.RPCError](err)
+	if !rpcErrMatched {
 		t.Fatalf("error type = %T, want *subprocess.RPCError", err)
 	}
 

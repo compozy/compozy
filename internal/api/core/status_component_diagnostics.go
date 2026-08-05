@@ -7,77 +7,87 @@ import (
 	"github.com/compozy/compozy/internal/diagnostics"
 )
 
+const (
+	automationDiagnosticID = "doctor.scheduler.status"
+	bridgeDiagnosticID     = "doctor.bridge.status"
+	networkDiagnosticID    = "doctor.network.status"
+)
+
 func automationDiagnosticItem(status contract.AutomationHealthPayload) contract.DiagnosticItem {
 	if !status.Enabled {
-		return diagnostics.NewItem(
-			"doctor.scheduler.status",
-			contract.CodeSchedulerPaused,
-			contract.CategoryTask,
-			"Automation scheduler is disabled",
-			"Automation is disabled in runtime config.",
-			contract.SeverityInfo,
-			contract.FreshnessLive,
-		)
+		return diagnostics.NewItem(diagnostics.ItemSpec{
+			ID:            automationDiagnosticID,
+			Code:          contract.CodeSchedulerPaused,
+			Category:      contract.CategoryTask,
+			Title:         "Automation scheduler is disabled",
+			Message:       "Automation is disabled in runtime config.",
+			Severity:      contract.SeverityInfo,
+			DataFreshness: contract.FreshnessLive,
+		})
 	}
 	if status.SchedulerRunning {
-		return diagnostics.NewItem(
-			"doctor.scheduler.status",
-			contract.CodeSchedulerReady,
-			contract.CategoryTask,
-			"Automation scheduler is running",
-			"Scheduled automation is available.",
-			contract.SeverityOK,
-			contract.FreshnessLive,
+		return diagnostics.NewItem(diagnostics.ItemSpec{
+			ID:            automationDiagnosticID,
+			Code:          contract.CodeSchedulerReady,
+			Category:      contract.CategoryTask,
+			Title:         "Automation scheduler is running",
+			Message:       "Scheduled automation is available.",
+			Severity:      contract.SeverityOK,
+			DataFreshness: contract.FreshnessLive,
+		},
 			diagnostics.WithEvidence(map[string]any{
 				"jobs":     status.Jobs.Total,
 				"triggers": status.Triggers.Total,
 			}),
 		)
 	}
-	return diagnostics.NewItem(
-		"doctor.scheduler.status",
-		contract.CodeSchedulerPaused,
-		contract.CategoryTask,
-		"Automation scheduler is not running",
-		"Automation is enabled but the scheduler is not reporting a running state.",
-		contract.SeverityWarn,
-		contract.FreshnessLive,
-	)
+	return diagnostics.NewItem(diagnostics.ItemSpec{
+		ID:            automationDiagnosticID,
+		Code:          contract.CodeSchedulerPaused,
+		Category:      contract.CategoryTask,
+		Title:         "Automation scheduler is not running",
+		Message:       "Automation is enabled but the scheduler is not reporting a running state.",
+		Severity:      contract.SeverityWarn,
+		DataFreshness: contract.FreshnessLive,
+	})
 }
 
 func bridgeDiagnosticItem(status contract.BridgeAggregateHealthPayload) contract.DiagnosticItem {
 	if status.StatusCounts.Error > 0 || status.AuthFailuresTotal > 0 {
-		return diagnostics.NewItem(
-			"doctor.bridge.status",
-			contract.CodeBridgeHealthUnavailable,
-			contract.CategoryBridge,
-			"Bridge health has failures",
-			"One or more bridge instances report errors or authentication failures.",
-			contract.SeverityError,
-			contract.FreshnessLive,
+		return diagnostics.NewItem(diagnostics.ItemSpec{
+			ID:            bridgeDiagnosticID,
+			Code:          contract.CodeBridgeHealthUnavailable,
+			Category:      contract.CategoryBridge,
+			Title:         "Bridge health has failures",
+			Message:       "One or more bridge instances report errors or authentication failures.",
+			Severity:      contract.SeverityError,
+			DataFreshness: contract.FreshnessLive,
+		},
 			diagnostics.WithEvidence(bridgeDiagnosticEvidence(status)),
 		)
 	}
 	if status.StatusCounts.Degraded > 0 || status.DeliveryBacklog > 0 || status.DeliveryFailuresTotal > 0 {
-		return diagnostics.NewItem(
-			"doctor.bridge.status",
-			contract.CodeBridgeHealthUnavailable,
-			contract.CategoryBridge,
-			"Bridge health is degraded",
-			"Bridge delivery is not fully healthy.",
-			contract.SeverityWarn,
-			contract.FreshnessLive,
+		return diagnostics.NewItem(diagnostics.ItemSpec{
+			ID:            bridgeDiagnosticID,
+			Code:          contract.CodeBridgeHealthUnavailable,
+			Category:      contract.CategoryBridge,
+			Title:         "Bridge health is degraded",
+			Message:       "Bridge delivery is not fully healthy.",
+			Severity:      contract.SeverityWarn,
+			DataFreshness: contract.FreshnessLive,
+		},
 			diagnostics.WithEvidence(bridgeDiagnosticEvidence(status)),
 		)
 	}
-	return diagnostics.NewItem(
-		"doctor.bridge.status",
-		contract.CodeBridgeReady,
-		contract.CategoryBridge,
-		"Bridge health is ready",
-		"Bridge registry health has no reported failures.",
-		contract.SeverityOK,
-		contract.FreshnessLive,
+	return diagnostics.NewItem(diagnostics.ItemSpec{
+		ID:            bridgeDiagnosticID,
+		Code:          contract.CodeBridgeReady,
+		Category:      contract.CategoryBridge,
+		Title:         "Bridge health is ready",
+		Message:       "Bridge registry health has no reported failures.",
+		Severity:      contract.SeverityOK,
+		DataFreshness: contract.FreshnessLive,
+	},
 		diagnostics.WithEvidence(bridgeDiagnosticEvidence(status)),
 	)
 }
@@ -102,88 +112,93 @@ func networkDiagnosticItem(status *contract.NetworkStatusPayload) contract.Diagn
 		}
 	}
 	if status == nil || !status.Enabled {
-		return diagnostics.NewItem(
-			"doctor.network.status",
-			contract.CodeNetworkDisabled,
-			contract.CategoryNetwork,
-			"Network is disabled",
-			"Compozy Network is not enabled in runtime config.",
-			contract.SeverityInfo,
-			contract.FreshnessLive,
-		)
+		return diagnostics.NewItem(diagnostics.ItemSpec{
+			ID:            networkDiagnosticID,
+			Code:          contract.CodeNetworkDisabled,
+			Category:      contract.CategoryNetwork,
+			Title:         "Network is disabled",
+			Message:       "Compozy Network is not enabled in runtime config.",
+			Severity:      contract.SeverityInfo,
+			DataFreshness: contract.FreshnessLive,
+		})
 	}
 	if strings.EqualFold(strings.TrimSpace(status.Status), memoryHealthStatusUnavailable) {
-		return diagnostics.NewItem(
-			"doctor.network.status",
-			contract.CodeNetworkUnavailable,
-			contract.CategoryNetwork,
-			"Network status is unavailable",
-			"Compozy Network is enabled but runtime status could not be collected.",
-			contract.SeverityWarn,
-			contract.FreshnessLive,
+		return diagnostics.NewItem(diagnostics.ItemSpec{
+			ID:            networkDiagnosticID,
+			Code:          contract.CodeNetworkUnavailable,
+			Category:      contract.CategoryNetwork,
+			Title:         "Network status is unavailable",
+			Message:       "Compozy Network is enabled but runtime status could not be collected.",
+			Severity:      contract.SeverityWarn,
+			DataFreshness: contract.FreshnessLive,
+		},
 			diagnostics.WithEvidence(evidence),
 		)
 	}
-	return diagnostics.NewItem(
-		"doctor.network.status",
-		contract.CodeNetworkReady,
-		contract.CategoryNetwork,
-		"Network status is available",
-		"Compozy Network status is available from the daemon.",
-		contract.SeverityOK,
-		contract.FreshnessLive,
+	return diagnostics.NewItem(diagnostics.ItemSpec{
+		ID:            networkDiagnosticID,
+		Code:          contract.CodeNetworkReady,
+		Category:      contract.CategoryNetwork,
+		Title:         "Network status is available",
+		Message:       "Compozy Network status is available from the daemon.",
+		Severity:      contract.SeverityOK,
+		DataFreshness: contract.FreshnessLive,
+	},
 		diagnostics.WithEvidence(evidence),
 	)
 }
 
 func skillDiagnosticItem(status contract.SkillRuntimeStatusPayload) contract.DiagnosticItem {
 	if status.RuntimeAvailable {
-		return diagnostics.NewItem(
-			"doctor.skills.status",
-			contract.CodeSkillRegistryReady,
-			contract.CategoryExtension,
-			"Skill registry is available",
-			"Skill registry is loaded and can be queried.",
-			contract.SeverityOK,
-			contract.FreshnessLive,
+		return diagnostics.NewItem(diagnostics.ItemSpec{
+			ID:            "doctor.skills.status",
+			Code:          contract.CodeSkillRegistryReady,
+			Category:      contract.CategoryExtension,
+			Title:         "Skill registry is available",
+			Message:       "Skill registry is loaded and can be queried.",
+			Severity:      contract.SeverityOK,
+			DataFreshness: contract.FreshnessLive,
+		},
 			diagnostics.WithEvidence(map[string]any{
 				"discovered": status.DiscoveredCount,
 				"disabled":   status.DisabledCount,
 			}),
 		)
 	}
-	return diagnostics.NewItem(
-		"doctor.skills.status",
-		contract.CodeSkillNotFound,
-		contract.CategoryExtension,
-		"Skill registry is unavailable",
-		"Skill registry was not configured for this daemon.",
-		contract.SeverityWarn,
-		contract.FreshnessLive,
-	)
+	return diagnostics.NewItem(diagnostics.ItemSpec{
+		ID:            "doctor.skills.status",
+		Code:          contract.CodeSkillNotFound,
+		Category:      contract.CategoryExtension,
+		Title:         "Skill registry is unavailable",
+		Message:       "Skill registry was not configured for this daemon.",
+		Severity:      contract.SeverityWarn,
+		DataFreshness: contract.FreshnessLive,
+	})
 }
 
 func logTailDiagnosticItem(status contract.LogTailStatusPayload) contract.DiagnosticItem {
 	if status.Available {
-		return diagnostics.NewItem(
-			"doctor.logs.tail",
-			contract.CodeDaemonStatusOK,
-			contract.CategoryDaemon,
-			"Log tail is available",
-			"Runtime log-tail support is available.",
-			contract.SeverityOK,
-			contract.FreshnessLive,
+		return diagnostics.NewItem(diagnostics.ItemSpec{
+			ID:            "doctor.logs.tail",
+			Code:          contract.CodeDaemonStatusOK,
+			Category:      contract.CategoryDaemon,
+			Title:         "Log tail is available",
+			Message:       "Runtime log-tail support is available.",
+			Severity:      contract.SeverityOK,
+			DataFreshness: contract.FreshnessLive,
+		},
 			diagnostics.WithEvidence(map[string]any{statusKey: status.Status}),
 		)
 	}
-	return diagnostics.NewItem(
-		"doctor.logs.tail",
-		contract.CodeDaemonStateSuspect,
-		contract.CategoryDaemon,
-		"Log tail is unavailable",
-		"Runtime log-tail support is not currently available.",
-		contract.SeverityInfo,
-		contract.FreshnessLive,
+	return diagnostics.NewItem(diagnostics.ItemSpec{
+		ID:            "doctor.logs.tail",
+		Code:          contract.CodeDaemonStateSuspect,
+		Category:      contract.CategoryDaemon,
+		Title:         "Log tail is unavailable",
+		Message:       "Runtime log-tail support is not currently available.",
+		Severity:      contract.SeverityInfo,
+		DataFreshness: contract.FreshnessLive,
+	},
 		diagnostics.WithEvidence(map[string]any{statusKey: status.Status}),
 	)
 }

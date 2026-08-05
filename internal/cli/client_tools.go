@@ -315,9 +315,7 @@ func toolValues(query ToolQuery) url.Values {
 
 func sanitizeToolErrorResponse(response ToolErrorResponseRecord) ToolErrorResponseRecord {
 	response.Error.Message = redactToolDiagnostic(response.Error.Message)
-	if len(response.Error.Details) > 0 {
-		response.Error.Details = nil
-	}
+	response.Error.Details = contract.FilterToolOperatorFailureDetails(response.Error.Details)
 	if response.Error.PartialResult != nil {
 		partial := sanitizeToolResult(*response.Error.PartialResult)
 		response.Error.PartialResult = &partial

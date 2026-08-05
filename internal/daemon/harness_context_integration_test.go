@@ -20,7 +20,9 @@ import (
 	"github.com/compozy/compozy/internal/memory"
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/situation"
 	skillspkg "github.com/compozy/compozy/internal/skills"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/sessiondb"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
@@ -29,6 +31,10 @@ import (
 )
 
 func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing.T) {
+	t.Run("Should share one resolver policy across startup and live prompts", testHarnessContextIntegrationStartupAndPromptShareResolverPolicy)
+}
+
+func testHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing.T) {
 	homePaths := integrationHomePaths(t)
 	cfg := testConfig(t, homePaths)
 	workspaceRoot := homePaths.HomeDir + "/workspace"
@@ -55,7 +61,7 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 	daemonInstance, capturedDeps := bootHarnessPolicyDaemon(t, homePaths, &cfg)
 	t.Cleanup(func() {
 		if err := daemonInstance.Shutdown(testutil.Context(t)); err != nil {
-			t.Fatalf("Shutdown() error = %v", err)
+			t.Errorf("Shutdown() error = %v", err)
 		}
 	})
 
@@ -79,6 +85,7 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 		daemonInstance.harnessResolver,
 		nil,
 		defaultPromptInputAugmenterDescriptors(
+			situation.WorkspaceKnowledgeAugmenter,
 			memory.NewRecallAugmenter(daemonInstance.memoryStore),
 			newSkillsCatalogAugmenter(daemonInstance.skillsRegistry, func() promptSkillsWorkspaceResolver {
 				return workspaceResolver
@@ -102,7 +109,9 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 		t.Fatalf("Create() error = %v", err)
 	}
 	t.Cleanup(func() {
-		_ = manager.Stop(testutil.Context(t), created.ID)
+		if err := manager.Stop(testutil.Context(t), created.ID); err != nil {
+			t.Errorf("Stop() error = %v", err)
+		}
 	})
 	waitForCondition(t, "current skills catalog ready", func() bool {
 		info := created.Info()
@@ -230,13 +239,14 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 	if !slices.Equal(
 		userResolved.Policy.EnableAugmenters,
 		[]HarnessAugmenter{
+			HarnessAugmenterWorkspaceKnowledge,
 			HarnessAugmenterSkills,
 			HarnessAugmenterSituation,
 			HarnessAugmenterDurableMemory,
 		},
 	) {
 		t.Fatalf(
-			"user EnableAugmenters = %#v, want skills, situation, and durable memory",
+			"user EnableAugmenters = %#v, want workspace knowledge, skills, situation, and durable memory",
 			userResolved.Policy.EnableAugmenters,
 		)
 	}
@@ -280,10 +290,10 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 	}
 	if !slices.Equal(
 		networkResolved.Policy.EnableAugmenters,
-		[]HarnessAugmenter{HarnessAugmenterSkills},
+		[]HarnessAugmenter{HarnessAugmenterWorkspaceKnowledge, HarnessAugmenterSkills},
 	) {
 		t.Fatalf(
-			"network EnableAugmenters = %#v, want skills",
+			"network EnableAugmenters = %#v, want workspace knowledge and skills",
 			networkResolved.Policy.EnableAugmenters,
 		)
 	}
@@ -343,6 +353,10 @@ func writeHarnessCheckpointSummary(t *testing.T, workspaceRoot string, fact stri
 }
 
 func TestHarnessContextIntegrationResolverStableAcrossResume(t *testing.T) {
+	t.Run("Should preserve resolver policy across session resume", testHarnessContextIntegrationResolverStableAcrossResume)
+}
+
+func testHarnessContextIntegrationResolverStableAcrossResume(t *testing.T) {
 	homePaths := integrationHomePaths(t)
 	cfg := testConfig(t, homePaths)
 	workspaceRoot := homePaths.HomeDir + "/workspace"
@@ -351,7 +365,7 @@ func TestHarnessContextIntegrationResolverStableAcrossResume(t *testing.T) {
 	daemonInstance, capturedDeps := bootHarnessPolicyDaemon(t, homePaths, &cfg)
 	t.Cleanup(func() {
 		if err := daemonInstance.Shutdown(testutil.Context(t)); err != nil {
-			t.Fatalf("Shutdown() error = %v", err)
+			t.Errorf("Shutdown() error = %v", err)
 		}
 	})
 
@@ -386,7 +400,9 @@ func TestHarnessContextIntegrationResolverStableAcrossResume(t *testing.T) {
 		t.Fatalf("Resume() error = %v", err)
 	}
 	t.Cleanup(func() {
-		_ = manager.Stop(testutil.Context(t), resumed.ID)
+		if err := manager.Stop(testutil.Context(t), resumed.ID); err != nil {
+			t.Errorf("Stop() error = %v", err)
+		}
 	})
 
 	afterResume, err := daemonInstance.harnessResolver.ResolvePrompt(
@@ -439,6 +455,10 @@ func TestHarnessContextIntegrationResolverStableAcrossResume(t *testing.T) {
 }
 
 func TestHarnessContextIntegrationStartupOmitsNetworkSectionForNonChannelSession(t *testing.T) {
+	t.Run("Should omit the startup network section for a non-channel session", testHarnessContextIntegrationStartupOmitsNetworkSectionForNonChannelSession)
+}
+
+func testHarnessContextIntegrationStartupOmitsNetworkSectionForNonChannelSession(t *testing.T) {
 	homePaths := integrationHomePaths(t)
 	cfg := testConfig(t, homePaths)
 	workspaceRoot := homePaths.HomeDir + "/workspace"
@@ -448,7 +468,7 @@ func TestHarnessContextIntegrationStartupOmitsNetworkSectionForNonChannelSession
 	daemonInstance, capturedDeps := bootHarnessPolicyDaemon(t, homePaths, &cfg)
 	t.Cleanup(func() {
 		if err := daemonInstance.Shutdown(testutil.Context(t)); err != nil {
-			t.Fatalf("Shutdown() error = %v", err)
+			t.Errorf("Shutdown() error = %v", err)
 		}
 	})
 
@@ -464,7 +484,9 @@ func TestHarnessContextIntegrationStartupOmitsNetworkSectionForNonChannelSession
 		t.Fatalf("Create() error = %v", err)
 	}
 	t.Cleanup(func() {
-		_ = manager.Stop(testutil.Context(t), created.ID)
+		if err := manager.Stop(testutil.Context(t), created.ID); err != nil {
+			t.Errorf("Stop() error = %v", err)
+		}
 	})
 
 	networkSkill, err := skillbundled.LoadResource(bundledCompozySkillName, bundledNetworkReference)
@@ -558,9 +580,7 @@ func seedHarnessSituationTaskRun(
 		QueuedAt:  now,
 		StartedAt: now.Add(time.Minute),
 	}
-	if err := daemonInstance.tasks.store.CreateTaskRun(testutil.Context(t), run); err != nil {
-		t.Fatalf("CreateTaskRun() error = %v", err)
-	}
+	seedDaemonTaskRunLifecycle(t, daemonInstance.tasks.store, run)
 }
 
 func bootHarnessPolicyDaemon(
@@ -614,8 +634,8 @@ func newHarnessIntegrationManager(
 		session.WithHomePaths(homePaths),
 		session.WithDriver(driver),
 		session.WithWorkspaceResolver(&harnessIntegrationWorkspaceResolver{resolved: resolvedWorkspace}),
-		session.WithStore(func(ctx context.Context, sessionID string, path string) (session.EventRecorder, error) {
-			return sessiondb.OpenSessionDB(ctx, sessionID, path)
+		session.WithStore(func(ctx context.Context, owner store.SessionDBOwner, path string) (session.EventRecorder, error) {
+			return sessiondb.OpenSessionDB(ctx, owner, path)
 		}),
 		session.WithLogger(discardLogger()),
 		session.WithSandboxRegistry(deps.SandboxRegistry),

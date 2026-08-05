@@ -109,14 +109,14 @@ func (s *SessionDB) normalizeSessionEvent(event store.SessionEvent) (store.Sessi
 	if err := event.Validate(); err != nil {
 		return store.SessionEvent{}, err
 	}
-	if event.SessionID != "" && event.SessionID != s.sessionID {
+	if event.SessionID != "" && event.SessionID != s.owner.SessionID {
 		return store.SessionEvent{}, fmt.Errorf(
 			"store: event session id %q does not match session database %q",
 			event.SessionID,
-			s.sessionID,
+			s.owner.SessionID,
 		)
 	}
-	event.SessionID = s.sessionID
+	event.SessionID = s.owner.SessionID
 	event.Content = redactSessionEventContent(event.Content)
 	return event, nil
 }
@@ -208,7 +208,7 @@ func (s *SessionDB) writeEventIfAbsent(
 				row.Content,
 				row.Archived,
 				row.Timestamp,
-				s.sessionID,
+				s.owner.SessionID,
 			)
 			if mapErr != nil {
 				return mapErr
@@ -246,7 +246,7 @@ func (s *SessionDB) writeEventIfAbsent(
 		for _, key := range assignment.CompletedKeys {
 			affected[key] = struct{}{}
 		}
-		if err := persistIncrementalTranscriptProjection(ctx, tx, s.sessionID, projector, affected); err != nil {
+		if err := persistIncrementalTranscriptProjection(ctx, tx, s.owner.SessionID, projector, affected); err != nil {
 			return err
 		}
 		persisted = event
@@ -275,7 +275,11 @@ func (s *SessionDB) writeEventBatch(
 	prepared := make([]store.SessionEvent, 0, len(events))
 	for _, event := range events {
 		if strings.TrimSpace(event.ID) == "" {
-			event.ID = store.NewID("ev")
+			generatedID, err := store.NewID("ev")
+			if err != nil {
+				return nil, fmt.Errorf("store: generate session event id: %w", err)
+			}
+			event.ID = generatedID
 		}
 		if event.Timestamp.IsZero() {
 			event.Timestamp = s.now()
@@ -315,7 +319,7 @@ func (s *SessionDB) writeEventBatch(
 				affected[key] = struct{}{}
 			}
 		}
-		return persistIncrementalTranscriptProjection(ctx, tx, s.sessionID, projector, affected)
+		return persistIncrementalTranscriptProjection(ctx, tx, s.owner.SessionID, projector, affected)
 	}); err != nil {
 		return nil, err
 	}

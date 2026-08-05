@@ -140,7 +140,7 @@ func TestManagerTranscriptPageReturnsStoredQueryErrors(t *testing.T) {
 
 	queryErr := errors.New("query failed")
 	recorder := &transcriptRecorderStub{pageErr: queryErr}
-	h := newHarness(t, WithStore(func(_ context.Context, _ string, _ string) (EventRecorder, error) {
+	h := newHarness(t, WithStore(func(_ context.Context, _ store.SessionDBOwner, _ string) (EventRecorder, error) {
 		return recorder, nil
 	}))
 	writeStoppedSessionArtifacts(t, h, "stored-query-failure", true)
@@ -170,7 +170,7 @@ func TestManagerTranscriptPageLogsCleanupErrorsWithoutFailingSuccessfulRead(t *t
 		},
 		closeErr: errors.New("close failed"),
 	}
-	h := newHarness(t, WithStore(func(_ context.Context, _ string, _ string) (EventRecorder, error) {
+	h := newHarness(t, WithStore(func(_ context.Context, _ store.SessionDBOwner, _ string) (EventRecorder, error) {
 		return recorder, nil
 	}))
 	h.manager.logger = nil
@@ -201,7 +201,7 @@ func TestManagerTranscriptProjectionReads(t *testing.T) {
 		recorder := &filteringTranscriptRecorder{}
 		h := newHarness(
 			t,
-			WithStore(func(_ context.Context, _ string, _ string) (EventRecorder, error) {
+			WithStore(func(_ context.Context, _ store.SessionDBOwner, _ string) (EventRecorder, error) {
 				return recorder, nil
 			}),
 		)
@@ -253,8 +253,8 @@ func TestManagerTranscriptProjectionReads(t *testing.T) {
 		}
 		h := newHarness(
 			t,
-			WithStore(func(_ context.Context, sessionID string, _ string) (EventRecorder, error) {
-				return recorders[sessionID], nil
+			WithStore(func(_ context.Context, owner store.SessionDBOwner, _ string) (EventRecorder, error) {
+				return recorders[owner.SessionID], nil
 			}),
 		)
 		for sessionID, recorder := range recorders {

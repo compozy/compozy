@@ -127,7 +127,6 @@ type Kernel struct {
 }
 
 var _ RawStore = (*Kernel)(nil)
-var _ SourceSessionManager = (*Kernel)(nil)
 
 type sourceLock struct {
 	mu   sync.Mutex
@@ -166,111 +165,6 @@ func NewKernel(db *sql.DB, opts ...Option) (*Kernel, error) {
 		return nil, errors.New("resources: max snapshot bytes must be positive")
 	}
 	return kernel, nil
-}
-
-// ActivateSourceSession registers the active nonce and resets the snapshot version counter for one source.
-func (k *Kernel) ActivateSourceSession(
-	ctx context.Context,
-	actor MutationActor,
-	source ResourceSource,
-	sessionNonce string,
-) error {
-	if ctx == nil {
-		return errors.New("resources: activate source session context is required")
-	}
-
-	normalizedActor, err := normalizeActor(actor)
-	if err != nil {
-		return err
-	}
-	if normalizedActor.Kind == MutationActorKindExtension {
-		return fmt.Errorf("%w: extension actors cannot activate source sessions", ErrPermissionDenied)
-	}
-
-	normalizedSource := source.Normalize()
-	if err := normalizedSource.Validate("source"); err != nil {
-		return err
-	}
-	trimmedNonce := strings.TrimSpace(sessionNonce)
-	if trimmedNonce == "" {
-		return fmt.Errorf("%w: session_nonce is required", ErrValidation)
-	}
-
-	unlock := k.lockSource(normalizedSource)
-	defer unlock()
-
-	return k.withImmediateTransaction(ctx, "activate source session", func(exec sqlExecutor) error {
-		updatedAt := store.FormatTimestamp(k.now())
-		if _, err := exec.ExecContext(
-			ctx,
-			activateSourceStateQuery,
-			normalizedSource.Kind,
-			normalizedSource.ID,
-			trimmedNonce,
-			updatedAt,
-		); err != nil {
-			return fmt.Errorf(
-				"resources: activate source session %q/%q: %w",
-				normalizedSource.Kind,
-				normalizedSource.ID,
-				err,
-			)
-		}
-		return nil
-	})
-}
-
-// ResetSource deletes all source-owned records and source state in one transaction.
-func (k *Kernel) ResetSource(ctx context.Context, actor MutationActor, source ResourceSource) error {
-	if ctx == nil {
-		return errors.New("resources: reset source context is required")
-	}
-
-	normalizedActor, err := normalizeActor(actor)
-	if err != nil {
-		return err
-	}
-	if normalizedActor.Kind == MutationActorKindExtension {
-		return fmt.Errorf("%w: extension actors cannot reset sources", ErrPermissionDenied)
-	}
-
-	normalizedSource := source.Normalize()
-	if err := normalizedSource.Validate("source"); err != nil {
-		return err
-	}
-
-	unlock := k.lockSource(normalizedSource)
-	defer unlock()
-
-	return k.withImmediateTransaction(ctx, "reset source", func(exec sqlExecutor) error {
-		if _, err := exec.ExecContext(
-			ctx,
-			deleteSourceRecordsQuery,
-			normalizedSource.Kind,
-			normalizedSource.ID,
-		); err != nil {
-			return fmt.Errorf(
-				"resources: delete source records %q/%q: %w",
-				normalizedSource.Kind,
-				normalizedSource.ID,
-				err,
-			)
-		}
-		if _, err := exec.ExecContext(
-			ctx,
-			deleteSourceStateQuery,
-			normalizedSource.Kind,
-			normalizedSource.ID,
-		); err != nil {
-			return fmt.Errorf(
-				"resources: delete source state %q/%q: %w",
-				normalizedSource.Kind,
-				normalizedSource.ID,
-				err,
-			)
-		}
-		return nil
-	})
 }
 
 // PutRaw creates or updates one raw desired-state record using optimistic concurrency.
@@ -360,7 +254,11 @@ func (k *Kernel) GetRaw(ctx context.Context, actor MutationActor, kind ResourceK
 }
 
 // ListRaw lists raw desired-state records under the actor's read boundary.
-func (k *Kernel) ListRaw(ctx context.Context, actor MutationActor, filter ResourceFilter) ([]RawRecord, error) {
+func (k *Kernel) ListRaw(
+	ctx context.Context,
+	actor MutationActor,
+	filter ResourceFilter,
+) (records []RawRecord, err error) {
 	if ctx == nil {
 		return nil, errors.New("resources: list raw context is required")
 	}
@@ -379,12 +277,9 @@ func (k *Kernel) ListRaw(ctx context.Context, actor MutationActor, filter Resour
 	if err != nil {
 		return nil, fmt.Errorf("resources: query records: %w", err)
 	}
-	defer func() {
-		// Scan and iteration errors own the query result; Close only releases an already-consumed read cursor.
-		_ = rows.Close()
-	}()
+	defer closeResourceRows(rows, "resource records", &err)
 
-	records := make([]RawRecord, 0)
+	records = make([]RawRecord, 0)
 	for rows.Next() {
 		record, scanErr := scanRawRecord(rows)
 		if scanErr != nil {

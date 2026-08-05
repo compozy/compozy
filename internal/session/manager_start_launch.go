@@ -27,6 +27,7 @@ func (m *Manager) prepareSessionLaunch(
 	if err != nil {
 		return acp.StartOpts{}, startupFailure("session pre-start hook failed", err)
 	}
+	startOpts = m.finalizeProviderProbeEnvForStart(session, runtime.agent, startOpts)
 	if spec.resumeReplay {
 		spec.resumeReplayBlock, spec.resumeReplayMessageCount, err = m.buildResumeReplay(ctx, session)
 		if err != nil {

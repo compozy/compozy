@@ -83,7 +83,7 @@ func bindAutomationCreateTargetFlags(
 func buildAutomationCreateTarget(
 	cmd *cobra.Command,
 	deps commandDeps,
-	client DaemonClient,
+	client workspaceLookupClient,
 	scope automationpkg.Scope,
 	scopeWorkspaceID string,
 	input automationCreateTargetInput,
@@ -135,7 +135,7 @@ func buildAutomationAgentTarget(
 func buildAutomationLoopTarget(
 	cmd *cobra.Command,
 	deps commandDeps,
-	client DaemonClient,
+	client workspaceLookupClient,
 	scope automationpkg.Scope,
 	scopeWorkspaceID string,
 	loopName string,
@@ -197,7 +197,7 @@ func automationLoopTargetOptionsPresent(input automationCreateTargetInput) bool 
 func resolveAutomationLoopWorkspace(
 	cmd *cobra.Command,
 	deps commandDeps,
-	client DaemonClient,
+	client workspaceLookupClient,
 	scope automationpkg.Scope,
 	scopeWorkspaceID string,
 	workspaceRef string,

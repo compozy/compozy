@@ -132,11 +132,11 @@ func (s *Store) reindexScopesLocked(
 	seenWorkspaceID := strings.TrimSpace(workspaceID)
 
 	reindexScope := func(scope memcontract.Scope, workspaceRoot string, workspaceID string) error {
-		headers, err := s.headersForCatalogScope(scope, workspaceRoot)
+		headers, err := s.headersForCatalogScope(ctx, scope, workspaceRoot)
 		if err != nil {
 			return err
 		}
-		docs, err := s.documentsForHeaders(scope, workspaceRoot, workspaceID, headers)
+		docs, err := s.documentsForHeaders(ctx, scope, workspaceRoot, workspaceID, headers)
 		if err != nil {
 			return err
 		}
@@ -188,14 +188,16 @@ func (s *Store) reindexScopesLocked(
 }
 
 func (s *Store) headersForCatalogScope(
+	ctx context.Context,
 	scope memcontract.Scope,
 	workspaceRoot string,
 ) ([]memcontract.Header, error) {
 	target := s.catalogSourceStore(scope, workspaceRoot)
-	return target.scan(scope, 0)
+	return target.scan(ctx, scope, 0)
 }
 
 func (s *Store) documentsForHeaders(
+	ctx context.Context,
 	scope memcontract.Scope,
 	workspaceRoot string,
 	workspaceID string,
@@ -205,7 +207,7 @@ func (s *Store) documentsForHeaders(
 
 	docs := make([]catalogDocument, 0, len(headers))
 	for _, header := range headers {
-		rawContent, err := target.Read(scope, header.Filename)
+		rawContent, err := target.Read(ctx, scope, header.Filename)
 		if err != nil {
 			return nil, err
 		}

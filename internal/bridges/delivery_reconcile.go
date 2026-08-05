@@ -23,6 +23,22 @@ func (b *Broker) ReconcileDelivery(
 	record DeliveryLedgerRecord,
 	extensionName string,
 ) error {
+	if b == nil {
+		return errors.New("bridges: delivery broker is required")
+	}
+	if ctx == nil {
+		return errors.New("bridges: delivery reconciliation context is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	operationCtx, finishOperation, err := b.beginMutableOperation(ctx)
+	if err != nil {
+		return err
+	}
+	defer finishOperation()
+	ctx = operationCtx
+
 	normalized, err := b.validateDeliveryReconciliation(ctx, record)
 	if err != nil {
 		return err

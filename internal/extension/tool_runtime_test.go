@@ -33,8 +33,9 @@ func TestExtensionToolCallErrorShouldRestoreStructuredOperatorFailure(t *testing
 		rpcErr.Data = data
 
 		restored := extensionToolCallError(toolID, rpcErr)
-		var toolErr *toolspkg.ToolError
-		if !errors.As(restored, &toolErr) {
+
+		toolErr, toolErrMatched := errors.AsType[*toolspkg.ToolError](restored)
+		if !toolErrMatched {
 			t.Fatalf("extensionToolCallError() type = %T, want *tools.ToolError", restored)
 		}
 		if toolErr.Code != toolspkg.ErrorCodeInvalidInput || toolErr.ToolID != toolID ||

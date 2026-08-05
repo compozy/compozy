@@ -266,5 +266,11 @@ type RawStore interface {
 // SourceSessionManager manages active source-session state for snapshot publication.
 type SourceSessionManager interface {
 	ActivateSourceSession(ctx context.Context, actor MutationActor, source ResourceSource, sessionNonce string) error
+	ResetSourceIfActiveSession(
+		ctx context.Context,
+		actor MutationActor,
+		source ResourceSource,
+		sessionNonce string,
+	) (bool, error)
 	ResetSource(ctx context.Context, actor MutationActor, source ResourceSource) error
 }

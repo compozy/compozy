@@ -14,28 +14,22 @@ import (
 func TestDeliveryScalarContracts(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should normalize modes, operations, and event catalogs", func(t *testing.T) {
+	t.Run("Should validate modes, operations, and event catalogs", func(t *testing.T) {
 		t.Parallel()
 
-		modeAliases := []struct {
-			name  string
-			alias DeliveryMode
-			want  DeliveryMode
+		validModes := []struct {
+			name string
+			mode DeliveryMode
 		}{
-			{name: "Should normalize direct", alias: "direct", want: DeliveryModeDirectSend},
-			{name: "Should normalize direct underscore", alias: "direct_send", want: DeliveryModeDirectSend},
-			{name: "Should normalize send", alias: "send", want: DeliveryModeDirectSend},
-			{name: "Should normalize reply underscore", alias: "reply_send", want: DeliveryModeReply},
+			{name: "Should accept direct-send", mode: DeliveryModeDirectSend},
+			{name: "Should accept reply", mode: DeliveryModeReply},
 		}
-		for _, test := range modeAliases {
+		for _, test := range validModes {
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 
-				if got := test.alias.Normalize(); got != test.want {
-					t.Fatalf("DeliveryMode(%q).Normalize() = %q, want %q", test.alias, got, test.want)
-				}
-				if err := test.alias.Validate(); err != nil {
-					t.Fatalf("DeliveryMode(%q).Validate() error = %v", test.alias, err)
+				if err := test.mode.Validate(); err != nil {
+					t.Fatalf("DeliveryMode(%q).Validate() error = %v", test.mode, err)
 				}
 			})
 		}
@@ -46,6 +40,11 @@ func TestDeliveryScalarContracts(t *testing.T) {
 		}{
 			{name: "Should reject an empty delivery mode", mode: ""},
 			{name: "Should reject an unsupported delivery mode", mode: "broadcast"},
+			{name: "Should reject the removed direct alias", mode: "direct"},
+			{name: "Should reject the removed direct underscore alias", mode: "direct_send"},
+			{name: "Should reject the removed send alias", mode: "send"},
+			{name: "Should reject the removed reply underscore alias", mode: "reply_send"},
+			{name: "Should reject noncanonical case and whitespace", mode: " REPLY "},
 		}
 		for _, test := range invalidModes {
 			t.Run(test.name, func(t *testing.T) {
@@ -97,7 +96,7 @@ func TestDeliveryScalarContracts(t *testing.T) {
 			BridgeInstanceID: " brg-1 ",
 			PeerID:           " peer-1 ",
 			ThreadID:         " thread-1 ",
-			Mode:             " REPLY ",
+			Mode:             DeliveryModeReply,
 		}
 		if err := target.Validate(); err != nil {
 			t.Fatalf("DeliveryTarget.Validate() error = %v", err)
@@ -108,11 +107,6 @@ func TestDeliveryScalarContracts(t *testing.T) {
 				target.IsZero(),
 				(DeliveryTarget{}).IsZero(),
 			)
-		}
-		normalized := NormalizeDeliveryTarget(target)
-		if normalized.BridgeInstanceID != "brg-1" || normalized.PeerID != "peer-1" ||
-			normalized.ThreadID != "thread-1" || normalized.Mode != DeliveryModeReply {
-			t.Fatalf("NormalizeDeliveryTarget() = %#v, want canonical target", normalized)
 		}
 		invalidTargets := []struct {
 			name   string
@@ -193,7 +187,7 @@ func TestDeliveryScalarContracts(t *testing.T) {
 		normalized := NormalizeDeliveryMessageReference(DeliveryMessageReference{
 			DeliveryID: " del-1 ", RemoteMessageID: " remote-1 ",
 		})
-		if normalized.DeliveryID != "del-1" || normalized.RemoteMessageID != "remote-1" {
+		if normalized.DeliveryID != " del-1 " || normalized.RemoteMessageID != "remote-1" {
 			t.Fatalf("NormalizeDeliveryMessageReference() = %#v, want canonical reference", normalized)
 		}
 	})
@@ -277,7 +271,12 @@ func TestDeliveryScalarContracts(t *testing.T) {
 			},
 			{
 				name: "Should accept a matching acknowledgement",
-				ack:  DeliveryAck{DeliveryID: " del-1 ", Seq: 2, RemoteMessageID: " remote-1 "},
+				ack:  DeliveryAck{DeliveryID: event.DeliveryID, Seq: 2, RemoteMessageID: " remote-1 "},
+			},
+			{
+				name:    "Should reject a whitespace-modified delivery id",
+				ack:     DeliveryAck{DeliveryID: " del-1 ", Seq: event.Seq},
+				wantErr: true,
 			},
 			{
 				name: "Should accept a committed result without an addressable remote identity",
@@ -407,7 +406,7 @@ func TestDeliveryScalarContracts(t *testing.T) {
 			DeliveryID: " del-1 ", Seq: 2, RemoteMessageID: " remote-1 ",
 			ReplaceRemoteMessageID: " remote-0 ",
 		})
-		if normalized.DeliveryID != "del-1" || normalized.Seq != 2 ||
+		if normalized.DeliveryID != " del-1 " || normalized.Seq != 2 ||
 			normalized.RemoteMessageID != "remote-1" || normalized.ReplaceRemoteMessageID != "remote-0" ||
 			normalized.Outcome != DeliveryAckOutcomeSuccess {
 			t.Fatalf("NormalizeDeliveryAck() = %#v, want canonical acknowledgement", normalized)
@@ -439,14 +438,19 @@ func TestDeliveryEventContract(t *testing.T) {
 			t.Parallel()
 
 			normalized := NormalizeDeliveryEvent(DeliveryEvent{
-				DeliveryID: " del-1 ", BridgeInstanceID: " brg-1 ",
-				RoutingKey:     RoutingKey{Scope: " WORKSPACE ", WorkspaceID: " ws-1 ", BridgeInstanceID: " brg-1 "},
-				DeliveryTarget: DeliveryTarget{BridgeInstanceID: " brg-1 ", PeerID: " peer-1 ", Mode: " REPLY "},
-				EventType:      " DELTA ", Content: MessageContent{Text: " hello "},
+				DeliveryID:       " del-1 ",
+				BridgeInstanceID: " brg-1 ",
+				RoutingKey: RoutingKey{
+					Scope: ScopeWorkspace, WorkspaceID: " ws-1 ", BridgeInstanceID: " brg-1 ",
+				},
+				DeliveryTarget: DeliveryTarget{
+					BridgeInstanceID: " brg-1 ", PeerID: " peer-1 ", Mode: DeliveryModeReply,
+				},
+				EventType: " DELTA ", Content: MessageContent{Text: " hello "},
 			})
-			if normalized.DeliveryID != "del-1" || normalized.BridgeInstanceID != "brg-1" ||
+			if normalized.DeliveryID != " del-1 " || normalized.BridgeInstanceID != " brg-1 " ||
 				normalized.EventType != DeliveryEventTypeDelta || normalized.Content.Text != "hello" ||
-				normalized.Operation != DeliveryOperationPost || normalized.RoutingKey.WorkspaceID != "ws-1" ||
+				normalized.Operation != DeliveryOperationPost || normalized.RoutingKey.WorkspaceID != " ws-1 " ||
 				normalized.DeliveryTarget.Mode != DeliveryModeReply {
 				t.Fatalf("NormalizeDeliveryEvent() = %#v, want canonical event", normalized)
 			}
@@ -775,8 +779,8 @@ func TestDeliveryRequestAndSnapshotContract(t *testing.T) {
 			snapshot.ReplaceRemoteMessageID = " remote-0 "
 			snapshot.Error = " retry later "
 			normalized := NormalizeDeliverySnapshot(snapshot)
-			if normalized.DeliveryID != "del-1" || normalized.SessionID != "sess-1" ||
-				normalized.TurnID != "turn-1" || normalized.BridgeInstanceID != "brg-1" ||
+			if normalized.DeliveryID != " del-1 " || normalized.SessionID != "sess-1" ||
+				normalized.TurnID != "turn-1" || normalized.BridgeInstanceID != " brg-1 " ||
 				normalized.LatestEventType != DeliveryEventTypeDelta || normalized.Operation != DeliveryOperationPost ||
 				normalized.RemoteMessageID != "remote-1" || normalized.ReplaceRemoteMessageID != "remote-0" ||
 				normalized.Error != "retry later" {

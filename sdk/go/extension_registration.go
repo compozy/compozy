@@ -96,14 +96,6 @@ func (e *Extension) registerTool(
 			return err
 		}
 	}
-	risk := options.Risk
-	if risk == "" {
-		if options.ReadOnly {
-			risk = RiskRead
-		} else {
-			risk = RiskMutating
-		}
-	}
 	descriptor := ExtensionToolRuntimeDescriptor{
 		ID:                  toolID,
 		Handler:             cleanHandler,
@@ -115,7 +107,7 @@ func (e *Extension) registerTool(
 		InputSchemaDigest:   inputDigest,
 		OutputSchemaDigest:  outputDigest,
 		ReadOnly:            options.ReadOnly,
-		Risk:                risk,
+		Risk:                normalizedToolRisk(options),
 		RequiresInteraction: options.RequiresInteraction,
 		Capabilities:        normalizeStrings(options.Capabilities),
 		Command:             cloneSDKCommandSpec(options.Command),
@@ -140,6 +132,16 @@ func (e *Extension) registerTool(
 	e.transport.Handle(ExtensionServiceMethodProvideTools, e.dispatch)
 	e.transport.Handle(ExtensionServiceMethodToolsCall, e.dispatch)
 	return nil
+}
+
+func normalizedToolRisk(options ToolOptions) RiskClass {
+	if options.Risk != "" {
+		return options.Risk
+	}
+	if options.ReadOnly {
+		return RiskRead
+	}
+	return RiskMutating
 }
 
 func (e *Extension) ensureToolRegistrationAvailableLocked(handler string, toolID ToolID) error {

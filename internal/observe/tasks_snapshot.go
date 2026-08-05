@@ -156,7 +156,7 @@ func queryTaskDependencyCounts(
 	ctx context.Context,
 	db *sql.DB,
 	taskIDs []string,
-) (map[string]int, error) {
+) (counts map[string]int, err error) {
 	taskIDsJSON, err := json.Marshal(taskIDs)
 	if err != nil {
 		return nil, fmt.Errorf("observe: encode dependency count task ids: %w", err)
@@ -174,11 +174,15 @@ func queryTaskDependencyCounts(
 		return nil, fmt.Errorf("observe: query dependency counts: %w", err)
 	}
 	defer func() {
-		// Scan and iteration errors own the query result; Close only releases an already-consumed read cursor.
-		_ = rows.Close()
+		if closeErr := rows.Close(); closeErr != nil {
+			err = errors.Join(
+				err,
+				fmt.Errorf("observe: close dependency count rows: %w", closeErr),
+			)
+		}
 	}()
 
-	counts := make(map[string]int, len(taskIDs))
+	counts = make(map[string]int, len(taskIDs))
 	for rows.Next() {
 		var taskID string
 		var count int

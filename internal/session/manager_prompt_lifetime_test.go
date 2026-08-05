@@ -50,9 +50,9 @@ func TestPromptCallerCancellationContract(t *testing.T) {
 			t.Fatal("SendPrompt().Events = nil, want accepted stream")
 		}
 		providerCtx := driver.lastPromptContext(t)
-		waitForCondition(t, "session prompting", func() bool {
-			return session.IsPrompting()
-		})
+		if !session.IsPrompting() {
+			t.Fatal("session IsPrompting() = false after provider prompt started")
+		}
 
 		cancelDelivery()
 		if !errors.Is(deliveryCtx.Err(), context.Canceled) {
@@ -78,17 +78,21 @@ func TestPromptCallerCancellationContract(t *testing.T) {
 			Timestamp: time.Date(2026, 5, 17, 17, 0, 1, 0, time.UTC),
 		}
 		close(source)
-
-		waitForCondition(t, "terminal persistence after delivery cancellation", func() bool {
-			events, queryErr := session.recorderHandle().Query(testutil.Context(t), store.EventQuery{})
-			return queryErr == nil &&
-				countEventType(events, acp.EventTypeUserMessage) == 1 &&
-				countEventType(events, acp.EventTypeAgentMessage) == 1 &&
-				countEventType(events, acp.EventTypeDone) == 1
-		})
-		waitForCondition(t, "prompt state cleared after provider completion", func() bool {
-			return !session.IsPrompting()
-		})
+		if err := h.manager.WaitForPromptDrains(testutil.Context(t)); err != nil {
+			t.Fatalf("WaitForPromptDrains() error = %v", err)
+		}
+		storedEvents, queryErr := session.recorderHandle().Query(testutil.Context(t), store.EventQuery{})
+		if queryErr != nil {
+			t.Fatalf("Query() error = %v", queryErr)
+		}
+		if countEventType(storedEvents, acp.EventTypeUserMessage) != 1 ||
+			countEventType(storedEvents, acp.EventTypeAgentMessage) != 1 ||
+			countEventType(storedEvents, acp.EventTypeDone) != 1 {
+			t.Fatalf("stored prompt events = %#v, want one user, agent, and done event", storedEvents)
+		}
+		if session.IsPrompting() {
+			t.Fatal("session IsPrompting() = true after prompt drain")
+		}
 		if events := collectEvents(t, result.Events); len(events) != 0 {
 			t.Fatalf("delivered events after delivery cancellation = %d, want 0", len(events))
 		}
@@ -121,9 +125,9 @@ func TestPromptCallerCancellationContract(t *testing.T) {
 			t.Fatalf("Prompt() error = %v", err)
 		}
 		providerCtx := driver.lastPromptContext(t)
-		waitForCondition(t, "session prompting", func() bool {
-			return session.IsPrompting()
-		})
+		if !session.IsPrompting() {
+			t.Fatal("session IsPrompting() = false after provider prompt started")
+		}
 
 		cancelCaller()
 		select {
@@ -147,10 +151,14 @@ func TestPromptCallerCancellationContract(t *testing.T) {
 			Timestamp: time.Date(2026, 5, 17, 16, 0, 0, 0, time.UTC),
 			Text:      "still running",
 		}
-		waitForCondition(t, "agent message persistence after caller cancellation", func() bool {
-			events, queryErr := session.recorderHandle().Query(testutil.Context(t), store.EventQuery{})
-			return queryErr == nil && countEventType(events, acp.EventTypeAgentMessage) == 1
-		})
+		h.notifier.waitForAgentEvent(t, session.ID, acp.EventTypeAgentMessage)
+		storedEvents, queryErr := session.recorderHandle().Query(testutil.Context(t), store.EventQuery{})
+		if queryErr != nil {
+			t.Fatalf("Query() error = %v", queryErr)
+		}
+		if got := countEventType(storedEvents, acp.EventTypeAgentMessage); got != 1 {
+			t.Fatalf("stored agent_message events = %d, want 1", got)
+		}
 
 		if err := h.manager.CancelPrompt(testutil.Context(t), session.ID); err != nil {
 			t.Fatalf("CancelPrompt() error = %v", err)
@@ -164,9 +172,65 @@ func TestPromptCallerCancellationContract(t *testing.T) {
 		if events := collectEvents(t, eventsCh); len(events) != 0 {
 			t.Fatalf("delivered events after caller cancellation = %d, want 0", len(events))
 		}
-		waitForCondition(t, "prompt state cleared after explicit cancellation", func() bool {
-			return !session.IsPrompting()
-		})
+		if err := h.manager.WaitForPromptDrains(testutil.Context(t)); err != nil {
+			t.Fatalf("WaitForPromptDrains() error = %v", err)
+		}
+		if session.IsPrompting() {
+			t.Fatal("session IsPrompting() = true after canceled prompt drain")
+		}
+	})
+}
+
+func TestDetachedPromptStopContext(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should detach prompt cancellation while preserving prompt values", func(t *testing.T) {
+		t.Parallel()
+
+		type promptKey struct{}
+		const promptValue = "prompt-owned"
+		promptCtx, cancelPrompt := context.WithCancel(
+			context.WithValue(testutil.Context(t), promptKey{}, promptValue),
+		)
+		cancelPrompt()
+
+		stopCtx, cancel := detachedPromptStopContext(promptCtx, &Manager{})
+		defer cancel()
+
+		if err := stopCtx.Err(); err != nil {
+			t.Fatalf("detachedPromptStopContext(canceled) error = %v, want detached cleanup", err)
+		}
+		if got := stopCtx.Value(promptKey{}); got != promptValue {
+			t.Fatalf("detachedPromptStopContext(canceled) value = %#v, want %q", got, promptValue)
+		}
+		if _, ok := stopCtx.Deadline(); !ok {
+			t.Fatal("detachedPromptStopContext(canceled) deadline = none, want bounded cleanup")
+		}
+	})
+
+	t.Run("Should use bounded manager lifecycle ownership when prompt context is absent", func(t *testing.T) {
+		t.Parallel()
+
+		type lifecycleKey struct{}
+		const lifecycleValue = "manager-owned"
+		lifecycleCtx, cancelLifecycle := context.WithCancel(
+			context.WithValue(testutil.Context(t), lifecycleKey{}, lifecycleValue),
+		)
+		manager := &Manager{lifecycleCtx: lifecycleCtx}
+		cancelLifecycle()
+
+		stopCtx, cancel := detachedPromptStopContext(nilContextForGuardTest(), manager)
+		defer cancel()
+
+		if err := stopCtx.Err(); err != nil {
+			t.Fatalf("detachedPromptStopContext() error = %v, want detached cleanup", err)
+		}
+		if got := stopCtx.Value(lifecycleKey{}); got != lifecycleValue {
+			t.Fatalf("detachedPromptStopContext() lifecycle value = %#v, want %q", got, lifecycleValue)
+		}
+		if _, ok := stopCtx.Deadline(); !ok {
+			t.Fatal("detachedPromptStopContext() deadline = none, want bounded cleanup")
+		}
 	})
 }
 

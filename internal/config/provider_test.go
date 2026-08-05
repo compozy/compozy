@@ -1808,8 +1808,9 @@ reasoning_efforts = ["ultra"]
 `)
 
 		_, err = LoadForHome(homePaths, withoutDotEnv())
-		var invalid *reasoning.InvalidEffortError
-		if !errors.As(err, &invalid) {
+
+		invalid, invalidMatched := errors.AsType[*reasoning.InvalidEffortError](err)
+		if !invalidMatched {
 			t.Fatalf("LoadForHome() error = %T %v, want *reasoning.InvalidEffortError", err, err)
 		}
 		if invalid.Path != "providers.codex.models.curated[0].reasoning_efforts[0]" ||

@@ -58,10 +58,7 @@ func newPromptActivitySupervisor(
 	turnState *promptTurnDispatchState,
 	config compozyconfig.SessionSupervisionConfig,
 ) *promptActivitySupervisor {
-	supervisorBase := context.Background()
-	if ctx != nil {
-		supervisorBase = context.WithoutCancel(ctx)
-	}
+	supervisorBase := context.WithoutCancel(ctx)
 	supervisorCtx, cancel := context.WithCancel(supervisorBase)
 	startedAt := time.Now().UTC()
 	if manager != nil && manager.now != nil {

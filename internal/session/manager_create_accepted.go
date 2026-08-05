@@ -105,11 +105,7 @@ func (m *Manager) activateAcceptedLogicalSession(accepted *acceptedSessionStart)
 }
 
 func (m *Manager) discardLogicalSessionStart(accepted *acceptedSessionStart, cause error) error {
-	base := m.lifecycleCtx
-	if base == nil {
-		base = context.Background()
-	}
-	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(base), defaultLifecycleTimeout)
+	cleanupCtx, cancel := m.lifecycleCleanupContext()
 	defer cancel()
 	return m.discardAcceptedSessionStart(cleanupCtx, accepted, cause)
 }

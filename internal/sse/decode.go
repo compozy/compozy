@@ -28,24 +28,25 @@ type Handler func(Event) error
 // ErrStop stops SSE decoding without surfacing an error.
 var ErrStop = errors.New("sse: stop stream")
 
-// Decode reads one SSE stream from body until EOF, context cancellation, or a
-// handler error. Decode closes body only when ctx is canceled so a blocked Read
-// can unblock and observe the cancellation.
-func Decode(ctx context.Context, body io.ReadCloser, handler Handler) error {
+// Decode reads one SSE stream from reader until EOF, context cancellation, or a
+// handler error.
+//
+// Decode never closes reader; the caller owns its lifecycle. Context
+// cancellation interrupts a blocked Read only when the underlying reader is
+// context-aware, such as an HTTP response body whose request carries ctx. The
+// handler runs synchronously and must return before Decode can continue or stop.
+func Decode(ctx context.Context, reader io.Reader, handler Handler) error {
 	if ctx == nil {
 		return fmt.Errorf("sse: context is required")
 	}
-	if readerIsNil(body) {
+	if readerIsNil(reader) {
 		return fmt.Errorf("sse: body is required")
 	}
 	if handler == nil {
 		return fmt.Errorf("sse: handler is required")
 	}
 
-	cancelDone, cancelCloseErr := closeReaderOnCancel(ctx, body)
-	defer close(cancelDone)
-
-	scanner := bufio.NewScanner(body)
+	scanner := bufio.NewScanner(reader)
 	scanner.Buffer(make([]byte, 0, 64*1024), maxLineBytes)
 
 	event := Event{}
@@ -68,7 +69,7 @@ func Decode(ctx context.Context, body io.ReadCloser, handler Handler) error {
 
 	for scanner.Scan() {
 		if err := ctx.Err(); err != nil {
-			return decodeContextError(err, cancelCloseErr)
+			return err
 		}
 
 		shouldEmit, err := decodeLine(scanner.Text(), &event, &dataBuffer)
@@ -88,12 +89,12 @@ func Decode(ctx context.Context, body io.ReadCloser, handler Handler) error {
 
 	if err := scanner.Err(); err != nil {
 		if ctxErr := ctx.Err(); ctxErr != nil {
-			return decodeContextError(ctxErr, cancelCloseErr)
+			return ctxErr
 		}
 		return fmt.Errorf("sse: read stream: %w", err)
 	}
 	if err := ctx.Err(); err != nil {
-		return decodeContextError(err, cancelCloseErr)
+		return err
 	}
 	stop, err := emit()
 	if err != nil {
@@ -103,33 +104,6 @@ func Decode(ctx context.Context, body io.ReadCloser, handler Handler) error {
 		return nil
 	}
 	return nil
-}
-
-func closeReaderOnCancel(ctx context.Context, body io.Closer) (chan struct{}, chan error) {
-	done := make(chan struct{})
-	closeErr := make(chan error, 1)
-	go func() {
-		defer close(closeErr)
-		select {
-		case <-ctx.Done():
-			if err := body.Close(); err != nil {
-				closeErr <- err
-			}
-		case <-done:
-		}
-	}()
-	return done, closeErr
-}
-
-func decodeContextError(ctxErr error, closeErr <-chan error) error {
-	select {
-	case err, ok := <-closeErr:
-		if ok && err != nil && !errors.Is(err, io.ErrClosedPipe) {
-			return errors.Join(ctxErr, fmt.Errorf("sse: close body after context cancellation: %w", err))
-		}
-	default:
-	}
-	return ctxErr
 }
 
 func decodeLine(line string, event *Event, dataBuffer *[]byte) (bool, error) {

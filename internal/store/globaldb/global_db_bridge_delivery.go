@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/compozy/compozy/internal/bridges"
@@ -169,8 +168,8 @@ func (g *BridgeRepo) ListBridgeDeliveries(
 func bridgeDeliveryQueryClauses(query bridges.DeliveryLedgerQuery) ([]string, []any) {
 	return store.BuildClauses(
 		store.StringClause("scope", string(query.Scope)),
-		store.StringClause("workspace_id", query.WorkspaceID),
-		store.StringClause("bridge_instance_id", query.BridgeInstanceID),
+		store.OpaqueStringClause("workspace_id", query.WorkspaceID),
+		store.OpaqueStringClause("bridge_instance_id", query.BridgeInstanceID),
 		store.StringClause("state", string(query.State)),
 	)
 }
@@ -258,7 +257,7 @@ func maxBridgeDeliveryTime(current time.Time, candidate time.Time) time.Time {
 func deliveryCheckpointConflict(deliveryID string, reason string) error {
 	return fmt.Errorf(
 		"store: bridge delivery %q %s: %w",
-		strings.TrimSpace(deliveryID),
+		deliveryID,
 		reason,
 		bridges.ErrDeliveryLedgerConflict,
 	)
@@ -284,7 +283,7 @@ func verifyBridgeDeliveryInstanceScope(
 	}
 	storedWorkspaceID := bridgeStringValue(row.WorkspaceID)
 	if bridges.Scope(row.Scope).Normalize() != scope.Normalize() ||
-		storedWorkspaceID != strings.TrimSpace(workspaceID) {
+		storedWorkspaceID != workspaceID {
 		return fmt.Errorf(
 			"store: bridge delivery instance %q scope mismatch: %w",
 			bridgeInstanceID,

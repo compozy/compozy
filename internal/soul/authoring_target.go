@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/managedsidecar"
 )
 
 type resolvedAuthoringTarget struct {
@@ -19,6 +20,7 @@ type resolvedAuthoringTarget struct {
 	agentPath     string
 	soulPath      string
 	sourcePath    string
+	managedPath   managedsidecar.Path
 	config        compozyconfig.SoulConfig
 	configSource  string
 }
@@ -58,7 +60,10 @@ func (s *ManagedSoulAuthoringService) resolveTarget(
 	if err := ensureAuthoringAgent(normalized.agentPath, normalized.agentName); err != nil {
 		return resolvedAuthoringTarget{}, err
 	}
-	soulPath, sourcePath, err := resolveAuthoringSoulPath(normalized.workspaceRoot, normalized.agentPath)
+	soulPath, sourcePath, managedPath, err := resolveAuthoringSoulPath(
+		normalized.workspaceRoot,
+		normalized.agentPath,
+	)
 	if err != nil {
 		return resolvedAuthoringTarget{}, err
 	}
@@ -69,6 +74,7 @@ func (s *ManagedSoulAuthoringService) resolveTarget(
 		agentPath:     normalized.agentPath,
 		soulPath:      soulPath,
 		sourcePath:    sourcePath,
+		managedPath:   managedPath,
 		config:        normalized.config,
 		configSource:  normalized.configSource,
 	}, nil
@@ -151,10 +157,13 @@ func ensureAuthoringAgent(agentPath string, agentName string) error {
 	)
 }
 
-func resolveAuthoringSoulPath(workspaceRoot string, agentPath string) (string, string, error) {
+func resolveAuthoringSoulPath(
+	workspaceRoot string,
+	agentPath string,
+) (string, string, managedsidecar.Path, error) {
 	soulPath, err := soulPathForAgent(agentPath)
 	if err != nil {
-		return "", "", authoringDiagnosticError(
+		return "", "", managedsidecar.Path{}, authoringDiagnosticError(
 			"invalid_source_path",
 			safePathWithoutRoot(agentPath),
 			"SOUL.md source path is required",
@@ -164,13 +173,20 @@ func resolveAuthoringSoulPath(workspaceRoot string, agentPath string) (string, s
 	}
 	sourcePath, diagnostic := safeSourcePath(soulPath, workspaceRoot)
 	if diagnostic != nil {
-		return "", "", authoringDiagnosticFromDiagnostic(diagnostic, ErrAuthoringPathRejected)
+		return "", "", managedsidecar.Path{}, authoringDiagnosticFromDiagnostic(
+			diagnostic,
+			ErrAuthoringPathRejected,
+		)
 	}
-	if diagnostic := validateManagedPath(workspaceRoot, soulPath, FileName); diagnostic != nil {
+	managedPath, diagnostic := resolveManagedPath(workspaceRoot, soulPath, FileName)
+	if diagnostic != nil {
 		diagnostic.SourcePath = firstNonEmpty(diagnostic.SourcePath, sourcePath)
-		return "", "", authoringDiagnosticFromDiagnostic(diagnostic, ErrAuthoringPathRejected)
+		return "", "", managedsidecar.Path{}, authoringDiagnosticFromDiagnostic(
+			diagnostic,
+			ErrAuthoringPathRejected,
+		)
 	}
-	return soulPath, sourcePath, nil
+	return managedPath.Absolute(), sourcePath, managedPath, nil
 }
 
 func (s *ManagedSoulAuthoringService) currentSoulForMutation(
@@ -194,7 +210,7 @@ func (s *ManagedSoulAuthoringService) currentSoulForMutation(
 	if hasBlockingCurrentDiagnostic(current.Diagnostics) {
 		return authoringMutationState{resolved: current}, authoringInvalidError(current.Diagnostics)
 	}
-	content, readErr := os.ReadFile(target.soulPath)
+	content, readErr := target.managedPath.Read()
 	if readErr != nil {
 		if errors.Is(readErr, os.ErrNotExist) {
 			absent, emptyErr := Empty(target.config, target.sourcePath)

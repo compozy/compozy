@@ -31,9 +31,13 @@ func (g *TaskRepo) reserveCoordinatorConcurrentProgressWithExecutor(
 	if err != nil || openRunID != "" {
 		return err
 	}
+	runID, err := store.NewID("run")
+	if err != nil {
+		return fmt.Errorf("store: generate concurrent-progress coordinator run id: %w", err)
+	}
 	reservation := queuedRunReservationInput{
 		taskID:         current.TaskID,
-		runID:          store.NewID("run"),
+		runID:          runID,
 		runKind:        taskpkg.RunKindCoordinator,
 		loopRunID:      current.LoopRunID,
 		idempotencyKey: coordinatorConcurrentProgressWakeKey(current.LoopRunID, current.ID),

@@ -176,7 +176,10 @@ func (s *service) prepareResolvedStart(
 	if err != nil {
 		return Run{}, err
 	}
-	runID := s.newRunID()
+	runID, err := s.newRunID()
+	if err != nil {
+		return Run{}, fmt.Errorf("loop: generate run id: %w", err)
+	}
 	networkSpec, err := s.resolveRunParticipation(
 		ctx,
 		ws,

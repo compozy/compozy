@@ -59,6 +59,7 @@ describe("skill contract types", () => {
       hash: string;
       path: string;
       registry: string;
+      cleanup_diagnostics?: { operation: string }[];
     }>();
 
     expectTypeOf<SkillMarketplaceUpdatePayload>().toMatchTypeOf<{
@@ -66,6 +67,7 @@ describe("skill contract types", () => {
       slug: string;
       status: string;
       path: string;
+      cleanup_diagnostics?: { operation: string }[];
     }>();
 
     expectTypeOf<SkillMarketplaceRemovePayload>().toMatchTypeOf<{

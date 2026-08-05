@@ -52,14 +52,14 @@ func startLoopWatcher(
 }
 
 func stopLoopWatcher(ctx context.Context, cancel context.CancelFunc, done <-chan struct{}) error {
+	if ctx == nil {
+		return errors.New("daemon: stop loop watcher context is required")
+	}
 	if cancel != nil {
 		cancel()
 	}
 	if done == nil {
 		return nil
-	}
-	if ctx == nil {
-		ctx = context.Background()
 	}
 	select {
 	case <-done:
@@ -71,7 +71,7 @@ func stopLoopWatcher(ctx context.Context, cancel context.CancelFunc, done <-chan
 
 func workspaceLoopWatcherRoots(
 	homePaths compozyconfig.HomePaths,
-	registry Registry,
+	registry workspaceRegistryReader,
 ) func(context.Context) ([]string, error) {
 	if registry == nil {
 		return nil

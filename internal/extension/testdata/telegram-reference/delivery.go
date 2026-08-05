@@ -20,27 +20,27 @@ func (r *telegramReferenceRuntime) handleBridgesDeliver(
 		return bridgepkg.DeliveryAck{}, err
 	}
 
-	if shouldCrashOnce(r.env.crashOncePath) {
-		r.reportSideEffectError("write pre-crash delivery marker", appendJSONLine(r.env.deliveryPath, marker))
-		r.reportSideEffectError("write crash marker", writeJSONFile(r.env.crashOncePath, map[string]any{
+	if r.markers.ShouldCrashOnce() {
+		r.markers.RecordDelivery(marker)
+		r.markers.RecordCrash(map[string]any{
 			"crashed":            true,
 			"pid":                os.Getpid(),
 			"delivery_id":        strings.TrimSpace(request.Event.DeliveryID),
 			"bridge_instance_id": instanceID,
-		}))
+		})
 		os.Exit(23)
 	}
 
 	ack, err := r.ackDelivery(request)
 	if err != nil {
-		r.setLastError(err)
+		r.lifecycle.SetError(err)
 		marker.Error = err.Error()
-		r.reportSideEffectError("write failed delivery marker", appendJSONLine(r.env.deliveryPath, marker))
+		r.markers.RecordDelivery(marker)
 		return bridgepkg.DeliveryAck{}, err
 	}
 	marker.Ack = &ack
-	r.reportSideEffectError("write delivery marker", appendJSONLine(r.env.deliveryPath, marker))
-	r.clearLastError()
+	r.markers.RecordDelivery(marker)
+	r.lifecycle.ClearError()
 	return ack, nil
 }
 
@@ -57,19 +57,19 @@ func (r *telegramReferenceRuntime) handleBridgesProgress(
 	ack, err := session.AckDelivery(request, "", "")
 	if err != nil {
 		marker.Error = err.Error()
-		r.reportSideEffectError("write failed progress marker", appendJSONLine(r.env.deliveryPath, marker))
+		r.markers.RecordDelivery(marker)
 		return bridgepkg.DeliveryAck{}, err
 	}
 	marker.Ack = &ack
-	r.reportSideEffectError("write progress marker", appendJSONLine(r.env.deliveryPath, marker))
+	r.markers.RecordDelivery(marker)
 	return ack, nil
 }
 
 func (r *telegramReferenceRuntime) deliveryMarkerForManagedInstance(
 	session *bridgesdk.Session,
 	request bridgepkg.DeliveryRequest,
-) (deliveryMarker, string, error) {
-	marker := deliveryMarker{
+) (bridgesdk.DeliveryMarker, string, error) {
+	marker := bridgesdk.DeliveryMarker{
 		PID:     os.Getpid(),
 		Request: request,
 	}
@@ -81,7 +81,7 @@ func (r *telegramReferenceRuntime) deliveryMarkerForManagedInstance(
 
 	err := fmt.Errorf("telegram-reference: delivery targeted unmanaged instance %q", instanceID)
 	marker.Error = err.Error()
-	r.reportSideEffectError("write failed delivery marker", appendJSONLine(r.env.deliveryPath, marker))
-	r.setLastError(err)
+	r.markers.RecordDelivery(marker)
+	r.lifecycle.SetError(err)
 	return marker, "", err
 }

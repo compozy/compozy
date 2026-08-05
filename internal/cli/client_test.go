@@ -13,7 +13,9 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"testing/iotest"
 	"time"
 
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
@@ -33,6 +35,52 @@ type roundTripperFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req)
+}
+
+type responseBodyProbe struct {
+	reader     io.Reader
+	closeErr   error
+	closeCalls atomic.Int32
+}
+
+func (b *responseBodyProbe) Read(buffer []byte) (int, error) {
+	return b.reader.Read(buffer)
+}
+
+func (b *responseBodyProbe) Close() error {
+	b.closeCalls.Add(1)
+	return b.closeErr
+}
+
+type contextBoundReader struct {
+	ctx         context.Context
+	readStarted chan struct{}
+}
+
+func (r *contextBoundReader) Read(_ []byte) (int, error) {
+	close(r.readStarted)
+	<-r.ctx.Done()
+	return 0, r.ctx.Err()
+}
+
+type stagedResponseReader struct {
+	chunks      [][]byte
+	terminalErr error
+}
+
+func (r *stagedResponseReader) Read(buffer []byte) (int, error) {
+	if len(r.chunks) == 0 {
+		if r.terminalErr != nil {
+			return 0, r.terminalErr
+		}
+		return 0, io.EOF
+	}
+	n := copy(buffer, r.chunks[0])
+	r.chunks[0] = r.chunks[0][n:]
+	if len(r.chunks[0]) == 0 {
+		r.chunks = r.chunks[1:]
+	}
+	return n, nil
 }
 
 func TestUnixSocketClientSessionPromptShouldDecodeStructuredGoalJSON(t *testing.T) {
@@ -184,8 +232,9 @@ func TestUnixSocketClientSessionPromptShouldDecodeStructuredGoalJSON(t *testing.
 				Message: "/goal ship", MessageID: "msg-goal-conflict", IdempotencyKey: "idem-goal-conflict",
 			},
 		)
-		var goalErr *goalCommandAPIError
-		if !errors.As(err, &goalErr) {
+
+		goalErr, goalErrMatched := errors.AsType[*goalCommandAPIError](err)
+		if !goalErrMatched {
 			t.Fatalf("SendSessionPrompt(Goal conflict) error = %T %[1]v", err)
 		}
 		if goalErr.statusCode != http.StatusConflict ||
@@ -1180,8 +1229,9 @@ func TestUnixSocketClientAgentTaskErrorsRedactClaimTokens(t *testing.T) {
 				`{"error":"confirmation required","code":"extension_network_confirmation_required","current_digest":"digest-current","agents":["writer"],"diagnostic":{"id":"extension.network_confirmation_required","code":"extension_network_confirmation_required","category":"extension","title":"Network confirmation is required","message":"Confirm the current digest.","severity":"error","freshness":"live","suggested_command":"compozy extension enable alpha --confirm-network-requirement digest-current"}}`,
 			),
 		)
-		var operationErr *extensionOperationAPIError
-		if !errors.As(err, &operationErr) {
+
+		operationErr, operationErrMatched := errors.AsType[*extensionOperationAPIError](err)
+		if !operationErrMatched {
 			t.Fatalf("readAPIErrorBody() error = %T %v, want extensionOperationAPIError", err, err)
 		}
 		payload := operationErr.extensionOperationErrorPayload()
@@ -1461,8 +1511,8 @@ func TestNearestCLIWorkspaceRoute(t *testing.T) {
 		if canonicalErr != nil {
 			t.Fatalf("canonicalCLIWorkspacePath(%q) error = %v", target, canonicalErr)
 		}
-		var pathErr *workspacePathNotRegisteredError
-		if !errors.As(err, &pathErr) || pathErr.path != canonicalTarget {
+		pathErr, pathErrMatched := errors.AsType[*workspacePathNotRegisteredError](err)
+		if !pathErrMatched || pathErr.path != canonicalTarget {
 			t.Fatalf("nearestCLIWorkspaceRoute() error = %v, want unregistered path error for %q", err, target)
 		}
 	})
@@ -1556,8 +1606,9 @@ func TestUnixSocketClientToolMethodsReturnStructuredErrors(t *testing.T) {
 			t.Parallel()
 
 			err := tc.run(context.Background())
-			var toolErr *toolAPIError
-			if !errors.As(err, &toolErr) {
+
+			toolErr, toolErrMatched := errors.AsType[*toolAPIError](err)
+			if !toolErrMatched {
 				t.Fatalf("tool client error = %T %[1]v, want toolAPIError", err)
 			}
 			if strings.Contains(toolErr.Error(), "super-secret") {
@@ -3987,7 +4038,9 @@ func TestReadAPIErrorAndHelpers(t *testing.T) {
 
 	resp := newHTTPResponse(http.StatusBadRequest, `{"error":"boom"}`)
 	defer func() {
-		_ = resp.Body.Close()
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			t.Errorf("response body Close() error = %v", closeErr)
+		}
 	}()
 	err := readAPIError(resp)
 	if err == nil || !strings.Contains(err.Error(), "boom") {
@@ -3999,11 +4052,14 @@ func TestReadAPIErrorAndHelpers(t *testing.T) {
 		`{"error":{"code":"tool_approval_required","message":"tool approval token=super-secret is required","tool_id":"compozy__skill_view","reason_codes":["approval_token_missing"],"layer":"approval","details":{"approval_token":"approval-token-secret"}}}`,
 	)
 	defer func() {
-		_ = toolResp.Body.Close()
+		if closeErr := toolResp.Body.Close(); closeErr != nil {
+			t.Errorf("tool response body Close() error = %v", closeErr)
+		}
 	}()
 	err = readAPIError(toolResp)
-	var toolErr *toolAPIError
-	if !errors.As(err, &toolErr) {
+
+	toolErr, toolErrMatched := errors.AsType[*toolAPIError](err)
+	if !toolErrMatched {
 		t.Fatalf("readAPIError(tool) = %T %[1]v, want toolAPIError", err)
 	}
 	toolPayload := toolErr.Response()
@@ -4202,7 +4258,9 @@ func TestReadAPIErrorAndHelpers(t *testing.T) {
 
 	plain := newHTTPResponse(http.StatusInternalServerError, "plain failure")
 	defer func() {
-		_ = plain.Body.Close()
+		if closeErr := plain.Body.Close(); closeErr != nil {
+			t.Errorf("plain response body Close() error = %v", closeErr)
+		}
 	}()
 	if err := readAPIError(plain); err == nil || !strings.Contains(err.Error(), "plain failure") {
 		t.Fatalf("readAPIError(plain) = %v, want plain failure", err)
@@ -4210,7 +4268,9 @@ func TestReadAPIErrorAndHelpers(t *testing.T) {
 
 	large := newHTTPResponse(http.StatusInternalServerError, strings.Repeat("x", 2<<20))
 	defer func() {
-		_ = large.Body.Close()
+		if closeErr := large.Body.Close(); closeErr != nil {
+			t.Errorf("large response body Close() error = %v", closeErr)
+		}
 	}()
 	if err := readAPIError(large); err == nil {
 		t.Fatal("readAPIError(large) error = nil, want non-nil")
@@ -4219,122 +4279,126 @@ func TestReadAPIErrorAndHelpers(t *testing.T) {
 	}
 }
 
-func TestDecodeSSEStopsEarly(t *testing.T) {
+func TestDecodeSSEContract(t *testing.T) {
 	t.Parallel()
 
-	body := strings.Join([]string{
-		"id: 1",
-		"event: done",
-		`data: {"ok":true}`,
-		"",
-		"id: 2",
-		"event: later",
-		`data: {"ok":false}`,
-		"",
-	}, "\n")
+	t.Run("Should stop after ErrStop", func(t *testing.T) {
+		t.Parallel()
 
-	count := 0
-	err := decodeSSE(context.Background(), io.NopCloser(strings.NewReader(body)), func(event SSEEvent) error {
-		count++
-		if event.Event == "done" {
-			return errStopSSE
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("decodeSSE() error = %v", err)
-	}
-	if count != 1 {
-		t.Fatalf("decodeSSE() count = %d, want 1", count)
-	}
-}
+		body := strings.Join([]string{
+			"id: 1",
+			"event: done",
+			`data: {"ok":true}`,
+			"",
+			"id: 2",
+			"event: later",
+			`data: {"ok":false}`,
+			"",
+		}, "\n")
 
-func TestDecodeSSERejectsNilArguments(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		name    string
-		ctx     context.Context
-		body    io.ReadCloser
-		handler SSEHandler
-		wantErr string
-	}{
-		{
-			name:    "nil context",
-			ctx:     nil,
-			body:    io.NopCloser(strings.NewReader("event: ping\n\n")),
-			handler: func(SSEEvent) error { return nil },
-			wantErr: "sse: context is required",
-		},
-		{
-			name:    "nil body",
-			ctx:     context.Background(),
-			body:    nil,
-			handler: func(SSEEvent) error { return nil },
-			wantErr: "sse: body is required",
-		},
-		{
-			name:    "nil handler",
-			ctx:     context.Background(),
-			body:    io.NopCloser(strings.NewReader("event: ping\n\n")),
-			handler: nil,
-			wantErr: "sse: handler is required",
-		},
-	}
-
-	for _, tt := range testCases {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			err := decodeSSE(tt.ctx, tt.body, tt.handler)
-			if err == nil || err.Error() != tt.wantErr {
-				t.Fatalf("decodeSSE() error = %v, want %q", err, tt.wantErr)
+		count := 0
+		err := decodeSSE(t.Context(), strings.NewReader(body), func(event SSEEvent) error {
+			count++
+			if event.Event == "done" {
+				return errStopSSE
 			}
+			return nil
 		})
-	}
-}
-
-func TestDecodeSSEPropagatesHandlerError(t *testing.T) {
-	t.Parallel()
-
-	wantErr := errors.New("boom")
-	body := strings.Join([]string{
-		"id: 1",
-		"event: done",
-		`data: {"ok":true}`,
-		"",
-	}, "\n")
-
-	err := decodeSSE(context.Background(), io.NopCloser(strings.NewReader(body)), func(SSEEvent) error {
-		return wantErr
+		if err != nil {
+			t.Fatalf("decodeSSE() error = %v", err)
+		}
+		if count != 1 {
+			t.Fatalf("decodeSSE() count = %d, want 1", count)
+		}
 	})
-	if !errors.Is(err, wantErr) {
-		t.Fatalf("decodeSSE() error = %v, want %v", err, wantErr)
-	}
-}
 
-func TestDecodeSSEPreservesMultiLineData(t *testing.T) {
-	t.Parallel()
+	t.Run("Should reject nil arguments", func(t *testing.T) {
+		t.Parallel()
 
-	body := strings.Join([]string{
-		"id: 1",
-		"event: message",
-		`data: {"first":true}`,
-		`data: {"second":true}`,
-		"",
-	}, "\n")
+		testCases := []struct {
+			name    string
+			ctx     context.Context
+			body    io.Reader
+			handler SSEHandler
+			wantErr string
+		}{
+			{
+				name:    "Should reject a nil context",
+				ctx:     nil,
+				body:    strings.NewReader("event: ping\n\n"),
+				handler: func(SSEEvent) error { return nil },
+				wantErr: "sse: context is required",
+			},
+			{
+				name:    "Should reject a nil reader",
+				ctx:     t.Context(),
+				body:    nil,
+				handler: func(SSEEvent) error { return nil },
+				wantErr: "sse: body is required",
+			},
+			{
+				name:    "Should reject a nil handler",
+				ctx:     t.Context(),
+				body:    strings.NewReader("event: ping\n\n"),
+				handler: nil,
+				wantErr: "sse: handler is required",
+			},
+		}
 
-	var seen SSEEvent
-	err := decodeSSE(context.Background(), io.NopCloser(strings.NewReader(body)), func(event SSEEvent) error {
-		seen = event
-		return nil
+		for _, tt := range testCases {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				err := decodeSSE(tt.ctx, tt.body, tt.handler)
+				if err == nil || err.Error() != tt.wantErr {
+					t.Fatalf("decodeSSE() error = %v, want %q", err, tt.wantErr)
+				}
+			})
+		}
 	})
-	if err != nil {
-		t.Fatalf("decodeSSE() error = %v", err)
-	}
-	if got, want := string(seen.Data), "{\"first\":true}\n{\"second\":true}"; got != want {
-		t.Fatalf("decodeSSE() data = %q, want %q", got, want)
-	}
+
+	t.Run("Should preserve handler error identity", func(t *testing.T) {
+		t.Parallel()
+
+		wantErr := errors.New("boom")
+		body := strings.Join([]string{
+			"id: 1",
+			"event: done",
+			`data: {"ok":true}`,
+			"",
+		}, "\n")
+
+		err := decodeSSE(t.Context(), strings.NewReader(body), func(SSEEvent) error {
+			return wantErr
+		})
+		if !errors.Is(err, wantErr) {
+			t.Fatalf("decodeSSE() error = %v, want %v", err, wantErr)
+		}
+	})
+
+	t.Run("Should preserve multiline data", func(t *testing.T) {
+		t.Parallel()
+
+		body := strings.Join([]string{
+			"id: 1",
+			"event: message",
+			`data: {"first":true}`,
+			`data: {"second":true}`,
+			"",
+		}, "\n")
+
+		var seen SSEEvent
+		err := decodeSSE(t.Context(), strings.NewReader(body), func(event SSEEvent) error {
+			seen = event
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("decodeSSE() error = %v", err)
+		}
+		if got, want := string(seen.Data), "{\"first\":true}\n{\"second\":true}"; got != want {
+			t.Fatalf("decodeSSE() data = %q, want %q", got, want)
+		}
+	})
 }
 
 func newHTTPResponse(status int, body string) *http.Response {
@@ -4419,6 +4483,275 @@ func TestDoRequestSetsHeaders(t *testing.T) {
 	}
 }
 
+func TestClientCallersShouldOwnResponseBodies(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should drain bounded trailing JSON bytes before closing the response", func(t *testing.T) {
+		t.Parallel()
+
+		reader := &stagedResponseReader{chunks: [][]byte{
+			[]byte(`{"status":"ok"}`),
+			[]byte(" \n\t"),
+		}}
+		body := &responseBodyProbe{reader: reader}
+		client := &unixSocketClient{
+			socketPath: "/tmp/compozy.sock",
+			httpClient: &http.Client{
+				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+					response := newHTTPResponse(http.StatusOK, "")
+					response.Body = body
+					response.Request = req
+					return response, nil
+				}),
+			},
+		}
+
+		var decoded map[string]string
+		if err := client.doJSON(t.Context(), http.MethodGet, "/api/test", nil, nil, &decoded); err != nil {
+			t.Fatalf("doJSON() error = %v", err)
+		}
+		if got, want := decoded["status"], "ok"; got != want {
+			t.Fatalf("doJSON() status = %q, want %q", got, want)
+		}
+		if got := len(reader.chunks); got != 0 {
+			t.Fatalf("trailing response chunks = %d, want 0", got)
+		}
+		if got, want := body.closeCalls.Load(), int32(1); got != want {
+			t.Fatalf("response body Close() calls = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should stop best-effort drain at the response cleanup limit", func(t *testing.T) {
+		t.Parallel()
+
+		body := strings.NewReader(strings.Repeat("x", int(responseBodyDrainLimit*2)))
+		if err := drainResponseBody(http.MethodGet, "/api/test", body); err != nil {
+			t.Fatalf("drainResponseBody() error = %v", err)
+		}
+		if got, want := body.Len(), int(responseBodyDrainLimit); got != want {
+			t.Fatalf("drainResponseBody() remaining bytes = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should preserve a trailing drain error after successful JSON decoding", func(t *testing.T) {
+		t.Parallel()
+
+		drainErr := errors.New("drain trailing response bytes")
+		body := &responseBodyProbe{reader: &stagedResponseReader{
+			chunks:      [][]byte{[]byte(`{"status":"ok"}`)},
+			terminalErr: drainErr,
+		}}
+		client := &unixSocketClient{
+			socketPath: "/tmp/compozy.sock",
+			httpClient: &http.Client{
+				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+					response := newHTTPResponse(http.StatusOK, "")
+					response.Body = body
+					response.Request = req
+					return response, nil
+				}),
+			},
+		}
+
+		var decoded map[string]string
+		err := client.doJSON(t.Context(), http.MethodGet, "/api/test", nil, nil, &decoded)
+		if !errors.Is(err, drainErr) {
+			t.Fatalf("doJSON() error = %v, want drain error %v", err, drainErr)
+		}
+		if got, want := decoded["status"], "ok"; got != want {
+			t.Fatalf("doJSON() status = %q, want %q", got, want)
+		}
+		if got, want := body.closeCalls.Load(), int32(1); got != want {
+			t.Fatalf("response body Close() calls = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should reject an oversized session prompt body after a bounded drain", func(t *testing.T) {
+		t.Parallel()
+
+		body := strings.NewReader(strings.Repeat(
+			"x",
+			sessionPromptBodyLimit+1+int(responseBodyDrainLimit)+1,
+		))
+		_, err := readSessionPromptBody(body)
+		if !errors.Is(err, errSessionPromptBodyTooLarge) {
+			t.Fatalf("readSessionPromptBody() error = %v, want size limit error", err)
+		}
+		if got, want := body.Len(), 1; got != want {
+			t.Fatalf("readSessionPromptBody() remaining bytes = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should preserve ValidateLoop read and response close errors", func(t *testing.T) {
+		t.Parallel()
+
+		readErr := errors.New("read loop validation response")
+		closeErr := errors.New("close loop validation response")
+		body := &responseBodyProbe{
+			reader:   iotest.ErrReader(readErr),
+			closeErr: closeErr,
+		}
+		client := &unixSocketClient{
+			socketPath: "/tmp/compozy.sock",
+			httpClient: &http.Client{
+				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+					response := newHTTPResponse(http.StatusOK, "")
+					response.Body = body
+					response.Request = req
+					return response, nil
+				}),
+			},
+		}
+
+		_, err := client.ValidateLoop(
+			t.Context(),
+			"workspace-1",
+			"loop-1",
+			contract.ValidateLoopRequest{},
+		)
+		if !errors.Is(err, readErr) {
+			t.Fatalf("ValidateLoop() error = %v, want read error %v", err, readErr)
+		}
+		if !errors.Is(err, closeErr) {
+			t.Fatalf("ValidateLoop() error = %v, want close error %v", err, closeErr)
+		}
+		if got, want := body.closeCalls.Load(), int32(1); got != want {
+			t.Fatalf("response body Close() calls = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should close doSSE response once after context cancellation and preserve close error", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(t.Context())
+		readStarted := make(chan struct{})
+		closeErr := errors.New("close doSSE response")
+		var body *responseBodyProbe
+		client := &unixSocketClient{
+			socketPath: "/tmp/compozy.sock",
+			httpClient: &http.Client{
+				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+					body = &responseBodyProbe{
+						reader: &contextBoundReader{
+							ctx:         req.Context(),
+							readStarted: readStarted,
+						},
+						closeErr: closeErr,
+					}
+					response := newHTTPResponse(http.StatusOK, "")
+					response.Header.Set("Content-Type", "text/event-stream")
+					response.Body = body
+					response.Request = req
+					return response, nil
+				}),
+			},
+		}
+
+		errCh := make(chan error, 1)
+		go func() {
+			errCh <- client.doSSE(ctx, "/api/logs/stream", nil, "", func(SSEEvent) error {
+				return nil
+			})
+		}()
+
+		<-readStarted
+		cancel()
+		err := <-errCh
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("doSSE() error = %v, want context.Canceled", err)
+		}
+		if !errors.Is(err, closeErr) {
+			t.Fatalf("doSSE() error = %v, want close error %v", err, closeErr)
+		}
+		if got, want := body.closeCalls.Load(), int32(1); got != want {
+			t.Fatalf("response body Close() calls = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should close doSessionPrompt SSE response once and preserve close error", func(t *testing.T) {
+		t.Parallel()
+
+		closeErr := errors.New("close prompt response")
+		body := &responseBodyProbe{
+			reader:   strings.NewReader("event: prompt_result\ndata: {}\n\n"),
+			closeErr: closeErr,
+		}
+		client := &unixSocketClient{
+			socketPath: "/tmp/compozy.sock",
+			httpClient: &http.Client{
+				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+					response := newHTTPResponse(http.StatusOK, "")
+					response.Header.Set("Content-Type", "text/event-stream")
+					response.Body = body
+					response.Request = req
+					return response, nil
+				}),
+			},
+		}
+
+		_, err := client.doSessionPrompt(
+			t.Context(),
+			http.MethodPost,
+			"/api/workspaces/ws-1/sessions/sess-1/prompt",
+			nil,
+			SessionPromptRequest{Message: "hello"},
+		)
+		if !errors.Is(err, closeErr) {
+			t.Fatalf("doSessionPrompt() error = %v, want close error %v", err, closeErr)
+		}
+		if got, want := body.closeCalls.Load(), int32(1); got != want {
+			t.Fatalf("response body Close() calls = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should close StreamPromptSession SSE response once and preserve close error", func(t *testing.T) {
+		t.Parallel()
+
+		closeErr := errors.New("close streamed prompt response")
+		body := &responseBodyProbe{
+			reader:   strings.NewReader("event: agent_message\ndata: {}\n\n"),
+			closeErr: closeErr,
+		}
+		transport := roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+			switch {
+			case req.Method == http.MethodGet && req.URL.Path == "/api/sessions/sess-1":
+				return newHTTPResponse(
+					http.StatusOK,
+					`{"session":{"id":"sess-1","workspace_id":"ws-1","state":"active","available_commands":[],"created_at":"2026-07-10T20:00:00Z","updated_at":"2026-07-10T20:00:00Z"}}`,
+				), nil
+			case req.Method == http.MethodPost &&
+				req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/prompt":
+				response := newHTTPResponse(http.StatusOK, "")
+				response.Header.Set("Content-Type", "text/event-stream")
+				response.Body = body
+				response.Request = req
+				return response, nil
+			default:
+				t.Fatalf("unexpected request = %s %s", req.Method, req.URL.Path)
+				return nil, errors.New("unexpected request")
+			}
+		})
+		client := &unixSocketClient{
+			socketPath: "/tmp/compozy.sock",
+			httpClient: &http.Client{Transport: transport},
+		}
+		client.streamClient = client.httpClient
+
+		err := client.StreamPromptSession(
+			t.Context(),
+			"sess-1",
+			SessionPromptRequest{Message: "hello"},
+			func(SSEEvent) error { return nil },
+		)
+		if !errors.Is(err, closeErr) {
+			t.Fatalf("StreamPromptSession() error = %v, want close error %v", err, closeErr)
+		}
+		if got, want := body.closeCalls.Load(), int32(1); got != want {
+			t.Fatalf("response body Close() calls = %d, want %d", got, want)
+		}
+	})
+}
+
 func TestDoRequestRejectsNilContext(t *testing.T) {
 	t.Parallel()
 
@@ -4430,7 +4763,9 @@ func TestDoRequestRejectsNilContext(t *testing.T) {
 	response, err := client.doRequest(nilContext(), http.MethodGet, "/api/status", nil, nil)
 	if response != nil {
 		defer func() {
-			_ = response.Body.Close()
+			if closeErr := response.Body.Close(); closeErr != nil {
+				t.Errorf("response body Close() error = %v", closeErr)
+			}
 		}()
 	}
 	if err == nil {

@@ -41,12 +41,9 @@ func (e hookDispatchEventEmitter) EmitHookDispatchEvent(
 		return
 	}
 
-	turnID := hookspkg.TurnIDFromPayload(payload)
-	if turnID == "" {
-		turnID = e.session.CurrentTurnID()
-	}
-	if turnID == "" {
-		turnID = newID("turn")
+	turnID, ok := e.resolveHookDispatchTurnID(payload)
+	if !ok {
+		return
 	}
 	if timestamp.IsZero() {
 		timestamp = e.manager.now()
@@ -99,6 +96,25 @@ func (e hookDispatchEventEmitter) EmitHookDispatchEvent(
 	}
 
 	e.manager.notifyAgentEvent(ctx, e.session, event)
+}
+
+func (e hookDispatchEventEmitter) resolveHookDispatchTurnID(payload any) (string, bool) {
+	turnID := hookspkg.TurnIDFromPayload(payload)
+	if turnID == "" {
+		turnID = e.session.CurrentTurnID()
+	}
+	if turnID != "" {
+		return turnID, true
+	}
+	generated, err := e.manager.newPromptTurnID()
+	if err != nil {
+		e.manager.sessionLogger(e.session).Warn(
+			"session: allocate hook dispatch event turn id failed",
+			"error", err,
+		)
+		return "", false
+	}
+	return generated, true
 }
 
 func hookDispatchSummary(

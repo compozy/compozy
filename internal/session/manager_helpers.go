@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"strings"
 	"time"
@@ -168,7 +169,7 @@ func (m *Manager) rollbackActivation(session *Session, proc *AgentProcess, now t
 		return nil
 	}
 
-	stopCtx, cancel := context.WithTimeout(context.Background(), defaultLifecycleTimeout)
+	stopCtx, cancel := m.lifecycleCleanupContext()
 	defer cancel()
 	return m.driver.Stop(stopCtx, proc)
 }
@@ -225,18 +226,29 @@ func waitForPromptSetup(ctx context.Context, session *Session, promptSetupDone <
 	}
 }
 
-func newID(prefix string) string {
-	var random [8]byte
-	if _, err := rand.Read(random[:]); err != nil {
-		now := time.Now().UTC().UnixNano()
-		if strings.TrimSpace(prefix) == "" {
-			return fmt.Sprintf("%d", now)
-		}
-		return fmt.Sprintf("%s-%d", prefix, now)
+func newID(prefix string) (string, error) {
+	return newIDFromReader(prefix, rand.Reader)
+}
+
+func newIDFromReader(prefix string, entropy io.Reader) (string, error) {
+	if entropy == nil {
+		return "", errors.New("session: id entropy source is required")
 	}
 
-	if strings.TrimSpace(prefix) == "" {
-		return hex.EncodeToString(random[:])
+	var random [8]byte
+	if _, err := io.ReadFull(entropy, random[:]); err != nil {
+		return "", fmt.Errorf("session: read id entropy: %w", err)
 	}
-	return fmt.Sprintf("%s-%s", prefix, hex.EncodeToString(random[:]))
+
+	suffix := hex.EncodeToString(random[:])
+	if strings.TrimSpace(prefix) == "" {
+		return suffix, nil
+	}
+	return prefix + "-" + suffix, nil
+}
+
+func newIDGenerator(prefix string) IDGenerator {
+	return func() (string, error) {
+		return newID(prefix)
+	}
 }

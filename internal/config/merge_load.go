@@ -6,6 +6,7 @@ import (
 	"os"
 
 	burnttoml "github.com/BurntSushi/toml"
+	"github.com/compozy/compozy/internal/fileutil"
 )
 
 const configBaseURLKey = "base_url"
@@ -37,7 +38,7 @@ func applyConfigOverlay(dst *Config, overlay *configOverlay, roleSource string) 
 }
 
 func loadConfigOverlayFile(path string) (configOverlay, error) {
-	contents, err := os.ReadFile(path)
+	contents, _, err := fileutil.ReadRegularFile(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return configOverlay{}, nil

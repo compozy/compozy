@@ -95,7 +95,7 @@ func providerDiagnostics(instance BridgeInstance, input BridgeDiagnosticsInput) 
 			Kind:             BridgeDiagnosticKindUnsupportedCapability,
 			Severity:         BridgeDiagnosticSeverityError,
 			Source:           "provider",
-			BridgeInstanceID: strings.TrimSpace(instance.ID),
+			BridgeInstanceID: instance.ID,
 			Message: fmt.Sprintf(
 				"bridge provider %q for platform %q is not installed",
 				strings.TrimSpace(instance.ExtensionName),
@@ -121,7 +121,7 @@ func providerDiagnostics(instance BridgeInstance, input BridgeDiagnosticsInput) 
 		Kind:             BridgeDiagnosticKindUnsupportedCapability,
 		Severity:         BridgeDiagnosticSeverityError,
 		Source:           "provider",
-		BridgeInstanceID: strings.TrimSpace(instance.ID),
+		BridgeInstanceID: instance.ID,
 		Message:          sanitizeBridgeDiagnosticMessage(message),
 		NextAction:       "Enable or replace the bridge provider before routing through this instance.",
 		Status:           instance.Status.Normalize(),
@@ -153,7 +153,7 @@ func missingTokenDiagnostics(instance BridgeInstance, input BridgeDiagnosticsInp
 			Kind:             BridgeDiagnosticKindMissingToken,
 			Severity:         BridgeDiagnosticSeverityError,
 			Source:           "secret_binding",
-			BridgeInstanceID: strings.TrimSpace(instance.ID),
+			BridgeInstanceID: instance.ID,
 			SecretSlot:       normalized.Name,
 			Message:          fmt.Sprintf("required bridge secret %q is not bound", normalized.Name),
 			NextAction:       "Bind the required bridge secret before enabling outbound delivery.",
@@ -169,7 +169,7 @@ func destinationDiagnostics(instance BridgeInstance, input BridgeDiagnosticsInpu
 			Kind:             BridgeDiagnosticKindUnsupportedCapability,
 			Severity:         BridgeDiagnosticSeverityError,
 			Source:           "routing_policy",
-			BridgeInstanceID: strings.TrimSpace(instance.ID),
+			BridgeInstanceID: instance.ID,
 			Message:          sanitizeBridgeDiagnosticMessage(err.Error()),
 			NextAction:       "Update the bridge routing policy to a supported peer/group/thread shape.",
 			Status:           instance.Status.Normalize(),
@@ -194,7 +194,7 @@ func destinationDiagnostics(instance BridgeInstance, input BridgeDiagnosticsInpu
 		Kind:             BridgeDiagnosticKindUnknownDestination,
 		Severity:         BridgeDiagnosticSeverityWarning,
 		Source:           "route",
-		BridgeInstanceID: strings.TrimSpace(instance.ID),
+		BridgeInstanceID: instance.ID,
 		Message:          "bridge has no canonical route and no default outbound destination",
 		NextAction:       "Create a bridge route or configure delivery_defaults with a peer_id or group_id.",
 		Status:           instance.Status.Normalize(),
@@ -216,7 +216,7 @@ func permissionDiagnostic(instance BridgeInstance, input BridgeDiagnosticsInput)
 		Kind:              BridgeDiagnosticKindPermissionDenied,
 		Severity:          BridgeDiagnosticSeverityError,
 		Source:            "auth",
-		BridgeInstanceID:  strings.TrimSpace(instance.ID),
+		BridgeInstanceID:  instance.ID,
 		Message:           sanitizeBridgeDiagnosticMessage(message),
 		NextAction:        "Refresh bridge credentials and confirm provider-side permissions.",
 		Status:            instance.Status.Normalize(),
@@ -243,7 +243,7 @@ func transientDeliveryDiagnostic(instance BridgeInstance, input BridgeDiagnostic
 		Kind:              BridgeDiagnosticKindTransientDeliveryFailure,
 		Severity:          BridgeDiagnosticSeverityWarning,
 		Source:            "delivery",
-		BridgeInstanceID:  strings.TrimSpace(instance.ID),
+		BridgeInstanceID:  instance.ID,
 		Message:           sanitizeBridgeDiagnosticMessage(message),
 		NextAction:        "Inspect delivery backlog and retry after provider rate limits or timeouts recover.",
 		Status:            instance.Status.Normalize(),
@@ -256,7 +256,7 @@ func deliveryDefaultsCarryDestination(raw []byte) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return strings.TrimSpace(defaults.PeerID) != "" || strings.TrimSpace(defaults.GroupID) != "", nil
+	return !isBlank(defaults.PeerID) || !isBlank(defaults.GroupID), nil
 }
 
 func degradationReason(instance BridgeInstance) BridgeDegradationReason {

@@ -98,6 +98,8 @@ func hostAPIInputSchema(
 	spec extensioncontract.HostAPIMethodSpec,
 	binding workspaceBinding,
 ) (json.RawMessage, error) {
+	// Host API specs carry one of several runtime parameter types. Reflection is
+	// limited to descriptor assembly so jsonschema can generate the exact wire schema.
 	typeOf := reflect.TypeOf(spec.Params.Value)
 	if typeOf == nil {
 		return nil, fmt.Errorf("canonical params type is nil for %q", spec.Method)

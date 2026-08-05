@@ -93,7 +93,7 @@ func (m *Manager) submitAdmittedPromptByTarget(
 	}
 	session := target.session
 	if session == nil {
-		session, err = m.lookupOrResumePromptSession(ctx, preparation.request.target)
+		session, err = m.lookupPromptRequestSession(ctx, preparation.request)
 		if err != nil {
 			return SendPromptResult{}, err
 		}
@@ -374,7 +374,7 @@ func (m *Manager) submitAdmittedGoalPrompt(
 		return m.completePromptAdmission(ctx, admission, *goalResult)
 	}
 	if session == nil {
-		session, err = m.lookupOrResumePromptSession(ctx, preparation.request.target)
+		session, err = m.lookupPromptRequestSession(ctx, preparation.request)
 		if err != nil {
 			return SendPromptResult{}, m.promptDispatchIndeterminate(ctx, admission, err)
 		}

@@ -1257,20 +1257,10 @@ func TestAugmentCompactsRepeatedSituationSections(t *testing.T) {
 	})
 }
 
-func TestPromptSectionAndHelperBranches(t *testing.T) {
+func TestSituationHelperBranches(t *testing.T) {
 	t.Parallel()
 
 	service := NewService(Deps{Now: fixedNow})
-	rendered, err := service.PromptSection(context.Background(), &workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{ID: "ws-1", RootDir: "/work/compozy", Name: "Compozy"},
-	})
-	if err != nil {
-		t.Fatalf("PromptSection() error = %v", err)
-	}
-	if !strings.Contains(rendered, `"workspace"`) || !strings.Contains(rendered, `"limits"`) {
-		t.Fatalf("PromptSection() = %s, want workspace and limits sections", rendered)
-	}
-
 	if got, err := service.Augment(context.Background(), nil, "message"); err != nil || got != "message" {
 		t.Fatalf("Augment(nil session) = %q, %v; want original message", got, err)
 	}

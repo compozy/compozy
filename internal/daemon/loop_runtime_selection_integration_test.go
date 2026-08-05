@@ -522,7 +522,11 @@ func TestLoopRuntimeSelectionIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("resolve CLI Loop URL error = %v", err)
 		}
-		defer response.Body.Close()
+		defer func() {
+			if closeErr := response.Body.Close(); closeErr != nil {
+				t.Errorf("CLI Loop response body Close() error = %v", closeErr)
+			}
+		}()
 		if response.StatusCode != http.StatusOK {
 			t.Fatalf("CLI Loop URL status = %d, want %d", response.StatusCode, http.StatusOK)
 		}

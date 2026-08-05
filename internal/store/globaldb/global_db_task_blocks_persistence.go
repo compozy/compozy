@@ -150,11 +150,11 @@ func (g *TaskRepo) listExpiredTaskBlockCandidates(
 	return candidates, nil
 }
 
-func uniqueTaskBlockCandidateTaskIDs(candidates []taskBlockExpiryCandidate) []string {
-	seen := make(map[string]struct{}, len(candidates))
-	taskIDs := make([]string, 0, len(candidates))
-	for _, candidate := range candidates {
-		taskID := strings.TrimSpace(candidate.TaskID)
+func uniqueTaskBlockTargetTaskIDs(targets []taskpkg.BlockExpiryTarget) []string {
+	seen := make(map[string]struct{}, len(targets))
+	taskIDs := make([]string, 0, len(targets))
+	for _, target := range targets {
+		taskID := strings.TrimSpace(target.TaskID)
 		if taskID == "" {
 			continue
 		}
@@ -167,10 +167,22 @@ func uniqueTaskBlockCandidateTaskIDs(candidates []taskBlockExpiryCandidate) []st
 	return taskIDs
 }
 
+func expiryTargetBlockIDs(targets []taskpkg.BlockExpiryTarget, taskID string) []string {
+	trimmedTaskID := strings.TrimSpace(taskID)
+	blockIDs := make([]string, 0)
+	for _, target := range targets {
+		if strings.TrimSpace(target.TaskID) == trimmedTaskID {
+			blockIDs = append(blockIDs, strings.TrimSpace(target.BlockID))
+		}
+	}
+	return blockIDs
+}
+
 func (g *TaskRepo) expireTaskBlocksForTaskWithExecutor(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	taskID string,
+	blockIDs []string,
 	mutation taskpkg.ExpireTaskBlocksMutation,
 ) ([]taskpkg.TaskBlock, error) {
 	taskRecord, err := g.getTaskWithExecutor(ctx, exec, taskID)
@@ -178,17 +190,6 @@ func (g *TaskRepo) expireTaskBlocksForTaskWithExecutor(
 		return nil, err
 	}
 	workspaceID := store.NullableString(taskBlockWorkspaceID(taskRecord))
-	blockIDs, err := expiredTaskBlockIDsForTaskWithExecutor(
-		ctx,
-		exec,
-		taskID,
-		workspaceID,
-		mutation.Now,
-	)
-	if err != nil {
-		return nil, err
-	}
-
 	expired := make([]taskpkg.TaskBlock, 0, len(blockIDs))
 	for _, blockID := range blockIDs {
 		affected, err := sqlcgen.New(exec).ExpireTaskBlock(ctx, sqlcgen.ExpireTaskBlockParams{
@@ -213,24 +214,6 @@ func (g *TaskRepo) expireTaskBlocksForTaskWithExecutor(
 		expired = append(expired, block)
 	}
 	return expired, nil
-}
-
-func expiredTaskBlockIDsForTaskWithExecutor(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	taskID string,
-	workspaceID any,
-	now time.Time,
-) ([]string, error) {
-	rows, err := sqlcgen.New(exec).ListExpiredTaskBlockIDs(ctx, sqlcgen.ListExpiredTaskBlockIDsParams{
-		TaskID:      strings.TrimSpace(taskID),
-		Now:         nullableTaskTime(now),
-		WorkspaceID: workspaceID,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("store: query expired task blocks for task %q: %w", taskID, err)
-	}
-	return rows, nil
 }
 
 func normalizeCreateTaskBlockMutation(
@@ -270,6 +253,28 @@ func normalizeExpireTaskBlocksMutation(
 	normalized.ClearedBy.Ref = strings.TrimSpace(normalized.ClearedBy.Ref)
 	if err := normalized.ClearedBy.Validate("task_block.expired_by"); err != nil {
 		return taskpkg.ExpireTaskBlocksMutation{}, err
+	}
+	seen := make(map[string]struct{}, len(normalized.Targets))
+	for index := range normalized.Targets {
+		target := &normalized.Targets[index]
+		target.TaskID = strings.TrimSpace(target.TaskID)
+		target.BlockID = strings.TrimSpace(target.BlockID)
+		if target.TaskID == "" || target.BlockID == "" {
+			return taskpkg.ExpireTaskBlocksMutation{}, fmt.Errorf(
+				"%w: task block expiry target identity is required",
+				taskpkg.ErrValidation,
+			)
+		}
+		key := target.TaskID + "\x00" + target.BlockID
+		if _, exists := seen[key]; exists {
+			return taskpkg.ExpireTaskBlocksMutation{}, fmt.Errorf(
+				"%w: duplicate task block expiry target %q/%q",
+				taskpkg.ErrValidation,
+				target.TaskID,
+				target.BlockID,
+			)
+		}
+		seen[key] = struct{}{}
 	}
 	return normalized, nil
 }

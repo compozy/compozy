@@ -48,7 +48,8 @@ func parsePutSettingsProviderRequest(c *gin.Context) (settingspkg.CollectionItem
 		EnvPolicy:       compozyconfig.ProviderEnvPolicy(strings.TrimSpace(body.Settings.EnvPolicy)),
 		HomePolicy:      compozyconfig.ProviderHomePolicy(strings.TrimSpace(body.Settings.HomePolicy)),
 		AuthStatusCmd:   strings.TrimSpace(body.Settings.AuthStatusCmd),
-		AuthLoginCmd:    strings.TrimSpace(body.Settings.AuthLoginCmd),
+		AuthLoginCmd:    trimmedOptionalString(body.Settings.AuthLoginCmd),
+		AuthLoginCmdSet: body.Settings.AuthLoginCmd != nil,
 		CredentialSlots: providerCredentialSlotsFromPayload(body.Settings.CredentialSlots),
 	}
 	return settingspkg.CollectionItemPutRequest{
@@ -85,7 +86,7 @@ func cloneReasoningEffortPtr(value *modelcatalog.ReasoningEffort) *modelcatalog.
 	return &cloned
 }
 
-func providerSettingsPayloadEmpty(payload contract.SettingsProviderSettingsPayload) bool {
+func providerSettingsPayloadEmpty(payload contract.SettingsProviderWritePayload) bool {
 	return strings.TrimSpace(payload.Command) == "" &&
 		strings.TrimSpace(payload.DisplayName) == "" &&
 		payload.Models == nil &&
@@ -97,8 +98,15 @@ func providerSettingsPayloadEmpty(payload contract.SettingsProviderSettingsPaylo
 		strings.TrimSpace(payload.EnvPolicy) == "" &&
 		strings.TrimSpace(payload.HomePolicy) == "" &&
 		strings.TrimSpace(payload.AuthStatusCmd) == "" &&
-		strings.TrimSpace(payload.AuthLoginCmd) == "" &&
+		payload.AuthLoginCmd == nil &&
 		len(payload.CredentialSlots) == 0
+}
+
+func trimmedOptionalString(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return strings.TrimSpace(*value)
 }
 
 func providerCredentialSlotsFromPayload(

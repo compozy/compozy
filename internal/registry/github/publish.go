@@ -130,7 +130,7 @@ func (c *Client) ensureRelease(ctx context.Context, repo repoSlug, tag string, d
 		endpoint += "/" + strconv.FormatInt(existing.ID, 10)
 	}
 	//nolint:bodyclose // decodePublishResponse owns and closes every returned response body.
-	response, err := c.doMutationRequest(ctx, method, endpoint, acceptJSON, "application/json", encoded)
+	response, err := c.doMutationRequest(ctx, method, endpoint, "application/json", encoded)
 	if err != nil {
 		return nil, fmt.Errorf("github: publish release %q for %q: %w", tag, repo.full, err)
 	}
@@ -182,7 +182,7 @@ func (c *Client) deleteReleaseAsset(ctx context.Context, repo repoSlug, assetID 
 	}
 	endpoint := c.repositoryEndpoint(repo) + "/releases/assets/" + strconv.FormatInt(assetID, 10)
 	//nolint:bodyclose // every status branch below closes the response body.
-	response, err := c.doMutationRequest(ctx, http.MethodDelete, endpoint, acceptJSON, "", nil)
+	response, err := c.doMutationRequest(ctx, http.MethodDelete, endpoint, "", nil)
 	if err != nil {
 		return fmt.Errorf("github: delete release asset for %q: %w", repo.full, err)
 	}
@@ -205,7 +205,7 @@ func (c *Client) uploadReleaseAsset(
 		return nil, fmt.Errorf("github: resolve release upload URL for %q: %w", repo.full, err)
 	}
 	//nolint:bodyclose // decodePublishResponse owns and closes every returned response body.
-	response, err := c.doMutationRequest(ctx, http.MethodPost, endpoint, acceptJSON, contentType, payload)
+	response, err := c.doMutationRequest(ctx, http.MethodPost, endpoint, contentType, payload)
 	if err != nil {
 		return nil, fmt.Errorf("github: upload release asset %q for %q: %w", name, repo.full, err)
 	}
@@ -216,7 +216,6 @@ func (c *Client) doMutationRequest(
 	ctx context.Context,
 	method string,
 	rawURL string,
-	accept string,
 	contentType string,
 	payload []byte,
 ) (*http.Response, error) {
@@ -227,11 +226,13 @@ func (c *Client) doMutationRequest(
 	if err != nil {
 		return nil, fmt.Errorf("github: create %s request: %w", method, err)
 	}
-	request.Header.Set("Accept", accept)
+	request.Header.Set("Accept", acceptJSON)
 	if contentType != "" {
 		request.Header.Set("Content-Type", contentType)
 	}
-	request.Header.Set("Authorization", "Bearer "+strings.TrimSpace(c.token))
+	if token := strings.TrimSpace(c.token); token != "" && c.networkPolicy.IsTrustedOrigin(request.URL) {
+		request.Header.Set("Authorization", "Bearer "+token)
+	}
 	response, err := c.httpClient.Do(request)
 	if err != nil {
 		return nil, fmt.Errorf("github: %s request failed: %w", method, err)

@@ -356,10 +356,18 @@ func startGoalThroughHTTPAndDisconnect(
 	objective string,
 ) int {
 	t.Helper()
+	messageID, err := store.NewID("msg")
+	if err != nil {
+		t.Fatalf("generate disconnected Goal message id error = %v", err)
+	}
+	idempotencyKey, err := store.NewID("idem")
+	if err != nil {
+		t.Fatalf("generate disconnected Goal idempotency key error = %v", err)
+	}
 	payload, err := json.Marshal(compozycontract.SendPromptRequest{
 		Message:        "/goal " + strings.TrimSpace(objective),
-		MessageID:      store.NewID("msg"),
-		IdempotencyKey: store.NewID("idem"),
+		MessageID:      messageID,
+		IdempotencyKey: idempotencyKey,
 	})
 	if err != nil {
 		t.Fatalf("marshal disconnected Goal start error = %v", err)
@@ -405,10 +413,18 @@ func callGoalCommandUDS(
 	command string,
 ) (int, compozycontract.GoalCommandResult) {
 	t.Helper()
+	messageID, err := store.NewID("msg")
+	if err != nil {
+		t.Fatalf("generate Goal command message id error = %v", err)
+	}
+	idempotencyKey, err := store.NewID("idem")
+	if err != nil {
+		t.Fatalf("generate Goal command idempotency key error = %v", err)
+	}
 	payload, err := json.Marshal(compozycontract.SendPromptRequest{
 		Message:        strings.TrimSpace(command),
-		MessageID:      store.NewID("msg"),
-		IdempotencyKey: store.NewID("idem"),
+		MessageID:      messageID,
+		IdempotencyKey: idempotencyKey,
 	})
 	if err != nil {
 		t.Fatalf("marshal Goal command error = %v", err)

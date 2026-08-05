@@ -288,8 +288,8 @@ func TestLayoutDocumentContract(t *testing.T) {
 				if !errors.Is(executeErr, test.wantSentinel) {
 					t.Fatalf("Execute(resource) error = %v, want %v", executeErr, test.wantSentinel)
 				}
-				var topologyErr *TopologyError
-				if errors.As(executeErr, &topologyErr) != test.wantTopology {
+				topologyErr, topologyErrMatched := errors.AsType[*TopologyError](executeErr)
+				if topologyErrMatched != test.wantTopology {
 					t.Fatalf("Execute(resource) topology error = %v, want %v", topologyErr, test.wantTopology)
 				}
 			})
@@ -390,8 +390,8 @@ func TestWindowTabLayoutDocumentV3(t *testing.T) {
 		if !errors.Is(err, ErrInvalidTopology) {
 			t.Fatalf("ReplaceLayout(v2) error = %v", err)
 		}
-		var topologyErr *TopologyError
-		if !errors.As(err, &topologyErr) || len(topologyErr.Diagnostics) == 0 ||
+		topologyErr, topologyErrMatched := errors.AsType[*TopologyError](err)
+		if !topologyErrMatched || len(topologyErr.Diagnostics) == 0 ||
 			topologyErr.Diagnostics[0].Code != "topology.unsupported_version" {
 			t.Fatalf("ReplaceLayout(v2) diagnostics = %#v, want unsupported-version topology error", topologyErr)
 		}

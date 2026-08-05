@@ -118,7 +118,10 @@ func resolveExecutablePath(
 
 // Check returns the current update state and the latest release metadata when available.
 func (m *Manager) Check(ctx context.Context, opts CheckOptions) (State, *Release, error) {
-	install := m.detectInstall(ctx)
+	install, err := m.detectInstall(ctx)
+	if err != nil {
+		return State{}, nil, err
+	}
 	if isDevVersion(m.currentVersion) {
 		return m.composeState(install, nil, nil), nil, nil
 	}
@@ -188,8 +191,8 @@ func (m *Manager) ApplyRelease(ctx context.Context, release *Release) (applied A
 		return AppliedBinary{}, fmt.Errorf("update: create temp directory: %w", err)
 	}
 	defer func() {
-		if removeErr := os.RemoveAll(tmpDir); removeErr != nil && err == nil {
-			err = fmt.Errorf("update: remove temp directory %q: %w", tmpDir, removeErr)
+		if removeErr := os.RemoveAll(tmpDir); removeErr != nil {
+			err = errors.Join(err, fmt.Errorf("update: remove temp directory %q: %w", tmpDir, removeErr))
 		}
 	}()
 

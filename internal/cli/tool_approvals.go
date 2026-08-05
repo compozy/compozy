@@ -29,7 +29,7 @@ func newToolApprovalsSetCommand(deps commandDeps) *cobra.Command {
 		Short: "Set an explicit agent-wide or tool-wide approval decision",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runToolCommand(cmd, deps, func(client DaemonClient) error {
+			return runToolApprovalCommand(cmd, deps, func(client toolApprovalClient) error {
 				resolvedWorkspaceID, err := resolveToolApprovalWorkspace(
 					cmd.Context(),
 					cmd,
@@ -80,7 +80,7 @@ func newToolApprovalsListCommand(deps commandDeps) *cobra.Command {
 		Short: "List remembered native-tool approval decisions",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runToolCommand(cmd, deps, func(client DaemonClient) error {
+			return runToolApprovalCommand(cmd, deps, func(client toolApprovalClient) error {
 				resolvedWorkspaceID, err := resolveToolApprovalWorkspace(
 					cmd.Context(),
 					cmd,
@@ -111,7 +111,7 @@ func newToolApprovalsRevokeCommand(deps commandDeps) *cobra.Command {
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id := strings.TrimSpace(args[0])
-			return runToolCommand(cmd, deps, func(client DaemonClient) error {
+			return runToolApprovalCommand(cmd, deps, func(client toolApprovalClient) error {
 				resolvedWorkspaceID, err := resolveToolApprovalWorkspace(
 					cmd.Context(),
 					cmd,
@@ -137,7 +137,7 @@ func resolveToolApprovalWorkspace(
 	ctx context.Context,
 	cmd *cobra.Command,
 	deps commandDeps,
-	client DaemonClient,
+	client workspaceLookupClient,
 	workspaceRef string,
 ) (string, error) {
 	resolution, err := resolveCommandWorkspace(

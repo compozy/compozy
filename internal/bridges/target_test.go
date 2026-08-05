@@ -67,6 +67,94 @@ func TestBuildDeliveryTargetExplicitOverridesWinOverDefaults(t *testing.T) {
 			t.Fatalf("BuildDeliveryTarget().Mode = %q, want %q", target.Mode, bridgepkg.DeliveryModeDirectSend)
 		}
 	})
+
+	t.Run("Should keep the configured default when an override carries no identity", func(t *testing.T) {
+		t.Parallel()
+
+		instance := testBridgeInstanceForTargets()
+		instance.DeliveryDefaults = []byte(`{"peer_id":" peer-default "}`)
+
+		target, err := bridgepkg.BuildDeliveryTarget(instance, bridgepkg.ResolveDeliveryTargetRequest{
+			BridgeInstanceID: instance.ID,
+			PeerID:           "   ",
+		})
+		if err != nil {
+			t.Fatalf("BuildDeliveryTarget() error = %v", err)
+		}
+		if target.PeerID != " peer-default " {
+			t.Fatalf("BuildDeliveryTarget().PeerID = %q, want the configured default verbatim", target.PeerID)
+		}
+	})
+
+	t.Run("Should reject a target that resolves to no identity", func(t *testing.T) {
+		t.Parallel()
+
+		instance := testBridgeInstanceForTargets()
+		instance.DeliveryDefaults = []byte(`{"peer_id":"   "}`)
+
+		if _, err := bridgepkg.BuildDeliveryTarget(instance, bridgepkg.ResolveDeliveryTargetRequest{
+			BridgeInstanceID: instance.ID,
+			PeerID:           "   ",
+		}); err == nil {
+			t.Fatal("BuildDeliveryTarget(blank peer and blank default) error = nil, want rejection")
+		}
+	})
+}
+
+func TestResolveDeliveryTargetRequestValidation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve opaque identities and accept an exact explicit mode", func(t *testing.T) {
+		t.Parallel()
+
+		request := bridgepkg.ResolveDeliveryTargetRequest{
+			BridgeInstanceID: " bridge ",
+			PeerID:           " peer ",
+			ThreadID:         " thread ",
+			GroupID:          " group ",
+			Mode:             bridgepkg.DeliveryModeReply,
+		}
+		if err := request.Validate(); err != nil {
+			t.Fatalf("ResolveDeliveryTargetRequest.Validate() error = %v", err)
+		}
+	})
+
+	t.Run("Should reject noncanonical modes and invalid opaque identities", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name    string
+			request bridgepkg.ResolveDeliveryTargetRequest
+		}{
+			{
+				name: "Should reject a noncanonical mode",
+				request: bridgepkg.ResolveDeliveryTargetRequest{
+					BridgeInstanceID: "bridge",
+					Mode:             " reply ",
+				},
+			},
+			{
+				name: "Should reject an invalid peer identity",
+				request: bridgepkg.ResolveDeliveryTargetRequest{
+					BridgeInstanceID: "bridge",
+					PeerID:           string([]byte{0xff}),
+				},
+			},
+			{
+				name:    "Should reject a blank bridge instance identity",
+				request: bridgepkg.ResolveDeliveryTargetRequest{BridgeInstanceID: " "},
+			},
+		}
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				if err := test.request.Validate(); err == nil {
+					t.Fatal("ResolveDeliveryTargetRequest.Validate() error = nil")
+				}
+			})
+		}
+	})
 }
 
 func TestRegistryResolveDeliveryTargetUsesServiceSeam(t *testing.T) {

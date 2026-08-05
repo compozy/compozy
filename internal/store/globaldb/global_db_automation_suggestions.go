@@ -302,7 +302,11 @@ func (g *AutomationRepo) normalizeSuggestionForCreate(
 	normalized := suggestion
 	normalized.ID = strings.TrimSpace(normalized.ID)
 	if normalized.ID == "" {
-		normalized.ID = store.NewID("sug")
+		generatedID, err := store.NewID("sug")
+		if err != nil {
+			return automation.Suggestion{}, "", fmt.Errorf("store: generate automation suggestion id: %w", err)
+		}
+		normalized.ID = generatedID
 	}
 	normalized.WorkspaceID = strings.TrimSpace(normalized.WorkspaceID)
 	normalized.Source = automation.SuggestionSource(strings.TrimSpace(string(normalized.Source)))

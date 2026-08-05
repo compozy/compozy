@@ -206,7 +206,7 @@ func (a *Assembler) checkpointSummarySection(ctx context.Context, workspaceRoot 
 	if a == nil || a.store == nil || root == "" {
 		return "", nil
 	}
-	body, _, err := loadCheckpointSummary(a.store.ForWorkspace(root))
+	body, _, err := loadCheckpointSummary(ctx, a.store.ForWorkspace(root))
 	if err != nil {
 		return "", err
 	}
@@ -225,7 +225,7 @@ func (a *Assembler) checkpointSummaryResumeSection(
 	if a == nil || a.store == nil || root == "" {
 		return "", nil
 	}
-	state, err := loadCheckpointSummaryState(a.store.ForWorkspace(root))
+	state, err := loadCheckpointSummaryState(ctx, a.store.ForWorkspace(root))
 	if err != nil {
 		return "", err
 	}

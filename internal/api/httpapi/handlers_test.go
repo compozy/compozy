@@ -2938,14 +2938,15 @@ func TestPromptSessionHandlerPreservesRuntimeFailureDiagnostics(t *testing.T) {
 		{
 			name: "Should preserve negotiation diagnostics from the prompt handler",
 			err: diagnostics.NewStructuredError(
-				diagnostics.NewItem(
-					"provider.negotiation.model_unavailable",
-					contract.CodeModelUnavailable,
-					contract.CategoryProvider,
-					"Requested model is unavailable",
-					"The requested model is unavailable for this provider.",
-					contract.SeverityError,
-					contract.FreshnessLive,
+				diagnostics.NewItem(diagnostics.ItemSpec{
+					ID:            "provider.negotiation.model_unavailable",
+					Code:          contract.CodeModelUnavailable,
+					Category:      contract.CategoryProvider,
+					Title:         "Requested model is unavailable",
+					Message:       "The requested model is unavailable for this provider.",
+					Severity:      contract.SeverityError,
+					DataFreshness: contract.FreshnessLive,
+				},
 					diagnostics.WithEvidence(map[string]any{
 						"stage":     "model",
 						"requested": "missing-model",
@@ -2971,14 +2972,15 @@ func TestPromptSessionHandlerPreservesRuntimeFailureDiagnostics(t *testing.T) {
 				Kind:    store.FailureProviderAuth,
 				Summary: "provider authentication failed",
 				Err: diagnostics.NewStructuredError(
-					diagnostics.NewItem(
-						"provider.auth.not_authenticated",
-						contract.CodeProviderNotAuthenticated,
-						contract.CategoryProvider,
-						"Provider is not authenticated",
-						"Sign in before sending a prompt.",
-						contract.SeverityError,
-						contract.FreshnessLive,
+					diagnostics.NewItem(diagnostics.ItemSpec{
+						ID:            "provider.auth.not_authenticated",
+						Code:          contract.CodeProviderNotAuthenticated,
+						Category:      contract.CategoryProvider,
+						Title:         "Provider is not authenticated",
+						Message:       "Sign in before sending a prompt.",
+						Severity:      contract.SeverityError,
+						DataFreshness: contract.FreshnessLive,
+					},
 						diagnostics.WithEvidence(map[string]any{
 							"provider": "codex",
 							"state":    "needs_login",

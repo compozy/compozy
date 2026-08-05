@@ -5,9 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"path/filepath"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -20,7 +24,9 @@ import (
 	"github.com/compozy/compozy/internal/session"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/windowmanager"
 	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 )
 
 func TestNewHonorsOptionsAndDefaults(t *testing.T) {
@@ -204,15 +210,13 @@ func TestServerStartAndShutdownServeRequests(t *testing.T) {
 	}
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		if resp != nil && resp.Body != nil {
-			_ = resp.Body.Close()
-		}
 		t.Fatalf("http.DefaultClient.Do() error = %v", err)
 	}
-	body := resp.Body
 	defer func() {
-		if body != nil {
-			_ = body.Close()
+		if resp.Body != nil {
+			if closeErr := resp.Body.Close(); closeErr != nil {
+				t.Errorf("response body Close() error = %v", closeErr)
+			}
 		}
 	}()
 	if resp.StatusCode != http.StatusOK {
@@ -235,10 +239,12 @@ func TestServerStartAndShutdownServeRequests(t *testing.T) {
 		t.Fatalf("http.NewRequestWithContext() error = %v", err)
 	}
 	respAfterShutdown, err := http.DefaultClient.Do(req)
-	if respAfterShutdown != nil {
-		_ = respAfterShutdown.Body.Close()
-	}
 	if err == nil {
+		if respAfterShutdown != nil && respAfterShutdown.Body != nil {
+			if closeErr := respAfterShutdown.Body.Close(); closeErr != nil {
+				t.Errorf("response body Close() after shutdown error = %v", closeErr)
+			}
+		}
 		t.Fatal("expected request after shutdown to fail")
 	}
 }
@@ -267,11 +273,272 @@ func TestServerStartRejectsNilContextAndDuplicateStart(t *testing.T) {
 		t.Fatalf("Start() error = %v", err)
 	}
 	defer func() {
-		_ = server.Shutdown(context.Background())
+		shutdownServerForTest(t, server)
 	}()
 	if err := server.Start(context.Background()); err == nil {
 		t.Fatal("Start(second) error = nil, want non-nil")
 	}
+}
+
+func TestServerShutdownLifecycle(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject a nil context before mutating the active generation", func(t *testing.T) {
+		t.Parallel()
+
+		listener := newDelayedFirstCloseListener()
+		listener.releaseFirst()
+		serveDone := make(chan struct{})
+		close(serveDone)
+		server := &Server{
+			generation: &serverGeneration{listener: listener, serveDone: serveDone},
+			state:      serverStateRunning,
+		}
+
+		var nilCtx context.Context
+		if err := server.Shutdown(nilCtx); err == nil {
+			t.Fatal("Shutdown(nil) error = nil, want context validation failure")
+		}
+		if got := listener.closeCalls.Load(); got != 0 {
+			t.Fatalf("listener close calls = %d, want 0", got)
+		}
+	})
+
+	t.Run("Should reject start while a generation starts", func(t *testing.T) {
+		t.Parallel()
+
+		server := &Server{
+			generation: &serverGeneration{startDone: make(chan struct{})},
+			state:      serverStateStarting,
+		}
+		if err := server.Start(t.Context()); !errors.Is(err, errServerStartInProgress) {
+			t.Fatalf("Start() error = %v, want start-in-progress error", err)
+		}
+	})
+
+	t.Run("Should report a terminal serve error before rearming", func(t *testing.T) {
+		t.Parallel()
+
+		terminalErr := errors.New("terminal listener failure")
+		listener := newTerminalServeListener(t)
+		engine := gin.New()
+		serveDone := make(chan struct{})
+		generation := &serverGeneration{
+			httpServer: &http.Server{
+				Handler:           engine,
+				ReadHeaderTimeout: defaultReadHeaderTimeout,
+				IdleTimeout:       defaultIdleTimeout,
+			},
+			listener:  listener,
+			serveDone: serveDone,
+		}
+		server := &Server{
+			host:       "127.0.0.1",
+			port:       0,
+			logger:     discardLogger(),
+			engine:     engine,
+			generation: generation,
+			state:      serverStateRunning,
+		}
+		go server.serve(generation, listener.Addr().String())
+		waitForServerSignal(t, listener.acceptStarted, "Serve to call Accept")
+		listener.fail(terminalErr)
+		waitForServerSignal(t, serveDone, "Serve to report its terminal error")
+
+		shutdownCtx, cancelShutdown := context.WithTimeout(t.Context(), time.Second)
+		defer cancelShutdown()
+		if err := server.Shutdown(shutdownCtx); !errors.Is(err, terminalErr) {
+			t.Fatalf("Shutdown() error = %v, want terminal error", err)
+		}
+
+		if err := server.Start(t.Context()); err != nil {
+			t.Fatalf("Start() after terminal shutdown error = %v", err)
+		}
+		cleanupCtx, cancelCleanup := context.WithTimeout(context.WithoutCancel(t.Context()), time.Second)
+		defer cancelCleanup()
+		if err := server.Shutdown(cleanupCtx); err != nil {
+			t.Fatalf("Shutdown() after rearm error = %v", err)
+		}
+	})
+
+	t.Run("Should fence delayed generation cleanup from a rearmed generation", func(t *testing.T) {
+		t.Parallel()
+
+		server := newWindowManagerLifecycleServer(t)
+		t.Cleanup(func() {
+			cleanupCtx, cancelCleanup := context.WithTimeout(context.WithoutCancel(t.Context()), 2*time.Second)
+			defer cancelCleanup()
+			if err := server.Shutdown(cleanupCtx); err != nil {
+				t.Errorf("Shutdown() cleanup error = %v", err)
+			}
+		})
+
+		listener := newDelayedFirstCloseListener()
+		t.Cleanup(listener.releaseFirst)
+		serveDone := make(chan struct{})
+		close(serveDone)
+		generation := &serverGeneration{listener: listener, serveDone: serveDone}
+		server.mu.Lock()
+		server.generation = generation
+		server.state = serverStateRunning
+		server.actualPort = 0
+		server.mu.Unlock()
+
+		firstShutdownDone := make(chan error, 1)
+		go func() {
+			shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancelShutdown()
+			firstShutdownDone <- server.Shutdown(shutdownCtx)
+		}()
+		waitForServerSignal(t, listener.firstCloseStarted, "first generation-A listener close")
+
+		secondShutdownDone := make(chan error, 1)
+		go func() {
+			shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancelShutdown()
+			secondShutdownDone <- server.Shutdown(shutdownCtx)
+		}()
+		if err := waitForServerResult(t, secondShutdownDone, "second generation-A shutdown"); err != nil {
+			t.Fatalf("second generation-A Shutdown() error = %v", err)
+		}
+
+		server.port = 0
+		if err := server.Start(t.Context()); err != nil {
+			t.Fatalf("Start() generation B error = %v", err)
+		}
+		listener.releaseFirst()
+		if err := waitForServerResult(t, firstShutdownDone, "delayed generation-A shutdown"); err != nil {
+			t.Fatalf("delayed generation-A Shutdown() error = %v", err)
+		}
+
+		assertWindowManagerGenerationFunctional(t, server)
+	})
+
+	t.Run("Should reject start while an active request drains and rearm after drain", func(t *testing.T) {
+		t.Parallel()
+
+		entered := make(chan struct{}, 1)
+		release := make(chan struct{})
+		var releaseOnce sync.Once
+		releaseRequest := func() {
+			releaseOnce.Do(func() {
+				close(release)
+			})
+		}
+		server := newLifecycleServer(t, entered, release)
+		if err := server.Start(t.Context()); err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+		t.Cleanup(func() {
+			releaseRequest()
+			cleanupCtx, cancelCleanup := context.WithTimeout(context.WithoutCancel(t.Context()), 2*time.Second)
+			defer cancelCleanup()
+			if err := server.Shutdown(cleanupCtx); err != nil {
+				t.Errorf("Shutdown() cleanup error = %v", err)
+			}
+		})
+
+		requestDone := requestLifecycleBlock(t.Context(), server)
+		waitForServerSignal(t, entered, "in-flight session list request")
+
+		shutdownStarted := registerServerShutdownSignal(t, server)
+		shutdownDone := make(chan error, 1)
+		go func() {
+			shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancelShutdown()
+			shutdownDone <- server.Shutdown(shutdownCtx)
+		}()
+		waitForServerSignal(t, shutdownStarted, "HTTP shutdown to start draining")
+
+		startErr := server.Start(t.Context())
+		releaseRequest()
+
+		if err := waitForServerResult(t, requestDone, "session list request"); err != nil {
+			t.Fatal(err)
+		}
+		if err := waitForServerResult(t, shutdownDone, "shutdown"); err != nil {
+			t.Fatal(err)
+		}
+		if startErr == nil {
+			cleanupCtx, cancelCleanup := context.WithTimeout(context.WithoutCancel(t.Context()), time.Second)
+			defer cancelCleanup()
+			if err := server.Shutdown(cleanupCtx); err != nil {
+				t.Errorf("Shutdown() after unexpected concurrent Start error = %v", err)
+			}
+			t.Fatal("Start() during shutdown drain error = nil, want non-nil")
+		}
+
+		if err := server.Start(t.Context()); err != nil {
+			t.Fatalf("Start() after completed drain error = %v", err)
+		}
+		cleanupCtx, cancelCleanup := context.WithTimeout(context.WithoutCancel(t.Context()), time.Second)
+		defer cancelCleanup()
+		if err := server.Shutdown(cleanupCtx); err != nil {
+			t.Fatalf("Shutdown() after rearm error = %v", err)
+		}
+	})
+
+	t.Run("Should let concurrent shutdown callers keep independent contexts", func(t *testing.T) {
+		t.Parallel()
+
+		entered := make(chan struct{}, 1)
+		release := make(chan struct{})
+		var releaseOnce sync.Once
+		releaseRequest := func() {
+			releaseOnce.Do(func() {
+				close(release)
+			})
+		}
+		server := newLifecycleServer(t, entered, release)
+		if err := server.Start(t.Context()); err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+		t.Cleanup(func() {
+			releaseRequest()
+			cleanupCtx, cancelCleanup := context.WithTimeout(context.WithoutCancel(t.Context()), 2*time.Second)
+			defer cancelCleanup()
+			if err := server.Shutdown(cleanupCtx); err != nil {
+				t.Errorf("Shutdown() cleanup error = %v", err)
+			}
+		})
+
+		requestDone := requestLifecycleBlock(t.Context(), server)
+		waitForServerSignal(t, entered, "in-flight session list request")
+
+		shutdownStarted := registerServerShutdownSignal(t, server)
+		shortCtx, cancelShort := context.WithCancel(t.Context())
+		defer cancelShort()
+		firstShutdownDone := make(chan error, 1)
+		go func() {
+			firstShutdownDone <- server.Shutdown(shortCtx)
+		}()
+		waitForServerSignal(t, shutdownStarted, "first HTTP shutdown to start draining")
+		cancelShort()
+
+		secondShutdownDone := make(chan error, 1)
+		go func() {
+			secondCtx, cancelSecond := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancelSecond()
+			secondShutdownDone <- server.Shutdown(secondCtx)
+		}()
+
+		if err := waitForServerResult(t, firstShutdownDone, "first shutdown"); !errors.Is(err, context.Canceled) {
+			t.Fatalf("first Shutdown() error = %v, want context canceled", err)
+		}
+		select {
+		case err := <-secondShutdownDone:
+			t.Fatalf("second Shutdown() returned before drain completed: %v", err)
+		default:
+		}
+
+		releaseRequest()
+		if err := waitForServerResult(t, requestDone, "session list request"); err != nil {
+			t.Fatal(err)
+		}
+		if err := waitForServerResult(t, secondShutdownDone, "second shutdown"); err != nil {
+			t.Fatal(err)
+		}
+	})
 }
 
 func TestLoopbackServerAllowsSettingsAndExtensionMutations(t *testing.T) {
@@ -333,7 +600,7 @@ func TestLoopbackServerAllowsSettingsAndExtensionMutations(t *testing.T) {
 		t.Fatalf("Start() error = %v", err)
 	}
 	defer func() {
-		_ = server.Shutdown(context.Background())
+		shutdownServerForTest(t, server)
 	}()
 
 	testCases := []struct {
@@ -471,10 +738,10 @@ func TestLoopbackServerAllowsSettingsAndExtensionMutations(t *testing.T) {
 				tc.body,
 			)
 			defer func() {
-				_ = resp.Body.Close()
+				closeServerTestBody(t, resp.Body)
 			}()
 			if resp.StatusCode != tc.wantStatus {
-				body, _ := io.ReadAll(resp.Body)
+				body := readServerResponseBody(t, resp.Body)
 				t.Fatalf(
 					"%s %s status = %d, want %d; body=%s",
 					tc.method,
@@ -519,7 +786,7 @@ func TestLoopbackServerRejectsMismatchedSettingsItemNames(t *testing.T) {
 		t.Fatalf("Start() error = %v", err)
 	}
 	defer func() {
-		_ = server.Shutdown(context.Background())
+		shutdownServerForTest(t, server)
 	}()
 
 	readOnly := true
@@ -567,10 +834,10 @@ func TestLoopbackServerRejectsMismatchedSettingsItemNames(t *testing.T) {
 				tc.body,
 			)
 			defer func() {
-				_ = resp.Body.Close()
+				closeServerTestBody(t, resp.Body)
 			}()
 			if got, want := resp.StatusCode, http.StatusBadRequest; got != want {
-				body, _ := io.ReadAll(resp.Body)
+				body := readServerResponseBody(t, resp.Body)
 				t.Fatalf("PUT %s status = %d, want %d; body=%s", tc.path, got, want, string(body))
 			}
 
@@ -614,7 +881,7 @@ func TestLoopbackServerMapsDuplicateExtensionInstallToConflict(t *testing.T) {
 		t.Fatalf("Start() error = %v", err)
 	}
 	defer func() {
-		_ = server.Shutdown(context.Background())
+		shutdownServerForTest(t, server)
 	}()
 
 	resp := doServerRequest(
@@ -628,10 +895,10 @@ func TestLoopbackServerMapsDuplicateExtensionInstallToConflict(t *testing.T) {
 		}),
 	)
 	defer func() {
-		_ = resp.Body.Close()
+		closeServerTestBody(t, resp.Body)
 	}()
 	if got, want := resp.StatusCode, http.StatusConflict; got != want {
-		body, _ := io.ReadAll(resp.Body)
+		body := readServerResponseBody(t, resp.Body)
 		t.Fatalf("POST /api/extensions status = %d, want %d; body=%s", got, want, string(body))
 	}
 }
@@ -693,7 +960,7 @@ func TestNonLoopbackServerBlocksDaemonAPIRoutes(t *testing.T) {
 		t.Fatalf("Start() error = %v", err)
 	}
 	defer func() {
-		_ = server.Shutdown(context.Background())
+		shutdownServerForTest(t, server)
 	}()
 
 	readCases := []struct {
@@ -715,10 +982,10 @@ func TestNonLoopbackServerBlocksDaemonAPIRoutes(t *testing.T) {
 				nil,
 			)
 			defer func() {
-				_ = resp.Body.Close()
+				closeServerTestBody(t, resp.Body)
 			}()
 			if got, want := resp.StatusCode, http.StatusForbidden; got != want {
-				body, _ := io.ReadAll(resp.Body)
+				body := readServerResponseBody(t, resp.Body)
 				t.Fatalf("GET %s status = %d, want %d; body=%s", tc.path, got, want, string(body))
 			}
 			var payload contract.ErrorPayload
@@ -738,10 +1005,10 @@ func TestNonLoopbackServerBlocksDaemonAPIRoutes(t *testing.T) {
 			nil,
 		)
 		defer func() {
-			_ = resp.Body.Close()
+			closeServerTestBody(t, resp.Body)
 		}()
 		if got, want := resp.StatusCode, http.StatusForbidden; got != want {
-			body, _ := io.ReadAll(resp.Body)
+			body := readServerResponseBody(t, resp.Body)
 			t.Fatalf("GET /api/settings/observability/log-tail status = %d, want %d; body=%s", got, want, string(body))
 		}
 		var payload contract.ErrorPayload
@@ -760,10 +1027,10 @@ func TestNonLoopbackServerBlocksDaemonAPIRoutes(t *testing.T) {
 			nil,
 		)
 		defer func() {
-			_ = resp.Body.Close()
+			closeServerTestBody(t, resp.Body)
 		}()
 		if got, want := resp.StatusCode, http.StatusForbidden; got != want {
-			body, _ := io.ReadAll(resp.Body)
+			body := readServerResponseBody(t, resp.Body)
 			t.Fatalf("GET /api/vault/secrets status = %d, want %d; body=%s", got, want, string(body))
 		}
 		var payload contract.ErrorPayload
@@ -828,10 +1095,10 @@ func TestNonLoopbackServerBlocksDaemonAPIRoutes(t *testing.T) {
 				tc.body,
 			)
 			defer func() {
-				_ = resp.Body.Close()
+				closeServerTestBody(t, resp.Body)
 			}()
 			if got, want := resp.StatusCode, http.StatusForbidden; got != want {
-				body, _ := io.ReadAll(resp.Body)
+				body := readServerResponseBody(t, resp.Body)
 				t.Fatalf("%s %s status = %d, want %d; body=%s", tc.method, tc.path, got, want, string(body))
 			}
 			var payload contract.ErrorPayload
@@ -881,7 +1148,7 @@ func doServerRequest(t *testing.T, client *http.Client, method, url string, body
 func decodeServerJSON(t *testing.T, resp *http.Response, dest any) {
 	t.Helper()
 	defer func() {
-		_ = resp.Body.Close()
+		closeServerTestBody(t, resp.Body)
 	}()
 	if err := json.NewDecoder(resp.Body).Decode(dest); err != nil {
 		t.Fatalf("json.Decode() error = %v", err)
@@ -913,7 +1180,7 @@ func TestServerStartReportsListenFailure(t *testing.T) {
 		t.Fatalf("first Start() error = %v", err)
 	}
 	defer func() {
-		_ = first.Shutdown(context.Background())
+		shutdownServerForTest(t, first)
 	}()
 
 	second, err := New(
@@ -942,12 +1209,309 @@ func TestShutdownNilServerIsSafe(t *testing.T) {
 	}
 }
 
-func TestShutdownTimeoutIsReported(t *testing.T) {
-	server := &Server{serveDone: make(chan struct{})}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+type terminalServeListener struct {
+	net.Listener
+	acceptStarted chan struct{}
+	failure       chan error
+	closed        chan struct{}
+	acceptOnce    sync.Once
+	closeOnce     sync.Once
+	closeErr      error
+}
+
+func newTerminalServeListener(t *testing.T) *terminalServeListener {
+	t.Helper()
+
+	var listenConfig net.ListenConfig
+	listener, err := listenConfig.Listen(t.Context(), "tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("Listen() error = %v", err)
+	}
+	wrapped := &terminalServeListener{
+		Listener:      listener,
+		acceptStarted: make(chan struct{}),
+		failure:       make(chan error, 1),
+		closed:        make(chan struct{}),
+	}
+	t.Cleanup(func() {
+		if closeErr := wrapped.Close(); closeErr != nil && !errors.Is(closeErr, net.ErrClosed) {
+			t.Errorf("terminal listener Close() error = %v", closeErr)
+		}
+	})
+	return wrapped
+}
+
+func (l *terminalServeListener) Accept() (net.Conn, error) {
+	l.acceptOnce.Do(func() { close(l.acceptStarted) })
+	select {
+	case err := <-l.failure:
+		return nil, err
+	case <-l.closed:
+		return nil, net.ErrClosed
+	}
+}
+
+func (l *terminalServeListener) Close() error {
+	l.closeOnce.Do(func() {
+		close(l.closed)
+		l.closeErr = l.Listener.Close()
+	})
+	return l.closeErr
+}
+
+func (l *terminalServeListener) fail(err error) {
+	l.failure <- err
+}
+
+type delayedFirstCloseListener struct {
+	firstCloseStarted chan struct{}
+	release           chan struct{}
+	releaseOnce       sync.Once
+	closeCalls        atomic.Int64
+}
+
+func newDelayedFirstCloseListener() *delayedFirstCloseListener {
+	return &delayedFirstCloseListener{
+		firstCloseStarted: make(chan struct{}),
+		release:           make(chan struct{}),
+	}
+}
+
+func (l *delayedFirstCloseListener) Accept() (net.Conn, error) {
+	return nil, net.ErrClosed
+}
+
+func (l *delayedFirstCloseListener) Close() error {
+	if l.closeCalls.Add(1) == 1 {
+		close(l.firstCloseStarted)
+		<-l.release
+	}
+	return nil
+}
+
+func (l *delayedFirstCloseListener) Addr() net.Addr {
+	return &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1)}
+}
+
+func (l *delayedFirstCloseListener) releaseFirst() {
+	l.releaseOnce.Do(func() { close(l.release) })
+}
+
+func newWindowManagerLifecycleServer(t *testing.T) *Server {
+	t.Helper()
+
+	manager, err := windowmanager.NewService(
+		windowmanager.NewMemoryRepository(),
+		windowmanager.NewMemoryWorkspaceResolver("workspace-a"),
+		nil,
+		windowmanager.DefaultConfig(),
+	)
+	if err != nil {
+		t.Fatalf("windowmanager.NewService() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := manager.Close(); closeErr != nil {
+			t.Errorf("window manager Close() error = %v", closeErr)
+		}
+	})
+
+	homePaths := newTestHomePaths(t)
+	cfg := testConfigWithDisabledNetwork(homePaths)
+	cfg.HTTP.Host = "127.0.0.1"
+	server, err := New(
+		WithHomePaths(homePaths),
+		WithConfig(&cfg),
+		WithHost(cfg.HTTP.Host),
+		WithLogger(discardLogger()),
+		WithSessionManager(stubSessionManager{}),
+		WithTaskService(&stubTaskManager{}),
+		WithObserver(stubObserver{}),
+		WithWorkspaceResolver(stubWorkspaceService{}),
+		WithWindowManagerService(manager),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	return server
+}
+
+func assertWindowManagerGenerationFunctional(t *testing.T, server *Server) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(t.Context()), 2*time.Second)
 	defer cancel()
-	err := server.Shutdown(ctx)
-	if err == nil || !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatalf("Shutdown(timeout) error = %v, want deadline exceeded", err)
+	streamURL := fmt.Sprintf(
+		"ws://127.0.0.1:%d/api/workspaces/workspace-a/window-manager/stream",
+		server.Port(),
+	)
+	connection, response, err := websocket.DefaultDialer.DialContext(ctx, streamURL, nil)
+	if err != nil {
+		dialErr := err
+		var responseStatus string
+		var responseBody []byte
+		if response != nil {
+			responseStatus = response.Status
+			if response.Body != nil {
+				var readErr error
+				responseBody, readErr = io.ReadAll(response.Body)
+				closeErr := response.Body.Close()
+				if readErr != nil {
+					dialErr = errors.Join(dialErr, fmt.Errorf("read failed websocket response: %w", readErr))
+				}
+				if closeErr != nil {
+					dialErr = errors.Join(dialErr, fmt.Errorf("close failed websocket response: %w", closeErr))
+				}
+			}
+		}
+		t.Fatalf("DialContext() error = %v, response = %q body = %q", dialErr, responseStatus, responseBody)
+	}
+	t.Cleanup(func() {
+		if closeErr := connection.Close(); closeErr != nil {
+			t.Errorf("window-manager websocket Close() error = %v", closeErr)
+		}
+	})
+	if deadlineErr := connection.SetReadDeadline(time.Now().Add(2 * time.Second)); deadlineErr != nil {
+		t.Fatalf("SetReadDeadline() error = %v", deadlineErr)
+	}
+	var frame contract.WindowManagerSnapshotFrame
+	if readErr := connection.ReadJSON(&frame); readErr != nil {
+		t.Fatalf("ReadJSON(snapshot) error = %v", readErr)
+	}
+	if frame.Type != contract.WindowManagerFrameSnapshot || frame.WorkspaceID != "workspace-a" {
+		t.Fatalf("snapshot frame = %+v", frame)
+	}
+}
+
+func newLifecycleServer(t *testing.T, entered chan<- struct{}, release <-chan struct{}) *Server {
+	t.Helper()
+
+	homePaths := newTestHomePaths(t)
+	cfg := testConfigWithDisabledNetwork(homePaths)
+	cfg.HTTP.Host = "127.0.0.1"
+	cfg.HTTP.Port = freeTCPPort(t)
+	engine := gin.New()
+	engine.GET("/lifecycle-block", func(c *gin.Context) {
+		select {
+		case entered <- struct{}{}:
+		default:
+		}
+		<-release
+		c.Status(http.StatusNoContent)
+	})
+
+	server, err := New(
+		WithHomePaths(homePaths),
+		WithConfig(&cfg),
+		WithHost(cfg.HTTP.Host),
+		WithPort(cfg.HTTP.Port),
+		WithLogger(discardLogger()),
+		WithSessionManager(stubSessionManager{}),
+		WithTaskService(&stubTaskManager{}),
+		WithObserver(stubObserver{}),
+		WithWorkspaceResolver(stubWorkspaceService{}),
+		WithEngine(engine),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	return server
+}
+
+func shutdownServerForTest(t *testing.T, server *Server) {
+	t.Helper()
+
+	if err := server.Shutdown(context.Background()); err != nil {
+		t.Errorf("server.Shutdown() error = %v", err)
+	}
+}
+
+func readServerResponseBody(t *testing.T, body io.Reader) []byte {
+	t.Helper()
+
+	data, err := io.ReadAll(body)
+	if err != nil {
+		t.Fatalf("read server response body: %v", err)
+	}
+	return data
+}
+
+func closeServerTestBody(t *testing.T, body io.Closer) {
+	t.Helper()
+
+	if err := body.Close(); err != nil {
+		t.Errorf("close server response body: %v", err)
+	}
+}
+
+func requestLifecycleBlock(ctx context.Context, server *Server) <-chan error {
+	result := make(chan error, 1)
+	go func() {
+		req, err := http.NewRequestWithContext(
+			ctx,
+			http.MethodGet,
+			mustURL("127.0.0.1", server.Port(), "/lifecycle-block"),
+			http.NoBody,
+		)
+		if err != nil {
+			result <- fmt.Errorf("new lifecycle request: %w", err)
+			return
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			result <- fmt.Errorf("send lifecycle request: %w", err)
+			return
+		}
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("close lifecycle response: %w", closeErr))
+		}
+		if err == nil && resp.StatusCode != http.StatusNoContent {
+			err = fmt.Errorf("lifecycle response status = %d, want %d", resp.StatusCode, http.StatusNoContent)
+		}
+		result <- err
+	}()
+	return result
+}
+
+func registerServerShutdownSignal(t *testing.T, server *Server) <-chan struct{} {
+	t.Helper()
+
+	server.mu.Lock()
+	generation := server.generation
+	server.mu.Unlock()
+	if generation == nil || generation.httpServer == nil {
+		t.Fatal("HTTP server was not initialized")
+	}
+	started := make(chan struct{})
+	var once sync.Once
+	generation.httpServer.RegisterOnShutdown(func() {
+		once.Do(func() {
+			close(started)
+		})
+	})
+	return started
+}
+
+func waitForServerSignal(t *testing.T, signal <-chan struct{}, name string) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(t.Context()), 2*time.Second)
+	defer cancel()
+	select {
+	case <-signal:
+	case <-ctx.Done():
+		t.Fatalf("timed out waiting for %s: %v", name, ctx.Err())
+	}
+}
+
+func waitForServerResult(t *testing.T, result <-chan error, name string) error {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(t.Context()), 2*time.Second)
+	defer cancel()
+	select {
+	case err := <-result:
+		return err
+	case <-ctx.Done():
+		return fmt.Errorf("timed out waiting for %s: %w", name, ctx.Err())
 	}
 }

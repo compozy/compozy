@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,6 +11,10 @@ import (
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	"github.com/spf13/cobra"
 )
+
+type bridgeReadClient interface {
+	GetBridge(context.Context, string) (BridgeRecord, error)
+}
 
 const (
 	bridgeDeliveryDefaultsFlag = "delivery-defaults"
@@ -267,7 +272,7 @@ func runBridgeUpdateCommand(cmd *cobra.Command, deps commandDeps, id string, fla
 
 func buildBridgeUpdateRequest(
 	cmd *cobra.Command,
-	client DaemonClient,
+	client bridgeReadClient,
 	id string,
 	flags bridgeUpdateFlags,
 ) (UpdateBridgeRequest, error) {

@@ -27,19 +27,19 @@ func DiagnosticItem(providerName string, classification Classification) diagcont
 	if strings.TrimSpace(providerName) != "" {
 		id = "provider." + strings.TrimSpace(providerName) + ".auth"
 	}
-	return diagnostics.NewItem(
-		id,
-		code,
-		diagcontract.CategoryProvider,
-		title,
-		message,
-		severity,
-		diagcontract.FreshnessLive,
-		diagnostics.WithSuggestedCommand(SuggestedCommand(providerName, classification)),
+	return diagnostics.NewItem(diagnostics.ItemSpec{
+		ID:            id,
+		Code:          code,
+		Category:      diagcontract.CategoryProvider,
+		Title:         title,
+		Message:       message,
+		Severity:      severity,
+		DataFreshness: diagcontract.FreshnessLive,
+	},
 		diagnostics.WithEvidence(map[string]any{
 			"provider": strings.TrimSpace(providerName),
 			"state":    string(classification.State),
-			"action":   string(classification.Action),
+			"action":   string(actionForClassification(classification)),
 		}),
 	)
 }
@@ -55,27 +55,6 @@ func severityForCode(code string) string {
 		return diagcontract.SeverityInfo
 	default:
 		return diagcontract.SeverityWarn
-	}
-}
-
-// SuggestedCommand returns the canonical operator command for a provider-auth classification.
-func SuggestedCommand(providerName string, classification Classification) string {
-	name := strings.TrimSpace(providerName)
-	if name == "" {
-		return "compozy provider auth status"
-	}
-	switch actionForClassification(classification) {
-	case ProviderFailureActionLogin:
-		return "compozy provider auth login " + name
-	case ProviderFailureActionBindSecret,
-		ProviderFailureActionInstallCLI,
-		ProviderFailureActionInspect,
-		ProviderFailureActionNoRetry:
-		return "compozy provider auth status " + name
-	case ProviderFailureActionRetry:
-		return "compozy provider auth status " + name + " --remote"
-	default:
-		return ""
 	}
 }
 

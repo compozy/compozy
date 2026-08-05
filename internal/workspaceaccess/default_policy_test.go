@@ -64,7 +64,7 @@ func TestDefaultPolicyAuthorize(t *testing.T) {
 		req := testRequest(ActorAgentSession, testWorkspaceA, "")
 
 		decision, err := policy.Authorize(testutil.Context(t), req)
-		assertErrorContains(t, err, `target workspace id "" is not canonical`)
+		assertErrorIsContains(t, err, ErrInvalidRequest, `target workspace id "" is not canonical`)
 		assertDenied(t, decision, false)
 		if modes.calls != 0 {
 			t.Fatalf("mode source calls = %d, want zero", modes.calls)
@@ -234,7 +234,7 @@ func TestDefaultPolicyAuthorize(t *testing.T) {
 					testutil.Context(t),
 					testRequest(ActorAgentSession, testWorkspaceA, target),
 				)
-				assertErrorContains(t, err, "is not canonical")
+				assertErrorIsContains(t, err, ErrInvalidRequest, "is not canonical")
 				assertDenied(t, decision, false)
 				if modes.calls != 0 {
 					t.Fatalf("Authorize(target=%q) mode calls = %d, want zero", target, modes.calls)
@@ -265,7 +265,7 @@ func TestDefaultPolicyAuthorize(t *testing.T) {
 		req := testRequest(ActorKind("unknown"), testWorkspaceA, testWorkspaceB)
 
 		decision, err := policy.Authorize(testutil.Context(t), req)
-		assertErrorContains(t, err, "unknown actor kind")
+		assertErrorIsContains(t, err, ErrInvalidRequest, "unknown actor kind")
 		assertDenied(t, decision, false)
 		if len(audit.records) != 1 || audit.records[0].Err == "" {
 			t.Fatalf("audit records = %#v, want one error denial", audit.records)
@@ -293,7 +293,7 @@ func TestDefaultPolicyAuthorize(t *testing.T) {
 				consent := &consentCacheStub{consent: ConsentAllow, ok: true}
 				policy := newPolicyForTest(t, modes, consent, &auditEmitterSpy{}, slog.Default())
 				decision, err := policy.Authorize(testutil.Context(t), tc.req)
-				assertErrorContains(t, err, tc.wantErr)
+				assertErrorIsContains(t, err, ErrInvalidRequest, tc.wantErr)
 				assertDenied(t, decision, false)
 				if modes.calls != 0 || consent.calls != 0 {
 					t.Fatalf("dependency calls = modes:%d consent:%d, want zero", modes.calls, consent.calls)
@@ -563,6 +563,14 @@ func assertErrorContains(t *testing.T, err error, want string) {
 	if err == nil || !strings.Contains(err.Error(), want) {
 		t.Fatalf("error = %v, want substring %q", err, want)
 	}
+}
+
+func assertErrorIsContains(t *testing.T, err error, target error, want string) {
+	t.Helper()
+	if !errors.Is(err, target) {
+		t.Fatalf("error = %v, want errors.Is(%v)", err, target)
+	}
+	assertErrorContains(t, err, want)
 }
 
 func assertDenied(t *testing.T, decision Decision, promptEligible bool) {

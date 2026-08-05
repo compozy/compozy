@@ -33,10 +33,10 @@ func WithStore(opener StoreOpener) Option {
 		if !manager.queryStoreExplicit {
 			manager.openQueryStore = func(
 				ctx context.Context,
-				sessionID string,
+				owner store.SessionDBOwner,
 				path string,
 			) (EventReadCloser, error) {
-				return opener(ctx, sessionID, path)
+				return opener(ctx, owner, path)
 			}
 		}
 	}

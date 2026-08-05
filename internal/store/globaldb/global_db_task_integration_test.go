@@ -182,7 +182,7 @@ func TestGlobalDBTaskRunSessionAttachmentSurvivesReopen(t *testing.T) {
 	storedQueued.NetworkSpec = participation.LocalSpec()
 	storedQueued.RequiredCapabilities = []string{"golang", "sqlite"}
 	storedQueued.PreferredCapabilities = []string{"claude", "codex"}
-	if err := second.UpdateTaskRun(ctx, storedQueued); err != nil {
+	if err := second.UpdateNonTerminalTaskRun(ctx, storedQueued); err != nil {
 		t.Fatalf("UpdateTaskRun(attached) error = %v", err)
 	}
 

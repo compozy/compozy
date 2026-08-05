@@ -96,6 +96,32 @@ compozy task complete run-123 \
 
 The optional result JSON must not contain raw lease credentials.
 
+### Direct terminal actions for non-leased runs
+
+The session-bound `compozy task complete` command and `compozy__task_run_complete` tool use the
+lease protocol described above. Management surfaces use a separate path for a non-leased run — a
+run without a session-bound claim token:
+
+```bash
+compozy task run complete run-123 --result '{"summary":"tests passed"}'
+compozy task run fail run-123 --error "tests failed"
+compozy task run cancel run-123 --reason "operator stopped the work"
+```
+
+The equivalent HTTP and UDS routes are `POST /api/task-runs/{id}/complete`,
+`POST /api/task-runs/{id}/fail`, and `POST /api/task-runs/{id}/cancel`.
+
+When a non-leased run has an active session, Compozy records the chosen terminal action durably,
+stops the session, and only then commits the run state, reconciled task state, and canonical event
+in one transaction. A competing or repeated terminal action while the stop is underway returns a
+conflict (`409`). Inspect the run and wait; do not switch between complete, fail, and cancel or retry
+blindly.
+
+If the daemon restarts after recording the action or requesting the stop, startup resumes that same
+action before ordinary run recovery. It does not admit a different outcome or append a second
+terminal event. Session-bound leased runs continue to use the token-fenced autonomy tool and
+`compozy task complete`/`compozy task fail --error` paths.
+
 ### Parent task rollup
 
 A parent task remains nonterminal until every direct child completes successfully. Completing the
@@ -146,7 +172,7 @@ compozy__task_run_fail  { "run_id": "run-123", "error": "tests failed", "metadat
 CLI path:
 
 ```bash
-compozy task run fail run-123 \
+compozy task fail run-123 \
   --error "tests failed" \
   --metadata '{"command":"make test"}'
 ```
@@ -230,6 +256,11 @@ subtree must stop receiving new claims.
 | Scheduler backlog | `compozy scheduler backlog --include-paused`      | `GET /api/scheduler/backlog`  | Lists queued runs in scheduler order.        |
 | Task pause        | `compozy task pause task-123 --reason "incident"` | `POST /api/tasks/{id}/pause`  | Stops new claims for that task subtree.      |
 | Task resume       | `compozy task resume task-123`                    | `POST /api/tasks/{id}/resume` | Clears the direct task pause.                |
+
+Scheduler drain accepts whole-second timeouts from `0s` through `9223372036s`. The HTTP and UDS
+request field is `timeout_seconds`; a value outside that range returns `422`, while malformed JSON
+returns `400`. Omitting the timeout uses the `60s` default, and `0s` returns immediately after
+pausing dispatch.
 
 Task pause is inherited by descendants through typed task columns. Backlog responses expose
 `effective_paused` and `paused_by_task_id` so agents can tell whether a queued run is blocked by

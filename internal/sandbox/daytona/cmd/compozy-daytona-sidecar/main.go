@@ -135,6 +135,10 @@ type managedProcess struct {
 }
 
 func newManagedProcess(command string) (*managedProcess, error) {
+	processID, err := randomID()
+	if err != nil {
+		return nil, err
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cmd := exec.CommandContext(ctx, "/bin/sh", "-lc", command)
 	procutil.ConfigureCommandProcessGroup(cmd)
@@ -165,7 +169,7 @@ func newManagedProcess(command string) (*managedProcess, error) {
 		)
 	}
 	process := &managedProcess{
-		id:       randomID(),
+		id:       processID,
 		command:  command,
 		cmd:      cmd,
 		cancel:   cancel,
@@ -196,7 +200,7 @@ func cleanupStartedManagedCommand(cmd *exec.Cmd) error {
 
 func (p *managedProcess) captureStdout(stdout io.ReadCloser) {
 	defer p.stdout.Close()
-	defer stdout.Close()
+	defer p.reportPipeClose("stdout", stdout)
 	buf := make([]byte, 64*1024)
 	for {
 		n, err := stdout.Read(buf)
@@ -219,7 +223,7 @@ func (p *managedProcess) captureStdout(stdout io.ReadCloser) {
 }
 
 func (p *managedProcess) captureStderr(stderr io.ReadCloser) {
-	defer stderr.Close()
+	defer p.reportPipeClose("stderr", stderr)
 	buf := make([]byte, 64*1024)
 	for {
 		n, err := stderr.Read(buf)
@@ -235,18 +239,31 @@ func (p *managedProcess) captureStderr(stderr io.ReadCloser) {
 	}
 }
 
+func (p *managedProcess) reportPipeClose(name string, pipe io.Closer) {
+	if err := pipe.Close(); err != nil {
+		p.appendStderr(fmt.Sprintf("%s close error: %v\n", name, err))
+	}
+}
+
 func (p *managedProcess) wait() {
 	defer close(p.done)
-	if err := p.cmd.Wait(); err != nil {
-		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
+	waitErr := p.cmd.Wait()
+	if waitErr != nil {
+		if exitErr, ok := errors.AsType[*exec.ExitError](waitErr); ok {
 			p.exitCode = exitErr.ExitCode()
-			return
+		} else {
+			p.appendStderr(fmt.Sprintf("wait error: %v\n", waitErr))
+			p.exitCode = 1
 		}
-		p.appendStderr(fmt.Sprintf("wait error: %v\n", err))
-		p.exitCode = 1
-		return
+	} else {
+		p.exitCode = 0
 	}
-	p.exitCode = 0
+	if err := procutil.KillCommandProcessGroupAndWait(p.cmd, stopTimeout); err != nil {
+		p.appendStderr(fmt.Sprintf("release process group error: %v\n", err))
+		if p.exitCode == 0 {
+			p.exitCode = 1
+		}
+	}
 }
 
 func (p *managedProcess) WriteStdin(data []byte) error {

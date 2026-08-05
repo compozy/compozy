@@ -67,9 +67,6 @@ func ProbeTargets(ctx context.Context, targets []ProbeTarget, opts ProbeOptions)
 
 // ProbeTargetCommand checks one target command by resolving its executable.
 func ProbeTargetCommand(ctx context.Context, target ProbeTarget, opts ProbeOptions) (result ProbeResult) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	now := opts.Now
 	if now == nil {
 		now = timeNowUTC
@@ -96,6 +93,11 @@ func ProbeTargetCommand(ctx context.Context, target ProbeTarget, opts ProbeOptio
 		result.DurationMS = max(time.Since(start).Milliseconds(), 0)
 	}()
 
+	if ctx == nil {
+		result.Status = ProbeStatusInvalid
+		result.Error = "acp: probe context is required"
+		return result
+	}
 	if err := ctx.Err(); err != nil {
 		result.Status = probeStatusFromContext(err)
 		result.Error = diagnostics.RedactAndBound(err.Error(), maxFailureSummaryBytes)

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 )
 
 // DeliveryMode identifies daemon-owned outbound delivery behavior.
@@ -12,30 +13,17 @@ type DeliveryMode string
 const (
 	DeliveryModeDirectSend DeliveryMode = "direct-send"
 	DeliveryModeReply      DeliveryMode = "reply"
-	deliveryModeSendAlias               = "send"
 )
-
-// Normalize returns the canonical delivery mode.
-func (m DeliveryMode) Normalize() DeliveryMode {
-	switch normalized := strings.ToLower(strings.TrimSpace(string(m))); normalized {
-	case "direct", "direct-send", "direct_send", deliveryModeSendAlias:
-		return DeliveryModeDirectSend
-	case "reply", "reply-send", "reply_send":
-		return DeliveryModeReply
-	default:
-		return DeliveryMode(normalized)
-	}
-}
 
 // Validate reports whether the delivery mode is supported.
 func (m DeliveryMode) Validate() error {
-	switch m.Normalize() {
+	switch m {
 	case DeliveryModeDirectSend, DeliveryModeReply:
 		return nil
 	case "":
 		return errors.New("bridges: delivery target mode is required")
 	default:
-		return fmt.Errorf("bridges: unsupported delivery target mode %q", strings.TrimSpace(string(m)))
+		return fmt.Errorf("bridges: unsupported delivery target mode %q", m)
 	}
 }
 
@@ -48,30 +36,36 @@ type DeliveryTarget struct {
 	Mode             DeliveryMode `json:"mode,omitempty"`
 }
 
-// NormalizeDeliveryTarget returns the canonical wire destination.
-func NormalizeDeliveryTarget(target DeliveryTarget) DeliveryTarget {
-	return target.normalize()
-}
-
 // Validate reports whether the target contains the required identity.
 func (t DeliveryTarget) Validate() error {
-	normalized := t.normalize()
-	if err := requireField(normalized.BridgeInstanceID, "delivery target bridge instance id"); err != nil {
+	if err := requireOpaqueIdentity(t.BridgeInstanceID, "delivery target bridge instance id"); err != nil {
 		return err
 	}
-	if err := normalized.Mode.Validate(); err != nil {
+	for _, field := range []struct {
+		value string
+		label string
+	}{
+		{value: t.PeerID, label: "delivery target peer id"},
+		{value: t.ThreadID, label: "delivery target thread id"},
+		{value: t.GroupID, label: "delivery target group id"},
+	} {
+		if err := validateOptionalOpaqueIdentity(field.value, field.label); err != nil {
+			return err
+		}
+	}
+	if err := t.Mode.Validate(); err != nil {
 		return err
 	}
-	if normalized.ThreadID != "" && normalized.PeerID == "" && normalized.GroupID == "" {
+	if t.ThreadID != "" && t.PeerID == "" && t.GroupID == "" {
 		return fmt.Errorf(
 			"bridges: delivery target thread id requires peer id or group id for mode %q",
-			normalized.Mode,
+			t.Mode,
 		)
 	}
-	if normalized.PeerID == "" && normalized.GroupID == "" {
+	if t.PeerID == "" && t.GroupID == "" {
 		return fmt.Errorf(
 			"bridges: delivery target mode %q requires peer id or group id",
-			normalized.Mode,
+			t.Mode,
 		)
 	}
 	return nil
@@ -79,18 +73,8 @@ func (t DeliveryTarget) Validate() error {
 
 // IsZero reports whether the target carries any values.
 func (t DeliveryTarget) IsZero() bool {
-	normalized := t.normalize()
-	return normalized.BridgeInstanceID == "" && normalized.PeerID == "" &&
-		normalized.ThreadID == "" && normalized.GroupID == "" && normalized.Mode == ""
-}
-
-func (t DeliveryTarget) normalize() DeliveryTarget {
-	t.BridgeInstanceID = strings.TrimSpace(t.BridgeInstanceID)
-	t.PeerID = strings.TrimSpace(t.PeerID)
-	t.ThreadID = strings.TrimSpace(t.ThreadID)
-	t.GroupID = strings.TrimSpace(t.GroupID)
-	t.Mode = t.Mode.Normalize()
-	return t
+	return t.BridgeInstanceID == "" && t.PeerID == "" &&
+		t.ThreadID == "" && t.GroupID == "" && t.Mode == ""
 }
 
 // MessageSender identifies the upstream actor that produced a message.
@@ -233,6 +217,9 @@ func NormalizeDeliveryMessageReference(reference DeliveryMessageReference) Deliv
 // Validate reports whether the reference carries a prior message handle.
 func (r DeliveryMessageReference) Validate() error {
 	normalized := r.normalize()
+	if normalized.DeliveryID != "" && !utf8.ValidString(normalized.DeliveryID) {
+		return errors.New("bridges: delivery reference delivery id must be valid UTF-8")
+	}
 	if normalized.DeliveryID == "" && normalized.RemoteMessageID == "" {
 		return errors.New("bridges: delivery reference requires delivery id or remote message id")
 	}
@@ -241,7 +228,7 @@ func (r DeliveryMessageReference) Validate() error {
 
 func (r DeliveryMessageReference) normalize() DeliveryMessageReference {
 	return DeliveryMessageReference{
-		DeliveryID: strings.TrimSpace(r.DeliveryID), RemoteMessageID: strings.TrimSpace(r.RemoteMessageID),
+		DeliveryID: r.DeliveryID, RemoteMessageID: strings.TrimSpace(r.RemoteMessageID),
 	}
 }
 
@@ -339,14 +326,14 @@ func (a DeliveryAck) ValidateFor(event DeliveryEvent) error {
 	if err := normalized.Outcome.Validate(); err != nil {
 		return err
 	}
-	if normalized.DeliveryID == "" {
-		return errors.New("bridges: delivery ack delivery id is required")
+	if err := requireOpaqueIdentity(normalized.DeliveryID, "delivery ack delivery id"); err != nil {
+		return err
 	}
-	if normalized.DeliveryID != strings.TrimSpace(event.DeliveryID) {
+	if normalized.DeliveryID != event.DeliveryID {
 		return fmt.Errorf(
 			"bridges: delivery ack delivery id %q does not match event %q",
 			normalized.DeliveryID,
-			strings.TrimSpace(event.DeliveryID),
+			event.DeliveryID,
 		)
 	}
 	if normalized.Seq != event.Seq {
@@ -356,7 +343,6 @@ func (a DeliveryAck) ValidateFor(event DeliveryEvent) error {
 }
 
 func (a DeliveryAck) normalize() DeliveryAck {
-	a.DeliveryID = strings.TrimSpace(a.DeliveryID)
 	a.RemoteMessageID = strings.TrimSpace(a.RemoteMessageID)
 	a.ReplaceRemoteMessageID = strings.TrimSpace(a.ReplaceRemoteMessageID)
 	a.Outcome = a.Outcome.Normalize()

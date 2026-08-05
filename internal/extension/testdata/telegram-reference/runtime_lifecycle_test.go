@@ -6,7 +6,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -57,11 +56,11 @@ func TestTelegramReferenceShutdownCancellation(t *testing.T) {
 		)
 
 		initializeTelegramRuntimeRuntime(t, hostPeer, now, managed)
-		if err := appendJSONLine(
+		if err := appendJSONLineForTest(
 			env.updatesPath,
 			telegramRuntimeUpdate(now, managed.Instance.ID, 9001, "blocked ingest"),
 		); err != nil {
-			t.Fatalf("appendJSONLine(update) error = %v", err)
+			t.Fatalf("appendJSONLineForTest(update) error = %v", err)
 		}
 		select {
 		case <-started:
@@ -72,17 +71,17 @@ func TestTelegramReferenceShutdownCancellation(t *testing.T) {
 		shutdownDeadline := 2 * time.Second
 		maxCancellationLatency := shutdownDeadline / 2
 		startedAt := time.Now()
-		if err := runtime.handleShutdown(
+		if err := runtime.lifecycle.Shutdown(
 			context.Background(),
 			nil,
 			subprocess.ShutdownRequest{DeadlineMS: int64(shutdownDeadline / time.Millisecond)},
 		); err != nil {
-			t.Fatalf("handleShutdown() error = %v", err)
+			t.Fatalf("ProviderLifecycle.Shutdown() error = %v", err)
 		}
 		if elapsed := time.Since(startedAt); elapsed > maxCancellationLatency {
 			releaseOnce.Do(func() { close(release) })
 			t.Fatalf(
-				"handleShutdown() took %s, want lifecycle cancellation well before %s drain deadline",
+				"ProviderLifecycle.Shutdown() took %s, want cancellation before %s drain deadline",
 				elapsed,
 				shutdownDeadline,
 			)
@@ -99,31 +98,12 @@ func TestTelegramReferenceShutdownCancellation(t *testing.T) {
 
 func TestTelegramReferenceAuthStatus(t *testing.T) {
 	t.Run("Should classify whitespace-only cached bot token as auth required", func(t *testing.T) {
-		runtime, hostPeer, cleanup := newRuntimePeerPair(t)
-		defer cleanup()
-
 		now := time.Date(2026, 5, 16, 23, 40, 0, 0, time.UTC)
 		managed := telegramRuntimeManagedInstance(now, "brg-telegram-reference")
-		handleTelegramRuntimeLifecycle(t, hostPeer, managed)
-		recordTelegramRuntimeIngests(t, hostPeer)
-		initializeTelegramRuntimeRuntime(t, hostPeer, now, managed)
-
 		managed.BoundSecrets = []subprocess.InitializeBridgeBoundSecret{
 			{BindingName: "bot_token", Kind: "token", Value: "   "},
 		}
-		session := runtime.sdk.Session()
-		session.Cache().Reset(&subprocess.InitializeBridgeRuntime{
-			RuntimeVersion:   subprocess.InitializeBridgeRuntimeVersion2,
-			Purpose:          subprocess.BridgeRuntimePurposeService,
-			Provider:         "telegram-reference",
-			Platform:         "telegram",
-			ManagedInstances: []subprocess.InitializeBridgeManagedInstance{managed},
-		})
-
-		if got, want := bridgeStatusForManaged(
-			session,
-			managed.Instance.ID,
-		), bridgepkg.BridgeStatusAuthRequired; got != want {
+		if got, want := bridgeStatusForManaged(managed), bridgepkg.BridgeStatusAuthRequired; got != want {
 			t.Fatalf("bridgeStatusForManaged() = %q, want %q", got, want)
 		}
 	})
@@ -164,39 +144,6 @@ func TestTelegramReferenceMalformedUpdateProgress(t *testing.T) {
 			return len(items) > 0 &&
 				items[len(items)-1].Content.Text == "valid after malformed"
 		})
-	})
-}
-
-func TestTelegramReferenceSideEffectAppend(t *testing.T) {
-	t.Run("Should preserve pre-existing file contents on first append after restart", func(t *testing.T) {
-		resetTelegramRuntimeSideEffectSnapshots()
-		t.Cleanup(resetTelegramRuntimeSideEffectSnapshots)
-
-		jsonlPath := filepath.Join(tempSideEffectDir(t, "compozy-telegram-reference-side-effect-"), "data.jsonl")
-		if err := os.MkdirAll(filepath.Dir(jsonlPath), 0o700); err != nil {
-			t.Fatalf("os.MkdirAll(jsonl dir) error = %v", err)
-		}
-		if err := os.WriteFile(jsonlPath, []byte("{\"existing\":true}\n"), 0o600); err != nil {
-			t.Fatalf("os.WriteFile(existing jsonl) error = %v", err)
-		}
-		if err := appendJSONLine(jsonlPath, map[string]bool{"next": true}); err != nil {
-			t.Fatalf("appendJSONLine(next) error = %v", err)
-		}
-
-		payload, err := os.ReadFile(jsonlPath)
-		if err != nil {
-			t.Fatalf("os.ReadFile(jsonl) error = %v", err)
-		}
-		lines := nonEmptyLines(string(payload))
-		if got, want := len(lines), 2; got != want {
-			t.Fatalf("len(lines) = %d, want %d: %#v", got, want, lines)
-		}
-		if !strings.Contains(lines[0], "\"existing\":true") {
-			t.Fatalf("lines[0] = %q, want existing payload", lines[0])
-		}
-		if !strings.Contains(lines[1], "\"next\":true") {
-			t.Fatalf("lines[1] = %q, want next payload", lines[1])
-		}
 	})
 }
 
@@ -349,10 +296,4 @@ func waitForTelegramRuntimeCondition(t *testing.T, condition func() bool) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatal("condition did not succeed before timeout")
-}
-
-func resetTelegramRuntimeSideEffectSnapshots() {
-	sideEffectSnapshots.mu.Lock()
-	defer sideEffectSnapshots.mu.Unlock()
-	sideEffectSnapshots.payload = make(map[sideEffectPath][]byte)
 }

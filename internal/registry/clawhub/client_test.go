@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"net/url"
 	"slices"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/outboundpolicy"
 	"github.com/compozy/compozy/internal/registry"
 )
 
@@ -380,7 +382,7 @@ func TestClientDownloadUsesLatestEndpointWhenVersionEmpty(t *testing.T) {
 
 		writer.Header().Set("Content-Type", "application/gzip")
 		writer.Header().Set("X-Skill-Version", "1.2.0")
-		_, _ = writer.Write(archive)
+		writeClawHubTestResponse(t, writer, archive)
 	}))
 	defer server.Close()
 
@@ -426,7 +428,7 @@ func TestClientDownloadUsesVersionedEndpointWhenVersionSpecified(t *testing.T) {
 
 		writer.Header().Set("Content-Type", "application/gzip")
 		writer.Header().Set("X-Skill-Version", "1.2.3")
-		_, _ = writer.Write(mustTarGz(t, map[string]string{"review/SKILL.md": "ok"}))
+		writeClawHubTestResponse(t, writer, mustTarGz(t, map[string]string{"review/SKILL.md": "ok"}))
 	}))
 	defer server.Close()
 
@@ -490,7 +492,9 @@ func TestClientRetriesHTTP500WithBackoff(t *testing.T) {
 		}
 
 		writer.Header().Set("Content-Type", "application/json")
-		_, _ = writer.Write(
+		writeClawHubTestResponse(
+			t,
+			writer,
 			[]byte(
 				`{"skills":[{"slug":"@compozy/review","name":"Review","description":"Review code","author":"compozy","version":"1.2.0","downloads":42}]}`,
 			),
@@ -519,6 +523,82 @@ func TestClientRetriesHTTP500WithBackoff(t *testing.T) {
 	}
 	if !slices.Equal(waits, []time.Duration{time.Millisecond, 2 * time.Millisecond, 4 * time.Millisecond}) {
 		t.Fatalf("waits = %#v, want [1ms 2ms 4ms]", waits)
+	}
+
+	var retryBody *scriptedErrorReadCloser
+	cleanupAttempts := 0
+	cleanupClient := NewClient(
+		"https://example.com",
+		WithHTTPClient(&http.Client{
+			Transport: clawHubRoundTripperFunc(func(request *http.Request) (*http.Response, error) {
+				cleanupAttempts++
+				if cleanupAttempts == 1 {
+					retryBody = &scriptedErrorReadCloser{}
+					return &http.Response{
+						StatusCode: http.StatusInternalServerError,
+						Status:     "500 Internal Server Error",
+						Header:     make(http.Header),
+						Body:       retryBody,
+						Request:    request,
+					}, nil
+				}
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Status:     "200 OK",
+					Header:     http.Header{"Content-Type": []string{"application/json"}},
+					Body: io.NopCloser(strings.NewReader(
+						`{"skills":[{"slug":"@compozy/review","name":"Review"}]}`,
+					)),
+					Request: request,
+				}, nil
+			}),
+		}),
+		WithRetryPolicy(time.Millisecond, time.Millisecond, 1),
+		WithSleep(func(context.Context, time.Duration) error {
+			if retryBody == nil || retryBody.closeCalls != 1 {
+				t.Fatalf("retry body close calls before wait = %v, want 1", retryBody)
+			}
+			return nil
+		}),
+	)
+	if _, err := cleanupClient.Search(context.Background(), "review", registry.SearchOpts{}); err != nil {
+		t.Fatalf("Search(cleanup ordering) error = %v", err)
+	}
+
+	policyAttempts := 0
+	policyWaits := 0
+	policyClient := NewClient(
+		"https://example.com",
+		WithHTTPClient(&http.Client{
+			Transport: clawHubRoundTripperFunc(func(request *http.Request) (*http.Response, error) {
+				policyAttempts++
+				if policyAttempts == 1 {
+					return nil, errors.New("temporary transport failure")
+				}
+				return &http.Response{
+					StatusCode: http.StatusTooManyRequests,
+					Status:     "429 Too Many Requests",
+					Header:     make(http.Header),
+					Body:       io.NopCloser(strings.NewReader(`{"error":"slow down"}`)),
+					Request:    request,
+				}, nil
+			}),
+		}),
+		WithRetryPolicy(time.Millisecond, time.Millisecond, 3),
+		WithSleep(func(context.Context, time.Duration) error {
+			policyWaits++
+			return nil
+		}),
+	)
+	if _, err := policyClient.Search(context.Background(), "review", registry.SearchOpts{}); err == nil {
+		t.Fatal("Search(transport then 429) error = nil, want terminal 429")
+	}
+	if policyAttempts != 2 || policyWaits != 1 {
+		t.Fatalf(
+			"transport and 429 policy attempts/waits = %d/%d, want 2/1",
+			policyAttempts,
+			policyWaits,
+		)
 	}
 }
 
@@ -558,6 +638,43 @@ func TestNewClientDefaults(t *testing.T) {
 	}
 }
 
+func TestClawHubNetworkPolicy(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should block private resolution for the public default origin", func(t *testing.T) {
+		t.Parallel()
+
+		policy, err := newClawHubNetworkPolicy(defaultBaseURL)
+		if err != nil {
+			t.Fatalf("newClawHubNetworkPolicy() error = %v", err)
+		}
+		err = policy.ValidateResolvedAddresses(
+			[]netip.Addr{netip.MustParseAddr("127.0.0.1")},
+			"clawhub.ai",
+			"443",
+		)
+		if !errors.Is(err, outboundpolicy.ErrBlockedDestination) {
+			t.Fatalf("default origin private resolution error = %v, want ErrBlockedDestination", err)
+		}
+	})
+
+	t.Run("Should allow private resolution for an explicit operator base", func(t *testing.T) {
+		t.Parallel()
+
+		policy, err := newClawHubNetworkPolicy("https://registry.internal/api/v1")
+		if err != nil {
+			t.Fatalf("newClawHubNetworkPolicy() error = %v", err)
+		}
+		if err := policy.ValidateResolvedAddresses(
+			[]netip.Addr{netip.MustParseAddr("10.0.0.8")},
+			"registry.internal",
+			"443",
+		); err != nil {
+			t.Fatalf("custom origin private resolution error = %v, want nil", err)
+		}
+	})
+}
+
 func TestDecodeListingsSupportsDirectArray(t *testing.T) {
 	t.Parallel()
 
@@ -592,7 +709,7 @@ func TestClientTimeoutReturnsDeadlineExceeded(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		time.Sleep(100 * time.Millisecond)
 		writer.Header().Set("Content-Type", "application/json")
-		_, _ = writer.Write([]byte(`{"skills":[]}`))
+		writeClawHubTestResponse(t, writer, []byte(`{"skills":[]}`))
 	}))
 	defer server.Close()
 
@@ -721,37 +838,37 @@ func TestResponseErrorUsesJSONAndPlainTextMessages(t *testing.T) {
 func TestReadErrorMessageHandlesEmptyAndStructuredBodies(t *testing.T) {
 	t.Parallel()
 
-	if got := readErrorMessage(io.NopCloser(strings.NewReader(""))); got != "" {
-		t.Fatalf("readErrorMessage(empty) = %q, want empty", got)
+	got, err := readErrorMessage(strings.NewReader(""))
+	if err != nil || got != "" {
+		t.Fatalf("readErrorMessage(empty) = %q, %v; want empty, nil", got, err)
 	}
-	if got := readErrorMessage(io.NopCloser(strings.NewReader(`{"message":"bad request"}`))); got != "bad request" {
-		t.Fatalf("readErrorMessage(json) = %q, want %q", got, "bad request")
-	}
-}
-
-func TestSleepContextReturnsOnCancelAndZeroWait(t *testing.T) {
-	t.Parallel()
-
-	if err := sleepContext(context.Background(), 0); err != nil {
-		t.Fatalf("sleepContext(zero) error = %v", err)
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	if err := sleepContext(ctx, time.Second); !errors.Is(err, context.Canceled) {
-		t.Fatalf("sleepContext(canceled) error = %v, want context canceled", err)
+	got, err = readErrorMessage(strings.NewReader(`{"message":"bad request"}`))
+	if err != nil || got != "bad request" {
+		t.Fatalf("readErrorMessage(json) = %q, %v; want %q, nil", got, err, "bad request")
 	}
 }
 
-func TestNextBackoffRespectsDefaultsAndMax(t *testing.T) {
+func TestResponseErrorPreservesBodyCleanupFailures(t *testing.T) {
 	t.Parallel()
 
-	if got := nextBackoff(0, 0); got != defaultInitialBackoff {
-		t.Fatalf("nextBackoff(0,0) = %s, want %s", got, defaultInitialBackoff)
+	readErr := errors.New("error response read failed")
+	drainErr := errors.New("error response drain failed")
+	closeErr := errors.New("error response close failed")
+	body := &scriptedErrorReadCloser{
+		readErrors: []error{readErr, drainErr},
+		closeErr:   closeErr,
 	}
-	if got := nextBackoff(2*time.Second, 3*time.Second); got != 3*time.Second {
-		t.Fatalf("nextBackoff(2s,3s) = %s, want 3s", got)
+	//nolint:bodyclose // responseError owns the response body.
+	response := newHTTPResponse(http.StatusBadGateway, "")
+	response.Body = body
+	err := responseError(response, "search", "")
+	for _, want := range []error{readErr, drainErr, closeErr} {
+		if !errors.Is(err, want) {
+			t.Fatalf("responseError() error = %v, want %v", err, want)
+		}
+	}
+	if body.closeCalls != 1 {
+		t.Fatalf("response body close calls = %d, want 1", body.closeCalls)
 	}
 }
 
@@ -785,13 +902,13 @@ func TestDoRequestRejectsInvalidBaseURL(t *testing.T) {
 	}
 }
 
-func TestWithHTTPClientOverridesClient(t *testing.T) {
+func TestWithHTTPClientPreservesInjectedTimeout(t *testing.T) {
 	t.Parallel()
 
 	httpClient := &http.Client{Timeout: 123 * time.Millisecond}
 	client := NewClient("", WithHTTPClient(httpClient))
-	if client.httpClient != httpClient {
-		t.Fatal("WithHTTPClient() did not override http client")
+	if client.httpClient.Timeout != httpClient.Timeout {
+		t.Fatalf("client timeout = %s, want %s", client.httpClient.Timeout, httpClient.Timeout)
 	}
 }
 
@@ -849,11 +966,16 @@ func newHTTPResponse(statusCode int, body string) *http.Response {
 	}
 }
 
+func writeClawHubTestResponse(t *testing.T, writer http.ResponseWriter, payload []byte) {
+	t.Helper()
+	if _, err := writer.Write(payload); err != nil {
+		t.Errorf("test response Write() error = %v", err)
+	}
+}
+
 func responseErrorForTest(statusCode int, body string, operation string, slug string) error {
+	//nolint:bodyclose // responseError owns the response body.
 	response := newHTTPResponse(statusCode, body)
-	defer func() {
-		_ = response.Body.Close()
-	}()
 	return responseError(response, operation, slug)
 }
 
@@ -865,11 +987,39 @@ func doRequestErrorForTest(
 	operation string,
 	slug string,
 ) error {
+	//nolint:bodyclose // A non-nil response is drained and closed below.
 	response, err := client.doRequest(ctx, requestPath, query, operation, slug)
 	if response != nil {
-		_ = response.Body.Close()
+		err = errors.Join(err, drainAndCloseResponseBody(response.Body, "test request response"))
 	}
 	return err
+}
+
+type scriptedErrorReadCloser struct {
+	readErrors []error
+	readCalls  int
+	closeErr   error
+	closeCalls int
+}
+
+type clawHubRoundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f clawHubRoundTripperFunc) RoundTrip(request *http.Request) (*http.Response, error) {
+	return f(request)
+}
+
+func (r *scriptedErrorReadCloser) Read([]byte) (int, error) {
+	if r.readCalls >= len(r.readErrors) {
+		return 0, io.EOF
+	}
+	err := r.readErrors[r.readCalls]
+	r.readCalls++
+	return 0, err
+}
+
+func (r *scriptedErrorReadCloser) Close() error {
+	r.closeCalls++
+	return r.closeErr
 }
 
 func readTarGz(t *testing.T, reader io.Reader) map[string]string {

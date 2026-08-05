@@ -54,10 +54,17 @@ func (m *Manager) persistResumeReplayMarker(
 	if !spec.resumeReplay {
 		return nil
 	}
+	turnID, err := m.newPromptTurnID()
+	if err != nil {
+		return startupFailure(
+			"session replay marker turn id allocation failed",
+			fmt.Errorf("session: generate context rebuilt marker turn id for %q: %w", spec.sessionID, err),
+		)
+	}
 	if err := m.recordTranscriptMarker(
 		ctx,
 		session,
-		newID("turn"),
+		turnID,
 		transcript.MarkerSessionRecovered,
 		contextRebuiltMarkerSummary,
 		map[string]any{

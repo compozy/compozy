@@ -102,6 +102,25 @@ func TestDoValue(t *testing.T) {
 		}
 	})
 
+	t.Run("ShouldPreserveOperationErrorWhenContextEndsDuringAttempt", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		operationErr := errors.New("provider unavailable")
+		_, err := DoValue(
+			ctx,
+			Policy{MaxAttempts: 3},
+			nil,
+			func(context.Context) (string, error) {
+				cancel()
+				return "", operationErr
+			},
+		)
+		if !errors.Is(err, operationErr) || !errors.Is(err, context.Canceled) {
+			t.Fatalf("DoValue(concurrent cancel) error = %v, want operation and context errors", err)
+		}
+	})
+
 	t.Run("Should stop before sleeping when retry observation fails", func(t *testing.T) {
 		t.Parallel()
 
@@ -293,6 +312,27 @@ func TestDecorrelatedJitterBoundaries(t *testing.T) {
 				t.Fatalf("DecorrelatedJitter() = %s, want %s", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestExponentialBoundaries(t *testing.T) {
+	t.Parallel()
+
+	delay := Exponential(ExponentialConfig{BaseDelay: time.Second, MaxDelay: 5 * time.Second})
+	if got := delay(DelayInput{}); got != time.Second {
+		t.Fatalf("Exponential(first) = %s, want 1s", got)
+	}
+	if got := delay(DelayInput{Previous: time.Second}); got != 2*time.Second {
+		t.Fatalf("Exponential(second) = %s, want 2s", got)
+	}
+	if got := delay(DelayInput{Previous: 4 * time.Second}); got != 5*time.Second {
+		t.Fatalf("Exponential(capped) = %s, want 5s", got)
+	}
+
+	maxDuration := time.Duration(1<<63 - 1)
+	overflowSafe := Exponential(ExponentialConfig{BaseDelay: time.Second, MaxDelay: maxDuration})
+	if got := overflowSafe(DelayInput{Previous: maxDuration - 1}); got != maxDuration {
+		t.Fatalf("Exponential(overflow boundary) = %s, want %s", got, maxDuration)
 	}
 }
 

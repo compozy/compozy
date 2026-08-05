@@ -7,13 +7,61 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
+	"math"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/spf13/cobra"
 )
+
+func TestExtensionDurationFormatting(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should format uptime without overflowing time.Duration", func(t *testing.T) {
+		t.Parallel()
+
+		if got, want := formatExtensionUptime(math.MaxInt64), "2562047788015215h 30m"; got != want {
+			t.Fatalf("formatExtensionUptime(MaxInt64) = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should normalize non-positive duration values", func(t *testing.T) {
+		t.Parallel()
+
+		if got := formatExtensionUptime(-1); got != "" {
+			t.Fatalf("formatExtensionUptime(-1) = %q, want empty", got)
+		}
+		if got, want := formatExtensionBackoff(-1), "0s"; got != want {
+			t.Fatalf("formatExtensionBackoff(-1) = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should preserve the exact backoff duration ceiling", func(t *testing.T) {
+		t.Parallel()
+
+		maximum := int64(math.MaxInt64) / int64(time.Millisecond)
+		wantMaximum := (time.Duration(maximum) * time.Millisecond).String()
+		if got := formatExtensionBackoff(maximum); got != wantMaximum {
+			t.Fatalf("formatExtensionBackoff(maximum) = %q, want %q", got, wantMaximum)
+		}
+		wantOverflow := fmt.Sprintf("%dms", maximum+1)
+		if got := formatExtensionBackoff(maximum + 1); got != wantOverflow {
+			t.Fatalf("formatExtensionBackoff(maximum+1) = %q, want %q", got, wantOverflow)
+		}
+	})
+
+	t.Run("Should keep oversized backoff truthful", func(t *testing.T) {
+		t.Parallel()
+
+		if got, want := formatExtensionBackoff(math.MaxInt64), "9223372036854775807ms"; got != want {
+			t.Fatalf("formatExtensionBackoff(MaxInt64) = %q, want %q", got, want)
+		}
+	})
+}
 
 func TestExtensionSingleRecordBundlesEmitJSONL(t *testing.T) {
 	t.Parallel()

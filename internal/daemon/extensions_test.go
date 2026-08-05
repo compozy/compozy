@@ -734,12 +734,7 @@ func requireLifecycleResult(t *testing.T, result <-chan error, label string) err
 
 func newLifecycleRelease(t *testing.T, signal chan struct{}) func() {
 	t.Helper()
-	var once sync.Once
-	release := func() {
-		once.Do(func() {
-			close(signal)
-		})
-	}
+	release := sync.OnceFunc(func() { close(signal) })
 	t.Cleanup(release)
 	return release
 }
@@ -1037,36 +1032,47 @@ func waitForLifecycleRefs(
 	want int,
 ) {
 	t.Helper()
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
+	timer := time.NewTimer(2 * time.Second)
+	defer timer.Stop()
+	for {
 		coordinator.mu.Lock()
 		entry := coordinator.entries[name]
 		got := 0
 		if entry != nil {
 			got = entry.refs
 		}
+		changed := coordinator.changed
 		coordinator.mu.Unlock()
 		if got == want {
 			return
 		}
-		time.Sleep(time.Millisecond)
+		select {
+		case <-changed:
+		case <-timer.C:
+			t.Fatalf("lifecycle refs for %q did not reach %d", name, want)
+		}
 	}
-	t.Fatalf("lifecycle refs for %q did not reach %d", name, want)
 }
 
 func waitForLifecycleWriters(t *testing.T, coordinator *extensionLifecycleCoordinator, want int) {
 	t.Helper()
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
+	timer := time.NewTimer(2 * time.Second)
+	defer timer.Stop()
+	for {
 		coordinator.gate.mu.Lock()
 		got := coordinator.gate.waitingWriters
+		coordinator.gate.ensureChangedLocked()
+		changed := coordinator.gate.changed
 		coordinator.gate.mu.Unlock()
 		if got == want {
 			return
 		}
-		time.Sleep(time.Millisecond)
+		select {
+		case <-changed:
+		case <-timer.C:
+			t.Fatalf("lifecycle waiting writers did not reach %d", want)
+		}
 	}
-	t.Fatalf("lifecycle waiting writers did not reach %d", want)
 }
 
 func lifecycleTestSlug(value string) string {

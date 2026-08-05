@@ -651,8 +651,9 @@ func requireRefCode(t *testing.T, err error, code string) {
 	if err == nil {
 		t.Fatalf("error = nil, want code %s", code)
 	}
-	var refErr *refs.Error
-	if !errors.As(err, &refErr) {
+
+	refErr, refErrMatched := errors.AsType[*refs.Error](err)
+	if !refErrMatched {
 		t.Fatalf("error = %T %v, want *refs.Error", err, err)
 	}
 	if refErr.Code != code {

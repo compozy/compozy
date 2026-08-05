@@ -71,10 +71,7 @@ finalize:
 		}
 	}
 	if mismatchErr != nil {
-		if recordErr := n.recordCursorError(ctx, cursorKey, mismatchErr); recordErr != nil {
-			mismatchErr = errors.Join(mismatchErr, recordErr)
-		}
-		return terminalTaskNotificationFailed, mismatchErr
+		return terminalTaskNotificationFailed, n.recordCursorError(ctx, cursorKey, mismatchErr)
 	}
 	if deferred {
 		return terminalTaskNotificationDeferred, nil
@@ -97,10 +94,7 @@ func (n *TerminalTaskNotifier) processTaskNotificationRecord(
 
 	resolution, err := n.resolveTerminalTaskNotification(ctx, subscription, record)
 	if err != nil {
-		if recordErr := n.recordCursorError(ctx, cursorKey, err); recordErr != nil {
-			err = errors.Join(err, recordErr)
-		}
-		return processTaskNotificationResult{}, err
+		return processTaskNotificationResult{}, n.recordCursorError(ctx, cursorKey, err)
 	}
 	switch resolution.decision {
 	case terminalTaskNotificationDecisionMismatch:
@@ -119,13 +113,31 @@ func (n *TerminalTaskNotifier) processTaskNotificationRecord(
 		}, nil
 	}
 
-	if err := n.deliverNotification(ctx, subscription, resolution.notification); err != nil {
+	return n.deliverResolvedTaskNotification(ctx, cursorKey, subscription, record, resolution.notification)
+}
+
+func (n *TerminalTaskNotifier) deliverResolvedTaskNotification(
+	ctx context.Context,
+	cursorKey notifications.CursorKey,
+	subscription BridgeTaskSubscription,
+	record taskpkg.EventRecord,
+	notification TerminalTaskNotification,
+) (processTaskNotificationResult, error) {
+	if err := n.deliverNotification(ctx, subscription, notification); err != nil {
 		if errors.Is(err, ErrBridgeNotificationSuppressed) {
+			skippedID, skippedIDErr := terminalTaskNotificationSkippedDeliveryID(
+				subscription,
+				record.Sequence,
+				"suppressed",
+			)
+			if skippedIDErr != nil {
+				return processTaskNotificationResult{}, skippedIDErr
+			}
 			if _, advanceErr := n.advanceTaskNotificationCursor(
 				ctx,
 				cursorKey,
 				record.Sequence,
-				resolution.notification.DeliveryID,
+				skippedID,
 			); advanceErr != nil {
 				return processTaskNotificationResult{}, fmt.Errorf(
 					"bridges: advance suppressed task notification cursor for subscription %q: %w",
@@ -138,16 +150,13 @@ func (n *TerminalTaskNotifier) processTaskNotificationRecord(
 				sequence: record.Sequence,
 			}, nil
 		}
-		if recordErr := n.recordCursorError(ctx, cursorKey, err); recordErr != nil {
-			err = errors.Join(err, recordErr)
-		}
-		return processTaskNotificationResult{}, err
+		return processTaskNotificationResult{}, n.recordCursorError(ctx, cursorKey, err)
 	}
 	if _, err := n.advanceTaskNotificationCursor(
 		ctx,
 		cursorKey,
 		record.Sequence,
-		resolution.notification.DeliveryID,
+		notification.DeliveryID,
 	); err != nil {
 		return processTaskNotificationResult{}, fmt.Errorf(
 			"bridges: advance task notification cursor for subscription %q: %w",

@@ -74,9 +74,9 @@ func promptGoalErrorResponse(status int, description string) ResponseSpec {
 	return ResponseSpec{
 		Status:      status,
 		Description: description,
-		Bodies: []any{
-			contract.ErrorPayload{},
-			contract.SendPromptResultResponse{},
-		},
+		Bodies: responseBodiesOf(
+			responseBodyOf[contract.ErrorPayload](),
+			responseBodyOf[contract.SendPromptResultResponse](),
+		),
 	}
 }

@@ -49,6 +49,10 @@ func setTaskStatusWithExecutor(
 	if fromStatus == toStatus {
 		return nil
 	}
+	eventID, err := store.NewID("evt")
+	if err != nil {
+		return fmt.Errorf("store: generate task status event id: %w", err)
+	}
 
 	changed, err := sqlcgen.New(exec).UpdateTaskStatusChokepoint(ctx, sqlcgen.UpdateTaskStatusChokepointParams{
 		ToStatus: string(toStatus), FromStatus: string(fromStatus), ID: trimmedTaskID,
@@ -73,7 +77,7 @@ func setTaskStatusWithExecutor(
 		return fmt.Errorf("store: marshal task %q status_changed event: %w", trimmedTaskID, err)
 	}
 	if err := appendTaskEventWithExecutor(ctx, exec, EventRecordInsert{
-		ID:        store.NewID("evt"),
+		ID:        eventID,
 		TaskID:    trimmedTaskID,
 		EventType: string(hookspkg.HookTaskStatusChanged),
 		Actor:     actor.Actor,

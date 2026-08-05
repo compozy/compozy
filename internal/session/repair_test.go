@@ -1,6 +1,7 @@
 package session
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -103,6 +104,49 @@ func TestManagerRepairSession(t *testing.T) {
 		}
 		messages := transcript.MessagesFromEntries(page.Entries)
 		assertTranscriptHasDonePart(t, messages)
+	})
+
+	t.Run("Should reject repair before persisting any action when a later event ID fails", func(t *testing.T) {
+		t.Parallel()
+
+		entropyErr := errors.New("repair entropy unavailable")
+		idCalls := 0
+		h := newHarness(t, func(manager *Manager) {
+			manager.newRepairEventID = func() (string, error) {
+				idCalls++
+				if idCalls == 2 {
+					return "", entropyErr
+				}
+				return "ev-repair-first", nil
+			}
+		})
+		meta := repairSessionMeta("sess-repair-entropy", store.StopAgentCrashed, h.workspaceID)
+		seedRepairSession(t, h, meta, interruptedTurnEvents(t, meta.ID, meta.AgentName)...)
+
+		result, err := h.manager.RepairSession(testutil.Context(t), RepairOpts{SessionID: meta.ID})
+		if !errors.Is(err, entropyErr) {
+			t.Fatalf("RepairSession() error = %v, want errors.Is(entropyErr)", err)
+		}
+		if result == nil {
+			t.Fatal("RepairSession() result = nil, want planned actions")
+		}
+		if result.Persisted {
+			t.Fatal("RepairSession().Persisted = true, want false")
+		}
+		if got, want := len(result.Actions), 2; got != want {
+			t.Fatalf("RepairSession() actions = %d, want %d", got, want)
+		}
+		for _, action := range result.Actions {
+			if action.Persisted || action.EventID != "" {
+				t.Fatalf("repair action = %#v, want unpersisted without event id", action)
+			}
+		}
+		if got, want := len(readRepairEvents(t, h, meta.ID)), 3; got != want {
+			t.Fatalf("stored events after entropy failure = %d, want %d", got, want)
+		}
+		if got := h.notifier.eventCount(meta.ID); got != 0 {
+			t.Fatalf("repair notifications after entropy failure = %d, want 0", got)
+		}
 	})
 
 	t.Run("ShouldPreservePartialAssistantTranscriptWhenRepairingInterruptedTextTurn", func(t *testing.T) {
@@ -372,7 +416,11 @@ func seedRepairSession(t *testing.T, h *harness, meta store.SessionMeta, events 
 		t.Fatalf("WriteSessionMeta() error = %v", err)
 	}
 
-	recorder, err := sessiondb.OpenSessionDB(testutil.Context(t), meta.ID, store.SessionDBFile(sessionDir))
+	recorder, err := sessiondb.OpenSessionDB(
+		testutil.Context(t),
+		testSessionDBOwner(meta.ID, meta.WorkspaceID),
+		store.SessionDBFile(sessionDir),
+	)
 	if err != nil {
 		t.Fatalf("OpenSessionDB() error = %v", err)
 	}
@@ -390,7 +438,12 @@ func readRepairEvents(t *testing.T, h *harness, sessionID string) []store.Sessio
 	t.Helper()
 
 	dbPath := store.SessionDBFile(filepath.Join(h.homePaths.SessionsDir, sessionID))
-	recorder, err := sessiondb.OpenSessionDB(testutil.Context(t), sessionID, dbPath)
+	meta := readMeta(t, store.SessionMetaFile(filepath.Join(h.homePaths.SessionsDir, sessionID)))
+	recorder, err := sessiondb.OpenSessionDB(
+		testutil.Context(t),
+		testSessionDBOwner(sessionID, meta.WorkspaceID),
+		dbPath,
+	)
 	if err != nil {
 		t.Fatalf("OpenSessionDB(read) error = %v", err)
 	}

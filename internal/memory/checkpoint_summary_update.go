@@ -50,7 +50,7 @@ func (s *CheckpointSummaryService) Compact(
 	if err != nil {
 		return CheckpointCompactionResult{}, err
 	}
-	state, err := loadCheckpointSummaryState(workspaceStore)
+	state, err := loadCheckpointSummaryState(ctx, workspaceStore)
 	if err != nil {
 		return CheckpointCompactionResult{}, err
 	}
@@ -129,7 +129,7 @@ func (s *CheckpointSummaryService) updateSessionEnd(
 	if err != nil {
 		return DecisionApplyResult{}, err
 	}
-	state, err := loadCheckpointSummaryState(workspaceStore)
+	state, err := loadCheckpointSummaryState(ctx, workspaceStore)
 	if err != nil {
 		return DecisionApplyResult{}, err
 	}

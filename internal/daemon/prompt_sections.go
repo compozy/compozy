@@ -75,7 +75,7 @@ type PromptSectionDescriptor struct {
 	Order            int
 	Budget           int
 	BudgetBehavior   PromptSectionBudgetBehavior
-	Provider         session.PromptProvider
+	Provider         any
 	Predicate        SectionPredicate
 	StartupPredicate StartupSectionPredicate
 }
@@ -83,7 +83,7 @@ type PromptSectionDescriptor struct {
 func defaultStartupPromptSectionDescriptors(
 	memoryProvider session.PromptProvider,
 	skillsProvider session.PromptProvider,
-	situationProvider session.PromptProvider,
+	situationProvider startupPromptSectionProvider,
 	networkResponseGuidanceBudget ...int,
 ) []PromptSectionDescriptor {
 	descriptors := make([]PromptSectionDescriptor, 0, 6)
@@ -180,7 +180,7 @@ func defaultBundledStartupPromptSectionDescriptors(networkResponseGuidanceBudget
 func defaultStartupPromptSectionDescriptorsFromProviders(
 	prependProviders []session.PromptProvider,
 	appendProviders []session.PromptProvider,
-	situationProvider session.PromptProvider,
+	situationProvider startupPromptSectionProvider,
 	networkResponseGuidanceBudget ...int,
 ) []PromptSectionDescriptor {
 	var memoryProvider session.PromptProvider

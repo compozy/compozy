@@ -43,6 +43,10 @@ func (ext *managedExtension) maxResourceScope() resources.ResourceScopeKind {
 	return resources.ResourceScopeKindGlobal
 }
 
+func extensionCapabilityGrantID(key InstanceKey, sessionNonce string) string {
+	return key.Normalize().runtimeID() + "#session:" + sessionNonce
+}
+
 func (m *Manager) instanceLocked(key InstanceKey) *managedExtension {
 	key = key.Normalize()
 	if key.IsGlobal() {

@@ -3,7 +3,6 @@ package globaldb
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -254,12 +253,7 @@ func completeCoordinatorRunWithExecutor(
 	run taskpkg.Run,
 	now time.Time,
 ) error {
-	resultJSON, err := json.Marshal(
-		map[string]string{taskRunResultKindKey: taskpkg.RunKindCoordinator.String()},
-	)
-	if err != nil {
-		return fmt.Errorf("store: marshal coordinator result: %w", err)
-	}
+	resultJSON := taskpkg.CoordinatorCompletedRunResult()
 	affected, err := sqlcgen.New(exec).CompleteCoordinatorRun(ctx, sqlcgen.CompleteCoordinatorRunParams{
 		Status:         taskpkg.TaskRunStatusCompleted.String(),
 		EndedAt:        nullableTaskTime(now),

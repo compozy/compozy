@@ -2,7 +2,6 @@ package acp
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 )
@@ -129,30 +128,30 @@ func (m PromptMeta) Validate() error {
 	switch normalized.TurnSource {
 	case "", PromptTurnSourceUser:
 		if normalized.Network != nil || normalized.Synthetic != nil {
-			return errors.New("acp: user prompt metadata cannot include network or synthetic fields")
+			return invalidPromptMetadata("acp: user prompt metadata cannot include network or synthetic fields")
 		}
 		return nil
 	case PromptTurnSourceNetwork:
 		if normalized.Synthetic != nil {
-			return errors.New("acp: network prompt metadata cannot include synthetic fields")
+			return invalidPromptMetadata("acp: network prompt metadata cannot include synthetic fields")
 		}
 		if normalized.Judge != nil {
-			return errors.New("acp: network prompt metadata cannot include judge fields")
+			return invalidPromptMetadata("acp: network prompt metadata cannot include judge fields")
 		}
 		return nil
 	case PromptTurnSourceSynthetic:
 		if normalized.Network != nil {
-			return errors.New("acp: synthetic prompt metadata cannot include network fields")
+			return invalidPromptMetadata("acp: synthetic prompt metadata cannot include network fields")
 		}
 		if normalized.Judge != nil {
-			return errors.New("acp: synthetic prompt metadata cannot include judge fields")
+			return invalidPromptMetadata("acp: synthetic prompt metadata cannot include judge fields")
 		}
 		if normalized.Synthetic == nil {
-			return errors.New("acp: synthetic prompt metadata requires synthetic fields")
+			return invalidPromptMetadata("acp: synthetic prompt metadata requires synthetic fields")
 		}
 		return normalized.Synthetic.Validate()
 	default:
-		return fmt.Errorf("acp: invalid prompt turn source %q", normalized.TurnSource)
+		return invalidPromptMetadata(fmt.Sprintf("acp: invalid prompt turn source %q", normalized.TurnSource))
 	}
 }
 
@@ -176,7 +175,7 @@ func (m PromptSystemMeta) Validate() error {
 	case "", SystemPromptDeliveryFirstTurnPrefix, SystemPromptDeliveryNative:
 		return nil
 	default:
-		return fmt.Errorf("acp: invalid system prompt delivery %q", normalized.PromptDelivery)
+		return invalidPromptMetadata(fmt.Sprintf("acp: invalid system prompt delivery %q", normalized.PromptDelivery))
 	}
 }
 

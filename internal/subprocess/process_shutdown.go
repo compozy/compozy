@@ -7,6 +7,11 @@ import (
 	"io"
 )
 
+type processShutdownOperation struct {
+	done chan struct{}
+	err  error
+}
+
 // PID returns the operating-system process identifier.
 func (p *Process) PID() int {
 	if p == nil || p.cmd == nil || p.cmd.Process == nil {
@@ -122,12 +127,63 @@ func (p *Process) Shutdown(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	operation := p.startShutdown(ctx)
+	select {
+	case <-operation.done:
+		return operation.err
+	default:
+	}
+	select {
+	case <-operation.done:
+		return operation.err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (p *Process) startShutdown(ctx context.Context) *processShutdownOperation {
+	p.shutdownMu.Lock()
+	defer p.shutdownMu.Unlock()
+	if p.shutdownOp != nil {
+		return p.shutdownOp
+	}
+	operation := &processShutdownOperation{done: make(chan struct{})}
+	p.shutdownOp = operation
+	operationCtx := context.WithoutCancel(ctx)
+	go func() {
+		err := p.runShutdown(operationCtx)
+		operation.err = err
+		if err != nil {
+			// Released before the close so every caller that observes the failure can escalate again.
+			p.releaseShutdownOperation(operation)
+		}
+		close(operation.done)
+	}()
+	return operation
+}
+
+func (p *Process) releaseShutdownOperation(operation *processShutdownOperation) {
+	p.shutdownMu.Lock()
+	defer p.shutdownMu.Unlock()
+	if p.shutdownOp == operation {
+		p.shutdownOp = nil
+	}
+}
+
+func (p *Process) runShutdown(ctx context.Context) error {
+	select {
+	case <-p.Done():
+		return p.Wait()
+	default:
+	}
 
 	p.markStopRequested()
-	p.checkpointShutdownRequested(ctx)
+	var errs []error
+	if err := p.checkpointShutdownRequested(ctx); err != nil {
+		errs = append(errs, err)
+	}
 	p.setState(processStateDraining)
 
-	var errs []error
 	var stopCtxErr error
 	if p.transport != nil && p.currentState() != processStateStopped {
 		shutdownCtx, cancel := context.WithTimeout(ctx, p.shutdownTimeout)
@@ -138,7 +194,7 @@ func (p *Process) Shutdown(ctx context.Context) error {
 			Reason:     p.shutdownReason,
 			DeadlineMS: p.shutdownTimeout.Milliseconds(),
 		}, &response)
-		if err != nil && !cooperativeShutdownTimedOut(ctx, shutdownCtx, err) {
+		if err != nil && !cooperativeShutdownCanEscalate(ctx, shutdownCtx, err) {
 			errs = append(errs, fmt.Errorf("subprocess: cooperative shutdown: %w", err))
 		}
 	}
@@ -212,17 +268,20 @@ func shutdownWaitInterruptedByCaller(ctx context.Context, waitErr error) bool {
 }
 
 func shutdownWaitContext(ctx context.Context, stopCtxErr error) context.Context {
-	if ctx == nil {
-		return context.Background()
-	}
 	if stopCtxErr != nil {
 		return context.WithoutCancel(ctx)
 	}
 	return ctx
 }
 
-func cooperativeShutdownTimedOut(ctx context.Context, shutdownCtx context.Context, err error) bool {
-	if err == nil || shutdownCtx == nil || shutdownCtx.Err() == nil {
+func cooperativeShutdownCanEscalate(ctx context.Context, shutdownCtx context.Context, err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, ErrTransportClosedBeforeResponse) {
+		return true
+	}
+	if shutdownCtx == nil || shutdownCtx.Err() == nil {
 		return false
 	}
 	if ctx != nil && ctx.Err() != nil {

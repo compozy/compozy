@@ -124,6 +124,7 @@ type marketplaceManagedInstall struct {
 	digestMatched bool
 	remoteVersion string
 	trust         *MarketplaceTrustEvidence
+	cleanup       []registrypkg.CleanupDiagnostic
 }
 
 // InstallMarketplaceManaged installs one extension through the configured
@@ -170,17 +171,8 @@ func prepareMarketplaceManagedInstall(
 	loader MarketplaceSourceLoader,
 	req MarketplaceInstallRequest,
 ) (_ marketplaceManagedInstall, err error) {
-	slug := strings.TrimSpace(req.Slug)
-	if slug == "" {
-		return marketplaceManagedInstall{}, errors.New("extension: marketplace slug is required")
-	}
-	if err := validateMarketplaceTrustGate(
-		slug,
-		req.SourceFilter,
-		req.PolicyAllowsUnverified,
-		req.AllowUnverified,
-		req.Trust,
-	); err != nil {
+	slug, err := validateMarketplaceManagedInstallRequest(req)
+	if err != nil {
 		return marketplaceManagedInstall{}, err
 	}
 	var downloader registrypkg.Downloader
@@ -226,7 +218,12 @@ func prepareMarketplaceManagedInstall(
 			return marketplaceManagedInstall{}, fmt.Errorf("extension: close marketplace registry source: %w", closeErr)
 		}
 	}
-	manifest, finalDir, err := moveMarketplaceInstallIntoPlace(homePaths, registry, slug, result)
+	manifest, finalDir, moveDiagnostics, err := moveMarketplaceInstallIntoPlace(
+		homePaths,
+		registry,
+		slug,
+		result,
+	)
 	if err != nil {
 		return marketplaceManagedInstall{}, err
 	}
@@ -240,7 +237,25 @@ func prepareMarketplaceManagedInstall(
 		digestMatched: result.DigestMatched,
 		remoteVersion: firstNonEmpty(result.Version, detail.Version, manifest.Version),
 		trust:         req.Trust,
+		cleanup:       appendRegistryCleanupDiagnostics(result.CleanupDiagnostics, moveDiagnostics),
 	}, nil
+}
+
+func validateMarketplaceManagedInstallRequest(req MarketplaceInstallRequest) (string, error) {
+	slug := strings.TrimSpace(req.Slug)
+	if slug == "" {
+		return "", errors.New("extension: marketplace slug is required")
+	}
+	if err := validateMarketplaceTrustGate(
+		slug,
+		req.SourceFilter,
+		req.PolicyAllowsUnverified,
+		req.AllowUnverified,
+		req.Trust,
+	); err != nil {
+		return "", err
+	}
+	return slug, nil
 }
 
 func newExtensionMarketplaceRegistry(
@@ -287,32 +302,34 @@ func moveMarketplaceInstallIntoPlace(
 	registry LifecycleRegistry,
 	slug string,
 	result *registrypkg.InstallResult,
-) (*Manifest, string, error) {
+) (*Manifest, string, []registrypkg.CleanupDiagnostic, error) {
 	manifest, err := LoadManifest(result.InstallPath)
 	if err != nil {
-		return nil, "", fmt.Errorf("extension: load installed extension manifest for %q: %w", slug, err)
+		return nil, "", nil, fmt.Errorf("extension: load installed extension manifest for %q: %w", slug, err)
 	}
 	if err := ensureExtensionNotInstalled(registry, manifest.Name); err != nil {
-		return nil, "", err
+		return nil, "", nil, err
 	}
 	finalDir, err := ManagedInstallPathChecked(homePaths, manifest.Name)
 	if err != nil {
-		return nil, "", err
+		return nil, "", nil, err
 	}
-	if err := registrypkg.MoveInstalledDir(result.InstallPath, finalDir, false); err != nil {
-		return nil, "", fmt.Errorf("extension: move %q into managed install path: %w", manifest.Name, err)
+	moveResult, err := registrypkg.MoveInstalledDir(result.InstallPath, finalDir, false)
+	if err != nil {
+		return nil, "", nil, fmt.Errorf("extension: move %q into managed install path: %w", manifest.Name, err)
 	}
-	return manifest, finalDir, nil
+	return manifest, finalDir, moveResult.CleanupDiagnostics, nil
 }
 
 func marketplaceInstallProvenance(
 	prepared marketplaceManagedInstall,
 	req MarketplaceInstallRequest,
 ) ExtensionProvenance {
+	var provenance ExtensionProvenance
 	if prepared.trust != nil {
 		registryTier := normalizedMarketplaceRegistryTier(prepared.trust.RegistryTier)
 		allowUnverified := registryTier == ExtensionRegistryTierUnverified && req.AllowUnverified
-		return ExtensionProvenance{
+		provenance = ExtensionProvenance{
 			Slug:           prepared.slug,
 			CatalogEntryID: strings.TrimSpace(prepared.trust.CatalogEntryID),
 			InstalledFrom:  ExtensionInstalledFromMarketplace,
@@ -330,23 +347,30 @@ func marketplaceInstallProvenance(
 			AllowUnverified:     allowUnverified,
 			Warnings:            marketplaceTrustWarnings(prepared.trust),
 		}
+	} else {
+		provenance = ExtensionProvenance{
+			Slug:                prepared.slug,
+			InstalledFrom:       installedFromForRegistrySource(prepared.detail.Source),
+			SourceURL:           strings.TrimSpace(prepared.detail.Repository),
+			ChecksumSHA256:      prepared.checksum,
+			ArchiveDigestSHA256: prepared.archiveDigest,
+			DigestMatched:       prepared.digestMatched,
+			ChecksumVerified:    false,
+			RegistryTier:        ExtensionRegistryTierUnverified,
+			Permissions:         extensionPermissions(prepared.manifest),
+			InstalledBy:         firstNonEmpty(req.InstalledBy, extensionTrustInstalledByOperator),
+			AllowUnverified:     req.AllowUnverified,
+			Warnings: []diagnosticcontract.DiagnosticItem{
+				extensionChecksumUnverifiedDiagnostic(prepared.slug, prepared.detail.Source, true),
+			},
+		}
 	}
-	return ExtensionProvenance{
-		Slug:                prepared.slug,
-		InstalledFrom:       installedFromForRegistrySource(prepared.detail.Source),
-		SourceURL:           strings.TrimSpace(prepared.detail.Repository),
-		ChecksumSHA256:      prepared.checksum,
-		ArchiveDigestSHA256: prepared.archiveDigest,
-		DigestMatched:       prepared.digestMatched,
-		ChecksumVerified:    false,
-		RegistryTier:        ExtensionRegistryTierUnverified,
-		Permissions:         extensionPermissions(prepared.manifest),
-		InstalledBy:         firstNonEmpty(req.InstalledBy, extensionTrustInstalledByOperator),
-		AllowUnverified:     req.AllowUnverified,
-		Warnings: []diagnosticcontract.DiagnosticItem{
-			extensionChecksumUnverifiedDiagnostic(prepared.slug, prepared.detail.Source, true),
-		},
-	}
+	provenance.Warnings = appendExtensionInstallCleanupWarnings(
+		provenance.Warnings,
+		prepared.slug,
+		prepared.cleanup,
+	)
+	return provenance
 }
 
 // RemoveManagedExtension removes one installed extension and rolls back the

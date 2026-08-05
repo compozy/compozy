@@ -21,6 +21,7 @@ type MCPDeadEntityService interface {
 		reason string,
 	) error
 	RecordSuccess(ctx context.Context, key store.DeadEntityKey) error
+	ForgetEntity(key store.DeadEntityKey)
 }
 
 // MCPProviderOption configures MCP discovery behavior.
@@ -34,7 +35,7 @@ func WithMCPDeadEntityService(service MCPDeadEntityService) MCPProviderOption {
 		}
 		provider.reliability = &mcpReliability{
 			service: service,
-			cache:   make(map[store.DeadEntityKey][]Descriptor),
+			states:  make(map[store.DeadEntityKey]*mcpReliabilityState),
 		}
 	}
 }
@@ -42,19 +43,25 @@ func WithMCPDeadEntityService(service MCPDeadEntityService) MCPProviderOption {
 type mcpReliability struct {
 	service MCPDeadEntityService
 
-	mu    sync.RWMutex
-	cache map[store.DeadEntityKey][]Descriptor
+	mu     sync.RWMutex
+	states map[store.DeadEntityKey]*mcpReliabilityState
+}
+
+type mcpReliabilityState struct {
+	descriptors []Descriptor
 }
 
 func (p *MCPProvider) listSourceDescriptors(ctx context.Context, source SourceRef) ([]Descriptor, error) {
 	key, tracked := mcpDeadEntityKey(source)
+	var reliabilityState *mcpReliabilityState
 	if tracked && p.reliability != nil {
+		reliabilityState = p.reliability.stateFor(key)
 		decision, err := p.reliability.service.BeforeProbe(ctx, key)
 		if err != nil {
 			return nil, fmt.Errorf("tools: admit mcp source %q: %w", source.Owner, err)
 		}
 		if !decision.Allowed {
-			return p.reliability.cached(key), nil
+			return p.reliability.cached(key, reliabilityState), nil
 		}
 	}
 
@@ -72,7 +79,7 @@ func (p *MCPProvider) listSourceDescriptors(ctx context.Context, source SourceRe
 			); recordErr != nil {
 				return nil, fmt.Errorf("tools: record mcp source %q failure: %w", source.Owner, recordErr)
 			}
-			return p.reliability.cached(key), nil
+			return p.reliability.cached(key, reliabilityState), nil
 		}
 		return nil, nil
 	}
@@ -89,9 +96,32 @@ func (p *MCPProvider) listSourceDescriptors(ctx context.Context, source SourceRe
 		if err := p.reliability.service.RecordSuccess(ctx, key); err != nil {
 			return nil, fmt.Errorf("tools: record mcp source %q recovery: %w", source.Owner, err)
 		}
-		p.reliability.store(key, descriptors)
+		p.reliability.store(key, reliabilityState, descriptors)
 	}
 	return descriptors, nil
+}
+
+// ForgetMCPServer retires one workspace MCP server's volatile reliability state.
+func (p *MCPProvider) ForgetMCPServer(workspaceID string, serverName string) {
+	if p == nil || p.reliability == nil {
+		return
+	}
+	key, tracked := mcpDeadEntityKey(SourceRef{
+		WorkspaceID:   workspaceID,
+		RawServerName: serverName,
+	})
+	if !tracked {
+		return
+	}
+	p.reliability.forget(key)
+}
+
+// ForgetWorkspace retires cached MCP descriptors owned by one workspace.
+func (p *MCPProvider) ForgetWorkspace(workspaceID string) {
+	if p == nil || p.reliability == nil {
+		return
+	}
+	p.reliability.forgetWorkspace(workspaceID)
 }
 
 func (r *mcpReliability) dead(ctx context.Context, source SourceRef) bool {
@@ -106,10 +136,27 @@ func (r *mcpReliability) dead(ctx context.Context, source SourceRef) bool {
 	return err == nil && status.Dead
 }
 
-func (r *mcpReliability) cached(key store.DeadEntityKey) []Descriptor {
+func (r *mcpReliability) stateFor(key store.DeadEntityKey) *mcpReliabilityState {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	state := r.states[key]
+	if state == nil {
+		state = &mcpReliabilityState{}
+		r.states[key] = state
+	}
+	return state
+}
+
+func (r *mcpReliability) cached(
+	key store.DeadEntityKey,
+	state *mcpReliabilityState,
+) []Descriptor {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	descriptors := r.cache[key]
+	if r.states[key] != state {
+		return nil
+	}
+	descriptors := state.descriptors
 	cloned := make([]Descriptor, len(descriptors))
 	for i := range descriptors {
 		cloned[i] = cloneDescriptor(descriptors[i])
@@ -117,14 +164,42 @@ func (r *mcpReliability) cached(key store.DeadEntityKey) []Descriptor {
 	return cloned
 }
 
-func (r *mcpReliability) store(key store.DeadEntityKey, descriptors []Descriptor) {
+func (r *mcpReliability) store(
+	key store.DeadEntityKey,
+	state *mcpReliabilityState,
+	descriptors []Descriptor,
+) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.states[key] != state {
+		return
+	}
 	cloned := make([]Descriptor, len(descriptors))
 	for i := range descriptors {
 		cloned[i] = cloneDescriptor(descriptors[i])
 	}
-	r.cache[key] = cloned
+	state.descriptors = cloned
+}
+
+func (r *mcpReliability) forget(key store.DeadEntityKey) {
+	r.mu.Lock()
+	delete(r.states, key)
+	r.mu.Unlock()
+	r.service.ForgetEntity(key)
+}
+
+func (r *mcpReliability) forgetWorkspace(workspaceID string) {
+	trimmed := strings.TrimSpace(workspaceID)
+	if trimmed == "" {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for key := range r.states {
+		if key.WorkspaceID == trimmed {
+			delete(r.states, key)
+		}
+	}
 }
 
 func (r *mcpReliability) retainActiveSources(scope Scope, sources []SourceRef) {
@@ -143,12 +218,12 @@ func (r *mcpReliability) retainActiveSources(scope Scope, sources []SourceRef) {
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	for key := range r.cache {
+	for key := range r.states {
 		if key.WorkspaceID != workspaceID {
 			continue
 		}
 		if _, ok := active[key]; !ok {
-			delete(r.cache, key)
+			delete(r.states, key)
 		}
 	}
 }

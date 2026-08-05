@@ -841,8 +841,8 @@ func assertAgentDefinitionE2ECLIError(
 ) {
 	t.Helper()
 
-	var exitErr *exec.ExitError
-	if !errors.As(err, &exitErr) {
+	exitErr, exitErrMatched := errors.AsType[*exec.ExitError](err)
+	if !exitErrMatched {
 		t.Fatalf("CLI error = %T %[1]v, want *exec.ExitError", err)
 	}
 	if exitErr.ExitCode() != wantExit {

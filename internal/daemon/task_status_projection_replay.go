@@ -17,6 +17,7 @@ const (
 )
 
 var taskStatusProjectionCursorKey = notifications.CursorKey{
+	Scope:      notifications.ScopeRef{Kind: notifications.ScopeKindGlobal},
 	ConsumerID: taskStatusProjectionCursorConsumer,
 	StreamName: taskStatusProjectionCursorStream,
 	SubjectID:  taskStatusProjectionCursorSubject,

@@ -71,10 +71,7 @@ func (h *BaseHandlers) doctorPayload(ctx context.Context, opts doctor.RunOptions
 		}
 	}
 
-	runner, err := doctor.NewRunner(registry)
-	if err != nil {
-		return contract.DoctorPayload{}, err
-	}
+	runner := doctor.NewRunner(registry)
 	items, err := runner.Run(ctx, opts)
 	if err != nil {
 		return contract.DoctorPayload{}, err

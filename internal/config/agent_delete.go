@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/compozy/compozy/internal/fileutil"
 )
 
 var (
@@ -39,6 +41,10 @@ func DeleteAgentDefinition(agentsRoot string, sourcePath string) (retErr error) 
 		}
 	}()
 
+	return deleteAgentDefinitionFromRoot(root, target)
+}
+
+func deleteAgentDefinitionFromRoot(root *fileutil.Directory, target agentDeleteTarget) error {
 	if err := validateAgentDeleteTarget(root, target); err != nil {
 		return err
 	}
@@ -76,45 +82,47 @@ func resolveAgentDeleteTarget(agentsRoot string, sourcePath string) (agentDelete
 	}, nil
 }
 
-func openAgentDeleteRoot(agentsRoot string) (*os.Root, error) {
-	rootInfo, err := os.Lstat(agentsRoot)
+func openAgentDeleteRoot(agentsRoot string) (*fileutil.Directory, error) {
+	root, err := fileutil.OpenDirectory(agentsRoot)
 	if err != nil {
+		if errors.Is(err, fileutil.ErrSymlink) || errors.Is(err, fileutil.ErrNotDirectory) {
+			return nil, fmt.Errorf("config: agents root %q must be a real directory: %w", agentsRoot, err)
+		}
 		return nil, fmt.Errorf("config: inspect agents root %q: %w", agentsRoot, err)
-	}
-	if !rootInfo.IsDir() || rootInfo.Mode()&os.ModeSymlink != 0 {
-		return nil, fmt.Errorf("config: agents root %q must be a real directory", agentsRoot)
-	}
-	root, err := os.OpenRoot(agentsRoot)
-	if err != nil {
-		return nil, fmt.Errorf("config: open agents root %q: %w", agentsRoot, err)
 	}
 	return root, nil
 }
 
-func validateAgentDeleteTarget(root *os.Root, target agentDeleteTarget) error {
-	agentInfo, err := root.Lstat(target.agentName)
+func validateAgentDeleteTarget(root *fileutil.Directory, target agentDeleteTarget) (err error) {
+	agentDirectory, err := root.OpenDirectory(target.agentName)
 	if errors.Is(err, os.ErrNotExist) {
 		return agentDefinitionNotFoundError(target.definitionPath)
 	}
 	if err != nil {
+		if errors.Is(err, fileutil.ErrSymlink) || errors.Is(err, fileutil.ErrNotDirectory) {
+			return fmt.Errorf("config: agent directory %q must be a real directory: %w", target.agentDir, err)
+		}
 		return fmt.Errorf("config: inspect agent directory %q: %w", target.agentDir, err)
 	}
-	if !agentInfo.IsDir() || agentInfo.Mode()&os.ModeSymlink != 0 {
-		return fmt.Errorf("config: agent directory %q must be a real directory", target.agentDir)
-	}
-	definitionPath := filepath.Join(target.agentName, AgentDefinitionFileName)
-	definitionInfo, err := root.Lstat(definitionPath)
+	defer func() {
+		if closeErr := agentDirectory.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("config: close agent directory %q: %w", target.agentDir, closeErr))
+		}
+	}()
+
+	definition, err := agentDirectory.OpenRegularFile(AgentDefinitionFileName)
 	if errors.Is(err, os.ErrNotExist) {
 		return agentDefinitionNotFoundError(target.definitionPath)
 	}
 	if err != nil {
+		if errors.Is(err, fileutil.ErrDirectory) || errors.Is(err, fileutil.ErrNotRegular) ||
+			errors.Is(err, fileutil.ErrSymlink) {
+			return fmt.Errorf("config: agent definition %q must be a regular file: %w", target.definitionPath, err)
+		}
 		return fmt.Errorf("config: inspect agent definition %q: %w", target.definitionPath, err)
 	}
-	if !definitionInfo.Mode().IsRegular() {
-		return fmt.Errorf(
-			"config: agent definition %q must be a regular file",
-			target.definitionPath,
-		)
+	if closeErr := definition.Close(); closeErr != nil {
+		return fmt.Errorf("config: close agent definition %q: %w", target.definitionPath, closeErr)
 	}
 	return nil
 }

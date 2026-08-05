@@ -124,20 +124,6 @@ func workspacePayload(
 	}
 }
 
-func workspaceID(workspace *workspacepkg.ResolvedWorkspace) string {
-	if workspace == nil {
-		return ""
-	}
-	return strings.TrimSpace(workspace.ID)
-}
-
-func workspaceRoot(workspace *workspacepkg.ResolvedWorkspace) string {
-	if workspace == nil {
-		return ""
-	}
-	return strings.TrimSpace(workspace.RootDir)
-}
-
 func coordinationChannelPayload(taskRecord taskpkg.Task, run taskpkg.Run) contract.CoordinationChannelPayload {
 	metadata := runMetadata(run.Metadata)
 	networkSpec := run.NetworkSpecSnapshot()

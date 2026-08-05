@@ -101,6 +101,14 @@ type deliveryMetricPersistenceIssue struct {
 	at  time.Time
 }
 
+type brokerPhase uint8
+
+const (
+	brokerPhaseRunning brokerPhase = iota
+	brokerPhaseClosing
+	brokerPhaseClosed
+)
+
 // Broker projects session output into ordered delivery requests for one
 // bridge-capable extension runtime.
 type Broker struct {
@@ -117,6 +125,9 @@ type Broker struct {
 	requestTimeout time.Duration
 	lifecycleCtx   context.Context
 	cancel         context.CancelFunc
+	phase          brokerPhase
+	closeOnce      sync.Once
+	closed         chan struct{}
 
 	wg sync.WaitGroup
 

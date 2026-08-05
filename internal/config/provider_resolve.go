@@ -1,6 +1,7 @@
 package config
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"strings"
@@ -75,15 +76,8 @@ func (c *Config) ResolveAgent(agent AgentDef) (ResolvedAgent, error) {
 		return ResolvedAgent{}, err
 	}
 
-	resolvedPermissions := strings.TrimSpace(agent.Permissions)
-	if resolvedPermissions == "" {
-		resolvedPermissions = string(permissions.Mode)
-	}
-
-	command := strings.TrimSpace(agent.Command)
-	if command == "" {
-		command = strings.TrimSpace(provider.Command)
-	}
+	resolvedPermissions := cmp.Or(strings.TrimSpace(agent.Permissions), string(permissions.Mode))
+	command := cmp.Or(strings.TrimSpace(agent.Command), strings.TrimSpace(provider.Command))
 
 	model, reasoningEffort, modelSource, reasoningSource, err := resolveAgentModelRuntime(
 		providerName,

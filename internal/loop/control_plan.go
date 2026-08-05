@@ -324,7 +324,7 @@ func materializeFanOutBody(
 ) error {
 	scope := topology.fanOutScopes[fanOutID]
 	indexes := generationOutputIndexMap(*outputs)
-	for itemIndex := 0; itemIndex < materialization.Branches; itemIndex++ {
+	for itemIndex := range materialization.Branches {
 		for _, node := range graph.Nodes {
 			if _, ok := scope.body[node.ID]; !ok {
 				continue

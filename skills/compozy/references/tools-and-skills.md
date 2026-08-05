@@ -12,8 +12,6 @@
 - Skill provenance and shadows
 - Native Compozy tool map
 - Management-surface exceptions
-- Skill authoring rules
-- Reference-system lessons
 
 ## Tool-First Operating Model
 
@@ -166,11 +164,9 @@ Tool-gated skills re-evaluate on the next projection without a daemon restart.
 
 ## Bundled Skill Resources
 
-`skills/compozy/` is the sole owner of bundled skill `compozy`; it ships `SKILL.md` and flat `references/*.md` resources.
+The bundled `compozy` skill ships `SKILL.md` plus flat `references/*.md` resources.
 
-Bundled `dev-cycle` globally publishes exactly `cy-create-prd`, `cy-create-techspec`, `cy-create-tasks`, `cy-execute-task`, `cy-workflow-memory`, `cy-review-round`, `cy-fix-reviews`, `cy-final-verify`, and `git-rebase` to managed sessions. Each complete source directory comes from `.agents/skills/`. Inspect them with `compozy skill list|view`; workspace definitions shadow only locally. Compozy writes no external agent-CLI home and does not replace retired `compozy setup`.
-
-Resource files are load-bearing. A summary in SKILL.md is never a substitute for reading the referenced file selected by the router.
+Bundled `dev-cycle` globally publishes exactly `cy-create-prd`, `cy-create-techspec`, `cy-create-tasks`, `cy-execute-task`, `cy-workflow-memory`, `cy-review-round`, `cy-fix-reviews`, `cy-final-verify`, and `git-rebase` to managed sessions. Inspect them with `compozy skill list|view`; workspace definitions shadow only locally.
 
 ## Skill Provenance And Shadows
 
@@ -192,6 +188,11 @@ local state changes. Use `compozy skill where <name>`, inspect the winning sourc
 the installed skill, remove or rename the shadowing declaration, or remove the broken install
 directory before retrying.
 
+A successful marketplace install or update may carry `cleanup_diagnostics` after its filesystem commit.
+Treat each `operation` as a cleanup warning, not as rollback or permission to retry the mutation. JSON
+keeps the structured array; human and TOON output list the operations. Inspect the named cleanup step
+and local staging state before performing manual cleanup.
+
 ## Native Compozy Tool Map
 
 Inside Compozy, read references/native-tools.md before choosing a tool or CLI fallback. It lists daemon-native toolsets and stable `compozy__*` IDs, but parameters and availability come from the live descriptor returned by canonical `compozy__tool_info`.
@@ -207,22 +208,3 @@ Keep these on operator CLI, HTTP, or UDS surfaces unless Compozy explicitly expo
 - cross-session terminal-state mutation
 
 Read-only inspection tools may exist for these domains. Do not invent a mutating tool call.
-
-## Skill Authoring Rules
-
-Compozy skills follow progressive disclosure:
-
-- Keep SKILL.md short and under the practical 500-line ceiling.
-- Put heavy contracts in flat one-level references/\*.md files.
-- Put the Required Reading Router near the top.
-- Use hard STOP directives before steps that require reference content.
-- Do not nest reference-to-reference dependencies.
-- Add ## Contents to every reference file that might be partially read.
-
-For this compozy skill, do not add scripts. It is a documentation and routing bundle.
-
-## Reference-System Lessons
-
-Hermes distinguishes skills from tools: use skills for procedural guidance and shell workflows; use tools for authenticated, precise, binary, streaming, or realtime work. OpenClaw keeps skill precedence separate from tool allowlists and injects compact prompt catalogs with local paths. Claude Code loads directory-format skill-name/SKILL.md, tracks skill roots for resources, and supports hooks from skill metadata.
-
-Compozy follows the same lesson: one compact catalog entry, explicit resource loading, daemon-owned authority, and structured tool surfaces for state changes.

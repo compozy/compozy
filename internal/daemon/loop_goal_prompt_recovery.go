@@ -131,7 +131,7 @@ func managedGoalRecoveryOwnerMatches(
 	identity goalpkg.PromptRecoveryIdentity,
 ) bool {
 	return owner.LoopRunID == string(identity.Key.LoopRunID) &&
-		owner.RunGeneration == identity.Key.Generation &&
+		owner.RunGeneration == int64(identity.Key.Generation) &&
 		owner.ControlEpoch == identity.ExpectedControlEpoch &&
 		owner.BindingEpoch == identity.ExpectedBindingEpoch &&
 		owner.PromptID == strings.TrimSpace(identity.PromptID) &&

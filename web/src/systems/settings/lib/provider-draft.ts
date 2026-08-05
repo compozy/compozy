@@ -41,7 +41,6 @@ export function emptyProviderDraft(): ProviderDraft {
     env_policy: "filtered",
     home_policy: "operator",
     auth_status_command: "",
-    auth_login_command: "",
     credential_slots: [],
     credential_secret_values: [],
   };
@@ -67,7 +66,6 @@ export function providerDraftFromEntry(entry: SettingsProviderEntry): ProviderDr
     env_policy: entry.settings.env_policy ?? "filtered",
     home_policy: entry.settings.home_policy ?? "operator",
     auth_status_command: entry.settings.auth_status_command ?? "",
-    auth_login_command: entry.settings.auth_login_command ?? "",
     credential_slots: slots,
     // Presence comes from `entry.credentials`; plaintext never rides a read path.
     credential_secret_values: slots.map(() => ""),
@@ -159,7 +157,6 @@ export function providerDraftToRequest(draft: ProviderDraft): SettingsProviderRe
   assignTrimmed(settings, "env_policy", draft.env_policy);
   assignTrimmed(settings, "home_policy", draft.home_policy);
   assignTrimmed(settings, "auth_status_command", draft.auth_status_command);
-  assignTrimmed(settings, "auth_login_command", draft.auth_login_command);
 
   const credentialSlots = requestCredentialSlots(draft);
   if (credentialSlots.length > 0) settings.credential_slots = credentialSlots;

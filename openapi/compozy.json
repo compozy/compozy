@@ -55638,7 +55638,7 @@
         "operationId": "streamBridgeHealth",
         "parameters": [
           {
-            "description": "Comma-separated bridge ids from the current catalog page; maximum 200",
+            "description": "Repeated opaque bridge id from the current catalog page; maximum 200 values",
             "in": "query",
             "name": "bridge_ids",
             "required": true,
@@ -80288,9 +80288,6 @@
                             },
                             "signals": {
                               "properties": {
-                                "metrics_enabled": {
-                                  "type": "boolean"
-                                },
                                 "queue_capacity": {
                                   "type": "integer"
                                 },
@@ -80299,7 +80296,6 @@
                                 }
                               },
                               "required": [
-                                "metrics_enabled",
                                 "queue_capacity",
                                 "worker_retry_max"
                               ],
@@ -97070,8 +97066,45 @@
                                 "nullable": true,
                                 "type": "string"
                               },
-                              "login_command": {
-                                "type": "string"
+                              "login": {
+                                "properties": {
+                                  "configured": {
+                                    "type": "boolean"
+                                  },
+                                  "executable": {
+                                    "type": "string"
+                                  },
+                                  "presence": {
+                                    "enum": [
+                                      "present",
+                                      "missing",
+                                      "unknown"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "recommended_action": {
+                                    "enum": [
+                                      "install_cli",
+                                      "login",
+                                      "bind_secret",
+                                      "retry",
+                                      "inspect",
+                                      "no_retry"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "source": {
+                                    "enum": [
+                                      "auth_login_command"
+                                    ],
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "configured",
+                                  "presence"
+                                ],
+                                "type": "object"
                               },
                               "message": {
                                 "type": "string"
@@ -97089,6 +97122,7 @@
                             "required": [
                               "env_policy",
                               "home_policy",
+                              "login",
                               "mode",
                               "state"
                             ],
@@ -97243,8 +97277,45 @@
                           "nullable": true,
                           "type": "string"
                         },
-                        "login_command": {
-                          "type": "string"
+                        "login": {
+                          "properties": {
+                            "configured": {
+                              "type": "boolean"
+                            },
+                            "executable": {
+                              "type": "string"
+                            },
+                            "presence": {
+                              "enum": [
+                                "present",
+                                "missing",
+                                "unknown"
+                              ],
+                              "type": "string"
+                            },
+                            "recommended_action": {
+                              "enum": [
+                                "install_cli",
+                                "login",
+                                "bind_secret",
+                                "retry",
+                                "inspect",
+                                "no_retry"
+                              ],
+                              "type": "string"
+                            },
+                            "source": {
+                              "enum": [
+                                "auth_login_command"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "configured",
+                            "presence"
+                          ],
+                          "type": "object"
                         },
                         "message": {
                           "type": "string"
@@ -97262,6 +97333,7 @@
                       "required": [
                         "env_policy",
                         "home_policy",
+                        "login",
                         "mode",
                         "state"
                       ],
@@ -97481,8 +97553,45 @@
                           "nullable": true,
                           "type": "string"
                         },
-                        "login_command": {
-                          "type": "string"
+                        "login": {
+                          "properties": {
+                            "configured": {
+                              "type": "boolean"
+                            },
+                            "executable": {
+                              "type": "string"
+                            },
+                            "presence": {
+                              "enum": [
+                                "present",
+                                "missing",
+                                "unknown"
+                              ],
+                              "type": "string"
+                            },
+                            "recommended_action": {
+                              "enum": [
+                                "install_cli",
+                                "login",
+                                "bind_secret",
+                                "retry",
+                                "inspect",
+                                "no_retry"
+                              ],
+                              "type": "string"
+                            },
+                            "source": {
+                              "enum": [
+                                "auth_login_command"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "configured",
+                            "presence"
+                          ],
+                          "type": "object"
                         },
                         "message": {
                           "type": "string"
@@ -97500,6 +97609,7 @@
                       "required": [
                         "env_policy",
                         "home_policy",
+                        "login",
                         "mode",
                         "state"
                       ],
@@ -110623,6 +110733,9 @@
                     "type": "string"
                   },
                   "timeout_seconds": {
+                    "format": "int64",
+                    "maximum": 9223372036,
+                    "minimum": 0,
                     "nullable": true,
                     "type": "integer"
                   }
@@ -110716,6 +110829,79 @@
               }
             },
             "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Malformed scheduler drain request"
           },
           "403": {
             "content": {
@@ -126760,9 +126946,6 @@
                             },
                             "signals": {
                               "properties": {
-                                "metrics_enabled": {
-                                  "type": "boolean"
-                                },
                                 "queue_capacity": {
                                   "type": "integer"
                                 },
@@ -126771,7 +126954,6 @@
                                 }
                               },
                               "required": [
-                                "metrics_enabled",
                                 "queue_capacity",
                                 "worker_retry_max"
                               ],
@@ -127353,9 +127535,6 @@
                           },
                           "signals": {
                             "properties": {
-                              "metrics_enabled": {
-                                "type": "boolean"
-                              },
                               "queue_capacity": {
                                 "type": "integer"
                               },
@@ -127364,7 +127543,6 @@
                               }
                             },
                             "required": [
-                              "metrics_enabled",
                               "queue_capacity",
                               "worker_retry_max"
                             ],
@@ -129766,44 +129944,51 @@
                               "home_policy": {
                                 "type": "string"
                               },
-                              "login_command": {
-                                "type": "string"
-                              },
-                              "login_env": {
-                                "items": {
-                                  "type": "string"
+                              "login": {
+                                "properties": {
+                                  "configured": {
+                                    "type": "boolean"
+                                  },
+                                  "executable": {
+                                    "type": "string"
+                                  },
+                                  "presence": {
+                                    "enum": [
+                                      "present",
+                                      "missing",
+                                      "unknown"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "recommended_action": {
+                                    "enum": [
+                                      "install_cli",
+                                      "login",
+                                      "bind_secret",
+                                      "retry",
+                                      "inspect",
+                                      "no_retry"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "source": {
+                                    "enum": [
+                                      "auth_login_command"
+                                    ],
+                                    "type": "string"
+                                  }
                                 },
-                                "type": "array"
+                                "required": [
+                                  "configured",
+                                  "presence"
+                                ],
+                                "type": "object"
                               },
                               "message": {
                                 "type": "string"
                               },
                               "mode": {
                                 "type": "string"
-                              },
-                              "native_cli": {
-                                "nullable": true,
-                                "properties": {
-                                  "command": {
-                                    "type": "string"
-                                  },
-                                  "error": {
-                                    "type": "string"
-                                  },
-                                  "path": {
-                                    "type": "string"
-                                  },
-                                  "present": {
-                                    "type": "boolean"
-                                  },
-                                  "source": {
-                                    "type": "string"
-                                  }
-                                },
-                                "required": [
-                                  "present"
-                                ],
-                                "type": "object"
                               },
                               "state": {
                                 "type": "string"
@@ -129815,6 +130000,7 @@
                             "required": [
                               "env_policy",
                               "home_policy",
+                              "login",
                               "mode",
                               "state"
                             ],
@@ -129867,9 +130053,6 @@
                             "properties": {
                               "settings": {
                                 "properties": {
-                                  "auth_login_command": {
-                                    "type": "string"
-                                  },
                                   "auth_mode": {
                                     "type": "string"
                                   },
@@ -130126,9 +130309,6 @@
                           },
                           "settings": {
                             "properties": {
-                              "auth_login_command": {
-                                "type": "string"
-                              },
                               "auth_mode": {
                                 "type": "string"
                               },
@@ -130999,44 +131179,51 @@
                             "home_policy": {
                               "type": "string"
                             },
-                            "login_command": {
-                              "type": "string"
-                            },
-                            "login_env": {
-                              "items": {
-                                "type": "string"
+                            "login": {
+                              "properties": {
+                                "configured": {
+                                  "type": "boolean"
+                                },
+                                "executable": {
+                                  "type": "string"
+                                },
+                                "presence": {
+                                  "enum": [
+                                    "present",
+                                    "missing",
+                                    "unknown"
+                                  ],
+                                  "type": "string"
+                                },
+                                "recommended_action": {
+                                  "enum": [
+                                    "install_cli",
+                                    "login",
+                                    "bind_secret",
+                                    "retry",
+                                    "inspect",
+                                    "no_retry"
+                                  ],
+                                  "type": "string"
+                                },
+                                "source": {
+                                  "enum": [
+                                    "auth_login_command"
+                                  ],
+                                  "type": "string"
+                                }
                               },
-                              "type": "array"
+                              "required": [
+                                "configured",
+                                "presence"
+                              ],
+                              "type": "object"
                             },
                             "message": {
                               "type": "string"
                             },
                             "mode": {
                               "type": "string"
-                            },
-                            "native_cli": {
-                              "nullable": true,
-                              "properties": {
-                                "command": {
-                                  "type": "string"
-                                },
-                                "error": {
-                                  "type": "string"
-                                },
-                                "path": {
-                                  "type": "string"
-                                },
-                                "present": {
-                                  "type": "boolean"
-                                },
-                                "source": {
-                                  "type": "string"
-                                }
-                              },
-                              "required": [
-                                "present"
-                              ],
-                              "type": "object"
                             },
                             "state": {
                               "type": "string"
@@ -131048,6 +131235,7 @@
                           "required": [
                             "env_policy",
                             "home_policy",
+                            "login",
                             "mode",
                             "state"
                           ],
@@ -131100,9 +131288,6 @@
                           "properties": {
                             "settings": {
                               "properties": {
-                                "auth_login_command": {
-                                  "type": "string"
-                                },
                                 "auth_mode": {
                                   "type": "string"
                                 },
@@ -131359,9 +131544,6 @@
                         },
                         "settings": {
                           "properties": {
-                            "auth_login_command": {
-                              "type": "string"
-                            },
                             "auth_mode": {
                               "type": "string"
                             },
@@ -131925,6 +132107,7 @@
                   "settings": {
                     "properties": {
                       "auth_login_command": {
+                        "nullable": true,
                         "type": "string"
                       },
                       "auth_mode": {
@@ -139314,6 +139497,20 @@
                   "properties": {
                     "skill": {
                       "properties": {
+                        "cleanup_diagnostics": {
+                          "items": {
+                            "properties": {
+                              "operation": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "operation"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
                         "hash": {
                           "type": "string"
                         },
@@ -139693,6 +139890,20 @@
                     "skills": {
                       "items": {
                         "properties": {
+                          "cleanup_diagnostics": {
+                            "items": {
+                              "properties": {
+                                "operation": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "operation"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
                           "current_version": {
                             "type": "string"
                           },
@@ -143940,8 +144151,45 @@
                             "nullable": true,
                             "type": "string"
                           },
-                          "login_command": {
-                            "type": "string"
+                          "login": {
+                            "properties": {
+                              "configured": {
+                                "type": "boolean"
+                              },
+                              "executable": {
+                                "type": "string"
+                              },
+                              "presence": {
+                                "enum": [
+                                  "present",
+                                  "missing",
+                                  "unknown"
+                                ],
+                                "type": "string"
+                              },
+                              "recommended_action": {
+                                "enum": [
+                                  "install_cli",
+                                  "login",
+                                  "bind_secret",
+                                  "retry",
+                                  "inspect",
+                                  "no_retry"
+                                ],
+                                "type": "string"
+                              },
+                              "source": {
+                                "enum": [
+                                  "auth_login_command"
+                                ],
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "configured",
+                              "presence"
+                            ],
+                            "type": "object"
                           },
                           "message": {
                             "type": "string"
@@ -143957,13 +144205,11 @@
                           },
                           "status_command": {
                             "type": "string"
-                          },
-                          "suggested_command": {
-                            "type": "string"
                           }
                         },
                         "required": [
                           "default",
+                          "login",
                           "name",
                           "state"
                         ],
@@ -176539,6 +176785,24 @@
                                 "format": "int64",
                                 "type": "integer"
                               },
+                              "scope": {
+                                "properties": {
+                                  "kind": {
+                                    "enum": [
+                                      "global",
+                                      "workspace"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "workspace_id": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "kind"
+                                ],
+                                "type": "object"
+                              },
                               "stream_name": {
                                 "type": "string"
                               },
@@ -176554,6 +176818,7 @@
                             "required": [
                               "consumer_id",
                               "last_sequence",
+                              "scope",
                               "stream_name",
                               "subject_id"
                             ],
@@ -177044,6 +177309,24 @@
                               "format": "int64",
                               "type": "integer"
                             },
+                            "scope": {
+                              "properties": {
+                                "kind": {
+                                  "enum": [
+                                    "global",
+                                    "workspace"
+                                  ],
+                                  "type": "string"
+                                },
+                                "workspace_id": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "kind"
+                              ],
+                              "type": "object"
+                            },
                             "stream_name": {
                               "type": "string"
                             },
@@ -177059,6 +177342,7 @@
                           "required": [
                             "consumer_id",
                             "last_sequence",
+                            "scope",
                             "stream_name",
                             "subject_id"
                           ],
@@ -177763,6 +178047,24 @@
                               "format": "int64",
                               "type": "integer"
                             },
+                            "scope": {
+                              "properties": {
+                                "kind": {
+                                  "enum": [
+                                    "global",
+                                    "workspace"
+                                  ],
+                                  "type": "string"
+                                },
+                                "workspace_id": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "kind"
+                              ],
+                              "type": "object"
+                            },
                             "stream_name": {
                               "type": "string"
                             },
@@ -177778,6 +178080,7 @@
                           "required": [
                             "consumer_id",
                             "last_sequence",
+                            "scope",
                             "stream_name",
                             "subject_id"
                           ],

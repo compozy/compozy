@@ -12,6 +12,29 @@ import (
 
 type fakeStore struct{}
 
+func (store fakeStore) WithTaskExecutionTransaction(
+	_ context.Context,
+	fn func(taskpkg.ExecutionMutationStore) error,
+) error {
+	return fn(store)
+}
+
+func (store fakeStore) WithLeaseSettlementTransaction(
+	_ context.Context,
+	_ string,
+	fn func(taskpkg.LeaseSettlementMutationStore) error,
+) error {
+	return fn(store)
+}
+
+func (store fakeStore) WithTaskMutationTransaction(
+	_ context.Context,
+	_ string,
+	mutation taskpkg.RunMutation,
+) error {
+	return mutation(store)
+}
+
 func (fakeStore) CreateTask(context.Context, taskpkg.Task) error { return nil }
 
 func (fakeStore) DeleteTask(context.Context, string) error { return nil }
@@ -100,6 +123,13 @@ func (fakeStore) ClearTaskNeedsAttention(
 	return taskpkg.NeedsAttentionClearResult{}, nil
 }
 
+func (fakeStore) ListExpiredTaskBlockTargets(
+	context.Context,
+	time.Time,
+) ([]taskpkg.BlockExpiryTarget, error) {
+	return nil, nil
+}
+
 func (fakeStore) ExpireTaskBlocks(
 	context.Context,
 	taskpkg.ExpireTaskBlocksMutation,
@@ -114,16 +144,111 @@ func (fakeStore) BlockTaskAndReleaseRun(
 	return taskpkg.BlockTaskAndReleaseRunResult{}, nil
 }
 
-func (fakeStore) CreateTaskRun(context.Context, taskpkg.Run) error { return nil }
-
-func (fakeStore) UpdateTaskRun(context.Context, taskpkg.Run) error { return nil }
-
-func (fakeStore) CompleteRunSettlement(
+func (fakeStore) UpdateTaskRunMetadata(
 	context.Context,
-	taskpkg.Run,
+	taskpkg.RunMetadataMutation,
+) (taskpkg.Run, error) {
+	return taskpkg.Run{}, nil
+}
+
+func (fakeStore) FailTasklessRunOnBoot(
+	context.Context,
+	taskpkg.TerminalRunMutation,
+) (taskpkg.Run, error) {
+	return taskpkg.Run{}, nil
+}
+
+func (fakeStore) TransitionTerminalRun(
+	_ context.Context,
+	mutation taskpkg.TerminalRunMutation,
+) (taskpkg.Run, error) {
+	return mutation.NextRun(), nil
+}
+
+func (fakeStore) SettleCompletedTaskHierarchy(
+	context.Context,
+	string,
 	taskpkg.ActorContext,
+	time.Time,
 ) (taskpkg.CompletedRunSettlement, error) {
 	return taskpkg.CompletedRunSettlement{}, nil
+}
+
+func (fakeStore) ReserveTerminalRunCommand(
+	_ context.Context,
+	command taskpkg.TerminalRunCommand,
+) (taskpkg.TerminalRunCommand, bool, error) {
+	return command, true, nil
+}
+
+func (fakeStore) AdvanceTerminalRunCommandPhase(
+	_ context.Context,
+	command taskpkg.TerminalRunCommand,
+	_ taskpkg.TerminalRunCommandPhase,
+	_ time.Time,
+) (taskpkg.TerminalRunCommand, error) {
+	return command, nil
+}
+
+func (fakeStore) ReleaseTerminalRunCommand(
+	context.Context,
+	taskpkg.TerminalRunCommand,
+) error {
+	return nil
+}
+
+func (fakeStore) ListTerminalRunCommands(context.Context) ([]taskpkg.TerminalRunCommand, error) {
+	return nil, nil
+}
+
+func (fakeStore) ConsumeTerminalRunCommand(
+	_ context.Context,
+	command taskpkg.TerminalRunCommand,
+	_ taskpkg.TerminalRunCommandPhase,
+) (taskpkg.TerminalRunCommand, error) {
+	return command, nil
+}
+
+func (fakeStore) AdmitRunDirectExecution(
+	context.Context,
+	taskpkg.RunDirectExecutionAdmissionMutation,
+) (taskpkg.NominalRunMutationResult, error) {
+	return taskpkg.NominalRunMutationResult{}, nil
+}
+
+func (fakeStore) TransitionRunStarting(
+	context.Context,
+	taskpkg.RunStartingMutation,
+) (taskpkg.NominalRunMutationResult, error) {
+	return taskpkg.NominalRunMutationResult{}, nil
+}
+
+func (fakeStore) BindRunSession(
+	context.Context,
+	taskpkg.RunSessionBindingMutation,
+) (taskpkg.NominalRunMutationResult, error) {
+	return taskpkg.NominalRunMutationResult{}, nil
+}
+
+func (fakeStore) TransitionRunRunning(
+	context.Context,
+	taskpkg.RunRunningMutation,
+) (taskpkg.NominalRunMutationResult, error) {
+	return taskpkg.NominalRunMutationResult{}, nil
+}
+
+func (fakeStore) RecoverTaskRunOnBoot(
+	context.Context,
+	taskpkg.RunBootRecoveryMutation,
+) (taskpkg.NominalRunMutationResult, error) {
+	return taskpkg.NominalRunMutationResult{}, nil
+}
+
+func (fakeStore) RecoverNetworkWakeOnBoot(
+	context.Context,
+	taskpkg.NetworkWakeBootRecoveryMutation,
+) (taskpkg.NominalRunMutationResult, error) {
+	return taskpkg.NominalRunMutationResult{}, nil
 }
 
 func (fakeStore) GetTaskRun(context.Context, string) (taskpkg.Run, error) {
@@ -150,6 +275,19 @@ func (fakeStore) ReleaseRunLease(context.Context, taskpkg.LeaseRelease) (taskpkg
 	return taskpkg.Run{}, nil
 }
 
+func (fakeStore) ListActiveSessionRunLeases(context.Context, string) ([]taskpkg.Run, error) {
+	return nil, nil
+}
+
+func (fakeStore) ReleaseSessionRunLease(
+	context.Context,
+	taskpkg.Run,
+	taskpkg.SessionLeaseRelease,
+	taskpkg.ActorContext,
+) (taskpkg.Run, error) {
+	return taskpkg.Run{}, nil
+}
+
 func (fakeStore) CompleteRunLease(context.Context, taskpkg.LeaseCompletion) (taskpkg.Run, error) {
 	return taskpkg.Run{}, nil
 }
@@ -165,6 +303,13 @@ func (fakeStore) FailRunLease(context.Context, taskpkg.LeaseFailure) (taskpkg.Ru
 	return taskpkg.Run{}, nil
 }
 
+func (fakeStore) FailRunLeaseMutation(
+	context.Context,
+	taskpkg.LeaseFailure,
+) (taskpkg.FailedRunLeaseMutation, error) {
+	return taskpkg.FailedRunLeaseMutation{}, nil
+}
+
 func (fakeStore) SettleNetworkWake(
 	context.Context,
 	taskpkg.NetworkWakeSettlement,
@@ -172,8 +317,11 @@ func (fakeStore) SettleNetworkWake(
 	return taskpkg.NetworkWakeSettlementResult{}, nil
 }
 
-func (fakeStore) MarkTaskRunNeedsAttention(context.Context, string, string) (taskpkg.Run, error) {
-	return taskpkg.Run{}, nil
+func (fakeStore) MarkRunNeedsAttentionMutation(
+	context.Context,
+	taskpkg.RunNeedsAttentionCommand,
+) (taskpkg.RunNeedsAttentionMutation, error) {
+	return taskpkg.RunNeedsAttentionMutation{}, nil
 }
 
 func (fakeStore) ForceReleaseTaskRun(
@@ -196,6 +344,14 @@ func (fakeStore) RetryTaskRun(context.Context, taskpkg.RetryRunMutation) (taskpk
 
 func (fakeStore) RecoverTaskRun(context.Context, taskpkg.RecoverRunMutation) (taskpkg.RetryRunResult, error) {
 	return taskpkg.RetryRunResult{}, nil
+}
+
+func (fakeStore) InvalidateForceRunInputs(
+	context.Context,
+	string,
+	time.Time,
+) (taskpkg.ForceRunInputInvalidation, error) {
+	return taskpkg.ForceRunInputInvalidation{}, nil
 }
 
 func (fakeStore) RecoverExpiredRunLeases(

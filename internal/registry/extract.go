@@ -6,46 +6,49 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"os"
-	"path"
-	"path/filepath"
-	"strings"
-	"time"
+
+	"github.com/compozy/compozy/internal/fileutil"
 )
 
 const (
-	// DefaultMaxDecompressedSize caps the total extracted archive size.
+	// DefaultMaxDecompressedSize caps the raw decompressed TAR stream.
 	DefaultMaxDecompressedSize int64 = 500 * 1024 * 1024
-	// DefaultMaxFileCount caps the number of archive entries processed.
+	// DefaultMaxFileCount caps the number of filesystem nodes materialized.
 	DefaultMaxFileCount = 10000
+	// DefaultMaxArchiveDepth caps the number of path components in one entry.
+	DefaultMaxArchiveDepth = 64
 )
 
 var (
-	// ErrArchiveDestinationRequired reports that ExtractArchive received a blank destination root.
-	ErrArchiveDestinationRequired = errors.New("destination root is required")
+	// ErrArchiveRootRequired reports that ExtractArchive received no acquired extraction root.
+	ErrArchiveRootRequired = errors.New("archive extraction root is required")
 	// ErrArchiveEntryPathRequired reports that an archive entry did not contain a usable path.
 	ErrArchiveEntryPathRequired = errors.New("archive entry path is required")
 	// ErrArchiveEntryMustBeRelative reports that an archive entry path was absolute.
 	ErrArchiveEntryMustBeRelative = errors.New("archive entry must be relative")
 	// ErrArchiveEntryEscapesRoot reports that an archive entry would escape the extraction root.
 	ErrArchiveEntryEscapesRoot = errors.New("archive entry escapes the extraction root")
-	// ErrUnsupportedArchiveEntryType reports that ExtractArchive encountered an unsupported tar entry type.
+	// ErrUnsupportedArchiveEntryType reports an unsupported tar entry type.
 	ErrUnsupportedArchiveEntryType = errors.New("unsupported archive entry type")
+	// ErrArchiveDuplicateEntry reports that an archive declared the same path more than once.
+	ErrArchiveDuplicateEntry = errors.New("archive contains duplicate entry")
 	// ErrPathRootRequired reports that PathWithinRoot received a blank root path.
 	ErrPathRootRequired = errors.New("root path is required")
 	// ErrPathOutsideRoot reports that a path resolves outside the provided root.
 	ErrPathOutsideRoot = errors.New("path must stay within the root directory")
-	// ErrPathTraversesSymlink reports that extraction would traverse a symlink on disk.
+	// ErrPathTraversesSymlink reports a symlink or reparse point in the staging tree.
 	ErrPathTraversesSymlink = errors.New("path traverses symlink")
 
 	errArchiveTooLarge     = errors.New("registry: archive exceeds max decompressed size")
 	errArchiveTooManyFiles = errors.New("registry: archive exceeds max file count")
+	errArchiveTooDeep      = errors.New("registry: archive entry exceeds max depth")
 )
 
 type extractLimits struct {
 	maxDecompressedSize int64
 	maxFileCount        int
+	maxDepth            int
 }
 
 func (l extractLimits) normalized() extractLimits {
@@ -55,23 +58,16 @@ func (l extractLimits) normalized() extractLimits {
 	if l.maxFileCount <= 0 {
 		l.maxFileCount = DefaultMaxFileCount
 	}
+	if l.maxDepth <= 0 {
+		l.maxDepth = DefaultMaxArchiveDepth
+	}
 	return l
 }
 
-// ExtractArchive extracts a tar.gz archive into destRoot using the default
-// decompressed-size and file-count limits.
-func ExtractArchive(reader io.Reader, destRoot string) error {
-	return extractArchive(reader, destRoot, extractLimits{})
-}
-
-func extractArchive(reader io.Reader, destRoot string, limits extractLimits) (err error) {
-	if strings.TrimSpace(destRoot) == "" {
-		return ErrArchiveDestinationRequired
+func extractArchive(reader io.Reader, root *fileutil.Directory, limits extractLimits) (err error) {
+	if root == nil {
+		return ErrArchiveRootRequired
 	}
-	if err := os.MkdirAll(destRoot, 0o755); err != nil {
-		return fmt.Errorf("create destination root %q: %w", destRoot, err)
-	}
-
 	limits = limits.normalized()
 
 	gzipReader, err := gzip.NewReader(reader)
@@ -80,352 +76,149 @@ func extractArchive(reader io.Reader, destRoot string, limits extractLimits) (er
 	}
 	defer func() {
 		if closeErr := gzipReader.Close(); closeErr != nil {
-			if err == nil {
-				err = fmt.Errorf("close gzip stream: %w", closeErr)
-			} else {
-				err = errors.Join(err, fmt.Errorf("close gzip stream: %w", closeErr))
-			}
+			err = errors.Join(err, fmt.Errorf("close gzip stream: %w", closeErr))
 		}
 	}()
 
-	tarReader := tar.NewReader(gzipReader)
-	entryCount := 0
-	var totalExtracted int64
-
+	decompressed := newDecompressedArchiveReader(gzipReader, limits.maxDecompressedSize)
+	tarReader := tar.NewReader(decompressed)
+	seenEntries := make(map[string]struct{})
+	treeBudget := newArchiveTreeBudget(limits.maxFileCount, limits.maxDepth)
 	for {
-		header, err := tarReader.Next()
-		if errors.Is(err, io.EOF) {
+		header, readErr := tarReader.Next()
+		if errors.Is(readErr, io.EOF) {
+			if drainErr := drainDecompressedArchive(decompressed); drainErr != nil {
+				return drainErr
+			}
 			return nil
 		}
-		if err != nil {
-			return fmt.Errorf("read tar entry: %w", err)
+		if readErr != nil {
+			return fmt.Errorf("read tar entry: %w", readErr)
 		}
 
-		entryCount++
-		if entryCount > limits.maxFileCount {
-			return fmt.Errorf("%w: limit=%d", errArchiveTooManyFiles, limits.maxFileCount)
+		entryName, cleanErr := cleanArchiveEntryPath(header.Name)
+		if cleanErr != nil {
+			return fmt.Errorf("clean archive entry %q: %w", header.Name, cleanErr)
+		}
+		if _, exists := seenEntries[entryName]; exists {
+			return fmt.Errorf("%w: %q", ErrArchiveDuplicateEntry, header.Name)
+		}
+		seenEntries[entryName] = struct{}{}
+		if typeErr := validateArchiveEntryType(header.Typeflag); typeErr != nil {
+			return fmt.Errorf("extract archive entry %q: %w", header.Name, typeErr)
+		}
+		if budgetErr := treeBudget.reserve(entryName); budgetErr != nil {
+			return fmt.Errorf("reserve archive entry %q: %w", header.Name, budgetErr)
 		}
 
-		entryName, err := CleanArchiveEntryPath(header.Name)
-		if err != nil {
-			return fmt.Errorf("clean archive entry %q: %w", header.Name, err)
-		}
-		targetPath, err := PathWithinRoot(destRoot, filepath.FromSlash(entryName))
-		if err != nil {
-			return fmt.Errorf("resolve archive entry %q: %w", header.Name, err)
-		}
-
-		if err := extractArchiveEntry(
-			tarReader,
-			destRoot,
-			targetPath,
-			header,
-			&totalExtracted,
-			limits.maxDecompressedSize,
-		); err != nil {
-			return fmt.Errorf("extract archive entry %q: %w", header.Name, err)
+		if extractErr := extractArchiveEntry(tarReader, root, entryName, header); extractErr != nil {
+			return fmt.Errorf("extract archive entry %q: %w", header.Name, extractErr)
 		}
 	}
 }
 
 func extractArchiveEntry(
 	tarReader *tar.Reader,
-	destRoot string,
-	targetPath string,
+	root *fileutil.Directory,
+	entryName string,
 	header *tar.Header,
-	totalExtracted *int64,
-	maxDecompressedSize int64,
 ) error {
 	switch header.Typeflag {
 	case tar.TypeDir:
-		return extractArchiveDirectory(destRoot, targetPath, header)
+		return extractArchiveDirectory(root, entryName, header)
 	case tar.TypeReg, 0:
-		return extractArchiveFile(tarReader, destRoot, targetPath, header, totalExtracted, maxDecompressedSize)
+		return extractArchiveFile(tarReader, root, entryName, header)
 	default:
 		return fmt.Errorf("%w %d", ErrUnsupportedArchiveEntryType, header.Typeflag)
 	}
 }
 
-func extractArchiveDirectory(destRoot string, targetPath string, header *tar.Header) error {
-	if err := ensureExtractionPathSafe(destRoot, targetPath); err != nil {
-		return fmt.Errorf("validate archive directory %q: %w", targetPath, err)
+func validateArchiveEntryType(typeflag byte) error {
+	switch typeflag {
+	case tar.TypeDir, tar.TypeReg, 0:
+		return nil
+	default:
+		return fmt.Errorf("%w %d", ErrUnsupportedArchiveEntryType, typeflag)
 	}
+}
 
-	dirMode := archiveDirMode(header)
-	if err := os.MkdirAll(targetPath, dirMode); err != nil {
-		return fmt.Errorf("create archive directory %q: %w", targetPath, err)
+func extractArchiveDirectory(root *fileutil.Directory, entryName string, header *tar.Header) (err error) {
+	directory, err := openExtractionDirectory(root, entryName, true, archiveDirMode(header))
+	if err != nil {
+		return fmt.Errorf("open archive directory %q: %w", entryName, err)
 	}
-	if err := os.Chmod(targetPath, dirMode); err != nil {
-		return fmt.Errorf("set archive directory mode %q: %w", targetPath, err)
+	defer func() {
+		err = closeOwnedExtractionDirectory(root, directory, err)
+	}()
+	if err := directory.Chmod(archiveDirMode(header)); err != nil {
+		return fmt.Errorf("set archive directory mode %q: %w", entryName, err)
 	}
 	return nil
 }
 
 func extractArchiveFile(
 	tarReader *tar.Reader,
-	destRoot string,
-	targetPath string,
+	root *fileutil.Directory,
+	entryName string,
 	header *tar.Header,
-	totalExtracted *int64,
-	maxDecompressedSize int64,
-) error {
-	parentDir := filepath.Dir(targetPath)
-	if err := ensureExtractionPathSafe(destRoot, parentDir); err != nil {
-		return fmt.Errorf("validate archive parent %q: %w", parentDir, err)
+) (err error) {
+	parent, name, err := openExtractionParent(root, entryName, true, 0o755)
+	if err != nil {
+		return fmt.Errorf("open archive parent %q: %w", entryName, err)
 	}
-	if err := os.MkdirAll(parentDir, 0o755); err != nil {
-		return fmt.Errorf("create archive parent %q: %w", parentDir, err)
-	}
-
-	if err := ensureExtractionPathSafe(destRoot, targetPath); err != nil {
-		return fmt.Errorf("validate archive file %q: %w", targetPath, err)
-	}
+	defer func() {
+		err = closeOwnedExtractionDirectory(root, parent, err)
+	}()
 
 	fileMode := archiveFileMode(header)
-	file, err := os.OpenFile(targetPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, fileMode)
+	file, err := parent.CreateRegularFile(name, fileMode)
 	if err != nil {
-		return fmt.Errorf("create archive file %q: %w", targetPath, err)
+		if errors.Is(err, os.ErrExist) {
+			return classifyExistingArchiveEntry(parent, name)
+		}
+		return fmt.Errorf("create archive file %q: %w", entryName, mapExtractionAccessError(err))
 	}
 
-	counter := &countingLimitWriter{
-		total: totalExtracted,
-		limit: maxDecompressedSize,
+	if _, err := io.Copy(file, tarReader); err != nil {
+		return cleanupArchiveFile(file, parent, name, fmt.Errorf("write archive file %q: %w", entryName, err), false)
 	}
-	teeReader := io.TeeReader(tarReader, counter)
-	if _, err := io.Copy(file, teeReader); err != nil {
-		return cleanupArchiveFile(
-			file,
-			targetPath,
-			fmt.Errorf("write archive file %q: %w", targetPath, err),
-			false,
-		)
+	if err := file.Chmod(fileMode); err != nil {
+		return cleanupArchiveFile(file, parent, name, fmt.Errorf("set archive file mode %q: %w", entryName, err), false)
 	}
 	if err := file.Close(); err != nil {
-		return cleanupArchiveFile(
-			nil,
-			targetPath,
-			fmt.Errorf("close archive file %q: %w", targetPath, err),
-			true,
-		)
-	}
-	if err := os.Chmod(targetPath, fileMode); err != nil {
-		return fmt.Errorf("set archive file mode %q: %w", targetPath, err)
+		return cleanupArchiveFile(nil, parent, name, fmt.Errorf("close archive file %q: %w", entryName, err), true)
 	}
 	return nil
 }
 
-type countingLimitWriter struct {
-	total *int64
-	limit int64
+func classifyExistingArchiveEntry(parent *fileutil.Directory, name string) error {
+	file, err := parent.OpenRegularFile(name)
+	if err != nil {
+		return fmt.Errorf("%w: %q", mapExtractionAccessError(err), name)
+	}
+	if closeErr := file.Close(); closeErr != nil {
+		return fmt.Errorf("close existing archive file %q: %w", name, closeErr)
+	}
+	return fmt.Errorf("%w: %q", ErrArchiveDuplicateEntry, name)
 }
 
-func (w *countingLimitWriter) Write(p []byte) (int, error) {
-	if w.total == nil {
-		return 0, errors.New("total counter is required")
-	}
-	if w.limit <= 0 {
-		*w.total += int64(len(p))
-		return len(p), nil
-	}
-
-	remaining := w.limit - *w.total
-	if remaining <= 0 {
-		return 0, errArchiveTooLarge
-	}
-	if int64(len(p)) > remaining {
-		*w.total = w.limit
-		return int(remaining), errArchiveTooLarge
-	}
-
-	*w.total += int64(len(p))
-	return len(p), nil
-}
-
-func cleanupArchiveFile(file *os.File, targetPath string, baseErr error, alreadyClosed bool) error {
+func cleanupArchiveFile(
+	file *os.File,
+	parent *fileutil.Directory,
+	name string,
+	baseErr error,
+	alreadyClosed bool,
+) error {
 	if file != nil && !alreadyClosed {
 		if closeErr := file.Close(); closeErr != nil {
-			baseErr = errors.Join(baseErr, fmt.Errorf("close archive file %q after failure: %w", targetPath, closeErr))
+			baseErr = errors.Join(baseErr, fmt.Errorf("close archive file %q after failure: %w", name, closeErr))
 		}
 	}
-	if removeErr := os.Remove(targetPath); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
-		baseErr = errors.Join(baseErr, fmt.Errorf("remove partial archive file %q: %w", targetPath, removeErr))
+	if parent == nil {
+		return errors.Join(baseErr, ErrArchiveRootRequired)
+	}
+	if removeErr := parent.RemoveRegularFile(name); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
+		baseErr = errors.Join(baseErr, fmt.Errorf("remove partial archive file %q: %w", name, removeErr))
 	}
 	return baseErr
-}
-
-// MoveInstalledDir moves an extracted package directory into its final location.
-// If replaceExisting is true, the current target is atomically backed up and
-// restored on failure.
-func MoveInstalledDir(extractedDir string, targetDir string, replaceExisting bool) error {
-	if !replaceExisting {
-		if _, err := os.Stat(targetDir); err == nil {
-			return fmt.Errorf("package %q already exists at %s", filepath.Base(targetDir), targetDir)
-		} else if !errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("registry: inspect target directory %q: %w", targetDir, err)
-		}
-
-		if err := os.Rename(extractedDir, targetDir); err != nil {
-			return fmt.Errorf("registry: install package into %q: %w", targetDir, err)
-		}
-		return nil
-	}
-
-	if _, err := os.Stat(targetDir); err != nil {
-		if !errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("registry: inspect target directory %q: %w", targetDir, err)
-		}
-		if err := os.Rename(extractedDir, targetDir); err != nil {
-			return fmt.Errorf("registry: install updated package into %q: %w", targetDir, err)
-		}
-		return nil
-	}
-
-	backupDir := fmt.Sprintf("%s.backup-%d", targetDir, time.Now().UTC().UnixNano())
-	if err := os.Rename(targetDir, backupDir); err != nil {
-		return fmt.Errorf("registry: stage existing package backup %q: %w", targetDir, err)
-	}
-
-	if err := os.Rename(extractedDir, targetDir); err != nil {
-		revertErr := os.Rename(backupDir, targetDir)
-		if revertErr != nil {
-			return errors.Join(
-				fmt.Errorf("registry: install updated package into %q: %w", targetDir, err),
-				fmt.Errorf("registry: restore original package from %q: %w", backupDir, revertErr),
-			)
-		}
-		return fmt.Errorf("registry: install updated package into %q: %w", targetDir, err)
-	}
-
-	removeInstalledDirBackup(backupDir, os.RemoveAll)
-	return nil
-}
-
-func removeInstalledDirBackup(backupDir string, removeAll func(string) error) {
-	if removeAll == nil {
-		return
-	}
-	if err := removeAll(backupDir); err != nil && !errors.Is(err, os.ErrNotExist) {
-		// The replacement already committed successfully. Keep the backup around
-		// for manual cleanup instead of reporting the install as failed.
-		return
-	}
-}
-
-// CleanArchiveEntryPath normalizes one archive entry and rejects absolute or
-// escaping paths.
-func CleanArchiveEntryPath(entry string) (string, error) {
-	cleaned := path.Clean(strings.TrimSpace(strings.ReplaceAll(entry, "\\", "/")))
-	switch {
-	case cleaned == ".", cleaned == "":
-		return "", ErrArchiveEntryPathRequired
-	case strings.HasPrefix(cleaned, "/"):
-		return "", fmt.Errorf("%w: %q", ErrArchiveEntryMustBeRelative, entry)
-	case cleaned == "..", strings.HasPrefix(cleaned, "../"):
-		return "", fmt.Errorf("%w: %q", ErrArchiveEntryEscapesRoot, entry)
-	default:
-		return cleaned, nil
-	}
-}
-
-// PathWithinRoot resolves a child path and guarantees it stays under root.
-func PathWithinRoot(root string, child string) (string, error) {
-	trimmedRoot := strings.TrimSpace(root)
-	if trimmedRoot == "" {
-		return "", ErrPathRootRequired
-	}
-
-	absRoot, err := filepath.Abs(trimmedRoot)
-	if err != nil {
-		return "", fmt.Errorf("resolve root %q: %w", root, err)
-	}
-	targetPath := filepath.Join(absRoot, child)
-	absTarget, err := filepath.Abs(targetPath)
-	if err != nil {
-		return "", fmt.Errorf("resolve target %q: %w", targetPath, err)
-	}
-	relative, err := filepath.Rel(absRoot, absTarget)
-	if err != nil {
-		return "", fmt.Errorf("resolve target %q within %q: %w", absTarget, absRoot, err)
-	}
-	if relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
-		return "", ErrPathOutsideRoot
-	}
-	return absTarget, nil
-}
-
-func archiveDirMode(header *tar.Header) os.FileMode {
-	return archiveEntryMode(header, 0o755)
-}
-
-func archiveFileMode(header *tar.Header) os.FileMode {
-	return archiveEntryMode(header, 0o644)
-}
-
-func archiveEntryMode(header *tar.Header, fallback os.FileMode) os.FileMode {
-	if header == nil {
-		return fallback
-	}
-	if header.Mode < 0 || header.Mode > math.MaxUint32 {
-		return fallback
-	}
-	mode := os.FileMode(uint32(header.Mode)) & os.ModePerm
-	if mode == 0 {
-		return fallback
-	}
-	return mode
-}
-
-func ensureExtractionPathSafe(root string, targetPath string) error {
-	absRoot, err := filepath.Abs(strings.TrimSpace(root))
-	if err != nil {
-		return fmt.Errorf("resolve extraction root %q: %w", root, err)
-	}
-	absTarget, err := filepath.Abs(strings.TrimSpace(targetPath))
-	if err != nil {
-		return fmt.Errorf("resolve extraction target %q: %w", targetPath, err)
-	}
-
-	relative, err := filepath.Rel(absRoot, absTarget)
-	if err != nil {
-		return fmt.Errorf("resolve extraction target %q within %q: %w", absTarget, absRoot, err)
-	}
-
-	if err := ensureExtractionComponent(absRoot, true); err != nil {
-		return err
-	}
-	if relative == "." {
-		return nil
-	}
-
-	current := absRoot
-	for component := range strings.SplitSeq(relative, string(filepath.Separator)) {
-		if component == "" || component == "." {
-			continue
-		}
-
-		current = filepath.Join(current, component)
-		if err := ensureExtractionComponent(current, current != absTarget); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func ensureExtractionComponent(path string, mustBeDir bool) error {
-	info, err := os.Lstat(path)
-	switch {
-	case errors.Is(err, os.ErrNotExist):
-		return nil
-	case err != nil:
-		return fmt.Errorf("inspect extraction path %q: %w", path, err)
-	}
-
-	if info.Mode()&os.ModeSymlink != 0 {
-		return fmt.Errorf("%w: extraction path %q", ErrPathTraversesSymlink, path)
-	}
-	if mustBeDir && !info.IsDir() {
-		return fmt.Errorf("extraction path %q is not a directory", path)
-	}
-	return nil
 }

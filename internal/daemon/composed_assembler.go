@@ -293,7 +293,7 @@ func gatherPromptSections(
 
 func promptSection(
 	ctx context.Context,
-	provider session.PromptProvider,
+	provider any,
 	startup session.StartupPromptContext,
 	agent compozyconfig.AgentDef,
 	workspace *workspacepkg.ResolvedWorkspace,
@@ -307,7 +307,10 @@ func promptSection(
 	if agentProvider, ok := provider.(agentPromptSectionProvider); ok {
 		return agentProvider.PromptAgentSection(ctx, agent, workspace)
 	}
-	return provider.PromptSection(ctx, workspace)
+	if workspaceProvider, ok := provider.(session.PromptProvider); ok {
+		return workspaceProvider.PromptSection(ctx, workspace)
+	}
+	return "", fmt.Errorf("daemon: unsupported prompt section provider %T", provider)
 }
 
 func applyPromptSectionBudget(section string, descriptor PromptSectionDescriptor) string {

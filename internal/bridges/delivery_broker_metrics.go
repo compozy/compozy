@@ -20,6 +20,12 @@ func (b *Broker) LoadDeliveryMetrics(ctx context.Context, query DeliveryLedgerQu
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	operationCtx, finishOperation, err := b.beginMutableOperation(ctx)
+	if err != nil {
+		return err
+	}
+	defer finishOperation()
+	ctx = operationCtx
 	if b.ledgerStore == nil {
 		return errors.New("bridges: delivery ledger store is required")
 	}
@@ -34,6 +40,9 @@ func (b *Broker) LoadDeliveryMetrics(ctx context.Context, query DeliveryLedgerQu
 
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	for bridgeInstanceID, entry := range persisted {
 		metrics := b.metricsLocked(bridgeInstanceID)
 		if metrics == nil {

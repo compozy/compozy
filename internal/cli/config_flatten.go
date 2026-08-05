@@ -29,7 +29,8 @@ func flattenConfigValue(entries *[]configEntry, path string, value any, redacted
 				entries,
 				nextPath,
 				typed[key],
-				redacted || key == configEnvKey || key == configSecretEnvKey,
+				redacted || key == configEnvKey || key == configSecretEnvKey ||
+					key == providerAuthLoginCommandKey,
 			)
 		}
 	case []any:

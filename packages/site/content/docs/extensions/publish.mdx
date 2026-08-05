@@ -112,9 +112,11 @@ compozy extension install git:https://github.com/acme/hello@v0.1.0
 ```
 
 The repository must contain a built generation — commit `dist/gen-<hash>/` or make the repository root
-the generation. Git installs need the `git` executable on the daemon host; a missing binary is the
-deterministic `extension_git_unavailable` diagnostic. URLs carrying embedded credentials are rejected
-before any request.
+the generation. Git source URLs must use HTTPS, resolve only to public addresses, and contain no
+credentials, query, or fragment. The daemon validates every DNS answer, pins the approved addresses,
+and disables redirects, proxies, credential helpers, and repository hooks for the clone. This requires
+Git 2.37 or newer. A missing executable reports `extension_git_unavailable`; an older version reports
+`extension_git_version_unsupported`.
 
 ## Ship an update
 

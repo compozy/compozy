@@ -3,13 +3,17 @@ package memory
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"log/slog"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 	"unicode/utf8"
 
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
+	memoryrecall "github.com/compozy/compozy/internal/memory/recall"
 	"github.com/compozy/compozy/internal/session"
 )
 
@@ -50,7 +54,7 @@ func TestNewRecallAugmenter(t *testing.T) {
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("Store.EnsureDirs() error = %v", err)
 		}
-		if err := store.Write(memcontract.ScopeWorkspace, "auth.md", mustMemoryContent(t, testMemoryMeta{
+		if err := store.Write(t.Context(), memcontract.ScopeWorkspace, "auth.md", mustMemoryContent(t, testMemoryMeta{
 			Name:        "Auth",
 			Description: "Auth migration notes",
 			Type:        memcontract.TypeProject,
@@ -138,18 +142,28 @@ func TestStoreRecall(t *testing.T) {
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("Store.EnsureDirs() error = %v", err)
 		}
-		if err := store.Write(memcontract.ScopeGlobal, "project_auth.md", mustMemoryContent(t, testMemoryMeta{
-			Name:        "Global Auth",
-			Description: "Global auth migration",
-			Type:        memcontract.TypeProject,
-		}, "Global auth migration sessions are less specific.\n")); err != nil {
+		if err := store.Write(
+			t.Context(),
+			memcontract.ScopeGlobal,
+			"project_auth.md",
+			mustMemoryContent(t, testMemoryMeta{
+				Name:        "Global Auth",
+				Description: "Global auth migration",
+				Type:        memcontract.TypeProject,
+			}, "Global auth migration sessions are less specific.\n"),
+		); err != nil {
 			t.Fatalf("Store.Write(global) error = %v", err)
 		}
-		if err := store.Write(memcontract.ScopeWorkspace, "project_auth.md", mustMemoryContent(t, testMemoryMeta{
-			Name:        "Workspace Auth",
-			Description: "Workspace auth migration",
-			Type:        memcontract.TypeProject,
-		}, "Workspace auth migration sessions are more specific.\n")); err != nil {
+		if err := store.Write(
+			t.Context(),
+			memcontract.ScopeWorkspace,
+			"project_auth.md",
+			mustMemoryContent(t, testMemoryMeta{
+				Name:        "Workspace Auth",
+				Description: "Workspace auth migration",
+				Type:        memcontract.TypeProject,
+			}, "Workspace auth migration sessions are more specific.\n"),
+		); err != nil {
 			t.Fatalf("Store.Write(workspace) error = %v", err)
 		}
 		workspaceID := storeWorkspaceID(ctx, t, store)
@@ -157,13 +171,20 @@ func TestStoreRecall(t *testing.T) {
 		if err := agentStore.EnsureDirs(); err != nil {
 			t.Fatalf("agentStore.EnsureDirs() error = %v", err)
 		}
-		if err := agentStore.Write(memcontract.ScopeAgent, "project_auth.md", mustMemoryContent(t, testMemoryMeta{
-			Name:        "Agent Auth",
-			Description: "Agent auth migration",
-			Type:        memcontract.TypeProject,
-		},
-			"Agent auth migration sessions are most specific.\n",
-		)); err != nil {
+		if err := agentStore.Write(
+			t.Context(),
+			memcontract.ScopeAgent,
+			"project_auth.md",
+			mustMemoryContent(
+				t,
+				testMemoryMeta{
+					Name:        "Agent Auth",
+					Description: "Agent auth migration",
+					Type:        memcontract.TypeProject,
+				},
+				"Agent auth migration sessions are most specific.\n",
+			),
+		); err != nil {
 			t.Fatalf("agentStore.Write(agent) error = %v", err)
 		}
 
@@ -227,11 +248,16 @@ func TestStoreRecall(t *testing.T) {
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("Store.EnsureDirs() error = %v", err)
 		}
-		if err := store.Write(memcontract.ScopeWorkspace, "project_i18n.md", mustMemoryContent(t, testMemoryMeta{
-			Name:        "I18N Recall",
-			Description: "Japanese recall fixture",
-			Type:        memcontract.TypeProject,
-		}, "認証移行計画セッションを保持する。\n")); err != nil {
+		if err := store.Write(
+			t.Context(),
+			memcontract.ScopeWorkspace,
+			"project_i18n.md",
+			mustMemoryContent(t, testMemoryMeta{
+				Name:        "I18N Recall",
+				Description: "Japanese recall fixture",
+				Type:        memcontract.TypeProject,
+			}, "認証移行計画セッションを保持する。\n"),
+		); err != nil {
 			t.Fatalf("Store.Write(cjk) error = %v", err)
 		}
 
@@ -249,6 +275,56 @@ func TestStoreRecall(t *testing.T) {
 		}
 		if !strings.Contains(entries[0].Body, "認証移行計画") {
 			t.Fatalf("CJK recall body = %q, want Japanese fixture body", entries[0].Body)
+		}
+	})
+
+	t.Run("Should not persist signals after recorder admission closes", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		baseDir := t.TempDir()
+		store := newOpenTestStore(t,
+			filepath.Join(baseDir, "global"),
+			WithCatalogDatabasePath(filepath.Join(baseDir, "compozy.db")),
+		)
+		if err := store.EnsureDirs(); err != nil {
+			t.Fatalf("Store.EnsureDirs() error = %v", err)
+		}
+		if err := store.Write(
+			t.Context(),
+			memcontract.ScopeGlobal,
+			"project_auth.md",
+			mustMemoryContent(t, testMemoryMeta{
+				Name:        "Global Auth",
+				Description: "Global auth migration",
+				Type:        memcontract.TypeProject,
+			}, "Global auth migration sessions.\n"),
+		); err != nil {
+			t.Fatalf("Store.Write(global) error = %v", err)
+		}
+		closeRecallRecorders(t, store)
+
+		packaged, err := store.Recall(
+			ctx,
+			memcontract.Query{QueryText: "auth migration sessions"},
+			memcontract.RecallOptions{TopK: 1},
+		)
+		if err != nil {
+			t.Fatalf("Store.Recall() error = %v", err)
+		}
+		if entries := packagedRecallEntries(packaged); len(entries) != 1 {
+			t.Fatalf("recall entries = %d, want 1", len(entries))
+		}
+
+		var signalCount int
+		if err := store.catalog.db.QueryRowContext(
+			ctx,
+			"SELECT COUNT(*) FROM memory_recall_signals",
+		).Scan(&signalCount); err != nil {
+			t.Fatalf("count recall signals: %v", err)
+		}
+		if signalCount != 0 {
+			t.Fatalf("recall signal count = %d, want 0 after recorder admission closes", signalCount)
 		}
 	})
 }
@@ -354,6 +430,179 @@ func TestStoreRecallFailureAndUtilityPaths(t *testing.T) {
 	})
 }
 
+func TestRecallRecorderRegistry(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should retain a leased entry until signal work reaches quiescence", func(t *testing.T) {
+		t.Parallel()
+
+		release := make(chan struct{})
+		source := newRecallRecorderRegistrySource(release)
+		registry := newRecallRecorderRegistry()
+		lease, recordingDisabled, err := registry.acquire(
+			t.Context(),
+			"workspace-a",
+			newRecallRecorderFactory(t, source),
+		)
+		if err != nil {
+			t.Fatalf("registry.acquire() error = %v", err)
+		}
+		if recordingDisabled {
+			t.Fatal("registry.acquire() disabled recording while the registry is active")
+		}
+
+		result := lease.Submit(t.Context(), memcontract.Query{WorkspaceID: "workspace-a"}, []memoryrecall.Signal{{
+			ChunkID: "chunk-a",
+			Score:   0.9,
+		}})
+		if !result.Submitted || result.Dropped {
+			t.Fatalf("lease.Submit() = %#v, want submitted without drop", result)
+		}
+		source.waitForRecord(t)
+		lease.Release()
+
+		if stats := registry.stats("workspace-a"); stats.Submitted != 1 {
+			t.Fatalf("registry.stats() = %#v, want live submitted signal", stats)
+		}
+
+		close(release)
+		waitForRecallRecorder(t, source.recorder)
+		if stats := registry.stats("workspace-a"); stats != (memoryrecall.SignalRecorderStats{}) {
+			t.Fatalf("registry.stats() = %#v, want evicted entry", stats)
+		}
+	})
+
+	t.Run("Should reject new admission and join one close operation", func(t *testing.T) {
+		t.Parallel()
+
+		release := make(chan struct{})
+		source := newRecallRecorderRegistrySource(release)
+		registry := newRecallRecorderRegistry()
+		lease, recordingDisabled, err := registry.acquire(
+			t.Context(),
+			"workspace-a",
+			newRecallRecorderFactory(t, source),
+		)
+		if err != nil {
+			t.Fatalf("registry.acquire() error = %v", err)
+		}
+		if recordingDisabled {
+			t.Fatal("registry.acquire() disabled recording while the registry is active")
+		}
+		result := lease.Submit(t.Context(), memcontract.Query{WorkspaceID: "workspace-a"}, []memoryrecall.Signal{{
+			ChunkID: "chunk-a",
+			Score:   0.9,
+		}})
+		if !result.Submitted || result.Dropped {
+			t.Fatalf("lease.Submit() = %#v, want submitted without drop", result)
+		}
+		source.waitForRecord(t)
+
+		canceledCtx, cancel := context.WithCancel(t.Context())
+		cancel()
+		if err := registry.close(canceledCtx); !errors.Is(err, context.Canceled) {
+			t.Fatalf("registry.close(canceled) error = %v, want context canceled", err)
+		}
+		waitForRecallRecorder(t, source.recorder)
+		joinedClose := make(chan error, 1)
+		go func() {
+			joinedClose <- registry.close(t.Context())
+		}()
+
+		lateLease, lateDisabled, err := registry.acquire(
+			t.Context(),
+			"workspace-b",
+			newRecallRecorderFactory(t, source),
+		)
+		if err != nil {
+			t.Fatalf("registry.acquire(after close) error = %v", err)
+		}
+		if lateLease != nil || !lateDisabled {
+			t.Fatalf("registry.acquire(after close) = (%#v, %t), want (nil, true)", lateLease, lateDisabled)
+		}
+
+		close(release)
+		if err := <-joinedClose; err != nil {
+			t.Fatalf("registry.close(join) error = %v", err)
+		}
+	})
+
+	t.Run("Should cancel active signal I/O before publishing terminal registry state", func(t *testing.T) {
+		t.Parallel()
+
+		release := make(chan struct{})
+		var releaseOnce sync.Once
+		t.Cleanup(func() {
+			releaseOnce.Do(func() {
+				close(release)
+			})
+		})
+		source := newRecallRecorderRegistrySource(release)
+		source.blockUntilCanceled = true
+		registry := newRecallRecorderRegistry()
+		lease, recordingDisabled, err := registry.acquire(
+			t.Context(),
+			"workspace-a",
+			newRecallRecorderFactory(t, source),
+		)
+		if err != nil {
+			t.Fatalf("registry.acquire() error = %v", err)
+		}
+		if recordingDisabled {
+			t.Fatal("registry.acquire() disabled recording while the registry is active")
+		}
+
+		result := lease.Submit(t.Context(), memcontract.Query{WorkspaceID: "workspace-a"}, []memoryrecall.Signal{{
+			ChunkID: "chunk-a",
+			Score:   0.9,
+		}})
+		if !result.Submitted || result.Dropped {
+			t.Fatalf("lease.Submit() = %#v, want submitted without drop", result)
+		}
+		source.waitForRecord(t)
+
+		shutdownCtx, shutdownCancel := context.WithCancel(t.Context())
+		defer shutdownCancel()
+		closeResult := make(chan error, 1)
+		go func() {
+			closeResult <- registry.close(shutdownCtx)
+		}()
+		select {
+		case err := <-closeResult:
+			t.Fatalf("registry.close() returned before its leased worker stopped: %v", err)
+		default:
+		}
+
+		lease.Release()
+		shutdownCancel()
+		source.waitForCancellation(t)
+		waitForRecallRecorder(t, source.recorder)
+
+		registry.mu.Lock()
+		_, retained := registry.recorders["workspace-a"]
+		closeOp := registry.closeOp
+		registry.mu.Unlock()
+		if retained {
+			t.Fatal("registry retained entry after SignalRecorder.Done() closed")
+		}
+		if closeOp == nil {
+			t.Fatal("registry close operation = nil, want shared terminal operation")
+		}
+		select {
+		case <-closeOp.done:
+		default:
+			t.Fatal("registry close operation remained open after SignalRecorder.Done() closed")
+		}
+
+		if err := <-closeResult; err != nil && !errors.Is(err, context.Canceled) {
+			t.Fatalf("registry.close() error = %v, want nil or context canceled", err)
+		}
+		releaseOnce.Do(func() {
+			close(release)
+		})
+	})
+}
+
 func TestBuildRecallBlock(t *testing.T) {
 	t.Parallel()
 
@@ -439,6 +688,133 @@ func closeRecallRecorders(t *testing.T, store *Store) {
 	if err := store.CloseRecallSignalRecorders(ctx); err != nil {
 		t.Fatalf("Store.CloseRecallSignalRecorders() error = %v", err)
 	}
+}
+
+type recallRecorderRegistrySource struct {
+	release            <-chan struct{}
+	blockUntilCanceled bool
+	started            chan struct{}
+	canceled           chan error
+	startedOnce        sync.Once
+	recorder           *memoryrecall.SignalRecorder
+}
+
+func newRecallRecorderRegistrySource(release <-chan struct{}) *recallRecorderRegistrySource {
+	return &recallRecorderRegistrySource{
+		release:  release,
+		started:  make(chan struct{}),
+		canceled: make(chan error, 1),
+	}
+}
+
+func newRecallRecorderFactory(
+	t *testing.T,
+	source *recallRecorderRegistrySource,
+) recallRecorderFactory {
+	t.Helper()
+
+	return func(shouldStop func() bool, onStopped func()) (*memoryrecall.SignalRecorder, error) {
+		recorder, err := memoryrecall.NewSignalRecorder(
+			context.Background(),
+			source,
+			memoryrecall.SignalRecorderConfig{QueueCapacity: 1},
+			slog.New(slog.DiscardHandler),
+			memoryrecall.WithIdleStop(shouldStop),
+			memoryrecall.WithStopped(onStopped),
+		)
+		if err != nil {
+			return nil, err
+		}
+		source.recorder = recorder
+		return recorder, nil
+	}
+}
+
+func (s *recallRecorderRegistrySource) RecordRecall(ctx context.Context, _ []memoryrecall.Signal) error {
+	s.startedOnce.Do(func() {
+		close(s.started)
+	})
+	if s.blockUntilCanceled {
+		select {
+		case <-ctx.Done():
+			s.canceled <- ctx.Err()
+			return ctx.Err()
+		case <-s.release:
+			return nil
+		}
+	}
+	if s.release != nil {
+		select {
+		case <-s.release:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	return nil
+}
+
+func (s *recallRecorderRegistrySource) RecordRecallSignalFailed(
+	context.Context,
+	memcontract.Query,
+	error,
+) error {
+	return nil
+}
+
+func (s *recallRecorderRegistrySource) RecordRecallSignalDropped(
+	context.Context,
+	memcontract.Query,
+	[]memoryrecall.Signal,
+	int,
+) error {
+	return nil
+}
+
+func (s *recallRecorderRegistrySource) waitForRecord(t *testing.T) {
+	t.Helper()
+
+	ctx, cancel := newRecallRecorderWaitContext(t)
+	defer cancel()
+	select {
+	case <-s.started:
+	case <-ctx.Done():
+		t.Fatalf("wait for RecallRecorderRegistrySource.RecordRecall: %v", ctx.Err())
+	}
+}
+
+func (s *recallRecorderRegistrySource) waitForCancellation(t *testing.T) {
+	t.Helper()
+
+	ctx, cancel := newRecallRecorderWaitContext(t)
+	defer cancel()
+	select {
+	case err := <-s.canceled:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("RecordRecall() cancellation error = %v, want context canceled", err)
+		}
+	case <-ctx.Done():
+		t.Fatalf("wait for RecallRecorderRegistrySource.RecordRecall cancellation: %v", ctx.Err())
+	}
+}
+
+func waitForRecallRecorder(t *testing.T, recorder *memoryrecall.SignalRecorder) {
+	t.Helper()
+	if recorder == nil {
+		t.Fatal("wait for recall recorder: recorder is nil")
+	}
+	ctx, cancel := newRecallRecorderWaitContext(t)
+	defer cancel()
+	select {
+	case <-recorder.Done():
+	case <-ctx.Done():
+		t.Fatalf("wait for recall recorder: %v", ctx.Err())
+	}
+}
+
+func newRecallRecorderWaitContext(t *testing.T) (context.Context, context.CancelFunc) {
+	t.Helper()
+
+	return context.WithTimeout(t.Context(), 2*time.Second)
 }
 
 func assertRecallSignal(t *testing.T, db *sql.DB, chunkID string, workspaceID string) {

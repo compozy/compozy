@@ -895,11 +895,14 @@ func TestManagerWakeAdmissionEligibility(t *testing.T) {
 			if test.mention {
 				envelope.Mentions = []string{"reviewer.sess-target"}
 			}
-			admissions := manager.wakeAdmissions([]Delivery{{
+			admissions, err := manager.wakeAdmissions([]Delivery{{
 				SessionID: "sess-recipient",
 				PeerID:    "reviewer.sess-target",
 				Envelope:  envelope,
 			}}, "root-eligibility", 0)
+			if err != nil {
+				t.Fatalf("wakeAdmissions() error = %v", err)
+			}
 			if len(admissions) != 1 {
 				t.Fatalf("wakeAdmissions() = %#v, want one recipient decision", admissions)
 			}

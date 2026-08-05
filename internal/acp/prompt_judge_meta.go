@@ -1,7 +1,6 @@
 package acp
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 )
@@ -40,13 +39,13 @@ func (m PromptJudgeMeta) IsZero() bool {
 func (m PromptJudgeMeta) Validate() error {
 	normalized := m.Normalize()
 	if normalized.Role != PromptJudgeRoleAgent {
-		return fmt.Errorf("acp: invalid judge prompt role %q", normalized.Role)
+		return invalidPromptMetadata(fmt.Sprintf("acp: invalid judge prompt role %q", normalized.Role))
 	}
 	if normalized.Attempt < 1 {
-		return errors.New("acp: judge prompt attempt must be positive")
+		return invalidPromptMetadata("acp: judge prompt attempt must be positive")
 	}
 	if normalized.CorrelationID == "" || normalized.GateID == "" || normalized.CriterionID == "" {
-		return errors.New("acp: judge prompt metadata identity is incomplete")
+		return invalidPromptMetadata("acp: judge prompt metadata identity is incomplete")
 	}
 	return nil
 }

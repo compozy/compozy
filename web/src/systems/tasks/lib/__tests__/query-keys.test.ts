@@ -220,5 +220,28 @@ describe("tasksKeys", () => {
       "detail",
       "bsub_1",
     ]);
+
+    expect(
+      tasksKeys.bridgeNotifications(" task_1 ", {
+        bridge_instance_id: " bridge_alpha ",
+        workspace_id: " ws_alpha ",
+      })
+    ).not.toEqual(
+      tasksKeys.bridgeNotifications(" task_1 ", {
+        bridge_instance_id: "bridge_alpha",
+        workspace_id: "ws_alpha",
+      })
+    );
+    expect(tasksKeys.bridgeNotifications("task_1")).not.toEqual(
+      tasksKeys.bridgeNotifications("task_1", {
+        bridge_instance_id: "",
+      })
+    );
+    expect(tasksKeys.bridgeNotifications("task_1")).not.toEqual(
+      tasksKeys.bridgeNotifications("task_1", { workspace_id: "" })
+    );
+    expect(tasksKeys.bridgeNotification("task_1", " bsub_1 ")).not.toEqual(
+      tasksKeys.bridgeNotification("task_1", "bsub_1")
+    );
   });
 });

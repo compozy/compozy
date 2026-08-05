@@ -56,9 +56,16 @@ func (r *Registry) DiscoverWorkspace(
 
 // ApplyResourceRecords atomically replaces the runtime skill catalog with the
 // canonical resource projection.
-func (r *Registry) ApplyResourceRecords(revision int64, records []resources.Record[SkillResourceSpec]) error {
+func (r *Registry) ApplyResourceRecords(
+	ctx context.Context,
+	revision int64,
+	records []resources.Record[SkillResourceSpec],
+) error {
 	if r == nil {
 		return errors.New("skills: registry is required")
+	}
+	if err := checkRegistryContext(ctx); err != nil {
+		return err
 	}
 	globalSkills := make(map[string]*Skill)
 	workspaceSkills := make(map[string]map[string]*Skill)
@@ -93,7 +100,7 @@ func (r *Registry) ApplyResourceRecords(revision int64, records []resources.Reco
 		}
 	}
 	r.emitEventSummaries(
-		context.Background(),
+		ctx,
 		r.buildSkillShadowSummariesFromResolved(mergedSkillList(globalSkills, nil), "global", "", ""),
 	)
 
@@ -105,7 +112,7 @@ func (r *Registry) ApplyResourceRecords(revision int64, records []resources.Reco
 	for _, workspaceID := range workspaceIDs {
 		r.logWorkspaceSkillOverrides(globalSkills, workspaceSkills[workspaceID], workspaceID)
 		r.emitEventSummaries(
-			context.Background(),
+			ctx,
 			r.buildSkillShadowSummaries(
 				globalSkills,
 				workspaceSkills[workspaceID],

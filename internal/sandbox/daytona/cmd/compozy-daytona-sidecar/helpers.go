@@ -4,9 +4,11 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 
 	"fmt"
 
+	"io"
 	"log"
 	"net/http"
 
@@ -43,10 +45,17 @@ func writeJSON(w http.ResponseWriter, status int, payload any) {
 	}
 }
 
-func randomID() string {
-	var bytes [16]byte
-	if _, err := rand.Read(bytes[:]); err != nil {
-		panic(err)
+func randomID() (string, error) {
+	return randomIDFromReader(rand.Reader)
+}
+
+func randomIDFromReader(entropy io.Reader) (string, error) {
+	if entropy == nil {
+		return "", errors.New("sidecar: process ID entropy reader is required")
 	}
-	return hex.EncodeToString(bytes[:])
+	var bytes [16]byte
+	if _, err := io.ReadFull(entropy, bytes[:]); err != nil {
+		return "", fmt.Errorf("sidecar: generate process ID: %w", err)
+	}
+	return hex.EncodeToString(bytes[:]), nil
 }

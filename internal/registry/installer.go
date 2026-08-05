@@ -2,14 +2,10 @@ package registry
 
 import (
 	"errors"
-
-	"io"
-
-	"os"
-
 	"regexp"
-
 	"time"
+
+	"github.com/compozy/compozy/internal/fileutil"
 )
 
 const (
@@ -20,8 +16,7 @@ const (
 	// DefaultMaxArchiveSize caps the compressed archive stream before extraction.
 	DefaultMaxArchiveSize int64 = 50 * 1024 * 1024
 
-	defaultInstallerTempDirPattern = ".compozy-install-*"
-	defaultInstallerTempDirMaxAge  = time.Hour
+	defaultInstallerTempDirMaxAge = time.Hour
 )
 
 const (
@@ -107,18 +102,14 @@ type InstallerOption func(*Installer)
 // Installer handles download, extraction, validation, verification, and the
 // final atomic move into place.
 type Installer struct {
-	downloader          Downloader
-	maxArchiveSize      int64
-	maxDecompressedSize int64
-	maxFileCount        int
-	now                 func() time.Time
-	removeAll           func(string) error
-	tempDirMaxAge       time.Duration
-}
-
-type countingReader struct {
-	reader io.Reader
-	total  int64
+	downloader               Downloader
+	maxArchiveSize           int64
+	maxDecompressedSize      int64
+	maxFileCount             int
+	maxArchiveDepth          int
+	now                      func() time.Time
+	removeTemporaryDirectory func(*fileutil.Directory, string) error
+	tempDirMaxAge            time.Duration
 }
 
 type installedPackageMetadata struct {
@@ -151,9 +142,12 @@ func NewInstaller(dl Downloader, opts ...InstallerOption) *Installer {
 		maxArchiveSize:      DefaultMaxArchiveSize,
 		maxDecompressedSize: DefaultMaxDecompressedSize,
 		maxFileCount:        DefaultMaxFileCount,
+		maxArchiveDepth:     DefaultMaxArchiveDepth,
 		now:                 time.Now,
-		removeAll:           os.RemoveAll,
-		tempDirMaxAge:       defaultInstallerTempDirMaxAge,
+		removeTemporaryDirectory: func(parent *fileutil.Directory, name string) error {
+			return parent.RemoveAll(name)
+		},
+		tempDirMaxAge: defaultInstallerTempDirMaxAge,
 	}
 
 	for _, opt := range opts {
@@ -171,11 +165,16 @@ func NewInstaller(dl Downloader, opts ...InstallerOption) *Installer {
 	if installer.maxFileCount <= 0 {
 		installer.maxFileCount = DefaultMaxFileCount
 	}
+	if installer.maxArchiveDepth <= 0 {
+		installer.maxArchiveDepth = DefaultMaxArchiveDepth
+	}
 	if installer.now == nil {
 		installer.now = time.Now
 	}
-	if installer.removeAll == nil {
-		installer.removeAll = os.RemoveAll
+	if installer.removeTemporaryDirectory == nil {
+		installer.removeTemporaryDirectory = func(parent *fileutil.Directory, name string) error {
+			return parent.RemoveAll(name)
+		}
 	}
 	if installer.tempDirMaxAge <= 0 {
 		installer.tempDirMaxAge = defaultInstallerTempDirMaxAge
@@ -202,6 +201,13 @@ func WithInstallerMaxDecompressedSize(size int64) InstallerOption {
 func WithInstallerMaxFileCount(count int) InstallerOption {
 	return func(installer *Installer) {
 		installer.maxFileCount = count
+	}
+}
+
+// WithInstallerMaxArchiveDepth overrides the archive path-depth limit.
+func WithInstallerMaxArchiveDepth(depth int) InstallerOption {
+	return func(installer *Installer) {
+		installer.maxArchiveDepth = depth
 	}
 }
 

@@ -206,8 +206,8 @@ func TestRoleObservabilityCoverageMatrix(t *testing.T) {
 			"",
 			compozyconfig.RoleDream,
 		)
-		var resolutionErr *RoleResolutionError
-		if !errors.As(err, &resolutionErr) || resolutionErr.Code != roleErrorAgentNotFound {
+		resolutionErr, resolutionErrMatched := errors.AsType[*RoleResolutionError](err)
+		if !resolutionErrMatched || resolutionErr.Code != roleErrorAgentNotFound {
 			t.Fatalf("Resolve() error = %v, want role_agent_not_found", err)
 		}
 		event := recorder.single(t)

@@ -232,8 +232,8 @@ func classifyTypedProviderError(err error) (ClassifiedError, bool) {
 }
 
 func classifyHTTPProviderError(err error) (ClassifiedError, bool) {
-	var httpErr *HTTPError
-	if !errors.As(err, &httpErr) {
+	httpErr, ok := errors.AsType[*HTTPError](err)
+	if !ok {
 		return ClassifiedError{}, false
 	}
 
@@ -258,8 +258,8 @@ func classifyRuntimeProviderError(err error) (ClassifiedError, bool) {
 		return classifiedProviderError(err, ErrorClassTimeout, 0), true
 	}
 
-	var netErr net.Error
-	if !errors.As(err, &netErr) {
+	netErr, ok := errors.AsType[net.Error](err)
+	if !ok || netErr == nil {
 		return ClassifiedError{}, false
 	}
 	if netErr.Timeout() {

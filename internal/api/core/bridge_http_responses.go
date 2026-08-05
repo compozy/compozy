@@ -3,8 +3,6 @@ package core
 import (
 	"context"
 
-	"strings"
-
 	"github.com/compozy/compozy/internal/api/contract"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 
@@ -18,7 +16,7 @@ func (h *BaseHandlers) respondBridge(c *gin.Context, status int, instance bridge
 			h.Logger.Warn(
 				"api: bridge health unavailable after successful bridge mutation; returning best-effort response",
 				"bridge_id",
-				strings.TrimSpace(instance.ID),
+				instance.ID,
 				"status",
 				status,
 				bridgesErrorKey,
@@ -28,7 +26,7 @@ func (h *BaseHandlers) respondBridge(c *gin.Context, status int, instance bridge
 		c.JSON(status, contract.BridgeResponse{
 			Bridge: BridgePayloadFromBridgeInstance(instance),
 			Health: contract.BridgeHealthPayload{
-				BridgeInstanceID: strings.TrimSpace(instance.ID),
+				BridgeInstanceID: instance.ID,
 				Status:           instance.Status,
 				Degradation:      cloneBridgeDegradation(instance.Degradation),
 			},
@@ -42,7 +40,7 @@ func (h *BaseHandlers) bridgeResponse(
 	ctx context.Context,
 	instance bridgepkg.BridgeInstance,
 ) (*contract.BridgeResponse, error) {
-	health, err := h.bridgeHealthLookup(ctx, strings.TrimSpace(instance.ID))
+	health, err := h.bridgeHealthLookup(ctx, instance.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +70,7 @@ func (h *BaseHandlers) bridgeHealthMap(ctx context.Context) (map[string]contract
 
 	health := make(map[string]contract.BridgeHealthPayload, len(observed))
 	for _, item := range observed {
-		health[strings.TrimSpace(item.BridgeInstanceID)] = BridgeHealthPayloadFromObserve(item)
+		health[item.BridgeInstanceID] = BridgeHealthPayloadFromObserve(item)
 	}
 	return health, nil
 }
@@ -86,5 +84,5 @@ func (h *BaseHandlers) bridgeHealthLookup(
 		return contract.BridgeHealthPayload{}, err
 	}
 
-	return healthMap[strings.TrimSpace(bridgeInstanceID)], nil
+	return healthMap[bridgeInstanceID], nil
 }

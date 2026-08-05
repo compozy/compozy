@@ -1,6 +1,7 @@
 package extensionpkg
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -11,6 +12,7 @@ import (
 
 	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 
+	"github.com/compozy/compozy/internal/redact"
 	"github.com/compozy/compozy/internal/resources"
 
 	"github.com/compozy/compozy/internal/subprocess"
@@ -71,8 +73,8 @@ func methodNotFoundRPCError(method string) error {
 }
 
 func rpcCapabilityDenied(err error) error {
-	var denied *ErrCapabilityDenied
-	if !errors.As(err, &denied) {
+	denied, ok := errors.AsType[*ErrCapabilityDenied](err)
+	if !ok {
 		return err
 	}
 	if isResourceHostAPIMethod(denied.Data.Method) {
@@ -90,32 +92,89 @@ func normalizeHostAPIRPCError(method string, err error) error {
 	if err == nil {
 		return nil
 	}
-	if !isResourceHostAPIMethod(method) {
-		return err
-	}
 
-	if rpcErr, ok := errors.AsType[*subprocess.RPCError](err); ok {
-		if rpcErr.Code == HostAPIRateLimitedCode {
-			return hostAPIStatusRPCError(429, "Rate limited", rpcErr.Data)
+	normalized := err
+	if isResourceHostAPIMethod(method) {
+		if rpcErr, ok := errors.AsType[*subprocess.RPCError](err); ok {
+			if rpcErr.Code == HostAPIRateLimitedCode {
+				normalized = hostAPIStatusRPCError(429, "Rate limited", rpcErr.Data)
+			}
+		} else {
+			switch {
+			case errors.Is(err, resources.ErrPermissionDenied), errors.Is(err, resources.ErrDirectMutationNotAllowed):
+				normalized = hostAPIStatusRPCError(403, "Forbidden", map[string]any{extensionStateError: err.Error()})
+			case errors.Is(err, resources.ErrConflict), errors.Is(err, resources.ErrSessionNotActive),
+				errors.Is(err, resources.ErrStaleSourceVersion):
+				normalized = hostAPIStatusRPCError(409, "Conflict", map[string]any{extensionStateError: err.Error()})
+			case errors.Is(err, resources.ErrPayloadTooLarge):
+				normalized = hostAPIStatusRPCError(
+					413,
+					"Payload too large",
+					map[string]any{extensionStateError: err.Error()},
+				)
+			case errors.Is(err, resources.ErrNotFound):
+				normalized = notFoundRPCError(hostAPIResourceKey, "", err)
+			case errors.Is(err, resources.ErrValidation), errors.Is(err, resources.ErrInvalidScopeBinding):
+				normalized = invalidParamsRPCError(err)
+			}
 		}
-		return err
 	}
+	return sanitizeHostAPIError(normalized)
+}
 
-	switch {
-	case errors.Is(err, resources.ErrPermissionDenied), errors.Is(err, resources.ErrDirectMutationNotAllowed):
-		return hostAPIStatusRPCError(403, "Forbidden", map[string]any{extensionStateError: err.Error()})
-	case errors.Is(err, resources.ErrConflict), errors.Is(err, resources.ErrSessionNotActive),
-		errors.Is(err, resources.ErrStaleSourceVersion):
-		return hostAPIStatusRPCError(409, "Conflict", map[string]any{extensionStateError: err.Error()})
-	case errors.Is(err, resources.ErrPayloadTooLarge):
-		return hostAPIStatusRPCError(413, "Payload too large", map[string]any{extensionStateError: err.Error()})
-	case errors.Is(err, resources.ErrNotFound):
-		return notFoundRPCError(hostAPIResourceKey, "", err)
-	case errors.Is(err, resources.ErrValidation), errors.Is(err, resources.ErrInvalidScopeBinding):
-		return invalidParamsRPCError(err)
-	default:
+func sanitizeHostAPIError(err error) error {
+	if err == nil {
+		return nil
+	}
+	if rpcErr, ok := errors.AsType[*subprocess.RPCError](err); ok {
+		sanitized := sanitizeHostAPIRPCError(rpcErr)
+		if sanitized == rpcErr && !hostAPIErrorContainsRawClaimToken(err, 0) {
+			return err
+		}
+		return sanitized
+	}
+	if !hostAPIErrorContainsRawClaimToken(err, 0) {
 		return err
 	}
+	return errors.New(redact.ClaimTokens(err.Error()))
+}
+
+func sanitizeHostAPIRPCError(err *subprocess.RPCError) *subprocess.RPCError {
+	if err == nil {
+		return nil
+	}
+	message := redact.ClaimTokens(err.Message)
+	data := redact.ClaimTokensJSON(err.Data)
+	if message == err.Message && bytes.Equal(data, err.Data) {
+		return err
+	}
+	return &subprocess.RPCError{Code: err.Code, Message: message, Data: data}
+}
+
+func hostAPIErrorContainsRawClaimToken(err error, depth int) bool {
+	if err == nil || depth >= 64 {
+		return false
+	}
+	if redact.ClaimTokens(err.Error()) != err.Error() {
+		return true
+	}
+	if rpcErr, ok := errors.AsType[*subprocess.RPCError](err); ok {
+		if sanitizeHostAPIRPCError(rpcErr) != rpcErr {
+			return true
+		}
+	}
+	if multiple, ok := err.(interface{ Unwrap() []error }); ok {
+		for _, nested := range multiple.Unwrap() {
+			if hostAPIErrorContainsRawClaimToken(nested, depth+1) {
+				return true
+			}
+		}
+		return false
+	}
+	if single, ok := err.(interface{ Unwrap() error }); ok {
+		return hostAPIErrorContainsRawClaimToken(single.Unwrap(), depth+1)
+	}
+	return false
 }
 
 func hostAPIStatusRPCError(code int, message string, data any) error {
@@ -134,9 +193,6 @@ func isResourceHostAPIMethod(method string) bool {
 }
 
 func withHostAPIExtensionName(ctx context.Context, extName string) context.Context {
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	return context.WithValue(ctx, hostAPIExtensionNameContextKey, strings.TrimSpace(extName))
 }
 
@@ -145,6 +201,21 @@ func hostAPIExtensionNameFromContext(ctx context.Context) string {
 		return ""
 	}
 	value, ok := ctx.Value(hostAPIExtensionNameContextKey).(string)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(value)
+}
+
+func withHostAPICapabilityGrantID(ctx context.Context, grantID string) context.Context {
+	return context.WithValue(ctx, hostAPICapabilityGrantIDContextKey, strings.TrimSpace(grantID))
+}
+
+func hostAPICapabilityGrantIDFromContext(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	value, ok := ctx.Value(hostAPICapabilityGrantIDContextKey).(string)
 	if !ok {
 		return ""
 	}

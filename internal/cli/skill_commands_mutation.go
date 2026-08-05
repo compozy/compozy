@@ -12,6 +12,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
+type skillMutationClient interface {
+	EnableSkill(context.Context, string, SkillQuery) (SkillActionRecord, error)
+	DisableSkill(context.Context, string, SkillQuery) (SkillActionRecord, error)
+}
+
 func newSkillWhereCommand(deps commandDeps) *cobra.Command {
 	var workspace string
 	var agentName string
@@ -123,7 +128,7 @@ func newSkillCreateCommand(deps commandDeps) *cobra.Command {
 func newSkillEnableCommand(deps commandDeps) *cobra.Command {
 	return newSkillActionCommand(deps, "enable <name>", "Enable a daemon-managed skill", func(
 		ctx context.Context,
-		client DaemonClient,
+		client skillMutationClient,
 		name string,
 		query SkillQuery,
 	) (SkillActionRecord, error) {
@@ -134,7 +139,7 @@ func newSkillEnableCommand(deps commandDeps) *cobra.Command {
 func newSkillDisableCommand(deps commandDeps) *cobra.Command {
 	return newSkillActionCommand(deps, "disable <name>", "Disable a daemon-managed skill", func(
 		ctx context.Context,
-		client DaemonClient,
+		client skillMutationClient,
 		name string,
 		query SkillQuery,
 	) (SkillActionRecord, error) {
@@ -146,7 +151,7 @@ func newSkillActionCommand(
 	deps commandDeps,
 	use string,
 	short string,
-	action func(context.Context, DaemonClient, string, SkillQuery) (SkillActionRecord, error),
+	action func(context.Context, skillMutationClient, string, SkillQuery) (SkillActionRecord, error),
 ) *cobra.Command {
 	var workspaceRef string
 	var agentName string

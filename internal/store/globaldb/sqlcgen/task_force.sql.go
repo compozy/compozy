@@ -10,148 +10,192 @@ import (
 	"database/sql"
 )
 
-const forceUpdateTaskRunSnapshot = `-- name: ForceUpdateTaskRunSnapshot :execrows
+const completeParentRollupTaskRun = `-- name: CompleteParentRollupTaskRun :execrows
 UPDATE task_runs
-SET task_id = ?1,
-    workspace_id = ?2,
-    status = ?3,
-    attempt = ?4,
-    previous_run_id = ?5,
-    failure_kind = ?6,
-    claimed_by_kind = ?7,
-    claimed_by_ref = ?8,
-    session_id = ?9,
-    origin_kind = ?10,
-    origin_ref = ?11,
-    idempotency_key = ?12,
-    network_spec_json = ?13,
-    network_mode = ?14,
-    network_channel = ?15,
-    network_source = ?16,
-    claim_token = NULL,
-    claim_token_hash = ?17,
-    lease_until = ?18,
-    heartbeat_at = ?19,
-    queued_at = ?20,
-    claimed_at = ?21,
-    started_at = ?22,
-    ended_at = ?23,
-    error = ?24,
-    metadata_json = ?25,
-    result_json = ?26,
-    review_required = ?27,
-    review_request_round = ?28,
-    review_policy_snapshot = ?29,
-    review_request_id = ?30,
-    parent_run_id = ?31,
-    review_id = ?32,
-    review_round = ?33,
-    continuation_reason = ?34,
-    missing_work_json = ?35,
-    next_round_guidance = ?36,
-    network_wake_id = ?37,
-    network_target_session_id = ?38,
-    network_owner_key = ?39
-WHERE id = ?40
-  AND status = ?41
-  AND COALESCE(session_id, '') = ?42
-  AND COALESCE(claim_token_hash, '') = ?43
-  AND COALESCE(lease_until, '') = ?44
+SET status = 'completed',
+    result_json = ?1,
+    error = NULL,
+    ended_at = ?2,
+    lease_until = NULL,
+    heartbeat_at = NULL
+WHERE id = ?3
+	AND COALESCE(task_id, '') = COALESCE(?4, '')
+	AND COALESCE(workspace_id, '') = COALESCE(?5, '')
+  AND status = 'needs_attention'
+  AND COALESCE(session_id, '') = COALESCE(?6, '')
+  AND COALESCE(claim_token_hash, '') = COALESCE(?7, '')
+  AND COALESCE(lease_until, '') = COALESCE(?8, '')
 `
 
-type ForceUpdateTaskRunSnapshotParams struct {
-	TaskID                 sql.NullString `json:"task_id"`
-	WorkspaceID            sql.NullString `json:"workspace_id"`
-	Status                 string         `json:"status"`
-	Attempt                int64          `json:"attempt"`
-	PreviousRunID          sql.NullString `json:"previous_run_id"`
-	FailureKind            string         `json:"failure_kind"`
-	ClaimedByKind          sql.NullString `json:"claimed_by_kind"`
-	ClaimedByRef           sql.NullString `json:"claimed_by_ref"`
-	SessionID              sql.NullString `json:"session_id"`
-	OriginKind             string         `json:"origin_kind"`
-	OriginRef              string         `json:"origin_ref"`
-	IdempotencyKey         sql.NullString `json:"idempotency_key"`
-	NetworkSpecJson        string         `json:"network_spec_json"`
-	NetworkMode            string         `json:"network_mode"`
-	NetworkChannel         sql.NullString `json:"network_channel"`
-	NetworkSource          string         `json:"network_source"`
-	ClaimTokenHash         sql.NullString `json:"claim_token_hash"`
-	LeaseUntil             sql.NullString `json:"lease_until"`
-	HeartbeatAt            sql.NullString `json:"heartbeat_at"`
-	QueuedAt               string         `json:"queued_at"`
-	ClaimedAt              sql.NullString `json:"claimed_at"`
-	StartedAt              sql.NullString `json:"started_at"`
-	EndedAt                sql.NullString `json:"ended_at"`
-	Error                  sql.NullString `json:"error"`
-	MetadataJson           sql.NullString `json:"metadata_json"`
+type CompleteParentRollupTaskRunParams struct {
 	ResultJson             sql.NullString `json:"result_json"`
-	ReviewRequired         bool           `json:"review_required"`
-	ReviewRequestRound     int64          `json:"review_request_round"`
-	ReviewPolicySnapshot   string         `json:"review_policy_snapshot"`
-	ReviewRequestID        sql.NullString `json:"review_request_id"`
-	ParentRunID            sql.NullString `json:"parent_run_id"`
-	ReviewID               sql.NullString `json:"review_id"`
-	ReviewRound            int64          `json:"review_round"`
-	ContinuationReason     string         `json:"continuation_reason"`
-	MissingWorkJson        string         `json:"missing_work_json"`
-	NextRoundGuidance      string         `json:"next_round_guidance"`
-	NetworkWakeID          sql.NullString `json:"network_wake_id"`
-	NetworkTargetSessionID sql.NullString `json:"network_target_session_id"`
-	NetworkOwnerKey        sql.NullString `json:"network_owner_key"`
+	EndedAt                sql.NullString `json:"ended_at"`
 	ID                     string         `json:"id"`
-	PreviousStatus         string         `json:"previous_status"`
-	PreviousSessionID      sql.NullString `json:"previous_session_id"`
-	PreviousClaimTokenHash sql.NullString `json:"previous_claim_token_hash"`
-	PreviousLeaseUntil     sql.NullString `json:"previous_lease_until"`
+	ExpectedTaskID         sql.NullString `json:"expected_task_id"`
+	ExpectedWorkspaceID    sql.NullString `json:"expected_workspace_id"`
+	ExpectedSessionID      sql.NullString `json:"expected_session_id"`
+	ExpectedClaimTokenHash sql.NullString `json:"expected_claim_token_hash"`
+	ExpectedLeaseUntil     sql.NullString `json:"expected_lease_until"`
 }
 
-func (q *Queries) ForceUpdateTaskRunSnapshot(ctx context.Context, arg ForceUpdateTaskRunSnapshotParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, forceUpdateTaskRunSnapshot,
-		arg.TaskID,
-		arg.WorkspaceID,
-		arg.Status,
-		arg.Attempt,
-		arg.PreviousRunID,
-		arg.FailureKind,
-		arg.ClaimedByKind,
-		arg.ClaimedByRef,
-		arg.SessionID,
-		arg.OriginKind,
-		arg.OriginRef,
-		arg.IdempotencyKey,
-		arg.NetworkSpecJson,
-		arg.NetworkMode,
-		arg.NetworkChannel,
-		arg.NetworkSource,
-		arg.ClaimTokenHash,
-		arg.LeaseUntil,
-		arg.HeartbeatAt,
-		arg.QueuedAt,
-		arg.ClaimedAt,
-		arg.StartedAt,
+func (q *Queries) CompleteParentRollupTaskRun(ctx context.Context, arg CompleteParentRollupTaskRunParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, completeParentRollupTaskRun,
+		arg.ResultJson,
+		arg.EndedAt,
+		arg.ID,
+		arg.ExpectedTaskID,
+		arg.ExpectedWorkspaceID,
+		arg.ExpectedSessionID,
+		arg.ExpectedClaimTokenHash,
+		arg.ExpectedLeaseUntil,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const failNeedsAttentionTaskRunForRecovery = `-- name: FailNeedsAttentionTaskRunForRecovery :execrows
+UPDATE task_runs
+SET status = 'failed',
+    failure_kind = 'operator_forced',
+    claim_token = NULL,
+    claim_token_hash = NULL,
+    lease_until = NULL,
+    heartbeat_at = NULL,
+    ended_at = ?1,
+    error = ?2,
+    result_json = NULL
+WHERE id = ?3
+	AND COALESCE(task_id, '') = COALESCE(?4, '')
+	AND COALESCE(workspace_id, '') = COALESCE(?5, '')
+  AND status = 'needs_attention'
+  AND COALESCE(session_id, '') = COALESCE(?6, '')
+  AND COALESCE(claim_token_hash, '') = COALESCE(?7, '')
+  AND COALESCE(lease_until, '') = COALESCE(?8, '')
+`
+
+type FailNeedsAttentionTaskRunForRecoveryParams struct {
+	EndedAt                sql.NullString `json:"ended_at"`
+	Error                  sql.NullString `json:"error"`
+	ID                     string         `json:"id"`
+	ExpectedTaskID         sql.NullString `json:"expected_task_id"`
+	ExpectedWorkspaceID    sql.NullString `json:"expected_workspace_id"`
+	ExpectedSessionID      sql.NullString `json:"expected_session_id"`
+	ExpectedClaimTokenHash sql.NullString `json:"expected_claim_token_hash"`
+	ExpectedLeaseUntil     sql.NullString `json:"expected_lease_until"`
+}
+
+func (q *Queries) FailNeedsAttentionTaskRunForRecovery(ctx context.Context, arg FailNeedsAttentionTaskRunForRecoveryParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, failNeedsAttentionTaskRunForRecovery,
 		arg.EndedAt,
 		arg.Error,
-		arg.MetadataJson,
-		arg.ResultJson,
-		arg.ReviewRequired,
-		arg.ReviewRequestRound,
-		arg.ReviewPolicySnapshot,
-		arg.ReviewRequestID,
-		arg.ParentRunID,
-		arg.ReviewID,
-		arg.ReviewRound,
-		arg.ContinuationReason,
-		arg.MissingWorkJson,
-		arg.NextRoundGuidance,
-		arg.NetworkWakeID,
-		arg.NetworkTargetSessionID,
-		arg.NetworkOwnerKey,
 		arg.ID,
-		arg.PreviousStatus,
-		arg.PreviousSessionID,
-		arg.PreviousClaimTokenHash,
-		arg.PreviousLeaseUntil,
+		arg.ExpectedTaskID,
+		arg.ExpectedWorkspaceID,
+		arg.ExpectedSessionID,
+		arg.ExpectedClaimTokenHash,
+		arg.ExpectedLeaseUntil,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const forceFailEligibleTaskRun = `-- name: ForceFailEligibleTaskRun :execrows
+UPDATE task_runs
+SET status = 'failed',
+    failure_kind = 'operator_forced',
+    claim_token = NULL,
+    claim_token_hash = NULL,
+    lease_until = NULL,
+    heartbeat_at = NULL,
+    ended_at = ?1,
+    error = ?2,
+    result_json = NULL
+WHERE id = ?3
+	AND COALESCE(task_id, '') = COALESCE(?4, '')
+	AND COALESCE(workspace_id, '') = COALESCE(?5, '')
+  AND status = ?6
+  AND status IN ('queued', 'claimed')
+  AND COALESCE(session_id, '') = COALESCE(?7, '')
+  AND COALESCE(claim_token_hash, '') = COALESCE(?8, '')
+  AND COALESCE(lease_until, '') = COALESCE(?9, '')
+`
+
+type ForceFailEligibleTaskRunParams struct {
+	EndedAt                sql.NullString `json:"ended_at"`
+	Error                  sql.NullString `json:"error"`
+	ID                     string         `json:"id"`
+	ExpectedTaskID         sql.NullString `json:"expected_task_id"`
+	ExpectedWorkspaceID    sql.NullString `json:"expected_workspace_id"`
+	ExpectedStatus         string         `json:"expected_status"`
+	ExpectedSessionID      sql.NullString `json:"expected_session_id"`
+	ExpectedClaimTokenHash sql.NullString `json:"expected_claim_token_hash"`
+	ExpectedLeaseUntil     sql.NullString `json:"expected_lease_until"`
+}
+
+func (q *Queries) ForceFailEligibleTaskRun(ctx context.Context, arg ForceFailEligibleTaskRunParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, forceFailEligibleTaskRun,
+		arg.EndedAt,
+		arg.Error,
+		arg.ID,
+		arg.ExpectedTaskID,
+		arg.ExpectedWorkspaceID,
+		arg.ExpectedStatus,
+		arg.ExpectedSessionID,
+		arg.ExpectedClaimTokenHash,
+		arg.ExpectedLeaseUntil,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const forceReleaseClaimedTaskRun = `-- name: ForceReleaseClaimedTaskRun :execrows
+UPDATE task_runs
+SET status = 'queued',
+    failure_kind = '',
+    claimed_by_kind = NULL,
+    claimed_by_ref = NULL,
+    session_id = NULL,
+    claim_token = NULL,
+    claim_token_hash = NULL,
+    lease_until = NULL,
+    heartbeat_at = NULL,
+    claimed_at = NULL,
+    started_at = NULL,
+    ended_at = NULL,
+    error = NULL,
+    result_json = NULL
+WHERE id = ?1
+	AND COALESCE(task_id, '') = COALESCE(?2, '')
+	AND COALESCE(workspace_id, '') = COALESCE(?3, '')
+  AND status = 'claimed'
+  AND COALESCE(session_id, '') = COALESCE(?4, '')
+  AND COALESCE(claim_token_hash, '') = COALESCE(?5, '')
+  AND COALESCE(lease_until, '') = COALESCE(?6, '')
+`
+
+type ForceReleaseClaimedTaskRunParams struct {
+	ID                     string         `json:"id"`
+	ExpectedTaskID         sql.NullString `json:"expected_task_id"`
+	ExpectedWorkspaceID    sql.NullString `json:"expected_workspace_id"`
+	ExpectedSessionID      sql.NullString `json:"expected_session_id"`
+	ExpectedClaimTokenHash sql.NullString `json:"expected_claim_token_hash"`
+	ExpectedLeaseUntil     sql.NullString `json:"expected_lease_until"`
+}
+
+func (q *Queries) ForceReleaseClaimedTaskRun(ctx context.Context, arg ForceReleaseClaimedTaskRunParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, forceReleaseClaimedTaskRun,
+		arg.ID,
+		arg.ExpectedTaskID,
+		arg.ExpectedWorkspaceID,
+		arg.ExpectedSessionID,
+		arg.ExpectedClaimTokenHash,
+		arg.ExpectedLeaseUntil,
 	)
 	if err != nil {
 		return 0, err
@@ -203,35 +247,37 @@ func (q *Queries) ListTaskRunIDsForTask(ctx context.Context, taskID sql.NullStri
 
 const markTaskRunNeedsAttention = `-- name: MarkTaskRunNeedsAttention :execrows
 UPDATE task_runs
-SET status = ?1, error = ?2
-WHERE id = ?3
-  AND status IN (
-    ?4,
-    ?5,
-    ?6,
-    ?7
-  )
+SET status = 'needs_attention', error = ?1, claim_token = NULL
+WHERE id = ?2
+	AND COALESCE(task_id, '') = COALESCE(?3, '')
+	AND COALESCE(workspace_id, '') = COALESCE(?4, '')
+  AND status = ?5
+  AND COALESCE(session_id, '') = COALESCE(?6, '')
+  AND COALESCE(claim_token_hash, '') = COALESCE(?7, '')
+  AND COALESCE(lease_until, '') = COALESCE(?8, '')
 `
 
 type MarkTaskRunNeedsAttentionParams struct {
-	NeedsAttentionStatus string         `json:"needs_attention_status"`
-	Error                sql.NullString `json:"error"`
-	ID                   string         `json:"id"`
-	QueuedStatus         string         `json:"queued_status"`
-	ClaimedStatus        string         `json:"claimed_status"`
-	StartingStatus       string         `json:"starting_status"`
-	RunningStatus        string         `json:"running_status"`
+	Error                  sql.NullString `json:"error"`
+	ID                     string         `json:"id"`
+	ExpectedTaskID         sql.NullString `json:"expected_task_id"`
+	ExpectedWorkspaceID    sql.NullString `json:"expected_workspace_id"`
+	ExpectedStatus         string         `json:"expected_status"`
+	ExpectedSessionID      sql.NullString `json:"expected_session_id"`
+	ExpectedClaimTokenHash sql.NullString `json:"expected_claim_token_hash"`
+	ExpectedLeaseUntil     sql.NullString `json:"expected_lease_until"`
 }
 
 func (q *Queries) MarkTaskRunNeedsAttention(ctx context.Context, arg MarkTaskRunNeedsAttentionParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, markTaskRunNeedsAttention,
-		arg.NeedsAttentionStatus,
 		arg.Error,
 		arg.ID,
-		arg.QueuedStatus,
-		arg.ClaimedStatus,
-		arg.StartingStatus,
-		arg.RunningStatus,
+		arg.ExpectedTaskID,
+		arg.ExpectedWorkspaceID,
+		arg.ExpectedStatus,
+		arg.ExpectedSessionID,
+		arg.ExpectedClaimTokenHash,
+		arg.ExpectedLeaseUntil,
 	)
 	if err != nil {
 		return 0, err

@@ -88,6 +88,8 @@ func (q *Queries) DeleteNotificationPreset(ctx context.Context, name string) (in
 
 const getNotificationCursor = `-- name: GetNotificationCursor :one
 SELECT
+  scope_kind,
+  workspace_id,
   consumer_id,
   stream_name,
   subject_id,
@@ -97,21 +99,33 @@ SELECT
   last_error,
   updated_at
 FROM notification_cursors
-WHERE consumer_id = ?1
-  AND stream_name = ?2
-  AND subject_id = ?3
+WHERE scope_kind = ?1
+  AND workspace_id = ?2
+  AND consumer_id = ?3
+  AND stream_name = ?4
+  AND subject_id = ?5
 `
 
 type GetNotificationCursorParams struct {
-	ConsumerID string `json:"consumer_id"`
-	StreamName string `json:"stream_name"`
-	SubjectID  string `json:"subject_id"`
+	ScopeKind   string `json:"scope_kind"`
+	WorkspaceID string `json:"workspace_id"`
+	ConsumerID  string `json:"consumer_id"`
+	StreamName  string `json:"stream_name"`
+	SubjectID   string `json:"subject_id"`
 }
 
 func (q *Queries) GetNotificationCursor(ctx context.Context, arg GetNotificationCursorParams) (NotificationCursor, error) {
-	row := q.db.QueryRowContext(ctx, getNotificationCursor, arg.ConsumerID, arg.StreamName, arg.SubjectID)
+	row := q.db.QueryRowContext(ctx, getNotificationCursor,
+		arg.ScopeKind,
+		arg.WorkspaceID,
+		arg.ConsumerID,
+		arg.StreamName,
+		arg.SubjectID,
+	)
 	var i NotificationCursor
 	err := row.Scan(
+		&i.ScopeKind,
+		&i.WorkspaceID,
 		&i.ConsumerID,
 		&i.StreamName,
 		&i.SubjectID,
@@ -164,6 +178,8 @@ func (q *Queries) GetNotificationPreset(ctx context.Context, name string) (Notif
 
 const insertNotificationCursor = `-- name: InsertNotificationCursor :exec
 INSERT INTO notification_cursors (
+  scope_kind,
+  workspace_id,
   consumer_id,
   stream_name,
   subject_id,
@@ -179,12 +195,16 @@ INSERT INTO notification_cursors (
   ?4,
   ?5,
   ?6,
+  ?7,
+  ?8,
   '',
-  ?7
+  ?9
 )
 `
 
 type InsertNotificationCursorParams struct {
+	ScopeKind       string         `json:"scope_kind"`
+	WorkspaceID     string         `json:"workspace_id"`
 	ConsumerID      string         `json:"consumer_id"`
 	StreamName      string         `json:"stream_name"`
 	SubjectID       string         `json:"subject_id"`
@@ -196,6 +216,8 @@ type InsertNotificationCursorParams struct {
 
 func (q *Queries) InsertNotificationCursor(ctx context.Context, arg InsertNotificationCursorParams) error {
 	_, err := q.db.ExecContext(ctx, insertNotificationCursor,
+		arg.ScopeKind,
+		arg.WorkspaceID,
 		arg.ConsumerID,
 		arg.StreamName,
 		arg.SubjectID,
@@ -209,6 +231,8 @@ func (q *Queries) InsertNotificationCursor(ctx context.Context, arg InsertNotifi
 
 const recordNotificationCursorError = `-- name: RecordNotificationCursorError :exec
 INSERT INTO notification_cursors (
+  scope_kind,
+  workspace_id,
   consumer_id,
   stream_name,
   subject_id,
@@ -221,27 +245,33 @@ INSERT INTO notification_cursors (
   ?1,
   ?2,
   ?3,
+  ?4,
+  ?5,
   0,
   '',
   NULL,
-  ?4,
-  ?5
+  ?6,
+  ?7
 )
-ON CONFLICT(consumer_id, stream_name, subject_id) DO UPDATE SET
+ON CONFLICT(scope_kind, workspace_id, consumer_id, stream_name, subject_id) DO UPDATE SET
   last_error = excluded.last_error,
   updated_at = excluded.updated_at
 `
 
 type RecordNotificationCursorErrorParams struct {
-	ConsumerID string `json:"consumer_id"`
-	StreamName string `json:"stream_name"`
-	SubjectID  string `json:"subject_id"`
-	LastError  string `json:"last_error"`
-	UpdatedAt  string `json:"updated_at"`
+	ScopeKind   string `json:"scope_kind"`
+	WorkspaceID string `json:"workspace_id"`
+	ConsumerID  string `json:"consumer_id"`
+	StreamName  string `json:"stream_name"`
+	SubjectID   string `json:"subject_id"`
+	LastError   string `json:"last_error"`
+	UpdatedAt   string `json:"updated_at"`
 }
 
 func (q *Queries) RecordNotificationCursorError(ctx context.Context, arg RecordNotificationCursorErrorParams) error {
 	_, err := q.db.ExecContext(ctx, recordNotificationCursorError,
+		arg.ScopeKind,
+		arg.WorkspaceID,
 		arg.ConsumerID,
 		arg.StreamName,
 		arg.SubjectID,
@@ -253,6 +283,8 @@ func (q *Queries) RecordNotificationCursorError(ctx context.Context, arg RecordN
 
 const resetNotificationCursor = `-- name: ResetNotificationCursor :exec
 INSERT INTO notification_cursors (
+  scope_kind,
+  workspace_id,
   consumer_id,
   stream_name,
   subject_id,
@@ -268,10 +300,12 @@ INSERT INTO notification_cursors (
   ?4,
   ?5,
   ?6,
+  ?7,
+  ?8,
   '',
-  ?7
+  ?9
 )
-ON CONFLICT(consumer_id, stream_name, subject_id) DO UPDATE SET
+ON CONFLICT(scope_kind, workspace_id, consumer_id, stream_name, subject_id) DO UPDATE SET
   last_sequence = excluded.last_sequence,
   last_delivery_id = excluded.last_delivery_id,
   last_delivered_at = excluded.last_delivered_at,
@@ -280,6 +314,8 @@ ON CONFLICT(consumer_id, stream_name, subject_id) DO UPDATE SET
 `
 
 type ResetNotificationCursorParams struct {
+	ScopeKind       string         `json:"scope_kind"`
+	WorkspaceID     string         `json:"workspace_id"`
 	ConsumerID      string         `json:"consumer_id"`
 	StreamName      string         `json:"stream_name"`
 	SubjectID       string         `json:"subject_id"`
@@ -291,6 +327,8 @@ type ResetNotificationCursorParams struct {
 
 func (q *Queries) ResetNotificationCursor(ctx context.Context, arg ResetNotificationCursorParams) error {
 	_, err := q.db.ExecContext(ctx, resetNotificationCursor,
+		arg.ScopeKind,
+		arg.WorkspaceID,
 		arg.ConsumerID,
 		arg.StreamName,
 		arg.SubjectID,
@@ -399,8 +437,10 @@ SET last_sequence = ?1,
     last_error = '',
     updated_at = ?4
 WHERE consumer_id = ?5
-  AND stream_name = ?6
-  AND subject_id = ?7
+  AND scope_kind = ?6
+  AND workspace_id = ?7
+  AND stream_name = ?8
+  AND subject_id = ?9
 `
 
 type UpdateNotificationCursorParams struct {
@@ -409,6 +449,8 @@ type UpdateNotificationCursorParams struct {
 	LastDeliveredAt sql.NullString `json:"last_delivered_at"`
 	UpdatedAt       string         `json:"updated_at"`
 	ConsumerID      string         `json:"consumer_id"`
+	ScopeKind       string         `json:"scope_kind"`
+	WorkspaceID     string         `json:"workspace_id"`
 	StreamName      string         `json:"stream_name"`
 	SubjectID       string         `json:"subject_id"`
 }
@@ -420,6 +462,8 @@ func (q *Queries) UpdateNotificationCursor(ctx context.Context, arg UpdateNotifi
 		arg.LastDeliveredAt,
 		arg.UpdatedAt,
 		arg.ConsumerID,
+		arg.ScopeKind,
+		arg.WorkspaceID,
 		arg.StreamName,
 		arg.SubjectID,
 	)

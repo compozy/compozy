@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -12,10 +13,11 @@ func TestToolConfigPathPolicy(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		name   string
-		path   string
-		denial PathDenial
-		kind   ValueKind
+		name     string
+		path     string
+		denial   PathDenial
+		kind     ValueKind
+		redacted bool
 	}{
 		{
 			name: "Should allow default agent mutation",
@@ -323,6 +325,12 @@ func TestToolConfigPathPolicy(t *testing.T) {
 			kind: ConfigValueInt,
 		},
 		{
+			name:     "Should allow write-only provider login command mutation",
+			path:     "providers.claude.auth_login_command",
+			kind:     ConfigValueString,
+			redacted: true,
+		},
+		{
 			name:   "Should reject daemon socket trust root",
 			path:   "daemon.socket",
 			denial: ConfigPathTrustForbidden,
@@ -400,6 +408,11 @@ func TestToolConfigPathPolicy(t *testing.T) {
 		{
 			name:   "Should reject removed controller LLM model path",
 			path:   "memory.controller.llm.model",
+			denial: ConfigPathForbidden,
+		},
+		{
+			name:   "Should reject removed recall signal metrics path",
+			path:   "memory.recall.signals.metrics_enabled",
 			denial: ConfigPathForbidden,
 		},
 		{
@@ -571,6 +584,9 @@ func TestToolConfigPathPolicy(t *testing.T) {
 			}
 			if tc.denial == ConfigPathAllowed && policy.Kind != tc.kind {
 				t.Fatalf("PathPolicy.Kind = %d, want %d", policy.Kind, tc.kind)
+			}
+			if policy.Redacted != tc.redacted {
+				t.Fatalf("PathPolicy.Redacted = %t, want %t", policy.Redacted, tc.redacted)
 			}
 		})
 	}
@@ -763,6 +779,11 @@ func TestRedactedConfigMapEntriesAndDiff(t *testing.T) {
 			"TOKEN": "secret",
 		},
 	}
+	cfg.Providers["private"] = ProviderConfig{
+		Command:      "provider-acp",
+		AuthMode:     ProviderAuthModeNativeCLI,
+		AuthLoginCmd: "provider login --token raw-login-secret",
+	}
 
 	configMap := RedactedConfigMap(&cfg)
 	entries := FlattenConfigEntries(configMap)
@@ -808,6 +829,13 @@ func TestRedactedConfigMapEntriesAndDiff(t *testing.T) {
 	env, ok := EntryByPath(entries, "sandboxes.dev.env.TOKEN")
 	if !ok || env.Value != RedactedValue() || !env.Redacted {
 		t.Fatalf("EntryByPath(env) = %#v/%v, want redacted env", env, ok)
+	}
+	login, ok := EntryByPath(entries, "providers.private.auth_login_command")
+	if !ok || login.Value != RedactedValue() || !login.Redacted {
+		t.Fatalf("EntryByPath(auth_login_command) = %#v/%v, want redacted login command", login, ok)
+	}
+	if configText := fmt.Sprint(configMap); strings.Contains(configText, "raw-login-secret") {
+		t.Fatalf("RedactedConfigMap leaked login command: %s", configText)
 	}
 
 	before := FlattenConfigEntries(RedactedConfigMap(&Config{Defaults: DefaultsConfig{Agent: DefaultAgentName}}))

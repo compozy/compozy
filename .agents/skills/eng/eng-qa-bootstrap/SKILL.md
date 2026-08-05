@@ -2,7 +2,7 @@
 name: eng-qa-bootstrap
 description: Bootstraps isolated Compozy QA labs and emits the canonical manifest for downstream QA. Use when local QA needs daemon, workspace, provider, or playbook setup. Do not use for unit tests, planning-only work, or browser-only checks.
 trigger: explicit
-argument-hint: "[scenario-slug] [--playbook <ref>]"
+argument-hint: "[scenario-slug] [--playbook <ref> | --profile targeted --required-surface <surface>]"
 ---
 
 # Compozy QA Bootstrap
@@ -14,6 +14,7 @@ not prove runtime behavior; downstream QA owns journeys and verdicts.
 
 - **scenario-slug** (optional): short lab context; defaults to `release-candidate`.
 - **--playbook <ref>**: required when called by `eng-real-scenario-qa`; omitted for generic `qa-execution` infrastructure.
+- **--profile targeted --required-surface <surface>**: use for a bounded non-agent journey; repeat the surface flag for every CLI/API/Web/runtime/provider plane in scope.
 
 ## Procedure
 
@@ -21,7 +22,7 @@ not prove runtime behavior; downstream QA owns journeys and verdicts.
 
 1. Resolve the scenario slug and, for `eng-real-scenario-qa`, validate the playbook under `.agents/skills/eng/eng-real-scenario-qa/references/playbooks/`.
 2. For a new pass, run the bootstrap helper (bootstrap, mutating):
-   `python3 .agents/skills/eng/eng-qa-bootstrap/scripts/bootstrap-qa-env.py --scenario "<scenario-slug>" --repo-root . [--playbook "<ref>"]`
+   `python3 .agents/skills/eng/eng-qa-bootstrap/scripts/bootstrap-qa-env.py --scenario "<scenario-slug>" --repo-root . [--playbook "<ref>" | --profile targeted --required-surface "<surface>"]`
 3. Reuse only when continuing the same active QA session or loop with its exact manifest:
    `python3 .agents/skills/eng/eng-qa-bootstrap/scripts/bootstrap-qa-env.py --scenario "<scenario-slug>" --repo-root . [--playbook "<ref>"] --reuse-manifest "<manifest-path>"`
 4. Record the emitted `BOOTSTRAP_MANIFEST`; do not reconstruct environment values manually.

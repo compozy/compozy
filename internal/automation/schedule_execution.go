@@ -57,22 +57,23 @@ func (s *Scheduler) buildSchedulePlan(job Job) (schedulePlan, error) {
 
 func (s *Scheduler) startJobLoopLocked(jobID string) {
 	registration, exists := s.registrations[jobID]
-	if !exists || s.runtimeCtx == nil {
+	if !exists || s.runtime == nil {
 		return
 	}
 	if registration.cancel != nil {
 		registration.cancel()
 	}
 
-	jobCtx, cancel := context.WithCancel(s.runtimeCtx)
+	runtime := s.runtime
+	jobCtx, cancel := context.WithCancel(runtime.ctx)
 	registration.cancel = cancel
 	s.registrations[jobID] = registration
-	s.wg.Add(1)
-	go s.runJobLoop(jobCtx, cancel, jobID)
+	runtime.workers.Go(func() {
+		s.runJobLoop(jobCtx, cancel, jobID)
+	})
 }
 
 func (s *Scheduler) runJobLoop(ctx context.Context, cancel context.CancelFunc, jobID string) {
-	defer s.wg.Done()
 	defer cancel()
 
 	for {

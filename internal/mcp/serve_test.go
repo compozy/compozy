@@ -3,6 +3,9 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -16,6 +19,51 @@ import (
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
+
+func TestExpectedStdioServerTermination(t *testing.T) {
+	t.Parallel()
+
+	sdkClosing := errors.New("server is closing")
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{name: "nil", want: true},
+		{name: "context canceled", err: context.Canceled, want: true},
+		{name: "EOF", err: io.EOF, want: true},
+		{name: "wrapped EOF", err: fmt.Errorf("transport: %w", io.EOF), want: true},
+		{name: "connection closed", err: sdkmcp.ErrConnectionClosed, want: true},
+		{
+			name: "wrapped connection closed",
+			err:  fmt.Errorf("transport: %w", sdkmcp.ErrConnectionClosed),
+			want: true,
+		},
+		{
+			name: "SDK private closing sentinel with formatted EOF",
+			err:  fmt.Errorf("%w: %v", sdkClosing, io.EOF),
+			want: true,
+		},
+		{
+			name: "plain text homonym",
+			err:  errors.New("server is closing: EOF"),
+		},
+		{
+			name: "different closing cause",
+			err:  fmt.Errorf("%w: %v", errors.New("server is closing unexpectedly"), io.EOF),
+		},
+		{name: "unrelated", err: errors.New("transport failed")},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := isExpectedStdioServerTermination(tt.err); got != tt.want {
+				t.Fatalf("isExpectedStdioServerTermination(%v) = %t, want %t", tt.err, got, tt.want)
+			}
+		})
+	}
+}
 
 func TestHostAPIProjectionDecisions(t *testing.T) {
 	t.Parallel()
@@ -589,6 +637,18 @@ func (m *recordingSourceSessionManager) ActivateSourceSession(
 	defer m.mu.Unlock()
 	m.activations = append(m.activations, source)
 	return nil
+}
+
+func (m *recordingSourceSessionManager) ResetSourceIfActiveSession(
+	_ context.Context,
+	_ resources.MutationActor,
+	source resources.ResourceSource,
+	_ string,
+) (bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.resets = append(m.resets, source.Normalize())
+	return true, nil
 }
 
 func (m *recordingSourceSessionManager) ResetSource(

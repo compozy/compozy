@@ -21,28 +21,16 @@ func (m *Service) HeartbeatRunLease(
 		return nil, err
 	}
 	normalized.Actor = actor
-	run, err := m.store.HeartbeatRunLease(ctx, normalized)
+	settlement, err := m.heartbeatRunLeaseSettlement(ctx, normalized, actor)
 	if err != nil {
 		return nil, err
 	}
+	run := settlement.Run
 	if run.IsNetworkWake() {
 		m.dispatchTaskRunLeaseExtended(ctx, run, Task{}, actor)
 		return &run, nil
 	}
-	taskRecord, err := m.store.GetTask(ctx, run.TaskID)
-	if err != nil {
-		return nil, err
-	}
-	if err := m.recordTaskEvent(ctx, run.TaskID, run.ID, taskEventRunLeaseExtended, actor, leaseExtendedPayload{
-		Status:         run.Status,
-		TaskStatus:     taskRecord.Status,
-		LeaseUntil:     run.LeaseUntil,
-		HeartbeatAt:    run.HeartbeatAt,
-		ClaimTokenHash: run.ClaimTokenHash,
-	}); err != nil {
-		return nil, err
-	}
-	m.dispatchTaskRunLeaseExtended(ctx, run, taskRecord, actor)
+	m.dispatchTaskRunLeaseExtended(ctx, run, settlement.Task, actor)
 	return &run, nil
 }
 
@@ -60,37 +48,18 @@ func (m *Service) ReleaseRunLease(
 		return nil, err
 	}
 	normalized.Actor = actor
-	previous, err := m.store.GetTaskRun(ctx, normalized.RunID)
+	settlement, err := m.releaseRunLeaseSettlement(ctx, normalized, actor)
 	if err != nil {
 		return nil, err
 	}
-	run, err := m.store.ReleaseRunLease(ctx, normalized)
-	if err != nil {
-		return nil, err
-	}
+	run := settlement.Run
+	previous := settlement.PreviousRun
 	defer m.restoreTaskRunNetworkBestEffort(ctx, previous.SessionID, run.ID)
 	if run.IsNetworkWake() {
 		m.dispatchTaskRunReleased(ctx, run, Task{}, actor, previous, normalized.Reason)
 		return &run, nil
 	}
-	taskRecord, err := m.store.GetTask(ctx, run.TaskID)
-	if err != nil {
-		return nil, err
-	}
-	reconciledTask, err := m.reconcileTaskCascade(ctx, taskRecord.ID, actor)
-	if err != nil {
-		return nil, err
-	}
-	if err := m.recordTaskEvent(ctx, run.TaskID, run.ID, taskEventRunReleased, actor, releasedRunPayload{
-		PreviousStatus: previous.Status,
-		Status:         run.Status,
-		TaskStatus:     reconciledTask.Status,
-		Reason:         normalized.Reason,
-		SessionID:      previous.SessionID,
-	}); err != nil {
-		return nil, err
-	}
-	m.dispatchTaskRunReleased(ctx, run, reconciledTask, actor, previous, normalized.Reason)
+	m.dispatchTaskRunReleased(ctx, run, settlement.Task, actor, previous, normalized.Reason)
 	return &run, nil
 }
 
@@ -105,68 +74,26 @@ func (m *Service) ReleaseSessionRunLeases(
 	if err := requireWriteAuthority(actor); err != nil {
 		return nil, err
 	}
+	if actor.Actor.Kind.Normalize() != ActorKindDaemon {
+		return nil, ErrPermissionDenied
+	}
 	normalized, err := release.Normalize(m.now().UTC())
 	if err != nil {
 		return nil, err
 	}
-	runs, err := m.activeSessionRunLeases(ctx, normalized.SessionID)
+	settlement, err := m.releaseSessionRunLeasesSettlement(ctx, normalized, actor)
 	if err != nil {
 		return nil, err
 	}
 
-	results := make([]SessionLeaseReleaseResult, 0, len(runs))
-	for _, previous := range runs {
-		result, releaseErr := m.releaseSessionRunLease(ctx, previous, normalized.Reason, actor)
-		if releaseErr != nil {
-			return nil, releaseErr
-		}
-		results = append(results, result)
+	results := make([]SessionLeaseReleaseResult, 0, len(settlement.outcomes))
+	for index := range settlement.outcomes {
+		outcome := &settlement.outcomes[index]
+		m.dispatchTaskRunReleased(ctx, outcome.result.Run, outcome.task, actor, outcome.previous, normalized.Reason)
+		m.restoreTaskRunNetworkBestEffort(ctx, outcome.previous.SessionID, outcome.result.Run.ID)
+		results = append(results, outcome.result)
 	}
 	return results, nil
-}
-
-func (m *Service) releaseSessionRunLease(
-	ctx context.Context,
-	previous Run,
-	reason string,
-	actor ActorContext,
-) (SessionLeaseReleaseResult, error) {
-	run := requeueSessionRunLease(previous)
-	if err := m.store.UpdateTaskRun(ctx, run); err != nil {
-		return SessionLeaseReleaseResult{}, err
-	}
-	defer m.restoreTaskRunNetworkBestEffort(ctx, previous.SessionID, run.ID)
-
-	if run.IsNetworkWake() {
-		m.dispatchTaskRunReleased(ctx, run, Task{}, actor, previous, reason)
-		return newSessionLeaseReleaseResult(run, previous, reason), nil
-	}
-	reconciledTask, err := m.reconcileTaskCascade(ctx, run.TaskID, actor)
-	if err != nil {
-		return SessionLeaseReleaseResult{}, err
-	}
-	if err := m.recordTaskEvent(ctx, run.TaskID, run.ID, taskEventRunReleased, actor, releasedRunPayload{
-		PreviousStatus: previous.Status,
-		Status:         run.Status,
-		TaskStatus:     reconciledTask.Status,
-		Reason:         reason,
-		SessionID:      previous.SessionID,
-	}); err != nil {
-		return SessionLeaseReleaseResult{}, err
-	}
-	m.dispatchTaskRunReleased(ctx, run, reconciledTask, actor, previous, reason)
-	return newSessionLeaseReleaseResult(run, previous, reason), nil
-}
-
-func newSessionLeaseReleaseResult(run Run, previous Run, reason string) SessionLeaseReleaseResult {
-	return SessionLeaseReleaseResult{
-		Run:                    run,
-		PreviousRunStatus:      previous.Status,
-		PreviousSessionID:      previous.SessionID,
-		PreviousLeaseUntil:     previous.LeaseUntil,
-		PreviousClaimTokenHash: previous.ClaimTokenHash,
-		Reason:                 reason,
-	}
 }
 
 // CompleteRunLease marks one active task-run lease complete after token verification.
@@ -183,6 +110,10 @@ func (m *Service) CompleteRunLease(
 		return nil, err
 	}
 	normalized.Actor = actor
+	advisoryEventID, err := m.reserveTaskEventID()
+	if err != nil {
+		return nil, err
+	}
 	settlement, err := m.store.CompleteRunLeaseSettlement(ctx, normalized)
 	if err != nil {
 		if hallucinated, ok := errors.AsType[*HallucinatedTaskRefsError](err); ok {
@@ -192,7 +123,7 @@ func (m *Service) CompleteRunLease(
 		}
 		return nil, err
 	}
-	return m.publishCompletedLeaseSettlement(ctx, &settlement, actor)
+	return m.publishCompletedLeaseSettlement(ctx, &settlement, advisoryEventID, actor)
 }
 
 func (m *Service) recordCompletionHallucinationBlocked(
@@ -222,13 +153,19 @@ func (m *Service) recordCompletionHallucinationBlocked(
 	return nil
 }
 
-func (m *Service) recordCompletionHallucinationSuspected(ctx context.Context, run Run, actor ActorContext) {
+func (m *Service) recordCompletionHallucinationSuspected(
+	ctx context.Context,
+	eventID string,
+	run Run,
+	actor ActorContext,
+) {
 	suspectedTaskIDs := m.suspectedCompletionTaskIDs(ctx, run)
 	if len(suspectedTaskIDs) == 0 {
 		return
 	}
-	if err := m.recordTaskEvent(
+	if err := m.recordTaskEventWithID(
 		ctx,
+		eventID,
 		run.TaskID,
 		run.ID,
 		taskEventCompletionHallucinationSuspected,

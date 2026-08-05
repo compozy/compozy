@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/toolmeta"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -52,7 +51,7 @@ func (e *CallExecutor) descriptorFromTool(
 	if err != nil {
 		return toolspkg.MCPToolDescriptor{}, err
 	}
-	return toolspkg.MCPToolDescriptor{
+	descriptor := toolspkg.MCPToolDescriptor{
 		ID:           id,
 		RawName:      strings.TrimSpace(tool.Name),
 		Title:        mcpToolTitle(tool),
@@ -63,7 +62,8 @@ func (e *CallExecutor) descriptorFromTool(
 		OutputSchema: outputSchema,
 		Source:       mcpSource,
 		ReadOnly:     readOnly,
-	}, nil
+	}
+	return redactMCPToolDescriptor(descriptor)
 }
 
 func mcpToolTitle(tool mcpsdk.Tool) string {
@@ -84,9 +84,6 @@ func mcpToolPresentationMetadata(tool mcpsdk.Tool) (string, string, error) {
 	preview, err := mcpToolMetadataString(tool.Meta, mcpPreviewMetadataKey)
 	if err != nil {
 		return "", "", err
-	}
-	if err := toolmeta.ValidateDescriptorMetadata(friendlyVerb, preview); err != nil {
-		return "", "", fmt.Errorf("mcp: invalid tool presentation metadata: %w", err)
 	}
 	return friendlyVerb, preview, nil
 }

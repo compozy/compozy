@@ -88,7 +88,7 @@ func newTaskListCommand(deps commandDeps) *cobra.Command {
 func parseTaskListFilters(
 	cmd *cobra.Command,
 	deps commandDeps,
-	client DaemonClient,
+	client workspaceLookupClient,
 	scopeRaw string,
 	workspaceRef string,
 	statusRaw string,
@@ -159,7 +159,7 @@ func parseTaskListFilters(
 func resolveTaskListScopeWorkspace(
 	cmd *cobra.Command,
 	deps commandDeps,
-	client DaemonClient,
+	client workspaceLookupClient,
 	scopeRaw string,
 	workspaceRef string,
 ) (taskpkg.CatalogScope, string, error) {

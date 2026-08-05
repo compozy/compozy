@@ -21,21 +21,45 @@ func (s *Service) recordDispatchError(
 	if err == nil {
 		return nil
 	}
-	message := err.Error()
-	if len(message) > 2048 {
-		message = message[:2048]
-	}
-	if _, recordErr := s.cursors.RecordError(ctx, notifications.CursorError{
+	report, normalizeErr := (notifications.CursorError{
 		Key:       key,
-		LastError: message,
+		LastError: err.Error(),
 		Now:       s.now(),
-	}); recordErr != nil {
-		return errors.Join(err, recordErr)
+	}).Normalize(s.now())
+	if normalizeErr != nil {
+		return &dispatchDiagnosticError{
+			cause:      err,
+			diagnostic: "notification delivery failure",
+		}
 	}
-	if eventErr := s.recordDispatchFailureEvent(ctx, key, preset, event, message); eventErr != nil {
-		return errors.Join(err, eventErr)
+	safeErr := &dispatchDiagnosticError{
+		cause:      err,
+		diagnostic: report.LastError,
 	}
-	return err
+	if _, recordErr := s.cursors.RecordError(ctx, report); recordErr != nil {
+		safeErr.cause = errors.Join(err, recordErr)
+		return safeErr
+	}
+	if eventErr := s.recordDispatchFailureEvent(ctx, key, preset, event, report.LastError); eventErr != nil {
+		safeErr.cause = errors.Join(err, eventErr)
+		return safeErr
+	}
+	return safeErr
+}
+
+// dispatchDiagnosticError preserves the cause for errors.Is and errors.As
+// while ensuring the surfaced error string is safe for logs and event paths.
+type dispatchDiagnosticError struct {
+	cause      error
+	diagnostic string
+}
+
+func (e *dispatchDiagnosticError) Error() string {
+	return e.diagnostic
+}
+
+func (e *dispatchDiagnosticError) Unwrap() error {
+	return e.cause
 }
 
 func (s *Service) recordPresetLifecycleEvent(

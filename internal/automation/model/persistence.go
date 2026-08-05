@@ -14,6 +14,8 @@ var (
 	ErrRunNotFound = errors.New("automation: run not found")
 	// ErrRunAlreadyExists reports that an automation run identity has already been claimed.
 	ErrRunAlreadyExists = errors.New("automation: run already exists")
+	// ErrRunReservationConflict reports that an existing run changed before dispatch activation.
+	ErrRunReservationConflict = errors.New("automation: run reservation conflict")
 	// ErrSchedulerStateNotFound reports that no durable scheduler cursor exists for a job.
 	ErrSchedulerStateNotFound = errors.New("automation: scheduler state not found")
 	// ErrScheduledFireAlreadyClaimed reports that a scheduled fire identity was already claimed.
@@ -66,6 +68,31 @@ type RunQuery struct {
 	Since     time.Time `json:"since"`
 	Until     time.Time `json:"until"`
 	Limit     int       `json:"limit,omitempty"`
+}
+
+// RunReservation atomically evaluates one rolling fire-limit window and, when
+// capacity remains, reserves the supplied run. ExistingRunID identifies a run
+// already created by the scheduler; that row is excluded from the window and
+// verified instead of inserted again.
+type RunReservation struct {
+	Run             Run
+	ExistingRunID   string
+	ExpectedStatus  RunStatus
+	ExpectedAttempt int
+	Since           time.Time
+	Until           time.Time
+	Window          time.Duration
+	Limit           int
+	CountedStatuses []RunStatus
+}
+
+// RunReservationResult reports the durable fire-limit decision. Count is the
+// number of matching runs observed before any new run was inserted.
+type RunReservationResult struct {
+	Run      Run
+	Reserved bool
+	Count    int64
+	RetryAt  time.Time
 }
 
 // JobEnabledOverlay stores the runtime enabled override for a config-backed job.

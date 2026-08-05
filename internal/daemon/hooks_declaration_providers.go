@@ -52,7 +52,7 @@ func extensionDeclarationProvider(getRuntime func() extensionRuntime) hookspkg.D
 }
 
 func configDeclarationProvider(
-	registry Registry,
+	registry workspaceRegistryReader,
 	workspaceResolver workspacepkg.RuntimeResolver,
 	logger *slog.Logger,
 ) hookspkg.DeclarationProvider {
@@ -69,7 +69,7 @@ func configDeclarationProvider(
 }
 
 func agentDeclarationProvider(
-	registry Registry,
+	registry workspaceRegistryReader,
 	workspaceResolver workspacepkg.RuntimeResolver,
 	logger *slog.Logger,
 ) hookspkg.DeclarationProvider {
@@ -87,7 +87,7 @@ func agentDeclarationProvider(
 
 func skillDeclarationProvider(
 	skillsRegistry *skills.Registry,
-	registry Registry,
+	registry workspaceRegistryReader,
 	workspaceResolver workspacepkg.RuntimeResolver,
 	allowedMarketplaceHooks []string,
 	logger *slog.Logger,

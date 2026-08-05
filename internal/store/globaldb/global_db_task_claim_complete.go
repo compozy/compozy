@@ -13,17 +13,6 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
-func (g *TaskRunRepo) CompleteRunLease(
-	ctx context.Context,
-	completion taskpkg.LeaseCompletion,
-) (taskpkg.Run, error) {
-	settlement, err := g.CompleteRunLeaseSettlement(ctx, completion)
-	if err != nil {
-		return taskpkg.Run{}, err
-	}
-	return settlement.Run, nil
-}
-
 // CompleteRunLeaseSettlement completes one fenced run and atomically applies
 // successful task-hierarchy aggregation.
 func (g *TaskRunRepo) CompleteRunLeaseSettlement(

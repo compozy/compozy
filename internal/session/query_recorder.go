@@ -14,9 +14,13 @@ import (
 )
 
 type recorderOpenTarget struct {
-	sessionID string
-	dbPath    string
-	active    EventRecorder
+	active EventRecorder
+	stored *storedRecorderTarget
+}
+
+type storedRecorderTarget struct {
+	owner  store.SessionDBOwner
+	dbPath string
 }
 
 func (m *Manager) openQueryRecorder(ctx context.Context, id string) (EventReadCloser, func() error, error) {
@@ -30,11 +34,14 @@ func (m *Manager) openQueryRecorder(ctx context.Context, id string) (EventReadCl
 	if target.active != nil {
 		return target.active, func() error { return nil }, nil
 	}
-	reader, err := m.openQueryStore(ctx, target.sessionID, target.dbPath)
-	if err != nil {
-		return nil, nil, normalizeRecorderOpenError(target.sessionID, err)
+	if target.stored == nil {
+		return nil, nil, errors.New("session: resolved query recorder target is empty")
 	}
-	return reader, eventStoreCleanup(reader), nil
+	reader, err := m.openQueryStore(ctx, target.stored.owner, target.stored.dbPath)
+	if err != nil {
+		return nil, nil, normalizeRecorderOpenError(target.stored.owner.SessionID, err)
+	}
+	return reader, m.eventStoreCleanup(reader), nil
 }
 
 func (m *Manager) openMutationRecorder(ctx context.Context, id string) (EventRecorder, func() error, error) {
@@ -48,11 +55,14 @@ func (m *Manager) openMutationRecorder(ctx context.Context, id string) (EventRec
 	if target.active != nil {
 		return target.active, func() error { return nil }, nil
 	}
-	recorder, err := m.openStore(ctx, target.sessionID, target.dbPath)
-	if err != nil {
-		return nil, nil, normalizeRecorderOpenError(target.sessionID, err)
+	if target.stored == nil {
+		return nil, nil, errors.New("session: resolved mutable recorder target is empty")
 	}
-	return recorder, eventStoreCleanup(recorder), nil
+	recorder, err := m.openStore(ctx, target.stored.owner, target.stored.dbPath)
+	if err != nil {
+		return nil, nil, normalizeRecorderOpenError(target.stored.owner.SessionID, err)
+	}
+	return recorder, m.eventStoreCleanup(recorder), nil
 }
 
 func (m *Manager) resolveRecorderOpenTarget(
@@ -87,12 +97,12 @@ func (m *Manager) resolveRecorderOpenTarget(
 			recorder = session.recorderHandle()
 		}
 		if recorder != nil {
-			return recorderOpenTarget{sessionID: target, active: recorder}, nil
+			return recorderOpenTarget{active: recorder}, nil
 		}
 		if !waited {
 			recorder := session.recorderHandle()
 			if recorder != nil {
-				return recorderOpenTarget{sessionID: target, active: recorder}, nil
+				return recorderOpenTarget{active: recorder}, nil
 			}
 			if allowReadOnlyFallback {
 				m.logger.DebugContext(
@@ -107,12 +117,17 @@ func (m *Manager) resolveRecorderOpenTarget(
 		}
 	}
 
-	if _, err := m.readMetaWithContext(ctx, target); err != nil {
+	meta, err := m.readMetaWithContext(ctx, target)
+	if err != nil {
 		return recorderOpenTarget{}, err
 	}
 
 	dbPath := store.SessionDBFile(filepath.Join(m.homePaths.SessionsDir, target))
-	if err := m.recoverSessionDBClear(ctx, target, dbPath); err != nil {
+	owner, err := m.resolveStoredSessionOwner(ctx, target, meta.WorkspaceID)
+	if err != nil {
+		return recorderOpenTarget{}, fmt.Errorf("session: resolve catalog owner for %q: %w", target, err)
+	}
+	if err := m.recoverOwnedSessionDBClear(ctx, owner, dbPath); err != nil {
 		return recorderOpenTarget{}, fmt.Errorf("session: recover clear state for %q: %w", target, err)
 	}
 	if _, err := os.Stat(dbPath); err != nil {
@@ -121,7 +136,12 @@ func (m *Manager) resolveRecorderOpenTarget(
 		}
 		return recorderOpenTarget{}, fmt.Errorf("session: stat events database for %q: %w", target, err)
 	}
-	return recorderOpenTarget{sessionID: target, dbPath: dbPath}, nil
+	return recorderOpenTarget{
+		stored: &storedRecorderTarget{
+			owner:  owner,
+			dbPath: dbPath,
+		},
+	}, nil
 }
 
 func normalizeRecorderOpenError(sessionID string, err error) error {
@@ -131,9 +151,9 @@ func normalizeRecorderOpenError(sessionID string, err error) error {
 	return fmt.Errorf("session: open events database for %q: %w", sessionID, err)
 }
 
-func eventStoreCleanup(store store.EventCloser) func() error {
+func (m *Manager) eventStoreCleanup(store store.EventCloser) func() error {
 	return func() error {
-		closeCtx, cancel := context.WithTimeout(context.Background(), defaultLifecycleTimeout)
+		closeCtx, cancel := m.lifecycleCleanupContext()
 		defer cancel()
 		return store.Close(closeCtx)
 	}

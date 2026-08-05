@@ -22,6 +22,7 @@ const (
 	defaultSSHAccessExpiresIn = time.Hour
 	defaultSSHKeepAlive       = 30 * time.Second
 	defaultSSHDialTimeout     = 30 * time.Second
+	defaultSSHRequestTimeout  = 30 * time.Second
 )
 
 type sshAccess struct {
@@ -41,12 +42,30 @@ type restSSHTokenSource struct {
 }
 
 func newRESTSSHTokenSource(now func() time.Time) sshTokenSource {
+	return newRESTSSHTokenSourceWithClient(nil, nil, now)
+}
+
+func newRESTSSHTokenSourceWithClient(
+	httpClient *http.Client,
+	apiKey func() string,
+	now func() time.Time,
+) *restSSHTokenSource {
 	if now == nil {
 		now = time.Now
 	}
+	if apiKey == nil {
+		apiKey = func() string { return os.Getenv("DAYTONA_API_KEY") }
+	}
+	if httpClient == nil {
+		httpClient = &http.Client{}
+	}
+	ownedClient := *httpClient
+	if ownedClient.Timeout <= 0 {
+		ownedClient.Timeout = defaultSSHRequestTimeout
+	}
 	return &restSSHTokenSource{
-		httpClient: &http.Client{Timeout: 30 * time.Second},
-		apiKey:     func() string { return os.Getenv("DAYTONA_API_KEY") },
+		httpClient: &ownedClient,
+		apiKey:     apiKey,
 		now:        now,
 	}
 }
@@ -57,6 +76,9 @@ func (s *restSSHTokenSource) FetchSSHAccess(
 	sandboxID string,
 	expiresIn time.Duration,
 ) (_ sshAccess, err error) {
+	if s == nil {
+		return sshAccess{}, errors.New("sandbox/daytona: SSH token source is required")
+	}
 	key := ""
 	if s.apiKey != nil {
 		key = s.apiKey()
@@ -79,11 +101,10 @@ func (s *restSSHTokenSource) FetchSSHAccess(
 	req.Header.Set("Authorization", "Bearer "+key)
 	req.Header.Set("Accept", "application/json")
 
-	client := s.httpClient
-	if client == nil {
-		client = http.DefaultClient
+	if s.httpClient == nil {
+		return sshAccess{}, errors.New("sandbox/daytona: SSH access HTTP client is required")
 	}
-	resp, err := client.Do(req)
+	resp, err := s.httpClient.Do(req)
 	if err != nil {
 		return sshAccess{}, fmt.Errorf("sandbox/daytona: fetch SSH access token: %w", err)
 	}

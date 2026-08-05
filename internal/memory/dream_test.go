@@ -313,6 +313,53 @@ func TestServiceRunCallsSessionSpawnerWithGoalPromptAndWorkspaceID(t *testing.T)
 	}
 }
 
+func TestServiceRunIdentifierAllocation(t *testing.T) {
+	t.Parallel()
+
+	t.Run(
+		"Should reject dream run before acquiring the consolidation lock when ID generation fails",
+		func(t *testing.T) {
+			t.Parallel()
+
+			entropyErr := errors.New("dream entropy unavailable")
+			lock := &stubLock{}
+			spawnCalls := 0
+			service := NewService(
+				withLock(lock),
+				func(service *Service) {
+					service.newDreamRunID = func() (string, error) {
+						return "", entropyErr
+					}
+				},
+			)
+
+			err := service.Run(
+				testutil.Context(t),
+				func(context.Context, string, string, string, time.Time) error {
+					spawnCalls++
+					return nil
+				},
+				"",
+			)
+			if !errors.Is(err, entropyErr) {
+				t.Fatalf("Run() error = %v, want errors.Is(entropyErr)", err)
+			}
+			if lock.tryAcquireCalls != 0 {
+				t.Fatalf("lock acquisitions = %d, want 0", lock.tryAcquireCalls)
+			}
+			if lock.releaseCalls != 0 || len(lock.rollbackCalls) != 0 {
+				t.Fatalf("lock release/rollback = %d/%v, want 0/[]", lock.releaseCalls, lock.rollbackCalls)
+			}
+			if spawnCalls != 0 {
+				t.Fatalf("spawn calls = %d, want 0", spawnCalls)
+			}
+			if service.pending {
+				t.Fatal("service.pending = true, want false")
+			}
+		},
+	)
+}
+
 func TestServiceRunDreamSignalGateBlocksWhenNoUnpromotedSignals(t *testing.T) {
 	t.Parallel()
 
@@ -1322,7 +1369,7 @@ func seedDreamRecallSignals(
 	for idx := range count {
 		filename := fmt.Sprintf("project_signal_%02d.md", idx)
 		content := fmt.Sprintf("Recurring operator preference %02d needs durable recall.\n", idx)
-		if err := store.Write(scope, filename, mustMemoryContent(t, testMemoryMeta{
+		if err := store.Write(t.Context(), scope, filename, mustMemoryContent(t, testMemoryMeta{
 			Name:        fmt.Sprintf("Signal %02d", idx),
 			Description: "Dreaming signal fixture",
 			Type:        memcontract.TypeProject,

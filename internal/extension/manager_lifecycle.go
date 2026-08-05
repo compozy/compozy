@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"slices"
 	"sync"
-
-	"github.com/compozy/compozy/internal/subprocess"
 )
 
 // Start loads every enabled extension through the six-phase pipeline.
@@ -28,23 +26,18 @@ func (m *Manager) Start(ctx context.Context) error {
 }
 
 func (m *Manager) startLocked(ctx context.Context) error {
-	if err := ctx.Err(); err != nil {
+	if err := m.prepareStart(ctx); err != nil {
 		return err
-	}
-	if m.registry == nil {
-		return ErrRegistryRequired
 	}
 
 	m.mu.Lock()
-	if m.started {
-		m.mu.Unlock()
-		return errors.New("extension: manager already started")
-	}
 	lifecycleCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	m.lifecycleCtx = lifecycleCtx
 	m.cancel = cancel
 	m.started = true
 	m.stopping = false
+	m.devOperations = 0
+	m.devOperationsDone = nil
 	m.extensions = make(map[string]*managedExtension)
 	m.devExtensions = make(map[InstanceKey]*managedExtension)
 	m.devCoordinators = make(map[InstanceKey]*sync.Mutex)
@@ -58,6 +51,8 @@ func (m *Manager) startLocked(ctx context.Context) error {
 		m.started = false
 		m.lifecycleCtx = nil
 		m.cancel = nil
+		m.devOperations = 0
+		m.devOperationsDone = nil
 		m.extensions = make(map[string]*managedExtension)
 		m.devExtensions = make(map[InstanceKey]*managedExtension)
 		m.devCoordinators = make(map[InstanceKey]*sync.Mutex)
@@ -101,6 +96,26 @@ func (m *Manager) startLocked(ctx context.Context) error {
 	return errors.Join(errs...)
 }
 
+func (m *Manager) prepareStart(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if m.registry == nil {
+		return ErrRegistryRequired
+	}
+
+	m.mu.Lock()
+	if m.started {
+		m.mu.Unlock()
+		return errors.New("extension: manager already started")
+	}
+	m.mu.Unlock()
+	if err := m.retryPendingCleanups(ctx); err != nil {
+		return fmt.Errorf("extension: drain pending cleanup before start: %w", err)
+	}
+	return nil
+}
+
 // Stop gracefully drains all active extension subprocesses.
 func (m *Manager) Stop(ctx context.Context) error {
 	if ctx == nil {
@@ -119,25 +134,24 @@ func (m *Manager) stopLocked(ctx context.Context) error {
 	m.mu.Lock()
 	if !m.started {
 		m.mu.Unlock()
-		return nil
+		return m.retryPendingCleanups(ctx)
 	}
 	m.stopping = true
 	cancel := m.cancel
-	names := make([]string, 0, len(m.extensions))
-	for name := range m.extensions {
-		names = append(names, name)
-	}
-	slices.Sort(names)
-	devKeys := make([]InstanceKey, 0, len(m.devExtensions))
-	for key := range m.devExtensions {
-		devKeys = append(devKeys, key)
-	}
-	slices.SortFunc(devKeys, compareInstanceKeys)
+	devOperationsDone := m.devOperationsDone
 	m.mu.Unlock()
 
 	if cancel != nil {
 		cancel()
 	}
+	// A drain that never settles must not strand extension subprocesses, so teardown continues.
+	var drainErr error
+	if err := m.waitForDevOperationsDuringShutdown(ctx, devOperationsDone); err != nil {
+		drainErr = fmt.Errorf("extension: wait for admitted development operations: %w", err)
+	}
+	pendingCleanupErr := m.retryPendingCleanups(ctx)
+
+	names, devKeys := m.stopTargets()
 
 	errCh := make(chan error, len(names)+len(devKeys))
 	var stopWG sync.WaitGroup
@@ -181,35 +195,43 @@ func (m *Manager) stopLocked(ctx context.Context) error {
 	m.lifecycleCtx = nil
 	m.mu.Unlock()
 
-	var errs []error
+	errs := []error{drainErr}
 	for err := range errCh {
 		errs = append(errs, err)
+	}
+	if pendingCleanupErr != nil {
+		errs = append(errs, pendingCleanupErr)
 	}
 	return errors.Join(errs...)
 }
 
+func (m *Manager) stopTargets() ([]string, []InstanceKey) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	names := make([]string, 0, len(m.extensions))
+	for name := range m.extensions {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	devKeys := make([]InstanceKey, 0, len(m.devExtensions))
+	for key := range m.devExtensions {
+		devKeys = append(devKeys, key)
+	}
+	slices.SortFunc(devKeys, compareInstanceKeys)
+	return names, devKeys
+}
+
 func (m *Manager) stopManagedExtension(ctx context.Context, item *managedExtension) error {
+	if item == nil {
+		return nil
+	}
+	m.mu.RLock()
 	proc := item.process
+	m.mu.RUnlock()
 	var itemErr error
 	if proc != nil {
-		if err := proc.Shutdown(ctx); err != nil {
-			select {
-			case <-proc.Done():
-				if waitErr := proc.Wait(); waitErr != nil {
-					itemErr = errors.Join(
-						itemErr,
-						fmt.Errorf("extension %q stop: %w", item.info.Name, errors.Join(err, waitErr)),
-					)
-				} else if !errors.Is(err, context.DeadlineExceeded) &&
-					!errors.Is(err, subprocess.ErrTransportClosedBeforeResponse) {
-					itemErr = errors.Join(itemErr, fmt.Errorf("extension %q stop: %w", item.info.Name, err))
-				}
-			case <-ctx.Done():
-				itemErr = errors.Join(
-					itemErr,
-					fmt.Errorf("extension %q stop: %w", item.info.Name, errors.Join(err, ctx.Err())),
-				)
-			}
+		if err := shutdownProcessWithTimeout(ctx, proc, m.defaultShutdownTimeout); err != nil {
+			itemErr = errors.Join(itemErr, fmt.Errorf("extension %q stop: %w", item.info.Name, err))
 		}
 	}
 
@@ -222,7 +244,18 @@ func (m *Manager) stopManagedExtension(ctx context.Context, item *managedExtensi
 	item.active = false
 	item.awaitingStability = false
 	item.phase = ExtensionPhaseStop
+	cleanups := item.redactionCleanups
+	item.redactionCleanups = nil
 	m.mu.Unlock()
+	if processTerminal(proc) {
+		runExtensionRedactionCleanups(cleanups)
+	} else if proc != nil {
+		m.retainPendingCleanup(pendingExtensionCleanup{
+			key:               item.instanceKey(),
+			process:           proc,
+			redactionCleanups: cleanups,
+		})
+	}
 
 	m.logger.Info("extension.lifecycle.shutdown", managerExtensionKey, item.info.Name)
 	return itemErr

@@ -5,12 +5,15 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/compozy/compozy/internal/outboundpolicy"
 	"github.com/compozy/compozy/internal/registry"
+	"github.com/compozy/compozy/internal/retry"
 )
 
 const (
@@ -21,11 +24,13 @@ const (
 	defaultInitialBackoff      = time.Second
 	defaultMaxBackoff          = 30 * time.Second
 	defaultMaxRetries          = 3
+	defaultMaxRedirects        = 10
 	maxErrorBodyBytes          = 64 << 10
 	rateLimitWarnThreshold     = 10
 	acceptJSON                 = "application/vnd.github+json"
 	acceptBinary               = "application/octet-stream"
 	githubRepositoryBaseURL    = "https://github.com"
+	githubUploadsBaseURL       = "https://uploads.github.com"
 )
 
 // Option customizes a GitHub client.
@@ -42,6 +47,8 @@ type Client struct {
 	logger         *slog.Logger
 	token          string
 	closeOnce      sync.Once
+	networkPolicy  outboundpolicy.Policy
+	networkErr     error
 }
 
 type repoSlug struct {
@@ -91,7 +98,7 @@ func NewClient(baseURL string, opts ...Option) *Client {
 	client := &Client{
 		baseURL:        strings.TrimSpace(baseURL),
 		httpClient:     &http.Client{Timeout: defaultRequestTimeout},
-		sleep:          sleepContext,
+		sleep:          retry.Wait,
 		initialBackoff: defaultInitialBackoff,
 		maxBackoff:     defaultMaxBackoff,
 		maxRetries:     defaultMaxRetries,
@@ -117,7 +124,7 @@ func NewClient(baseURL string, opts ...Option) *Client {
 		client.httpClient = &http.Client{Timeout: defaultRequestTimeout}
 	}
 	if client.sleep == nil {
-		client.sleep = sleepContext
+		client.sleep = retry.Wait
 	}
 	if client.initialBackoff <= 0 {
 		client.initialBackoff = defaultInitialBackoff
@@ -131,11 +138,48 @@ func NewClient(baseURL string, opts ...Option) *Client {
 	if client.logger == nil {
 		client.logger = slog.Default()
 	}
+	client.networkPolicy, client.networkErr = newGitHubNetworkPolicy(client.baseURL)
+	if client.networkErr == nil {
+		client.httpClient = outboundpolicy.NewHTTPClient(
+			client.httpClient,
+			client.networkPolicy,
+			defaultRequestTimeout,
+			defaultMaxRedirects,
+		)
+	}
 
 	return client
 }
 
-// WithHTTPClient overrides the underlying HTTP client.
+func newGitHubNetworkPolicy(baseURL string) (outboundpolicy.Policy, error) {
+	base, err := url.Parse(baseURL)
+	if err != nil {
+		return outboundpolicy.Policy{}, fmt.Errorf("github: parse API base URL: %w", err)
+	}
+	defaultBase, err := url.Parse(defaultBaseURL)
+	if err != nil {
+		return outboundpolicy.Policy{}, fmt.Errorf("github: parse default API base URL: %w", err)
+	}
+	policy := outboundpolicy.New(false)
+	if outboundpolicy.SameOrigin(base, defaultBase) {
+		policy, err = policy.WithCredentialOrigin(baseURL)
+		if err != nil {
+			return outboundpolicy.Policy{}, fmt.Errorf("github: configure API credential origin: %w", err)
+		}
+		policy, err = policy.WithCredentialOrigin(githubUploadsBaseURL)
+		if err != nil {
+			return outboundpolicy.Policy{}, fmt.Errorf("github: configure upload credential origin: %w", err)
+		}
+		return policy, nil
+	}
+	policy, err = policy.WithTrustedOrigin(baseURL)
+	if err != nil {
+		return outboundpolicy.Policy{}, fmt.Errorf("github: invalid API base URL: %w", err)
+	}
+	return policy, nil
+}
+
+// WithHTTPClient provides the base HTTP client wrapped by the outbound network policy.
 func WithHTTPClient(httpClient *http.Client) Option {
 	return func(client *Client) {
 		client.httpClient = httpClient

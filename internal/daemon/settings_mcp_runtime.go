@@ -232,7 +232,7 @@ func runtimeStatusFromMCPProbeError(err error) settingspkg.MCPServerRuntimeStatu
 		Reason:     string(toolspkg.ReasonMCPUnreachable),
 		Diagnostic: diagnostics.Redact(err.Error()),
 	}
-	if errors.Is(err, os.ErrPermission) || strings.Contains(strings.ToLower(err.Error()), "permission denied") {
+	if errors.Is(err, os.ErrPermission) {
 		status.State = settingspkg.MCPServerRuntimeStatePermissionDenied
 		status.Reason = "permission_denied"
 		return status

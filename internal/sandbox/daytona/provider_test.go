@@ -5,13 +5,16 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -346,6 +349,14 @@ func TestDaytonaProviderDestroyDeletesOrArchivesByPersistence(t *testing.T) {
 
 func TestDaytonaLauncherLaunchReturnsHandleStreams(t *testing.T) {
 	t.Parallel()
+	t.Run("Should launch the pinned remote executable and expose handle streams", func(t *testing.T) {
+		t.Parallel()
+		testDaytonaLauncherLaunchReturnsHandleStreams(t)
+	})
+}
+
+func testDaytonaLauncherLaunchReturnsHandleStreams(t *testing.T) {
+	t.Helper()
 
 	transport := &fakeTransport{
 		readArchives: [][]byte{[]byte("stdout")},
@@ -355,9 +366,11 @@ func TestDaytonaLauncherLaunchReturnsHandleStreams(t *testing.T) {
 		sandbox:   sandboxInfo{ID: "sandbox", APIURL: defaultAPIURL},
 	}
 	handle, err := launcher.Launch(context.Background(), sandbox.LaunchSpec{
-		Command: "cat",
-		Cwd:     "/workspace",
-		Env:     []string{"COMPOZY_SESSION_ID=sess"},
+		Command:            "daemon-agent acp",
+		ResolvedExecutable: "/remote/bin/agent",
+		Args:               []string{"acp", "--label", "two words"},
+		Cwd:                "/workspace",
+		Env:                []string{"COMPOZY_SESSION_ID=sess"},
 	})
 	if err != nil {
 		t.Fatalf("Launch() error = %v", err)
@@ -401,6 +414,226 @@ func TestDaytonaLauncherLaunchReturnsHandleStreams(t *testing.T) {
 	if err := handle.Stdout().Close(); err != nil {
 		t.Fatalf("Stdout().Close() error = %v", err)
 	}
+	command := transport.dials[0].command
+	if !strings.Contains(command, "/remote/bin/agent") {
+		t.Fatalf("remote command = %q, want resolved executable", command)
+	}
+	if strings.Contains(command, "daemon-agent") {
+		t.Fatalf("remote command = %q, must not re-resolve bare command", command)
+	}
+	if !strings.Contains(command, "two words") {
+		t.Fatalf("remote command = %q, want preserved arguments", command)
+	}
+}
+
+func TestDaytonaLauncherPrepareLaunchPinsRemoteIdentity(t *testing.T) {
+	t.Parallel()
+	t.Run("Should resolve and launch one pinned remote identity", func(t *testing.T) {
+		t.Parallel()
+		testDaytonaLauncherPrepareLaunchPinsRemoteIdentity(t)
+	})
+}
+
+func testDaytonaLauncherPrepareLaunchPinsRemoteIdentity(t *testing.T) {
+	t.Helper()
+
+	transport := &fakeTransport{sessions: []*fakeSession{
+		newFakeCommandSession([]byte("/remote/bin/agent\n"), 0, ""),
+		newFakeCommandSession(nil, 0, ""),
+	}}
+	launcher := &daytonaLauncher{
+		transport: transport,
+		sandbox:   sandboxInfo{ID: "sandbox", APIURL: defaultAPIURL},
+	}
+	spec, err := launcher.PrepareLaunch(t.Context(), sandbox.LaunchSpec{
+		Command: "agent acp --mode remote",
+		Cwd:     "/remote/workspace",
+		Env:     []string{"PATH=/remote/bin"},
+	})
+	if err != nil {
+		t.Fatalf("PrepareLaunch() error = %v", err)
+	}
+	if spec.ResolvedExecutable != "/remote/bin/agent" {
+		t.Fatalf("ResolvedExecutable = %q, want /remote/bin/agent", spec.ResolvedExecutable)
+	}
+	if !slices.Equal(spec.Args, []string{"acp", "--mode", "remote"}) {
+		t.Fatalf("Args = %v, want preserved launch arguments", spec.Args)
+	}
+	if _, err := launcher.Launch(t.Context(), spec); err != nil {
+		t.Fatalf("Launch() error = %v", err)
+	}
+	if len(transport.dials) != 2 {
+		t.Fatalf("Dial() calls = %d, want one resolution and one launch", len(transport.dials))
+	}
+	if !strings.Contains(transport.dials[0].command, "command -v agent") {
+		t.Fatalf("resolution command = %q, want remote resolver", transport.dials[0].command)
+	}
+	if !strings.Contains(transport.dials[1].command, "/remote/bin/agent acp --mode remote") {
+		t.Fatalf("launch command = %q, want pinned terminal identity", transport.dials[1].command)
+	}
+	if strings.Contains(transport.dials[1].command, "sh -lc 'agent acp") {
+		t.Fatalf("launch command = %q, must not re-resolve agent", transport.dials[1].command)
+	}
+}
+
+func TestDaytonaCommandRuntime(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should resolve and run commands in the same remote runtime", func(t *testing.T) {
+		t.Parallel()
+
+		transport := &fakeTransport{sessions: []*fakeSession{
+			newFakeCommandSession([]byte("/remote/bin/provider\n"), 0, ""),
+			newFakeCommandSession([]byte("authenticated\n"), 7, "login required"),
+		}}
+		launcher := &daytonaLauncher{
+			transport: transport,
+			sandbox:   sandboxInfo{ID: "sandbox", APIURL: defaultAPIURL},
+		}
+		runtime := launcher.CommandRuntime()
+		env := []string{"PATH=/remote/bin", "HOME=/remote/home"}
+		resolved, err := runtime.Resolve(t.Context(), "provider", env, "/remote/workspace")
+		if err != nil {
+			t.Fatalf("Resolve() error = %v", err)
+		}
+		if resolved != "/remote/bin/provider" {
+			t.Fatalf("Resolve() = %q, want /remote/bin/provider", resolved)
+		}
+		result, err := runtime.Run(t.Context(), sandbox.CommandSpec{
+			Executable: resolved,
+			Args:       []string{"auth", "status"},
+			Cwd:        "/remote/workspace",
+			Env:        env,
+		})
+		if err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+		if result.ExitCode != 7 || result.Stdout != "authenticated" || result.Stderr != "login required" {
+			t.Fatalf("Run() result = %+v, want exit 7 with captured output", result)
+		}
+		if len(transport.dials) != 2 {
+			t.Fatalf("Dial() calls = %d, want 2", len(transport.dials))
+		}
+		for _, dial := range transport.dials {
+			if !strings.Contains(dial.command, "cd /remote/workspace") {
+				t.Fatalf("remote command = %q, want final cwd", dial.command)
+			}
+			if !strings.Contains(dial.command, "PATH=/remote/bin") ||
+				!strings.Contains(dial.command, "HOME=/remote/home") {
+				t.Fatalf("remote command = %q, want final environment", dial.command)
+			}
+		}
+		if !strings.Contains(transport.dials[1].command, "/remote/bin/provider auth status") {
+			t.Fatalf("status command = %q, want pinned executable", transport.dials[1].command)
+		}
+	})
+
+	t.Run("Should normalize only resolver exit 127 as executable not found", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name         string
+			exitCode     int
+			wantNotFound bool
+		}{
+			{name: "Should map exit 127", exitCode: 127, wantNotFound: true},
+			{name: "Should keep exit 126 operational", exitCode: 126, wantNotFound: false},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				transport := &fakeTransport{sessions: []*fakeSession{
+					newFakeCommandSession(nil, tt.exitCode, "resolver failed"),
+				}}
+				runtime := (&daytonaLauncher{
+					transport: transport,
+					sandbox:   sandboxInfo{ID: "sandbox", APIURL: defaultAPIURL},
+				}).CommandRuntime()
+				_, err := runtime.Resolve(t.Context(), "provider", []string{"PATH=/remote/bin"}, "/workspace")
+				if err == nil {
+					t.Fatal("Resolve() error = nil, want non-nil")
+				}
+				if got := errors.Is(err, exec.ErrNotFound); got != tt.wantNotFound {
+					t.Fatalf("errors.Is(ErrNotFound) = %v, want %v; err = %v", got, tt.wantNotFound, err)
+				}
+			})
+		}
+	})
+
+	t.Run("Should preserve operational error identity while redacting secrets", func(t *testing.T) {
+		t.Parallel()
+
+		cause := errors.New("dial failed with token=remote-secret")
+		transport := &fakeTransport{dialErr: cause}
+		runtime := (&daytonaLauncher{
+			transport: transport,
+			sandbox:   sandboxInfo{ID: "sandbox", APIURL: defaultAPIURL},
+		}).CommandRuntime()
+		_, err := runtime.Resolve(t.Context(), "provider", nil, "/workspace")
+		if !errors.Is(err, cause) {
+			t.Fatalf("Resolve() error = %v, want wrapped cause", err)
+		}
+		if strings.Contains(err.Error(), "remote-secret") {
+			t.Fatalf("Resolve() error leaked secret: %v", err)
+		}
+		if errors.Is(err, exec.ErrNotFound) {
+			t.Fatalf("Resolve() error = %v, must remain operational", err)
+		}
+	})
+
+	t.Run("Should reject invalid resolver output as operational", func(t *testing.T) {
+		t.Parallel()
+
+		transport := &fakeTransport{sessions: []*fakeSession{
+			newFakeCommandSession([]byte("relative/provider\n"), 0, ""),
+		}}
+		runtime := (&daytonaLauncher{
+			transport: transport,
+			sandbox:   sandboxInfo{ID: "sandbox", APIURL: defaultAPIURL},
+		}).CommandRuntime()
+		_, err := runtime.Resolve(t.Context(), "provider", nil, "/workspace")
+		if err == nil {
+			t.Fatal("Resolve() error = nil, want invalid output error")
+		}
+		if errors.Is(err, exec.ErrNotFound) {
+			t.Fatalf("Resolve() error = %v, must remain operational", err)
+		}
+	})
+
+	t.Run("Should stop the remote command session when context is canceled", func(t *testing.T) {
+		t.Parallel()
+
+		transport := newBlockingCommandTransport()
+		runtime := (&daytonaLauncher{
+			transport: transport,
+			sandbox:   sandboxInfo{ID: "sandbox", APIURL: defaultAPIURL},
+		}).CommandRuntime()
+		ctx, cancel := context.WithCancel(t.Context())
+		result := make(chan error, 1)
+		go func() {
+			_, err := runtime.Run(ctx, sandbox.CommandSpec{
+				Executable: "/remote/bin/provider",
+				Cwd:        "/workspace",
+			})
+			result <- err
+		}()
+		<-transport.dialed
+		cancel()
+		select {
+		case err := <-result:
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("Run() error = %v, want context.Canceled", err)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("Run() did not stop after cancellation")
+		}
+		select {
+		case <-transport.session.stopped:
+		default:
+			t.Fatal("remote command session was not stopped")
+		}
+	})
 }
 
 func TestDaytonaToolHostFileOpsUseSandboxFilesystem(t *testing.T) {
@@ -1112,6 +1345,8 @@ func (s *fakeTokenSource) FetchSSHAccess(
 type fakeTransport struct {
 	dials        []fakeDial
 	readArchives [][]byte
+	sessions     []*fakeSession
+	dialErr      error
 	nextWaitErr  error
 	nextStderr   string
 }
@@ -1123,6 +1358,15 @@ type fakeDial struct {
 }
 
 func (t *fakeTransport) Dial(_ context.Context, sandbox sandboxInfo, command string) (transportSession, error) {
+	if t.dialErr != nil {
+		return nil, t.dialErr
+	}
+	if len(t.sessions) > 0 {
+		session := t.sessions[0]
+		t.sessions = t.sessions[1:]
+		t.dials = append(t.dials, fakeDial{sandbox: sandbox, command: command, session: session})
+		return session, nil
+	}
 	var read []byte
 	if len(t.readArchives) > 0 {
 		read = t.readArchives[0]
@@ -1141,6 +1385,8 @@ type fakeSession struct {
 	done        chan struct{}
 	waitErr     error
 	stderr      string
+	exitCode    int
+	hasExitCode bool
 	closedWrite bool
 }
 
@@ -1151,6 +1397,17 @@ func newFakeSession(read []byte) *fakeSession {
 		read: bytes.NewReader(read),
 		done: done,
 	}
+}
+
+func newFakeCommandSession(read []byte, exitCode int, stderr string) *fakeSession {
+	session := newFakeSession(read)
+	session.exitCode = exitCode
+	session.hasExitCode = true
+	session.stderr = stderr
+	if exitCode != 0 {
+		session.waitErr = fmt.Errorf("remote command exited with code %d", exitCode)
+	}
+	return session
 }
 
 func (s *fakeSession) Read(p []byte) (int, error) { return s.read.Read(p) }
@@ -1171,6 +1428,61 @@ func (s *fakeSession) Wait() error { return s.waitErr }
 func (s *fakeSession) Stop(context.Context) error { return nil }
 
 func (s *fakeSession) Stderr() string { return s.stderr }
+
+func (s *fakeSession) ExitCode() (int, bool) { return s.exitCode, s.hasExitCode }
+
+type blockingCommandTransport struct {
+	session *blockingCommandSession
+	dialed  chan struct{}
+}
+
+func newBlockingCommandTransport() *blockingCommandTransport {
+	return &blockingCommandTransport{
+		session: &blockingCommandSession{stopped: make(chan struct{})},
+		dialed:  make(chan struct{}),
+	}
+}
+
+func (t *blockingCommandTransport) Dial(
+	context.Context,
+	sandboxInfo,
+	string,
+) (transportSession, error) {
+	close(t.dialed)
+	return t.session, nil
+}
+
+type blockingCommandSession struct {
+	stopOnce sync.Once
+	stopped  chan struct{}
+}
+
+func (s *blockingCommandSession) Read([]byte) (int, error) {
+	<-s.stopped
+	return 0, io.ErrClosedPipe
+}
+
+func (*blockingCommandSession) Write(payload []byte) (int, error) { return len(payload), nil }
+
+func (s *blockingCommandSession) Close() error {
+	s.stopOnce.Do(func() { close(s.stopped) })
+	return nil
+}
+
+func (*blockingCommandSession) CloseWrite() error { return nil }
+
+func (s *blockingCommandSession) Done() <-chan struct{} { return s.stopped }
+
+func (s *blockingCommandSession) Wait() error {
+	<-s.stopped
+	return nil
+}
+
+func (s *blockingCommandSession) Stop(context.Context) error { return s.Close() }
+
+func (*blockingCommandSession) Stderr() string { return "" }
+
+func (*blockingCommandSession) ExitCode() (int, bool) { return 0, false }
 
 func makeTar(t *testing.T, files map[string]string) []byte {
 	t.Helper()

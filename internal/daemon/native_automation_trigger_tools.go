@@ -206,7 +206,7 @@ func (n *daemonNativeTools) automationRunsGet(
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
 	payload := core.RunPayloadFromRun(run)
-	return structuredResult(map[string]any{"run": payload}, payload.ID)
+	return structuredResult(map[string]any{nativeAutomationToolsRunKey: payload}, payload.ID)
 }
 
 func (n *daemonNativeTools) automationSetJobEnabled(

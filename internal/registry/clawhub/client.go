@@ -15,7 +15,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/compozy/compozy/internal/outboundpolicy"
 	"github.com/compozy/compozy/internal/registry"
+	"github.com/compozy/compozy/internal/retry"
 )
 
 const (
@@ -25,6 +27,7 @@ const (
 	defaultInitialBackoff = time.Second
 	defaultMaxBackoff     = 30 * time.Second
 	defaultMaxRetries     = 3
+	defaultMaxRedirects   = 10
 	maxErrorBodyBytes     = 64 << 10
 	maxJSONResponseBytes  = 1 << 20
 	applicationGzipType   = "application/gzip"
@@ -44,6 +47,7 @@ type Client struct {
 	maxBackoff     time.Duration
 	maxRetries     int
 	closeOnce      sync.Once
+	networkErr     error
 }
 
 var _ registry.Source = (*Client)(nil)
@@ -53,7 +57,7 @@ func NewClient(baseURL string, opts ...Option) *Client {
 	client := &Client{
 		baseURL:        strings.TrimSpace(baseURL),
 		httpClient:     &http.Client{Timeout: defaultRequestTimeout},
-		sleep:          sleepContext,
+		sleep:          retry.Wait,
 		initialBackoff: defaultInitialBackoff,
 		maxBackoff:     defaultMaxBackoff,
 		maxRetries:     defaultMaxRetries,
@@ -77,7 +81,7 @@ func NewClient(baseURL string, opts ...Option) *Client {
 		client.httpClient = &http.Client{Timeout: defaultRequestTimeout}
 	}
 	if client.sleep == nil {
-		client.sleep = sleepContext
+		client.sleep = retry.Wait
 	}
 	if client.initialBackoff <= 0 {
 		client.initialBackoff = defaultInitialBackoff
@@ -88,11 +92,22 @@ func NewClient(baseURL string, opts ...Option) *Client {
 	if client.maxRetries < 0 {
 		client.maxRetries = 0
 	}
+	policy, err := newClawHubNetworkPolicy(client.baseURL)
+	if err != nil {
+		client.networkErr = fmt.Errorf("clawhub: invalid base URL: %w", err)
+	} else {
+		client.httpClient = outboundpolicy.NewHTTPClient(
+			client.httpClient,
+			policy,
+			defaultRequestTimeout,
+			defaultMaxRedirects,
+		)
+	}
 
 	return client
 }
 
-// WithHTTPClient overrides the underlying HTTP client.
+// WithHTTPClient provides the base HTTP client wrapped by the outbound network policy.
 func WithHTTPClient(httpClient *http.Client) Option {
 	return func(client *Client) {
 		client.httpClient = httpClient
@@ -145,21 +160,22 @@ func (c *Client) Search(ctx context.Context, query string, opts registry.SearchO
 		values.Set("offset", fmt.Sprintf("%d", opts.Offset))
 	}
 
+	//nolint:bodyclose // This function drains/closes the response after reading its bounded payload.
 	response, err := c.doRequest(ctx, "/search", values, "search", "")
 	if err != nil {
 		return nil, err
 	}
 
 	payload, err := readLimitedBody(response.Body, maxJSONResponseBytes)
-	closeErr := response.Body.Close()
+	cleanupErr := drainAndCloseResponseBody(response.Body, "search response")
 	if err != nil {
 		return nil, joinErrors(
 			fmt.Errorf("clawhub: read search response: %w", err),
-			wrapSearchCloseError(closeErr),
+			cleanupErr,
 		)
 	}
-	if closeErr != nil {
-		return nil, fmt.Errorf("clawhub: close search response: %w", closeErr)
+	if cleanupErr != nil {
+		return nil, cleanupErr
 	}
 
 	listings, err := decodeListings(bytes.NewReader(payload))
@@ -181,21 +197,22 @@ func (c *Client) Info(ctx context.Context, slug string) (*registry.Detail, error
 		return nil, errors.New("clawhub: skill slug is required")
 	}
 
+	//nolint:bodyclose // This function drains/closes the response after reading its bounded payload.
 	response, err := c.doRequest(ctx, "/skills/"+url.PathEscape(trimmedSlug), nil, "info", trimmedSlug)
 	if err != nil {
 		return nil, err
 	}
 
 	payload, err := readLimitedBody(response.Body, maxJSONResponseBytes)
-	closeErr := response.Body.Close()
+	cleanupErr := drainAndCloseResponseBody(response.Body, fmt.Sprintf("info response for %q", trimmedSlug))
 	if err != nil {
 		return nil, joinErrors(
 			fmt.Errorf("clawhub: read info response for %q: %w", trimmedSlug, err),
-			wrapCloseError(trimmedSlug, closeErr),
+			cleanupErr,
 		)
 	}
-	if closeErr != nil {
-		return nil, fmt.Errorf("clawhub: close info response for %q: %w", trimmedSlug, closeErr)
+	if cleanupErr != nil {
+		return nil, cleanupErr
 	}
 
 	detail, err := decodeDetail(payload, trimmedSlug)
@@ -224,6 +241,7 @@ func (c *Client) Download(
 		requestPath = "/skills/" + url.PathEscape(trimmedSlug) + "/versions/" + url.PathEscape(version) + "/archive"
 	}
 
+	//nolint:bodyclose // Every error branch drains/closes; success spools then closes before returning.
 	response, err := c.doRequest(ctx, requestPath, nil, "download", trimmedSlug)
 	if err != nil {
 		if errors.Is(err, registry.ErrPackageNotFound) {
@@ -237,7 +255,7 @@ func (c *Client) Download(
 	}
 	maxArchiveSize := normalizeArchiveSizeLimit(opts.MaxArchiveSize)
 	if response.ContentLength > maxArchiveSize {
-		closeErr := response.Body.Close()
+		cleanupErr := drainAndCloseResponseBody(response.Body, fmt.Sprintf("download response for %q", trimmedSlug))
 		return nil, joinErrors(
 			fmt.Errorf(
 				"clawhub: download for %q: %w: size=%d limit=%d",
@@ -246,19 +264,22 @@ func (c *Client) Download(
 				response.ContentLength,
 				maxArchiveSize,
 			),
-			wrapCloseError(trimmedSlug, closeErr),
+			cleanupErr,
 		)
 	}
 	downloadReader, downloadSize, spoolErr := spoolDownloadResponse(response.Body, trimmedSlug, maxArchiveSize)
-	closeErr := response.Body.Close()
+	cleanupErr := drainAndCloseResponseBody(response.Body, fmt.Sprintf("download response for %q", trimmedSlug))
 	if spoolErr != nil {
 		return nil, joinErrors(
 			fmt.Errorf("clawhub: spool download for %q: %w", trimmedSlug, spoolErr),
-			wrapCloseError(trimmedSlug, closeErr),
+			cleanupErr,
 		)
 	}
-	if closeErr != nil {
-		return nil, fmt.Errorf("clawhub: close download response for %q: %w", trimmedSlug, closeErr)
+	if cleanupErr != nil {
+		return nil, errors.Join(
+			cleanupErr,
+			wrapSpooledDownloadCleanupError(trimmedSlug, downloadReader.Close()),
+		)
 	}
 
 	return &registry.DownloadResult{

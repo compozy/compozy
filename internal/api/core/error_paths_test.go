@@ -437,14 +437,16 @@ func TestMemoryHelpersAndMissingStoreBranches(t *testing.T) {
 	workspace := t.TempDir()
 	globalDoc := []byte(memoryDocument(t, "Shared", memcontract.TypeUser, "global"))
 	workspaceDoc := []byte(memoryDocument(t, "Shared", memcontract.TypeProject, "workspace"))
-	if err := store.Write(memcontract.ScopeGlobal, "shared.md", globalDoc); err != nil {
+	if err := store.Write(t.Context(), memcontract.ScopeGlobal, "shared.md", globalDoc); err != nil {
 		t.Fatalf("Write(global) error = %v", err)
 	}
-	if err := store.ForWorkspace(workspace).Write(memcontract.ScopeWorkspace, "shared.md", workspaceDoc); err != nil {
+	if err := store.ForWorkspace(workspace).Write(
+		t.Context(), memcontract.ScopeWorkspace, "shared.md", workspaceDoc,
+	); err != nil {
 		t.Fatalf("Write(workspace) error = %v", err)
 	}
-	if err := store.ForWorkspace(workspace).
-		Write(memcontract.ScopeWorkspace, "workspace-only.md", workspaceDoc); err != nil {
+	if err := store.ForWorkspace(workspace).Write(t.Context(),
+		memcontract.ScopeWorkspace, "workspace-only.md", workspaceDoc); err != nil {
 		t.Fatalf("Write(workspace-only) error = %v", err)
 	}
 

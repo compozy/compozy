@@ -20,7 +20,6 @@ const (
 	terminalTaskEventRunReviewApproved = "task.run_review_approved"
 
 	defaultTerminalTaskNotifierLimit = 100
-	maxTerminalTaskCursorErrorBytes  = 2048
 )
 
 // ErrTerminalTaskNotificationMismatch reports a replayed terminal task event

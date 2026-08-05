@@ -39,20 +39,25 @@ func buildOperation(schemas openapi3.Schemas, spec OperationSpec) (*openapi3.Ope
 }
 
 func buildResponse(schemas openapi3.Schemas, response ResponseSpec) (*openapi3.Response, error) {
-	bodies := response.Bodies
 	if response.Body != nil {
-		if len(bodies) > 0 {
+		if !response.Bodies.empty() {
 			return nil, fmt.Errorf("response %d cannot define Body and Bodies", response.Status)
 		}
-		bodies = []any{response.Body}
 	}
 	result := openapi3.NewResponse().WithDescription(response.Description)
-	if len(bodies) == 0 {
+	if response.Body == nil && response.Bodies.empty() {
 		return result, nil
 	}
-	schemaRefs := make([]*openapi3.SchemaRef, 0, len(bodies))
-	for _, body := range bodies {
-		schemaRef, err := schemaRefForValue(body, schemas)
+	schemaRefs := make([]*openapi3.SchemaRef, 0, len(response.Bodies.schemaTypes)+1)
+	if response.Body != nil {
+		schemaRef, err := schemaRefForValue(response.Body, schemas)
+		if err != nil {
+			return nil, fmt.Errorf("response %d schema: %w", response.Status, err)
+		}
+		schemaRefs = append(schemaRefs, schemaRef)
+	}
+	for _, schemaType := range response.Bodies.schemaTypes {
+		schemaRef, err := schemaRefForType(schemaType, schemas)
 		if err != nil {
 			return nil, fmt.Errorf("response %d schema: %w", response.Status, err)
 		}

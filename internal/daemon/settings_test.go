@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
@@ -36,7 +37,7 @@ func TestSettingsRuntimeSurfaceMemoryHealthStatus(t *testing.T) {
 		memoryStore := memorypkg.NewStore(filepath.Join(t.TempDir(), "memory"))
 		for idx := range 205 {
 			filename := fmt.Sprintf("settings-%03d.md", idx)
-			if err := memoryStore.Write(
+			if err := memoryStore.Write(t.Context(),
 				memcontract.ScopeGlobal,
 				filename,
 				[]byte(memoryDocument(
@@ -44,8 +45,7 @@ func TestSettingsRuntimeSurfaceMemoryHealthStatus(t *testing.T) {
 					"Settings health",
 					memcontract.TypeReference,
 					"body",
-				)),
-			); err != nil {
+				))); err != nil {
 				t.Fatalf("Write(%q) error = %v", filename, err)
 			}
 		}
@@ -320,6 +320,20 @@ func TestSettingsRuntimeSurfaceMCPAuthStatusResolvesClientSecretRef(t *testing.T
 }
 
 func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
+	t.Run("Should classify permission failures by error identity", func(t *testing.T) {
+		t.Parallel()
+
+		permissionStatus := runtimeStatusFromMCPProbeError(fmt.Errorf("launch MCP process: %w", os.ErrPermission))
+		if got, want := permissionStatus.State, settingspkg.MCPServerRuntimeStatePermissionDenied; got != want {
+			t.Fatalf("typed permission state = %q, want %q", got, want)
+		}
+
+		messageOnlyStatus := runtimeStatusFromMCPProbeError(errors.New("permission denied"))
+		if got, want := messageOnlyStatus.State, settingspkg.MCPServerRuntimeStateRuntimeUnavailable; got != want {
+			t.Fatalf("message-only permission state = %q, want %q", got, want)
+		}
+	})
+
 	t.Run("Should probe a reachable MCP server independent of observability agent probe timeout", func(t *testing.T) {
 		t.Parallel()
 

@@ -27,7 +27,12 @@ func flattenConfigValue(entries *[]Entry, path string, value any, redacted bool)
 			if path != "" {
 				nextPath = path + "." + key
 			}
-			flattenConfigValue(entries, nextPath, typed[key], redacted || key == "env" || key == "secret_env")
+			flattenConfigValue(
+				entries,
+				nextPath,
+				typed[key],
+				redacted || key == "env" || key == "secret_env" || key == toolSurfaceAuthLoginCommandKey,
+			)
 		}
 	case []any:
 		if len(typed) == 0 {

@@ -75,8 +75,9 @@ func (c *activeCoalescer) note(workspaceID WorkspaceID, stackID NodeID, windowID
 	cancel := make(chan struct{})
 	c.timers[workspaceID] = timer
 	c.cancels[workspaceID] = cancel
-	c.wg.Add(1)
-	go c.runTimer(workspaceID, lock, timer, cancel)
+	c.wg.Go(func() {
+		c.runTimer(workspaceID, lock, timer, cancel)
+	})
 }
 
 func (c *activeCoalescer) runTimer(
@@ -85,7 +86,6 @@ func (c *activeCoalescer) runTimer(
 	timer *time.Timer,
 	cancel <-chan struct{},
 ) {
-	defer c.wg.Done()
 	triggered := false
 	select {
 	case <-timer.C:

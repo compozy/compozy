@@ -57,12 +57,12 @@ func dispatchACPAgentHookEvent(
 	if hooks == nil {
 		return
 	}
+	if ctx == nil {
+		return
+	}
 	agentEvent, ok := normalizeHookAgentEvent(event)
 	if !ok {
 		return
-	}
-	if ctx == nil {
-		ctx = context.Background()
 	}
 	if logger == nil {
 		logger = slog.Default()

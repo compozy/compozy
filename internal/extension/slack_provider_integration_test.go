@@ -372,7 +372,7 @@ func postSignedSlackProviderRequest(
 		now = signingTime
 	}
 	timestamp := fmt.Sprintf("%d", signingTime.Unix())
-	signature := slackProviderSignature(secret, timestamp, body)
+	signature := slackProviderSignature(t, secret, timestamp, body)
 	deadline := time.Now().Add(10 * time.Second)
 
 	for time.Now().Before(deadline) {
@@ -390,7 +390,7 @@ func postSignedSlackProviderRequest(
 			continue
 		}
 		payload, readErr := io.ReadAll(resp.Body)
-		_ = resp.Body.Close()
+		closeProviderIntegrationBody(t, resp.Body)
 		if readErr != nil {
 			t.Fatalf("io.ReadAll(response body) error = %v", readErr)
 		}
@@ -429,10 +429,11 @@ func findIngestByFamily(
 	return extensiontest.IngestRecord{}
 }
 
-func slackProviderSignature(secret string, timestamp string, body []byte) string {
+func slackProviderSignature(t testing.TB, secret string, timestamp string, body []byte) string {
+	t.Helper()
 	mac := hmac.New(sha256.New, []byte(strings.TrimSpace(secret)))
-	_, _ = mac.Write([]byte(slackSignatureVersion + ":" + strings.TrimSpace(timestamp) + ":"))
-	_, _ = mac.Write(body)
+	mustWriteProviderIntegrationHash(t, mac, []byte(slackSignatureVersion+":"+strings.TrimSpace(timestamp)+":"))
+	mustWriteProviderIntegrationHash(t, mac, body)
 	return slackSignatureVersion + "=" + hex.EncodeToString(mac.Sum(nil))
 }
 
@@ -472,7 +473,10 @@ func newSlackProviderAPIServer(t *testing.T) *slackProviderAPIServer {
 		method := strings.TrimPrefix(r.URL.Path, "/")
 		body := map[string]any{}
 		if r.Body != nil {
-			_ = json.NewDecoder(r.Body).Decode(&body)
+			if !decodeProviderIntegrationJSON(t, r.Body, &body) {
+				http.Error(w, "invalid JSON request", http.StatusBadRequest)
+				return
+			}
 		}
 
 		srv.mu.Lock()
@@ -489,7 +493,7 @@ func newSlackProviderAPIServer(t *testing.T) *slackProviderAPIServer {
 			writeSlackProviderAPIResponse(t, w, map[string]any{"ok": true})
 		default:
 			w.WriteHeader(http.StatusNotFound)
-			_ = json.NewEncoder(w).Encode(map[string]any{
+			writeProviderIntegrationJSON(t, w, map[string]any{
 				"ok":    false,
 				"error": "unknown_method",
 			})
@@ -526,7 +530,5 @@ func writeSlackProviderAPIResponse(t *testing.T, w http.ResponseWriter, payload 
 	t.Helper()
 
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(payload); err != nil {
-		t.Fatalf("json.NewEncoder().Encode() error = %v", err)
-	}
+	writeProviderIntegrationJSON(t, w, payload)
 }

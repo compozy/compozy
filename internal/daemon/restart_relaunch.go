@@ -75,7 +75,7 @@ func newRelaunchHelper(cfg RelaunchHelperConfig) *relaunchHelper {
 
 func (h *relaunchHelper) run(ctx context.Context) error {
 	if ctx == nil {
-		ctx = context.Background()
+		return errors.New("daemon: relaunch helper context is required")
 	}
 	operationID := strings.TrimSpace(h.cfg.OperationID)
 	if operationID == "" {
@@ -238,7 +238,7 @@ func (h *relaunchHelper) waitForReady(
 	process restartProcess,
 ) error {
 	if ctx == nil {
-		ctx = context.Background()
+		return errors.New("daemon: restart readiness context is required")
 	}
 	waitCtx, cancel := withTimeoutCap(ctx, h.cfg.ReadyTimeout)
 	defer cancel()

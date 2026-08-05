@@ -982,28 +982,108 @@ func TestNewSchedulerAppliesLocationAndStopTimeoutOptions(t *testing.T) {
 	}
 }
 
-func TestSchedulerStartAndShutdownLifecycleGuards(t *testing.T) {
+func TestSchedulerLifecycle(t *testing.T) {
 	t.Parallel()
 
-	scheduler := newTestScheduler(t, newStubScheduleDispatcher())
+	t.Run("Should reject invalid starts and remain stopped after shutdown", func(t *testing.T) {
+		t.Parallel()
 
-	cancelledCtx, cancel := context.WithCancel(testutil.Context(t))
-	cancel()
-	if err := scheduler.Start(cancelledCtx); !errors.Is(err, context.Canceled) {
-		t.Fatalf("Start(canceled) error = %v, want context.Canceled", err)
-	}
-	if err := scheduler.Start(testutil.Context(t)); err != nil {
-		t.Fatalf("Start() error = %v", err)
-	}
-	if err := scheduler.Start(testutil.Context(t)); err != nil {
-		t.Fatalf("Start(second) error = %v", err)
-	}
-	if err := scheduler.Shutdown(testutil.Context(t)); err != nil {
-		t.Fatalf("Shutdown() error = %v", err)
-	}
-	if err := scheduler.Start(testutil.Context(t)); !errors.Is(err, ErrSchedulerStopped) {
-		t.Fatalf("Start(after shutdown) error = %v, want ErrSchedulerStopped", err)
-	}
+		scheduler := newTestScheduler(t, newStubScheduleDispatcher())
+
+		cancelledCtx, cancel := context.WithCancel(testutil.Context(t))
+		cancel()
+		if err := scheduler.Start(cancelledCtx); !errors.Is(err, context.Canceled) {
+			t.Fatalf("Start(canceled) error = %v, want context.Canceled", err)
+		}
+		if err := scheduler.Start(testutil.Context(t)); err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+		if err := scheduler.Start(testutil.Context(t)); err != nil {
+			t.Fatalf("Start(second) error = %v", err)
+		}
+		if err := scheduler.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+		if err := scheduler.Start(testutil.Context(t)); !errors.Is(err, ErrSchedulerStopped) {
+			t.Fatalf("Start(after shutdown) error = %v, want ErrSchedulerStopped", err)
+		}
+	})
+
+	t.Run("Should let shutdown retry join the same unfinished runtime", func(t *testing.T) {
+		t.Parallel()
+
+		baseTime := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
+		fakeClock := clockwork.NewFakeClockAt(baseTime)
+		dispatchEntered := make(chan struct{})
+		releaseDispatch := make(chan struct{})
+		var dispatchEnteredOnce sync.Once
+		var releaseDispatchOnce sync.Once
+		release := func() {
+			releaseDispatchOnce.Do(func() {
+				close(releaseDispatch)
+			})
+		}
+		t.Cleanup(release)
+		dispatcher := newStubScheduleDispatcher()
+		dispatcher.onDispatch = func(DispatchRequest) {
+			dispatchEnteredOnce.Do(func() {
+				close(dispatchEntered)
+			})
+			<-releaseDispatch
+		}
+		scheduler := newTestScheduler(t, dispatcher, WithSchedulerClock(fakeClock))
+
+		job := testJob(AutomationScopeGlobal, "shutdown-retry", "")
+		job.Schedule = &ScheduleSpec{Mode: ScheduleModeEvery, Interval: "1m"}
+		if _, err := scheduler.Register(testutil.Context(t), job); err != nil {
+			t.Fatalf("Register() error = %v", err)
+		}
+		if err := scheduler.Start(testutil.Context(t)); err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+		waitForTimers(t, fakeClock, 1)
+		fakeClock.Advance(time.Minute)
+		select {
+		case <-dispatchEntered:
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for blocked dispatch")
+		}
+
+		firstCtx, cancelFirst := context.WithCancel(testutil.Context(t))
+		cancelFirst()
+		if err := scheduler.Shutdown(firstCtx); !errors.Is(err, context.Canceled) {
+			t.Fatalf("Shutdown(canceled) error = %v, want context.Canceled", err)
+		}
+
+		retryDone := make(chan error, 1)
+		go func() {
+			retryDone <- scheduler.Shutdown(testutil.Context(t))
+		}()
+		select {
+		case err := <-retryDone:
+			t.Fatalf("Shutdown(retry) returned before dispatch exited: %v", err)
+		case <-time.After(50 * time.Millisecond):
+		}
+
+		release()
+		select {
+		case err := <-retryDone:
+			if err != nil {
+				t.Fatalf("Shutdown(retry) error = %v", err)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for shutdown retry")
+		}
+
+		scheduler.mu.RLock()
+		defer scheduler.mu.RUnlock()
+		if scheduler.runtime != nil {
+			t.Fatal("scheduler runtime remained after shutdown completed")
+		}
+		if got := len(scheduler.registrations); got != 0 {
+			t.Fatalf("scheduler registrations after shutdown = %d, want 0", got)
+		}
+	})
 }
 
 func TestSchedulerRegisterAndLookupErrorPaths(t *testing.T) {

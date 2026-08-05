@@ -110,6 +110,9 @@ func validateRunActorOriginSession(r Run) error {
 	}
 	status := r.Status.Normalize()
 	sessionID := strings.TrimSpace(r.SessionID)
+	if err := ValidateReferenceSize(sessionID, "task_run.session_id"); err != nil {
+		return err
+	}
 	if status == TaskRunStatusQueued && sessionID != "" {
 		return fmt.Errorf(
 			"%w: task_run.session_id must be empty while status is %q",
@@ -131,6 +134,9 @@ func validateRunActorOriginSession(r Run) error {
 }
 
 func validateRunPayloads(r Run) error {
+	if err := ValidateDiagnosticSize(r.Error, "task_run.error"); err != nil {
+		return err
+	}
 	if err := ValidateMetadataSize(r.Metadata, "task_run.metadata"); err != nil {
 		return err
 	}
@@ -214,11 +220,7 @@ func validateTaskRunReviewGateFields(r Run) error {
 			)
 		}
 	}
-	if err := validateBoundedReviewText(
-		lineage.ContinuationReason,
-		maxRunReviewReasonBytes,
-		"task_run.review.continuation_reason",
-	); err != nil {
+	if err := ValidateReasonSize(lineage.ContinuationReason, "task_run.review.continuation_reason"); err != nil {
 		return err
 	}
 	if err := validateRunReviewMissingWork(normalizeReviewMissingWork(lineage.MissingWork)); err != nil {

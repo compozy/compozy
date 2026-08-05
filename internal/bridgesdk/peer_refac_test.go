@@ -22,7 +22,7 @@ func TestPeerResponseRefacs(t *testing.T) {
 			t.Fatalf("json.Unmarshal(response) error = %v", err)
 		}
 
-		peer := NewPeer(io.Reader(nil), io.Discard)
+		peer := mustNewPeer(t, io.NopCloser(strings.NewReader("")), io.Discard)
 		responseCh := make(chan rpcResult, 1)
 		peer.pending["1"] = responseCh
 		peer.handleResponse(envelope)
@@ -50,7 +50,7 @@ func TestPeerResponseRefacs(t *testing.T) {
 		t.Parallel()
 
 		var output bytes.Buffer
-		peer := NewPeer(io.Reader(nil), &output)
+		peer := mustNewPeer(t, io.NopCloser(strings.NewReader("")), &output)
 
 		if err := peer.writeFrame(rpcEnvelope{
 			JSONRPC: bridgeSDKJSONRPCVersion,

@@ -675,8 +675,8 @@ func TestDaemonNativeTools(t *testing.T) {
 			ToolID: toolspkg.ToolIDToolArtifactRead,
 			Input:  json.RawMessage(fmt.Sprintf(`{"artifact_uri":%q,"offset":9}`, ref.URI)),
 		})
-		var toolErr *toolspkg.ToolError
-		if !errors.As(err, &toolErr) || toolErr.Code != toolspkg.ErrorCodeInvalidInput {
+		toolErr, toolErrMatched := errors.AsType[*toolspkg.ToolError](err)
+		if !toolErrMatched || toolErr.Code != toolspkg.ErrorCodeInvalidInput {
 			t.Fatalf("Call(offset beyond end) error = %v, want invalid input", err)
 		}
 	})
@@ -2007,15 +2007,15 @@ func TestDaemonNativeTools(t *testing.T) {
 		t.Parallel()
 
 		cause := errors.New("provider model codex/missing was not found")
-		item := diagnostics.NewItem(
-			"provider.models.model_not_found",
-			diagnosticcontract.CodeModelNotFound,
-			diagnosticcontract.CategoryProvider,
-			"Provider model not found",
-			cause.Error(),
-			diagnosticcontract.SeverityError,
-			diagnosticcontract.FreshnessLive,
-		)
+		item := diagnostics.NewItem(diagnostics.ItemSpec{
+			ID:            "provider.models.model_not_found",
+			Code:          diagnosticcontract.CodeModelNotFound,
+			Category:      diagnosticcontract.CategoryProvider,
+			Title:         "Provider model not found",
+			Message:       cause.Error(),
+			Severity:      diagnosticcontract.SeverityError,
+			DataFreshness: diagnosticcontract.FreshnessLive,
+		})
 		settingsService := &nativeProviderModelSettingsService{
 			err: diagnostics.NewStructuredError(item, cause),
 		}
@@ -2122,7 +2122,10 @@ func TestDaemonNativeTools(t *testing.T) {
 			"",
 			globalTarget,
 			func(editor *compozyconfig.OverlayEditor) error {
-				return editor.SetTable([]string{"providers", "codex"}, map[string]any{"command": "codex-acp"})
+				return editor.SetTable([]string{"providers", "codex"}, map[string]any{
+					"command":            "codex-acp",
+					"auth_login_command": "codex login --token native-login-secret",
+				})
 			},
 		); err != nil {
 			t.Fatalf("EditConfigOverlay(provider fixture) error = %v", err)
@@ -2166,6 +2169,37 @@ func TestDaemonNativeTools(t *testing.T) {
 				return settingsService
 			},
 		}, nativeApproveAllPolicyInputs())
+
+		for _, toolID := range []toolspkg.ToolID{
+			toolspkg.ToolIDConfigShow,
+			toolspkg.ToolIDConfigList,
+			toolspkg.ToolIDConfigDiff,
+		} {
+			result, readErr := registry.Call(
+				t.Context(),
+				toolspkg.Scope{Operator: true},
+				toolspkg.CallRequest{ToolID: toolID, Input: json.RawMessage(`{}`)},
+			)
+			if readErr != nil {
+				t.Fatalf("Registry.Call(%s) error = %v", toolID, readErr)
+			}
+			requireNativeStructuredExcludes(t, result, []byte("native-login-secret"))
+			requireNativeStructuredExcludes(t, result, []byte("codex login --token"))
+		}
+		loginGetResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDConfigGet,
+				Input:  json.RawMessage(`{"path":"providers.codex.auth_login_command"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(config_get provider login) error = %v", err)
+		}
+		requireNativeStructuredContains(t, loginGetResult, []byte(compozyconfig.RedactedValue()))
+		requireNativeStructuredContains(t, loginGetResult, []byte(`"redacted":true`))
+		requireNativeStructuredExcludes(t, loginGetResult, []byte("native-login-secret"))
 
 		_, err = registry.Call(
 			t.Context(),
@@ -2439,6 +2473,24 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("Settings.Reload calls = %d, want 4", settingsService.reloadCalls)
 		}
 
+		loginSetResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDConfigSet,
+				Input: json.RawMessage(
+					`{"path":"providers.codex.auth_login_command","value":"codex login --token replacement-secret"}`,
+				),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(config_set provider login) error = %v", err)
+		}
+		requireNativeStructuredContains(t, loginSetResult, []byte(compozyconfig.RedactedValue()))
+		requireNativeStructuredContains(t, loginSetResult, []byte(`"redacted":true`))
+		requireNativeStructuredExcludes(t, loginSetResult, []byte("replacement-secret"))
+		requireNativeStructuredExcludes(t, loginSetResult, []byte("codex login --token"))
+
 		result, err := registry.Call(
 			t.Context(),
 			toolspkg.Scope{Operator: true},
@@ -2467,6 +2519,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			{path: "memory.extractor.model", reason: toolspkg.ReasonConfigPathForbidden},
 			{path: "memory.extractor.enabled", reason: toolspkg.ReasonConfigPathForbidden},
 			{path: "memory.controller.llm.model", reason: toolspkg.ReasonConfigPathForbidden},
+			{path: "memory.recall.signals.metrics_enabled", reason: toolspkg.ReasonConfigPathForbidden},
 			{path: "session.auto_title_enabled", reason: toolspkg.ReasonConfigPathForbidden},
 		}
 		for _, tc := range cases {
@@ -2500,15 +2553,15 @@ func TestDaemonNativeTools(t *testing.T) {
 				},
 				PartialFailures: []settingspkg.ApplyFailure{{
 					Subsystem: "marketplace",
-					Diagnostic: diagnostics.NewItem(
-						"config.apply.marketplace_sync_failed",
-						diagnosticcontract.CodeConfigPartialFailure,
-						diagnosticcontract.CategoryConfig,
-						"Marketplace sync failed",
-						"test reconciliation failure",
-						diagnosticcontract.SeverityError,
-						diagnosticcontract.FreshnessLive,
-					),
+					Diagnostic: diagnostics.NewItem(diagnostics.ItemSpec{
+						ID:            "config.apply.marketplace_sync_failed",
+						Code:          diagnosticcontract.CodeConfigPartialFailure,
+						Category:      diagnosticcontract.CategoryConfig,
+						Title:         "Marketplace sync failed",
+						Message:       "test reconciliation failure",
+						Severity:      diagnosticcontract.SeverityError,
+						DataFreshness: diagnosticcontract.FreshnessLive,
+					}),
 				}},
 			},
 		}
@@ -3812,8 +3865,8 @@ func TestDaemonNativeTools(t *testing.T) {
 				Input:  json.RawMessage(`{}`),
 			},
 		)
-		var toolErr *toolspkg.ToolError
-		if !errors.As(err, &toolErr) ||
+		toolErr, toolErrMatched := errors.AsType[*toolspkg.ToolError](err)
+		if !toolErrMatched ||
 			toolErr.Code != toolspkg.ErrorCodeConflict ||
 			!slices.Contains(toolErr.ReasonCodes, toolspkg.ReasonAutonomyWorkspaceCapacity) ||
 			!errors.Is(err, taskpkg.ErrWorkspaceActiveRunCapReached) ||
@@ -4056,8 +4109,8 @@ func TestDaemonNativeTools(t *testing.T) {
 				Input:  json.RawMessage(`{"run_id":"run-1","lease_seconds":30}`),
 			},
 		)
-		var toolErr *toolspkg.ToolError
-		if !errors.As(err, &toolErr) ||
+		toolErr, toolErrMatched := errors.AsType[*toolspkg.ToolError](err)
+		if !toolErrMatched ||
 			toolErr.Code != toolspkg.ErrorCodeConflict ||
 			!slices.Contains(toolErr.ReasonCodes, toolspkg.ReasonAutonomyLeaseExpired) ||
 			!errors.Is(err, taskpkg.ErrLeaseExpired) ||
@@ -5139,8 +5192,8 @@ func TestDaemonNativeTools(t *testing.T) {
 					toolspkg.Scope{SessionID: "sess-scope"},
 					toolspkg.CallRequest{ToolID: toolspkg.ToolIDNetworkSend, Input: test.input},
 				)
-				var toolErr *toolspkg.ToolError
-				if !errors.As(err, &toolErr) ||
+				toolErr, toolErrMatched := errors.AsType[*toolspkg.ToolError](err)
+				if !toolErrMatched ||
 					toolErr.Code != toolspkg.ErrorCodeInvalidInput ||
 					!slices.Contains(toolErr.ReasonCodes, test.wantReason) {
 					t.Fatalf("Registry.Call(network_send) error = %#v, want reason %q", err, test.wantReason)
@@ -5221,8 +5274,8 @@ func TestDaemonNativeTools(t *testing.T) {
 				`{"workspace":"ws-1","session_id":"sess-scope","channel":"default","surface":"thread","thread_id":"thread_claim_token","kind":"say","body":{"claim_token":"compozy_claim_HOSTED123"}}`,
 			),
 		}, peer)
-		var toolErr *toolspkg.ToolError
-		if !errors.As(err, &toolErr) ||
+		toolErr, toolErrMatched := errors.AsType[*toolspkg.ToolError](err)
+		if !toolErrMatched ||
 			toolErr.Code != toolspkg.ErrorCodeInvalidInput ||
 			!slices.Contains(toolErr.ReasonCodes, toolspkg.ReasonNetworkRawTokenRejected) {
 			t.Fatalf("HostedService.Call(network_send) error = %#v, want network_raw_token_rejected", err)
@@ -6370,14 +6423,14 @@ func TestDaemonNativeTools(t *testing.T) {
 				t.Fatalf("MkdirAll(%q) error = %v", root, err)
 			}
 		}
-		if err := memoryStore.ForWorkspace(workspaceARoot).Write(
+		if err := memoryStore.ForWorkspace(workspaceARoot).Write(t.Context(),
 			memcontract.ScopeWorkspace,
 			"owned.md",
-			nativeMemoryDocument("Owned", "Owned memory", memcontract.TypeProject, "workspace A body"),
-		); err != nil {
+			nativeMemoryDocument("Owned", "Owned memory", memcontract.TypeProject, "workspace A body")); err != nil {
 			t.Fatalf("Write(workspace A memory) error = %v", err)
 		}
 		if err := memoryStore.ForWorkspace(workspaceBRoot).Write(
+			t.Context(),
 			memcontract.ScopeWorkspace,
 			"foreign.md",
 			nativeMemoryDocument("Foreign", "Foreign memory", memcontract.TypeProject, "workspace B body"),
@@ -6473,7 +6526,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		if err := os.MkdirAll(workspaceRoot, 0o755); err != nil {
 			t.Fatalf("MkdirAll(workspaceRoot) error = %v", err)
 		}
-		if err := memoryStore.Write(
+		if err := memoryStore.Write(t.Context(),
 			memcontract.ScopeGlobal,
 			"global.md",
 			nativeMemoryDocument(
@@ -6481,11 +6534,10 @@ func TestDaemonNativeTools(t *testing.T) {
 				"Global description "+rawClaim,
 				memcontract.TypeUser,
 				"global memory body "+rawClaim,
-			),
-		); err != nil {
+			)); err != nil {
 			t.Fatalf("Write(global memory) error = %v", err)
 		}
-		if err := memoryStore.ForWorkspace(workspaceRoot).Write(
+		if err := memoryStore.ForWorkspace(workspaceRoot).Write(t.Context(),
 			memcontract.ScopeWorkspace,
 			"workspace.md",
 			nativeMemoryDocument(
@@ -6493,8 +6545,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				"Workspace description "+rawClaim,
 				memcontract.TypeProject,
 				"workspace memory body "+rawClaim,
-			),
-		); err != nil {
+			)); err != nil {
 			t.Fatalf("Write(workspace memory) error = %v", err)
 		}
 		workspaces := apitest.StubWorkspaceService{
@@ -6652,7 +6703,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			[]byte(`workspace::`+stableWorkspaceID+`::workspace.md::chunk:0001`),
 		)
 		requireNativeStructuredExcludes(t, searchResult, []byte(rawClaim))
-		if err := memoryStore.ForWorkspace(workspaceRoot).Write(
+		if err := memoryStore.ForWorkspace(workspaceRoot).Write(t.Context(),
 			memcontract.ScopeWorkspace,
 			"batch.md",
 			nativeMemoryDocument(
@@ -6660,8 +6711,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				"Atomic batch fixture",
 				memcontract.TypeProject,
 				"batch source body",
-			),
-		); err != nil {
+			)); err != nil {
 			t.Fatalf("Write(batch memory) error = %v", err)
 		}
 
@@ -6701,10 +6751,10 @@ func TestDaemonNativeTools(t *testing.T) {
 		requireNativeStructuredContains(t, batchResult, []byte(`"action":"replace"`))
 		requireNativeStructuredContains(t, batchResult, []byte(`"action":"add"`))
 		requireNativeStructuredContains(t, batchResult, []byte(`"applied":true`))
-		workspaceBatchBytes, err := memoryStore.ForWorkspace(workspaceRoot).Read(
+		workspaceBatchBytes, err := memoryStore.ForWorkspace(workspaceRoot).Read(t.Context(),
 			memcontract.ScopeWorkspace,
-			"batch.md",
-		)
+			"batch.md")
+
 		if err != nil {
 			t.Fatalf("Store.Read(workspace batch) error = %v", err)
 		}
@@ -6825,11 +6875,10 @@ func TestDaemonNativeTools(t *testing.T) {
 			if err := agentStore.EnsureDirs(); err != nil {
 				t.Fatalf("Store.EnsureDirs(%s) error = %v", agentName, err)
 			}
-			if err := agentStore.Write(
+			if err := agentStore.Write(t.Context(),
 				memcontract.ScopeAgent,
 				agentName+".md",
-				nativeMemoryDocument(agentName, "agent memory", memcontract.TypeFeedback, "body"),
-			); err != nil {
+				nativeMemoryDocument(agentName, "agent memory", memcontract.TypeFeedback, "body")); err != nil {
 				t.Fatalf("Store.Write(%s) error = %v", agentName, err)
 			}
 		}
@@ -6881,7 +6930,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		openDaemonMemoryCatalog(t, memoryStore)
 		for idx := range 205 {
 			filename := fmt.Sprintf("ops-%03d.md", idx)
-			if err := memoryStore.Write(
+			if err := memoryStore.Write(t.Context(),
 				memcontract.ScopeGlobal,
 				filename,
 				nativeMemoryDocument(
@@ -6889,8 +6938,7 @@ func TestDaemonNativeTools(t *testing.T) {
 					"Operational memory",
 					memcontract.TypeUser,
 					"memory admin health",
-				),
-			); err != nil {
+				)); err != nil {
 				t.Fatalf("Write(%q) error = %v", filename, err)
 			}
 		}
@@ -7316,12 +7364,21 @@ func TestDaemonNativeTools(t *testing.T) {
 		func(t *testing.T) {
 			t.Parallel()
 
+			const (
+				taskID           = " task-1 "
+				workspaceID      = " ws-1 "
+				subscriptionID   = " sub-native "
+				bridgeInstanceID = " bridge-1 "
+				peerID           = " peer-1 "
+				threadID         = " thread-1 "
+				groupID          = " group-1 "
+			)
 			now := time.Date(2026, 5, 12, 11, 0, 0, 0, time.UTC)
 			tasks := &nativeTaskManager{
 				getView: &taskpkg.View{Task: taskpkg.Task{
-					ID:          "task-1",
+					ID:          taskID,
 					Scope:       taskpkg.ScopeWorkspace,
-					WorkspaceID: "ws-1",
+					WorkspaceID: workspaceID,
 					Title:       "Notify bridge",
 					Status:      taskpkg.TaskStatusInProgress,
 				}},
@@ -7334,13 +7391,13 @@ func TestDaemonNativeTools(t *testing.T) {
 			)
 			bridges := apitest.StubBridgeService{
 				GetInstanceFn: func(_ context.Context, id string) (*bridgepkg.BridgeInstance, error) {
-					if id != "bridge-1" {
-						t.Fatalf("GetInstance id = %q, want bridge-1", id)
+					if id != bridgeInstanceID {
+						t.Fatalf("GetInstance id = %q, want %q", id, bridgeInstanceID)
 					}
 					return &bridgepkg.BridgeInstance{
-						ID:          "bridge-1",
+						ID:          bridgeInstanceID,
 						Scope:       bridgepkg.ScopeWorkspace,
-						WorkspaceID: "ws-1",
+						WorkspaceID: workspaceID,
 					}, nil
 				},
 				PutTaskSubscriptionFn: func(_ context.Context, subscription bridgepkg.BridgeTaskSubscription) error {
@@ -7373,9 +7430,10 @@ func TestDaemonNativeTools(t *testing.T) {
 					return nil
 				},
 				GetCursorFn: func(_ context.Context, key notifications.CursorKey) (notifications.Cursor, error) {
-					if key.ConsumerID != "bridge_task_subscription:sub-native" ||
+					if key.Scope != (notifications.ScopeRef{Kind: notifications.ScopeKindWorkspace, WorkspaceID: workspaceID}) ||
+						key.ConsumerID != subscriptionID ||
 						key.StreamName != "task_events" ||
-						key.SubjectID != "task-1" {
+						key.SubjectID != taskID {
 						t.Fatalf("GetCursor key = %#v, want native subscription cursor", key)
 					}
 					return notifications.Cursor{
@@ -7388,9 +7446,8 @@ func TestDaemonNativeTools(t *testing.T) {
 				},
 			}
 			registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-				Tasks:      tasks,
-				Bridges:    bridges,
-				Workspaces: nativeNetworkTestWorkspaceService(t),
+				Tasks:   tasks,
+				Bridges: bridges,
 			}, nativeApproveAllPolicyInputs())
 
 			subscribeResult, err := registry.Call(
@@ -7399,8 +7456,9 @@ func TestDaemonNativeTools(t *testing.T) {
 				toolspkg.CallRequest{
 					ToolID: toolspkg.ToolIDTaskNotificationSubscribe,
 					Input: json.RawMessage(
-						`{"task_id":"task-1","subscription_id":"sub-native","bridge_instance_id":"bridge-1",` +
-							`"scope":"workspace","workspace":"ws-1","peer_id":"peer-1","thread_id":"thread-1",` +
+						`{"task_id":" task-1 ","subscription_id":" sub-native ","bridge_instance_id":" bridge-1 ",` +
+							`"scope":"workspace","workspace_id":" ws-1 ","peer_id":" peer-1 ","thread_id":" thread-1 ",` +
+							`"group_id":" group-1 ",` +
 							`"delivery_mode":"reply"}`,
 					),
 				},
@@ -7408,15 +7466,26 @@ func TestDaemonNativeTools(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Registry.Call(task_notification_subscribe) error = %v", err)
 			}
-			requireNativeStructuredContains(t, subscribeResult, []byte(`"subscription_id":"sub-native"`))
+			requireNativeStructuredContains(t, subscribeResult, []byte(`"subscription_id":" sub-native "`))
 			requireNativeStructuredContains(t, subscribeResult, []byte(`"last_sequence":11`))
-			if putSubscription.SubscriptionID != "sub-native" ||
-				putSubscription.TaskID != "task-1" ||
-				putSubscription.BridgeInstanceID != "bridge-1" ||
+			requireNativeStructuredContains(
+				t,
+				subscribeResult,
+				[]byte(`"scope":{"kind":"workspace","workspace_id":" ws-1 "}`),
+			)
+			if putSubscription.SubscriptionID != subscriptionID ||
+				putSubscription.TaskID != taskID ||
+				putSubscription.BridgeInstanceID != bridgeInstanceID ||
 				putSubscription.Scope != bridgepkg.ScopeWorkspace ||
-				putSubscription.WorkspaceID != "ws-1" ||
+				putSubscription.WorkspaceID != workspaceID ||
+				putSubscription.PeerID != peerID ||
+				putSubscription.ThreadID != threadID ||
+				putSubscription.GroupID != groupID ||
 				putSubscription.DeliveryMode != bridgepkg.DeliveryModeReply {
 				t.Fatalf("put subscription = %#v", putSubscription)
+			}
+			if tasks.lastGetID != taskID {
+				t.Fatalf("GetTask id = %q, want %q", tasks.lastGetID, taskID)
 			}
 
 			listResult, err := registry.Call(
@@ -7425,18 +7494,18 @@ func TestDaemonNativeTools(t *testing.T) {
 				toolspkg.CallRequest{
 					ToolID: toolspkg.ToolIDTaskNotificationList,
 					Input: json.RawMessage(
-						`{"task_id":"task-1","bridge_instance_id":"bridge-1","scope":"workspace","workspace":"ws-1","limit":3}`,
+						`{"task_id":" task-1 ","bridge_instance_id":" bridge-1 ","scope":"workspace","workspace_id":" ws-1 ","limit":3}`,
 					),
 				},
 			)
 			if err != nil {
 				t.Fatalf("Registry.Call(task_notification_list) error = %v", err)
 			}
-			requireNativeStructuredContains(t, listResult, []byte(`"subscription_id":"sub-native"`))
-			if listQuery.TaskID != "task-1" ||
-				listQuery.BridgeInstanceID != "bridge-1" ||
+			requireNativeStructuredContains(t, listResult, []byte(`"subscription_id":" sub-native "`))
+			if listQuery.TaskID != taskID ||
+				listQuery.BridgeInstanceID != bridgeInstanceID ||
 				listQuery.Scope != bridgepkg.ScopeWorkspace ||
-				listQuery.WorkspaceID != "ws-1" ||
+				listQuery.WorkspaceID != workspaceID ||
 				listQuery.Limit != 3 {
 				t.Fatalf("list query = %#v", listQuery)
 			}
@@ -7446,7 +7515,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				toolspkg.Scope{Operator: true},
 				toolspkg.CallRequest{
 					ToolID: toolspkg.ToolIDTaskNotificationShow,
-					Input:  json.RawMessage(`{"task_id":"task-1","subscription_id":"sub-native"}`),
+					Input:  json.RawMessage(`{"task_id":" task-1 ","subscription_id":" sub-native "}`),
 				},
 			)
 			if err != nil {
@@ -7459,18 +7528,77 @@ func TestDaemonNativeTools(t *testing.T) {
 				toolspkg.Scope{Operator: true},
 				toolspkg.CallRequest{
 					ToolID: toolspkg.ToolIDTaskNotificationDelete,
-					Input:  json.RawMessage(`{"task_id":"task-1","subscription_id":"sub-native"}`),
+					Input:  json.RawMessage(`{"task_id":" task-1 ","subscription_id":" sub-native "}`),
 				},
 			)
 			if err != nil {
 				t.Fatalf("Registry.Call(task_notification_delete) error = %v", err)
 			}
 			requireNativeStructuredContains(t, deleteResult, []byte(`"deleted":true`))
-			if deleteID != "sub-native" {
-				t.Fatalf("delete id = %q, want sub-native", deleteID)
+			if deleteID != subscriptionID {
+				t.Fatalf("delete id = %q, want %q", deleteID, subscriptionID)
+			}
+			if tasks.getCalls != 4 || tasks.lastGetID != taskID {
+				t.Fatalf("GetTask calls/id = %d/%q, want 4/%q", tasks.getCalls, tasks.lastGetID, taskID)
 			}
 		},
 	)
+
+	t.Run("Should reject invalid UTF-8 task notification input", func(t *testing.T) {
+		t.Parallel()
+
+		input := append([]byte(`{"task_id":"task-1","subscription_id":"`), 0xff)
+		input = append(input, []byte(`"}`)...)
+		registry := newDaemonNativeRegistry(
+			t,
+			&daemonNativeToolsDeps{
+				Tasks:   &nativeTaskManager{},
+				Bridges: apitest.StubBridgeService{},
+			},
+			nativeApproveAllPolicyInputs(),
+		)
+		_, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDTaskNotificationShow,
+				Input:  json.RawMessage(input),
+			},
+		)
+		requireToolCode(t, err, toolspkg.ErrorCodeInvalidInput)
+	})
+
+	t.Run("Should reject removed workspace task notification input", func(t *testing.T) {
+		t.Parallel()
+
+		registry := newDaemonNativeRegistry(
+			t,
+			&daemonNativeToolsDeps{
+				Tasks:   &nativeTaskManager{},
+				Bridges: apitest.StubBridgeService{},
+			},
+			nativeApproveAllPolicyInputs(),
+		)
+		for _, request := range []toolspkg.CallRequest{
+			{
+				ToolID: toolspkg.ToolIDTaskNotificationSubscribe,
+				Input: json.RawMessage(
+					`{"task_id":"task-1","bridge_instance_id":"bridge-1","workspace":"ws-1"}`,
+				),
+			},
+			{
+				ToolID: toolspkg.ToolIDTaskNotificationList,
+				Input:  json.RawMessage(`{"task_id":"task-1","workspace":"ws-1"}`),
+			},
+		} {
+			_, err := registry.Call(
+				t.Context(),
+				toolspkg.Scope{Operator: true},
+				request,
+			)
+			requireToolCode(t, err, toolspkg.ErrorCodeInvalidInput)
+		}
+	})
 
 	t.Run("Should keep task notification subscribe successful when cursor enrichment fails", func(t *testing.T) {
 		t.Parallel()
@@ -7526,7 +7654,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				ToolID: toolspkg.ToolIDTaskNotificationSubscribe,
 				Input: json.RawMessage(
 					`{"task_id":"task-1","subscription_id":"sub-native","bridge_instance_id":"bridge-1",` +
-						`"scope":"workspace","workspace":"ws-1","peer_id":"peer-1","thread_id":"thread-1",` +
+						`"scope":"workspace","workspace_id":"ws-1","peer_id":"peer-1","thread_id":"thread-1",` +
 						`"delivery_mode":"reply"}`,
 				),
 			},
@@ -7535,11 +7663,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("Registry.Call(task_notification_subscribe) error = %v", err)
 		}
 		requireNativeStructuredContains(t, subscribeResult, []byte(`"subscription_id":"sub-native"`))
-		requireNativeStructuredContains(
-			t,
-			subscribeResult,
-			[]byte(`"consumer_id":"bridge_task_subscription:sub-native"`),
-		)
+		requireNativeStructuredContains(t, subscribeResult, []byte(`"consumer_id":"sub-native"`))
 		if putSubscription.SubscriptionID != "sub-native" {
 			t.Fatalf("put subscription id = %q, want sub-native", putSubscription.SubscriptionID)
 		}
@@ -7560,7 +7684,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				id:   toolspkg.ToolIDTaskNotificationSubscribe,
 				input: json.RawMessage(
 					`{"task_id":"task-1","subscription_id":"sub-1","bridge_instance_id":"bridge-1",` +
-						`"scope":"workspace","workspace":"ws-1","delivery_mode":"reply"}`,
+						`"scope":"workspace","workspace_id":"ws-1","delivery_mode":"reply"}`,
 				),
 				want: toolspkg.ErrorCodeInvalidInput,
 			},
@@ -7578,7 +7702,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				id:   toolspkg.ToolIDTaskNotificationSubscribe,
 				input: json.RawMessage(
 					`{"task_id":"task-1","subscription_id":"sub-1","bridge_instance_id":"missing",` +
-						`"scope":"workspace","workspace":"ws-1","peer_id":"peer-1","delivery_mode":"reply"}`,
+						`"scope":"workspace","workspace_id":"ws-1","peer_id":"peer-1","delivery_mode":"reply"}`,
 				),
 				bridges: apitest.StubBridgeService{},
 				want:    toolspkg.ErrorCodeNotFound,
@@ -9129,11 +9253,10 @@ func newNativeMemoryAdminFixture(t *testing.T) nativeMemoryAdminFixture {
 	if err := memoryStore.EnsureDirs(); err != nil {
 		t.Fatalf("EnsureDirs() error = %v", err)
 	}
-	if err := memoryStore.Write(
+	if err := memoryStore.Write(t.Context(),
 		memcontract.ScopeGlobal,
 		"ops.md",
-		nativeMemoryDocument("Ops", "Operational memory", memcontract.TypeUser, "memory admin health"),
-	); err != nil {
+		nativeMemoryDocument("Ops", "Operational memory", memcontract.TypeUser, "memory admin health")); err != nil {
 		t.Fatalf("Write(global memory) error = %v", err)
 	}
 	decision, err := memoryStore.ProposeCandidate(t.Context(), memcontract.Candidate{
@@ -9841,8 +9964,9 @@ func requireToolCode(t *testing.T, err error, want toolspkg.ErrorCode) {
 	if err == nil {
 		t.Fatalf("error = nil, want tool code %s", want)
 	}
-	var toolErr *toolspkg.ToolError
-	if !errors.As(err, &toolErr) {
+
+	toolErr, toolErrMatched := errors.AsType[*toolspkg.ToolError](err)
+	if !toolErrMatched {
 		t.Fatalf("error = %T %[1]v, want *tools.ToolError", err)
 	}
 	if toolErr.Code != want {

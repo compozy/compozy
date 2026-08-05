@@ -25,7 +25,11 @@ func (g *HeartbeatRepo) UpsertHeartbeatSnapshot(
 
 	normalized := snapshot.Normalize()
 	if normalized.ID == "" {
-		normalized.ID = store.NewID("hb")
+		generatedID, err := store.NewID("hb")
+		if err != nil {
+			return heartbeat.Snapshot{}, fmt.Errorf("store: generate heartbeat snapshot id: %w", err)
+		}
+		normalized.ID = generatedID
 	}
 	if normalized.CreatedAt.IsZero() {
 		normalized.CreatedAt = g.now()
@@ -285,7 +289,11 @@ func (g *HeartbeatRepo) AppendHeartbeatRevision(
 
 	normalized := revision.Normalize()
 	if normalized.ID == "" {
-		normalized.ID = store.NewID("hrev")
+		generatedID, err := store.NewID("hrev")
+		if err != nil {
+			return heartbeat.Revision{}, fmt.Errorf("store: generate heartbeat revision id: %w", err)
+		}
+		normalized.ID = generatedID
 	}
 	if normalized.CreatedAt.IsZero() {
 		normalized.CreatedAt = g.now()

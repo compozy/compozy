@@ -27,6 +27,7 @@ import (
 	bridgepkg "github.com/compozy/compozy/internal/bridges/contract"
 	"github.com/compozy/compozy/internal/bridgesdk"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
+	"github.com/compozy/compozy/internal/extensiontest"
 	"github.com/compozy/compozy/internal/subprocess"
 )
 
@@ -1991,8 +1992,9 @@ func TestWebhookRetriesAfterTransientIngestFailure(t *testing.T) {
 			}
 
 			_, firstErr := tt.invoke(context.Background(), runtime, cfg, now)
-			var httpErr *bridgesdk.HTTPError
-			if !errors.As(firstErr, &httpErr) {
+
+			httpErr, httpErrMatched := errors.AsType[*bridgesdk.HTTPError](firstErr)
+			if !httpErrMatched {
 				t.Fatalf("first invoke error type = %T, want *bridgesdk.HTTPError", firstErr)
 			}
 			if got, want := httpErr.StatusCode, http.StatusInternalServerError; got != want {
@@ -2195,8 +2197,9 @@ func TestHandleFormWebhookRejectsMissingPayload(t *testing.T) {
 			ReceivedAt: time.Now().UTC(),
 		},
 	)
-	var httpErr *bridgesdk.HTTPError
-	if !errors.As(err, &httpErr) {
+
+	httpErr, httpErrMatched := errors.AsType[*bridgesdk.HTTPError](err)
+	if !httpErrMatched {
 		t.Fatalf("handleFormWebhook() error type = %T, want *bridgesdk.HTTPError", err)
 	}
 	if got, want := httpErr.StatusCode, http.StatusBadRequest; got != want {
@@ -2730,8 +2733,8 @@ func TestClassifySlackAPIErrorAndDeleteMessage(t *testing.T) {
 	}
 
 	transientErr := classifySlackAPIError(http.StatusServiceUnavailable, "service_unavailable", 0)
-	var typedServerErr *bridgesdk.HTTPError
-	if !errors.As(transientErr, &typedServerErr) || typedServerErr.StatusCode != http.StatusServiceUnavailable {
+	typedServerErr, typedServerErrMatched := errors.AsType[*bridgesdk.HTTPError](transientErr)
+	if !typedServerErrMatched || typedServerErr.StatusCode != http.StatusServiceUnavailable {
 		t.Fatalf("transientErr = %#v, want HTTP 503", transientErr)
 	}
 
@@ -2781,6 +2784,10 @@ func TestSlackBotClientCallBranches(t *testing.T) {
 	}
 
 	client := &slackBotClient{baseURL: "http://example.com", botToken: "xoxb"}
+	var nilContext context.Context
+	if err := client.call(nilContext, "chat.postMessage", map[string]any{}, nil); err == nil {
+		t.Fatal("call(nil context) error = nil, want context validation failure")
+	}
 	if err := client.call(context.Background(), "chat.postMessage", func() {}, nil); err == nil {
 		t.Fatal("marshal failure error = nil, want non-nil")
 	}
@@ -2800,8 +2807,9 @@ func TestSlackBotClientCallBranches(t *testing.T) {
 
 		client := &slackBotClient{baseURL: server.URL, botToken: "xoxb", httpClient: &http.Client{Timeout: time.Second}}
 		err := client.call(context.Background(), "chat.postMessage", map[string]any{"channel": "C1"}, nil)
-		var rateErr *bridgesdk.RateLimitError
-		if !errors.As(err, &rateErr) {
+
+		rateErr, rateErrMatched := errors.AsType[*bridgesdk.RateLimitError](err)
+		if !rateErrMatched {
 			t.Fatalf("rate limited error type = %T, want *bridgesdk.RateLimitError", err)
 		}
 		if got, want := rateErr.RetryAfter, 7*time.Second; got != want {
@@ -2889,8 +2897,9 @@ func TestSlackBotClientCallBranches(t *testing.T) {
 			httpClient: &http.Client{Timeout: time.Second},
 		}
 		err := client.call(t.Context(), "chat.postMessage", map[string]any{"channel": "C1"}, nil)
-		var rateErr *bridgesdk.RateLimitError
-		if !errors.As(err, &rateErr) {
+
+		rateErr, rateErrMatched := errors.AsType[*bridgesdk.RateLimitError](err)
+		if !rateErrMatched {
 			t.Fatalf("malformed 429 error type = %T %v, want RateLimitError", err, err)
 		}
 		if got, want := rateErr.RetryAfter, 7*time.Second; got != want {
@@ -2931,8 +2940,8 @@ func TestSlackBotClientCallBranches(t *testing.T) {
 		_, err := bridgesdk.RetryDo(t.Context(), retryConfig, func(ctx context.Context) (*slackPostedMessage, error) {
 			return client.PostMessage(ctx, slackPostMessageRequest{Channel: "C1", Text: "hello"})
 		})
-		var httpErr *bridgesdk.HTTPError
-		if !errors.As(err, &httpErr) || httpErr.StatusCode != http.StatusInternalServerError {
+		httpErr, httpErrMatched := errors.AsType[*bridgesdk.HTTPError](err)
+		if !httpErrMatched || httpErr.StatusCode != http.StatusInternalServerError {
 			t.Fatalf("partial 500 error = %T %v, want HTTPError status 500", err, err)
 		}
 		if got, want := bridgesdk.ClassifyError(err).Class, bridgesdk.ErrorClassServerError; got != want {
@@ -3448,50 +3457,16 @@ func writeSlackAPIResponse(t *testing.T, w http.ResponseWriter, result any) {
 func newRuntimePeerPair(t *testing.T) (*slackProvider, *bridgesdk.Peer, func()) {
 	t.Helper()
 
-	hostConn, runtimeConn := net.Pipe()
 	runtime, err := newSlackProvider(io.Discard)
 	if err != nil {
 		t.Fatalf("newSlackProvider() error = %v", err)
 	}
-
-	hostPeer := bridgesdk.NewPeer(hostConn, hostConn)
-	ctx, cancel := context.WithCancel(context.Background())
-	errCh := make(chan error, 2)
-	go func() { errCh <- runtime.serve(runtimeConn, runtimeConn) }()
-	go func() { errCh <- hostPeer.Serve(ctx) }()
-
-	var once sync.Once
-	cleanup := func() {
-		once.Do(func() {
-			cancel()
-			runtime.lifecycle.Stop()
-			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 2*time.Second)
-			if err := runtime.http.Shutdown(shutdownCtx); err != nil {
-				t.Fatalf("provider HTTP shutdown error = %v", err)
-			}
-			shutdownCancel()
-			if err := hostConn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
-				t.Errorf("host connection close error = %v", err)
-			}
-			if err := runtimeConn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
-				t.Errorf("runtime connection close error = %v", err)
-			}
-			for range 2 {
-				err := <-errCh
-				if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, net.ErrClosed) {
-					continue
-				}
-				if strings.Contains(err.Error(), "closed") {
-					continue
-				}
-				t.Fatalf("runtime peer serve error = %v", err)
-			}
-			if err := runtime.lifecycle.Wait(context.Background()); err != nil {
-				t.Fatalf("provider lifecycle wait error = %v", err)
-			}
-		})
-	}
-
+	hostPeer, cleanup := extensiontest.NewRuntimePeerPair(t, extensiontest.RuntimePeerPairConfig{
+		ServeRuntime: runtime.serve,
+		Stop:         runtime.lifecycle.Stop,
+		Shutdown:     runtime.http.Shutdown,
+		Wait:         runtime.lifecycle.Wait,
+	})
 	return runtime, hostPeer, cleanup
 }
 

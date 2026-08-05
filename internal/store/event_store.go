@@ -54,7 +54,7 @@ type EventMetadataReadCloser interface {
 // SessionEventMetadataOpener opens the metadata reader for one known session.
 type SessionEventMetadataOpener func(
 	ctx context.Context,
-	sessionID string,
+	owner SessionDBOwner,
 ) (EventMetadataReadCloser, error)
 
 // EventRecorder is the complete mutable per-session event-store contract.

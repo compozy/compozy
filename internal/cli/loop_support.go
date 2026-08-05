@@ -28,7 +28,13 @@ func requiredLoopFlag(field string, value string) (string, error) {
 	return trimmed, nil
 }
 
-func readLoopDefinitionFile(path string) (dsl.Definition, error) {
+func readLoopDefinitionFile(ctx context.Context, path string) (dsl.Definition, error) {
+	if ctx == nil {
+		return dsl.Definition{}, errors.New("cli: loop definition context is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return dsl.Definition{}, fmt.Errorf("cli: read loop definition: %w", err)
+	}
 	body, err := os.ReadFile(strings.TrimSpace(path))
 	if err != nil {
 		return dsl.Definition{}, fmt.Errorf("cli: read loop definition file: %w", err)
@@ -37,7 +43,7 @@ func readLoopDefinitionFile(path string) (dsl.Definition, error) {
 	if err != nil {
 		return dsl.Definition{}, fmt.Errorf("cli: parse loop definition file: %w", err)
 	}
-	if err := looppkg.ValidateDefinitionRuntime(context.Background(), nil, definition); err != nil {
+	if err := looppkg.ValidateDefinitionRuntime(ctx, nil, definition); err != nil {
 		return dsl.Definition{}, fmt.Errorf("cli: validate loop definition runtime: %w", err)
 	}
 	return definition, nil
@@ -80,11 +86,17 @@ func readLoopConfigFile(path string) (looppkg.LoopConfig, error) {
 	return cfg, nil
 }
 
-func loopConfigPayloadFromDomain(cfg *looppkg.LoopConfig) (*contract.LoopConfig, error) {
+func loopConfigPayloadFromDomain(ctx context.Context, cfg *looppkg.LoopConfig) (*contract.LoopConfig, error) {
+	if ctx == nil {
+		return nil, errors.New("cli: loop config context is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("cli: validate loop config: %w", err)
+	}
 	if cfg == nil {
 		return nil, nil
 	}
-	if err := looppkg.ValidateLoopConfigRuntime(context.Background(), nil, *cfg); err != nil {
+	if err := looppkg.ValidateLoopConfigRuntime(ctx, nil, *cfg); err != nil {
 		return nil, fmt.Errorf("cli: validate loop config runtime: %w", err)
 	}
 	body, err := json.Marshal(cfg)
@@ -257,8 +269,8 @@ func editLoopDefinition(
 	}
 	tempPath := tempFile.Name()
 	defer func() {
-		if removeErr := os.Remove(tempPath); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) && err == nil {
-			err = fmt.Errorf("cli: remove temp loop definition: %w", removeErr)
+		if removeErr := deps.removeFile(tempPath); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
+			err = errors.Join(err, fmt.Errorf("cli: remove temp loop definition: %w", removeErr))
 		}
 	}()
 	if _, err := tempFile.Write(body); err != nil {
@@ -285,7 +297,7 @@ func editLoopDefinition(
 	if err := editorCmd.Run(); err != nil {
 		return contract.LoopResponse{}, fmt.Errorf("cli: run editor: %w", err)
 	}
-	next, err := readLoopDefinitionFile(tempPath)
+	next, err := readLoopDefinitionFile(cmd.Context(), tempPath)
 	if err != nil {
 		return contract.LoopResponse{}, err
 	}

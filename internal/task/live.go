@@ -22,17 +22,17 @@ type taskLiveContext struct {
 }
 
 type taskStreamSubscriber struct {
-	id        uint64
-	taskID    string
-	actor     ActorContext
-	deliver   chan StreamEvent
-	done      chan struct{}
-	out       chan StreamEvent
-	closeOnce sync.Once
+	id      uint64
+	taskID  string
+	actor   ActorContext
+	deliver chan StreamEvent
+	done    chan struct{}
+	out     chan StreamEvent
+	stop    func()
 }
 
 func newTaskStreamSubscriber(id uint64, taskID string, actor ActorContext) *taskStreamSubscriber {
-	return &taskStreamSubscriber{
+	subscriber := &taskStreamSubscriber{
 		id:      id,
 		taskID:  taskID,
 		actor:   actor,
@@ -40,6 +40,10 @@ func newTaskStreamSubscriber(id uint64, taskID string, actor ActorContext) *task
 		done:    make(chan struct{}),
 		out:     make(chan StreamEvent),
 	}
+	subscriber.stop = sync.OnceFunc(func() {
+		close(subscriber.done)
+	})
+	return subscriber
 }
 
 func (s *taskStreamSubscriber) enqueue(event StreamEvent) bool {
@@ -51,12 +55,6 @@ func (s *taskStreamSubscriber) enqueue(event StreamEvent) bool {
 	default:
 		return false
 	}
-}
-
-func (s *taskStreamSubscriber) stop() {
-	s.closeOnce.Do(func() {
-		close(s.done)
-	})
 }
 
 func (m *Service) Timeline(

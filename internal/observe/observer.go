@@ -75,8 +75,9 @@ type HookRunStore interface {
 	Close(context.Context) error
 }
 
-// HookStoreOpener opens the per-session store used for hook run audit queries.
-type HookStoreOpener func(ctx context.Context, sessionID string, path string) (HookRunStore, error)
+// HookStoreOpener opens the per-session store for the exact immutable owner.
+// Implementations must forward both owner fields unchanged.
+type HookStoreOpener func(ctx context.Context, owner store.SessionDBOwner, path string) (HookRunStore, error)
 
 // Option customizes Observer construction.
 type Option func(*Observer)
@@ -142,8 +143,7 @@ type Observer struct {
 	taskDashboardConfig   taskDashboardConfig
 	retention             RetentionConfig
 	retentionHealth       RetentionHealth
-	retentionCancel       context.CancelFunc
-	retentionWG           sync.WaitGroup
+	retentionRun          *retentionRun
 	retentionMu           sync.RWMutex
 	agentProbeSource      AgentProbeTargetSource
 	agentProbeTimeout     time.Duration
@@ -361,8 +361,8 @@ func New(ctx context.Context, opts ...Option) (*Observer, error) {
 		observer.resolveProviderAuth = defaultProviderAuthModeResolver(observer.homePaths, observer.workspaceResolver)
 	}
 	if observer.openHookStore == nil {
-		observer.openHookStore = func(ctx context.Context, sessionID string, path string) (HookRunStore, error) {
-			return sessiondb.OpenSessionDB(ctx, sessionID, path)
+		observer.openHookStore = func(ctx context.Context, owner store.SessionDBOwner, path string) (HookRunStore, error) {
+			return sessiondb.OpenSessionDB(ctx, owner, path)
 		}
 	}
 	observer.retention = normalizeRetentionConfig(observer.retention)

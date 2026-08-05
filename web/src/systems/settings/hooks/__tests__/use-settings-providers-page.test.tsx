@@ -46,6 +46,12 @@ const claudeEntry: SettingsProviderCollection["providers"][number] = {
     env_policy: "filtered",
     home_policy: "operator",
     state: "authenticated",
+    login: {
+      configured: true,
+      executable: "claude",
+      presence: "present",
+      source: "auth_login_command",
+    },
   },
   settings: {
     command: "npx -y @agentclientprotocol/claude-agent-acp@latest",
@@ -57,7 +63,6 @@ const claudeEntry: SettingsProviderCollection["providers"][number] = {
     env_policy: "filtered",
     home_policy: "operator",
     auth_status_command: "claude auth status",
-    auth_login_command: "claude login",
   },
   source_metadata: {
     available_targets: ["global-config"],
@@ -82,6 +87,13 @@ const codexEntry: SettingsProviderCollection["providers"][number] = {
     env_policy: "filtered",
     home_policy: "operator",
     state: "unknown",
+    login: {
+      configured: true,
+      executable: "codex",
+      presence: "unknown",
+      recommended_action: "inspect",
+      source: "auth_login_command",
+    },
   },
   settings: {
     command: "npx -y @agentclientprotocol/codex-acp@latest",
@@ -113,7 +125,6 @@ const codexEntry: SettingsProviderCollection["providers"][number] = {
     env_policy: "filtered",
     home_policy: "operator",
     auth_status_command: "codex auth status",
-    auth_login_command: "codex login",
   },
   source_metadata: {
     available_targets: ["global-config"],
@@ -230,7 +241,6 @@ describe("useSettingsProvidersPage", () => {
         env_policy: "filtered",
         home_policy: "operator",
         auth_status_command: "claude auth status",
-        auth_login_command: "claude login",
       }),
     });
   });
@@ -287,7 +297,6 @@ describe("useSettingsProvidersPage", () => {
         env_policy: "filtered",
         home_policy: "operator",
         auth_status_command: "claude auth status",
-        auth_login_command: "claude login",
       },
     });
     expect(result.current.inspector.mode).toBe("closed");
@@ -757,7 +766,6 @@ describe("useSettingsProvidersPage", () => {
         env_policy: "filtered",
         home_policy: "operator",
         auth_status_command: "codex auth status",
-        auth_login_command: "codex login",
       },
     });
   });

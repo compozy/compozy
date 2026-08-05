@@ -168,7 +168,10 @@ func (g *TaskRepo) reserveCoordinatorPlanRunsWithExecutor(
 
 	enqueued := make([]taskpkg.Run, 0, len(specs))
 	for _, spec := range specs {
-		reservation := coordinatorPlanRunReservation(spec, current, origin, queuedAt)
+		reservation, err := coordinatorPlanRunReservation(spec, current, origin, queuedAt)
+		if err != nil {
+			return nil, err
+		}
 		existing, err := g.coordinatorPlanRunReservationExists(ctx, exec, reservation)
 		if err != nil {
 			return nil, err
@@ -222,7 +225,7 @@ func coordinatorPlanRunReservation(
 	current taskpkg.Run,
 	origin taskpkg.Origin,
 	queuedAt time.Time,
-) queuedRunReservationInput {
+) (queuedRunReservationInput, error) {
 	normalized := spec.Normalize()
 	networkSpec := current.NetworkSpecSnapshot()
 	if normalized.ResolvedNetworkParticipation != nil {
@@ -230,7 +233,11 @@ func coordinatorPlanRunReservation(
 	}
 	runID := strings.TrimSpace(normalized.RunID)
 	if runID == "" {
-		runID = store.NewID("run")
+		generatedID, err := store.NewID("run")
+		if err != nil {
+			return queuedRunReservationInput{}, fmt.Errorf("store: generate coordinator plan run id: %w", err)
+		}
+		runID = generatedID
 	}
 	if strings.TrimSpace(normalized.LoopRunID) == "" {
 		normalized.LoopRunID = current.LoopRunID
@@ -246,5 +253,5 @@ func coordinatorPlanRunReservation(
 		designationGroupID: normalized.DesignationGroupID,
 		metadata:           normalizeTaskJSON(normalized.Metadata),
 		queuedAt:           queuedAt,
-	}
+	}, nil
 }

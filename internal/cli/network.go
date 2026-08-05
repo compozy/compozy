@@ -8,6 +8,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
+type networkWorkspaceClient interface {
+	workspaceLookupClient
+	agentSessionClient
+}
+
 const (
 	toolOperatorPreviewValue = "Preview"
 	networkLocalKey          = "local"
@@ -122,7 +127,7 @@ func newNetworkCommand(deps commandDeps) *cobra.Command {
 func resolveNetworkWorkspaceRef(
 	cmd *cobra.Command,
 	deps commandDeps,
-	client DaemonClient,
+	client networkWorkspaceClient,
 	workspaceRef *string,
 ) (string, error) {
 	credentials := agentCredentialsFromEnv(deps)
@@ -144,7 +149,7 @@ func resolveNetworkWorkspaceRef(
 func resolveAgentNetworkWorkspaceRef(
 	cmd *cobra.Command,
 	deps commandDeps,
-	client DaemonClient,
+	client networkWorkspaceClient,
 	flagRef string,
 ) (string, error) {
 	if commandWorkspaceFlagIsBlank(cmd, flagRef) {

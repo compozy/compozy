@@ -20,6 +20,7 @@ import (
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/providers"
 	"github.com/compozy/compozy/internal/sandbox/local"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -88,7 +89,7 @@ func TestManagerIntegrationStopFinalizesWrappedACPProcess(t *testing.T) {
 	h := newHarness(t)
 	command := sessionStopWrapperCommand(t, pidFile)
 	h.cfg.Providers[acpmock.ProviderName] = acpmock.ProviderConfig(command)
-	driver := acp.New(
+	driver := newIntegrationACPDriver(
 		acp.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
 		acp.WithStopTimeout(100*time.Millisecond),
 	)
@@ -118,10 +119,10 @@ func TestManagerIntegrationStopFinalizesWrappedACPProcess(t *testing.T) {
 	}
 
 	waitForSessionStopProcessExit(t, childPID, time.Second)
-	waitForCondition(t, "stopped session metadata", func() bool {
-		meta := readMeta(t, session.MetaPath())
-		return meta.State == string(StateStopped)
-	})
+	h.notifier.waitForStopped(t, session.ID)
+	if got := readMeta(t, session.MetaPath()).State; got != string(StateStopped) {
+		t.Fatalf("meta.State = %q, want %q", got, StateStopped)
+	}
 
 	meta := readMeta(t, session.MetaPath())
 	if meta.StopReason == nil {
@@ -173,7 +174,9 @@ func TestManagerIntegrationAllowedToolsOverrideNarrowsAcpmockSession(t *testing.
 		h.manager = newManagerWithHarness(
 			t,
 			h,
-			WithDriver(NewACPDriverAdapter(acp.New(acp.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil)))))),
+			WithDriver(NewACPDriverAdapter(newIntegrationACPDriver(
+				acp.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
+			))),
 		)
 
 		sess, err := h.manager.Create(testutil.Context(t), CreateOpts{
@@ -252,7 +255,9 @@ func TestManagerIntegrationResumeReplayRestoresLoadUnsupportedContext(t *testing
 	}}
 	h.resolver.upsert(&resolved)
 	newRuntimeDriver := func() AgentDriver {
-		return NewACPDriverAdapter(acp.New(acp.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil)))))
+		return NewACPDriverAdapter(newIntegrationACPDriver(
+			acp.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
+		))
 	}
 	h.manager = newManagerWithHarness(t, h, WithDriver(newRuntimeDriver()))
 
@@ -333,7 +338,7 @@ func TestManagerIntegrationResumeReplayRestoresLoadUnsupportedContext(t *testing
 
 func TestManagerIntegrationKillProcessPersistsAgentCrashedStopReason(t *testing.T) {
 	h := newHarness(t)
-	driver := acp.New(
+	driver := newIntegrationACPDriver(
 		acp.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
 		acp.WithStopTimeout(100*time.Millisecond),
 	)
@@ -364,10 +369,7 @@ func TestManagerIntegrationKillProcessPersistsAgentCrashedStopReason(t *testing.
 		t.Fatalf("syscall.Kill(%d, SIGKILL) error = %v", proc.PID, err)
 	}
 
-	waitForCondition(t, "agent crash metadata", func() bool {
-		meta := readMeta(t, session.MetaPath())
-		return meta.State == string(StateStopped) && meta.StopReason != nil
-	})
+	h.notifier.waitForStopped(t, session.ID)
 
 	meta := readMeta(t, session.MetaPath())
 	if *meta.StopReason != store.StopAgentCrashed {
@@ -415,7 +417,7 @@ func TestManagerIntegrationCreateAndResumeWithWorkspaceResolver(t *testing.T) {
 		t.Fatalf("workspace.NewResolver() error = %v", err)
 	}
 
-	driver := acp.New(acp.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))))
+	driver := newIntegrationACPDriver(acp.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))))
 	sandboxRegistry, err := local.NewRegistry(local.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))))
 	if err != nil {
 		t.Fatalf("local.NewRegistry() error = %v", err)
@@ -430,6 +432,7 @@ func TestManagerIntegrationCreateAndResumeWithWorkspaceResolver(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewManager() error = %v", err)
 	}
+	cleanupTestManager(t, manager)
 
 	session, err := manager.Create(testutil.Context(t), CreateOpts{
 		AgentName:     "coder",
@@ -621,11 +624,6 @@ func TestManagerIntegrationFullStopResumeStopPersistsStopReasons(t *testing.T) {
 		t.Fatalf("meta.StopReason = %q, want %q", *meta.StopReason, store.StopUserCanceled)
 	}
 
-	waitForCondition(t, "two stop events after resume flow", func() bool {
-		events := readStoredEvents(t, resumed)
-		return countEventType(events, EventTypeSessionStopped) == 2
-	})
-
 	events := readStoredEvents(t, resumed)
 	if got := countEventType(events, EventTypeSessionStopped); got != 2 {
 		t.Fatalf("session_stopped events = %d, want 2", got)
@@ -653,7 +651,7 @@ func newRealACPIntegrationHarness(t *testing.T, command string) *harness {
 
 	h := newHarness(t)
 	h.cfg.Providers[acpmock.ProviderName] = acpmock.ProviderConfig(command)
-	driver := acp.New(
+	driver := newIntegrationACPDriver(
 		acp.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
 		acp.WithStopTimeout(100*time.Millisecond),
 	)
@@ -675,16 +673,19 @@ func newRealACPIntegrationHarness(t *testing.T, command string) *harness {
 	return h
 }
 
+func newIntegrationACPDriver(options ...acp.Option) *acp.Driver {
+	base := []acp.Option{acp.WithProviderPreStarter(providers.NewPreStarter())}
+	return acp.New(append(base, options...)...)
+}
+
 func waitForStoppedSession(t *testing.T, manager *Manager, sess *Session) {
 	t.Helper()
-
-	waitForCondition(t, "stopped session state", func() bool {
-		if _, ok := manager.Get(sess.ID); ok {
-			return false
-		}
-		meta := readMeta(t, sess.MetaPath())
-		return meta.State == string(StateStopped)
-	})
+	if _, ok := manager.Get(sess.ID); ok {
+		t.Fatalf("Get(%q) found session after Stop returned", sess.ID)
+	}
+	if got := readMeta(t, sess.MetaPath()).State; got != string(StateStopped) {
+		t.Fatalf("meta.State = %q, want %q", got, StateStopped)
+	}
 }
 
 func sessionStopWrapperCommand(t *testing.T, pidFile string) string {

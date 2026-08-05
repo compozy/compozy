@@ -26,7 +26,7 @@ func BenchmarkStoreScanCappedWorkspace(b *testing.B) {
 			Description: "Benchmark memory",
 			Type:        memcontract.TypeProject,
 		}, "Benchmark body\n")
-		if err := env.store.Write(memcontract.ScopeWorkspace, filename, payload); err != nil {
+		if err := env.store.Write(b.Context(), memcontract.ScopeWorkspace, filename, payload); err != nil {
 			b.Fatalf("Store.Write(%q) error = %v", filename, err)
 		}
 
@@ -41,7 +41,7 @@ func BenchmarkStoreScanCappedWorkspace(b *testing.B) {
 	}
 
 	for b.Loop() {
-		headers, err := env.store.Scan(memcontract.ScopeWorkspace)
+		headers, err := env.store.Scan(b.Context(), memcontract.ScopeWorkspace)
 		if err != nil {
 			b.Fatalf("Store.Scan() error = %v", err)
 		}

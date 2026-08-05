@@ -42,11 +42,11 @@ func (s *SessionDB) QueryHookRuns(ctx context.Context, query store.HookRunQuery)
 	if err := query.Validate(); err != nil {
 		return nil, err
 	}
-	if strings.TrimSpace(query.SessionID) != "" && strings.TrimSpace(query.SessionID) != s.sessionID {
+	if strings.TrimSpace(query.SessionID) != "" && strings.TrimSpace(query.SessionID) != s.owner.SessionID {
 		return nil, fmt.Errorf(
 			"store: hook run query session id %q does not match session database %q",
 			query.SessionID,
-			s.sessionID,
+			s.owner.SessionID,
 		)
 	}
 	if event := strings.TrimSpace(query.Event); event != "" {
@@ -65,30 +65,26 @@ func (s *SessionDB) QueryHookRuns(ctx context.Context, query store.HookRunQuery)
 		return nil, store.ErrClosed
 	}
 
-	baseQuery := `SELECT
-		rowid, hook_name, event, source, mode, duration_ns, outcome,
-		dispatch_depth, patch_applied, error, required, recorded_at
-		FROM hook_runs`
+	const columns = `hook_name, event, source, mode, duration_ns, outcome,
+		dispatch_depth, patch_applied, error, required, recorded_at`
 	where, args := store.BuildClauses(
 		store.StringClause("event", query.Event),
 		store.StringClause("outcome", string(query.Outcome)),
 		store.TimeClause("recorded_at", ">=", query.Since),
 	)
-	baseQuery = store.AppendWhere(baseQuery, where)
-
-	sqlQuery := baseQuery
+	fromHookRuns := store.AppendWhere("FROM hook_runs", where)
+	//nolint:gosec // columns and FROM are fixed constants; BuildClauses owns placeholders and arguments.
+	sqlQuery := "SELECT " + columns + " " + fromHookRuns
 	if query.Limit > 0 {
-		sqlQuery = `SELECT
-				rowid, hook_name, event, source, mode, duration_ns, outcome,
-				dispatch_depth, patch_applied, error, required, recorded_at
-				FROM (` + baseQuery + ` ORDER BY recorded_at DESC, rowid DESC LIMIT ?) AS recent_hook_runs
+		sqlQuery = `SELECT ` + columns + `
+				FROM (SELECT rowid, ` + columns + ` ` + fromHookRuns + `
+					ORDER BY recorded_at DESC, rowid DESC LIMIT ?) AS recent_hook_runs
 				ORDER BY recorded_at ASC, rowid ASC`
 		args = append(args, query.Limit)
 	} else {
 		sqlQuery += " ORDER BY recorded_at ASC, rowid ASC"
 	}
 
-	// dynamic-sql: optional hook event/outcome/time predicates and the bounded recent-window shape vary together.
 	rows, err := s.db.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query hook runs: %w", err)
@@ -116,7 +112,10 @@ func (s *SessionDB) writeHookRun(ctx context.Context, record hookspkg.HookRunRec
 		record.RecordedAt = s.now()
 	}
 
-	id := store.NewID("hook")
+	id, err := store.NewID("hook")
+	if err != nil {
+		return fmt.Errorf("store: generate hook run id: %w", err)
+	}
 	if err := sqlcgen.New(s.db).InsertHookRun(ctx, sqlcgen.InsertHookRunParams{
 		ID:            id,
 		HookName:      record.HookName,
@@ -140,7 +139,6 @@ func (s *SessionDB) writeHookRun(ctx context.Context, record hookspkg.HookRunRec
 func (s *SessionDB) scanHookRunRecord(scanner rowScanner) (hookspkg.HookRunRecord, error) {
 	var (
 		record        hookspkg.HookRunRecord
-		rowID         int64
 		event         string
 		source        string
 		mode          string
@@ -153,7 +151,6 @@ func (s *SessionDB) scanHookRunRecord(scanner rowScanner) (hookspkg.HookRunRecor
 	)
 
 	if err := scanner.Scan(
-		&rowID,
 		&record.HookName,
 		&event,
 		&source,
@@ -196,7 +193,6 @@ func (s *SessionDB) scanHookRunRecord(scanner rowScanner) (hookspkg.HookRunRecor
 		return hookspkg.HookRunRecord{}, err
 	}
 	record.RecordedAt = recordedAt
-	_ = rowID
 	return cloneHookRunRecord(record), nil
 }
 

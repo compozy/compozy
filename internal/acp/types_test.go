@@ -2,6 +2,7 @@ package acp
 
 import (
 	"encoding/json"
+	"errors"
 	"strconv"
 	"strings"
 	"testing"
@@ -223,9 +224,10 @@ func TestEndPromptClearsActivePromptWhileEmitterIsBackpressured(t *testing.T) {
 		close(endDone)
 	}()
 
-	deadline := time.Now().Add(200 * time.Millisecond)
-	for proc.currentPrompt() != nil && time.Now().Before(deadline) {
-		time.Sleep(time.Millisecond)
+	select {
+	case <-active.detached:
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("timed out waiting for endPrompt() to detach the active prompt")
 	}
 	if proc.currentPrompt() != nil {
 		t.Fatal("currentPrompt() remained non-nil while endPrompt waited on a backpressured sender")
@@ -485,6 +487,9 @@ func TestPromptMetaValidateSyntheticRequiresWakeupReason(t *testing.T) {
 	if err == nil {
 		t.Fatal("PromptMeta.Validate() error = nil, want synthetic validation failure")
 	}
+	if !errors.Is(err, ErrInvalidPromptMetadata) {
+		t.Fatalf("PromptMeta.Validate() error = %v, want ErrInvalidPromptMetadata", err)
+	}
 	if !strings.Contains(err.Error(), "requires a reason") {
 		t.Fatalf("PromptMeta.Validate() error = %v, want missing-reason detail", err)
 	}
@@ -523,6 +528,9 @@ func TestPromptMetaValidateRejectsSyntheticFieldsOnUserAndNetworkTurns(t *testin
 			err := tc.meta.Validate()
 			if err == nil {
 				t.Fatal("PromptMeta.Validate() error = nil, want validation failure")
+			}
+			if !errors.Is(err, ErrInvalidPromptMetadata) {
+				t.Fatalf("PromptMeta.Validate() error = %v, want ErrInvalidPromptMetadata", err)
 			}
 			if !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("PromptMeta.Validate() error = %v, want substring %q", err, tc.want)

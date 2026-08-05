@@ -236,7 +236,8 @@ func BenchmarkKernelApplySourceSnapshotRaw(b *testing.B) {
 	drafts := makeBenchmarkSnapshotDrafts(8)
 
 	b.ResetTimer()
-	for idx := range b.N {
+	idx := 0
+	for b.Loop() {
 		drafts[0].SpecJSON = fmt.Appendf(nil, `{"name":"tool-%06d"}`, idx)
 		if err := kernel.ApplySourceSnapshotRaw(ctx, actor, SourceSnapshot{
 			SourceVersion: int64(idx + 1),
@@ -244,6 +245,7 @@ func BenchmarkKernelApplySourceSnapshotRaw(b *testing.B) {
 		}); err != nil {
 			b.Fatalf("ApplySourceSnapshotRaw() error = %v", err)
 		}
+		idx++
 	}
 }
 

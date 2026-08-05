@@ -48,8 +48,8 @@ func isSQLiteCorruption(err error) bool {
 		return false
 	}
 
-	var sqliteErr *sqlite.Error
-	if !errors.As(err, &sqliteErr) {
+	sqliteErr, ok := errors.AsType[*sqlite.Error](err)
+	if !ok {
 		return false
 	}
 	switch sqliteErr.Code() & sqlitePrimaryResultCodeMask {

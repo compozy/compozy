@@ -55,8 +55,5 @@ func (n *hooksNotifier) notifyLoopTerminalObservers(
 }
 
 func loopObserverContext(ctx context.Context) (context.Context, context.CancelFunc) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	return context.WithTimeout(context.WithoutCancel(ctx), loopHookObserverTimeout)
 }

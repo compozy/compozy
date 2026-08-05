@@ -22,11 +22,11 @@ func TestHookContractsResolveDescriptors(t *testing.T) {
 
 		for idx, descriptor := range hooks.AllEventDescriptors() {
 			if contracts[idx].Event != descriptor.Event {
-				t.Fatalf("HookContracts()[%d].Event = %q, want %q", idx, contracts[idx].Event, descriptor.Event)
+				t.Fatalf("BuildHookContracts()[%d].Event = %q, want %q", idx, contracts[idx].Event, descriptor.Event)
 			}
 			if contracts[idx].Payload.Name != descriptor.PayloadSchema {
 				t.Fatalf(
-					"HookContracts()[%d].Payload.Name = %q, want %q",
+					"BuildHookContracts()[%d].Payload.Name = %q, want %q",
 					idx,
 					contracts[idx].Payload.Name,
 					descriptor.PayloadSchema,
@@ -34,7 +34,7 @@ func TestHookContractsResolveDescriptors(t *testing.T) {
 			}
 			if contracts[idx].Patch.Name != descriptor.PatchSchema {
 				t.Fatalf(
-					"HookContracts()[%d].Patch.Name = %q, want %q",
+					"BuildHookContracts()[%d].Patch.Name = %q, want %q",
 					idx,
 					contracts[idx].Patch.Name,
 					descriptor.PatchSchema,
@@ -46,7 +46,10 @@ func TestHookContractsResolveDescriptors(t *testing.T) {
 	t.Run("Should resolve representative hook payload and patch names", func(t *testing.T) {
 		t.Parallel()
 
-		contracts := HookContracts()
+		contracts, err := BuildHookContracts()
+		if err != nil {
+			t.Fatalf("BuildHookContracts() error = %v", err)
+		}
 		byEvent := make(map[hooks.HookEvent]HookContractSpec, len(contracts))
 		for _, contract := range contracts {
 			byEvent[contract.Event] = contract
@@ -94,7 +97,7 @@ func TestHookContractsResolveDescriptors(t *testing.T) {
 		} {
 			contract, ok := byEvent[tc.event]
 			if !ok {
-				t.Fatalf("HookContracts() missing %q", tc.event)
+				t.Fatalf("BuildHookContracts() missing %q", tc.event)
 			}
 			if contract.Payload.Name != tc.payload || contract.Patch.Name != tc.patch {
 				t.Fatalf(
@@ -143,30 +146,6 @@ func TestNamedHookTypeErrors(t *testing.T) {
 		}
 		if got, want := err.Error(), `unknown hook contract type "DefinitelyMissingHookType"`; got != want {
 			t.Fatalf("namedHookType() error = %q, want %q", got, want)
-		}
-	})
-}
-
-func TestHookContractsCompatibilityWrapper(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should match error-returning hook contracts", func(t *testing.T) {
-		t.Parallel()
-
-		contracts, err := BuildHookContracts()
-		if err != nil {
-			t.Fatalf("BuildHookContracts() error = %v", err)
-		}
-		wrapped := HookContracts()
-		if len(wrapped) != len(contracts) {
-			t.Fatalf("len(HookContracts()) = %d, want %d", len(wrapped), len(contracts))
-		}
-		for idx := range contracts {
-			if wrapped[idx].Event != contracts[idx].Event ||
-				wrapped[idx].Payload.Name != contracts[idx].Payload.Name ||
-				wrapped[idx].Patch.Name != contracts[idx].Patch.Name {
-				t.Fatalf("HookContracts()[%d] = %#v, want %#v", idx, wrapped[idx], contracts[idx])
-			}
 		}
 	})
 }

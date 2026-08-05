@@ -2022,8 +2022,7 @@ func TestUDSTransportSettingsDependencyExtensionParityMatchesHTTP(t *testing.T) 
 		nil,
 	)
 	if httpListResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(httpListResp.Body)
-		_ = httpListResp.Body.Close()
+		body := readAndCloseHTTPBody(t, httpListResp)
 		t.Fatalf(
 			"HTTP extension list status = %d, want %d; body=%s",
 			httpListResp.StatusCode,
@@ -2055,8 +2054,7 @@ func TestUDSTransportSettingsDependencyExtensionParityMatchesHTTP(t *testing.T) 
 		nil,
 	)
 	if httpStatusResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(httpStatusResp.Body)
-		_ = httpStatusResp.Body.Close()
+		body := readAndCloseHTTPBody(t, httpStatusResp)
 		t.Fatalf("HTTP extension status = %d, want %d; body=%s", httpStatusResp.StatusCode, http.StatusOK, string(body))
 	}
 	var httpStatus compozycontract.ExtensionResponse
@@ -2118,8 +2116,7 @@ func TestUDSTransportSettingsMutationsRemainPrivilegedWhenHTTPIsNonLoopback(t *t
 		nil,
 	)
 	if httpPutResp.StatusCode != http.StatusForbidden {
-		body, _ := io.ReadAll(httpPutResp.Body)
-		_ = httpPutResp.Body.Close()
+		body := readAndCloseHTTPBody(t, httpPutResp)
 		t.Fatalf(
 			"HTTP PUT settings status = %d, want %d; body=%s",
 			httpPutResp.StatusCode,
@@ -2160,8 +2157,7 @@ func TestUDSTransportSettingsMutationsRemainPrivilegedWhenHTTPIsNonLoopback(t *t
 		nil,
 	)
 	if httpListResp.StatusCode != http.StatusForbidden {
-		body, _ := io.ReadAll(httpListResp.Body)
-		_ = httpListResp.Body.Close()
+		body := readAndCloseHTTPBody(t, httpListResp)
 		t.Fatalf(
 			"HTTP GET settings list status = %d, want %d; body=%s",
 			httpListResp.StatusCode,
@@ -2200,8 +2196,7 @@ func TestUDSTransportSettingsMutationsRemainPrivilegedWhenHTTPIsNonLoopback(t *t
 		nil,
 	)
 	if httpListResp.StatusCode != http.StatusForbidden {
-		body, _ := io.ReadAll(httpListResp.Body)
-		_ = httpListResp.Body.Close()
+		body := readAndCloseHTTPBody(t, httpListResp)
 		t.Fatalf(
 			"HTTP GET settings list after delete status = %d, want %d; body=%s",
 			httpListResp.StatusCode,

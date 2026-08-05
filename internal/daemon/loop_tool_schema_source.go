@@ -21,7 +21,7 @@ func newLoopToolSchemaSource(ctx context.Context, registry toolspkg.Registry) lo
 		return nil
 	}
 	if ctx == nil {
-		ctx = context.Background()
+		return nil
 	}
 	return loopToolSchemaSource{ctx: ctx, registry: registry}
 }

@@ -28,14 +28,28 @@ func openSettingsLogTailFile(path string) (*os.File, os.FileInfo, error) {
 	}
 	info, err := file.Stat()
 	if err != nil {
-		file.Close()
-		return nil, nil, fmt.Errorf("stat settings log tail file %q: %w", path, err)
+		return nil, nil, closeSettingsLogTailFileOnError(
+			file,
+			path,
+			fmt.Errorf("stat settings log tail file %q: %w", path, err),
+		)
 	}
 	if _, err := file.Seek(0, io.SeekEnd); err != nil {
-		file.Close()
-		return nil, nil, fmt.Errorf("seek settings log tail file %q: %w", path, err)
+		return nil, nil, closeSettingsLogTailFileOnError(
+			file,
+			path,
+			fmt.Errorf("seek settings log tail file %q: %w", path, err),
+		)
 	}
 	return file, info, nil
+}
+
+func closeSettingsLogTailFileOnError(file *os.File, path string, cause error) error {
+	closeErr := file.Close()
+	if closeErr == nil {
+		return cause
+	}
+	return errors.Join(cause, fmt.Errorf("close settings log tail file %q: %w", path, closeErr))
 }
 
 func settingsLogTailPollInterval(interval time.Duration) time.Duration {

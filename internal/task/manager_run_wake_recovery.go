@@ -2,7 +2,7 @@ package task
 
 import (
 	"context"
-	"time"
+	"strings"
 )
 
 func (m *Service) recoverNetworkWakeOnBoot(
@@ -12,56 +12,64 @@ func (m *Service) recoverNetworkWakeOnBoot(
 	actor ActorContext,
 ) (*Run, error) {
 	previousStatus := run.Status.Normalize()
-	previousSessionID := run.SessionID
-	switch recovery.Action.Normalize() {
-	case RunBootRecoveryRequeue:
-		switch previousStatus {
-		case TaskRunStatusClaimed, TaskRunStatusStarting, TaskRunStatusRunning:
-		default:
-			return nil, invalidRunRecoveryTransition(run, previousStatus, recovery.Action)
-		}
-		run = requeueSessionRunLease(run)
-	case RunBootRecoveryMarkRunning:
-		switch previousStatus {
-		case TaskRunStatusClaimed, TaskRunStatusStarting:
-			run.Status = TaskRunStatusRunning
-			if run.StartedAt.IsZero() {
-				run.StartedAt = m.now().UTC()
-			}
-		case TaskRunStatusRunning:
-			return &run, nil
-		default:
-			return nil, invalidRunRecoveryTransition(run, previousStatus, recovery.Action)
-		}
-		if previousSessionID == "" {
-			return nil, invalidRunRecoveryTransition(run, previousStatus, recovery.Action)
-		}
-	case RunBootRecoveryFail:
-		switch previousStatus {
-		case TaskRunStatusStarting, TaskRunStatusRunning:
-		default:
-			return nil, invalidRunRecoveryTransition(run, previousStatus, recovery.Action)
-		}
-		run.Status = TaskRunStatusFailed
-		run.Error = runBootRecoveryError(run, recovery)
-		run.Result = nil
-		run.LeaseUntil = time.Time{}
-		run.HeartbeatAt = time.Time{}
-		run.EndedAt = m.now().UTC()
-	default:
-		return nil, invalidRunRecoveryTransition(run, previousStatus, recovery.Action)
+	previousSessionID := strings.TrimSpace(run.SessionID)
+	if err := validateNetworkWakeBootRecovery(run, recovery); err != nil {
+		return nil, err
 	}
-	if err := m.store.UpdateTaskRun(ctx, run); err != nil {
+	if recovery.Action.Normalize() == RunBootRecoveryMarkRunning &&
+		previousStatus == TaskRunStatusRunning {
+		return &run, nil
+	}
+
+	commandAt := m.now().UTC()
+	var mutation NominalRunMutationResult
+	err := m.store.WithTaskMutationTransaction(
+		ctx,
+		"recover network wake on boot",
+		func(store runMutationStore) error {
+			var mutationErr error
+			mutation, mutationErr = store.RecoverNetworkWakeOnBoot(
+				ctx,
+				NewNetworkWakeBootRecoveryMutation(run, recovery, actor, commandAt),
+			)
+			return mutationErr
+		},
+	)
+	if err != nil {
 		return nil, err
 	}
 	m.dispatchTaskRunLeaseRecovered(
 		ctx,
-		run,
+		mutation.Run,
 		Task{},
 		actor,
 		previousStatus,
 		previousSessionID,
 		recovery,
 	)
-	return &run, nil
+	return &mutation.Run, nil
+}
+
+func validateNetworkWakeBootRecovery(run Run, recovery RunBootRecovery) error {
+	status := run.Status.Normalize()
+	switch recovery.Action.Normalize() {
+	case RunBootRecoveryRequeue:
+		if status != TaskRunStatusClaimed && status != TaskRunStatusStarting && status != TaskRunStatusRunning {
+			return invalidRunRecoveryTransition(run, status, recovery.Action)
+		}
+	case RunBootRecoveryMarkRunning:
+		if status != TaskRunStatusClaimed && status != TaskRunStatusStarting && status != TaskRunStatusRunning {
+			return invalidRunRecoveryTransition(run, status, recovery.Action)
+		}
+		if strings.TrimSpace(run.SessionID) == "" {
+			return invalidRunRecoveryTransition(run, status, recovery.Action)
+		}
+	case RunBootRecoveryFail:
+		if status != TaskRunStatusStarting && status != TaskRunStatusRunning {
+			return invalidRunRecoveryTransition(run, status, recovery.Action)
+		}
+	default:
+		return invalidRunRecoveryTransition(run, status, recovery.Action)
+	}
+	return nil
 }

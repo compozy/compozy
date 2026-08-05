@@ -64,8 +64,8 @@ func (e *Executor) judgeWorkTurn(
 		BudgetDecision:       decision,
 	})
 	if err != nil {
-		var reasonErr *loop.ReasonError
-		if errors.As(err, &reasonErr) && reasonErr.Code == loop.ReasonCodeGoalPromptFenced {
+		if reasonErr, ok := errors.AsType[*loop.ReasonError](err); ok &&
+			reasonErr.Code == loop.ReasonCodeGoalPromptFenced {
 			boundary, paused, pauseErr := e.settlePromptForPendingPause(ctx, segment, result)
 			if paused || pauseErr != nil {
 				return boundary, pauseErr

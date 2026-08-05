@@ -103,8 +103,12 @@ func (m *Manager) recordInactivePromptInputEvent(
 	if err != nil {
 		return err
 	}
+	persistedEventID, err := promptInputEventID(eventID)
+	if err != nil {
+		return err
+	}
 	persisted, err := m.appendDurableSessionEvent(ctx, sessionID, store.SessionEvent{
-		ID:        promptInputEventID(eventID),
+		ID:        persistedEventID,
 		SessionID: sessionID,
 		TurnID:    event.TurnID,
 		Type:      event.Type,
@@ -120,11 +124,15 @@ func (m *Manager) recordInactivePromptInputEvent(
 	return nil
 }
 
-func promptInputEventID(eventID string) string {
+func promptInputEventID(eventID string) (string, error) {
 	if normalized := strings.TrimSpace(eventID); normalized != "" {
-		return normalized
+		return normalized, nil
 	}
-	return store.NewID("ev")
+	generatedID, err := store.NewID("ev")
+	if err != nil {
+		return "", fmt.Errorf("session: generate prompt input event id: %w", err)
+	}
+	return generatedID, nil
 }
 
 func clonePromptSyntheticMeta(meta *acp.PromptSyntheticMeta) *acp.PromptSyntheticMeta {

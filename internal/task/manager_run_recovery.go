@@ -10,7 +10,7 @@ import (
 
 func (m *Service) recoverRunByRequeue(
 	ctx context.Context,
-	taskRecord Task,
+	_ Task,
 	run Run,
 	recovery RunBootRecovery,
 	actor ActorContext,
@@ -20,48 +20,50 @@ func (m *Service) recoverRunByRequeue(
 	if previousStatus != TaskRunStatusClaimed {
 		return nil, invalidRunRecoveryTransition(run, previousStatus, recovery.Action)
 	}
-
-	run.Status = TaskRunStatusQueued
-	run.ClaimedBy = nil
-	run.ClaimedAt = time.Time{}
-	run.SessionID = ""
-	run.ClaimTokenHash = ""
-	run.LeaseUntil = time.Time{}
-	run.HeartbeatAt = time.Time{}
-	run.StartedAt = time.Time{}
-	run.EndedAt = time.Time{}
-	run.Error = ""
-	run.Result = nil
-	if err := m.store.UpdateTaskRun(ctx, run); err != nil {
-		return nil, err
-	}
-	reconciledTask, err := m.recordRecoveredRun(
-		ctx,
-		taskRecord.ID,
+	if err := m.preflightRecoveredRunEvent(
 		run,
 		recovery,
 		actor,
 		previousStatus,
 		previousSessionID,
+		TaskRunStatusQueued,
+	); err != nil {
+		return nil, err
+	}
+
+	commandAt := m.now().UTC()
+	settlement, err := m.commitNominalRunSettlement(
+		ctx,
+		"requeue task run during boot recovery",
+		taskEventRunRecovered,
+		actor,
+		commandAt,
+		func(store runMutationStore) (NominalRunMutationResult, error) {
+			return store.RecoverTaskRunOnBoot(
+				ctx,
+				NewRunBootRecoveryMutation(run, RunBootRecoveryRequeue, time.Time{}),
+			)
+		},
+		recoveredRunEventPayload(recovery, previousStatus, previousSessionID),
 	)
 	if err != nil {
 		return nil, err
 	}
 	m.dispatchTaskRunLeaseRecovered(
 		ctx,
-		run,
-		reconciledTask,
+		settlement.mutation.Run,
+		settlement.task,
 		actor,
 		previousStatus,
 		previousSessionID,
 		recovery,
 	)
-	return &run, nil
+	return &settlement.mutation.Run, nil
 }
 
 func (m *Service) recoverRunByMarkRunning(
 	ctx context.Context,
-	taskRecord Task,
+	_ Task,
 	run Run,
 	recovery RunBootRecovery,
 	actor ActorContext,
@@ -82,36 +84,49 @@ func (m *Service) recoverRunByMarkRunning(
 			run.ID,
 		)
 	}
-
-	run.Status = TaskRunStatusRunning
-	if run.StartedAt.IsZero() {
-		run.StartedAt = m.now().UTC()
-	}
-	if err := m.store.UpdateTaskRun(ctx, run); err != nil {
-		return nil, err
-	}
-	reconciledTask, err := m.recordRecoveredRun(
-		ctx,
-		taskRecord.ID,
+	if err := m.preflightRecoveredRunEvent(
 		run,
 		recovery,
 		actor,
 		previousStatus,
 		previousSessionID,
+		TaskRunStatusRunning,
+	); err != nil {
+		return nil, err
+	}
+
+	commandAt := m.now().UTC()
+	startedAt := run.StartedAt
+	if startedAt.IsZero() {
+		startedAt = commandAt
+	}
+	settlement, err := m.commitNominalRunSettlement(
+		ctx,
+		"mark task run running during boot recovery",
+		taskEventRunRecovered,
+		actor,
+		commandAt,
+		func(store runMutationStore) (NominalRunMutationResult, error) {
+			return store.RecoverTaskRunOnBoot(
+				ctx,
+				NewRunBootRecoveryMutation(run, RunBootRecoveryMarkRunning, startedAt),
+			)
+		},
+		recoveredRunEventPayload(recovery, previousStatus, previousSessionID),
 	)
 	if err != nil {
 		return nil, err
 	}
 	m.dispatchTaskRunLeaseRecovered(
 		ctx,
-		run,
-		reconciledTask,
+		settlement.mutation.Run,
+		settlement.task,
 		actor,
 		previousStatus,
 		previousSessionID,
 		recovery,
 	)
-	return &run, nil
+	return &settlement.mutation.Run, nil
 }
 
 func (m *Service) recoverRunByFailure(
@@ -123,22 +138,48 @@ func (m *Service) recoverRunByFailure(
 	previousStatus RunStatus,
 	previousSessionID string,
 ) (*Run, error) {
-	failedRun, err := m.failRunRecordWithOptions(ctx, taskRecord, run, RunFailure{
-		Error:    runBootRecoveryError(run, recovery),
-		Metadata: runBootRecoveryMetadata(run, recovery),
-	}, actor, failRunRecordOptions{stopTerminalSession: false})
-	if err != nil {
-		return nil, err
+	switch previousStatus {
+	case TaskRunStatusStarting, TaskRunStatusRunning:
+	default:
+		return nil, requireRunTransition(run, TaskRunStatusFailed)
 	}
-	reconciledTask, err := m.recordRecoveredRun(
-		ctx,
-		taskRecord.ID,
-		*failedRun,
+	if recovery.StopRequired && previousSessionID == "" {
+		return nil, fmt.Errorf(
+			"%w: task run %q cannot stop a recovered process without a session binding",
+			ErrInvalidStatusTransition,
+			run.ID,
+		)
+	}
+	if err := m.preflightRecoveredRunEvent(
+		run,
 		recovery,
 		actor,
 		previousStatus,
 		previousSessionID,
-	)
+		TaskRunStatusFailed,
+	); err != nil {
+		return nil, err
+	}
+	metadata, err := runBootRecoveryMetadata(run, recovery)
+	if err != nil {
+		return nil, err
+	}
+
+	failedRun, err := m.failRunRecordWithOptions(ctx, taskRecord, run, RunFailure{
+		Error:    runBootRecoveryError(run, recovery),
+		Metadata: metadata,
+	}, actor, failRunRecordOptions{
+		stopTerminalSession: recovery.StopRequired,
+		recoveryAudit: &bootRecoveryAudit{
+			recovery:          recovery,
+			previousStatus:    previousStatus,
+			previousSessionID: previousSessionID,
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	reconciledTask, err := m.store.GetTask(ctx, taskRecord.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -151,9 +192,6 @@ func (m *Service) recoverRunByFailure(
 		previousSessionID,
 		recovery,
 	)
-	if err := m.stopRecoveredRunSession(ctx, *failedRun, recovery); err != nil {
-		return nil, err
-	}
 	return failedRun, nil
 }
 
@@ -169,33 +207,4 @@ func invalidRunRecoveryTransition(
 		previousStatus,
 		action,
 	)
-}
-
-func (m *Service) recordRecoveredRun(
-	ctx context.Context,
-	taskID string,
-	run Run,
-	recovery RunBootRecovery,
-	actor ActorContext,
-	previousStatus RunStatus,
-	previousSessionID string,
-) (Task, error) {
-	reconciledTask, err := m.reconcileTaskCascade(ctx, taskID, actor)
-	if err != nil {
-		return Task{}, err
-	}
-	if err := m.recordTaskEvent(ctx, run.TaskID, run.ID, taskEventRunRecovered, actor, recoveredRunPayload{
-		Action:         recovery.Action,
-		PreviousStatus: previousStatus,
-		Status:         run.Status,
-		TaskStatus:     reconciledTask.Status,
-		Reason:         recovery.Reason,
-		SessionID:      previousSessionID,
-		SessionState:   recovery.SessionState,
-		Classification: recovery.Classification,
-		Detail:         recovery.Detail,
-	}); err != nil {
-		return Task{}, err
-	}
-	return reconciledTask, nil
 }

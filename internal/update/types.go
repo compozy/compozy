@@ -179,8 +179,9 @@ type Manager struct {
 	bundleVerifier BundleVerifier
 	binaryApplier  BinaryApplier
 	releaseTrack   releaseTrack
-	installOnce    sync.Once
-	install        installInfo
+	installMu      sync.Mutex
+	installFlight  chan struct{}
+	install        *installInfo
 }
 
 func (m *Manager) cachePath() string {

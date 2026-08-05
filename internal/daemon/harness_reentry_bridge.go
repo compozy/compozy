@@ -48,8 +48,15 @@ const (
 )
 
 type harnessReentryStore interface {
-	taskStore
 	store.EventSummaryStore
+	GetTask(ctx context.Context, id string) (taskpkg.Task, error)
+	GetTaskRun(ctx context.Context, id string) (taskpkg.Run, error)
+	ListTaskRunsByStatus(ctx context.Context, statuses []taskpkg.RunStatus) ([]taskpkg.Run, error)
+	ListTaskEventRecords(ctx context.Context, query taskpkg.EventRecordQuery) ([]taskpkg.EventRecord, error)
+	UpdateTaskRunMetadata(
+		ctx context.Context,
+		mutation taskpkg.RunMetadataMutation,
+	) (taskpkg.Run, error)
 }
 
 type harnessReentrySessionManager interface {

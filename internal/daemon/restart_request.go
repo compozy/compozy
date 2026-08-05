@@ -95,7 +95,7 @@ func restartTransitionAllowed(current RestartStatus, next RestartStatus) bool {
 // and signals the running daemon to enter its normal graceful shutdown path.
 func (d *Daemon) RequestRestart(ctx context.Context) (RestartOperation, error) {
 	if ctx == nil {
-		ctx = context.Background()
+		return RestartOperation{}, errors.New("daemon: restart context is required")
 	}
 
 	runtime, err := d.restartRequestRuntime()

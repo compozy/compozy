@@ -21,7 +21,7 @@ func (r RunReviewRequest) Normalize() RunReviewRequest {
 	if normalized.Attempt == 0 {
 		normalized.Attempt = defaultRunReviewAttempt
 	}
-	normalized.Reason = strings.TrimSpace(normalized.Reason)
+	normalized.Reason = RedactClaimTokens(strings.TrimSpace(normalized.Reason))
 	if !normalized.DeadlineAt.IsZero() {
 		normalized.DeadlineAt = normalized.DeadlineAt.UTC()
 	}
@@ -53,7 +53,14 @@ func (r RunReviewRequest) Validate(path string) error {
 	if r.Attempt <= 0 {
 		return fmt.Errorf("%w: %s must be positive: %d", ErrValidation, nestedPath(path, "attempt"), r.Attempt)
 	}
-	return validateBoundedReviewText(r.Reason, maxRunReviewReasonBytes, nestedPath(path, "reason"))
+	if err := validateRunReviewSelectorFields(map[string]string{
+		taskEvidenceIDKey:  r.TaskID,
+		runEvidenceIDKey:   r.RunID,
+		"parent_review_id": r.ParentReviewID,
+	}, path); err != nil {
+		return err
+	}
+	return ValidateReasonSize(r.Reason, nestedPath(path, "reason"))
 }
 
 // Normalize returns a canonical reviewer-session binding request.
@@ -70,13 +77,15 @@ func (r BindRunReviewSessionRequest) Normalize() BindRunReviewSessionRequest {
 // Validate reports whether the binding request can bind a reviewer session.
 func (r BindRunReviewSessionRequest) Validate(path string) error {
 	if strings.TrimSpace(r.ReviewID) == "" {
-		return fmt.Errorf("%w: %s is required", ErrValidation, nestedPath(path, "review_id"))
+		return fmt.Errorf("%w: %s is required", ErrValidation, nestedPath(path, reviewEvidenceIDKey))
 	}
 	if strings.TrimSpace(r.SessionID) == "" {
-		return fmt.Errorf("%w: %s is required", ErrValidation, nestedPath(path, "session_id"))
+		return fmt.Errorf("%w: %s is required", ErrValidation, nestedPath(path, sessionEvidenceIDKey))
 	}
 	return validateRunReviewSelectorFields(
 		map[string]string{
+			reviewEvidenceIDKey:   r.ReviewID,
+			sessionEvidenceIDKey:  r.SessionID,
 			"reviewer_agent_name": r.ReviewerAgentName,
 			"reviewer_peer_id":    r.ReviewerPeerID,
 			"reviewer_channel_id": r.ReviewerChannelID,
@@ -95,18 +104,22 @@ func (q RunReviewQuery) Validate(path string) error {
 	if q.Limit < 0 {
 		return fmt.Errorf("%w: %s must be zero or positive: %d", ErrValidation, nestedPath(path, "limit"), q.Limit)
 	}
-	return nil
+	return validateRunReviewSelectorFields(map[string]string{
+		taskEvidenceIDKey:     q.TaskID,
+		runEvidenceIDKey:      q.RunID,
+		"reviewer_session_id": q.ReviewerSessionID,
+	}, path)
 }
 
 // Normalize returns a canonical verdict payload.
 func (v RunReviewVerdict) Normalize() RunReviewVerdict {
 	normalized := v
 	normalized.Outcome = normalized.Outcome.Normalize()
-	normalized.Reason = strings.TrimSpace(normalized.Reason)
+	normalized.Reason = RedactClaimTokens(strings.TrimSpace(normalized.Reason))
 	normalized.DeliveryID = strings.TrimSpace(normalized.DeliveryID)
-	normalized.MissingWork = normalizeReviewMissingWork(normalized.MissingWork)
-	normalized.NextRoundGuidance = strings.TrimSpace(normalized.NextRoundGuidance)
-	normalized.ReviewText = strings.TrimSpace(normalized.ReviewText)
+	normalized.MissingWork = RedactClaimTokenJSON(normalizeReviewMissingWork(normalized.MissingWork))
+	normalized.NextRoundGuidance = RedactClaimTokens(strings.TrimSpace(normalized.NextRoundGuidance))
+	normalized.ReviewText = RedactClaimTokens(strings.TrimSpace(normalized.ReviewText))
 	return normalized
 }
 
@@ -147,7 +160,7 @@ func (v RunReviewVerdict) Validate(path string) error {
 			ErrValidation,
 		)
 	}
-	if err := validateBoundedReviewText(v.Reason, maxRunReviewReasonBytes, nestedPath(path, "reason")); err != nil {
+	if err := ValidateReasonSize(v.Reason, nestedPath(path, "reason")); err != nil {
 		return err
 	}
 	if err := validateBoundedReviewText(
@@ -179,10 +192,16 @@ func (r RecordRunReviewRequest) Normalize() RecordRunReviewRequest {
 // Validate reports whether the verdict-recording request can identify a review and run.
 func (r RecordRunReviewRequest) Validate(path string) error {
 	if strings.TrimSpace(r.ReviewID) == "" {
-		return fmt.Errorf("%w: %s is required", ErrValidation, nestedPath(path, "review_id"))
+		return fmt.Errorf("%w: %s is required", ErrValidation, nestedPath(path, reviewEvidenceIDKey))
 	}
 	if strings.TrimSpace(r.RunID) == "" {
 		return fmt.Errorf("%w: %s is required", ErrValidation, nestedPath(path, "run_id"))
+	}
+	if err := validateRunReviewSelectorFields(map[string]string{
+		reviewEvidenceIDKey: r.ReviewID,
+		runEvidenceIDKey:    r.RunID,
+	}, path); err != nil {
+		return err
 	}
 	return r.Verdict.Validate(nestedPath(path, "verdict"))
 }

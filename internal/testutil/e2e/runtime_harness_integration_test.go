@@ -369,9 +369,11 @@ func TestStartRuntimeHarnessRetriesHTTPPortConflicts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("net.Listen() error = %v", err)
 	}
-	defer func() {
-		_ = blocker.Close()
-	}()
+	t.Cleanup(func() {
+		if err := blocker.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+			t.Errorf("close port blocker: %v", err)
+		}
+	})
 
 	conflictPort := blocker.Addr().(*net.TCPAddr).Port
 	harness := StartRuntimeHarness(t, &RuntimeHarnessOptions{

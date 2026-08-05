@@ -9,6 +9,7 @@ import (
 
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	"github.com/compozy/compozy/internal/notifications"
+	presetspkg "github.com/compozy/compozy/internal/notifications/presets"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -76,8 +77,12 @@ func TestBridgeTerminalTaskNotificationObserver(t *testing.T) {
 		record := store.records[0]
 		record.Event.EventType = "task.run_started"
 		observer.OnTaskEvent(context.Background(), record)
+		waitForCondition(t, "bridge observer wake drain", func() bool {
+			observer.mu.Lock()
+			defer observer.mu.Unlock()
+			return len(observer.pending) == 0 && len(observer.backlog) == 0 && len(observer.queue) == 0
+		})
 
-		waitForBridgeObserverDrain(t, observer)
 		if got := store.deliveryCount(); got != 0 {
 			t.Fatalf("len(deliveries) = %d, want 0", got)
 		}
@@ -141,6 +146,113 @@ func TestBridgeTerminalTaskNotificationObserver(t *testing.T) {
 			t.Fatal("bridge delivery worker did not start")
 		}
 	})
+
+	t.Run("Should dispatch the task's explicit scope to notification presets", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 5, 6, 1, 15, 0, 0, time.UTC)
+		store := newDaemonBridgeNotificationStore(now)
+		store.task.Scope = taskpkg.ScopeWorkspace
+		store.task.WorkspaceID = " global "
+		dispatcher := &recordingNotificationPresetDispatcher{events: make(chan presetspkg.Event, 1)}
+		observer := newBridgeTerminalTaskNotificationObserver(
+			nil,
+			store,
+			nil,
+			store,
+			store,
+			dispatcher,
+			discardLogger(),
+			func() time.Time { return now },
+			time.Second,
+		)
+		if observer == nil {
+			t.Fatal("newBridgeTerminalTaskNotificationObserver() = nil, want preset observer")
+		}
+		t.Cleanup(observer.shutdown)
+
+		record := store.records[0]
+		record.Event.ID = " evt:scope "
+		observer.OnTaskEvent(context.Background(), record)
+
+		select {
+		case event := <-dispatcher.events:
+			wantScope := notifications.ScopeRef{
+				Kind:        notifications.ScopeKindWorkspace,
+				WorkspaceID: " global ",
+			}
+			if event.Scope != wantScope {
+				t.Fatalf("preset event scope = %#v, want %#v", event.Scope, wantScope)
+			}
+			if event.ID != " evt:scope " {
+				t.Fatalf("preset event ID = %q, want opaque event ID", event.ID)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("notification preset dispatcher did not receive task event")
+		}
+	})
+
+	t.Run("Should keep whitespace-distinct preset wake identities independent", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 5, 6, 1, 15, 0, 0, time.UTC)
+		store := newDaemonBridgeNotificationStore(now)
+		release := make(chan struct{})
+		releaseDispatch := sync.OnceFunc(func() { close(release) })
+		dispatcher := &recordingNotificationPresetDispatcher{
+			events:  make(chan presetspkg.Event, 2),
+			release: release,
+		}
+		observer := newBridgeTerminalTaskNotificationObserver(
+			nil,
+			store,
+			nil,
+			store,
+			store,
+			dispatcher,
+			discardLogger(),
+			func() time.Time { return now },
+			time.Second,
+		)
+		if observer == nil {
+			t.Fatal("newBridgeTerminalTaskNotificationObserver() = nil, want preset observer")
+		}
+		t.Cleanup(observer.shutdown)
+		t.Cleanup(releaseDispatch)
+
+		first := store.records[0]
+		first.Event.ID = "evt-opaque"
+		second := first
+		second.Event.ID = " evt-opaque"
+		observer.OnTaskEvent(context.Background(), first)
+
+		select {
+		case event := <-dispatcher.events:
+			if got, want := event.ID, first.Event.ID; got != want {
+				t.Fatalf("first preset event ID = %q, want %q", got, want)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("first preset dispatch did not start")
+		}
+
+		observer.OnTaskEvent(context.Background(), second)
+		observer.mu.Lock()
+		pending := len(observer.pending)
+		observer.mu.Unlock()
+		if got, want := pending, 2; got != want {
+			t.Fatalf("pending preset wakes = %d, want %d for opaque-distinct event IDs", got, want)
+		}
+
+		releaseDispatch()
+		select {
+		case event := <-dispatcher.events:
+			if got, want := event.ID, second.Event.ID; got != want {
+				t.Fatalf("second preset event ID = %q, want %q", got, want)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("second opaque-distinct preset dispatch did not start")
+		}
+	})
 }
 
 func TestTaskEventObserverFanout(t *testing.T) {
@@ -167,16 +279,18 @@ func TestTaskEventObserverFanout(t *testing.T) {
 }
 
 type daemonBridgeNotificationStore struct {
-	mu           sync.RWMutex
-	subscription bridgepkg.BridgeTaskSubscription
-	task         taskpkg.Task
-	run          taskpkg.Run
-	bridge       bridgepkg.BridgeInstance
-	records      []taskpkg.EventRecord
-	cursors      map[string]notifications.Cursor
-	deliveries   []bridgepkg.DeliveryRequest
-	deliverFn    func(context.Context, bridgepkg.DeliveryRequest) (bridgepkg.DeliveryAck, error)
-	now          time.Time
+	mu            sync.RWMutex
+	subscription  bridgepkg.BridgeTaskSubscription
+	task          taskpkg.Task
+	run           taskpkg.Run
+	bridge        bridgepkg.BridgeInstance
+	records       []taskpkg.EventRecord
+	cursors       map[notifications.CursorKey]notifications.Cursor
+	deliveries    []bridgepkg.DeliveryRequest
+	deliverFn     func(context.Context, bridgepkg.DeliveryRequest) (bridgepkg.DeliveryAck, error)
+	deliveryReady chan struct{}
+	cursorReady   chan struct{}
+	now           time.Time
 }
 
 var _ bridgepkg.BridgeTaskSubscriptionStore = (*daemonBridgeNotificationStore)(nil)
@@ -237,8 +351,10 @@ func newDaemonBridgeNotificationStore(now time.Time) *daemonBridgeNotificationSt
 				Timestamp: now,
 			},
 		}},
-		cursors: make(map[string]notifications.Cursor),
-		now:     now,
+		cursors:       make(map[notifications.CursorKey]notifications.Cursor),
+		deliveryReady: make(chan struct{}, 1),
+		cursorReady:   make(chan struct{}, 1),
+		now:           now,
 	}
 }
 
@@ -309,7 +425,7 @@ func (s *daemonBridgeNotificationStore) GetCursor(
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	cursor, ok := s.cursors[daemonCursorStoreKey(key)]
+	cursor, ok := s.cursors[key]
 	if !ok {
 		return notifications.Cursor{}, notifications.ErrCursorNotFound
 	}
@@ -337,7 +453,11 @@ func (s *daemonBridgeNotificationStore) AdvanceCursor(
 		LastDeliveredAt: update.LastDeliveredAt,
 		UpdatedAt:       update.Now,
 	}
-	s.cursors[daemonCursorStoreKey(update.Key)] = cursor
+	s.cursors[update.Key] = cursor
+	select {
+	case s.cursorReady <- struct{}{}:
+	default:
+	}
 	return cursor, nil
 }
 
@@ -360,7 +480,7 @@ func (s *daemonBridgeNotificationStore) RecordCursorError(
 		LastError: report.LastError,
 		UpdatedAt: report.Now,
 	}
-	s.cursors[daemonCursorStoreKey(report.Key)] = cursor
+	s.cursors[report.Key] = cursor
 	return cursor, nil
 }
 
@@ -375,6 +495,10 @@ func (s *daemonBridgeNotificationStore) DeliverBridge(
 	s.mu.Lock()
 	s.deliveries = append(s.deliveries, req)
 	s.mu.Unlock()
+	select {
+	case s.deliveryReady <- struct{}{}:
+	default:
+	}
 	return bridgepkg.DeliveryAck{DeliveryID: req.Event.DeliveryID, Seq: req.Event.Seq}, nil
 }
 
@@ -392,8 +516,7 @@ func waitForBridgeDelivery(
 ) bridgepkg.DeliveryRequest {
 	t.Helper()
 
-	deadline := time.Now().Add(time.Second)
-	for time.Now().Before(deadline) {
+	for {
 		store.mu.RLock()
 		if len(store.deliveries) >= want {
 			delivery := store.deliveries[want-1]
@@ -401,14 +524,13 @@ func waitForBridgeDelivery(
 			return delivery
 		}
 		store.mu.RUnlock()
-		time.Sleep(5 * time.Millisecond)
+		select {
+		case <-store.deliveryReady:
+		case <-time.After(time.Second):
+			observer.shutdown()
+			t.Fatalf("timed out waiting for bridge delivery %d", want)
+		}
 	}
-	observer.shutdown()
-	store.mu.RLock()
-	got := len(store.deliveries)
-	store.mu.RUnlock()
-	t.Fatalf("len(deliveries) = %d, want >= %d", got, want)
-	return bridgepkg.DeliveryRequest{}
 }
 
 func waitForBridgeCursor(
@@ -418,8 +540,7 @@ func waitForBridgeCursor(
 ) notifications.Cursor {
 	t.Helper()
 
-	deadline := time.Now().Add(time.Second)
-	for time.Now().Before(deadline) {
+	for {
 		cursor, err := store.GetCursor(context.Background(), key)
 		if err == nil {
 			return cursor
@@ -427,38 +548,12 @@ func waitForBridgeCursor(
 		if !errors.Is(err, notifications.ErrCursorNotFound) {
 			t.Fatalf("GetCursor() error = %v", err)
 		}
-		time.Sleep(5 * time.Millisecond)
-	}
-	t.Fatal("timed out waiting for bridge notification cursor")
-	return notifications.Cursor{}
-}
-
-func waitForBridgeObserverDrain(t *testing.T, observer *bridgeTerminalTaskNotificationObserver) {
-	t.Helper()
-
-	deadline := time.Now().Add(time.Second)
-	for time.Now().Before(deadline) {
-		observer.mu.Lock()
-		pending := len(observer.pending)
-		backlog := len(observer.backlog)
-		queued := len(observer.queue)
-		observer.mu.Unlock()
-		if pending == 0 && backlog == 0 && queued == 0 {
-			return
+		select {
+		case <-store.cursorReady:
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for bridge notification cursor")
 		}
-		time.Sleep(5 * time.Millisecond)
 	}
-	observer.mu.Lock()
-	pending := len(observer.pending)
-	backlog := len(observer.backlog)
-	queued := len(observer.queue)
-	observer.mu.Unlock()
-	t.Fatalf(
-		"bridge observer did not drain: pending=%d backlog=%d queued=%d",
-		pending,
-		backlog,
-		queued,
-	)
 }
 
 type recordingTaskEventObserver struct {
@@ -471,6 +566,20 @@ func (o *recordingTaskEventObserver) OnTaskEvent(context.Context, taskpkg.EventR
 	o.count++
 }
 
-func daemonCursorStoreKey(key notifications.CursorKey) string {
-	return key.ConsumerID + "\x00" + key.StreamName + "\x00" + key.SubjectID
+type recordingNotificationPresetDispatcher struct {
+	events  chan presetspkg.Event
+	release <-chan struct{}
+}
+
+var _ notificationPresetDispatcher = (*recordingNotificationPresetDispatcher)(nil)
+
+func (d *recordingNotificationPresetDispatcher) Dispatch(
+	_ context.Context,
+	event presetspkg.Event,
+) (presetspkg.DispatchResult, error) {
+	d.events <- event
+	if d.release != nil {
+		<-d.release
+	}
+	return presetspkg.DispatchResult{}, nil
 }

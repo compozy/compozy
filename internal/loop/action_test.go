@@ -123,8 +123,8 @@ func TestActionRegistryShouldResolveReservedKindsBeforeRuntimeAndRejectUnknownKi
 		if !errors.Is(err, loop.ErrActionSchemaInvalid) {
 			t.Fatalf("ResolvePinned() error = %v, want ErrActionSchemaInvalid", err)
 		}
-		var reason *loop.ReasonError
-		if !errors.As(err, &reason) || reason.Code != loop.ReasonCodeActionContractStale {
+		reason, reasonMatched := errors.AsType[*loop.ReasonError](err)
+		if !reasonMatched || reason.Code != loop.ReasonCodeActionContractStale {
 			t.Fatalf("ResolvePinned() reason = %#v, want %q", reason, loop.ReasonCodeActionContractStale)
 		}
 		if reason.Meta["expected_input_schema_digest"] != "input-v1" ||
@@ -142,8 +142,9 @@ func TestActionRegistryShouldResolveReservedKindsBeforeRuntimeAndRejectUnknownKi
 		if !errors.Is(err, loop.ErrActionUnknownKind) {
 			t.Fatalf("Resolve() error = %v, want ErrActionUnknownKind", err)
 		}
-		var reason *loop.ReasonError
-		if !errors.As(err, &reason) {
+
+		reason, reasonMatched := errors.AsType[*loop.ReasonError](err)
+		if !reasonMatched {
 			t.Fatalf("Resolve() error = %T, want ReasonError", err)
 		}
 		if reason.Code != loop.ReasonCodeUnknownActionKind {
@@ -163,8 +164,8 @@ func TestActionRegistryShouldResolveReservedKindsBeforeRuntimeAndRejectUnknownKi
 		if !errors.Is(err, loop.ErrActionUnknownKind) {
 			t.Fatalf("Resolve(channel-post) error = %v, want ErrActionUnknownKind", err)
 		}
-		var reason *loop.ReasonError
-		if !errors.As(err, &reason) || reason.Code != loop.ReasonCodeUnknownActionKind {
+		reason, reasonMatched := errors.AsType[*loop.ReasonError](err)
+		if !reasonMatched || reason.Code != loop.ReasonCodeUnknownActionKind {
 			t.Fatalf("Resolve(channel-post) reason = %v, want %q", err, loop.ReasonCodeUnknownActionKind)
 		}
 		if registry.getCount() != 0 {

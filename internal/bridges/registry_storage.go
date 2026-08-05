@@ -66,9 +66,9 @@ func (r CreateInstanceRequest) toInstance(now func() time.Time) (BridgeInstance,
 	}
 
 	instance := BridgeInstance{
-		ID:                   strings.TrimSpace(r.ID),
+		ID:                   r.ID,
 		Scope:                r.Scope.Normalize(),
-		WorkspaceID:          strings.TrimSpace(r.WorkspaceID),
+		WorkspaceID:          r.WorkspaceID,
 		Platform:             strings.TrimSpace(r.Platform),
 		ExtensionName:        strings.TrimSpace(r.ExtensionName),
 		DisplayName:          strings.TrimSpace(r.DisplayName),
@@ -85,7 +85,11 @@ func (r CreateInstanceRequest) toInstance(now func() time.Time) (BridgeInstance,
 		UpdatedAt:            r.UpdatedAt,
 	}
 	if instance.ID == "" {
-		instance.ID = store.NewID("brg")
+		generatedID, err := store.NewID("brg")
+		if err != nil {
+			return BridgeInstance{}, fmt.Errorf("bridges: generate instance id: %w", err)
+		}
+		instance.ID = generatedID
 	}
 	if instance.Source == "" {
 		instance.Source = BridgeInstanceSourceDynamic

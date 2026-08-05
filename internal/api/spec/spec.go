@@ -210,7 +210,7 @@ type ResponseSpec struct {
 	Status      int
 	Description string
 	Body        any
-	Bodies      []any
+	Bodies      responseBodies
 	ContentType string
 }
 

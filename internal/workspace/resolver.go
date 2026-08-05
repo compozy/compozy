@@ -40,7 +40,7 @@ type Resolver struct {
 	logger      *slog.Logger
 	now         func() time.Time
 	cacheTTL    time.Duration
-	idGenerator func(prefix string) string
+	idGenerator idGenerator
 	changeHook  ChangeHook
 
 	registrationMu     sync.Mutex
@@ -334,7 +334,7 @@ func (r *Resolver) buildResolvedWorkspace(
 
 	return ResolvedWorkspace{
 		Workspace:        cloneWorkspace(ws),
-		Config:           cloneConfig(&cfg),
+		Config:           compozyconfig.CloneConfig(&cfg),
 		Agents:           cloneAgentDefs(agents),
 		AgentDiagnostics: append([]AgentDiagnostic(nil), agentDiagnostics...),
 		Skills:           cloneSkillPaths(skills),

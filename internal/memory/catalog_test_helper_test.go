@@ -8,6 +8,7 @@ import (
 
 func newOpenTestStore(t *testing.T, globalDir string, opts ...StoreOption) *Store {
 	t.Helper()
+	opts = append([]StoreOption{WithRecallSignalLifecycle(t.Context())}, opts...)
 	store := NewStore(globalDir, opts...)
 	if err := store.OpenCatalog(testutil.Context(t)); err != nil {
 		t.Fatalf("Store.OpenCatalog() error = %v", err)

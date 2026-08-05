@@ -5,16 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/compozy/compozy/internal/notifications"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 const (
-	// BridgeTaskSubscriptionConsumerPrefix namespaces bridge task-delivery cursors.
-	BridgeTaskSubscriptionConsumerPrefix = "bridge_task_subscription:"
 	// BridgeTaskNotificationStream is the durable task event stream consumed by subscriptions.
 	BridgeTaskNotificationStream = "task_events"
 )
@@ -80,11 +78,28 @@ type TerminalTaskNotification struct {
 // Validate reports whether a subscription contains a valid task delivery target.
 func (s BridgeTaskSubscription) Validate() error {
 	normalized := s.Normalize()
-	if err := requireField(normalized.SubscriptionID, "bridge task subscription id"); err != nil {
-		return fmt.Errorf("%w: %w", ErrInvalidBridgeTaskSubscription, err)
+	for _, field := range []struct {
+		value string
+		label string
+	}{
+		{value: normalized.SubscriptionID, label: "bridge task subscription id"},
+		{value: normalized.TaskID, label: "bridge task subscription task id"},
+		{value: normalized.BridgeInstanceID, label: "bridge task subscription bridge instance id"},
+		{value: normalized.WorkspaceID, label: "bridge task subscription workspace id"},
+		{value: normalized.PeerID, label: "bridge task subscription peer id"},
+		{value: normalized.ThreadID, label: "bridge task subscription thread id"},
+		{value: normalized.GroupID, label: "bridge task subscription group id"},
+		{value: normalized.CreatedBy.Ref, label: "bridge task subscription actor ref"},
+	} {
+		if err := validateBridgeTaskSubscriptionIdentity(field.value, field.label); err != nil {
+			return err
+		}
 	}
-	if err := requireField(normalized.TaskID, "bridge task subscription task id"); err != nil {
-		return fmt.Errorf("%w: %w", ErrInvalidBridgeTaskSubscription, err)
+	if normalized.SubscriptionID == "" {
+		return fmt.Errorf("%w: bridge task subscription id is required", ErrInvalidBridgeTaskSubscription)
+	}
+	if normalized.TaskID == "" {
+		return fmt.Errorf("%w: bridge task subscription task id is required", ErrInvalidBridgeTaskSubscription)
 	}
 	if err := normalized.DeliveryTarget().Validate(); err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidBridgeTaskSubscription, err)
@@ -92,8 +107,11 @@ func (s BridgeTaskSubscription) Validate() error {
 	if err := ValidateScopeWorkspaceID(normalized.Scope, normalized.WorkspaceID); err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidBridgeTaskSubscription, err)
 	}
-	if err := normalized.CreatedBy.Validate("bridge_task_subscription.created_by"); err != nil {
+	if err := normalized.CreatedBy.Kind.Validate("bridge_task_subscription.created_by.kind"); err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidBridgeTaskSubscription, err)
+	}
+	if normalized.CreatedBy.Ref == "" {
+		return fmt.Errorf("%w: bridge task subscription actor ref is required", ErrInvalidBridgeTaskSubscription)
 	}
 	return nil
 }
@@ -101,18 +119,10 @@ func (s BridgeTaskSubscription) Validate() error {
 // Normalize returns the canonical subscription representation.
 func (s BridgeTaskSubscription) Normalize() BridgeTaskSubscription {
 	normalized := s
-	normalized.SubscriptionID = strings.TrimSpace(normalized.SubscriptionID)
-	normalized.TaskID = strings.TrimSpace(normalized.TaskID)
-	normalized.BridgeInstanceID = strings.TrimSpace(normalized.BridgeInstanceID)
 	normalized.Scope = normalized.Scope.Normalize()
-	normalized.WorkspaceID = strings.TrimSpace(normalized.WorkspaceID)
-	normalized.PeerID = strings.TrimSpace(normalized.PeerID)
-	normalized.ThreadID = strings.TrimSpace(normalized.ThreadID)
-	normalized.GroupID = strings.TrimSpace(normalized.GroupID)
-	normalized.DeliveryMode = normalized.DeliveryMode.Normalize()
 	normalized.CreatedBy = taskpkg.ActorIdentity{
 		Kind: normalized.CreatedBy.Kind.Normalize(),
-		Ref:  strings.TrimSpace(normalized.CreatedBy.Ref),
+		Ref:  normalized.CreatedBy.Ref,
 	}
 	return normalized
 }
@@ -121,7 +131,11 @@ func (s BridgeTaskSubscription) Normalize() BridgeTaskSubscription {
 func (s BridgeTaskSubscription) CursorKey() notifications.CursorKey {
 	normalized := s.Normalize()
 	return notifications.CursorKey{
-		ConsumerID: BridgeTaskSubscriptionConsumerPrefix + normalized.SubscriptionID,
+		Scope: notifications.ScopeRef{
+			Kind:        notifications.ScopeKind(normalized.Scope),
+			WorkspaceID: normalized.WorkspaceID,
+		},
+		ConsumerID: normalized.SubscriptionID,
 		StreamName: BridgeTaskNotificationStream,
 		SubjectID:  normalized.TaskID,
 	}
@@ -152,17 +166,54 @@ func (s BridgeTaskSubscription) DeliveryTarget() DeliveryTarget {
 	}
 }
 
-// Normalize trims subscription query filters.
+// Normalize preserves opaque subscription query filters while normalizing the
+// closed scope enum.
 func (q BridgeTaskSubscriptionQuery) Normalize() BridgeTaskSubscriptionQuery {
 	normalized := BridgeTaskSubscriptionQuery{
-		TaskID:           strings.TrimSpace(q.TaskID),
-		BridgeInstanceID: strings.TrimSpace(q.BridgeInstanceID),
+		TaskID:           q.TaskID,
+		BridgeInstanceID: q.BridgeInstanceID,
 		Scope:            q.Scope.Normalize(),
-		WorkspaceID:      strings.TrimSpace(q.WorkspaceID),
+		WorkspaceID:      q.WorkspaceID,
 		Limit:            q.Limit,
 	}
 	if normalized.Limit < 0 {
 		normalized.Limit = 0
 	}
 	return normalized
+}
+
+// Validate reports whether optional subscription filters retain valid opaque
+// identity components.
+func (q BridgeTaskSubscriptionQuery) Validate() error {
+	for _, field := range []struct {
+		value string
+		label string
+	}{
+		{value: q.TaskID, label: "bridge task subscription query task id"},
+		{value: q.BridgeInstanceID, label: "bridge task subscription query bridge instance id"},
+		{value: q.WorkspaceID, label: "bridge task subscription query workspace id"},
+	} {
+		if err := validateBridgeTaskSubscriptionIdentity(field.value, field.label); err != nil {
+			return err
+		}
+	}
+	if q.Scope != "" {
+		if err := q.Scope.Validate(); err != nil {
+			return fmt.Errorf("%w: %w", ErrInvalidBridgeTaskSubscription, err)
+		}
+	}
+	return nil
+}
+
+func validateBridgeTaskSubscriptionIdentity(value string, label string) error {
+	if value == "" {
+		return nil
+	}
+	if isBlank(value) {
+		return fmt.Errorf("%w: %s must not be blank", ErrInvalidBridgeTaskSubscription, label)
+	}
+	if !utf8.ValidString(value) {
+		return fmt.Errorf("%w: %s must be valid UTF-8", ErrInvalidBridgeTaskSubscription, label)
+	}
+	return nil
 }

@@ -83,8 +83,8 @@ func mapRunReviewBindError(reviewID string, sessionID string, err error) error {
 }
 
 func isTaskRunReviewSQLiteUniqueConstraint(err error) bool {
-	var sqliteErr *sqlite.Error
-	return errors.As(err, &sqliteErr) && sqliteErr.Code() == sqlite3.SQLITE_CONSTRAINT_UNIQUE
+	sqliteErr, ok := errors.AsType[*sqlite.Error](err)
+	return ok && sqliteErr != nil && sqliteErr.Code() == sqlite3.SQLITE_CONSTRAINT_UNIQUE
 }
 
 type runReviewScanFields struct {

@@ -24,4 +24,5 @@ type transportSession interface {
 	Wait() error
 	Stop(ctx context.Context) error
 	Stderr() string
+	ExitCode() (int, bool)
 }

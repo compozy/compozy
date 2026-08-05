@@ -54,6 +54,9 @@ func (d *taskRunActivationDispatcher) OnTaskRunEnqueued(
 	if d == nil || d.store == nil {
 		return
 	}
+	if ctx == nil {
+		return
+	}
 	ctx, cancel := taskRunActivationContext(ctx)
 	defer cancel()
 	runID := strings.TrimSpace(payload.RunID)
@@ -69,9 +72,6 @@ func (d *taskRunActivationDispatcher) OnTaskRunEnqueued(
 }
 
 func taskRunActivationContext(ctx context.Context) (context.Context, context.CancelFunc) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	return context.WithTimeout(context.WithoutCancel(ctx), taskRunActivationTimeout)
 }
 
@@ -80,7 +80,7 @@ func (d *taskRunActivationDispatcher) Recover(ctx context.Context) {
 		return
 	}
 	if ctx == nil {
-		ctx = context.Background()
+		return
 	}
 	runs, err := d.store.ListTaskRunsByStatus(ctx, []taskpkg.RunStatus{taskpkg.TaskRunStatusQueued})
 	if err != nil {

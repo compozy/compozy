@@ -219,8 +219,8 @@ func IsSQLiteBusy(err error) bool {
 	if err == nil {
 		return false
 	}
-	var sqliteErr *sqlite.Error
-	if !errors.As(err, &sqliteErr) {
+	sqliteErr, ok := errors.AsType[*sqlite.Error](err)
+	if !ok {
 		return false
 	}
 	code := sqliteErr.Code() & sqlitePrimaryResultCodeMask

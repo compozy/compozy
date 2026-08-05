@@ -2,9 +2,7 @@ package session
 
 import (
 	"context"
-
 	"fmt"
-
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
@@ -17,32 +15,51 @@ func (m *Manager) persistRepairActions(
 	meta store.SessionMeta,
 	actions []RepairAction,
 ) ([]RepairAction, error) {
-	persisted := make([]RepairAction, 0, len(actions))
+	type preparedRepairAction struct {
+		action      RepairAction
+		agentEvent  acp.AgentEvent
+		storedEvent store.SessionEvent
+	}
+
+	prepared := make([]preparedRepairAction, 0, len(actions))
 	for _, action := range actions {
 		event, err := m.repairActionEvent(meta, action)
 		if err != nil {
-			return persisted, err
+			return nil, err
 		}
 		content, err := marshalAgentEvent(event)
 		if err != nil {
-			return persisted, err
+			return nil, err
 		}
-		eventID := store.NewID("ev")
-		if err := recorder.Record(ctx, store.SessionEvent{
-			ID:        eventID,
-			TurnID:    event.TurnID,
-			Type:      event.Type,
-			AgentName: strings.TrimSpace(meta.AgentName),
-			Content:   content,
-			Timestamp: event.Timestamp,
-		}); err != nil {
+		eventID, err := m.newRepairEventID()
+		if err != nil {
+			return nil, fmt.Errorf("session: generate repair event id: %w", err)
+		}
+		action.EventID = eventID
+		prepared = append(prepared, preparedRepairAction{
+			action:     action,
+			agentEvent: event,
+			storedEvent: store.SessionEvent{
+				ID:        eventID,
+				TurnID:    event.TurnID,
+				Type:      event.Type,
+				AgentName: strings.TrimSpace(meta.AgentName),
+				Content:   content,
+				Timestamp: event.Timestamp,
+			},
+		})
+	}
+
+	persisted := make([]RepairAction, 0, len(prepared))
+	for index := range prepared {
+		item := &prepared[index]
+		if err := recorder.Record(ctx, item.storedEvent); err != nil {
 			return persisted, fmt.Errorf("session: persist repair event for %q: %w", strings.TrimSpace(meta.ID), err)
 		}
 
-		action.EventID = eventID
-		action.Persisted = true
-		persisted = append(persisted, action)
-		m.notifyRepairEvent(ctx, meta, event)
+		item.action.Persisted = true
+		persisted = append(persisted, item.action)
+		m.notifyRepairEvent(ctx, meta, item.agentEvent)
 	}
 	return persisted, nil
 }
@@ -63,7 +80,7 @@ func (m *Manager) repairActionEvent(meta store.SessionMeta, action RepairAction)
 		}
 		event.Type = acp.EventTypeToolResult
 		event.ToolCallID = strings.TrimSpace(action.ToolCallID)
-		event.Title = firstNonEmpty(action.ToolName, "interrupted tool result")
+		event.Title = firstTrimmedNonEmpty(action.ToolName, "interrupted tool result")
 		event.Error = repairInterruptedToolMessage
 		event.Raw = raw
 	case RepairActionAppendTerminalError:

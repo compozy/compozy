@@ -1,6 +1,7 @@
 package modelcatalog
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -203,28 +204,37 @@ func TestModelsDevSource(t *testing.T) {
 	t.Run("Should apply explicit HTTP timeout", func(t *testing.T) {
 		t.Parallel()
 
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			time.Sleep(200 * time.Millisecond)
-			w.WriteHeader(http.StatusOK)
-		}))
-		t.Cleanup(server.Close)
-		source := newModelsDevTestSource(t, server.URL, "1h", "20ms", true)
+		timeoutObserved := make(chan error, 1)
+		source := newModelsDevTestSource(
+			t,
+			"https://models.example.test/catalog.json",
+			"1h",
+			"20ms",
+			true,
+			WithModelsDevHTTPClient(&http.Client{
+				Timeout: 20 * time.Millisecond,
+				Transport: modelCatalogRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+					<-request.Context().Done()
+					err := request.Context().Err()
+					timeoutObserved <- err
+					return nil, err
+				}),
+			}),
+		)
 
-		started := time.Now()
 		_, err := source.ListModels(
 			testutil.Context(t),
 			ListOptions{ProviderID: "codex", Refresh: true, Now: testTime(0)},
 		)
-		elapsed := time.Since(started)
 		if err == nil {
 			t.Fatal("ListModels(timeout) error = nil, want timeout error")
 		}
-		var timeoutErr net.Error
-		if !errors.As(err, &timeoutErr) || !timeoutErr.Timeout() {
+		timeoutErr, timeoutErrMatched := errors.AsType[net.Error](err)
+		if !timeoutErrMatched || !timeoutErr.Timeout() {
 			t.Fatalf("ListModels(timeout) error = %v, want timeout error", err)
 		}
-		if elapsed >= 150*time.Millisecond {
-			t.Fatalf("elapsed = %s, want timeout before server sleep completes", elapsed)
+		if requestErr := <-timeoutObserved; !errors.Is(requestErr, context.DeadlineExceeded) {
+			t.Fatalf("request context error = %v, want context deadline exceeded", requestErr)
 		}
 	})
 
@@ -327,7 +337,8 @@ func TestModelsDevSource(t *testing.T) {
 		if err == nil {
 			t.Fatal("ListModels(no cache) error = nil, want upstream error")
 		}
-		if _, ok := errors.AsType[*StaleFallbackError](err); ok {
+		var staleErr *StaleFallbackError
+		if errors.As(err, &staleErr) {
 			t.Fatalf("ListModels(no cache) error = %v, want no stale fallback", err)
 		}
 	})
@@ -353,6 +364,7 @@ func newModelsDevTestSource(
 	ttl string,
 	timeout string,
 	enabled bool,
+	options ...ModelsDevSourceOption,
 ) *ModelsDevSource {
 	t.Helper()
 
@@ -361,11 +373,17 @@ func newModelsDevTestSource(
 		Endpoint: endpoint,
 		TTL:      ttl,
 		Timeout:  timeout,
-	})
+	}, options...)
 	if err != nil {
 		t.Fatalf("NewModelsDevSource() error = %v", err)
 	}
 	return source
+}
+
+type modelCatalogRoundTripFunc func(*http.Request) (*http.Response, error)
+
+func (roundTrip modelCatalogRoundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
+	return roundTrip(request)
 }
 
 func requireSingleRow(t *testing.T, rows []ModelRow) ModelRow {

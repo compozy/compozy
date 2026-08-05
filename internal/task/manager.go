@@ -96,7 +96,7 @@ type managerOptions struct {
 	profileValidation     ExecutionProfileValidationOptions
 	forceRecovery         ForceRecoveryOptions
 	now                   func() time.Time
-	newID                 func(prefix string) string
+	newID                 func(prefix string) (string, error)
 	cancelGracePeriod     time.Duration
 	starvationAge         time.Duration
 	blockRecurrenceLimit  int
@@ -128,7 +128,7 @@ type Service struct {
 	profileValidation     ExecutionProfileValidationOptions
 	forceRecovery         ForceRecoveryOptions
 	now                   func() time.Time
-	newID                 func(prefix string) string
+	newID                 func(prefix string) (string, error)
 	cancelGracePeriod     time.Duration
 	starvationAge         time.Duration
 	blockRecurrenceLimit  int
@@ -262,7 +262,7 @@ func WithManagerNow(now func() time.Time) Option {
 }
 
 // WithIDGenerator overrides identifier generation for deterministic tests.
-func WithIDGenerator(newID func(prefix string) string) Option {
+func WithIDGenerator(newID func(prefix string) (string, error)) Option {
 	return func(opts *managerOptions) {
 		opts.newID = newID
 	}

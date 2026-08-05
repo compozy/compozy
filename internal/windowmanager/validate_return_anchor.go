@@ -51,8 +51,8 @@ func (v *snapshotValidator) validateReturnAnchorSourceGroup(source LayoutGroup, 
 	if err == nil {
 		return
 	}
-	var topologyErr *TopologyError
-	if !errors.As(err, &topologyErr) {
+	topologyErr, ok := errors.AsType[*TopologyError](err)
+	if !ok {
 		v.add("topology.return_anchor_source_group", path, err.Error())
 		return
 	}

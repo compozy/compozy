@@ -1263,6 +1263,8 @@ type NetworkWork struct {
 }
 
 type NotificationCursor struct {
+	ScopeKind       string         `json:"scope_kind"`
+	WorkspaceID     string         `json:"workspace_id"`
 	ConsumerID      string         `json:"consumer_id"`
 	StreamName      string         `json:"stream_name"`
 	SubjectID       string         `json:"subject_id"`
@@ -1774,6 +1776,24 @@ type TaskRunStarvation struct {
 	SpawnRequestedAt sql.NullString `json:"spawn_requested_at"`
 	StarvedEventAt   sql.NullString `json:"starved_event_at"`
 	UpdatedAt        string         `json:"updated_at"`
+}
+
+type TaskRunTerminalCommand struct {
+	CommandID            string         `json:"command_id"`
+	RunID                string         `json:"run_id"`
+	TaskID               string         `json:"task_id"`
+	WorkspaceID          string         `json:"workspace_id"`
+	Kind                 string         `json:"kind"`
+	Phase                string         `json:"phase"`
+	SourceStatus         string         `json:"source_status"`
+	SourceSessionID      string         `json:"source_session_id"`
+	SourceClaimTokenHash string         `json:"source_claim_token_hash"`
+	SourceLeaseUntil     sql.NullString `json:"source_lease_until"`
+	IntentJson           string         `json:"intent_json"`
+	ActorJson            string         `json:"actor_json"`
+	CommandAt            string         `json:"command_at"`
+	AdmittedAt           string         `json:"admitted_at"`
+	UpdatedAt            string         `json:"updated_at"`
 }
 
 type TaskTriageState struct {

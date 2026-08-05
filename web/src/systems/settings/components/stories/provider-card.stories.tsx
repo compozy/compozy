@@ -10,7 +10,14 @@ import { ProviderRow } from "../provider-row";
 
 const claudeFixture: SettingsProviderEntry = {
   ...settingsProviderFixtures[0]!,
-  auth_status: { ...settingsProviderFixtures[0]!.auth_status!, state: "authenticated" },
+  auth_status: {
+    ...settingsProviderFixtures[0]!.auth_status!,
+    state: "authenticated",
+    login: {
+      ...settingsProviderFixtures[0]!.auth_status!.login,
+      recommended_action: undefined,
+    },
+  },
 };
 const codexFixture = settingsProviderFixtures[1]!;
 
@@ -55,12 +62,21 @@ const needsSetupFixture: SettingsProviderEntry = {
     env_policy: "filtered",
     home_policy: "operator",
     state: "missing_credential",
+    login: {
+      configured: false,
+      presence: "unknown",
+      recommended_action: "bind_secret",
+    },
   },
 };
 
 const needsSignInFixture: SettingsProviderEntry = {
   ...codexFixture,
-  auth_status: { ...codexFixture.auth_status!, state: "needs_login" },
+  auth_status: {
+    ...codexFixture.auth_status!,
+    state: "needs_login",
+    login: { ...codexFixture.auth_status!.login, recommended_action: "login" },
+  },
 };
 
 const unknownAuthFixture: SettingsProviderEntry = {

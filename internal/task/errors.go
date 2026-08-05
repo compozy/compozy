@@ -39,6 +39,8 @@ var (
 	ErrCycleDetected = errors.New("task: dependency cycle detected")
 	// ErrInvalidStatusTransition reports that a task or run lifecycle transition is not allowed.
 	ErrInvalidStatusTransition = errors.New("task: invalid status transition")
+	// ErrTerminalRunCommandInProgress reports that one durable terminal intent already owns the run.
+	ErrTerminalRunCommandInProgress = errors.New("task: terminal run command in progress")
 	// ErrConflict reports that an idempotent write conflicts with previously persisted state.
 	ErrConflict = errors.New("task: conflict")
 	// ErrSessionAlreadyBound reports that a run already owns a session binding.

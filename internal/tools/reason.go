@@ -36,6 +36,10 @@ const (
 	ReasonExtensionNotInstalled ReasonCode = "extension_not_installed"
 	// ReasonExtensionValidationFailed reports extension lifecycle validation failure.
 	ReasonExtensionValidationFailed ReasonCode = "extension_validation_failed"
+	// ReasonExtensionGitUnavailable reports that Git cannot be resolved by the daemon.
+	ReasonExtensionGitUnavailable ReasonCode = "extension_git_unavailable"
+	// ReasonExtensionGitVersionUnsupported reports that the resolved Git version is too old.
+	ReasonExtensionGitVersionUnsupported ReasonCode = "extension_git_version_unsupported"
 	// ReasonRuntimeDescriptorMissing reports a missing runtime descriptor.
 	ReasonRuntimeDescriptorMissing ReasonCode = "runtime_descriptor_missing"
 	// ReasonRuntimeDescriptorMismatch reports a runtime descriptor mismatch.

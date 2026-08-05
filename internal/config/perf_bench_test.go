@@ -94,6 +94,29 @@ func BenchmarkHookDeclarationsNormalization(b *testing.B) {
 	}
 }
 
+func BenchmarkRedactedConfigMap(b *testing.B) {
+	cfg := DefaultWithHome(HomePaths{})
+	cfg.MCPServers = benchmarkMCPServers("operator", 24, 0)
+	cfg.Sandboxes["local"] = SandboxProfile{
+		Backend: "local",
+		Env: map[string]string{
+			"LOG_LEVEL": "debug",
+		},
+		SecretEnv: map[string]string{
+			"API_TOKEN": "env:BENCH_API_TOKEN",
+		},
+	}
+
+	b.ReportAllocs()
+
+	for b.Loop() {
+		values := RedactedConfigMap(&cfg)
+		if len(values) == 0 {
+			b.Fatal("RedactedConfigMap() returned no values")
+		}
+	}
+}
+
 func benchmarkLoadConfigFixture(b *testing.B) (HomePaths, string) {
 	b.Helper()
 

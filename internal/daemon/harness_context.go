@@ -72,6 +72,8 @@ const (
 type HarnessAugmenter string
 
 const (
+	// HarnessAugmenterWorkspaceKnowledge injects current workspace-owned knowledge.
+	HarnessAugmenterWorkspaceKnowledge HarnessAugmenter = "workspace_knowledge"
 	// HarnessAugmenterSituation injects fresh bounded Compozy situation context.
 	HarnessAugmenterSituation HarnessAugmenter = "situation"
 	// HarnessAugmenterSkills injects the current effective skills catalog.
@@ -117,6 +119,7 @@ type HarnessRuntimeSignals struct {
 	MemoryPromptSectionEnabled          bool
 	SkillsPromptSectionEnabled          bool
 	ToolsPromptSectionEnabled           bool
+	WorkspaceKnowledgeAugmenter         bool
 	SkillsAugmenter                     bool
 	SituationAugmenter                  bool
 	DurableMemoryAugmenter              bool
@@ -227,10 +230,7 @@ func (r *HarnessContextResolver) ResolvePrompt(
 			Workspace:            info.Workspace,
 			AgentName:            info.AgentName,
 		},
-		Turn: HarnessTurnRequest{
-			Source:     source,
-			PromptMeta: meta,
-		},
+		Turn: harnessTurnRequestFromPrompt(source, meta),
 	})
 }
 

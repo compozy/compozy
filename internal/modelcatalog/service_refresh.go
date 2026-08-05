@@ -244,7 +244,7 @@ func (s *CatalogService) recordSourceFailure(
 		staleRows := markRowsStale(rows, redacted)
 		statuses, err := s.persistSourceRows(ctx, source, providerID, staleRows, now, true, redacted)
 		if err != nil {
-			return nil, refreshOutcomeEmpty, err
+			return nil, refreshOutcomeEmpty, errors.Join(sourceErr, err)
 		}
 		return statuses, refreshOutcomeStale, sourceErr
 	}
@@ -268,7 +268,9 @@ func (s *CatalogService) recordSourceFailure(
 		}
 		staleRows := markRowsStale(previous, redacted)
 		status := sourceStatus(source, provider, now, len(staleRows), true, redacted, RefreshStateFailed)
-		s.preserveLastSuccess(ctx, provider, &status)
+		if err := s.preserveLastSuccess(ctx, provider, &status); err != nil {
+			return nil, refreshOutcomeEmpty, errors.Join(sourceErr, err)
+		}
 		if err := s.store.ReplaceSourceRows(ctx, source.ID(), provider, staleRows, status); err != nil {
 			return nil, refreshOutcomeEmpty, fmt.Errorf("model catalog: persist failed source status: %w", err)
 		}

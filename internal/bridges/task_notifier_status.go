@@ -2,10 +2,7 @@ package bridges
 
 import (
 	"fmt"
-
 	"strings"
-
-	"unicode/utf8"
 
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
@@ -58,26 +55,10 @@ func isTaskTerminalStatus(status taskpkg.Status) bool {
 	}
 }
 
-func terminalTaskNotificationDeliveryID(subscriptionID string, sequence int64) string {
-	return fmt.Sprintf("notif:%s:%d", strings.TrimSpace(subscriptionID), sequence)
-}
-
 func terminalTaskNotificationText(notification TerminalTaskNotification) string {
 	status := notification.Status.Normalize()
 	if notification.Error != "" {
 		return fmt.Sprintf("Task %s finished as %s: %s", notification.TaskID, status, notification.Error)
 	}
 	return fmt.Sprintf("Task %s finished as %s", notification.TaskID, status)
-}
-
-func truncateTerminalTaskCursorError(value string) string {
-	trimmed := strings.TrimSpace(value)
-	if len(trimmed) <= maxTerminalTaskCursorErrorBytes {
-		return trimmed
-	}
-	cut := maxTerminalTaskCursorErrorBytes
-	for cut > 0 && !utf8.ValidString(trimmed[:cut]) {
-		cut--
-	}
-	return trimmed[:cut]
 }

@@ -872,8 +872,9 @@ func TestDispatchFireLimitPersistsAcrossDispatcherRecreation(t *testing.T) {
 	if !errors.Is(err, ErrFireLimitReached) {
 		t.Fatalf("Dispatch(second) error = %v, want ErrFireLimitReached", err)
 	}
-	var fireLimitErr *FireLimitError
-	if !errors.As(err, &fireLimitErr) {
+
+	fireLimitErr, fireLimitErrMatched := errors.AsType[*FireLimitError](err)
+	if !fireLimitErrMatched {
 		t.Fatalf("Dispatch(second) error = %v, want FireLimitError details", err)
 	}
 	wantRetryAt := now.Add(time.Hour)
@@ -935,8 +936,9 @@ func TestDispatchScheduledReservedRunCancelsOnFireLimit(t *testing.T) {
 			if !errors.Is(err, ErrFireLimitReached) {
 				t.Fatalf("Dispatch() error = %v, want ErrFireLimitReached", err)
 			}
-			var fireLimitErr *FireLimitError
-			if !errors.As(err, &fireLimitErr) {
+
+			fireLimitErr, fireLimitErrMatched := errors.AsType[*FireLimitError](err)
+			if !fireLimitErrMatched {
 				t.Fatalf("Dispatch() error = %v, want FireLimitError details", err)
 			}
 			wantRetryAt := earlierStartedAt.Add(time.Hour)
@@ -1416,6 +1418,14 @@ func TestRetryDelayHelpersAndContextAwareSleep(t *testing.T) {
 		t.Fatalf("retryDelay(valid) = (%s, %v), want (1s, nil)", delay, err)
 	}
 
+	if _, err := retryDelay(RetryConfig{
+		Strategy:   RetryStrategyBackoff,
+		MaxRetries: 64,
+		BaseDelay:  "1s",
+	}, 64); err == nil {
+		t.Fatal("retryDelay(overflow) error = nil, want non-nil")
+	}
+
 	if err := sleepWithContext(testutil.Context(t), 0); err != nil {
 		t.Fatalf("sleepWithContext(zero) error = %v", err)
 	}
@@ -1559,7 +1569,10 @@ func (s *memoryRunStore) CreateRun(ctx context.Context, run Run) (Run, error) {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.createRunLocked(run)
+}
 
+func (s *memoryRunStore) createRunLocked(run Run) (Run, error) {
 	s.seq++
 	created := cloneRun(&run)
 	if created.ID == "" {
@@ -1570,6 +1583,79 @@ func (s *memoryRunStore) CreateRun(ctx context.Context, run Run) (Run, error) {
 	}
 	s.runs[created.ID] = *cloneRun(created)
 	return *cloneRun(created), nil
+}
+
+func (s *memoryRunStore) ReserveRun(
+	ctx context.Context,
+	reservation RunReservation,
+) (RunReservationResult, error) {
+	if err := ctx.Err(); err != nil {
+		return RunReservationResult{}, err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	result := RunReservationResult{Run: *cloneRun(&reservation.Run)}
+	if reservation.ExistingRunID != "" {
+		existing, ok := s.runs[reservation.ExistingRunID]
+		if !ok || existing.JobID != reservation.Run.JobID || existing.TriggerID != reservation.Run.TriggerID ||
+			existing.Status != reservation.ExpectedStatus || existing.Attempt != reservation.ExpectedAttempt {
+			return RunReservationResult{}, ErrRunReservationConflict
+		}
+	}
+
+	countedStatuses := make(map[RunStatus]struct{}, len(reservation.CountedStatuses))
+	for _, status := range reservation.CountedStatuses {
+		countedStatuses[status] = struct{}{}
+	}
+	var earliest time.Time
+	for _, run := range s.runs {
+		if run.ID == reservation.ExistingRunID || run.JobID != reservation.Run.JobID ||
+			run.TriggerID != reservation.Run.TriggerID || run.StartedAt == nil {
+			continue
+		}
+		if _, counted := countedStatuses[run.Status]; !counted {
+			continue
+		}
+		if run.StartedAt.Before(reservation.Since) || run.StartedAt.After(reservation.Until) {
+			continue
+		}
+		result.Count++
+		if earliest.IsZero() || run.StartedAt.Before(earliest) {
+			earliest = *run.StartedAt
+		}
+	}
+	if result.Count >= int64(reservation.Limit) {
+		result.RetryAt = earliest.Add(reservation.Window)
+		if result.RetryAt.Before(reservation.Until) {
+			result.RetryAt = reservation.Until
+		}
+		return result, nil
+	}
+
+	if reservation.ExistingRunID != "" {
+		activated := *cloneRun(&reservation.Run)
+		activated.Status = RunRunning
+		activated.SessionID = ""
+		activated.TaskID = ""
+		activated.TaskRunID = ""
+		activated.LoopRunID = ""
+		activated.EndedAt = nil
+		activated.Error = ""
+		activated.DeliveryError = ""
+		activated.DeliveryErrorAt = nil
+		s.runs[reservation.ExistingRunID] = activated
+		result.Run = *cloneRun(&activated)
+	} else {
+		created, err := s.createRunLocked(reservation.Run)
+		if err != nil {
+			return RunReservationResult{}, err
+		}
+		result.Run = created
+	}
+	result.Reserved = true
+	return result, nil
 }
 
 func (s *memoryRunStore) GetRun(ctx context.Context, id string) (Run, error) {

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"os"
 	"sort"
 	"strings"
 	"time"
@@ -46,15 +45,22 @@ func NewManager(opts ...Option) (*Manager, error) {
 	}
 
 	manager := &Manager{
-		sessions:              make(map[string]*Session),
-		pending:               make(map[string]sessionReservation),
-		finalizing:            make(map[string]*sessionFinalization),
-		promptDrains:          make(map[chan struct{}]struct{}),
-		managedInputLeases:    make(map[string]managedInputLease),
-		promptAdmissionLocks:  make(map[string]*promptAdmissionLock),
-		compactions:           make(map[string]*sessionCompactionState),
-		startRuns:             make(map[string]*sessionStartRun),
-		resumeRuns:            make(map[string]*sessionResumeRun),
+		sessions:             make(map[string]*Session),
+		pending:              make(map[string]sessionReservation),
+		finalizing:           make(map[string]*sessionFinalization),
+		clearFinalizing:      make(map[string]chan struct{}),
+		promptDrains:         make(map[chan struct{}]struct{}),
+		managedInputLeases:   make(map[string]managedInputLease),
+		promptAdmissionLocks: make(map[string]*promptAdmissionLock),
+		compactionLifecycle: sessionCompactionLifecycle{
+			runs: make(map[string]*sessionCompactionState),
+		},
+		startLifecycle: sessionStartLifecycle{
+			runs: make(map[string]*sessionStartRun),
+		},
+		resumeLifecycle: sessionResumeLifecycle{
+			runs: make(map[string]*sessionResumeRun),
+		},
 		syntheticQueues:       make(map[string][]queuedSyntheticPrompt),
 		syntheticDispatching:  make(map[string]bool),
 		soulLocks:             make(map[string]chan struct{}),
@@ -65,8 +71,8 @@ func NewManager(opts ...Option) (*Manager, error) {
 		driver:                NewACPDriverAdapter(acp.New()),
 		homePaths:             homePaths,
 		readSessionMeta:       store.ReadSessionMeta,
-		openStore: func(ctx context.Context, sessionID string, path string) (EventRecorder, error) {
-			return sessiondb.OpenSessionDB(ctx, sessionID, path)
+		openStore: func(ctx context.Context, owner store.SessionDBOwner, path string) (EventRecorder, error) {
+			return sessiondb.OpenSessionDB(ctx, owner, path)
 		},
 		supervision:                  compozyconfig.DefaultSessionSupervisionConfig(),
 		busyInput:                    compozyconfig.DefaultSessionBusyInputConfig(),
@@ -76,19 +82,13 @@ func NewManager(opts ...Option) (*Manager, error) {
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
-		newSessionID: func() string {
-			return newID("sess")
-		},
-		newSandboxID: func() string {
-			return newID("env")
-		},
-		newTurnID: func() string {
-			return newID("turn")
-		},
-		renamePath:         os.Rename,
-		removeAllPath:      os.RemoveAll,
-		promptBufSize:      defaultPromptBufferSize,
-		soulRefreshTimeout: defaultLifecycleTimeout,
+		newSessionID:                newIDGenerator("sess"),
+		newSandboxID:                newIDGenerator("env"),
+		newTurnID:                   newIDGenerator("turn"),
+		newRepairEventID:            newIDGenerator("ev"),
+		acquireSessionDBFamilyLease: sessiondb.AcquireFamilyLease,
+		promptBufSize:               defaultPromptBufferSize,
+		soulRefreshTimeout:          defaultLifecycleTimeout,
 	}
 
 	for _, opt := range opts {
@@ -102,6 +102,9 @@ func NewManager(opts ...Option) (*Manager, error) {
 	}
 	if err := compozyconfig.EnsureHomeLayout(manager.homePaths); err != nil {
 		return nil, fmt.Errorf("session: ensure home layout: %w", err)
+	}
+	if err := manager.startRuntimeOwners(); err != nil {
+		return nil, err
 	}
 	manager.cleanupDeleteTombstones()
 
@@ -131,8 +134,55 @@ func (m *Manager) isPending(id string) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	_, ok := m.pending[target]
+	if _, ok := m.pending[target]; ok {
+		return true
+	}
+	_, ok := m.clearFinalizing[target]
 	return ok
+}
+
+func (m *Manager) beginClearFinalization(id string) error {
+	target := strings.TrimSpace(id)
+	if target == "" {
+		return errors.New("session: clear finalization session id is required")
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if _, exists := m.clearFinalizing[target]; exists {
+		return fmt.Errorf("%w: %s", ErrSessionNotActive, target)
+	}
+	if m.clearFinalizing == nil {
+		m.clearFinalizing = make(map[string]chan struct{})
+	}
+	m.clearFinalizing[target] = make(chan struct{})
+	return nil
+}
+
+func (m *Manager) endClearFinalization(id string) {
+	target := strings.TrimSpace(id)
+	m.mu.Lock()
+	done, exists := m.clearFinalizing[target]
+	if exists {
+		delete(m.clearFinalizing, target)
+		close(done)
+	}
+	m.mu.Unlock()
+}
+
+func (m *Manager) waitForClearFinalization(ctx context.Context, id string) error {
+	target := strings.TrimSpace(id)
+	m.mu.RLock()
+	done := m.clearFinalizing[target]
+	m.mu.RUnlock()
+	if done == nil {
+		return nil
+	}
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("session: wait for clear finalization for %q: %w", target, ctx.Err())
+	}
 }
 
 // SetNetworkPeerLifecycle installs the late-bound network join/leave callbacks
@@ -167,57 +217,6 @@ func (m *Manager) IsPrompting(id string) bool {
 		return false
 	}
 	return session.IsPrompting()
-}
-
-// WaitForPromptDrains blocks until active prompt pump goroutines finish.
-func (m *Manager) WaitForPromptDrains(ctx context.Context) error {
-	if m == nil {
-		return nil
-	}
-	if ctx == nil {
-		return errors.New("session: wait for prompt drains context is required")
-	}
-
-	for {
-		m.mu.RLock()
-		pending := make([]<-chan struct{}, 0, len(m.promptDrains))
-		for done := range m.promptDrains {
-			pending = append(pending, done)
-		}
-		m.mu.RUnlock()
-
-		if len(pending) == 0 {
-			return nil
-		}
-
-		for _, done := range pending {
-			select {
-			case <-done:
-			case <-ctx.Done():
-				return ctx.Err()
-			}
-		}
-	}
-}
-
-func (m *Manager) trackPromptDrain() func() {
-	if m == nil {
-		return func() {}
-	}
-
-	done := make(chan struct{})
-	m.mu.Lock()
-	m.promptDrains[done] = struct{}{}
-	m.mu.Unlock()
-
-	return func() {
-		m.mu.Lock()
-		if _, ok := m.promptDrains[done]; ok {
-			delete(m.promptDrains, done)
-			close(done)
-		}
-		m.mu.Unlock()
-	}
 }
 
 func (m *Manager) currentNetworkPeerLifecycle() NetworkPeerLifecycle {

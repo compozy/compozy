@@ -1,11 +1,6 @@
 package bridges
 
-import (
-	"crypto/rand"
-	"encoding/hex"
-	"fmt"
-	"time"
-)
+import "github.com/compozy/compozy/internal/store"
 
 func (b *Broker) snapshotLocked(delivery *activeDelivery) DeliverySnapshot {
 	return DeliverySnapshot{
@@ -76,12 +71,8 @@ func newTurnIndexKey(sessionID string, turnID string) turnIndexKey {
 	}
 }
 
-func newDeliveryID() string {
-	var random [8]byte
-	if _, err := rand.Read(random[:]); err != nil {
-		return fmt.Sprintf("del-%d", time.Now().UTC().UnixNano())
-	}
-	return "del-" + hex.EncodeToString(random[:])
+func newDeliveryID() (string, error) {
+	return store.NewID("del")
 }
 
 func cloneDeliveryReference(reference *DeliveryMessageReference) *DeliveryMessageReference {

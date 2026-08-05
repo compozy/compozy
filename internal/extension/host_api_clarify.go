@@ -85,15 +85,12 @@ func (h *HostAPIHandler) BeginExtensionToolCall(
 	}
 	runtime.mu.Unlock()
 
-	var once sync.Once
-	return invocationID, func() {
-		once.Do(func() {
-			runtime.mu.Lock()
-			delete(runtime.invocations, invocationID)
-			runtime.mu.Unlock()
-			cancelCall()
-		})
-	}, nil
+	return invocationID, sync.OnceFunc(func() {
+		runtime.mu.Lock()
+		delete(runtime.invocations, invocationID)
+		runtime.mu.Unlock()
+		cancelCall()
+	}), nil
 }
 
 func registerHostAPIClarifyMethodHandler(

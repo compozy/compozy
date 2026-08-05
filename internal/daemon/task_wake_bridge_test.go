@@ -19,8 +19,9 @@ type taskWakeBridgePromptCall struct {
 }
 
 type taskWakeBridgeSessions struct {
-	calls []taskWakeBridgePromptCall
-	err   error
+	calls  []taskWakeBridgePromptCall
+	err    error
+	events <-chan acp.AgentEvent
 }
 
 func (s *taskWakeBridgeSessions) PromptSynthetic(
@@ -38,13 +39,53 @@ func (s *taskWakeBridgeSessions) PromptSynthetic(
 	if s.err != nil {
 		return nil, s.err
 	}
+	if s.events != nil {
+		return s.events, nil
+	}
 	events := make(chan acp.AgentEvent)
 	close(events)
 	return events, nil
 }
 
+func TestTaskWakeBridgeShutdownClosesAdmissionAndJoinsDrains(t *testing.T) {
+	t.Parallel()
+
+	events := make(chan acp.AgentEvent)
+	sessions := &taskWakeBridgeSessions{events: events}
+	bridge, err := newTaskWakeBridge(context.Background(), sessions, nil)
+	if err != nil {
+		t.Fatalf("newTaskWakeBridge() error = %v", err)
+	}
+	wake := taskpkg.WakeEvent{
+		WakeEventID: "wake-terminal-task-1-run-1-completed",
+		TaskID:      "task-1",
+		RunID:       "run-1",
+		Reason:      taskpkg.WakeReasonTerminal,
+		Summary:     "Task completed",
+	}
+	if err := bridge.WakeCreator(context.Background(), "sess-creator", wake); err != nil {
+		t.Fatalf("WakeCreator() error = %v", err)
+	}
+	if err := bridge.shutdown(context.Background()); err != nil {
+		t.Fatalf("shutdown() error = %v", err)
+	}
+	if err := bridge.shutdown(context.Background()); err != nil {
+		t.Fatalf("shutdown(retry) error = %v", err)
+	}
+	if err := bridge.WakeCreator(context.Background(), "sess-creator", wake); err == nil {
+		t.Fatal("WakeCreator(after shutdown) error = nil, want admission failure")
+	}
+	if got, want := len(sessions.calls), 1; got != want {
+		t.Fatalf("len(PromptSynthetic calls) = %d, want %d", got, want)
+	}
+}
+
 func TestTaskWakeBridgeWakeCreatorPromptsSyntheticQueueMode(t *testing.T) {
 	t.Parallel()
+	var missingContext context.Context
+	if _, err := newTaskWakeBridge(missingContext, &taskWakeBridgeSessions{}, nil); err == nil {
+		t.Fatal("newTaskWakeBridge(nil context) error = nil, want context validation failure")
+	}
 
 	t.Run("Should prompt the creator with queued synthetic metadata", func(t *testing.T) {
 		t.Parallel()

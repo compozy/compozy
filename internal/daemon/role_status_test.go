@@ -104,8 +104,8 @@ func TestRoleStatusProjection(t *testing.T) {
 
 		cfg := roleResolverConfig()
 		_, err := newRoleResolver(&cfg, nil, nil).RoleStatus(t.Context(), "", "judge")
-		var resolutionErr *RoleResolutionError
-		if !errors.As(err, &resolutionErr) || resolutionErr.DiagnosticCode() != contract.CodeRoleUnknown {
+		resolutionErr, resolutionErrMatched := errors.AsType[*RoleResolutionError](err)
+		if !resolutionErrMatched || resolutionErr.DiagnosticCode() != contract.CodeRoleUnknown {
 			t.Fatalf("RoleStatus(judge) error = %v, want role_unknown", err)
 		}
 	})

@@ -106,7 +106,6 @@ func decodeTargetSnapshotDeliveryDefaults(raw json.RawMessage) (targetSnapshotDe
 	defaults.PeerID = strings.TrimSpace(defaults.PeerID)
 	defaults.ThreadID = strings.TrimSpace(defaults.ThreadID)
 	defaults.GroupID = strings.TrimSpace(defaults.GroupID)
-	defaults.Mode = defaults.Mode.Normalize()
 	if defaults.Mode != "" {
 		if err := defaults.Mode.Validate(); err != nil {
 			return targetSnapshotDeliveryDefaults{}, err
@@ -119,7 +118,7 @@ func (d targetSnapshotDeliveryDefaults) modeOrDefault() bridgepkg.DeliveryMode {
 	if d.Mode == "" {
 		return bridgepkg.DeliveryModeDirectSend
 	}
-	return d.Mode.Normalize()
+	return d.Mode
 }
 
 func bridgeTargetCanonicalRoute(platform string, targetType string, id string) string {

@@ -25,7 +25,7 @@ func (c *telegramBotClient) callTelegram(
 	commitPolicy bridgesdk.HTTPResponseCommitPolicy,
 ) (err error) {
 	if ctx == nil {
-		ctx = context.Background()
+		return errors.New("telegram: bot api context is required")
 	}
 	if c == nil {
 		return errors.New("telegram: bot api client is required")

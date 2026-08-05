@@ -63,6 +63,7 @@ The bootstrap helper writes two canonical artifacts under:
 ## QA evidence contract files
 
 - `scenario-contract.json` defines the release-grade minimums that downstream QA must satisfy before a `PASS` claim.
+- An explicit `targeted` profile requires only its declared `--required-surface` values; it does not invent agent, channel, Task, artifact-reuse, disruption, or provider minimums for a bounded non-agent journey.
 - `behavioral-scenario-charter.yaml` is JSON-compatible YAML. It must name the startup situation, operator intent, business outcome, agents, channels, task tree, provider plan, cross-surface targets, disruption probes, and artifacts. When `--playbook` was passed, the charter is materialized from the playbook spec and includes `playbook_ref`, `required_deliverables`, and `required_collaboration`.
 - `journey-log.jsonl` is append-only structured evidence. Each meaningful CLI/API/Web/runtime/provider action must add one row.
 - `provider-attempt.json` records live provider-backed proof or the exact blocked boundary. A blocked provider boundary supports a `BLOCKED` result, not a live-provider `PASS`.

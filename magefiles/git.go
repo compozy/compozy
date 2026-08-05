@@ -16,8 +16,7 @@ func gitShowFile(ctx context.Context, repoDir string, ref string, path string) (
 	if err == nil {
 		return string(output), true, nil
 	}
-	var exitErr *exec.ExitError
-	if errors.As(err, &exitErr) && exitErr.ExitCode() == 128 {
+	if exitErr, ok := errors.AsType[*exec.ExitError](err); ok && exitErr != nil && exitErr.ExitCode() == 128 {
 		return "", false, nil
 	}
 	return "", false, fmt.Errorf("read %s from %s: %w\n%s", path, ref, err, output)
@@ -31,8 +30,7 @@ func gitHasDiff(ctx context.Context, repoDir string, paths ...string) (bool, err
 	if err == nil {
 		return false, nil
 	}
-	var exitErr *exec.ExitError
-	if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
+	if exitErr, ok := errors.AsType[*exec.ExitError](err); ok && exitErr != nil && exitErr.ExitCode() == 1 {
 		return true, nil
 	}
 	return false, fmt.Errorf("check web assets diff: %w", err)

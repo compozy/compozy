@@ -67,9 +67,8 @@ type MemoryRecallFreshnessConfig struct {
 
 // MemoryRecallSignalsConfig controls recall signal recording.
 type MemoryRecallSignalsConfig struct {
-	QueueCapacity  int  `toml:"queue_capacity"`
-	WorkerRetryMax int  `toml:"worker_retry_max"`
-	MetricsEnabled bool `toml:"metrics_enabled"`
+	QueueCapacity  int `toml:"queue_capacity"`
+	WorkerRetryMax int `toml:"worker_retry_max"`
 }
 
 // MemoryDecisionsConfig controls Decision WAL retention and content caps.

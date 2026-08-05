@@ -32,6 +32,8 @@ func (e *Engine) RedactJSON(raw json.RawMessage, fields []string) json.RawMessag
 		namedFields[normalizeFieldName(field)] = struct{}{}
 	}
 	redactedValue := e.redactJSONValue(value, "", namedFields, false)
+	// Decoded JSON contains dynamic maps and slices, so structural equality needs
+	// reflection. BenchmarkEngineRedactStructuredLogValue tracks this hot path.
 	if reflect.DeepEqual(value, redactedValue) {
 		return append(json.RawMessage(nil), raw...)
 	}

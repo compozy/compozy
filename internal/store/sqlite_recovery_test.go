@@ -41,8 +41,9 @@ func TestOpenSQLiteDatabaseRecoveryContract(t *testing.T) {
 		if !errors.Is(err, ErrSQLiteCorrupt) {
 			t.Fatalf("OpenSQLiteDatabase(corrupt) error = %v, want ErrSQLiteCorrupt", err)
 		}
-		var corruptionErr *SQLiteCorruptionError
-		if !errors.As(err, &corruptionErr) {
+
+		corruptionErr, corruptionErrMatched := errors.AsType[*SQLiteCorruptionError](err)
+		if !corruptionErrMatched {
 			t.Fatalf("OpenSQLiteDatabase(corrupt) error = %T, want *SQLiteCorruptionError", err)
 		}
 		if corruptionErr.Path != dbPath {

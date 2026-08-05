@@ -177,7 +177,7 @@ func TestPromptChunkCoalescing(t *testing.T) {
 
 		recordErr := errors.New("batch persist failed")
 		recorder := &failingBatchRecorder{batchErr: recordErr}
-		h := newHarness(t, WithStore(func(context.Context, string, string) (EventRecorder, error) {
+		h := newHarness(t, WithStore(func(context.Context, store.SessionDBOwner, string) (EventRecorder, error) {
 			return recorder, nil
 		}))
 		turnEnds := 0
@@ -227,10 +227,10 @@ func TestPromptChunkCoalescing(t *testing.T) {
 		if turnEnds != 0 {
 			t.Fatalf("turn end notifications = %d, want zero after persistence failure", turnEnds)
 		}
-		waitForCondition(t, "session stopped after batch persistence failure", func() bool {
-			_, active := h.manager.Get(session.ID)
-			return !active
-		})
+		h.notifier.waitForStopped(t, session.ID)
+		if _, active := h.manager.Get(session.ID); active {
+			t.Fatalf("Get(%q) found session after stopped notification", session.ID)
+		}
 		meta := readMeta(t, session.MetaPath())
 		if meta.Failure == nil || meta.Failure.Kind != store.FailureTransport {
 			t.Fatalf("stopped session failure = %#v, want transport failure", meta.Failure)
@@ -248,7 +248,7 @@ func TestPromptChunkCoalescing(t *testing.T) {
 		t.Parallel()
 
 		recorder := &failingBatchRecorder{tokenErr: errors.New("token usage unavailable")}
-		h := newHarness(t, WithStore(func(context.Context, string, string) (EventRecorder, error) {
+		h := newHarness(t, WithStore(func(context.Context, store.SessionDBOwner, string) (EventRecorder, error) {
 			return recorder, nil
 		}))
 		totalTokens := int64(2)

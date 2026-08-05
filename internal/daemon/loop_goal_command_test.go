@@ -470,13 +470,13 @@ context_nudge_ratio = 0.0
 		newGoalRunPolicyResolver(homePaths, nil),
 		looppkg.WithDefaultsResolver(newLoopDefaultsResolver(homePaths, nil)),
 		looppkg.WithClock(func() time.Time { return now }),
-		looppkg.WithRunIDFactory(func() looppkg.RunID {
+		looppkg.WithRunIDFactory(func() (looppkg.RunID, error) {
 			if nextRunID >= len(runIDs) {
-				return looppkg.RunID("run-goal-command-overflow")
+				return looppkg.RunID("run-goal-command-overflow"), nil
 			}
 			value := runIDs[nextRunID]
 			nextRunID++
-			return value
+			return value, nil
 		}),
 	)
 	if err != nil {

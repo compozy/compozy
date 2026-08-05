@@ -12,6 +12,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 	taskpkg "github.com/compozy/compozy/internal/task"
+	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
 type repoBase struct {
@@ -46,16 +47,27 @@ func (r *repoBase) checkReady(ctx context.Context, action string) error {
 	return nil
 }
 
-type WorkspaceRepo struct{ *repoBase }
+type WorkspaceRepo struct {
+	*repoBase
+	generateID func() (string, error)
+}
 type AppMetadataRepo struct{ *repoBase }
 type PermissionRepo struct{ *repoBase }
 type SessionRepo struct{ *repoBase }
 type TaskRepo struct {
 	*repoBase
 	runs                       *TaskRunRepo
-	enqueueLoopCoordinatorWake func(context.Context, string, string, taskpkg.Origin, time.Time) (taskpkg.Run, bool, error)
-	taskEventObserverMu        sync.RWMutex
-	taskEventObserver          taskpkg.EventObserver
+	newID                      func(prefix string) (string, error)
+	enqueueLoopCoordinatorWake func(
+		context.Context,
+		string,
+		string,
+		string,
+		taskpkg.Origin,
+		time.Time,
+	) (taskpkg.Run, bool, error)
+	taskEventObserverMu sync.RWMutex
+	taskEventObserver   taskpkg.EventObserver
 }
 
 type TaskRunRepo struct {
@@ -90,12 +102,15 @@ type ApprovalGrantRepo struct{ *repoBase }
 func (g *GlobalDB) initializeRepositories(config openConfig) {
 	base := newRepoBase(g.db, func() time.Time { return g.now() }, &g.closed)
 	base.path = g.path
-	g.WorkspaceRepo = &WorkspaceRepo{repoBase: base}
+	g.WorkspaceRepo = &WorkspaceRepo{
+		repoBase:   base,
+		generateID: compozyworkspace.NewWorkspaceID,
+	}
 	g.AppMetadataRepo = &AppMetadataRepo{repoBase: base}
 	g.PermissionRepo = &PermissionRepo{repoBase: base}
 	g.SessionRepo = &SessionRepo{repoBase: base}
 	base.sessions = g.SessionRepo
-	taskRepo := &TaskRepo{repoBase: base}
+	taskRepo := &TaskRepo{repoBase: base, newID: store.NewID}
 	taskRunRepo := &TaskRunRepo{repoBase: base}
 	g.TaskRepo = taskRepo
 	g.TaskRunRepo = taskRunRepo
@@ -125,5 +140,5 @@ func (g *GlobalDB) initializeRepositories(config openConfig) {
 	g.ApprovalGrantRepo = &ApprovalGrantRepo{repoBase: base}
 	loopRepo.watchEvents = g.WatchEventsRepo
 	loopRepo.observe = g.ObserveRepo
-	taskRepo.enqueueLoopCoordinatorWake = g.EnqueueLoopCoordinatorWake
+	taskRepo.enqueueLoopCoordinatorWake = loopRepo.enqueueLoopCoordinatorWakeWithRunID
 }

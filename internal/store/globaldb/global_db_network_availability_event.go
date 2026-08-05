@@ -34,12 +34,16 @@ func appendNetworkAvailabilityEventSummary(
 	if err != nil {
 		return fmt.Errorf("store: marshal network availability event: %w", err)
 	}
+	eventID, err := store.NewID("sum")
+	if err != nil {
+		return fmt.Errorf("store: generate network availability event id: %w", err)
+	}
 	_, err = exec.ExecContext(
 		ctx,
 		`INSERT INTO event_summaries
         (id, type, content_json, actor_kind, actor_id, summary, timestamp)
         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		store.NewID("sum"),
+		eventID,
 		eventspkg.NetworkAvailabilityChanged,
 		string(content),
 		string(taskpkg.ActorKindDaemon),

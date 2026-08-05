@@ -79,11 +79,7 @@ func (t *sidecarTransport) connect(
 		nil,
 	)
 	if err != nil {
-		if resp != nil && resp.Body != nil {
-			if closeErr := resp.Body.Close(); closeErr != nil {
-				err = errors.Join(err, fmt.Errorf("close failed sidecar handshake response: %w", closeErr))
-			}
-		}
+		mergeHTTPResponseCloseError(&err, resp, "failed sidecar handshake")
 		return nil, fmt.Errorf("sandbox/daytona: connect launcher sidecar stream: %w", err)
 	}
 	httpClient := endpoint.httpClient

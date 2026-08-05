@@ -7,7 +7,6 @@ import (
 	"github.com/compozy/compozy/internal/deadentity"
 	"github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/diagnostics"
-	"github.com/compozy/compozy/internal/providers"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/compozy/compozy/internal/store"
 )
@@ -42,49 +41,8 @@ func (a daemonSettingsRuntimeApplier) ApplyActiveConfig(
 	if failure != nil {
 		return a.rollbackRuntimeDependencies(ctx, &previous, []settingspkg.ApplyFailure{*failure})
 	}
-
-	availabilityChanged := a.networkAvailability != nil && previous.Network.Enabled != next.Network.Enabled
-	if availabilityChanged {
-		if failure := a.persistNetworkAvailability(
-			ctx,
-			next.Network.Enabled,
-			"config.apply",
-			"network_availability",
-			"Network availability sync failed",
-		); failure != nil {
-			return a.rollbackRuntimeDependencies(ctx, &previous, []settingspkg.ApplyFailure{*failure})
-		}
-		if a.networkWakeRunner != nil {
-			if err := a.networkWakeRunner.SetEnabled(ctx, next.Network.Enabled); err != nil {
-				failures := []settingspkg.ApplyFailure{configApplyFailure(
-					"network_wake_runner",
-					diagnosticcontract.CategoryConfig,
-					"Network wake runner sync failed",
-					err,
-				)}
-				if rollbackErr := a.networkWakeRunner.SetEnabled(ctx, previous.Network.Enabled); rollbackErr != nil {
-					failures = append(failures, configApplyFailure(
-						"network_wake_runner_rollback",
-						diagnosticcontract.CategoryConfig,
-						"Network wake runner rollback failed",
-						rollbackErr,
-					))
-				}
-				if failure := a.persistNetworkAvailability(
-					ctx,
-					previous.Network.Enabled,
-					"config.rollback",
-					"network_availability_rollback",
-					"Network availability rollback failed",
-				); failure != nil {
-					failures = append(failures, *failure)
-				}
-				return a.rollbackRuntimeDependencies(ctx, &previous, failures)
-			}
-		}
-		if networkRuntime, ok := a.state.network.(interface{ SetEnabled(bool) }); ok {
-			networkRuntime.SetEnabled(next.Network.Enabled)
-		}
+	if failures := a.applyNetworkAvailabilityChange(ctx, &previous, &next); len(failures) > 0 {
+		return a.rollbackRuntimeDependencies(ctx, &previous, failures)
 	}
 
 	a.daemon.mu.Lock()
@@ -93,13 +51,67 @@ func (a daemonSettingsRuntimeApplier) ApplyActiveConfig(
 	}
 	a.state.cfg = next
 	a.daemon.config = next
+	preStarter := a.daemon.providerPreStarter
 	a.daemon.mu.Unlock()
 	// Drop cached workspace overlays so role and status resolution sees the applied global config.
 	if a.state.workspaceResolver != nil {
 		a.state.workspaceResolver.InvalidateAll()
 	}
 
-	providers.InvalidatePreStartCache()
+	if preStarter != nil {
+		preStarter.Clear()
+	}
+	return nil
+}
+
+func (a daemonSettingsRuntimeApplier) applyNetworkAvailabilityChange(
+	ctx context.Context,
+	previous *compozyconfig.Config,
+	next *compozyconfig.Config,
+) []settingspkg.ApplyFailure {
+	if a.networkAvailability == nil || previous.Network.Enabled == next.Network.Enabled {
+		return nil
+	}
+	if failure := a.persistNetworkAvailability(
+		ctx,
+		next.Network.Enabled,
+		"config.apply",
+		"network_availability",
+		"Network availability sync failed",
+	); failure != nil {
+		return []settingspkg.ApplyFailure{*failure}
+	}
+	if a.networkWakeRunner != nil {
+		if err := a.networkWakeRunner.SetEnabled(ctx, next.Network.Enabled); err != nil {
+			failures := []settingspkg.ApplyFailure{configApplyFailure(
+				"network_wake_runner",
+				diagnosticcontract.CategoryConfig,
+				"Network wake runner sync failed",
+				err,
+			)}
+			if rollbackErr := a.networkWakeRunner.SetEnabled(ctx, previous.Network.Enabled); rollbackErr != nil {
+				failures = append(failures, configApplyFailure(
+					"network_wake_runner_rollback",
+					diagnosticcontract.CategoryConfig,
+					"Network wake runner rollback failed",
+					rollbackErr,
+				))
+			}
+			if failure := a.persistNetworkAvailability(
+				ctx,
+				previous.Network.Enabled,
+				"config.rollback",
+				"network_availability_rollback",
+				"Network availability rollback failed",
+			); failure != nil {
+				failures = append(failures, *failure)
+			}
+			return failures
+		}
+	}
+	if networkRuntime, ok := a.state.network.(interface{ SetEnabled(bool) }); ok {
+		networkRuntime.SetEnabled(next.Network.Enabled)
+	}
 	return nil
 }
 
@@ -259,14 +271,15 @@ func configApplyFailure(
 ) settingspkg.ApplyFailure {
 	return settingspkg.ApplyFailure{
 		Subsystem: subsystem,
-		Diagnostic: diagnostics.NewItem(
-			"config.apply."+subsystem+"_sync_failed",
-			diagnosticcontract.CodeConfigPartialFailure,
-			category,
-			summary,
-			diagnostics.RedactAndBound(err.Error(), 1024),
-			diagnosticcontract.SeverityError,
-			diagnosticcontract.FreshnessLive,
+		Diagnostic: diagnostics.NewItem(diagnostics.ItemSpec{
+			ID:            "config.apply." + subsystem + "_sync_failed",
+			Code:          diagnosticcontract.CodeConfigPartialFailure,
+			Category:      category,
+			Title:         summary,
+			Message:       diagnostics.RedactAndBound(err.Error(), 1024),
+			Severity:      diagnosticcontract.SeverityError,
+			DataFreshness: diagnosticcontract.FreshnessLive,
+		},
 			diagnostics.WithSuggestedCommand("compozy config reload"),
 		),
 	}

@@ -178,7 +178,7 @@ func TestMemoryHandlersWriteValidationAndScopeResolution(t *testing.T) {
 	if !validPayload.Applied || validPayload.Decision.TargetFilename == "" {
 		t.Fatalf("valid payload = %#v, want applied decision with target filename", validPayload)
 	}
-	if _, err := store.Read(memcontract.ScopeGlobal, validPayload.Decision.TargetFilename); err != nil {
+	if _, err := store.Read(t.Context(), memcontract.ScopeGlobal, validPayload.Decision.TargetFilename); err != nil {
 		t.Fatalf("store.Read(valid) error = %v", err)
 	}
 
@@ -215,7 +215,9 @@ func TestMemoryHandlersWriteValidationAndScopeResolution(t *testing.T) {
 	}
 	var userDefaultPayload memoryMutationDecisionResponse
 	decodeJSONResponse(t, userDefault, &userDefaultPayload)
-	if _, err := store.Read(memcontract.ScopeGlobal, userDefaultPayload.Decision.TargetFilename); err != nil {
+	if _, err := store.Read(
+		t.Context(), memcontract.ScopeGlobal, userDefaultPayload.Decision.TargetFilename,
+	); err != nil {
 		t.Fatalf("store.Read(global inferred) error = %v", err)
 	}
 
@@ -224,7 +226,7 @@ func TestMemoryHandlersWriteValidationAndScopeResolution(t *testing.T) {
 		engine,
 		http.MethodPost,
 		"/api/memory",
-		[]byte(`{"workspace_id":"`+escapeJSON(
+		[]byte(`{"workspace_id":"`+escapeJSON(t,
 			workspace,
 		)+`","type":"project","name":"Project Default","description":"desc","content":"workspace body"}`),
 	)
@@ -238,10 +240,9 @@ func TestMemoryHandlersWriteValidationAndScopeResolution(t *testing.T) {
 	}
 	var projectDefaultPayload memoryMutationDecisionResponse
 	decodeJSONResponse(t, projectDefault, &projectDefaultPayload)
-	if _, err := store.ForWorkspace(workspace).Read(
+	if _, err := store.ForWorkspace(workspace).Read(t.Context(),
 		memcontract.ScopeWorkspace,
-		projectDefaultPayload.Decision.TargetFilename,
-	); err != nil {
+		projectDefaultPayload.Decision.TargetFilename); err != nil {
 		t.Fatalf("store.Read(workspace inferred) error = %v", err)
 	}
 }
@@ -259,7 +260,7 @@ func TestMemoryHandlersDeleteAndNotFound(t *testing.T) {
 	if resp.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
 	}
-	if _, err := store.Read(memcontract.ScopeGlobal, "delete-me.md"); err == nil {
+	if _, err := store.Read(t.Context(), memcontract.ScopeGlobal, "delete-me.md"); err == nil {
 		t.Fatal("expected file to be deleted")
 	}
 
@@ -300,7 +301,7 @@ func TestMemoryHandlersSearchAndReindex(t *testing.T) {
 		engine,
 		http.MethodPost,
 		"/api/memory/search",
-		[]byte(`{"query_text":"auth migration sessions","workspace_id":"`+escapeJSON(workspace)+`"}`),
+		[]byte(`{"query_text":"auth migration sessions","workspace_id":"`+escapeJSON(t, workspace)+`"}`),
 	)
 	if search.Code != http.StatusOK {
 		t.Fatalf("search status = %d, want %d; body=%s", search.Code, http.StatusOK, search.Body.String())
@@ -317,7 +318,7 @@ func TestMemoryHandlersSearchAndReindex(t *testing.T) {
 		engine,
 		http.MethodPost,
 		"/api/memory/reindex",
-		[]byte(`{"workspace_id":"`+escapeJSON(workspace)+`"}`),
+		[]byte(`{"workspace_id":"`+escapeJSON(t, workspace)+`"}`),
 	)
 	if reindex.Code != http.StatusOK {
 		t.Fatalf("reindex status = %d, want %d; body=%s", reindex.Code, http.StatusOK, reindex.Body.String())
@@ -585,7 +586,7 @@ func TestMemoryHandlersReturnInternalErrorWithoutConfiguredStore(t *testing.T) {
 
 	handlers := newTestMemoryHandlers(t, stubSessionManager{}, stubObserver{}, nil, &stubDreamTrigger{enabled: true})
 	engine := newTestRouter(t, handlers)
-	document := escapeJSON(memoryDocument(t, "Valid", "desc", memcontract.TypeUser, "hello"))
+	document := escapeJSON(t, memoryDocument(t, "Valid", "desc", memcontract.TypeUser, "hello"))
 
 	requests := []struct {
 		method string
@@ -689,7 +690,9 @@ func mustWriteMemory(
 	if scope == memcontract.ScopeWorkspace {
 		target = store.ForWorkspace(workspace)
 	}
-	if err := target.Write(scope, filename, []byte(memoryDocument(t, filename, "desc", typ, body))); err != nil {
+	if err := target.Write(
+		t.Context(), scope, filename, []byte(memoryDocument(t, filename, "desc", typ, body)),
+	); err != nil {
 		t.Fatalf("Write(%s) error = %v", filename, err)
 	}
 }
@@ -709,7 +712,11 @@ func memoryDocument(t *testing.T, name string, description string, typ memcontra
 	return "---\n" + string(metadata) + "---\n\n" + body
 }
 
-func escapeJSON(value string) string {
-	payload, _ := json.Marshal(value)
+func escapeJSON(t *testing.T, value string) string {
+	t.Helper()
+	payload, err := json.Marshal(value)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
 	return strings.Trim(string(payload), "\"")
 }

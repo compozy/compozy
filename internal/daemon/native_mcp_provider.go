@@ -10,7 +10,7 @@ import (
 
 func (d *Daemon) newDaemonMCPToolProvider(
 	state *bootState,
-) (toolspkg.Provider, toolspkg.MCPAuthStatusProvider, error) {
+) (*toolspkg.MCPProvider, toolspkg.MCPAuthStatusProvider, error) {
 	if state == nil {
 		return nil, nil, nil
 	}

@@ -24,6 +24,7 @@ func TestSessionEventBroadcaster(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewManager() error = %v", err)
 		}
+		cleanupTestManager(t, manager)
 		sess := &Session{
 			ID: "sess-stream-child", AgentName: "worker", Provider: "claude", Model: "claude-sonnet",
 			WorkspaceID: "ws-1", State: StateActive,
@@ -55,6 +56,7 @@ func TestSessionEventBroadcaster(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewManager() error = %v", err)
 		}
+		cleanupTestManager(t, manager)
 		events, cancel, err := manager.SubscribeSessionEvents(testutil.Context(t), "sess-stream", 1)
 		if err != nil {
 			t.Fatalf("SubscribeSessionEvents() error = %v", err)
@@ -91,6 +93,7 @@ func TestSessionEventBroadcaster(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewManager() error = %v", err)
 		}
+		cleanupTestManager(t, manager)
 		events, cancel, err := manager.SubscribeSessionEventWakes(testutil.Context(t), "sess-wake")
 		if err != nil {
 			t.Fatalf("SubscribeSessionEventWakes() error = %v", err)
@@ -125,6 +128,7 @@ func TestSessionEventBroadcaster(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewManager() error = %v", err)
 		}
+		cleanupTestManager(t, manager)
 		events, cancel, err := manager.SubscribeSessionEvents(testutil.Context(t), "sess-overflow", 0)
 		if err != nil {
 			t.Fatalf("SubscribeSessionEvents() error = %v", err)
@@ -173,6 +177,7 @@ func TestSessionCatalogBroadcaster(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewManager() error = %v", err)
 		}
+		cleanupTestManager(t, manager)
 		events, cancel, err := manager.SubscribeSessionCatalogEvents(testutil.Context(t))
 		if err != nil {
 			t.Fatalf("SubscribeSessionCatalogEvents() error = %v", err)
@@ -211,6 +216,7 @@ func TestSessionCatalogBroadcaster(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewManager() error = %v", err)
 		}
+		cleanupTestManager(t, manager)
 		events, cancel, err := manager.SubscribeSessionCatalogEvents(testutil.Context(t))
 		if err != nil {
 			t.Fatalf("SubscribeSessionCatalogEvents() error = %v", err)

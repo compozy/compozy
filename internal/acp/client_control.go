@@ -27,15 +27,22 @@ func (d *Driver) Prompt(ctx context.Context, proc *AgentProcess, req PromptReque
 	if err := req.Validate(); err != nil {
 		return nil, err
 	}
+	run, ok := proc.beginChildTask()
+	if !ok {
+		return nil, errProcessExited
+	}
 
 	promptCtx, cancelPrompt := context.WithCancel(ctx)
 	active, err := proc.beginPrompt(req.TurnID, d.promptBufferCap, cancelPrompt)
 	if err != nil {
 		cancelPrompt()
+		proc.finishChildTask(run)
 		return nil, err
 	}
 
-	go d.runPrompt(promptCtx, proc, active, req)
+	proc.startReservedChildTask(run, func() {
+		d.runPrompt(promptCtx, proc, active, req)
+	})
 	return active.events, nil
 }
 

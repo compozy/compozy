@@ -12,13 +12,15 @@ import (
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
 )
 
-const defaultSignalRecorderCapacity = 256
+const (
+	defaultSignalRecorderCapacity  = 256
+	defaultSignalRecorderIOTimeout = 5 * time.Second
+)
 
 // SignalRecorderConfig controls the bounded asynchronous recall-signal worker.
 type SignalRecorderConfig struct {
 	QueueCapacity  int
 	WorkerRetryMax int
-	MetricsEnabled bool
 }
 
 // SignalRecorderStats is a point-in-time snapshot of recorder counters.
@@ -51,12 +53,16 @@ type SignalRecorder struct {
 	logger   *slog.Logger
 	retryMax int
 
-	ctx      context.Context
-	stop     chan struct{}
-	stopOnce sync.Once
-	wg       sync.WaitGroup
-	closed   atomic.Bool
-	acceptMu sync.Mutex
+	lifecycleCtx context.Context
+	cancel       context.CancelFunc
+	stop         chan struct{}
+	done         chan struct{}
+	idleWake     chan struct{}
+	wg           sync.WaitGroup
+	closed       atomic.Bool
+	acceptMu     sync.Mutex
+	shouldStop   func() bool
+	onStopped    func()
 
 	submitted atomic.Uint64
 	recorded  atomic.Uint64
@@ -77,12 +83,35 @@ type signalDroppedJob struct {
 
 var _ SignalRecorderSource = Source(nil)
 
+// SignalRecorderOption configures recorder lifecycle hooks.
+type SignalRecorderOption func(*SignalRecorder)
+
+// WithIdleStop stops a recorder after it becomes quiescent when shouldStop
+// confirms that no owner still needs it.
+func WithIdleStop(shouldStop func() bool) SignalRecorderOption {
+	return func(recorder *SignalRecorder) {
+		if shouldStop != nil {
+			recorder.shouldStop = shouldStop
+		}
+	}
+}
+
+// WithStopped invokes onStopped after the recorder's worker has terminated.
+func WithStopped(onStopped func()) SignalRecorderOption {
+	return func(recorder *SignalRecorder) {
+		if onStopped != nil {
+			recorder.onStopped = onStopped
+		}
+	}
+}
+
 // NewSignalRecorder starts a bounded worker for one recall-signal authority.
 func NewSignalRecorder(
 	ctx context.Context,
 	source SignalRecorderSource,
 	cfg SignalRecorderConfig,
 	logger *slog.Logger,
+	opts ...SignalRecorderOption,
 ) (*SignalRecorder, error) {
 	if ctx == nil {
 		return nil, errors.New("memory recall: signal recorder context is required")
@@ -97,31 +126,39 @@ func NewSignalRecorder(
 	if logger == nil {
 		logger = slog.Default()
 	}
+	workerCtx, cancel := context.WithCancel(ctx)
 	recorder := &SignalRecorder{
-		source:   source,
-		queue:    make(chan signalRecordJob, capacity),
-		logger:   logger,
-		retryMax: max(cfg.WorkerRetryMax, 0),
-		ctx:      ctx,
-		stop:     make(chan struct{}),
+		source:       source,
+		queue:        make(chan signalRecordJob, capacity),
+		logger:       logger,
+		retryMax:     max(cfg.WorkerRetryMax, 0),
+		lifecycleCtx: workerCtx,
+		cancel:       cancel,
+		stop:         make(chan struct{}),
+		done:         make(chan struct{}),
+		idleWake:     make(chan struct{}, 1),
 	}
-	recorder.wg.Add(1)
-	go recorder.run()
+	for _, opt := range opts {
+		if opt != nil {
+			opt(recorder)
+		}
+	}
+	recorder.wg.Go(recorder.run)
 	return recorder, nil
 }
 
 // Submit enqueues recall signals without waiting for catalog writes.
 func (r *SignalRecorder) Submit(
-	_ context.Context,
+	ctx context.Context,
 	query memcontract.Query,
 	signals []Signal,
 ) SignalRecorderSubmitResult {
-	if r == nil || len(signals) == 0 {
+	if r == nil || ctx == nil || ctx.Err() != nil || len(signals) == 0 {
 		return SignalRecorderSubmitResult{}
 	}
 	r.acceptMu.Lock()
-	defer r.acceptMu.Unlock()
-	if r.closed.Load() || r.ctx.Err() != nil {
+	if r.closed.Load() || r.lifecycleCtx.Err() != nil {
+		r.acceptMu.Unlock()
 		return SignalRecorderSubmitResult{}
 	}
 	job := signalRecordJob{
@@ -131,6 +168,7 @@ func (r *SignalRecorder) Submit(
 	select {
 	case r.queue <- job:
 		r.submitted.Add(uint64(len(job.signals)))
+		r.acceptMu.Unlock()
 		return SignalRecorderSubmitResult{Submitted: true}
 	default:
 	}
@@ -144,18 +182,10 @@ func (r *SignalRecorder) Submit(
 		r.dropped.Add(uint64(len(dropped.signals)))
 	default:
 	}
-
-	select {
-	case r.queue <- job:
-		r.submitted.Add(uint64(len(job.signals)))
-		return SignalRecorderSubmitResult{Submitted: true, Dropped: len(job.dropped) > 0}
-	default:
-		r.dropped.Add(uint64(len(job.signals)))
-		r.recordDroppedSignals(
-			append(job.dropped, signalDroppedJob{query: job.query, signals: cloneSignals(job.signals)}),
-		)
-		return SignalRecorderSubmitResult{Dropped: true}
-	}
+	r.queue <- job
+	r.submitted.Add(uint64(len(job.signals)))
+	r.acceptMu.Unlock()
+	return SignalRecorderSubmitResult{Submitted: true, Dropped: len(job.dropped) > 0}
 }
 
 // Stats returns the current queue depth and cumulative worker counters.
@@ -180,40 +210,99 @@ func (r *SignalRecorder) Close(ctx context.Context) error {
 	if ctx == nil {
 		return errors.New("memory recall: signal recorder close context is required")
 	}
-	r.acceptMu.Lock()
-	if r.closed.CompareAndSwap(false, true) {
-		r.stopOnce.Do(func() {
-			close(r.stop)
-		})
-	}
-	r.acceptMu.Unlock()
-	done := make(chan struct{})
-	go func() {
-		r.wg.Wait()
-		close(done)
-	}()
+	r.RequestStop()
 	select {
-	case <-done:
+	case <-r.done:
 		return nil
 	case <-ctx.Done():
+		r.Cancel()
 		return fmt.Errorf("memory recall: close signal recorder: %w", ctx.Err())
 	}
 }
 
+// Done closes exactly once when the owned worker exits.
+func (r *SignalRecorder) Done() <-chan struct{} {
+	if r == nil {
+		return nil
+	}
+	return r.done
+}
+
+// RequestStop rejects future submissions and drains already accepted work.
+func (r *SignalRecorder) RequestStop() {
+	if r == nil {
+		return
+	}
+	r.acceptMu.Lock()
+	r.requestStopLocked()
+	r.acceptMu.Unlock()
+}
+
+// Cancel stops admission and cancels any active recorder I/O.
+func (r *SignalRecorder) Cancel() {
+	if r == nil {
+		return
+	}
+	r.RequestStop()
+	r.cancel()
+}
+
 func (r *SignalRecorder) run() {
-	defer r.wg.Done()
+	defer r.finish()
 	for {
+		if r.stopIfIdle() {
+			return
+		}
 		select {
 		case <-r.stop:
 			r.drain()
 			return
-		case <-r.ctx.Done():
+		case <-r.lifecycleCtx.Done():
 			r.drain()
 			return
+		case <-r.idleWake:
 		case job := <-r.queue:
 			r.process(job)
 		}
 	}
+}
+
+// NotifyIdle asks the worker to re-evaluate quiescence after its owner releases work.
+func (r *SignalRecorder) NotifyIdle() {
+	if r == nil {
+		return
+	}
+	select {
+	case r.idleWake <- struct{}{}:
+	default:
+	}
+}
+
+func (r *SignalRecorder) stopIfIdle() bool {
+	if r == nil || r.shouldStop == nil {
+		return false
+	}
+	r.acceptMu.Lock()
+	defer r.acceptMu.Unlock()
+	if r.closed.Load() || len(r.queue) > 0 || !r.shouldStop() {
+		return false
+	}
+	r.requestStopLocked()
+	return true
+}
+
+func (r *SignalRecorder) requestStopLocked() {
+	if r.closed.CompareAndSwap(false, true) {
+		close(r.stop)
+	}
+}
+
+func (r *SignalRecorder) finish() {
+	r.cancel()
+	if r.onStopped != nil {
+		r.onStopped()
+	}
+	close(r.done)
 }
 
 func (r *SignalRecorder) drain() {
@@ -228,36 +317,38 @@ func (r *SignalRecorder) drain() {
 }
 
 func (r *SignalRecorder) process(job signalRecordJob) {
+	ctx, cancel := context.WithTimeout(r.lifecycleCtx, defaultSignalRecorderIOTimeout)
+	defer cancel()
 	if len(job.dropped) > 0 {
-		r.recordDroppedSignals(job.dropped)
+		r.recordDroppedSignals(ctx, job.dropped)
 	}
 	if len(job.signals) == 0 {
 		return
 	}
 	var err error
 	for attempt := 0; attempt <= r.retryMax; attempt++ {
-		if ctxErr := r.ctx.Err(); ctxErr != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
 			err = ctxErr
 			break
 		}
-		if err = r.source.RecordRecall(r.ctx, job.signals); err == nil {
+		if err = r.source.RecordRecall(ctx, job.signals); err == nil {
 			r.recorded.Add(uint64(len(job.signals)))
 			return
 		}
 	}
 	r.failed.Add(uint64(len(job.signals)))
 	r.warn("memory recall: record recall signal failed", "error", err)
-	if eventErr := r.source.RecordRecallSignalFailed(r.ctx, job.query, err); eventErr != nil {
+	if eventErr := r.source.RecordRecallSignalFailed(ctx, job.query, err); eventErr != nil {
 		r.warn("memory recall: record signal failure event failed", "error", eventErr)
 	}
 }
 
-func (r *SignalRecorder) recordDroppedSignals(dropped []signalDroppedJob) {
+func (r *SignalRecorder) recordDroppedSignals(ctx context.Context, dropped []signalDroppedJob) {
 	for _, drop := range dropped {
 		if len(drop.signals) == 0 {
 			continue
 		}
-		if err := r.source.RecordRecallSignalDropped(r.ctx, drop.query, drop.signals, len(r.queue)); err != nil {
+		if err := r.source.RecordRecallSignalDropped(ctx, drop.query, drop.signals, len(r.queue)); err != nil {
 			r.warn("memory recall: record dropped signal event failed", "error", err)
 		}
 	}

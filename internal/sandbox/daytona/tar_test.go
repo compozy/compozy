@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -32,6 +33,10 @@ func TestExtractTarRejectsUnsafeEntries(t *testing.T) {
 			header: tar.Header{Name: "link", Typeflag: tar.TypeSymlink, Linkname: "../outside"},
 		},
 		{
+			name:   "absolute symlink target",
+			header: tar.Header{Name: "link", Typeflag: tar.TypeSymlink, Linkname: "/tmp/outside"},
+		},
+		{
 			name:   "unsupported mode",
 			header: tar.Header{Name: "device", Typeflag: tar.TypeChar},
 		},
@@ -58,6 +63,23 @@ func TestExtractTarRejectsExistingSymlinkEscape(t *testing.T) {
 	archive := makeTar(t, map[string]string{"link/escape.txt": "bad"})
 	if _, err := extractTar(root, bytes.NewReader(archive)); err == nil {
 		t.Fatal("extractTar() error = nil, want symlink parent rejection")
+	}
+}
+
+func TestExtractTarRefusesToOverwriteExistingSymlink(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	outside := filepath.Join(t.TempDir(), "escaped.txt")
+	if err := os.Symlink(outside, filepath.Join(root, "file.txt")); err != nil {
+		t.Fatalf("Symlink() error = %v", err)
+	}
+	archive := makeTar(t, map[string]string{"file.txt": "bad"})
+	if _, err := extractTar(root, bytes.NewReader(archive)); err == nil {
+		t.Fatal("extractTar() error = nil, want symlink overwrite rejection")
+	}
+	if _, err := os.Stat(outside); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("Stat(outside) error = %v, want not exist", err)
 	}
 }
 

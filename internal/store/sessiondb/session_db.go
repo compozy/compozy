@@ -51,7 +51,7 @@ type sessionShutdownRequest struct {
 type SessionDB struct {
 	db         *sql.DB
 	path       string
-	sessionID  string
+	owner      store.SessionDBOwner
 	writeCh    chan sessionWriteRequest
 	shutdownCh chan sessionShutdownRequest
 	writerDone chan struct{}
@@ -69,15 +69,16 @@ var _ store.EventRecorder = (*SessionDB)(nil)
 var _ store.EventArchiver = (*SessionDB)(nil)
 
 // OpenSessionDB opens or creates the per-session events database at path.
-func OpenSessionDB(ctx context.Context, sessionID string, path string) (*SessionDB, error) {
+func OpenSessionDB(ctx context.Context, owner store.SessionDBOwner, path string) (*SessionDB, error) {
 	if ctx == nil {
 		return nil, errors.New("store: open session database context is required")
 	}
-	if strings.TrimSpace(sessionID) == "" {
-		return nil, errors.New("store: session database session id is required")
+	normalizedOwner, err := owner.Normalize()
+	if err != nil {
+		return nil, err
 	}
 
-	db, err := openSessionSQLite(ctx, path)
+	db, err := openOwnedSessionSQLite(ctx, normalizedOwner, path)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +86,7 @@ func OpenSessionDB(ctx context.Context, sessionID string, path string) (*Session
 	sessionDB := &SessionDB{
 		db:           db,
 		path:         strings.TrimSpace(path),
-		sessionID:    strings.TrimSpace(sessionID),
+		owner:        normalizedOwner,
 		writeCh:      make(chan sessionWriteRequest, defaultWriteBufferSize),
 		shutdownCh:   make(chan sessionShutdownRequest, 1),
 		writerDone:   make(chan struct{}),
@@ -118,5 +119,13 @@ func (s *SessionDB) SessionID() string {
 	if s == nil {
 		return ""
 	}
-	return s.sessionID
+	return s.owner.SessionID
+}
+
+// WorkspaceID reports the owning workspace identifier for the database.
+func (s *SessionDB) WorkspaceID() string {
+	if s == nil {
+		return ""
+	}
+	return s.owner.WorkspaceID
 }

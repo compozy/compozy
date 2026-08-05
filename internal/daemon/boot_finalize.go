@@ -117,7 +117,7 @@ func startSkillsWatcher(
 
 func workspaceSkillWatcherRoots(
 	homePaths compozyconfig.HomePaths,
-	registry Registry,
+	registry workspaceRegistryReader,
 ) func(context.Context) ([]string, error) {
 	if registry == nil {
 		return nil
@@ -155,7 +155,7 @@ func stopSkillsWatcher(ctx context.Context, cancel context.CancelFunc, done <-ch
 		return nil
 	}
 	if ctx == nil {
-		ctx = context.TODO()
+		return errors.New("daemon: stop skills watcher context is required")
 	}
 	select {
 	case <-done:

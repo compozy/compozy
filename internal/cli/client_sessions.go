@@ -230,8 +230,16 @@ func (c *unixSocketClient) ApproveSession(
 }
 
 func (c *unixSocketClient) PromptSession(ctx context.Context, id string, message string) ([]AgentEventRecord, error) {
+	messageID, err := store.NewID("msg")
+	if err != nil {
+		return nil, fmt.Errorf("cli: generate prompt message id: %w", err)
+	}
+	idempotencyKey, err := store.NewID("idem")
+	if err != nil {
+		return nil, fmt.Errorf("cli: generate prompt idempotency key: %w", err)
+	}
 	record, err := c.SendSessionPrompt(ctx, id, SessionPromptRequest{
-		Message: message, MessageID: store.NewID("msg"), IdempotencyKey: store.NewID("idem"),
+		Message: message, MessageID: messageID, IdempotencyKey: idempotencyKey,
 	})
 	if err != nil {
 		return nil, err

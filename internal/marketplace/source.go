@@ -13,7 +13,17 @@ import (
 	"time"
 )
 
-const defaultMaxResponseBytes int64 = 2 << 20
+const (
+	defaultMaxResponseBytes   int64 = 2 << 20
+	maxHTTPResponseDrainBytes int64 = 64 << 10
+)
+
+var (
+	// ErrCatalogDecode reports malformed JSON or multiple JSON values in a catalog document.
+	ErrCatalogDecode = errors.New("marketplace catalog: document decode failed")
+	// ErrCatalogValidation reports a decoded catalog document that violates the catalog contract.
+	ErrCatalogValidation = errors.New("marketplace catalog: document validation failed")
+)
 
 type documentEnvelope struct {
 	ManifestVersion *int               `json:"manifest_version"`
@@ -108,9 +118,7 @@ func (s *HTTPSource) Fetch(ctx context.Context) (document *Document, err error) 
 		return nil, fmt.Errorf("marketplace catalog: fetch %q feed: %w", s.kind, err)
 	}
 	defer func() {
-		if closeErr := response.Body.Close(); closeErr != nil {
-			err = errors.Join(err, fmt.Errorf("marketplace catalog: close %q response: %w", s.kind, closeErr))
-		}
+		err = joinHTTPResponseErrors(err, drainAndCloseHTTPResponseBody(s.kind, response.Body))
 	}()
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
 		return nil, &httpStatusError{status: response.StatusCode}
@@ -118,12 +126,22 @@ func (s *HTTPSource) Fetch(ctx context.Context) (document *Document, err error) 
 	if response.ContentLength > s.maxResponseBytes {
 		return nil, ErrResponseTooLarge
 	}
-	body, err := io.ReadAll(io.LimitReader(response.Body, s.maxResponseBytes+1))
+	limitedBody := &io.LimitedReader{R: response.Body, N: s.maxResponseBytes}
+	body, err := io.ReadAll(limitedBody)
 	if err != nil {
 		return nil, fmt.Errorf("marketplace catalog: read %q response: %w", s.kind, err)
 	}
-	if int64(len(body)) > s.maxResponseBytes {
-		return nil, ErrResponseTooLarge
+	if limitedBody.N == 0 {
+		extra, readErr := io.ReadAll(io.LimitReader(response.Body, 1))
+		if len(extra) > 0 {
+			if readErr != nil {
+				readErr = fmt.Errorf("marketplace catalog: read %q response: %w", s.kind, readErr)
+			}
+			return nil, joinHTTPResponseErrors(ErrResponseTooLarge, readErr)
+		}
+		if readErr != nil {
+			return nil, fmt.Errorf("marketplace catalog: read %q response: %w", s.kind, readErr)
+		}
 	}
 	document, err = DecodeDocument(s.kind, body)
 	if err != nil {
@@ -132,8 +150,56 @@ func (s *HTTPSource) Fetch(ctx context.Context) (document *Document, err error) 
 	return document, nil
 }
 
+// drainAndCloseHTTPResponseBody discards at most maxHTTPResponseDrainBytes before closing the body.
+func drainAndCloseHTTPResponseBody(kind Kind, body io.ReadCloser) error {
+	if body == nil {
+		return nil
+	}
+
+	_, drainErr := io.Copy(io.Discard, io.LimitReader(body, maxHTTPResponseDrainBytes))
+	if drainErr != nil {
+		drainErr = fmt.Errorf("marketplace catalog: drain %q response: %w", kind, drainErr)
+	}
+	closeErr := body.Close()
+	if closeErr != nil {
+		closeErr = fmt.Errorf("marketplace catalog: close %q response: %w", kind, closeErr)
+	}
+	return joinHTTPResponseErrors(drainErr, closeErr)
+}
+
+func joinHTTPResponseErrors(primary error, additional ...error) error {
+	errorsToJoin := make([]error, 0, len(additional)+1)
+	if primary != nil {
+		errorsToJoin = append(errorsToJoin, primary)
+	}
+	for _, additionalErr := range additional {
+		if additionalErr != nil {
+			errorsToJoin = append(errorsToJoin, additionalErr)
+		}
+	}
+	switch len(errorsToJoin) {
+	case 0:
+		return nil
+	case 1:
+		return errorsToJoin[0]
+	default:
+		return errors.Join(errorsToJoin...)
+	}
+}
+
 // DecodeDocument strictly validates one complete v2 document.
 func DecodeDocument(kind Kind, raw []byte) (*Document, error) {
+	document, err := decodeDocument(kind, raw)
+	if err == nil || errors.Is(err, ErrCatalogDecode) {
+		return document, err
+	}
+	if matched, ok := errors.AsType[*UnsupportedManifestVersionError](err); ok && matched != nil {
+		return nil, err
+	}
+	return nil, fmt.Errorf("%w: %w", ErrCatalogValidation, err)
+}
+
+func decodeDocument(kind Kind, raw []byte) (*Document, error) {
 	if _, err := kindFilename(kind); err != nil {
 		return nil, err
 	}
@@ -196,14 +262,14 @@ func decodeStrict(raw []byte, destination any) error {
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(destination); err != nil {
-		return fmt.Errorf("decode JSON: %w", err)
+		return fmt.Errorf("%w: decode JSON: %w", ErrCatalogDecode, err)
 	}
 	var trailing any
 	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
 		if err == nil {
-			return errors.New("decode JSON: multiple values are not allowed")
+			return fmt.Errorf("%w: decode JSON: multiple values are not allowed", ErrCatalogDecode)
 		}
-		return fmt.Errorf("decode JSON trailing data: %w", err)
+		return fmt.Errorf("%w: decode JSON trailing data: %w", ErrCatalogDecode, err)
 	}
 	return nil
 }

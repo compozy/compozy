@@ -75,7 +75,7 @@ func cloneDynamicContainer(value reflect.Value) (reflect.Value, bool) {
 			return reflect.Zero(value.Type()), true
 		}
 		out := reflect.MakeSlice(value.Type(), value.Len(), value.Len())
-		for i := 0; i < value.Len(); i++ {
+		for i := range value.Len() {
 			item := value.Index(i)
 			clonedItem, ok := cloneDynamicContainer(item)
 			if !ok {
@@ -86,7 +86,7 @@ func cloneDynamicContainer(value reflect.Value) (reflect.Value, bool) {
 		return out, true
 	case reflect.Array:
 		out := reflect.New(value.Type()).Elem()
-		for i := 0; i < value.Len(); i++ {
+		for i := range value.Len() {
 			item := value.Index(i)
 			clonedItem, ok := cloneDynamicContainer(item)
 			if !ok {

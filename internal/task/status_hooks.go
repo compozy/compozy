@@ -25,7 +25,9 @@ func (m *Service) dispatchTaskStatusChanged(
 		FromStatus:  string(from.Normalize()),
 		ToStatus:    string(to.Normalize()),
 	}
-	_, err := m.taskHooks.DispatchTaskStatusChanged(taskRunObservationHookContext(ctx), payload)
+	hookCtx, cancel := taskRunObservationHookContext(ctx)
+	defer cancel()
+	_, err := m.taskHooks.DispatchTaskStatusChanged(hookCtx, payload)
 	m.reportTaskHookFailure(hookspkg.HookTaskStatusChanged, err, taskRecord)
 }
 

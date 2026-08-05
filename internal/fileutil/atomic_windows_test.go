@@ -12,7 +12,7 @@ import (
 )
 
 func TestAtomicWriteFileWindowsOverwrite(t *testing.T) {
-	t.Run("ShouldReplaceExistingTargetWithoutMissingOrPartialReads", func(t *testing.T) {
+	t.Run("Should replace existing target without missing or partial reads", func(t *testing.T) {
 		t.Parallel()
 
 		path := filepath.Join(t.TempDir(), "target.txt")
@@ -69,6 +69,22 @@ func TestAtomicWriteFileWindowsOverwrite(t *testing.T) {
 		}
 		if !bytes.Equal(got, last) {
 			t.Fatalf("ReadFile(final) = %d bytes, want %d bytes", len(got), len(last))
+		}
+	})
+}
+
+// Invariant: SyncDir acquires the write access required by FlushFileBuffers on
+// Windows instead of attempting the flush through a read-only directory handle.
+// Owner: fileutil public directory-sync boundary.
+// Canonical suite: fileutil Windows atomic filesystem behavior.
+func TestSyncDirWindowsUsesMutationCapableHandle(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should flush an existing directory", func(t *testing.T) {
+		t.Parallel()
+
+		if err := SyncDir(t.TempDir()); err != nil {
+			t.Fatalf("SyncDir() error = %v", err)
 		}
 	})
 }

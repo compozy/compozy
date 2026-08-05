@@ -37,10 +37,3 @@ type taskRunCompletedWatchEventPayload struct {
 	Result         json.RawMessage   `json:"result,omitempty"`
 	ClaimTokenHash string            `json:"claim_token_hash,omitempty"`
 }
-
-type taskRunFailedWatchEventPayload struct {
-	Status         taskpkg.RunStatus `json:"status"`
-	Error          string            `json:"error"`
-	Metadata       json.RawMessage   `json:"metadata,omitempty"`
-	ClaimTokenHash string            `json:"claim_token_hash,omitempty"`
-}

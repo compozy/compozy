@@ -1,6 +1,7 @@
 package core
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -184,17 +185,11 @@ func (h *BaseHandlers) DrainScheduler(c *gin.Context) {
 		)
 		return
 	}
-	timeout := taskpkg.DefaultSchedulerDrainTimeout()
-	if req.TimeoutSeconds != nil {
-		if *req.TimeoutSeconds < 0 {
-			h.respondError(
-				c,
-				http.StatusBadRequest,
-				NewTaskValidationError(fmt.Errorf("scheduler timeout_seconds must be non-negative")),
-			)
-			return
-		}
-		timeout = time.Duration(*req.TimeoutSeconds) * time.Second
+	timeout, err := schedulerDrainTimeout(req.TimeoutSeconds)
+	if err != nil {
+		validationErr := NewTaskValidationError(err)
+		h.respondError(c, http.StatusUnprocessableEntity, validationErr)
+		return
 	}
 	actor, err := h.taskActorContext(c, taskActionSchedulerDrain)
 	if err != nil {
@@ -214,6 +209,22 @@ func (h *BaseHandlers) DrainScheduler(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, SchedulerDrainResponseFromDomain(result))
+}
+
+func schedulerDrainTimeout(seconds *int64) (time.Duration, error) {
+	if seconds == nil {
+		return taskpkg.DefaultSchedulerDrainTimeout(), nil
+	}
+	if *seconds < 0 {
+		return 0, errors.New("scheduler timeout_seconds must be non-negative")
+	}
+	if *seconds > contract.SchedulerDrainTimeoutMaxSeconds {
+		return 0, fmt.Errorf(
+			"scheduler timeout_seconds must not exceed %d",
+			contract.SchedulerDrainTimeoutMaxSeconds,
+		)
+	}
+	return time.Duration(*seconds) * time.Second, nil
 }
 
 // GetSchedulerBacklog keeps pause-aware backlog projection behind the task service boundary.

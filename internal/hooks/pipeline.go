@@ -22,6 +22,20 @@ type typedNativeExecutor[P any, R any] interface {
 	ExecuteTyped(context.Context, RegisteredHook, P) (R, error)
 }
 
+type hookRunFailure[P any] struct {
+	ctx       context.Context
+	payload   P
+	hook      RegisteredHook
+	depth     int
+	started   time.Time
+	duration  time.Duration
+	rawPatch  json.RawMessage
+	trace     hookTraceEntry
+	outcome   HookRunOutcome
+	runErr    error
+	returnErr error
+}
+
 // pipeline executes one sync hook chain for a concrete payload/patch pair.
 type pipeline[P any, R any] struct {
 	event        HookEvent
@@ -139,19 +153,19 @@ func (p pipeline[P, R]) executeHook(
 	duration := time.Since(started)
 	trace := newHookTrace(hook, duration, rawPatch)
 	if err != nil {
-		return p.finishHookFailure(
-			hookCtx,
-			payload,
-			hook.RegisteredHook,
-			depth,
-			started,
-			duration,
-			rawPatch,
-			trace,
-			HookRunOutcomeFailed,
-			err,
-			err,
-		)
+		return p.finishHookFailure(hookRunFailure[P]{
+			ctx:       hookCtx,
+			payload:   payload,
+			hook:      hook.RegisteredHook,
+			depth:     depth,
+			started:   started,
+			duration:  duration,
+			rawPatch:  rawPatch,
+			trace:     trace,
+			outcome:   HookRunOutcomeFailed,
+			runErr:    err,
+			returnErr: err,
+		})
 	}
 	if p.guard != nil {
 		if guardErr := p.guard(hookCtx, hook.RegisteredHook, payload, patch); guardErr != nil {
@@ -161,19 +175,19 @@ func (p pipeline[P, R]) executeHook(
 				outcome = HookRunOutcomeRejected
 				returnErr = nil
 			}
-			return p.finishHookFailure(
-				hookCtx,
-				payload,
-				hook.RegisteredHook,
-				depth,
-				started,
-				duration,
-				rawPatch,
-				trace,
-				outcome,
-				guardErr,
-				returnErr,
-			)
+			return p.finishHookFailure(hookRunFailure[P]{
+				ctx:       hookCtx,
+				payload:   payload,
+				hook:      hook.RegisteredHook,
+				depth:     depth,
+				started:   started,
+				duration:  duration,
+				rawPatch:  rawPatch,
+				trace:     trace,
+				outcome:   outcome,
+				runErr:    guardErr,
+				returnErr: returnErr,
+			})
 		}
 	}
 
@@ -227,33 +241,21 @@ func hookOutcomeFromDenied(denied bool) HookRunOutcome {
 	return HookRunOutcomeApplied
 }
 
-func (p pipeline[P, R]) finishHookFailure(
-	ctx context.Context,
-	payload P,
-	hook RegisteredHook,
-	depth int,
-	started time.Time,
-	duration time.Duration,
-	rawPatch json.RawMessage,
-	trace hookTraceEntry,
-	outcome HookRunOutcome,
-	runErr error,
-	returnErr error,
-) (P, bool, hookTraceEntry, error) {
-	trace.Outcome = outcome
-	trace.Error = runErr.Error()
+func (p pipeline[P, R]) finishHookFailure(failure hookRunFailure[P]) (P, bool, hookTraceEntry, error) {
+	failure.trace.Outcome = failure.outcome
+	failure.trace.Error = failure.runErr.Error()
 	p.finishHookRun(
-		ctx,
-		payload,
-		hook,
-		trace.Outcome,
-		duration,
-		rawPatch,
-		runErr,
-		depth,
-		started.Add(duration).UTC(),
+		failure.ctx,
+		failure.payload,
+		failure.hook,
+		failure.trace.Outcome,
+		failure.duration,
+		failure.rawPatch,
+		failure.runErr,
+		failure.depth,
+		failure.started.Add(failure.duration).UTC(),
 	)
-	return payload, false, trace, returnErr
+	return failure.payload, false, failure.trace, failure.returnErr
 }
 
 func (p pipeline[P, R]) finishHookRun(

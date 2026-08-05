@@ -123,7 +123,6 @@ banner_after_days = 2
 [memory.recall.signals]
 queue_capacity = 128
 worker_retry_max = 5
-metrics_enabled = false
 
 [memory.decisions]
 prune_after_applied_days = 30
@@ -209,8 +208,7 @@ auto_create = false
 		}
 		if memory.Recall.Fusion != "rrf" ||
 			!memory.Recall.IncludeAlreadySurfaced ||
-			!memory.Recall.IncludeSystem ||
-			memory.Recall.Signals.MetricsEnabled {
+			!memory.Recall.IncludeSystem {
 			t.Fatalf("Load() Recall = %#v", memory.Recall)
 		}
 		if memory.Decisions.MaxPostContentBytes != 32768 ||

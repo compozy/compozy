@@ -36,12 +36,12 @@ func (h *BaseHandlers) ReadMemory(c *gin.Context) {
 		return
 	}
 
-	content, err := store.Read(location.Scope, c.Param("filename"))
+	content, err := store.Read(c.Request.Context(), location.Scope, c.Param("filename"))
 	if err != nil {
 		h.respondMemoryError(c, StatusForMemoryError(err), err, nil)
 		return
 	}
-	entry, err := h.memoryEntryPayload(store, location, content)
+	entry, err := h.memoryEntryPayload(c.Request.Context(), store, location, content)
 	if err != nil {
 		h.respondMemoryError(c, StatusForMemoryError(err), err, nil)
 		return
@@ -126,7 +126,7 @@ func (h *BaseHandlers) EditMemory(c *gin.Context) {
 		h.respondMemoryError(c, StatusForMemoryError(err), err, nil)
 		return
 	}
-	content, err := store.Read(location.Scope, c.Param("filename"))
+	content, err := store.Read(c.Request.Context(), location.Scope, c.Param("filename"))
 	if err != nil {
 		h.respondMemoryError(c, StatusForMemoryError(err), err, nil)
 		return

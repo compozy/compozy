@@ -13,8 +13,9 @@ The orchestration-improvements workstream introduced two related but separately-
   the subscription id.
 - A notification cursor describes confirmed _delivery progress_: last sequence delivered, last
   delivery id, last delivered timestamp, last error, updated timestamp. Stored in
-  `notification_cursors`. Primary key is `(consumer_id, stream_name, subject_id)`, with the bridge
-  subscription using `consumer_id = "bridge_task_subscription:<subscription_id>"`.
+  `notification_cursors`. Primary key is
+  `(scope_kind, workspace_id, consumer_id, stream_name, subject_id)`, with the bridge subscription
+  using `consumer_id = <subscription_id>` byte for byte.
 
 A naive design would collapse both into one row keyed by subscription id. That model breaks the
 moment an operator deletes a stale subscription: the only audit/replay surface — last error,
@@ -55,8 +56,9 @@ they can recreate.
   "what was the last error?", or "where would a recreated record resume?" still matter,
   the diagnostic data must outlive the primary.
 - Pick a key for the diagnostic that is stable across primary recreation. Cursor identity
-  `(consumer_id, stream_name, subject_id)` survives a `bridge_task_subscriptions` delete by
-  construction.
+  `(scope_kind, workspace_id, consumer_id, stream_name, subject_id)` survives a
+  `bridge_task_subscriptions` delete by construction. Treat every identity component as opaque;
+  trimming, prefixing, or reconstructing one creates a different key or aliases independent rows.
   - Make the primary's delete path remove only the primary. Document that diagnostic rows survive
     and can be inspected through the cursor read model.
 - Surface the cursor zero-state (no delivery yet) and the post-delete stale-cursor state through

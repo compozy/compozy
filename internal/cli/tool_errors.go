@@ -65,6 +65,7 @@ func toolErrorResponseForError(err error) (ToolErrorResponseRecord, bool) {
 				ToolID:        toolErr.ToolID,
 				ReasonCodes:   append([]toolspkg.ReasonCode(nil), toolErr.ReasonCodes...),
 				Layer:         toolOperatorCLIKey,
+				Details:       contract.ToolOperatorFailureDetails(toolErr.Operator),
 				PartialResult: partialResult,
 			},
 		}), true

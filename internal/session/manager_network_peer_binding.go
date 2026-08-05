@@ -98,7 +98,7 @@ func (m *Manager) joinNetworkPeerWithBinding(
 			info.ID,
 			networkPeerID(info.AgentName, info.ID),
 			info.WorkspaceID,
-			firstNonEmpty(strings.TrimSpace(info.Name), strings.TrimSpace(info.AgentName)),
+			firstTrimmedNonEmpty(info.Name, info.AgentName),
 			spec.ChannelID,
 			ownerKey,
 			spec,

@@ -96,7 +96,7 @@ func BenchmarkLoopWatchEventsObserverEventPostRecordDoorbell(b *testing.B) {
 
 		b.ReportAllocs()
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			if err := observer.OnEventPostRecord(context.Background(), payload); err != nil {
 				b.Fatalf("OnEventPostRecord(unrelated) error = %v", err)
 			}
@@ -124,7 +124,7 @@ func BenchmarkLoopWatchEventsObserverEventPostRecordDoorbell(b *testing.B) {
 
 		b.ReportAllocs()
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			if err := observer.OnEventPostRecord(context.Background(), payload); err != nil {
 				b.Fatalf("OnEventPostRecord(cached CEL) error = %v", err)
 			}

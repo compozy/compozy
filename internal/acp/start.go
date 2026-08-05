@@ -20,6 +20,12 @@ const (
 	startOutcomeFailed    = "failed"
 )
 
+// ProviderPreStarter classifies provider readiness before ACP process launch.
+// The daemon owns the concrete cache instance and injects it at composition.
+type ProviderPreStarter interface {
+	PreStart(context.Context, compozyconfig.ProviderConfig, *authproviders.ProbeEnv) authproviders.PreStartReport
+}
+
 // Start launches a subprocess, completes ACP initialization, and creates or resumes a session.
 func (d *Driver) Start(ctx context.Context, opts StartOpts) (process *AgentProcess, startErr error) {
 	startedAt := time.Now()
@@ -39,9 +45,13 @@ func (d *Driver) Start(ctx context.Context, opts StartOpts) (process *AgentProce
 	if err != nil {
 		return nil, WrapFailure(store.FailureStartup, "invalid ACP start options", err)
 	}
+	normalized, launchIdentityErr := d.prepareLaunchIdentity(ctx, normalized)
+	if launchIdentityErr != nil && ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
 
 	stageStartedAt := time.Now()
-	err = runProviderPreStart(ctx, normalized)
+	err = d.runProviderPreStart(ctx, normalized)
 	d.logStartStage(
 		normalized,
 		nil,
@@ -51,6 +61,13 @@ func (d *Driver) Start(ctx context.Context, opts StartOpts) (process *AgentProce
 	)
 	if err != nil {
 		return nil, err
+	}
+	if launchIdentityErr != nil {
+		return nil, WrapFailure(
+			store.FailureStartup,
+			"agent executable resolution failed",
+			launchIdentityErr,
+		)
 	}
 
 	stageStartedAt = time.Now()
@@ -85,21 +102,34 @@ func (d *Driver) Start(ctx context.Context, opts StartOpts) (process *AgentProce
 	return process, nil
 }
 
-func runProviderPreStart(ctx context.Context, opts StartOpts) error {
+func (d *Driver) runProviderPreStart(ctx context.Context, opts StartOpts) error {
 	if strings.TrimSpace(opts.ProviderName) == "" {
 		return nil
+	}
+	if d == nil || d.providerPreStarter == nil {
+		return WrapFailure(
+			store.FailureProviderAuth,
+			"provider auth pre-start probe unavailable",
+			errors.New("acp: provider pre-starter is required"),
+		)
 	}
 	provider := compozyconfig.ProviderConfig{}
 	if opts.ProviderConfig != nil {
 		provider = *opts.ProviderConfig
 	}
-	report := authproviders.PreStart(ctx, provider, opts.ProviderAuthEnv)
-	if report.Item == nil {
+	report := d.providerPreStarter.PreStart(ctx, provider, opts.ProviderAuthEnv)
+	if report.Item == nil && report.Cause == nil {
 		return nil
 	}
+	item := report.Item
+	if item == nil {
+		classification := authproviders.ClassifyError(report.Cause)
+		generated := authproviders.DiagnosticItem(opts.ProviderName, classification)
+		item = &generated
+	}
 	message := "provider auth pre-start probe failed"
-	code := strings.TrimSpace(report.Item.Code)
-	itemMessage := strings.TrimSpace(report.Item.Message)
+	code := strings.TrimSpace(item.Code)
+	itemMessage := strings.TrimSpace(item.Message)
 	switch {
 	case code != "" && itemMessage != "":
 		message = code + ": " + itemMessage
@@ -113,10 +143,14 @@ func runProviderPreStart(ctx context.Context, opts StartOpts) error {
 		strings.TrimSpace(opts.ProviderName),
 		message,
 	)
+	cause := report.Cause
+	if cause == nil {
+		cause = err
+	}
 	return WrapFailure(
 		store.FailureProviderAuth,
 		"provider auth pre-start probe failed",
-		diagnostics.NewStructuredError(*report.Item, err),
+		diagnostics.NewStructuredError(*item, cause),
 	)
 }
 

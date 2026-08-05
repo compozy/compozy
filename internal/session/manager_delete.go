@@ -33,13 +33,13 @@ func (m *Manager) Delete(ctx context.Context, id string) error {
 	if m.sessionCatalog != nil {
 		if err := m.sessionCatalog.DeleteSession(ctx, target); err != nil {
 			deleteErr := fmt.Errorf("session: delete catalog state for %q: %w", target, err)
-			if rollbackErr := m.rollbackStagedSessionDeletes([]stagedSessionDelete{staged}); rollbackErr != nil {
+			if rollbackErr := m.rollbackStagedSessionDeletes(ctx, []stagedSessionDelete{staged}); rollbackErr != nil {
 				return errors.Join(deleteErr, rollbackErr)
 			}
 			return deleteErr
 		}
 	}
-	if cleanupErr := m.commitStagedSessionDeletes([]stagedSessionDelete{staged}); cleanupErr != nil {
+	if cleanupErr := m.commitStagedSessionDeletes(ctx, []stagedSessionDelete{staged}); cleanupErr != nil {
 		// The catalog deletion is already committed. The tombstone is deliberately
 		// retained and retried during the next manager construction, while the
 		// logical deletion remains successful and cannot lose partially restored
@@ -55,13 +55,13 @@ func (m *Manager) Delete(ctx context.Context, id string) error {
 
 func (m *Manager) quiesceSessionQueries(
 	ctx context.Context,
-	target string,
+	owner store.SessionDBOwner,
 	sessionDir string,
 ) (func(), error) {
 	if m.queryStoreRuntime == nil {
 		return func() {}, nil
 	}
-	return m.queryStoreRuntime.Quiesce(ctx, target, store.SessionDBFile(sessionDir))
+	return m.queryStoreRuntime.Quiesce(ctx, owner, store.SessionDBFile(sessionDir))
 }
 
 func stopSessionBeforeDelete(

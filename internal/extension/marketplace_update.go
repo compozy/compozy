@@ -75,14 +75,15 @@ func marketplaceUpdateFailureDiagnostic(name string, cause error) *diagnosticcon
 	if errors.Is(cause, context.Canceled) || errors.Is(cause, context.DeadlineExceeded) {
 		message = fmt.Sprintf("Extension %q update was interrupted.", strings.TrimSpace(name))
 	}
-	item := diagnosticspkg.NewItem(
-		"extension-update-failed:"+strings.TrimSpace(name),
-		diagnosticcontract.CodeExtensionUpdateFailed,
-		diagnosticcontract.CategoryExtension,
-		"Extension update failed",
-		message,
-		diagnosticcontract.SeverityError,
-		diagnosticcontract.FreshnessLive,
+	item := diagnosticspkg.NewItem(diagnosticspkg.ItemSpec{
+		ID:            "extension-update-failed:" + strings.TrimSpace(name),
+		Code:          diagnosticcontract.CodeExtensionUpdateFailed,
+		Category:      diagnosticcontract.CategoryExtension,
+		Title:         "Extension update failed",
+		Message:       message,
+		Severity:      diagnosticcontract.SeverityError,
+		DataFreshness: diagnosticcontract.FreshnessLive,
+	},
 		diagnosticspkg.WithSuggestedCommand("compozy extension status "+strings.TrimSpace(name)),
 	)
 	return &item

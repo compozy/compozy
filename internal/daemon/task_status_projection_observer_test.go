@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/notifications"
@@ -132,15 +134,26 @@ func TestTaskStatusProjectionObserver(t *testing.T) {
 		if err := db.CreateTask(ctx, taskRecord); err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
 		}
-		first := taskStatusProjectionRun("run-rollup-a", taskRecord.ID, taskpkg.TaskRunStatusCompleted, now, origin)
-		second := taskStatusProjectionRun("run-rollup-b", taskRecord.ID, taskpkg.TaskRunStatusFailed, now, origin)
-		first.DesignationGroupID = "tdg-status"
-		second.DesignationGroupID = "tdg-status"
-		for _, run := range []taskpkg.Run{first, second} {
-			if err := db.CreateTaskRun(ctx, run); err != nil {
-				t.Fatalf("CreateTaskRun(%q) error = %v", run.ID, err)
-			}
-		}
+		seedTaskStatusProjectionTerminalRun(
+			ctx,
+			t,
+			db,
+			taskRecord,
+			"run-rollup-a",
+			taskpkg.TaskRunStatusCompleted,
+			"tdg-status",
+			now,
+		)
+		second := seedTaskStatusProjectionTerminalRun(
+			ctx,
+			t,
+			db,
+			taskRecord,
+			"run-rollup-b",
+			taskpkg.TaskRunStatusFailed,
+			"tdg-status",
+			now.Add(time.Second),
+		)
 		publisher := &recordingTaskStatusProjectionPublisher{}
 		observer := &taskStatusProjectionObserver{
 			tasks: db, prefs: db, availability: db, publisher: publisher,
@@ -215,36 +228,36 @@ func TestTaskStatusProjectionObserver(t *testing.T) {
 			if err := db.CreateTask(ctx, taskRecord); err != nil {
 				t.Fatalf("CreateTask() error = %v", err)
 			}
-			first := taskStatusProjectionRun("run-replay-a", taskRecord.ID, taskpkg.TaskRunStatusCompleted, now, origin)
-			second := taskStatusProjectionRun("run-replay-b", taskRecord.ID, taskpkg.TaskRunStatusFailed, now, origin)
-			for index, run := range []*taskpkg.Run{&first, &second} {
-				run.WorkspaceID = "wks-replay"
-				run.DesignationGroupID = "tdg-replay"
-				if err := db.CreateTaskRun(ctx, *run); err != nil {
-					t.Fatalf("CreateTaskRun(%d) error = %v", index, err)
-				}
+			first := seedTaskStatusProjectionTerminalRun(
+				ctx,
+				t,
+				db,
+				taskRecord,
+				"run-replay-a",
+				taskpkg.TaskRunStatusCompleted,
+				"tdg-replay",
+				now,
+			)
+			second := seedTaskStatusProjectionTerminalRun(
+				ctx,
+				t,
+				db,
+				taskRecord,
+				"run-replay-b",
+				taskpkg.TaskRunStatusFailed,
+				"tdg-replay",
+				now.Add(time.Second),
+			)
+			allRecords, err := db.ListTaskEventRecords(ctx, taskpkg.EventRecordQuery{
+				TaskID: taskRecord.ID,
+				Limit:  100,
+			})
+			if err != nil {
+				t.Fatalf("ListTaskEventRecords() error = %v", err)
 			}
-			events := []taskpkg.Event{
-				{
-					ID: "evt-replay-completed", TaskID: taskRecord.ID, RunID: first.ID,
-					EventType: eventspkg.TaskRunCompleted, Actor: actor, Origin: origin, Timestamp: now,
-				},
-				{
-					ID: "evt-replay-forced-fail", TaskID: taskRecord.ID, RunID: second.ID,
-					EventType: eventspkg.TaskRunOperatorForcedFail, Actor: actor, Origin: origin,
-					Timestamp: now.Add(time.Second),
-				},
-			}
-			records := make([]taskpkg.EventRecord, 0, len(events))
-			for _, event := range events {
-				if err := db.CreateTaskEvent(ctx, event); err != nil {
-					t.Fatalf("CreateTaskEvent(%q) error = %v", event.ID, err)
-				}
-				record, err := db.GetTaskEventRecord(ctx, event.ID)
-				if err != nil {
-					t.Fatalf("GetTaskEventRecord(%q) error = %v", event.ID, err)
-				}
-				records = append(records, record)
+			records := taskStatusProjectionTerminalRecords(allRecords, first.ID, second.ID)
+			if len(records) != 2 {
+				t.Fatalf("terminal records = %#v, want completed then forced-fail", records)
 			}
 
 			flakyStore := &flakyTaskStatusProjectionStore{
@@ -253,7 +266,7 @@ func TestTaskStatusProjectionObserver(t *testing.T) {
 			}
 			flakyStore.remainingFailures.Store(1)
 			publisher := &recordingTaskStatusProjectionPublisher{
-				ch: make(chan taskStatusProjection, len(records)),
+				ch: make(chan taskStatusProjection, len(allRecords)),
 			}
 			observerCtx, cancel := context.WithCancel(context.Background())
 			observer := &taskStatusProjectionObserver{
@@ -283,10 +296,16 @@ func TestTaskStatusProjectionObserver(t *testing.T) {
 			observer.start()
 			t.Cleanup(observer.shutdown)
 
-			for range records {
+			pendingTerminalEvents := make(map[string]struct{}, len(records))
+			for _, record := range records {
+				pendingTerminalEvents[record.Event.ID] = struct{}{}
+			}
+			projectionDeadline := time.After(5 * time.Second)
+			for len(pendingTerminalEvents) > 0 {
 				select {
-				case <-publisher.ch:
-				case <-time.After(5 * time.Second):
+				case projection := <-publisher.ch:
+					delete(pendingTerminalEvents, projection.EventID)
+				case <-projectionDeadline:
 					t.Fatal("timed out waiting for replayed projection")
 				}
 			}
@@ -384,11 +403,49 @@ func newTaskStatusProjectionFixture(t *testing.T, networkAvailableAtCompletion b
 	if err := db.CreateTask(ctx, taskRecord); err != nil {
 		t.Fatalf("CreateTask() error = %v", err)
 	}
-	run := taskStatusProjectionRun("run-status", taskRecord.ID, taskpkg.TaskRunStatusQueued, now, origin)
-	run.SetNetworkState(daemonTestLiveParticipation("wks_status", "builders"), "", "", "")
-	if err := db.CreateTaskRun(ctx, run); err != nil {
-		t.Fatalf("CreateTaskRun() error = %v", err)
+	liveSpec := daemonTestLiveParticipation("wks_status", "builders")
+	cfg := compozyconfig.DefaultNetworkConfig()
+	participationResolver, err := participation.NewResolver(participation.ResolverOptions{
+		Defaults: liveSpec.Bounds,
+		Limits:   cfg.Live.Limits.ParticipationLimits(),
+		Availability: func(context.Context) (bool, error) {
+			return true, nil
+		},
+		ChannelExists: func(context.Context, string, string) (bool, error) {
+			return true, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("participation.NewResolver() error = %v", err)
 	}
+	seedActor, err := taskpkg.DeriveDaemonActorContext("status-projection", "daemon.test")
+	if err != nil {
+		t.Fatalf("DeriveDaemonActorContext(seed run) error = %v", err)
+	}
+	seedManager := newTaskStatusProjectionManagerForRunID(
+		t,
+		db,
+		now,
+		"run-status",
+		taskpkg.WithParticipationResolver(participationResolver),
+	)
+	mode := participation.ModeLive
+	strategy := participation.StrategyNamed
+	channelID := "builders"
+	queued, err := seedManager.EnqueueRun(ctx, taskpkg.EnqueueRun{
+		TaskID:         taskRecord.ID,
+		IdempotencyKey: "projection-run-status",
+		NetworkParticipation: &participation.Request{
+			Mode:            &mode,
+			ChannelStrategy: &strategy,
+			ChannelID:       &channelID,
+		},
+		NetworkParticipationSource: participation.SourceExplicitRequest,
+	}, seedActor)
+	if err != nil {
+		t.Fatalf("EnqueueRun(run-status) error = %v", err)
+	}
+	run := *queued
 	if err := db.PutNetworkTaskThreadOrigin(ctx, store.NetworkTaskThreadOrigin{
 		TaskID: taskRecord.ID, WorkspaceID: "wks_status", Channel: "builders",
 		ThreadID: "thread_status", OriginMessageID: "msg-origin", Digest: "Investigate latency",
@@ -560,22 +617,112 @@ func taskStatusProjectionTask(
 	}
 }
 
-func taskStatusProjectionRun(
-	id string,
-	taskID string,
-	status taskpkg.RunStatus,
+func newTaskStatusProjectionManagerForRunID(
+	t *testing.T,
+	db *globaldb.GlobalDB,
 	now time.Time,
-	origin taskpkg.Origin,
+	runID string,
+	options ...taskpkg.Option,
+) *taskpkg.Service {
+	t.Helper()
+
+	sequence := 0
+	baseOptions := []taskpkg.Option{
+		taskpkg.WithStore(db),
+		taskpkg.WithManagerNow(func() time.Time { return now }),
+		taskpkg.WithIDGenerator(func(prefix string) (string, error) {
+			if prefix == "run" {
+				return runID, nil
+			}
+			sequence++
+			return prefix + "-" + runID + "-" + strconv.Itoa(sequence), nil
+		}),
+	}
+	manager, err := taskpkg.NewManager(append(baseOptions, options...)...)
+	if err != nil {
+		t.Fatalf("task.NewManager(%q) error = %v", runID, err)
+	}
+	return manager
+}
+
+func seedTaskStatusProjectionTerminalRun(
+	ctx context.Context,
+	t *testing.T,
+	db *globaldb.GlobalDB,
+	taskRecord taskpkg.Task,
+	runID string,
+	status taskpkg.RunStatus,
+	designationGroupID string,
+	now time.Time,
 ) taskpkg.Run {
-	run := taskpkg.Run{
-		ID: id, TaskID: taskID, Status: status, Attempt: 1, Origin: origin,
-		QueuedAt: now,
+	t.Helper()
+
+	manager := newTaskStatusProjectionManagerForRunID(t, db, now, runID)
+	actor, err := taskpkg.DeriveDaemonActorContext("status-projection", "daemon.test")
+	if err != nil {
+		t.Fatalf("DeriveDaemonActorContext(%q) error = %v", runID, err)
 	}
-	if status.Normalize() != taskpkg.TaskRunStatusQueued {
-		run.StartedAt = now.Add(time.Second)
-		run.EndedAt = now.Add(2 * time.Second)
+	queued, err := manager.EnqueueRun(ctx, taskpkg.EnqueueRun{
+		TaskID:             taskRecord.ID,
+		IdempotencyKey:     "projection-" + runID,
+		DesignationGroupID: designationGroupID,
+	}, actor)
+	if err != nil {
+		t.Fatalf("EnqueueRun(%q) error = %v", runID, err)
 	}
-	return run
+
+	var terminal *taskpkg.Run
+	switch status.Normalize() {
+	case taskpkg.TaskRunStatusCompleted:
+		claim, claimErr := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			RunID:            runID,
+			Scope:            taskRecord.Scope,
+			WorkspaceID:      taskRecord.WorkspaceID,
+			RunKind:          queued.RunKind,
+			ClaimerSessionID: "projection-" + runID,
+		}, actor)
+		if claimErr != nil {
+			t.Fatalf("ClaimNextRun(%q) error = %v", runID, claimErr)
+		}
+		terminal, err = manager.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
+			RunID:      runID,
+			ClaimToken: claim.ClaimToken,
+			Result:     taskpkg.RunResult{Value: json.RawMessage(`{"ok":true}`)},
+			Now:        now,
+		}, actor)
+	case taskpkg.TaskRunStatusFailed:
+		terminal, err = manager.ForceFailRun(ctx, runID, taskpkg.ForceFailRun{
+			Reason: "projection terminal fixture",
+		}, actor)
+	default:
+		t.Fatalf("unsupported projection terminal status %q", status)
+	}
+	if err != nil {
+		t.Fatalf("settle projection run %q as %q error = %v", runID, status, err)
+	}
+	if terminal.Status.Normalize() != status.Normalize() {
+		t.Fatalf("projection run %q status = %q, want %q", runID, terminal.Status, status)
+	}
+	return *terminal
+}
+
+func taskStatusProjectionTerminalRecords(
+	records []taskpkg.EventRecord,
+	completedRunID string,
+	failedRunID string,
+) []taskpkg.EventRecord {
+	terminal := make([]taskpkg.EventRecord, 0, 2)
+	for _, record := range records {
+		event := record.Event
+		eventType := taskpkg.StatusProjectionEventType(event.EventType)
+		if event.RunID == completedRunID && eventType == eventspkg.TaskRunCompleted {
+			terminal = append(terminal, record)
+		}
+		if event.RunID == failedRunID && eventType == eventspkg.TaskRunOperatorForcedFail {
+			terminal = append(terminal, record)
+		}
+	}
+	return terminal
 }
 
 func seedTaskStatusProjectionThread(

@@ -1,7 +1,7 @@
 package retry
 
 import (
-	"math/rand"
+	"math/rand/v2"
 	"time"
 )
 
@@ -20,6 +20,12 @@ type DecorrelatedJitterConfig struct {
 	BaseDelay   time.Duration
 	MaxDelay    time.Duration
 	RandFloat64 func() float64
+}
+
+// ExponentialConfig bounds a deterministic doubling delay sequence.
+type ExponentialConfig struct {
+	BaseDelay time.Duration
+	MaxDelay  time.Duration
 }
 
 const (
@@ -46,6 +52,31 @@ func DecorrelatedJitter(config DecorrelatedJitterConfig) DelayFunc {
 		random := min(max(config.RandFloat64(), 0), 1)
 		delay := float64(config.BaseDelay) + random*float64(upper-config.BaseDelay)
 		return min(time.Duration(delay), config.MaxDelay)
+	}
+}
+
+// Exponential returns a delay strategy whose first delay is BaseDelay and
+// whose later delays double without exceeding MaxDelay.
+func Exponential(config ExponentialConfig) DelayFunc {
+	baseDelay := config.BaseDelay
+	if baseDelay <= 0 {
+		baseDelay = defaultBaseDelay
+	}
+	maxDelay := config.MaxDelay
+	if maxDelay <= 0 {
+		maxDelay = max(defaultMaxDelay, baseDelay)
+	} else {
+		maxDelay = max(maxDelay, baseDelay)
+	}
+	return func(input DelayInput) time.Duration {
+		if input.Previous <= 0 {
+			return baseDelay
+		}
+		previous := min(max(input.Previous, baseDelay), maxDelay)
+		if previous >= maxDelay/2 {
+			return maxDelay
+		}
+		return min(previous*2, maxDelay)
 	}
 }
 

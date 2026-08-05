@@ -41,7 +41,7 @@ func BenchmarkDecodeSSELargeStream(b *testing.B) {
 	b.ReportAllocs()
 	b.SetBytes(int64(len(benchmarkSSEPayload)))
 	for b.Loop() {
-		if err := decodeSSE(ctx, io.NopCloser(strings.NewReader(benchmarkSSEPayload)), handler); err != nil {
+		if err := decodeSSE(ctx, strings.NewReader(benchmarkSSEPayload), handler); err != nil {
 			b.Fatalf("decodeSSE() error = %v", err)
 		}
 	}

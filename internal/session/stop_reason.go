@@ -73,6 +73,9 @@ func (m *Manager) RequestStopWithCause(ctx context.Context, id string, cause Sto
 	if cause == CauseNone {
 		cause = CauseUserRequested
 	}
+	if err := m.waitForClearFinalization(ctx, id); err != nil {
+		return err
+	}
 	if handled, err := m.stopStartingSession(ctx, id, cause, detail); handled {
 		return err
 	}
@@ -130,6 +133,9 @@ func (m *Manager) StopWithCause(ctx context.Context, id string, cause StopCause,
 	}
 	if cause == CauseNone {
 		cause = CauseUserRequested
+	}
+	if err := m.waitForClearFinalization(ctx, id); err != nil {
+		return err
 	}
 	if handled, err := m.stopStartingSession(ctx, id, cause, detail); handled {
 		return err

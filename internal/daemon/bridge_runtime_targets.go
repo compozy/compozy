@@ -159,7 +159,7 @@ func (r *bridgeRuntime) startTargetDirectoryRefresh(ctx context.Context) {
 		return
 	}
 	if ctx == nil {
-		ctx = context.Background()
+		return
 	}
 
 	r.targetRefreshMu.Lock()

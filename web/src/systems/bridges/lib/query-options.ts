@@ -39,12 +39,11 @@ export function bridgeProvidersOptions() {
 }
 
 export function slackBridgeManifestOptions(instanceID: string, enabled = true) {
-  const normalizedInstanceID = instanceID.trim();
   return queryOptions({
-    queryKey: bridgeKeys.slackManifest(normalizedInstanceID),
-    queryFn: ({ signal }) => getSlackBridgeManifest(normalizedInstanceID, signal),
+    queryKey: bridgeKeys.slackManifest(instanceID),
+    queryFn: ({ signal }) => getSlackBridgeManifest(instanceID, signal),
     staleTime: DEFAULT_STALE_TIME,
-    enabled: Boolean(normalizedInstanceID) && enabled,
+    enabled: Boolean(instanceID) && enabled,
   });
 }
 

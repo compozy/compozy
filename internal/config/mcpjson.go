@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/compozy/compozy/internal/fileutil"
 )
 
 const (
@@ -90,6 +92,18 @@ func LoadMCPServersJSONFile(path string) ([]MCPServer, error) {
 	}
 
 	return ParseMCPServersJSON(content, trimmed)
+}
+
+func loadMCPServersJSONFromDirectory(directory *fileutil.Directory, path string) ([]MCPServer, error) {
+	content, exists, err := readOptionalRegularFileFromDirectory(directory, MCPJSONName, path, "MCP JSON")
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, nil
+	}
+
+	return ParseMCPServersJSON(content, path)
 }
 
 func ensureJSONEOF(decoder *json.Decoder, source string) error {

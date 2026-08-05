@@ -85,7 +85,7 @@ func missingWorkFromFlags(items []string, raw string) (json.RawMessage, error) {
 func resolveTaskScopeWorkspace(
 	cmd *cobra.Command,
 	deps commandDeps,
-	client DaemonClient,
+	client workspaceLookupClient,
 	rawScope string,
 	workspaceRef string,
 	scopeRequired bool,
@@ -300,7 +300,7 @@ func trimAgentTaskCapabilities(values []string) []string {
 func buildTaskCreateRequest(
 	cmd *cobra.Command,
 	deps commandDeps,
-	client DaemonClient,
+	client workspaceLookupClient,
 	input taskCreateInput,
 ) (CreateTaskRequest, error) {
 	scope, workspace, err := resolveTaskScopeWorkspace(

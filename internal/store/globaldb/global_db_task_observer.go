@@ -3,9 +3,12 @@ package globaldb
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
+
+const taskEventObserverTimeout = 30 * time.Second
 
 var _ taskpkg.EventCommitObserverStore = (*TaskRepo)(nil)
 
@@ -21,6 +24,8 @@ func (g *TaskRepo) notifyCommittedTaskEvents(ctx context.Context, records []task
 	if len(records) == 0 {
 		return
 	}
+	observerCtx, cancel := taskEventObserverContext(ctx)
+	defer cancel()
 	g.taskEventObserverMu.RLock()
 	observer := g.taskEventObserver
 	g.taskEventObserverMu.RUnlock()
@@ -28,8 +33,12 @@ func (g *TaskRepo) notifyCommittedTaskEvents(ctx context.Context, records []task
 		return
 	}
 	for _, record := range records {
-		notifyCommittedTaskEvent(ctx, observer, record)
+		notifyCommittedTaskEvent(observerCtx, observer, record)
 	}
+}
+
+func taskEventObserverContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), taskEventObserverTimeout)
 }
 
 func notifyCommittedTaskEvent(ctx context.Context, observer taskpkg.EventObserver, record taskpkg.EventRecord) {

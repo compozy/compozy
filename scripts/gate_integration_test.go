@@ -36,8 +36,9 @@ exit 23
 		if err == nil {
 			t.Fatalf("expected tee failure, output:\n%s", output)
 		}
-		var exitErr *exec.ExitError
-		if !errors.As(err, &exitErr) {
+
+		exitErr, exitErrMatched := errors.AsType[*exec.ExitError](err)
+		if !exitErrMatched {
 			t.Fatalf("expected gate exit error, got %T: %v", err, err)
 		}
 		if exitErr.ExitCode() != 23 {

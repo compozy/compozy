@@ -358,7 +358,7 @@ func postWhatsAppProviderWebhook(t *testing.T, url string, appSecret string, pay
 			t.Fatalf("http.NewRequest() error = %v", err)
 		}
 		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("X-Hub-Signature-256", signWhatsAppPayload(body, appSecret))
+		req.Header.Set("X-Hub-Signature-256", signWhatsAppPayload(t, body, appSecret))
 
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
@@ -366,7 +366,7 @@ func postWhatsAppProviderWebhook(t *testing.T, url string, appSecret string, pay
 			continue
 		}
 		payload, readErr := io.ReadAll(resp.Body)
-		_ = resp.Body.Close()
+		closeProviderIntegrationBody(t, resp.Body)
 		if readErr != nil {
 			t.Fatalf("io.ReadAll(response body) error = %v", readErr)
 		}
@@ -388,9 +388,10 @@ func postWhatsAppProviderWebhook(t *testing.T, url string, appSecret string, pay
 	t.Fatalf("webhook %s did not become ready before timeout", url)
 }
 
-func signWhatsAppPayload(body []byte, appSecret string) string {
+func signWhatsAppPayload(t testing.TB, body []byte, appSecret string) string {
+	t.Helper()
 	mac := hmac.New(sha256.New, []byte(appSecret))
-	_, _ = mac.Write(body)
+	mustWriteProviderIntegrationHash(t, mac, body)
 	return "sha256=" + hex.EncodeToString(mac.Sum(nil))
 }
 
@@ -419,7 +420,10 @@ func newWhatsAppProviderAPIServer(t *testing.T, cfg whatsappProviderAPIServerCon
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body := map[string]any{}
 		if r.Body != nil {
-			_ = json.NewDecoder(r.Body).Decode(&body)
+			if !decodeProviderIntegrationJSON(t, r.Body, &body) {
+				http.Error(w, "invalid JSON request", http.StatusBadRequest)
+				return
+			}
 		}
 
 		srv.mu.Lock()
@@ -432,11 +436,11 @@ func newWhatsAppProviderAPIServer(t *testing.T, cfg whatsappProviderAPIServerCon
 
 		switch {
 		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/123456789"):
-			_ = json.NewEncoder(w).Encode(map[string]any{"id": "123456789"})
+			writeProviderIntegrationJSON(t, w, map[string]any{"id": "123456789"})
 		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/123456789/messages") && cfg.FailFirstSendWith429 && sendCount == 1:
 			w.Header().Set("Retry-After", "1")
 			w.WriteHeader(http.StatusTooManyRequests)
-			_ = json.NewEncoder(w).Encode(map[string]any{
+			writeProviderIntegrationJSON(t, w, map[string]any{
 				"error": map[string]any{
 					"message": "rate limited",
 					"code":    130429,
@@ -447,12 +451,12 @@ func newWhatsAppProviderAPIServer(t *testing.T, cfg whatsappProviderAPIServerCon
 			messageID := fmt.Sprintf("wamid.%d", srv.nextMessageID)
 			srv.nextMessageID++
 			srv.mu.Unlock()
-			_ = json.NewEncoder(w).Encode(map[string]any{
+			writeProviderIntegrationJSON(t, w, map[string]any{
 				"messages": []map[string]any{{"id": messageID}},
 			})
 		default:
 			w.WriteHeader(http.StatusNotFound)
-			_ = json.NewEncoder(w).Encode(map[string]any{
+			writeProviderIntegrationJSON(t, w, map[string]any{
 				"error": map[string]any{
 					"message": "unknown method",
 					"code":    http.StatusNotFound,

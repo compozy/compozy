@@ -3,11 +3,11 @@ package config
 import (
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/BurntSushi/toml"
+	"github.com/compozy/compozy/internal/fileutil"
 	"github.com/compozy/compozy/internal/frontmatter"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/goccy/go-yaml"
@@ -101,28 +101,53 @@ func LoadAgentDef(name string, homePaths HomePaths) (AgentDef, error) {
 }
 
 // LoadAgentDefFile loads and parses an AGENT.md file from an explicit path.
-func LoadAgentDefFile(path string) (AgentDef, error) {
-	contents, err := os.ReadFile(path)
+func LoadAgentDefFile(path string) (agent AgentDef, err error) {
+	agentPath := filepath.Clean(path)
+	agentDirPath := filepath.Dir(agentPath)
+	directory, err := fileutil.OpenDirectory(agentDirPath)
 	if err != nil {
-		return AgentDef{}, fmt.Errorf("read agent file %q: %w", path, err)
+		return AgentDef{}, fmt.Errorf("open agent directory %q: %w", agentDirPath, err)
+	}
+	defer func() {
+		if closeErr := directory.Close(); closeErr != nil {
+			agent = AgentDef{}
+			err = errors.Join(err, fmt.Errorf("close agent directory %q: %w", agentDirPath, closeErr))
+		}
+	}()
+
+	return loadAgentDefFromDirectory(directory, filepath.Base(agentPath), agentPath)
+}
+
+func loadAgentDefFromDirectory(
+	directory *fileutil.Directory,
+	agentFileName string,
+	agentPath string,
+) (AgentDef, error) {
+	contents, _, err := directory.ReadRegularFile(agentFileName)
+	if err != nil {
+		return AgentDef{}, fmt.Errorf("read agent file %q: %w", agentPath, err)
 	}
 
 	agent, err := ParseAgentDef(contents)
 	if err != nil {
-		return AgentDef{}, fmt.Errorf("parse agent file %q: %w", path, err)
+		return AgentDef{}, fmt.Errorf("parse agent file %q: %w", agentPath, err)
 	}
-	if err := mergeAgentMCPSidecar(filepath.Dir(path), &agent); err != nil {
-		return AgentDef{}, fmt.Errorf("load agent file %q MCP JSON: %w", path, err)
+	if err := mergeAgentMCPSidecarFromDirectory(
+		directory,
+		filepath.Join(filepath.Dir(agentPath), MCPJSONName),
+		&agent,
+	); err != nil {
+		return AgentDef{}, fmt.Errorf("load agent file %q MCP JSON: %w", agentPath, err)
 	}
-	capabilities, err := LoadAgentCapabilities(filepath.Dir(path))
+	capabilities, err := loadAgentCapabilitiesFromDirectory(directory, filepath.Dir(agentPath))
 	if err != nil {
-		return AgentDef{}, fmt.Errorf("load agent file %q capability catalog: %w", path, err)
+		return AgentDef{}, fmt.Errorf("load agent file %q capability catalog: %w", agentPath, err)
 	}
 	agent.Capabilities = capabilities
 	if err := agent.Validate(); err != nil {
-		return AgentDef{}, fmt.Errorf("validate agent file %q: %w", path, err)
+		return AgentDef{}, fmt.Errorf("validate agent file %q: %w", agentPath, err)
 	}
-	agent.SourcePath = filepath.Clean(path)
+	agent.SourcePath = agentPath
 
 	return agent, nil
 }
@@ -183,58 +208,6 @@ func (r WorkspaceDiscoveryRoot) LoopsDir() string {
 	}
 
 	return filepath.Join(r.Dir, DirName, LoopsDirName)
-}
-
-// LoadWorkspaceAgentDefs loads workspace-visible agents using root, additional, then global precedence.
-func LoadWorkspaceAgentDefs(rootDir string, additionalDirs []string, homePaths HomePaths) ([]AgentDef, error) {
-	roots := WorkspaceDiscoveryRoots(rootDir, additionalDirs, homePaths)
-	if len(roots) == 0 {
-		return nil, nil
-	}
-
-	agents := make([]AgentDef, 0)
-	seen := make(map[string]struct{})
-
-	for _, root := range roots {
-		entries, err := os.ReadDir(root.AgentsDir())
-		if err != nil {
-			if errors.Is(err, os.ErrNotExist) {
-				continue
-			}
-			return nil, fmt.Errorf("read agents directory %q: %w", root.AgentsDir(), err)
-		}
-
-		for _, entry := range entries {
-			if !entry.IsDir() {
-				continue
-			}
-			if IsReservedAgentName(entry.Name()) {
-				continue
-			}
-
-			agentPath := filepath.Join(root.AgentsDir(), entry.Name(), agentDefName)
-			agent, err := LoadAgentDefFile(agentPath)
-			if err != nil {
-				if errors.Is(err, os.ErrNotExist) {
-					continue
-				}
-				return nil, err
-			}
-			target := NormalizeAgentName(entry.Name())
-			if agent.Name != target {
-				return nil, fmt.Errorf("agent file %q defines name %q, expected %q", agentPath, agent.Name, target)
-			}
-
-			if _, ok := seen[agent.Name]; ok {
-				continue
-			}
-
-			seen[agent.Name] = struct{}{}
-			agents = append(agents, agent)
-		}
-	}
-
-	return agents, nil
 }
 
 // ParseAgentDef parses a Markdown file with YAML frontmatter into an AgentDef.
@@ -446,12 +419,12 @@ func (e mappedFrontmatterError) Unwrap() []error {
 	return e.causes
 }
 
-func mergeAgentMCPSidecar(dir string, agent *AgentDef) error {
+func mergeAgentMCPSidecarFromDirectory(directory *fileutil.Directory, path string, agent *AgentDef) error {
 	if agent == nil {
 		return errors.New("agent is required")
 	}
 
-	servers, err := LoadMCPServersJSONFile(filepath.Join(strings.TrimSpace(dir), MCPJSONName))
+	servers, err := loadMCPServersJSONFromDirectory(directory, path)
 	if err != nil {
 		return err
 	}

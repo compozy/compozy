@@ -92,10 +92,17 @@ type BlockTaskAndReleaseRunResult struct {
 	ClaimTokenHash string          `json:"claim_token_hash,omitempty"`
 }
 
-// ExpireTaskBlocksMutation finalizes expired transient blocks as daemon-cleared rows.
+// BlockExpiryTarget identifies one task block selected by a read-only expiry snapshot.
+type BlockExpiryTarget struct {
+	TaskID  string `json:"task_id"`
+	BlockID string `json:"block_id"`
+}
+
+// ExpireTaskBlocksMutation finalizes a fixed snapshot of expired transient blocks.
 type ExpireTaskBlocksMutation struct {
-	Now       time.Time     `json:"now"`
-	ClearedBy ActorIdentity `json:"cleared_by"`
+	Now       time.Time           `json:"now"`
+	ClearedBy ActorIdentity       `json:"cleared_by"`
+	Targets   []BlockExpiryTarget `json:"targets"`
 }
 
 // ExpireTaskBlocksResult describes expired transient blocks finalized by a sweep.

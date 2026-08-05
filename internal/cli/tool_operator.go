@@ -68,7 +68,7 @@ func newToolListCommand(deps commandDeps) *cobra.Command {
   compozy tool list --workspace ws-1 --session sess-1 --agent coder -o json`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runToolCommand(cmd, deps, func(client DaemonClient) error {
+			return runToolCatalogCommand(cmd, deps, func(client toolCatalogClient) error {
 				query, err := scope.query(cmd, deps, client)
 				if err != nil {
 					return err
@@ -106,7 +106,7 @@ func newToolSearchCommand(deps commandDeps) *cobra.Command {
 					toolspkg.NewValidationError("query", toolspkg.ReasonSchemaInvalid, "query is required"),
 				))
 			}
-			return runToolCommand(cmd, deps, func(client DaemonClient) error {
+			return runToolCatalogCommand(cmd, deps, func(client toolCatalogClient) error {
 				scopeQuery, err := scope.query(cmd, deps, client)
 				if err != nil {
 					return err
@@ -144,7 +144,7 @@ func newToolInfoCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return writeToolCommandError(cmd, err)
 			}
-			return runToolCommand(cmd, deps, func(client DaemonClient) error {
+			return runToolCatalogCommand(cmd, deps, func(client toolCatalogClient) error {
 				query, err := scope.query(cmd, deps, client)
 				if err != nil {
 					return err
@@ -187,7 +187,7 @@ func newToolApproveCommand(deps commandDeps) *cobra.Command {
 					),
 				))
 			}
-			return runToolCommand(cmd, deps, func(client DaemonClient) error {
+			return runToolApprovalCommand(cmd, deps, func(client toolApprovalClient) error {
 				scopeQuery, err := flags.scope.query(cmd, deps, client)
 				if err != nil {
 					return err
@@ -238,7 +238,7 @@ func newToolInvokeCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return writeToolCommandError(cmd, toolValidationCommandError(id, "tool input is invalid", err))
 			}
-			return runToolCommand(cmd, deps, func(client DaemonClient) error {
+			return runToolInvocationCommand(cmd, deps, func(client toolInvocationClient) error {
 				scopeQuery, err := flags.scope.query(cmd, deps, client)
 				if err != nil {
 					return err
@@ -294,7 +294,7 @@ func newToolsetsListCommand(deps commandDeps) *cobra.Command {
   compozy toolsets list -o json`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runToolCommand(cmd, deps, func(client DaemonClient) error {
+			return runToolCatalogCommand(cmd, deps, func(client toolCatalogClient) error {
 				query, err := scope.query(cmd, deps, client)
 				if err != nil {
 					return err
@@ -324,7 +324,7 @@ func newToolsetsInfoCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return writeToolCommandError(cmd, err)
 			}
-			return runToolCommand(cmd, deps, func(client DaemonClient) error {
+			return runToolCatalogCommand(cmd, deps, func(client toolCatalogClient) error {
 				query, err := scope.query(cmd, deps, client)
 				if err != nil {
 					return err

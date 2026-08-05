@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -19,8 +20,8 @@ type Store interface {
 	store.SessionInputQueueStore
 }
 
-// IDGenerator returns stable queue entry ids.
-type IDGenerator func() string
+// IDGenerator returns a stable queue entry ID or the entropy failure that prevented allocation.
+type IDGenerator func() (string, error)
 
 // Config controls queue admission.
 type Config struct {
@@ -74,9 +75,7 @@ func New(store Store, cfg Config, opts ...Option) (*Service, error) {
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
-		newID: func() string {
-			return "inq_" + randomSuffix()
-		},
+		newID: newQueueID,
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -89,9 +88,7 @@ func New(store Store, cfg Config, opts ...Option) (*Service, error) {
 		}
 	}
 	if service.newID == nil {
-		service.newID = func() string {
-			return "inq_" + randomSuffix()
-		}
+		service.newID = newQueueID
 	}
 	if service.cfg.QueueCap <= 0 {
 		service.cfg.QueueCap = 10
@@ -365,8 +362,16 @@ func (s *Service) newInsert(spec insertSpec) (store.SessionInputQueueInsert, err
 			s.cfg.MaxTextBytes,
 		)
 	}
+	entryID, err := s.newID()
+	if err != nil {
+		return store.SessionInputQueueInsert{}, fmt.Errorf("inputqueue: generate entry id: %w", err)
+	}
+	entryID = strings.TrimSpace(entryID)
+	if entryID == "" {
+		return store.SessionInputQueueInsert{}, errors.New("inputqueue: id generator returned empty id")
+	}
 	return store.SessionInputQueueInsert{
-		ID:                strings.TrimSpace(s.newID()),
+		ID:                entryID,
 		SessionID:         target,
 		Mode:              spec.mode,
 		Delivery:          spec.delivery,
@@ -379,24 +384,36 @@ func (s *Service) newInsert(spec insertSpec) (store.SessionInputQueueInsert, err
 	}, nil
 }
 
-func randomSuffix() string {
-	var buf [16]byte
-	if _, err := rand.Read(buf[:]); err != nil {
-		return fmt.Sprintf("%d", time.Now().UTC().UnixNano())
+func newQueueID() (string, error) {
+	suffix, err := randomSuffix(rand.Reader)
+	if err != nil {
+		return "", err
 	}
-	return hex.EncodeToString(buf[:])
+	return "inq_" + suffix, nil
+}
+
+func randomSuffix(entropy io.Reader) (string, error) {
+	if entropy == nil {
+		return "", errors.New("inputqueue: id entropy source is required")
+	}
+	var buf [16]byte
+	if _, err := io.ReadFull(entropy, buf[:]); err != nil {
+		return "", fmt.Errorf("inputqueue: read id entropy: %w", err)
+	}
+	return hex.EncodeToString(buf[:]), nil
 }
 
 func queueFullError(sessionID string, queueCap int, cause error) error {
-	item := diagnostics.NewItem(
-		"session.input_queue.full",
-		diagnosticcontract.CodeSessionQueueFull,
-		diagnosticcontract.CategorySession,
-		"Session input queue full",
-		"The session input queue is at capacity. "+
+	item := diagnostics.NewItem(diagnostics.ItemSpec{
+		ID:       "session.input_queue.full",
+		Code:     diagnosticcontract.CodeSessionQueueFull,
+		Category: diagnosticcontract.CategorySession,
+		Title:    "Session input queue full",
+		Message: "The session input queue is at capacity. " +
 			"Wait for the active turn to finish, cancel queued input, or retry with interrupt mode.",
-		diagnosticcontract.SeverityWarn,
-		diagnosticcontract.FreshnessLive,
+		Severity:      diagnosticcontract.SeverityWarn,
+		DataFreshness: diagnosticcontract.FreshnessLive,
+	},
 		diagnostics.WithEvidence(map[string]any{
 			"session_id": sessionID,
 			"queue_cap":  queueCap,

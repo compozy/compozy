@@ -46,7 +46,7 @@ func (m *terminalManager) create(
 	ownership terminalOwnership,
 ) (acpsdk.CreateTerminalResponse, error) {
 	if ctx == nil {
-		ctx = context.Background()
+		return acpsdk.CreateTerminalResponse{}, errors.New("acp: create terminal context is required")
 	}
 	argv, err := terminalArgv(request)
 	if err != nil {

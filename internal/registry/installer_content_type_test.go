@@ -73,12 +73,30 @@ func TestInstallerInstallContentTypeCleanupContract(t *testing.T) {
 			t.Fatal("download reader closed = false, want true")
 		}
 	})
+
+	t.Run("Should report one close cause even when multiple owners release the wrapped stream", func(t *testing.T) {
+		t.Parallel()
+
+		closeErr := errors.New("close failed")
+		reader := &trackingInstallReadCloser{reader: strings.NewReader("archive"), closeErr: closeErr}
+		stream := newInstallerDownloadStream(reader)
+		if err := stream.Close(); !errors.Is(err, closeErr) {
+			t.Fatalf("installerDownloadStream.Close(first) error = %v, want %v", err, closeErr)
+		}
+		if err := stream.Close(); err != nil {
+			t.Fatalf("installerDownloadStream.Close(second) error = %v, want nil", err)
+		}
+		if got := reader.closeCalls.Load(); got != 1 {
+			t.Fatalf("underlying Close() calls = %d, want 1", got)
+		}
+	})
 }
 
 type trackingInstallReadCloser struct {
-	reader   io.Reader
-	closeErr error
-	closed   atomic.Bool
+	reader     io.Reader
+	closeErr   error
+	closed     atomic.Bool
+	closeCalls atomic.Int32
 }
 
 func (r *trackingInstallReadCloser) Read(p []byte) (int, error) {
@@ -87,5 +105,6 @@ func (r *trackingInstallReadCloser) Read(p []byte) (int, error) {
 
 func (r *trackingInstallReadCloser) Close() error {
 	r.closed.Store(true)
+	r.closeCalls.Add(1)
 	return r.closeErr
 }

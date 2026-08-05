@@ -30,6 +30,9 @@ func TestAdapterMarkersPreserveHarnessContract(t *testing.T) {
 		t.Setenv(AdapterIngestPathEnv, ingestPath)
 		t.Setenv(AdapterStartsPathEnv, startsPath)
 		t.Setenv(AdapterShutdownPathEnv, shutdownPath)
+		if err := os.WriteFile(deliveryPath, []byte("{\"existing\":true}\n"), 0o600); err != nil {
+			t.Fatalf("os.WriteFile(existing delivery marker) error = %v", err)
+		}
 
 		var stderr strings.Builder
 		markers := NewAdapterMarkers("slack", &stderr)
@@ -59,8 +62,12 @@ func TestAdapterMarkersPreserveHarnessContract(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ReadFile(delivery) error = %v", err)
 		}
+		lines := strings.Split(strings.TrimSpace(string(payload)), "\n")
+		if got, want := len(lines), 2; got != want {
+			t.Fatalf("delivery marker lines = %d, want %d", got, want)
+		}
 		var delivery DeliveryMarker
-		if err := json.Unmarshal(payload, &delivery); err != nil {
+		if err := json.Unmarshal([]byte(lines[1]), &delivery); err != nil {
 			t.Fatalf("Unmarshal(delivery) error = %v", err)
 		}
 		if delivery.PID != 42 || delivery.Request.Event.DeliveryID != "dlv-1" ||

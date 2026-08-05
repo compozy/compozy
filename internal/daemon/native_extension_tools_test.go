@@ -168,6 +168,75 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 		requireNativeStructuredContains(t, preview, []byte(`"missing_env":["API_KEY"]`))
 	})
 
+	t.Run("Should serialize only safe development boot diagnostics", func(t *testing.T) {
+		t.Parallel()
+
+		const (
+			nativeWorkspaceRootCanary = "/private/NATIVE-WORKSPACE-ROOT-CANARY"
+			nativeOriginCanary        = nativeWorkspaceRootCanary + "/NATIVE-ORIGIN-CANARY"
+			nativeRawCauseCanary      = "NATIVE-RAW-BOOT-CAUSE-CANARY"
+		)
+		deps, extRegistry, _, runtime := newNativeExtensionToolDeps(t)
+		extensionDir := writeNativeLocalExtensionFixture(t, "boot-failure", "1.0.0")
+		manifest, err := extensionpkg.LoadManifest(extensionDir)
+		if err != nil {
+			t.Fatalf("LoadManifest(boot failure fixture) error = %v", err)
+		}
+		checksum, err := extensionpkg.ComputeDirectoryChecksum(extensionDir)
+		if err != nil {
+			t.Fatalf("ComputeDirectoryChecksum(boot failure fixture) error = %v", err)
+		}
+		if err := extRegistry.Install(manifest, extensionDir, checksum); err != nil {
+			t.Fatalf("Registry.Install(boot failure fixture) error = %v", err)
+		}
+		info, err := extRegistry.Get("boot-failure")
+		if err != nil {
+			t.Fatalf("Registry.Get(boot failure fixture) error = %v", err)
+		}
+		runtime.getFn = nil
+		runtime.getExt = &extensionpkg.Extension{
+			Info: *info,
+			Status: extensionpkg.ExtensionStatus{
+				Name: "boot-failure", WorkspaceID: "workspace-native",
+				LastError: nativeRawCauseCanary + " at " + nativeOriginCanary, FailureCode: "missing_origin",
+			},
+			DevLink: &extensionpkg.DevLink{
+				ExtensionName: "boot-failure", WorkspaceID: "workspace-native", OriginPath: nativeOriginCanary,
+			},
+		}
+		service := newDaemonExtensionService(daemonExtensionServiceDeps{
+			Registry:  extRegistry,
+			Runtime:   runtime,
+			HomePaths: deps.HomePaths,
+			Now:       func() time.Time { return time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC) },
+		})
+		deps.Extensions = func() core.ExtensionService { return service }
+		registry := newDaemonNativeRegistry(t, deps, nativeApproveAllPolicyInputs())
+		for _, call := range []toolspkg.CallRequest{
+			{ToolID: toolspkg.ToolIDExtensionsList},
+			{ToolID: toolspkg.ToolIDExtensionsInfo, Input: json.RawMessage(`{"name":"boot-failure"}`)},
+		} {
+			result, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, call)
+			if err != nil {
+				t.Fatalf("Registry.Call(%s) error = %v", call.ToolID, err)
+			}
+			for _, forbidden := range [][]byte{
+				[]byte(nativeWorkspaceRootCanary),
+				[]byte(nativeOriginCanary),
+				[]byte(nativeRawCauseCanary),
+				[]byte(`"origin_path"`),
+			} {
+				requireNativeStructuredExcludes(t, result, forbidden)
+			}
+			requireNativeStructuredContains(t, result, []byte(`"failure_code":"missing_origin"`))
+			requireNativeStructuredContains(
+				t,
+				result,
+				[]byte(`"last_error":"extension development origin is unavailable"`),
+			)
+		}
+	})
+
 	t.Run("Should report a missing Git dependency as tool unavailable", func(t *testing.T) {
 		t.Parallel()
 
@@ -175,15 +244,66 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 			toolspkg.ToolIDExtensionsInstall,
 			fmt.Errorf("install extension: %w", registrygit.ErrGitUnavailable),
 		)
-		var toolErr *toolspkg.ToolError
-		if !errors.As(err, &toolErr) ||
+		toolErr, toolErrMatched := errors.AsType[*toolspkg.ToolError](err)
+		if !toolErrMatched ||
 			toolErr.Code != toolspkg.ErrorCodeUnavailable ||
-			!slices.Contains(toolErr.ReasonCodes, toolspkg.ReasonDependencyMissing) {
+			!slices.Contains(toolErr.ReasonCodes, toolspkg.ReasonExtensionGitUnavailable) ||
+			toolErr.Operator == nil ||
+			toolErr.Operator.Cause != "Git is unavailable" ||
+			!strings.Contains(toolErr.Operator.Recovery, "git --version") {
 			t.Fatalf("nativeExtensionToolError() = %#v, want unavailable dependency ToolError", err)
 		}
 		if !errors.Is(err, registrygit.ErrGitUnavailable) {
 			t.Fatalf("nativeExtensionToolError() = %v, want ErrGitUnavailable ancestry", err)
 		}
+	})
+
+	t.Run("Should report an unsupported Git version as tool unavailable", func(t *testing.T) {
+		t.Parallel()
+
+		err := nativeExtensionToolError(
+			toolspkg.ToolIDExtensionsInstall,
+			fmt.Errorf("install extension: %w", registrygit.ErrGitVersionUnsupported),
+		)
+		toolErr, toolErrMatched := errors.AsType[*toolspkg.ToolError](err)
+		if !toolErrMatched ||
+			toolErr.Code != toolspkg.ErrorCodeUnavailable ||
+			!slices.Contains(toolErr.ReasonCodes, toolspkg.ReasonExtensionGitVersionUnsupported) ||
+			toolErr.Operator == nil ||
+			toolErr.Operator.Cause != "Git is too old" ||
+			!strings.Contains(toolErr.Operator.Recovery, "Git 2.37 or newer") ||
+			!strings.Contains(toolErr.Operator.Recovery, "git --version") {
+			t.Fatalf("nativeExtensionToolError() = %#v, want unavailable dependency ToolError", err)
+		}
+		if !errors.Is(err, registrygit.ErrGitVersionUnsupported) {
+			t.Fatalf("nativeExtensionToolError() = %v, want ErrGitVersionUnsupported ancestry", err)
+		}
+	})
+
+	t.Run("Should classify invalid and blocked Git sources without an internal error", func(t *testing.T) {
+		t.Parallel()
+
+		invalidErr := nativeExtensionToolError(
+			toolspkg.ToolIDExtensionsInstall,
+			fmt.Errorf("install extension: %w", registrygit.ErrInvalidRepositoryRef),
+		)
+		requireToolReason(
+			t,
+			invalidErr,
+			toolspkg.ErrToolInvalidInput,
+			toolspkg.ReasonExtensionValidationFailed,
+		)
+
+		blockedErr := nativeExtensionToolError(
+			toolspkg.ToolIDExtensionsInstall,
+			fmt.Errorf("install extension: %w", registrygit.ErrRepositoryDestinationBlocked),
+		)
+		requireToolReason(
+			t,
+			blockedErr,
+			toolspkg.ErrToolDenied,
+			toolspkg.ReasonExtensionSourceForbidden,
+		)
 	})
 
 	t.Run("Should install local extension sources through managed install", func(t *testing.T) {
@@ -413,8 +533,8 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 		}
 
 		err := nativeExtensionUpdateToolError(toolspkg.ToolIDExtensionsUpdate, completed, batchErr)
-		var toolErr *toolspkg.ToolError
-		if !errors.As(err, &toolErr) || toolErr.Code != toolspkg.ErrorCodeInvalidInput {
+		toolErr, toolErrMatched := errors.AsType[*toolspkg.ToolError](err)
+		if !toolErrMatched || toolErr.Code != toolspkg.ErrorCodeInvalidInput {
 			t.Fatalf("nativeExtensionUpdateToolError() error = %#v, want invalid-input ToolError", err)
 		}
 		if toolErr.PartialResult == nil {

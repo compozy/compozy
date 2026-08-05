@@ -97,7 +97,10 @@ func (g *WatchEventsRepo) openSessionWatchEventsReader(
 	if g.openSessionEventMetadata == nil {
 		return nil, false, errors.New("store: session watch-events metadata opener is required")
 	}
-	reader, err := g.openSessionEventMetadata(ctx, sessionID)
+	reader, err := g.openSessionEventMetadata(ctx, store.SessionDBOwner{
+		SessionID:   sessionID,
+		WorkspaceID: query.workspaceID,
+	})
 	if err != nil {
 		return nil, false, fmt.Errorf("store: open session watch-events db %q: %w", sessionID, err)
 	}

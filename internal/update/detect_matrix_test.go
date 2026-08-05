@@ -128,7 +128,10 @@ func TestDetectInstallMethods(t *testing.T) {
 				t.Parallel()
 
 				manager := testManager(t, tc.cfg)
-				info := manager.detectInstall(context.Background())
+				info, err := manager.detectInstall(t.Context())
+				if err != nil {
+					t.Fatalf("detectInstall() error = %v", err)
+				}
 				if !info.Managed {
 					t.Fatal("detectInstall() managed = false, want true")
 				}

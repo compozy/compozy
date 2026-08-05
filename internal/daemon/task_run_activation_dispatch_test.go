@@ -31,6 +31,13 @@ func TestTaskRunActivationDispatcherShouldRouteWorkerRunsByKind(t *testing.T) {
 		if err != nil {
 			t.Fatalf("newTaskRunActivationDispatcher() error = %v", err)
 		}
+		var missingContext context.Context
+		dispatcher.OnTaskRunEnqueued(missingContext, hookspkg.TaskRunEnqueuedPayload{
+			TaskRunContext: hookspkg.TaskRunContext{RunID: "run-loop-worker"},
+		})
+		if got := loops.runIDs(); len(got) != 0 {
+			t.Fatalf("loop observer run IDs after nil context = %#v, want empty", got)
+		}
 
 		for _, runID := range []string{"run-loop-worker", "run-plain-worker", "run-coordinator"} {
 			dispatcher.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
@@ -61,6 +68,11 @@ func TestTaskRunActivationDispatcherShouldRouteWorkerRunsByKind(t *testing.T) {
 			t.Fatalf("newTaskRunActivationDispatcher() error = %v", err)
 		}
 
+		var missingContext context.Context
+		dispatcher.Recover(missingContext)
+		if got := loops.runIDs(); len(got) != 0 {
+			t.Fatalf("loop observer run IDs after nil recovery = %#v, want empty", got)
+		}
 		dispatcher.Recover(context.Background())
 
 		if got, want := loops.runIDs(), []string{"run-loop-worker"}; !slices.Equal(got, want) {

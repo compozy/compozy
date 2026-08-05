@@ -267,7 +267,13 @@ def discover_project_contract(repo_root: Path) -> dict:
     return json.loads(proc.stdout)
 
 
-def scenario_profile(scenario_slug: str, playbook: dict | None = None) -> str:
+def scenario_profile(
+    scenario_slug: str,
+    playbook: dict | None = None,
+    requested_profile: str = "auto",
+) -> str:
+    if requested_profile != "auto":
+        return requested_profile
     if playbook is not None:
         return "broad"
     broad_markers = ("release", "broad", "full", "final", "launch", "scenario")
@@ -276,9 +282,31 @@ def scenario_profile(scenario_slug: str, playbook: dict | None = None) -> str:
     return "feature"
 
 
-def build_contract_minimums(scenario_slug: str, playbook: dict | None = None) -> dict:
+def build_contract_minimums(
+    scenario_slug: str,
+    playbook: dict | None = None,
+    requested_profile: str = "auto",
+    required_surfaces: list[str] | None = None,
+) -> dict:
     if playbook is None:
-        profile = scenario_profile(scenario_slug)
+        profile = scenario_profile(scenario_slug, requested_profile=requested_profile)
+        if profile == "targeted":
+            return {
+                "agents": 0,
+                "differentiated_roles": 0,
+                "channels": 0,
+                "tasks": {
+                    "roots": 0,
+                    "subtasks": 0,
+                    "dependencies": 0,
+                    "runs": 0,
+                },
+                "provider_backed_sessions": 0,
+                "cross_surface_objects": 0,
+                "disruption_probes": 0,
+                "artifacts_used_later": 0,
+                "surfaces_required": list(dict.fromkeys(required_surfaces or [])),
+            }
         if profile == "feature":
             return {
                 "agents": 4,
@@ -341,15 +369,32 @@ def build_contract_minimums(scenario_slug: str, playbook: dict | None = None) ->
     }
 
 
-def build_scenario_contract(repo_root: Path, scenario_slug: str, playbook: dict | None = None) -> dict:
-    profile = scenario_profile(scenario_slug, playbook)
-    minimums = build_contract_minimums(scenario_slug, playbook)
+def build_scenario_contract(
+    repo_root: Path,
+    scenario_slug: str,
+    playbook: dict | None = None,
+    requested_profile: str = "auto",
+    required_surfaces: list[str] | None = None,
+) -> dict:
+    profile = scenario_profile(scenario_slug, playbook, requested_profile)
+    minimums = build_contract_minimums(
+        scenario_slug,
+        playbook,
+        requested_profile,
+        required_surfaces,
+    )
     return {
         "schema_version": 1,
         "release_grade": profile,
         "scope_slug": scenario_slug,
         "minimums": minimums,
         "profile_overrides": {
+            "targeted": {
+                "agents": 0,
+                "differentiated_roles": 0,
+                "channels": 0,
+                "provider_backed_sessions": 0,
+            },
             "feature": {
                 "agents": 4,
                 "differentiated_roles": 3,
@@ -361,7 +406,7 @@ def build_scenario_contract(repo_root: Path, scenario_slug: str, playbook: dict 
     }
 
 
-def build_charter_skeleton(scenario_slug: str) -> dict:
+def build_charter_skeleton(scenario_slug: str, provider_required: bool = True) -> dict:
     return {
         "schema_version": 1,
         "startup_situation": f"UNFILLED: realistic startup situation for {scenario_slug}",
@@ -376,7 +421,7 @@ def build_charter_skeleton(scenario_slug: str) -> dict:
             "runs": [],
         },
         "provider_plan": {
-            "required": True,
+            "required": provider_required,
             "providers": [],
             "reachability_probe": "UNFILLED: exact provider-backed command to run",
             "fallback_boundary": None,
@@ -543,13 +588,21 @@ def seed_qa_evidence_contracts(
     qa_root: Path,
     scenario_slug: str,
     playbook: dict | None = None,
+    requested_profile: str = "auto",
+    required_surfaces: list[str] | None = None,
 ) -> dict[str, Path]:
     scenario_contract_path = qa_root / "scenario-contract.json"
     charter_path = qa_root / "behavioral-scenario-charter.yaml"
     journey_log_path = qa_root / "journey-log.jsonl"
     provider_attempt_path = qa_root / "provider-attempt.json"
     audit_command = real_scenario_script(repo_root, "audit-qa-evidence.py")
-    scenario_contract = build_scenario_contract(repo_root, scenario_slug, playbook)
+    scenario_contract = build_scenario_contract(
+        repo_root,
+        scenario_slug,
+        playbook,
+        requested_profile,
+        required_surfaces,
+    )
     if playbook is not None and scenario_contract_path.exists():
         scenario_contract_path.unlink()
     write_json_if_absent(scenario_contract_path, scenario_contract)
@@ -561,7 +614,10 @@ def seed_qa_evidence_contracts(
             encoding="utf-8",
         )
     else:
-        write_json_if_absent(charter_path, build_charter_skeleton(scenario_slug))
+        write_json_if_absent(
+            charter_path,
+            build_charter_skeleton(scenario_slug, provider_required=requested_profile != "targeted"),
+        )
     if not journey_log_path.exists():
         journey_log_path.write_text("", encoding="utf-8")
     write_json_if_absent(provider_attempt_path, build_provider_attempt_stub())
@@ -604,12 +660,31 @@ def main() -> int:
         help="Real-scenario QA playbook ref (e.g., northstar-pay). When set, charter and workspace "
         "are materialized from .agents/skills/eng/eng-real-scenario-qa/references/playbooks/<ref>.md.",
     )
+    parser.add_argument(
+        "--profile",
+        choices=("auto", "targeted", "feature", "broad"),
+        default="auto",
+        help="QA evidence profile. Use targeted only for bounded non-agent journeys.",
+    )
+    parser.add_argument(
+        "--required-surface",
+        action="append",
+        choices=("cli", "api", "web", "runtime", "provider"),
+        default=[],
+        help="Surface required by a targeted profile; repeat for every surface in scope.",
+    )
     args = parser.parse_args()
 
     repo_root = Path(args.repo_root).resolve()
     global_codex_home = Path(os.environ.get("CODEX_HOME", str(Path.home() / ".codex"))).expanduser().resolve()
     scenario = slugify(args.scenario)
     playbook_ref = args.playbook.strip()
+    if args.profile == "targeted" and not args.required_surface:
+        parser.error("--profile targeted requires at least one --required-surface")
+    if args.profile != "targeted" and args.required_surface:
+        parser.error("--required-surface is valid only with --profile targeted")
+    if playbook_ref and args.profile not in {"auto", "broad"}:
+        parser.error("--playbook requires --profile auto or broad")
     playbook_data: dict | None = None
     if playbook_ref:
         try:
@@ -666,6 +741,8 @@ def main() -> int:
         qa_root,
         workspace_info["SCENARIO_SLUG"],
         playbook=playbook_data,
+        requested_profile=args.profile,
+        required_surfaces=args.required_surface,
     )
 
     if reused_lab and existing_manifest is not None:
@@ -722,6 +799,10 @@ def main() -> int:
             "PROVIDER_ATTEMPT": str(evidence_paths["PROVIDER_ATTEMPT"]),
             "AUDIT_COMMAND": str(evidence_paths["AUDIT_COMMAND"]),
             "PLAYBOOK_REF": playbook_ref,
+            "QA_PROFILE": scenario_profile(
+                workspace_info["SCENARIO_SLUG"], playbook_data, args.profile
+            ),
+            "QA_REQUIRED_SURFACES": ",".join(args.required_surface),
             "KICKOFF_POSTED": "false",
             "KICKOFF_TIMESTAMP": "",
         }
@@ -742,6 +823,11 @@ def main() -> int:
     teardown_script = repo_root / ".agents" / "skills" / "eng" / "eng-qa-bootstrap" / "scripts" / "teardown-qa-env.py"
     env_block["TEARDOWN_COMMAND"] = f"python3 {teardown_script} --manifest {manifest_path}"
     env_block.setdefault("PLAYBOOK_REF", playbook_ref)
+    env_block.setdefault(
+        "QA_PROFILE",
+        scenario_profile(workspace_info["SCENARIO_SLUG"], playbook_data, args.profile),
+    )
+    env_block.setdefault("QA_REQUIRED_SURFACES", ",".join(args.required_surface))
     env_block.setdefault("KICKOFF_POSTED", "false")
     env_block.setdefault("KICKOFF_TIMESTAMP", "")
     if playbook_ref:
@@ -812,6 +898,8 @@ def main() -> int:
         "TEARDOWN_COMMAND": env_block["TEARDOWN_COMMAND"],
         "REUSED_LAB": "true" if reused_lab else "false",
         "PLAYBOOK_REF": env_block.get("PLAYBOOK_REF", ""),
+        "QA_PROFILE": env_block.get("QA_PROFILE", ""),
+        "QA_REQUIRED_SURFACES": env_block.get("QA_REQUIRED_SURFACES", ""),
         "KICKOFF_POSTED": env_block.get("KICKOFF_POSTED", "false"),
     }
     for key, value in outputs.items():

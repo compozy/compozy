@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -94,6 +95,7 @@ func (h *BaseHandlers) memoryCandidateFromEdit(
 }
 
 func (h *BaseHandlers) memoryEntryPayload(
+	ctx context.Context,
 	store *memory.Store,
 	location MemoryLocation,
 	content []byte,
@@ -107,7 +109,7 @@ func (h *BaseHandlers) memoryEntryPayload(
 	header.AgentTier = firstNonEmptyAgentTier(header.AgentTier, location.AgentTier)
 	header.Filename = locationFilename(location, header)
 	if header.ModTime.IsZero() {
-		if found := memoryHeaderByFilename(store, location.Scope, header.Filename); found.Filename != "" {
+		if found := memoryHeaderByFilename(ctx, store, location.Scope, header.Filename); found.Filename != "" {
 			header = found
 		}
 	}
@@ -117,11 +119,16 @@ func (h *BaseHandlers) memoryEntryPayload(
 	}, nil
 }
 
-func memoryHeaderByFilename(store *memory.Store, scope memcontract.Scope, filename string) memcontract.Header {
+func memoryHeaderByFilename(
+	ctx context.Context,
+	store *memory.Store,
+	scope memcontract.Scope,
+	filename string,
+) memcontract.Header {
 	if store == nil {
 		return memcontract.Header{}
 	}
-	headers, err := store.Scan(scope)
+	headers, err := store.Scan(ctx, scope)
 	if err != nil {
 		return memcontract.Header{}
 	}

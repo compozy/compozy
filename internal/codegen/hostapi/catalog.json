@@ -1,0 +1,778 @@
+[
+    {
+        "constant": "HostAPIMethodSessionsList",
+        "wire": "sessions/list",
+        "family": "core",
+        "params": { "name": "SessionsListParams", "value": "SessionsListParams{}" },
+        "result": { "name": "SessionSummary", "value": "[]SessionSummary{}" },
+        "optional_params": true
+    },
+    {
+        "constant": "HostAPIMethodSessionsCreate",
+        "wire": "sessions/create",
+        "family": "core",
+        "params": { "name": "SessionsCreateParams", "value": "SessionsCreateParams{}" },
+        "result": { "name": "SessionCreateResult", "value": "SessionCreateResult{}" }
+    },
+    {
+        "constant": "HostAPIMethodSessionsPrompt",
+        "wire": "sessions/prompt",
+        "family": "core",
+        "params": { "name": "SessionsPromptParams", "value": "SessionsPromptParams{}" },
+        "result": { "name": "SessionPromptResult", "value": "SessionPromptResult{}" }
+    },
+    {
+        "constant": "HostAPIMethodSessionsRuntimeSet",
+        "wire": "sessions/runtime/set",
+        "family": "core",
+        "params": { "name": "SessionRuntimeSetParams", "value": "SessionRuntimeSetParams{}" },
+        "result": { "name": "SessionStatus", "value": "SessionStatus{}" }
+    },
+    {
+        "constant": "HostAPIMethodSessionsRuntimeClear",
+        "wire": "sessions/runtime/clear",
+        "family": "core",
+        "params": { "name": "SessionRuntimeClearParams", "value": "SessionRuntimeClearParams{}" },
+        "result": { "name": "SessionStatus", "value": "SessionStatus{}" }
+    },
+    {
+        "constant": "HostAPIMethodSessionsInputsList",
+        "wire": "sessions/inputs/list",
+        "family": "core",
+        "params": { "name": "SessionInputsListParams", "value": "SessionInputsListParams{}" },
+        "result": { "name": "SessionInputListResult", "value": "SessionInputListResult{}" }
+    },
+    {
+        "constant": "HostAPIMethodSessionsInputsReplace",
+        "wire": "sessions/inputs/replace",
+        "family": "core",
+        "params": { "name": "SessionInputReplaceParams", "value": "SessionInputReplaceParams{}" },
+        "result": { "name": "SessionInputResult", "value": "SessionInputResult{}" }
+    },
+    {
+        "constant": "HostAPIMethodSessionsInputsCancel",
+        "wire": "sessions/inputs/cancel",
+        "family": "core",
+        "params": { "name": "SessionInputTargetParams", "value": "SessionInputTargetParams{}" },
+        "result": { "name": "SessionPromptResult", "value": "SessionPromptResult{}" }
+    },
+    {
+        "constant": "HostAPIMethodSessionsInputsPromote",
+        "wire": "sessions/inputs/promote",
+        "family": "core",
+        "params": { "name": "SessionInputPromoteParams", "value": "SessionInputPromoteParams{}" },
+        "result": { "name": "SessionPromptResult", "value": "SessionPromptResult{}" }
+    },
+    {
+        "constant": "HostAPIMethodSessionsStop",
+        "wire": "sessions/stop",
+        "family": "core",
+        "params": { "name": "SessionTargetParams", "value": "SessionTargetParams{}" },
+        "result": { "name": "EmptyResult", "value": "EmptyResult{}" }
+    },
+    {
+        "constant": "HostAPIMethodSessionsStatus",
+        "wire": "sessions/status",
+        "family": "core",
+        "params": { "name": "SessionTargetParams", "value": "SessionTargetParams{}" },
+        "result": { "name": "SessionStatus", "value": "SessionStatus{}" }
+    },
+    {
+        "constant": "HostAPIMethodSessionsEvents",
+        "wire": "sessions/events",
+        "family": "core",
+        "params": { "name": "SessionEventsParams", "value": "SessionEventsParams{}" },
+        "result": { "name": "SessionEvent", "value": "[]SessionEvent{}" }
+    },
+    {
+        "constant": "HostAPIMethodSessionsSoulRefresh",
+        "wire": "sessions/soul/refresh",
+        "family": "core",
+        "params": { "name": "SessionSoulRefreshParams", "value": "SessionSoulRefreshParams{}" },
+        "result": { "name": "AgentSoulPayload", "value": "apicontract.AgentSoulPayload{}" }
+    },
+    {
+        "constant": "HostAPIMethodSessionsHealthGet",
+        "wire": "sessions/health/get",
+        "family": "core",
+        "params": { "name": "SessionHealthGetParams", "value": "SessionHealthGetParams{}" },
+        "result": {
+            "name": "SessionHealthResponse",
+            "value": "apicontract.SessionHealthResponse{}"
+        }
+    },
+    {
+        "constant": "HostAPIMethodSessionsStatusGet",
+        "wire": "sessions/status/get",
+        "family": "core",
+        "params": { "name": "SessionStatusGetParams", "value": "SessionStatusGetParams{}" },
+        "result": {
+            "name": "SessionStatusResponse",
+            "value": "apicontract.SessionStatusResponse{}"
+        }
+    },
+    {
+        "constant": "HostAPIMethodSandboxList",
+        "wire": "sandbox/list",
+        "family": "core",
+        "params": { "name": "SandboxListParams", "value": "SandboxListParams{}" },
+        "result": { "name": "SandboxListResult", "value": "SandboxListResult{}" },
+        "optional_params": true
+    },
+    {
+        "constant": "HostAPIMethodSandboxInfo",
+        "wire": "sandbox/info",
+        "family": "core",
+        "params": { "name": "SandboxInfoParams", "value": "SandboxInfoParams{}" },
+        "result": { "name": "SandboxInfoResult", "value": "SandboxInfoResult{}" }
+    },
+    {
+        "constant": "HostAPIMethodSandboxExec",
+        "wire": "sandbox/exec",
+        "family": "core",
+        "params": { "name": "SandboxExecParams", "value": "SandboxExecParams{}" },
+        "result": { "name": "SandboxExecResult", "value": "SandboxExecResult{}" }
+    },
+    {
+        "constant": "HostAPIMethodMemoryRecall",
+        "wire": "memory/recall",
+        "family": "core",
+        "params": { "name": "MemoryRecallParams", "value": "MemoryRecallParams{}" },
+        "result": { "name": "MemoryRecallEntry", "value": "[]MemoryRecallEntry{}" }
+    },
+    {
+        "constant": "HostAPIMethodMemoryStore",
+        "wire": "memory/store",
+        "family": "core",
+        "params": { "name": "MemoryStoreParams", "value": "MemoryStoreParams{}" },
+        "result": { "name": "EmptyResult", "value": "EmptyResult{}" }
+    },
+    {
+        "constant": "HostAPIMethodMemoryForget",
+        "wire": "memory/forget",
+        "family": "core",
+        "params": { "name": "MemoryForgetParams", "value": "MemoryForgetParams{}" },
+        "result": { "name": "EmptyResult", "value": "EmptyResult{}" }
+    },
+    {
+        "constant": "HostAPIMethodObserveHealth",
+        "wire": "observe/health",
+        "family": "core",
+        "params": { "name": "EmptyResult", "value": "EmptyResult{}" },
+        "result": { "name": "ObserveHealth", "value": "ObserveHealth{}" },
+        "optional_params": true
+    },
+    {
+        "constant": "HostAPIMethodListLogs",
+        "wire": "logs/list",
+        "family": "core",
+        "params": { "name": "ListLogsParams", "value": "ListLogsParams{}" },
+        "result": { "name": "SessionEvent", "value": "[]SessionEvent{}" },
+        "optional_params": true
+    },
+    {
+        "constant": "HostAPIMethodSkillsList",
+        "wire": "skills/list",
+        "family": "core",
+        "params": { "name": "SkillsListParams", "value": "SkillsListParams{}" },
+        "result": { "name": "SkillSummary", "value": "[]SkillSummary{}" },
+        "optional_params": true
+    },
+    {
+        "constant": "HostAPIMethodModelsList",
+        "wire": "models/list",
+        "family": "core",
+        "params": { "name": "ModelsListParams", "value": "ModelsListParams{}" },
+        "result": {
+            "name": "ProviderModelListResponse",
+            "value": "apicontract.ProviderModelListResponse{}"
+        },
+        "optional_params": true
+    },
+    {
+        "constant": "HostAPIMethodModelsRefresh",
+        "wire": "models/refresh",
+        "family": "core",
+        "params": { "name": "ModelsRefreshParams", "value": "ModelsRefreshParams{}" },
+        "result": {
+            "name": "ProviderModelRefreshResponse",
+            "value": "apicontract.ProviderModelRefreshResponse{}"
+        },
+        "optional_params": true
+    },
+    {
+        "constant": "HostAPIMethodModelsStatus",
+        "wire": "models/status",
+        "family": "core",
+        "params": { "name": "ModelsStatusParams", "value": "ModelsStatusParams{}" },
+        "result": {
+            "name": "ProviderModelStatusResponse",
+            "value": "apicontract.ProviderModelStatusResponse{}"
+        },
+        "optional_params": true
+    },
+    {
+        "constant": "HostAPIMethodAgentsSoulGet",
+        "wire": "agents/soul/get",
+        "family": "core",
+        "params": { "name": "AgentSoulGetParams", "value": "AgentSoulGetParams{}" },
+        "result": { "name": "AgentSoulPayload", "value": "apicontract.AgentSoulPayload{}" }
+    },
+    {
+        "constant": "HostAPIMethodAgentsSoulValidate",
+        "wire": "agents/soul/validate",
+        "family": "core",
+        "params": { "name": "AgentSoulValidateParams", "value": "AgentSoulValidateParams{}" },
+        "result": { "name": "AgentSoulPayload", "value": "apicontract.AgentSoulPayload{}" }
+    },
+    {
+        "constant": "HostAPIMethodAgentsSoulPut",
+        "wire": "agents/soul/put",
+        "family": "core",
+        "params": { "name": "AgentSoulPutParams", "value": "AgentSoulPutParams{}" },
+        "result": {
+            "name": "AgentSoulMutationResponse",
+            "value": "apicontract.AgentSoulMutationResponse{}"
+        }
+    },
+    {
+        "constant": "HostAPIMethodAgentsSoulDelete",
+        "wire": "agents/soul/delete",
+        "family": "core",
+        "params": { "name": "AgentSoulDeleteParams", "value": "AgentSoulDeleteParams{}" },
+        "result": {
+            "name": "AgentSoulMutationResponse",
+            "value": "apicontract.AgentSoulMutationResponse{}"
+        }
+    },
+    {
+        "constant": "HostAPIMethodAgentsSoulHistory",
+        "wire": "agents/soul/history",
+        "family": "core",
+        "params": { "name": "AgentSoulHistoryParams", "value": "AgentSoulHistoryParams{}" },
+        "result": {
+            "name": "AgentSoulHistoryResponse",
+            "value": "apicontract.AgentSoulHistoryResponse{}"
+        }
+    },
+    {
+        "constant": "HostAPIMethodAgentsSoulRollback",
+        "wire": "agents/soul/rollback",
+        "family": "core",
+        "params": { "name": "AgentSoulRollbackParams", "value": "AgentSoulRollbackParams{}" },
+        "result": {
+            "name": "AgentSoulMutationResponse",
+            "value": "apicontract.AgentSoulMutationResponse{}"
+        }
+    },
+    {
+        "constant": "HostAPIMethodAgentsHeartbeatGet",
+        "wire": "agents/heartbeat/get",
+        "family": "core",
+        "params": { "name": "AgentHeartbeatGetParams", "value": "AgentHeartbeatGetParams{}" },
+        "result": {
+            "name": "HeartbeatPolicyPayload",
+            "value": "apicontract.HeartbeatPolicyPayload{}"
+        }
+    },
+    {
+        "constant": "HostAPIMethodAgentsHeartbeatValidate",
+        "wire": "agents/heartbeat/validate",
+        "family": "core",
+        "params": {
+            "name": "AgentHeartbeatValidateParams",
+            "value": "AgentHeartbeatValidateParams{}"
+        },
+        "result": {
+            "name": "HeartbeatPolicyPayload",
+            "value": "apicontract.HeartbeatPolicyPayload{}"
+        }
+    },
+    {
+        "constant": "HostAPIMethodAgentsHeartbeatPut",
+        "wire": "agents/heartbeat/put",
+        "family": "core",
+        "params": { "name": "AgentHeartbeatPutParams", "value": "AgentHeartbeatPutParams{}" },
+        "result": {
+            "name": "HeartbeatMutationResponse",
+            "value": "apicontract.HeartbeatMutationResponse{}"
+        }
+    },
+    {
+        "constant": "HostAPIMethodAgentsHeartbeatDelete",
+        "wire": "agents/heartbeat/delete",
+        "family": "core",
+        "params": { "name": "AgentHeartbeatDeleteParams", "value": "AgentHeartbeatDeleteParams{}" },
+        "result": {
+            "name": "HeartbeatMutationResponse",
+            "value": "apicontract.HeartbeatMutationResponse{}"
+        }
+    },
+    {
+        "constant": "HostAPIMethodAgentsHeartbeatHistory",
+        "wire": "agents/heartbeat/history",
+        "family": "core",
+        "params": {
+            "name": "AgentHeartbeatHistoryParams",
+            "value": "AgentHeartbeatHistoryParams{}"
+        },
+        "result": {
+            "name": "HeartbeatHistoryResponse",
+            "value": "apicontract.HeartbeatHistoryResponse{}"
+        }
+    },
+    {
+        "constant": "HostAPIMethodAgentsHeartbeatRollback",
+        "wire": "agents/heartbeat/rollback",
+        "family": "core",
+        "params": {
+            "name": "AgentHeartbeatRollbackParams",
+            "value": "AgentHeartbeatRollbackParams{}"
+        },
+        "result": {
+            "name": "HeartbeatMutationResponse",
+            "value": "apicontract.HeartbeatMutationResponse{}"
+        }
+    },
+    {
+        "constant": "HostAPIMethodAgentsHeartbeatStatus",
+        "wire": "agents/heartbeat/status",
+        "family": "core",
+        "params": { "name": "AgentHeartbeatStatusParams", "value": "AgentHeartbeatStatusParams{}" },
+        "result": {
+            "name": "HeartbeatStatusResponse",
+            "value": "apicontract.HeartbeatStatusResponse{}"
+        }
+    },
+    {
+        "constant": "HostAPIMethodAgentsHeartbeatWake",
+        "wire": "agents/heartbeat/wake",
+        "family": "core",
+        "params": { "name": "AgentHeartbeatWakeParams", "value": "AgentHeartbeatWakeParams{}" },
+        "result": {
+            "name": "HeartbeatWakeResponse",
+            "value": "apicontract.HeartbeatWakeResponse{}"
+        }
+    },
+    {
+        "constant": "HostAPIMethodAutomationJobs",
+        "wire": "automation/jobs",
+        "family": "automation",
+        "params": { "name": "AutomationJobsParams", "value": "AutomationJobsParams{}" },
+        "result": { "name": "AutomationJobsResult", "value": "AutomationJobsResult{}" },
+        "optional_params": true
+    },
+    {
+        "constant": "HostAPIMethodAutomationJobsGet",
+        "wire": "automation/jobs/get",
+        "family": "automation",
+        "params": { "name": "AutomationTargetParams", "value": "AutomationTargetParams{}" },
+        "result": { "name": "Job", "value": "automationpkg.Job{}" }
+    },
+    {
+        "constant": "HostAPIMethodAutomationJobsCreate",
+        "wire": "automation/jobs/create",
+        "family": "automation",
+        "params": { "name": "AutomationJobCreateParams", "value": "AutomationJobCreateParams{}" },
+        "result": { "name": "Job", "value": "automationpkg.Job{}" }
+    },
+    {
+        "constant": "HostAPIMethodAutomationJobsUpdate",
+        "wire": "automation/jobs/update",
+        "family": "automation",
+        "params": { "name": "AutomationJobUpdateParams", "value": "AutomationJobUpdateParams{}" },
+        "result": { "name": "Job", "value": "automationpkg.Job{}" }
+    },
+    {
+        "constant": "HostAPIMethodAutomationJobsDelete",
+        "wire": "automation/jobs/delete",
+        "family": "automation",
+        "params": { "name": "AutomationTargetParams", "value": "AutomationTargetParams{}" },
+        "result": { "name": "EmptyResult", "value": "EmptyResult{}" }
+    },
+    {
+        "constant": "HostAPIMethodAutomationJobsTrigger",
+        "wire": "automation/jobs/trigger",
+        "family": "automation",
+        "params": { "name": "AutomationJobTriggerParams", "value": "AutomationJobTriggerParams{}" },
+        "result": { "name": "Run", "value": "automationpkg.Run{}" }
+    },
+    {
+        "constant": "HostAPIMethodAutomationJobsRuns",
+        "wire": "automation/jobs/runs",
+        "family": "automation",
+        "params": { "name": "AutomationJobRunsParams", "value": "AutomationJobRunsParams{}" },
+        "result": { "name": "Run", "value": "[]automationpkg.Run{}" }
+    },
+    {
+        "constant": "HostAPIMethodAutomationTriggers",
+        "wire": "automation/triggers",
+        "family": "automation",
+        "params": { "name": "AutomationTriggersParams", "value": "AutomationTriggersParams{}" },
+        "result": { "name": "AutomationTriggersResult", "value": "AutomationTriggersResult{}" },
+        "optional_params": true
+    },
+    {
+        "constant": "HostAPIMethodAutomationTriggersGet",
+        "wire": "automation/triggers/get",
+        "family": "automation",
+        "params": { "name": "AutomationTargetParams", "value": "AutomationTargetParams{}" },
+        "result": { "name": "Trigger", "value": "apicontract.TriggerPayload{}" }
+    },
+    {
+        "constant": "HostAPIMethodAutomationTriggersCreate",
+        "wire": "automation/triggers/create",
+        "family": "automation",
+        "params": {
+            "name": "AutomationTriggerCreateParams",
+            "value": "AutomationTriggerCreateParams{}"
+        },
+        "result": { "name": "Trigger", "value": "apicontract.TriggerPayload{}" }
+    },
+    {
+        "constant": "HostAPIMethodAutomationTriggersUpdate",
+        "wire": "automation/triggers/update",
+        "family": "automation",
+        "params": {
+            "name": "AutomationTriggerUpdateParams",
+            "value": "AutomationTriggerUpdateParams{}"
+        },
+        "result": { "name": "Trigger", "value": "apicontract.TriggerPayload{}" }
+    },
+    {
+        "constant": "HostAPIMethodAutomationTriggersDelete",
+        "wire": "automation/triggers/delete",
+        "family": "automation",
+        "params": { "name": "AutomationTargetParams", "value": "AutomationTargetParams{}" },
+        "result": { "name": "EmptyResult", "value": "EmptyResult{}" }
+    },
+    {
+        "constant": "HostAPIMethodAutomationTriggersRuns",
+        "wire": "automation/triggers/runs",
+        "family": "automation",
+        "params": {
+            "name": "AutomationTriggerRunsParams",
+            "value": "AutomationTriggerRunsParams{}"
+        },
+        "result": { "name": "Run", "value": "[]automationpkg.Run{}" }
+    },
+    {
+        "constant": "HostAPIMethodAutomationTriggersFire",
+        "wire": "automation/triggers/fire",
+        "family": "automation",
+        "params": {
+            "name": "AutomationTriggerFireParams",
+            "value": "AutomationTriggerFireParams{}"
+        },
+        "result": { "name": "TriggerResult", "value": "automationpkg.TriggerResult{}" }
+    },
+    {
+        "constant": "HostAPIMethodAutomationRuns",
+        "wire": "automation/runs",
+        "family": "automation",
+        "params": { "name": "AutomationRunsParams", "value": "AutomationRunsParams{}" },
+        "result": { "name": "Run", "value": "[]automationpkg.Run{}" },
+        "optional_params": true
+    },
+    {
+        "constant": "HostAPIMethodTasks",
+        "wire": "tasks",
+        "family": "tasks",
+        "params": { "name": "TasksParams", "value": "TasksParams{}" },
+        "result": { "name": "TasksResponse", "value": "apicontract.TasksResponse{}" },
+        "optional_params": true
+    },
+    {
+        "constant": "HostAPIMethodTasksGet",
+        "wire": "tasks/get",
+        "family": "tasks",
+        "params": { "name": "TaskTargetParams", "value": "TaskTargetParams{}" },
+        "result": { "name": "TaskDetail", "value": "apicontract.TaskDetailPayload{}" }
+    },
+    {
+        "constant": "HostAPIMethodTasksTimeline",
+        "wire": "tasks/timeline",
+        "family": "tasks",
+        "params": { "name": "TaskTimelineParams", "value": "TaskTimelineParams{}" },
+        "result": { "name": "TaskTimelineItem", "value": "[]apicontract.TaskTimelineItemPayload{}" }
+    },
+    {
+        "constant": "HostAPIMethodTasksTree",
+        "wire": "tasks/tree",
+        "family": "tasks",
+        "params": { "name": "TaskTreeParams", "value": "TaskTreeParams{}" },
+        "result": { "name": "TaskTree", "value": "apicontract.TaskTreePayload{}" }
+    },
+    {
+        "constant": "HostAPIMethodTasksDashboard",
+        "wire": "tasks/dashboard",
+        "family": "tasks",
+        "params": { "name": "TaskDashboardParams", "value": "TaskDashboardParams{}" },
+        "result": { "name": "TaskDashboard", "value": "apicontract.TaskDashboardPayload{}" },
+        "optional_params": true
+    },
+    {
+        "constant": "HostAPIMethodTasksInbox",
+        "wire": "tasks/inbox",
+        "family": "tasks",
+        "params": { "name": "TaskInboxParams", "value": "TaskInboxParams{}" },
+        "result": { "name": "TaskInbox", "value": "apicontract.TaskInboxPayload{}" },
+        "optional_params": true
+    },
+    {
+        "constant": "HostAPIMethodTasksCreate",
+        "wire": "tasks/create",
+        "family": "tasks",
+        "params": { "name": "TaskCreateParams", "value": "TaskCreateParams{}" },
+        "result": { "name": "Task", "value": "apicontract.TaskPayload{}" }
+    },
+    {
+        "constant": "HostAPIMethodTasksUpdate",
+        "wire": "tasks/update",
+        "family": "tasks",
+        "params": { "name": "TaskUpdateParams", "value": "TaskUpdateParams{}" },
+        "result": { "name": "Task", "value": "apicontract.TaskPayload{}" }
+    },
+    {
+        "constant": "HostAPIMethodTasksCancel",
+        "wire": "tasks/cancel",
+        "family": "tasks",
+        "params": { "name": "TaskCancelParams", "value": "TaskCancelParams{}" },
+        "result": { "name": "Task", "value": "apicontract.TaskPayload{}" }
+    },
+    {
+        "constant": "HostAPIMethodTasksRuns",
+        "wire": "tasks/runs",
+        "family": "tasks",
+        "params": { "name": "TaskRunsParams", "value": "TaskRunsParams{}" },
+        "result": { "name": "TaskRun", "value": "[]apicontract.TaskRunPayload{}" }
+    },
+    {
+        "constant": "HostAPIMethodTasksRunsGet",
+        "wire": "tasks/runs/get",
+        "family": "tasks",
+        "params": { "name": "TaskRunGetParams", "value": "TaskRunGetParams{}" },
+        "result": { "name": "TaskRunDetail", "value": "apicontract.TaskRunDetailPayload{}" }
+    },
+    {
+        "constant": "HostAPIMethodTasksRunsEnqueue",
+        "wire": "tasks/runs/enqueue",
+        "family": "tasks",
+        "params": { "name": "TaskRunEnqueueParams", "value": "TaskRunEnqueueParams{}" },
+        "result": { "name": "TaskRun", "value": "apicontract.TaskRunPayload{}" }
+    },
+    {
+        "constant": "HostAPIMethodTasksRunsStart",
+        "wire": "tasks/runs/start",
+        "family": "tasks",
+        "params": { "name": "TaskRunStartParams", "value": "TaskRunStartParams{}" },
+        "result": { "name": "TaskRun", "value": "apicontract.TaskRunPayload{}" }
+    },
+    {
+        "constant": "HostAPIMethodTasksRunsAttachSession",
+        "wire": "tasks/runs/attach_session",
+        "family": "tasks",
+        "params": { "name": "TaskRunAttachSessionParams", "value": "TaskRunAttachSessionParams{}" },
+        "result": { "name": "TaskRun", "value": "apicontract.TaskRunPayload{}" }
+    },
+    {
+        "constant": "HostAPIMethodTasksRunsComplete",
+        "wire": "tasks/runs/complete",
+        "family": "tasks",
+        "params": { "name": "TaskRunCompleteParams", "value": "TaskRunCompleteParams{}" },
+        "result": { "name": "TaskRun", "value": "apicontract.TaskRunPayload{}" }
+    },
+    {
+        "constant": "HostAPIMethodTasksRunsFail",
+        "wire": "tasks/runs/fail",
+        "family": "tasks",
+        "params": { "name": "TaskRunFailParams", "value": "TaskRunFailParams{}" },
+        "result": { "name": "TaskRun", "value": "apicontract.TaskRunPayload{}" }
+    },
+    {
+        "constant": "HostAPIMethodTasksRunsCancel",
+        "wire": "tasks/runs/cancel",
+        "family": "tasks",
+        "params": { "name": "TaskRunCancelParams", "value": "TaskRunCancelParams{}" },
+        "result": { "name": "TaskRun", "value": "apicontract.TaskRunPayload{}" }
+    },
+    {
+        "constant": "HostAPIMethodNetworkStatus",
+        "wire": "network/status",
+        "family": "network",
+        "params": { "name": "EmptyResult", "value": "EmptyResult{}" },
+        "result": { "name": "NetworkStatusPayload", "value": "apicontract.NetworkStatusPayload{}" },
+        "optional_params": true
+    },
+    {
+        "constant": "HostAPIMethodNetworkUsage",
+        "wire": "network/usage",
+        "family": "network",
+        "params": { "name": "NetworkUsageParams", "value": "NetworkUsageParams{}" },
+        "result": { "name": "NetworkUsageResponse", "value": "apicontract.NetworkUsageResponse{}" }
+    },
+    {
+        "constant": "HostAPIMethodNetworkChannels",
+        "wire": "network/channels",
+        "family": "network",
+        "params": { "name": "NetworkChannelsParams", "value": "NetworkChannelsParams{}" },
+        "result": {
+            "name": "NetworkChannelPayload",
+            "value": "[]apicontract.NetworkChannelPayload{}"
+        }
+    },
+    {
+        "constant": "HostAPIMethodNetworkPeers",
+        "wire": "network/peers",
+        "family": "network",
+        "params": { "name": "NetworkPeersParams", "value": "NetworkPeersParams{}" },
+        "result": { "name": "NetworkPeerPayload", "value": "[]apicontract.NetworkPeerPayload{}" }
+    },
+    {
+        "constant": "HostAPIMethodNetworkThreads",
+        "wire": "network/threads",
+        "family": "network",
+        "params": { "name": "NetworkThreadsParams", "value": "NetworkThreadsParams{}" },
+        "result": {
+            "name": "NetworkThreadsResponse",
+            "value": "apicontract.NetworkThreadsResponse{}"
+        }
+    },
+    {
+        "constant": "HostAPIMethodNetworkThreadGet",
+        "wire": "network/thread/get",
+        "family": "network",
+        "params": { "name": "NetworkThreadTargetParams", "value": "NetworkThreadTargetParams{}" },
+        "result": {
+            "name": "NetworkThreadSummaryPayload",
+            "value": "apicontract.NetworkThreadSummaryPayload{}"
+        }
+    },
+    {
+        "constant": "HostAPIMethodNetworkThreadMessages",
+        "wire": "network/thread/messages",
+        "family": "network",
+        "params": {
+            "name": "NetworkThreadMessagesParams",
+            "value": "NetworkThreadMessagesParams{}"
+        },
+        "result": {
+            "name": "NetworkThreadMessagesResponse",
+            "value": "apicontract.NetworkThreadMessagesResponse{}"
+        }
+    },
+    {
+        "constant": "HostAPIMethodNetworkDirects",
+        "wire": "network/directs",
+        "family": "network",
+        "params": { "name": "NetworkDirectsParams", "value": "NetworkDirectsParams{}" },
+        "result": {
+            "name": "NetworkDirectRoomsResponse",
+            "value": "apicontract.NetworkDirectRoomsResponse{}"
+        }
+    },
+    {
+        "constant": "HostAPIMethodNetworkDirectResolve",
+        "wire": "network/direct/resolve",
+        "family": "network",
+        "params": { "name": "NetworkDirectResolveParams", "value": "NetworkDirectResolveParams{}" },
+        "result": {
+            "name": "NetworkDirectRoomPayload",
+            "value": "apicontract.NetworkDirectRoomPayload{}"
+        }
+    },
+    {
+        "constant": "HostAPIMethodNetworkDirectMessages",
+        "wire": "network/direct/messages",
+        "family": "network",
+        "params": {
+            "name": "NetworkDirectMessagesParams",
+            "value": "NetworkDirectMessagesParams{}"
+        },
+        "result": {
+            "name": "NetworkDirectRoomMessagesResponse",
+            "value": "apicontract.NetworkDirectRoomMessagesResponse{}"
+        }
+    },
+    {
+        "constant": "HostAPIMethodNetworkWorkGet",
+        "wire": "network/work/get",
+        "family": "network",
+        "params": { "name": "NetworkWorkGetParams", "value": "NetworkWorkGetParams{}" },
+        "result": { "name": "NetworkWorkPayload", "value": "apicontract.NetworkWorkPayload{}" }
+    },
+    {
+        "constant": "HostAPIMethodNetworkSend",
+        "wire": "network/send",
+        "family": "network",
+        "params": { "name": "NetworkSendParams", "value": "NetworkSendParams{}" },
+        "result": { "name": "NetworkSendPayload", "value": "apicontract.NetworkSendPayload{}" }
+    },
+    {
+        "constant": "HostAPIMethodResourcesList",
+        "wire": "resources/list",
+        "family": "resources",
+        "params": { "name": "ResourcesListParams", "value": "ResourcesListParams{}" },
+        "result": { "name": "ResourceRecord", "value": "[]ResourceRecord{}" },
+        "optional_params": true
+    },
+    {
+        "constant": "HostAPIMethodResourcesGet",
+        "wire": "resources/get",
+        "family": "resources",
+        "params": { "name": "ResourceGetParams", "value": "ResourceGetParams{}" },
+        "result": { "name": "ResourceRecord", "value": "ResourceRecord{}" }
+    },
+    {
+        "constant": "HostAPIMethodResourcesSnapshot",
+        "wire": "resources/snapshot",
+        "family": "resources",
+        "params": { "name": "ResourcesSnapshotParams", "value": "ResourcesSnapshotParams{}" },
+        "result": { "name": "EmptyResult", "value": "EmptyResult{}" }
+    },
+    {
+        "constant": "HostAPIMethodBridgesInstancesList",
+        "wire": "bridges/instances/list",
+        "family": "bridges",
+        "params": { "name": "EmptyResult", "value": "EmptyResult{}" },
+        "result": { "name": "BridgeInstance", "value": "[]bridgepkg.BridgeInstance{}" },
+        "optional_params": true
+    },
+    {
+        "constant": "HostAPIMethodBridgesMessagesIngest",
+        "wire": "bridges/messages/ingest",
+        "family": "bridges",
+        "params": {
+            "name": "InboundMessageEnvelope",
+            "value": "bridgepkg.InboundMessageEnvelope{}"
+        },
+        "result": {
+            "name": "BridgesMessagesIngestResult",
+            "value": "BridgesMessagesIngestResult{}"
+        }
+    },
+    {
+        "constant": "HostAPIMethodBridgesInstancesGet",
+        "wire": "bridges/instances/get",
+        "family": "bridges",
+        "params": { "name": "BridgeInstanceTargetParams", "value": "BridgeInstanceTargetParams{}" },
+        "result": { "name": "BridgeInstance", "value": "bridgepkg.BridgeInstance{}" }
+    },
+    {
+        "constant": "HostAPIMethodBridgesInstancesReportState",
+        "wire": "bridges/instances/report_state",
+        "family": "bridges",
+        "params": {
+            "name": "BridgesInstancesReportStateParams",
+            "value": "BridgesInstancesReportStateParams{}"
+        },
+        "result": { "name": "BridgeInstance", "value": "bridgepkg.BridgeInstance{}" }
+    },
+    {
+        "constant": "HostAPIMethodClarifyAsk",
+        "wire": "clarify/ask",
+        "family": "clarify",
+        "params": { "name": "ClarifyAskParams", "value": "ClarifyAskParams{}" },
+        "result": { "name": "ClarifyAnswer", "value": "toolspkg.ClarifyAnswer{}" }
+    }
+]

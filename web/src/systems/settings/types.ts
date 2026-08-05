@@ -47,6 +47,9 @@ export type SettingsUpdateNotificationPresetRequest =
 
 export type SettingsProviderCollection = OperationResponse<"listSettingsProviders", 200>;
 export type SettingsProviderEntry = SettingsProviderCollection["providers"][number];
+export type SettingsProviderLoginDescriptor = NonNullable<
+  SettingsProviderEntry["auth_status"]
+>["login"];
 export type SettingsProviderDetail = OperationResponse<"getSettingsProvider", 200>["provider"];
 export type SettingsProviderRequest = OperationRequestBody<"putSettingsProvider">;
 export type SettingsProviderCredentialSlotRequest = NonNullable<
@@ -85,7 +88,6 @@ export type ProviderDraft = {
   env_policy: string;
   home_policy: string;
   auth_status_command: string;
-  auth_login_command: string;
   /**
    * Declared credential bindings. Only `auth_mode = bound_secret` may carry
    * them — the daemon rejects slots under any other mode.

@@ -1,15 +1,22 @@
 package compozysdk
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"maps"
+	"regexp"
+	"strings"
 )
 
 const (
-	errorsErrorKey = "error"
+	errorsErrorKey            = "error"
+	claimTokenRedactionMarker = "[REDACTED]"
 )
+
+var claimTokenPattern = regexp.MustCompile(`(?i)compozy_claim_[A-Za-z0-9_-]+`)
 
 // JSONRPCErrorObject is the wire error object used by JSON-RPC 2.0.
 type JSONRPCErrorObject struct {
@@ -30,7 +37,7 @@ func (e *RPCError) Error() string {
 	if e == nil {
 		return ""
 	}
-	return e.Message
+	return redactClaimTokens(e.Message)
 }
 
 func (e *RPCError) object() JSONRPCErrorObject {
@@ -39,8 +46,8 @@ func (e *RPCError) object() JSONRPCErrorObject {
 	}
 	return JSONRPCErrorObject{
 		Code:    e.Code,
-		Message: e.Message,
-		Data:    cloneRawMessage(e.Data),
+		Message: redactClaimTokens(e.Message),
+		Data:    redactClaimTokensJSON(e.Data),
 	}
 }
 
@@ -50,10 +57,10 @@ func NewRPCError(code int, message string, data any) *RPCError {
 	if data != nil {
 		encoded, err := json.Marshal(data)
 		if err == nil && string(encoded) != "null" {
-			raw = encoded
+			raw = redactClaimTokensJSON(encoded)
 		}
 	}
-	return &RPCError{Code: code, Message: message, Data: raw}
+	return &RPCError{Code: code, Message: redactClaimTokens(message), Data: raw}
 }
 
 // NewInvalidRequestError creates an Invalid request error.
@@ -103,11 +110,7 @@ func NewToolExecutionError(data map[string]any) *RPCError {
 }
 
 func rpcErrorFromObject(obj JSONRPCErrorObject) *RPCError {
-	return &RPCError{
-		Code:    obj.Code,
-		Message: obj.Message,
-		Data:    cloneRawMessage(obj.Data),
-	}
+	return NewRPCError(obj.Code, obj.Message, obj.Data)
 }
 
 func ensureRPCError(err error) *RPCError {
@@ -125,4 +128,74 @@ func wrapTransportError(message string, err error) error {
 		return nil
 	}
 	return fmt.Errorf("%s: %w", message, err)
+}
+
+func redactClaimTokens(value string) string {
+	return claimTokenPattern.ReplaceAllString(value, claimTokenRedactionMarker)
+}
+
+func redactClaimTokensJSON(raw json.RawMessage) json.RawMessage {
+	if len(raw) == 0 {
+		return nil
+	}
+
+	var decoded any
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	if err := decoder.Decode(&decoded); err != nil {
+		return redactClaimTokensJSONFallback(raw)
+	}
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		return redactClaimTokensJSONFallback(raw)
+	}
+
+	redacted, changed := redactClaimTokensJSONValue(decoded)
+	if !changed {
+		return cloneRawMessage(raw)
+	}
+	encoded, err := json.Marshal(redacted)
+	if err != nil {
+		return redactClaimTokensJSONFallback(raw)
+	}
+	return encoded
+}
+
+func redactClaimTokensJSONFallback(raw json.RawMessage) json.RawMessage {
+	encoded, err := json.Marshal(redactClaimTokens(string(raw)))
+	if err != nil {
+		return json.RawMessage(`""`)
+	}
+	return encoded
+}
+
+func redactClaimTokensJSONValue(value any) (any, bool) {
+	switch typed := value.(type) {
+	case map[string]any:
+		changed := false
+		redacted := make(map[string]any, len(typed))
+		for key, nested := range typed {
+			if strings.EqualFold(strings.TrimSpace(key), "claim_token") || redactClaimTokens(key) != key {
+				changed = true
+				continue
+			}
+			next, nestedChanged := redactClaimTokensJSONValue(nested)
+			redacted[key] = next
+			changed = changed || nestedChanged
+		}
+		return redacted, changed
+	case []any:
+		changed := false
+		redacted := make([]any, len(typed))
+		for index, nested := range typed {
+			next, nestedChanged := redactClaimTokensJSONValue(nested)
+			redacted[index] = next
+			changed = changed || nestedChanged
+		}
+		return redacted, changed
+	case string:
+		redacted := redactClaimTokens(typed)
+		return redacted, redacted != typed
+	default:
+		return value, false
+	}
 }

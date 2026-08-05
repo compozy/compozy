@@ -95,9 +95,6 @@ func (o memoryRecallSignalsOverlay) Apply(dst *MemoryRecallSignalsConfig) {
 	if o.WorkerRetryMax != nil {
 		dst.WorkerRetryMax = *o.WorkerRetryMax
 	}
-	if o.MetricsEnabled != nil {
-		dst.MetricsEnabled = *o.MetricsEnabled
-	}
 }
 
 func (o memoryDecisionsOverlay) Apply(dst *MemoryDecisionsConfig) {

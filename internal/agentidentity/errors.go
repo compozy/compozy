@@ -89,14 +89,15 @@ func (e *Error) ToDiagnosticItem() contract.DiagnosticItem {
 	if message == "" {
 		message = agentCommandFailedMessage
 	}
-	return diagnostics.NewItem(
-		"agentidentity."+code,
-		code,
-		contract.CategorySession,
-		"Agent identity error",
-		message,
-		contract.SeverityError,
-		contract.FreshnessLive,
+	return diagnostics.NewItem(diagnostics.ItemSpec{
+		ID:            "agentidentity." + code,
+		Code:          code,
+		Category:      contract.CategorySession,
+		Title:         "Agent identity error",
+		Message:       message,
+		Severity:      contract.SeverityError,
+		DataFreshness: contract.FreshnessLive,
+	},
 		diagnostics.WithSuggestedCommand(e.Action),
 	)
 }
@@ -122,8 +123,7 @@ func ErrorPayloadFor(err error) ErrorPayload {
 		Action:   errorsInspectTheDaemonErrorAndRetryValue,
 		ExitCode: ExitCodeForError(err),
 	}
-	var identityErr *Error
-	if errors.As(err, &identityErr) && identityErr != nil {
+	if identityErr, ok := errors.AsType[*Error](err); ok && identityErr != nil {
 		payload.Code = strings.TrimSpace(identityErr.Code)
 		payload.Message = strings.TrimSpace(identityErr.Message)
 		payload.Action = strings.TrimSpace(identityErr.Action)

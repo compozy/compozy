@@ -91,10 +91,14 @@ func (m *Manager) acceptPrepared(
 	if err != nil {
 		return "", err
 	}
+	admissions, err := m.wakeAdmissions(route.Deliveries, rootID, depth)
+	if err != nil {
+		return "", err
+	}
 	request := store.AcceptNetworkMessageRequest{
 		Message:      entry,
 		Dispositions: storeDispositions(route.Dispositions),
-		Admissions:   m.wakeAdmissions(route.Deliveries, rootID, depth),
+		Admissions:   admissions,
 	}
 	result, err := m.acceptance.AcceptNetworkMessage(ctx, request)
 	if err != nil {
@@ -211,9 +215,9 @@ func (m *Manager) wakeAdmissions(
 	deliveries []Delivery,
 	rootID string,
 	depth int,
-) []store.NetworkWakeAdmissionInput {
+) ([]store.NetworkWakeAdmissionInput, error) {
 	if len(deliveries) == 0 {
-		return nil
+		return nil, nil
 	}
 	inputs := make([]store.NetworkWakeAdmissionInput, 0, len(deliveries))
 	for _, delivery := range deliveries {
@@ -243,12 +247,20 @@ func (m *Manager) wakeAdmissions(
 			Depth:              depth,
 		}
 		if input.Addressed {
-			input.WakeID = store.NewID("wake")
-			input.TaskRunID = store.NewID("run")
+			wakeID, err := store.NewID("wake")
+			if err != nil {
+				return nil, fmt.Errorf("network: generate wake id: %w", err)
+			}
+			input.WakeID = wakeID
+			taskRunID, err := store.NewID("run")
+			if err != nil {
+				return nil, fmt.Errorf("network: generate wake task run id: %w", err)
+			}
+			input.TaskRunID = taskRunID
 		}
 		inputs = append(inputs, input)
 	}
-	return inputs
+	return inputs, nil
 }
 
 func (m *Manager) resolveCausation(ctx context.Context, envelope Envelope) (string, int, error) {

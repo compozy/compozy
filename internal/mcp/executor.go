@@ -32,7 +32,7 @@ func (e *CallExecutor) ListTools(
 func (e *CallExecutor) ListToolsWithProtocol(
 	ctx context.Context,
 	source toolspkg.SourceRef,
-) ([]toolspkg.MCPToolDescriptor, string, error) {
+) (descriptors []toolspkg.MCPToolDescriptor, protocolVersion string, err error) {
 	if e == nil {
 		return nil, "", toolspkg.NewValidationError(
 			"executor",
@@ -51,6 +51,11 @@ func (e *CallExecutor) ListToolsWithProtocol(
 	}
 	ctx, cancel := e.callContext(ctx)
 	defer cancel()
+	ctx, releaseRedactions := withMCPRequestRedactions(ctx)
+	defer releaseRedactions()
+	defer func() {
+		err = redactMCPError(err)
+	}()
 	resolved, err := e.resolveServer(ctx, source)
 	if err != nil {
 		return nil, "", err
@@ -62,8 +67,10 @@ func (e *CallExecutor) ListToolsWithProtocol(
 	if err != nil {
 		return nil, "", normalizeMCPErrorWithContext(ctx, "", err, true)
 	}
-	defer closeMCPClient(client)
-	protocolVersion := negotiatedProtocolVersion(client.session)
+	defer func() {
+		err = joinMCPClientCleanup(err, client)
+	}()
+	protocolVersion = negotiatedProtocolVersion(client.session)
 	cacheKey, err := e.toolCacheKey(ctx, resolved, protocolVersion)
 	if err != nil {
 		return nil, "", err
@@ -75,7 +82,7 @@ func (e *CallExecutor) ListToolsWithProtocol(
 	if err != nil {
 		return nil, "", normalizeMCPErrorWithContext(ctx, "", err, true)
 	}
-	descriptors := make([]toolspkg.MCPToolDescriptor, 0, len(tools))
+	descriptors = make([]toolspkg.MCPToolDescriptor, 0, len(tools))
 	for i := range tools {
 		if tools[i] == nil {
 			return nil, "", toolspkg.NewValidationError(
@@ -99,7 +106,7 @@ func (e *CallExecutor) CallTool(
 	ctx context.Context,
 	source toolspkg.SourceRef,
 	req toolspkg.MCPToolCallRequest,
-) (toolspkg.ToolResult, error) {
+) (result toolspkg.ToolResult, err error) {
 	if e == nil {
 		return toolspkg.ToolResult{}, toolspkg.NewValidationError(
 			"executor",
@@ -118,6 +125,11 @@ func (e *CallExecutor) CallTool(
 	}
 	ctx, cancel := e.callContext(ctx)
 	defer cancel()
+	ctx, releaseRedactions := withMCPRequestRedactions(ctx)
+	defer releaseRedactions()
+	defer func() {
+		err = redactMCPError(err)
+	}()
 	resolved, err := e.resolveServer(ctx, source)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
@@ -129,19 +141,21 @@ func (e *CallExecutor) CallTool(
 	if err != nil {
 		return toolspkg.ToolResult{}, normalizeMCPErrorWithContext(ctx, req.ToolID, err, false)
 	}
-	defer closeMCPClient(client)
+	defer func() {
+		err = joinMCPClientCleanup(err, client)
+	}()
 	arguments, err := decodeArguments(req.Input)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	result, err := client.session.CallTool(ctx, &mcpsdk.CallToolParams{
+	mcpResult, err := client.session.CallTool(ctx, &mcpsdk.CallToolParams{
 		Name:      strings.TrimSpace(req.RawToolName),
 		Arguments: arguments,
 	})
 	if err != nil {
 		return toolspkg.ToolResult{}, normalizeMCPErrorWithContext(ctx, req.ToolID, err, false)
 	}
-	if result.NeedsInput() {
+	if mcpResult.NeedsInput() {
 		return toolspkg.ToolResult{}, toolspkg.NewToolError(
 			toolspkg.ErrorCodeUnavailable,
 			req.ToolID,
@@ -150,12 +164,15 @@ func (e *CallExecutor) CallTool(
 			toolspkg.ReasonMCPUnreachable,
 		)
 	}
-	return toolResultFromMCP(result)
+	result, err = toolResultFromMCP(mcpResult)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	return redactMCPToolResult(result)
 }
 
 func normalizeMCPErrorWithContext(ctx context.Context, id toolspkg.ToolID, err error, discovery bool) error {
-	var scopeErr *InsufficientScopeError
-	if errors.As(err, &scopeErr) {
+	if scopeErr, ok := errors.AsType[*InsufficientScopeError](err); ok {
 		return toolspkg.NewToolError(
 			toolspkg.ErrorCodeUnavailable,
 			id,
@@ -178,8 +195,7 @@ func normalizeMCPErrorWithContext(ctx context.Context, id toolspkg.ToolID, err e
 	} else if deadline, hasDeadline := ctx.Deadline(); hasDeadline && !time.Now().Before(deadline) {
 		err = context.DeadlineExceeded
 	} else {
-		var networkError net.Error
-		if errors.As(err, &networkError) && networkError.Timeout() {
+		if networkError, ok := errors.AsType[net.Error](err); ok && networkError != nil && networkError.Timeout() {
 			err = context.DeadlineExceeded
 		}
 	}
@@ -193,7 +209,7 @@ func normalizeMCPErrorWithContext(ctx context.Context, id toolspkg.ToolID, err e
 func (e *CallExecutor) Status(
 	ctx context.Context,
 	source toolspkg.SourceRef,
-) (toolspkg.MCPAuthStatus, error) {
+) (status toolspkg.MCPAuthStatus, err error) {
 	if e == nil {
 		return toolspkg.MCPAuthStatus{}, toolspkg.NewValidationError(
 			"executor",
@@ -210,6 +226,11 @@ func (e *CallExecutor) Status(
 			toolspkg.ReasonCallCanceled,
 		)
 	}
+	ctx, releaseRedactions := withMCPRequestRedactions(ctx)
+	defer releaseRedactions()
+	defer func() {
+		err = redactMCPError(err)
+	}()
 	resolved, err := e.resolveServer(ctx, source)
 	if err != nil {
 		return toolspkg.MCPAuthStatus{}, err
@@ -257,82 +278,6 @@ func (e *CallExecutor) resolveServer(
 		return ResolvedServer{}, errors.New("mcp: resolved auth target does not match server config")
 	}
 	return resolved, nil
-}
-
-func toolResultFromMCP(result *mcpsdk.CallToolResult) (toolspkg.ToolResult, error) {
-	if result == nil {
-		return toolspkg.ToolResult{}, nil
-	}
-	content := make([]toolspkg.ToolContent, 0, len(result.Content))
-	for i := range result.Content {
-		converted, err := toolContentFromMCP(result.Content[i])
-		if err != nil {
-			return toolspkg.ToolResult{}, err
-		}
-		content = append(content, converted)
-	}
-	var structured json.RawMessage
-	if result.StructuredContent != nil {
-		data, err := json.Marshal(result.StructuredContent)
-		if err != nil {
-			return toolspkg.ToolResult{}, fmt.Errorf("mcp: encode structured content: %w", err)
-		}
-		structured = data
-	}
-	metadata := map[string]json.RawMessage{}
-	if result.IsError {
-		metadata[toolResultIsErrorKey] = json.RawMessage(`true`)
-	}
-	if len(metadata) == 0 {
-		metadata = nil
-	}
-	return toolspkg.ToolResult{
-		Content:    content,
-		Structured: structured,
-		Preview:    mcpPreview(content, result.IsError),
-		Metadata:   metadata,
-	}, nil
-}
-
-func toolContentFromMCP(content mcpsdk.Content) (toolspkg.ToolContent, error) {
-	switch typed := content.(type) {
-	case *mcpsdk.TextContent:
-		return toolspkg.ToolContent{Type: hostedProxyTextKey, Text: typed.Text}, nil
-	case *mcpsdk.ImageContent:
-		data, err := json.Marshal(typed.Data)
-		if err != nil {
-			return toolspkg.ToolContent{}, fmt.Errorf("mcp: encode image content: %w", err)
-		}
-		return toolspkg.ToolContent{Type: hostedProxyImageKey, Data: data, MIMEType: typed.MIMEType}, nil
-	case *mcpsdk.AudioContent:
-		data, err := json.Marshal(typed.Data)
-		if err != nil {
-			return toolspkg.ToolContent{}, fmt.Errorf("mcp: encode audio content: %w", err)
-		}
-		return toolspkg.ToolContent{Type: hostedProxyAudioKey, Data: data, MIMEType: typed.MIMEType}, nil
-	default:
-		data, err := json.Marshal(content)
-		if err != nil {
-			return toolspkg.ToolContent{}, fmt.Errorf("mcp: encode content block: %w", err)
-		}
-		return toolspkg.ToolContent{Type: executorMCPKey, Data: data}, nil
-	}
-}
-
-func mcpPreview(content []toolspkg.ToolContent, isError bool) string {
-	prefix := ""
-	if isError {
-		prefix = "error: "
-	}
-	for _, item := range content {
-		if strings.TrimSpace(item.Text) != "" {
-			return prefix + strings.TrimSpace(item.Text)
-		}
-	}
-	if len(content) == 0 {
-		return prefix + "empty MCP result"
-	}
-	return fmt.Sprintf("%s%d MCP content blocks", prefix, len(content))
 }
 
 func decodeArguments(raw json.RawMessage) (any, error) {

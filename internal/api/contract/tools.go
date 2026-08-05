@@ -2,6 +2,8 @@ package contract
 
 import (
 	"encoding/json"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/compozy/compozy/internal/tools"
@@ -227,4 +229,52 @@ type ToolErrorPayload struct {
 // ToolErrorResponse returns one structured tool error.
 type ToolErrorResponse struct {
 	Error ToolErrorPayload `json:"error"`
+}
+
+const (
+	ToolOperatorCauseDetailKey    = "operator_cause"
+	ToolOperatorRecoveryDetailKey = "operator_recovery"
+)
+
+// ToolOperatorFailureDetails projects explicitly authored operator-safe remediation.
+func ToolOperatorFailureDetails(failure *tools.OperatorFailure) map[string]json.RawMessage {
+	if failure == nil {
+		return nil
+	}
+	details := make(map[string]json.RawMessage, 2)
+	if cause := strings.TrimSpace(failure.Cause); cause != "" {
+		details[ToolOperatorCauseDetailKey] = json.RawMessage(strconv.Quote(cause))
+	}
+	if recovery := strings.TrimSpace(failure.Recovery); recovery != "" {
+		details[ToolOperatorRecoveryDetailKey] = json.RawMessage(strconv.Quote(recovery))
+	}
+	if len(details) == 0 {
+		return nil
+	}
+	return details
+}
+
+// FilterToolOperatorFailureDetails retains only the two explicitly safe remediation fields.
+func FilterToolOperatorFailureDetails(details map[string]json.RawMessage) map[string]json.RawMessage {
+	if len(details) == 0 {
+		return nil
+	}
+	filtered := make(map[string]json.RawMessage, 2)
+	for _, key := range []string{ToolOperatorCauseDetailKey, ToolOperatorRecoveryDetailKey} {
+		raw, ok := details[key]
+		if !ok {
+			continue
+		}
+		var value string
+		if err := json.Unmarshal(raw, &value); err != nil {
+			continue
+		}
+		if value = strings.TrimSpace(value); value != "" {
+			filtered[key] = json.RawMessage(strconv.Quote(value))
+		}
+	}
+	if len(filtered) == 0 {
+		return nil
+	}
+	return filtered
 }

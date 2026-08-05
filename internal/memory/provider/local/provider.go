@@ -20,8 +20,8 @@ const Name = "local"
 // memory store without depending on controller or recall internals directly.
 type Backend interface {
 	EnsureDirs() error
-	LoadPromptIndex(scope memcontract.Scope) (content string, truncated bool, err error)
-	List(scope memcontract.Scope) ([]memcontract.Header, error)
+	LoadPromptIndex(ctx context.Context, scope memcontract.Scope) (content string, truncated bool, err error)
+	List(ctx context.Context, scope memcontract.Scope) ([]memcontract.Header, error)
 	Recall(
 		ctx context.Context,
 		query memcontract.Query,
@@ -138,11 +138,11 @@ func (p *Provider) SystemPromptBlock(
 	if err != nil {
 		return memcontract.SnapshotResult{}, err
 	}
-	markdown, _, err := backend.LoadPromptIndex(scope)
+	markdown, _, err := backend.LoadPromptIndex(ctx, scope)
 	if err != nil {
 		return memcontract.SnapshotResult{}, err
 	}
-	ageMs, err := p.scopeAgeMs(backend, scope)
+	ageMs, err := p.scopeAgeMs(ctx, backend, scope)
 	if err != nil {
 		return memcontract.SnapshotResult{}, err
 	}
@@ -390,8 +390,8 @@ func (p *Provider) workspaceRootFor(workspaceRoot string) string {
 	return p.currentWorkspaceRoot()
 }
 
-func (p *Provider) scopeAgeMs(backend Backend, scope memcontract.Scope) (int64, error) {
-	headers, err := backend.List(scope)
+func (p *Provider) scopeAgeMs(ctx context.Context, backend Backend, scope memcontract.Scope) (int64, error) {
+	headers, err := backend.List(ctx, scope)
 	if err != nil {
 		return 0, err
 	}

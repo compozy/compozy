@@ -55,7 +55,11 @@ func (m *Manager) CreateTrigger(
 		return Trigger{}, ErrDefinitionReadOnly
 	}
 	if strings.TrimSpace(next.ID) == "" {
-		next.ID = store.NewID("trg")
+		generatedID, err := store.NewID("trg")
+		if err != nil {
+			return Trigger{}, errors.Join(errors.New("automation: generate trigger id"), err)
+		}
+		next.ID = generatedID
 	}
 	next = applyWebhookSecretRef(next, nil, &webhookSecret)
 	if err := requireWebhookSecretRef(next); err != nil {

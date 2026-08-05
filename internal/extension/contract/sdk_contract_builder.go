@@ -27,12 +27,3 @@ func BuildHookContracts() ([]HookContractSpec, error) {
 	}
 	return specs, nil
 }
-
-// HookContracts returns the canonical hook payload/patch registry in event order.
-func HookContracts() []HookContractSpec {
-	specs, err := BuildHookContracts()
-	if err != nil {
-		panic(err)
-	}
-	return specs
-}

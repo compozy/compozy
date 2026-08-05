@@ -262,7 +262,7 @@ func (g *SessionRepo) ReconcileSessions(
 			Indexed:  make([]string, 0),
 			Orphaned: make([]string, 0),
 		}
-		seen := make(map[string]struct{}, len(sessions))
+		seen := make(map[string]store.SessionInfo, len(sessions))
 
 		for _, session := range sessions {
 			if err := session.Validate(); err != nil {
@@ -275,10 +275,16 @@ func (g *SessionRepo) ReconcileSessions(
 			if normalized.UpdatedAt.IsZero() {
 				normalized.UpdatedAt = normalized.CreatedAt
 			}
-			if _, ok := seen[normalized.ID]; ok {
+			if prior, ok := seen[normalized.ID]; ok {
+				if prior.WorkspaceID != normalized.WorkspaceID {
+					return fmt.Errorf("%w: %s", store.ErrSessionWorkspaceMismatch, normalized.ID)
+				}
+				if prior.NetworkSpecSnapshot() != normalized.NetworkSpecSnapshot() {
+					return fmt.Errorf("%w: %s", store.ErrSessionParticipationMismatch, normalized.ID)
+				}
 				continue
 			}
-			seen[normalized.ID] = struct{}{}
+			seen[normalized.ID] = normalized
 			if _, ok := existing[normalized.ID]; !ok {
 				attemptResult.Indexed = append(attemptResult.Indexed, normalized.ID)
 			}
@@ -319,11 +325,19 @@ func (g *SessionRepo) registerSession(ctx context.Context, exec globalSQLExecuto
 	if err != nil {
 		return err
 	}
-	affected, err := sqlcgen.New(exec).UpsertSession(ctx, params)
+	queries := sqlcgen.New(exec)
+	affected, err := queries.UpsertSession(ctx, params)
 	if err != nil {
 		return err
 	}
 	if affected == 0 {
+		existingWorkspaceID, err := queries.GetSessionWorkspaceID(ctx, session.ID)
+		if err != nil {
+			return fmt.Errorf("store: read existing workspace owner for session %q: %w", session.ID, err)
+		}
+		if existingWorkspaceID != params.WorkspaceID {
+			return fmt.Errorf("%w: %s", store.ErrSessionWorkspaceMismatch, session.ID)
+		}
 		return fmt.Errorf("%w: %s", store.ErrSessionParticipationMismatch, session.ID)
 	}
 	return nil

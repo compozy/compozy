@@ -2,15 +2,12 @@ package presets
 
 import (
 	"context"
-
 	"fmt"
-
 	"strings"
 	"time"
 
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	eventspkg "github.com/compozy/compozy/internal/events"
-	"github.com/compozy/compozy/internal/notifications"
 )
 
 func normalizeUpdateRequest(req UpdateRequest, now time.Time) UpdateRequest {
@@ -33,29 +30,6 @@ func normalizeUpdateRequest(req UpdateRequest, now time.Time) UpdateRequest {
 		normalized.Now = normalized.Now.UTC()
 	}
 	return normalized
-}
-
-func cursorKeyForTarget(preset Preset, target Target, event Event) notifications.CursorKey {
-	workspaceID := strings.TrimSpace(event.WorkspaceID)
-	if workspaceID == "" {
-		workspaceID = "global"
-	}
-	return notifications.CursorKey{
-		ConsumerID: CursorConsumerPrefix + preset.Name + ":target:" + target.StableHash(),
-		StreamName: event.Type,
-		SubjectID:  workspaceID + ":" + event.ID,
-	}
-}
-
-func skipDeliveryID(preset Preset, event Event, reason string) string {
-	return "preset:" + preset.Name + ":" + event.ID + ":skip:" + strings.TrimSpace(reason)
-}
-
-func deliveryIDForTarget(preset Preset, event Event, index int) string {
-	if index < 0 {
-		index = 0
-	}
-	return fmt.Sprintf("preset:%s:%s:%d", preset.Name, event.ID, index+1)
 }
 
 func notificationText(preset Preset, event Event) string {

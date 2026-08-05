@@ -116,6 +116,19 @@ func (q *Queries) GetSessionTranscriptEpoch(ctx context.Context, id string) (int
 	return transcript_epoch, err
 }
 
+const getSessionWorkspaceID = `-- name: GetSessionWorkspaceID :one
+SELECT workspace_id
+FROM sessions
+WHERE id = ?1
+`
+
+func (q *Queries) GetSessionWorkspaceID(ctx context.Context, id string) (string, error) {
+	row := q.db.QueryRowContext(ctx, getSessionWorkspaceID, id)
+	var workspace_id string
+	err := row.Scan(&workspace_id)
+	return workspace_id, err
+}
+
 const listSessionHealthByIDs = `-- name: ListSessionHealthByIDs :many
 SELECT session_id, workspace_id, agent_name, state, health, active_prompt, attachable,
        eligible_for_wake, ineligibility_reason, last_activity_at, last_presence_at,
@@ -318,7 +331,8 @@ ON CONFLICT(id) DO UPDATE SET
   sandbox_last_sync_at = excluded.sandbox_last_sync_at,
   sandbox_last_sync_error = excluded.sandbox_last_sync_error,
   updated_at = excluded.updated_at
-WHERE sessions.network_spec_json IS excluded.network_spec_json
+WHERE sessions.workspace_id = excluded.workspace_id
+  AND sessions.network_spec_json IS excluded.network_spec_json
   AND sessions.network_mode IS excluded.network_mode
   AND sessions.network_channel IS excluded.network_channel
   AND sessions.network_source IS excluded.network_source

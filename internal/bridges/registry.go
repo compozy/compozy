@@ -54,7 +54,7 @@ type UpdateInstanceRequest struct {
 // Validate reports whether the request contains at least one mutable field and
 // each supplied value is internally consistent.
 func (r UpdateInstanceRequest) Validate() error {
-	if err := requireField(strings.TrimSpace(r.ID), "bridge instance id"); err != nil {
+	if err := requireOpaqueIdentity(r.ID, "bridge instance id"); err != nil {
 		return err
 	}
 	if !r.hasMutableField() {
@@ -120,7 +120,7 @@ type UpdateInstanceStateRequest struct {
 
 // Validate reports whether the request contains the fields needed for a lifecycle update.
 func (r UpdateInstanceStateRequest) Validate() error {
-	if err := requireField(strings.TrimSpace(r.ID), "bridge instance id"); err != nil {
+	if err := requireOpaqueIdentity(r.ID, "bridge instance id"); err != nil {
 		return err
 	}
 	if r.ClearDegradation && r.Degradation != nil && !r.Degradation.IsZero() {
@@ -192,10 +192,9 @@ func (s *Service) GetInstance(ctx context.Context, id string) (*BridgeInstance, 
 		return nil, err
 	}
 
-	trimmedID := strings.TrimSpace(id)
-	instance, err := s.store.GetBridgeInstance(ctx, trimmedID)
+	instance, err := s.store.GetBridgeInstance(ctx, id)
 	if err != nil {
-		return nil, fmt.Errorf("bridges: get bridge instance %q: %w", trimmedID, err)
+		return nil, fmt.Errorf("bridges: get bridge instance %q: %w", id, err)
 	}
 	return cloneBridgeInstance(instance), nil
 }
@@ -209,18 +208,18 @@ func (s *Service) UpdateInstance(ctx context.Context, req UpdateInstanceRequest)
 	if err := req.Validate(); err != nil {
 		return nil, fmt.Errorf(
 			"bridges: update bridge instance %q: validate request: %w",
-			strings.TrimSpace(req.ID),
+			req.ID,
 			err,
 		)
 	}
 
-	trimmedID := strings.TrimSpace(req.ID)
-	instance, err := s.store.GetBridgeInstance(ctx, trimmedID)
+	bridgeID := req.ID
+	instance, err := s.store.GetBridgeInstance(ctx, bridgeID)
 	if err != nil {
-		return nil, fmt.Errorf("bridges: update bridge instance %q: load current state: %w", trimmedID, err)
+		return nil, fmt.Errorf("bridges: update bridge instance %q: load current state: %w", bridgeID, err)
 	}
 	if instance.Source == BridgeInstanceSourcePackage {
-		return nil, fmt.Errorf("bridges: update bridge instance %q: %w", trimmedID, ErrBridgeInstanceReadOnly)
+		return nil, fmt.Errorf("bridges: update bridge instance %q: %w", bridgeID, ErrBridgeInstanceReadOnly)
 	}
 	if req.DisplayName != nil {
 		instance.DisplayName = strings.TrimSpace(*req.DisplayName)
@@ -234,7 +233,7 @@ func (s *Service) UpdateInstance(ctx context.Context, req UpdateInstanceRequest)
 	if req.ProviderConfig != nil {
 		normalized, err := normalizeProviderConfigJSON(*req.ProviderConfig)
 		if err != nil {
-			return nil, fmt.Errorf("bridges: update bridge instance %q: normalize provider config: %w", trimmedID, err)
+			return nil, fmt.Errorf("bridges: update bridge instance %q: normalize provider config: %w", bridgeID, err)
 		}
 		instance.ProviderConfig = normalized
 	}
@@ -243,7 +242,7 @@ func (s *Service) UpdateInstance(ctx context.Context, req UpdateInstanceRequest)
 		if err != nil {
 			return nil, fmt.Errorf(
 				"bridges: update bridge instance %q: normalize delivery defaults: %w",
-				trimmedID,
+				bridgeID,
 				err,
 			)
 		}
@@ -268,10 +267,10 @@ func (s *Service) UpdateInstance(ctx context.Context, req UpdateInstanceRequest)
 		instance.UpdatedAt = s.now()
 	}
 	if err := instance.Validate(); err != nil {
-		return nil, fmt.Errorf("bridges: update bridge instance %q: validate updated state: %w", trimmedID, err)
+		return nil, fmt.Errorf("bridges: update bridge instance %q: validate updated state: %w", bridgeID, err)
 	}
 	if err := s.store.UpdateBridgeInstance(ctx, instance); err != nil {
-		return nil, fmt.Errorf("bridges: update bridge instance %q: persist: %w", trimmedID, err)
+		return nil, fmt.Errorf("bridges: update bridge instance %q: persist: %w", bridgeID, err)
 	}
 	return cloneBridgeInstance(instance), nil
 }
@@ -284,18 +283,18 @@ func (s *Service) UpdateInstanceState(ctx context.Context, req UpdateInstanceSta
 	if err := req.Validate(); err != nil {
 		return nil, fmt.Errorf(
 			"bridges: update bridge instance state %q: validate request: %w",
-			strings.TrimSpace(req.ID),
+			req.ID,
 			err,
 		)
 	}
 
-	trimmedID := strings.TrimSpace(req.ID)
-	instance, err := s.store.GetBridgeInstance(ctx, trimmedID)
+	bridgeID := req.ID
+	instance, err := s.store.GetBridgeInstance(ctx, bridgeID)
 	if err != nil {
-		return nil, fmt.Errorf("bridges: update bridge instance state %q: load current state: %w", trimmedID, err)
+		return nil, fmt.Errorf("bridges: update bridge instance state %q: load current state: %w", bridgeID, err)
 	}
 	if err := ValidateInstanceStateTransition(instance, req.Enabled, req.Status); err != nil {
-		return nil, fmt.Errorf("bridges: update bridge instance state %q: validate transition: %w", trimmedID, err)
+		return nil, fmt.Errorf("bridges: update bridge instance state %q: validate transition: %w", bridgeID, err)
 	}
 
 	instance.Enabled = req.Enabled
@@ -320,11 +319,11 @@ func (s *Service) UpdateInstanceState(ctx context.Context, req UpdateInstanceSta
 		instance.UpdatedAt = s.now()
 	}
 	if err := instance.Validate(); err != nil {
-		return nil, fmt.Errorf("bridges: update bridge instance state %q: validate updated state: %w", trimmedID, err)
+		return nil, fmt.Errorf("bridges: update bridge instance state %q: validate updated state: %w", bridgeID, err)
 	}
 
 	if err := s.store.UpdateBridgeInstance(ctx, instance); err != nil {
-		return nil, fmt.Errorf("bridges: update bridge instance state %q: persist: %w", trimmedID, err)
+		return nil, fmt.Errorf("bridges: update bridge instance state %q: persist: %w", bridgeID, err)
 	}
 	return cloneBridgeInstance(instance), nil
 }

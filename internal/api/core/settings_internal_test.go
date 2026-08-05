@@ -57,7 +57,7 @@ func TestSettingsHelperFunctionsAndNilErrorWrappers(t *testing.T) {
 		t.Fatal("findSettingsSandbox() = false, want true")
 	}
 
-	if providerSettingsPayloadEmpty(contract.SettingsProviderSettingsPayload{
+	if providerSettingsPayloadEmpty(contract.SettingsProviderWritePayload{
 		Models: &contract.SettingsProviderModelsPayload{},
 	}) {
 		t.Fatal("providerSettingsPayloadEmpty(empty models payload) = true, want false")
@@ -82,7 +82,11 @@ func TestSettingsLogTailFileHelpers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("openSettingsLogTailFile() error = %v", err)
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			t.Errorf("file.Close() error = %v", closeErr)
+		}
+	}()
 
 	rotated, err := settingsLogTailRotated(path, info, file)
 	if err != nil {

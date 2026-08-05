@@ -29,6 +29,28 @@ export COMPOZY_HOME="${COMPOZY_HOME:-$HOME/.compozy}"
 The global database is an index and catalog. The per-session `events.db` files hold the detailed
 session timeline.
 
+## Session event store ownership
+
+Each `events.db` contains one immutable owner record with its exact session ID and workspace ID. Every
+session read and write must match that record. This prevents a database copied from another session or
+workspace from being relabeled by the caller and exposed through history, events, replay, or SSE.
+
+If the owner record is missing or does not match, Compozy refuses the open before migration or data
+mutation. It does not adopt, rebind, or repair the database, and it leaves the database, `-wal`, `-shm`,
+and rollback-journal files unchanged.
+
+Recover this condition as an operator-owned storage incident:
+
+1. Stop the daemon.
+2. Make a cold copy of the complete `COMPOZY_HOME`, including every SQLite sidecar.
+3. Restore the complete session directory from a backup that belongs to the same session and workspace,
+   or create a new session when discarding the retained state is acceptable.
+4. Start the daemon and inspect the session through `compozy session status`, `events`, or `history`.
+
+Do not edit the owner row or migration tables. Do not move only `events.db` between session directories.
+`compozy session repair` repairs interrupted transcript events in an already valid store; it cannot repair
+or replace database ownership.
+
 <Mermaid
   chart={`flowchart TD
   Home["$COMPOZY_HOME"] --> Global["compozy.db global catalog"]

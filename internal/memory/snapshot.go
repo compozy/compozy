@@ -122,10 +122,11 @@ func (s *SnapshotService) loadSnapshotBlock(
 			return SnapshotBlock{}, fmt.Errorf("memory snapshot: load provider block %q: %w", spec.title, err)
 		}
 	}
-	return s.loadStoreSnapshotBlock(req, spec, capturedAt)
+	return s.loadStoreSnapshotBlock(ctx, req, spec, capturedAt)
 }
 
 func (s *SnapshotService) loadStoreSnapshotBlock(
+	ctx context.Context,
 	req PromptSnapshotRequest,
 	spec snapshotSpec,
 	capturedAt time.Time,
@@ -140,11 +141,11 @@ func (s *SnapshotService) loadStoreSnapshotBlock(
 	if spec.scope == memcontract.ScopeAgent {
 		store = store.ForAgent(req.WorkspaceID, req.AgentName, spec.tier)
 	}
-	markdown, truncated, err := store.LoadPromptIndex(spec.scope)
+	markdown, truncated, err := store.LoadPromptIndex(ctx, spec.scope)
 	if err != nil {
 		return SnapshotBlock{}, fmt.Errorf("memory snapshot: load %q: %w", spec.title, err)
 	}
-	ageMs, err := latestAgeMs(store, spec.scope, capturedAt)
+	ageMs, err := latestAgeMs(ctx, store, spec.scope, capturedAt)
 	if err != nil {
 		return SnapshotBlock{}, fmt.Errorf("memory snapshot: age %q: %w", spec.title, err)
 	}
@@ -318,8 +319,8 @@ func joinNonEmptySections(sections []string) string {
 	return strings.Join(parts, "\n\n")
 }
 
-func latestAgeMs(store *Store, scope memcontract.Scope, now time.Time) (int64, error) {
-	headers, err := store.List(scope)
+func latestAgeMs(ctx context.Context, store *Store, scope memcontract.Scope, now time.Time) (int64, error) {
+	headers, err := store.List(ctx, scope)
 	if err != nil {
 		return 0, err
 	}

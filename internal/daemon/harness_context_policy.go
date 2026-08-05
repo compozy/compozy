@@ -30,7 +30,10 @@ func (r *HarnessContextResolver) resolveAugmenters(
 	if surface != ResolutionSurfaceTurn {
 		return nil
 	}
-	augmenters := make([]HarnessAugmenter, 0, 3)
+	augmenters := make([]HarnessAugmenter, 0, 4)
+	if r.runtime.WorkspaceKnowledgeAugmenter {
+		augmenters = append(augmenters, HarnessAugmenterWorkspaceKnowledge)
+	}
 	if r.runtime.SkillsAugmenter {
 		augmenters = append(augmenters, HarnessAugmenterSkills)
 	}

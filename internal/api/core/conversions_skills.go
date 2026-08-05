@@ -131,7 +131,26 @@ func SkillMarketplaceInstallPayloadFromResult(
 		Path:     result.Path,
 		Hash:     result.Hash,
 		Status:   result.Status,
+		CleanupDiagnostics: SkillMarketplaceCleanupDiagnosticPayloadsFromDomain(
+			result.CleanupDiagnostics,
+		),
 	}
+}
+
+// SkillMarketplaceCleanupDiagnosticPayloadsFromDomain converts cleanup diagnostics into wire payloads.
+func SkillMarketplaceCleanupDiagnosticPayloadsFromDomain(
+	diagnostics []skillmarketplace.CleanupDiagnostic,
+) []contract.SkillMarketplaceCleanupDiagnosticPayload {
+	if len(diagnostics) == 0 {
+		return nil
+	}
+	payloads := make([]contract.SkillMarketplaceCleanupDiagnosticPayload, 0, len(diagnostics))
+	for _, diagnostic := range diagnostics {
+		payloads = append(payloads, contract.SkillMarketplaceCleanupDiagnosticPayload{
+			Operation: diagnostic.Operation,
+		})
+	}
+	return payloads
 }
 
 // SkillMarketplaceUpdatePayloadsFromResults converts update results into shared payloads.
@@ -147,6 +166,9 @@ func SkillMarketplaceUpdatePayloadsFromResults(
 			LatestVersion:  result.LatestVersion,
 			Path:           result.Path,
 			Status:         result.Status,
+			CleanupDiagnostics: SkillMarketplaceCleanupDiagnosticPayloadsFromDomain(
+				result.CleanupDiagnostics,
+			),
 		})
 	}
 	return payload

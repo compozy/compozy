@@ -76,6 +76,7 @@ func (g *lifecycleRWGate) tryAcquireLocked(shared bool, waitingWriter *bool) (fu
 	if !*waitingWriter {
 		g.waitingWriters++
 		*waitingWriter = true
+		g.notifyLocked()
 	}
 	if g.writer || g.readers > 0 {
 		return nil, false

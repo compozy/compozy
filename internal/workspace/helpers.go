@@ -2,16 +2,14 @@ package workspace
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/fileutil"
 )
 
 func applyDefaultAgentOverride(cfg *compozyconfig.Config, defaultAgent string) {
@@ -29,35 +27,13 @@ func canonicalRoot(path string) (string, error) {
 		return "", errors.New("workspace: workspace root directory is required")
 	}
 
-	absPath, err := filepath.Abs(trimmed)
-	if err != nil {
-		return "", fmt.Errorf("workspace: resolve workspace root %q: %w", trimmed, err)
-	}
-
-	info, err := os.Stat(absPath)
+	canonicalPath, err := fileutil.CanonicalExistingDirectory(trimmed)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return "", ErrWorkspaceRootMissing
 		}
-		return "", fmt.Errorf("workspace: stat workspace root %q: %w", absPath, err)
+		return "", fmt.Errorf("workspace: canonicalize workspace root %q: %w", trimmed, err)
 	}
-	if !info.IsDir() {
-		return "", fmt.Errorf("workspace: workspace root %q is not a directory", absPath)
-	}
-
-	canonicalPath, err := filepath.EvalSymlinks(absPath)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return "", ErrWorkspaceRootMissing
-		}
-		return "", fmt.Errorf("workspace: evaluate workspace root %q: %w", absPath, err)
-	}
-
-	canonicalPath, err = filepath.Abs(canonicalPath)
-	if err != nil {
-		return "", fmt.Errorf("workspace: resolve canonical workspace root %q: %w", canonicalPath, err)
-	}
-
 	return canonicalPath, nil
 }
 
@@ -129,20 +105,4 @@ func errorType(err error) string {
 	default:
 		return "error"
 	}
-}
-
-func generateID(prefix string) string {
-	var random [8]byte
-	if _, err := rand.Read(random[:]); err != nil {
-		now := time.Now().UTC().UnixNano()
-		if strings.TrimSpace(prefix) == "" {
-			return fmt.Sprintf("%d", now)
-		}
-		return fmt.Sprintf("%s_%d", prefix, now)
-	}
-
-	if strings.TrimSpace(prefix) == "" {
-		return hex.EncodeToString(random[:])
-	}
-	return fmt.Sprintf("%s_%s", prefix, hex.EncodeToString(random[:]))
 }

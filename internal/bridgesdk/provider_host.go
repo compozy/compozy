@@ -269,8 +269,8 @@ func waitProviderHostRetry(ctx context.Context, stop <-chan struct{}, delay time
 }
 
 func isProviderNotInitializedError(err error) bool {
-	var rpcErr *subprocess.RPCError
-	return errors.As(err, &rpcErr) && rpcErr.Code == bridgeSDKRPCCodeNotInitialized
+	rpcErr, ok := errors.AsType[*subprocess.RPCError](err)
+	return ok && rpcErr.Code == bridgeSDKRPCCodeNotInitialized
 }
 
 func cloneProviderDegradation(value *bridgepkg.BridgeDegradation) *bridgepkg.BridgeDegradation {

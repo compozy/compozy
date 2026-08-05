@@ -6,6 +6,7 @@ import { withProviderAuthMode } from "../lib/provider-draft";
 import type { ProviderAuthMode, ProviderDraft, SettingsProviderEntry } from "../types";
 import type { ProviderDraftChange } from "./provider-edit-form";
 import { ProviderCredentialFields } from "./provider-edit-form-credential-fields";
+import { ProviderLoginDescriptorView } from "./provider-login-descriptor";
 import { ModalSettingsFieldRow } from "./settings-field-row";
 
 interface ProviderAuthFieldsProps {
@@ -54,8 +55,8 @@ const AUTH_CARDS: ReadonlyArray<{
  *
  * The mode is a security boundary, not a disclosure: CompozyOS may offer credential
  * inputs only under `bound_secret`, and under `native_cli` it may do no more
- * than surface the provider-owned login command (`internal/CLAUDE.md`
- * § Provider auth boundary). The gate is therefore mount/unmount, never
+ * than surface its safe login descriptor (`internal/CLAUDE.md` § Provider
+ * auth boundary). The gate is therefore mount/unmount, never
  * disabled fields — a disabled credential input still says CompozyOS wants the key.
  */
 export function ProviderAuthFields({ mode, draft, entry, onChange }: ProviderAuthFieldsProps) {
@@ -124,8 +125,8 @@ interface ProviderNativeAuthFieldsProps {
 }
 
 /**
- * Provider-owned login: the two commands CompozyOS may run on the operator's behalf,
- * plus the last reported status. No credential input belongs here.
+ * Provider-owned login exposes one editable status command and one safe,
+ * read-only descriptor for the write-only login command.
  */
 function ProviderNativeAuthFields({ draft, entry, onChange }: ProviderNativeAuthFieldsProps) {
   const authStatus = entry?.auth_status ?? null;
@@ -167,24 +168,14 @@ function ProviderNativeAuthFields({ draft, entry, onChange }: ProviderNativeAuth
 
       <ModalSettingsFieldRow
         control={
-          <Input
-            className="w-72 font-mono"
-            data-testid="settings-providers-editor-auth-login-command-input"
-            onChange={event =>
-              onChange(current => ({ ...current, auth_login_command: event.target.value }))
-            }
-            placeholder="codex login"
-            value={draft.auth_login_command}
+          <ProviderLoginDescriptorView
+            login={authStatus?.login ?? null}
+            testId="settings-providers-editor-auth-login-descriptor"
           />
         }
-        data-testid="settings-providers-editor-auth-login-command"
-        description="Provider-owned command opened by provider auth login. CompozyOS never stores what it produces."
-        label={
-          <>
-            Login command
-            <Eyebrow className="ml-1.5 text-subtle">optional</Eyebrow>
-          </>
-        }
+        data-testid="settings-providers-editor-auth-login"
+        description="The command is write-only. This view shows only its executable and availability."
+        label="Login CLI"
       />
     </>
   );

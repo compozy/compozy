@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	automation "github.com/compozy/compozy/internal/automation/model"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	compozyworkspace "github.com/compozy/compozy/internal/workspace"
@@ -153,6 +154,8 @@ func TestGlobalDBWorkspaceAndAutomationGuardClauses(t *testing.T) {
 	assertErr("CreateTrigger(nil ctx)", err)
 	_, err = globalDB.CreateRun(nilGlobalContext(), Run{})
 	assertErr("CreateRun(nil ctx)", err)
+	_, err = globalDB.ReserveRun(nilGlobalContext(), automation.RunReservation{})
+	assertErr("ReserveRun(nil ctx)", err)
 	_, err = globalDB.CountRuns(nilGlobalContext(), RunQuery{})
 	assertErr("CountRuns(nil ctx)", err)
 }

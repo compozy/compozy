@@ -10,6 +10,22 @@ import (
 	"github.com/compozy/compozy/internal/session"
 )
 
+func harnessTurnRequestFromPrompt(source session.TurnSource, meta acp.PromptMeta) HarnessTurnRequest {
+	request := HarnessTurnRequest{Source: source, PromptMeta: meta}
+	normalized := meta.Normalize()
+	if normalized.Synthetic == nil {
+		return request
+	}
+
+	request.Synthetic = &SyntheticTurnMetadata{
+		Reason:      normalized.Synthetic.Reason,
+		Trigger:     normalized.Synthetic.Reason,
+		SourceTask:  normalized.Synthetic.TaskID,
+		SourceRunID: normalized.Synthetic.TaskRunID,
+	}
+	return request
+}
+
 func (r *HarnessContextResolver) normalizeHarnessTurnContext(
 	sessionCtx HarnessSessionContext,
 	request HarnessTurnRequest,
@@ -92,9 +108,9 @@ func (r *HarnessContextResolver) normalizeSyntheticHarnessTurnContext(
 	if !r.runtime.SyntheticTurnsEnabled {
 		return HarnessTurnContext{}, errors.New("daemon: synthetic harness turns are not enabled")
 	}
-	if sessionCtx.Type != session.SessionTypeSystem {
+	if detached != nil && sessionCtx.Type != session.SessionTypeSystem {
 		return HarnessTurnContext{}, fmt.Errorf(
-			"daemon: synthetic harness turns require a system session, got %q",
+			"daemon: detached synthetic harness turns require a system session, got %q",
 			sessionCtx.Type,
 		)
 	}

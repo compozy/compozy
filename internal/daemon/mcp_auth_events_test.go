@@ -24,6 +24,11 @@ func TestDaemonMCPAuthNotifierWritesOnlyRedactedLifecycleOutcome(t *testing.T) {
 			writer: writer,
 			now:    func() time.Time { return writtenAt },
 		}
+		var missingContext context.Context
+		notifier.NotifyMCPAuth(missingContext, mcpauth.LifecycleOutcome{Action: mcpauth.LifecycleExchange})
+		if len(writer.summaries) != 0 {
+			t.Fatalf("written event count after nil context = %d, want 0", len(writer.summaries))
+		}
 		notifier.NotifyMCPAuth(context.Background(), mcpauth.LifecycleOutcome{
 			Action: mcpauth.LifecycleExchange,
 			Target: mcpauth.Target{

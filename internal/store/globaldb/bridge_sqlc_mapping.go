@@ -17,6 +17,10 @@ func nullableBridgeString(value string) sql.NullString {
 	return store.SQLNullString(value)
 }
 
+func nullableOpaqueBridgeString(value string) sql.NullString {
+	return sql.NullString{String: value, Valid: value != ""}
+}
+
 func nullableBridgeTimestamp(value time.Time) sql.NullString {
 	if value.IsZero() {
 		return sql.NullString{}
@@ -42,6 +46,13 @@ func bridgeStringValue(value sql.NullString) string {
 		return ""
 	}
 	return strings.TrimSpace(value.String)
+}
+
+func opaqueBridgeStringValue(value sql.NullString) string {
+	if !value.Valid {
+		return ""
+	}
+	return value.String
 }
 
 func nullableBridgeValue(value any, label string) (sql.NullString, error) {
@@ -219,9 +230,9 @@ func bridgeSubscriptionFromGenerated(row sqlcgen.BridgeTaskSubscription) (bridge
 	}
 	subscription := bridges.BridgeTaskSubscription{
 		SubscriptionID: row.SubscriptionID, TaskID: row.TaskID, BridgeInstanceID: row.BridgeInstanceID,
-		Scope: bridges.Scope(row.Scope), WorkspaceID: bridgeStringValue(row.WorkspaceID),
-		PeerID: bridgeStringValue(row.PeerID), ThreadID: bridgeStringValue(row.ThreadID),
-		GroupID: bridgeStringValue(row.GroupID), DeliveryMode: bridges.DeliveryMode(row.DeliveryMode),
+		Scope: bridges.Scope(row.Scope), WorkspaceID: opaqueBridgeStringValue(row.WorkspaceID),
+		PeerID: opaqueBridgeStringValue(row.PeerID), ThreadID: opaqueBridgeStringValue(row.ThreadID),
+		GroupID: opaqueBridgeStringValue(row.GroupID), DeliveryMode: bridges.DeliveryMode(row.DeliveryMode),
 		CreatedBy: taskpkg.ActorIdentity{Kind: taskpkg.ActorKind(row.CreatedByKind), Ref: row.CreatedByRef},
 		CreatedAt: createdAt, UpdatedAt: updatedAt,
 	}

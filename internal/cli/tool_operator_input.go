@@ -12,13 +12,50 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func runToolCommand(cmd *cobra.Command, deps commandDeps, run func(DaemonClient) error) error {
+func runToolCatalogCommand(cmd *cobra.Command, deps commandDeps, run func(toolCatalogClient) error) error {
 	client, err := clientFromDeps(deps)
 	if err != nil {
 		return err
 	}
 	err = run(client)
 	if err != nil {
+		return writeToolCommandError(cmd, err)
+	}
+	return nil
+}
+
+func runToolApprovalCommand(cmd *cobra.Command, deps commandDeps, run func(toolApprovalClient) error) error {
+	client, err := clientFromDeps(deps)
+	if err != nil {
+		return err
+	}
+	if err := run(client); err != nil {
+		return writeToolCommandError(cmd, err)
+	}
+	return nil
+}
+
+func runToolInvocationCommand(
+	cmd *cobra.Command,
+	deps commandDeps,
+	run func(toolInvocationClient) error,
+) error {
+	client, err := clientFromDeps(deps)
+	if err != nil {
+		return err
+	}
+	if err := run(client); err != nil {
+		return writeToolCommandError(cmd, err)
+	}
+	return nil
+}
+
+func runToolArtifactCommand(cmd *cobra.Command, deps commandDeps, run func(toolArtifactClient) error) error {
+	client, err := clientFromDeps(deps)
+	if err != nil {
+		return err
+	}
+	if err := run(client); err != nil {
 		return writeToolCommandError(cmd, err)
 	}
 	return nil

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	storepkg "github.com/compozy/compozy/internal/store"
 )
 
 const (
@@ -115,7 +116,7 @@ type ManagedWakeService struct {
 	prompter     SyntheticWakePrompter
 	config       compozyconfig.HeartbeatConfig
 	now          func() time.Time
-	newID        func(prefix string) string
+	newID        func(prefix string) (string, error)
 	mu           sync.Mutex
 }
 
@@ -134,7 +135,7 @@ func WithWakeClock(clock func() time.Time) WakeOption {
 }
 
 // WithWakeIDGenerator injects deterministic wake event and prompt turn IDs.
-func WithWakeIDGenerator(generator func(prefix string) string) WakeOption {
+func WithWakeIDGenerator(generator func(prefix string) (string, error)) WakeOption {
 	return func(service *ManagedWakeService) {
 		if generator != nil {
 			service.newID = generator
@@ -168,7 +169,7 @@ func NewManagedWakeService(
 		prompter:     prompter,
 		config:       config,
 		now:          time.Now,
-		newID:        defaultWakeID,
+		newID:        storepkg.NewID,
 	}
 	for _, option := range options {
 		if option != nil {

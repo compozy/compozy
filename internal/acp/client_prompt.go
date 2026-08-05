@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"strings"
+	"sync"
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
@@ -48,7 +49,7 @@ func (d *Driver) runPrompt(ctx context.Context, proc *AgentProcess, active *acti
 			SessionID: proc.SessionID,
 			TurnID:    req.TurnID,
 			Timestamp: timeNowUTC(),
-			Error:     firstNonEmptyFailureText(failureSummary(failure), err.Error()),
+			Error:     firstTrimmedNonEmpty(failureSummary(failure), err.Error()),
 			Failure:   failure,
 			Raw:       requestErrorRaw(err),
 		}
@@ -82,15 +83,21 @@ func (d *Driver) startPromptCancellationNotifier(
 	}
 
 	done := make(chan struct{})
+	stopped := make(chan struct{})
 	go func() {
+		defer close(stopped)
 		select {
 		case <-ctx.Done():
 			d.sendPromptCancellationNotification(ctx, proc, active)
 		case <-done:
 		}
 	}()
+	var stopOnce sync.Once
 	return func() {
-		close(done)
+		stopOnce.Do(func() {
+			close(done)
+		})
+		<-stopped
 	}
 }
 
@@ -190,6 +197,7 @@ func startPromptActivityReporter(ctx context.Context, req PromptRequest) func() 
 	}
 
 	done := make(chan struct{})
+	stopped := make(chan struct{})
 	report := func(ts time.Time) {
 		req.ActivityReporter(PromptActivityReport{
 			Timestamp: ts,
@@ -200,6 +208,7 @@ func startPromptActivityReporter(ctx context.Context, req PromptRequest) func() 
 	report(timeNowUTC())
 
 	go func() {
+		defer close(stopped)
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 		for {
@@ -214,7 +223,11 @@ func startPromptActivityReporter(ctx context.Context, req PromptRequest) func() 
 		}
 	}()
 
+	var stopOnce sync.Once
 	return func() {
-		close(done)
+		stopOnce.Do(func() {
+			close(done)
+		})
+		<-stopped
 	}
 }

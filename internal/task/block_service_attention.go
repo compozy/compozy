@@ -2,10 +2,8 @@ package task
 
 import (
 	"context"
-
 	"fmt"
 	"log/slog"
-
 	"strings"
 )
 
@@ -43,9 +41,13 @@ func (m *Service) taskBlockFromRequest(req BlockRequest, actor ActorContext) (Ta
 	}
 	runID := strings.TrimSpace(req.RunID)
 	claimToken := strings.TrimSpace(req.ClaimToken)
+	blockID, err := m.newID(taskBlockIDPrefix)
+	if err != nil {
+		return TaskBlock{}, "", "", fmt.Errorf("task: generate task block id: %w", err)
+	}
 
 	return TaskBlock{
-		ID:        m.newID(taskBlockIDPrefix),
+		ID:        blockID,
 		TaskID:    taskID,
 		Kind:      kind,
 		Reason:    reason,

@@ -1769,7 +1769,7 @@ func TestUpdateSettingsSectionHandlersRejectInvalidPayloads(t *testing.T) {
 	}
 
 	for _, field := range []string{"default_channel", "port"} {
-		t.Run("network removed field "+field, func(t *testing.T) {
+		t.Run("Should reject removed network field "+field, func(t *testing.T) {
 			t.Parallel()
 
 			service := &stubSettingsService{}
@@ -1790,6 +1790,28 @@ func TestUpdateSettingsSectionHandlersRejectInvalidPayloads(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Should reject removed memory signal metrics field", func(t *testing.T) {
+		t.Parallel()
+
+		service := &stubSettingsService{}
+		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+		body := []byte(`{"config":{"recall":{"signals":{"metrics_enabled":true}}}}`)
+
+		resp := performRequest(t, fixture.Engine, http.MethodPatch, "/api/settings/memory", body)
+		if got, want := resp.Code, http.StatusBadRequest; got != want {
+			t.Fatalf("status = %d, want %d; body=%s", got, want, resp.Body.String())
+		}
+		if service.UpdateSectionCalls != 0 {
+			t.Fatalf("UpdateSectionCalls = %d, want 0", service.UpdateSectionCalls)
+		}
+		var payload contract.ErrorPayload
+		decodeJSON(t, resp.Body.Bytes(), &payload)
+		if !strings.Contains(payload.Error, "unknown_field") ||
+			!strings.Contains(payload.Error, "metrics_enabled") {
+			t.Fatalf("payload.Error = %q, want unknown_field naming metrics_enabled", payload.Error)
+		}
+	})
 
 	t.Run("Should reject window-manager stack without an edge-center target", func(t *testing.T) {
 		t.Parallel()
@@ -2248,7 +2270,6 @@ func validSettingsMemoryConfigPayload() contract.SettingsMemoryConfigPayload {
 			Signals: contract.SettingsMemoryRecallSignalsPayload{
 				QueueCapacity:  256,
 				WorkerRetryMax: 3,
-				MetricsEnabled: true,
 			},
 		},
 		Decisions: contract.SettingsMemoryDecisionsPayload{
@@ -2431,8 +2452,9 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 			method: http.MethodPut,
 			path:   "/api/settings/providers/openai",
 			body: contract.PutSettingsProviderRequest{
-				Settings: contract.SettingsProviderSettingsPayload{
-					Command: "codex",
+				Settings: contract.SettingsProviderWritePayload{
+					Command:      "codex",
+					AuthLoginCmd: new("codex login --token raw-login-secret"),
 					Models: &contract.SettingsProviderModelsPayload{
 						Default: "gpt-5.4",
 						Curated: []contract.SettingsProviderModelPayload{
@@ -2471,6 +2493,14 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 				if service.LastPutCollectionRequest.Provider == nil ||
 					service.LastPutCollectionRequest.Provider.Models.Default != "gpt-5.4" {
 					t.Fatalf("LastPutCollectionRequest.Provider = %#v", service.LastPutCollectionRequest.Provider)
+				}
+				if got := service.LastPutCollectionRequest.Provider.AuthLoginCmd; got != "codex login --token raw-login-secret" ||
+					!service.LastPutCollectionRequest.Provider.AuthLoginCmdSet {
+					t.Fatalf(
+						"Provider write-only login input = %q (set=%t)",
+						got,
+						service.LastPutCollectionRequest.Provider.AuthLoginCmdSet,
+					)
 				}
 				if got := service.LastPutCollectionRequest.Provider.Models.Curated; len(got) != 2 ||
 					got[0].ID != "gpt-5.4" ||
@@ -2718,15 +2748,15 @@ func TestPutSettingsProviderPreservesModelCurationDiagnostics(t *testing.T) {
 			t.Parallel()
 
 			cause := errors.New("provider model curation rejected")
-			item := diagnostics.NewItem(
-				"provider.models."+tc.code,
-				tc.code,
-				diagnosticcontract.CategoryProvider,
-				"Provider model curation rejected",
-				cause.Error(),
-				diagnosticcontract.SeverityError,
-				diagnosticcontract.FreshnessLive,
-			)
+			item := diagnostics.NewItem(diagnostics.ItemSpec{
+				ID:            "provider.models." + tc.code,
+				Code:          tc.code,
+				Category:      diagnosticcontract.CategoryProvider,
+				Title:         "Provider model curation rejected",
+				Message:       cause.Error(),
+				Severity:      diagnosticcontract.SeverityError,
+				DataFreshness: diagnosticcontract.FreshnessLive,
+			})
 			service := &stubSettingsService{
 				ApplyCollectionFn: func(
 					context.Context,
@@ -2737,7 +2767,7 @@ func TestPutSettingsProviderPreservesModelCurationDiagnostics(t *testing.T) {
 			}
 			fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
 			body := mustJSON(t, contract.PutSettingsProviderRequest{
-				Settings: contract.SettingsProviderSettingsPayload{Command: "claude-acp"},
+				Settings: contract.SettingsProviderWritePayload{Command: "claude-acp"},
 				ModelCuration: &contract.ProviderModelCurationRequest{
 					ModelID: "claude-sonnet-5",
 				},
@@ -3570,15 +3600,15 @@ func TestListSettingsApplyRecordsReturnsBlockedDiagnostics(t *testing.T) {
 	t.Run("Should return blocked apply records with redacted diagnostics", func(t *testing.T) {
 		t.Parallel()
 
-		diagnostic := diagnostics.NewItem(
-			"config.apply.restart_required",
-			diagnosticcontract.CodeConfigRestartRequired,
-			diagnosticcontract.CategoryConfig,
-			"Daemon restart required",
-			"Restart required for token=super-secret",
-			diagnosticcontract.SeverityWarn,
-			diagnosticcontract.FreshnessLive,
-		)
+		diagnostic := diagnostics.NewItem(diagnostics.ItemSpec{
+			ID:            "config.apply.restart_required",
+			Code:          diagnosticcontract.CodeConfigRestartRequired,
+			Category:      diagnosticcontract.CategoryConfig,
+			Title:         "Daemon restart required",
+			Message:       "Restart required for token=super-secret",
+			Severity:      diagnosticcontract.SeverityWarn,
+			DataFreshness: diagnosticcontract.FreshnessLive,
+		})
 		service := &stubSettingsService{
 			ListApplyRecordsFn: func(
 				_ context.Context,
@@ -3762,7 +3792,11 @@ func TestStreamSettingsObservabilityLogTailEmitsSSEEvent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("client.Do() error = %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			t.Errorf("response body Close() error = %v", closeErr)
+		}
+	}()
 
 	appendLine(t, fixture.HomePaths.LogFile, "daemon restarted cleanly\n")
 
@@ -3806,7 +3840,11 @@ func appendLine(t *testing.T, path string, line string) {
 	if err != nil {
 		t.Fatalf("OpenFile(%s) error = %v", path, err)
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			t.Errorf("file.Close() error = %v", closeErr)
+		}
+	}()
 
 	if _, err := io.Copy(file, bytes.NewBufferString(line)); err != nil {
 		t.Fatalf("write log line error = %v", err)

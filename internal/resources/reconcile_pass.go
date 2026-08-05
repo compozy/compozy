@@ -14,13 +14,7 @@ func (d *reconcileDriver) runPass(
 	reason ReconcileReason,
 ) reconcilePassResult {
 	startedAt := d.now()
-
-	timeout := d.defaultTimeout
-	if override, ok := d.kindTimeouts[kind]; ok && override > 0 {
-		timeout = override
-	}
-
-	passCtx, cancel := context.WithTimeout(ctx, timeout)
+	passCtx, cancel := context.WithTimeout(ctx, d.timeoutForKind(kind))
 	defer cancel()
 
 	input, err := d.buildProjectionInput(passCtx, kind)
@@ -101,14 +95,16 @@ func (d *reconcileDriver) finishAsyncPass(kind ResourceKind, result reconcilePas
 	if !ok {
 		return
 	}
+	sinkCtx, cancel := context.WithTimeout(d.workerCtx, d.timeoutForKind(kind))
+	defer cancel()
 
 	if result.err != nil {
-		d.recordAsyncFailure(kind, result, health, emitDegraded)
+		d.recordAsyncFailure(sinkCtx, kind, result, health, emitDegraded)
 		d.notify()
 		return
 	}
 
-	d.recordAsyncSuccess(kind, result, health)
+	d.recordAsyncSuccess(sinkCtx, kind, result, health)
 	d.notify()
 }
 
@@ -172,6 +168,7 @@ func (d *reconcileDriver) updateAsyncPassState(
 }
 
 func (d *reconcileDriver) recordAsyncFailure(
+	ctx context.Context,
 	kind ResourceKind,
 	result reconcilePassResult,
 	health ReconcileHealth,
@@ -190,7 +187,7 @@ func (d *reconcileDriver) recordAsyncFailure(
 		"error",
 		result.err,
 	)
-	d.emitEvent(context.Background(), ReconcileEvent{
+	d.emitEvent(ctx, ReconcileEvent{
 		Type:                ReconcileEventFailed,
 		Kind:                kind,
 		Reason:              result.reason,
@@ -199,7 +196,7 @@ func (d *reconcileDriver) recordAsyncFailure(
 		Err:                 result.err,
 	})
 	if emitDegraded {
-		d.emitEvent(context.Background(), ReconcileEvent{
+		d.emitEvent(ctx, ReconcileEvent{
 			Type:                ReconcileEventDegraded,
 			Kind:                kind,
 			Reason:              result.reason,
@@ -208,10 +205,11 @@ func (d *reconcileDriver) recordAsyncFailure(
 			Err:                 result.err,
 		})
 	}
-	d.reportHealth(context.Background(), health)
+	d.reportHealth(ctx, health)
 }
 
 func (d *reconcileDriver) recordAsyncSuccess(
+	ctx context.Context,
 	kind ResourceKind,
 	result reconcilePassResult,
 	health ReconcileHealth,
@@ -229,7 +227,7 @@ func (d *reconcileDriver) recordAsyncSuccess(
 		"duration",
 		result.duration,
 	)
-	d.emitEvent(context.Background(), ReconcileEvent{
+	d.emitEvent(ctx, ReconcileEvent{
 		Type:       ReconcileEventApplied,
 		Kind:       kind,
 		Reason:     result.reason,
@@ -237,5 +235,12 @@ func (d *reconcileDriver) recordAsyncSuccess(
 		Revision:   result.revision,
 		Operations: result.operations,
 	})
-	d.reportHealth(context.Background(), health)
+	d.reportHealth(ctx, health)
+}
+
+func (d *reconcileDriver) timeoutForKind(kind ResourceKind) time.Duration {
+	if override, ok := d.kindTimeouts[kind]; ok && override > 0 {
+		return override
+	}
+	return d.defaultTimeout
 }

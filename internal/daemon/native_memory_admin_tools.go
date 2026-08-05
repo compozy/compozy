@@ -240,7 +240,7 @@ func (n *daemonNativeTools) memoryAdminHealth(
 			payload.LastConsolidation = &lastConsolidation
 		}
 	}
-	globalCount, err := n.deps.MemoryStore.SourceHeaderCount(memcontract.ScopeGlobal)
+	globalCount, err := n.deps.MemoryStore.SourceHeaderCount(ctx, memcontract.ScopeGlobal)
 	if err != nil {
 		payload.Status = "unavailable"
 		payload.Reason = taskpkg.RedactClaimTokens(err.Error())
@@ -253,7 +253,7 @@ func (n *daemonNativeTools) memoryAdminHealth(
 	}
 	payload.WorkspaceCount = len(workspaces)
 	for _, workspace := range workspaces {
-		count, err := n.deps.MemoryStore.ForWorkspace(workspace).SourceHeaderCount(memcontract.ScopeWorkspace)
+		count, err := n.deps.MemoryStore.ForWorkspace(workspace).SourceHeaderCount(ctx, memcontract.ScopeWorkspace)
 		if err != nil {
 			payload.Status = nativeMemoryHealthStatusDegraded
 			payload.Reason = taskpkg.RedactClaimTokens(err.Error())

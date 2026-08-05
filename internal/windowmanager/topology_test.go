@@ -345,8 +345,9 @@ func TestValidateSnapshot(t *testing.T) {
 			snapshot := validThreeWindowSnapshot()
 			test.mutate(&snapshot)
 			err := ValidateSnapshot(snapshot)
-			var topologyErr *TopologyError
-			if !errors.As(err, &topologyErr) {
+
+			topologyErr, topologyErrMatched := errors.AsType[*TopologyError](err)
+			if !topologyErrMatched {
 				t.Fatalf("ValidateSnapshot() error = %v, want TopologyError", err)
 			}
 			var matched *Diagnostic
@@ -376,8 +377,9 @@ func TestValidateSnapshot(t *testing.T) {
 		var baseline []Diagnostic
 		for iteration := range 20 {
 			err := ValidateSnapshot(snapshot)
-			var topologyErr *TopologyError
-			if !errors.As(err, &topologyErr) {
+
+			topologyErr, topologyErrMatched := errors.AsType[*TopologyError](err)
+			if !topologyErrMatched {
 				t.Fatalf("ValidateSnapshot() error = %v, want TopologyError", err)
 			}
 			if iteration == 0 {
@@ -591,8 +593,9 @@ func validFloatingStackSnapshot() Snapshot {
 
 func topologyDiagnosticCodes(t *testing.T, err error) []string {
 	t.Helper()
-	var topologyErr *TopologyError
-	if !errors.As(err, &topologyErr) {
+
+	topologyErr, topologyErrMatched := errors.AsType[*TopologyError](err)
+	if !topologyErrMatched {
 		t.Fatalf("error = %v, want TopologyError", err)
 	}
 	codes := make([]string, 0, len(topologyErr.Diagnostics))

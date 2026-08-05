@@ -172,7 +172,10 @@ func runDiscoveredProviderRuntime(
 
 	peerCtx, peerCancel := context.WithCancel(runCtx)
 	defer peerCancel()
-	peer := bridgesdk.NewPeer(stdout, stdin)
+	peer, err := bridgesdk.NewPeer(stdout, stdin)
+	if err != nil {
+		return fmt.Errorf("construct provider conformance peer: %w", err)
+	}
 	domainInstance := bridgepkg.BridgeInstance{
 		ID:             "brg-conformance-" + provider.Name,
 		Platform:       provider.Name,

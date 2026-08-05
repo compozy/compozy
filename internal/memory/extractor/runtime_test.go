@@ -556,8 +556,8 @@ func TestInbox(t *testing.T) {
 		path, count, err := producer.Write(
 			testutil.Context(t),
 			testTurn("sess-flow", 9),
-			[]memcontract.Candidate{candidate},
-		)
+			[]memcontract.Candidate{candidate})
+
 		if err != nil {
 			t.Fatalf("Producer.Write() error = %v", err)
 		}
@@ -583,7 +583,7 @@ func TestInbox(t *testing.T) {
 		if decision.Op != memcontract.OpAdd {
 			t.Fatalf("decision op = %s, want add", decision.Op.String())
 		}
-		content, err := memStore.Read(memcontract.ScopeGlobal, decision.TargetFilename)
+		content, err := memStore.Read(t.Context(), memcontract.ScopeGlobal, decision.TargetFilename)
 		if err != nil {
 			t.Fatalf("Store.Read(%q) error = %v", decision.TargetFilename, err)
 		}
@@ -630,7 +630,7 @@ func TestInbox(t *testing.T) {
 			t.Fatalf("bad inbox file stat error = %v, want not exist after DLQ move", err)
 		}
 		memStore := memory.NewStore(root)
-		headers, err := memStore.Scan(memcontract.ScopeGlobal)
+		headers, err := memStore.Scan(t.Context(), memcontract.ScopeGlobal)
 		if err != nil {
 			t.Fatalf("Store.Scan() error = %v", err)
 		}
@@ -650,8 +650,8 @@ func TestInbox(t *testing.T) {
 		path, count, err := producer.Write(
 			testutil.Context(t),
 			testTurn("sess-controller-fail", 2),
-			[]memcontract.Candidate{testCandidate("Pedro prefers detailed QA evidence.")},
-		)
+			[]memcontract.Candidate{testCandidate("Pedro prefers detailed QA evidence.")})
+
 		if err != nil {
 			t.Fatalf("Producer.Write() error = %v", err)
 		}
@@ -695,8 +695,8 @@ func TestInbox(t *testing.T) {
 		path, _, err := producer.Write(
 			testutil.Context(t),
 			testTurn("sess-processing-recover", 4),
-			[]memcontract.Candidate{testCandidate("Pedro prefers recovered inbox claims.")},
-		)
+			[]memcontract.Candidate{testCandidate("Pedro prefers recovered inbox claims.")})
+
 		if err != nil {
 			t.Fatalf("Producer.Write() error = %v", err)
 		}
@@ -733,8 +733,8 @@ func TestInbox(t *testing.T) {
 		path, _, err := producer.Write(
 			testutil.Context(t),
 			testTurn("sess-canceled-proposal", 5),
-			[]memcontract.Candidate{testCandidate("Pedro prefers retryable inbox cancellation.")},
-		)
+			[]memcontract.Candidate{testCandidate("Pedro prefers retryable inbox cancellation.")})
+
 		if err != nil {
 			t.Fatalf("Producer.Write() error = %v", err)
 		}
@@ -791,8 +791,7 @@ func TestInbox(t *testing.T) {
 		if _, _, err := producer.Write(
 			testutil.Context(t),
 			testTurn("sess-replay", 3),
-			[]memcontract.Candidate{first, second},
-		); err != nil {
+			[]memcontract.Candidate{first, second}); err != nil {
 			t.Fatalf("Producer.Write() error = %v", err)
 		}
 		sink := &failSecondCandidateOnceSink{delegate: memStore}
@@ -836,7 +835,9 @@ func TestInbox(t *testing.T) {
 		if replayResult.Proposed != 2 || replayResult.Failed != 0 || len(replayResult.Decisions) != 2 {
 			t.Fatalf("replay result = %#v, want both candidates accepted idempotently", replayResult)
 		}
-		if _, err := memStore.Read(memcontract.ScopeGlobal, replayResult.Decisions[1].TargetFilename); err != nil {
+		if _, err := memStore.Read(
+			t.Context(), memcontract.ScopeGlobal, replayResult.Decisions[1].TargetFilename,
+		); err != nil {
 			t.Fatalf("Store.Read(second replay target) error = %v", err)
 		}
 	})
@@ -1207,7 +1208,11 @@ func (s *recordingProposalSink) ProposeCandidate(
 		return memcontract.Decision{}, s.err
 	}
 	s.candidates = append(s.candidates, candidate)
-	return memcontract.Decision{ID: store.NewID("dec"), Op: memcontract.OpNoop}, nil
+	decisionID, err := store.NewID("dec")
+	if err != nil {
+		return memcontract.Decision{}, err
+	}
+	return memcontract.Decision{ID: decisionID, Op: memcontract.OpNoop}, nil
 }
 
 type failSecondCandidateOnceSink struct {

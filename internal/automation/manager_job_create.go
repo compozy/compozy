@@ -29,7 +29,11 @@ func (m *Manager) prepareJobForCreate(ctx context.Context, job Job) (Job, error)
 		return Job{}, ErrDefinitionReadOnly
 	}
 	if next.ID == "" {
-		next.ID = store.NewID("job")
+		generatedID, err := store.NewID("job")
+		if err != nil {
+			return Job{}, errors.Join(errors.New("automation: generate job id"), err)
+		}
+		next.ID = generatedID
 	}
 	next.CreatedAt = m.now().UTC()
 	next.UpdatedAt = next.CreatedAt

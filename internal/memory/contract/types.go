@@ -179,14 +179,14 @@ type HealthStats struct {
 
 // Backend captures the memory backend surface used by daemon, API, and CLI layers.
 type Backend interface {
-	List(scope Scope) ([]Header, error)
-	Read(scope Scope, filename string) ([]byte, error)
-	Write(scope Scope, filename string, content []byte) error
-	Delete(scope Scope, filename string) error
+	List(ctx context.Context, scope Scope) ([]Header, error)
+	Read(ctx context.Context, scope Scope, filename string) ([]byte, error)
+	Write(ctx context.Context, scope Scope, filename string, content []byte) error
+	Delete(ctx context.Context, scope Scope, filename string) error
 	Search(ctx context.Context, query string, opts SearchOptions) ([]SearchResult, error)
 	Reindex(ctx context.Context, opts ReindexOptions) (ReindexResult, error)
 	History(ctx context.Context, query OperationHistoryQuery) ([]OperationRecord, error)
-	LoadPromptIndex(scope Scope) (content string, truncated bool, err error)
+	LoadPromptIndex(ctx context.Context, scope Scope) (content string, truncated bool, err error)
 }
 
 // RuleHit records one deterministic rule that contributed to a write decision.

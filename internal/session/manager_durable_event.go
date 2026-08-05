@@ -46,7 +46,19 @@ func (m *Manager) appendDurableSessionEventAttempt(
 		return store.SessionEvent{}, err
 	}
 	path := store.SessionDBFile(filepath.Join(m.homePaths.SessionsDir, sessionID))
-	recorder, err := m.openStore(ctx, sessionID, path)
+	meta, err := m.readMetaWithContext(ctx, sessionID)
+	if err != nil {
+		return store.SessionEvent{}, err
+	}
+	owner, err := m.resolveStoredSessionOwner(ctx, sessionID, meta.WorkspaceID)
+	if err != nil {
+		return store.SessionEvent{}, fmt.Errorf(
+			"session: resolve catalog owner for durable event %q: %w",
+			sessionID,
+			err,
+		)
+	}
+	recorder, err := m.openStore(ctx, owner, path)
 	if err != nil {
 		return store.SessionEvent{}, err
 	}

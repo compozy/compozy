@@ -8,6 +8,8 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/compozy/compozy/internal/fileutil"
 )
 
 func TestParseMCPServersJSONAcceptsBothKeyStyles(t *testing.T) {
@@ -280,6 +282,93 @@ func TestDeleteMCPSidecarServerRejectsSymlinkWithoutReadingTarget(t *testing.T) 
 	if string(after) != before {
 		t.Fatalf("symlink delete changed target mcp.json\nbefore:\n%s\nafter:\n%s", before, string(after))
 	}
+}
+
+func TestMCPSidecarMutationKeepsTheHeldParentAfterPathReplacement(t *testing.T) {
+	t.Parallel()
+	t.Run("Should publish MCP updates only below the opened parent", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("symlink permissions vary on Windows")
+		}
+
+		root := t.TempDir()
+		liveHome := filepath.Join(root, "live-home")
+		archivedHome := filepath.Join(root, "archived-home")
+		externalHome := filepath.Join(root, "external-home")
+		livePath := filepath.Join(liveHome, MCPJSONName)
+		externalPath := filepath.Join(externalHome, MCPJSONName)
+		if err := os.MkdirAll(liveHome, 0o700); err != nil {
+			t.Fatalf("os.MkdirAll(live home) error = %v", err)
+		}
+		if err := os.MkdirAll(externalHome, 0o700); err != nil {
+			t.Fatalf("os.MkdirAll(external home) error = %v", err)
+		}
+		writeFile(t, livePath, `{"mcpServers":{"alpha":{"command":"old"}}}`)
+		sentinel := `{"mcpServers":{"external":{"command":"sentinel"}}}`
+		writeFile(t, externalPath, sentinel)
+		homePaths, err := ResolveHomePathsFrom(archivedHome)
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom(archived home) error = %v", err)
+		}
+		target := WriteTarget{
+			kind:  WriteTargetGlobalMCPSidecar,
+			scope: WriteScopeGlobal,
+			path:  livePath,
+		}
+
+		directory, err := fileutil.OpenDirectory(liveHome)
+		if err != nil {
+			t.Fatalf("fileutil.OpenDirectory(live home) error = %v", err)
+		}
+		defer func() {
+			if closeErr := directory.Close(); closeErr != nil {
+				t.Errorf("Directory.Close() error = %v", closeErr)
+			}
+		}()
+		if err := os.Rename(liveHome, archivedHome); err != nil {
+			t.Fatalf("os.Rename(live home) error = %v", err)
+		}
+		if err := os.Symlink(externalHome, liveHome); err != nil {
+			t.Fatalf("os.Symlink(external home) error = %v", err)
+		}
+
+		if _, err := putMCPSidecarServerInDirectory(
+			homePaths,
+			"",
+			target,
+			MCPServer{Name: "alpha", Command: "updated"},
+			directory,
+			MCPJSONName,
+		); err != nil {
+			t.Fatalf("putMCPSidecarServerInDirectory() error = %v", err)
+		}
+		contents, _, err := readOptionalRegularFileFromDirectory(directory, MCPJSONName, livePath, "MCP sidecar")
+		if err != nil {
+			t.Fatalf("readOptionalRegularFileFromDirectory() error = %v", err)
+		}
+		if _, deleted, err := deleteMCPSidecarServerFromContents(
+			homePaths,
+			"",
+			target,
+			"alpha",
+			directory,
+			MCPJSONName,
+			contents,
+		); err != nil {
+			t.Fatalf("deleteMCPSidecarServerFromContents() error = %v", err)
+		} else if !deleted {
+			t.Fatal("deleteMCPSidecarServerFromContents() deleted = false, want true")
+		}
+		assertConfigSentinelUnchanged(t, externalPath, sentinel)
+		servers, err := LoadMCPServersJSONFile(filepath.Join(archivedHome, MCPJSONName))
+		if err != nil {
+			t.Fatalf("LoadMCPServersJSONFile(archived sidecar) error = %v", err)
+		}
+		if len(servers) != 0 {
+			t.Fatalf("archived sidecar servers = %#v, want empty after delete", servers)
+		}
+	})
 }
 
 func TestPutMCPSidecarServerPreservesRemoteAuthFields(t *testing.T) {

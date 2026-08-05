@@ -54,7 +54,7 @@ type BridgeSendTestRequest struct {
 }
 
 // ToResolveDeliveryTargetRequest validates the body/path ownership boundary
-// and normalizes the explicit target overrides.
+// while preserving the explicit target overrides byte-exact.
 func (r BridgeSendTestRequest) ToResolveDeliveryTargetRequest(
 	bridgeInstanceID string,
 ) (bridgepkg.ResolveDeliveryTargetRequest, error) {

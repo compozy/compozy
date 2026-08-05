@@ -1,13 +1,18 @@
 CREATE TABLE notification_cursors (
-			consumer_id       TEXT NOT NULL CHECK (trim(consumer_id) <> ''),
-			stream_name       TEXT NOT NULL CHECK (trim(stream_name) <> ''),
+			scope_kind        TEXT NOT NULL CHECK (scope_kind IN ('global', 'workspace')),
+			workspace_id      TEXT NOT NULL DEFAULT '' CHECK (
+				(scope_kind = 'global' AND workspace_id = '') OR
+(scope_kind = 'workspace' AND workspace_id <> '')
+			),
+			consumer_id       TEXT NOT NULL CHECK (consumer_id <> ''),
+			stream_name       TEXT NOT NULL CHECK (stream_name <> ''),
 			subject_id        TEXT NOT NULL DEFAULT '',
 			last_sequence     INTEGER NOT NULL DEFAULT 0 CHECK (last_sequence >= 0),
 			last_delivery_id  TEXT NOT NULL DEFAULT '',
 			last_delivered_at TEXT,
 			last_error        TEXT NOT NULL DEFAULT '',
 			updated_at        TEXT NOT NULL,
-			PRIMARY KEY (consumer_id, stream_name, subject_id)
+			PRIMARY KEY (scope_kind, workspace_id, consumer_id, stream_name, subject_id)
 		);
 
 CREATE TABLE notification_presets (
@@ -32,5 +37,5 @@ CREATE INDEX idx_notification_presets_enabled
 			ON notification_presets(enabled, name);
 
 CREATE INDEX notification_cursors_stream_sequence_idx
-			ON notification_cursors(stream_name, last_sequence DESC)
+			ON notification_cursors(scope_kind, workspace_id, stream_name, last_sequence DESC)
 			WHERE last_sequence > 0;

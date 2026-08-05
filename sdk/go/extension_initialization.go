@@ -1,7 +1,6 @@
 package compozysdk
 
 import (
-	"context"
 	"encoding/json"
 
 	"slices"
@@ -74,6 +73,6 @@ func (e *Extension) handleInitialize(params json.RawMessage) (InitializeResponse
 	}
 	e.initialized = true
 	e.session = &session
-	go e.runReadyCallbacks(context.Background(), &session)
+	e.startReadyCallbacksLocked(e.session)
 	return response, nil
 }

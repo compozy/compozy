@@ -3,8 +3,11 @@ package core
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os/exec"
+	"slices"
 	"strings"
 	"testing"
 
@@ -96,6 +99,178 @@ func TestProviderAuthHandlers(t *testing.T) {
 		}
 		if !strings.Contains(probeOutput, "[REDACTED]") {
 			t.Fatalf("probe output = %#v, want redaction marker", payload.Probe)
+		}
+	})
+
+	t.Run("Should resolve the remote probe command once with its final runtime", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := providerAuthTestConfig(t)
+		var resolveCalls int
+		var resolvedEnv []string
+		resolver := func(_ context.Context, command string, env []string, dir string) (string, error) {
+			resolveCalls++
+			if command != "provider-cli" {
+				t.Fatalf("resolver command = %q, want provider-cli", command)
+			}
+			if dir != "" {
+				t.Fatalf("resolver dir = %q, want empty", dir)
+			}
+			resolvedEnv = append([]string(nil), env...)
+			if resolveCalls > 1 {
+				return "", errors.New("second auth status resolution must not occur")
+			}
+			return "/final/bin/provider-cli", nil
+		}
+		runner := func(
+			_ context.Context,
+			spec authproviders.ProviderAuthCommandSpec,
+		) (authproviders.ProviderAuthCommandResult, error) {
+			if got, want := spec.Executable, "/final/bin/provider-cli"; got != want {
+				t.Fatalf("Executable = %q, want %q", got, want)
+			}
+			if !slices.Equal(spec.Args, []string{"auth", "status"}) {
+				t.Fatalf("Args = %#v, want auth status", spec.Args)
+			}
+			if spec.Dir != "" {
+				t.Fatalf("Dir = %q, want empty", spec.Dir)
+			}
+			if !slices.Equal(spec.Env, resolvedEnv) {
+				t.Fatalf("Env = %#v, want resolver env %#v", spec.Env, resolvedEnv)
+			}
+			return authproviders.ProviderAuthCommandResult{ExitCode: 0, Stdout: "logged in"}, nil
+		}
+		router := providerAuthTestRouterWithResolver(t, &cfg, runner, resolver)
+		response := httptest.NewRecorder()
+		req := httptest.NewRequestWithContext(
+			testutil.Context(t),
+			http.MethodPost,
+			"/providers/native/auth/probe",
+			http.NoBody,
+		)
+		router.ServeHTTP(response, req)
+
+		if response.Code != http.StatusOK {
+			t.Fatalf("status = %d body = %s, want 200", response.Code, response.Body.String())
+		}
+		if got, want := resolveCalls, 1; got != want {
+			t.Fatalf("auth status resolver calls = %d, want %d", got, want)
+		}
+		var payload contract.ProviderAuthProbeResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(provider auth probe) error = %v", err)
+		}
+		if got, want := payload.AuthStatus.State, contract.ProviderAuthStateAuthenticated; got != want {
+			t.Fatalf("AuthStatus.State = %q, want %q", got, want)
+		}
+		if payload.Probe == nil || payload.Probe.Stdout != "logged in" {
+			t.Fatalf("Probe = %#v, want final command result", payload.Probe)
+		}
+	})
+
+	t.Run("Should pin a missing remote probe command without running it", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := providerAuthTestConfig(t)
+		resolveCalls := 0
+		resolver := func(context.Context, string, []string, string) (string, error) {
+			resolveCalls++
+			if resolveCalls == 1 {
+				return "", exec.ErrNotFound
+			}
+			return "/later/bin/provider-cli", nil
+		}
+		runner := func(
+			_ context.Context,
+			spec authproviders.ProviderAuthCommandSpec,
+		) (authproviders.ProviderAuthCommandResult, error) {
+			t.Fatalf("ProviderAuthRunner(%q) called after missing resolution", spec.Command)
+			return authproviders.ProviderAuthCommandResult{}, nil
+		}
+		router := providerAuthTestRouterWithResolver(t, &cfg, runner, resolver)
+		response := httptest.NewRecorder()
+		req := httptest.NewRequestWithContext(
+			testutil.Context(t),
+			http.MethodPost,
+			"/providers/native/auth/probe",
+			http.NoBody,
+		)
+		router.ServeHTTP(response, req)
+
+		if response.Code != http.StatusOK {
+			t.Fatalf("status = %d body = %s, want 200", response.Code, response.Body.String())
+		}
+		if got, want := resolveCalls, 1; got != want {
+			t.Fatalf("auth status resolver calls = %d, want %d", got, want)
+		}
+		var payload contract.ProviderAuthProbeResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(provider auth probe) error = %v", err)
+		}
+		if got, want := payload.AuthStatus.State, contract.ProviderAuthStateMissingCLI; got != want {
+			t.Fatalf("AuthStatus.State = %q, want %q", got, want)
+		}
+		if got, want := payload.AuthStatus.Code, contract.CodeProviderCLIMissing; got != want {
+			t.Fatalf("AuthStatus.Code = %q, want %q", got, want)
+		}
+		if payload.Probe != nil {
+			t.Fatalf("Probe = %#v, want no probe after missing resolution", payload.Probe)
+		}
+	})
+
+	t.Run("Should keep an operational remote probe resolution failure unknown", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := providerAuthTestConfig(t)
+		resolveCalls := 0
+		resolver := func(context.Context, string, []string, string) (string, error) {
+			resolveCalls++
+			if resolveCalls == 1 {
+				return "", errors.New("resolver failed token=api-resolution-secret")
+			}
+			return "/later/bin/provider-cli", nil
+		}
+		runner := func(
+			_ context.Context,
+			spec authproviders.ProviderAuthCommandSpec,
+		) (authproviders.ProviderAuthCommandResult, error) {
+			t.Fatalf("ProviderAuthRunner(%q) called after resolver failure", spec.Command)
+			return authproviders.ProviderAuthCommandResult{}, nil
+		}
+		router := providerAuthTestRouterWithResolver(t, &cfg, runner, resolver)
+		response := httptest.NewRecorder()
+		req := httptest.NewRequestWithContext(
+			testutil.Context(t),
+			http.MethodPost,
+			"/providers/native/auth/probe",
+			http.NoBody,
+		)
+		router.ServeHTTP(response, req)
+
+		if response.Code != http.StatusOK {
+			t.Fatalf("status = %d body = %s, want 200", response.Code, response.Body.String())
+		}
+		if got, want := resolveCalls, 1; got != want {
+			t.Fatalf("auth status resolver calls = %d, want %d", got, want)
+		}
+		var payload contract.ProviderAuthProbeResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(provider auth probe) error = %v", err)
+		}
+		if got, want := payload.AuthStatus.State, contract.ProviderAuthStateUnknown; got != want {
+			t.Fatalf("AuthStatus.State = %q, want %q", got, want)
+		}
+		if got, want := payload.AuthStatus.Code, contract.CodeProviderClassificationUnknown; got != want {
+			t.Fatalf("AuthStatus.Code = %q, want %q", got, want)
+		}
+		if payload.Probe != nil {
+			t.Fatalf("Probe = %#v, want no probe after resolver failure", payload.Probe)
+		}
+		if strings.Contains(response.Body.String(), "api-resolution-secret") {
+			t.Fatalf("body = %s, leaked resolver secret", response.Body.String())
+		}
+		if !strings.Contains(payload.AuthStatus.Message, "[REDACTED]") {
+			t.Fatalf("AuthStatus.Message = %q, want redaction marker", payload.AuthStatus.Message)
 		}
 	})
 
@@ -203,15 +378,30 @@ func providerAuthTestRouter(
 	cfg *compozyconfig.Config,
 	runner authproviders.ProviderAuthCommandRunner,
 ) *gin.Engine {
+	return providerAuthTestRouterWithResolver(t, cfg, runner, nil)
+}
+
+func providerAuthTestRouterWithResolver(
+	t *testing.T,
+	cfg *compozyconfig.Config,
+	runner authproviders.ProviderAuthCommandRunner,
+	resolver authproviders.ProviderAuthCommandResolver,
+) *gin.Engine {
 	t.Helper()
 
 	gin.SetMode(gin.TestMode)
 	if cfg == nil {
 		cfg = &compozyconfig.Config{}
 	}
+	if resolver == nil {
+		resolver = func(_ context.Context, command string, _ []string, _ string) (string, error) {
+			return "/test/bin/" + command, nil
+		}
+	}
 	handlers := NewBaseHandlers(&BaseHandlerConfig{
-		Config:             *cfg,
-		ProviderAuthRunner: runner,
+		Config:                      *cfg,
+		ProviderAuthRunner:          runner,
+		ProviderAuthCommandResolver: resolver,
 	})
 	router := gin.New()
 	router.GET("/providers/:provider_id", handlers.GetProvider)

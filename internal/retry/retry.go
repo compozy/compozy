@@ -70,7 +70,10 @@ func DoValue[T any](
 			return result, nil
 		}
 		if ctxErr := ctx.Err(); ctxErr != nil {
-			return zero, fmt.Errorf("retry: context done after attempt %d: %w", attempt, ctxErr)
+			return zero, errors.Join(
+				err,
+				fmt.Errorf("retry: context done after attempt %d: %w", attempt, ctxErr),
+			)
 		}
 		if isContextError(err) || attempt == policy.MaxAttempts || !retryable(shouldRetry, err) {
 			return zero, fmt.Errorf("retry: attempt %d failed: %w", attempt, err)

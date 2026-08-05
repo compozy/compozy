@@ -29,9 +29,13 @@ type sidecarSession struct {
 	closeWriteMu sync.Once
 	closeSession sync.Once
 	finishOnce   sync.Once
+	stopMu       sync.Mutex
+	stopAccepted bool
 	stderrMu     sync.Mutex
 	stderr       strings.Builder
 	waitErr      error
+	exitCode     int
+	exited       bool
 }
 
 func newSidecarSession(
@@ -41,6 +45,9 @@ func newSidecarSession(
 	httpClient *http.Client,
 	closeTimeout time.Duration,
 ) *sidecarSession {
+	if closeTimeout <= 0 {
+		closeTimeout = sidecarCloseTimeout
+	}
 	stdoutReader, stdoutWriter := io.Pipe()
 	session := &sidecarSession{
 		conn:         conn,
@@ -81,10 +88,11 @@ func (s *sidecarSession) CloseWrite() error {
 	return err
 }
 
+// s.done only reports that the local read loop ended, not that the remote process stopped.
 func (s *sidecarSession) Close() error {
 	stopCtx, cancel := context.WithTimeout(context.Background(), s.closeTimeout)
 	defer cancel()
-	return errors.Join(s.requestStop(stopCtx), s.closeLocalResources())
+	return errors.Join(s.ensureStopRequested(stopCtx), s.closeLocalResources())
 }
 
 func (s *sidecarSession) Done() <-chan struct{} {
@@ -97,7 +105,7 @@ func (s *sidecarSession) Wait() error {
 }
 
 func (s *sidecarSession) Stop(ctx context.Context) error {
-	stopErr := s.requestStop(ctx)
+	stopErr := s.ensureStopRequested(ctx)
 	select {
 	case <-s.done:
 		return errors.Join(stopErr, s.waitErr, s.closeLocalResources())
@@ -108,6 +116,20 @@ func (s *sidecarSession) Stop(ctx context.Context) error {
 			s.closeLocalResources(),
 		)
 	}
+}
+
+// A rejected stop stays retryable because the remote process may still be alive.
+func (s *sidecarSession) ensureStopRequested(ctx context.Context) error {
+	s.stopMu.Lock()
+	defer s.stopMu.Unlock()
+	if s.stopAccepted {
+		return nil
+	}
+	if err := s.requestStop(ctx); err != nil {
+		return err
+	}
+	s.stopAccepted = true
+	return nil
 }
 
 func (s *sidecarSession) closeLocalResources() error {
@@ -128,6 +150,15 @@ func (s *sidecarSession) Stderr() string {
 	s.stderrMu.Lock()
 	defer s.stderrMu.Unlock()
 	return s.stderr.String()
+}
+
+func (s *sidecarSession) ExitCode() (int, bool) {
+	select {
+	case <-s.done:
+		return s.exitCode, s.exited
+	default:
+		return 0, false
+	}
 }
 
 func (s *sidecarSession) writeFrame(payload []byte) error {

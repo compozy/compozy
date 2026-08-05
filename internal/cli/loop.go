@@ -124,7 +124,7 @@ func newLoopCreateCommand(deps commandDeps) *cobra.Command {
 				if strings.TrimSpace(filePath) == "" {
 					return errors.New("cli: --expected-version requires --file")
 				}
-				definition, err := readLoopDefinitionFile(filePath)
+				definition, err := readLoopDefinitionFile(cmd.Context(), filePath)
 				if err != nil {
 					return err
 				}
@@ -150,7 +150,7 @@ func newLoopCreateCommand(deps commandDeps) *cobra.Command {
 			}
 			request := contract.CreateLoopRequest{ForkFromName: strings.TrimSpace(forkFrom)}
 			if strings.TrimSpace(filePath) != "" {
-				definition, err := readLoopDefinitionFile(filePath)
+				definition, err := readLoopDefinitionFile(cmd.Context(), filePath)
 				if err != nil {
 					return err
 				}
@@ -185,7 +185,7 @@ func newLoopValidateCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			definition, err := readLoopDefinitionFile(filePath)
+			definition, err := readLoopDefinitionFile(cmd.Context(), filePath)
 			if err != nil {
 				return err
 			}
@@ -258,7 +258,7 @@ func newLoopRunCommand(deps commandDeps) *cobra.Command {
 				}
 				mergeLoopRuntimeFlags(overrides, runtimeOverrides)
 			}
-			configOverrides, err := loopConfigPayloadFromDomain(overrides)
+			configOverrides, err := loopConfigPayloadFromDomain(cmd.Context(), overrides)
 			if err != nil {
 				return err
 			}
@@ -318,7 +318,7 @@ func newLoopConfigureCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			config, err := loopConfigPayloadFromDomain(&cfg)
+			config, err := loopConfigPayloadFromDomain(cmd.Context(), &cfg)
 			if err != nil {
 				return err
 			}

@@ -3221,8 +3221,8 @@ func TestCoordinatorRunnerShouldApplyLoopControlHooks(t *testing.T) {
 			t.Fatalf("gate post status = %q, want %q", got, want)
 		}
 		if got, want := preStatuses, []string{
-			coordinatorPhaseEvaluated,
-			coordinatorPhaseEvaluated,
+			coordinatorGateStatusEvaluated,
+			coordinatorGateStatusEvaluated,
 		}; !reflect.DeepEqual(got, want) {
 			t.Fatalf("gate pre statuses = %#v, want stable %#v", got, want)
 		}

@@ -663,72 +663,256 @@ func TestGlobalDBRegisterSessionPreservesTranscriptEpoch(t *testing.T) {
 	})
 }
 
-func TestGlobalDBRegisterSessionRejectsParticipationSnapshotChange(t *testing.T) {
+func TestGlobalDBRegisterSessionRejectsImmutableFieldChanges(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t)
-	globalDB := openTestGlobalDB(t)
-	workspaceID := registerWorkspaceForGlobalTests(
-		t,
-		globalDB,
-		"immutable-participation-workspace",
-		filepath.Join(t.TempDir(), "immutable-participation-workspace"),
-	)
-	now := time.Date(2026, 7, 16, 12, 0, 0, 0, time.UTC)
-	session := store.SessionInfo{
-		ID:            "sess-immutable-participation",
-		Name:          "Immutable Participation",
-		AgentName:     "coder",
-		Provider:      "claude",
-		RuntimeStatus: store.SessionRuntimeUnbound,
-		WorkspaceID:   workspaceID,
-		SessionType:   defaultSessionType,
-		State:         globalDBSessionStateActive,
-		CreatedAt:     now,
-		UpdatedAt:     now,
-	}
-	session.SetNetworkSpec(participation.LocalSpec())
-	if err := globalDB.RegisterSession(ctx, session); err != nil {
-		t.Fatalf("RegisterSession(Local) error = %v", err)
-	}
+	t.Run("Should reject a participation snapshot change", func(t *testing.T) {
+		t.Parallel()
 
-	session.SetNetworkSpec(participation.Spec{
-		Version:         participation.SpecVersion,
-		Mode:            participation.ModeLive,
-		WorkspaceID:     workspaceID,
-		ChannelStrategy: participation.StrategyNamed,
-		ChannelID:       "immutable-builders",
-		Source:          participation.SourceExplicitRequest,
-		Bounds: participation.Bounds{
-			MaxWakes:         4,
-			MaxWakeWallTime:  "30s",
-			MaxTotalWallTime: "2m",
-			MaxInputTokens:   4096,
-			MaxOutputTokens:  4096,
-			MaxWakeDepth:     4,
-			CoalesceWindow:   "250ms",
-		},
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(
+			t,
+			globalDB,
+			"immutable-participation-workspace",
+			filepath.Join(t.TempDir(), "immutable-participation-workspace"),
+		)
+		now := time.Date(2026, 7, 16, 12, 0, 0, 0, time.UTC)
+		session := store.SessionInfo{
+			ID:            "sess-immutable-participation",
+			Name:          "Immutable Participation",
+			AgentName:     "coder",
+			Provider:      "claude",
+			RuntimeStatus: store.SessionRuntimeUnbound,
+			WorkspaceID:   workspaceID,
+			SessionType:   defaultSessionType,
+			State:         globalDBSessionStateActive,
+			CreatedAt:     now,
+			UpdatedAt:     now,
+		}
+		session.SetNetworkSpec(participation.LocalSpec())
+		if err := globalDB.RegisterSession(ctx, session); err != nil {
+			t.Fatalf("RegisterSession(Local) error = %v", err)
+		}
+
+		session.SetNetworkSpec(participation.Spec{
+			Version:         participation.SpecVersion,
+			Mode:            participation.ModeLive,
+			WorkspaceID:     workspaceID,
+			ChannelStrategy: participation.StrategyNamed,
+			ChannelID:       "immutable-builders",
+			Source:          participation.SourceExplicitRequest,
+			Bounds: participation.Bounds{
+				MaxWakes:         4,
+				MaxWakeWallTime:  "30s",
+				MaxTotalWallTime: "2m",
+				MaxInputTokens:   4096,
+				MaxOutputTokens:  4096,
+				MaxWakeDepth:     4,
+				CoalesceWindow:   "250ms",
+			},
+		})
+		session.State = globalDBSessionStateStopped
+		session.UpdatedAt = now.Add(time.Minute)
+		err := globalDB.RegisterSession(ctx, session)
+		if !errors.Is(err, store.ErrSessionParticipationMismatch) {
+			t.Fatalf("RegisterSession(Live refresh) error = %v, want participation mismatch", err)
+		}
+
+		stored, err := globalDB.ListSessions(ctx, store.SessionListQuery{ID: session.ID})
+		if err != nil {
+			t.Fatalf("ListSessions() error = %v", err)
+		}
+		if len(stored) != 1 {
+			t.Fatalf("len(stored) = %d, want 1", len(stored))
+		}
+		if got, want := stored[0].NetworkSpecSnapshot(), participation.LocalSpec(); got != want {
+			t.Fatalf("stored participation = %#v, want %#v", got, want)
+		}
+		if got, want := stored[0].State, globalDBSessionStateActive; got != want {
+			t.Fatalf("stored state = %q, want unchanged %q", got, want)
+		}
 	})
-	session.State = globalDBSessionStateStopped
-	session.UpdatedAt = now.Add(time.Minute)
-	err := globalDB.RegisterSession(ctx, session)
-	if !errors.Is(err, store.ErrSessionParticipationMismatch) {
-		t.Fatalf("RegisterSession(Live refresh) error = %v, want participation mismatch", err)
-	}
 
-	stored, err := globalDB.ListSessions(ctx, store.SessionListQuery{ID: session.ID})
-	if err != nil {
-		t.Fatalf("ListSessions() error = %v", err)
-	}
-	if len(stored) != 1 {
-		t.Fatalf("len(stored) = %d, want 1", len(stored))
-	}
-	if got, want := stored[0].NetworkSpecSnapshot(), participation.LocalSpec(); got != want {
-		t.Fatalf("stored participation = %#v, want %#v", got, want)
-	}
-	if got, want := stored[0].State, globalDBSessionStateActive; got != want {
-		t.Fatalf("stored state = %q, want unchanged %q", got, want)
-	}
+	t.Run("Should reject a workspace owner change", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		primaryWorkspaceID := registerWorkspaceForGlobalTests(
+			t,
+			globalDB,
+			"immutable-session-owner-primary",
+			filepath.Join(t.TempDir(), "immutable-session-owner-primary"),
+		)
+		foreignWorkspaceID := registerWorkspaceForGlobalTests(
+			t,
+			globalDB,
+			"immutable-session-owner-foreign",
+			filepath.Join(t.TempDir(), "immutable-session-owner-foreign"),
+		)
+		now := time.Date(2026, 8, 3, 4, 30, 0, 0, time.UTC)
+		session := store.SessionInfo{
+			ID:            "sess-immutable-workspace-owner",
+			Name:          "Original owner",
+			AgentName:     "coder",
+			Provider:      "claude",
+			RuntimeStatus: store.SessionRuntimeUnbound,
+			WorkspaceID:   primaryWorkspaceID,
+			SessionType:   defaultSessionType,
+			State:         globalDBSessionStateActive,
+			CreatedAt:     now,
+			UpdatedAt:     now,
+		}
+		if err := globalDB.RegisterSession(ctx, session); err != nil {
+			t.Fatalf("RegisterSession(primary owner) error = %v", err)
+		}
+
+		session.WorkspaceID = foreignWorkspaceID
+		session.Name = "Foreign overwrite"
+		session.State = globalDBSessionStateStopped
+		session.UpdatedAt = now.Add(time.Minute)
+		err := globalDB.RegisterSession(ctx, session)
+		if !errors.Is(err, store.ErrSessionWorkspaceMismatch) {
+			t.Fatalf("RegisterSession(foreign owner) error = %v, want ErrSessionWorkspaceMismatch", err)
+		}
+
+		stored, err := globalDB.ListSessions(ctx, store.SessionListQuery{ID: session.ID})
+		if err != nil {
+			t.Fatalf("ListSessions() error = %v", err)
+		}
+		if len(stored) != 1 {
+			t.Fatalf("len(stored) = %d, want 1", len(stored))
+		}
+		if stored[0].WorkspaceID != primaryWorkspaceID ||
+			stored[0].Name != "Original owner" ||
+			stored[0].State != globalDBSessionStateActive {
+			t.Fatalf("stored session = %#v, want original owner and fields", stored[0])
+		}
+	})
+
+	t.Run("Should roll back reconciliation atomically when workspace ownership conflicts", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		keepWorkspaceID := registerSessionForGlobalTests(t, globalDB, "sess-keep-owner")
+		orphanWorkspaceID := registerSessionForGlobalTests(t, globalDB, "sess-orphan-owner")
+		foreignWorkspaceID := registerWorkspaceForGlobalTests(
+			t,
+			globalDB,
+			"sess-foreign-reconcile-workspace",
+			filepath.Join(t.TempDir(), "sess-foreign-reconcile"),
+		)
+		now := time.Date(2026, 4, 3, 16, 15, 0, 0, time.UTC)
+
+		result, err := globalDB.ReconcileSessions(ctx, []store.SessionInfo{
+			{
+				ID:            "sess-new-before-conflict",
+				AgentName:     "reviewer",
+				Provider:      "codex",
+				RuntimeStatus: store.SessionRuntimeUnbound,
+				WorkspaceID:   foreignWorkspaceID,
+				State:         "stopped",
+				CreatedAt:     now,
+				UpdatedAt:     now,
+			},
+			{
+				ID:            "sess-keep-owner",
+				AgentName:     "reviewer",
+				Provider:      "codex",
+				RuntimeStatus: store.SessionRuntimeUnbound,
+				WorkspaceID:   foreignWorkspaceID,
+				State:         "stopped",
+				CreatedAt:     now,
+				UpdatedAt:     now,
+			},
+		})
+		if !errors.Is(err, store.ErrSessionWorkspaceMismatch) {
+			t.Fatalf(
+				"ReconcileSessions(workspace conflict) error = %v, want %v",
+				err,
+				store.ErrSessionWorkspaceMismatch,
+			)
+		}
+		if len(result.Indexed) != 0 || len(result.Orphaned) != 0 {
+			t.Fatalf("ReconcileSessions(workspace conflict) result = %#v, want empty rollback result", result)
+		}
+
+		sessions, err := globalDB.ListSessions(ctx, store.SessionListQuery{})
+		if err != nil {
+			t.Fatalf("ListSessions() error = %v", err)
+		}
+		byID := make(map[string]store.SessionInfo, len(sessions))
+		for _, session := range sessions {
+			byID[session.ID] = session
+		}
+		if _, exists := byID["sess-new-before-conflict"]; exists {
+			t.Fatal("new session persisted before workspace conflict rollback")
+		}
+		keep := byID["sess-keep-owner"]
+		if keep.WorkspaceID != keepWorkspaceID || keep.Provider != "claude" || keep.State != "active" {
+			t.Fatalf("owned session changed across conflict rollback: %#v", keep)
+		}
+		orphan := byID["sess-orphan-owner"]
+		if orphan.WorkspaceID != orphanWorkspaceID || orphan.State != "active" {
+			t.Fatalf("unseen session was orphaned across conflict rollback: %#v", orphan)
+		}
+	})
+
+	t.Run("Should reject conflicting duplicate owners before reconciliation can hide them", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		primaryWorkspaceID := registerWorkspaceForGlobalTests(
+			t,
+			globalDB,
+			"duplicate-owner-primary",
+			filepath.Join(t.TempDir(), "duplicate-owner-primary"),
+		)
+		foreignWorkspaceID := registerWorkspaceForGlobalTests(
+			t,
+			globalDB,
+			"duplicate-owner-foreign",
+			filepath.Join(t.TempDir(), "duplicate-owner-foreign"),
+		)
+		orphanWorkspaceID := registerSessionForGlobalTests(t, globalDB, "sess-duplicate-owner-orphan")
+		now := time.Date(2026, 8, 3, 5, 0, 0, 0, time.UTC)
+		base := store.SessionInfo{
+			ID:            "sess-duplicate-owner",
+			AgentName:     "reviewer",
+			Provider:      "codex",
+			RuntimeStatus: store.SessionRuntimeUnbound,
+			WorkspaceID:   primaryWorkspaceID,
+			SessionType:   defaultSessionType,
+			State:         globalDBSessionStateStopped,
+			CreatedAt:     now,
+			UpdatedAt:     now,
+		}
+		foreign := base
+		foreign.WorkspaceID = foreignWorkspaceID
+
+		result, err := globalDB.ReconcileSessions(ctx, []store.SessionInfo{base, foreign})
+		if !errors.Is(err, store.ErrSessionWorkspaceMismatch) {
+			t.Fatalf("ReconcileSessions(duplicate owners) error = %v, want ErrSessionWorkspaceMismatch", err)
+		}
+		if len(result.Indexed) != 0 || len(result.Orphaned) != 0 {
+			t.Fatalf("ReconcileSessions(duplicate owners) result = %#v, want empty rollback result", result)
+		}
+		if sessions, listErr := globalDB.ListSessions(ctx, store.SessionListQuery{ID: base.ID}); listErr != nil {
+			t.Fatalf("ListSessions(duplicate target) error = %v", listErr)
+		} else if len(sessions) != 0 {
+			t.Fatalf("duplicate target persisted after rollback: %#v", sessions)
+		}
+		orphan, listErr := globalDB.ListSessions(ctx, store.SessionListQuery{ID: "sess-duplicate-owner-orphan"})
+		if listErr != nil {
+			t.Fatalf("ListSessions(orphan candidate) error = %v", listErr)
+		}
+		if len(orphan) != 1 || orphan[0].WorkspaceID != orphanWorkspaceID || orphan[0].State != "active" {
+			t.Fatalf("orphan candidate changed across duplicate conflict: %#v", orphan)
+		}
+	})
 }
 
 func TestGlobalDBDeleteSession(t *testing.T) {

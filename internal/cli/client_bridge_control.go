@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strings"
+	"unicode/utf8"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
@@ -22,18 +22,18 @@ type BridgeSendTestRequest = contract.BridgeSendTestRequest
 type BridgeSendTestRecord = contract.BridgeSendTestResponse
 
 func (c *unixSocketClient) VerifyBridge(ctx context.Context, id string) (BridgeVerifyRecord, error) {
-	trimmedID, err := requiredBridgeControlID(id)
+	bridgeID, err := requiredBridgeControlID(id)
 	if err != nil {
 		return BridgeVerifyRecord{}, err
 	}
 
 	var response contract.BridgeVerifyResponse
-	path := bridgeControlPath(trimmedID, "verify")
+	path := bridgeControlPath(bridgeID, "verify")
 	if err := c.doJSON(ctx, http.MethodPost, path, nil, nil, &response); err != nil {
 		return BridgeVerifyRecord{}, err
 	}
-	if strings.TrimSpace(response.BridgeInstanceID) != trimmedID {
-		return BridgeVerifyRecord{}, bridgeControlResponseIDError("verify", response.BridgeInstanceID, trimmedID)
+	if response.BridgeInstanceID != bridgeID {
+		return BridgeVerifyRecord{}, bridgeControlResponseIDError("verify", response.BridgeInstanceID, bridgeID)
 	}
 	if err := (bridgepkg.BridgeCheckResponse{Checks: response.Checks}).Validate(); err != nil {
 		return BridgeVerifyRecord{}, fmt.Errorf("cli: invalid bridge verify response: %w", err)
@@ -46,23 +46,26 @@ func (c *unixSocketClient) SendBridgeTest(
 	id string,
 	request BridgeSendTestRequest,
 ) (BridgeSendTestRecord, error) {
-	trimmedID, err := requiredBridgeControlID(id)
+	bridgeID, err := requiredBridgeControlID(id)
 	if err != nil {
 		return BridgeSendTestRecord{}, err
 	}
+	if _, err := request.ToResolveDeliveryTargetRequest(bridgeID); err != nil {
+		return BridgeSendTestRecord{}, fmt.Errorf("cli: invalid bridge send-test request: %w", err)
+	}
 
 	var response contract.BridgeSendTestResponse
-	path := bridgeControlPath(trimmedID, "send-test")
+	path := bridgeControlPath(bridgeID, "send-test")
 	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
 		return BridgeSendTestRecord{}, err
 	}
-	if strings.TrimSpace(response.BridgeInstanceID) != trimmedID {
-		return BridgeSendTestRecord{}, bridgeControlResponseIDError("send-test", response.BridgeInstanceID, trimmedID)
+	if response.BridgeInstanceID != bridgeID {
+		return BridgeSendTestRecord{}, bridgeControlResponseIDError("send-test", response.BridgeInstanceID, bridgeID)
 	}
 	if err := response.Status.Validate(); err != nil {
 		return BridgeSendTestRecord{}, fmt.Errorf("cli: invalid bridge send-test status: %w", err)
 	}
-	if strings.TrimSpace(response.DeliveryID) == "" {
+	if response.DeliveryID == "" || !utf8.ValidString(response.DeliveryID) {
 		return BridgeSendTestRecord{}, errors.New("cli: invalid bridge send-test response")
 	}
 	if err := response.DeliveryTarget.Validate(); err != nil {
@@ -72,11 +75,13 @@ func (c *unixSocketClient) SendBridgeTest(
 }
 
 func requiredBridgeControlID(id string) (string, error) {
-	trimmedID := strings.TrimSpace(id)
-	if trimmedID == "" {
+	if id == "" {
 		return "", errors.New("cli: bridge instance id is required")
 	}
-	return trimmedID, nil
+	if !utf8.ValidString(id) {
+		return "", errors.New("cli: bridge instance id must be valid UTF-8")
+	}
+	return id, nil
 }
 
 func bridgeControlPath(id string, action string) string {
@@ -87,7 +92,7 @@ func bridgeControlResponseIDError(action string, got string, want string) error 
 	return fmt.Errorf(
 		"cli: bridge %s returned bridge %q, want %q",
 		action,
-		strings.TrimSpace(got),
+		got,
 		want,
 	)
 }

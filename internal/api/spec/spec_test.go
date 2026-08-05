@@ -18,6 +18,7 @@ import (
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 	"github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/notifications"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/tools"
 	"github.com/getkin/kin-openapi/openapi3"
@@ -2328,6 +2329,21 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				}
 				drainSchema := jsonRequestSchema(t, drainScheduler)
 				assertNotRequired(t, drainSchema, "reason", "timeout_seconds")
+				timeoutSeconds := propertySchema(t, drainSchema, "timeout_seconds")
+				if timeoutSeconds.Format != specFormatInt64 {
+					t.Fatalf("scheduler timeout_seconds format = %q, want %q", timeoutSeconds.Format, specFormatInt64)
+				}
+				if timeoutSeconds.Min == nil || *timeoutSeconds.Min != 0 {
+					t.Fatalf("scheduler timeout_seconds minimum = %v, want 0", timeoutSeconds.Min)
+				}
+				if timeoutSeconds.Max == nil ||
+					*timeoutSeconds.Max != float64(contract.SchedulerDrainTimeoutMaxSeconds) {
+					t.Fatalf(
+						"scheduler timeout_seconds maximum = %v, want %d",
+						timeoutSeconds.Max,
+						contract.SchedulerDrainTimeoutMaxSeconds,
+					)
+				}
 				drainResponse := jsonResponseSchema(t, drainScheduler, 200)
 				assertRequired(
 					t,
@@ -2339,6 +2355,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					"completed_at",
 				)
 				assertResponseStatus(t, drainScheduler, 403)
+				assertResponseStatus(t, drainScheduler, 400)
 				assertResponseStatus(t, drainScheduler, 422)
 
 				backlog := operationFor(t, doc, "/api/scheduler/backlog", "GET")
@@ -2603,6 +2620,7 @@ func TestSchemaCustomizerCoversAdditionalEnums(t *testing.T) {
 		{name: "ParticipationChannelStrategy", typ: participation.StrategyNamed},
 		{name: "ParticipationSource", typ: participation.SourceExplicitRequest},
 		{name: "ParticipationOwnerKind", typ: participation.OwnerKindTaskRun},
+		{name: "NotificationScopeKind", typ: notifications.ScopeKindGlobal},
 	}
 
 	for _, tt := range tests {
@@ -2618,6 +2636,18 @@ func TestSchemaCustomizerCoversAdditionalEnums(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Should close notification scope kinds to the durable ownership values", func(t *testing.T) {
+		t.Parallel()
+
+		schema := openapi3.NewStringSchema()
+		if err := schemaCustomizer("", reflect.TypeFor[notifications.ScopeKind](), "", schema); err != nil {
+			t.Fatalf("schemaCustomizer() error = %v", err)
+		}
+		if got, want := schema.Enum, []any{"global", "workspace"}; !reflect.DeepEqual(got, want) {
+			t.Fatalf("notification scope enum = %v, want %v", got, want)
+		}
+	})
 }
 
 func TestExtensionAuthoringComponentSchemas(t *testing.T) {

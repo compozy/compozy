@@ -25,22 +25,22 @@ func sessionFailureForStop(cause StopCause, waitErr error, detail string) *store
 	case CauseUserRequested:
 		return normalizeSessionFailure(&store.SessionFailure{
 			Kind:    store.FailureCanceled,
-			Summary: firstNonEmptySessionFailureText(detail, "session canceled by user"),
+			Summary: firstTrimmedNonEmpty(detail, "session canceled by user"),
 		}, "")
 	case CauseTimeout:
 		return normalizeSessionFailure(&store.SessionFailure{
 			Kind:    store.FailureTimeout,
-			Summary: firstNonEmptySessionFailureText(detail, "session timed out"),
+			Summary: firstTrimmedNonEmpty(detail, "session timed out"),
 		}, "")
 	case CauseHookDenied:
 		return normalizeSessionFailure(&store.SessionFailure{
 			Kind:    store.FailurePermission,
-			Summary: firstNonEmptySessionFailureText(detail, "session stopped by hook policy"),
+			Summary: firstTrimmedNonEmpty(detail, "session stopped by hook policy"),
 		}, "")
 	case CauseFailed:
 		return normalizeSessionFailure(&store.SessionFailure{
 			Kind:    store.FailureUnknown,
-			Summary: firstNonEmptySessionFailureText(detail, "session failed"),
+			Summary: firstTrimmedNonEmpty(detail, "session failed"),
 		}, "")
 	default:
 		return nil
@@ -104,7 +104,7 @@ func failureSummary(failure *store.SessionFailure, fallback string) string {
 	return diagnostics.RedactAndBound(fallback, maxSessionFailureSummaryBytes)
 }
 
-func firstNonEmptySessionFailureText(values ...string) string {
+func firstTrimmedNonEmpty(values ...string) string {
 	for _, value := range values {
 		if trimmed := strings.TrimSpace(value); trimmed != "" {
 			return trimmed

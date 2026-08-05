@@ -61,7 +61,10 @@ func (p *AgentProcess) ensureNetworkTurnTerminalAccess(id string, requireSameTur
 }
 
 func (p *AgentProcess) lookupTerminalOwnership(id string) (terminalOwnership, error) {
-	host := p.toolHostOrDefault()
+	host, err := p.toolHostOrDefault()
+	if err != nil {
+		return terminalOwnership{}, err
+	}
 	if localHost, ok := host.(*localToolHost); ok {
 		return localHost.terminalOwnership(id)
 	}

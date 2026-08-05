@@ -32,7 +32,6 @@ func BenchmarkScriptedPromptDriverPrompt(b *testing.B) {
 		time.Date(2026, 4, 11, 9, 30, 0, 0, time.UTC),
 		benchmarkPromptScript(),
 	)
-	driver.prompts = make([]acp.PromptRequest, 0, b.N)
 
 	proc, err := driver.Start(context.Background(), acp.StartOpts{AgentName: "coder"})
 	if err != nil {
@@ -47,9 +46,8 @@ func BenchmarkScriptedPromptDriverPrompt(b *testing.B) {
 	request := acp.PromptRequest{TurnID: "turn-bench"}
 
 	b.ReportAllocs()
-	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		events, err := driver.Prompt(context.Background(), proc, request)
 		if err != nil {
 			b.Fatalf("ScriptedPromptDriver.Prompt() error = %v", err)

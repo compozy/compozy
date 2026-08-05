@@ -25,7 +25,7 @@ export const bridgeKeys = {
   providers: () => [...bridgeKeys.all, "providers"] as const,
   manifestsRoot: () => [...bridgeKeys.all, "manifest"] as const,
   slackManifest: (instanceID: string) =>
-    [...bridgeKeys.manifestsRoot(), "slack", instanceID.trim()] as const,
+    [...bridgeKeys.manifestsRoot(), "slack", instanceID] as const,
   details: () => [...bridgeKeys.all, "detail"] as const,
   detail: (id: string) => [...bridgeKeys.details(), normalizeKeyValue(id)] as const,
   routesRoot: () => [...bridgeKeys.all, "routes"] as const,

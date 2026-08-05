@@ -39,6 +39,7 @@ func TestWindowManagerRepository(t *testing.T) {
 		closeDaemonWindowManagerEngine(t, fixture.engine)
 
 		reopened, err := clientstate.Open(
+			ctx,
 			fixture.storePath,
 			fixture.storeResolver,
 			clientstate.Limits{

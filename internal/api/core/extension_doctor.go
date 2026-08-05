@@ -34,19 +34,21 @@ func extensionDiagnosticItems(extensions []contract.ExtensionPayload) []contract
 	items := make([]contract.DiagnosticItem, 0)
 	for _, extension := range extensions {
 		name := strings.TrimSpace(extension.Name)
+		failureCode := strings.TrimSpace(extension.FailureCode)
 		if extension.ConsecutiveFailures >= extensionpkg.DefaultRestartFailureThreshold {
-			items = append(items, diagnostics.NewItem(
-				"doctor.extension."+name+".crash_loop",
-				contract.CodeExtensionRuntimeUnavailable,
-				contract.CategoryExtension,
-				"Extension is crash-looping",
-				fmt.Sprintf(
+			items = append(items, diagnostics.NewItem(diagnostics.ItemSpec{
+				ID:       "doctor.extension." + name + ".crash_loop",
+				Code:     contract.CodeExtensionRuntimeUnavailable,
+				Category: contract.CategoryExtension,
+				Title:    "Extension is crash-looping",
+				Message: fmt.Sprintf(
 					"Extension %q reached %d consecutive failures and is no longer restarting.",
 					name,
 					extension.ConsecutiveFailures,
 				),
-				contract.SeverityError,
-				contract.FreshnessLive,
+				Severity:      contract.SeverityError,
+				DataFreshness: contract.FreshnessLive,
+			},
 				diagnostics.WithSuggestedCommand("compozy extension status "+name),
 				diagnostics.WithEvidence(map[string]any{
 					extensionDoctorNameEvidenceKey: name,
@@ -56,18 +58,19 @@ func extensionDiagnosticItems(extensions []contract.ExtensionPayload) []contract
 			))
 		}
 		if len(extension.MissingEnv) > 0 {
-			items = append(items, diagnostics.NewItem(
-				"doctor.extension."+name+".missing_env",
-				contract.CodeExtensionRuntimeUnavailable,
-				contract.CategoryExtension,
-				"Extension environment is incomplete",
-				fmt.Sprintf(
+			items = append(items, diagnostics.NewItem(diagnostics.ItemSpec{
+				ID:       "doctor.extension." + name + ".missing_env",
+				Code:     contract.CodeExtensionRuntimeUnavailable,
+				Category: contract.CategoryExtension,
+				Title:    "Extension environment is incomplete",
+				Message: fmt.Sprintf(
 					"Extension %q is missing required environment variables: %s.",
 					name,
 					strings.Join(extension.MissingEnv, ", "),
 				),
-				contract.SeverityError,
-				contract.FreshnessLive,
+				Severity:      contract.SeverityError,
+				DataFreshness: contract.FreshnessLive,
+			},
 				diagnostics.WithSuggestedCommand(
 					"compozy extension secrets set "+name+" --env "+strings.TrimSpace(extension.MissingEnv[0]),
 				),
@@ -77,19 +80,20 @@ func extensionDiagnosticItems(extensions []contract.ExtensionPayload) []contract
 				}),
 			))
 		}
-		if extension.Dev && strings.TrimSpace(extension.FailureCode) == "missing_origin" {
-			items = append(items, diagnostics.NewItem(
-				"doctor.extension."+name+".stale_dev_origin",
-				contract.CodeExtensionRuntimeUnavailable,
-				contract.CategoryExtension,
-				"Extension development origin is stale",
-				fmt.Sprintf("Extension %q points to a development origin that no longer exists.", name),
-				contract.SeverityError,
-				contract.FreshnessLive,
-				diagnostics.WithSuggestedCommand("compozy extension dev "+extension.OriginPath),
+		if extension.Dev && failureCode == "missing_origin" {
+			items = append(items, diagnostics.NewItem(diagnostics.ItemSpec{
+				ID:            "doctor.extension." + name + ".stale_dev_origin",
+				Code:          contract.CodeExtensionRuntimeUnavailable,
+				Category:      contract.CategoryExtension,
+				Title:         "Extension development origin is stale",
+				Message:       fmt.Sprintf("Extension %q points to a development origin that no longer exists.", name),
+				Severity:      contract.SeverityError,
+				DataFreshness: contract.FreshnessLive,
+			},
+				diagnostics.WithSuggestedCommand("compozy extension status "+name),
 				diagnostics.WithEvidence(map[string]any{
 					extensionDoctorNameEvidenceKey: name,
-					"origin_path":                  extension.OriginPath,
+					"failure_code":                 failureCode,
 				}),
 			))
 		}

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-
 	"strings"
 	"time"
 )
@@ -31,6 +30,10 @@ func (m *Service) BlockTask(ctx context.Context, req BlockRequest, actor ActorCo
 		if claimToken == "" {
 			return TaskBlock{}, fmt.Errorf("%w: task_block.claim_token is required when run_id is set", ErrValidation)
 		}
+		eventIDs, err := m.reserveTaskEventIDs(2)
+		if err != nil {
+			return TaskBlock{}, err
+		}
 		result, blockErr := m.store.BlockTaskAndReleaseRun(ctx, BlockTaskAndReleaseRunMutation{
 			Block:           block,
 			RunID:           runID,
@@ -46,8 +49,8 @@ func (m *Service) BlockTask(ctx context.Context, req BlockRequest, actor ActorCo
 		if reconcileErr != nil {
 			return TaskBlock{}, reconcileErr
 		}
-		m.recordTaskBlockCreated(ctx, result.Block, reconciled, actor, &result)
-		m.recordReleasedRunEvent(ctx, &result, reconciled, actor)
+		m.recordTaskBlockCreated(ctx, eventIDs[0], result.Block, reconciled, actor, &result)
+		m.recordReleasedRunEvent(ctx, eventIDs[1], &result, reconciled, actor)
 		m.dispatchTaskBlocked(ctx, result.Block, reconciled, actor, &result)
 		m.dispatchBlockedWake(ctx, reconciled, result.Block, actor, &result)
 		m.recordTaskNeedsAttention(
@@ -65,6 +68,10 @@ func (m *Service) BlockTask(ctx context.Context, req BlockRequest, actor ActorCo
 	if err := m.requireAgentSessionTaskLease(ctx, block.TaskID, actor); err != nil {
 		return TaskBlock{}, err
 	}
+	eventID, err := m.reserveTaskEventID()
+	if err != nil {
+		return TaskBlock{}, err
+	}
 
 	created, err := m.store.CreateTaskBlock(ctx, CreateTaskBlockMutation{
 		Block:           block,
@@ -78,7 +85,7 @@ func (m *Service) BlockTask(ctx context.Context, req BlockRequest, actor ActorCo
 	if err != nil {
 		return TaskBlock{}, err
 	}
-	m.recordTaskBlockCreated(ctx, created.Block, reconciled, actor, nil)
+	m.recordTaskBlockCreated(ctx, eventID, created.Block, reconciled, actor, nil)
 	m.dispatchTaskBlocked(ctx, created.Block, reconciled, actor, nil)
 	m.dispatchBlockedWake(ctx, reconciled, created.Block, actor, nil)
 	m.recordTaskNeedsAttention(ctx, created.Block, created.EscalatedTask, reconciled, actor, nil)
@@ -87,6 +94,7 @@ func (m *Service) BlockTask(ctx context.Context, req BlockRequest, actor ActorCo
 
 func (m *Service) recordReleasedRunEvent(
 	ctx context.Context,
+	eventID string,
 	result *BlockTaskAndReleaseRunResult,
 	reconciled Task,
 	actor ActorContext,
@@ -94,8 +102,9 @@ func (m *Service) recordReleasedRunEvent(
 	if result == nil {
 		return
 	}
-	if eventErr := m.recordTaskEvent(
+	if eventErr := m.recordTaskEventWithID(
 		ctx,
+		eventID,
 		result.Run.TaskID,
 		result.Run.ID,
 		taskEventRunReleased,
@@ -120,6 +129,7 @@ func (m *Service) recordReleasedRunEvent(
 
 func (m *Service) recordTaskBlockCreated(
 	ctx context.Context,
+	eventID string,
 	block TaskBlock,
 	reconciled Task,
 	actor ActorContext,
@@ -131,50 +141,77 @@ func (m *Service) recordTaskBlockCreated(
 		runID = strings.TrimSpace(release.Run.ID)
 		claimTokenHash = strings.TrimSpace(release.ClaimTokenHash)
 	}
-	if eventErr := m.recordTaskEvent(ctx, block.TaskID, runID, taskEventBlockCreated, actor, taskBlockCreatedPayload{
-		Status:         reconciled.Status,
-		BlockID:        strings.TrimSpace(block.ID),
-		BlockKind:      block.Kind.Normalize(),
-		Reason:         redactTaskSecretText(strings.TrimSpace(block.Reason)),
-		ExpiresAt:      block.ExpiresAt,
-		ClaimTokenHash: claimTokenHash,
-	}); eventErr != nil {
+	if eventErr := m.recordTaskEventWithID(
+		ctx,
+		eventID,
+		block.TaskID,
+		runID,
+		taskEventBlockCreated,
+		actor,
+		taskBlockCreatedPayload{
+			Status:         reconciled.Status,
+			BlockID:        strings.TrimSpace(block.ID),
+			BlockKind:      block.Kind.Normalize(),
+			Reason:         redactTaskSecretText(strings.TrimSpace(block.Reason)),
+			ExpiresAt:      block.ExpiresAt,
+			ClaimTokenHash: claimTokenHash,
+		}); eventErr != nil {
 		m.logTaskBlockEventFailure(eventErr, taskEventBlockCreated, block, runID)
 	}
 }
 
 func (m *Service) recordTaskBlockCleared(
 	ctx context.Context,
+	eventID string,
 	block TaskBlock,
 	reconciled Task,
 	actor ActorContext,
 ) {
-	if eventErr := m.recordTaskEvent(ctx, block.TaskID, "", taskEventBlockCleared, actor, taskBlockClearedPayload{
+	payload := taskBlockClearedPayload{
 		Status:    reconciled.Status,
 		BlockID:   strings.TrimSpace(block.ID),
 		BlockKind: block.Kind.Normalize(),
 		Reason:    redactTaskSecretText(strings.TrimSpace(block.Reason)),
 		ClearNote: redactTaskSecretText(strings.TrimSpace(block.ClearNote)),
 		ClearedAt: block.ClearedAt,
-	}); eventErr != nil {
+	}
+	if eventErr := m.recordTaskEventWithID(
+		ctx,
+		eventID,
+		block.TaskID,
+		"",
+		taskEventBlockCleared,
+		actor,
+		payload,
+	); eventErr != nil {
 		m.logTaskBlockEventFailure(eventErr, taskEventBlockCleared, block, "")
 	}
 }
 
 func (m *Service) recordTaskBlockExpired(
 	ctx context.Context,
+	eventID string,
 	block TaskBlock,
 	reconciled Task,
 	actor ActorContext,
 ) {
-	if eventErr := m.recordTaskEvent(ctx, block.TaskID, "", taskEventBlockExpired, actor, taskBlockExpiredPayload{
+	payload := taskBlockExpiredPayload{
 		Status:    reconciled.Status,
 		BlockID:   strings.TrimSpace(block.ID),
 		BlockKind: block.Kind.Normalize(),
 		Reason:    redactTaskSecretText(strings.TrimSpace(block.Reason)),
 		ExpiresAt: block.ExpiresAt,
 		ClearedAt: block.ClearedAt,
-	}); eventErr != nil {
+	}
+	if eventErr := m.recordTaskEventWithID(
+		ctx,
+		eventID,
+		block.TaskID,
+		"",
+		taskEventBlockExpired,
+		actor,
+		payload,
+	); eventErr != nil {
 		m.logTaskBlockEventFailure(eventErr, taskEventBlockExpired, block, "")
 	}
 }

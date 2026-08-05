@@ -157,6 +157,11 @@ func normalizeCancelTask(req CancelTask) (CancelTask, error) {
 	if err := normalized.Validate("cancel_task"); err != nil {
 		return CancelTask{}, err
 	}
+	normalized.Reason = RedactClaimTokens(normalized.Reason)
+	normalized.Metadata = RedactClaimTokenJSON(normalized.Metadata)
+	if err := normalized.Validate("cancel_task"); err != nil {
+		return CancelTask{}, err
+	}
 	return normalized, nil
 }
 
@@ -225,6 +230,11 @@ func normalizeCancelRun(req CancelRun) (CancelRun, error) {
 	if err := normalized.Validate("cancel_run"); err != nil {
 		return CancelRun{}, err
 	}
+	normalized.Reason = RedactClaimTokens(normalized.Reason)
+	normalized.Metadata = RedactClaimTokenJSON(normalized.Metadata)
+	if err := normalized.Validate("cancel_run"); err != nil {
+		return CancelRun{}, err
+	}
 	return normalized, nil
 }
 
@@ -240,6 +250,15 @@ func normalizeRunResult(result RunResult) (RunResult, error) {
 	if err := normalized.Validate("run_result"); err != nil {
 		return RunResult{}, err
 	}
+	normalized.Value = RedactClaimTokenJSON(normalized.Value)
+	if normalized.CoordinatorControl != nil {
+		control := *normalized.CoordinatorControl
+		control.Payload = RedactClaimTokenJSON(control.Payload)
+		normalized.CoordinatorControl = &control
+	}
+	if err := normalized.Validate("run_result"); err != nil {
+		return RunResult{}, err
+	}
 	return normalized, nil
 }
 
@@ -247,6 +266,11 @@ func normalizeRunFailure(failure RunFailure) (RunFailure, error) {
 	normalized := failure
 	normalized.Error = strings.TrimSpace(normalized.Error)
 	normalized.Metadata = normalizeRawJSON(normalized.Metadata)
+	if err := normalized.Validate("run_failure"); err != nil {
+		return RunFailure{}, err
+	}
+	normalized.Error = RedactClaimTokens(normalized.Error)
+	normalized.Metadata = RedactClaimTokenJSON(normalized.Metadata)
 	if err := normalized.Validate("run_failure"); err != nil {
 		return RunFailure{}, err
 	}
@@ -263,7 +287,42 @@ func normalizeRunBootRecovery(recovery RunBootRecovery) (RunBootRecovery, error)
 	if err := normalized.Validate("run_boot_recovery"); err != nil {
 		return RunBootRecovery{}, err
 	}
+	normalized.Reason = RedactClaimTokens(normalized.Reason)
+	normalized.SessionState = RedactClaimTokens(normalized.SessionState)
+	normalized.Classification = RedactClaimTokens(normalized.Classification)
+	normalized.Detail = RedactClaimTokens(normalized.Detail)
+	if err := normalized.Validate("run_boot_recovery"); err != nil {
+		return RunBootRecovery{}, err
+	}
 	return normalized, nil
+}
+
+func (m *Service) preflightRecoveredRunEvent(
+	run Run,
+	recovery RunBootRecovery,
+	actor ActorContext,
+	previousStatus RunStatus,
+	previousSessionID string,
+	status RunStatus,
+) error {
+	return m.preflightTaskEvent(
+		run.TaskID,
+		run.ID,
+		taskEventRunRecovered,
+		actor,
+		recoveredRunPayload{
+			Action:         recovery.Action,
+			PreviousStatus: previousStatus,
+			Status:         status,
+			// TaskStatusNeedsAttention conservatively bounds the final recovery event before reconciliation.
+			TaskStatus:     TaskStatusNeedsAttention,
+			Reason:         recovery.Reason,
+			SessionID:      previousSessionID,
+			SessionState:   recovery.SessionState,
+			Classification: recovery.Classification,
+			Detail:         recovery.Detail,
+		},
+	)
 }
 
 func requireLifecycleIdempotency(actor ActorContext, key string, path string) error {

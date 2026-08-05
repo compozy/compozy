@@ -97,9 +97,49 @@ describe("orchestration hooks against MSW handlers", () => {
       const list = result.current.data ?? [];
       expect(list.length).toBeGreaterThan(0);
       const cursor = list[0]?.cursor;
-      expect(cursor?.consumer_id).toContain("bridge_task_subscription:");
+      expect(cursor?.consumer_id).toBe(list[0]?.subscription_id);
       expect(cursor?.stream_name).toBe("task_events");
     });
+  });
+
+  it("Should create bridge notification cursor identity from the exact subscription id", async () => {
+    const request = {
+      bridge_instance_id: " bridge_instance_alpha ",
+      delivery_mode: "reply",
+      scope: "workspace",
+      workspace_id: " ws_alpha ",
+      peer_id: " peer_alpha ",
+      group_id: " group_alpha ",
+      thread_id: " thread_alpha ",
+      subscription_id: " bsub_exact ",
+    } as const;
+    const response = await fetch(testApiUrl("/api/tasks/task_001/notifications/bridges"), {
+      body: JSON.stringify(request),
+      headers: { "Content-Type": "application/json" },
+      method: "POST",
+    });
+    const payload = (await response.json()) as {
+      subscription: {
+        bridge_instance_id: string;
+        cursor: { consumer_id: string };
+        group_id?: string;
+        peer_id?: string;
+        subscription_id: string;
+        thread_id?: string;
+        workspace_id?: string;
+      };
+    };
+
+    expect(response.status).toBe(201);
+    expect(payload.subscription).toMatchObject({
+      bridge_instance_id: request.bridge_instance_id,
+      group_id: request.group_id,
+      peer_id: request.peer_id,
+      subscription_id: request.subscription_id,
+      thread_id: request.thread_id,
+      workspace_id: request.workspace_id,
+    });
+    expect(payload.subscription.cursor.consumer_id).toBe(payload.subscription.subscription_id);
   });
 
   it("Should reject recover in MSW when a task is not escalated", async () => {

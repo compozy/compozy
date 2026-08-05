@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -27,6 +28,7 @@ func TestDoctorExtensionFilterReportsDistinctRuntimeFailures(t *testing.T) {
 	t.Run("Should report each extension failure as a distinct item", func(t *testing.T) {
 		t.Parallel()
 
+		const doctorOriginCanary = "/private/DOCTOR-WORKSPACE-ROOT-CANARY/DOCTOR-ORIGIN-CANARY"
 		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 		if err != nil {
 			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
@@ -43,7 +45,7 @@ func TestDoctorExtensionFilterReportsDistinctRuntimeFailures(t *testing.T) {
 						RestartBackoffMS:    8000,
 					},
 					{Name: "missing-env", MissingEnv: []string{"API_TOKEN"}},
-					{Name: "stale-dev", Dev: true, FailureCode: "missing_origin", OriginPath: "/workspace/stale-dev"},
+					{Name: "stale-dev", Dev: true, FailureCode: "missing_origin", OriginPath: doctorOriginCanary},
 				}, nil
 			}},
 		})
@@ -61,13 +63,19 @@ func TestDoctorExtensionFilterReportsDistinctRuntimeFailures(t *testing.T) {
 		if response.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", response.Code, response.Body.String())
 		}
+		if strings.Contains(response.Body.String(), doctorOriginCanary) ||
+			strings.Contains(response.Body.String(), `"origin_path"`) {
+			t.Fatalf("doctor body leaked development origin: %s", response.Body.String())
+		}
 
 		var payload contract.DoctorPayload
 		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
 			t.Fatalf("json.Unmarshal(doctor) error = %v", err)
 		}
 		ids := make([]string, 0, len(payload.Items))
-		for _, item := range payload.Items {
+		var staleOriginItem *contract.DiagnosticItem
+		for index := range payload.Items {
+			item := payload.Items[index]
 			if item.Category != contract.CategoryExtension {
 				t.Fatalf("doctor item category = %q, want extension", item.Category)
 			}
@@ -75,6 +83,9 @@ func TestDoctorExtensionFilterReportsDistinctRuntimeFailures(t *testing.T) {
 			if item.ID == "doctor.extension.missing-env.missing_env" &&
 				item.SuggestedCommand != "compozy extension secrets set missing-env --env API_TOKEN" {
 				t.Fatalf("missing-env suggested command = %q, want exact secrets set command", item.SuggestedCommand)
+			}
+			if item.ID == "doctor.extension.stale-dev.stale_dev_origin" {
+				staleOriginItem = &payload.Items[index]
 			}
 		}
 		want := []string{
@@ -86,6 +97,18 @@ func TestDoctorExtensionFilterReportsDistinctRuntimeFailures(t *testing.T) {
 			if !slices.Contains(ids, id) {
 				t.Fatalf("doctor item ids = %#v, want %q", ids, id)
 			}
+		}
+		if staleOriginItem == nil {
+			t.Fatal("stale development-origin diagnostic is missing")
+		}
+		if staleOriginItem.SuggestedCommand != "compozy extension status stale-dev" {
+			t.Fatalf("stale origin command = %q, want safe status command", staleOriginItem.SuggestedCommand)
+		}
+		if _, exists := staleOriginItem.Evidence["origin_path"]; exists {
+			t.Fatalf("stale origin evidence = %#v, must not include origin_path", staleOriginItem.Evidence)
+		}
+		if got := staleOriginItem.Evidence["failure_code"]; got != "missing_origin" {
+			t.Fatalf("stale origin failure_code = %#v, want missing_origin", got)
 		}
 	})
 }

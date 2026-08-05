@@ -176,13 +176,14 @@ func TestRedactClaimTokenJSON(t *testing.T) {
 
 		raw := json.RawMessage(
 			`{"keep":"safe","claim_token":"compozy_claim_top-secret","nested":{"note":"uses compozy_claim_nested-secret"},` +
-				`"items":[{"proof":"compozy_claim_array-secret"}]}`,
+				`"items":[{"proof":"compozy_claim_array-secret"}],"compozy_claim_key-secret":"discarded"}`,
 		)
 		redacted := RedactClaimTokenJSON(raw)
 		for _, secret := range []string{
 			"compozy_claim_top-secret",
 			"compozy_claim_nested-secret",
 			"compozy_claim_array-secret",
+			"compozy_claim_key-secret",
 		} {
 			if strings.Contains(string(redacted), secret) {
 				t.Fatalf("RedactClaimTokenJSON() = %s, want raw token %q removed", redacted, secret)
@@ -206,6 +207,77 @@ func TestRedactClaimTokenJSON(t *testing.T) {
 		redacted := RedactClaimTokenJSON(json.RawMessage(`{"note":"compozy_claim_malformed-secret"`))
 		if strings.Contains(string(redacted), "compozy_claim_malformed-secret") {
 			t.Fatalf("RedactClaimTokenJSON(malformed) = %s, want raw token removed", redacted)
+		}
+	})
+
+	t.Run("Should preserve exact safe JSON numbers while redacting tokens", func(t *testing.T) {
+		t.Parallel()
+
+		const largeInteger = "9007199254740993123456789"
+		redacted := RedactClaimTokenJSON(json.RawMessage(
+			`{"count":` + largeInteger + `,"note":"compozy_claim_number-secret"}`,
+		))
+		if strings.Contains(string(redacted), "compozy_claim_number-secret") {
+			t.Fatalf("RedactClaimTokenJSON() = %s, want raw token removed", redacted)
+		}
+		if !strings.Contains(string(redacted), `"count":`+largeInteger) {
+			t.Fatalf("RedactClaimTokenJSON() = %s, want exact safe number %s preserved", redacted, largeInteger)
+		}
+	})
+}
+
+func TestLeaseFailureNormalizeRedactsRawClaimTokens(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should redact bearer tokens from failure fields while preserving the fencing token", func(t *testing.T) {
+		t.Parallel()
+
+		const rawToken = "compozy_claim_failure-secret"
+		now := time.Date(2026, 8, 1, 12, 0, 0, 0, time.UTC)
+		normalized, err := (LeaseFailure{
+			RunID:      " run-failed ",
+			ClaimToken: " " + rawToken + " ",
+			Failure: RunFailure{
+				Error:    " worker failed with " + rawToken + " ",
+				Metadata: json.RawMessage(`{"detail":"worker observed ` + rawToken + `","safe":"preserved"}`),
+			},
+			Now: now,
+		}).Normalize(now.Add(time.Minute))
+		if err != nil {
+			t.Fatalf("LeaseFailure.Normalize() error = %v", err)
+		}
+		if got, want := normalized.ClaimToken, rawToken; got != want {
+			t.Fatalf("ClaimToken = %q, want fencing token %q", got, want)
+		}
+		if strings.Contains(normalized.Failure.Error, rawToken) {
+			t.Fatalf("Failure.Error = %q, want raw bearer redacted", normalized.Failure.Error)
+		}
+		if strings.Contains(string(normalized.Failure.Metadata), rawToken) {
+			t.Fatalf("Failure.Metadata = %s, want raw bearer redacted", normalized.Failure.Metadata)
+		}
+		if !strings.Contains(normalized.Failure.Error, "worker failed with") ||
+			!strings.Contains(string(normalized.Failure.Metadata), `"safe":"preserved"`) {
+			t.Fatalf("Failure = %#v, want safe diagnostic content preserved", normalized.Failure)
+		}
+	})
+
+	t.Run("Should reject failure metadata that exceeds the payload limit after redaction", func(t *testing.T) {
+		t.Parallel()
+
+		const rawToken = "compozy_claim_failure-size-secret"
+		expandingMetadata := json.RawMessage(
+			`{"note":"` + strings.Repeat("<", 11_000) + `","secret":"` + rawToken + `"}`,
+		)
+		if len(expandingMetadata) >= MaxPayloadBytes {
+			t.Fatalf("expanding metadata input = %d bytes, want below %d", len(expandingMetadata), MaxPayloadBytes)
+		}
+
+		_, err := normalizeRunFailure(RunFailure{
+			Error:    "worker failed",
+			Metadata: expandingMetadata,
+		})
+		if !errors.Is(err, ErrPayloadTooLarge) {
+			t.Fatalf("normalizeRunFailure() error = %v, want %v", err, ErrPayloadTooLarge)
 		}
 	})
 }
@@ -262,6 +334,108 @@ func TestClaimResultSanitizesRawClaimTokenMetadata(t *testing.T) {
 			got[0] != want[0] ||
 			got[1] != want[1] {
 			t.Fatalf("AllowedMessageKinds = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("Should redact the reconciled task across manager output boundaries", func(t *testing.T) {
+		t.Parallel()
+
+		store := newInMemoryManagerStore()
+		var observedHook hookspkg.TaskRunPostClaimPayload
+		manager := newTaskManagerForTestWithOptions(t, store, WithTaskRunHooks(recordingTaskRunHooks{
+			postClaim: func(
+				_ context.Context,
+				payload hookspkg.TaskRunPostClaimPayload,
+			) (hookspkg.TaskRunPostClaimPayload, error) {
+				observedHook = payload
+				return payload, nil
+			},
+		}))
+		operator := validActorContext()
+		agent := agentActorContextForTest("sess-claim-redaction", "ws-claim-redaction")
+		metadata := json.RawMessage(
+			`{"claim_token":"task-raw","nested":{"claim_token":"nested-raw"},"workflow_id":"wf-safe"}`,
+		)
+		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+			Scope:    ScopeGlobal,
+			Title:    "Claim result redaction",
+			Metadata: metadata,
+		}, operator)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run, err := manager.EnqueueRun(
+			context.Background(),
+			EnqueueRun{
+				TaskID:   taskRecord.ID,
+				Metadata: json.RawMessage(`{"workflow_id":"wf-safe"}`),
+			},
+			operator,
+		)
+		if err != nil {
+			t.Fatalf("EnqueueRun() error = %v", err)
+		}
+
+		claim, err := manager.ClaimNextRun(context.Background(), ClaimCriteria{
+			RunID:            run.ID,
+			Scope:            ScopeGlobal,
+			ClaimerSessionID: "sess-claim-redaction",
+			LeaseDuration:    time.Minute,
+			Now:              time.Date(2026, 5, 16, 15, 0, 0, 0, time.UTC),
+		}, agent)
+		if err != nil {
+			t.Fatalf("ClaimNextRun() error = %v", err)
+		}
+		if claim.Task == nil {
+			t.Fatal("ClaimNextRun().Task = nil, want reconciled task")
+		}
+		if raw := string(claim.Task.Metadata); strings.Contains(raw, `"claim_token":`) ||
+			strings.Contains(raw, "task-raw") || strings.Contains(raw, "nested-raw") {
+			t.Fatalf("ClaimNextRun().Task.Metadata leaked raw claim token material: %s", raw)
+		}
+		if !strings.Contains(string(claim.Task.Metadata), `"workflow_id":"wf-safe"`) {
+			t.Fatalf("ClaimNextRun().Task.Metadata = %s, want safe metadata preserved", claim.Task.Metadata)
+		}
+
+		hookPayload, err := json.Marshal(observedHook)
+		if err != nil {
+			t.Fatalf("json.Marshal(post-claim hook) error = %v", err)
+		}
+		if strings.Contains(string(hookPayload), "task-raw") || strings.Contains(string(hookPayload), "nested-raw") {
+			t.Fatalf("post-claim hook leaked raw claim token material: %s", hookPayload)
+		}
+		if got, want := observedHook.WorkflowID, "wf-safe"; got != want {
+			t.Fatalf("post-claim hook WorkflowID = %q, want %q", got, want)
+		}
+
+		events, err := store.ListTaskEvents(context.Background(), EventQuery{
+			TaskID: taskRecord.ID,
+			RunID:  run.ID,
+		})
+		if err != nil {
+			t.Fatalf("ListTaskEvents() error = %v", err)
+		}
+		foundClaimEvent := false
+		for _, event := range events {
+			if event.EventType != taskEventRunClaimed {
+				continue
+			}
+			foundClaimEvent = true
+			if strings.Contains(string(event.Payload), "task-raw") ||
+				strings.Contains(string(event.Payload), "nested-raw") ||
+				strings.Contains(string(event.Payload), `"claim_token":`) {
+				t.Fatalf("task.run_claimed event leaked raw claim token material: %s", event.Payload)
+			}
+		}
+		if !foundClaimEvent {
+			t.Fatalf("task events = %#v, want %q", events, taskEventRunClaimed)
+		}
+		persisted, err := store.GetTask(context.Background(), taskRecord.ID)
+		if err != nil {
+			t.Fatalf("GetTask() error = %v", err)
+		}
+		if !strings.Contains(string(persisted.Metadata), `"claim_token":"task-raw"`) {
+			t.Fatalf("persisted Task.Metadata = %s, want durable metadata unchanged", persisted.Metadata)
 		}
 	})
 
@@ -613,7 +787,7 @@ func TestManagerClaimNextRunAndLeaseFencing(t *testing.T) {
 func TestManagerClaimedRunNetworkBindingLifecycle(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should restore the claimant network when release fails after the lease mutation", func(t *testing.T) {
+	t.Run("Should preserve the claimant lease and network when release settlement fails", func(t *testing.T) {
 		t.Parallel()
 		base := newInMemoryManagerStore()
 		sentinel := errors.New("record release event")
@@ -654,18 +828,75 @@ func TestManagerClaimedRunNetworkBindingLifecycle(t *testing.T) {
 		if !errors.Is(err, sentinel) {
 			t.Fatalf("ReleaseRunLease() error = %v, want identity %v", err, sentinel)
 		}
+		persisted, err := base.GetTaskRun(context.Background(), run.ID)
+		if err != nil {
+			t.Fatalf("GetTaskRun() error = %v", err)
+		}
+		if persisted.Status != claim.Run.Status ||
+			persisted.SessionID != claim.Run.SessionID ||
+			persisted.ClaimTokenHash != claim.Run.ClaimTokenHash ||
+			!persisted.LeaseUntil.Equal(claim.Run.LeaseUntil) {
+			t.Fatalf("persisted run = %#v, want original claimed lease %#v", persisted, claim.Run)
+		}
+		if got := base.claimTokens[run.ID]; got != claim.ClaimToken {
+			t.Fatalf("persisted raw claim token = %q, want original token", got)
+		}
 		_, restores := executor.snapshots()
-		if !slices.Equal(restores, []string{"sess-network-worker"}) {
-			t.Fatalf("network restores = %v, want claimant session", restores)
+		if len(restores) != 0 {
+			t.Fatalf("network restores = %v, want none while lease remains active", restores)
 		}
 	})
 
-	t.Run("Should restore the claimant network when force release event recording fails", func(t *testing.T) {
+	t.Run("Should preserve the claimant lease and network when failure settlement fails", func(t *testing.T) {
+		t.Parallel()
+
+		base := newInMemoryManagerStore()
+		sentinel := errors.New("record failure event")
+		store := &failingTaskEventStore{Store: base, err: sentinel}
+		manager, executor, run, agent := newClaimedRunNetworkBindingTestWithStore(t, store)
+		claim := claimNetworkBindingRun(
+			t,
+			manager,
+			run,
+			agent,
+			time.Date(2026, 7, 31, 13, 7, 0, 0, time.UTC),
+		)
+		store.fail = true
+
+		_, err := manager.FailRunLease(context.Background(), LeaseFailure{
+			RunID:      run.ID,
+			ClaimToken: claim.ClaimToken,
+			Failure:    RunFailure{Error: "worker failed"},
+			Now:        time.Date(2026, 7, 31, 13, 7, 30, 0, time.UTC),
+		}, agent)
+		if !errors.Is(err, sentinel) {
+			t.Fatalf("FailRunLease() error = %v, want identity %v", err, sentinel)
+		}
+		persisted, err := base.GetTaskRun(context.Background(), run.ID)
+		if err != nil {
+			t.Fatalf("GetTaskRun() error = %v", err)
+		}
+		if persisted.Status != claim.Run.Status ||
+			persisted.SessionID != claim.Run.SessionID ||
+			persisted.ClaimTokenHash != claim.Run.ClaimTokenHash ||
+			!persisted.LeaseUntil.Equal(claim.Run.LeaseUntil) {
+			t.Fatalf("persisted run = %#v, want original claimed lease %#v", persisted, claim.Run)
+		}
+		if got := base.claimTokens[run.ID]; got != claim.ClaimToken {
+			t.Fatalf("persisted raw claim token = %q, want original token", got)
+		}
+		_, restores := executor.snapshots()
+		if len(restores) != 0 {
+			t.Fatalf("network restores = %v, want none while lease remains active", restores)
+		}
+	})
+
+	t.Run("Should preserve claimant lease and network when force release event recording fails", func(t *testing.T) {
 		t.Parallel()
 		sentinel := errors.New("record force release event")
 		store := &failingTaskEventStore{Store: newInMemoryManagerStore(), err: sentinel}
 		manager, executor, run, agent := newClaimedRunNetworkBindingTestWithStore(t, store)
-		claimNetworkBindingRun(t, manager, run, agent, time.Date(2026, 7, 31, 13, 10, 0, 0, time.UTC))
+		claim := claimNetworkBindingRun(t, manager, run, agent, time.Date(2026, 7, 31, 13, 10, 0, 0, time.UTC))
 		store.fail = true
 
 		_, err := manager.ForceReleaseRun(context.Background(), run.ID, ForceReleaseRun{
@@ -674,18 +905,26 @@ func TestManagerClaimedRunNetworkBindingLifecycle(t *testing.T) {
 		if !errors.Is(err, sentinel) {
 			t.Fatalf("ForceReleaseRun() error = %v, want identity %v", err, sentinel)
 		}
+		persisted, getErr := store.GetTaskRun(context.Background(), run.ID)
+		if getErr != nil {
+			t.Fatalf("GetTaskRun() error = %v", getErr)
+		}
+		if persisted.Status != claim.Run.Status || persisted.SessionID != claim.Run.SessionID ||
+			persisted.ClaimTokenHash != claim.Run.ClaimTokenHash || !persisted.LeaseUntil.Equal(claim.Run.LeaseUntil) {
+			t.Fatalf("persisted run = %#v, want original claimed lease %#v", persisted, claim.Run)
+		}
 		_, restores := executor.snapshots()
-		if !slices.Equal(restores, []string{"sess-network-worker"}) {
-			t.Fatalf("network restores = %v, want claimant session", restores)
+		if len(restores) != 0 {
+			t.Fatalf("network restores = %v, want none while force release rolls back", restores)
 		}
 	})
 
-	t.Run("Should restore the claimant network when force fail event recording fails", func(t *testing.T) {
+	t.Run("Should preserve claimant lease and network when force fail event recording fails", func(t *testing.T) {
 		t.Parallel()
 		sentinel := errors.New("record force fail event")
 		store := &failingTaskEventStore{Store: newInMemoryManagerStore(), err: sentinel}
 		manager, executor, run, agent := newClaimedRunNetworkBindingTestWithStore(t, store)
-		claimNetworkBindingRun(t, manager, run, agent, time.Date(2026, 7, 31, 13, 20, 0, 0, time.UTC))
+		claim := claimNetworkBindingRun(t, manager, run, agent, time.Date(2026, 7, 31, 13, 20, 0, 0, time.UTC))
 		store.fail = true
 
 		_, err := manager.ForceFailRun(context.Background(), run.ID, ForceFailRun{
@@ -694,31 +933,135 @@ func TestManagerClaimedRunNetworkBindingLifecycle(t *testing.T) {
 		if !errors.Is(err, sentinel) {
 			t.Fatalf("ForceFailRun() error = %v, want identity %v", err, sentinel)
 		}
+		persisted, getErr := store.GetTaskRun(context.Background(), run.ID)
+		if getErr != nil {
+			t.Fatalf("GetTaskRun() error = %v", getErr)
+		}
+		if persisted.Status != claim.Run.Status || persisted.SessionID != claim.Run.SessionID ||
+			persisted.ClaimTokenHash != claim.Run.ClaimTokenHash || !persisted.LeaseUntil.Equal(claim.Run.LeaseUntil) {
+			t.Fatalf("persisted run = %#v, want original claimed lease %#v", persisted, claim.Run)
+		}
 		_, restores := executor.snapshots()
-		if !slices.Equal(restores, []string{"sess-network-worker"}) {
-			t.Fatalf("network restores = %v, want claimant session", restores)
+		if len(restores) != 0 {
+			t.Fatalf("network restores = %v, want none while force failure rolls back", restores)
 		}
 	})
 
-	t.Run("Should restore the claimant network when session release event recording fails", func(t *testing.T) {
+	t.Run("Should preserve attention source and network when recovery event recording fails", func(t *testing.T) {
+		t.Parallel()
+		sentinel := errors.New("record recovery event")
+		store := &failingTaskEventStore{Store: newInMemoryManagerStore(), err: sentinel}
+		manager, executor, run, agent := newClaimedRunNetworkBindingTestWithStore(t, store)
+		claim := claimNetworkBindingRun(
+			t,
+			manager,
+			run,
+			agent,
+			time.Date(2026, 7, 31, 13, 25, 0, 0, time.UTC),
+		)
+		operator := validActorContext()
+		attention, err := manager.MarkRunNeedsAttention(
+			context.Background(),
+			run.ID,
+			"operator review",
+			operator,
+		)
+		if err != nil {
+			t.Fatalf("MarkRunNeedsAttention() error = %v", err)
+		}
+		store.fail = true
+
+		_, err = manager.RecoverRun(
+			context.Background(),
+			run.ID,
+			RecoverRunRequest{Reason: "resume work"},
+			operator,
+		)
+		if !errors.Is(err, sentinel) {
+			t.Fatalf("RecoverRun() error = %v, want identity %v", err, sentinel)
+		}
+		persisted, getErr := store.GetTaskRun(context.Background(), run.ID)
+		if getErr != nil {
+			t.Fatalf("GetTaskRun() error = %v", getErr)
+		}
+		if persisted.Status != TaskRunStatusNeedsAttention ||
+			persisted.SessionID != claim.Run.SessionID ||
+			persisted.ClaimTokenHash != claim.Run.ClaimTokenHash ||
+			!persisted.LeaseUntil.Equal(claim.Run.LeaseUntil) ||
+			!NewRunMutationFence(attention).Matches(persisted) {
+			t.Fatalf("persisted run = %#v, want unchanged attention source %#v", persisted, attention)
+		}
+		_, restores := executor.snapshots()
+		if len(restores) != 0 {
+			t.Fatalf("network restores = %v, want none while recovery rolls back", restores)
+		}
+	})
+
+	t.Run("Should restore attention source network exactly once after recovery commits", func(t *testing.T) {
+		t.Parallel()
+		manager, executor, run, agent := newClaimedRunNetworkBindingTest(t)
+		claimNetworkBindingRun(
+			t,
+			manager,
+			run,
+			agent,
+			time.Date(2026, 7, 31, 13, 27, 0, 0, time.UTC),
+		)
+		operator := validActorContext()
+		if _, err := manager.MarkRunNeedsAttention(
+			context.Background(),
+			run.ID,
+			"operator review",
+			operator,
+		); err != nil {
+			t.Fatalf("MarkRunNeedsAttention() error = %v", err)
+		}
+
+		if _, err := manager.RecoverRun(
+			context.Background(),
+			run.ID,
+			RecoverRunRequest{Reason: "resume work"},
+			operator,
+		); err != nil {
+			t.Fatalf("RecoverRun() error = %v", err)
+		}
+		_, restores := executor.snapshots()
+		if got, want := restores, []string{"sess-network-worker"}; !slices.Equal(got, want) {
+			t.Fatalf("network restores = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("Should not restore the claimant network when session release rolls back", func(t *testing.T) {
 		t.Parallel()
 		sentinel := errors.New("record session release event")
 		store := &failingTaskEventStore{Store: newInMemoryManagerStore(), err: sentinel}
 		manager, executor, run, agent := newClaimedRunNetworkBindingTestWithStore(t, store)
-		claimNetworkBindingRun(t, manager, run, agent, time.Date(2026, 7, 31, 13, 30, 0, 0, time.UTC))
+		claim := claimNetworkBindingRun(t, manager, run, agent, time.Date(2026, 7, 31, 13, 30, 0, 0, time.UTC))
 		store.fail = true
+		daemon, err := DeriveDaemonActorContext("session-cleanup", "session-cleanup")
+		if err != nil {
+			t.Fatalf("DeriveDaemonActorContext() error = %v", err)
+		}
 
-		_, err := manager.ReleaseSessionRunLeases(context.Background(), SessionLeaseRelease{
+		_, err = manager.ReleaseSessionRunLeases(context.Background(), SessionLeaseRelease{
 			SessionID: "sess-network-worker",
 			Reason:    "session teardown",
 			Now:       time.Date(2026, 7, 31, 13, 30, 30, 0, time.UTC),
-		}, validActorContext())
+		}, daemon)
 		if !errors.Is(err, sentinel) {
 			t.Fatalf("ReleaseSessionRunLeases() error = %v, want identity %v", err, sentinel)
 		}
 		_, restores := executor.snapshots()
-		if !slices.Equal(restores, []string{"sess-network-worker"}) {
-			t.Fatalf("network restores = %v, want claimant session", restores)
+		if len(restores) != 0 {
+			t.Fatalf("network restores = %v, want none after rollback", restores)
+		}
+		persisted, getErr := store.GetTaskRun(context.Background(), run.ID)
+		if getErr != nil {
+			t.Fatalf("GetTaskRun() error = %v", getErr)
+		}
+		if persisted.Status != TaskRunStatusClaimed || persisted.SessionID != claim.Run.SessionID ||
+			persisted.ClaimTokenHash != claim.Run.ClaimTokenHash || !persisted.LeaseUntil.Equal(claim.Run.LeaseUntil) {
+			t.Fatalf("persisted run = %#v, want unchanged claimed lease %#v", persisted, claim.Run)
 		}
 	})
 
@@ -872,6 +1215,50 @@ type failingTaskEventStore struct {
 	err  error
 }
 
+type failingLeaseSettlementMutationStore struct {
+	LeaseSettlementMutationStore
+	owner *failingTaskEventStore
+}
+
+type failingTaskMutationStore struct {
+	runMutationStore
+	owner *failingTaskEventStore
+}
+
+func (s *failingTaskEventStore) WithLeaseSettlementTransaction(
+	ctx context.Context,
+	action string,
+	fn func(LeaseSettlementMutationStore) error,
+) error {
+	return s.Store.WithLeaseSettlementTransaction(ctx, action, func(store LeaseSettlementMutationStore) error {
+		return fn(&failingLeaseSettlementMutationStore{
+			LeaseSettlementMutationStore: store,
+			owner:                        s,
+		})
+	})
+}
+
+func (s *failingTaskEventStore) WithTaskMutationTransaction(
+	ctx context.Context,
+	action string,
+	mutation RunMutation,
+) error {
+	return s.Store.WithTaskMutationTransaction(ctx, action, func(store runMutationStore) error {
+		return mutation(&failingTaskMutationStore{runMutationStore: store, owner: s})
+	})
+}
+
+func (s *failingLeaseSettlementMutationStore) CreateTaskEvent(
+	ctx context.Context,
+	event Event,
+) error {
+	return s.owner.CreateTaskEvent(ctx, event)
+}
+
+func (s *failingTaskMutationStore) CreateTaskEvent(ctx context.Context, event Event) error {
+	return s.owner.CreateTaskEvent(ctx, event)
+}
+
 func (s *failingTaskEventStore) CreateTaskEvent(ctx context.Context, event Event) error {
 	if s.fail {
 		return s.err
@@ -1000,6 +1387,99 @@ func TestManagerCompleteRunLeaseHallucinationGate(t *testing.T) {
 
 	claimNow := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
 
+	t.Run("Should reserve the advisory event ID before completing the lease", func(t *testing.T) {
+		t.Parallel()
+
+		store := newInMemoryManagerStore()
+		manager := newTaskManagerForTest(t, store)
+		_, claim, agent := setupCompletionLeaseForTest(
+			t,
+			manager,
+			ScopeGlobal,
+			"",
+			"sess-advisory-entropy",
+			claimNow,
+		)
+		before := cloneTaskRun(store.runs[claim.Run.ID])
+		eventsBefore := len(store.events)
+		entropyErr := errors.New("completion advisory identity unavailable")
+		manager.newID = func(string) (string, error) { return "", entropyErr }
+
+		completed, err := manager.CompleteRunLease(context.Background(), LeaseCompletion{
+			RunID:      claim.Run.ID,
+			ClaimToken: claim.ClaimToken,
+			Result:     RunResult{Value: json.RawMessage(`{"summary":"done"}`)},
+			Now:        claimNow.Add(30 * time.Second),
+		}, agent)
+		if !errors.Is(err, entropyErr) {
+			t.Fatalf("CompleteRunLease() error = %v, want errors.Is(entropyErr)", err)
+		}
+		if completed != nil {
+			t.Fatalf("CompleteRunLease() = %#v, want nil", completed)
+		}
+		assertRunLeaseUnchangedAfterBlockedCompletion(t, store.runs[claim.Run.ID], before)
+		if got := len(store.events); got != eventsBefore {
+			t.Fatalf("event count after entropy failure = %d, want %d", got, eventsBefore)
+		}
+	})
+
+	t.Run("Should reject unsafe created task id collections before touching the lease", func(t *testing.T) {
+		t.Parallel()
+
+		tooManyTaskIDs := make([]string, MaxAuditCollectionItems+1)
+		for idx := range tooManyTaskIDs {
+			tooManyTaskIDs[idx] = "task-created-" + strconv.Itoa(idx)
+		}
+		tests := []struct {
+			name           string
+			createdTaskIDs []string
+			wantErr        error
+		}{
+			{
+				name:           "Should reject more task ids than an audit event may carry",
+				createdTaskIDs: tooManyTaskIDs,
+				wantErr:        ErrPayloadTooLarge,
+			},
+			{
+				name:           "Should reject an oversized task id",
+				createdTaskIDs: []string{"task-" + strings.Repeat("a", MaxReferenceBytes)},
+				wantErr:        ErrValidation,
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				store := newInMemoryManagerStore()
+				manager := newTaskManagerForTest(t, store)
+				_, claim, agent := setupCompletionLeaseForTest(
+					t,
+					manager,
+					ScopeGlobal,
+					"",
+					"sess-invalid-collection",
+					claimNow,
+				)
+				before := cloneTaskRun(store.runs[claim.Run.ID])
+
+				_, err := manager.CompleteRunLease(context.Background(), LeaseCompletion{
+					RunID:          claim.Run.ID,
+					ClaimToken:     claim.ClaimToken,
+					Result:         RunResult{Value: json.RawMessage(`{"summary":"invalid collection"}`)},
+					CreatedTaskIDs: tt.createdTaskIDs,
+					Now:            claimNow.Add(30 * time.Second),
+				}, agent)
+				if !errors.Is(err, tt.wantErr) {
+					t.Fatalf("CompleteRunLease() error = %v, want %v", err, tt.wantErr)
+				}
+				assertRunLeaseUnchangedAfterBlockedCompletion(t, store.runs[claim.Run.ID], before)
+				if got := countTaskEventsByType(store.events, taskEventCompletionHallucinationBlocked); got != 0 {
+					t.Fatalf("hallucination_blocked event count = %d, want 0", got)
+				}
+			})
+		}
+	})
+
 	t.Run("Should reject phantom created task ids and preserve the active lease", func(t *testing.T) {
 		t.Parallel()
 
@@ -1027,8 +1507,8 @@ func TestManagerCompleteRunLeaseHallucinationGate(t *testing.T) {
 			t.Fatalf("CompleteRunLease() error = %v, want %v", err, ErrHallucinatedTaskRefs)
 		}
 
-		var typed *HallucinatedTaskRefsError
-		if !errors.As(err, &typed) {
+		typed, typedMatched := errors.AsType[*HallucinatedTaskRefsError](err)
+		if !typedMatched {
 			t.Fatalf("CompleteRunLease() error type = %T, want *HallucinatedTaskRefsError", err)
 		}
 		if got, want := typed.InvalidTaskIDs, []string{"task-phantom-0001"}; len(got) != len(want) ||
@@ -1226,6 +1706,109 @@ func TestManagerCompleteRunLeaseHallucinationGate(t *testing.T) {
 		}
 		if got := countTaskEventsByType(store.events, taskWatchEventRunCompleted); got != 1 {
 			t.Fatalf("task.run.completed event count = %d, want 1", got)
+		}
+	})
+
+	t.Run("Should bound suspected task ids before lookups and audit publication", func(t *testing.T) {
+		t.Parallel()
+
+		store := newInMemoryManagerStore()
+		manager := newTaskManagerForTest(t, store)
+		_, claim, agent := setupCompletionLeaseForTest(
+			t,
+			manager,
+			ScopeGlobal,
+			"",
+			"sess-bounded-advisory",
+			claimNow,
+		)
+		references := make([]string, MaxAuditCollectionItems+1)
+		for idx := range references {
+			references[idx] = "task-phantom-" + strconv.Itoa(idx)
+		}
+		result, err := json.Marshal(map[string]any{"references": references})
+		if err != nil {
+			t.Fatalf("json.Marshal(result) error = %v", err)
+		}
+
+		completed, err := manager.CompleteRunLease(context.Background(), LeaseCompletion{
+			RunID:      claim.Run.ID,
+			ClaimToken: claim.ClaimToken,
+			Result:     RunResult{Value: result},
+			Now:        claimNow.Add(30 * time.Second),
+		}, agent)
+		if err != nil {
+			t.Fatalf("CompleteRunLease() error = %v", err)
+		}
+		events, eventErr := store.ListTaskEvents(context.Background(), EventQuery{
+			TaskID:    completed.TaskID,
+			RunID:     completed.ID,
+			EventType: taskEventCompletionHallucinationSuspected,
+		})
+		if eventErr != nil {
+			t.Fatalf("ListTaskEvents(hallucination_suspected) error = %v", eventErr)
+		}
+		if got, want := len(events), 1; got != want {
+			t.Fatalf("hallucination_suspected event count = %d, want %d", got, want)
+		}
+		payload := decodeCompletionHallucinationSuspectedPayload(t, events[0].Payload)
+		if got, want := len(payload.SuspectedTaskIDs), MaxAuditCollectionItems; got != want {
+			t.Fatalf("suspected task id count = %d, want %d", got, want)
+		}
+		if slices.Contains(payload.SuspectedTaskIDs, references[MaxAuditCollectionItems]) {
+			t.Fatalf("suspected task ids include item beyond audit bound: %#v", payload.SuspectedTaskIDs)
+		}
+	})
+
+	t.Run("Should preserve distinct suspected task ids after repeated mentions", func(t *testing.T) {
+		t.Parallel()
+
+		store := newInMemoryManagerStore()
+		manager := newTaskManagerForTest(t, store)
+		_, claim, agent := setupCompletionLeaseForTest(
+			t,
+			manager,
+			ScopeGlobal,
+			"",
+			"sess-distinct-advisory",
+			claimNow,
+		)
+		const repeatedTaskID = "task-phantom-repeated"
+		const distinctTaskID = "task-phantom-distinct"
+		references := make([]string, MaxAuditCollectionItems+1)
+		for idx := range MaxAuditCollectionItems {
+			references[idx] = repeatedTaskID
+		}
+		references[MaxAuditCollectionItems] = distinctTaskID
+		result, err := json.Marshal(map[string]any{"references": references})
+		if err != nil {
+			t.Fatalf("json.Marshal(result) error = %v", err)
+		}
+
+		completed, err := manager.CompleteRunLease(context.Background(), LeaseCompletion{
+			RunID:      claim.Run.ID,
+			ClaimToken: claim.ClaimToken,
+			Result:     RunResult{Value: result},
+			Now:        claimNow.Add(30 * time.Second),
+		}, agent)
+		if err != nil {
+			t.Fatalf("CompleteRunLease() error = %v", err)
+		}
+		events, eventErr := store.ListTaskEvents(context.Background(), EventQuery{
+			TaskID:    completed.TaskID,
+			RunID:     completed.ID,
+			EventType: taskEventCompletionHallucinationSuspected,
+		})
+		if eventErr != nil {
+			t.Fatalf("ListTaskEvents(hallucination_suspected) error = %v", eventErr)
+		}
+		if got, want := len(events), 1; got != want {
+			t.Fatalf("hallucination_suspected event count = %d, want %d", got, want)
+		}
+		payload := decodeCompletionHallucinationSuspectedPayload(t, events[0].Payload)
+		if !slices.Contains(payload.SuspectedTaskIDs, repeatedTaskID) ||
+			!slices.Contains(payload.SuspectedTaskIDs, distinctTaskID) {
+			t.Fatalf("suspected task ids = %#v, want both distinct ids", payload.SuspectedTaskIDs)
 		}
 	})
 }
@@ -1479,11 +2062,11 @@ func TestManagerBlockTaskAndReleaseRunSerializesDuplicateActiveCallers(t *testin
 	store := &lockedLeaseTestStore{inMemoryManagerStore: baseStore}
 	var idMu sync.Mutex
 	nextID := 0
-	manager := newTaskManagerForTestWithOptions(t, store, WithIDGenerator(func(prefix string) string {
+	manager := newTaskManagerForTestWithOptions(t, store, WithIDGenerator(func(prefix string) (string, error) {
 		idMu.Lock()
 		defer idMu.Unlock()
 		nextID++
-		return prefix + "-race-" + strconv.Itoa(nextID)
+		return prefix + "-race-" + strconv.Itoa(nextID), nil
 	}))
 	operator := validActorContext()
 	agent := agentActorContextForTest("sess-race", "ws-race")
@@ -1801,6 +2384,18 @@ type approvalAliasFailureStore struct {
 	failKey string
 }
 
+func (s *approvalAliasFailureStore) WithTaskExecutionTransaction(
+	_ context.Context,
+	fn func(ExecutionMutationStore) error,
+) error {
+	snapshot := s.snapshot()
+	if err := fn(s); err != nil {
+		s.restore(snapshot)
+		return err
+	}
+	return nil
+}
+
 func (s *approvalAliasFailureStore) SaveTaskRunIdempotency(
 	ctx context.Context,
 	record RunIdempotency,
@@ -2009,92 +2604,117 @@ func TestManagerClaimNextRunRequiresWriteAuthority(t *testing.T) {
 func TestManagerReleaseSessionRunLeasesRequeuesActiveRunsStructurally(t *testing.T) {
 	t.Parallel()
 
-	store := newInMemoryManagerStore()
-	manager := newTaskManagerForTest(t, store)
-	operator := validActorContext()
-	agent := agentActorContextForTest("sess-child", "ws-child")
+	t.Run("Should requeue active runs structurally for daemon cleanup", func(t *testing.T) {
+		t.Parallel()
 
-	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-		Scope: ScopeGlobal,
-		Title: "Structurally released task",
-	}, operator)
-	if err != nil {
-		t.Fatalf("CreateTask() error = %v", err)
-	}
-	run, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, operator)
-	if err != nil {
-		t.Fatalf("EnqueueRun() error = %v", err)
-	}
+		store := newInMemoryManagerStore()
+		manager := newTaskManagerForTest(t, store)
+		operator := validActorContext()
+		daemon, err := DeriveDaemonActorContext("session-cleanup", "session-cleanup")
+		if err != nil {
+			t.Fatalf("DeriveDaemonActorContext() error = %v", err)
+		}
+		agent := agentActorContextForTest("sess-child", "ws-child")
 
-	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
-	claim, err := manager.ClaimNextRun(context.Background(), ClaimCriteria{
-		Scope:            ScopeGlobal,
-		ClaimerSessionID: "sess-child",
-		LeaseDuration:    time.Minute,
-		Now:              now,
-	}, agent)
-	if err != nil {
-		t.Fatalf("ClaimNextRun() error = %v", err)
-	}
-	if claim.Run.ID != run.ID || claim.Run.ClaimTokenHash == "" {
-		t.Fatalf("claim = %#v, want active lease for %q", claim, run.ID)
-	}
+		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+			Scope: ScopeGlobal,
+			Title: "Structurally released task",
+		}, operator)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, operator)
+		if err != nil {
+			t.Fatalf("EnqueueRun() error = %v", err)
+		}
 
-	results, err := manager.ReleaseSessionRunLeases(context.Background(), SessionLeaseRelease{
-		SessionID: "sess-child",
-		Reason:    "ttl_expired",
-		Now:       now.Add(30 * time.Second),
-	}, operator)
-	if err != nil {
-		t.Fatalf("ReleaseSessionRunLeases() error = %v", err)
-	}
-	if len(results) != 1 {
-		t.Fatalf("len(results) = %d, want 1", len(results))
-	}
-	result := results[0]
-	if result.PreviousRunStatus != TaskRunStatusClaimed ||
-		result.PreviousSessionID != "sess-child" ||
-		result.PreviousClaimTokenHash == "" ||
-		result.Reason != "ttl_expired" {
-		t.Fatalf("release result = %#v, want previous active lease metadata", result)
-	}
-	persisted, err := store.GetTaskRun(context.Background(), run.ID)
-	if err != nil {
-		t.Fatalf("GetTaskRun() error = %v", err)
-	}
-	if persisted.Status != TaskRunStatusQueued ||
-		persisted.SessionID != "" ||
-		persisted.ClaimedBy != nil ||
-		persisted.ClaimTokenHash != "" ||
-		!persisted.LeaseUntil.IsZero() ||
-		!persisted.HeartbeatAt.IsZero() {
-		t.Fatalf("persisted run after structural release = %#v, want queued and unleased", persisted)
-	}
-	if _, err := manager.HeartbeatRunLease(context.Background(), LeaseHeartbeat{
-		RunID:         run.ID,
-		ClaimToken:    claim.ClaimToken,
-		LeaseDuration: time.Minute,
-		Now:           now.Add(40 * time.Second),
-	}, agent); !errors.Is(err, ErrInvalidClaimToken) {
-		t.Fatalf("HeartbeatRunLease(after structural release) error = %v, want %v", err, ErrInvalidClaimToken)
-	}
+		now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
+		claim, err := manager.ClaimNextRun(context.Background(), ClaimCriteria{
+			Scope:            ScopeGlobal,
+			ClaimerSessionID: "sess-child",
+			LeaseDuration:    time.Minute,
+			Now:              now,
+		}, agent)
+		if err != nil {
+			t.Fatalf("ClaimNextRun() error = %v", err)
+		}
+		if claim.Run.ID != run.ID || claim.Run.ClaimTokenHash == "" {
+			t.Fatalf("claim = %#v, want active lease for %q", claim, run.ID)
+		}
+		if _, releaseErr := manager.ReleaseSessionRunLeases(context.Background(), SessionLeaseRelease{
+			SessionID: "sess-child",
+			Reason:    "ttl_expired",
+			Now:       now.Add(30 * time.Second),
+		}, operator); !errors.Is(releaseErr, ErrPermissionDenied) {
+			t.Fatalf("ReleaseSessionRunLeases(human operator) error = %v, want %v", releaseErr, ErrPermissionDenied)
+		}
 
-	events, err := store.ListTaskEvents(context.Background(), EventQuery{
-		TaskID:    taskRecord.ID,
-		RunID:     run.ID,
-		EventType: taskEventRunReleased,
+		results, err := manager.ReleaseSessionRunLeases(context.Background(), SessionLeaseRelease{
+			SessionID: "sess-child",
+			Reason:    "ttl_expired",
+			Now:       now.Add(30 * time.Second),
+		}, daemon)
+		if err != nil {
+			t.Fatalf("ReleaseSessionRunLeases() error = %v", err)
+		}
+		if len(results) != 1 {
+			t.Fatalf("len(results) = %d, want 1", len(results))
+		}
+		result := results[0]
+		if result.PreviousRunStatus != TaskRunStatusClaimed ||
+			result.PreviousSessionID != "sess-child" ||
+			result.PreviousClaimTokenHash == "" ||
+			result.Reason != "ttl_expired" {
+			t.Fatalf("release result = %#v, want previous active lease metadata", result)
+		}
+		persisted, err := store.GetTaskRun(context.Background(), run.ID)
+		if err != nil {
+			t.Fatalf("GetTaskRun() error = %v", err)
+		}
+		if persisted.Status != TaskRunStatusQueued ||
+			persisted.SessionID != "" ||
+			persisted.ClaimedBy != nil ||
+			persisted.ClaimTokenHash != "" ||
+			!persisted.LeaseUntil.IsZero() ||
+			!persisted.HeartbeatAt.IsZero() {
+			t.Fatalf("persisted run after structural release = %#v, want queued and unleased", persisted)
+		}
+		if _, err := manager.HeartbeatRunLease(context.Background(), LeaseHeartbeat{
+			RunID:         run.ID,
+			ClaimToken:    claim.ClaimToken,
+			LeaseDuration: time.Minute,
+			Now:           now.Add(40 * time.Second),
+		}, agent); !errors.Is(err, ErrInvalidClaimToken) {
+			t.Fatalf("HeartbeatRunLease(after structural release) error = %v, want %v", err, ErrInvalidClaimToken)
+		}
+
+		events, err := store.ListTaskEvents(context.Background(), EventQuery{
+			TaskID:    taskRecord.ID,
+			RunID:     run.ID,
+			EventType: taskEventRunReleased,
+		})
+		if err != nil {
+			t.Fatalf("ListTaskEvents(released) error = %v", err)
+		}
+		if len(events) != 1 {
+			t.Fatalf("release events = %#v, want one task.run_released event", events)
+		}
 	})
-	if err != nil {
-		t.Fatalf("ListTaskEvents(released) error = %v", err)
-	}
-	if len(events) != 1 {
-		t.Fatalf("release events = %#v, want one task.run_released event", events)
-	}
 }
 
 type lockedLeaseTestStore struct {
 	*inMemoryManagerStore
 	mu sync.Mutex
+}
+
+func (s *lockedLeaseTestStore) WithLeaseSettlementTransaction(
+	ctx context.Context,
+	action string,
+	fn func(LeaseSettlementMutationStore) error,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.inMemoryManagerStore.WithLeaseSettlementTransaction(ctx, action, fn)
 }
 
 func (s *lockedLeaseTestStore) GetTask(ctx context.Context, id string) (Task, error) {

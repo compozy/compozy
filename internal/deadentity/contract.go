@@ -12,6 +12,7 @@ import (
 const (
 	DefaultPermanentFailureThreshold = 5
 	DefaultRecoveryInterval          = time.Minute
+	DefaultTransitionEventTimeout    = 5 * time.Second
 )
 
 // FailureClass describes whether one failed attempt confirms a stable fault.
@@ -75,5 +76,12 @@ func WithPermanentFailureThreshold(threshold int) Option {
 func WithRecoveryInterval(interval time.Duration) Option {
 	return func(service *Service) {
 		service.recoveryInterval = interval
+	}
+}
+
+// WithTransitionEventTimeout bounds the detached write of one transition event.
+func WithTransitionEventTimeout(timeout time.Duration) Option {
+	return func(service *Service) {
+		service.transitionEventTimeout = timeout
 	}
 }

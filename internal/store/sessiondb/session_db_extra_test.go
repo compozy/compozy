@@ -3,7 +3,6 @@ package sessiondb
 import (
 	"context"
 	"errors"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -170,9 +169,9 @@ func TestSessionDBInternalWriteHelpers(t *testing.T) {
 		result: make(chan sessionWriteResult, 1),
 	}
 	draining := &SessionDB{
-		db:        sessionDB.db,
-		sessionID: "sess-internal",
-		writeCh:   make(chan sessionWriteRequest, 1),
+		db:      sessionDB.db,
+		owner:   sessionDB.owner,
+		writeCh: make(chan sessionWriteRequest, 1),
 		now: func() time.Time {
 			return time.Date(2026, 4, 4, 12, 0, 0, 0, time.UTC)
 		},
@@ -183,27 +182,5 @@ func TestSessionDBInternalWriteHelpers(t *testing.T) {
 	}
 	if result := <-drainReq.result; result.err != nil {
 		t.Fatalf("drainWrites() result = %v", result.err)
-	}
-}
-
-func TestOpenSessionSQLiteCreatesSchema(t *testing.T) {
-	t.Parallel()
-
-	db, err := openSessionSQLite(testutil.Context(t), filepath.Join(t.TempDir(), SessionDatabaseName))
-	if err != nil {
-		t.Fatalf("openSessionSQLite() error = %v", err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
-
-	var count int
-	if err := db.QueryRowContext(testutil.Context(t), `SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='events'`).
-		Scan(&count); err != nil {
-		t.Fatalf("QueryRowContext() error = %v", err)
-	}
-	if count != 1 {
-		t.Fatalf("events table count = %d, want 1", count)
-	}
-	if got, err := currentMaxSequence(testutil.Context(t), db); err != nil || got != 0 {
-		t.Fatalf("currentMaxSequence() = (%d, %v), want (0, nil)", got, err)
 	}
 }

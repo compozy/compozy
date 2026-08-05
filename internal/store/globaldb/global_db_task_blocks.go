@@ -123,16 +123,18 @@ func (g *TaskRepo) ExpireTaskBlocks(
 	if err != nil {
 		return taskpkg.ExpireTaskBlocksResult{}, err
 	}
-	candidates, err := g.listExpiredTaskBlockCandidates(ctx, normalized.Now)
-	if err != nil {
-		return taskpkg.ExpireTaskBlocksResult{}, err
-	}
-	blocks := make([]taskpkg.TaskBlock, 0, len(candidates))
-	for _, taskID := range uniqueTaskBlockCandidateTaskIDs(candidates) {
+	blocks := make([]taskpkg.TaskBlock, 0, len(normalized.Targets))
+	for _, taskID := range uniqueTaskBlockTargetTaskIDs(normalized.Targets) {
 		var taskBlocks []taskpkg.TaskBlock
 		if err := g.withTaskImmediateTransaction(ctx, "expire task blocks", func(exec taskSQLExecutor) error {
 			var expireErr error
-			taskBlocks, expireErr = g.expireTaskBlocksForTaskWithExecutor(ctx, exec, taskID, normalized)
+			taskBlocks, expireErr = g.expireTaskBlocksForTaskWithExecutor(
+				ctx,
+				exec,
+				taskID,
+				expiryTargetBlockIDs(normalized.Targets, taskID),
+				normalized,
+			)
 			return expireErr
 		}); err != nil {
 			return taskpkg.ExpireTaskBlocksResult{}, err
@@ -140,6 +142,31 @@ func (g *TaskRepo) ExpireTaskBlocks(
 		blocks = append(blocks, taskBlocks...)
 	}
 	return taskpkg.ExpireTaskBlocksResult{Blocks: blocks}, nil
+}
+
+// ListExpiredTaskBlockTargets returns the stable block identities eligible at the supplied cutoff.
+func (g *TaskRepo) ListExpiredTaskBlockTargets(
+	ctx context.Context,
+	now time.Time,
+) ([]taskpkg.BlockExpiryTarget, error) {
+	if err := g.checkReady(ctx, "list expired task block targets"); err != nil {
+		return nil, err
+	}
+	if now.IsZero() {
+		now = g.now()
+	}
+	candidates, err := g.listExpiredTaskBlockCandidates(ctx, now.UTC())
+	if err != nil {
+		return nil, err
+	}
+	targets := make([]taskpkg.BlockExpiryTarget, 0, len(candidates))
+	for _, candidate := range candidates {
+		targets = append(targets, taskpkg.BlockExpiryTarget{
+			TaskID:  candidate.TaskID,
+			BlockID: candidate.BlockID,
+		})
+	}
+	return targets, nil
 }
 
 // ListTaskBlocks returns task blocks for one task, open-only by default.

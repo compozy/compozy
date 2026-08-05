@@ -36,7 +36,10 @@ func (s *Service) emitTransition(ctx context.Context, entity store.DeadEntity, m
 		s.logger.Warn("deadentity: marshal transition event failed", "type", eventType, "error", err)
 		return
 	}
-	if err := s.events.WriteEventSummary(context.WithoutCancel(ctx), store.EventSummary{
+	// The durable transition already committed, so caller cancellation must not drop its event.
+	writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.transitionEventTimeout)
+	defer cancel()
+	if err := s.events.WriteEventSummary(writeCtx, store.EventSummary{
 		WorkspaceID: entity.WorkspaceID,
 		Type:        eventType,
 		Outcome:     string(events.OutcomeFor(eventType)),

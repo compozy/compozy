@@ -1300,7 +1300,7 @@ func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
 			lease := result.RevokedPromptLeases[0]
 			if lease.QueueEntryID != ticket.QueueEntryID || lease.SessionID != "session-goal-runtime" ||
 				lease.OwnerKind != "goal" || lease.LoopRunID != string(key.LoopRunID) ||
-				lease.TaskRunID != taskRunID || lease.RunGeneration != key.Generation ||
+				lease.TaskRunID != taskRunID || lease.RunGeneration != int64(key.Generation) ||
 				lease.ControlEpoch != 1 || lease.BindingEpoch != 1 || lease.PromptID != promptID ||
 				lease.PromptKind != "work" {
 				t.Fatalf("revoked prompt lease = %#v", lease)

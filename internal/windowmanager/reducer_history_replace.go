@@ -1,5 +1,7 @@
 package windowmanager
 
+import "fmt"
+
 func (r *reducer) replace(snapshot *Snapshot, command ReplaceLayoutCommand) (bool, error) {
 	document := command.Document
 	diagnostics := make([]Diagnostic, 0, 2)
@@ -7,7 +9,7 @@ func (r *reducer) replace(snapshot *Snapshot, command ReplaceLayoutCommand) (boo
 		diagnostics = append(diagnostics, Diagnostic{
 			Code:    topologyUnsupportedVersionCode,
 			Path:    "version",
-			Message: "document version must be 3",
+			Message: fmt.Sprintf("document version must be %d", SnapshotVersion),
 		})
 	}
 	if document.WorkspaceID != snapshot.WorkspaceID {

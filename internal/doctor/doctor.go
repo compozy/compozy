@@ -18,6 +18,8 @@ const (
 )
 
 // Probe executes one doctor diagnostic check.
+// Implementations should return when the context is canceled so the runner can reclaim
+// their goroutine; the per-probe deadline is enforced either way.
 type Probe interface {
 	ID() string
 	Category() string
@@ -51,12 +53,12 @@ type probeResult struct {
 }
 
 // NewRunner creates a deterministic doctor runner.
-func NewRunner(registry *Registry) (*Runner, error) {
+func NewRunner(registry *Registry) *Runner {
 	if registry == nil {
 		registry = NewRegistry()
 	}
 	probes := registry.Probes()
-	return &Runner{probes: probes}, nil
+	return &Runner{probes: probes}
 }
 
 // Run executes every selected probe and sanitizes every returned DiagnosticItem.
@@ -106,16 +108,10 @@ func (r *Runner) runProbe(ctx context.Context, probe Probe, env ProbeEnv) []cont
 	probeCtx, cancel := context.WithTimeout(ctx, env.Timeout)
 	defer cancel()
 
+	// A probe that ignores cancellation must not outlive its deadline in the caller's goroutine.
 	resultCh := make(chan probeResult, 1)
 	go func() {
-		result := probeResult{}
-		defer func() {
-			if recovered := recover(); recovered != nil {
-				result = probeResult{err: fmt.Errorf("doctor: probe panic: %v", recovered)}
-			}
-			resultCh <- result
-		}()
-		result.items, result.err = probe.Run(probeCtx, &env)
+		resultCh <- executeProbe(probeCtx, probe, &env)
 	}()
 
 	var result probeResult
@@ -143,6 +139,16 @@ func (r *Runner) runProbe(ctx context.Context, probe Probe, env ProbeEnv) []cont
 	return sanitized
 }
 
+func executeProbe(ctx context.Context, probe Probe, env *ProbeEnv) (result probeResult) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			result = probeResult{err: fmt.Errorf("doctor: probe panic: %v", recovered)}
+		}
+	}()
+	result.items, result.err = probe.Run(ctx, env)
+	return result
+}
+
 func probeErrorItem(probe Probe, err error) contract.DiagnosticItem {
 	code := contract.CodeProbeFailed
 	title := "Doctor probe failed"
@@ -150,17 +156,19 @@ func probeErrorItem(probe Probe, err error) contract.DiagnosticItem {
 		code = contract.CodeProbeTimeout
 		title = "Doctor probe timed out"
 	}
-	return diagnostics.NewItem(
-		probe.ID(),
-		code,
-		probe.Category(),
-		title,
-		err.Error(),
-		contract.SeverityError,
-		contract.FreshnessLive,
+	return diagnostics.NewItem(diagnostics.ItemSpec{
+		ID:            probe.ID(),
+		Code:          code,
+		Category:      contract.CategoryDaemon,
+		Title:         title,
+		Message:       err.Error(),
+		Severity:      contract.SeverityError,
+		DataFreshness: contract.FreshnessLive,
+	},
 		diagnostics.WithEvidence(map[string]any{
-			"probe_id": probe.ID(),
-			"error":    err,
+			"probe_id":       probe.ID(),
+			"probe_category": probe.Category(),
+			"error":          err,
 		}),
 	)
 }

@@ -35,7 +35,7 @@ func NewClient(socketPath string) (DaemonClient, error) {
 	transport := &http.Transport{
 		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 			var dialer net.Dialer
-			return dialer.DialContext(ctx, "unix", path)
+			return dialer.DialUnix(ctx, "unix", nil, &net.UnixAddr{Name: path, Net: "unix"})
 		},
 	}
 

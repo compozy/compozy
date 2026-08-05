@@ -134,6 +134,14 @@ func mapTaskDeleteConstraintError(id string, err error) error {
 	if err == nil {
 		return nil
 	}
+	err = mapTerminalRunCommandGuardError(err)
+	if errors.Is(err, taskpkg.ErrTerminalRunCommandInProgress) {
+		return fmt.Errorf(
+			"store: delete task %q: %w",
+			id,
+			err,
+		)
+	}
 
 	if isSQLiteForeignKeyConstraint(err) {
 		return fmt.Errorf(
@@ -312,5 +320,3 @@ func (g *TaskRepo) countDirectChildrenWithExecutor(
 	}
 	return int(count), nil
 }
-
-// CreateTaskRun inserts one durable task-run record.

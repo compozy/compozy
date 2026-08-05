@@ -2,6 +2,7 @@ package extensionpkg
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -172,6 +173,28 @@ func TestInstallLocalManagedRejectsUnsafeManifestName(t *testing.T) {
 	}
 }
 
+func TestCopyInstallTreeRejectsEmptyPaths(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject an empty source directory", func(t *testing.T) {
+		t.Parallel()
+
+		err := copyInstallTree(" ", filepath.Join(t.TempDir(), "target"))
+		if err == nil || !strings.Contains(err.Error(), "source directory is required") {
+			t.Fatalf("copyInstallTree(empty source) error = %v, want required source", err)
+		}
+	})
+
+	t.Run("Should reject an empty target directory", func(t *testing.T) {
+		t.Parallel()
+
+		err := copyInstallTree(t.TempDir(), " ")
+		if err == nil || !strings.Contains(err.Error(), "target directory is required") {
+			t.Fatalf("copyInstallTree(empty target) error = %v, want required target", err)
+		}
+	})
+}
+
 func TestCopyInstallTreeMaterializesSymlinkTargets(t *testing.T) {
 	t.Parallel()
 
@@ -258,6 +281,54 @@ func TestCopyInstallTreeMaterializesSymlinkTargets(t *testing.T) {
 	}
 }
 
+func TestCopyInstallTreeRetainsResolvedSymlinkAuthority(t *testing.T) {
+	t.Parallel()
+
+	sourceDir := filepath.Join(t.TempDir(), "source")
+	if err := os.MkdirAll(sourceDir, 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(source) error = %v", err)
+	}
+	safePath := filepath.Join(sourceDir, "safe.txt")
+	if err := os.WriteFile(safePath, []byte("safe"), 0o644); err != nil {
+		t.Fatalf("os.WriteFile(safe) error = %v", err)
+	}
+	outsidePath := filepath.Join(t.TempDir(), "outside.txt")
+	if err := os.WriteFile(outsidePath, []byte("outside-secret"), 0o644); err != nil {
+		t.Fatalf("os.WriteFile(outside) error = %v", err)
+	}
+	linkPath := filepath.Join(sourceDir, "link.txt")
+	if err := os.Symlink("safe.txt", linkPath); err != nil {
+		t.Skipf("os.Symlink(internal) unavailable: %v", err)
+	}
+
+	var swapErr error
+	targetDir := filepath.Join(t.TempDir(), "target")
+	err := copyInstallTreeWithHooks(sourceDir, targetDir, installCopyHooks{
+		afterSymlinkResolve: func() {
+			if err := os.Remove(linkPath); err != nil {
+				swapErr = fmt.Errorf("remove resolved symlink: %w", err)
+				return
+			}
+			if err := os.Symlink(outsidePath, linkPath); err != nil {
+				swapErr = fmt.Errorf("replace resolved symlink: %w", err)
+			}
+		},
+	})
+	if swapErr != nil {
+		t.Fatalf("symlink swap error = %v", swapErr)
+	}
+	if err != nil {
+		t.Fatalf("copyInstallTreeWithHooks() error = %v", err)
+	}
+	copied, err := os.ReadFile(filepath.Join(targetDir, "link.txt"))
+	if err != nil {
+		t.Fatalf("os.ReadFile(copied link) error = %v", err)
+	}
+	if string(copied) != "safe" {
+		t.Fatalf("copied link = %q, want originally resolved in-root bytes", copied)
+	}
+}
+
 func TestCopyInstallTreeCopiesDeclaredRuntimeNodeModulesOnly(t *testing.T) {
 	t.Parallel()
 
@@ -274,7 +345,7 @@ func TestCopyInstallTreeCopiesDeclaredRuntimeNodeModulesOnly(t *testing.T) {
 	if err := os.WriteFile(
 		filepath.Join(sourceDir, "package.json"),
 		[]byte(
-			"{\"dependencies\":{\"@compozy/extension-sdk\":\"workspace:*\"},\"devDependencies\":{\"@types/node\":\"^25.5.2\",\"typescript\":\"^6.0.2\"}}\n",
+			"{\"dependencies\":{\"@compozy/extension-sdk\":\"workspace:*\",\"@compozy/extension-utils\":\"workspace:*\"},\"devDependencies\":{\"@types/node\":\"^25.5.2\",\"typescript\":\"^6.0.2\"}}\n",
 		),
 		0o644,
 	); err != nil {
@@ -298,6 +369,17 @@ func TestCopyInstallTreeCopiesDeclaredRuntimeNodeModulesOnly(t *testing.T) {
 		0o644,
 	); err != nil {
 		t.Fatalf("os.WriteFile(runtime dist) error = %v", err)
+	}
+	runtimeUtilsDir := filepath.Join(sourceDir, "vendor", "extension-utils")
+	if err := os.MkdirAll(runtimeUtilsDir, 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(runtime utils) error = %v", err)
+	}
+	if err := os.WriteFile(
+		filepath.Join(runtimeUtilsDir, "package.json"),
+		[]byte("{\"name\":\"@compozy/extension-utils\"}\n"),
+		0o644,
+	); err != nil {
+		t.Fatalf("os.WriteFile(runtime utils package.json) error = %v", err)
 	}
 
 	typescriptDir := filepath.Join(t.TempDir(), "typescript")
@@ -325,6 +407,12 @@ func TestCopyInstallTreeCopiesDeclaredRuntimeNodeModulesOnly(t *testing.T) {
 		filepath.Join(sourceDir, "node_modules", "@compozy", "extension-sdk"),
 	); err != nil {
 		t.Skipf("os.Symlink(runtime dependency) unavailable: %v", err)
+	}
+	if err := os.Symlink(
+		runtimeUtilsDir,
+		filepath.Join(sourceDir, "node_modules", "@compozy", "extension-utils"),
+	); err != nil {
+		t.Skipf("os.Symlink(second runtime dependency) unavailable: %v", err)
 	}
 	if err := os.Symlink(typescriptDir, filepath.Join(sourceDir, "node_modules", "typescript")); err != nil {
 		t.Skipf("os.Symlink(dev dependency) unavailable: %v", err)
@@ -357,6 +445,11 @@ func TestCopyInstallTreeCopiesDeclaredRuntimeNodeModulesOnly(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(copiedRuntimeDir, "dist", "index.js")); err != nil {
 		t.Fatalf("os.Stat(copied runtime dist) error = %v", err)
+	}
+	if _, err := os.Stat(
+		filepath.Join(targetDir, "node_modules", "@compozy", "extension-utils", "package.json"),
+	); err != nil {
+		t.Fatalf("os.Stat(copied second scoped runtime package) error = %v", err)
 	}
 
 	if _, err := os.Stat(filepath.Join(targetDir, "node_modules", "typescript")); !errors.Is(err, os.ErrNotExist) {

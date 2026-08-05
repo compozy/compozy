@@ -68,19 +68,18 @@ type DoctorSummaryPayload struct {
 
 // ProviderStatusPayload reports one provider's auth readiness in the status surface.
 type ProviderStatusPayload struct {
-	Name             string     `json:"name"`
-	DisplayName      string     `json:"display_name,omitempty"`
-	Default          bool       `json:"default"`
-	Mode             string     `json:"mode,omitempty"`
-	EnvPolicy        string     `json:"env_policy,omitempty"`
-	HomePolicy       string     `json:"home_policy,omitempty"`
-	State            string     `json:"state"`
-	Code             string     `json:"code,omitempty"`
-	Message          string     `json:"message,omitempty"`
-	StatusCommand    string     `json:"status_command,omitempty"`
-	LoginCommand     string     `json:"login_command,omitempty"`
-	LastProbeAt      *time.Time `json:"last_probe_at,omitempty"`
-	SuggestedCommand string     `json:"suggested_command,omitempty"`
+	Name          string                         `json:"name"`
+	DisplayName   string                         `json:"display_name,omitempty"`
+	Default       bool                           `json:"default"`
+	Mode          string                         `json:"mode,omitempty"`
+	EnvPolicy     string                         `json:"env_policy,omitempty"`
+	HomePolicy    string                         `json:"home_policy,omitempty"`
+	State         string                         `json:"state"`
+	Code          string                         `json:"code,omitempty"`
+	Message       string                         `json:"message,omitempty"`
+	StatusCommand string                         `json:"status_command,omitempty"`
+	Login         ProviderLoginDescriptorPayload `json:"login"`
+	LastProbeAt   *time.Time                     `json:"last_probe_at,omitempty"`
 }
 
 // MCPServerStatusPayload reports configured MCP server availability.

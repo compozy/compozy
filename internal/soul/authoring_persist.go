@@ -14,6 +14,8 @@ import (
 func (s *ManagedSoulAuthoringService) persistPostWrite(
 	ctx context.Context,
 	target resolvedAuthoringTarget,
+	snapshotID string,
+	revisionID string,
 	previousDigest string,
 	action RevisionAction,
 	body string,
@@ -34,7 +36,7 @@ func (s *ManagedSoulAuthoringService) persistPostWrite(
 	}
 	now := s.now()
 	snapshot, err := SnapshotFromResolved(
-		s.newID("soul"),
+		snapshotID,
 		target.workspaceID,
 		target.agentName,
 		&resolved,
@@ -50,6 +52,7 @@ func (s *ManagedSoulAuthoringService) persistPostWrite(
 	}
 	revision, err := s.appendRevision(
 		ctx,
+		revisionID,
 		target,
 		action,
 		previousDigest,
@@ -65,8 +68,21 @@ func (s *ManagedSoulAuthoringService) persistPostWrite(
 	return MutationResult{Soul: resolved, Snapshot: snapshot, Revision: revision}, nil
 }
 
+func (s *ManagedSoulAuthoringService) newPostWriteIDs() (string, string, error) {
+	snapshotID, err := s.newID("soul")
+	if err != nil {
+		return "", "", fmt.Errorf("soul: generate snapshot id: %w", err)
+	}
+	revisionID, err := s.newID("srev")
+	if err != nil {
+		return "", "", fmt.Errorf("soul: generate revision id: %w", err)
+	}
+	return snapshotID, revisionID, nil
+}
+
 func (s *ManagedSoulAuthoringService) appendRevision(
 	ctx context.Context,
+	revisionID string,
 	target resolvedAuthoringTarget,
 	action RevisionAction,
 	previousDigest string,
@@ -81,7 +97,7 @@ func (s *ManagedSoulAuthoringService) appendRevision(
 		return Revision{}, err
 	}
 	revision := Revision{
-		ID:              s.newID("srev"),
+		ID:              revisionID,
 		WorkspaceID:     target.workspaceID,
 		AgentName:       target.agentName,
 		SourcePath:      target.sourcePath,

@@ -80,11 +80,38 @@ func (m *Manager) startVerifiedDevCandidate(
 	verified *verifiedDevGeneration,
 ) (*managedExtension, error) {
 	candidate := managedDevExtension(key, verified, m.logRingFor(key))
-	if err := m.startOne(ctx, candidate); err != nil {
+	if err := m.validateExtension(candidate); err != nil {
+		return nil, err
+	}
+	prepared, err := m.prepareExtensionStartup(ctx, candidate)
+	if err != nil {
 		m.discardDevCandidate(ctx, candidate)
 		return nil, err
 	}
+	candidate.startup = prepared
 	return candidate, nil
+}
+
+func (m *Manager) activateAndPublishDevCandidate(
+	ctx context.Context,
+	key InstanceKey,
+	candidate *managedExtension,
+) (*managedExtension, error) {
+	if candidate == nil || candidate.startup == nil {
+		return nil, errors.New("extension: prepared development candidate is required")
+	}
+	key = key.Normalize()
+	var previous *managedExtension
+	err := m.commitPreparedExtensionWithPublish(ctx, candidate, candidate.startup, func() {
+		previous = m.instanceLocked(key)
+		m.devExtensions[key] = candidate
+		candidate.deferSupervision = false
+		candidate.supervisionStopped = false
+	})
+	if err != nil {
+		return nil, err
+	}
+	return previous, nil
 }
 
 func (m *Manager) swapDevInstance(key InstanceKey, candidate *managedExtension) {
@@ -93,25 +120,19 @@ func (m *Manager) swapDevInstance(key InstanceKey, candidate *managedExtension) 
 	m.mu.Unlock()
 }
 
-func (m *Manager) startInstanceSupervisor(ext *managedExtension) {
-	if ext == nil {
-		return
-	}
-	m.mu.Lock()
-	if ext.process == nil {
-		m.mu.Unlock()
-		return
-	}
-	ext.deferSupervision = false
-	ext.supervisionStopped = false
-	generation := ext.generation
-	m.mu.Unlock()
-	m.wg.Add(1)
-	go m.superviseInstance(ext.instanceKey(), generation)
-}
-
 func (m *Manager) discardDevCandidate(ctx context.Context, candidate *managedExtension) {
 	if candidate == nil {
+		return
+	}
+	if candidate.startup != nil && candidate.startup.transaction != nil {
+		if err := candidate.startup.transaction.rollback(ctx, nil); err != nil {
+			m.logger.Warn(
+				"extension: discard dev candidate",
+				"extension", candidate.instanceKey().runtimeID(),
+				"error", err,
+			)
+		}
+		candidate.startup = nil
 		return
 	}
 	if candidate.process != nil {
@@ -123,7 +144,9 @@ func (m *Manager) discardDevCandidate(ctx context.Context, candidate *managedExt
 			)
 		}
 	}
-	runExtensionRedactionCleanups(candidate.redactionCleanups)
+	if processTerminal(candidate.process) {
+		runExtensionRedactionCleanups(candidate.redactionCleanups)
+	}
 }
 
 func (m *Manager) stopReplacedDevProcess(ctx context.Context, previous *managedExtension) {
@@ -134,63 +157,50 @@ func (m *Manager) stopReplacedDevProcess(ctx context.Context, previous *managedE
 	m.mu.Lock()
 	previous.supervisionStopped = true
 	proc := previous.process
+	capabilityGrantID := previous.capabilityGrantID
 	previous.process = nil
+	previous.capabilityGrantID = ""
 	previous.active = false
 	previous.awaitingStability = false
 	cleanups := previous.redactionCleanups
 	previous.redactionCleanups = nil
 	m.mu.Unlock()
+	if capabilityGrantID != "" {
+		m.capChecker.Unregister(capabilityGrantID)
+	}
 	if proc != nil {
 		if err := shutdownProcessWithTimeout(ctx, proc, m.defaultShutdownTimeout); err != nil {
 			m.logger.Warn("extension: stop replaced dev generation", "extension", key.runtimeID(), "error", err)
 		}
 	}
-	runExtensionRedactionCleanups(cleanups)
-}
-
-func (m *Manager) restoreInstanceAuthority(ext *managedExtension) {
-	if ext == nil || ext.manifest == nil {
-		return
-	}
-	if _, err := m.capChecker.RegisterForSession(
-		ext.instanceKey().runtimeID(),
-		ext.info.Source,
-		ext.manifest,
-		ext.maxResourceScope(),
-	); err != nil {
-		m.logger.Error(
-			"extension: restore prior generation authority",
-			"extension", ext.instanceKey().runtimeID(),
-			"error", err,
-		)
+	if processTerminal(proc) {
+		runExtensionRedactionCleanups(cleanups)
+	} else if proc != nil {
+		m.retainPendingCleanup(pendingExtensionCleanup{
+			key:               key,
+			process:           proc,
+			redactionCleanups: cleanups,
+		})
 	}
 }
 
 func (m *Manager) restartLastGood(
-	ctx context.Context,
 	key InstanceKey,
-	link *DevLink,
 	current *managedExtension,
 	activationErr error,
 ) (*Extension, error) {
-	m.stopReplacedDevProcess(ctx, current)
-	prior, verifyErr := m.resolveDevGeneration(ctx, key, link.OriginPath, link.BundleGeneration)
-	if verifyErr != nil {
-		return nil, errors.Join(activationErr, fmt.Errorf("extension: verify last-good generation: %w", verifyErr))
+	if current == nil {
+		return nil, activationErr
 	}
-	restarted, restartErr := m.startVerifiedDevCandidate(ctx, key, prior)
-	if restartErr != nil {
-		return nil, errors.Join(activationErr, fmt.Errorf("extension: restart last-good generation: %w", restartErr))
+	m.mu.Lock()
+	if m.instanceLocked(key) == current {
+		current.failureCode = extensionFailureActivationFailed
+		current.lastError = fmt.Sprintf(
+			"activation_failed; running %s: %s",
+			current.lastGoodGeneration,
+			activationErr,
+		)
 	}
-	restarted.lastGoodGeneration = prior.GenerationHash
-	restarted.failureCode = extensionFailureActivationFailed
-	restarted.lastError = fmt.Sprintf(
-		"activation_failed; running %s: %s",
-		prior.GenerationHash,
-		activationErr,
-	)
-	restarted.phase = ExtensionPhase("errored")
-	m.swapDevInstance(key, restarted)
-	m.startInstanceSupervisor(restarted)
-	return m.cloneExtension(restarted), activationErr
+	m.mu.Unlock()
+	return m.cloneExtension(current), activationErr
 }

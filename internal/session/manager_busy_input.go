@@ -43,7 +43,7 @@ func (m *Manager) SendPrompt(ctx context.Context, id string, opts SendPromptOpts
 	if preparation.request.hasPromptAdmissionIdentity() {
 		return m.submitAdmittedPromptByTarget(ctx, preparation)
 	}
-	session, err := m.lookupOrResumePromptSession(ctx, preparation.request.target)
+	session, err := m.lookupPromptRequestSession(ctx, preparation.request)
 	if err != nil {
 		return SendPromptResult{}, err
 	}
@@ -126,6 +126,7 @@ func (m *Manager) prepareSendPrompt(
 	req.idempotencyKey = strings.TrimSpace(opts.IdempotencyKey)
 	req.expectedTurnID = strings.TrimSpace(opts.ExpectedTurnID)
 	req.runtime = cloneRuntimeSelection(opts.Runtime)
+	req.resumeStopped = strings.TrimSpace(string(opts.Mode)) == ""
 	if err := req.validatePromptAdmissionIdentity(); err != nil {
 		return sendPromptPreparation{}, nil, err
 	}

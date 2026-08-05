@@ -49,7 +49,13 @@ func TestReconcileDaemonSandboxesHandlesBootEdgeCases(t *testing.T) {
 	daemon, state, provider, logs := newSandboxReconcileHarness(t)
 
 	var nilBootContext context.Context
-	daemon.reconcileDaemonSandboxes(nilBootContext, nil)
+	daemon.reconcileDaemonSandboxes(nilBootContext, state)
+	if !strings.Contains(logs.String(), "context is required") {
+		t.Fatalf("logs missing nil context warning: %s", logs.String())
+	}
+	if got := len(provider.prepareRequests); got != 0 {
+		t.Fatalf("Prepare calls after nil context = %d, want 0", got)
+	}
 
 	logs.Reset()
 	state.sandboxRegistry = nil

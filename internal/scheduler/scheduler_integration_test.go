@@ -36,9 +36,13 @@ func TestSchedulerWakeLeavesClaimToTaskServiceIntegration(t *testing.T) {
 			t.Fatal("execution.Run.NetworkSpecSnapshot().ChannelID = empty, want derived channel")
 		}
 		run := execution.Run
-		run.RequiredCapabilities = []string{"go"}
-		if err := db.UpdateTaskRun(ctx, run); err != nil {
-			t.Fatalf("UpdateTaskRun(required capabilities) error = %v", err)
+		if _, err := db.DB().ExecContext(
+			ctx,
+			`INSERT INTO task_run_required_capabilities (run_id, capability_id) VALUES (?, ?)`,
+			run.ID,
+			"go",
+		); err != nil {
+			t.Fatalf("seed required capability error = %v", err)
 		}
 		waker := &fakeWaker{}
 		scheduler := newTestScheduler(

@@ -211,8 +211,8 @@ func (e *Executor) bindSegment(ctx context.Context, segment *segmentState) error
 			}
 			return nil
 		}
-		var creationErr *loop.ActionSessionCreationError
-		if !errors.As(bindErr, &creationErr) || !creationErr.EffectKnownFalse {
+		creationErr, ok := errors.AsType[*loop.ActionSessionCreationError](bindErr)
+		if !ok || !creationErr.EffectKnownFalse {
 			return fmt.Errorf("bind Goal session: %w", bindErr)
 		}
 		retryWithFreshSession := goalFreshSessionOnFailure(segment.node) &&

@@ -12,10 +12,8 @@ const (
 	defaultRunReviewAttempt = 1
 	defaultRunReviewRound   = 1
 
-	maxRunReviewReasonBytes        = 4096
-	maxRunReviewGuidanceBytes      = 8192
-	maxRunReviewTextBytes          = MaxResultBytes
-	maxRunReviewSelectorFieldBytes = 256
+	maxRunReviewGuidanceBytes = 8192
+	maxRunReviewTextBytes     = MaxResultBytes
 )
 
 var defaultMissingWorkJSON = json.RawMessage("[]")

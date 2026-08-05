@@ -74,14 +74,15 @@ func restartRequiredDiagnostics(
 		return nil
 	}
 	return []diagnosticcontract.DiagnosticItem{
-		diagnostics.NewItem(
-			"config.apply.restart_required",
-			diagnosticcontract.CodeConfigRestartRequired,
-			diagnosticcontract.CategoryConfig,
-			"Daemon restart required",
-			"Desired config was written, but the active generation cannot advance until the daemon restarts.",
-			diagnosticcontract.SeverityWarn,
-			diagnosticcontract.FreshnessLive,
+		diagnostics.NewItem(diagnostics.ItemSpec{
+			ID:            "config.apply.restart_required",
+			Code:          diagnosticcontract.CodeConfigRestartRequired,
+			Category:      diagnosticcontract.CategoryConfig,
+			Title:         "Daemon restart required",
+			Message:       "Desired config was written, but the active generation cannot advance until the daemon restarts.",
+			Severity:      diagnosticcontract.SeverityWarn,
+			DataFreshness: diagnosticcontract.FreshnessLive,
+		},
 			diagnostics.WithSuggestedCommand("compozy daemon restart"),
 		),
 	}

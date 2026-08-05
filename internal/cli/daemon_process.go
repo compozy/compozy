@@ -2,7 +2,7 @@ package cli
 
 import (
 	"context"
-
+	"errors"
 	"fmt"
 	"os"
 
@@ -18,7 +18,7 @@ func spawnDetachedDaemonProcess(
 	executable func() (string, error),
 ) (daemonProcess, error) {
 	if ctx == nil {
-		ctx = context.Background()
+		return nil, errors.New("cli: daemon process context is required")
 	}
 	if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
 		return nil, err

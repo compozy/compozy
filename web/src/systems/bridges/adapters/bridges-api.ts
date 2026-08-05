@@ -48,16 +48,20 @@ function normalizeOptionalText(value?: string | null): string | undefined {
   return normalized === "" ? undefined : normalized;
 }
 
+function optionalOpaqueIdentity(value?: string | null): string | undefined {
+  return typeof value === "string" && value !== "" ? value : undefined;
+}
+
 function normalizeBridgeListFilter(filters: BridgeListFilter = {}): BridgeListFilter {
   return {
     scope: filters.scope,
-    workspace_id: normalizeOptionalText(filters.workspace_id),
+    workspace_id: optionalOpaqueIdentity(filters.workspace_id),
     workspace: normalizeOptionalText(filters.workspace),
     q: normalizeOptionalText(filters.q),
     platform: normalizeOptionalText(filters.platform),
     status: filters.status,
     sort: filters.sort,
-    cursor: normalizeOptionalText(filters.cursor),
+    cursor: optionalOpaqueIdentity(filters.cursor),
     limit: filters.limit,
   };
 }

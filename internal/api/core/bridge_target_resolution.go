@@ -28,7 +28,7 @@ func (h *BaseHandlers) ListBridgeTargets(c *gin.Context) {
 		return
 	}
 	result, err := bridges.ListBridgeTargets(c.Request.Context(), bridgepkg.BridgeTargetQuery{
-		BridgeID: strings.TrimSpace(c.Param("id")),
+		BridgeID: c.Param("id"),
 		Query:    strings.TrimSpace(c.Query("q")),
 		Limit:    limit,
 	})
@@ -62,13 +62,13 @@ func (h *BaseHandlers) ResolveBridgeTarget(c *gin.Context) {
 	}
 	result, err := bridges.ResolveBridgeTarget(
 		c.Request.Context(),
-		strings.TrimSpace(c.Param("id")),
+		c.Param("id"),
 		name,
 	)
 	if err != nil {
 		if errors.Is(err, bridgepkg.ErrBridgeTargetAmbiguous) {
 			diagnostic := bridgeTargetResolveDiagnostic(
-				strings.TrimSpace(c.Param("id")),
+				c.Param("id"),
 				name,
 				result,
 				contract.CodeTargetAmbiguous,
@@ -81,7 +81,7 @@ func (h *BaseHandlers) ResolveBridgeTarget(c *gin.Context) {
 		}
 		if errors.Is(err, bridgepkg.ErrBridgeTargetUnknown) {
 			diagnostic := bridgeTargetResolveDiagnostic(
-				strings.TrimSpace(c.Param("id")),
+				c.Param("id"),
 				name,
 				result,
 				contract.CodeTargetUnknown,
@@ -126,16 +126,17 @@ func bridgeTargetResolveDiagnostic(
 		title = "Bridge target is ambiguous"
 		message = fmt.Sprintf("Bridge target %q matched %d candidates", query, len(result.Candidates))
 	}
-	return diagnostics.NewItem(
-		"bridge_target_resolve:"+strings.TrimSpace(bridgeID),
-		code,
-		contract.CategoryBridge,
-		title,
-		message,
-		contract.SeverityWarn,
-		contract.FreshnessLive,
+	return diagnostics.NewItem(diagnostics.ItemSpec{
+		ID:            "bridge_target_resolve:" + bridgeID,
+		Code:          code,
+		Category:      contract.CategoryBridge,
+		Title:         title,
+		Message:       message,
+		Severity:      contract.SeverityWarn,
+		DataFreshness: contract.FreshnessLive,
+	},
 		diagnostics.WithEvidence(map[string]any{
-			"bridge_id":  strings.TrimSpace(bridgeID),
+			"bridge_id":  bridgeID,
 			"query":      strings.TrimSpace(query),
 			"step":       result.Step,
 			"candidates": len(result.Candidates),

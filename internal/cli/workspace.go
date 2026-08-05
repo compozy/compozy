@@ -163,7 +163,7 @@ func newWorkspaceInfoCommand(deps commandDeps) *cobra.Command {
 func resolveCLIWorkspaceRouteRef(
 	cmd *cobra.Command,
 	deps commandDeps,
-	client DaemonClient,
+	client workspaceLookupClient,
 	workspaceRef string,
 ) (string, error) {
 	resolution, err := resolveCommandWorkspace(

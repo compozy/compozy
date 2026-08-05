@@ -40,6 +40,9 @@ func (n *daemonMCPAuthNotifier) NotifyMCPAuth(ctx context.Context, lifecycle mcp
 	if n == nil || n.writer == nil {
 		return
 	}
+	if ctx == nil {
+		return
+	}
 	payload := mcpAuthEventPayload{
 		ServerName:  lifecycle.Target.ServerName,
 		Scope:       string(lifecycle.Target.Scope),
@@ -67,9 +70,6 @@ func (n *daemonMCPAuthNotifier) NotifyMCPAuth(ctx context.Context, lifecycle mcp
 		Content:   content,
 		Summary:   fmt.Sprintf("MCP auth %s %s", lifecycle.Action, lifecycle.Outcome),
 		Timestamp: n.timestamp(),
-	}
-	if ctx == nil {
-		ctx = context.Background()
 	}
 	writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultMCPAuthEventWriteTimeout)
 	defer cancel()

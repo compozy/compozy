@@ -7,7 +7,6 @@ import (
 	"log/slog"
 
 	"strings"
-	"sync"
 
 	"time"
 
@@ -185,6 +184,7 @@ type SessionCreator interface {
 // RunStore persists automation run state and restart-safe fire-limit inputs.
 type RunStore interface {
 	CreateRun(ctx context.Context, run Run) (Run, error)
+	ReserveRun(ctx context.Context, reservation RunReservation) (RunReservationResult, error)
 	UpdateRun(ctx context.Context, run Run) (Run, error)
 	CountRuns(ctx context.Context, query RunQuery) (int64, error)
 	ListRuns(ctx context.Context, query RunQuery) ([]Run, error)
@@ -254,8 +254,7 @@ type Dispatcher struct {
 	hooks               HookDispatcher
 	taskActors          SessionTaskActorRecorder
 
-	fireLimitMu sync.Mutex
-	gate        chan struct{}
+	gate chan struct{}
 }
 
 // NewDispatcher constructs a shared automation dispatcher.

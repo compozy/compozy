@@ -80,27 +80,35 @@ func (g *ObserveRepo) UpdateTokenStats(ctx context.Context, update store.TokenSt
 	if err := update.Validate(); err != nil {
 		return err
 	}
-	if err := g.queries.UpsertTokenStats(ctx, g.tokenStatsParams(update)); err != nil {
+	params, err := g.tokenStatsParams(update)
+	if err != nil {
+		return err
+	}
+	if err := g.queries.UpsertTokenStats(ctx, params); err != nil {
 		return fmt.Errorf("store: upsert token stats for session %q: %w", update.SessionID, err)
 	}
 	return nil
 }
 
-func (g *ObserveRepo) tokenStatsParams(update store.TokenStatsUpdate) sqlcgen.UpsertTokenStatsParams {
+func (g *ObserveRepo) tokenStatsParams(update store.TokenStatsUpdate) (sqlcgen.UpsertTokenStatsParams, error) {
 	if update.UpdatedAt.IsZero() {
 		update.UpdatedAt = g.now()
 	}
 	if update.Turns <= 0 {
 		update.Turns = 1
 	}
+	tokenStatsID, err := store.NewID("tok")
+	if err != nil {
+		return sqlcgen.UpsertTokenStatsParams{}, fmt.Errorf("store: generate token stats id: %w", err)
+	}
 	return sqlcgen.UpsertTokenStatsParams{
-		ID: store.NewID("tok"), SessionID: update.SessionID, AgentName: update.AgentName,
+		ID: tokenStatsID, SessionID: update.SessionID, AgentName: update.AgentName,
 		InputTokens: nullableObserveInt64(update.InputTokens), OutputTokens: nullableObserveInt64(update.OutputTokens),
 		TotalTokens: nullableObserveInt64(update.TotalTokens), TotalCost: nullableObserveFloat64(update.CostAmount),
 		CostCurrency: nullableObserveStringPointer(update.CostCurrency), CostStatus: update.CostStatus,
 		CostSource: update.CostSource, TurnCount: update.Turns,
 		UpdatedAt: store.FormatTimestamp(update.UpdatedAt),
-	}
+	}, nil
 }
 
 // ListTokenStats returns aggregated token usage rows.

@@ -62,7 +62,7 @@ func bridgeBaseHealthPayload(
 	instance bridgepkg.BridgeInstance,
 	health contract.BridgeHealthPayload,
 ) contract.BridgeHealthPayload {
-	instanceID := strings.TrimSpace(instance.ID)
+	instanceID := instance.ID
 	if health.BridgeInstanceID == "" {
 		health.BridgeInstanceID = instanceID
 	}
@@ -132,7 +132,7 @@ func bridgeSecretBindingsForDiagnostics(
 	if provider == nil || !bridgeProviderHasRequiredSecretSlots(*provider) {
 		return nil, nil
 	}
-	bindings, err := bridges.ListSecretBindings(ctx, strings.TrimSpace(instance.ID))
+	bindings, err := bridges.ListSecretBindings(ctx, instance.ID)
 	if err != nil {
 		return nil, fmt.Errorf("load bridge secret bindings for diagnostics: %w", err)
 	}

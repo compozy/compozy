@@ -54,13 +54,15 @@ func withTaskSessionContextOverlay(overlay taskSessionContextOverlay) taskSessio
 }
 
 type taskRecoveryStats struct {
-	requeued      int
-	markedRunning int
-	failed        int
+	terminalSettled int
+	requeued        int
+	markedRunning   int
+	failed          int
 }
 
 type taskSessionRecoveryEvidence struct {
 	live           bool
+	stopRequired   bool
 	state          string
 	classification string
 	detail         string

@@ -19,7 +19,7 @@ func (h *BaseHandlers) ListBridgeSecretBindings(c *gin.Context) {
 		return
 	}
 
-	bindings, err := bridges.ListSecretBindings(c.Request.Context(), strings.TrimSpace(c.Param("id")))
+	bindings, err := bridges.ListSecretBindings(c.Request.Context(), c.Param("id"))
 	if err != nil {
 		h.respondError(c, StatusForBridgeError(err), err)
 		return

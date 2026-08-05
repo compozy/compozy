@@ -13,51 +13,76 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		return nil
 	}
 	if ctx == nil {
-		ctx = context.Background()
+		return errors.New("httpapi: shutdown context is required")
 	}
 
-	s.mu.Lock()
-	httpServer := s.httpServer
-	listener := s.listener
-	serveDone := s.serveDone
-	streamCancel := s.streamCancel
-	serveErr := s.serveErr
-	s.httpServer = nil
-	s.listener = nil
-	s.serveDone = nil
-	s.streamCancel = nil
-	s.serveErr = nil
-	s.started = false
-	s.actualPort = 0
-	s.mu.Unlock()
+	for {
+		generation, startDone, startCancel := s.shutdownTarget()
+		if generation == nil {
+			return nil
+		}
+		if startDone == nil {
+			return s.shutdownGeneration(ctx, generation)
+		}
+		if startCancel != nil {
+			startCancel()
+		}
+		if err := waitForStartDone(ctx, startDone); err != nil {
+			return err
+		}
+	}
+}
 
-	var errs []error
-	if httpServer != nil {
-		if err := httpServer.Shutdown(ctx); err != nil {
-			errs = append(errs, fmt.Errorf("httpapi: shutdown http server: %w", err))
+func (s *Server) shutdownGeneration(ctx context.Context, generation *serverGeneration) error {
+	var shutdownErrs []error
+	if generation.httpServer != nil {
+		if err := generation.httpServer.Shutdown(ctx); err != nil {
+			shutdownErrs = append(shutdownErrs, fmt.Errorf("httpapi: shutdown http server: %w", err))
+		}
+	} else if generation.listener != nil {
+		if err := generation.listener.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+			shutdownErrs = append(shutdownErrs, fmt.Errorf("httpapi: close listener: %w", err))
 		}
 	}
-	if streamCancel != nil {
-		streamCancel()
-	}
-	if s.handlers != nil {
-		if err := s.handlers.ShutdownWindowManagerStreams(ctx); err != nil {
-			errs = append(errs, fmt.Errorf("httpapi: shutdown window-manager streams: %w", err))
-		}
-	}
-	if listener != nil {
-		if err := listener.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
-			errs = append(errs, fmt.Errorf("httpapi: close listener: %w", err))
-		}
-	}
-	if serveDone != nil {
-		if err := waitForServeDone(ctx, serveDone); err != nil {
-			errs = append(errs, err)
-		}
-	}
-	if serveErr != nil {
-		errs = append(errs, serveErr)
+	if generation.streamCancel != nil {
+		generation.streamCancel()
 	}
 
-	return errors.Join(errs...)
+	for {
+		ownsCleanup, cleanupDone, completedErr := s.claimShutdownCleanup(generation)
+		if !ownsCleanup {
+			if cleanupDone == nil {
+				if completedErr != nil {
+					shutdownErrs = append(shutdownErrs, completedErr)
+				}
+				return errors.Join(shutdownErrs...)
+			}
+			if err := waitForShutdownCleanup(ctx, cleanupDone); err != nil {
+				shutdownErrs = append(shutdownErrs, err)
+				return errors.Join(shutdownErrs...)
+			}
+			continue
+		}
+
+		if s.handlers != nil {
+			if err := s.handlers.ShutdownWindowManagerStreams(ctx); err != nil {
+				shutdownErrs = append(shutdownErrs, fmt.Errorf("httpapi: shutdown window-manager streams: %w", err))
+			}
+		}
+		joinedServe := waitForServeDone(ctx, generation.serveDone)
+		if joinedServe != nil {
+			shutdownErrs = append(shutdownErrs, joinedServe)
+		}
+		if len(shutdownErrs) > 0 {
+			if joinedServe == nil {
+				if serveErr := s.serveError(generation); serveErr != nil {
+					shutdownErrs = append(shutdownErrs, serveErr)
+				}
+			}
+			s.releaseShutdownCleanup(generation)
+			return errors.Join(shutdownErrs...)
+		}
+
+		return s.completeShutdown(generation)
+	}
 }

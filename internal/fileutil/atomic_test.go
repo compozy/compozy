@@ -115,6 +115,38 @@ func TestAtomicWriteFileDoesNotCorruptTargetOnFailure(t *testing.T) {
 	})
 }
 
+func TestCloseOwnerConsumesOwnershipBeforeClosing(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should close exactly once and preserve primary and close error identities", func(t *testing.T) {
+		t.Parallel()
+
+		primaryErr := errors.New("primary failure")
+		closeErr := errors.New("close failure")
+		closeCalls := 0
+		owner := newCloseOwner(func() error {
+			closeCalls++
+			return closeErr
+		})
+
+		firstErr := owner.closeWithError(primaryErr, "fileutil: close owned file")
+		secondErr := owner.closeWithError(firstErr, "fileutil: close owned file again")
+
+		if closeCalls != 1 {
+			t.Fatalf("close calls = %d, want 1", closeCalls)
+		}
+		if secondErr != firstErr {
+			t.Fatalf("second close error = %v, want original joined error identity %v", secondErr, firstErr)
+		}
+		if !errors.Is(secondErr, primaryErr) {
+			t.Fatalf("close error = %v, want primary error identity %v", secondErr, primaryErr)
+		}
+		if !errors.Is(secondErr, closeErr) {
+			t.Fatalf("close error = %v, want first close error identity %v", secondErr, closeErr)
+		}
+	})
+}
+
 func TestAtomicWriteFileRejectsBlankPath(t *testing.T) {
 	t.Parallel()
 
@@ -151,37 +183,51 @@ func TestAtomicWriteFileRejectsNullBytePath(t *testing.T) {
 	})
 }
 
-func TestAtomicWriteFilePreservesLiteralWhitespaceInPath(t *testing.T) {
+// Invariant: components accepted by atomic publication have one portable
+// filename identity, and rejected components create no filesystem artifact.
+// Owner: fileutil path grammar and atomic publication.
+// Canonical suite: fileutil atomic-write behavior.
+func TestAtomicWriteFileRejectsPortableUnsafeComponents(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should preserve literal whitespace in path", func(t *testing.T) {
+	tests := []struct {
+		name  string
+		child string
+	}{
+		{name: "Should reject a trailing-space component", child: "target.txt "},
+		{name: "Should reject a trailing-dot component", child: "target."},
+		{name: "Should reject an alternate-data-stream component", child: "target:stream"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			path := filepath.Join(t.TempDir(), test.child)
+			err := AtomicWriteFile(path, []byte("must not publish"), 0o644)
+			if !errors.Is(err, ErrInvalidPath) {
+				t.Fatalf("AtomicWriteFile(%q) error = %v, want ErrInvalidPath", path, err)
+			}
+			if _, statErr := os.Lstat(path); !errors.Is(statErr, os.ErrNotExist) {
+				t.Fatalf("Lstat(%q) error = %v, want %v", path, statErr, os.ErrNotExist)
+			}
+		})
+	}
+
+	t.Run("Should preserve internal whitespace in a portable component", func(t *testing.T) {
 		t.Parallel()
 
-		if runtime.GOOS == "windows" {
-			t.Skip("trailing-space filenames are normalized by Win32 APIs")
+		path := filepath.Join(t.TempDir(), "target config.txt")
+		contents := []byte("portable internal whitespace")
+		if err := AtomicWriteFile(path, contents, 0o644); err != nil {
+			t.Fatalf("AtomicWriteFile(%q) error = %v", path, err)
 		}
-
-		path := filepath.Join(t.TempDir(), "target.txt ")
-		trimmedPath := strings.TrimSpace(path)
-		if path == trimmedPath {
-			t.Fatal("test fixture path did not retain trailing whitespace")
-		}
-
-		content := []byte("content with trailing-space filename")
-		if err := AtomicWriteFile(path, content, 0o644); err != nil {
-			t.Fatalf("AtomicWriteFile() error = %v", err)
-		}
-
 		got, err := os.ReadFile(path)
 		if err != nil {
-			t.Fatalf("ReadFile(literal path) error = %v", err)
+			t.Fatalf("ReadFile(%q) error = %v", path, err)
 		}
-		if !bytes.Equal(got, content) {
-			t.Fatalf("ReadFile(literal path) = %q, want %q", string(got), string(content))
-		}
-
-		if _, err := os.Stat(trimmedPath); !errors.Is(err, os.ErrNotExist) {
-			t.Fatalf("Stat(trimmed path) error = %v, want %v", err, os.ErrNotExist)
+		if !bytes.Equal(got, contents) {
+			t.Fatalf("ReadFile(%q) = %q, want %q", path, got, contents)
 		}
 	})
 }
@@ -217,27 +263,6 @@ func TestAtomicWriteFileFailsWhenTargetIsDirectory(t *testing.T) {
 	})
 }
 
-func TestWriteTempFileReturnsErrorForClosedFile(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should return error for closed file", func(t *testing.T) {
-		t.Parallel()
-
-		file, err := os.CreateTemp(t.TempDir(), "closed-*")
-		if err != nil {
-			t.Fatalf("CreateTemp() error = %v", err)
-		}
-		path := file.Name()
-		if err := file.Close(); err != nil {
-			t.Fatalf("Close() error = %v", err)
-		}
-
-		if err := writeTempFile(file, path, []byte("content"), 0o644); err == nil {
-			t.Fatal("writeTempFile(closed file) error = nil, want non-nil")
-		}
-	})
-}
-
 func TestSyncDirRejectsMissingDirectory(t *testing.T) {
 	t.Parallel()
 
@@ -245,11 +270,11 @@ func TestSyncDirRejectsMissingDirectory(t *testing.T) {
 		t.Parallel()
 
 		if runtime.GOOS == "windows" {
-			t.Skip("syncDir is a no-op on windows")
+			t.Skip("directory synchronization is a no-op on windows")
 		}
 
-		if err := syncDir(filepath.Join(t.TempDir(), "missing")); err == nil {
-			t.Fatal("syncDir(missing) error = nil, want non-nil")
+		if err := SyncDir(filepath.Join(t.TempDir(), "missing")); err == nil {
+			t.Fatal("SyncDir(missing) error = nil, want non-nil")
 		}
 	})
 }

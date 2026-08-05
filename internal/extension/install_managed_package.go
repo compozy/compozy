@@ -1,196 +1,232 @@
 package extensionpkg
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
-
 	"strings"
+
+	"github.com/compozy/compozy/internal/fileutil"
 )
 
-func copyInstallRuntimeDependency(
-	sourceRoot string,
-	sourcePath string,
-	targetPath string,
-	activeDirs map[string]struct{},
-) error {
-	info, err := os.Lstat(sourcePath)
-	if err != nil {
-		return fmt.Errorf("extension: stat runtime dependency %q: %w", sourcePath, err)
-	}
-
-	switch {
-	case info.IsDir():
-		return copyInstallPackageRoot(sourcePath, sourcePath, targetPath, activeDirs)
-	case info.Mode()&os.ModeSymlink != 0:
-		resolvedPath, err := filepath.EvalSymlinks(sourcePath)
-		if err != nil {
-			return fmt.Errorf("extension: resolve runtime dependency symlink %q: %w", sourcePath, err)
-		}
-		if err := ensureInstallPathWithinRoot(sourceRoot, resolvedPath); err != nil {
-			return fmt.Errorf("extension: reject runtime dependency symlink %q: %w", sourcePath, err)
-		}
-		resolvedInfo, err := os.Stat(resolvedPath)
-		if err != nil {
-			return fmt.Errorf("extension: stat runtime dependency target %q: %w", resolvedPath, err)
-		}
-		switch {
-		case resolvedInfo.IsDir():
-			return copyInstallPackageRoot(sourcePath, resolvedPath, targetPath, activeDirs)
-		case resolvedInfo.Mode().IsRegular():
-			return copyInstallFile(resolvedPath, targetPath, resolvedInfo.Mode().Perm())
-		default:
-			return fmt.Errorf("extension: unsupported runtime dependency target type for %q", sourcePath)
-		}
-	case info.Mode().IsRegular():
-		return copyInstallFile(sourcePath, targetPath, info.Mode().Perm())
-	default:
-		return fmt.Errorf("extension: unsupported runtime dependency type for %q", sourcePath)
-	}
+type installRuntimeDependencyParents struct {
+	source      *installSourceDirectory
+	target      *fileutil.Directory
+	sourceScope *installSourceEntry
+	targetScope *fileutil.Directory
+	scopeName   string
 }
 
-func copyInstallPackageRoot(
-	sourcePath string,
-	sourceDir string,
-	targetDir string,
-	activeDirs map[string]struct{},
-) error {
-	absSourceDir, err := filepath.Abs(strings.TrimSpace(sourceDir))
-	if err != nil {
-		return fmt.Errorf("extension: resolve package root %q: %w", sourceDir, err)
-	}
-	canonicalSourceRoot, err := canonicalizeInstallPath(absSourceDir)
-	if err != nil {
-		return fmt.Errorf("extension: canonicalize package root %q: %w", absSourceDir, err)
-	}
-
-	info, err := os.Stat(absSourceDir)
-	if err != nil {
-		return fmt.Errorf("extension: stat package root %q: %w", absSourceDir, err)
-	}
-	if !info.IsDir() {
-		return fmt.Errorf("extension: package root %q is not a directory", absSourceDir)
-	}
-
-	nextActiveDirs, err := pushInstallCopyDir(activeDirs, absSourceDir, sourcePath)
+func copyInstallRuntimeDependency(
+	sourceModules *installSourceDirectory,
+	targetModules *fileutil.Directory,
+	packageName string,
+	active installDirectoryStack,
+) (err error) {
+	parts, err := installNodeModuleParts(packageName)
 	if err != nil {
 		return err
 	}
-
-	if err := os.MkdirAll(targetDir, info.Mode().Perm()); err != nil {
-		return fmt.Errorf("extension: create package target directory %q: %w", targetDir, err)
+	parents, err := openInstallRuntimeDependencyParents(sourceModules, targetModules, parts)
+	if err != nil {
+		return err
 	}
-	if err := os.Chmod(targetDir, info.Mode().Perm()); err != nil {
-		return fmt.Errorf("extension: set package target directory mode %q: %w", targetDir, err)
-	}
+	defer func() { err = errors.Join(err, parents.Close()) }()
 
-	return copyInstallDirectoryContents(canonicalSourceRoot, absSourceDir, targetDir, nextActiveDirs)
+	entry, err := parents.source.OpenEntry(parts[len(parts)-1])
+	if err != nil {
+		if entry.symlink {
+			return fmt.Errorf("extension: reject runtime dependency symlink %q: %w", packageName, err)
+		}
+		if errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("extension: runtime dependency %q is missing: %w", packageName, err)
+		}
+		return fmt.Errorf("extension: open runtime dependency %q: %w", packageName, err)
+	}
+	defer func() {
+		if closeErr := entry.Close(); closeErr != nil {
+			err = errors.Join(err, closeErr)
+		}
+	}()
+
+	if entry.directory != nil {
+		next, pushErr := active.Push(entry.info, packageName)
+		if pushErr != nil {
+			return pushErr
+		}
+		entry.directory.Rebase()
+		targetPackage, createErr := parents.target.CreateDirectory(parts[len(parts)-1], entry.info.Mode().Perm())
+		if createErr != nil {
+			return fmt.Errorf("extension: create runtime dependency target %q: %w", packageName, createErr)
+		}
+		copyErr := copyInstallDirectoryContents(entry.directory, targetPackage, next)
+		syncErr := targetPackage.Sync()
+		closeErr := targetPackage.Close()
+		if copyErr != nil || syncErr != nil || closeErr != nil {
+			return errors.Join(copyErr, syncErr, closeErr)
+		}
+		return nil
+	}
+	return copyInstallFile(entry.file, parents.target, parts[len(parts)-1], entry.info.Mode().Perm())
 }
 
-func copyInstallEntry(sourceRoot string, sourcePath string, targetPath string, activeDirs map[string]struct{}) error {
-	info, err := os.Lstat(sourcePath)
-	if err != nil {
-		return fmt.Errorf("extension: stat source path %q: %w", sourcePath, err)
+func openInstallRuntimeDependencyParents(
+	source *installSourceDirectory,
+	target *fileutil.Directory,
+	parts []string,
+) (*installRuntimeDependencyParents, error) {
+	parents := &installRuntimeDependencyParents{source: source, target: target}
+	if len(parts) != 2 {
+		return parents, nil
 	}
+	parents.scopeName = parts[0]
+	scopeEntry, err := source.OpenEntry(parents.scopeName)
+	if err != nil {
+		return nil, fmt.Errorf("extension: open runtime dependency scope %q: %w", parents.scopeName, err)
+	}
+	parents.sourceScope = &scopeEntry
+	if scopeEntry.directory == nil {
+		return nil, errors.Join(
+			errors.New("extension: runtime dependency scope is not a directory"),
+			parents.Close(),
+		)
+	}
+	parents.targetScope, err = target.OpenDirectoryForMutation(parents.scopeName)
+	if errors.Is(err, os.ErrNotExist) {
+		parents.targetScope, err = target.CreateDirectory(parents.scopeName, scopeEntry.info.Mode().Perm())
+	}
+	if err != nil {
+		return nil, errors.Join(
+			fmt.Errorf("extension: open or create runtime dependency scope %q: %w", parents.scopeName, err),
+			parents.Close(),
+		)
+	}
+	parents.source = scopeEntry.directory
+	parents.target = parents.targetScope
+	return parents, nil
+}
 
-	switch {
-	case info.IsDir():
-		nextActiveDirs, err := pushInstallCopyDir(activeDirs, sourcePath, sourcePath)
+func (p *installRuntimeDependencyParents) Close() error {
+	var err error
+	if p.targetScope != nil {
+		if closeErr := p.targetScope.Close(); closeErr != nil {
+			err = errors.Join(
+				err,
+				fmt.Errorf("extension: close runtime dependency scope %q: %w", p.scopeName, closeErr),
+			)
+		}
+		p.targetScope = nil
+	}
+	err = errors.Join(err, p.sourceScope.Close())
+	return err
+}
+
+func copyInstallEntry(
+	source *installSourceDirectory,
+	target *fileutil.Directory,
+	name string,
+	active installDirectoryStack,
+) (err error) {
+	entry, err := source.OpenEntry(name)
+	if err != nil {
+		if entry.symlink {
+			return fmt.Errorf("extension: reject source symlink %q: %w", name, err)
+		}
+		return err
+	}
+	defer func() {
+		if closeErr := entry.Close(); closeErr != nil {
+			err = errors.Join(err, closeErr)
+		}
+	}()
+	if entry.directory != nil {
+		next, err := active.Push(entry.info, name)
 		if err != nil {
 			return err
 		}
-		if err := os.MkdirAll(targetPath, info.Mode().Perm()); err != nil {
-			return fmt.Errorf("extension: create target directory %q: %w", targetPath, err)
+		targetDirectory, err := target.CreateDirectory(name, entry.info.Mode().Perm())
+		if err != nil {
+			return fmt.Errorf("extension: create target directory %q: %w", name, err)
 		}
-		if err := os.Chmod(targetPath, info.Mode().Perm()); err != nil {
-			return fmt.Errorf("extension: set target directory mode %q: %w", targetPath, err)
+		copyErr := copyInstallDirectoryContents(entry.directory, targetDirectory, next)
+		syncErr := targetDirectory.Sync()
+		closeErr := targetDirectory.Close()
+		if copyErr != nil || syncErr != nil || closeErr != nil {
+			return errors.Join(copyErr, syncErr, closeErr)
 		}
-		return copyInstallDirectoryContents(sourceRoot, sourcePath, targetPath, nextActiveDirs)
-	case info.Mode().IsRegular():
-		return copyInstallFile(sourcePath, targetPath, info.Mode().Perm())
-	case info.Mode()&os.ModeSymlink != 0:
-		return copyInstallSymlink(sourceRoot, sourcePath, targetPath, activeDirs)
-	default:
-		return fmt.Errorf("extension: unsupported file type in extension payload %q", sourcePath)
+		return nil
 	}
+	return copyInstallFile(entry.file, target, name, entry.info.Mode().Perm())
 }
 
-func copyInstallFile(sourcePath string, targetPath string, perm os.FileMode) (err error) {
-	if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
-		return fmt.Errorf("extension: create target file parent %q: %w", filepath.Dir(targetPath), err)
+func copyInstallFile(
+	source *os.File,
+	target *fileutil.Directory,
+	name string,
+	perm os.FileMode,
+) (err error) {
+	if source == nil {
+		return fmt.Errorf("extension: source file %q is required", name)
 	}
-
-	source, err := os.Open(sourcePath)
+	targetFile, err := target.CreateRegularFile(name, perm)
 	if err != nil {
-		return fmt.Errorf("extension: open source file %q: %w", sourcePath, err)
+		return fmt.Errorf("extension: create target file %q: %w", name, err)
 	}
+	cleanup := true
+	closed := false
 	defer func() {
-		if closeErr := source.Close(); closeErr != nil && err == nil {
-			err = fmt.Errorf("extension: close source file %q: %w", sourcePath, closeErr)
+		if !closed {
+			if closeErr := targetFile.Close(); closeErr != nil {
+				err = errors.Join(err, fmt.Errorf("extension: close target file %q: %w", name, closeErr))
+			}
+		}
+		if cleanup {
+			if removeErr := target.RemoveRegularFile(name); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
+				err = errors.Join(err, fmt.Errorf("extension: remove incomplete target file %q: %w", name, removeErr))
+			}
 		}
 	}()
-
-	target, err := os.OpenFile(targetPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, perm)
-	if err != nil {
-		return fmt.Errorf("extension: create target file %q: %w", targetPath, err)
+	if _, err := io.Copy(targetFile, source); err != nil {
+		return fmt.Errorf("extension: copy target file %q: %w", name, err)
 	}
-	defer func() {
-		if closeErr := target.Close(); closeErr != nil && err == nil {
-			err = fmt.Errorf("extension: close target file %q: %w", targetPath, closeErr)
-		}
-	}()
-
-	if _, err := io.Copy(target, source); err != nil {
-		return fmt.Errorf("extension: copy file %q to %q: %w", sourcePath, targetPath, err)
+	if err := targetFile.Chmod(perm); err != nil {
+		return fmt.Errorf("extension: set target file mode %q: %w", name, err)
 	}
-	if err := target.Chmod(perm); err != nil {
-		return fmt.Errorf("extension: set target file mode %q: %w", targetPath, err)
+	if err := targetFile.Sync(); err != nil {
+		return fmt.Errorf("extension: sync target file %q: %w", name, err)
 	}
-
+	closeErr := targetFile.Close()
+	closed = true
+	if closeErr != nil {
+		return fmt.Errorf("extension: close target file %q: %w", name, closeErr)
+	}
+	cleanup = false
 	return nil
 }
 
-func copyInstallSymlink(sourceRoot string, sourcePath string, targetPath string, activeDirs map[string]struct{}) error {
-	resolvedPath, err := filepath.EvalSymlinks(sourcePath)
-	if err != nil {
-		return fmt.Errorf("extension: resolve source symlink %q: %w", sourcePath, err)
+func installNodeModuleParts(packageName string) ([]string, error) {
+	name := strings.TrimSpace(packageName)
+	if name == "" || strings.Contains(name, `\`) {
+		return nil, fmt.Errorf("extension: invalid runtime dependency name %q", packageName)
 	}
-	if err := ensureInstallPathWithinRoot(sourceRoot, resolvedPath); err != nil {
-		return fmt.Errorf("extension: reject source symlink %q: %w", sourcePath, err)
-	}
-
-	info, err := os.Stat(resolvedPath)
-	if err != nil {
-		return fmt.Errorf("extension: stat resolved symlink target %q: %w", resolvedPath, err)
-	}
-
+	parts := strings.Split(name, "/")
 	switch {
-	case info.IsDir():
-		nextActiveDirs, err := pushInstallCopyDir(activeDirs, resolvedPath, sourcePath)
-		if err != nil {
-			return err
-		}
-		if err := os.MkdirAll(targetPath, info.Mode().Perm()); err != nil {
-			return fmt.Errorf(
-				"extension: create target directory %q for symlinked source %q: %w",
-				targetPath,
-				sourcePath,
-				err,
-			)
-		}
-		if err := os.Chmod(targetPath, info.Mode().Perm()); err != nil {
-			return fmt.Errorf(
-				"extension: set target directory mode %q for symlinked source %q: %w",
-				targetPath,
-				sourcePath,
-				err,
-			)
-		}
-		return copyInstallDirectoryContents(sourceRoot, resolvedPath, targetPath, nextActiveDirs)
-	case info.Mode().IsRegular():
-		return copyInstallFile(resolvedPath, targetPath, info.Mode().Perm())
+	case len(parts) == 1 && validInstallPackageSegment(parts[0], false):
+		return parts, nil
+	case len(parts) == 2 && strings.HasPrefix(parts[0], "@") &&
+		validInstallPackageSegment(parts[0], true) && validInstallPackageSegment(parts[1], false):
+		return parts, nil
 	default:
-		return fmt.Errorf("extension: unsupported symlink target type for %q", sourcePath)
+		return nil, fmt.Errorf("extension: invalid runtime dependency name %q", packageName)
 	}
+}
+
+func validInstallPackageSegment(segment string, scoped bool) bool {
+	if scoped {
+		return len(segment) > 1 && segment != "." && segment != ".." && !strings.Contains(segment, "/") &&
+			!strings.Contains(segment, `\`)
+	}
+	return segment != "" && segment != "." && segment != ".." && !strings.Contains(segment, "/") &&
+		!strings.Contains(segment, `\`)
 }

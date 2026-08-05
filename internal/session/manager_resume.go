@@ -50,6 +50,9 @@ func (m *Manager) resumeSession(ctx context.Context, target string) (*Session, e
 	if err != nil {
 		return nil, err
 	}
+	if err := requirePersistedProvider(meta); err != nil {
+		return nil, err
+	}
 	if validationErrs := m.validateInfrastructure(ctx, meta); len(validationErrs) > 0 {
 		m.logResumeValidationFailures(meta, validationErrs)
 		return nil, fmt.Errorf(

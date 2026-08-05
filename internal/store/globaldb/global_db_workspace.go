@@ -10,6 +10,7 @@ import (
 
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
+	taskpkg "github.com/compozy/compozy/internal/task"
 	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -259,7 +260,17 @@ func (g *WorkspaceRepo) normalizeWorkspaceForInsert(
 	}
 
 	if strings.TrimSpace(normalized.ID) == "" {
-		normalized.ID = compozyworkspace.NewWorkspaceID()
+		generatedID, generateErr := g.generateID()
+		if generateErr != nil {
+			return compozyworkspace.Workspace{}, "", fmt.Errorf("store: generate workspace id: %w", generateErr)
+		}
+		normalized.ID = strings.TrimSpace(generatedID)
+		if !compozyworkspace.IsWorkspaceID(normalized.ID) {
+			return compozyworkspace.Workspace{}, "", fmt.Errorf(
+				"store: generated invalid workspace id %q",
+				normalized.ID,
+			)
+		}
 	}
 	if normalized.CreatedAt.IsZero() {
 		normalized.CreatedAt = g.now()
@@ -421,6 +432,10 @@ func mapWorkspaceWriteConstraintError(
 func mapWorkspaceDeleteConstraintError(err error) error {
 	if err == nil {
 		return nil
+	}
+	err = mapTerminalRunCommandGuardError(err)
+	if errors.Is(err, taskpkg.ErrTerminalRunCommandInProgress) {
+		return err
 	}
 	if isSQLiteForeignKeyConstraint(err) {
 		return compozyworkspace.ErrWorkspaceHasSessions

@@ -1757,8 +1757,8 @@ func assertWorkspaceAccessAgentCLIParity(
 		"-o",
 		"json",
 	)
-	var exitErr *exec.ExitError
-	if !errors.As(err, &exitErr) || exitErr.ExitCode() != agentidentity.ExitUnauthorized {
+	exitErr, exitErrMatched := errors.AsType[*exec.ExitError](err)
+	if !exitErrMatched || exitErr.ExitCode() != agentidentity.ExitUnauthorized {
 		t.Fatalf(
 			"approve-reads CLI error = %v, want exit %d; stderr=%s",
 			err,
@@ -1838,8 +1838,8 @@ func assertWorkspaceAccessSpawnParity(
 	if err == nil {
 		t.Fatalf("approve-reads cross-workspace spawn error = nil, want denial")
 	}
-	var exitErr *exec.ExitError
-	if !errors.As(err, &exitErr) || exitErr.ExitCode() != agentidentity.ExitUnauthorized {
+	exitErr, exitErrMatched := errors.AsType[*exec.ExitError](err)
+	if !exitErrMatched || exitErr.ExitCode() != agentidentity.ExitUnauthorized {
 		t.Fatalf(
 			"approve-reads cross-workspace spawn error = %v, want exit %d; stderr=%s",
 			err,

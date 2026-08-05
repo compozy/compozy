@@ -115,7 +115,7 @@ func TestDaemonNativeAutomationToolsIntegrationLifecycleParity(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Registry.Call(automation_jobs_trigger) error = %v", err)
 	}
-	runID := nativeAutomationResultResourceID(t, jobRunResult, "run")
+	runID := nativeAutomationResultResourceID(t, jobRunResult, nativeAutomationToolsRunKey)
 	run, err := manager.GetRun(ctx, runID)
 	if err != nil {
 		t.Fatalf("manager.GetRun(triggered) error = %v", err)
@@ -293,8 +293,9 @@ func TestDaemonNativeAutomationToolsIntegrationRejectsDaemonLifecycleJob(t *test
 		if !errors.Is(err, automationpkg.ErrDaemonLifecycleCommandBlocked) {
 			t.Fatalf("Registry.Call(automation_jobs_create) error = %v, want ErrDaemonLifecycleCommandBlocked", err)
 		}
-		var blockedErr *automationpkg.DaemonLifecycleCommandError
-		if !errors.As(err, &blockedErr) {
+
+		blockedErr, blockedErrMatched := errors.AsType[*automationpkg.DaemonLifecycleCommandError](err)
+		if !blockedErrMatched {
 			t.Fatalf("Registry.Call(automation_jobs_create) error = %T, want *DaemonLifecycleCommandError", err)
 		}
 		if blockedErr.Class != automationpkg.DaemonLifecycleCommandClassCompozyDaemon {

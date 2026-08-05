@@ -227,11 +227,11 @@ describe("useSlackBridgeManifest", () => {
     await waitFor(() => {
       expect(result.current.data?.manifest.display_information.name).toBe("Compozy");
     });
-    expect(getSlackBridgeManifest).toHaveBeenCalledWith("brg_slack", expect.any(AbortSignal));
+    expect(getSlackBridgeManifest).toHaveBeenCalledWith(" brg_slack ", expect.any(AbortSignal));
   });
 
   it("does not fetch a manifest without a persisted bridge instance", () => {
-    renderHook(() => useSlackBridgeManifest("   "), {
+    renderHook(() => useSlackBridgeManifest(""), {
       wrapper: createWrapper(),
     });
 

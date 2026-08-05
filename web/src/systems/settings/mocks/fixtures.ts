@@ -273,7 +273,6 @@ export const settingsMemoryConfigFixture: SettingsMemorySection["config"] = {
     include_system: false,
     raw_candidates: 50,
     signals: {
-      metrics_enabled: true,
       queue_capacity: 256,
       worker_retry_max: 3,
     },
@@ -484,7 +483,6 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
       env_policy: "filtered",
       home_policy: "operator",
       auth_status_command: "claude auth status",
-      auth_login_command: "claude login",
     },
     auth_status: {
       mode: "native_cli",
@@ -495,7 +493,13 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
       message:
         "Provider owns authentication through its native CLI; run a provider auth probe for live status.",
       status_command: "claude auth status",
-      login_command: "claude login",
+      login: {
+        configured: true,
+        executable: "claude",
+        presence: "unknown",
+        recommended_action: "inspect",
+        source: "auth_login_command",
+      },
     },
     source_metadata: {
       available_targets: ["global-config"],
@@ -557,7 +561,6 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
       env_policy: "filtered",
       home_policy: "operator",
       auth_status_command: "codex auth status",
-      auth_login_command: "codex login",
     },
     auth_status: {
       mode: "native_cli",
@@ -568,7 +571,13 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
       message:
         "Provider owns authentication through its native CLI; run a provider auth probe for live status.",
       status_command: "codex auth status",
-      login_command: "codex login",
+      login: {
+        configured: true,
+        executable: "codex",
+        presence: "unknown",
+        recommended_action: "inspect",
+        source: "auth_login_command",
+      },
     },
     source_metadata: {
       available_targets: ["global-config"],
@@ -611,6 +620,11 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
       state: "missing_credential",
       code: "provider_credential_unresolved",
       message: 'Required CompozyOS-managed provider credential "OPENROUTER_API_KEY" is unresolved.',
+      login: {
+        configured: false,
+        presence: "unknown",
+        recommended_action: "bind_secret",
+      },
     },
     credentials: [
       {
@@ -648,6 +662,11 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
       code: "provider_classification_unknown",
       message:
         "Provider owns authentication through its native CLI; run a provider auth probe for live status.",
+      login: {
+        configured: false,
+        presence: "unknown",
+        recommended_action: "inspect",
+      },
     },
     source_metadata: {
       available_targets: ["global-config"],
@@ -718,6 +737,11 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
       code: "provider_classification_unknown",
       message:
         "Provider owns authentication through its native CLI; run a provider auth probe for live status.",
+      login: {
+        configured: false,
+        presence: "unknown",
+        recommended_action: "inspect",
+      },
     },
     source_metadata: {
       available_targets: ["global-config"],
@@ -764,6 +788,11 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
       code: "provider_classification_unknown",
       message:
         "Provider owns authentication through its native CLI; run a provider auth probe for live status.",
+      login: {
+        configured: false,
+        presence: "unknown",
+        recommended_action: "inspect",
+      },
     },
     source_metadata: {
       available_targets: ["global-config"],

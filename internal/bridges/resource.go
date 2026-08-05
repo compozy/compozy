@@ -66,7 +66,7 @@ func ResourceScopeForBridge(scope Scope, workspaceID string) resources.ResourceS
 	case ScopeWorkspace:
 		return resources.ResourceScope{
 			Kind: resources.ResourceScopeKindWorkspace,
-			ID:   strings.TrimSpace(workspaceID),
+			ID:   workspaceID,
 		}
 	default:
 		return resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
@@ -136,7 +136,6 @@ func validateBridgeInstanceResourceSpec(
 func normalizeBridgeInstanceResourceSpec(spec BridgeInstanceSpec) BridgeInstanceSpec {
 	next := spec
 	next.Scope = next.Scope.Normalize()
-	next.WorkspaceID = strings.TrimSpace(next.WorkspaceID)
 	next.Platform = strings.TrimSpace(next.Platform)
 	next.ExtensionName = strings.TrimSpace(next.ExtensionName)
 	next.DisplayName = strings.TrimSpace(next.DisplayName)
@@ -180,7 +179,7 @@ func bindBridgeResourceScope(
 				resourceScope.Kind,
 			)
 		}
-		if strings.TrimSpace(*workspaceID) != "" {
+		if *workspaceID != "" {
 			return fmt.Errorf(
 				"%w: bridge.workspace_id must be empty for global resource scope",
 				resources.ErrInvalidScopeBinding,
@@ -199,19 +198,19 @@ func bindBridgeResourceScope(
 				resourceScope.Kind,
 			)
 		}
-		trimmedWorkspaceID := strings.TrimSpace(*workspaceID)
+		workspaceValue := *workspaceID
 		switch {
-		case trimmedWorkspaceID == "":
+		case workspaceValue == "":
 			*workspaceID = resourceScope.ID
-		case trimmedWorkspaceID != resourceScope.ID:
+		case workspaceValue != resourceScope.ID:
 			return fmt.Errorf(
 				"%w: bridge.workspace_id %q does not match resource scope %q",
 				resources.ErrInvalidScopeBinding,
-				trimmedWorkspaceID,
+				workspaceValue,
 				resourceScope.ID,
 			)
 		default:
-			*workspaceID = trimmedWorkspaceID
+			*workspaceID = workspaceValue
 		}
 	}
 	return nil
@@ -384,7 +383,7 @@ func bridgeInstanceFromResourceRecord(
 	}
 
 	instance := BridgeInstance{
-		ID:                   strings.TrimSpace(record.ID),
+		ID:                   record.ID,
 		Scope:                record.Spec.Scope,
 		WorkspaceID:          record.Spec.WorkspaceID,
 		Platform:             record.Spec.Platform,
@@ -408,7 +407,11 @@ func bridgeInstanceFromResourceRecord(
 		instance.Degradation = nil
 	}
 	if instance.ID == "" {
-		instance.ID = store.NewID("brg")
+		generatedID, err := store.NewID("brg")
+		if err != nil {
+			return BridgeInstance{}, fmt.Errorf("bridges: generate projected instance id: %w", err)
+		}
+		instance.ID = generatedID
 	}
 	instance = instance.normalize()
 	if err := instance.Validate(); err != nil {

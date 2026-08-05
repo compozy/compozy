@@ -168,8 +168,7 @@ func (r *roleResolver) recordRoleResolveError(
 	correlation := roleInvocationCorrelationFromContext(ctx, workspaceID)
 	errorCode := roleResolutionFailedCode
 	agentName := ""
-	var resolutionErr *RoleResolutionError
-	if errors.As(resolveErr, &resolutionErr) {
+	if resolutionErr, ok := errors.AsType[*RoleResolutionError](resolveErr); ok {
 		errorCode = firstRoleValue(resolutionErr.Code, errorCode)
 		agentName = strings.TrimSpace(resolutionErr.Agent)
 	}

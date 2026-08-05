@@ -2,6 +2,7 @@ package task
 
 import (
 	"context"
+	"encoding/json"
 
 	"fmt"
 	"strings"
@@ -73,16 +74,25 @@ func (m *Service) requireRetryChainDepth(ctx context.Context, source Run) error 
 }
 
 func normalizeForceReleaseRun(req ForceReleaseRun) (ForceReleaseRun, error) {
-	req.Reason = strings.TrimSpace(req.Reason)
-	req.Metadata = normalizeRawJSON(req.Metadata)
-	if err := ValidateMetadataSize(req.Metadata, "force_release.metadata"); err != nil {
+	reason, err := normalizeForceOperationReason(req.Reason, "force_release.reason")
+	if err != nil {
 		return ForceReleaseRun{}, err
 	}
+	req.Reason = reason
+	metadata, err := normalizeForceOperationMetadata(req.Metadata, "force_release.metadata")
+	if err != nil {
+		return ForceReleaseRun{}, err
+	}
+	req.Metadata = metadata
 	return req, nil
 }
 
 func normalizeForceFailRun(req ForceFailRun) (ForceFailRun, error) {
-	req.Reason = strings.TrimSpace(req.Reason)
+	reason, err := normalizeForceOperationReason(req.Reason, "force_fail.reason")
+	if err != nil {
+		return ForceFailRun{}, err
+	}
+	req.Reason = reason
 	if req.Reason == "" {
 		return ForceFailRun{}, forceRunDiagnosticError(
 			diagnosticcontract.CodeForceOpRequiresReason,
@@ -94,27 +104,34 @@ func normalizeForceFailRun(req ForceFailRun) (ForceFailRun, error) {
 			ErrForceOpRequiresReason,
 		)
 	}
-	req.Metadata = normalizeRawJSON(req.Metadata)
-	if err := ValidateMetadataSize(req.Metadata, "force_fail.metadata"); err != nil {
+	metadata, err := normalizeForceOperationMetadata(req.Metadata, "force_fail.metadata")
+	if err != nil {
 		return ForceFailRun{}, err
 	}
+	req.Metadata = metadata
 	return req, nil
 }
 
 func normalizeRetryRunRequest(req RetryRunRequest) (RetryRunRequest, error) {
-	req.Metadata = normalizeRawJSON(req.Metadata)
-	if err := ValidateMetadataSize(req.Metadata, "retry_run.metadata"); err != nil {
+	metadata, err := normalizeForceOperationMetadata(req.Metadata, "retry_run.metadata")
+	if err != nil {
 		return RetryRunRequest{}, err
 	}
+	req.Metadata = metadata
 	return req, nil
 }
 
 func normalizeRecoverRunRequest(req RecoverRunRequest) (RecoverRunRequest, error) {
-	req.Reason = strings.TrimSpace(req.Reason)
-	req.Metadata = normalizeRawJSON(req.Metadata)
-	if err := ValidateMetadataSize(req.Metadata, "recover_run.metadata"); err != nil {
+	reason, err := normalizeForceOperationReason(req.Reason, "recover_run.reason")
+	if err != nil {
 		return RecoverRunRequest{}, err
 	}
+	req.Reason = reason
+	metadata, err := normalizeForceOperationMetadata(req.Metadata, "recover_run.metadata")
+	if err != nil {
+		return RecoverRunRequest{}, err
+	}
+	req.Metadata = metadata
 	return req, nil
 }
 
@@ -150,7 +167,11 @@ func normalizeBulkForceRunRequest(req BulkForceRunRequest, requireReason bool) (
 		ids = append(ids, trimmed)
 	}
 	req.RunIDs = ids
-	req.Reason = strings.TrimSpace(req.Reason)
+	reason, err := normalizeForceOperationReason(req.Reason, "bulk_force.reason")
+	if err != nil {
+		return BulkForceRunRequest{}, err
+	}
+	req.Reason = reason
 	if requireReason && req.Reason == "" {
 		return BulkForceRunRequest{}, forceRunDiagnosticError(
 			diagnosticcontract.CodeForceOpRequiresReason,
@@ -162,9 +183,30 @@ func normalizeBulkForceRunRequest(req BulkForceRunRequest, requireReason bool) (
 			ErrForceOpRequiresReason,
 		)
 	}
-	req.Metadata = normalizeRawJSON(req.Metadata)
-	if err := ValidateMetadataSize(req.Metadata, "bulk_force.metadata"); err != nil {
+	metadata, err := normalizeForceOperationMetadata(req.Metadata, "bulk_force.metadata")
+	if err != nil {
 		return BulkForceRunRequest{}, err
 	}
+	req.Metadata = metadata
 	return req, nil
+}
+
+func normalizeForceOperationReason(reason string, path string) (string, error) {
+	normalized := RedactClaimTokens(strings.TrimSpace(reason))
+	if err := ValidateReasonSize(normalized, path); err != nil {
+		return "", err
+	}
+	return normalized, nil
+}
+
+func normalizeForceOperationMetadata(raw json.RawMessage, path string) (json.RawMessage, error) {
+	normalized := normalizeRawJSON(raw)
+	if err := ValidateMetadataSize(normalized, path); err != nil {
+		return nil, err
+	}
+	redacted := RedactClaimTokenJSON(normalized)
+	if err := ValidateMetadataSize(redacted, path); err != nil {
+		return nil, err
+	}
+	return redacted, nil
 }

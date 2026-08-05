@@ -143,9 +143,13 @@ func (m *Manager) recordPromptInputWithAuthoredText(
 	if err != nil {
 		return err
 	}
+	persistedEventID, err := promptInputEventID(eventID)
+	if err != nil {
+		return err
+	}
 	m.dispatchEventPreRecord(ctx, session, event, payload)
 	persisted, err := recordPersistedSessionEvent(ctx, recorder, store.SessionEvent{
-		ID: promptInputEventID(eventID), TurnID: event.TurnID, Type: event.Type,
+		ID: persistedEventID, TurnID: event.TurnID, Type: event.Type,
 		AgentName: session.Info().AgentName, Content: payload, Timestamp: event.Timestamp,
 	})
 	if err != nil {

@@ -136,8 +136,9 @@ func TestDaemonLoopAPIServiceShouldPublishWithServerManagedCASVersion(t *testing
 			ExpectedVersion: &expected,
 			Definition:      loopAPITestDocument(t, "alpha", 1, "stale publish"),
 		})
-		var conflict *core.LoopVersionConflictError
-		if !errors.As(err, &conflict) {
+
+		conflict, conflictMatched := errors.AsType[*core.LoopVersionConflictError](err)
+		if !conflictMatched {
 			t.Fatalf("PatchLoop(stale) error = %v, want LoopVersionConflictError", err)
 		}
 		if conflict.CurrentVersion != 2 {

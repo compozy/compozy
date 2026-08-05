@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	redactpkg "github.com/compozy/compozy/internal/redact"
 )
 
 // CoordinatorControlResult is a neutral coordinator-owned completion envelope.
@@ -71,6 +73,13 @@ func (r RunResult) Validate(path string) error {
 func (r CoordinatorControlResult) Validate(path string) error {
 	if strings.TrimSpace(r.Kind) == "" {
 		return fmt.Errorf("%w: %s is required", ErrValidation, nestedPath(path, "kind"))
+	}
+	if redactpkg.ContainsRawClaimToken(r.Kind) {
+		return fmt.Errorf(
+			"%w: %s must not contain raw lease credentials",
+			ErrValidation,
+			nestedPath(path, "kind"),
+		)
 	}
 	if len(r.Payload) == 0 {
 		return fmt.Errorf("%w: %s is required", ErrValidation, nestedPath(path, "payload"))

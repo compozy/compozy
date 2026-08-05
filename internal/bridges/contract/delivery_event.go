@@ -38,10 +38,10 @@ func NormalizeDeliveryEvent(event DeliveryEvent) DeliveryEvent {
 // Validate reports whether the delivery event is internally consistent.
 func (e DeliveryEvent) Validate() error {
 	normalized := e.normalize()
-	if err := requireField(normalized.DeliveryID, "delivery event id"); err != nil {
+	if err := requireOpaqueIdentity(normalized.DeliveryID, "delivery event id"); err != nil {
 		return err
 	}
-	if err := requireField(normalized.BridgeInstanceID, "delivery event bridge instance id"); err != nil {
+	if err := requireOpaqueIdentity(normalized.BridgeInstanceID, "delivery event bridge instance id"); err != nil {
 		return err
 	}
 	if err := normalized.RoutingKey.Validate(); err != nil {
@@ -88,10 +88,7 @@ func (e DeliveryEvent) IsLifecycleOnlyFinal() bool {
 }
 
 func (e DeliveryEvent) normalize() DeliveryEvent {
-	e.DeliveryID = strings.TrimSpace(e.DeliveryID)
-	e.BridgeInstanceID = strings.TrimSpace(e.BridgeInstanceID)
 	e.RoutingKey = e.RoutingKey.normalize()
-	e.DeliveryTarget = e.DeliveryTarget.normalize()
 	e.EventType = normalizeDeliveryEventType(e.EventType)
 	e.Content = MessageContent{Text: strings.TrimSpace(e.Content.Text)}
 	e.Operation = e.Operation.Normalize()

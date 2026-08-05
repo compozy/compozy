@@ -252,3 +252,39 @@ func sha256Hex(data []byte) string {
 	sum := sha256.Sum256(data)
 	return hex.EncodeToString(sum[:])
 }
+
+type updateReadCloserProbe struct {
+	reader   io.Reader
+	closeErr error
+	read     int64
+	closed   bool
+}
+
+func (p *updateReadCloserProbe) Read(destination []byte) (int, error) {
+	read, err := p.reader.Read(destination)
+	p.read += int64(read)
+	return read, err
+}
+
+func (p *updateReadCloserProbe) Close() error {
+	p.closed = true
+	return p.closeErr
+}
+
+type updateWriteCloserProbe struct {
+	writeErr error
+	closeErr error
+	closed   bool
+}
+
+func (p *updateWriteCloserProbe) Write(source []byte) (int, error) {
+	if p.writeErr != nil {
+		return 0, p.writeErr
+	}
+	return len(source), nil
+}
+
+func (p *updateWriteCloserProbe) Close() error {
+	p.closed = true
+	return p.closeErr
+}

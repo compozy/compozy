@@ -1,34 +1,33 @@
 package marketplace
 
-import (
-	"context"
-	"errors"
-)
+import "context"
 
 // Install installs one marketplace skill into the configured Compozy skills root.
-func (s *Service) Install(ctx context.Context, slug string, version string) (_ InstallResult, err error) {
+func (s *Service) Install(ctx context.Context, slug string, version string) (item InstallResult, err error) {
 	registry, err := s.loadRegistry()
 	if err != nil {
 		return InstallResult{}, err
 	}
 	defer func() {
-		err = errors.Join(err, registry.Close())
+		appendRegistrySourceCleanupToInstall(&item, &err, registry.Close())
 	}()
 
-	return InstallWithRegistry(ctx, s.homePaths.SkillsDir, registry, slug, version, "", s.now)
+	item, err = InstallWithRegistry(ctx, s.homePaths.SkillsDir, registry, slug, version, "", s.now)
+	return item, err
 }
 
 // Update checks or applies marketplace updates for one skill or every installed marketplace skill.
-func (s *Service) Update(ctx context.Context, req UpdateRequest) (_ []UpdateResult, err error) {
+func (s *Service) Update(ctx context.Context, req UpdateRequest) (items []UpdateResult, err error) {
 	registry, err := s.loadRegistry()
 	if err != nil {
 		return nil, err
 	}
 	defer func() {
-		err = errors.Join(err, registry.Close())
+		appendRegistrySourceCleanupToUpdates(items, &err, registry.Close())
 	}()
 
-	return UpdateWithRegistry(ctx, s.homePaths.SkillsDir, registry, req, s.now)
+	items, err = UpdateWithRegistry(ctx, s.homePaths.SkillsDir, registry, req, s.now)
+	return items, err
 }
 
 // Remove removes one installed marketplace skill.

@@ -355,7 +355,6 @@ func (s *Scheduler) sweepExpiredLeases(ctx context.Context, now time.Time, resul
 	}, s.actor)
 	if err != nil {
 		s.recordRecoveryError(err)
-		s.logger.Warn("scheduler.lease_sweep.error", "error", err)
 		return []error{fmt.Errorf("scheduler: recover expired leases: %w", err)}
 	}
 
@@ -370,7 +369,6 @@ func (s *Scheduler) sweepExpiredTaskBlocks(ctx context.Context, now time.Time, r
 	expired, err := s.tasks.ExpireTaskBlocks(ctx, now, s.actor)
 	if err != nil {
 		s.recordExpiryError(err)
-		s.logger.Warn("scheduler.task_block_sweep.error", "error", err)
 		return []error{fmt.Errorf("scheduler: expire task blocks: %w", err)}
 	}
 	result.ExpiredBlocks = len(expired.Blocks)

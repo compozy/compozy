@@ -115,14 +115,14 @@ func taskRunReviewValues(query TaskRunReviewListQuery) url.Values {
 
 func taskBridgeNotificationSubscriptionValues(query TaskBridgeNotificationSubscriptionQuery) url.Values {
 	values := url.Values{}
-	if trimmed := strings.TrimSpace(query.BridgeInstanceID); trimmed != "" {
-		values.Set("bridge_instance_id", trimmed)
+	if query.BridgeInstanceID != "" {
+		values.Set("bridge_instance_id", query.BridgeInstanceID)
 	}
 	if trimmed := strings.TrimSpace(string(query.Scope)); trimmed != "" {
 		values.Set("scope", trimmed)
 	}
-	if trimmed := strings.TrimSpace(query.WorkspaceID); trimmed != "" {
-		values.Set("workspace_id", trimmed)
+	if query.WorkspaceID != "" {
+		values.Set("workspace_id", query.WorkspaceID)
 	}
 	if query.Limit > 0 {
 		values.Set("limit", strconv.Itoa(query.Limit))

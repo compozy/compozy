@@ -13,11 +13,6 @@ import (
 
 const forceOpsDocURL = "/docs/autonomy/task-runs-and-leases#force-operations"
 
-type inputQueueGenerationStore interface {
-	AdvanceSessionInputGeneration(ctx context.Context, sessionID string, now time.Time) (int64, error)
-	CancelPendingSessionInputs(ctx context.Context, sessionID string, generation int64, now time.Time) (int, error)
-}
-
 type forceRunRateLimiter struct {
 	mu      sync.Mutex
 	windows map[string]forceRunRateWindow
@@ -96,48 +91,17 @@ func (m *Service) ForceReleaseRun(
 			ErrInvalidStatusTransition,
 		)
 	}
+	if err := m.preflightForceReleaseRun(previous, normalized, actor); err != nil {
+		return nil, err
+	}
 
-	mutation, err := m.store.ForceReleaseTaskRun(ctx, ForceReleaseRunMutation{
-		RunID: previous.ID,
-		Now:   m.now().UTC(),
-	})
+	settlement, err := m.forceReleaseRunSettlement(ctx, previous, normalized, actor, m.now().UTC())
 	if err != nil {
 		return nil, err
 	}
+	mutation := settlement.mutation
 	defer m.restoreTaskRunNetworkBestEffort(ctx, mutation.Previous.SessionID, mutation.Run.ID)
-	queueGeneration, canceledInputs, err := m.invalidateForceRunInputs(ctx, mutation.Previous)
-	if err != nil {
-		return nil, err
-	}
-	reconciledTask, err := m.reconcileTaskCascade(ctx, taskRecord.ID, actor)
-	if err != nil {
-		return nil, err
-	}
-	if err := m.recordTaskEvent(
-		ctx,
-		mutation.Run.TaskID,
-		mutation.Run.ID,
-		taskEventRunReleased,
-		actor,
-		releasedRunPayload{
-			Manual:                          true,
-			ActorKind:                       actor.Actor.Kind.Normalize(),
-			ActorID:                         actor.Actor.Ref,
-			PreviousStatus:                  mutation.Previous.Status,
-			Status:                          mutation.Run.Status,
-			TaskStatus:                      reconciledTask.Status,
-			Reason:                          normalized.Reason,
-			SessionID:                       mutation.Previous.SessionID,
-			PreviousSessionID:               mutation.Previous.SessionID,
-			PreviousClaimTokenHashTruncated: truncateClaimTokenHash(mutation.Previous.ClaimTokenHash),
-			PreviousLeaseUntil:              optionalPayloadTime(mutation.Previous.LeaseUntil),
-			QueueGeneration:                 queueGeneration,
-			CanceledQueuedInputs:            canceledInputs,
-		},
-	); err != nil {
-		return nil, err
-	}
-	m.dispatchTaskRunReleased(ctx, mutation.Run, reconciledTask, actor, mutation.Previous, normalized.Reason)
+	m.dispatchTaskRunReleased(ctx, mutation.Run, settlement.task, actor, mutation.Previous, normalized.Reason)
 	return &mutation.Run, nil
 }
 
@@ -165,46 +129,16 @@ func (m *Service) ForceFailRun(
 	if err := requireForceFailStatus(previous); err != nil {
 		return nil, err
 	}
+	if err := m.preflightForceFailRun(previous, normalized, actor); err != nil {
+		return nil, err
+	}
 
-	mutation, err := m.store.ForceFailTaskRun(ctx, ForceFailRunMutation{
-		RunID:  previous.ID,
-		Reason: normalized.Reason,
-		Now:    m.now().UTC(),
-	})
+	settlement, err := m.forceFailRunSettlement(ctx, previous, normalized, actor, m.now().UTC())
 	if err != nil {
 		return nil, err
 	}
+	mutation := settlement.mutation
 	defer m.restoreTaskRunNetworkBestEffort(ctx, mutation.Previous.SessionID, mutation.Run.ID)
-	queueGeneration, canceledInputs, err := m.invalidateForceRunInputs(ctx, mutation.Previous)
-	if err != nil {
-		return nil, err
-	}
-	reconciledTask, err := m.reconcileTaskCascade(ctx, taskRecord.ID, actor)
-	if err != nil {
-		return nil, err
-	}
-	if err := m.recordTaskEvent(
-		ctx,
-		mutation.Run.TaskID,
-		mutation.Run.ID,
-		taskEventRunOperatorForcedFail,
-		actor,
-		operatorForcedFailPayload{
-			Manual:               true,
-			ActorKind:            actor.Actor.Kind.Normalize(),
-			ActorID:              actor.Actor.Ref,
-			PreviousStatus:       mutation.Previous.Status,
-			Status:               mutation.Run.Status,
-			TaskStatus:           reconciledTask.Status,
-			Reason:               normalized.Reason,
-			SessionID:            mutation.Previous.SessionID,
-			QueueGeneration:      queueGeneration,
-			CanceledQueuedInputs: canceledInputs,
-			Metadata:             cloneRawJSON(normalized.Metadata),
-		},
-	); err != nil {
-		return nil, err
-	}
 	return &mutation.Run, nil
 }
 
@@ -247,38 +181,26 @@ func (m *Service) RetryRun(
 		return nil, err
 	}
 
-	result, err := m.store.RetryTaskRun(ctx, RetryRunMutation{
-		SourceRunID: source.ID,
-		NewRunID:    m.newID("run"),
-		Origin:      actor.Origin,
-		Metadata:    normalized.Metadata,
-		QueuedAt:    m.now().UTC(),
-	})
+	newRunID, err := m.newID("run")
 	if err != nil {
+		return nil, fmt.Errorf("task: generate retry run id: %w", err)
+	}
+	if err := m.preflightRetryRun(source, newRunID, actor); err != nil {
 		return nil, err
 	}
-	reconciledTask, err := m.reconcileTaskCascade(ctx, taskRecord.ID, actor)
-	if err != nil {
-		return nil, err
-	}
-	if err := m.recordTaskEvent(
+	settlement, err := m.retryRunSettlement(
 		ctx,
-		result.Run.TaskID,
-		result.Run.ID,
-		taskEventRunOperatorRetry,
+		source,
+		newRunID,
+		normalized,
 		actor,
-		operatorRetryPayload{
-			Manual:      true,
-			ActorKind:   actor.Actor.Kind.Normalize(),
-			ActorID:     actor.Actor.Ref,
-			SourceRunID: result.PreviousRun.ID,
-			NewRunID:    result.Run.ID,
-			TaskStatus:  reconciledTask.Status,
-		},
-	); err != nil {
+		m.now().UTC(),
+	)
+	if err != nil {
 		return nil, err
 	}
-	m.dispatchTaskRunEnqueued(ctx, result.Run, reconciledTask, actor, "")
+	result := settlement.result
+	m.dispatchTaskRunEnqueued(ctx, result.Run, settlement.task, actor, "")
 	return &result, nil
 }
 
@@ -313,41 +235,27 @@ func (m *Service) RecoverRun(
 		return nil, err
 	}
 
-	result, err := m.store.RecoverTaskRun(ctx, RecoverRunMutation{
-		SourceRunID: source.ID,
-		NewRunID:    m.newID("run"),
-		Origin:      actor.Origin,
-		Reason:      normalized.Reason,
-		Metadata:    normalized.Metadata,
-		QueuedAt:    m.now().UTC(),
-	})
+	newRunID, err := m.newID("run")
 	if err != nil {
+		return nil, fmt.Errorf("task: generate recovery run id: %w", err)
+	}
+	if err := m.preflightRecoverRun(source, newRunID, normalized, actor); err != nil {
 		return nil, err
 	}
-	reconciledTask, err := m.reconcileTaskCascade(ctx, taskRecord.ID, actor)
-	if err != nil {
-		return nil, err
-	}
-	if err := m.recordTaskEvent(
+	settlement, err := m.recoverRunSettlement(
 		ctx,
-		result.Run.TaskID,
-		result.Run.ID,
-		taskEventRunRecoveredFromAttention,
+		source,
+		newRunID,
+		normalized,
+		normalized.Metadata,
 		actor,
-		recoveredFromAttentionPayload{
-			Manual:         true,
-			ActorKind:      actor.Actor.Kind.Normalize(),
-			ActorID:        actor.Actor.Ref,
-			SourceRunID:    result.PreviousRun.ID,
-			NewRunID:       result.Run.ID,
-			PreviousStatus: TaskRunStatusNeedsAttention,
-			Status:         result.Run.Status.Normalize(),
-			TaskStatus:     reconciledTask.Status,
-			Reason:         normalized.Reason,
-		},
-	); err != nil {
+		m.now().UTC(),
+	)
+	if err != nil {
 		return nil, err
 	}
-	m.dispatchTaskRunEnqueued(ctx, result.Run, reconciledTask, actor, "")
+	result := settlement.result
+	defer m.restoreTaskRunNetworkBestEffort(ctx, result.PreviousRun.SessionID, result.Run.ID)
+	m.dispatchTaskRunEnqueued(ctx, result.Run, settlement.task, actor, "")
 	return &result, nil
 }

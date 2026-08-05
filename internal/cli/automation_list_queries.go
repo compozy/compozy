@@ -11,7 +11,7 @@ import (
 func parseAutomationJobListQuery(
 	cmd *cobra.Command,
 	deps commandDeps,
-	client DaemonClient,
+	client workspaceLookupClient,
 	scopeRaw string,
 	workspaceRef string,
 	sourceRaw string,
@@ -63,7 +63,7 @@ func parseAutomationJobListQuery(
 func parseAutomationTriggerListQuery(
 	cmd *cobra.Command,
 	deps commandDeps,
-	client DaemonClient,
+	client workspaceLookupClient,
 	scopeRaw string,
 	workspaceRef string,
 	eventRaw string,

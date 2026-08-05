@@ -93,7 +93,7 @@ func (r BridgeRoute) Validate() error {
 	if err := normalized.RoutingKey().Validate(); err != nil {
 		return err
 	}
-	if err := requireField(normalized.SessionID, "bridge route session id"); err != nil {
+	if err := requireOpaqueIdentity(normalized.SessionID, "bridge route session id"); err != nil {
 		return err
 	}
 	if err := requireField(normalized.AgentName, "bridge route agent name"); err != nil {
@@ -131,7 +131,7 @@ func (r BridgeRoute) Canonicalize() (BridgeRoute, error) {
 // routing policy and computes the expected routing-key hash.
 func CanonicalizeRoute(instance BridgeInstance, route BridgeRoute) (BridgeRoute, error) {
 	normalizedRoute := route.normalize()
-	if err := requireField(normalizedRoute.BridgeInstanceID, "bridge route bridge instance id"); err != nil {
+	if err := requireOpaqueIdentity(normalizedRoute.BridgeInstanceID, "bridge route bridge instance id"); err != nil {
 		return BridgeRoute{}, err
 	}
 
@@ -176,12 +176,6 @@ func (r BridgeRoute) normalize() BridgeRoute {
 	normalized := r
 	normalized.RoutingKeyHash = strings.TrimSpace(normalized.RoutingKeyHash)
 	normalized.Scope = normalized.Scope.Normalize()
-	normalized.WorkspaceID = strings.TrimSpace(normalized.WorkspaceID)
-	normalized.BridgeInstanceID = strings.TrimSpace(normalized.BridgeInstanceID)
-	normalized.PeerID = strings.TrimSpace(normalized.PeerID)
-	normalized.ThreadID = strings.TrimSpace(normalized.ThreadID)
-	normalized.GroupID = strings.TrimSpace(normalized.GroupID)
-	normalized.SessionID = strings.TrimSpace(normalized.SessionID)
 	normalized.AgentName = strings.TrimSpace(normalized.AgentName)
 	return normalized
 }

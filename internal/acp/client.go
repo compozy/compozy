@@ -41,6 +41,8 @@ var (
 	errProcessConnectionUninitialized = errors.New("acp: process connection is not initialized")
 	// errProcessLifecycleUninitialized reports that the driver received a process without a managed lifecycle.
 	errProcessLifecycleUninitialized = errors.New("acp: process lifecycle is not initialized")
+	// errProcessExited reports that the process no longer accepts owned child work.
+	errProcessExited = errors.New("acp: process has exited")
 )
 
 const requestErrorResourceNotFoundCode = -32002
@@ -59,6 +61,7 @@ type Driver struct {
 	launcher             sandbox.Launcher
 	toolHost             sandbox.ToolHost
 	processRegistry      *toolruntime.Registry
+	providerPreStarter   ProviderPreStarter
 }
 
 // WithLogger directs driver diagnostics to the provided logger.
@@ -124,6 +127,13 @@ func WithProcessRecordTimeout(timeout time.Duration) Option {
 	}
 }
 
+// WithProviderPreStarter injects the daemon-owned provider auth probe boundary.
+func WithProviderPreStarter(starter ProviderPreStarter) Option {
+	return func(driver *Driver) {
+		driver.providerPreStarter = starter
+	}
+}
+
 // New constructs an ACP driver with sensible defaults.
 func New(opts ...Option) *Driver {
 	driver := &Driver{
@@ -180,8 +190,8 @@ func IsLoadSessionResourceMissing(err error) bool {
 		return false
 	}
 
-	var reqErr *acpsdk.RequestError
-	if !errors.As(err, &reqErr) {
+	reqErr, ok := errors.AsType[*acpsdk.RequestError](err)
+	if !ok || reqErr == nil {
 		return false
 	}
 

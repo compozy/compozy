@@ -32,6 +32,43 @@ func validateBoundedCount(count int, maxCount int, label string) error {
 	return nil
 }
 
+func validateBoundedText(value string, maxBytes int, path string) error {
+	if len(value) > maxBytes {
+		return fmt.Errorf("%w: %s exceeds %d bytes", ErrPayloadTooLarge, path, maxBytes)
+	}
+	return nil
+}
+
+func validateAuditCollectionSize(count int, path string) error {
+	if count > MaxAuditCollectionItems {
+		return fmt.Errorf(
+			"%w: %s exceeds %d items",
+			ErrPayloadTooLarge,
+			path,
+			MaxAuditCollectionItems,
+		)
+	}
+	return nil
+}
+
+// ValidateReferenceSize reports whether an identifier or external reference fits the domain limit.
+func ValidateReferenceSize(value string, path string) error {
+	if len(value) > MaxReferenceBytes {
+		return fmt.Errorf("%w: %s exceeds %d bytes", ErrValidation, path, MaxReferenceBytes)
+	}
+	return nil
+}
+
+// ValidateReasonSize reports whether operator-authored audit text fits the reason limit.
+func ValidateReasonSize(value string, path string) error {
+	return validateBoundedText(value, MaxReasonBytes, path)
+}
+
+// ValidateDiagnosticSize reports whether persisted diagnostic text fits the diagnostic limit.
+func ValidateDiagnosticSize(value string, path string) error {
+	return validateBoundedText(value, MaxDiagnosticBytes, path)
+}
+
 func taskPatchHasMutableFields(p Patch) bool {
 	return p.Title != nil ||
 		p.Description != nil ||

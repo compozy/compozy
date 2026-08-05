@@ -10,6 +10,7 @@ import (
 
 	"strings"
 
+	"github.com/compozy/compozy/internal/fileutil"
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
 )
 
@@ -117,28 +118,55 @@ func (s *Store) needsFullSyncAfterMutation(
 	return !ready, nil
 }
 
-func (s *Store) indexMissingWithExistingDocuments(scope memcontract.Scope, mutatedFilename string) (bool, error) {
+func (s *Store) indexMissingWithExistingDocuments(
+	scope memcontract.Scope,
+	mutatedFilename string,
+) (_ bool, err error) {
 	dir, err := s.dirForScope(scope)
 	if err != nil {
 		return false, err
 	}
-	indexPath := filepath.Join(dir, indexFilename)
-	if _, err := os.Stat(indexPath); err == nil {
-		return false, nil
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return false, fmt.Errorf("memory: stat index %q: %w", indexPath, err)
-	}
-
-	entries, err := os.ReadDir(dir)
+	directory, err := fileutil.OpenDirectory(dir)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return false, nil
 		}
 		return false, fmt.Errorf("memory: inspect memory directory %q: %w", dir, err)
 	}
-	for _, entry := range entries {
-		if entry.IsDir() || shouldSkipFile(entry.Name()) || entry.Name() == strings.TrimSpace(mutatedFilename) {
+	defer func() {
+		if closeErr := directory.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("memory: close inspected directory %q: %w", dir, closeErr))
+		}
+	}()
+
+	index, err := directory.OpenRegularFile(indexFilename)
+	if err == nil {
+		if err := index.Close(); err != nil {
+			return false, fmt.Errorf("memory: close index %q: %w", filepath.Join(dir, indexFilename), err)
+		}
+		return false, nil
+	}
+	if !errors.Is(err, os.ErrNotExist) {
+		return false, fmt.Errorf("memory: open index %q: %w", filepath.Join(dir, indexFilename), err)
+	}
+
+	names, err := directory.ReadDir()
+	if err != nil {
+		return false, fmt.Errorf("memory: inspect memory directory %q: %w", dir, err)
+	}
+	for _, name := range names {
+		if shouldSkipFile(name) || name == strings.TrimSpace(mutatedFilename) {
 			continue
+		}
+		file, err := directory.OpenRegularFile(name)
+		if errors.Is(err, fileutil.ErrDirectory) || errors.Is(err, fileutil.ErrNotRegular) {
+			continue
+		}
+		if err != nil {
+			return false, fmt.Errorf("memory: inspect entry %q: %w", filepath.Join(dir, name), err)
+		}
+		if err := file.Close(); err != nil {
+			return false, fmt.Errorf("memory: close inspected entry %q: %w", filepath.Join(dir, name), err)
 		}
 		return true, nil
 	}

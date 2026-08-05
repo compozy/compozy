@@ -46,6 +46,11 @@ type observabilityRetentionStore interface {
 	SweepObservability(ctx context.Context, cutoff time.Time) (store.ObservabilityRetentionSweepResult, error)
 }
 
+type retentionRun struct {
+	cancel context.CancelFunc
+	done   chan struct{}
+}
+
 // RetentionConfigFromObservability maps daemon configuration into observer retention settings.
 func RetentionConfigFromObservability(cfg compozyconfig.ObservabilityConfig) RetentionConfig {
 	return RetentionConfig{
@@ -84,16 +89,21 @@ func (o *Observer) StartRetention(ctx context.Context) error {
 	}
 
 	o.retentionMu.Lock()
-	if o.retentionCancel != nil {
-		o.retentionMu.Unlock()
-		return nil
+	if current := o.retentionRun; current != nil {
+		select {
+		case <-current.done:
+			o.retentionRun = nil
+		default:
+			o.retentionMu.Unlock()
+			return nil
+		}
 	}
 	runCtx, cancel := context.WithCancel(ctx)
-	o.retentionCancel = cancel
-	o.retentionWG.Add(1)
+	run := &retentionRun{cancel: cancel, done: make(chan struct{})}
+	o.retentionRun = run
 	o.retentionMu.Unlock()
 
-	go o.runRetentionLoop(runCtx)
+	go o.runRetentionLoop(runCtx, run)
 	return nil
 }
 
@@ -103,27 +113,20 @@ func (o *Observer) ShutdownRetention(ctx context.Context) error {
 		return nil
 	}
 	if ctx == nil {
-		ctx = context.Background()
+		return errors.New("observe: retention shutdown context is required")
 	}
 
 	o.retentionMu.Lock()
-	cancel := o.retentionCancel
-	o.retentionCancel = nil
+	run := o.retentionRun
 	o.retentionMu.Unlock()
 
-	if cancel == nil {
+	if run == nil {
 		return nil
 	}
-	cancel()
-
-	done := make(chan struct{})
-	go func() {
-		o.retentionWG.Wait()
-		close(done)
-	}()
+	run.cancel()
 
 	select {
-	case <-done:
+	case <-run.done:
 		return nil
 	case <-ctx.Done():
 		return fmt.Errorf("observe: shutdown retention: %w", ctx.Err())
@@ -179,8 +182,8 @@ func (o *Observer) SweepRetention(ctx context.Context) (RetentionHealth, error) 
 	return health, nil
 }
 
-func (o *Observer) runRetentionLoop(ctx context.Context) {
-	defer o.retentionWG.Done()
+func (o *Observer) runRetentionLoop(ctx context.Context, run *retentionRun) {
+	defer o.finishRetentionRun(run)
 
 	o.sweepRetentionBestEffort(ctx)
 
@@ -195,6 +198,18 @@ func (o *Observer) runRetentionLoop(ctx context.Context) {
 			o.sweepRetentionBestEffort(ctx)
 		}
 	}
+}
+
+func (o *Observer) finishRetentionRun(run *retentionRun) {
+	if run == nil {
+		return
+	}
+	o.retentionMu.Lock()
+	if o.retentionRun == run {
+		o.retentionRun = nil
+	}
+	o.retentionMu.Unlock()
+	close(run.done)
 }
 
 func (o *Observer) sweepRetentionBestEffort(ctx context.Context) {

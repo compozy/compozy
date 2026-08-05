@@ -94,7 +94,7 @@ describe("listBridges", () => {
     await expectFetchRequest({ path: "/api/bridges" });
   });
 
-  it("sends every bridge catalog filter and cursor", async () => {
+  it("preserves opaque bridge catalog filters and cursor", async () => {
     mockJsonResponse({
       bridge_health: {},
       bridges: [],
@@ -124,7 +124,7 @@ describe("listBridges", () => {
     });
 
     await expectFetchRequest({
-      path: "/api/bridges?scope=all&workspace_id=ws_alpha&q=ops&platform=slack&status=ready&sort=name&cursor=cursor-2&limit=25",
+      path: "/api/bridges?scope=all&workspace_id=%20ws_alpha%20&q=ops&platform=slack&status=ready&sort=name&cursor=%20cursor-2%20&limit=25",
     });
   });
 
@@ -709,7 +709,7 @@ describe("getSlackBridgeManifest", () => {
 
     expect(result.manifest.display_information.name).toBe("Compozy");
     await expectFetchRequest({
-      path: "/api/bridges/providers/slack/manifest?instance=brg_slack",
+      path: "/api/bridges/providers/slack/manifest?instance=%20brg_slack%20",
       signal: controller.signal,
     });
   });
@@ -745,7 +745,7 @@ describe("verifyBridge", () => {
     expect(result.checks.map(check => check.status)).toEqual(["pass", "skipped"]);
     await expectFetchRequest({
       method: "POST",
-      path: "/api/bridges/brg_support/verify",
+      path: "/api/bridges/%20brg_support%20/verify",
       signal: controller.signal,
     });
   });
@@ -790,7 +790,7 @@ describe("sendBridgeTest", () => {
     await expectFetchRequest({
       body: payload,
       method: "POST",
-      path: "/api/bridges/brg_support/send-test",
+      path: "/api/bridges/%20brg_support%20/send-test",
       signal: controller.signal,
     });
   });
@@ -825,7 +825,7 @@ describe("registerBridgeWebhook", () => {
     expect(result.status).toBe("pass");
     await expectFetchRequest({
       method: "POST",
-      path: "/api/bridges/brg_telegram/webhook/register",
+      path: "/api/bridges/%20brg_telegram%20/webhook/register",
       signal: controller.signal,
     });
   });

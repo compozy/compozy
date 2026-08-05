@@ -147,7 +147,9 @@ func (s *service) reactivateCoordinatorControl(
 		return err
 	}
 	if s.coordinatorActivator != nil {
-		s.coordinatorActivator.ActivateCoordinatorRun(context.WithoutCancel(ctx), result.Run)
+		activationCtx, cancel := loopPostCommitContext(ctx)
+		defer cancel()
+		s.coordinatorActivator.ActivateCoordinatorRun(activationCtx, result.Run)
 	}
 	return nil
 }
@@ -196,7 +198,9 @@ func (s *service) reactivateGoalControl(
 		return true, err
 	}
 	if s.goalRunActivator != nil {
-		s.goalRunActivator.ActivateGoalRun(context.WithoutCancel(ctx), result.Run)
+		activationCtx, cancel := loopPostCommitContext(ctx)
+		defer cancel()
+		s.goalRunActivator.ActivateGoalRun(activationCtx, result.Run)
 	}
 	return true, nil
 }

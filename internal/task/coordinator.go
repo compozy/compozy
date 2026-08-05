@@ -135,15 +135,23 @@ type CoordinatorCompletion struct {
 
 // CoordinatorCompletionResult records the durable state written by coordinator finalization.
 type CoordinatorCompletionResult struct {
-	Run            Run                     `json:"run"`
-	EnqueuedRuns   []Run                   `json:"enqueued_runs,omitempty"`
-	LoopRunID      string                  `json:"loop_run_id,omitempty"`
-	Context        json.RawMessage         `json:"context,omitempty"`
-	Paused         bool                    `json:"paused,omitempty"`
-	Terminal       bool                    `json:"terminal,omitempty"`
-	PlanSuperseded bool                    `json:"plan_superseded,omitempty"`
-	TokensUsed     int64                   `json:"tokens_used,omitempty"`
-	Settlement     *CompletedRunSettlement `json:"-"`
+	Run             Run                     `json:"run"`
+	EnqueuedRuns    []Run                   `json:"enqueued_runs,omitempty"`
+	LoopRunID       string                  `json:"loop_run_id,omitempty"`
+	Context         json.RawMessage         `json:"context,omitempty"`
+	Paused          bool                    `json:"paused,omitempty"`
+	Terminal        bool                    `json:"terminal,omitempty"`
+	PlanSuperseded  bool                    `json:"plan_superseded,omitempty"`
+	TokensUsed      int64                   `json:"tokens_used,omitempty"`
+	Settlement      *CompletedRunSettlement `json:"-"`
+	CompletionEvent Event                   `json:"-"`
+}
+
+var coordinatorCompletedRunResult = json.RawMessage(`{"kind":"coordinator"}`)
+
+// CoordinatorCompletedRunResult returns the canonical durable result for a completed coordinator run.
+func CoordinatorCompletedRunResult() json.RawMessage {
+	return cloneRawJSON(coordinatorCompletedRunResult)
 }
 
 // Normalize returns a validated coordinator completion request with default time applied.
@@ -164,6 +172,9 @@ func (c CoordinatorCompletion) Validate(path string) error {
 	if err := validateLeaseRunToken(c.RunID, c.ClaimToken, path); err != nil {
 		return err
 	}
+	if err := validateCoordinatorCompletionReferences(c, path); err != nil {
+		return err
+	}
 	if err := c.Actor.Validate(); err != nil {
 		return fmt.Errorf("%w: %s.actor", err, path)
 	}
@@ -173,6 +184,9 @@ func (c CoordinatorCompletion) Validate(path string) error {
 // Validate reports whether a coordinator completion plan is internally consistent.
 func (p CoordinatorCompletionPlan) Validate(path string) error {
 	if err := p.validateShape(path); err != nil {
+		return err
+	}
+	if err := validateCoordinatorPlanSnapshotReferences(p, path); err != nil {
 		return err
 	}
 	if err := validateCoordinatorTaskSpecs(p.NodeTasks, path); err != nil {
@@ -341,6 +355,9 @@ func (s CoordinatorTaskSpec) Validate(path string) error {
 	if strings.TrimSpace(s.TaskID) == "" {
 		return fmt.Errorf("%w: %s is required", ErrValidation, nestedPath(path, "task_id"))
 	}
+	if err := validateCoordinatorTaskSpecReferences(s, path); err != nil {
+		return err
+	}
 	if strings.TrimSpace(s.Title) == "" {
 		return fmt.Errorf("%w: %s is required", ErrValidation, nestedPath(path, "title"))
 	}
@@ -373,6 +390,9 @@ func (s CoordinatorDependencySpec) Validate(path string) error {
 			ErrValidation,
 			nestedPath(path, "depends_on_task_id"),
 		)
+	}
+	if err := validateCoordinatorDependencySpecReferences(s, path); err != nil {
+		return err
 	}
 	if strings.TrimSpace(s.TaskID) == strings.TrimSpace(s.DependsOnTaskID) {
 		return fmt.Errorf(
@@ -414,6 +434,9 @@ func (s EnqueueSpec) Normalize() EnqueueSpec {
 func (s EnqueueSpec) Validate(path string) error {
 	if strings.TrimSpace(s.TaskID) == "" {
 		return fmt.Errorf("%w: %s is required", ErrValidation, nestedPath(path, "task_id"))
+	}
+	if err := validateCoordinatorEnqueueSpecReferences(s, path); err != nil {
+		return err
 	}
 	runKind := normalizeRunKindOrDefault(s.RunKind)
 	if err := runKind.Validate(nestedPath(path, "run_kind")); err != nil {

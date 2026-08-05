@@ -1875,6 +1875,8 @@ func TestDeliveryValidationAndMetadataHelpers(t *testing.T) {
 	}
 
 	t.Run("Should normalize projection event fields", func(t *testing.T) {
+		t.Parallel()
+
 		normalized := (DeliveryProjectionEvent{
 			Type:        " agent_message ",
 			TurnID:      " turn-validate ",
@@ -1895,7 +1897,59 @@ func TestDeliveryValidationAndMetadataHelpers(t *testing.T) {
 		}
 	})
 
+	t.Run("Should preserve opaque delivery and bridge IDs during ledger canonicalization", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, time.April, 12, 9, 0, 0, 0, time.UTC)
+		record, err := (DeliveryLedgerRecord{
+			DeliveryID: " delivery ",
+			SessionID:  "session-ledger",
+			TurnID:     "turn-ledger",
+			RoutingKey: RoutingKey{
+				Scope:            ScopeGlobal,
+				BridgeInstanceID: " bridge ",
+				PeerID:           " peer ",
+			},
+			BridgeInstanceID: " bridge ",
+			Scope:            ScopeGlobal,
+			State:            DeliveryLedgerStateActive,
+			CreatedAt:        now,
+			UpdatedAt:        now,
+		}).Canonicalize()
+		if err != nil {
+			t.Fatalf("DeliveryLedgerRecord.Canonicalize() error = %v", err)
+		}
+		if record.DeliveryID != " delivery " || record.BridgeInstanceID != " bridge " {
+			t.Fatalf("canonical record identity = %#v, want exact opaque IDs", record)
+		}
+
+		checkpoint, err := (DeliveryLedgerCheckpoint{
+			DeliveryID: " delivery ",
+			State:      DeliveryLedgerStateActive,
+			UpdatedAt:  now,
+		}).Canonicalize()
+		if err != nil {
+			t.Fatalf("DeliveryLedgerCheckpoint.Canonicalize() error = %v", err)
+		}
+		if checkpoint.DeliveryID != " delivery " {
+			t.Fatalf("canonical checkpoint delivery id = %q, want exact opaque ID", checkpoint.DeliveryID)
+		}
+
+		query, err := (DeliveryLedgerQuery{
+			Scope:            ScopeGlobal,
+			BridgeInstanceID: " bridge ",
+		}).Canonicalize()
+		if err != nil {
+			t.Fatalf("DeliveryLedgerQuery.Canonicalize() error = %v", err)
+		}
+		if query.BridgeInstanceID != " bridge " {
+			t.Fatalf("canonical query bridge instance id = %q, want exact opaque ID", query.BridgeInstanceID)
+		}
+	})
+
 	t.Run("Should clone typed delivery payloads", func(t *testing.T) {
+		t.Parallel()
+
 		event := DeliveryEvent{
 			DeliveryID:       "del-clone",
 			BridgeInstanceID: "brg-clone",

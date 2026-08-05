@@ -61,13 +61,18 @@ func TestDaytonaLauncherTransportValidation(t *testing.T) {
 	})
 
 	for _, tc := range []struct {
-		name    string
-		payload []byte
+		name         string
+		payloadLabel string
+		payload      []byte
 	}{
-		{name: "small-100B", payload: mustJSONPayload(t, 100)},
-		{name: "medium-10KB", payload: mustJSONPayload(t, 10*1024)},
-		{name: "large-100KB", payload: mustJSONPayload(t, 100*1024)},
-		{name: "newline-delimited-json", payload: newlineDelimitedJSONPayload(t)},
+		{name: "Should round trip a small payload", payloadLabel: "small-100B", payload: mustJSONPayload(t, 100)},
+		{name: "Should round trip a medium payload", payloadLabel: "medium-10KB", payload: mustJSONPayload(t, 10*1024)},
+		{name: "Should round trip a large payload", payloadLabel: "large-100KB", payload: mustJSONPayload(t, 100*1024)},
+		{
+			name:         "Should round trip newline-delimited JSON",
+			payloadLabel: "newline-delimited-json",
+			payload:      newlineDelimitedJSONPayload(t),
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			result, err := roundTripLauncherSession(session, tc.payload)
@@ -75,7 +80,10 @@ func TestDaytonaLauncherTransportValidation(t *testing.T) {
 				t.Fatalf("launcher transport round trip failed: %v", err)
 			}
 			assertCleanRoundTrip(t, tc.payload, result)
-			t.Logf("launcher payload=%s bytes=%d latency=%s artifacts=none", tc.name, len(tc.payload), result.latency)
+			t.Attr("payload", tc.payloadLabel)
+			t.Attr("bytes", fmt.Sprintf("%d", len(tc.payload)))
+			t.Attr("latency", result.latency.String())
+			t.Attr("artifacts", "none")
 		})
 	}
 
@@ -92,12 +100,10 @@ func TestDaytonaLauncherTransportValidation(t *testing.T) {
 			launcherLatencyThreshold,
 		)
 	}
-	t.Logf(
-		"launcher payload=latency-1KB bytes=%d latency=%s threshold=%s",
-		len(payload),
-		result.latency,
-		launcherLatencyThreshold,
-	)
+	t.Attr("payload", "latency-1KB")
+	t.Attr("bytes", fmt.Sprintf("%d", len(payload)))
+	t.Attr("latency", result.latency.String())
+	t.Attr("threshold", launcherLatencyThreshold.String())
 
 	if err := session.CloseWrite(); err != nil {
 		t.Fatalf("CloseWrite() error = %v", err)

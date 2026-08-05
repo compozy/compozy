@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"net/url"
 	"strings"
 	"time"
 
@@ -75,8 +74,8 @@ func (c readOnlyOpenConfig) normalize() readOnlyOpenConfig {
 // ReadOnlySessionDB opens an existing per-session events database for queries
 // without creating, migrating, checkpointing, or otherwise mutating it.
 type ReadOnlySessionDB struct {
-	db        *sql.DB
-	sessionID string
+	db    *sql.DB
+	owner store.SessionDBOwner
 }
 
 var _ store.EventReadCloser = (*ReadOnlySessionDB)(nil)
@@ -87,13 +86,13 @@ var _ store.EventMetadataReadCloser = (*ReadOnlySessionDB)(nil)
 // creating a fresh database during stale transcript/event reads.
 func OpenSessionDBReadOnly(
 	ctx context.Context,
-	sessionID string,
+	owner store.SessionDBOwner,
 	path string,
 	options ...ReadOnlyOpenOption,
 ) (*ReadOnlySessionDB, error) {
 	return openSessionDBReadOnlyWithRetry(
 		ctx,
-		sessionID,
+		owner,
 		path,
 		openSessionDBReadOnlyOnce,
 		store.IsSQLiteBusy,
@@ -101,11 +100,11 @@ func OpenSessionDBReadOnly(
 	)
 }
 
-type readOnlySessionDBOpener func(context.Context, string, string) (*ReadOnlySessionDB, error)
+type readOnlySessionDBOpener func(context.Context, store.SessionDBOwner, string) (*ReadOnlySessionDB, error)
 
 func openSessionDBReadOnlyWithRetry(
 	ctx context.Context,
-	sessionID string,
+	owner store.SessionDBOwner,
 	path string,
 	opener readOnlySessionDBOpener,
 	retryable func(error) bool,
@@ -121,7 +120,7 @@ func openSessionDBReadOnlyWithRetry(
 
 	var lastErr error
 	for attempt := 1; attempt <= config.maxAttempts; attempt++ {
-		reader, err := opener(ctx, sessionID, path)
+		reader, err := opener(ctx, owner, path)
 		if err == nil {
 			return reader, nil
 		}
@@ -136,59 +135,42 @@ func openSessionDBReadOnlyWithRetry(
 	return nil, lastErr
 }
 
-func openSessionDBReadOnlyOnce(ctx context.Context, sessionID string, path string) (*ReadOnlySessionDB, error) {
+func openSessionDBReadOnlyOnce(
+	ctx context.Context,
+	owner store.SessionDBOwner,
+	path string,
+) (*ReadOnlySessionDB, error) {
 	if ctx == nil {
 		return nil, errors.New("store: open read-only session database context is required")
 	}
-	cleanSessionID := strings.TrimSpace(sessionID)
-	if cleanSessionID == "" {
-		return nil, errors.New("store: read-only session database session id is required")
+	normalizedOwner, err := owner.Normalize()
+	if err != nil {
+		return nil, err
 	}
 	cleanPath := strings.TrimSpace(path)
 	if cleanPath == "" {
 		return nil, errors.New("store: read-only session database path is required")
 	}
+	return openGuardedSessionDBReadOnly(ctx, normalizedOwner, cleanPath)
+}
 
-	db, err := sql.Open("sqlite", readOnlySessionSQLiteDSN(cleanPath))
+func openGuardedSessionDBReadOnly(
+	ctx context.Context,
+	owner store.SessionDBOwner,
+	path string,
+) (*ReadOnlySessionDB, error) {
+	db, err := openGuardedSessionSQLite(ctx, owner, path, true)
 	if err != nil {
-		return nil, fmt.Errorf("store: open read-only session database %q: %w", cleanPath, err)
-	}
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
-
-	if err := db.PingContext(ctx); err != nil {
-		return nil, closeReadOnlySessionDBAfterOpenError(
-			db,
-			fmt.Errorf("store: ping read-only session database %q: %w", cleanPath, err),
-		)
+		return nil, fmt.Errorf("store: open read-only session database %q: %w", path, err)
 	}
 	if err := store.RequireCurrent(ctx, db, MigrationStream()); err != nil {
 		return nil, closeReadOnlySessionDBAfterOpenError(
 			db,
-			fmt.Errorf("store: validate read-only session database %q: %w", cleanPath, err),
-		)
-	}
-	// dynamic-sql: connection-scoped SQLite PRAGMA is lifecycle configuration outside sqlc's schema query model.
-	if _, err := db.ExecContext(ctx, "PRAGMA query_only = ON"); err != nil {
-		return nil, closeReadOnlySessionDBAfterOpenError(
-			db,
-			fmt.Errorf("store: guard read-only session database %q: %w", cleanPath, err),
+			fmt.Errorf("store: validate read-only session database %q: %w", path, err),
 		)
 	}
 
-	return &ReadOnlySessionDB{db: db, sessionID: cleanSessionID}, nil
-}
-
-func readOnlySessionSQLiteDSN(path string) string {
-	u := url.URL{
-		Scheme: "file",
-		Path:   store.SqliteFilePath(path),
-	}
-	query := u.Query()
-	query.Set("mode", "ro")
-	query.Add("_pragma", fmt.Sprintf("busy_timeout(%d)", store.DefaultSQLiteBusyTimeoutMS))
-	u.RawQuery = query.Encode()
-	return u.String()
+	return &ReadOnlySessionDB{db: db, owner: owner}, nil
 }
 
 func readOnlyOpenRetryDelay(config readOnlyOpenConfig, attempt int) time.Duration {
@@ -348,7 +330,7 @@ func (s *ReadOnlySessionDB) scanEventMetadata(row rowScanner) (store.EventMetada
 	if err != nil {
 		return store.EventMetadata{}, err
 	}
-	event.SessionID = s.sessionID
+	event.SessionID = s.owner.SessionID
 	event.Timestamp = timestamp
 	return event, nil
 }
@@ -396,6 +378,6 @@ func (s *ReadOnlySessionDB) scanSessionEvent(scanner rowScanner) (store.SessionE
 		return store.SessionEvent{}, err
 	}
 	event.Timestamp = parsed
-	event.SessionID = s.sessionID
+	event.SessionID = s.owner.SessionID
 	return event, nil
 }

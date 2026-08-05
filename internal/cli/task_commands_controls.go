@@ -13,6 +13,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
+type taskExecutionClient interface {
+	PublishTask(context.Context, string, TaskExecutionRequest) (TaskExecutionRecord, error)
+	StartTask(context.Context, string, TaskExecutionRequest) (TaskExecutionRecord, error)
+	ApproveTask(context.Context, string, TaskExecutionRequest) (TaskExecutionRecord, error)
+}
+
 func newTaskRejectCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "reject <id>",
@@ -37,7 +43,7 @@ func newTaskExecutionCommand(
 	deps commandDeps,
 	use string,
 	short string,
-	execute func(context.Context, DaemonClient, string, TaskExecutionRequest) (TaskExecutionRecord, error),
+	execute func(context.Context, taskExecutionClient, string, TaskExecutionRequest) (TaskExecutionRecord, error),
 ) *cobra.Command {
 	var input taskExecutionInput
 	cmd := &cobra.Command{

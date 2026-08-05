@@ -6,14 +6,20 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
+	"math"
 	"math/rand"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/compozy/compozy/internal/fileutil"
 )
 
 func TestInstallerVerifiesPinnedArchiveDigestBeforeExtraction(t *testing.T) {
@@ -100,27 +106,168 @@ func (d *stubDownloader) Download(ctx context.Context, slug string, opts Downloa
 }
 
 type blockingReadCloser struct {
-	ctx         context.Context
 	readStarted chan struct{}
 	started     atomic.Bool
 	closed      atomic.Bool
+	closeOnce   sync.Once
+	unblockRead chan struct{}
 }
 
 func (r *blockingReadCloser) Read(_ []byte) (int, error) {
 	if r.readStarted != nil && r.started.CompareAndSwap(false, true) {
 		close(r.readStarted)
 	}
-	<-r.ctx.Done()
-	return 0, r.ctx.Err()
+	<-r.unblockRead
+	return 0, io.EOF
 }
 
 func (r *blockingReadCloser) Close() error {
 	r.closed.Store(true)
+	r.closeOnce.Do(func() {
+		close(r.unblockRead)
+	})
 	return nil
 }
 
 func TestInstallerInstallExtensionArchiveReturnsChecksum(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should install an extension and return its tree checksum", func(t *testing.T) {
+		t.Parallel()
+		testInstallerInstallExtensionArchiveReturnsChecksum(t)
+	})
+}
+
+func TestInstallerInstallSkillArchiveReturnsResult(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should install a skill archive and return parsed metadata", func(t *testing.T) {
+		t.Parallel()
+		testInstallerInstallSkillArchiveReturnsResult(t)
+	})
+}
+
+func TestInstallerInstallRejectsCompressedArchiveOverLimit(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject an archive exceeding the compressed limit", func(t *testing.T) {
+		t.Parallel()
+		testInstallerInstallRejectsCompressedArchiveOverLimit(t)
+	})
+}
+
+func TestInstallerInstallRejectsDecompressedArchiveOverLimit(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject an archive exceeding the decompressed limit", func(t *testing.T) {
+		t.Parallel()
+		testInstallerInstallRejectsDecompressedArchiveOverLimit(t)
+	})
+}
+
+func TestInstallerInstallRequiresManifestAtRoot(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject a package without a manifest", func(t *testing.T) {
+		t.Parallel()
+		testInstallerInstallRequiresManifestAtRoot(t)
+	})
+}
+
+func TestInstallerInstallCleansUpTempDirOnFailure(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should remove the staging directory after installation failure", func(t *testing.T) {
+		t.Parallel()
+		testInstallerInstallCleansUpTempDirOnFailure(t)
+	})
+}
+
+// Invariant: cancellation synchronously interrupts a non-context-aware downloaded stream and reclaims staging.
+// Owner: registry installer lifecycle.
+// Canonical suite: registry installer lifecycle tests.
+func TestInstallerInstallWithContextCancellationClosesReaderAndCleansUp(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should interrupt a non-context-aware reader on cancellation", func(t *testing.T) {
+		t.Parallel()
+		testInstallerInstallWithContextCancellationClosesReaderAndCleansUp(t)
+	})
+}
+
+func TestInstallerInstallRejectsUnexpectedContentType(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject an unexpected download content type", func(t *testing.T) {
+		t.Parallel()
+		testInstallerInstallRejectsUnexpectedContentType(t)
+	})
+}
+
+func TestInstallerCleansStaleTempDirs(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should remove stale directories and retain recent directories", func(t *testing.T) {
+		t.Parallel()
+		testInstallerCleansStaleTempDirs(t)
+	})
+}
+
+func TestInstallerReportsStaleTempCleanupRemoveFailures(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should report stale cleanup degradation without failing publication", func(t *testing.T) {
+		t.Parallel()
+		testInstallerReportsStaleTempCleanupRemoveFailures(t)
+	})
+}
+
+// Invariant: age alone never authorizes removal of an actively leased staging directory.
+// Owner: registry installer staging lifecycle.
+// Canonical suite: registry installer lifecycle tests.
+func TestInstallerStaleCleanupRespectsStagingLeaseLiveness(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should retain an active staging directory even when its timestamp is stale", func(t *testing.T) {
+		t.Parallel()
+		testInstallerRetainsActiveStagingLease(t)
+	})
+
+	t.Run("Should reclaim a stale staging directory after its lease is released", func(t *testing.T) {
+		t.Parallel()
+		testInstallerReclaimsReleasedStagingLease(t)
+	})
+}
+
+func TestInstallerInstallBlocksCriticalVerificationContent(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should block package content that overrides instructions", func(t *testing.T) {
+		t.Parallel()
+		testInstallerInstallBlocksCriticalVerificationContent(t)
+	})
+}
+
+func TestNewInstallerNormalizesDefaultsAndOptions(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should normalize defaults and retain explicit options", func(t *testing.T) {
+		t.Parallel()
+		testNewInstallerNormalizesDefaultsAndOptions(t)
+	})
+}
+
+func TestInstallerHelperClosers(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should combine installer cleanup errors", func(t *testing.T) {
+		t.Parallel()
+		testInstallerHelperClosers(t)
+	})
+}
+
+func testInstallerInstallExtensionArchiveReturnsChecksum(t *testing.T) {
+	t.Helper()
 
 	archive := mustTarGz(t, []tarEntry{
 		{name: "extension/extension.toml", content: "name = \"demo-ext\"\nversion = \"1.2.3\"\n"},
@@ -137,7 +284,12 @@ func TestInstallerInstallExtensionArchiveReturnsChecksum(t *testing.T) {
 		},
 	}
 
-	targetDir := filepath.Join(t.TempDir(), "extensions", "demo-ext")
+	installRoot := t.TempDir()
+	installParent := filepath.Join(installRoot, "extensions")
+	if err := os.Mkdir(installParent, 0o755); err != nil {
+		t.Fatalf("Mkdir(install parent) error = %v", err)
+	}
+	targetDir := filepath.Join(installParent, "demo-ext")
 	result, err := NewInstaller(downloader).Install(context.Background(), "acme/demo-ext", DownloadOpts{}, targetDir)
 	if err != nil {
 		t.Fatalf("Install() error = %v", err)
@@ -152,7 +304,7 @@ func TestInstallerInstallExtensionArchiveReturnsChecksum(t *testing.T) {
 		t.Fatalf("Install() path = %q, want %q", result.InstallPath, targetDir)
 	}
 
-	checksum, err := computeInstallChecksum(targetDir)
+	checksum, err := computeInstallChecksumDirectory(openArchiveTestRoot(t, targetDir))
 	if err != nil {
 		t.Fatalf("computeInstallChecksum(%q) error = %v", targetDir, err)
 	}
@@ -161,8 +313,133 @@ func TestInstallerInstallExtensionArchiveReturnsChecksum(t *testing.T) {
 	}
 }
 
-func TestInstallerInstallSkillArchiveReturnsResult(t *testing.T) {
+// Invariant: a replaced target-parent pathname cannot redirect an active installation.
+// Owner: registry installer lifecycle.
+// Canonical suite: registry installer lifecycle tests.
+func TestInstallerInstallKeepsTheHeldTargetParentAfterPathReplacement(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should publish into the acquired parent after its pathname becomes a symlink", func(t *testing.T) {
+		t.Parallel()
+
+		if runtime.GOOS == "windows" {
+			t.Skip("symlink setup requires platform-specific privileges on windows")
+		}
+
+		root := t.TempDir()
+		liveParent := filepath.Join(root, "live")
+		archivedParent := filepath.Join(root, "archived")
+		externalParent := filepath.Join(root, "external")
+		if err := os.Mkdir(liveParent, 0o755); err != nil {
+			t.Fatalf("Mkdir(live parent) error = %v", err)
+		}
+		if err := os.Mkdir(externalParent, 0o755); err != nil {
+			t.Fatalf("Mkdir(external parent) error = %v", err)
+		}
+
+		archive := mustTarGz(t, []tarEntry{
+			{name: "extension/extension.toml", content: "name = \"demo-ext\"\nversion = \"1.2.3\"\n"},
+		})
+		downloader := &stubDownloader{
+			downloadFunc: func(context.Context, string, DownloadOpts) (*DownloadResult, error) {
+				if err := os.Rename(liveParent, archivedParent); err != nil {
+					return nil, fmt.Errorf("replace live parent: %w", err)
+				}
+				if err := os.Symlink(externalParent, liveParent); err != nil {
+					return nil, fmt.Errorf("link external parent: %w", err)
+				}
+				return &DownloadResult{
+					ContentType: "application/gzip",
+					Reader:      io.NopCloser(bytes.NewReader(archive)),
+				}, nil
+			},
+		}
+
+		_, err := NewInstaller(downloader).Install(
+			context.Background(),
+			"acme/demo-ext",
+			DownloadOpts{},
+			filepath.Join(liveParent, "demo-ext"),
+		)
+		if err != nil {
+			t.Fatalf("Install() error = %v", err)
+		}
+		if _, statErr := os.Stat(filepath.Join(archivedParent, "demo-ext", "extension.toml")); statErr != nil {
+			t.Fatalf("Stat(acquired target) error = %v", statErr)
+		}
+		if _, statErr := os.Stat(filepath.Join(externalParent, "demo-ext")); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("Stat(external target) error = %v, want os.ErrNotExist", statErr)
+		}
+	})
+}
+
+// Invariant: compressed archive limits accept the exact boundary, reject excess, and never overflow.
+// Owner: registry installer archive spool.
+// Canonical suite: registry installer lifecycle tests.
+func TestInstallerSpoolInstallArchiveEnforcesExactCompressedLimit(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should accept an archive exactly at the compressed byte limit", func(t *testing.T) {
+		t.Parallel()
+
+		directory := openArchiveTestRoot(t, t.TempDir())
+		installer := NewInstaller(nil, WithInstallerMaxArchiveSize(4))
+		archive, digest, err := installer.spoolInstallArchive(
+			context.Background(),
+			io.NopCloser(strings.NewReader("four")),
+			directory,
+			"",
+		)
+		if err != nil {
+			t.Fatalf("spoolInstallArchive() error = %v", err)
+		}
+		if closeErr := archive.Close(); closeErr != nil {
+			t.Fatalf("archive.Close() error = %v", closeErr)
+		}
+		expectedDigest := sha256.Sum256([]byte("four"))
+		if got, want := digest, hex.EncodeToString(expectedDigest[:]); got != want {
+			t.Fatalf("spoolInstallArchive() digest = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should reject an archive with one byte above the compressed limit", func(t *testing.T) {
+		t.Parallel()
+
+		directory := openArchiveTestRoot(t, t.TempDir())
+		installer := NewInstaller(nil, WithInstallerMaxArchiveSize(4))
+		_, _, err := installer.spoolInstallArchive(
+			context.Background(),
+			io.NopCloser(strings.NewReader("five!")),
+			directory,
+			"",
+		)
+		if !errors.Is(err, ErrArchiveTooLargeCompressed) {
+			t.Fatalf("spoolInstallArchive() error = %v, want %v", err, ErrArchiveTooLargeCompressed)
+		}
+	})
+
+	t.Run("Should not overflow while checking a MaxInt64 limit", func(t *testing.T) {
+		t.Parallel()
+
+		directory := openArchiveTestRoot(t, t.TempDir())
+		installer := NewInstaller(nil, WithInstallerMaxArchiveSize(math.MaxInt64))
+		archive, _, err := installer.spoolInstallArchive(
+			context.Background(),
+			io.NopCloser(strings.NewReader("archive")),
+			directory,
+			"",
+		)
+		if err != nil {
+			t.Fatalf("spoolInstallArchive(MaxInt64) error = %v", err)
+		}
+		if closeErr := archive.Close(); closeErr != nil {
+			t.Fatalf("archive.Close() error = %v", closeErr)
+		}
+	})
+}
+
+func testInstallerInstallSkillArchiveReturnsResult(t *testing.T) {
+	t.Helper()
 
 	archive := mustTarGz(t, []tarEntry{
 		{name: "review/SKILL.md", content: strings.Join([]string{
@@ -184,7 +461,12 @@ func TestInstallerInstallSkillArchiveReturnsResult(t *testing.T) {
 		},
 	}
 
-	targetDir := filepath.Join(t.TempDir(), "skills", "review")
+	installRoot := t.TempDir()
+	installParent := filepath.Join(installRoot, "skills")
+	if err := os.Mkdir(installParent, 0o755); err != nil {
+		t.Fatalf("Mkdir(install parent) error = %v", err)
+	}
+	targetDir := filepath.Join(installParent, "review")
 	result, err := NewInstaller(downloader).Install(context.Background(), "@acme/review", DownloadOpts{}, targetDir)
 	if err != nil {
 		t.Fatalf("Install() error = %v", err)
@@ -200,8 +482,8 @@ func TestInstallerInstallSkillArchiveReturnsResult(t *testing.T) {
 	}
 }
 
-func TestInstallerInstallRejectsCompressedArchiveOverLimit(t *testing.T) {
-	t.Parallel()
+func testInstallerInstallRejectsCompressedArchiveOverLimit(t *testing.T) {
+	t.Helper()
 
 	archive := mustTarGz(t, []tarEntry{
 		{name: "extension/extension.toml", content: "name = \"demo-ext\"\nversion = \"1.2.3\"\n"},
@@ -225,8 +507,8 @@ func TestInstallerInstallRejectsCompressedArchiveOverLimit(t *testing.T) {
 	}
 }
 
-func TestInstallerInstallRejectsDecompressedArchiveOverLimit(t *testing.T) {
-	t.Parallel()
+func testInstallerInstallRejectsDecompressedArchiveOverLimit(t *testing.T) {
+	t.Helper()
 
 	archive := mustTarGz(t, []tarEntry{
 		{name: "extension/extension.toml", content: "name = \"demo-ext\"\nversion = \"1.2.3\"\n"},
@@ -250,8 +532,8 @@ func TestInstallerInstallRejectsDecompressedArchiveOverLimit(t *testing.T) {
 	}
 }
 
-func TestInstallerInstallRequiresManifestAtRoot(t *testing.T) {
-	t.Parallel()
+func testInstallerInstallRequiresManifestAtRoot(t *testing.T) {
+	t.Helper()
 
 	archive := mustTarGz(t, []tarEntry{
 		{name: "package/README.md", content: "no manifest here"},
@@ -273,8 +555,8 @@ func TestInstallerInstallRequiresManifestAtRoot(t *testing.T) {
 	}
 }
 
-func TestInstallerInstallCleansUpTempDirOnFailure(t *testing.T) {
-	t.Parallel()
+func testInstallerInstallCleansUpTempDirOnFailure(t *testing.T) {
+	t.Helper()
 
 	parent := t.TempDir()
 	archive := mustTarGz(t, []tarEntry{
@@ -299,14 +581,14 @@ func TestInstallerInstallCleansUpTempDirOnFailure(t *testing.T) {
 	assertNoTempInstallDirs(t, parent)
 }
 
-func TestInstallerInstallWithContextCancellationClosesReaderAndCleansUp(t *testing.T) {
-	t.Parallel()
+func testInstallerInstallWithContextCancellationClosesReaderAndCleansUp(t *testing.T) {
+	t.Helper()
 
 	parent := t.TempDir()
 	ctx, cancel := context.WithCancel(context.Background())
 	reader := &blockingReadCloser{
-		ctx:         ctx,
 		readStarted: make(chan struct{}),
+		unblockRead: make(chan struct{}),
 	}
 
 	downloader := &stubDownloader{
@@ -340,8 +622,8 @@ func TestInstallerInstallWithContextCancellationClosesReaderAndCleansUp(t *testi
 	assertNoTempInstallDirs(t, parent)
 }
 
-func TestInstallerInstallRejectsUnexpectedContentType(t *testing.T) {
-	t.Parallel()
+func testInstallerInstallRejectsUnexpectedContentType(t *testing.T) {
+	t.Helper()
 
 	downloader := &stubDownloader{
 		downloadFunc: func(context.Context, string, DownloadOpts) (*DownloadResult, error) {
@@ -360,8 +642,8 @@ func TestInstallerInstallRejectsUnexpectedContentType(t *testing.T) {
 	}
 }
 
-func TestInstallerCleansStaleTempDirs(t *testing.T) {
-	t.Parallel()
+func testInstallerCleansStaleTempDirs(t *testing.T) {
+	t.Helper()
 
 	parent := t.TempDir()
 	now := time.Date(2026, time.April, 14, 12, 0, 0, 0, time.UTC)
@@ -409,8 +691,8 @@ func TestInstallerCleansStaleTempDirs(t *testing.T) {
 	}
 }
 
-func TestInstallerIgnoresStaleTempCleanupRemoveFailures(t *testing.T) {
-	t.Parallel()
+func testInstallerReportsStaleTempCleanupRemoveFailures(t *testing.T) {
+	t.Helper()
 
 	parent := t.TempDir()
 	now := time.Date(2026, time.April, 14, 12, 0, 0, 0, time.UTC)
@@ -438,11 +720,11 @@ func TestInstallerIgnoresStaleTempCleanupRemoveFailures(t *testing.T) {
 		downloader,
 		WithInstallerNow(func() time.Time { return now }),
 	)
-	installer.removeAll = func(path string) error {
-		if path == staleDir {
+	installer.removeTemporaryDirectory = func(_ *fileutil.Directory, name string) error {
+		if name == filepath.Base(staleDir) {
 			return errors.New("stale cleanup failed")
 		}
-		return os.RemoveAll(path)
+		return nil
 	}
 
 	targetDir := filepath.Join(parent, "demo-ext")
@@ -453,13 +735,175 @@ func TestInstallerIgnoresStaleTempCleanupRemoveFailures(t *testing.T) {
 	if result == nil || result.InstallPath != targetDir {
 		t.Fatalf("Install() result = %#v, want install path %q", result, targetDir)
 	}
+	want := []CleanupDiagnostic{{Operation: CleanupOperationStaleTemp}}
+	if !equalCleanupDiagnostics(result.CleanupDiagnostics, want) {
+		t.Fatalf("Install() cleanup diagnostics = %#v, want %#v", result.CleanupDiagnostics, want)
+	}
 	if _, statErr := os.Stat(staleDir); statErr != nil {
 		t.Fatalf("stale temp dir stat error = %v, want existing after ignored cleanup failure", statErr)
 	}
 }
 
-func TestInstallerInstallBlocksCriticalVerificationContent(t *testing.T) {
+func testInstallerRetainsActiveStagingLease(t *testing.T) {
+	t.Helper()
+
+	parent := t.TempDir()
+	now := time.Date(2026, time.April, 14, 12, 0, 0, 0, time.UTC)
+	installer := NewInstaller(nil, WithInstallerNow(func() time.Time { return now }))
+	staging, diagnostics, err := installer.newInstallStaging(filepath.Join(parent, "target"))
+	if err != nil {
+		t.Fatalf("newInstallStaging() error = %v", err)
+	}
+	if len(diagnostics) != 0 {
+		t.Fatalf("newInstallStaging() diagnostics = %#v, want none", diagnostics)
+	}
+	t.Cleanup(func() {
+		if _, cleanupErr := installer.cleanupInstallStaging(staging); cleanupErr != nil {
+			t.Errorf("cleanupInstallStaging() error = %v", cleanupErr)
+		}
+	})
+
+	stagingPath := filepath.Join(parent, staging.temporaryName)
+	staleTime := now.Add(-2 * time.Hour)
+	if err := os.Chtimes(stagingPath, staleTime, staleTime); err != nil {
+		t.Fatalf("Chtimes(staging) error = %v", err)
+	}
+
+	cleanerParent := openArchiveTestRoot(t, parent)
+	got, err := installer.cleanupStaleTempDirs(cleanerParent)
+	if err != nil {
+		t.Fatalf("cleanupStaleTempDirs(active) error = %v", err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("cleanupStaleTempDirs(active) diagnostics = %#v, want none", got)
+	}
+	if _, err := os.Stat(stagingPath); err != nil {
+		t.Fatalf("Stat(active staging) error = %v, want existing", err)
+	}
+}
+
+func testInstallerReclaimsReleasedStagingLease(t *testing.T) {
+	t.Helper()
+
+	parent := t.TempDir()
+	now := time.Date(2026, time.April, 14, 12, 0, 0, 0, time.UTC)
+	installer := NewInstaller(nil, WithInstallerNow(func() time.Time { return now }))
+	staging, _, err := installer.newInstallStaging(filepath.Join(parent, "target"))
+	if err != nil {
+		t.Fatalf("newInstallStaging() error = %v", err)
+	}
+	stagingPath := filepath.Join(parent, staging.temporaryName)
+	if err := staging.lease.Close(); err != nil {
+		t.Fatalf("installStagingLease.Close() error = %v", err)
+	}
+	staging.lease = nil
+	if err := staging.temporary.Close(); err != nil {
+		t.Fatalf("Directory.Close(staging) error = %v", err)
+	}
+	staging.temporary = nil
+	staleTime := now.Add(-2 * time.Hour)
+	if err := os.Chtimes(stagingPath, staleTime, staleTime); err != nil {
+		t.Fatalf("Chtimes(staging) error = %v", err)
+	}
+	cleanerParent := openArchiveTestRoot(t, parent)
+	staleDirectory, err := cleanerParent.OpenDirectory(staging.temporaryName)
+	if err != nil {
+		t.Fatalf("OpenDirectory(released staging) error = %v", err)
+	}
+	active, activeErr := stagingLeaseIsActive(staleDirectory)
+	info, statErr := staleDirectory.Stat()
+	closeErr := staleDirectory.Close()
+	if activeErr != nil || statErr != nil || closeErr != nil {
+		t.Fatalf("inspect released staging errors = active %v; stat %v; close %v", activeErr, statErr, closeErr)
+	}
+	if active {
+		t.Fatal("stagingLeaseIsActive(released) = true, want false")
+	}
+	if info.ModTime().After(now.Add(-defaultInstallerTempDirMaxAge)) {
+		t.Fatalf(
+			"released staging modtime = %s, want stale before %s",
+			info.ModTime(),
+			now.Add(-defaultInstallerTempDirMaxAge),
+		)
+	}
+
+	diagnostics, err := installer.cleanupStaleTempDirs(cleanerParent)
+	if err != nil {
+		t.Fatalf("cleanupStaleTempDirs(released) error = %v", err)
+	}
+	if len(diagnostics) != 0 {
+		t.Fatalf("cleanupStaleTempDirs(released) diagnostics = %#v, want none", diagnostics)
+	}
+	if _, err := os.Stat(stagingPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("Stat(released staging) error = %v, want %v", err, os.ErrNotExist)
+	}
+	if err := staging.parent.Close(); err != nil {
+		t.Fatalf("Directory.Close(parent) error = %v", err)
+	}
+	staging.parent = nil
+}
+
+func TestInstallerInstallPreservesExistingTargetWhenChecksumFails(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should preserve the existing package when replacement checksum fails", func(t *testing.T) {
+		t.Parallel()
+
+		if runtime.GOOS == "windows" {
+			t.Skip("POSIX owner read bits are required to make the checksum open fail deterministically")
+		}
+
+		archive := mustTarGz(t, []tarEntry{
+			{name: "extension/extension.toml", content: "name = \"demo-ext\"\nversion = \"2.0.0\"\n"},
+			{name: "extension/bin/unreadable", content: "replacement", mode: 0o111},
+		})
+		downloader := &stubDownloader{
+			downloadFunc: func(context.Context, string, DownloadOpts) (*DownloadResult, error) {
+				return &DownloadResult{
+					Slug:        "acme/demo-ext",
+					Version:     "2.0.0",
+					ContentType: "application/gzip",
+					Reader:      io.NopCloser(bytes.NewReader(archive)),
+				}, nil
+			},
+		}
+
+		targetDir := filepath.Join(t.TempDir(), "extensions", "demo-ext")
+		writeTestFile(t, filepath.Join(targetDir, "extension.toml"), "name = \"demo-ext\"\nversion = \"1.0.0\"\n")
+		writeTestFile(t, filepath.Join(targetDir, "README.md"), "existing package content")
+
+		_, err := NewInstaller(downloader).Install(context.Background(), "acme/demo-ext", DownloadOpts{}, targetDir)
+		if err == nil {
+			t.Fatal("Install() error = nil, want checksum failure")
+		}
+		hasChecksumOpenError := strings.Contains(err.Error(), "open checksum directory") ||
+			strings.Contains(err.Error(), "open checksum path")
+		if !hasChecksumOpenError {
+			t.Fatalf("Install() error = %v, want checksum open failure", err)
+		}
+
+		manifest, readErr := os.ReadFile(filepath.Join(targetDir, "extension.toml"))
+		if readErr != nil {
+			t.Fatalf("ReadFile(existing manifest) error = %v", readErr)
+		}
+		if got, want := string(manifest), "name = \"demo-ext\"\nversion = \"1.0.0\"\n"; got != want {
+			t.Fatalf("existing manifest = %q, want %q", got, want)
+		}
+		content, readErr := os.ReadFile(filepath.Join(targetDir, "README.md"))
+		if readErr != nil {
+			t.Fatalf("ReadFile(existing content) error = %v", readErr)
+		}
+		if got, want := string(content), "existing package content"; got != want {
+			t.Fatalf("existing content = %q, want %q", got, want)
+		}
+		if _, statErr := os.Stat(filepath.Join(targetDir, "bin", "unreadable")); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("Stat(failed replacement file) error = %v, want os.ErrNotExist", statErr)
+		}
+	})
+}
+
+func testInstallerInstallBlocksCriticalVerificationContent(t *testing.T) {
+	t.Helper()
 
 	archive := mustTarGz(t, []tarEntry{
 		{name: "review/SKILL.md", content: strings.Join([]string{
@@ -490,31 +934,81 @@ func TestInstallerInstallBlocksCriticalVerificationContent(t *testing.T) {
 func TestManifestPathAtRootRejectsSymlinkedManifest(t *testing.T) {
 	t.Parallel()
 
-	root := t.TempDir()
-	target := filepath.Join(t.TempDir(), installerSkillManifestName)
-	writeTestFile(t, target, strings.Join([]string{
-		"---",
-		"name: review",
-		"description: Review helper",
-		"version: 1.0.0",
-		"---",
-		"body",
-	}, "\n"))
-	if err := os.Symlink(target, filepath.Join(root, installerSkillManifestName)); err != nil {
-		t.Fatalf("Symlink(SKILL.md) error = %v", err)
-	}
+	t.Run("Should reject a symlinked manifest", func(t *testing.T) {
+		t.Parallel()
 
-	_, err := manifestPathAtRoot(root)
-	if err == nil {
-		t.Fatal("manifestPathAtRoot(symlink) error = nil, want failure")
-	}
-	if !strings.Contains(err.Error(), "must be a regular file") {
-		t.Fatalf("manifestPathAtRoot(symlink) error = %v, want regular-file validation", err)
-	}
+		if runtime.GOOS == "windows" {
+			t.Skip("symlink semantics are platform-specific on windows")
+		}
+
+		root := t.TempDir()
+		target := filepath.Join(t.TempDir(), installerSkillManifestName)
+		writeTestFile(t, target, strings.Join([]string{
+			"---",
+			"name: review",
+			"description: Review helper",
+			"version: 1.0.0",
+			"---",
+			"body",
+		}, "\n"))
+		if err := os.Symlink(target, filepath.Join(root, installerSkillManifestName)); err != nil {
+			t.Fatalf("Symlink(SKILL.md) error = %v", err)
+		}
+
+		_, err := manifestNameAtRoot(openArchiveTestRoot(t, root))
+		if !errors.Is(err, ErrPathTraversesSymlink) {
+			t.Fatalf("manifestPathAtRoot(symlink) error = %v, want %v", err, ErrPathTraversesSymlink)
+		}
+	})
+
+	t.Run("Should read metadata through the acquired root after rename", func(t *testing.T) {
+		t.Parallel()
+
+		parent := t.TempDir()
+		rootPath := filepath.Join(parent, "stage")
+		if err := os.Mkdir(rootPath, 0o700); err != nil {
+			t.Fatalf("Mkdir(stage) error = %v", err)
+		}
+		writeTestFile(t, filepath.Join(rootPath, installerSkillManifestName), strings.Join([]string{
+			"---",
+			"name: review",
+			"description: Review helper",
+			"version: 1.0.0",
+			"---",
+			"body",
+		}, "\n"))
+		parentRoot := openArchiveTestRoot(t, parent)
+		extractRoot, err := parentRoot.OpenDirectory("stage")
+		if err != nil {
+			t.Fatalf("OpenDirectory(stage) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := extractRoot.Close(); closeErr != nil {
+				t.Errorf("Directory.Close(stage) error = %v", closeErr)
+			}
+		})
+		if err := os.Rename(rootPath, filepath.Join(parent, "moved-stage")); err != nil {
+			t.Fatalf("Rename(stage) error = %v", err)
+		}
+
+		packageRoot, metadata, err := loadInstalledPackageMetadata(parentRoot, "stage", extractRoot)
+		if err != nil {
+			t.Fatalf("loadInstalledPackageMetadata() error = %v", err)
+		}
+		if packageRoot.name != "stage" {
+			t.Fatalf("loadInstalledPackageMetadata() root = %q, want stage", packageRoot.name)
+		}
+		if closeErr := packageRoot.Close(); closeErr != nil {
+			t.Fatalf("installedPackage.Close() error = %v", closeErr)
+		}
+		if metadata.name != "review" {
+			t.Fatalf("loadInstalledPackageMetadata() name = %q, want review", metadata.name)
+		}
+	})
 }
 
-func TestNewInstallerNormalizesDefaultsAndOptions(t *testing.T) {
-	t.Parallel()
+func testNewInstallerNormalizesDefaultsAndOptions(t *testing.T) {
+	t.Helper()
 
 	now := time.Date(2026, time.April, 14, 15, 0, 0, 0, time.UTC)
 	installer := NewInstaller(
@@ -535,8 +1029,8 @@ func TestNewInstallerNormalizesDefaultsAndOptions(t *testing.T) {
 	if installer.maxFileCount != 321 {
 		t.Fatalf("maxFileCount = %d, want 321", installer.maxFileCount)
 	}
-	if installer.removeAll == nil {
-		t.Fatal("removeAll = nil, want default remover")
+	if installer.removeTemporaryDirectory == nil {
+		t.Fatal("removeTemporaryDirectory = nil, want default remover")
 	}
 	if installer.tempDirMaxAge != 2*time.Hour {
 		t.Fatalf("tempDirMaxAge = %s, want 2h", installer.tempDirMaxAge)
@@ -572,128 +1066,8 @@ func TestValidateDownloadContentTypeValidationErrors(t *testing.T) {
 	}
 }
 
-func TestComputeInstallChecksumSupportsSymlinksAndValidation(t *testing.T) {
-	t.Parallel()
-
-	if _, err := computeInstallChecksum(""); err == nil {
-		t.Fatal("computeInstallChecksum(blank) error = nil, want non-nil")
-	}
-
-	root := t.TempDir()
-	writeTestFile(t, filepath.Join(root, "payload.txt"), strings.Repeat("first", 4096))
-	if err := os.Symlink("payload.txt", filepath.Join(root, "current")); err != nil {
-		t.Fatalf("Symlink() error = %v", err)
-	}
-
-	first, err := computeInstallChecksum(root)
-	if err != nil {
-		t.Fatalf("computeInstallChecksum(%q) error = %v", root, err)
-	}
-	second, err := computeInstallChecksum(root)
-	if err != nil {
-		t.Fatalf("second computeInstallChecksum(%q) error = %v", root, err)
-	}
-	if first != second {
-		t.Fatalf("computeInstallChecksum() = %q then %q, want stable checksum", first, second)
-	}
-}
-
-func TestComputeInstallChecksumChangesWhenRegularFileChanges(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	payloadPath := filepath.Join(root, "payload.txt")
-	writeTestFile(t, payloadPath, strings.Repeat("payload-", 8192))
-
-	first, err := computeInstallChecksum(root)
-	if err != nil {
-		t.Fatalf("computeInstallChecksum(first) error = %v", err)
-	}
-
-	writeTestFile(t, payloadPath, strings.Repeat("updated-", 8192))
-
-	second, err := computeInstallChecksum(root)
-	if err != nil {
-		t.Fatalf("computeInstallChecksum(second) error = %v", err)
-	}
-	if first == second {
-		t.Fatalf("computeInstallChecksum() = %q after content change, want different checksum", second)
-	}
-}
-
-func TestComputeInstallChecksumStableAcrossCreationOrder(t *testing.T) {
-	t.Parallel()
-
-	t.Run("ShouldRemainStableAcrossCreationOrder", func(t *testing.T) {
-		firstRoot := t.TempDir()
-		secondRoot := t.TempDir()
-
-		populate := func(root string, names []string) {
-			t.Helper()
-			for _, name := range names {
-				writeTestFile(t, filepath.Join(root, name), "payload-"+name)
-			}
-		}
-
-		populate(firstRoot, []string{
-			filepath.Join("zeta", "three.txt"),
-			filepath.Join("alpha", "one.txt"),
-			filepath.Join("beta", "two.txt"),
-		})
-		populate(secondRoot, []string{
-			filepath.Join("beta", "two.txt"),
-			filepath.Join("zeta", "three.txt"),
-			filepath.Join("alpha", "one.txt"),
-		})
-
-		first, err := computeInstallChecksum(firstRoot)
-		if err != nil {
-			t.Fatalf("computeInstallChecksum(firstRoot) error = %v", err)
-		}
-		second, err := computeInstallChecksum(secondRoot)
-		if err != nil {
-			t.Fatalf("computeInstallChecksum(secondRoot) error = %v", err)
-		}
-		if first != second {
-			t.Fatalf(
-				"computeInstallChecksum() = %q and %q for identical trees with different creation order, want stable checksum",
-				first,
-				second,
-			)
-		}
-	})
-}
-
-func TestComputeInstallChecksumDistinguishesRawSymlinkTargets(t *testing.T) {
-	t.Parallel()
-
-	firstRoot := t.TempDir()
-	secondRoot := t.TempDir()
-
-	writeTestFile(t, filepath.Join(firstRoot, "payload.txt"), "payload")
-	writeTestFile(t, filepath.Join(secondRoot, "payload.txt"), "payload")
-	if err := os.Symlink("payload.txt", filepath.Join(firstRoot, "current")); err != nil {
-		t.Fatalf("Symlink(first) error = %v", err)
-	}
-	if err := os.Symlink("./payload.txt", filepath.Join(secondRoot, "current")); err != nil {
-		t.Fatalf("Symlink(second) error = %v", err)
-	}
-
-	first, err := computeInstallChecksum(firstRoot)
-	if err != nil {
-		t.Fatalf("computeInstallChecksum(firstRoot) error = %v", err)
-	}
-	second, err := computeInstallChecksum(secondRoot)
-	if err != nil {
-		t.Fatalf("computeInstallChecksum(secondRoot) error = %v", err)
-	}
-	if first == second {
-		t.Fatalf("computeInstallChecksum() = %q for distinct raw symlink targets, want different checksums", first)
-	}
-}
-
-func TestInstallerHelperClosers(t *testing.T) {
-	t.Parallel()
+func testInstallerHelperClosers(t *testing.T) {
+	t.Helper()
 
 	if err := closeDownloadReader(nil, "slug"); err != nil {
 		t.Fatalf("closeDownloadReader(nil) error = %v", err)
@@ -722,6 +1096,18 @@ func assertNoTempInstallDirs(t *testing.T, parent string) {
 			t.Fatalf("found unexpected temp install dir %q", filepath.Join(parent, entry.Name()))
 		}
 	}
+}
+
+func equalCleanupDiagnostics(got []CleanupDiagnostic, want []CleanupDiagnostic) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	for index := range got {
+		if got[index] != want[index] {
+			return false
+		}
+	}
+	return true
 }
 
 func waitForReadStart(t *testing.T, started <-chan struct{}) {

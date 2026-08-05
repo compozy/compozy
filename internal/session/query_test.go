@@ -1080,7 +1080,11 @@ func TestManagerOpenQueryRecorderValidationAndCleanup(t *testing.T) {
 		session := createSession(t, h)
 		t.Cleanup(func() {
 			if session.recorderHandle() == nil {
-				recorder, restoreErr := h.manager.openStore(testutil.Context(t), session.ID, session.DBPath())
+				recorder, restoreErr := h.manager.openStore(
+					testutil.Context(t),
+					testSessionDBOwner(session.ID, session.WorkspaceID),
+					session.DBPath(),
+				)
 				if restoreErr != nil {
 					t.Errorf("restore recorder for Stop(%q) cleanup error = %v", session.ID, restoreErr)
 					return
@@ -1352,7 +1356,7 @@ func TestManagerOpenQueryRecorderValidationAndCleanup(t *testing.T) {
 
 	t.Run("Should store open failure", func(t *testing.T) {
 		openErr := errors.New("boom")
-		h := newHarness(t, WithStore(func(context.Context, string, string) (EventRecorder, error) {
+		h := newHarness(t, WithStore(func(context.Context, store.SessionDBOwner, string) (EventRecorder, error) {
 			return nil, openErr
 		}))
 		writeStoppedSessionArtifacts(t, h, "stored-open-failure", true)
@@ -1369,7 +1373,7 @@ func TestManagerOpenQueryRecorderValidationAndCleanup(t *testing.T) {
 	})
 
 	t.Run("Should hide query pool quiescence behind session absence", func(t *testing.T) {
-		h := newHarness(t, WithQueryStore(func(context.Context, string, string) (EventReadCloser, error) {
+		h := newHarness(t, WithQueryStore(func(context.Context, store.SessionDBOwner, string) (EventReadCloser, error) {
 			return nil, sessiondb.ErrReadOnlyPoolQuiescing
 		}))
 		writeStoppedSessionArtifacts(t, h, "stored-quiescing", true)
@@ -1384,7 +1388,7 @@ func TestManagerOpenQueryRecorderValidationAndCleanup(t *testing.T) {
 
 	t.Run("Should cleanup closes reopened recorder", func(t *testing.T) {
 		recorder := &queryRecorderStub{}
-		h := newHarness(t, WithStore(func(context.Context, string, string) (EventRecorder, error) {
+		h := newHarness(t, WithStore(func(context.Context, store.SessionDBOwner, string) (EventRecorder, error) {
 			return recorder, nil
 		}))
 		writeStoppedSessionArtifacts(t, h, "stored-cleanup", true)
@@ -1575,12 +1579,17 @@ func TestNewAgentProcessDefaultsAndNotifierNoop(t *testing.T) {
 	t.Parallel()
 
 	args := []string{"--json"}
+	caps := acp.Caps{ConfigOptions: []acp.SessionConfigOption{{
+		ID: "model", Values: []acp.SessionConfigOptionValue{{Value: "gpt-5.6"}},
+	}}}
 	proc := NewAgentProcess(AgentProcessOptions{
 		PID:       42,
 		AgentName: "coder",
 		Args:      args,
+		Caps:      caps,
 	})
 	args[0] = "--changed"
+	caps.ConfigOptions[0].Values[0].Value = "mutated input"
 
 	select {
 	case <-proc.Done():
@@ -1595,6 +1604,11 @@ func TestNewAgentProcessDefaultsAndNotifierNoop(t *testing.T) {
 	}
 	if got := proc.Args[0]; got != "--json" {
 		t.Fatalf("NewAgentProcess() copied args = %q, want %q", got, "--json")
+	}
+	firstCaps := proc.CapsSnapshot()
+	firstCaps.ConfigOptions[0].Values[0].Value = "mutated output"
+	if got := proc.CapsSnapshot().ConfigOptions[0].Values[0].Value; got != "gpt-5.6" {
+		t.Fatalf("CapsSnapshot() value = %q, want isolated gpt-5.6", got)
 	}
 }
 
@@ -1656,7 +1670,11 @@ func createEscapedStoredSession(t *testing.T, h *harness) string {
 		t.Fatalf("WriteSessionMeta(%q) error = %v", escapedDir, err)
 	}
 
-	recorder, err := h.manager.openStore(testutil.Context(t), escapedID, store.SessionDBFile(escapedDir))
+	recorder, err := h.manager.openStore(
+		testutil.Context(t),
+		testSessionDBOwner(escapedID, h.workspaceID),
+		store.SessionDBFile(escapedDir),
+	)
 	if err != nil {
 		t.Fatalf("openStore(%q) error = %v", escapedID, err)
 	}

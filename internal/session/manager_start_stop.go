@@ -86,11 +86,11 @@ func (m *Manager) shutdownSessionStarts(ctx context.Context) error {
 	if ctx == nil {
 		return errors.New("session: shutdown starts context is required")
 	}
-	m.startMu.Lock()
-	m.startClosing = true
-	runs := make(map[string]*sessionStartRun, len(m.startRuns))
-	maps.Copy(runs, m.startRuns)
-	m.startMu.Unlock()
+	m.startLifecycle.mu.Lock()
+	m.startLifecycle.closing = true
+	runs := make(map[string]*sessionStartRun, len(m.startLifecycle.runs))
+	maps.Copy(runs, m.startLifecycle.runs)
+	m.startLifecycle.mu.Unlock()
 
 	var shutdownErr error
 	for id, run := range runs {
@@ -110,6 +110,6 @@ func (m *Manager) shutdownSessionStarts(ctx context.Context) error {
 	if shutdownErr != nil {
 		return shutdownErr
 	}
-	m.startWG.Wait()
+	m.startLifecycle.wg.Wait()
 	return nil
 }

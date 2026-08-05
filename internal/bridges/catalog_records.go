@@ -39,9 +39,9 @@ type BridgeCatalogRecordPage struct {
 // BridgeCatalogRecordFromInstance projects one full instance into catalog-only metadata.
 func BridgeCatalogRecordFromInstance(instance BridgeInstance) BridgeCatalogRecord {
 	return BridgeCatalogRecord{
-		ID:            strings.TrimSpace(instance.ID),
+		ID:            instance.ID,
 		Scope:         instance.Scope.Normalize(),
-		WorkspaceID:   strings.TrimSpace(instance.WorkspaceID),
+		WorkspaceID:   instance.WorkspaceID,
 		Platform:      strings.TrimSpace(instance.Platform),
 		ExtensionName: strings.TrimSpace(instance.ExtensionName),
 		DisplayName:   strings.TrimSpace(instance.DisplayName),
@@ -52,9 +52,7 @@ func BridgeCatalogRecordFromInstance(instance BridgeInstance) BridgeCatalogRecor
 
 // Normalized returns the canonical catalog record representation.
 func (r BridgeCatalogRecord) Normalized() BridgeCatalogRecord {
-	r.ID = strings.TrimSpace(r.ID)
 	r.Scope = r.Scope.Normalize()
-	r.WorkspaceID = strings.TrimSpace(r.WorkspaceID)
 	r.Platform = strings.TrimSpace(r.Platform)
 	r.ExtensionName = strings.TrimSpace(r.ExtensionName)
 	r.DisplayName = strings.TrimSpace(r.DisplayName)
@@ -65,7 +63,7 @@ func (r BridgeCatalogRecord) Normalized() BridgeCatalogRecord {
 // Validate reports whether the lean projection contains every catalog-owned field.
 func (r BridgeCatalogRecord) Validate() error {
 	normalized := r.Normalized()
-	if err := requireField(normalized.ID, "bridge instance id"); err != nil {
+	if err := requireOpaqueIdentity(normalized.ID, "bridge instance id"); err != nil {
 		return err
 	}
 	if err := ValidateScopeWorkspaceID(normalized.Scope, normalized.WorkspaceID); err != nil {
@@ -153,7 +151,7 @@ func HydrateBridgeCatalogPage(
 ) (BridgeCatalogPage, error) {
 	byID := make(map[string]BridgeInstance, len(instances))
 	for _, instance := range instances {
-		byID[strings.TrimSpace(instance.ID)] = instance
+		byID[instance.ID] = instance
 	}
 
 	page := BridgeCatalogPage{
@@ -275,10 +273,10 @@ func bridgeCatalogRecordPageStart(
 	if err != nil {
 		return 0, fmt.Errorf("%w: %w", ErrBridgeCatalogCursorInvalid, err)
 	}
-	if strings.TrimSpace(position.ID) == "" {
+	if isBlank(position.ID) {
 		return 0, fmt.Errorf("%w: cursor id is required", ErrBridgeCatalogCursorInvalid)
 	}
-	if strings.TrimSpace(position.DisplayName) == "" {
+	if isBlank(position.DisplayName) {
 		return 0, fmt.Errorf("%w: cursor display name is required", ErrBridgeCatalogCursorInvalid)
 	}
 	if err := position.Scope.Validate(); err != nil {
@@ -286,7 +284,6 @@ func bridgeCatalogRecordPageStart(
 	}
 	position.Scope = position.Scope.Normalize()
 	position.DisplayName = strings.ToLower(strings.TrimSpace(position.DisplayName))
-	position.ID = strings.TrimSpace(position.ID)
 	return sort.Search(len(items), func(index int) bool {
 		return compareBridgeCatalogPositions(bridgeCatalogRecordPosition(items[index]), position) > 0
 	}), nil

@@ -13,7 +13,6 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"os/exec"
@@ -373,25 +372,26 @@ func postGitHubProviderWebhook(t *testing.T, webhookURL string, secret string, e
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-GitHub-Event", event)
-	req.Header.Set("X-Hub-Signature-256", githubProviderSignature(secret, body))
+	req.Header.Set("X-Hub-Signature-256", githubProviderSignature(t, secret, body))
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("webhook request error = %v", err)
 	}
 	defer func() {
-		_ = resp.Body.Close()
+		closeProviderIntegrationBody(t, resp.Body)
 	}()
 
-	bodyBytes, _ := io.ReadAll(resp.Body)
+	bodyBytes := readProviderIntegrationBody(t, resp.Body)
 	if got, want := resp.StatusCode, http.StatusOK; got != want {
 		t.Fatalf("webhook status = %d, want %d (body=%s)", got, want, strings.TrimSpace(string(bodyBytes)))
 	}
 }
 
-func githubProviderSignature(secret string, body []byte) string {
+func githubProviderSignature(t testing.TB, secret string, body []byte) string {
+	t.Helper()
 	mac := hmac.New(sha256.New, []byte(secret))
-	_, _ = mac.Write(body)
+	mustWriteProviderIntegrationHash(t, mac, body)
 	return "sha256=" + hex.EncodeToString(mac.Sum(nil))
 }
 
@@ -481,8 +481,8 @@ func newGitHubProviderAPIServer(t *testing.T) *githubProviderAPIServer {
 
 	mock := &githubProviderAPIServer{}
 	mock.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		bodyBytes, _ := io.ReadAll(r.Body)
-		_ = r.Body.Close()
+		bodyBytes := readProviderIntegrationBody(t, r.Body)
+		closeProviderIntegrationBody(t, r.Body)
 
 		mock.mu.Lock()
 		mock.calls = append(mock.calls, githubProviderAPICall{
@@ -495,17 +495,17 @@ func newGitHubProviderAPIServer(t *testing.T) *githubProviderAPIServer {
 
 		switch r.URL.Path {
 		case "/user":
-			_, _ = io.WriteString(w, `{"id":1,"login":"bridge-bot"}`)
+			writeProviderIntegrationResponse(t, w, `{"id":1,"login":"bridge-bot"}`)
 		case "/app/installations/9002/access_tokens":
-			_, _ = io.WriteString(w, `{"token":"inst-token","expires_at":"2026-04-15T23:00:00Z"}`)
+			writeProviderIntegrationResponse(t, w, `{"token":"inst-token","expires_at":"2026-04-15T23:00:00Z"}`)
 		case "/repos/acme/app-one/issues/42/comments":
-			_, _ = io.WriteString(w, `{"id":910,"body":"hello"}`)
+			writeProviderIntegrationResponse(t, w, `{"id":910,"body":"hello"}`)
 		case "/repos/acme/app-one/issues/comments/910":
-			_, _ = io.WriteString(w, `{"id":910,"body":"hello world"}`)
+			writeProviderIntegrationResponse(t, w, `{"id":910,"body":"hello world"}`)
 		case "/repos/acme/app-two/pulls/7/comments/300/replies":
-			_, _ = io.WriteString(w, `{"id":920,"body":"hello"}`)
+			writeProviderIntegrationResponse(t, w, `{"id":920,"body":"hello"}`)
 		case "/repos/acme/app-two/pulls/comments/920":
-			_, _ = io.WriteString(w, `{"id":920,"body":"hello world"}`)
+			writeProviderIntegrationResponse(t, w, `{"id":920,"body":"hello world"}`)
 		default:
 			http.NotFound(w, r)
 		}

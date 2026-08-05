@@ -195,7 +195,7 @@ func TestEngineShouldHonorStoreContract(t *testing.T) {
 		resolver.register("w1", "generation-1")
 		var logs bytes.Buffer
 		logger := slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
-		engine, err := Open(DatabasePath(t.TempDir()), resolver, testLimits(), WithLogger(logger))
+		engine, err := Open(context.Background(), DatabasePath(t.TempDir()), resolver, testLimits(), WithLogger(logger))
 		if err != nil {
 			t.Fatalf("Open() error = %v", err)
 		}
@@ -423,7 +423,7 @@ func TestEngineShouldPersistAndPurgeWorkspaceState(t *testing.T) {
 		resolver := newFakeWorkspaceResolver()
 		resolver.register("w1", "generation-1")
 		path := DatabasePath(t.TempDir())
-		engine, err := Open(path, resolver, testLimits())
+		engine, err := Open(context.Background(), path, resolver, testLimits())
 		if err != nil {
 			t.Fatalf("Open() error = %v", err)
 		}
@@ -446,7 +446,7 @@ func TestEngineShouldPersistAndPurgeWorkspaceState(t *testing.T) {
 		}
 
 		resolver.register("w1", "generation-1")
-		recovered, err := Open(path, resolver, testLimits())
+		recovered, err := Open(context.Background(), path, resolver, testLimits())
 		if err != nil {
 			t.Fatalf("Open(recover existing workspace) error = %v", err)
 		}
@@ -466,7 +466,7 @@ func TestEngineShouldPersistAndPurgeWorkspaceState(t *testing.T) {
 			t.Fatalf("Close(second staged) error = %v", err)
 		}
 		resolver.remove("w1")
-		committed, err := Open(path, resolver, testLimits())
+		committed, err := Open(context.Background(), path, resolver, testLimits())
 		if err != nil {
 			t.Fatalf("Open(recover deleted workspace) error = %v", err)
 		}
@@ -478,6 +478,62 @@ func TestEngineShouldPersistAndPurgeWorkspaceState(t *testing.T) {
 		resolver.register("w1", "generation-2")
 		if entries, err := committed.List(context.Background(), "w1", "os_shell"); err != nil || len(entries) != 0 {
 			t.Fatalf("List(recreated) = %#v, %v; want empty", entries, err)
+		}
+	})
+
+	t.Run("Should cancel open-time purge recovery and close the store", func(t *testing.T) {
+		t.Parallel()
+		base := newFakeWorkspaceResolver()
+		base.register("w1", "generation-1")
+		path := DatabasePath(t.TempDir())
+		engine, err := Open(context.Background(), path, base, testLimits())
+		if err != nil {
+			t.Fatalf("Open(seed) error = %v", err)
+		}
+		applyPut(t, engine, "w1", "os_shell", "desktop", objectValue("recover"), 0, ApplyOptions{})
+		base.markDeleting("w1")
+		if _, err := engine.PrepareWorkspacePurge(context.Background(), "w1"); err != nil {
+			t.Fatalf("PrepareWorkspacePurge() error = %v", err)
+		}
+		if err := engine.Close(); err != nil {
+			t.Fatalf("Close(seed) error = %v", err)
+		}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		resolver := &cancelableRecoveryResolver{
+			base:    base,
+			entered: make(chan struct{}),
+		}
+		result := make(chan error, 1)
+		go func() {
+			recovered, openErr := Open(ctx, path, resolver, testLimits())
+			if recovered != nil {
+				openErr = errors.Join(openErr, recovered.Close())
+			}
+			result <- openErr
+		}()
+		select {
+		case <-resolver.entered:
+		case <-time.After(2 * time.Second):
+			t.Fatal("Open() did not reach staged-purge recovery")
+		}
+		cancel()
+		select {
+		case openErr := <-result:
+			if !errors.Is(openErr, context.Canceled) {
+				t.Fatalf("Open(canceled recovery) error = %v, want context.Canceled", openErr)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatal("Open() did not return after recovery cancellation")
+		}
+
+		db, err := bolt.Open(path, 0o600, &bolt.Options{Timeout: time.Second})
+		if err != nil {
+			t.Fatalf("bolt.Open(after canceled recovery) error = %v, want released store", err)
+		}
+		if err := db.Close(); err != nil {
+			t.Fatalf("DB.Close(after canceled recovery) error = %v", err)
 		}
 	})
 
@@ -532,7 +588,7 @@ func TestEngineShouldPersistAndPurgeWorkspaceState(t *testing.T) {
 		resolver := newFakeWorkspaceResolver()
 		resolver.register("w1", "generation-1")
 		path := filepath.Join(t.TempDir(), "state", DatabaseName)
-		engine, err := Open(path, resolver, testLimits())
+		engine, err := Open(context.Background(), path, resolver, testLimits())
 		if err != nil {
 			t.Fatalf("Open() error = %v", err)
 		}
@@ -540,7 +596,7 @@ func TestEngineShouldPersistAndPurgeWorkspaceState(t *testing.T) {
 		if err := engine.Close(); err != nil {
 			t.Fatalf("Close() error = %v", err)
 		}
-		reopened, err := Open(path, resolver, testLimits())
+		reopened, err := Open(context.Background(), path, resolver, testLimits())
 		if err != nil {
 			t.Fatalf("Open(reopen) error = %v", err)
 		}
@@ -580,7 +636,7 @@ func TestEngineShouldPersistAndPurgeWorkspaceState(t *testing.T) {
 		var logs bytes.Buffer
 		logger := slog.New(slog.NewJSONHandler(&logs, nil))
 
-		engine, err := Open(path, resolver, testLimits(), WithLogger(logger))
+		engine, err := Open(context.Background(), path, resolver, testLimits(), WithLogger(logger))
 		if err != nil {
 			t.Fatalf("Open(unversioned) error = %v", err)
 		}
@@ -610,7 +666,7 @@ func TestEngineShouldPersistAndPurgeWorkspaceState(t *testing.T) {
 			t.Fatalf("Close(after hard cut) error = %v", err)
 		}
 
-		reopened, err := Open(path, resolver, testLimits())
+		reopened, err := Open(context.Background(), path, resolver, testLimits())
 		if err != nil {
 			t.Fatalf("Open(current contract) error = %v", err)
 		}
@@ -638,9 +694,14 @@ func TestEngineShouldPersistAndPurgeWorkspaceState(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "state", DatabaseName)
 		seedAheadStore(t, path)
 
-		engine, err := Open(path, resolver, testLimits())
-		if engine != nil || err == nil || !strings.Contains(err.Error(), "newer than supported") {
+		engine, err := Open(context.Background(), path, resolver, testLimits())
+		if engine != nil || !errors.Is(err, ErrStoreFormatTooNew) {
 			t.Fatalf("Open(ahead format) = %v, %v; want nil engine and ahead-version error", engine, err)
+		}
+		formatErr, ok := errors.AsType[*StoreFormatTooNewError](err)
+		if !ok || formatErr.Version != stateStoreFormatVersion+1 ||
+			formatErr.SupportedVersion != stateStoreFormatVersion {
+			t.Fatalf("Open(ahead format) error = %#v, want incompatible version details", formatErr)
 		}
 		db, err := bolt.Open(path, 0o600, nil)
 		if err != nil {
@@ -706,6 +767,27 @@ func seedUnversionedStore(t *testing.T, path string) {
 	if err := db.Close(); err != nil {
 		t.Fatalf("Close(legacy store) error = %v", err)
 	}
+}
+
+type cancelableRecoveryResolver struct {
+	base    *fakeWorkspaceResolver
+	entered chan struct{}
+}
+
+func (r *cancelableRecoveryResolver) ResolveWorkspace(
+	ctx context.Context,
+	_ WorkspaceID,
+) (WorkspaceGeneration, error) {
+	close(r.entered)
+	<-ctx.Done()
+	return "", ctx.Err()
+}
+
+func (r *cancelableRecoveryResolver) ResolveWorkspaceForPurge(
+	ctx context.Context,
+	workspaceID WorkspaceID,
+) (WorkspaceGeneration, error) {
+	return r.base.ResolveWorkspaceForPurge(ctx, workspaceID)
 }
 
 func seedAheadStore(t *testing.T, path string) {

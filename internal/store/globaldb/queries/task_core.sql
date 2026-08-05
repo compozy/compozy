@@ -100,54 +100,28 @@ INSERT INTO task_runs (
   sqlc.narg(network_wake_id), sqlc.narg(network_target_session_id), sqlc.narg(network_owner_key)
 );
 
--- name: UpdateTaskRun :execrows
+-- name: UpdateTaskRunMetadata :execrows
 UPDATE task_runs
-SET task_id = sqlc.narg(task_id),
-    workspace_id = sqlc.narg(workspace_id),
-    run_kind = sqlc.arg(run_kind),
-    loop_run_id = sqlc.narg(loop_run_id),
-    status = sqlc.arg(status),
-    attempt = sqlc.arg(attempt),
-    recovery_count = sqlc.arg(recovery_count),
-    previous_run_id = sqlc.narg(previous_run_id),
-    failure_kind = sqlc.arg(failure_kind),
-    claimed_by_kind = sqlc.narg(claimed_by_kind),
-    claimed_by_ref = sqlc.narg(claimed_by_ref),
-    session_id = sqlc.narg(session_id),
-    origin_kind = sqlc.arg(origin_kind),
-    origin_ref = sqlc.arg(origin_ref),
-    idempotency_key = sqlc.narg(idempotency_key),
-    network_spec_json = sqlc.arg(network_spec_json),
-    network_mode = sqlc.arg(network_mode),
-    network_channel = sqlc.narg(network_channel),
-    network_source = sqlc.arg(network_source),
-    designation_group_id = sqlc.arg(designation_group_id),
-    claim_token = CASE WHEN sqlc.narg(claim_token_hash) IS NOT NULL AND claim_token_hash = sqlc.narg(claim_token_hash) THEN claim_token ELSE NULL END,
-    claim_token_hash = sqlc.narg(claim_token_hash),
-    lease_until = sqlc.narg(lease_until),
-    heartbeat_at = sqlc.narg(heartbeat_at),
-    queued_at = sqlc.arg(queued_at),
-    claimed_at = sqlc.narg(claimed_at),
-    started_at = sqlc.narg(started_at),
+SET metadata_json = sqlc.narg(metadata_json)
+WHERE id = sqlc.arg(id)
+  AND COALESCE(metadata_json, '') = COALESCE(sqlc.narg(expected_metadata_json), '');
+
+-- name: TransitionTerminalTaskRun :execrows
+UPDATE task_runs
+SET status = sqlc.arg(status),
+    claim_token = NULL,
+    lease_until = NULL,
+    heartbeat_at = NULL,
     ended_at = sqlc.narg(ended_at),
-    tokens_used = sqlc.arg(tokens_used),
     error = sqlc.narg(error),
-    metadata_json = sqlc.narg(metadata_json),
-    result_json = sqlc.narg(result_json),
-    review_required = sqlc.arg(review_required),
-    review_request_round = sqlc.arg(review_request_round),
-    review_policy_snapshot = sqlc.arg(review_policy_snapshot),
-    review_request_id = sqlc.narg(review_request_id),
-    parent_run_id = sqlc.narg(parent_run_id),
-    review_id = sqlc.narg(review_id),
-    review_round = sqlc.arg(review_round),
-    continuation_reason = sqlc.arg(continuation_reason),
-    missing_work_json = sqlc.arg(missing_work_json),
-    next_round_guidance = sqlc.arg(next_round_guidance),
-    network_wake_id = sqlc.narg(network_wake_id),
-    network_target_session_id = sqlc.narg(network_target_session_id),
-    network_owner_key = sqlc.narg(network_owner_key)
-WHERE id = sqlc.arg(id);
+    result_json = sqlc.narg(result_json)
+WHERE id = sqlc.arg(id)
+	AND COALESCE(task_id, '') = COALESCE(sqlc.narg(expected_task_id), '')
+	AND COALESCE(workspace_id, '') = COALESCE(sqlc.narg(expected_workspace_id), '')
+  AND status = sqlc.arg(expected_status)
+  AND COALESCE(session_id, '') = COALESCE(sqlc.arg(expected_session_id), '')
+  AND COALESCE(claim_token_hash, '') = COALESCE(sqlc.arg(expected_claim_token_hash), '')
+  AND COALESCE(lease_until, '') = COALESCE(sqlc.arg(expected_lease_until), '');
 
 -- name: GetTaskRun :one
 SELECT

@@ -4198,15 +4198,19 @@ func seedLiveLoopLivenessCellForTest(
 ) (looppkg.Run, string) {
 	t.Helper()
 	ctx := testutil.Context(t)
+	caseID, err := storepkg.NewID("case")
+	if err != nil {
+		t.Fatalf("store.NewID(liveness case) error = %v", err)
+	}
 	run, err := globalDB.CreateLoopRunForStart(
 		ctx,
-		testLoopRun("looprun-liveness-"+storepkg.NewID("case"), at, looppkg.StatusRunning),
+		testLoopRun("looprun-liveness-"+caseID, at, looppkg.StatusRunning),
 		dsl.ConcurrencyAllow,
 	)
 	if err != nil {
 		t.Fatalf("CreateLoopRunForStart(liveness) error = %v", err)
 	}
-	taskRecord := taskRecordForTest("task-loop-liveness-" + storepkg.NewID("case"))
+	taskRecord := taskRecordForTest("task-loop-liveness-" + caseID)
 	taskRecord.MaxAttempts = taskpkg.MaxTaskMaxAttempts
 	if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
 		t.Fatalf("CreateTask(liveness) error = %v", err)
@@ -4218,7 +4222,7 @@ func seedLiveLoopLivenessCellForTest(
 	if err != nil {
 		t.Fatalf("json.Marshal(liveness metadata) error = %v", err)
 	}
-	taskRun := taskRunForTest("run-loop-liveness-"+storepkg.NewID("case"), taskRecord.ID)
+	taskRun := taskRunForTest("run-loop-liveness-"+caseID, taskRecord.ID)
 	taskRun.RunKind = taskpkg.RunKindWorker
 	taskRun.LoopRunID = string(run.ID)
 	taskRun.Metadata = metadata

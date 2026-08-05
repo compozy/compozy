@@ -3,140 +3,264 @@ package registry
 import (
 	"errors"
 	"fmt"
-
+	"io"
 	"os"
-	"path/filepath"
-
-	"slices"
 	"strings"
 
 	"github.com/BurntSushi/toml"
+	"github.com/compozy/compozy/internal/fileutil"
 	"github.com/compozy/compozy/internal/frontmatter"
 	yaml "gopkg.in/yaml.v3"
 )
 
-func loadInstalledPackageMetadata(extractRoot string) (string, installedPackageMetadata, error) {
-	packageRoot, manifestPath, err := locateInstallManifestRoot(extractRoot)
-	if err != nil {
-		return "", installedPackageMetadata{}, err
-	}
+type installedPackage struct {
+	parent      *fileutil.Directory
+	name        string
+	directory   *fileutil.Directory
+	closeParent bool
+}
 
-	metadata, err := parseInstalledPackageMetadata(manifestPath)
-	if err != nil {
-		return "", installedPackageMetadata{}, err
+func (p *installedPackage) Close() error {
+	if p == nil || p.directory == nil {
+		return nil
 	}
-	metadata.manifestPath = manifestPath
+	if err := p.directory.Close(); err != nil {
+		return fmt.Errorf("registry: close installed package directory: %w", err)
+	}
+	return nil
+}
 
+func (p *installedPackage) CloseParent() error {
+	if p == nil || !p.closeParent || p.parent == nil {
+		return nil
+	}
+	p.closeParent = false
+	if err := p.parent.Close(); err != nil {
+		return fmt.Errorf("registry: close installed package parent directory: %w", err)
+	}
+	return nil
+}
+
+func (p *installedPackage) CloseAll() error {
+	return errors.Join(p.Close(), p.CloseParent())
+}
+
+func loadInstalledPackageMetadata(
+	rootParent *fileutil.Directory,
+	rootName string,
+	root *fileutil.Directory,
+) (*installedPackage, installedPackageMetadata, error) {
+	_, manifestName, installed, err := locateInstallManifestRoot(rootParent, rootName, root)
+	if err != nil {
+		return nil, installedPackageMetadata{}, err
+	}
+	metadata, err := parseInstalledPackageMetadata(installed.directory, manifestName)
+	if err != nil {
+		closeErr := installed.CloseAll()
+		return nil, installedPackageMetadata{}, errors.Join(err, closeErr)
+	}
+	metadata.manifestPath = manifestName
 	if strings.TrimSpace(metadata.name) == "" {
-		return "", installedPackageMetadata{}, fmt.Errorf("registry: manifest %q is missing name", manifestPath)
+		closeErr := installed.CloseAll()
+		return nil, installedPackageMetadata{}, errors.Join(
+			fmt.Errorf("registry: manifest %q is missing name", manifestName),
+			closeErr,
+		)
 	}
-
-	return packageRoot, metadata, nil
+	return installed, metadata, nil
 }
 
-func locateInstallManifestRoot(extractRoot string) (string, string, error) {
-	current := extractRoot
-	for {
-		manifestPath, err := manifestPathAtRoot(current)
-		if err != nil {
-			return "", "", err
+func locateInstallManifestRoot(
+	rootParent *fileutil.Directory,
+	rootName string,
+	root *fileutil.Directory,
+) (_ *fileutil.Directory, _ string, packageRoot *installedPackage, err error) {
+	if rootParent == nil || root == nil {
+		return nil, "", nil, ErrArchiveRootRequired
+	}
+	currentParent := rootParent
+	currentName := rootName
+	current := root
+	closeCurrentOnError := false
+	defer func() {
+		if err == nil {
+			return
 		}
-		if manifestPath != "" {
-			return current, manifestPath, nil
-		}
-
-		entries, err := os.ReadDir(current)
-		if err != nil {
-			return "", "", fmt.Errorf("registry: read extracted root %q: %w", current, err)
-		}
-
-		dirs := make([]string, 0, len(entries))
-		files := 0
-		for _, entry := range entries {
-			if entry.IsDir() {
-				dirs = append(dirs, entry.Name())
-				continue
+		if closeCurrentOnError {
+			if closeErr := current.Close(); closeErr != nil {
+				err = errors.Join(err, fmt.Errorf("registry: close manifest search directory: %w", closeErr))
 			}
-			files++
+		}
+		if currentParent != rootParent {
+			if closeErr := currentParent.Close(); closeErr != nil {
+				err = errors.Join(err, fmt.Errorf("registry: close manifest search parent: %w", closeErr))
+			}
+		}
+	}()
+
+	for {
+		manifestName, findErr := manifestNameAtRoot(current)
+		if findErr != nil {
+			return nil, "", nil, findErr
+		}
+		if manifestName != "" {
+			return currentParent, manifestName, &installedPackage{
+				parent:      currentParent,
+				name:        currentName,
+				directory:   current,
+				closeParent: currentParent != rootParent,
+			}, nil
 		}
 
-		if len(dirs) == 1 && files == 0 {
-			current = filepath.Join(current, dirs[0])
-			continue
+		nextName, descend, descendErr := singleExtractionDirectory(current)
+		if descendErr != nil {
+			return nil, "", nil, descendErr
+		}
+		if !descend {
+			return nil, "", nil, fmt.Errorf("%w: %q", errInstallMissingManifest, currentName)
 		}
 
-		return "", "", fmt.Errorf("%w: %q", errInstallMissingManifest, extractRoot)
+		next, openErr := current.OpenDirectory(nextName)
+		if openErr != nil {
+			return nil, "", nil, fmt.Errorf(
+				"registry: open extracted directory %q: %w",
+				nextName,
+				mapExtractionAccessError(openErr),
+			)
+		}
+		if closeCurrentOnError {
+			if closeErr := currentParent.Close(); closeErr != nil {
+				if nextCloseErr := next.Close(); nextCloseErr != nil {
+					return nil, "", nil, errors.Join(
+						fmt.Errorf("registry: close superseded extraction parent: %w", closeErr),
+						fmt.Errorf("registry: close extracted child after parent failure: %w", nextCloseErr),
+					)
+				}
+				return nil, "", nil, fmt.Errorf("registry: close superseded extraction parent: %w", closeErr)
+			}
+		}
+		currentParent = current
+		currentName = nextName
+		current = next
+		closeCurrentOnError = true
 	}
 }
 
-func manifestPathAtRoot(root string) (string, error) {
-	extensionManifest := filepath.Join(root, installerExtensionManifestName)
-	skillManifest := filepath.Join(root, installerSkillManifestName)
-
-	hasExtensionManifest, err := manifestFileExists(extensionManifest)
+func manifestNameAtRoot(root *fileutil.Directory) (string, error) {
+	hasExtensionManifest, err := manifestFileExists(root, installerExtensionManifestName)
 	if err != nil {
-		return "", fmt.Errorf("registry: inspect manifest %q: %w", extensionManifest, err)
+		return "", fmt.Errorf("registry: inspect manifest %q: %w", installerExtensionManifestName, err)
 	}
-	hasSkillManifest, err := manifestFileExists(skillManifest)
+	hasSkillManifest, err := manifestFileExists(root, installerSkillManifestName)
 	if err != nil {
-		return "", fmt.Errorf("registry: inspect manifest %q: %w", skillManifest, err)
+		return "", fmt.Errorf("registry: inspect manifest %q: %w", installerSkillManifestName, err)
 	}
-
 	switch {
 	case hasExtensionManifest && hasSkillManifest:
 		return "", fmt.Errorf(
-			"registry: archive root %q contains both %s and %s",
-			root,
+			"registry: archive root contains both %s and %s",
 			installerExtensionManifestName,
 			installerSkillManifestName,
 		)
 	case hasExtensionManifest:
-		return extensionManifest, nil
+		return installerExtensionManifestName, nil
 	case hasSkillManifest:
-		return skillManifest, nil
+		return installerSkillManifestName, nil
 	default:
 		return "", nil
 	}
 }
 
-func parseInstalledPackageMetadata(manifestPath string) (installedPackageMetadata, error) {
-	content, err := os.ReadFile(manifestPath)
+func singleExtractionDirectory(root *fileutil.Directory) (string, bool, error) {
+	names, err := root.ReadDir()
 	if err != nil {
-		return installedPackageMetadata{}, fmt.Errorf("registry: read manifest %q: %w", manifestPath, err)
+		return "", false, fmt.Errorf("registry: read extracted root: %w", err)
 	}
+	directoryName := ""
+	fileCount := 0
+	for _, name := range names {
+		directory, openErr := root.OpenDirectory(name)
+		if openErr == nil {
+			if closeErr := directory.Close(); closeErr != nil {
+				return "", false, fmt.Errorf("registry: close extracted directory %q: %w", name, closeErr)
+			}
+			directoryName = name
+			continue
+		}
+		if !errors.Is(openErr, fileutil.ErrNotDirectory) {
+			return "", false, fmt.Errorf(
+				"registry: inspect extracted entry %q: %w",
+				name,
+				mapExtractionAccessError(openErr),
+			)
+		}
+		file, fileErr := root.OpenRegularFile(name)
+		if fileErr != nil {
+			return "", false, fmt.Errorf(
+				"registry: inspect extracted file %q: %w",
+				name,
+				mapExtractionAccessError(fileErr),
+			)
+		}
+		if closeErr := file.Close(); closeErr != nil {
+			return "", false, fmt.Errorf("registry: close extracted file %q: %w", name, closeErr)
+		}
+		fileCount++
+	}
+	return directoryName, directoryName != "" && fileCount == 0 && len(names) == 1, nil
+}
 
-	switch filepath.Base(manifestPath) {
+func parseInstalledPackageMetadata(root *fileutil.Directory, manifestName string) (installedPackageMetadata, error) {
+	content, err := readExtractionFile(root, manifestName)
+	if err != nil {
+		return installedPackageMetadata{}, fmt.Errorf("registry: read manifest %q: %w", manifestName, err)
+	}
+	switch manifestName {
 	case installerSkillManifestName:
 		var meta skillManifestHeader
 		parts, err := frontmatter.Split(content)
 		if err != nil {
-			return installedPackageMetadata{}, fmt.Errorf("registry: parse skill manifest %q: %w", manifestPath, err)
+			return installedPackageMetadata{}, fmt.Errorf("registry: parse skill manifest %q: %w", manifestName, err)
 		}
 		if err := yaml.Unmarshal(parts.Metadata, &meta); err != nil {
-			return installedPackageMetadata{}, fmt.Errorf("registry: decode skill manifest %q: %w", manifestPath, err)
+			return installedPackageMetadata{}, fmt.Errorf("registry: decode skill manifest %q: %w", manifestName, err)
 		}
 		return installedPackageMetadata{
-			name:          strings.TrimSpace(meta.Name),
-			version:       strings.TrimSpace(meta.Version),
-			verifyContent: parts.Body,
+			name: strings.TrimSpace(meta.Name), version: strings.TrimSpace(meta.Version), verifyContent: parts.Body,
 		}, nil
 	case installerExtensionManifestName:
 		var meta extensionManifestHeader
 		if _, err := toml.Decode(string(content), &meta); err != nil {
 			return installedPackageMetadata{}, fmt.Errorf(
 				"registry: decode extension manifest %q: %w",
-				manifestPath,
+				manifestName,
 				err,
 			)
 		}
 		return installedPackageMetadata{
-			name:          firstNonEmpty(meta.Name, meta.Extension.Name),
-			version:       firstNonEmpty(meta.Version, meta.Extension.Version),
-			verifyContent: string(content),
+			name:    firstNonEmpty(meta.Name, meta.Extension.Name),
+			version: firstNonEmpty(meta.Version, meta.Extension.Version), verifyContent: string(content),
 		}, nil
 	default:
-		return installedPackageMetadata{}, fmt.Errorf("registry: unsupported manifest %q", manifestPath)
+		return installedPackageMetadata{}, fmt.Errorf("registry: unsupported manifest %q", manifestName)
 	}
+}
+
+func readExtractionFile(root *fileutil.Directory, name string) (content []byte, err error) {
+	file, err := root.OpenRegularFile(name)
+	if err != nil {
+		return nil, mapExtractionAccessError(err)
+	}
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("registry: close extraction file %q: %w", name, closeErr))
+		}
+	}()
+	content, err = io.ReadAll(file)
+	if err != nil {
+		return nil, fmt.Errorf("registry: read extraction file %q: %w", name, err)
+	}
+	return content, nil
 }
 
 func verifyInstallerContent(content string) error {
@@ -144,10 +268,8 @@ func verifyInstallerContent(content string) error {
 	if trimmed == "" {
 		return nil
 	}
-
 	messages := make([]string, 0, len(installerVerificationRules))
 	seen := make(map[string]struct{}, len(installerVerificationRules))
-
 	for _, rule := range installerVerificationRules {
 		if !rule.regex.MatchString(trimmed) {
 			continue
@@ -158,26 +280,31 @@ func verifyInstallerContent(content string) error {
 		seen[rule.key] = struct{}{}
 		messages = append(messages, rule.message)
 	}
-
 	if len(messages) == 0 {
 		return nil
 	}
-
-	slices.Sort(messages)
 	return fmt.Errorf("%w: %s", errVerificationBlocked, strings.Join(messages, "; "))
 }
 
-func manifestFileExists(path string) (bool, error) {
-	info, err := os.Lstat(path)
+func manifestFileExists(root *fileutil.Directory, name string) (bool, error) {
+	file, err := root.OpenRegularFile(name)
 	switch {
 	case err == nil:
-		if info.Mode().IsRegular() {
-			return true, nil
+		if closeErr := file.Close(); closeErr != nil {
+			return false, fmt.Errorf("close manifest %q: %w", name, closeErr)
 		}
-		return false, fmt.Errorf("manifest %q must be a regular file", path)
+		return true, nil
+	case errors.Is(err, io.EOF):
+		return false, nil
+	case errors.Is(err, fileutil.ErrNotDirectory):
+		return false, fmt.Errorf("manifest %q must be a regular file", name)
+	case errors.Is(err, fileutil.ErrDirectory), errors.Is(err, fileutil.ErrNotRegular):
+		return false, fmt.Errorf("manifest %q must be a regular file", name)
+	case errors.Is(err, fileutil.ErrSymlink):
+		return false, mapExtractionAccessError(err)
 	case errors.Is(err, os.ErrNotExist):
 		return false, nil
 	default:
-		return false, err
+		return false, mapExtractionAccessError(err)
 	}
 }

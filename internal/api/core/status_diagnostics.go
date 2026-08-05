@@ -6,8 +6,6 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/diagnostics"
-
-	authproviders "github.com/compozy/compozy/internal/providers"
 )
 
 func splitStatusFilter(values []string, raw string) []string {
@@ -58,25 +56,17 @@ func providerDiagnosticItems(providers []contract.ProviderStatusPayload) []contr
 	return items
 }
 
-func providerSuggestedCommand(providerName string, status contract.ProviderAuthStatusPayload) string {
-	classification := authproviders.Classification{
-		State:   authproviders.ProviderAuthState(strings.TrimSpace(status.State)),
-		Code:    strings.TrimSpace(status.Code),
-		Message: strings.TrimSpace(status.Message),
-	}
-	return authproviders.SuggestedCommand(providerName, classification)
-}
-
 func configDiagnosticItem(status contract.ConfigRuntimeStatusPayload) contract.DiagnosticItem {
 	if status.Validated {
-		return diagnostics.NewItem(
-			"doctor.config.validate",
-			contract.CodeConfigValidated,
-			contract.CategoryConfig,
-			"Config validates",
-			"Runtime config validates against the current schema.",
-			contract.SeverityOK,
-			contract.FreshnessLive,
+		return diagnostics.NewItem(diagnostics.ItemSpec{
+			ID:            "doctor.config.validate",
+			Code:          contract.CodeConfigValidated,
+			Category:      contract.CategoryConfig,
+			Title:         "Config validates",
+			Message:       "Runtime config validates against the current schema.",
+			Severity:      contract.SeverityOK,
+			DataFreshness: contract.FreshnessLive,
+		},
 			diagnostics.WithEvidence(map[string]any{"apply_state": status.ApplyState}),
 		)
 	}
@@ -84,13 +74,13 @@ func configDiagnosticItem(status contract.ConfigRuntimeStatusPayload) contract.D
 	if message == "" {
 		message = "Runtime config failed validation."
 	}
-	return diagnostics.NewItem(
-		"doctor.config.validate",
-		contract.CodeConfigValidateFailed,
-		contract.CategoryConfig,
-		"Config validation failed",
-		message,
-		contract.SeverityCritical,
-		contract.FreshnessLive,
-	)
+	return diagnostics.NewItem(diagnostics.ItemSpec{
+		ID:            "doctor.config.validate",
+		Code:          contract.CodeConfigValidateFailed,
+		Category:      contract.CategoryConfig,
+		Title:         "Config validation failed",
+		Message:       message,
+		Severity:      contract.SeverityCritical,
+		DataFreshness: contract.FreshnessLive,
+	})
 }

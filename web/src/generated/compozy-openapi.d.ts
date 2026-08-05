@@ -24772,7 +24772,7 @@ export interface operations {
   streamBridgeHealth: {
     parameters: {
       query: {
-        /** @description Comma-separated bridge ids from the current catalog page; maximum 200 */
+        /** @description Repeated opaque bridge id from the current catalog page; maximum 200 values */
         bridge_ids: string;
         /** @description Filter by bridge scope */
         scope?: "all" | "global" | "workspace";
@@ -33983,7 +33983,6 @@ export interface operations {
                 include_system: boolean;
                 raw_candidates: number;
                 signals: {
-                  metrics_enabled: boolean;
                   queue_capacity: number;
                   worker_retry_max: number;
                 };
@@ -40713,7 +40712,22 @@ export interface operations {
                 home_policy: string;
                 /** Format: date-time */
                 last_probe_at?: string | null;
-                login_command?: string;
+                login: {
+                  configured: boolean;
+                  executable?: string;
+                  /** @enum {string} */
+                  presence: "present" | "missing" | "unknown";
+                  /** @enum {string} */
+                  recommended_action?:
+                    | "install_cli"
+                    | "login"
+                    | "bind_secret"
+                    | "retry"
+                    | "inspect"
+                    | "no_retry";
+                  /** @enum {string} */
+                  source?: "auth_login_command";
+                };
                 message?: string;
                 mode: string;
                 state: string;
@@ -40782,7 +40796,22 @@ export interface operations {
               home_policy: string;
               /** Format: date-time */
               last_probe_at?: string | null;
-              login_command?: string;
+              login: {
+                configured: boolean;
+                executable?: string;
+                /** @enum {string} */
+                presence: "present" | "missing" | "unknown";
+                /** @enum {string} */
+                recommended_action?:
+                  | "install_cli"
+                  | "login"
+                  | "bind_secret"
+                  | "retry"
+                  | "inspect"
+                  | "no_retry";
+                /** @enum {string} */
+                source?: "auth_login_command";
+              };
               message?: string;
               mode: string;
               state: string;
@@ -40879,7 +40908,22 @@ export interface operations {
               home_policy: string;
               /** Format: date-time */
               last_probe_at?: string | null;
-              login_command?: string;
+              login: {
+                configured: boolean;
+                executable?: string;
+                /** @enum {string} */
+                presence: "present" | "missing" | "unknown";
+                /** @enum {string} */
+                recommended_action?:
+                  | "install_cli"
+                  | "login"
+                  | "bind_secret"
+                  | "retry"
+                  | "inspect"
+                  | "no_retry";
+                /** @enum {string} */
+                source?: "auth_login_command";
+              };
               message?: string;
               mode: string;
               state: string;
@@ -45978,6 +46022,7 @@ export interface operations {
       content: {
         "application/json": {
           reason?: string;
+          /** Format: int64 */
           timeout_seconds?: number | null;
         };
       };
@@ -46011,6 +46056,35 @@ export interface operations {
             /** Format: date-time */
             started_at: string;
             timed_out?: boolean;
+          };
+        };
+      };
+      /** @description Malformed scheduler drain request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
           };
         };
       };
@@ -52233,7 +52307,6 @@ export interface operations {
                 include_system: boolean;
                 raw_candidates: number;
                 signals: {
-                  metrics_enabled: boolean;
                   queue_capacity: number;
                   worker_retry_max: number;
                 };
@@ -52420,7 +52493,6 @@ export interface operations {
               include_system: boolean;
               raw_candidates: number;
               signals: {
-                metrics_enabled: boolean;
                 queue_capacity: number;
                 worker_retry_max: number;
               };
@@ -53374,17 +53446,24 @@ export interface operations {
                 code?: string;
                 env_policy: string;
                 home_policy: string;
-                login_command?: string;
-                login_env?: string[];
+                login: {
+                  configured: boolean;
+                  executable?: string;
+                  /** @enum {string} */
+                  presence: "present" | "missing" | "unknown";
+                  /** @enum {string} */
+                  recommended_action?:
+                    | "install_cli"
+                    | "login"
+                    | "bind_secret"
+                    | "retry"
+                    | "inspect"
+                    | "no_retry";
+                  /** @enum {string} */
+                  source?: "auth_login_command";
+                };
                 message?: string;
                 mode: string;
-                native_cli?: {
-                  command?: string;
-                  error?: string;
-                  path?: string;
-                  present: boolean;
-                  source?: string;
-                } | null;
                 state: string;
                 status_command?: string;
               } | null;
@@ -53401,7 +53480,6 @@ export interface operations {
               default: boolean;
               fallback?: {
                 settings: {
-                  auth_login_command?: string;
                   auth_mode?: string;
                   auth_status_command?: string;
                   base_url?: string;
@@ -53494,7 +53572,6 @@ export interface operations {
               } | null;
               name: string;
               settings: {
-                auth_login_command?: string;
                 auth_mode?: string;
                 auth_status_command?: string;
                 base_url?: string;
@@ -53670,17 +53747,24 @@ export interface operations {
                 code?: string;
                 env_policy: string;
                 home_policy: string;
-                login_command?: string;
-                login_env?: string[];
+                login: {
+                  configured: boolean;
+                  executable?: string;
+                  /** @enum {string} */
+                  presence: "present" | "missing" | "unknown";
+                  /** @enum {string} */
+                  recommended_action?:
+                    | "install_cli"
+                    | "login"
+                    | "bind_secret"
+                    | "retry"
+                    | "inspect"
+                    | "no_retry";
+                  /** @enum {string} */
+                  source?: "auth_login_command";
+                };
                 message?: string;
                 mode: string;
-                native_cli?: {
-                  command?: string;
-                  error?: string;
-                  path?: string;
-                  present: boolean;
-                  source?: string;
-                } | null;
                 state: string;
                 status_command?: string;
               } | null;
@@ -53697,7 +53781,6 @@ export interface operations {
               default: boolean;
               fallback?: {
                 settings: {
-                  auth_login_command?: string;
                   auth_mode?: string;
                   auth_status_command?: string;
                   base_url?: string;
@@ -53790,7 +53873,6 @@ export interface operations {
               } | null;
               name: string;
               settings: {
-                auth_login_command?: string;
                 auth_mode?: string;
                 auth_status_command?: string;
                 base_url?: string;
@@ -54006,7 +54088,7 @@ export interface operations {
             value: string;
           }[];
           settings: {
-            auth_login_command?: string;
+            auth_login_command?: string | null;
             auth_mode?: string;
             auth_status_command?: string;
             base_url?: string;
@@ -56965,6 +57047,9 @@ export interface operations {
         content: {
           "application/json": {
             skill: {
+              cleanup_diagnostics?: {
+                operation: string;
+              }[];
               hash: string;
               name: string;
               path: string;
@@ -57120,6 +57205,9 @@ export interface operations {
         content: {
           "application/json": {
             skills: {
+              cleanup_diagnostics?: {
+                operation: string;
+              }[];
               current_version?: string;
               latest_version?: string;
               name: string;
@@ -58724,13 +58812,27 @@ export interface operations {
               home_policy?: string;
               /** Format: date-time */
               last_probe_at?: string | null;
-              login_command?: string;
+              login: {
+                configured: boolean;
+                executable?: string;
+                /** @enum {string} */
+                presence: "present" | "missing" | "unknown";
+                /** @enum {string} */
+                recommended_action?:
+                  | "install_cli"
+                  | "login"
+                  | "bind_secret"
+                  | "retry"
+                  | "inspect"
+                  | "no_retry";
+                /** @enum {string} */
+                source?: "auth_login_command";
+              };
               message?: string;
               mode?: string;
               name: string;
               state: string;
               status_command?: string;
-              suggested_command?: string;
             }[];
             schema_version: string;
             sessions: {
@@ -71034,6 +71136,11 @@ export interface operations {
                 last_error?: string;
                 /** Format: int64 */
                 last_sequence: number;
+                scope: {
+                  /** @enum {string} */
+                  kind: "global" | "workspace";
+                  workspace_id?: string;
+                };
                 stream_name: string;
                 subject_id: string;
                 /** Format: date-time */
@@ -71231,6 +71338,11 @@ export interface operations {
                 last_error?: string;
                 /** Format: int64 */
                 last_sequence: number;
+                scope: {
+                  /** @enum {string} */
+                  kind: "global" | "workspace";
+                  workspace_id?: string;
+                };
                 stream_name: string;
                 subject_id: string;
                 /** Format: date-time */
@@ -71414,6 +71526,11 @@ export interface operations {
                 last_error?: string;
                 /** Format: int64 */
                 last_sequence: number;
+                scope: {
+                  /** @enum {string} */
+                  kind: "global" | "workspace";
+                  workspace_id?: string;
+                };
                 stream_name: string;
                 subject_id: string;
                 /** Format: date-time */

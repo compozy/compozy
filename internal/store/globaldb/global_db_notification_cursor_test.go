@@ -2,10 +2,12 @@ package globaldb
 
 import (
 	"errors"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/compozy/compozy/internal/notifications"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -41,6 +43,177 @@ func TestGlobalDBNotificationCursorStore(t *testing.T) {
 		}
 		if stored.LastSequence != cursor.LastSequence || stored.LastDeliveryID != cursor.LastDeliveryID {
 			t.Fatalf("stored cursor = %#v, want %#v", stored, cursor)
+		}
+	})
+
+	t.Run("Should persist identical opaque components independently by scope", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		service := notifications.NewService(globalDB)
+		now := notificationCursorTestTime()
+		globalKey := notifications.CursorKey{
+			Scope:      notifications.ScopeRef{Kind: notifications.ScopeKindGlobal},
+			ConsumerID: "consumer:terminal",
+			StreamName: "task:events",
+			SubjectID:  "subject:terminal",
+		}
+		workspaceKey := globalKey
+		workspaceKey.Scope = notifications.ScopeRef{
+			Kind:        notifications.ScopeKindWorkspace,
+			WorkspaceID: "global",
+		}
+
+		for _, advance := range []notifications.AdvanceCursor{
+			{Key: globalKey, LastSequence: 7, DeliveryID: "delivery-global", Now: now},
+			{Key: workspaceKey, LastSequence: 11, DeliveryID: "delivery-workspace", Now: now},
+		} {
+			if _, err := service.Advance(ctx, advance); err != nil {
+				t.Fatalf("Advance(%#v) error = %v", advance.Key.Scope, err)
+			}
+		}
+		if _, err := service.Reset(ctx, notifications.ResetCursor{
+			Key:          workspaceKey,
+			LastSequence: 1,
+			Reason:       "workspace replay",
+			Now:          now.Add(time.Minute),
+		}); err != nil {
+			t.Fatalf("Reset(workspace) error = %v", err)
+		}
+
+		globalCursor, err := service.Get(ctx, globalKey)
+		if err != nil {
+			t.Fatalf("Get(global) error = %v", err)
+		}
+		workspaceCursor, err := service.Get(ctx, workspaceKey)
+		if err != nil {
+			t.Fatalf("Get(workspace) error = %v", err)
+		}
+		if globalCursor.LastSequence != 7 || globalCursor.LastDeliveryID != "delivery-global" {
+			t.Fatalf("global cursor = %#v, want unchanged global delivery progress", globalCursor)
+		}
+		if workspaceCursor.LastSequence != 1 || workspaceCursor.LastDeliveryID != "" {
+			t.Fatalf("workspace cursor = %#v, want independently reset workspace progress", workspaceCursor)
+		}
+		for _, query := range []notifications.CursorQuery{
+			{Scope: globalKey.Scope},
+			{Scope: workspaceKey.Scope},
+			{},
+		} {
+			cursors, err := service.List(ctx, query)
+			if err != nil {
+				t.Fatalf("List(%#v) error = %v", query.Scope, err)
+			}
+			want := 1
+			if query.Scope.Kind == "" {
+				want = 2
+			}
+			if len(cursors) != want {
+				t.Fatalf("List(%#v) returned %d cursors, want %d", query.Scope, len(cursors), want)
+			}
+		}
+	})
+
+	t.Run("Should retain whitespace-only opaque cursor components", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		service := notifications.NewService(globalDB)
+		key := notifications.CursorKey{
+			Scope: notifications.ScopeRef{
+				Kind:        notifications.ScopeKindWorkspace,
+				WorkspaceID: " ",
+			},
+			ConsumerID: " ",
+			StreamName: " ",
+			SubjectID:  " ",
+		}
+		wantDeliveryID := " "
+
+		if _, err := service.Advance(ctx, notifications.AdvanceCursor{
+			Key:          key,
+			LastSequence: 1,
+			DeliveryID:   wantDeliveryID,
+			Now:          notificationCursorTestTime(),
+		}); err != nil {
+			t.Fatalf("Advance() error = %v", err)
+		}
+		stored, err := service.Get(ctx, key)
+		if err != nil {
+			t.Fatalf("Get() error = %v", err)
+		}
+		if got, want := stored.Key, key; got != want {
+			t.Fatalf("stored cursor key = %#v, want %#v", got, want)
+		}
+		if got, want := stored.LastDeliveryID, wantDeliveryID; got != want {
+			t.Fatalf("stored delivery ID = %q, want exact opaque ID %q", got, want)
+		}
+		listed, err := service.List(ctx, notifications.CursorQuery{
+			Scope:      key.Scope,
+			ConsumerID: key.ConsumerID,
+			StreamName: key.StreamName,
+			SubjectID:  key.SubjectID,
+		})
+		if err != nil {
+			t.Fatalf("List(opaque key) error = %v", err)
+		}
+		if len(listed) != 1 || listed[0].Key != key {
+			t.Fatalf("List(opaque key) = %#v, want exact stored key", listed)
+		}
+	})
+
+	t.Run("Should discard ambiguous legacy cursor progress during scoped migration", func(t *testing.T) {
+		t.Parallel()
+
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		legacyDB, err := openGlobalMigrationPrefixDatabase(
+			t,
+			path,
+			globalMigrationPrefixBefore(t, "00039_schema.sql"),
+		)
+		if err != nil {
+			t.Fatalf("openGlobalMigrationPrefixDatabase() error = %v", err)
+		}
+		ctx := testutil.Context(t)
+		if _, err := legacyDB.ExecContext(
+			ctx,
+			`INSERT INTO notification_cursors (
+				consumer_id, stream_name, subject_id, last_sequence, last_delivery_id,
+				last_delivered_at, last_error, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+			"preset:terminal:#ops:incident",
+			"task.run_completed",
+			"global:evt:terminal",
+			7,
+			"notif:sub-1:7",
+			store.FormatTimestamp(notificationCursorTestTime()),
+			"",
+			store.FormatTimestamp(notificationCursorTestTime()),
+		); err != nil {
+			t.Fatalf("seed legacy notification cursor error = %v", err)
+		}
+		if err := legacyDB.Close(); err != nil {
+			t.Fatalf("legacyDB.Close() error = %v", err)
+		}
+
+		globalDB, err := openGlobalMigrationUpgrade(t, path)
+		if err != nil {
+			t.Fatalf("openGlobalMigrationUpgrade() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := globalDB.Close(testutil.Context(t)); closeErr != nil {
+				t.Errorf("GlobalDB.Close() error = %v", closeErr)
+			}
+		})
+		var count int
+		if err := globalDB.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM notification_cursors`).
+			Scan(&count); err != nil {
+			t.Fatalf("count scoped notification cursors error = %v", err)
+		}
+		if count != 0 {
+			t.Fatalf("migrated notification cursor count = %d, want hard-dropped legacy progress", count)
 		}
 	})
 
@@ -238,6 +411,7 @@ func TestGlobalDBNotificationCursorStore(t *testing.T) {
 		inputs := []notifications.AdvanceCursor{
 			{
 				Key: notifications.CursorKey{
+					Scope:      notifications.ScopeRef{Kind: notifications.ScopeKindGlobal},
 					ConsumerID: "consumer-a",
 					StreamName: "task_events",
 					SubjectID:  "task-a",
@@ -248,6 +422,7 @@ func TestGlobalDBNotificationCursorStore(t *testing.T) {
 			},
 			{
 				Key: notifications.CursorKey{
+					Scope:      notifications.ScopeRef{Kind: notifications.ScopeKindWorkspace, WorkspaceID: "ws-list"},
 					ConsumerID: "consumer-b",
 					StreamName: "task_events",
 					SubjectID:  "task-b",
@@ -275,7 +450,8 @@ func TestGlobalDBNotificationCursorStore(t *testing.T) {
 
 func notificationCursorTestKey() notifications.CursorKey {
 	return notifications.CursorKey{
-		ConsumerID: "bridge_task_subscription:sub-1",
+		Scope:      notifications.ScopeRef{Kind: notifications.ScopeKindGlobal},
+		ConsumerID: "sub-1",
 		StreamName: "task_events",
 		SubjectID:  "task-1",
 	}

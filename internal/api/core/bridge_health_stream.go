@@ -7,8 +7,8 @@ import (
 	"hash/fnv"
 	"net/http"
 	"reflect"
-	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
@@ -104,31 +104,32 @@ func (h *BaseHandlers) parseBridgeHealthStreamQuery(c *gin.Context) (bridgeHealt
 	if err != nil {
 		return bridgeHealthStreamQuery{}, err
 	}
-	bridgeIDs, err := normalizeBridgeHealthStreamIDs(c.Query(bridgeHealthStreamIDsQueryKey))
+	bridgeIDs, err := normalizeBridgeHealthStreamIDs(c.QueryArray(bridgeHealthStreamIDsQueryKey))
 	if err != nil {
 		return bridgeHealthStreamQuery{}, fmt.Errorf("%s: %w", h.transportName(), err)
 	}
 	return bridgeHealthStreamQuery{scope: scope, bridgeIDs: bridgeIDs}, nil
 }
 
-func normalizeBridgeHealthStreamIDs(raw string) ([]string, error) {
-	if strings.TrimSpace(raw) == "" {
+func normalizeBridgeHealthStreamIDs(raw []string) ([]string, error) {
+	if len(raw) == 0 {
 		return nil, fmt.Errorf("%s is required", bridgeHealthStreamIDsQueryKey)
 	}
-	parts := strings.Split(raw, ",")
-	if len(parts) > bridgepkg.MaxBridgeCatalogLimit {
+	if len(raw) > bridgepkg.MaxBridgeCatalogLimit {
 		return nil, fmt.Errorf(
 			"%s cannot contain more than %d ids",
 			bridgeHealthStreamIDsQueryKey,
 			bridgepkg.MaxBridgeCatalogLimit,
 		)
 	}
-	ids := make([]string, 0, len(parts))
-	seen := make(map[string]struct{}, len(parts))
-	for _, part := range parts {
-		id := strings.TrimSpace(part)
+	ids := make([]string, 0, len(raw))
+	seen := make(map[string]struct{}, len(raw))
+	for _, id := range raw {
 		if id == "" {
 			return nil, fmt.Errorf("%s contains an empty id", bridgeHealthStreamIDsQueryKey)
+		}
+		if !utf8.ValidString(id) {
+			return nil, fmt.Errorf("%s contains an invalid UTF-8 id", bridgeHealthStreamIDsQueryKey)
 		}
 		if _, exists := seen[id]; exists {
 			continue
@@ -173,7 +174,7 @@ func bridgeHealthStreamInstances(
 	}
 	visible := make(map[string]bridgepkg.BridgeInstance, len(query.bridgeIDs))
 	for _, instance := range instances {
-		id := strings.TrimSpace(instance.ID)
+		id := instance.ID
 		if _, ok := requested[id]; !ok || !bridgeInstanceMatchesListQuery(instance, query.scope) {
 			continue
 		}

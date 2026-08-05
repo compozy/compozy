@@ -143,8 +143,8 @@ func TestStartBindingShouldValidateAllowlistAndResolveMappedInputs(t *testing.T)
 				Kind:        dsl.StartHTTP,
 				Inputs:      map[string]any{"tasks": "task-ref"},
 			})
-		var reason *loop.ReasonError
-		if !errors.As(err, &reason) || reason.Code != loop.ReasonCodeStartKindNotAllowed {
+		reason, reasonMatched := errors.AsType[*loop.ReasonError](err)
+		if !reasonMatched || reason.Code != loop.ReasonCodeStartKindNotAllowed {
 			t.Fatalf("ValidateStartTarget() error = %v, want %q", err, loop.ReasonCodeStartKindNotAllowed)
 		}
 	})
@@ -180,8 +180,8 @@ func TestStartBindingShouldValidateAllowlistAndResolveMappedInputs(t *testing.T)
 					"title": "{{ .inputs.title }}",
 				},
 			})
-		var reason *loop.ReasonError
-		if !errors.As(err, &reason) || reason.Code != loop.ReasonCodeStartInputMappingInvalid {
+		reason, reasonMatched := errors.AsType[*loop.ReasonError](err)
+		if !reasonMatched || reason.Code != loop.ReasonCodeStartInputMappingInvalid {
 			t.Fatalf("ValidateStartTarget() error = %v, want %q", err, loop.ReasonCodeStartInputMappingInvalid)
 		}
 	})

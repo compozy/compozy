@@ -41,7 +41,7 @@ func TestStoreAgentRoots(t *testing.T) {
 		if err := workspaceAgent.EnsureDirs(); err != nil {
 			t.Fatalf("workspaceAgent.EnsureDirs() error = %v", err)
 		}
-		if err := workspaceAgent.Write(
+		if err := workspaceAgent.Write(t.Context(),
 			memcontract.ScopeAgent,
 			"feedback_style.md",
 			agentMemoryPayload(
@@ -49,8 +49,7 @@ func TestStoreAgentRoots(t *testing.T) {
 				"reviewer",
 				memcontract.AgentTierWorkspace,
 				"Prefer concrete findings.\n",
-			),
-		); err != nil {
+			)); err != nil {
 			t.Fatalf("workspaceAgent.Write() error = %v", err)
 		}
 
@@ -70,7 +69,7 @@ func TestStoreAgentRoots(t *testing.T) {
 		if err := globalAgent.EnsureDirs(); err != nil {
 			t.Fatalf("globalAgent.EnsureDirs() error = %v", err)
 		}
-		if err := globalAgent.Write(
+		if err := globalAgent.Write(t.Context(),
 			memcontract.ScopeAgent,
 			"user_preferences.md",
 			agentMemoryPayload(
@@ -78,8 +77,7 @@ func TestStoreAgentRoots(t *testing.T) {
 				"reviewer",
 				memcontract.AgentTierGlobal,
 				"Use terse summaries.\n",
-			),
-		); err != nil {
+			)); err != nil {
 			t.Fatalf("globalAgent.Write() error = %v", err)
 		}
 
@@ -388,11 +386,10 @@ func TestMemoryHeaderListPage(t *testing.T) {
 		writeResults := make(chan error, 1)
 		go func() {
 			close(writeStarted)
-			writeResults <- store.Write(
+			writeResults <- store.Write(t.Context(),
 				memcontract.ScopeGlobal,
 				"memory-new.md",
-				newContent,
-			)
+				newContent)
 		}()
 		<-writeStarted
 
@@ -541,11 +538,11 @@ func TestStoreMemV2BackendHelpers(t *testing.T) {
 			Description: "Covers List and Exists",
 			Type:        memcontract.TypeUser,
 		}, "Backend helpers remain aligned with Store methods.\n")
-		if err := store.Write(memcontract.ScopeGlobal, "user_backend_alias.md", payload); err != nil {
+		if err := store.Write(t.Context(), memcontract.ScopeGlobal, "user_backend_alias.md", payload); err != nil {
 			t.Fatalf("Store.Write() error = %v", err)
 		}
 
-		headers, err := store.List(memcontract.ScopeGlobal)
+		headers, err := store.List(t.Context(), memcontract.ScopeGlobal)
 		if err != nil {
 			t.Fatalf("Store.List() error = %v", err)
 		}
@@ -601,11 +598,10 @@ func TestStoreMemV2BackendHelpers(t *testing.T) {
 			memcontract.AgentTierGlobal,
 			"Agent frontmatter must match the bound store.\n",
 		)
-		if err := store.Write(
+		if err := store.Write(t.Context(),
 			memcontract.ScopeAgent,
 			"feedback_wrong_agent.md",
-			wrongAgent,
-		); !errors.Is(
+			wrongAgent); !errors.Is(
 			err,
 			ErrValidation,
 		) {
@@ -617,11 +613,10 @@ func TestStoreMemV2BackendHelpers(t *testing.T) {
 			memcontract.AgentTierWorkspace,
 			"Agent tier frontmatter must match the bound store.\n",
 		)
-		if err := store.Write(
+		if err := store.Write(t.Context(),
 			memcontract.ScopeAgent,
 			"feedback_wrong_tier.md",
-			wrongTier,
-		); !errors.Is(
+			wrongTier); !errors.Is(
 			err,
 			ErrValidation,
 		) {
@@ -732,7 +727,7 @@ func TestStoreMemoryBatch(t *testing.T) {
 			Description: "Atomic batch fixture",
 			Type:        memcontract.TypeUser,
 		}, "Keep the old summary.\n\nRemove this stale note.\n")
-		if err := store.Write(memcontract.ScopeGlobal, filename, initial); err != nil {
+		if err := store.Write(t.Context(), memcontract.ScopeGlobal, filename, initial); err != nil {
 			t.Fatalf("Store.Write(seed) error = %v", err)
 		}
 
@@ -760,7 +755,7 @@ func TestStoreMemoryBatch(t *testing.T) {
 				t.Fatalf("batch operation %d = %#v, want changed applied", index, outcome)
 			}
 		}
-		got, err := store.Read(memcontract.ScopeGlobal, filename)
+		got, err := store.Read(t.Context(), memcontract.ScopeGlobal, filename)
 		if err != nil {
 			t.Fatalf("Store.Read(batch result) error = %v", err)
 		}
@@ -808,7 +803,7 @@ func TestStoreMemoryBatch(t *testing.T) {
 			Name: "Release",
 			Type: memcontract.TypeProject,
 		}, "Keep the stable release fact.\n")
-		if err := store.Write(memcontract.ScopeGlobal, filename, initial); err != nil {
+		if err := store.Write(t.Context(), memcontract.ScopeGlobal, filename, initial); err != nil {
 			t.Fatalf("Store.Write(seed) error = %v", err)
 		}
 		db := ensureReplayTestDB(ctx, t, store)
@@ -830,7 +825,7 @@ func TestStoreMemoryBatch(t *testing.T) {
 			!strings.Contains(err.Error(), "matched 0 occurrences") {
 			t.Fatalf("Store.ProposeBatch(mid-batch failure) error = %v, want deterministic validation", err)
 		}
-		got, readErr := store.Read(memcontract.ScopeGlobal, filename)
+		got, readErr := store.Read(t.Context(), memcontract.ScopeGlobal, filename)
 		if readErr != nil {
 			t.Fatalf("Store.Read(after failed batch) error = %v", readErr)
 		}
@@ -878,7 +873,7 @@ func TestStoreMemoryBatch(t *testing.T) {
 				Name: "Markers",
 				Type: memcontract.TypeReference,
 			}, testCase.body+"\n")
-			if err := store.Write(memcontract.ScopeGlobal, filename, initial); err != nil {
+			if err := store.Write(t.Context(), memcontract.ScopeGlobal, filename, initial); err != nil {
 				t.Fatalf("Store.Write(seed) error = %v", err)
 			}
 
@@ -896,7 +891,7 @@ func TestStoreMemoryBatch(t *testing.T) {
 			if !errors.Is(err, ErrValidation) || !strings.Contains(err.Error(), want) {
 				t.Fatalf("Store.ProposeBatch(ambiguous) error = %v, want %q", err, want)
 			}
-			got, readErr := store.Read(memcontract.ScopeGlobal, filename)
+			got, readErr := store.Read(t.Context(), memcontract.ScopeGlobal, filename)
 			if readErr != nil {
 				t.Fatalf("Store.Read(after rejection) error = %v", readErr)
 			}
@@ -926,7 +921,7 @@ func TestStoreMemoryBatch(t *testing.T) {
 			Name: "Capacity",
 			Type: memcontract.TypeProject,
 		}, initialBody+"\n")
-		if err := store.Write(memcontract.ScopeGlobal, filename, initial); err != nil {
+		if err := store.Write(t.Context(), memcontract.ScopeGlobal, filename, initial); err != nil {
 			t.Fatalf("Store.Write(over-capacity seed) error = %v", err)
 		}
 
@@ -955,7 +950,7 @@ func TestStoreMemoryBatch(t *testing.T) {
 		if !result.Applied {
 			t.Fatalf("Store.ProposeBatch(consolidate and add) = %#v, want applied", result)
 		}
-		got, err := store.Read(memcontract.ScopeGlobal, filename)
+		got, err := store.Read(t.Context(), memcontract.ScopeGlobal, filename)
 		if err != nil {
 			t.Fatalf("Store.Read(consolidated) error = %v", err)
 		}
@@ -1003,7 +998,7 @@ func TestStoreMemoryBatch(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Store.ProposeBatch(first) error = %v", err)
 		}
-		before, err := store.Read(memcontract.ScopeGlobal, proposal.Filename)
+		before, err := store.Read(t.Context(), memcontract.ScopeGlobal, proposal.Filename)
 		if err != nil {
 			t.Fatalf("Store.Read(first) error = %v", err)
 		}
@@ -1011,7 +1006,7 @@ func TestStoreMemoryBatch(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Store.ProposeBatch(retry) error = %v", err)
 		}
-		after, err := store.Read(memcontract.ScopeGlobal, proposal.Filename)
+		after, err := store.Read(t.Context(), memcontract.ScopeGlobal, proposal.Filename)
 		if err != nil {
 			t.Fatalf("Store.Read(retry) error = %v", err)
 		}
@@ -1098,7 +1093,7 @@ func TestStoreDecisionControllerWAL(t *testing.T) {
 		if result.Decision.Op != memcontract.OpAdd || !result.Applied {
 			t.Fatalf("Store.ProposeWrite() = %#v, want add applied", result)
 		}
-		if got, err := store.Read(memcontract.ScopeGlobal, "user_preferences.md"); err != nil ||
+		if got, err := store.Read(t.Context(), memcontract.ScopeGlobal, "user_preferences.md"); err != nil ||
 			!bytes.Equal(got, content) {
 			t.Fatalf("Store.Read() = %q, %v, want written content", string(got), err)
 		}
@@ -1184,7 +1179,7 @@ func TestStoreDecisionControllerWAL(t *testing.T) {
 			Description: "Original",
 			Type:        memcontract.TypeUser,
 		}, "Prefer concise explanations.\n")
-		if err := store.Write(memcontract.ScopeGlobal, "user_preferences.md", original); err != nil {
+		if err := store.Write(t.Context(), memcontract.ScopeGlobal, "user_preferences.md", original); err != nil {
 			t.Fatalf("Store.Write(seed) error = %v", err)
 		}
 		updated := mustMemoryContent(t, testMemoryMeta{
@@ -1217,7 +1212,7 @@ func TestStoreDecisionControllerWAL(t *testing.T) {
 		if !revert.Reverted {
 			t.Fatalf("Store.RevertDecision().Reverted = false, want true")
 		}
-		got, err := store.Read(memcontract.ScopeGlobal, "user_preferences.md")
+		got, err := store.Read(t.Context(), memcontract.ScopeGlobal, "user_preferences.md")
 		if err != nil {
 			t.Fatalf("Store.Read(reverted) error = %v", err)
 		}
@@ -1243,7 +1238,7 @@ func TestStoreDecisionControllerWAL(t *testing.T) {
 			Description: "Original",
 			Type:        memcontract.TypeUser,
 		}, "Prefer concise explanations.\n")
-		if err := store.Write(memcontract.ScopeGlobal, "user_preferences.md", original); err != nil {
+		if err := store.Write(t.Context(), memcontract.ScopeGlobal, "user_preferences.md", original); err != nil {
 			t.Fatalf("Store.Write(seed) error = %v", err)
 		}
 		updated := mustMemoryContent(t, testMemoryMeta{
@@ -1266,14 +1261,14 @@ func TestStoreDecisionControllerWAL(t *testing.T) {
 			Description: "Newer",
 			Type:        memcontract.TypeUser,
 		}, "Prefer newer guidance that must survive stale reverts.\n")
-		if err := store.Write(memcontract.ScopeGlobal, "user_preferences.md", newer); err != nil {
+		if err := store.Write(t.Context(), memcontract.ScopeGlobal, "user_preferences.md", newer); err != nil {
 			t.Fatalf("Store.Write(newer) error = %v", err)
 		}
 
 		if _, err := store.RevertDecision(ctx, result.Decision.ID); err == nil {
 			t.Fatal("Store.RevertDecision(stale update) error = nil, want hash guard failure")
 		}
-		got, err := store.Read(memcontract.ScopeGlobal, "user_preferences.md")
+		got, err := store.Read(t.Context(), memcontract.ScopeGlobal, "user_preferences.md")
 		if err != nil {
 			t.Fatalf("Store.Read(after stale update revert) error = %v", err)
 		}
@@ -1297,7 +1292,7 @@ func TestStoreDecisionControllerWAL(t *testing.T) {
 			Description: "Delete",
 			Type:        memcontract.TypeUser,
 		}, "Delete this via controller.\n")
-		if err := store.Write(memcontract.ScopeGlobal, "user_preferences.md", content); err != nil {
+		if err := store.Write(t.Context(), memcontract.ScopeGlobal, "user_preferences.md", content); err != nil {
 			t.Fatalf("Store.Write(seed) error = %v", err)
 		}
 
@@ -1330,7 +1325,7 @@ func TestStoreDecisionControllerWAL(t *testing.T) {
 			Description: "Delete",
 			Type:        memcontract.TypeUser,
 		}, "Delete this via controller.\n")
-		if err := store.Write(memcontract.ScopeGlobal, "user_preferences.md", original); err != nil {
+		if err := store.Write(t.Context(), memcontract.ScopeGlobal, "user_preferences.md", original); err != nil {
 			t.Fatalf("Store.Write(seed) error = %v", err)
 		}
 		result, err := store.ProposeDelete(ctx, memcontract.ScopeGlobal, "user_preferences.md", memcontract.OriginHTTP)
@@ -1342,14 +1337,14 @@ func TestStoreDecisionControllerWAL(t *testing.T) {
 			Description: "Recreated",
 			Type:        memcontract.TypeUser,
 		}, "This recreated content must not be overwritten by stale delete revert.\n")
-		if err := store.Write(memcontract.ScopeGlobal, "user_preferences.md", recreated); err != nil {
+		if err := store.Write(t.Context(), memcontract.ScopeGlobal, "user_preferences.md", recreated); err != nil {
 			t.Fatalf("Store.Write(recreated) error = %v", err)
 		}
 
 		if _, err := store.RevertDecision(ctx, result.Decision.ID); err == nil {
 			t.Fatal("Store.RevertDecision(stale delete) error = nil, want existence guard failure")
 		}
-		got, err := store.Read(memcontract.ScopeGlobal, "user_preferences.md")
+		got, err := store.Read(t.Context(), memcontract.ScopeGlobal, "user_preferences.md")
 		if err != nil {
 			t.Fatalf("Store.Read(after stale delete revert) error = %v", err)
 		}
@@ -1514,7 +1509,7 @@ func TestStoreDecisionControllerWAL(t *testing.T) {
 			Description: "Changed",
 			Type:        memcontract.TypeUser,
 		}, "Changed after decision.\n")
-		if err := store.Write(memcontract.ScopeGlobal, "user_temporary_changed.md", changed); err != nil {
+		if err := store.Write(t.Context(), memcontract.ScopeGlobal, "user_temporary_changed.md", changed); err != nil {
 			t.Fatalf("Store.Write(changed) error = %v", err)
 		}
 		if _, err := store.RevertDecision(ctx, second.Decision.ID); err == nil {
@@ -1952,7 +1947,7 @@ func TestStoreReplayPendingDecisions(t *testing.T) {
 			Description: "Removed from decision WAL",
 			Type:        memcontract.TypeProject,
 		}, "Replay deletes stale curated files.\n")
-		if err := store.Write(memcontract.ScopeWorkspace, "project_delete.md", content); err != nil {
+		if err := store.Write(t.Context(), memcontract.ScopeWorkspace, "project_delete.md", content); err != nil {
 			t.Fatalf("Store.Write() error = %v", err)
 		}
 

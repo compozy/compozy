@@ -7,18 +7,10 @@ import (
 
 	"strings"
 
-	"time"
-
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
 
 	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 )
-
-type scanCandidate struct {
-	name    string
-	path    string
-	modTime time.Time
-}
 
 func (s *Store) normalizeScopeAndWorkspace(
 	ctx context.Context,
@@ -118,6 +110,7 @@ func (s *Store) catalogAgentTier(scope memcontract.Scope) memcontract.AgentTier 
 }
 
 func (s *Store) collectSearchDocuments(
+	ctx context.Context,
 	scope memcontract.Scope,
 	workspaceRoot string,
 	workspaceID string,
@@ -152,11 +145,11 @@ func (s *Store) collectSearchDocuments(
 
 	docs := make([]catalogDocument, 0)
 	for _, item := range scopes {
-		headers, err := s.headersForCatalogScope(item.scope, item.workspace)
+		headers, err := s.headersForCatalogScope(ctx, item.scope, item.workspace)
 		if err != nil {
 			return nil, err
 		}
-		items, err := s.documentsForHeaders(item.scope, item.workspace, item.workspaceID, headers)
+		items, err := s.documentsForHeaders(ctx, item.scope, item.workspace, item.workspaceID, headers)
 		if err != nil {
 			return nil, err
 		}
@@ -165,10 +158,13 @@ func (s *Store) collectSearchDocuments(
 	return docs, nil
 }
 
-func (s *Store) collectActualCatalogIDs(filters []catalogFilter) (map[string]struct{}, error) {
+func (s *Store) collectActualCatalogIDs(
+	ctx context.Context,
+	filters []catalogFilter,
+) (map[string]struct{}, error) {
 	actual := make(map[string]struct{})
 	for _, filter := range filters {
-		headers, err := s.headersForCatalogScope(filter.scope, filter.workspaceRoot)
+		headers, err := s.headersForCatalogScope(ctx, filter.scope, filter.workspaceRoot)
 		if err != nil {
 			return nil, err
 		}
@@ -184,20 +180,25 @@ func (s *Store) logCatalogEvent(ctx context.Context, record memcontract.Operatio
 		return nil
 	}
 	if ctx == nil {
-		ctx = context.Background()
+		return errors.New("memory: catalog event context is required")
 	}
 	return s.catalog.logEvent(ctx, record)
 }
 
-func (s *Store) logMutationEvent(action string, scope memcontract.Scope, filename string) {
-	_, workspaceID, err := s.catalogWorkspaceForScope(context.Background(), scope)
+func (s *Store) logMutationEvent(
+	ctx context.Context,
+	action string,
+	scope memcontract.Scope,
+	filename string,
+) {
+	_, workspaceID, err := s.catalogWorkspaceForScope(ctx, scope)
 	if err != nil {
 		s.warn("memory: resolve workspace identity for mutation event failed", "error", err)
 		return
 	}
 
 	if err := s.logCatalogEvent(
-		context.Background(),
+		ctx,
 		memcontract.OperationRecord{
 			Operation: memcontract.Operation("memory." + strings.TrimSpace(action)),
 			Scope:     scope.Normalize(),

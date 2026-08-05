@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -14,7 +16,7 @@ import (
 	"github.com/compozy/compozy/internal/testutil"
 )
 
-func TestUDSBridgeProgressContract(t *testing.T) {
+func TestUDSBridgeContract(t *testing.T) {
 	t.Run("Should round trip typed progress across create and update", func(t *testing.T) {
 		// not parallel: newIntegrationRuntime temporarily mutates Gin's process-global mode.
 		runtime := newIntegrationRuntime(t)
@@ -159,6 +161,61 @@ func TestUDSBridgeProgressContract(t *testing.T) {
 		decodeHTTPJSON(t, resp, &payload)
 		if got, want := payload.Error, `udsapi: decode create bridge request: bridges: unsupported progress tool_progress "sometimes"`; got != want {
 			t.Fatalf("error = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should preserve an escaped slash id and reject an explicitly null mode", func(t *testing.T) {
+		// not parallel: newIntegrationRuntime temporarily mutates Gin's process-global mode.
+		runtime := newIntegrationRuntime(t)
+		instance, err := runtime.bridges.CreateInstance(testutil.Context(t), bridgepkg.CreateInstanceRequest{
+			ID:               "brg/uds+test-delivery",
+			Scope:            bridgepkg.ScopeGlobal,
+			Platform:         "telegram",
+			ExtensionName:    "ext-telegram",
+			DisplayName:      "UDS Test Delivery",
+			Enabled:          true,
+			Status:           bridgepkg.BridgeStatusReady,
+			RoutingPolicy:    bridgepkg.RoutingPolicy{IncludePeer: true},
+			DeliveryDefaults: []byte(`{"peer_id":"peer-default","mode":"reply"}`),
+		})
+		if err != nil {
+			t.Fatalf("CreateInstance() error = %v", err)
+		}
+		path := "http://unix/api/bridges/" + url.PathEscape(instance.ID) + "/test-delivery"
+		response := mustUnixRequest(
+			t,
+			runtime.client,
+			http.MethodPost,
+			path,
+			[]byte(`{"target":{"peer_id":"peer-explicit","mode":"reply"}}`),
+			nil,
+		)
+		if got, want := response.StatusCode, http.StatusOK; got != want {
+			body := mustReadAll(t, response.Body)
+			t.Fatalf("test delivery status = %d, want %d; body=%s", got, want, body)
+		}
+		var payload contract.BridgeTestDeliveryResponse
+		decodeHTTPJSON(t, response, &payload)
+		if payload.DeliveryTarget.BridgeInstanceID != instance.ID ||
+			payload.DeliveryTarget.PeerID != "peer-explicit" ||
+			payload.DeliveryTarget.Mode != bridgepkg.DeliveryModeReply {
+			t.Fatalf("delivery target = %#v", payload.DeliveryTarget)
+		}
+
+		invalid := mustUnixRequest(
+			t,
+			runtime.client,
+			http.MethodPost,
+			path,
+			[]byte(`{"target":{"peer_id":"peer-explicit","mode":null}}`),
+			nil,
+		)
+		invalidBody := mustReadAll(t, invalid.Body)
+		if got, want := invalid.StatusCode, http.StatusBadRequest; got != want {
+			t.Fatalf("invalid mode status = %d, want %d; body=%s", got, want, invalidBody)
+		}
+		if !strings.Contains(invalidBody, "delivery target mode is required") {
+			t.Fatalf("invalid mode body = %s, want required-mode error", invalidBody)
 		}
 	})
 }

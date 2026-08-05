@@ -25,8 +25,8 @@ func TestRuntimeIntegrationBootsAndIngestsThroughHostAPI(t *testing.T) {
 	defer cancel()
 
 	hostConn, runtimeConn := net.Pipe()
-	defer hostConn.Close()
-	defer runtimeConn.Close()
+	t.Cleanup(func() { closeRuntimeFlowConn(t, hostConn) })
+	t.Cleanup(func() { closeRuntimeFlowConn(t, runtimeConn) })
 
 	runtime, err := NewRuntime(RuntimeConfig{
 		ExtensionInfo: subprocess.InitializeExtensionInfo{
@@ -44,7 +44,7 @@ func TestRuntimeIntegrationBootsAndIngestsThroughHostAPI(t *testing.T) {
 		t.Fatalf("NewRuntime() error = %v", err)
 	}
 
-	hostPeer := NewPeer(hostConn, hostConn)
+	hostPeer := mustNewPeer(t, hostConn, hostConn)
 	var mu sync.Mutex
 	var ingested bridgepkg.InboundMessageEnvelope
 	if err := hostPeer.Handle("bridges/messages/ingest", func(_ context.Context, raw json.RawMessage) (any, error) {
@@ -69,12 +69,7 @@ func TestRuntimeIntegrationBootsAndIngestsThroughHostAPI(t *testing.T) {
 		t.Fatalf("hostPeer.Handle(ingest) error = %v", err)
 	}
 
-	go func() {
-		_ = runtime.Serve(ctx, runtimeConn, runtimeConn)
-	}()
-	go func() {
-		_ = hostPeer.Serve(ctx)
-	}()
+	startRuntimeFlowServers(ctx, t, runtime, hostPeer, hostConn, runtimeConn)
 
 	var response subprocess.InitializeResponse
 	if err := hostPeer.Call(ctx, "initialize", testInitializeRequest(), &response); err != nil {
@@ -124,7 +119,9 @@ func TestRuntimeIntegrationRejectsInvalidIngressWithoutInvokingMapper(t *testing
 	if err != nil {
 		t.Fatalf("GET webhook error = %v", err)
 	}
-	response.Body.Close()
+	if closeErr := response.Body.Close(); closeErr != nil {
+		t.Errorf("GET response body Close() error = %v", closeErr)
+	}
 	if got, want := response.StatusCode, http.StatusMethodNotAllowed; got != want {
 		t.Fatalf("GET status = %d, want %d", got, want)
 	}
@@ -133,7 +130,9 @@ func TestRuntimeIntegrationRejectsInvalidIngressWithoutInvokingMapper(t *testing
 	if err != nil {
 		t.Fatalf("POST invalid content type error = %v", err)
 	}
-	response.Body.Close()
+	if closeErr := response.Body.Close(); closeErr != nil {
+		t.Errorf("invalid content-type response body Close() error = %v", closeErr)
+	}
 	if got, want := response.StatusCode, http.StatusUnsupportedMediaType; got != want {
 		t.Fatalf("POST invalid content type status = %d, want %d", got, want)
 	}
@@ -142,7 +141,9 @@ func TestRuntimeIntegrationRejectsInvalidIngressWithoutInvokingMapper(t *testing
 	if err != nil {
 		t.Fatalf("POST oversized error = %v", err)
 	}
-	response.Body.Close()
+	if closeErr := response.Body.Close(); closeErr != nil {
+		t.Errorf("oversized response body Close() error = %v", closeErr)
+	}
 	if got, want := response.StatusCode, http.StatusRequestEntityTooLarge; got != want {
 		t.Fatalf("POST oversized status = %d, want %d", got, want)
 	}
@@ -159,8 +160,8 @@ func TestRuntimeIntegrationReportsAuthAndRateLimitRecovery(t *testing.T) {
 	defer cancel()
 
 	hostConn, runtimeConn := net.Pipe()
-	defer hostConn.Close()
-	defer runtimeConn.Close()
+	t.Cleanup(func() { closeRuntimeFlowConn(t, hostConn) })
+	t.Cleanup(func() { closeRuntimeFlowConn(t, runtimeConn) })
 
 	runtime, err := NewRuntime(RuntimeConfig{
 		ExtensionInfo: subprocess.InitializeExtensionInfo{
@@ -178,7 +179,7 @@ func TestRuntimeIntegrationReportsAuthAndRateLimitRecovery(t *testing.T) {
 		t.Fatalf("NewRuntime() error = %v", err)
 	}
 
-	hostPeer := NewPeer(hostConn, hostConn)
+	hostPeer := mustNewPeer(t, hostConn, hostConn)
 	var mu sync.Mutex
 	var reports []bridgepkg.BridgesInstancesReportStateParams
 	if err := hostPeer.Handle(
@@ -201,12 +202,7 @@ func TestRuntimeIntegrationReportsAuthAndRateLimitRecovery(t *testing.T) {
 		t.Fatalf("hostPeer.Handle(report_state) error = %v", err)
 	}
 
-	go func() {
-		_ = runtime.Serve(ctx, runtimeConn, runtimeConn)
-	}()
-	go func() {
-		_ = hostPeer.Serve(ctx)
-	}()
+	startRuntimeFlowServers(ctx, t, runtime, hostPeer, hostConn, runtimeConn)
 
 	var response subprocess.InitializeResponse
 	if err := hostPeer.Call(ctx, "initialize", testInitializeRequest(), &response); err != nil {

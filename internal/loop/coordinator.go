@@ -203,15 +203,8 @@ func (r *CoordinatorRunner) Run(
 	if err != nil {
 		return task.CoordinatorCompletionPlan{}, err
 	}
-	coordinatorFSM := newCoordinatorFSM(r.logger, loopRun)
-	if err := coordinatorFSM.transition(ctx, coordinatorEventDerive); err != nil {
-		return task.CoordinatorCompletionPlan{}, err
-	}
 	resolved, err := r.resolvePinnedDefinition(ctx, loopRun)
 	if err != nil {
-		return task.CoordinatorCompletionPlan{}, err
-	}
-	if err := coordinatorFSM.transition(ctx, coordinatorEventEvaluate); err != nil {
 		return task.CoordinatorCompletionPlan{}, err
 	}
 	plan, err := r.buildCoordinatorPlan(ctx, taskRun, loopRun, resolved)
@@ -226,12 +219,6 @@ func (r *CoordinatorRunner) Run(
 		return task.CoordinatorCompletionPlan{}, err
 	}
 	if err := attachCoordinatorParentCloseIntents(loopRun, resolved, &plan); err != nil {
-		return task.CoordinatorCompletionPlan{}, err
-	}
-	if err := coordinatorFSM.transition(ctx, coordinatorEventAssemble); err != nil {
-		return task.CoordinatorCompletionPlan{}, err
-	}
-	if err := coordinatorFSM.transition(ctx, coordinatorEventYield); err != nil {
 		return task.CoordinatorCompletionPlan{}, err
 	}
 	return plan, nil

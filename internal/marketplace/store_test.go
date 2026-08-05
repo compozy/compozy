@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	storepkg "github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
 )
@@ -83,6 +84,35 @@ func TestSQLiteStoreReplaceKind(t *testing.T) {
 		}
 		if got, want := len(page.Entries), 1; got != want || page.Entries[0].EntryID != "stable" {
 			t.Fatalf("ListKind() = %#v, want preserved stable entry", page)
+		}
+	})
+}
+
+func TestMarketplaceKindStateRejectsUnrepresentableStoredCounts(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject negative durable fields", func(t *testing.T) {
+		t.Parallel()
+
+		for _, row := range []storepkg.MarketplaceCatalogState{
+			{ManifestVersion: -1},
+			{ManifestVersion: 1, EntryCount: -1},
+		} {
+			if _, err := marketplaceKindStateFromRow(row); err == nil {
+				t.Fatalf("marketplaceKindStateFromRow(%#v) error = nil, want range failure", row)
+			}
+		}
+	})
+
+	t.Run("Should reject values wider than a 32 bit int", func(t *testing.T) {
+		t.Parallel()
+
+		value := int64(^uint32(0)>>1) + 1
+		if _, err := storedCatalogIntForSize(value, "entry_count", 32); err == nil {
+			t.Fatalf("storedCatalogIntForSize(%d, 32) error = nil, want overflow", value)
+		}
+		if got, err := storedCatalogIntForSize(42, "entry_count", 32); err != nil || got != 42 {
+			t.Fatalf("storedCatalogIntForSize(42, 32) = %d, %v, want 42, nil", got, err)
 		}
 	})
 }

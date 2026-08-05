@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -25,6 +26,8 @@ const (
 
 var workspaceIDPattern = regexp.MustCompile(`^[0-9A-HJ-KMNP-TV-Z]{26}$`)
 
+type identityIDGenerator func() (string, error)
+
 // Identity is the stable workspace identity stored in <workspace>/.compozy/workspace.toml.
 type Identity struct {
 	WorkspaceID        string
@@ -40,8 +43,19 @@ type identityFile struct {
 }
 
 // NewWorkspaceID returns a ULID formatted for durable workspace identity.
-func NewWorkspaceID() string {
-	return ulid.MustNew(ulid.Timestamp(time.Now().UTC()), rand.Reader).String()
+func NewWorkspaceID() (string, error) {
+	return newWorkspaceID(time.Now().UTC(), rand.Reader)
+}
+
+func newWorkspaceID(now time.Time, entropy io.Reader) (string, error) {
+	if entropy == nil {
+		return "", errors.New("workspace: workspace id entropy source is required")
+	}
+	id, err := ulid.New(ulid.Timestamp(now), entropy)
+	if err != nil {
+		return "", fmt.Errorf("workspace: generate workspace id: %w", err)
+	}
+	return id.String(), nil
 }
 
 // IsWorkspaceID reports whether value is a canonical workspace ULID.
@@ -58,7 +72,7 @@ func ensureIdentity(
 	ctx context.Context,
 	rootDir string,
 	now func() time.Time,
-	idGenerator func() string,
+	idGenerator identityIDGenerator,
 ) (Identity, error) {
 	if err := checkContext(ctx); err != nil {
 		return Identity{}, err
@@ -154,13 +168,17 @@ func createIdentityFile(
 	rootDir string,
 	path string,
 	now func() time.Time,
-	idGenerator func() string,
+	idGenerator identityIDGenerator,
 ) (Identity, error) {
 	if err := ctx.Err(); err != nil {
 		return Identity{}, err
 	}
 	createdAt := now().UTC()
-	workspaceID := strings.TrimSpace(idGenerator())
+	generatedID, err := idGenerator()
+	if err != nil {
+		return Identity{}, fmt.Errorf("workspace: generate identity %q: %w", path, err)
+	}
+	workspaceID := strings.TrimSpace(generatedID)
 	if !IsWorkspaceID(workspaceID) {
 		return Identity{}, fmt.Errorf(
 			"workspace: generated invalid workspace_id %q: %w",

@@ -79,14 +79,15 @@ func marketplaceUpdateCleanupWarning(
 	path string,
 	err error,
 ) diagnosticcontract.DiagnosticItem {
-	return diagnostics.NewItem(
-		"extension.update.cleanup_failed",
-		diagnosticcontract.CodeExtensionUpdateCleanupFailed,
-		diagnosticcontract.CategoryExtension,
-		"Extension updated; cleanup incomplete",
-		diagnostics.RedactAndBound(err.Error(), 1024),
-		diagnosticcontract.SeverityWarn,
-		diagnosticcontract.FreshnessLive,
+	return diagnostics.NewItem(diagnostics.ItemSpec{
+		ID:            "extension.update.cleanup_failed",
+		Code:          diagnosticcontract.CodeExtensionUpdateCleanupFailed,
+		Category:      diagnosticcontract.CategoryExtension,
+		Title:         "Extension updated; cleanup incomplete",
+		Message:       diagnostics.RedactAndBound(err.Error(), 1024),
+		Severity:      diagnosticcontract.SeverityWarn,
+		DataFreshness: diagnosticcontract.FreshnessLive,
+	},
 		diagnostics.WithEvidence(map[string]any{
 			managerExtensionKey: strings.TrimSpace(extensionName),
 			"cleanup_target":    strings.TrimSpace(target),

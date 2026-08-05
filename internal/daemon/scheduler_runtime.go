@@ -48,9 +48,12 @@ func (d *Daemon) bootScheduler(ctx context.Context, state *bootState, cleanup *b
 	}
 	logSchedulerPauseState(ctx, state.tasks.store, logger)
 
-	waker := newSchedulerSessionWaker(ctx, state.sessions, logger)
-	if err := waker.configureHeartbeatWake(state.registry, state.sessions, state.cfg.Agents.Heartbeat); err != nil {
+	waker, err := newSchedulerSessionWaker(ctx, state.sessions, logger)
+	if err != nil {
 		return err
+	}
+	if err := waker.configureHeartbeatWake(state.registry, state.sessions, state.cfg.Agents.Heartbeat); err != nil {
+		return errors.Join(err, waker.shutdown(context.Background()))
 	}
 	spawner := starvationSpawner{
 		workspaces: state.workspaceResolver,

@@ -22,27 +22,27 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 	if item, ok := diagnosticspkg.ItemFromError(err); ok {
 		payload.Diagnostic = &item
 	} else if errors.Is(err, compozyconfig.ErrAgentNameReserved) {
-		item := diagnosticspkg.NewItem(
-			"agent.name.reserved",
-			contract.CodeAgentNameReserved,
-			contract.CategoryConfig,
-			"Agent name is reserved",
-			message,
-			contract.SeverityError,
-			contract.FreshnessLive,
-		)
+		item := diagnosticspkg.NewItem(diagnosticspkg.ItemSpec{
+			ID:            "agent.name.reserved",
+			Code:          contract.CodeAgentNameReserved,
+			Category:      contract.CategoryConfig,
+			Title:         "Agent name is reserved",
+			Message:       message,
+			Severity:      contract.SeverityError,
+			DataFreshness: contract.FreshnessLive,
+		})
 		payload.Diagnostic = &item
 	} else if code := diagnosticCodeFromError(err); code != "" {
 		if category, ok := contract.DiagnosticCodeCategory(code); ok {
-			item := diagnosticspkg.NewItem(
-				strings.ReplaceAll(code, "_", "."),
-				code,
-				category,
-				"Role operation failed",
-				message,
-				contract.SeverityError,
-				contract.FreshnessLive,
-			)
+			item := diagnosticspkg.NewItem(diagnosticspkg.ItemSpec{
+				ID:            strings.ReplaceAll(code, "_", "."),
+				Code:          code,
+				Category:      category,
+				Title:         "Role operation failed",
+				Message:       message,
+				Severity:      contract.SeverityError,
+				DataFreshness: contract.FreshnessLive,
+			})
 			payload.Diagnostic = &item
 		}
 	}
@@ -61,6 +61,7 @@ func lifecycleReasonDetails(meta map[string]string) map[string]string {
 }
 
 type diagnosticCodeCarrier interface {
+	error
 	DiagnosticCode() string
 }
 
@@ -73,8 +74,8 @@ func diagnosticCodeFromError(err error) string {
 	case errors.Is(err, store.ErrSessionPromptMessageConflict):
 		return contract.CodePromptMessageIdentityConflict
 	}
-	var carrier diagnosticCodeCarrier
-	if !errors.As(err, &carrier) {
+	carrier, ok := errors.AsType[diagnosticCodeCarrier](err)
+	if !ok {
 		return ""
 	}
 	return strings.TrimSpace(carrier.DiagnosticCode())

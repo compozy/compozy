@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	storepkg "github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -58,6 +59,7 @@ type Service struct {
 
 	lock               consolidationLocker
 	now                func() time.Time
+	newDreamRunID      func() (string, error)
 	countSessionsSince func(time.Time) (int, error)
 	workspaceResolver  workspacepkg.RuntimeResolver
 
@@ -85,6 +87,9 @@ func NewService(opts ...Option) *Service {
 		dreamGate:   defaultDreamGateConfig(),
 		now: func() time.Time {
 			return time.Now().UTC()
+		},
+		newDreamRunID: func() (string, error) {
+			return storepkg.NewID("dream")
 		},
 	}
 

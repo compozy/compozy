@@ -123,7 +123,7 @@ func (h *BaseHandlers) promoteMemoryCandidate(
 	if err != nil {
 		return nil, memcontract.Candidate{}, err
 	}
-	raw, err := sourceStore.Read(sourceLocation.Scope, sourceLocation.Filename)
+	raw, err := sourceStore.Read(ctx, sourceLocation.Scope, sourceLocation.Filename)
 	if err != nil {
 		return nil, memcontract.Candidate{}, err
 	}

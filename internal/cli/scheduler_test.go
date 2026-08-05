@@ -3,12 +3,63 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
+
+func TestParseSchedulerDrainTimeout(t *testing.T) {
+	t.Parallel()
+
+	maximum := contract.SchedulerDrainTimeoutMaxSeconds
+	testCases := []struct {
+		name        string
+		raw         string
+		wantSeconds int64
+		wantErr     bool
+	}{
+		{name: "Should accept zero", raw: "0s"},
+		{name: "Should reject negative values", raw: "-1s", wantErr: true},
+		{name: "Should reject sub-second precision", raw: "1500ms", wantErr: true},
+		{
+			name:        "Should accept the exact duration ceiling",
+			raw:         strconv.FormatInt(maximum, 10) + "s",
+			wantSeconds: maximum,
+		},
+		{
+			name:    "Should reject one second above the duration ceiling",
+			raw:     strconv.FormatInt(maximum+1, 10) + "s",
+			wantErr: true,
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			seconds, err := parseSchedulerDrainTimeout(testCase.raw)
+			if testCase.wantErr {
+				if err == nil {
+					t.Fatalf("parseSchedulerDrainTimeout(%q) = %d, want error", testCase.raw, seconds)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("parseSchedulerDrainTimeout(%q) error = %v", testCase.raw, err)
+			}
+			if seconds != testCase.wantSeconds {
+				t.Fatalf(
+					"parseSchedulerDrainTimeout(%q) = %d, want %d",
+					testCase.raw,
+					seconds,
+					testCase.wantSeconds,
+				)
+			}
+		})
+	}
+}
 
 func TestSchedulerCommandsMapRequests(t *testing.T) {
 	t.Parallel()

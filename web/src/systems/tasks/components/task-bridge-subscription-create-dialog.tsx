@@ -44,14 +44,14 @@ function toRequest(
   workspaceId: string | null
 ): TaskBridgeNotificationSubscriptionCreateRequest {
   return {
-    bridge_instance_id: form.bridge_instance_id.trim(),
+    bridge_instance_id: form.bridge_instance_id,
     delivery_mode: form.delivery_mode,
     scope: form.scope,
     workspace_id: form.scope === "workspace" ? (workspaceId ?? undefined) : undefined,
-    peer_id: form.peer_id.trim() || undefined,
-    group_id: form.group_id.trim() || undefined,
-    thread_id: form.thread_id.trim() || undefined,
-    subscription_id: form.subscription_id.trim() || undefined,
+    peer_id: form.peer_id === "" ? undefined : form.peer_id,
+    group_id: form.group_id === "" ? undefined : form.group_id,
+    thread_id: form.thread_id === "" ? undefined : form.thread_id,
+    subscription_id: form.subscription_id === "" ? undefined : form.subscription_id,
   };
 }
 
@@ -72,7 +72,7 @@ export function TaskBridgeSubscriptionCreateDialog({
 }: TaskBridgeSubscriptionCreateDialogProps) {
   const [form, setForm] = useState<FormState>(() => createInitialForm(workspaceId));
   const hasRequiredScopeId = form.scope !== "workspace" || workspaceId !== null;
-  const canSubmit = form.bridge_instance_id.trim() !== "" && hasRequiredScopeId && !isPending;
+  const canSubmit = form.bridge_instance_id !== "" && hasRequiredScopeId && !isPending;
 
   const submit = async () => {
     if (!canSubmit) return;

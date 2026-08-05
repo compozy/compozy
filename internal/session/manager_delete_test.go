@@ -2,7 +2,9 @@ package session
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -119,7 +121,11 @@ func TestManagerDelete(t *testing.T) {
 				session := createSession(t, h)
 				ctx := testutil.Context(t)
 
-				reader, err := h.manager.queryStoreRuntime.Open(ctx, session.ID, session.DBPath())
+				reader, err := h.manager.queryStoreRuntime.Open(
+					ctx,
+					testSessionDBOwner(session.ID, session.WorkspaceID),
+					session.DBPath(),
+				)
 				if err != nil {
 					t.Fatalf("Open(stored reader) error = %v", err)
 				}
@@ -135,7 +141,11 @@ func TestManagerDelete(t *testing.T) {
 				}()
 
 				for {
-					probe, openErr := h.manager.queryStoreRuntime.Open(ctx, session.ID, session.DBPath())
+					probe, openErr := h.manager.queryStoreRuntime.Open(
+						ctx,
+						testSessionDBOwner(session.ID, session.WorkspaceID),
+						session.DBPath(),
+					)
 					if errors.Is(openErr, sessiondb.ErrReadOnlyPoolQuiescing) {
 						break
 					}
@@ -181,6 +191,77 @@ func TestManagerDelete(t *testing.T) {
 				}
 				if _, ok := catalog.get(session.ID); ok {
 					t.Fatalf("catalog still returned deleted session %q", session.ID)
+				}
+			},
+		},
+		{
+			name: "Should refuse a foreign database family before staging deletion",
+			run: func(t *testing.T) {
+				h := newHarness(t)
+				target := createSession(t, h)
+				foreign := createSession(t, h)
+				if err := h.manager.Stop(testutil.Context(t), target.ID); err != nil {
+					t.Fatalf("Stop(target) error = %v", err)
+				}
+				if err := h.manager.Stop(testutil.Context(t), foreign.ID); err != nil {
+					t.Fatalf("Stop(foreign) error = %v", err)
+				}
+
+				substituteManagerSessionDBFamily(t, target.DBPath(), foreign.DBPath())
+				before := readManagerSessionDBFamilyDigest(t, target.DBPath())
+				err := h.manager.Delete(testutil.Context(t), target.ID)
+				if !errors.Is(err, sessiondb.ErrSessionDBOwnerMismatch) {
+					t.Fatalf("Delete(foreign family) error = %v, want owner mismatch", err)
+				}
+				assertManagerSessionDBFamilyUnchanged(t, target.DBPath(), before)
+				if _, statErr := os.Stat(target.SessionDir()); statErr != nil {
+					t.Fatalf("Stat(target session directory after refusal) error = %v", statErr)
+				}
+			},
+		},
+		{
+			name: "Should refuse metadata relabeled as another session without touching either directory",
+			run: func(t *testing.T) {
+				h := newHarness(t)
+				target := createSession(t, h)
+				foreign := createSession(t, h)
+				if err := h.manager.Stop(testutil.Context(t), target.ID); err != nil {
+					t.Fatalf("Stop(target) error = %v", err)
+				}
+				if err := h.manager.Stop(testutil.Context(t), foreign.ID); err != nil {
+					t.Fatalf("Stop(foreign) error = %v", err)
+				}
+
+				metaPath := store.SessionMetaFile(target.SessionDir())
+				meta, err := store.ReadSessionMeta(metaPath)
+				if err != nil {
+					t.Fatalf("ReadSessionMeta(target) error = %v", err)
+				}
+				meta.ID = foreign.ID
+				meta.WorkspaceID = foreign.WorkspaceID
+				if meta.Lineage != nil {
+					meta.Lineage.RootSessionID = foreign.ID
+				}
+				encodedMeta, err := json.Marshal(meta)
+				if err != nil {
+					t.Fatalf("json.Marshal(relabeled target metadata) error = %v", err)
+				}
+				if err := os.WriteFile(metaPath, encodedMeta, 0o600); err != nil {
+					t.Fatalf("os.WriteFile(relabeled target metadata) error = %v", err)
+				}
+				targetBefore := readManagerSessionDBFamilyDigest(t, target.DBPath())
+				foreignBefore := readManagerSessionDBFamilyDigest(t, foreign.DBPath())
+
+				err = h.manager.Delete(testutil.Context(t), target.ID)
+				if !errors.Is(err, ErrSessionNotFound) {
+					t.Fatalf("Delete(relabeled metadata) error = %v, want ErrSessionNotFound", err)
+				}
+				assertManagerSessionDBFamilyUnchanged(t, target.DBPath(), targetBefore)
+				assertManagerSessionDBFamilyUnchanged(t, foreign.DBPath(), foreignBefore)
+				for _, sessionDir := range []string{target.SessionDir(), foreign.SessionDir()} {
+					if _, statErr := os.Stat(sessionDir); statErr != nil {
+						t.Fatalf("Stat(%q after refusal) error = %v", sessionDir, statErr)
+					}
 				}
 			},
 		},
@@ -281,7 +362,7 @@ func TestManagerDelete(t *testing.T) {
 				}
 				reopened, err := h.manager.queryStoreRuntime.Open(
 					testutil.Context(t),
-					session.ID,
+					testSessionDBOwner(session.ID, session.WorkspaceID),
 					session.DBPath(),
 				)
 				if err != nil {
@@ -289,6 +370,191 @@ func TestManagerDelete(t *testing.T) {
 				}
 				if err := reopened.Close(testutil.Context(t)); err != nil {
 					t.Fatalf("Close(reopened stored reader) error = %v", err)
+				}
+			},
+		},
+		{
+			name: "Should keep a staged tombstone leased until catalog rollback restores it",
+			run: func(t *testing.T) {
+				ctx := testutil.Context(t)
+				catalog := newRecordingSessionCatalog()
+				h := newHarness(t, WithSessionCatalog(catalog), withDefaultQueryStoreRuntime())
+				shutdownQueryStoreRuntimeForTest(t, h.manager)
+				session := createSession(t, h)
+				if err := h.manager.Stop(ctx, session.ID); err != nil {
+					t.Fatalf("Stop() error = %v", err)
+				}
+
+				deleteEntered := make(chan struct{})
+				releaseDelete := make(chan struct{})
+				catalogErr := errors.New("catalog delete interrupted")
+				catalog.deleteHook = func(hookCtx context.Context, id string) error {
+					if id != session.ID {
+						return fmt.Errorf("unexpected catalog delete id %q", id)
+					}
+					close(deleteEntered)
+					select {
+					case <-releaseDelete:
+						return catalogErr
+					case <-hookCtx.Done():
+						return hookCtx.Err()
+					}
+				}
+
+				deleteDone := make(chan error, 1)
+				go func() {
+					deleteDone <- h.manager.Delete(ctx, session.ID)
+				}()
+				select {
+				case <-deleteEntered:
+				case <-ctx.Done():
+					t.Fatalf("Delete() did not reach catalog mutation: %v", ctx.Err())
+				}
+
+				tombstonePath, tombstoneName := findSessionDeleteTombstone(t, h.homePaths.SessionsDir)
+				cleanupAttempted := make(chan struct{})
+				cleanupManager := &Manager{
+					homePaths:      h.homePaths,
+					sessionCatalog: catalog,
+					removeAllPath:  nil,
+					lifecycleCtx:   ctx,
+					acquireSessionDBFamilyLease: func(
+						acquireCtx context.Context,
+						path string,
+					) (*sessiondb.FamilyLease, error) {
+						close(cleanupAttempted)
+						return sessiondb.AcquireFamilyLease(acquireCtx, path)
+					},
+				}
+				cleanupDone := make(chan error, 1)
+				go func() {
+					cleanupDone <- cleanupManager.cleanupSessionDeleteTombstone(tombstonePath, tombstoneName)
+				}()
+				select {
+				case <-cleanupAttempted:
+				case <-ctx.Done():
+					t.Fatalf("concurrent cleanup did not attempt the family lease: %v", ctx.Err())
+				}
+				select {
+				case cleanupErr := <-cleanupDone:
+					t.Fatalf("concurrent cleanup crossed the held family lease: %v", cleanupErr)
+				default:
+				}
+
+				close(releaseDelete)
+				select {
+				case deleteErr := <-deleteDone:
+					if !errors.Is(deleteErr, catalogErr) {
+						t.Fatalf("Delete() error = %v, want %v", deleteErr, catalogErr)
+					}
+				case <-ctx.Done():
+					t.Fatalf("Delete() did not roll back after catalog failure: %v", ctx.Err())
+				}
+				select {
+				case cleanupErr := <-cleanupDone:
+					if cleanupErr == nil {
+						t.Fatal("concurrent cleanup error = nil after rollback removed its tombstone")
+					}
+				case <-ctx.Done():
+					t.Fatalf("concurrent cleanup did not finish after rollback released the lease: %v", ctx.Err())
+				}
+
+				if _, err := os.Stat(session.SessionDir()); err != nil {
+					t.Fatalf("Stat(restored session directory) error = %v", err)
+				}
+				assertNoSessionDeleteTombstones(t, h.homePaths.SessionsDir)
+				reader, err := sessiondb.OpenSessionDBReadOnly(
+					ctx,
+					testSessionDBOwner(session.ID, session.WorkspaceID),
+					session.DBPath(),
+				)
+				if err != nil {
+					t.Fatalf("OpenSessionDBReadOnly(restored) error = %v", err)
+				}
+				if err := reader.Close(ctx); err != nil {
+					t.Fatalf("Close(restored reader) error = %v", err)
+				}
+			},
+		},
+		{
+			name: "Should recover an interrupted staged tombstone from every catalog state",
+			run: func(t *testing.T) {
+				tests := []struct {
+					name           string
+					catalogKnown   bool
+					catalogPresent bool
+					wantRestored   bool
+				}{
+					{
+						name:         "Should restore conservatively when catalog ownership is unknown",
+						wantRestored: true,
+					},
+					{
+						name:           "Should restore when the catalog still owns the session",
+						catalogKnown:   true,
+						catalogPresent: true,
+						wantRestored:   true,
+					},
+					{
+						name:         "Should finish deletion when the catalog no longer owns the session",
+						catalogKnown: true,
+					},
+				}
+				for _, test := range tests {
+					t.Run(test.name, func(t *testing.T) {
+						t.Parallel()
+
+						ctx := testutil.Context(t)
+						catalog := newRecordingSessionCatalog()
+						managerOptions := []Option(nil)
+						if test.catalogKnown {
+							managerOptions = append(managerOptions, WithSessionCatalog(catalog))
+						}
+						h := newHarness(t, managerOptions...)
+						session := createSession(t, h)
+						if err := h.manager.Stop(ctx, session.ID); err != nil {
+							t.Fatalf("Stop() error = %v", err)
+						}
+
+						staged, err := h.manager.stageSessionDelete(ctx, session.ID, false)
+						if err != nil {
+							t.Fatalf("stageSessionDelete() error = %v", err)
+						}
+						if err := staged.capabilities.Release(); err != nil {
+							t.Fatalf("release(staged crash simulation) error = %v", err)
+						}
+						if _, err := os.Stat(session.SessionDir()); !errors.Is(err, os.ErrNotExist) {
+							t.Fatalf("Stat(original before recovery) error = %v, want os.ErrNotExist", err)
+						}
+						if test.catalogKnown && !test.catalogPresent {
+							if err := catalog.DeleteSession(ctx, session.ID); err != nil {
+								t.Fatalf("DeleteSession(catalog crash state) error = %v", err)
+							}
+						}
+
+						recoveryManager := newManagerWithHarness(t, h, managerOptions...)
+						shutdownQueryStoreRuntimeForTest(t, recoveryManager)
+						_, statErr := os.Stat(session.SessionDir())
+						if test.wantRestored {
+							if statErr != nil {
+								t.Fatalf("Stat(restored staged session) error = %v", statErr)
+							}
+							reader, err := sessiondb.OpenSessionDBReadOnly(
+								ctx,
+								testSessionDBOwner(session.ID, session.WorkspaceID),
+								session.DBPath(),
+							)
+							if err != nil {
+								t.Fatalf("OpenSessionDBReadOnly(restored staged session) error = %v", err)
+							}
+							if err := reader.Close(ctx); err != nil {
+								t.Fatalf("Close(restored staged reader) error = %v", err)
+							}
+						} else if !errors.Is(statErr, os.ErrNotExist) {
+							t.Fatalf("Stat(deleted staged session) error = %v, want os.ErrNotExist", statErr)
+						}
+						assertNoSessionDeleteTombstones(t, h.homePaths.SessionsDir)
+					})
 				}
 			},
 		},
@@ -326,9 +592,12 @@ func TestManagerDelete(t *testing.T) {
 				if !foundTombstone {
 					t.Fatal("deferred cleanup did not retain a deletion tombstone")
 				}
+				recoveryManager := newManagerWithHarness(t, h, WithSessionCatalog(catalog))
+				shutdownQueryStoreRuntimeForTest(t, recoveryManager)
+				assertNoSessionDeleteTombstones(t, h.homePaths.SessionsDir)
 				reader, openErr := h.manager.queryStoreRuntime.Open(
 					testutil.Context(t),
-					session.ID,
+					testSessionDBOwner(session.ID, session.WorkspaceID),
 					session.DBPath(),
 				)
 				if errors.Is(openErr, sessiondb.ErrReadOnlyPoolQuiescing) {
@@ -564,6 +833,34 @@ func shutdownQueryStoreRuntimeForTest(t *testing.T, manager *Manager) {
 			t.Errorf("shutdownQueryStoreRuntime() error = %v", err)
 		}
 	})
+}
+
+func findSessionDeleteTombstone(t *testing.T, sessionsDir string) (string, string) {
+	t.Helper()
+	entries, err := os.ReadDir(sessionsDir)
+	if err != nil {
+		t.Fatalf("ReadDir(sessions) error = %v", err)
+	}
+	for _, entry := range entries {
+		if entry.IsDir() && strings.HasPrefix(entry.Name(), sessionDeleteTombstonePrefix) {
+			return filepath.Join(sessionsDir, entry.Name()), entry.Name()
+		}
+	}
+	t.Fatal("session deletion tombstone was not found")
+	return "", ""
+}
+
+func assertNoSessionDeleteTombstones(t *testing.T, sessionsDir string) {
+	t.Helper()
+	entries, err := os.ReadDir(sessionsDir)
+	if err != nil {
+		t.Fatalf("ReadDir(sessions) error = %v", err)
+	}
+	for _, entry := range entries {
+		if entry.IsDir() && strings.HasPrefix(entry.Name(), sessionDeleteTombstonePrefix) {
+			t.Fatalf("unexpected session deletion tombstone %q", entry.Name())
+		}
+	}
 }
 
 func assertDeletedUserSessionCatalogTruth(

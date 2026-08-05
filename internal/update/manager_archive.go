@@ -36,14 +36,15 @@ func checksumForAsset(checksumsPath string, assetName string) (string, error) {
 	return "", fmt.Errorf("update: checksum catalog does not contain %s", assetName)
 }
 
-func verifySHA256(path string, expectedHex string) error {
+func verifySHA256(path string, expectedHex string) (err error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return fmt.Errorf("update: open archive %q: %w", path, err)
 	}
 	defer func() {
-		// The descriptor is read-only; checksum/read failures already own the operation result.
-		_ = file.Close()
+		if closeErr := file.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("update: close archive %q after checksum: %w", path, closeErr))
+		}
 	}()
 
 	hash := sha256.New()
@@ -59,14 +60,19 @@ func verifySHA256(path string, expectedHex string) error {
 	return nil
 }
 
-func extractBinaryFromTarGz(archivePath string, tempDir string, binaryName string) (string, os.FileMode, error) {
+func extractBinaryFromTarGz(
+	archivePath string,
+	tempDir string,
+	binaryName string,
+) (_ string, _ os.FileMode, err error) {
 	file, err := os.Open(archivePath)
 	if err != nil {
 		return "", 0, fmt.Errorf("update: open archive %q: %w", archivePath, err)
 	}
 	defer func() {
-		// The descriptor is read-only; archive read failures already own the operation result.
-		_ = file.Close()
+		if closeErr := file.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("update: close archive %q: %w", archivePath, closeErr))
+		}
 	}()
 
 	gzipReader, err := gzip.NewReader(file)
@@ -74,8 +80,9 @@ func extractBinaryFromTarGz(archivePath string, tempDir string, binaryName strin
 		return "", 0, fmt.Errorf("update: open gzip archive %q: %w", archivePath, err)
 	}
 	defer func() {
-		// gzip.Reader.Close releases read state and cannot repair a failed archive operation.
-		_ = gzipReader.Close()
+		if closeErr := gzipReader.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("update: close gzip archive %q: %w", archivePath, closeErr))
+		}
 	}()
 
 	tarReader := tar.NewReader(gzipReader)

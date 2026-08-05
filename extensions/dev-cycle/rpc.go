@@ -28,7 +28,7 @@ const (
 // RunProvider serves the dev-cycle extension subprocess protocol over stdio.
 func RunProvider(ctx context.Context, stdin io.Reader, stdout io.Writer) error {
 	if ctx == nil {
-		ctx = context.Background()
+		return errors.New("dev-cycle: context is required")
 	}
 	server, err := newRPCServer(stdout)
 	if err != nil {
@@ -178,8 +178,8 @@ func (s *rpcServer) sendError(id json.RawMessage, code int, message string) erro
 }
 
 func (s *rpcServer) sendToolError(id json.RawMessage, code int, err error) error {
-	var toolErr *toolspkg.ToolError
-	if !errors.As(err, &toolErr) {
+	toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+	if !ok || toolErr == nil {
 		return s.sendError(id, code, err.Error())
 	}
 	data, marshalErr := json.Marshal(toolErr)

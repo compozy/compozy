@@ -1,6 +1,7 @@
 package session
 
 import (
+	"bytes"
 	"errors"
 	"log/slog"
 	"os"
@@ -230,102 +231,41 @@ func TestCreateWithInvalidProviderFailsBeforePersistenceAndLogs(t *testing.T) {
 	assertCapturedLogAttr(t, record, "phase", "create")
 }
 
-func TestStatusRepairsLegacyProviderAndLogs(t *testing.T) {
+func TestStatusAndResumeRejectMetadataWithoutProvider(t *testing.T) {
 	t.Parallel()
 
-	logs := newCaptureLogHandler()
-	h := newHarness(t, WithLogger(slog.New(logs)))
-	session := createSession(t, h)
-
-	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+	h := newHarness(t)
+	sess := createSession(t, h)
+	if err := h.manager.Stop(testutil.Context(t), sess.ID); err != nil {
 		t.Fatalf("Stop() error = %v", err)
 	}
 
-	meta := readMeta(t, session.MetaPath())
+	meta := readMeta(t, sess.MetaPath())
 	meta.Provider = ""
-	if err := store.WriteSessionMeta(session.MetaPath(), meta); err != nil {
+	if err := store.WriteSessionMeta(sess.MetaPath(), meta); err != nil {
 		t.Fatalf("WriteSessionMeta(clear provider) error = %v", err)
 	}
-
-	info, err := h.manager.Status(testutil.Context(t), session.ID)
+	before, err := os.ReadFile(sess.MetaPath())
 	if err != nil {
-		t.Fatalf("Status() error = %v", err)
-	}
-	if got := info.Provider; got != "claude" {
-		t.Fatalf("Status().Provider = %q, want %q", got, "claude")
+		t.Fatalf("ReadFile(metadata before reads) error = %v", err)
 	}
 
-	repaired := readMeta(t, session.MetaPath())
-	if got := repaired.Provider; got != "claude" {
-		t.Fatalf("repaired meta.Provider = %q, want %q", got, "claude")
+	if _, err := h.manager.Status(testutil.Context(t), sess.ID); err == nil ||
+		!strings.Contains(err.Error(), "metadata provider") || !strings.Contains(err.Error(), sess.ID) {
+		t.Fatalf("Status() error = %v, want missing-provider error with session id", err)
+	}
+	if _, err := h.manager.Resume(testutil.Context(t), sess.ID); err == nil ||
+		!strings.Contains(err.Error(), "metadata provider") || !strings.Contains(err.Error(), sess.ID) {
+		t.Fatalf("Resume() error = %v, want missing-provider error with session id", err)
 	}
 
-	record, ok := logs.FindByMessage("session.resume.legacy_provider_repaired")
-	if !ok {
-		t.Fatalf("missing legacy_provider_repaired log: %#v", logs.Records())
-	}
-	assertCapturedLogAttr(t, record, "session_id", session.ID)
-	assertCapturedLogAttr(t, record, "agent_name", "coder")
-	assertCapturedLogAttr(t, record, "provider", "claude")
-	assertCapturedLogAttr(t, record, "phase", "legacy_repair")
-	assertCapturedLogAttr(t, record, "repaired", "true")
-
-	info, err = h.manager.Status(testutil.Context(t), session.ID)
+	after, err := os.ReadFile(sess.MetaPath())
 	if err != nil {
-		t.Fatalf("Status(second) error = %v", err)
+		t.Fatalf("ReadFile(metadata after reads) error = %v", err)
 	}
-	if got := info.Provider; got != "claude" {
-		t.Fatalf("Status(second).Provider = %q, want %q", got, "claude")
+	if !bytes.Equal(after, before) {
+		t.Fatalf("metadata changed after rejected reads:\n before: %s\n after: %s", before, after)
 	}
-
-	repairedLogs := 0
-	for _, entry := range logs.Records() {
-		if entry.Message == "session.resume.legacy_provider_repaired" {
-			repairedLogs++
-		}
-	}
-	if got, want := repairedLogs, 1; got != want {
-		t.Fatalf("legacy_provider_repaired log count = %d, want %d", got, want)
-	}
-}
-
-func TestStatusFailsWhenLegacyProviderRepairCannotResolveAgent(t *testing.T) {
-	t.Parallel()
-
-	logs := newCaptureLogHandler()
-	h := newHarness(t, WithLogger(slog.New(logs)))
-	session := createSession(t, h)
-
-	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
-		t.Fatalf("Stop() error = %v", err)
-	}
-
-	meta := readMeta(t, session.MetaPath())
-	meta.Provider = ""
-	meta.AgentName = "missing-agent"
-	if err := store.WriteSessionMeta(session.MetaPath(), meta); err != nil {
-		t.Fatalf("WriteSessionMeta(set missing agent) error = %v", err)
-	}
-
-	_, err := h.manager.Status(testutil.Context(t), session.ID)
-	if err == nil {
-		t.Fatal("Status() error = nil, want legacy provider repair failure")
-	}
-	if !strings.Contains(err.Error(), session.ID) {
-		t.Fatalf("Status() error = %q, want session id detail", err.Error())
-	}
-	if !strings.Contains(err.Error(), "missing-agent") {
-		t.Fatalf("Status() error = %q, want missing agent detail", err.Error())
-	}
-
-	record, ok := logs.FindByMessage("session.resume.legacy_provider_repair_failed")
-	if !ok {
-		t.Fatalf("missing legacy_provider_repair_failed log: %#v", logs.Records())
-	}
-	assertCapturedLogAttr(t, record, "session_id", session.ID)
-	assertCapturedLogAttr(t, record, "agent_name", "missing-agent")
-	assertCapturedLogAttr(t, record, "provider", "")
-	assertCapturedLogAttr(t, record, "phase", "legacy_repair")
 }
 
 func TestResumeFailsWhenPersistedProviderUnavailable(t *testing.T) {

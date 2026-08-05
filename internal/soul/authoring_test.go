@@ -299,9 +299,9 @@ func TestManagedSoulAuthoringServicePutValidateAndCAS(t *testing.T) {
 		if !errors.Is(err, soul.ErrInvalid) {
 			t.Fatalf("Put(invalid) error = %v, want ErrInvalid", err)
 		}
-		authoringErr := requireAuthoringCode(t, err, "soul_invalid")
-		if len(authoringErr.Diagnostics) != 1 || authoringErr.Diagnostics[0].Code != "forbidden_field" {
-			t.Fatalf("invalid diagnostics = %#v, want forbidden_field", authoringErr.Diagnostics)
+		diagnostics := requireAuthoringCode(t, err, "soul_invalid")
+		if len(diagnostics) != 1 || diagnostics[0].Code != "forbidden_field" {
+			t.Fatalf("invalid diagnostics = %#v, want forbidden_field", diagnostics)
 		}
 		if result.Soul.Valid {
 			t.Fatalf("Put(invalid).Soul.Valid = true, want false")
@@ -517,6 +517,48 @@ func TestManagedSoulAuthoringServiceDeleteRollbackAndHistory(t *testing.T) {
 func TestManagedSoulAuthoringServiceSafetyBoundaries(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should reserve all identifiers before writing the authored file", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newAuthoringFixture(t)
+		entropyErr := errors.New("entropy unavailable")
+		calls := 0
+		service, err := soul.NewManagedSoulAuthoringService(
+			fixture.db,
+			soul.WithSoulAuthoringIDGenerator(func(prefix string) (string, error) {
+				calls++
+				if calls == 2 {
+					return "", entropyErr
+				}
+				return prefix + "-reserved", nil
+			}),
+		)
+		if err != nil {
+			t.Fatalf("NewManagedSoulAuthoringService() error = %v", err)
+		}
+
+		result, err := service.Put(fixture.ctx, soul.PutRequest{
+			Target: fixture.target,
+			Body:   validSoulBody("coder", "Entropy failure must precede file publication."),
+		})
+		if !errors.Is(err, entropyErr) {
+			t.Fatalf("Put() error = %v, want %v", err, entropyErr)
+		}
+		if result.Soul.Present || result.Snapshot.ID != "" || result.Revision.ID != "" {
+			t.Fatalf("Put() result = %#v, want zero publication", result)
+		}
+		if _, statErr := os.Stat(fixture.soulPath); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("Stat(SOUL.md) error = %v, want not exist", statErr)
+		}
+		history, historyErr := service.History(fixture.ctx, soul.HistoryRequest{Target: fixture.target})
+		if historyErr != nil {
+			t.Fatalf("History() error = %v", historyErr)
+		}
+		if len(history.Revisions) != 0 {
+			t.Fatalf("History().Revisions = %#v, want empty", history.Revisions)
+		}
+	})
+
 	t.Run("Should reject traversal symlink and missing agent targets deterministically", func(t *testing.T) {
 		t.Parallel()
 
@@ -560,6 +602,55 @@ func TestManagedSoulAuthoringServiceSafetyBoundaries(t *testing.T) {
 		requireAuthoringCode(t, err, "agent_not_found")
 	})
 
+	t.Run("Should reject an agent directory symlink swapped after CAS validation", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("symlink creation requires elevated privileges on windows")
+		}
+
+		fixture := newAuthoringFixture(t)
+		externalAgentDir := filepath.Join(t.TempDir(), "external-agent")
+		if err := os.MkdirAll(externalAgentDir, 0o755); err != nil {
+			t.Fatalf("MkdirAll(external agent) error = %v", err)
+		}
+		externalSoulPath := filepath.Join(externalAgentDir, soul.FileName)
+		if err := os.WriteFile(externalSoulPath, []byte("external sentinel"), 0o644); err != nil {
+			t.Fatalf("WriteFile(external SOUL.md) error = %v", err)
+		}
+
+		agentDir := filepath.Dir(fixture.agentPath)
+		movedAgentDir := agentDir + "-before-swap"
+		calls := 0
+		service, err := soul.NewManagedSoulAuthoringService(
+			fixture.db,
+			soul.WithSoulAuthoringIDGenerator(func(prefix string) (string, error) {
+				calls++
+				if calls == 1 {
+					if err := os.Rename(agentDir, movedAgentDir); err != nil {
+						t.Fatalf("Rename(agent directory) error = %v", err)
+					}
+					if err := os.Symlink(externalAgentDir, agentDir); err != nil {
+						t.Fatalf("Symlink(swapped agent directory) error = %v", err)
+					}
+				}
+				return prefix + "-swap", nil
+			}),
+		)
+		if err != nil {
+			t.Fatalf("NewManagedSoulAuthoringService() error = %v", err)
+		}
+
+		_, err = service.Put(fixture.ctx, soul.PutRequest{
+			Target: fixture.target,
+			Body:   validSoulBody("coder", "A swapped agent directory must not redirect managed authoring."),
+		})
+		if !errors.Is(err, soul.ErrAuthoringPathRejected) {
+			t.Fatalf("Put(swapped parent) error = %v, want ErrAuthoringPathRejected", err)
+		}
+		requireAuthoringCode(t, err, "soul_path_error")
+		assertFileContent(t, externalSoulPath, "external sentinel")
+	})
+
 	t.Run("Should preserve active session and task run ownership metadata across writes", func(t *testing.T) {
 		t.Parallel()
 
@@ -598,23 +689,16 @@ func TestManagedSoulAuthoringServiceSafetyBoundaries(t *testing.T) {
 			t.Fatalf("CreateTask() error = %v", err)
 		}
 		claimedAt := time.Date(2026, 5, 2, 14, 0, 0, 0, time.UTC)
-		taskRun := taskpkg.Run{
-			ID:             "run-authoring",
-			TaskID:         taskRecord.ID,
-			Status:         taskpkg.TaskRunStatusRunning,
-			Attempt:        1,
-			ClaimedBy:      &claimedBy,
-			SessionID:      session.ID,
-			Origin:         origin,
-			ClaimTokenHash: strings.Repeat("a", 64),
-			LeaseUntil:     claimedAt.Add(time.Hour),
-			HeartbeatAt:    claimedAt.Add(time.Minute),
-			ClaimedAt:      claimedAt,
-			StartedAt:      claimedAt,
-		}
-		if err := fixture.db.CreateTaskRun(fixture.ctx, taskRun); err != nil {
-			t.Fatalf("CreateTaskRun() error = %v", err)
-		}
+		taskRun := seedSoulLeasedRunningTaskRun(
+			fixture.ctx,
+			t,
+			fixture.db,
+			taskRecord,
+			session.ID,
+			claimedBy,
+			origin,
+			claimedAt,
+		)
 
 		second, err := fixture.service.Put(fixture.ctx, soul.PutRequest{
 			Target:         fixture.target,
@@ -656,6 +740,75 @@ func TestManagedSoulAuthoringServiceSafetyBoundaries(t *testing.T) {
 			t.Fatalf("task run after authoring = %#v, want ownership and lease unchanged", gotRun)
 		}
 	})
+}
+
+func seedSoulLeasedRunningTaskRun(
+	ctx context.Context,
+	t *testing.T,
+	db *globaldb.GlobalDB,
+	taskRecord taskpkg.Task,
+	sessionID string,
+	claimedBy taskpkg.ActorIdentity,
+	origin taskpkg.Origin,
+	claimedAt time.Time,
+) taskpkg.Run {
+	t.Helper()
+
+	var current taskpkg.Run
+	var claimToken string
+	err := db.WithTaskExecutionTransaction(ctx, func(store taskpkg.ExecutionMutationStore) error {
+		_, run, _, reserveErr := store.ReserveQueuedRun(ctx, taskpkg.QueueRunReservation{
+			TaskID:   taskRecord.ID,
+			RunID:    "run-authoring",
+			Origin:   origin,
+			QueuedAt: claimedAt.Add(-time.Minute),
+		})
+		current = run
+		return reserveErr
+	})
+	if err != nil {
+		t.Fatalf("ReserveQueuedRun() error = %v", err)
+	}
+	err = db.WithLeaseSettlementTransaction(
+		ctx,
+		"seed soul leased run",
+		func(store taskpkg.LeaseSettlementMutationStore) error {
+			claim, claimErr := store.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+				RunID:            current.ID,
+				Scope:            taskRecord.Scope,
+				WorkspaceID:      taskRecord.WorkspaceID,
+				ClaimerSessionID: sessionID,
+				ClaimedBy:        &claimedBy,
+				LeaseDuration:    time.Hour,
+				Now:              claimedAt,
+			})
+			current = claim.Run
+			claimToken = claim.ClaimToken
+			return claimErr
+		},
+	)
+	if err != nil {
+		t.Fatalf("ClaimNextRun() error = %v", err)
+	}
+	actor, err := taskpkg.DeriveDaemonActorContext("soul-fixture", "soul.authoring-fixture")
+	if err != nil {
+		t.Fatalf("DeriveDaemonActorContext() error = %v", err)
+	}
+	manager, err := taskpkg.NewManager(
+		taskpkg.WithStore(db),
+		taskpkg.WithManagerNow(func() time.Time { return claimedAt }),
+	)
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+	running, err := manager.StartRun(ctx, current.ID, taskpkg.StartRun{
+		ClaimToken:     claimToken,
+		IdempotencyKey: "soul-fixture-start:" + current.ID,
+	}, actor)
+	if err != nil {
+		t.Fatalf("StartRun() error = %v", err)
+	}
+	return *running
 }
 
 type authoringFixture struct {
@@ -822,11 +975,11 @@ func assertRevisionCount(t *testing.T, fixture authoringFixture, want int) {
 	}
 }
 
-func requireAuthoringCode(t *testing.T, err error, code string) *soul.AuthoringError {
+func requireAuthoringCode(t *testing.T, err error, code string) []soul.Diagnostic {
 	t.Helper()
 
-	var authoringErr *soul.AuthoringError
-	if !errors.As(err, &authoringErr) {
+	authoringErr, authoringErrMatched := errors.AsType[*soul.AuthoringError](err)
+	if !authoringErrMatched {
 		t.Fatalf("error = %T %[1]v, want *soul.AuthoringError", err)
 	}
 	if authoringErr.Code != code {
@@ -837,7 +990,7 @@ func requireAuthoringCode(t *testing.T, err error, code string) *soul.AuthoringE
 			authoringErr.Diagnostics,
 		)
 	}
-	return authoringErr
+	return authoringErr.Diagnostics
 }
 
 func withAgentPath(target soul.AuthoringTarget, agentPath string) soul.AuthoringTarget {
@@ -857,14 +1010,14 @@ func deterministicClock(start time.Time) func() time.Time {
 	}
 }
 
-func deterministicIDGenerator() func(prefix string) string {
+func deterministicIDGenerator() func(prefix string) (string, error) {
 	var mu sync.Mutex
 	counters := make(map[string]int)
-	return func(prefix string) string {
+	return func(prefix string) (string, error) {
 		mu.Lock()
 		defer mu.Unlock()
 		counters[prefix]++
-		return fmt.Sprintf("%s-%02d", prefix, counters[prefix])
+		return fmt.Sprintf("%s-%02d", prefix, counters[prefix]), nil
 	}
 }
 

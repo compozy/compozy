@@ -26,6 +26,12 @@ var errLoopbackAPIRequired = errors.New(
 	"remote HTTP API access is disabled unless the daemon is bound to a loopback host",
 )
 
+var (
+	errOriginNotAllowed      = errors.New("origin not allowed")
+	errRequestHostNotAllowed = errors.New("request host not allowed")
+	errCrossOriginNotAllowed = errors.New("cross-origin request not allowed")
+)
+
 var errRequestBodyTooLarge = core.ErrRequestBodyTooLarge
 
 const maxAPIRequestBodyBytes int64 = 4 << 20
@@ -61,12 +67,7 @@ func corsMiddleware(boundHost string) gin.HandlerFunc {
 		if origin != "" {
 			allowedOrigin, ok := resolveAllowedOrigin(origin, requestScheme(c.Request), c.Request.Host, boundHost)
 			if !ok {
-				if isOpenAICompatiblePath(c) {
-					core.RespondOpenAIError(c, http.StatusForbidden, errors.New("origin not allowed"), false)
-					c.Abort()
-				} else {
-					c.AbortWithStatusJSON(http.StatusForbidden, contract.ErrorPayload{Error: "origin not allowed"})
-				}
+				abortForbiddenRequest(c, errOriginNotAllowed)
 				return
 			}
 			headers.Set("Access-Control-Allow-Origin", allowedOrigin)
@@ -97,14 +98,75 @@ func resolveAllowedOrigin(origin string, requestScheme string, requestHost strin
 	}
 
 	boundSpec, ok := canonicalOriginFromHost(boundHost, requestSpec.scheme, requestSpec.port)
+	if !ok || !requestTargetCompatible(requestSpec, boundSpec) {
+		return "", false
+	}
 	switch {
 	case originSpec.canonical == requestSpec.canonical:
 		return origin, true
-	case ok && !boundSpec.wildcard && originSpec.canonical == boundSpec.canonical:
+	case !boundSpec.wildcard && originSpec.canonical == boundSpec.canonical:
 		return origin, true
 	default:
 		return "", false
 	}
+}
+
+func browserRequestProtectionMiddleware(boundHost string) gin.HandlerFunc {
+	protection := http.NewCrossOriginProtection()
+	return func(c *gin.Context) {
+		if hasBrowserRequestMetadata(c.Request) && !requestTargetAllowed(c.Request, boundHost) {
+			abortForbiddenRequest(c, errRequestHostNotAllowed)
+			return
+		}
+		if err := protection.Check(c.Request); err != nil {
+			abortForbiddenRequest(c, errCrossOriginNotAllowed)
+			return
+		}
+		c.Next()
+	}
+}
+
+func hasBrowserRequestMetadata(request *http.Request) bool {
+	if request == nil {
+		return false
+	}
+	return strings.TrimSpace(request.Header.Get("Origin")) != "" ||
+		strings.TrimSpace(request.Header.Get("Sec-Fetch-Site")) != ""
+}
+
+func requestTargetAllowed(request *http.Request, boundHost string) bool {
+	if request == nil {
+		return false
+	}
+	requestSpec, ok := canonicalOriginFromHost(request.Host, requestScheme(request), "")
+	if !ok {
+		return false
+	}
+	boundSpec, ok := canonicalOriginFromHost(boundHost, requestSpec.scheme, requestSpec.port)
+	return ok && requestTargetCompatible(requestSpec, boundSpec)
+}
+
+func requestTargetCompatible(requestSpec canonicalOrigin, boundSpec canonicalOrigin) bool {
+	if requestSpec.scheme != boundSpec.scheme || requestSpec.port != boundSpec.port {
+		return false
+	}
+	switch {
+	case boundSpec.wildcard:
+		return true
+	case boundSpec.loopback:
+		return requestSpec.loopback
+	default:
+		return requestSpec.hostname == boundSpec.hostname
+	}
+}
+
+func abortForbiddenRequest(c *gin.Context, err error) {
+	if isOpenAICompatiblePath(c) {
+		core.RespondOpenAIError(c, http.StatusForbidden, err, false)
+	} else {
+		c.AbortWithStatusJSON(http.StatusForbidden, contract.ErrorPayload{Error: err.Error()})
+	}
+	c.Abort()
 }
 
 type canonicalOrigin struct {

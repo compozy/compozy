@@ -4,23 +4,29 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
 	"sync"
 
+	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
-const sessionDeleteTombstonePrefix = ".compozy-delete-"
+const (
+	sessionDeleteTombstonePrefix = ".compozy-delete-"
+	sessionDeleteStagedPrefix    = sessionDeleteTombstonePrefix + "staged-"
+	sessionDeleteCommittedPrefix = sessionDeleteTombstonePrefix + "committed-"
+)
 
 type stagedSessionDelete struct {
 	info          *Info
+	owner         store.SessionDBOwner
 	originalPath  string
-	tombstonePath string
-	resumeQueries func()
+	stagedPath    string
+	committedPath string
+	capabilities  *sessionDeleteCapabilities
 }
 
 type workspaceUnregisterPreparation struct {
@@ -71,7 +77,7 @@ func (m *Manager) PrepareWorkspaceRemoval(
 			continue
 		}
 		if info.State == StateStarting || info.State == StateActive || info.State == StateStopping {
-			rollbackErr := m.rollbackStagedSessionDeletes(staged)
+			rollbackErr := m.rollbackStagedSessionDeletes(ctx, staged)
 			m.lifecycleMu.Unlock()
 			activeErr := fmt.Errorf(
 				"session: remove workspace %q: %w: %s",
@@ -83,7 +89,7 @@ func (m *Manager) PrepareWorkspaceRemoval(
 		}
 		entry, stageErr := m.stageSessionDelete(ctx, info.ID, false)
 		if stageErr != nil {
-			rollbackErr := m.rollbackStagedSessionDeletes(staged)
+			rollbackErr := m.rollbackStagedSessionDeletes(ctx, staged)
 			m.lifecycleMu.Unlock()
 			return nil, errors.Join(stageErr, rollbackErr)
 		}
@@ -93,24 +99,24 @@ func (m *Manager) PrepareWorkspaceRemoval(
 	return &workspaceUnregisterPreparation{manager: m, staged: staged}, nil
 }
 
-func (p *workspaceUnregisterPreparation) Commit(context.Context) error {
+func (p *workspaceUnregisterPreparation) Commit(ctx context.Context) error {
 	if p == nil || p.manager == nil {
 		return nil
 	}
 	defer p.release.Do(p.manager.lifecycleMu.Unlock)
-	return p.manager.commitStagedSessionDeletes(p.staged)
+	return p.manager.commitStagedSessionDeletes(ctx, p.staged)
 }
 
 func (*workspaceUnregisterPreparation) BeforeDelete(context.Context) error {
 	return nil
 }
 
-func (p *workspaceUnregisterPreparation) Rollback(context.Context) error {
+func (p *workspaceUnregisterPreparation) Rollback(ctx context.Context) error {
 	if p == nil || p.manager == nil {
 		return nil
 	}
 	defer p.release.Do(p.manager.lifecycleMu.Unlock)
-	return p.manager.rollbackStagedSessionDeletes(p.staged)
+	return p.manager.rollbackStagedSessionDeletes(ctx, p.staged)
 }
 
 func (m *Manager) stageSessionDelete(
@@ -145,62 +151,93 @@ func (m *Manager) stageSessionDelete(
 			return stagedSessionDelete{}, fmt.Errorf("session: read %q after stop for delete: %w", target, err)
 		}
 	}
-	return m.stageSessionDirectoryDelete(ctx, info)
+	return m.stageSessionDirectoryDelete(ctx, target, info)
 }
 
 func (m *Manager) stageSessionDirectoryDelete(
 	ctx context.Context,
+	target string,
 	info *Info,
 ) (stagedSessionDelete, error) {
 	if info == nil {
 		return stagedSessionDelete{}, errors.New("session: deletion info is required")
 	}
-	target := strings.TrimSpace(info.ID)
-	if target == "" {
-		return stagedSessionDelete{}, errors.New("session: deletion id is required")
+	normalizedTarget, err := normalizeStoredSessionID(target)
+	if err != nil {
+		return stagedSessionDelete{}, fmt.Errorf("session: normalize staged deletion id %q: %w", target, err)
 	}
+	if strings.TrimSpace(info.ID) != normalizedTarget {
+		return stagedSessionDelete{}, fmt.Errorf(
+			"%w: deletion metadata identity %q does not match target %q",
+			ErrSessionNotFound,
+			info.ID,
+			normalizedTarget,
+		)
+	}
+	target = normalizedTarget
 
 	originalPath := filepath.Join(m.homePaths.SessionsDir, target)
-	if _, err := os.Stat(originalPath); err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return stagedSessionDelete{}, fmt.Errorf("%w: %s", ErrSessionNotFound, target)
-		}
-		return stagedSessionDelete{}, fmt.Errorf("session: stat session directory %q: %w", originalPath, err)
-	}
-	tombstonePath := filepath.Join(
-		m.homePaths.SessionsDir,
-		fmt.Sprintf("%s%s-%d", sessionDeleteTombstonePrefix, target, m.now().UnixNano()),
-	)
-	resumeQueries, err := m.quiesceSessionQueries(ctx, target, originalPath)
+	deletionID, err := store.NewID("")
 	if err != nil {
-		return stagedSessionDelete{}, fmt.Errorf("session: quiesce stored readers for %q: %w", target, err)
+		return stagedSessionDelete{}, fmt.Errorf("session: reserve deletion identity for %q: %w", target, err)
 	}
-	if err := m.renamePath(originalPath, tombstonePath); err != nil {
-		resumeQueries()
-		return stagedSessionDelete{}, fmt.Errorf(
-			"session: stage session directory %q for deletion: %w",
-			originalPath,
-			err,
-		)
+	stagedPath := filepath.Join(
+		m.homePaths.SessionsDir,
+		sessionDeleteTombstoneName(sessionDeleteStagedPrefix, target, deletionID),
+	)
+	committedPath := filepath.Join(
+		m.homePaths.SessionsDir,
+		sessionDeleteTombstoneName(sessionDeleteCommittedPrefix, target, deletionID),
+	)
+	owner, err := m.resolveStoredSessionOwner(ctx, target, info.WorkspaceID)
+	if err != nil {
+		return stagedSessionDelete{}, fmt.Errorf("session: resolve catalog owner for delete %q: %w", target, err)
+	}
+	capabilities, err := m.acquireSessionDeleteCapabilities(ctx, owner, originalPath)
+	if err != nil {
+		return stagedSessionDelete{}, err
+	}
+	if err := stageBoundSessionDelete(ctx, capabilities, owner, originalPath, stagedPath); err != nil {
+		return stagedSessionDelete{}, err
 	}
 	return stagedSessionDelete{
 		info:          info,
+		owner:         owner,
 		originalPath:  originalPath,
-		tombstonePath: tombstonePath,
-		resumeQueries: resumeQueries,
+		stagedPath:    stagedPath,
+		committedPath: committedPath,
+		capabilities:  capabilities,
 	}, nil
 }
 
-func (m *Manager) commitStagedSessionDeletes(staged []stagedSessionDelete) error {
+func (m *Manager) commitStagedSessionDeletes(ctx context.Context, staged []stagedSessionDelete) error {
 	var cleanupErr error
 	for _, entry := range staged {
-		if err := m.removeAllPath(entry.tombstonePath); err != nil {
-			cleanupErr = errors.Join(
-				cleanupErr,
-				fmt.Errorf("session: remove deletion tombstone %q: %w", entry.tombstonePath, err),
+		if err := verifyStagedSessionDelete(ctx, entry); err != nil {
+			cleanupErr = errors.Join(cleanupErr, err)
+		} else {
+			result, moveErr := entry.capabilities.directory.MoveTo(
+				entry.capabilities.parentDirectory,
+				filepath.Base(entry.committedPath),
+				false,
 			)
+			cleanupErr = errors.Join(cleanupErr, moveErr, result.PostCommitErr)
+			if result.Committed() {
+				verifyErr := entry.capabilities.database.VerifyOwnerAt(
+					ctx,
+					entry.owner,
+					store.SessionDBFile(entry.committedPath),
+				)
+				cleanupErr = errors.Join(cleanupErr, verifyErr)
+				if verifyErr == nil {
+					cleanupErr = errors.Join(
+						cleanupErr,
+						m.removeStagedSessionDelete(entry, entry.committedPath),
+					)
+				}
+			}
 		}
-		entry.resumeQueries()
+		cleanupErr = errors.Join(cleanupErr, entry.capabilities.Release())
 		if entry.info != nil {
 			m.remove(entry.info.ID)
 			m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventDeleted, entry.info))
@@ -209,33 +246,44 @@ func (m *Manager) commitStagedSessionDeletes(staged []stagedSessionDelete) error
 	return cleanupErr
 }
 
-func (m *Manager) rollbackStagedSessionDeletes(staged []stagedSessionDelete) error {
+func (m *Manager) rollbackStagedSessionDeletes(ctx context.Context, staged []stagedSessionDelete) error {
 	var rollbackErr error
 	for _, entry := range slices.Backward(staged) {
-		if err := m.renamePath(entry.tombstonePath, entry.originalPath); err != nil {
-			rollbackErr = errors.Join(
-				rollbackErr,
-				fmt.Errorf("session: restore staged directory %q: %w", entry.originalPath, err),
+		if err := verifyStagedSessionDelete(ctx, entry); err != nil {
+			rollbackErr = errors.Join(rollbackErr, err)
+		} else {
+			result, moveErr := entry.capabilities.directory.MoveTo(
+				entry.capabilities.parentDirectory,
+				filepath.Base(entry.originalPath),
+				false,
 			)
+			rollbackErr = errors.Join(rollbackErr, moveErr, result.PostCommitErr)
+			if result.Committed() {
+				rollbackErr = errors.Join(
+					rollbackErr,
+					entry.capabilities.database.VerifyOwnerAt(
+						ctx,
+						entry.owner,
+						store.SessionDBFile(entry.originalPath),
+					),
+				)
+			}
 		}
-		entry.resumeQueries()
+		rollbackErr = errors.Join(rollbackErr, entry.capabilities.Release())
 	}
 	return rollbackErr
 }
 
-func (m *Manager) cleanupDeleteTombstones() {
-	entries, err := os.ReadDir(m.homePaths.SessionsDir)
-	if err != nil {
-		m.logger.Warn("session: scan deletion tombstones", "error", err)
-		return
+func verifyStagedSessionDelete(ctx context.Context, entry stagedSessionDelete) error {
+	if entry.capabilities == nil || !entry.capabilities.valid() {
+		return errors.New("session: staged deletion capabilities are required")
 	}
-	for _, entry := range entries {
-		if !entry.IsDir() || !strings.HasPrefix(entry.Name(), sessionDeleteTombstonePrefix) {
-			continue
-		}
-		path := filepath.Join(m.homePaths.SessionsDir, entry.Name())
-		if err := m.removeAllPath(path); err != nil {
-			m.logger.Warn("session: retain deletion tombstone for later retry", "path", path, "error", err)
-		}
+	if err := entry.capabilities.database.VerifyOwnerAt(
+		ctx,
+		entry.owner,
+		store.SessionDBFile(entry.stagedPath),
+	); err != nil {
+		return fmt.Errorf("session: verify staged deletion tombstone %q: %w", entry.stagedPath, err)
 	}
+	return nil
 }

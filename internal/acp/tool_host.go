@@ -2,6 +2,7 @@ package acp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -85,6 +86,9 @@ func newLocalToolHost(
 	logger *slog.Logger,
 	opts ...LocalRuntimeOption,
 ) (*localToolHost, error) {
+	if ctx == nil {
+		return nil, errors.New("acp: local tool host context is required")
+	}
 	cfg := localRuntimeConfig{}
 	for _, opt := range opts {
 		if opt != nil {
@@ -105,9 +109,6 @@ func newLocalToolHostFromPolicy(
 	logger *slog.Logger,
 	opts ...LocalRuntimeOption,
 ) *localToolHost {
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -182,6 +183,9 @@ func (h *localToolHost) createTerminal(
 	req acpsdk.CreateTerminalRequest,
 	ownership terminalOwnership,
 ) (acpsdk.CreateTerminalResponse, error) {
+	if ctx == nil {
+		return acpsdk.CreateTerminalResponse{}, errors.New("acp: create terminal context is required")
+	}
 	if err := h.Authorize(permissionCreateTerminal); err != nil {
 		return acpsdk.CreateTerminalResponse{}, err
 	}

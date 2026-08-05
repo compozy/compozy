@@ -88,11 +88,7 @@ func (m *Service) executeTaskBoundary(
 		)
 		return commandErr
 	}
-	if transactions, ok := m.store.(ExecutionTransactionStore); ok {
-		if err := transactions.WithTaskExecutionTransaction(ctx, command); err != nil {
-			return nil, err
-		}
-	} else if err := command(m.store); err != nil {
+	if err := m.store.WithTaskExecutionTransaction(ctx, command); err != nil {
 		return nil, err
 	}
 	m.publishTaskEventsAfterCommand(ctx, result.events)

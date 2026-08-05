@@ -88,7 +88,11 @@ func TestManagerIntegrationFullLifecycle(t *testing.T) {
 		t.Fatalf("final Stop() error = %v", err)
 	}
 
-	reopened, err := sessiondb.OpenSessionDB(testutil.Context(t), resumed.ID, resumed.DBPath())
+	reopened, err := sessiondb.OpenSessionDB(
+		testutil.Context(t),
+		testSessionDBOwner(resumed.ID, resumed.WorkspaceID),
+		resumed.DBPath(),
+	)
 	if err != nil {
 		t.Fatalf("OpenSessionDB(reopen) error = %v", err)
 	}
@@ -280,7 +284,7 @@ func TestManagerIntegrationCapabilityAwareJoinKeepsMissingCatalogProjectionEmpty
 		t.Fatalf("Create() error = %v", err)
 	}
 	t.Cleanup(func() {
-		_ = h.manager.Stop(testutil.Context(t), session.ID)
+		reportSessionStop(t, h, session.ID)
 	})
 
 	if got := lifecycle.joinCount(); got != 1 {
@@ -352,7 +356,7 @@ func TestManagerIntegrationCapabilityProjectionDoesNotAliasSourceCatalog(t *test
 		t.Fatalf("Create() error = %v", err)
 	}
 	t.Cleanup(func() {
-		_ = h.manager.Stop(testutil.Context(t), session.ID)
+		reportSessionStop(t, h, session.ID)
 	})
 
 	if !reflect.DeepEqual(capabilityAgent.Capabilities, sourceBefore) {
@@ -412,7 +416,11 @@ func TestManagerIntegrationUsesRealSQLitePerSessionDB(t *testing.T) {
 		t.Fatalf("Stop() error = %v", err)
 	}
 
-	reopened, err := sessiondb.OpenSessionDB(testutil.Context(t), session.ID, session.DBPath())
+	reopened, err := sessiondb.OpenSessionDB(
+		testutil.Context(t),
+		testSessionDBOwner(session.ID, session.WorkspaceID),
+		session.DBPath(),
+	)
 	if err != nil {
 		t.Fatalf("OpenSessionDB(reopen) error = %v", err)
 	}
@@ -469,7 +477,11 @@ func TestManagerIntegrationSyntheticPromptPersistsDedicatedEventsWithMixedHistor
 		t.Fatalf("Stop() error = %v", err)
 	}
 
-	reopened, err := sessiondb.OpenSessionDB(testutil.Context(t), session.ID, session.DBPath())
+	reopened, err := sessiondb.OpenSessionDB(
+		testutil.Context(t),
+		testSessionDBOwner(session.ID, session.WorkspaceID),
+		session.DBPath(),
+	)
 	if err != nil {
 		t.Fatalf("OpenSessionDB(reopen) error = %v", err)
 	}
@@ -815,7 +827,7 @@ func TestManagerIntegrationResumeWithChannelReinjectsBundledNetworkSkillBeforeAC
 		t.Fatalf("Resume() error = %v", err)
 	}
 	t.Cleanup(func() {
-		_ = h.manager.Stop(testutil.Context(t), resumed.ID)
+		reportSessionStop(t, h, resumed.ID)
 	})
 
 	if got := h.driver.startCalls[1].SystemPrompt; !strings.Contains(got, networkSkill) {
@@ -1145,7 +1157,7 @@ func TestManagerIntegrationContextCompactionUsesPatchedParams(t *testing.T) {
 	h := newHarness(t, WithHookSet(fullHookSet(hooks)))
 	session := createSession(t, h)
 	t.Cleanup(func() {
-		_ = h.manager.Stop(testutil.Context(t), session.ID)
+		reportSessionStop(t, h, session.ID)
 	})
 
 	var seen hookspkg.ContextPreCompactPayload

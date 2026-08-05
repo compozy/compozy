@@ -53,3 +53,14 @@ func normalizeSSHWaitErr(err error, stderr *bytes.Buffer) error {
 	}
 	return err
 }
+
+func sshExitCode(err error) (int, bool) {
+	if err == nil {
+		return 0, true
+	}
+	exitErr, ok := errors.AsType[*ssh.ExitError](err)
+	if !ok || exitErr == nil {
+		return 0, false
+	}
+	return exitErr.ExitStatus(), true
+}

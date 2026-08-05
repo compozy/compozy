@@ -7,9 +7,10 @@ import (
 )
 
 type daemonRuntimeWorkers struct {
-	autoTitle     *autoTitleRuntime
-	runtimeMemory *runtimeMemoryMonitor
-	toolArtifacts *toolspkg.ToolArtifactSweeper
+	autoTitle             *autoTitleRuntime
+	runtimeMemory         *runtimeMemoryMonitor
+	toolArtifacts         *toolspkg.ToolArtifactSweeper
+	authoredHeartbeatWake *apiHeartbeatWakePrompter
 }
 
 func (w daemonRuntimeWorkers) shutdown(ctx context.Context, errs *[]error) {
@@ -32,6 +33,13 @@ func (w daemonRuntimeWorkers) shutdown(ctx context.Context, errs *[]error) {
 			errs,
 			"daemon: shutdown tool artifact retention",
 			w.toolArtifacts.Shutdown(ctx),
+		)
+	}
+	if w.authoredHeartbeatWake != nil {
+		appendWrappedError(
+			errs,
+			"daemon: shutdown API heartbeat wake prompter",
+			w.authoredHeartbeatWake.shutdown(ctx),
 		)
 	}
 }

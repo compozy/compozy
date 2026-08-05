@@ -270,7 +270,7 @@ func collectionItems(value any) ([]any, error) {
 			)
 		}
 		items := make([]any, 0, reflected.Len())
-		for idx := 0; idx < reflected.Len(); idx++ {
+		for idx := range reflected.Len() {
 			items = append(items, reflected.Index(idx).Interface())
 		}
 		return items, nil

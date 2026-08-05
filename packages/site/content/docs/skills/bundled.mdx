@@ -4,7 +4,7 @@ description: The Compozy skill compiled into the runtime, its reference files, a
 ---
 
 The bundled `compozy` skill ships inside the Compozy binary. It is the lowest-precedence source in the skills
-hierarchy and are available whenever `skills.enabled` is true.
+hierarchy and is available whenever `skills.enabled` is true.
 
 Compozy currently ships one bundled skill: `compozy`. The skill lives at `skills/compozy/SKILL.md` with resource
 files under `skills/compozy/references/`. This layout is a normal skill directory, so the same content
@@ -13,9 +13,9 @@ runtime.
 
 ## Catalog
 
-| Skill     | Description                                                         | Use when                                                                                                                                                           |
-| --------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `compozy` | Operate and extend Compozy, the local-first agent operating system. | You are working with Compozy sessions, agents, tools, skills, memory, network channels, tasks, capabilities, extension kits, QA, docs, or repository contribution. |
+| Skill     | Description                                              | Use when                                                                                                                                                          |
+| --------- | -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `compozy` | Operate Compozy, the local-first agent operating system. | You are working with Compozy sessions, agents, tools, skills, memory, Network channels, tasks, Loops, windows, bridges, automation, extensions, or configuration. |
 
 The current runtime does not ship aliases for previous alpha `compozy-*` bundled skill names. A caller
 that needs Compozy guidance should load `compozy` and then read the reference file selected by its router.
@@ -27,17 +27,18 @@ reference files:
 
 | Reference                               | Covers                                                                                                          |
 | --------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `references/runtime-operations.md`      | Daemon state, session lifecycle, session CLI, and runtime troubleshooting.                                      |
+| `references/runtime-operations.md`      | Daemon state, session lifecycle, session CLI, background roles, bridges, and runtime troubleshooting.           |
 | `references/agent-definitions.md`       | `AGENT.md`, provider defaults, permission modes, agent MCP sidecars, and setup workflow.                        |
-| `references/tools-and-skills.md`        | Tool-first operating model, skill search/view, skill resources, and skill authoring rules.                      |
+| `references/tools-and-skills.md`        | Tool-first operating model, skill search/view, marketplace and MCP install flows, and management exceptions.    |
 | `references/native-tools.md`            | Daemon-native toolsets, stable `compozy__*` IDs, descriptor discipline, and CLI fallback rules.                 |
 | `references/network.md`                 | Compozy Network channels, peers, inboxes, threads, direct rooms, work items, receipts, traces, and send safety. |
 | `references/memory.md`                  | Memory scopes, read/write/search flows, hygiene, and consolidation boundaries.                                  |
 | `references/tasks-and-orchestration.md` | Coordinator, worker, and reviewer loops, task authority, session-bound tools, and review verdict rules.         |
-| `references/capabilities.md`            | Capabilities, extension kits and resources, hooks, manageability, and config lifecycle.                         |
-| `references/contributing-to-compozy.md` | Repository contribution rules, Go/runtime expectations, greenfield cuts, and tests.                             |
-| `references/qa-and-verification.md`     | Test placement, verification gates, QA bootstrap, and completion evidence.                                      |
-| `references/docs-design-and-copy.md`    | Site docs, product copy, generated docs, design/copy authorities, and vocabulary.                               |
+| `references/loops.md`                   | Loop and Goal authoring/operation, `/goal` commands, run states, approvals, and watch behavior.                 |
+| `references/window-management.md`       | Desktops, windows, tab stacks, layouts, revisions, clients, and recovery.                                       |
+| `references/extensions.md`              | Extension kits, install trust, the authoring and dev loop, instance scoping, and hook management.               |
+| `references/extension-authoring.md`     | Code-first extension authoring: SDK declaration, permissions, provide surfaces, and contributed commands.       |
+| `references/configuration.md`           | `config.toml` desired state, the settings apply lifecycle, and the settings key reference.                      |
 
 ## How bundled loading works
 
@@ -59,7 +60,7 @@ The normal prompt catalog lists the bundled skill by name and description:
 
 ```xml
 <available-skills>
-  <skill name="compozy">Operate and extend Compozy, the local-first agent operating system...</skill>
+  <skill name="compozy">Agent guide for operating Compozy. Use when working with Compozy sessions, agents, native tools...</skill>
 </available-skills>
 ```
 

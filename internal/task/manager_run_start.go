@@ -15,56 +15,83 @@ func (m *Service) transitionClaimedRunToStarting(
 	run Run,
 	actor ActorContext,
 ) (Run, *Run, error) {
-	if err := m.requireSessionExecutor("start run"); err != nil {
-		return Run{}, nil, err
-	}
-
-	run.Status = TaskRunStatusStarting
-	if err := m.store.UpdateTaskRun(ctx, run); err != nil {
-		return Run{}, nil, err
+	if strings.TrimSpace(run.SessionID) == "" {
+		if err := m.requireSessionExecutor("start run"); err != nil {
+			return Run{}, nil, err
+		}
 	}
 
 	lifecycleCtx := taskRunLifecycleContext(ctx)
-	startingTask, err := m.reconcileTaskCascade(lifecycleCtx, run.TaskID, actor)
+	startingRun, startingTask, err := m.persistClaimedRunStarting(lifecycleCtx, run, actor)
 	if err != nil {
 		return Run{}, nil, err
 	}
-	if err := m.recordTaskEvent(lifecycleCtx, run.TaskID, run.ID, taskEventRunStarting, actor, runTransitionPayload{
-		Status:     run.Status,
-		TaskStatus: startingTask.Status,
-		SessionID:  run.SessionID,
-	}); err != nil {
-		return Run{}, nil, err
+	if strings.TrimSpace(startingRun.SessionID) != "" {
+		return startingRun, nil, nil
 	}
+	return m.startAndBindClaimedRunSession(lifecycleCtx, taskRecord, startingTask, startingRun, actor)
+}
 
-	sessionID, failedRun, err := m.startRunSession(
-		lifecycleCtx,
-		taskRecord,
-		startingTask,
-		run,
+func (m *Service) persistClaimedRunStarting(
+	ctx context.Context,
+	run Run,
+	actor ActorContext,
+) (Run, Task, error) {
+	if err := m.preflightRunTransition(run, taskEventRunStarting, TaskRunStatusStarting, actor); err != nil {
+		return Run{}, Task{}, err
+	}
+	commandAt := m.now().UTC()
+	settlement, err := m.commitNominalRunSettlement(
+		ctx,
+		"transition task run starting",
+		taskEventRunStarting,
 		actor,
+		commandAt,
+		func(store runMutationStore) (NominalRunMutationResult, error) {
+			return store.TransitionRunStarting(ctx, NewRunStartingMutation(run))
+		},
+		transitionRunPayload,
 	)
+	if err != nil {
+		return Run{}, Task{}, err
+	}
+	return settlement.mutation.Run, settlement.task, nil
+}
+
+func (m *Service) startAndBindClaimedRunSession(
+	ctx context.Context,
+	taskRecord Task,
+	startingTask Task,
+	run Run,
+	actor ActorContext,
+) (Run, *Run, error) {
+	sessionID, failedRun, err := m.startRunSession(ctx, taskRecord, startingTask, run, actor)
 	if err != nil {
 		return Run{}, failedRun, err
 	}
-	run.SessionID = sessionID
-	if err := m.store.UpdateTaskRun(lifecycleCtx, run); err != nil {
-		stopErr := m.stopUnboundStartedTaskSession(lifecycleCtx, sessionID)
+	candidate := run
+	candidate.SessionID = sessionID
+	if err := m.preflightRunTransition(candidate, taskEventRunSessionBound, candidate.Status, actor); err != nil {
+		stopErr := m.stopUnboundStartedTaskSession(ctx, sessionID)
 		return Run{}, nil, errorsJoin(err, stopErr)
 	}
-
-	boundTask, err := m.reconcileTaskCascade(lifecycleCtx, run.TaskID, actor)
+	commandAt := m.now().UTC()
+	settlement, err := m.commitNominalRunSettlement(
+		ctx,
+		"bind task run session",
+		taskEventRunSessionBound,
+		actor,
+		commandAt,
+		func(store runMutationStore) (NominalRunMutationResult, error) {
+			return store.BindRunSession(ctx, NewRunSessionBindingMutation(run, sessionID))
+		},
+		transitionRunPayload,
+	)
 	if err != nil {
-		return Run{}, nil, err
+		stopErr := m.stopUnboundStartedTaskSession(ctx, sessionID)
+		return Run{}, nil, errorsJoin(err, stopErr)
 	}
-	if err := m.recordTaskEvent(lifecycleCtx, run.TaskID, run.ID, taskEventRunSessionBound, actor, runTransitionPayload{
-		Status:     run.Status,
-		TaskStatus: boundTask.Status,
-		SessionID:  run.SessionID,
-	}); err != nil {
-		return Run{}, nil, err
-	}
-	return run, nil, nil
+	return settlement.mutation.Run, nil, nil
 }
 
 func (m *Service) startRunSession(
@@ -76,12 +103,13 @@ func (m *Service) startRunSession(
 ) (string, *Run, error) {
 	profile, err := m.startTaskExecutionProfile(ctx, startingTask.ID)
 	if err != nil {
-		message := fmt.Sprintf("load execution profile: %v", err)
+		publicErr := redactTaskError(err)
+		message := fmt.Sprintf("load execution profile: %v", publicErr)
 		failedRun, failErr := m.failRunAfterSessionStartError(ctx, taskRecord, run, actor, message)
 		if failErr != nil {
-			return "", nil, errorsJoin(err, failErr)
+			return "", nil, errorsJoin(publicErr, redactTaskError(failErr))
 		}
-		return "", failedRun, fmt.Errorf("task: load execution profile for run %q: %w", run.ID, err)
+		return "", failedRun, fmt.Errorf("task: load execution profile for run %q: %w", run.ID, publicErr)
 	}
 	sessionRef, err := m.sessions.StartTaskSession(ctx, &StartTaskSession{
 		Task:             startingTask,
@@ -90,12 +118,13 @@ func (m *Service) startRunSession(
 		Actor:            actor,
 	})
 	if err != nil {
-		message := fmt.Sprintf("start task session: %v", err)
+		publicErr := redactTaskError(err)
+		message := fmt.Sprintf("start task session: %v", publicErr)
 		failedRun, failErr := m.failRunAfterSessionStartError(ctx, taskRecord, run, actor, message)
 		if failErr != nil {
-			return "", nil, errorsJoin(err, failErr)
+			return "", nil, errorsJoin(publicErr, redactTaskError(failErr))
 		}
-		return "", failedRun, fmt.Errorf("task: start task session for run %q: %w", run.ID, err)
+		return "", failedRun, fmt.Errorf("task: start task session for run %q: %w", run.ID, publicErr)
 	}
 	if sessionRef == nil {
 		failedRun, failErr := m.failRunAfterSessionStartError(
@@ -114,12 +143,13 @@ func (m *Service) startRunSession(
 		)
 	}
 	if err := sessionRef.Validate(); err != nil {
-		message := fmt.Sprintf("start task session: %v", err)
+		publicErr := redactTaskError(err)
+		message := fmt.Sprintf("start task session: %v", publicErr)
 		failedRun, failErr := m.failRunAfterSessionStartError(ctx, taskRecord, run, actor, message)
 		if failErr != nil {
-			return "", nil, errorsJoin(err, failErr)
+			return "", nil, errorsJoin(publicErr, redactTaskError(failErr))
 		}
-		return "", failedRun, err
+		return "", failedRun, publicErr
 	}
 	return strings.TrimSpace(sessionRef.SessionID), nil, nil
 }

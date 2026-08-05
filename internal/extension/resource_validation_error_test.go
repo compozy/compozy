@@ -37,8 +37,9 @@ func TestWrapResourceValidationError(t *testing.T) {
 			t.Parallel()
 
 			got := wrapResourceValidationError(test.path, test.err)
-			var positioned *resourceValidationError
-			if !errors.As(got, &positioned) {
+
+			positioned, positionedMatched := errors.AsType[*resourceValidationError](got)
+			if !positionedMatched {
 				t.Fatalf("wrapResourceValidationError() error = %T, want *resourceValidationError", got)
 			}
 			if positioned.Path != test.wantPath {

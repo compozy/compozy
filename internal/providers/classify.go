@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"os/exec"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -126,12 +124,15 @@ func ClassifyDeclared(
 			Message: "Required Compozy-managed provider credentials are present.",
 		}, nil
 	}
-	nativeCLI, err := NativeCLIStatus(provider, env)
+	nativeCLI, err := NativeCLIStatus(ctx, provider, env)
 	if err != nil {
 		return Classification{}, err
 	}
+	if nativeCLI != nil && strings.TrimSpace(nativeCLI.Error) != "" {
+		return unknownClassification(errors.New(nativeCLI.Error)), nil
+	}
 	if nativeCLI != nil && nativeCLI.Command != "" && !nativeCLI.Present {
-		return missingCLIClassification(env.Normalize().ProviderName, provider, nativeCLI), nil
+		return missingCLIClassification(env.Normalize().ProviderName, nativeCLI), nil
 	}
 	return Classification{
 		State:   ProviderAuthStateUnknown,
@@ -148,12 +149,22 @@ func ClassifyProbe(
 	outcome ProbeOutcome,
 	env *ProbeEnv,
 ) (state string, code string, message string) {
-	result := ClassifyProbeResult(provider, outcome, env)
+	result := ClassifyProbeResultContext(context.Background(), provider, outcome, env)
 	return string(result.State), result.Code, result.Message
 }
 
 // ClassifyProbeResult returns the full canonical classifier result.
 func ClassifyProbeResult(
+	provider compozyconfig.ProviderConfig,
+	outcome ProbeOutcome,
+	env *ProbeEnv,
+) Classification {
+	return ClassifyProbeResultContext(context.Background(), provider, outcome, env)
+}
+
+// ClassifyProbeResultContext classifies a live probe with a cancelable command resolver.
+func ClassifyProbeResultContext(
+	ctx context.Context,
 	provider compozyconfig.ProviderConfig,
 	outcome ProbeOutcome,
 	env *ProbeEnv,
@@ -166,7 +177,7 @@ func ClassifyProbeResult(
 		}
 	}
 	combined := strings.ToLower(outcome.Stdout + "\n" + outcome.Stderr)
-	nativeCLI, classification, classified := classifyNativeCLIProbePrecondition(provider, env, authMode, combined)
+	nativeCLI, classification, classified := classifyNativeCLIProbePrecondition(ctx, provider, env, authMode)
 	if classified {
 		return classification
 	}
@@ -176,12 +187,12 @@ func ClassifyProbeResult(
 			Message: "Provider status command completed successfully.",
 		}
 	}
-	if classification, classified := classifyProbeOutput(provider, combined); classified {
+	if classification, classified := classifyProbeOutput(combined); classified {
 		return classification
 	}
 	if nativeCLI != nil && nativeCLI.Command != "" && !nativeCLI.Present &&
 		hasAny(combined, "not found on path", "not found", "not installed") {
-		return missingCLIClassification(env.Normalize().ProviderName, provider, nativeCLI)
+		return missingCLIClassification(env.Normalize().ProviderName, nativeCLI)
 	}
 	return Classification{
 		State:   ProviderAuthStateUnknown,
@@ -193,25 +204,28 @@ func ClassifyProbeResult(
 }
 
 func classifyNativeCLIProbePrecondition(
+	ctx context.Context,
 	provider compozyconfig.ProviderConfig,
 	env *ProbeEnv,
 	authMode compozyconfig.ProviderAuthMode,
-	combined string,
 ) (*providerauth.NativeCLIStatus, Classification, bool) {
 	if authMode != compozyconfig.ProviderAuthModeNativeCLI {
 		return nil, Classification{}, false
 	}
-	nativeCLI, err := NativeCLIStatus(provider, env)
+	nativeCLI, err := NativeCLIStatus(ctx, provider, env)
 	if err != nil {
 		return nil, unknownClassification(err), true
 	}
-	if nativeCLI != nil && nativeCLI.Command != "" && !nativeCLI.Present && strings.TrimSpace(combined) == "" {
-		return nativeCLI, missingCLIClassification(env.Normalize().ProviderName, provider, nativeCLI), true
+	if nativeCLI != nil && strings.TrimSpace(nativeCLI.Error) != "" {
+		return nativeCLI, unknownClassification(errors.New(nativeCLI.Error)), true
+	}
+	if nativeCLI != nil && nativeCLI.Command != "" && !nativeCLI.Present {
+		return nativeCLI, missingCLIClassification(env.Normalize().ProviderName, nativeCLI), true
 	}
 	return nativeCLI, Classification{}, false
 }
 
-func classifyProbeOutput(provider compozyconfig.ProviderConfig, combined string) (Classification, bool) {
+func classifyProbeOutput(combined string) (Classification, bool) {
 	switch {
 	case hasAny(
 		combined,
@@ -276,7 +290,7 @@ func classifyProbeOutput(provider compozyconfig.ProviderConfig, combined string)
 		return Classification{
 			State:   ProviderAuthStateNeedsLogin,
 			Code:    diagcontract.CodeProviderNotAuthenticated,
-			Message: loginGuidance(provider),
+			Message: loginGuidance(),
 			Kind:    ProviderFailureNotAuthenticated,
 			Action:  ProviderFailureActionLogin,
 		}, true
@@ -289,7 +303,7 @@ func ClassifyError(err error) Classification {
 	if err == nil {
 		return Classification{State: ProviderAuthStateAuthenticated}
 	}
-	if errors.Is(err, exec.ErrNotFound) || errors.Is(err, os.ErrNotExist) {
+	if isProviderAuthCommandNotFound(err) {
 		return Classification{
 			State:   ProviderAuthStateMissingCLI,
 			Code:    diagcontract.CodeProviderCLIMissing,
@@ -340,10 +354,9 @@ func missingCredentialClassification(missing CredentialStatus) Classification {
 
 func missingCLIClassification(
 	providerName string,
-	provider compozyconfig.ProviderConfig,
 	nativeCLI *providerauth.NativeCLIStatus,
 ) Classification {
-	message := providerauth.NativeCLIMissingMessage(providerName, provider, nativeCLI)
+	message := providerauth.NativeCLIMissingMessage(providerName, nativeCLI)
 	return Classification{
 		State:   ProviderAuthStateMissingCLI,
 		Code:    diagcontract.CodeProviderCLIMissing,
@@ -353,11 +366,8 @@ func missingCLIClassification(
 	}
 }
 
-func loginGuidance(provider compozyconfig.ProviderConfig) string {
-	if loginCommand := strings.TrimSpace(provider.AuthLoginCmd); loginCommand != "" {
-		return fmt.Sprintf("Provider is not authenticated; run %q in a local terminal.", loginCommand)
-	}
-	return "Provider is not authenticated; run the provider's native login command in a local terminal."
+func loginGuidance() string {
+	return "Provider is not authenticated; run its configured native login flow in a local terminal."
 }
 
 func unknownClassification(err error) Classification {

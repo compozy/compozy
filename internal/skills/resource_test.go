@@ -344,7 +344,14 @@ func TestResourceAuthorityKeepsFilesystemDiscoveryNonAuthoritative(t *testing.T)
 			Enabled:     true,
 		},
 	}}
-	if err := registry.ApplyResourceRecords(1, records); err != nil {
+	var nilCtx context.Context
+	if err := registry.ApplyResourceRecords(nilCtx, 1, records); err == nil {
+		t.Fatal("ApplyResourceRecords(nil) error = nil, want context validation failure")
+	}
+	if _, ok := registry.Get("resource-backed"); ok {
+		t.Fatal("Get(\"resource-backed\") ok = true after rejected projection")
+	}
+	if err := registry.ApplyResourceRecords(context.Background(), 1, records); err != nil {
 		t.Fatalf("ApplyResourceRecords() error = %v", err)
 	}
 	if err := registry.LoadAll(context.Background()); err != nil {
@@ -392,7 +399,7 @@ func TestResourceAuthorityProjectsWorkspaceSkills(t *testing.T) {
 			},
 		},
 	}
-	if err := registry.ApplyResourceRecords(2, records); err != nil {
+	if err := registry.ApplyResourceRecords(context.Background(), 2, records); err != nil {
 		t.Fatalf("ApplyResourceRecords() error = %v", err)
 	}
 

@@ -28,10 +28,6 @@ const (
 	providerVaultKey      = "vault"
 )
 
-const (
-	defaultProviderAuthCommandTimeout = authproviders.DefaultProviderAuthCommandTimeout
-)
-
 type providerAuthCommandRunner = authproviders.ProviderAuthCommandRunner
 
 type providerAuthCommandSpec = authproviders.ProviderAuthCommandSpec
@@ -39,20 +35,18 @@ type providerAuthCommandSpec = authproviders.ProviderAuthCommandSpec
 type providerAuthCommandResult = authproviders.ProviderAuthCommandResult
 
 type providerAuthStatusRecord struct {
-	Provider      string                         `json:"provider"`
-	DisplayName   string                         `json:"display_name,omitempty"`
-	AuthMode      string                         `json:"auth_mode"`
-	EnvPolicy     string                         `json:"env_policy"`
-	HomePolicy    string                         `json:"home_policy"`
-	State         string                         `json:"state"`
-	Code          string                         `json:"code,omitempty"`
-	Message       string                         `json:"message,omitempty"`
-	StatusCommand string                         `json:"status_command,omitempty"`
-	LoginCommand  string                         `json:"login_command,omitempty"`
-	LoginEnv      []string                       `json:"login_env,omitempty"`
-	NativeCLI     *providerNativeCLIStatusRecord `json:"native_cli,omitempty"`
-	Credentials   []providerCredentialStatusItem `json:"credentials,omitempty"`
-	Probe         *providerAuthCommandResult     `json:"probe,omitempty"`
+	Provider      string                                `json:"provider"`
+	DisplayName   string                                `json:"display_name,omitempty"`
+	AuthMode      string                                `json:"auth_mode"`
+	EnvPolicy     string                                `json:"env_policy"`
+	HomePolicy    string                                `json:"home_policy"`
+	State         string                                `json:"state"`
+	Code          string                                `json:"code,omitempty"`
+	Message       string                                `json:"message,omitempty"`
+	StatusCommand string                                `json:"status_command,omitempty"`
+	Login         authproviders.ProviderLoginDescriptor `json:"login"`
+	Credentials   []providerCredentialStatusItem        `json:"credentials,omitempty"`
+	Probe         *providerAuthCommandResult            `json:"probe,omitempty"`
 }
 
 type providerNativeCLIStatusRecord = providerauth.NativeCLIStatus
@@ -73,6 +67,9 @@ func (d commandDeps) withProviderAuthDefaults() commandDeps {
 	}
 	if d.runProviderAuthLoginCommand == nil {
 		d.runProviderAuthLoginCommand = authproviders.DefaultProviderAuthLoginRunner
+	}
+	if d.resolveProviderAuthCommand == nil {
+		d.resolveProviderAuthCommand = authproviders.DefaultProviderAuthCommandResolver
 	}
 	return d
 }
@@ -121,7 +118,10 @@ func newProviderAuthStatusCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			record, err := buildProviderAuthStatus(cmd.Context(), deps, runtime, args[0], !noProbe)
+			record, err := buildProviderAuthStatus(cmd.Context(), deps, runtime, providerAuthStatusOptions{
+				providerRef: args[0],
+				probe:       !noProbe,
+			})
 			if err != nil {
 				return err
 			}
@@ -134,11 +134,10 @@ func newProviderAuthStatusCommand(deps commandDeps) *cobra.Command {
 }
 
 func newProviderAuthLoginCommand(deps commandDeps) *cobra.Command {
-	var printCommand bool
 	var noTTY bool
 	var timeout time.Duration
 	options := func() providerAuthLoginOptions {
-		return providerAuthLoginOptions{printCommand: printCommand, noTTY: noTTY, timeout: timeout}
+		return providerAuthLoginOptions{noTTY: noTTY, timeout: timeout}
 	}
 	cmd := &cobra.Command{
 		Use:   "login <provider>",
@@ -148,17 +147,14 @@ func newProviderAuthLoginCommand(deps commandDeps) *cobra.Command {
 			return runProviderAuthLoginCommand(cmd, deps, args[0], options())
 		},
 	}
-	cmd.Flags().
-		BoolVar(&printCommand, "print-command", false, "Print only the resolved provider login command")
 	cmd.Flags().BoolVar(&noTTY, "no-tty", false, "Disable TTY attachment for the login command")
 	cmd.Flags().DurationVar(&timeout, "timeout", 0, "Optional login command timeout")
 	return cmd
 }
 
 type providerAuthLoginOptions struct {
-	printCommand bool
-	noTTY        bool
-	timeout      time.Duration
+	noTTY   bool
+	timeout time.Duration
 }
 
 func newProviderListCommand(deps commandDeps) *cobra.Command {
@@ -213,12 +209,6 @@ func runProviderAuthLoginCommand(
 	if err != nil {
 		return err
 	}
-	if options.printCommand {
-		if err := rejectPrintCommandOutputFormat(cmd); err != nil {
-			return err
-		}
-		return writeRawCommandOutput(cmd, target.OperatorCommand+"\n")
-	}
 	loginResult, err := deps.runProviderAuthLoginCommand(cmd.Context(), providerAuthCommandSpec{
 		Command: target.LoginCommand,
 		Env:     providerLoginCommandEnv(target.LoginEnv),
@@ -228,24 +218,24 @@ func runProviderAuthLoginCommand(
 	if err != nil {
 		return err
 	}
-	record, err := buildProviderAuthStatus(cmd.Context(), deps, runtime, target.ProviderName, true)
+	record, err := buildProviderAuthStatus(cmd.Context(), deps, runtime, providerAuthStatusOptions{
+		providerRef: target.ProviderName,
+		probe:       true,
+		nativeCLI:   target.nativeCLI,
+	})
 	if err != nil {
 		return err
 	}
 	applyProviderAuthLoginResult(&record, target.Provider, loginResult)
-	record.LoginCommand = firstNonEmptyString(record.LoginCommand, target.LoginCommand)
-	record.LoginEnv = target.LoginEnv
-	record.NativeCLI = target.NativeCLI
 	return writeCommandOutput(cmd, providerAuthStatusBundle(record))
 }
 
 type providerAuthLoginTargetRecord struct {
-	ProviderName    string
-	Provider        compozyconfig.ProviderConfig
-	LoginCommand    string
-	LoginEnv        []string
-	NativeCLI       *providerNativeCLIStatusRecord
-	OperatorCommand string
+	ProviderName string
+	Provider     compozyconfig.ProviderConfig
+	LoginCommand string
+	LoginEnv     []string
+	nativeCLI    *providerNativeCLIStatusRecord
 }
 
 func providerAuthLoginTarget(
@@ -277,28 +267,27 @@ func providerAuthLoginTarget(
 		return providerAuthLoginTargetRecord{}, err
 	}
 	if nativeCLI != nil && !nativeCLI.Present {
+		executable := authproviders.DescribeProviderLogin(
+			provider,
+			nativeCLI,
+			authproviders.Classification{},
+		).Executable
 		return providerAuthLoginTargetRecord{}, fmt.Errorf(
-			"cli: provider %q native CLI %q was not found on PATH; install it before running %q",
+			"cli: provider %q native CLI %q was not found on PATH; install it before retrying login",
 			providerName,
-			nativeCLI.Command,
-			loginCommand,
+			executable,
 		)
 	}
 	loginEnv, err := providerNativeCLILoginEnv(runtime.HomePaths, providerName, provider)
 	if err != nil {
 		return providerAuthLoginTargetRecord{}, err
 	}
-	operatorCommand, err := providerOperatorLoginCommand(loginCommand, loginEnv)
-	if err != nil {
-		return providerAuthLoginTargetRecord{}, err
-	}
 	return providerAuthLoginTargetRecord{
-		ProviderName:    providerName,
-		Provider:        provider,
-		LoginCommand:    loginCommand,
-		LoginEnv:        loginEnv,
-		NativeCLI:       nativeCLI,
-		OperatorCommand: operatorCommand,
+		ProviderName: providerName,
+		Provider:     provider,
+		LoginCommand: loginCommand,
+		LoginEnv:     loginEnv,
+		nativeCLI:    nativeCLI,
 	}, nil
 }
 

@@ -5,26 +5,30 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/providerauth"
 	authproviders "github.com/compozy/compozy/internal/providers"
-
-	"github.com/spf13/cobra"
 )
+
+type providerAuthStatusOptions struct {
+	providerRef string
+	probe       bool
+	nativeCLI   *providerNativeCLIStatusRecord
+}
 
 func buildProviderAuthStatus(
 	ctx context.Context,
 	deps commandDeps,
 	runtime *runtimeContext,
-	providerRef string,
-	probe bool,
+	options providerAuthStatusOptions,
 ) (providerAuthStatusRecord, error) {
 	if runtime == nil {
 		return providerAuthStatusRecord{}, errors.New("cli: provider auth runtime is required")
 	}
-	providerName, provider, err := resolveProviderAuthTarget(&runtime.Config, providerRef)
+	providerName, provider, err := resolveProviderAuthTarget(&runtime.Config, options.providerRef)
 	if err != nil {
 		return providerAuthStatusRecord{}, err
 	}
@@ -32,6 +36,7 @@ func buildProviderAuthStatus(
 	if err != nil {
 		return providerAuthStatusRecord{}, err
 	}
+	pinProviderNativeCLIResolution(&probeEnv, options.nativeCLI)
 	credentials, err := providerCredentialStatuses(ctx, provider, &probeEnv)
 	if err != nil {
 		return providerAuthStatusRecord{}, err
@@ -50,47 +55,116 @@ func buildProviderAuthStatus(
 		Code:          classification.Code,
 		Message:       classification.Message,
 		StatusCommand: strings.TrimSpace(provider.AuthStatusCmd),
-		LoginCommand:  strings.TrimSpace(provider.AuthLoginCmd),
+		Login:         authproviders.DescribeProviderLogin(provider, nil, classification),
 		Credentials:   credentials,
 	}
-	nativeReady, err := populateProviderNativeCLIStatus(&record, providerName, provider, deps, &probeEnv)
+	nativeReady, err := populateProviderNativeCLIStatus(ctx, providerNativeCLIStatusInput{
+		record:       &record,
+		providerName: providerName,
+		provider:     provider,
+		probeEnv:     &probeEnv,
+		nativeCLI:    options.nativeCLI,
+	})
 	if err != nil || !nativeReady {
 		return record, err
 	}
-	if !probe || strings.TrimSpace(provider.AuthStatusCmd) == "" {
+	if !options.probe || strings.TrimSpace(provider.AuthStatusCmd) == "" {
 		return record, nil
 	}
-	if err := populateProviderAuthProbe(ctx, &record, provider, deps, &probeEnv); err != nil {
+	commandSpec, err := authproviders.PrepareAuthStatusCommand(ctx, provider, &probeEnv)
+	if err != nil {
+		return providerAuthStatusRecord{}, fmt.Errorf("cli: resolve provider auth status command: %w", err)
+	}
+	if err := populateProviderAuthProbe(ctx, &record, provider, &probeEnv, commandSpec); err != nil {
 		return providerAuthStatusRecord{}, err
 	}
 	return record, nil
 }
 
-func populateProviderNativeCLIStatus(
-	record *providerAuthStatusRecord,
-	providerName string,
-	provider compozyconfig.ProviderConfig,
-	deps commandDeps,
+func pinProviderNativeCLIResolution(
 	probeEnv *authproviders.ProbeEnv,
+	nativeCLI *providerNativeCLIStatusRecord,
+) {
+	if probeEnv == nil || nativeCLI == nil || strings.TrimSpace(nativeCLI.Command) == "" {
+		return
+	}
+	normalized := probeEnv.Normalize()
+	lookPath := normalized.LookPath
+	resolveCommand := probeEnv.ResolveCommand
+	if resolveCommand == nil {
+		resolveCommand = authproviders.DefaultProviderAuthCommandResolver
+	}
+	resolvePinned := func(command string) (string, error, bool) {
+		if strings.TrimSpace(command) != nativeCLI.Command {
+			return "", nil, false
+		}
+		if !nativeCLI.Present {
+			return "", exec.ErrNotFound, true
+		}
+		return nativeCLI.Path, nil, true
+	}
+	probeEnv.LookPath = func(command string) (string, error) {
+		if path, err, ok := resolvePinned(command); ok {
+			return path, err
+		}
+		return lookPath(command)
+	}
+	probeEnv.ResolveCommand = func(
+		ctx context.Context,
+		command string,
+		env []string,
+		dir string,
+	) (string, error) {
+		if path, err, ok := resolvePinned(command); ok {
+			return path, err
+		}
+		return resolveCommand(ctx, command, env, dir)
+	}
+}
+
+type providerNativeCLIStatusInput struct {
+	record       *providerAuthStatusRecord
+	providerName string
+	provider     compozyconfig.ProviderConfig
+	probeEnv     *authproviders.ProbeEnv
+	nativeCLI    *providerNativeCLIStatusRecord
+}
+
+func populateProviderNativeCLIStatus(
+	ctx context.Context,
+	input providerNativeCLIStatusInput,
 ) (bool, error) {
-	if provider.EffectiveAuthMode() != compozyconfig.ProviderAuthModeNativeCLI {
+	if input.provider.EffectiveAuthMode() != compozyconfig.ProviderAuthModeNativeCLI {
 		return true, nil
 	}
-	nativeCLI, err := providerNativeCLIStatus(provider, deps.lookPath)
-	if err != nil {
-		return false, err
+	nativeCLI := input.nativeCLI
+	_, source := providerauth.NativeCLICommand(input.provider)
+	if nativeCLI == nil || nativeCLI.Source != source {
+		var err error
+		nativeCLI, err = authproviders.NativeCLIStatus(ctx, input.provider, input.probeEnv)
+		if err != nil {
+			return false, err
+		}
 	}
-	record.NativeCLI = nativeCLI
+	input.record.Login = authproviders.DescribeProviderLogin(input.provider, nativeCLI, authproviders.Classification{
+		State:   authproviders.ProviderAuthState(input.record.State),
+		Code:    input.record.Code,
+		Message: input.record.Message,
+	})
 	if nativeCLI == nil || nativeCLI.Command == "" || nativeCLI.Present {
 		return true, nil
 	}
-	missing := authproviders.ClassifyProbeResult(provider, authproviders.ProbeOutcome{
+	if strings.TrimSpace(nativeCLI.Error) != "" {
+		return false, nil
+	}
+	missing := authproviders.ClassifyProbeResultContext(ctx, input.provider, authproviders.ProbeOutcome{
 		ExitCode: -1,
-		Stderr:   providerNativeCLIMissingMessage(providerName, provider, nativeCLI),
-	}, probeEnv)
-	record.State = string(missing.State)
-	record.Code = missing.Code
-	record.Message = missing.Message
+		Stderr:   providerNativeCLIMissingMessage(input.providerName, nativeCLI),
+	}, input.probeEnv)
+	input.record.State = string(missing.State)
+	input.record.Code = missing.Code
+	input.record.Message = missing.Message
+	input.record.Login = authproviders.DescribeProviderLogin(input.provider, nativeCLI, missing)
 	return false, nil
 }
 
@@ -98,21 +172,20 @@ func populateProviderAuthProbe(
 	ctx context.Context,
 	record *providerAuthStatusRecord,
 	provider compozyconfig.ProviderConfig,
-	deps commandDeps,
 	probeEnv *authproviders.ProbeEnv,
+	commandSpec providerAuthCommandSpec,
 ) error {
-	result, err := deps.runProviderAuthCommand(ctx, providerAuthCommandSpec{
-		Command: strings.TrimSpace(provider.AuthStatusCmd),
-		Env:     probeEnv.CommandEnv,
-		Timeout: defaultProviderAuthCommandTimeout,
-		NoTTY:   true,
-	})
+	if commandSpec.Executable == "" {
+		return errors.New("cli: provider auth status command is not pinned")
+	}
+	runner := probeEnv.Normalize().RunCommand
+	result, err := runner(ctx, commandSpec)
 	if err != nil {
 		return err
 	}
 	record.Probe = &result
 	if provider.EffectiveAuthMode() == compozyconfig.ProviderAuthModeNativeCLI {
-		classification := authproviders.ClassifyProbeResult(provider, authproviders.ProbeOutcome{
+		classification := authproviders.ClassifyProbeResultContext(ctx, provider, authproviders.ProbeOutcome{
 			ExitCode: result.ExitCode,
 			Stdout:   result.Stdout,
 			Stderr:   result.Stderr,
@@ -120,6 +193,7 @@ func populateProviderAuthProbe(
 		record.State = string(classification.State)
 		record.Code = classification.Code
 		record.Message = classification.Message
+		record.Login.RecommendedAction = classification.Action
 	}
 	return nil
 }
@@ -141,13 +215,6 @@ func resolveProviderAuthTarget(
 		return "", compozyconfig.ProviderConfig{}, fmt.Errorf("cli: resolve provider %q: %w", providerName, err)
 	}
 	return providerName, provider, nil
-}
-
-func providerNativeCLIStatus(
-	provider compozyconfig.ProviderConfig,
-	lookPath func(string) (string, error),
-) (*providerNativeCLIStatusRecord, error) {
-	return providerauth.NativeCLIStatusForProvider(provider, lookPath)
 }
 
 func providerNativeCLIStatusForCommand(
@@ -172,22 +239,9 @@ func providerMissingAuthLoginCommandError(providerName string, provider compozyc
 
 func providerNativeCLIMissingMessage(
 	providerName string,
-	provider compozyconfig.ProviderConfig,
 	nativeCLI *providerNativeCLIStatusRecord,
 ) string {
-	return providerauth.NativeCLIMissingMessage(providerName, provider, nativeCLI)
-}
-
-func rejectPrintCommandOutputFormat(cmd *cobra.Command) error {
-	outputFlag := cmd.Flag(outputFlagName)
-	if outputFlag != nil && outputFlag.Changed {
-		return errors.New("cli: --print-command emits raw shell text and cannot be combined with --output")
-	}
-	jsonFlag := cmd.Flag(jsonFlagName)
-	if jsonFlag != nil && jsonFlag.Changed {
-		return errors.New("cli: --print-command emits raw shell text and cannot be combined with --json")
-	}
-	return nil
+	return providerauth.NativeCLIMissingMessage(providerName, nativeCLI)
 }
 
 func providerNativeCLILoginEnv(
@@ -196,8 +250,4 @@ func providerNativeCLILoginEnv(
 	provider compozyconfig.ProviderConfig,
 ) ([]string, error) {
 	return providerauth.NativeCLILoginEnv(homePaths, providerName, provider, os.Environ())
-}
-
-func providerOperatorLoginCommand(command string, loginEnv []string) (string, error) {
-	return providerauth.OperatorLoginCommand(command, loginEnv)
 }

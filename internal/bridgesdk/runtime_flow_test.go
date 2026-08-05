@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net"
 	"testing"
 	"time"
@@ -12,18 +13,62 @@ import (
 	"github.com/compozy/compozy/internal/subprocess"
 )
 
+func closeRuntimeFlowConn(t *testing.T, conn net.Conn) {
+	t.Helper()
+	if err := conn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+		t.Errorf("close runtime flow connection: %v", err)
+	}
+}
+
+type runtimeFlowServeResult struct {
+	side string
+	err  error
+}
+
+func startRuntimeFlowServers(
+	ctx context.Context,
+	t *testing.T,
+	runtime *Runtime,
+	hostPeer *Peer,
+	hostConn net.Conn,
+	runtimeConn net.Conn,
+) {
+	t.Helper()
+
+	serveDone := make(chan runtimeFlowServeResult, 2)
+	go func() {
+		serveDone <- runtimeFlowServeResult{
+			side: "runtime",
+			err:  runtime.Serve(ctx, runtimeConn, runtimeConn),
+		}
+	}()
+	go func() {
+		serveDone <- runtimeFlowServeResult{side: "host", err: hostPeer.Serve(ctx)}
+	}()
+
+	t.Cleanup(func() {
+		closeRuntimeFlowConn(t, hostConn)
+		closeRuntimeFlowConn(t, runtimeConn)
+		for range 2 {
+			result := <-serveDone
+			if result.err != nil &&
+				!errors.Is(result.err, context.Canceled) &&
+				!errors.Is(result.err, io.ErrClosedPipe) &&
+				!errors.Is(result.err, net.ErrClosed) {
+				t.Errorf("%s Serve() error = %v", result.side, result.err)
+			}
+		}
+	})
+}
+
 func TestRuntimeServeInitializeDeliverHealthShutdownAndSync(t *testing.T) {
 	t.Parallel()
 
 	ctx := t.Context()
 
 	hostConn, runtimeConn := net.Pipe()
-	defer func() {
-		_ = hostConn.Close()
-	}()
-	defer func() {
-		_ = runtimeConn.Close()
-	}()
+	t.Cleanup(func() { closeRuntimeFlowConn(t, hostConn) })
+	t.Cleanup(func() { closeRuntimeFlowConn(t, runtimeConn) })
 
 	shutdownCalled := false
 	runtime, err := NewRuntime(RuntimeConfig{
@@ -56,7 +101,7 @@ func TestRuntimeServeInitializeDeliverHealthShutdownAndSync(t *testing.T) {
 		t.Fatalf("NewRuntime() error = %v", err)
 	}
 
-	hostPeer := NewPeer(hostConn, hostConn)
+	hostPeer := mustNewPeer(t, hostConn, hostConn)
 	if err := hostPeer.Handle("bridges/instances/list", func(context.Context, json.RawMessage) (any, error) {
 		instance := testBridgeInstance("brg-1")
 		instance.Status = bridgepkg.BridgeStatusDegraded
@@ -90,8 +135,7 @@ func TestRuntimeServeInitializeDeliverHealthShutdownAndSync(t *testing.T) {
 		t.Fatalf("hostPeer.Handle(ingest) error = %v", err)
 	}
 
-	go func() { _ = runtime.Serve(ctx, runtimeConn, runtimeConn) }()
-	go func() { _ = hostPeer.Serve(ctx) }()
+	startRuntimeFlowServers(ctx, t, runtime, hostPeer, hostConn, runtimeConn)
 
 	var response subprocess.InitializeResponse
 	if err := hostPeer.Call(ctx, "initialize", testInitializeRequest(), &response); err != nil {
@@ -186,12 +230,8 @@ func TestRuntimeServeRejectsDeliveryBeforeInitialize(t *testing.T) {
 	ctx := t.Context()
 
 	hostConn, runtimeConn := net.Pipe()
-	defer func() {
-		_ = hostConn.Close()
-	}()
-	defer func() {
-		_ = runtimeConn.Close()
-	}()
+	t.Cleanup(func() { closeRuntimeFlowConn(t, hostConn) })
+	t.Cleanup(func() { closeRuntimeFlowConn(t, runtimeConn) })
 
 	runtime, err := NewRuntime(RuntimeConfig{
 		ExtensionInfo: subprocess.InitializeExtensionInfo{
@@ -207,13 +247,13 @@ func TestRuntimeServeRejectsDeliveryBeforeInitialize(t *testing.T) {
 		t.Fatalf("NewRuntime() error = %v", err)
 	}
 
-	hostPeer := NewPeer(hostConn, hostConn)
-	go func() { _ = runtime.Serve(ctx, runtimeConn, runtimeConn) }()
-	go func() { _ = hostPeer.Serve(ctx) }()
+	hostPeer := mustNewPeer(t, hostConn, hostConn)
+	startRuntimeFlowServers(ctx, t, runtime, hostPeer, hostConn, runtimeConn)
 
 	err = hostPeer.Call(ctx, "bridges/deliver", bridgepkg.DeliveryRequest{}, nil)
-	var rpcErr *subprocess.RPCError
-	if !errors.As(err, &rpcErr) {
+
+	rpcErr, rpcErrMatched := errors.AsType[*subprocess.RPCError](err)
+	if !rpcErrMatched {
 		t.Fatalf("hostPeer.Call(bridges/deliver) error = %T, want *subprocess.RPCError", err)
 	}
 	if got, want := rpcErr.Code, bridgeSDKRPCCodeNotInitialized; got != want {
@@ -227,12 +267,8 @@ func TestRuntimeServeRejectsInvalidInitializePayload(t *testing.T) {
 	ctx := t.Context()
 
 	hostConn, runtimeConn := net.Pipe()
-	defer func() {
-		_ = hostConn.Close()
-	}()
-	defer func() {
-		_ = runtimeConn.Close()
-	}()
+	t.Cleanup(func() { closeRuntimeFlowConn(t, hostConn) })
+	t.Cleanup(func() { closeRuntimeFlowConn(t, runtimeConn) })
 
 	runtime, err := NewRuntime(RuntimeConfig{
 		ExtensionInfo: subprocess.InitializeExtensionInfo{
@@ -248,16 +284,16 @@ func TestRuntimeServeRejectsInvalidInitializePayload(t *testing.T) {
 		t.Fatalf("NewRuntime() error = %v", err)
 	}
 
-	hostPeer := NewPeer(hostConn, hostConn)
-	go func() { _ = runtime.Serve(ctx, runtimeConn, runtimeConn) }()
-	go func() { _ = hostPeer.Serve(ctx) }()
+	hostPeer := mustNewPeer(t, hostConn, hostConn)
+	startRuntimeFlowServers(ctx, t, runtime, hostPeer, hostConn, runtimeConn)
 
 	badRequest := testInitializeRequest()
 	badRequest.Runtime.Bridge = nil
 
 	err = hostPeer.Call(ctx, "initialize", badRequest, nil)
-	var rpcErr *subprocess.RPCError
-	if !errors.As(err, &rpcErr) {
+
+	rpcErr, rpcErrMatched := errors.AsType[*subprocess.RPCError](err)
+	if !rpcErrMatched {
 		t.Fatalf("hostPeer.Call(initialize) error = %T, want *subprocess.RPCError", err)
 	}
 	if got, want := rpcErr.Code, bridgeSDKRPCCodeInvalidParams; got != want {

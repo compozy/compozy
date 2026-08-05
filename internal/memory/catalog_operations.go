@@ -81,7 +81,7 @@ func insertMemoryEventDB(ctx context.Context, db *sql.DB, record memcontract.Ope
 func (c *catalog) listOperations(
 	ctx context.Context,
 	query memcontract.OperationHistoryQuery,
-) ([]memcontract.OperationRecord, error) {
+) (records []memcontract.OperationRecord, err error) {
 	db, err := c.ensureDB(ctx)
 	if err != nil {
 		return nil, err
@@ -133,12 +133,9 @@ func (c *catalog) listOperations(
 	if err != nil {
 		return nil, fmt.Errorf("memory: list operation history: %w", err)
 	}
-	defer func() {
-		// rows.Err() reports actionable read failures after iteration.
-		_ = rows.Close()
-	}()
+	defer closeCatalogRows(rows, "operation history", &err)
 
-	records := make([]memcontract.OperationRecord, 0, limit)
+	records = make([]memcontract.OperationRecord, 0, limit)
 	for rows.Next() {
 		record, scanErr := scanOperationRecord(rows)
 		if scanErr != nil {
@@ -152,7 +149,10 @@ func (c *catalog) listOperations(
 	return records, nil
 }
 
-func (c *catalog) operationStats(ctx context.Context, filters []catalogFilter) (int, *time.Time, error) {
+func (c *catalog) operationStats(
+	ctx context.Context,
+	filters []catalogFilter,
+) (count int, lastTime *time.Time, err error) {
 	db, err := c.ensureDB(ctx)
 	if err != nil {
 		return 0, nil, err
@@ -168,15 +168,8 @@ func (c *catalog) operationStats(ctx context.Context, filters []catalogFilter) (
 	if err != nil {
 		return 0, nil, fmt.Errorf("memory: read operation stats: %w", err)
 	}
-	defer func() {
-		// rows.Err() reports actionable read failures after iteration.
-		_ = rows.Close()
-	}()
+	defer closeCatalogRows(rows, "operation stats", &err)
 
-	var (
-		count    int
-		lastTime *time.Time
-	)
 	for rows.Next() {
 		var (
 			scope       sql.NullString

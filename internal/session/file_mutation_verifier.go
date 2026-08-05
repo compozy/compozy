@@ -59,7 +59,7 @@ func (v *fileMutationVerifier) Observe(event acp.AgentEvent) {
 	case acp.EventTypeToolResult:
 		call := v.calls[callID]
 		delete(v.calls, callID)
-		kind := firstNonEmpty(fileMutationToolKind(event), call.kind)
+		kind := firstTrimmedNonEmpty(fileMutationToolKind(event), call.kind)
 		if !strings.EqualFold(strings.TrimSpace(kind), "edit") {
 			return
 		}
@@ -74,7 +74,7 @@ func (v *fileMutationVerifier) Observe(event acp.AgentEvent) {
 			if v.unresolved == nil {
 				v.unresolved = make(map[string]string)
 			}
-			detail := firstNonEmpty(event.ToolErrorDetail(), event.Error, event.Text, "file mutation failed")
+			detail := firstTrimmedNonEmpty(event.ToolErrorDetail(), event.Error, event.Text, "file mutation failed")
 			for _, target := range targets {
 				if _, exists := v.unresolved[target]; !exists {
 					v.unresolved[target] = detail

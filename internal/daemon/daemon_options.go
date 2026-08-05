@@ -13,6 +13,7 @@ import (
 
 	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/memory/consolidation"
+	"github.com/compozy/compozy/internal/providers"
 
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/store/sessiondb"
@@ -129,6 +130,9 @@ func (d *Daemon) applyDefaults() {
 }
 
 func (d *Daemon) applyCoreDefaults() {
+	if d.providerPreStarter == nil {
+		d.providerPreStarter = providers.NewPreStarter()
+	}
 	if d.now == nil {
 		d.now = func() time.Time {
 			return time.Now().UTC()

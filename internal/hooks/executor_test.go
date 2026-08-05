@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -195,6 +196,108 @@ func TestSubprocessExecutorExecuteTimesOut(t *testing.T) {
 	if elapsed > 2*time.Second {
 		t.Fatalf("Execute() elapsed = %s, want prompt timeout handling", elapsed)
 	}
+}
+
+func TestSubprocessExecutorShutdownWaitIsBounded(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should stop waiting when command wait does not settle", func(t *testing.T) {
+		t.Parallel()
+
+		waitCh := make(chan error)
+		started := time.Now()
+		err := waitForSubprocessCommand(waitCh, 20*time.Millisecond)
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("waitForSubprocessCommand() error = %v, want context.DeadlineExceeded", err)
+		}
+		if elapsed := time.Since(started); elapsed > time.Second {
+			t.Fatalf("waitForSubprocessCommand() elapsed = %s, want bounded wait", elapsed)
+		}
+	})
+
+	t.Run("Should bound detached completion persistence", func(t *testing.T) {
+		t.Parallel()
+
+		if runtime.GOOS == "windows" {
+			t.Skip("subprocess shell test requires POSIX shell")
+		}
+
+		store := newBlockingHookLifecycleStore()
+		executor := NewSubprocessExecutor(
+			"/bin/sh",
+			[]string{"-c", "printf tracked-hook"},
+			WithSubprocessProcessRegistry(toolruntime.NewRegistry(store)),
+			WithSubprocessRegistryTimeout(20*time.Millisecond),
+		)
+		started := time.Now()
+		_, err := executor.Execute(t.Context(), RegisteredHook{Name: "blocked-completion-hook"}, nil)
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("Execute() error = %v, want context.DeadlineExceeded", err)
+		}
+		if elapsed := time.Since(started); elapsed > time.Second {
+			t.Fatalf("Execute() elapsed = %s, want bounded completion persistence", elapsed)
+		}
+	})
+
+	t.Run("Should bound checkpoint and completion persistence after cancellation", func(t *testing.T) {
+		t.Parallel()
+
+		if runtime.GOOS == "windows" {
+			t.Skip("subprocess shell test requires POSIX shell")
+		}
+
+		store := newBlockingHookLifecycleStore()
+		executor := NewSubprocessExecutor(
+			"/bin/sh",
+			[]string{"-c", "while :; do :; done"},
+			WithSubprocessProcessRegistry(toolruntime.NewRegistry(store)),
+			WithSubprocessRegistryTimeout(20*time.Millisecond),
+		)
+		started := time.Now()
+		_, err := executor.Execute(t.Context(), RegisteredHook{
+			Name:    "blocked-cancellation-hook",
+			Timeout: 20 * time.Millisecond,
+		}, nil)
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("Execute() error = %v, want context.DeadlineExceeded", err)
+		}
+		if elapsed := time.Since(started); elapsed > time.Second {
+			t.Fatalf("Execute() elapsed = %s, want bounded terminal persistence", elapsed)
+		}
+	})
+}
+
+type blockingHookLifecycleStore struct {
+	*toolruntime.MemoryStore
+	mu      sync.Mutex
+	upserts int
+}
+
+func newBlockingHookLifecycleStore() *blockingHookLifecycleStore {
+	return &blockingHookLifecycleStore{MemoryStore: toolruntime.NewMemoryStore()}
+}
+
+func (s *blockingHookLifecycleStore) UpsertProcessRecord(
+	ctx context.Context,
+	record toolruntime.ProcessRecord,
+) error {
+	s.mu.Lock()
+	s.upserts++
+	initial := s.upserts == 1
+	s.mu.Unlock()
+	if initial {
+		return s.MemoryStore.UpsertProcessRecord(ctx, record)
+	}
+	<-ctx.Done()
+	return ctx.Err()
+}
+
+func (s *blockingHookLifecycleStore) UpdateProcessRecordState(
+	ctx context.Context,
+	_ toolruntime.ProcessStateUpdate,
+) error {
+	<-ctx.Done()
+	return ctx.Err()
 }
 
 func TestSubprocessExecutorExecuteFiltersSandbox(t *testing.T) {

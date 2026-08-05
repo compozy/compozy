@@ -329,29 +329,6 @@ function renderRecallSection({
           />
         }
       />
-      <SettingsFieldRow
-        data-testid={`${TEST_PREFIX}-recall-signals-metrics`}
-        label="Signal metrics"
-        description="Emit recall-signal counters for observability dashboards"
-        control={
-          <Switch
-            data-testid={`${TEST_PREFIX}-recall-signals-metrics-switch`}
-            checked={draft.recall.signals.metrics_enabled}
-            onCheckedChange={checked =>
-              setDraft(prev => {
-                const current = prev ?? draft;
-                return {
-                  ...current,
-                  recall: {
-                    ...current.recall,
-                    signals: { ...current.recall.signals, metrics_enabled: checked },
-                  },
-                };
-              })
-            }
-          />
-        }
-      />
     </SettingsGroup>
   );
 }

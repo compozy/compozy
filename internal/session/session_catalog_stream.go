@@ -55,15 +55,12 @@ func (b *sessionCatalogBroadcaster) subscribe(
 	b.subscribers[subscriber] = struct{}{}
 	b.mu.Unlock()
 
-	var once sync.Once
-	cancel := func() {
-		once.Do(func() {
-			b.mu.Lock()
-			delete(b.subscribers, subscriber)
-			b.mu.Unlock()
-			subscriber.close()
-		})
-	}
+	cancel := sync.OnceFunc(func() {
+		b.mu.Lock()
+		delete(b.subscribers, subscriber)
+		b.mu.Unlock()
+		subscriber.close()
+	})
 	return subscriber.ch, cancel, nil
 }
 

@@ -13,6 +13,8 @@ import (
 func (s *ManagedHeartbeatAuthoringService) persistPostWrite(
 	ctx context.Context,
 	target resolvedAuthoringTarget,
+	snapshotID string,
+	revisionID string,
 	previousDigest string,
 	operation RevisionOperation,
 	body string,
@@ -28,7 +30,7 @@ func (s *ManagedHeartbeatAuthoringService) persistPostWrite(
 	}
 	now := s.now()
 	snapshot, err := SnapshotFromResolved(
-		s.newID("hb"),
+		snapshotID,
 		target.workspaceID,
 		target.agentName,
 		&resolved,
@@ -43,6 +45,7 @@ func (s *ManagedHeartbeatAuthoringService) persistPostWrite(
 	}
 	revision, err := s.appendRevision(
 		ctx,
+		revisionID,
 		target,
 		operation,
 		previousDigest,
@@ -60,6 +63,8 @@ func (s *ManagedHeartbeatAuthoringService) persistPostWrite(
 func (s *ManagedHeartbeatAuthoringService) persistPostDelete(
 	ctx context.Context,
 	target resolvedAuthoringTarget,
+	snapshotID string,
+	revisionID string,
 	previousDigest string,
 	operation RevisionOperation,
 	actor AuthoringIdentity,
@@ -74,7 +79,7 @@ func (s *ManagedHeartbeatAuthoringService) persistPostDelete(
 	}
 	now := s.now()
 	snapshot, err := SnapshotFromResolved(
-		s.newID("hb"),
+		snapshotID,
 		target.workspaceID,
 		target.agentName,
 		&resolved,
@@ -89,6 +94,7 @@ func (s *ManagedHeartbeatAuthoringService) persistPostDelete(
 	}
 	revision, err := s.appendRevision(
 		ctx,
+		revisionID,
 		target,
 		operation,
 		previousDigest,
@@ -101,6 +107,18 @@ func (s *ManagedHeartbeatAuthoringService) persistPostDelete(
 		return MutationResult{}, err
 	}
 	return MutationResult{Policy: resolved, Snapshot: snapshot, Revision: revision}, nil
+}
+
+func (s *ManagedHeartbeatAuthoringService) newPostMutationIDs() (string, string, error) {
+	snapshotID, err := s.newID("hb")
+	if err != nil {
+		return "", "", fmt.Errorf("heartbeat: generate snapshot id: %w", err)
+	}
+	revisionID, err := s.newID("hrev")
+	if err != nil {
+		return "", "", fmt.Errorf("heartbeat: generate revision id: %w", err)
+	}
+	return snapshotID, revisionID, nil
 }
 
 type rollbackTarget struct {

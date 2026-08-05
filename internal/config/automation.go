@@ -3,11 +3,11 @@ package config
 import (
 	"errors"
 	"fmt"
-	"maps"
 	"strings"
 	"time"
 
 	automationpkg "github.com/compozy/compozy/internal/automation/model"
+	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/vault"
 )
 
@@ -404,6 +404,7 @@ func cloneParsedJobTaskConfig(config *automationpkg.JobTaskConfig) *automationpk
 		owner := *config.Owner
 		cloned.Owner = &owner
 	}
+	cloned.NetworkParticipation = participation.CloneRequest(config.NetworkParticipation)
 	return &cloned
 }
 
@@ -412,11 +413,9 @@ func cloneAutomationLoopTarget(target *automationpkg.LoopTarget) *automationpkg.
 		return nil
 	}
 	cloned := *target
-	if len(target.Inputs) > 0 {
-		cloned.Inputs = make(map[string]any, len(target.Inputs))
-		maps.Copy(cloned.Inputs, target.Inputs)
-	}
+	cloned.Inputs = cloneConfigAnyMap(target.Inputs)
 	cloned.InputMapping = mergeStringMaps(nil, target.InputMapping)
+	cloned.NetworkParticipation = participation.CloneRequest(target.NetworkParticipation)
 	return &cloned
 }
 

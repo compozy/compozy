@@ -213,7 +213,7 @@ func (s *Store) applyReplayDecision(ctx context.Context, decision replayDecision
 		if strings.TrimSpace(decision.PostContentHash) == "" {
 			decision.PostContentHash = hashMemoryContent([]byte(decision.PostContent))
 		}
-		matches, err := s.replayTargetMatchesHash(decision)
+		matches, err := s.replayTargetMatchesHash(ctx, decision)
 		if err != nil {
 			return false, 0, err
 		}
@@ -244,17 +244,13 @@ func (s *Store) applyReplayDecision(ctx context.Context, decision replayDecision
 	}
 }
 
-func (s *Store) replayTargetMatchesHash(decision replayDecision) (bool, error) {
-	path, err := s.pathFor(decision.Scope, decision.TargetFilename)
-	if err != nil {
-		return false, err
-	}
-	content, err := os.ReadFile(path)
+func (s *Store) replayTargetMatchesHash(ctx context.Context, decision replayDecision) (bool, error) {
+	content, err := s.Read(ctx, decision.Scope, decision.TargetFilename)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return false, nil
 		}
-		return false, fmt.Errorf("memory: read replay target %q: %w", path, err)
+		return false, fmt.Errorf("memory: read replay target %q: %w", decision.TargetFilename, err)
 	}
 	return hashMemoryContent(content) == strings.TrimSpace(decision.PostContentHash), nil
 }

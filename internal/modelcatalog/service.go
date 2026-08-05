@@ -214,7 +214,9 @@ func (s *CatalogService) persistSourceRows(
 		}
 		status := sourceStatus(source, provider, now, len(providerRows), stale, lastError, state)
 		if stale {
-			s.preserveLastSuccess(ctx, provider, &status)
+			if err := s.preserveLastSuccess(ctx, provider, &status); err != nil {
+				return nil, err
+			}
 		}
 		if err := s.store.ReplaceSourceRows(ctx, source.ID(), provider, providerRows, status); err != nil {
 			return nil, fmt.Errorf("model catalog: persist source rows for %q/%q: %w", source.ID(), provider, err)
@@ -371,17 +373,18 @@ func sourceStatus(
 	return status
 }
 
-func (s *CatalogService) preserveLastSuccess(ctx context.Context, providerID string, status *SourceStatus) {
+func (s *CatalogService) preserveLastSuccess(ctx context.Context, providerID string, status *SourceStatus) error {
 	statuses, err := s.store.ListSourceStatus(ctx, providerID)
 	if err != nil {
-		return
+		return fmt.Errorf("model catalog: list prior source status for %q/%q: %w", status.SourceID, providerID, err)
 	}
 	for _, previous := range statuses {
 		if previous.SourceID == status.SourceID {
 			status.LastSuccess = previous.LastSuccess
-			return
+			return nil
 		}
 	}
+	return nil
 }
 
 func groupRowsByProvider(source Source, rows []ModelRow) map[string][]ModelRow {

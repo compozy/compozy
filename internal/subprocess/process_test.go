@@ -2,12 +2,14 @@ package subprocess
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -66,6 +68,132 @@ func TestLaunchSpawnsProcessAndConnectsPipes(t *testing.T) {
 	}
 }
 
+func TestEnvironmentLookupUsesPlatformSemantics(t *testing.T) {
+	t.Parallel()
+
+	env := []string{
+		"Path=/mixed/first",
+		"PATH=/exact/first",
+		"PATH=/exact/last",
+		"path=/mixed/last",
+		"PATHEXT=.COM;.BAT",
+		"Pathext=.EXE;.CMD",
+		"HOME=/exact/home",
+		"Home=/mixed/home",
+		"USERPROFILE=C:\\exact-home",
+		"UserProfile=C:\\mixed-home",
+		"PROVIDER_TOKEN=exact-secret",
+		"Provider_Token=mixed-secret",
+	}
+	tests := []struct {
+		name            string
+		caseInsensitive bool
+		want            map[string]string
+	}{
+		{
+			name:            "resolve Windows keys case-insensitively with the last assignment winning",
+			caseInsensitive: true,
+			want: map[string]string{
+				"PATH":           "/mixed/last",
+				"PATHEXT":        ".EXE;.CMD",
+				"HOME":           "/mixed/home",
+				"USERPROFILE":    "C:\\mixed-home",
+				"PROVIDER_TOKEN": "mixed-secret",
+			},
+		},
+		{
+			name:            "resolve Unix keys case-sensitively with the last exact assignment winning",
+			caseInsensitive: false,
+			want: map[string]string{
+				"PATH":           "/exact/last",
+				"PATHEXT":        ".COM;.BAT",
+				"HOME":           "/exact/home",
+				"USERPROFILE":    "C:\\exact-home",
+				"PROVIDER_TOKEN": "exact-secret",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run("Should "+tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			for key, want := range tt.want {
+				got, ok := lookupEnvForPlatform(env, key, tt.caseInsensitive)
+				if !ok || got != want {
+					t.Fatalf("lookupEnvForPlatform(%q) = %q, %t; want %q, true", key, got, ok, want)
+				}
+			}
+			if got, ok := lookupEnvForPlatform(env, "MISSING", tt.caseInsensitive); ok || got != "" {
+				t.Fatalf("lookupEnvForPlatform(MISSING) = %q, %t; want empty, false", got, ok)
+			}
+
+			updated := setEnvValueForPlatform(env, "PATH", "/final", tt.caseInsensitive)
+			matches := 0
+			for _, entry := range updated {
+				key, _, ok := strings.Cut(entry, "=")
+				if ok && environmentKeyEqual(key, "PATH", tt.caseInsensitive) {
+					matches++
+				}
+			}
+			if matches != 1 {
+				t.Fatalf("setEnvValueForPlatform(PATH) retained %d matching keys; want 1", matches)
+			}
+			if got, ok := lookupEnvForPlatform(updated, "PATH", tt.caseInsensitive); !ok || got != "/final" {
+				t.Fatalf("updated PATH = %q, %t; want /final, true", got, ok)
+			}
+		})
+	}
+}
+
+func TestResolveExecutableRejectsImplicitRelativePath(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should normalize an exhausted executable search to exec ErrNotFound", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := ResolveExecutable("missing-provider", []string{"PATH=" + t.TempDir()}, t.TempDir())
+		if !errors.Is(err, exec.ErrNotFound) {
+			t.Fatalf("ResolveExecutable(missing) error = %v, want exec.ErrNotFound", err)
+		}
+		if errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("ResolveExecutable(missing) error = %v, must not expose os.ErrNotExist", err)
+		}
+	})
+
+	t.Run("Should preserve a missing launch directory as an operational failure", func(t *testing.T) {
+		t.Parallel()
+
+		cwd := t.TempDir()
+		if err := os.Remove(cwd); err != nil {
+			t.Fatalf("os.Remove(cwd) error = %v", err)
+		}
+		_, err := ResolveExecutable("provider", []string{"PATH=/provider/bin"}, cwd)
+		if !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("ResolveExecutable(missing cwd) error = %v, want os.ErrNotExist", err)
+		}
+		if errors.Is(err, exec.ErrNotFound) {
+			t.Fatalf("ResolveExecutable(missing cwd) error = %v, must not be exec.ErrNotFound", err)
+		}
+	})
+
+	t.Run("Should reject an executable found through an implicit relative PATH entry", func(t *testing.T) {
+		t.Parallel()
+
+		command := "implicit-relative-provider"
+		if runtime.GOOS == subprocessWindowsKey {
+			command += ".exe"
+		}
+		cwd := t.TempDir()
+		if err := os.WriteFile(filepath.Join(cwd, command), []byte("fixture"), 0o755); err != nil {
+			t.Fatalf("os.WriteFile(relative executable) error = %v", err)
+		}
+		_, err := ResolveExecutable(command, []string{"PATH=."}, cwd)
+		if !errors.Is(err, exec.ErrDot) {
+			t.Fatalf("ResolveExecutable(relative PATH) error = %v, want exec.ErrDot", err)
+		}
+	})
+}
+
 func TestCallSendsRequestAndReceivesResponse(t *testing.T) {
 	t.Parallel()
 
@@ -113,8 +241,9 @@ func TestCallReturnsTypedResponseDecodeError(t *testing.T) {
 			map[string]string{"message": "not-an-integer"},
 			&response,
 		)
-		var decodeErr *ResponseDecodeError
-		if !errors.As(err, &decodeErr) {
+
+		decodeErr, decodeErrMatched := errors.AsType[*ResponseDecodeError](err)
+		if !decodeErrMatched {
 			t.Fatalf("Call(echo) error = %v, want ResponseDecodeError", err)
 		}
 		if got, want := decodeErr.Method, "echo"; got != want {
@@ -197,6 +326,85 @@ func TestHandleMethodRoutesInboundRequests(t *testing.T) {
 	}
 }
 
+func TestHandleMethodRedactsClaimBearerFromSerializedErrors(t *testing.T) {
+	t.Parallel()
+
+	const rawToken = "compozy_claim_subprocess-serializer-secret"
+	tests := []struct {
+		name     string
+		handler  HandlerFunc
+		wantCode int
+	}{
+		{
+			name: "generic handler error",
+			handler: func(context.Context, json.RawMessage) (any, error) {
+				return nil, errors.New("provider returned " + rawToken)
+			},
+			wantCode: codeInternalError,
+		},
+		{
+			name: "rpc handler error with nested data",
+			handler: func(context.Context, json.RawMessage) (any, error) {
+				return nil, NewRPCError(451, "provider returned "+rawToken, map[string]any{
+					"claim_token": rawToken,
+					"nested":      map[string]any{"detail": rawToken},
+					rawToken:      "discarded",
+				})
+			},
+			wantCode: 451,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run("Should serialize "+tt.name+" without raw claim bearer", func(t *testing.T) {
+			t.Parallel()
+
+			lifecycleCtx, cancel := context.WithCancel(t.Context())
+			t.Cleanup(cancel)
+			var capture bytes.Buffer
+			process := &Process{
+				stdin:           discardWriteCloser{Writer: &capture},
+				lifecycleCtx:    lifecycleCtx,
+				cancelLifecycle: cancel,
+				done:            make(chan struct{}),
+				state:           processStateReady,
+			}
+			process.transport = newTransport(process, defaultMaxMessageBytes)
+			if err := process.HandleMethod("host/error", tt.handler); err != nil {
+				t.Fatalf("HandleMethod() error = %v", err)
+			}
+
+			process.transport.handleRequest(rpcEnvelope{
+				JSONRPC: jsonRPCVersion,
+				ID:      json.RawMessage("1"),
+				Method:  "host/error",
+			})
+			process.transport.handlerWG.Wait()
+
+			if strings.Contains(capture.String(), rawToken) {
+				t.Fatalf("serialized response leaked raw bearer: %s", capture.String())
+			}
+			var response rpcResponse
+			if err := json.Unmarshal(capture.Bytes(), &response); err != nil {
+				t.Fatalf("json.Unmarshal(serialized response) error = %v", err)
+			}
+			if response.Error == nil {
+				t.Fatalf("serialized response = %#v, want rpc error", response)
+			}
+			if response.Error.Code != tt.wantCode {
+				t.Fatalf("serialized rpc error code = %d, want %d", response.Error.Code, tt.wantCode)
+			}
+			if strings.Contains(response.Error.Message, rawToken) ||
+				strings.Contains(string(response.Error.Data), rawToken) {
+				t.Fatalf("serialized rpc error = %#v, leaked raw bearer", response.Error)
+			}
+			if len(response.Error.Data) > 0 && !json.Valid(response.Error.Data) {
+				t.Fatalf("serialized rpc error data = %s, want valid JSON", response.Error.Data)
+			}
+		})
+	}
+}
+
 func TestInitializeHandshakeSucceedsWithCompatibleVersions(t *testing.T) {
 	t.Parallel()
 
@@ -230,8 +438,8 @@ func TestInitializeHandshakeFailsForUnsupportedProtocolVersion(t *testing.T) {
 		t.Fatal("Initialize() error = nil, want invalid params error")
 	}
 
-	var rpcErr *RPCError
-	if !errors.As(err, &rpcErr) {
+	rpcErr, rpcErrMatched := errors.AsType[*RPCError](err)
+	if !rpcErrMatched {
 		t.Fatalf("Initialize() error = %T, want *RPCError", err)
 	}
 	if rpcErr.Code != codeInvalidParams {
@@ -372,7 +580,7 @@ func TestShutdownSendsCooperativeRequest(t *testing.T) {
 func TestShutdownKillsAfterTimeout(t *testing.T) {
 	t.Parallel()
 
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == subprocessWindowsKey {
 		t.Skip("SIGKILL escalation semantics are unix-only")
 	}
 
@@ -850,6 +1058,8 @@ func launchHelperProcess(t *testing.T, scenario string, cfg LaunchConfig, extraE
 		PostSignalGrace:        cfg.PostSignalGrace,
 		ShutdownReason:         cfg.ShutdownReason,
 		HealthFailureThreshold: cfg.HealthFailureThreshold,
+		ProcessRegistry:        cfg.ProcessRegistry,
+		ProcessRecord:          cfg.ProcessRecord,
 	})
 	if err != nil {
 		t.Fatalf("Launch(helper %s) error = %v", scenario, err)
@@ -897,7 +1107,9 @@ func shutdownProcess(t *testing.T, process *Process) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	_ = process.Shutdown(ctx)
+	if err := process.Shutdown(ctx); err != nil {
+		t.Logf("Process.Shutdown() cleanup result = %v", err)
+	}
 }
 
 func waitForCondition(t *testing.T, timeout time.Duration, predicate func() bool) {
@@ -939,7 +1151,7 @@ func newHelperServer(scenario string, shutdownMarker string) *helperServer {
 func (h *helperServer) run() int {
 	if h.scenario == "raw_echo" {
 		if _, err := io.Copy(os.Stdout, os.Stdin); err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "raw echo: %v\n", err)
+			writeHelperDiagnostic("raw echo: %v\n", err)
 			return 1
 		}
 		return 0
@@ -955,7 +1167,7 @@ func (h *helperServer) run() int {
 
 		var envelope rpcEnvelope
 		if err := json.Unmarshal([]byte(line), &envelope); err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "decode envelope: %v\n", err)
+			writeHelperDiagnostic("decode envelope: %v\n", err)
 			return 1
 		}
 		if envelope.Method == "" {
@@ -968,7 +1180,7 @@ func (h *helperServer) run() int {
 		go h.handleRequest(envelope)
 	}
 	if err := scanner.Err(); err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "scan stdin: %v\n", err)
+		writeHelperDiagnostic("scan stdin: %v\n", err)
 		return 1
 	}
 	if h.shutdownHang {
@@ -994,7 +1206,7 @@ func (h *helperServer) handleRequest(envelope rpcEnvelope) {
 	case "oversize":
 		h.handleOversize(envelope)
 	default:
-		_ = h.sendError(
+		h.mustSendError(
 			envelope.ID,
 			NewRPCError(codeMethodNotFound, "Method not found", map[string]string{"method": envelope.Method}),
 		)
@@ -1003,7 +1215,7 @@ func (h *helperServer) handleRequest(envelope rpcEnvelope) {
 
 func (h *helperServer) handleInitialize(envelope rpcEnvelope) {
 	if h.scenario == "version_mismatch" {
-		_ = h.sendError(envelope.ID, NewRPCError(codeInvalidParams, "Invalid params", map[string]any{
+		h.mustSendError(envelope.ID, NewRPCError(codeInvalidParams, "Invalid params", map[string]any{
 			"reason":                      "unsupported_protocol_version",
 			"requested":                   "9",
 			"supported_protocol_versions": []string{defaultProtocolVersion},
@@ -1013,7 +1225,7 @@ func (h *helperServer) handleInitialize(envelope rpcEnvelope) {
 
 	var request InitializeRequest
 	if err := json.Unmarshal(envelope.Params, &request); err != nil {
-		_ = h.sendError(
+		h.mustSendError(
 			envelope.ID,
 			NewRPCError(codeInvalidParams, "Invalid params", map[string]string{"error": err.Error()}),
 		)
@@ -1036,7 +1248,7 @@ func (h *helperServer) handleInitialize(envelope rpcEnvelope) {
 			HealthCheck: true,
 		},
 	}
-	_ = h.sendResult(envelope.ID, response)
+	h.mustSendResult(envelope.ID, response)
 
 	if h.scenario == "crash_after_init" {
 		go func() {
@@ -1051,13 +1263,13 @@ func (h *helperServer) handleEcho(envelope rpcEnvelope) {
 		Message string `json:"message"`
 	}
 	if err := json.Unmarshal(envelope.Params, &request); err != nil {
-		_ = h.sendError(
+		h.mustSendError(
 			envelope.ID,
 			NewRPCError(codeInvalidParams, "Invalid params", map[string]string{"error": err.Error()}),
 		)
 		return
 	}
-	_ = h.sendResult(envelope.ID, map[string]string{"message": request.Message})
+	h.mustSendResult(envelope.ID, map[string]string{"message": request.Message})
 }
 
 func (h *helperServer) handleSleep(envelope rpcEnvelope) {
@@ -1066,14 +1278,14 @@ func (h *helperServer) handleSleep(envelope rpcEnvelope) {
 		Message string `json:"message"`
 	}
 	if err := json.Unmarshal(envelope.Params, &request); err != nil {
-		_ = h.sendError(
+		h.mustSendError(
 			envelope.ID,
 			NewRPCError(codeInvalidParams, "Invalid params", map[string]string{"error": err.Error()}),
 		)
 		return
 	}
 	time.Sleep(time.Duration(request.DelayMS) * time.Millisecond)
-	_ = h.sendResult(envelope.ID, map[string]string{"message": request.Message})
+	h.mustSendResult(envelope.ID, map[string]string{"message": request.Message})
 }
 
 func (h *helperServer) handleRelayToHost(envelope rpcEnvelope) {
@@ -1082,7 +1294,7 @@ func (h *helperServer) handleRelayToHost(envelope rpcEnvelope) {
 		Params json.RawMessage `json:"params"`
 	}
 	if err := json.Unmarshal(envelope.Params, &request); err != nil {
-		_ = h.sendError(
+		h.mustSendError(
 			envelope.ID,
 			NewRPCError(codeInvalidParams, "Invalid params", map[string]string{"error": err.Error()}),
 		)
@@ -1091,28 +1303,28 @@ func (h *helperServer) handleRelayToHost(envelope rpcEnvelope) {
 
 	result, err := h.callHost(request.Method, request.Params)
 	if err != nil {
-		_ = h.sendError(
+		h.mustSendError(
 			envelope.ID,
 			NewRPCError(codeInternalError, "Internal error", map[string]string{"error": err.Error()}),
 		)
 		return
 	}
-	_ = h.sendResult(envelope.ID, result)
+	h.mustSendResult(envelope.ID, result)
 }
 
 func (h *helperServer) handleHealthCheck(envelope rpcEnvelope) {
 	switch h.scenario {
 	case "health_timeout":
 		time.Sleep(200 * time.Millisecond)
-		_ = h.sendResult(envelope.ID, HealthCheckResponse{Healthy: true})
+		h.mustSendResult(envelope.ID, HealthCheckResponse{Healthy: true})
 	case "health_false":
-		_ = h.sendResult(envelope.ID, HealthCheckResponse{Healthy: false, Message: "helper unhealthy"})
+		h.mustSendResult(envelope.ID, HealthCheckResponse{Healthy: false, Message: "helper unhealthy"})
 	default:
 		h.healthMu.Lock()
 		h.healthCount++
 		count := h.healthCount
 		h.healthMu.Unlock()
-		_ = h.sendResult(envelope.ID, HealthCheckResponse{
+		h.mustSendResult(envelope.ID, HealthCheckResponse{
 			Healthy: true,
 			Message: "ok-" + strconv.Itoa(count),
 		})
@@ -1121,7 +1333,18 @@ func (h *helperServer) handleHealthCheck(envelope rpcEnvelope) {
 
 func (h *helperServer) handleShutdown(envelope rpcEnvelope) {
 	if h.shutdownMarker != "" {
-		_ = os.WriteFile(h.shutdownMarker, []byte("shutdown"), 0o644)
+		if err := appendShutdownMarker(h.shutdownMarker); err != nil {
+			if sendErr := h.sendError(
+				envelope.ID,
+				NewRPCError(codeInternalError, "Internal error", map[string]string{"error": err.Error()}),
+			); sendErr != nil {
+				os.Exit(1)
+			}
+			return
+		}
+	}
+	if h.scenario == "shutdown_exit_no_ack" {
+		os.Exit(0)
 	}
 	if h.scenario == "shutdown_delayed_ack" {
 		time.Sleep(100 * time.Millisecond)
@@ -1130,12 +1353,28 @@ func (h *helperServer) handleShutdown(envelope rpcEnvelope) {
 		h.shutdownHang = true
 		configureIgnoreTermination()
 	}
-	_ = h.sendResult(envelope.ID, ShutdownResponse{Acknowledged: true})
+	if err := h.sendResult(envelope.ID, ShutdownResponse{Acknowledged: true}); err != nil {
+		os.Exit(1)
+	}
+}
+
+func appendShutdownMarker(path string) (err error) {
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+	if err != nil {
+		return fmt.Errorf("open shutdown marker: %w", err)
+	}
+	defer func() {
+		err = errors.Join(err, file.Close())
+	}()
+	if _, err := file.WriteString("shutdown\n"); err != nil {
+		return fmt.Errorf("write shutdown marker: %w", err)
+	}
+	return nil
 }
 
 func (h *helperServer) handleOversize(envelope rpcEnvelope) {
 	payload := strings.Repeat("x", defaultMaxMessageBytes+1024)
-	_ = h.sendResult(envelope.ID, map[string]string{"message": payload})
+	h.mustSendResult(envelope.ID, map[string]string{"message": payload})
 }
 
 func (h *helperServer) callHost(method string, params json.RawMessage) (json.RawMessage, error) {
@@ -1202,6 +1441,27 @@ func (h *helperServer) sendError(id json.RawMessage, err *RPCError) error {
 		ID:      id,
 		Error:   err,
 	})
+}
+
+func (h *helperServer) mustSendResult(id json.RawMessage, result any) {
+	if err := h.sendResult(id, result); err != nil {
+		writeHelperDiagnostic("send result: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+func (h *helperServer) mustSendError(id json.RawMessage, rpcErr *RPCError) {
+	if err := h.sendError(id, rpcErr); err != nil {
+		writeHelperDiagnostic("send error response: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+func writeHelperDiagnostic(format string, args ...any) {
+	if _, err := fmt.Fprintf(os.Stderr, format, args...); err != nil {
+		// The helper already exits non-zero; stderr may be unavailable after the parent closes the pipe.
+		return
+	}
 }
 
 func (h *helperServer) writeEnvelope(envelope any) error {

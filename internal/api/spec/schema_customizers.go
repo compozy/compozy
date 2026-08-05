@@ -49,6 +49,7 @@ var schemaCustomizers = map[reflect.Type]func(*openapi3.Schema){
 	reflect.TypeFor[contract.SettingsMCPCatalogInputPayload]():      customizeSettingsMCPCatalogInputSchema,
 	reflect.TypeFor[contract.SettingsMCPAuthExchangeRequest]():      customizeSettingsMCPAuthExchangeRequestSchema,
 	reflect.TypeFor[contract.AttachSessionRequest]():                customizeAttachSessionRequestSchema,
+	reflect.TypeFor[contract.SchedulerDrainRequest]():               customizeSchedulerDrainRequestSchema,
 	rawMessageType: func(schema *openapi3.Schema) {
 		*schema = *openapi3.NewSchema()
 	},

@@ -205,16 +205,19 @@ func (r *taskRoleRuntime) shutdown(ctx context.Context) error {
 		return errors.New("daemon: task role runtime shutdown context is required")
 	}
 	r.lifecycleMu.Lock()
+	firstStop := !r.stopping
 	r.stopping = true
+	done := r.done
 	r.lifecycleMu.Unlock()
-	if r.cancel != nil {
-		r.cancel()
+	if firstStop {
+		if r.cancel != nil {
+			r.cancel()
+		}
+		go func() {
+			r.wg.Wait()
+			close(done)
+		}()
 	}
-	done := make(chan struct{})
-	go func() {
-		r.wg.Wait()
-		close(done)
-	}()
 	select {
 	case <-done:
 		return nil

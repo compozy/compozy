@@ -20,6 +20,10 @@ func TestRunReviewValidation(t *testing.T) {
 			RunID:    " run-1 ",
 			Policy:   ReviewPolicyAlways,
 			Status:   RunReviewStatusRequested,
+			Reason:   "review compozy_claim_reason-secret",
+			MissingWork: json.RawMessage(
+				`["remove compozy_claim_missing-work-secret"]`,
+			),
 		}).Normalize(time.Date(2026, 4, 14, 15, 0, 0, 0, time.UTC))
 		if err != nil {
 			t.Fatalf("Normalize() error = %v", err)
@@ -31,8 +35,11 @@ func TestRunReviewValidation(t *testing.T) {
 		if got, want := review.ReviewRound, defaultRunReviewRound; got != want {
 			t.Fatalf("ReviewRound = %d, want %d", got, want)
 		}
-		if got, want := string(review.MissingWork), "[]"; got != want {
-			t.Fatalf("MissingWork = %q, want %q", got, want)
+		if strings.Contains(review.Reason, "compozy_claim_reason-secret") {
+			t.Fatalf("Reason = %q, leaked raw claim token", review.Reason)
+		}
+		if strings.Contains(string(review.MissingWork), "compozy_claim_missing-work-secret") {
+			t.Fatalf("MissingWork = %q, leaked raw claim token", review.MissingWork)
 		}
 	})
 
@@ -79,6 +86,34 @@ func TestRunReviewValidation(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject review references above the domain limit", func(t *testing.T) {
+		t.Parallel()
+
+		request := RunReviewRequest{
+			TaskID: strings.Repeat("t", MaxReferenceBytes+1),
+			RunID:  "run-1",
+			Reason: "operator supplied compozy_claim_request-secret",
+		}.Normalize()
+		if strings.Contains(request.Reason, "compozy_claim_request-secret") {
+			t.Fatalf("RunReviewRequest.Reason = %q, leaked raw claim token", request.Reason)
+		}
+		if err := request.Validate("run_review_request"); !errors.Is(err, ErrValidation) {
+			t.Fatalf("RunReviewRequest.Validate() error = %v, want %v", err, ErrValidation)
+		}
+
+		confidence := 0.8
+		verdict := RunReviewVerdict{
+			Outcome:     RunReviewOutcomeApproved,
+			Confidence:  &confidence,
+			Reason:      "approved",
+			DeliveryID:  strings.Repeat("d", MaxReferenceBytes+1),
+			MissingWork: json.RawMessage(`[]`),
+		}.Normalize()
+		if err := verdict.Validate("run_review_verdict"); !errors.Is(err, ErrValidation) {
+			t.Fatalf("RunReviewVerdict.Validate() error = %v, want %v", err, ErrValidation)
+		}
+	})
+
 	t.Run("Should match policies to terminal run status", func(t *testing.T) {
 		t.Parallel()
 
@@ -100,6 +135,7 @@ func TestRunReviewValidation(t *testing.T) {
 		t.Parallel()
 
 		confidence := 0.8
+		const rawToken = "compozy_claim_review-secret"
 		approved := RunReviewVerdict{
 			Outcome:     RunReviewOutcomeApproved,
 			Confidence:  &confidence,
@@ -112,14 +148,26 @@ func TestRunReviewValidation(t *testing.T) {
 		}
 
 		rejected := RunReviewVerdict{
-			Outcome:     RunReviewOutcomeRejected,
-			Confidence:  &confidence,
-			Reason:      "work remains",
-			DeliveryID:  "delivery-2",
-			MissingWork: json.RawMessage(`["add regression tests"]`),
+			Outcome:           RunReviewOutcomeRejected,
+			Confidence:        &confidence,
+			Reason:            "work remains " + rawToken,
+			DeliveryID:        "delivery-2",
+			MissingWork:       json.RawMessage(`["add ` + rawToken + ` regression tests"]`),
+			NextRoundGuidance: "remove " + rawToken,
+			ReviewText:        "review " + rawToken,
 		}.Normalize()
 		if err := rejected.Validate("verdict"); err != nil {
 			t.Fatalf("Validate(rejected) error = %v", err)
+		}
+		for field, value := range map[string]string{
+			"reason":              rejected.Reason,
+			"missing_work":        string(rejected.MissingWork),
+			"next_round_guidance": rejected.NextRoundGuidance,
+			"review_text":         rejected.ReviewText,
+		} {
+			if strings.Contains(value, rawToken) {
+				t.Fatalf("rejected %s = %q, leaked raw claim token", field, value)
+			}
 		}
 
 		rejected.MissingWork = json.RawMessage(`[]`)

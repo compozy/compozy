@@ -477,8 +477,9 @@ func TestDecodeGoalActionControlShouldRejectInvalidPayload(t *testing.T) {
 			if err == nil {
 				t.Fatal("DecodeActionControlResult() error = nil, want invalid control")
 			}
-			var reasonErr *ReasonError
-			if !errors.As(err, &reasonErr) {
+
+			reasonErr, reasonErrMatched := errors.AsType[*ReasonError](err)
+			if !reasonErrMatched {
 				t.Fatalf("error = %v, want ReasonError", err)
 			}
 			if got, want := reasonErr.Code, ReasonCodeGoalActionControlInvalid; got != want {

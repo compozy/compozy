@@ -917,8 +917,9 @@ func TestLinearClientClassifiesHTTPFailures(t *testing.T) {
 		if !errors.Is(err, closeErr) {
 			t.Fatalf("CreateComment() error = %v, want response body close failure", err)
 		}
-		var authErr *bridgesdk.AuthError
-		if !errors.As(err, &authErr) {
+
+		authErr, authErrMatched := errors.AsType[*bridgesdk.AuthError](err)
+		if !authErrMatched {
 			t.Fatalf("CreateComment() error = %T %v, want AuthError", err, err)
 		}
 		if got, want := bridgesdk.ClassifyError(err).Class, bridgesdk.ErrorClassAuth; got != want {
@@ -962,8 +963,9 @@ func TestLinearClientClassifiesHTTPFailures(t *testing.T) {
 		if !errors.Is(err, closeErr) {
 			t.Fatalf("ensureOAuthToken() error = %v, want response body close failure", err)
 		}
-		var transientErr *bridgesdk.TransientError
-		if !errors.As(err, &transientErr) {
+
+		transientErr, transientErrMatched := errors.AsType[*bridgesdk.TransientError](err)
+		if !transientErrMatched {
 			t.Fatalf("ensureOAuthToken() error = %T %v, want TransientError", err, err)
 		}
 		if got, want := bridgesdk.ClassifyError(err).Class, bridgesdk.ErrorClassTransient; got != want {

@@ -15,6 +15,9 @@ func configNodeFromValue(value reflect.Value, fieldName string) (any, bool) {
 	if !ok {
 		return nil, false
 	}
+	if strings.EqualFold(fieldName, toolSurfaceAuthLoginCommandKey) {
+		return RedactedValue(), true
+	}
 	if value.Type() == configToolDurationType {
 		return time.Duration(value.Int()).String(), true
 	}

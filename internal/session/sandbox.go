@@ -153,7 +153,11 @@ func (m *Manager) initializeSandboxMetaForStart(
 		sandboxID = sessionSandboxID(spec.sandbox)
 	}
 	if sandboxID == "" {
-		sandboxID = strings.TrimSpace(m.newSandboxID())
+		generated, err := m.newSandboxID()
+		if err != nil {
+			return "", nil, fmt.Errorf("session: generate sandbox id: %w", err)
+		}
+		sandboxID = strings.TrimSpace(generated)
 	}
 	if sandboxID == "" {
 		return "", nil, errors.New("session: sandbox id generator returned empty id")

@@ -1422,7 +1422,7 @@ export function buildBridgeNotificationCursorFixture(
   overrides: Partial<TaskBridgeNotificationCursor> = {}
 ): TaskBridgeNotificationCursor {
   return {
-    consumer_id: "bridge_task_subscription:bsub_001",
+    consumer_id: "bsub_001",
     stream_name: "task_events",
     subject_id: "task_001",
     last_sequence: 14,
@@ -1457,7 +1457,7 @@ export function buildTaskBridgeNotificationSubscriptionFixture(
       overrides.cursor ??
       buildBridgeNotificationCursorFixture({
         subject_id: overrides.task_id ?? "task_001",
-        consumer_id: `bridge_task_subscription:${overrides.subscription_id ?? "bsub_001"}`,
+        consumer_id: overrides.subscription_id ?? "bsub_001",
       }),
   } as TaskBridgeNotificationSubscription;
 }
@@ -1477,7 +1477,7 @@ export const taskBridgeNotificationSubscriptionsFixture: TaskBridgeNotificationS
     group_id: "launch_observers",
     thread_id: "thread_launch_partner",
     cursor: buildBridgeNotificationCursorFixture({
-      consumer_id: "bridge_task_subscription:bsub_002",
+      consumer_id: "bsub_002",
       subject_id: "task_001",
       last_sequence: 0,
       last_delivery_id: undefined,

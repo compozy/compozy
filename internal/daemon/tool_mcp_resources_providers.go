@@ -17,7 +17,7 @@ import (
 
 func daemonConfigMCPDeclarationProvider(
 	cfg *compozyconfig.Config,
-	registry Registry,
+	registry workspaceRegistryReader,
 	workspaceResolver workspacepkg.RuntimeResolver,
 	logger *slog.Logger,
 ) toolMCPConfigDeclarationProvider {

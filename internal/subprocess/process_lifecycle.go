@@ -7,26 +7,25 @@ import (
 
 	"os"
 
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/compozy/compozy/internal/toolruntime"
 )
 
-func (p *Process) checkpointShutdownRequested(ctx context.Context) {
+func (p *Process) checkpointShutdownRequested(ctx context.Context) error {
 	if p == nil || p.processRecord == nil {
-		return
+		return nil
 	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	if err := p.processRecord.Checkpoint(context.WithoutCancel(ctx), toolruntime.ProcessCheckpoint{
+	recordCtx, cancel := p.processRecordContext(ctx)
+	defer cancel()
+	if err := p.processRecord.Checkpoint(recordCtx, toolruntime.ProcessCheckpoint{
 		State: toolruntime.ProcessStateInterrupting,
 		Error: "subprocess shutdown requested",
-	}); err != nil && p.logger != nil {
-		p.logger.Warn("subprocess: checkpoint process interrupt", "pid", p.PID(), "error", err)
+	}); err != nil {
+		return fmt.Errorf("subprocess: checkpoint process interrupt: %w", err)
 	}
+	return nil
 }
 
 func (p *Process) waitForExit(ctx context.Context) {
@@ -38,18 +37,20 @@ func (p *Process) waitForExit(ctx context.Context) {
 	}
 	p.cancelLifecycle()
 
-	var groupWaitErr error
-	if p.stopWasRequested() {
-		groupWaitErr = forceManagedProcessGroupExit(p.cmd, defaultProcessGroupWait)
-	}
+	groupWaitErr := forceManagedProcessGroupExit(p.cmd, defaultProcessGroupWait)
 
 	if p.stopWasRequested() {
 		waitErr = nil
 		if groupWaitErr != nil {
 			waitErr = fmt.Errorf("subprocess: wait for process tree exit: %w", groupWaitErr)
 		}
-	} else if waitErr != nil {
-		waitErr = fmt.Errorf("subprocess: process exited: %w", attachStderr(waitErr, p.Stderr()))
+	} else {
+		if waitErr != nil {
+			waitErr = fmt.Errorf("subprocess: process exited: %w", attachStderr(waitErr, p.Stderr()))
+		}
+		if groupWaitErr != nil {
+			waitErr = errors.Join(waitErr, fmt.Errorf("subprocess: release process tree: %w", groupWaitErr))
+		}
 	}
 
 	if p.transport != nil {
@@ -68,17 +69,22 @@ func (p *Process) waitForExit(ctx context.Context) {
 		waitErr = errors.Join(waitErr, transportErr)
 	}
 
+	if p.processRecord != nil {
+		recordCtx, cancel := p.processRecordContext(ctx)
+		if err := p.processRecord.Complete(recordCtx, toolruntime.ProcessCompletion{Err: waitErr}); err != nil {
+			waitErr = errors.Join(waitErr, fmt.Errorf("subprocess: complete process record: %w", err))
+		}
+		cancel()
+	}
+
 	p.waitMu.Lock()
 	p.waitErr = waitErr
 	p.waitMu.Unlock()
-	if p.processRecord != nil {
-		if err := p.processRecord.Complete(ctx, toolruntime.ProcessCompletion{Err: waitErr}); err != nil &&
-			p.logger != nil {
-			p.logger.Warn("subprocess: complete process record", "pid", p.PID(), "error", err)
-		}
-	}
-
 	close(p.done)
+}
+
+func (p *Process) processRecordContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), p.shutdownTimeout)
 }
 
 func (p *Process) waitWithContext(ctx context.Context, timeout time.Duration) error {
@@ -170,10 +176,7 @@ func isBenignTransportShutdownError(err error) bool {
 	if err == nil {
 		return false
 	}
-	if errors.Is(err, os.ErrClosed) {
-		return true
-	}
-	return strings.Contains(err.Error(), "file already closed")
+	return errors.Is(err, os.ErrClosed)
 }
 
 func (cfg LaunchConfig) defaultShutdownReason() string {

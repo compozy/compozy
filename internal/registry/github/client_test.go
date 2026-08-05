@@ -8,16 +8,19 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"net/url"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/outboundpolicy"
 	"github.com/compozy/compozy/internal/registry"
 )
 
@@ -191,14 +194,14 @@ func TestClientInfoFetchesLatestAndVersions(t *testing.T) {
 		case "/repos/acme/demo/releases/latest":
 			latestCalls++
 			writer.Header().Set("Content-Type", "application/json")
-			_, _ = writer.Write([]byte(`{
+			writeTestHTTPResponse(t, writer, []byte(`{
 				"name":"Demo",
 				"body":"Release notes",
 				"tag_name":"v1.2.3",
 				"draft":false,
 				"prerelease":false,
-				"tarball_url":"` + serverURLPlaceholder + `/downloads/source.tar.gz",
-				"assets":[{"name":"demo-v1.2.3.tar.gz","url":"` + serverURLPlaceholder + `/downloads/asset.tar.gz","browser_download_url":"` + serverURLPlaceholder + `/downloads/asset-browser.tar.gz","content_type":"application/gzip","size":128,"download_count":7}],
+				"tarball_url":"`+serverURLPlaceholder+`/downloads/source.tar.gz",
+				"assets":[{"name":"demo-v1.2.3.tar.gz","url":"`+serverURLPlaceholder+`/downloads/asset.tar.gz","browser_download_url":"`+serverURLPlaceholder+`/downloads/asset-browser.tar.gz","content_type":"application/gzip","size":128,"download_count":7}],
 				"author":{"login":"octocat"}
 			}`))
 		case "/repos/acme/demo/releases":
@@ -210,7 +213,7 @@ func TestClientInfoFetchesLatestAndVersions(t *testing.T) {
 				t.Fatalf("page = %q, want 1", got)
 			}
 			writer.Header().Set("Content-Type", "application/json")
-			_, _ = writer.Write([]byte(`[
+			writeTestHTTPResponse(t, writer, []byte(`[
 				{"tag_name":"v1.2.3","draft":false,"prerelease":false},
 				{"tag_name":"v1.2.2","draft":false,"prerelease":false},
 				{"tag_name":"v1.2.1-rc1","draft":false,"prerelease":true},
@@ -258,7 +261,7 @@ func TestClientDownloadSingleTarballAsset(t *testing.T) {
 			}`)
 		case "/downloads/asset.tar.gz":
 			writer.Header().Set("Content-Type", "application/gzip")
-			_, _ = writer.Write(archive)
+			writeTestHTTPResponse(t, writer, archive)
 		default:
 			http.NotFound(writer, request)
 		}
@@ -387,7 +390,7 @@ func TestClientDownloadSelectsRequestedAsset(t *testing.T) {
 			}`)
 		case "/downloads/darwin.tar.gz":
 			writer.Header().Set("Content-Type", "application/gzip")
-			_, _ = writer.Write(archive)
+			writeTestHTTPResponse(t, writer, archive)
 		default:
 			http.NotFound(writer, request)
 		}
@@ -429,7 +432,7 @@ func TestClientDownloadFallsBackToSourceArchive(t *testing.T) {
 			}`)
 		case "/downloads/source.tar.gz":
 			writer.Header().Set("Content-Type", "application/x-gzip")
-			_, _ = writer.Write(archive)
+			writeTestHTTPResponse(t, writer, archive)
 		default:
 			http.NotFound(writer, request)
 		}
@@ -466,7 +469,7 @@ func TestClientDownloadRejectsUnexpectedContentType(t *testing.T) {
 			}`)
 		case "/downloads/asset.tar.gz":
 			writer.Header().Set("Content-Type", "text/html; charset=utf-8")
-			_, _ = writer.Write([]byte("<html>login</html>"))
+			writeTestHTTPResponse(t, writer, []byte("<html>login</html>"))
 		default:
 			http.NotFound(writer, request)
 		}
@@ -664,6 +667,48 @@ func TestClientFallsBackToFirstPublishedReleaseWhenLatestEndpointIsMissing(t *te
 	}
 }
 
+func TestClientReleaseMetadataResponseOwnership(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should bound metadata and close the response exactly once", func(t *testing.T) {
+		t.Parallel()
+
+		body := &countingReadCloser{
+			Reader: strings.NewReader(strings.Repeat("x", int(maxReleaseMetadataBytes)+1)),
+		}
+		client := newReleaseResponseClient(body)
+		_, err := client.fetchLatestRelease(t.Context(), repoSlug{owner: "acme", name: "demo", full: "acme/demo"})
+		if !errors.Is(err, errReleaseMetadataTooLarge) {
+			t.Fatalf("fetchLatestRelease() error = %v, want errReleaseMetadataTooLarge", err)
+		}
+		if body.closeCalls != 1 {
+			t.Fatalf("response body close calls = %d, want 1", body.closeCalls)
+		}
+	})
+
+	t.Run("Should preserve read drain and close failures", func(t *testing.T) {
+		t.Parallel()
+
+		readErr := errors.New("metadata read failed")
+		drainErr := errors.New("metadata drain failed")
+		closeErr := errors.New("metadata close failed")
+		body := &scriptedErrorReadCloser{
+			readErrors: []error{readErr, drainErr},
+			closeErr:   closeErr,
+		}
+		client := newReleaseResponseClient(body)
+		_, err := client.fetchLatestRelease(t.Context(), repoSlug{owner: "acme", name: "demo", full: "acme/demo"})
+		for _, want := range []error{readErr, drainErr, closeErr} {
+			if !errors.Is(err, want) {
+				t.Fatalf("fetchLatestRelease() error = %v, want %v", err, want)
+			}
+		}
+		if body.closeCalls != 1 {
+			t.Fatalf("response body close calls = %d, want 1", body.closeCalls)
+		}
+	})
+}
+
 func TestClientUsesGitHubToken(t *testing.T) {
 	t.Setenv("GITHUB_TOKEN", "secret-token")
 	server := newGitHubServer(t, func(writer http.ResponseWriter, request *http.Request) {
@@ -716,6 +761,62 @@ func TestClientRetriesHTTP500(t *testing.T) {
 	}
 	if attempts != 3 {
 		t.Fatalf("attempts = %d, want 3", attempts)
+	}
+
+	policyAttempts := 0
+	policyWaits := 0
+	policyClient := NewClient(
+		"https://example.com",
+		WithHTTPClient(&http.Client{
+			Transport: stubRoundTripperFunc(func(request *http.Request) (*http.Response, error) {
+				policyAttempts++
+				switch policyAttempts {
+				case 1:
+					return nil, errors.New("temporary transport failure")
+				case 2:
+					return &http.Response{
+						StatusCode: http.StatusTooManyRequests,
+						Status:     "429 Too Many Requests",
+						Header:     make(http.Header),
+						Body:       io.NopCloser(strings.NewReader(`{"message":"try later"}`)),
+						Request:    request,
+					}, nil
+				default:
+					return &http.Response{
+						StatusCode: http.StatusOK,
+						Status:     "200 OK",
+						Header:     http.Header{"Content-Type": []string{"application/json"}},
+						Body: io.NopCloser(strings.NewReader(`{
+							"tag_name":"v1.2.3",
+							"draft":false,
+							"prerelease":false,
+							"tarball_url":"https://example.com/downloads/source.tar.gz",
+							"assets":[]
+						}`)),
+						Request: request,
+					}, nil
+				}
+			}),
+		}),
+		WithRetryPolicy(time.Millisecond, time.Millisecond, 2),
+		WithSleep(func(context.Context, time.Duration) error {
+			policyWaits++
+			return nil
+		}),
+	)
+	_, err = policyClient.fetchLatestRelease(
+		context.Background(),
+		repoSlug{owner: "acme", name: "demo", full: "acme/demo"},
+	)
+	if err != nil {
+		t.Fatalf("fetchLatestRelease(transport and 429) error = %v", err)
+	}
+	if policyAttempts != 3 || policyWaits != 2 {
+		t.Fatalf(
+			"transport and 429 policy attempts/waits = %d/%d, want 3/2",
+			policyAttempts,
+			policyWaits,
+		)
 	}
 }
 
@@ -1009,31 +1110,6 @@ func TestReadErrorMessageHandlesEmptyAndStructuredBodies(t *testing.T) {
 	}
 }
 
-func TestSleepContextReturnsOnCancelAndZeroWait(t *testing.T) {
-	t.Parallel()
-
-	if err := sleepContext(context.Background(), 0); err != nil {
-		t.Fatalf("sleepContext(zero) error = %v", err)
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	if err := sleepContext(ctx, time.Second); !errors.Is(err, context.Canceled) {
-		t.Fatalf("sleepContext(canceled) error = %v, want context canceled", err)
-	}
-}
-
-func TestNextBackoffRespectsDefaultsAndMax(t *testing.T) {
-	t.Parallel()
-
-	if got := nextBackoff(0, 0); got != defaultInitialBackoff {
-		t.Fatalf("nextBackoff(0,0) = %s, want %s", got, defaultInitialBackoff)
-	}
-	if got := nextBackoff(2*time.Second, 3*time.Second); got != 3*time.Second {
-		t.Fatalf("nextBackoff(2s,3s) = %s, want 3s", got)
-	}
-}
-
 func TestValidateDownloadContentType(t *testing.T) {
 	t.Parallel()
 
@@ -1084,10 +1160,8 @@ func TestDoRequestRejectsInvalidURL(t *testing.T) {
 func TestCheckRateLimitErrorsWhenRemainingZero(t *testing.T) {
 	t.Parallel()
 
+	//nolint:bodyclose // checkRateLimit owns the rate-limit response body.
 	response := newHTTPResponse(http.StatusForbidden, `{"message":"rate limit"}`)
-	defer func() {
-		_ = response.Body.Close()
-	}()
 	response.Header.Set("X-RateLimit-Remaining", "0")
 
 	client := NewClient("")
@@ -1102,7 +1176,9 @@ func TestCheckRateLimitAllowsSuccessfulResponsesThatConsumeFinalQuota(t *testing
 	var logBuffer bytes.Buffer
 	response := newHTTPResponse(http.StatusOK, `{"ok":true}`)
 	defer func() {
-		_ = response.Body.Close()
+		if err := response.Body.Close(); err != nil {
+			t.Errorf("response.Body.Close() error = %v", err)
+		}
 	}()
 	response.Header.Set("X-RateLimit-Remaining", "0")
 
@@ -1124,7 +1200,9 @@ func TestCheckRateLimitLogsInvalidRemainingHeader(t *testing.T) {
 	var logBuffer bytes.Buffer
 	response := newHTTPResponse(http.StatusOK, "")
 	defer func() {
-		_ = response.Body.Close()
+		if err := response.Body.Close(); err != nil {
+			t.Errorf("response.Body.Close() error = %v", err)
+		}
 	}()
 	response.Header.Set("X-RateLimit-Remaining", "bogus")
 
@@ -1176,7 +1254,9 @@ func TestCheckRateLimitWarnsWithoutFailing(t *testing.T) {
 
 	response := newHTTPResponse(http.StatusOK, "")
 	defer func() {
-		_ = response.Body.Close()
+		if err := response.Body.Close(); err != nil {
+			t.Errorf("response.Body.Close() error = %v", err)
+		}
 	}()
 	response.Header.Set("X-RateLimit-Remaining", "5")
 
@@ -1186,14 +1266,246 @@ func TestCheckRateLimitWarnsWithoutFailing(t *testing.T) {
 	}
 }
 
-func TestWithHTTPClientOverridesClient(t *testing.T) {
+func TestWithHTTPClientPreservesInjectedTransportBehavior(t *testing.T) {
 	t.Parallel()
 
-	httpClient := &http.Client{Timeout: 123 * time.Millisecond}
-	client := NewClient("", WithHTTPClient(httpClient))
-	if client.httpClient != httpClient {
-		t.Fatal("WithHTTPClient() did not override http client")
+	called := false
+	httpClient := &http.Client{
+		Timeout: 123 * time.Millisecond,
+		Transport: stubRoundTripperFunc(func(request *http.Request) (*http.Response, error) {
+			called = true
+			return &http.Response{
+				StatusCode: http.StatusNoContent,
+				Status:     "204 No Content",
+				Header:     make(http.Header),
+				Body:       http.NoBody,
+				Request:    request,
+			}, nil
+		}),
 	}
+	client := NewClient("https://example.com", WithHTTPClient(httpClient))
+	response, err := client.doRequest(t.Context(), "https://example.com/ping", acceptJSON)
+	if err != nil {
+		t.Fatalf("doRequest() error = %v", err)
+	}
+	if err := response.Body.Close(); err != nil {
+		t.Fatalf("response.Body.Close() error = %v", err)
+	}
+	if !called || client.httpClient.Timeout != httpClient.Timeout {
+		t.Fatalf(
+			"injected client behavior called=%v timeout=%s, want called and %s",
+			called,
+			client.httpClient.Timeout,
+			httpClient.Timeout,
+		)
+	}
+}
+
+func TestClientOutboundPolicy(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should keep the default credential origins on the public network", func(t *testing.T) {
+		t.Parallel()
+
+		policy, err := newGitHubNetworkPolicy(defaultBaseURL)
+		if err != nil {
+			t.Fatalf("newGitHubNetworkPolicy() error = %v", err)
+		}
+		apiURL, err := url.Parse(defaultBaseURL)
+		if err != nil {
+			t.Fatalf("url.Parse(defaultBaseURL) error = %v", err)
+		}
+		if !policy.IsTrustedOrigin(apiURL) {
+			t.Fatal("default API origin is not authorized to receive credentials")
+		}
+		err = policy.ValidateResolvedAddresses(
+			[]netip.Addr{netip.MustParseAddr("127.0.0.1")},
+			apiURL.Hostname(),
+			"443",
+		)
+		if !errors.Is(err, outboundpolicy.ErrBlockedDestination) {
+			t.Fatalf("default API private resolution error = %v, want ErrBlockedDestination", err)
+		}
+	})
+
+	t.Run("Should attach the token only to the configured API origin", func(t *testing.T) {
+		t.Parallel()
+
+		client := NewClient("https://api.example.com", WithToken("secret-token"))
+		trusted, err := client.newRequest(t.Context(), "https://api.example.com/repos/acme/demo", acceptJSON)
+		if err != nil {
+			t.Fatalf("newRequest(trusted) error = %v", err)
+		}
+		if got := trusted.Header.Get("Authorization"); got != "Bearer secret-token" {
+			t.Fatalf("trusted Authorization = %q, want bearer token", got)
+		}
+		untrusted, err := client.newRequest(t.Context(), "https://objects.example.com/archive.tar.gz", acceptBinary)
+		if err != nil {
+			t.Fatalf("newRequest(untrusted) error = %v", err)
+		}
+		if got := untrusted.Header.Get("Authorization"); got != "" {
+			t.Fatalf("untrusted Authorization = %q, want empty", got)
+		}
+	})
+
+	t.Run("Should not attach the token to an untrusted mutation origin", func(t *testing.T) {
+		t.Parallel()
+
+		client := NewClient(
+			"https://api.example.com",
+			WithToken("secret-token"),
+			WithHTTPClient(&http.Client{
+				Transport: stubRoundTripperFunc(func(request *http.Request) (*http.Response, error) {
+					if got := request.Header.Get("Authorization"); got != "" {
+						t.Fatalf("untrusted mutation Authorization = %q, want empty", got)
+					}
+					return &http.Response{
+						StatusCode: http.StatusNoContent,
+						Status:     "204 No Content",
+						Header:     make(http.Header),
+						Body:       http.NoBody,
+						Request:    request,
+					}, nil
+				}),
+			}),
+		)
+		response, err := client.doMutationRequest(
+			t.Context(),
+			http.MethodPost,
+			"https://objects.example.com/upload",
+			"application/octet-stream",
+			[]byte("payload"),
+		)
+		if err != nil {
+			t.Fatalf("doMutationRequest() error = %v", err)
+		}
+		if err := response.Body.Close(); err != nil {
+			t.Fatalf("response.Body.Close() error = %v", err)
+		}
+	})
+
+	t.Run("Should strip credentials on a cross-origin redirect", func(t *testing.T) {
+		t.Parallel()
+
+		calls := 0
+		client := NewClient(
+			"https://api.example.com",
+			WithToken("secret-token"),
+			WithHTTPClient(&http.Client{
+				Transport: stubRoundTripperFunc(func(request *http.Request) (*http.Response, error) {
+					calls++
+					switch request.URL.Hostname() {
+					case "api.example.com":
+						if got := request.Header.Get("Authorization"); got != "Bearer secret-token" {
+							t.Fatalf("API Authorization = %q, want bearer token", got)
+						}
+						return &http.Response{
+							StatusCode: http.StatusFound,
+							Status:     "302 Found",
+							Header:     http.Header{"Location": []string{"https://objects.example.com/archive.tar.gz"}},
+							Body:       http.NoBody,
+							Request:    request,
+						}, nil
+					case "objects.example.com":
+						if got := request.Header.Get("Authorization"); got != "" {
+							t.Fatalf("redirect Authorization = %q, want empty", got)
+						}
+						return &http.Response{
+							StatusCode: http.StatusNoContent,
+							Status:     "204 No Content",
+							Header:     make(http.Header),
+							Body:       http.NoBody,
+							Request:    request,
+						}, nil
+					default:
+						return nil, fmt.Errorf("unexpected request host %q", request.URL.Hostname())
+					}
+				}),
+			}),
+		)
+		response, err := client.doRequest(t.Context(), "https://api.example.com/archive", acceptBinary)
+		if err != nil {
+			t.Fatalf("doRequest() error = %v", err)
+		}
+		if err := response.Body.Close(); err != nil {
+			t.Fatalf("response.Body.Close() error = %v", err)
+		}
+		if calls != 2 {
+			t.Fatalf("transport calls = %d, want 2", calls)
+		}
+	})
+
+	t.Run("Should strip credentials added by an inherited redirect callback", func(t *testing.T) {
+		t.Parallel()
+
+		calls := 0
+		client := NewClient(
+			"https://api.example.com",
+			WithToken("secret-token"),
+			WithHTTPClient(&http.Client{
+				CheckRedirect: func(request *http.Request, _ []*http.Request) error {
+					request.Header.Set("Authorization", "Bearer callback-token")
+					return nil
+				},
+				Transport: stubRoundTripperFunc(func(request *http.Request) (*http.Response, error) {
+					calls++
+					if request.URL.Hostname() == "api.example.com" {
+						return &http.Response{
+							StatusCode: http.StatusFound,
+							Status:     "302 Found",
+							Header: http.Header{
+								"Location": []string{"https://objects.example.com/archive.tar.gz"},
+							},
+							Body:    http.NoBody,
+							Request: request,
+						}, nil
+					}
+					if got := request.Header.Get("Authorization"); got != "" {
+						t.Fatalf("redirect Authorization = %q, want empty after inherited callback", got)
+					}
+					return &http.Response{
+						StatusCode: http.StatusNoContent,
+						Status:     "204 No Content",
+						Header:     make(http.Header),
+						Body:       http.NoBody,
+						Request:    request,
+					}, nil
+				}),
+			}),
+		)
+		response, err := client.doRequest(t.Context(), "https://api.example.com/archive", acceptBinary)
+		if err != nil {
+			t.Fatalf("doRequest() error = %v", err)
+		}
+		if err := response.Body.Close(); err != nil {
+			t.Fatalf("response.Body.Close() error = %v", err)
+		}
+		if calls != 2 {
+			t.Fatalf("transport calls = %d, want 2", calls)
+		}
+	})
+
+	t.Run("Should reject private metadata destinations before transport", func(t *testing.T) {
+		t.Parallel()
+
+		called := false
+		client := NewClient(
+			"https://api.example.com",
+			WithToken("secret-token"),
+			WithHTTPClient(&http.Client{Transport: stubRoundTripperFunc(func(*http.Request) (*http.Response, error) {
+				called = true
+				return nil, errors.New("unexpected transport call")
+			})}),
+		)
+		//nolint:bodyclose // A blocked destination cannot return a response.
+		_, err := client.doRequest(t.Context(), "https://169.254.169.254/latest/meta-data", acceptBinary)
+		if !errors.Is(err, outboundpolicy.ErrBlockedDestination) {
+			t.Fatalf("doRequest() error = %v, want ErrBlockedDestination", err)
+		}
+		if called {
+			t.Fatal("private destination reached the transport")
+		}
+	})
 }
 
 func TestSelectReleaseDownloadErrors(t *testing.T) {
@@ -1235,7 +1547,7 @@ func TestCloseResponseBodyAndJoinErrors(t *testing.T) {
 		t.Fatalf("closeResponseBody(nil) error = %v", err)
 	}
 
-	closer := &stubCloser{err: errors.New("close failed")}
+	closer := &errorReadCloser{Reader: strings.NewReader("response"), closeErr: errors.New("close failed")}
 	err := closeResponseBody(closer, "test response")
 	if err == nil || !strings.Contains(err.Error(), "close failed") {
 		t.Fatalf("closeResponseBody() error = %v, want close failure", err)
@@ -1273,14 +1585,23 @@ func newGitHubServer(t *testing.T, handler func(http.ResponseWriter, *http.Reque
 			t.Fatalf("io.ReadAll(response.Body) error = %v", err)
 		}
 		payload = bytes.ReplaceAll(payload, []byte(serverURLPlaceholder), []byte(server.URL))
-		_, _ = writer.Write(payload)
+		writeTestHTTPResponse(t, writer, payload)
 	}))
 	return server
 }
 
 func writeJSON(writer http.ResponseWriter, body string) {
 	writer.Header().Set("Content-Type", "application/json")
-	_, _ = writer.Write([]byte(body))
+	if _, err := writer.Write([]byte(body)); err != nil {
+		panic(fmt.Sprintf("write JSON test response: %v", err))
+	}
+}
+
+func writeTestHTTPResponse(t *testing.T, writer http.ResponseWriter, payload []byte) {
+	t.Helper()
+	if _, err := writer.Write(payload); err != nil {
+		t.Errorf("test response Write() error = %v", err)
+	}
 }
 
 const serverURLPlaceholder = "SERVER_URL"
@@ -1295,11 +1616,11 @@ func newHTTPResponse(statusCode int, body string) *http.Response {
 	}
 }
 
-func responseErrorForTest(t *testing.T, statusCode int, body string, operation string, slug string) error {
+func responseErrorForTest(t *testing.T, statusCode int, body string, operation string, slug string) (err error) {
 	t.Helper()
 	response := newHTTPResponse(statusCode, body)
 	defer func() {
-		_ = response.Body.Close()
+		err = errors.Join(err, response.Body.Close())
 	}()
 	return responseError(response, operation, slug)
 }
@@ -1307,7 +1628,7 @@ func responseErrorForTest(t *testing.T, statusCode int, body string, operation s
 func doRequestErrorForTest(ctx context.Context, client *Client, rawURL string, accept string) error {
 	response, err := client.doRequest(ctx, rawURL, accept)
 	if response != nil {
-		_ = response.Body.Close()
+		err = errors.Join(err, response.Body.Close())
 	}
 	return err
 }
@@ -1320,14 +1641,6 @@ func mustParseURL(raw string) *url.URL {
 	return parsed
 }
 
-type stubCloser struct {
-	err error
-}
-
-func (s *stubCloser) Close() error {
-	return s.err
-}
-
 type errorReadCloser struct {
 	io.Reader
 	closeErr error
@@ -1335,6 +1648,52 @@ type errorReadCloser struct {
 
 func (r *errorReadCloser) Close() error {
 	return r.closeErr
+}
+
+type countingReadCloser struct {
+	io.Reader
+	closeCalls int
+}
+
+func (r *countingReadCloser) Close() error {
+	r.closeCalls++
+	return nil
+}
+
+type scriptedErrorReadCloser struct {
+	readErrors []error
+	readCalls  int
+	closeErr   error
+	closeCalls int
+}
+
+func (r *scriptedErrorReadCloser) Read([]byte) (int, error) {
+	if r.readCalls >= len(r.readErrors) {
+		return 0, io.EOF
+	}
+	err := r.readErrors[r.readCalls]
+	r.readCalls++
+	return 0, err
+}
+
+func (r *scriptedErrorReadCloser) Close() error {
+	r.closeCalls++
+	return r.closeErr
+}
+
+func newReleaseResponseClient(body io.ReadCloser) *Client {
+	return &Client{
+		baseURL: "https://api.example.com",
+		httpClient: &http.Client{Transport: stubRoundTripperFunc(func(request *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Status:     "200 OK",
+				Header:     make(http.Header),
+				Body:       body,
+				Request:    request,
+			}, nil
+		})},
+	}
 }
 
 type stubRoundTripperFunc func(*http.Request) (*http.Response, error)

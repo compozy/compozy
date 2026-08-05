@@ -44,6 +44,9 @@ type DownloadOpts struct {
 
 // DownloadResult is the structured download response returned by a source.
 type DownloadResult struct {
+	// Reader is transferred to the installer after Download returns successfully.
+	// Close must interrupt a concurrent Read so cancellation can synchronously
+	// stop archive spooling without leaving a worker behind.
 	Reader         io.ReadCloser
 	Slug           string
 	Version        string
@@ -77,12 +80,20 @@ type UpdateInfo struct {
 
 // InstallResult is the outcome of a registry-backed install.
 type InstallResult struct {
-	Slug                string `json:"slug"`
-	Name                string `json:"name"`
-	Version             string `json:"version"`
-	Source              string `json:"source"`
-	InstallPath         string `json:"install_path"`
-	Checksum            string `json:"checksum"`
-	ArchiveDigestSHA256 string `json:"archive_digest_sha256"`
-	DigestMatched       bool   `json:"digest_matched"`
+	Slug                string              `json:"slug"`
+	Name                string              `json:"name"`
+	Version             string              `json:"version"`
+	Source              string              `json:"source"`
+	InstallPath         string              `json:"install_path"`
+	Checksum            string              `json:"checksum"`
+	ArchiveDigestSHA256 string              `json:"archive_digest_sha256"`
+	DigestMatched       bool                `json:"digest_matched"`
+	CleanupDiagnostics  []CleanupDiagnostic `json:"cleanup_diagnostics,omitempty"`
+}
+
+// MoveInstalledDirResult reports a successful directory publication and any
+// best-effort cleanup or durability degradation observed after commit.
+type MoveInstalledDirResult struct {
+	Committed          bool                `json:"committed"`
+	CleanupDiagnostics []CleanupDiagnostic `json:"cleanup_diagnostics,omitempty"`
 }

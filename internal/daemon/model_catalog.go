@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"sync"
 	"time"
 
 	extensionpkg "github.com/compozy/compozy/internal/extension"
@@ -24,9 +23,8 @@ type modelCatalogRuntime struct {
 	timeout      time.Duration
 	configSource *modelcatalog.ProviderConfigSource
 
-	ctx    context.Context
-	cancel context.CancelFunc
-	wg     sync.WaitGroup
+	ctx     context.Context
+	workers *ownedWorkerGroup
 }
 
 var _ modelcatalog.Service = (*modelCatalogRuntime)(nil)
@@ -65,7 +63,7 @@ func newModelCatalogRuntime(
 		now:     now,
 		timeout: timeout,
 		ctx:     runtimeCtx,
-		cancel:  cancel,
+		workers: newOwnedWorkerGroup(cancel),
 	}, nil
 }
 
@@ -134,8 +132,14 @@ func (r *modelCatalogRuntime) Refresh(
 	refreshCtx := context.WithoutCancel(ctx)
 	refreshCtx, cancel := context.WithTimeout(refreshCtx, r.timeout)
 	resultCh := make(chan modelCatalogRefreshResult, 1)
+	complete, admitted := r.workers.Begin()
+	if !admitted {
+		cancel()
+		return nil, fmt.Errorf("daemon: model catalog refresh stopped: %w", r.ctx.Err())
+	}
 
-	r.wg.Go(func() {
+	go func() {
+		defer complete()
 		stopRootCancel := context.AfterFunc(r.ctx, cancel)
 		defer func() {
 			stopRootCancel()
@@ -147,7 +151,7 @@ func (r *modelCatalogRuntime) Refresh(
 			r.logRefreshFailure(refreshOpts, err)
 		}
 		resultCh <- modelCatalogRefreshResult{statuses: statuses, err: err}
-	})
+	}()
 
 	select {
 	case result := <-resultCh:
@@ -173,17 +177,10 @@ func (r *modelCatalogRuntime) Shutdown(ctx context.Context) error {
 	if r == nil {
 		return nil
 	}
-	r.cancel()
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		r.wg.Wait()
-	}()
-
 	if ctx == nil {
-		<-done
-		return nil
+		return errors.New("daemon: model catalog shutdown context is required")
 	}
+	done := r.workers.Stop()
 	select {
 	case <-done:
 		return nil

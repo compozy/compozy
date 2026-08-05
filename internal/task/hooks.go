@@ -182,19 +182,6 @@ func defaultTaskRunHooks(hooks RunHookDispatcher) RunHookDispatcher {
 	return noopTaskRunHooks{}
 }
 
-func taskRunObservationHookContext(ctx context.Context) context.Context {
-	if ctx == nil {
-		return context.TODO()
-	}
-	if isCompletedSettlementPublicationContext(ctx) {
-		return ctx
-	}
-	return context.WithoutCancel(ctx)
-}
-
 func taskRunLifecycleContext(ctx context.Context) context.Context {
-	if ctx == nil {
-		return context.TODO()
-	}
 	return context.WithoutCancel(ctx)
 }

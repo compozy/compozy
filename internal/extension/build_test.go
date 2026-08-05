@@ -491,6 +491,38 @@ command = "./bin"
 		}
 	})
 
+	t.Run("Should clamp JSON offsets before converting them to indexes", func(t *testing.T) {
+		t.Parallel()
+
+		data := []byte("a\nb")
+		for _, test := range []struct {
+			name       string
+			offset     int64
+			wantLine   int
+			wantColumn int
+		}{
+			{name: "negative", offset: -1, wantLine: 1, wantColumn: 1},
+			{name: "start", offset: 1, wantLine: 1, wantColumn: 1},
+			{name: "beyond file", offset: int64(^uint64(0) >> 1), wantLine: 2, wantColumn: 2},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				line, column := sourcePositionFromJSONOffset(data, test.offset)
+				if line != test.wantLine || column != test.wantColumn {
+					t.Fatalf(
+						"sourcePositionFromJSONOffset(%d) = %d:%d, want %d:%d",
+						test.offset,
+						line,
+						column,
+						test.wantLine,
+						test.wantColumn,
+					)
+				}
+			})
+		}
+	})
+
 	t.Run("Should Return Derived Consent Areas", func(t *testing.T) {
 		t.Parallel()
 

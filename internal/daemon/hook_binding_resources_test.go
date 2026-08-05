@@ -217,6 +217,20 @@ func TestDispatchACPAgentHookEventDefaultsAndIgnoresUnsupportedInputs(t *testing
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for defaulted tool hook dispatch")
 	}
+	var missingContext context.Context
+	dispatchACPAgentHookEvent(
+		missingContext,
+		discardLogger(),
+		runtime,
+		hookspkg.SessionContext{SessionID: "sess-1"},
+		acp.AgentEvent{Type: acp.EventTypeToolCall},
+		time.Now().UTC(),
+	)
+	select {
+	case payload := <-got:
+		t.Fatalf("hook payload dispatched without context: %#v", payload)
+	default:
+	}
 
 	dispatchACPAgentHookEvent(
 		testutil.Context(t),

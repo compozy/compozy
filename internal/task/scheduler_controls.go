@@ -3,7 +3,6 @@ package task
 import (
 	"context"
 	"encoding/json"
-
 	"strings"
 	"time"
 
@@ -100,6 +99,22 @@ func (m *Service) PauseTask(
 	if isTerminalTaskStatus(previous.Status) {
 		return nil, terminalTaskPauseError(previous)
 	}
+	payload := taskPausePayload{
+		Manual:         true,
+		ActorKind:      actor.Actor.Kind.Normalize(),
+		ActorID:        actor.Actor.Ref,
+		PreviousPaused: previous.Paused,
+		Paused:         true,
+		Reason:         normalized.Reason,
+		Metadata:       cloneRawJSON(normalized.Metadata),
+	}
+	if err := m.preflightTaskEvent(previous.ID, "", taskEventPaused, actor, payload); err != nil {
+		return nil, err
+	}
+	eventID, err := m.reserveTaskEventID()
+	if err != nil {
+		return nil, err
+	}
 	if err := m.requireForceRunRate(actor, previous.ID); err != nil {
 		return nil, err
 	}
@@ -112,15 +127,8 @@ func (m *Service) PauseTask(
 	if err != nil {
 		return nil, err
 	}
-	if err := m.recordTaskEvent(ctx, updated.ID, "", taskEventPaused, actor, taskPausePayload{
-		Manual:         true,
-		ActorKind:      actor.Actor.Kind.Normalize(),
-		ActorID:        actor.Actor.Ref,
-		PreviousPaused: previous.Paused,
-		Paused:         updated.Paused,
-		Reason:         normalized.Reason,
-		Metadata:       cloneRawJSON(normalized.Metadata),
-	}); err != nil {
+	payload.Paused = updated.Paused
+	if err := m.recordTaskEventWithID(ctx, eventID, updated.ID, "", taskEventPaused, actor, payload); err != nil {
 		return nil, err
 	}
 	return &updated, nil
@@ -149,6 +157,21 @@ func (m *Service) ResumeTask(
 	if err != nil {
 		return nil, err
 	}
+	payload := taskResumePayload{
+		Manual:         true,
+		ActorKind:      actor.Actor.Kind.Normalize(),
+		ActorID:        actor.Actor.Ref,
+		PreviousPaused: previous.Paused,
+		Paused:         false,
+		Metadata:       cloneRawJSON(normalized.Metadata),
+	}
+	if err := m.preflightTaskEvent(previous.ID, "", taskEventResumed, actor, payload); err != nil {
+		return nil, err
+	}
+	eventID, err := m.reserveTaskEventID()
+	if err != nil {
+		return nil, err
+	}
 	if err := m.requireForceRunRate(actor, previous.ID); err != nil {
 		return nil, err
 	}
@@ -156,14 +179,8 @@ func (m *Service) ResumeTask(
 	if err != nil {
 		return nil, err
 	}
-	if err := m.recordTaskEvent(ctx, updated.ID, "", taskEventResumed, actor, taskResumePayload{
-		Manual:         true,
-		ActorKind:      actor.Actor.Kind.Normalize(),
-		ActorID:        actor.Actor.Ref,
-		PreviousPaused: previous.Paused,
-		Paused:         updated.Paused,
-		Metadata:       cloneRawJSON(normalized.Metadata),
-	}); err != nil {
+	payload.Paused = updated.Paused
+	if err := m.recordTaskEventWithID(ctx, eventID, updated.ID, "", taskEventResumed, actor, payload); err != nil {
 		return nil, err
 	}
 	return &updated, nil

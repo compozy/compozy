@@ -75,7 +75,7 @@ func (m *Service) restoreTaskRunNetworkBestEffort(
 		slog.WarnContext(
 			restoreCtx,
 			"task: restore session network participation after lease settlement failed",
-			"session_id",
+			sessionEvidenceIDKey,
 			strings.TrimSpace(sessionID),
 			"run_id",
 			strings.TrimSpace(runID),

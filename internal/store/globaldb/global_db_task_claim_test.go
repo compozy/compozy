@@ -1526,7 +1526,7 @@ func TestGlobalDBClaimLeaseLifecycleFencing(t *testing.T) {
 		t.Fatalf("GetTaskRun(before lifecycle update) error = %v", err)
 	}
 	lifecycleRun.Status = taskpkg.TaskRunStatusStarting
-	if err := globalDB.UpdateTaskRun(ctx, lifecycleRun); err != nil {
+	if err := globalDB.UpdateNonTerminalTaskRun(ctx, lifecycleRun); err != nil {
 		t.Fatalf("UpdateTaskRun(starting) error = %v", err)
 	}
 	if err := globalDB.db.QueryRowContext(ctx, `SELECT claim_token FROM task_runs WHERE id = ?`, claim.Run.ID).
@@ -1702,6 +1702,139 @@ func TestGlobalDBClaimLeaseLifecycleFencing(t *testing.T) {
 	if got, want := failed.Error, "worker failed"; got != want {
 		t.Fatalf("failed.Error = %q, want %q", got, want)
 	}
+
+	t.Run("Should reject generic terminalization and preserve the active lease", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 4, 26, 13, 0, 0, 0, time.UTC)
+		taskRecord := taskRecordForTest("task-generic-terminal-claim-token")
+		taskRecord.Status = taskpkg.TaskStatusReady
+		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run := taskRunForTest("run-generic-terminal-claim-token", taskRecord.ID)
+		if err := globalDB.CreateTaskRun(ctx, run); err != nil {
+			t.Fatalf("CreateTaskRun() error = %v", err)
+		}
+		claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			Scope:            taskpkg.ScopeGlobal,
+			ClaimerSessionID: "sess-generic-terminal-claim-token",
+			LeaseDuration:    time.Minute,
+			Now:              now,
+		})
+		if err != nil {
+			t.Fatalf("ClaimNextRun() error = %v", err)
+		}
+
+		starting, err := globalDB.GetTaskRun(ctx, claim.Run.ID)
+		if err != nil {
+			t.Fatalf("GetTaskRun(starting) error = %v", err)
+		}
+		starting.Status = taskpkg.TaskRunStatusStarting
+		if err := globalDB.UpdateNonTerminalTaskRun(ctx, starting); err != nil {
+			t.Fatalf("UpdateTaskRun(starting) error = %v", err)
+		}
+
+		terminal, err := globalDB.GetTaskRun(ctx, claim.Run.ID)
+		if err != nil {
+			t.Fatalf("GetTaskRun(terminal) error = %v", err)
+		}
+		terminal.Status = taskpkg.TaskRunStatusFailed
+		terminal.EndedAt = now.Add(time.Second)
+		terminal.Error = "worker exhausted"
+		if err := globalDB.UpdateNonTerminalTaskRun(ctx, terminal); !errors.Is(
+			err,
+			taskpkg.ErrInvalidStatusTransition,
+		) {
+			t.Fatalf(
+				"UpdateNonTerminalTaskRun(failed) error = %v, want %v",
+				err,
+				taskpkg.ErrInvalidStatusTransition,
+			)
+		}
+
+		var storedRaw sql.NullString
+		if err := globalDB.db.QueryRowContext(ctx, `SELECT claim_token FROM task_runs WHERE id = ?`, claim.Run.ID).
+			Scan(&storedRaw); err != nil {
+			t.Fatalf("query terminal claim_token error = %v", err)
+		}
+		if !storedRaw.Valid {
+			t.Fatal("rejected terminal update cleared the active raw claim token")
+		}
+		stored, err := globalDB.GetTaskRun(ctx, claim.Run.ID)
+		if err != nil {
+			t.Fatalf("GetTaskRun(after terminal update) error = %v", err)
+		}
+		if got, want := stored.ClaimTokenHash, claim.Run.ClaimTokenHash; got != want {
+			t.Fatalf("ClaimTokenHash = %q, want %q", got, want)
+		}
+		if got, want := stored.Status, taskpkg.TaskRunStatusStarting; got != want {
+			t.Fatalf("Status = %q, want rejected update to preserve %q", got, want)
+		}
+		if got, want := stored.SessionID, "sess-generic-terminal-claim-token"; got != want {
+			t.Fatalf("SessionID = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should clear raw claim token when marking an active run needs attention", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 4, 26, 14, 0, 0, 0, time.UTC)
+		taskRecord := taskRecordForTest("task-needs-attention-claim-token")
+		taskRecord.Status = taskpkg.TaskStatusReady
+		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run := taskRunForTest("run-needs-attention-claim-token", taskRecord.ID)
+		if err := globalDB.CreateTaskRun(ctx, run); err != nil {
+			t.Fatalf("CreateTaskRun() error = %v", err)
+		}
+		claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			Scope:            taskpkg.ScopeGlobal,
+			ClaimerSessionID: "sess-needs-attention-claim-token",
+			LeaseDuration:    time.Minute,
+			Now:              now,
+		})
+		if err != nil {
+			t.Fatalf("ClaimNextRun() error = %v", err)
+		}
+
+		manager, err := taskpkg.NewManager(taskpkg.WithStore(globalDB))
+		if err != nil {
+			t.Fatalf("NewManager() error = %v", err)
+		}
+		updated, err := manager.MarkRunNeedsAttention(
+			ctx,
+			claim.Run.ID,
+			"operator review required",
+			operatorActorContextForTest("operator:needs-attention"),
+		)
+		if err != nil {
+			t.Fatalf("MarkRunNeedsAttention() error = %v", err)
+		}
+		if got, want := updated.Status, taskpkg.TaskRunStatusNeedsAttention; got != want {
+			t.Fatalf("Status = %q, want %q", got, want)
+		}
+		if got, want := updated.ClaimTokenHash, claim.Run.ClaimTokenHash; got != want {
+			t.Fatalf("ClaimTokenHash = %q, want %q", got, want)
+		}
+		if got, want := updated.SessionID, "sess-needs-attention-claim-token"; got != want {
+			t.Fatalf("SessionID = %q, want %q", got, want)
+		}
+
+		var storedRaw sql.NullString
+		if err := globalDB.db.QueryRowContext(ctx, `SELECT claim_token FROM task_runs WHERE id = ?`, claim.Run.ID).
+			Scan(&storedRaw); err != nil {
+			t.Fatalf("query needs_attention claim_token error = %v", err)
+		}
+		if storedRaw.Valid {
+			t.Fatalf("needs_attention stored raw claim_token = %q, want NULL", storedRaw.String)
+		}
+	})
 }
 
 func TestGlobalDBCompleteRunLeaseRejectsHallucinatedCreatedTaskIDsBeforeTerminalWrite(
@@ -1749,8 +1882,9 @@ func TestGlobalDBCompleteRunLeaseRejectsHallucinatedCreatedTaskIDsBeforeTerminal
 		if !errors.Is(err, taskpkg.ErrHallucinatedTaskRefs) {
 			t.Fatalf("CompleteRunLease() error = %v, want %v", err, taskpkg.ErrHallucinatedTaskRefs)
 		}
-		var typed *taskpkg.HallucinatedTaskRefsError
-		if !errors.As(err, &typed) {
+
+		typed, typedMatched := errors.AsType[*taskpkg.HallucinatedTaskRefsError](err)
+		if !typedMatched {
 			t.Fatalf("CompleteRunLease() error type = %T, want *HallucinatedTaskRefsError", err)
 		}
 		if got, want := typed.InvalidTaskIDs, []string{"task-phantom-globaldb"}; len(
@@ -5110,6 +5244,11 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldEnqueuePostCommitWakes(t
 		t.Parallel()
 		testGlobalDBCompleteCoordinatorAndEnqueueNextShouldPreserveResultOnWakeFailure(t)
 	})
+
+	t.Run("Should reject completion before mutation when a later wake ID fails", func(t *testing.T) {
+		t.Parallel()
+		testGlobalDBCompleteCoordinatorAndEnqueueNextShouldRejectLaterWakeIDFailure(t)
+	})
 }
 
 func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldEnqueuePostCommitWakes(t *testing.T) {
@@ -5241,6 +5380,102 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldPreserveResultOnWakeFail
 	}
 	if got, want := result.Run.Status, taskpkg.TaskRunStatusCompleted; got != want {
 		t.Fatalf("result.Run.Status = %q, want %q", got, want)
+	}
+}
+
+func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldRejectLaterWakeIDFailure(t *testing.T) {
+	t.Helper()
+
+	globalDB := openLoopTestGlobalDB(t)
+	ctx := testutil.Context(t)
+	now := time.Date(2026, 7, 8, 16, 40, 0, 0, time.UTC)
+	loopRun, err := globalDB.CreateLoopRunForStart(
+		ctx,
+		testLoopRun("looprun-coordinator-wake-entropy", now, looppkg.StatusRunning),
+		dsl.ConcurrencyAllow,
+	)
+	if err != nil {
+		t.Fatalf("CreateLoopRunForStart() error = %v", err)
+	}
+	claim := claimCoordinatorRunForTest(
+		ctx,
+		t,
+		globalDB,
+		loopRun.ID,
+		"run-coordinator-wake-entropy",
+		now,
+	)
+	var runsBefore int
+	if err := globalDB.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM task_runs`).Scan(&runsBefore); err != nil {
+		t.Fatalf("count task runs before completion error = %v", err)
+	}
+	var eventsBefore int
+	if err := globalDB.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM task_events`).Scan(&eventsBefore); err != nil {
+		t.Fatalf("count task events before completion error = %v", err)
+	}
+
+	entropyErr := errors.New("second coordinator wake entropy unavailable")
+	idCalls := 0
+	globalDB.newID = func(prefix string) (string, error) {
+		idCalls++
+		if idCalls == 2 {
+			return "", entropyErr
+		}
+		return fmt.Sprintf("%s-coordinator-wake-%d", prefix, idCalls), nil
+	}
+	actor := coordinatorActorContextForTest()
+	result, err := globalDB.CompleteCoordinatorAndEnqueueNext(ctx, taskpkg.CoordinatorCompletion{
+		RunID:      claim.Run.ID,
+		ClaimToken: claim.ClaimToken,
+		Actor:      actor,
+		Plan: taskpkg.CoordinatorCompletionPlan{
+			Yield: true,
+			Snapshot: taskpkg.GenerationSnapshot{
+				LoopRunID:  string(loopRun.ID),
+				Generation: 1,
+			},
+			PostCommitWakes: []taskpkg.CoordinatorWakeSpec{
+				{
+					LoopRunID:      string(loopRun.ID),
+					IdempotencyKey: "loop.coordinator.entropy.first",
+				},
+				{
+					LoopRunID:      string(loopRun.ID),
+					IdempotencyKey: "loop.coordinator.entropy.second",
+				},
+			},
+		},
+		Now: now.Add(time.Second),
+	}, looppkg.NewStoreFinalizer())
+	if !errors.Is(err, entropyErr) {
+		t.Fatalf("CompleteCoordinatorAndEnqueueNext() error = %v, want errors.Is(entropyErr)", err)
+	}
+	if result.Run.ID != "" {
+		t.Fatalf("completion result = %#v, want zero result", result)
+	}
+	if got, want := idCalls, 2; got != want {
+		t.Fatalf("ID generation calls = %d, want %d", got, want)
+	}
+	stored, err := globalDB.GetTaskRun(ctx, claim.Run.ID)
+	if err != nil {
+		t.Fatalf("GetTaskRun(claimed coordinator) error = %v", err)
+	}
+	if got, want := stored.Status, claim.Run.Status; got != want {
+		t.Fatalf("coordinator status after entropy failure = %q, want %q", got, want)
+	}
+	var runsAfter int
+	if err := globalDB.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM task_runs`).Scan(&runsAfter); err != nil {
+		t.Fatalf("count task runs after completion error = %v", err)
+	}
+	if runsAfter != runsBefore {
+		t.Fatalf("task run count after entropy failure = %d, want %d", runsAfter, runsBefore)
+	}
+	var eventsAfter int
+	if err := globalDB.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM task_events`).Scan(&eventsAfter); err != nil {
+		t.Fatalf("count task events after completion error = %v", err)
+	}
+	if eventsAfter != eventsBefore {
+		t.Fatalf("task event count after entropy failure = %d, want %d", eventsAfter, eventsBefore)
 	}
 }
 
@@ -6271,7 +6506,7 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 			result:           json.RawMessage(`{"message":"approved compozy_claim_SECRET123"}`),
 			tokensUsed:       3,
 			wantOutputStatus: "succeeded",
-			wantOutputRef:    `{"message":"approved compozy_claim_SECRET123"}`,
+			wantOutputRef:    `{"message":"approved compozy_claim_[REDACTED]"}`,
 			wantEvents: []string{
 				loopRunEventStatusChanged,
 				loopRunEventNodeRunning,
@@ -6440,6 +6675,9 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 				}
 			} else if outputRef.String != tc.wantOutputRef {
 				t.Fatalf("output_ref = %q, want %q", outputRef.String, tc.wantOutputRef)
+			}
+			if strings.Contains(outputRef.String, "compozy_claim_SECRET123") {
+				t.Fatalf("output_ref leaked raw claim token: %q", outputRef.String)
 			}
 			storedLoop, err := globalDB.GetLoopRunByID(ctx, loopRun.ID)
 			if err != nil {

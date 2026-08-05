@@ -155,7 +155,13 @@ func (s *ManagedWakeService) dispatchWakePrompt(
 	if req.DryRun {
 		return dryRunDecision(decision), nil
 	}
-	decision, err := s.recordDecision(ctx, req, decision, state, now)
+	reservedIDs, err := s.reserveWakeDispatchIDs()
+	if err != nil {
+		return WakeDecision{}, err
+	}
+	decision.WakeEventID = reservedIDs.wakeEventID
+	decision.SyntheticPromptID = reservedIDs.syntheticPromptID
+	decision, err = s.recordDecision(ctx, req, decision, state, now)
 	if err != nil {
 		return WakeDecision{}, err
 	}
@@ -184,6 +190,7 @@ func (s *ManagedWakeService) dispatchWakePrompt(
 			Severity: diagnosticWarning,
 			Message:  promptErr.Error(),
 		})}
+		decision.WakeEventID = reservedIDs.correctionEventID
 		decision.SyntheticPromptID = reservedPromptID
 		return s.appendDecisionEvent(ctx, req, decision, now)
 	}

@@ -16,7 +16,7 @@ type sessionFinalization struct {
 
 func (m *Manager) claimOrWaitFinalization(ctx context.Context, session *Session) (bool, error) {
 	if ctx == nil {
-		ctx = context.Background()
+		return false, errors.New("session: finalization context is required")
 	}
 	owned, finalization := m.claimFinalization(session)
 	if owned || finalization == nil {
@@ -122,7 +122,7 @@ func (m *Manager) claimOrWaitObservedFinalization(
 	observed *sessionFinalization,
 ) (bool, error) {
 	if ctx == nil {
-		ctx = context.Background()
+		return false, errors.New("session: observed finalization context is required")
 	}
 	if observed == nil {
 		return m.claimOrWaitFinalization(ctx, session)

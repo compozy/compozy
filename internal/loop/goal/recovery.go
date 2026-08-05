@@ -182,16 +182,23 @@ func (e *Executor) recoverAwaitFailure(
 	ticket loop.ActionPromptTicket,
 	awaitErr error,
 ) (*turnBoundary, error) {
-	checkpoint, err := e.store.LoadCheckpoint(context.WithoutCancel(ctx), segment.key)
+	recoveryCtx, cancel := context.WithTimeoutCause(
+		context.WithoutCancel(ctx),
+		e.recoveryTimeout,
+		errRecoveryTimeout,
+	)
+	defer cancel()
+
+	checkpoint, err := e.store.LoadCheckpoint(recoveryCtx, segment.key)
 	if err != nil {
-		return nil, errors.Join(awaitErr, err)
+		return nil, joinRecoveryError(recoveryCtx, awaitErr, err)
 	}
 	segment.checkpoint = checkpoint
 	if checkpoint.Phase != checkpointPhasePrompting && checkpoint.Phase != checkpointPhaseCompacting {
 		return nil, awaitErr
 	}
 	result, found, recoveryErr := e.recovery.ReconcileTerminalFromEvents(
-		context.WithoutCancel(ctx),
+		recoveryCtx,
 		PromptRecoveryIdentity{
 			Key:                  segment.key,
 			ExpectedControlEpoch: checkpoint.ControlEpoch,
@@ -202,19 +209,21 @@ func (e *Executor) recoverAwaitFailure(
 		},
 	)
 	if recoveryErr != nil {
-		return nil, errors.Join(awaitErr, recoveryErr)
+		return nil, joinRecoveryError(recoveryCtx, awaitErr, recoveryErr)
 	}
 	if found {
 		if checkpoint.PromptKind == promptKindCompact {
-			return e.processCompactionResult(
-				context.WithoutCancel(ctx), segment, ticket, result, segment.usage.operationBase(), nil,
+			boundary, processErr := e.processCompactionResult(
+				recoveryCtx, segment, ticket, result, segment.usage.operationBase(), nil,
 			)
+			return boundary, joinRecoveryError(recoveryCtx, awaitErr, processErr)
 		}
-		return e.processWorkResult(
-			context.WithoutCancel(ctx), segment, ticket, result, segment.usage.operationBase(),
+		boundary, processErr := e.processWorkResult(
+			recoveryCtx, segment, ticket, result, segment.usage.operationBase(),
 		)
+		return boundary, joinRecoveryError(recoveryCtx, awaitErr, processErr)
 	}
-	if err := e.store.MarkAmbiguous(context.WithoutCancel(ctx), AmbiguousRequest{
+	if err := e.store.MarkAmbiguous(recoveryCtx, AmbiguousRequest{
 		Key:                  segment.key,
 		ExpectedControlEpoch: checkpoint.ControlEpoch,
 		ExpectedBindingEpoch: checkpoint.BindingEpoch,
@@ -223,15 +232,22 @@ func (e *Executor) recoverAwaitFailure(
 		PromptID:             ticket.PromptID,
 		Cause:                loop.ReasonCodeGoalRecoveryAmbiguous,
 	}); err != nil {
-		return nil, errors.Join(awaitErr, err)
+		return nil, joinRecoveryError(recoveryCtx, awaitErr, err)
 	}
-	updated, err := e.store.LoadCheckpoint(context.WithoutCancel(ctx), segment.key)
+	updated, err := e.store.LoadCheckpoint(recoveryCtx, segment.key)
 	if err != nil {
-		return nil, err
+		return nil, joinRecoveryError(recoveryCtx, awaitErr, err)
 	}
 	segment.checkpoint = updated
-	control, err := e.recoveredControl(context.WithoutCancel(ctx), segment)
-	return &turnBoundary{checkpoint: updated, control: control}, err
+	control, err := e.recoveredControl(recoveryCtx, segment)
+	return &turnBoundary{checkpoint: updated, control: control}, joinRecoveryError(recoveryCtx, awaitErr, err)
+}
+
+func joinRecoveryError(ctx context.Context, awaitErr, recoveryErr error) error {
+	if recoveryErr == nil {
+		return nil
+	}
+	return errors.Join(awaitErr, recoveryErr, context.Cause(ctx))
 }
 
 func (e *Executor) handlePreparedPromptError(

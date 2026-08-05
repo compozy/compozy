@@ -131,11 +131,18 @@ func TestStoreMemV2OptionalHelpers(t *testing.T) {
 			t.Fatal("IsZero(empty correlation) = false, want true")
 		}
 
-		id := NewID("memv2")
+		id, err := NewID("memv2")
+		if err != nil {
+			t.Fatalf("NewID(memv2) error = %v", err)
+		}
 		if len(id) <= len("memv2-") || id[:len("memv2-")] != "memv2-" {
 			t.Fatalf("NewID(memv2) = %q, want memv2-*", id)
 		}
-		if NewID("") == "" {
+		emptyPrefixID, err := NewID("")
+		if err != nil {
+			t.Fatalf("NewID(empty prefix) error = %v", err)
+		}
+		if emptyPrefixID == "" {
 			t.Fatal("NewID(empty prefix) = empty, want generated identifier")
 		}
 	})

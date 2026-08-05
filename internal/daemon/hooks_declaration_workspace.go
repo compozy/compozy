@@ -17,9 +17,13 @@ import (
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
+type workspaceRegistryReader interface {
+	ListWorkspaces(context.Context) ([]workspacepkg.Workspace, error)
+}
+
 func workspaceHookDeclarations(
 	ctx context.Context,
-	registry Registry,
+	registry workspaceRegistryReader,
 	workspaceResolver workspacepkg.RuntimeResolver,
 	logger *slog.Logger,
 ) ([]hookspkg.HookDecl, error) {
@@ -43,7 +47,7 @@ func workspaceHookDeclarations(
 
 func registeredWorkspaces(
 	ctx context.Context,
-	registry Registry,
+	registry workspaceRegistryReader,
 	workspaceResolver workspacepkg.RuntimeResolver,
 	logger *slog.Logger,
 ) ([]workspacepkg.ResolvedWorkspace, error) {

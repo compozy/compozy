@@ -2640,7 +2640,7 @@
     "read_only": true,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "4f0e56200006f20065ec225125981bb5498bb213079e737a9d479dafb7a78456",
+    "input_schema_digest": "e8e337c1ff9bf611fadb5fae2ff0cdb1c355298788a54d0f4a63d3ff684dffe5",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -2666,7 +2666,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "eb65e9081fd02362bbb8f881f925d402a6275d8ac265781096bd9ba9f932b309",
+    "input_schema_digest": "7c56a4799ab8df65f8548e06fe3e6186f53614623753cc13a7d15fea9e35b105",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {

@@ -232,7 +232,10 @@ func TestServiceParticipationShouldResolvePersistAndValidateLoopOwnership(t *tes
 			loop.WithParticipationResolver(loopTestParticipationResolver(t, true)),
 			loop.WithHookDispatcher(hooks),
 		)
-		run, err := svc.Start(context.Background(), "ws-1", "valid-loop", loop.Inputs{
+		startCtx, cancelStart := context.WithCancel(context.Background())
+		hooks.cancelStarted = cancelStart
+		defer cancelStart()
+		run, err := svc.Start(startCtx, "ws-1", "valid-loop", loop.Inputs{
 			Values: map[string]any{"tasks": "task-ref"},
 		}, humanActor(t))
 		if err != nil {
@@ -242,8 +245,18 @@ func TestServiceParticipationShouldResolvePersistAndValidateLoopOwnership(t *tes
 		if got := hooks.started.ResolvedNetworkParticipation; got == nil || *got != want {
 			t.Fatalf("loop.started participation = %#v, want %#v", got, want)
 		}
+		if !hooks.startedActive || !hooks.startedDeadline {
+			t.Fatalf(
+				"loop.started context active/deadline = %v/%v, want true/true",
+				hooks.startedActive,
+				hooks.startedDeadline,
+			)
+		}
+		transitionCtx, cancelTransition := context.WithCancel(context.Background())
+		hooks.cancelTerminal = cancelTransition
+		defer cancelTransition()
 		if err := svc.Transition(
-			context.Background(),
+			transitionCtx,
 			run.ID,
 			loop.StatusDone,
 			loop.TransitionCauseContract,
@@ -252,6 +265,13 @@ func TestServiceParticipationShouldResolvePersistAndValidateLoopOwnership(t *tes
 		}
 		if got := hooks.terminal.ResolvedNetworkParticipation; got == nil || *got != want {
 			t.Fatalf("loop.terminal participation = %#v, want %#v", got, want)
+		}
+		if !hooks.terminalActive || !hooks.terminalDeadline {
+			t.Fatalf(
+				"loop.terminal context active/deadline = %v/%v, want true/true",
+				hooks.terminalActive,
+				hooks.terminalDeadline,
+			)
 		}
 	})
 
@@ -835,8 +855,8 @@ func TestServiceInlineGoalStartAndReplaceShouldSharePinnedStartPath(t *testing.T
 			inlineGoalOrigin("session-origin"),
 			humanActor(t),
 		)
-		var reason *loop.ReasonError
-		if !errors.As(err, &reason) || reason.Code != loop.ReasonCodeGoalJudgeUnavailable {
+		reason, reasonMatched := errors.AsType[*loop.ReasonError](err)
+		if !reasonMatched || reason.Code != loop.ReasonCodeGoalJudgeUnavailable {
 			t.Fatalf("StartInline() error = %v, want %q", err, loop.ReasonCodeGoalJudgeUnavailable)
 		}
 		if store.createCount() != 0 {
@@ -998,7 +1018,7 @@ func TestServiceStartShouldPinGoalRunPolicy(t *testing.T) {
 			loop.WithClock(func() time.Time {
 				return time.Date(2026, 7, 10, 12, 0, 0, 0, time.UTC)
 			}),
-			loop.WithRunIDFactory(func() loop.RunID { return "looprun-goal-policy" }),
+			loop.WithRunIDFactory(func() (loop.RunID, error) { return "looprun-goal-policy", nil }),
 		)
 		if err != nil {
 			t.Fatalf("NewService() error = %v", err)
@@ -1075,8 +1095,8 @@ func TestServiceStartShouldEnforceConcurrencyAndAncestry(t *testing.T) {
 		if !errors.Is(err, loop.ErrConcurrencyConflict) {
 			t.Fatalf("Start() error = %v, want ErrConcurrencyConflict", err)
 		}
-		var reason *loop.ReasonError
-		if !errors.As(err, &reason) || reason.Code != loop.ReasonCodeActiveRunExists {
+		reason, reasonMatched := errors.AsType[*loop.ReasonError](err)
+		if !reasonMatched || reason.Code != loop.ReasonCodeActiveRunExists {
 			t.Fatalf("Start() reason = %#v, want active run reason code", reason)
 		}
 	})
@@ -1115,8 +1135,8 @@ func TestServiceStartShouldEnforceConcurrencyAndAncestry(t *testing.T) {
 		if !errors.Is(err, loop.ErrAncestryRejected) {
 			t.Fatalf("Start() error = %v, want ErrAncestryRejected", err)
 		}
-		var reason *loop.ReasonError
-		if !errors.As(err, &reason) || reason.Code != loop.ReasonCodeAncestryCycle {
+		reason, reasonMatched := errors.AsType[*loop.ReasonError](err)
+		if !reasonMatched || reason.Code != loop.ReasonCodeAncestryCycle {
 			t.Fatalf("Start() reason = %#v, want ancestry cycle reason code", reason)
 		}
 	})
@@ -1412,16 +1432,25 @@ func TestServiceShouldAllocateTypedGoalGrantsFromDurableControl(t *testing.T) {
 			RunStatus:    loop.StatusNeedsApproval,
 		}
 		var activated task.Run
+		var cancelApprove context.CancelFunc
+		var activationActive bool
+		var activationDeadline bool
 		svc := newTestServiceWithOptions(
 			t,
 			store,
 			validDefinition(),
-			loop.WithGoalRunActivator(loop.GoalRunActivatorFunc(func(_ context.Context, run task.Run) {
+			loop.WithGoalRunActivator(loop.GoalRunActivatorFunc(func(ctx context.Context, run task.Run) {
+				cancelApprove()
+				_, activationDeadline = ctx.Deadline()
+				activationActive = ctx.Err() == nil
 				activated = run
 			})),
 		)
+		approveCtx, cancel := context.WithCancel(context.Background())
+		cancelApprove = cancel
+		defer cancel()
 		if err := svc.Approve(
-			context.Background(),
+			approveCtx,
 			run.WorkspaceID,
 			run.ID,
 			run.ActiveGateID,
@@ -1440,6 +1469,13 @@ func TestServiceShouldAllocateTypedGoalGrantsFromDurableControl(t *testing.T) {
 		}
 		if activated.ID != "goal-successor" {
 			t.Fatalf("activated Goal successor = %#v, want goal-successor", activated)
+		}
+		if !activationActive || !activationDeadline {
+			t.Fatalf(
+				"Goal activation context active/deadline = %v/%v, want true/true",
+				activationActive,
+				activationDeadline,
+			)
 		}
 	})
 
@@ -2339,12 +2375,18 @@ func TestServiceCancellationShouldRecordCanceledTerminalTruth(t *testing.T) {
 		base.cancellationLeases = []loop.GoalPromptLease{lease}
 		var revoked []loop.GoalPromptLease
 		var reasons []string
+		var cancelStop context.CancelFunc
+		var revocationActive bool
+		var revocationDeadline bool
 		svc := newTestServiceWithOptions(
 			t,
 			base,
 			validDefinition(),
 			loop.WithGoalPromptLeaseRevoker(loop.GoalPromptLeaseRevokerFunc(
-				func(_ context.Context, got loop.GoalPromptLease, reason string) error {
+				func(ctx context.Context, got loop.GoalPromptLease, reason string) error {
+					cancelStop()
+					_, revocationDeadline = ctx.Deadline()
+					revocationActive = ctx.Err() == nil
 					revoked = append(revoked, got)
 					reasons = append(reasons, reason)
 					return nil
@@ -2352,7 +2394,10 @@ func TestServiceCancellationShouldRecordCanceledTerminalTruth(t *testing.T) {
 			)),
 		)
 		actor := humanActor(t)
-		if err := svc.CancelRun(context.Background(), run.WorkspaceID, run.ID, "operator request", actor); err != nil {
+		stopCtx, cancel := context.WithCancel(context.Background())
+		cancelStop = cancel
+		defer cancel()
+		if err := svc.CancelRun(stopCtx, run.WorkspaceID, run.ID, "operator request", actor); err != nil {
 			t.Fatalf("CancelRun() error = %v", err)
 		}
 		if got := base.mustRun(t, run.ID); got.Status != loop.StatusRunning || !got.CancelRequested {
@@ -2366,6 +2411,13 @@ func TestServiceCancellationShouldRecordCanceledTerminalTruth(t *testing.T) {
 		if !reflect.DeepEqual(revoked, []loop.GoalPromptLease{lease}) ||
 			!reflect.DeepEqual(reasons, []string{string(loop.TransitionCauseOperatorCancel)}) {
 			t.Fatalf("post-commit revocations = %#v reasons = %#v", revoked, reasons)
+		}
+		if !revocationActive || !revocationDeadline {
+			t.Fatalf(
+				"Goal revocation context active/deadline = %v/%v, want true/true",
+				revocationActive,
+				revocationDeadline,
+			)
 		}
 	})
 
@@ -2485,8 +2537,8 @@ func newTestServiceWithOptions(
 		loop.WithClock(func() time.Time {
 			return time.Date(2026, 7, 4, 12, 0, 0, 0, time.UTC)
 		}),
-		loop.WithRunIDFactory(func() loop.RunID {
-			return loop.RunID("looprun-test")
+		loop.WithRunIDFactory(func() (loop.RunID, error) {
+			return loop.RunID("looprun-test"), nil
 		}),
 	}
 	options = append(options, opts...)
@@ -2578,7 +2630,7 @@ func newParticipationTestService(
 		loop.WithClock(func() time.Time {
 			return time.Date(2026, 7, 4, 12, 0, 0, 0, time.UTC)
 		}),
-		loop.WithRunIDFactory(func() loop.RunID { return "looprun-test" }),
+		loop.WithRunIDFactory(func() (loop.RunID, error) { return "looprun-test", nil }),
 	}
 	options = append(options, opts...)
 	svc, err := loop.NewService(
@@ -2601,22 +2653,34 @@ func newParticipationTestService(
 
 type participationLifecycleHookDispatcher struct {
 	loop.HookDispatcher
-	started  hookspkg.LoopStartedPayload
-	terminal hookspkg.LoopTerminalPayload
+	started          hookspkg.LoopStartedPayload
+	terminal         hookspkg.LoopTerminalPayload
+	cancelStarted    context.CancelFunc
+	cancelTerminal   context.CancelFunc
+	startedActive    bool
+	startedDeadline  bool
+	terminalActive   bool
+	terminalDeadline bool
 }
 
 func (d *participationLifecycleHookDispatcher) DispatchLoopStarted(
-	_ context.Context,
+	ctx context.Context,
 	payload hookspkg.LoopStartedPayload,
 ) (hookspkg.LoopStartedPayload, error) {
+	d.cancelStarted()
+	_, d.startedDeadline = ctx.Deadline()
+	d.startedActive = ctx.Err() == nil
 	d.started = payload
 	return payload, nil
 }
 
 func (d *participationLifecycleHookDispatcher) DispatchLoopTerminal(
-	_ context.Context,
+	ctx context.Context,
 	payload hookspkg.LoopTerminalPayload,
 ) (hookspkg.LoopTerminalPayload, error) {
+	d.cancelTerminal()
+	_, d.terminalDeadline = ctx.Deadline()
+	d.terminalActive = ctx.Err() == nil
 	d.terminal = payload
 	return payload, nil
 }

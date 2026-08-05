@@ -34,31 +34,6 @@ const taskPriorityValueSQL = `CASE t.priority
 	ELSE 20
 END`
 
-// ClaimNextRun atomically selects and claims the next eligible queued task run.
-func (g *TaskRunRepo) ClaimNextRun(
-	ctx context.Context,
-	criteria taskpkg.ClaimCriteria,
-) (taskpkg.ClaimResult, error) {
-	if err := g.checkReady(ctx, "claim next task run"); err != nil {
-		return taskpkg.ClaimResult{}, err
-	}
-	normalized, err := criteria.Normalize(g.now())
-	if err != nil {
-		return taskpkg.ClaimResult{}, err
-	}
-
-	var result taskpkg.ClaimResult
-	if err := g.tasks.withTaskImmediateTransaction(ctx, "claim next task run", func(exec taskSQLExecutor) error {
-		var claimErr error
-		result, claimErr = g.claimNextRunWithExecutor(ctx, exec, normalized)
-		return claimErr
-	}); err != nil {
-		return taskpkg.ClaimResult{}, err
-	}
-
-	return result, nil
-}
-
 func (g *TaskRunRepo) claimNextRunWithExecutor(
 	ctx context.Context,
 	exec taskSQLExecutor,
@@ -161,66 +136,6 @@ func (g *TaskRunRepo) claimStandardTaskRunResult(
 	}, nil
 }
 
-// HeartbeatRunLease extends one active task-run lease after token verification.
-func (g *TaskRunRepo) HeartbeatRunLease(
-	ctx context.Context,
-	heartbeat taskpkg.LeaseHeartbeat,
-) (taskpkg.Run, error) {
-	if err := g.checkReady(ctx, "heartbeat task run lease"); err != nil {
-		return taskpkg.Run{}, err
-	}
-	normalized, err := heartbeat.Normalize(g.now())
-	if err != nil {
-		return taskpkg.Run{}, err
-	}
-
-	var updated taskpkg.Run
-	if err := g.tasks.withTaskImmediateTransaction(ctx, "heartbeat task run lease", func(exec taskSQLExecutor) error {
-		current, err := g.tasks.getTaskRunWithExecutor(ctx, exec, normalized.RunID)
-		if err != nil {
-			return err
-		}
-		if err := requireCurrentRunLease(current, normalized.ClaimToken, normalized.Now); err != nil {
-			return err
-		}
-		leaseUntil := normalized.Now.Add(normalized.LeaseDuration).UTC()
-		affected, err := sqlcgen.New(exec).HeartbeatTaskRunLease(ctx, sqlcgen.HeartbeatTaskRunLeaseParams{
-			LeaseUntil:     nullableTaskTime(leaseUntil),
-			HeartbeatAt:    nullableTaskTime(normalized.Now),
-			ClaimToken:     nullableTaskString(normalized.ClaimToken),
-			TokensUsed:     normalized.TokensUsed,
-			ID:             normalized.RunID,
-			ClaimTokenHash: nullableTaskString(current.ClaimTokenHash),
-			ClaimedStatus:  taskpkg.TaskRunStatusClaimed.String(),
-			StartingStatus: taskpkg.TaskRunStatusStarting.String(),
-			RunningStatus:  taskpkg.TaskRunStatusRunning.String(),
-		})
-		if err != nil {
-			return fmt.Errorf("store: heartbeat task run lease %q: %w", normalized.RunID, err)
-		}
-		if affected == 0 {
-			return fmt.Errorf("store: task run lease %q: %w", normalized.RunID, taskpkg.ErrTaskRunNotFound)
-		}
-		updated, err = g.tasks.getTaskRunWithExecutor(ctx, exec, normalized.RunID)
-		if err != nil {
-			return err
-		}
-		if updated.IsNetworkWake() {
-			wakeID, targetSessionID, ownerKey := updated.NetworkWakeCorrelation()
-			return appendNetworkWakeEventWithExecutor(ctx, exec, networkWakeEvent{
-				workspaceID: updated.WorkspaceID, wakeID: wakeID, taskRunID: updated.ID,
-				ownerKey: ownerKey, targetSessionID: targetSessionID,
-				eventType: networkWakeEventHeartbeat, state: updated.Status.String(),
-				claimTokenHash: updated.ClaimTokenHash, actor: normalized.Actor.Actor, at: normalized.Now,
-			})
-		}
-		return g.appendLoopTokenTickForHeartbeat(ctx, exec, updated, normalized.TokensUsed)
-	}); err != nil {
-		return taskpkg.Run{}, err
-	}
-	return updated, nil
-}
-
 func (g *TaskRunRepo) appendLoopTokenTickForHeartbeat(
 	ctx context.Context,
 	exec taskSQLExecutor,
@@ -253,55 +168,3 @@ func (g *TaskRunRepo) appendLoopTokenTickForHeartbeat(
 		run.HeartbeatAt,
 	)
 }
-
-// ReleaseRunLease clears an active task-run lease after token verification and requeues the run.
-func (g *TaskRunRepo) ReleaseRunLease(
-	ctx context.Context,
-	release taskpkg.LeaseRelease,
-) (taskpkg.Run, error) {
-	if err := g.checkReady(ctx, "release task run lease"); err != nil {
-		return taskpkg.Run{}, err
-	}
-	normalized, err := release.Normalize(g.now())
-	if err != nil {
-		return taskpkg.Run{}, err
-	}
-
-	var updated taskpkg.Run
-	if err := g.tasks.withTaskImmediateTransaction(ctx, "release task run lease", func(exec taskSQLExecutor) error {
-		current, err := g.tasks.getTaskRunWithExecutor(ctx, exec, normalized.RunID)
-		if err != nil {
-			return err
-		}
-		if err := requireCurrentRunLease(current, normalized.ClaimToken, normalized.Now); err != nil {
-			return err
-		}
-		if err := requeueLeasedRun(ctx, exec, current.ID); err != nil {
-			return err
-		}
-		if current.IsTaskAnchored() {
-			if err := clearTaskCurrentRunProjection(ctx, exec, current.TaskID, current.ID); err != nil {
-				return err
-			}
-		}
-		updated, err = g.tasks.getTaskRunWithExecutor(ctx, exec, current.ID)
-		if err != nil {
-			return err
-		}
-		if updated.IsNetworkWake() {
-			wakeID, targetSessionID, ownerKey := updated.NetworkWakeCorrelation()
-			return appendNetworkWakeEventWithExecutor(ctx, exec, networkWakeEvent{
-				workspaceID: updated.WorkspaceID, wakeID: wakeID, taskRunID: updated.ID,
-				ownerKey: ownerKey, targetSessionID: targetSessionID,
-				eventType: networkWakeEventReleased, state: updated.Status.String(),
-				reason: normalized.Reason, actor: normalized.Actor.Actor, at: normalized.Now,
-			})
-		}
-		return nil
-	}); err != nil {
-		return taskpkg.Run{}, err
-	}
-	return updated, nil
-}
-
-// CompleteRunLease marks one claimed run complete after token verification.

@@ -3,10 +3,12 @@ package store
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"testing/iotest"
 	"time"
 
 	"github.com/compozy/compozy/internal/network/participation"
@@ -620,12 +622,41 @@ func TestStoreHelpersAndErrorPaths(t *testing.T) {
 		t.Fatalf("NullFloat64(valid) = %#v, want 1.25", got)
 	}
 
-	if got := NewID("prefix"); got == "" || filepath.Base(got) != got {
+	got, err := NewID("prefix")
+	if err != nil {
+		t.Fatalf("NewID(prefix) error = %v", err)
+	}
+	if got == "" || filepath.Base(got) != got {
 		t.Fatalf("NewID(prefix) = %q, want non-empty plain value", got)
 	}
-	if got := NewID(""); got == "" {
+	got, err = NewID("")
+	if err != nil {
+		t.Fatalf("NewID(empty prefix) error = %v", err)
+	}
+	if got == "" {
 		t.Fatal("NewID(\"\") = empty, want non-empty")
 	}
+
+	t.Run("Should reject missing or unreadable identifier entropy", func(t *testing.T) {
+		t.Parallel()
+
+		entropyErr := errors.New("entropy unavailable")
+		generatedID, generateErr := newID("prefix", iotest.ErrReader(entropyErr))
+		if generatedID != "" {
+			t.Fatalf("newID(failing entropy) = %q, want empty", generatedID)
+		}
+		if !errors.Is(generateErr, entropyErr) {
+			t.Fatalf("newID(failing entropy) error = %v, want entropy failure", generateErr)
+		}
+		generatedID, generateErr = newID("prefix", nil)
+		if generatedID != "" || generateErr == nil {
+			t.Fatalf(
+				"newID(nil entropy) = %q, %v; want empty ID and error",
+				generatedID,
+				generateErr,
+			)
+		}
+	})
 
 	if err := Checkpoint(testutil.Context(t), nil); err != nil {
 		t.Fatalf("Checkpoint(nil) error = %v", err)

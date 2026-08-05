@@ -15,7 +15,7 @@ func TestBridgeInstanceContractValidation(t *testing.T) {
 
 		instance := validContractBridgeInstance()
 		instance.ID = " brg-1 "
-		instance.Scope = " WORKSPACE "
+		instance.Scope = ScopeWorkspace
 		instance.WorkspaceID = " ws-1 "
 		instance.Platform = " slack "
 		instance.ExtensionName = " slack-adapter "
@@ -33,7 +33,7 @@ func TestBridgeInstanceContractValidation(t *testing.T) {
 			t.Fatalf("BridgeInstance.Validate() error = %v", err)
 		}
 		normalized := NormalizeBridgeInstance(instance)
-		if normalized.ID != "brg-1" || normalized.Scope != ScopeWorkspace || normalized.WorkspaceID != "ws-1" ||
+		if normalized.ID != " brg-1 " || normalized.Scope != ScopeWorkspace || normalized.WorkspaceID != " ws-1 " ||
 			normalized.Source != BridgeInstanceSourcePackage || normalized.Status != BridgeStatusDegraded ||
 			normalized.DMPolicy != BridgeDMPolicyPairing {
 			t.Fatalf("NormalizeBridgeInstance() = %#v, want canonical identity and enums", normalized)
@@ -93,11 +93,21 @@ func TestBridgeInstanceContractValidation(t *testing.T) {
 			mutate func(*BridgeInstance)
 			want   string
 		}{
-			{name: "Should reject a missing id", mutate: func(v *BridgeInstance) { v.ID = " " }, want: "instance id"},
+			{name: "Should reject a missing id", mutate: func(v *BridgeInstance) { v.ID = "" }, want: "instance id"},
+			{
+				name:   "Should reject a blank id",
+				mutate: func(v *BridgeInstance) { v.ID = " " },
+				want:   "instance id is required",
+			},
 			{
 				name:   "Should reject a missing workspace",
 				mutate: func(v *BridgeInstance) { v.WorkspaceID = "" },
 				want:   "requires workspace",
+			},
+			{
+				name:   "Should reject a blank workspace",
+				mutate: func(v *BridgeInstance) { v.WorkspaceID = " " },
+				want:   "workspace id must not be blank",
 			},
 			{
 				name:   "Should reject a missing platform",
@@ -223,6 +233,8 @@ func TestBridgeInstanceContractValidation(t *testing.T) {
 				wantErr:     true,
 			},
 			{name: "Should reject unsupported scope", scope: "tenant", wantErr: true},
+			{name: "Should reject noncanonical scope case", scope: "WORKSPACE", workspaceID: "ws-1", wantErr: true},
+			{name: "Should reject scope whitespace", scope: " workspace ", workspaceID: "ws-1", wantErr: true},
 			{name: "Should reject empty scope", scope: "", wantErr: true},
 		}
 		for _, test := range cases {
@@ -413,7 +425,7 @@ func TestRoutingContractBuildSerializeAndHash(t *testing.T) {
 		if err != nil {
 			t.Fatalf("BuildRoutingKey() error = %v", err)
 		}
-		if key.PeerID != "peer-1" || key.ThreadID != "thread-1" || key.GroupID != "group-1" ||
+		if key.PeerID != " peer-1 " || key.ThreadID != " thread-1 " || key.GroupID != " group-1 " ||
 			key.Scope != ScopeWorkspace || key.WorkspaceID != "ws-1" {
 			t.Fatalf("BuildRoutingKey() = %#v, want canonical selected dimensions", key)
 		}
@@ -428,19 +440,19 @@ func TestRoutingContractBuildSerializeAndHash(t *testing.T) {
 		if err != nil {
 			t.Fatalf("RoutingKey.Hash() error = %v", err)
 		}
-		key.PeerID = " peer-1 "
+		key.PeerID = "peer-1"
 		secondHash, err := key.Hash()
-		if err != nil || firstHash != secondHash {
-			t.Fatalf("RoutingKey.Hash() = (%q, %v), want stable %q", secondHash, err, firstHash)
+		if err != nil || firstHash == secondHash {
+			t.Fatalf("RoutingKey.Hash() = (%q, %v), want distinct from %q", secondHash, err, firstHash)
 		}
 
 		normalized := NormalizeRoutingKey(RoutingKey{
-			Scope: " WORKSPACE ", WorkspaceID: " ws-1 ", BridgeInstanceID: " brg-1 ",
+			Scope: ScopeWorkspace, WorkspaceID: " ws-1 ", BridgeInstanceID: " brg-1 ",
 			PeerID: " peer-1 ", ThreadID: " thread-1 ", GroupID: " group-1 ",
 		})
-		if normalized.Scope != ScopeWorkspace || normalized.WorkspaceID != "ws-1" ||
-			normalized.BridgeInstanceID != "brg-1" || normalized.PeerID != "peer-1" ||
-			normalized.ThreadID != "thread-1" || normalized.GroupID != "group-1" {
+		if normalized.Scope != ScopeWorkspace || normalized.WorkspaceID != " ws-1 " ||
+			normalized.BridgeInstanceID != " brg-1 " || normalized.PeerID != " peer-1 " ||
+			normalized.ThreadID != " thread-1 " || normalized.GroupID != " group-1 " {
 			t.Fatalf("NormalizeRoutingKey() = %#v, want canonical routing identity", normalized)
 		}
 	})
@@ -464,6 +476,18 @@ func TestRoutingContractBuildSerializeAndHash(t *testing.T) {
 				name:       "Should require a group dimension",
 				dimensions: RoutingDimensions{PeerID: "peer-1", ThreadID: "thread-1"},
 			},
+			{
+				name:       "Should reject a blank peer dimension",
+				dimensions: RoutingDimensions{PeerID: " ", ThreadID: "thread-1", GroupID: "group-1"},
+			},
+			{
+				name:       "Should reject a blank thread dimension",
+				dimensions: RoutingDimensions{PeerID: "peer-1", ThreadID: " ", GroupID: "group-1"},
+			},
+			{
+				name:       "Should reject a blank group dimension",
+				dimensions: RoutingDimensions{PeerID: "peer-1", ThreadID: "thread-1", GroupID: " "},
+			},
 		}
 		for _, test := range cases {
 			t.Run(test.name, func(t *testing.T) {
@@ -483,6 +507,23 @@ func TestRoutingContractBuildSerializeAndHash(t *testing.T) {
 		}
 		if _, err := (RoutingKey{}).Serialize(); err == nil {
 			t.Fatal("RoutingKey.Serialize(invalid) error = nil")
+		}
+	})
+
+	t.Run("Should refuse to hash a blank routing dimension", func(t *testing.T) {
+		t.Parallel()
+
+		key := RoutingKey{
+			Scope:            ScopeWorkspace,
+			WorkspaceID:      "ws-1",
+			BridgeInstanceID: "brg-1",
+			PeerID:           " ",
+		}
+		if err := key.Validate(); err == nil {
+			t.Fatal("RoutingKey.Validate(blank peer) error = nil, want blank identity rejection")
+		}
+		if _, err := key.Hash(); err == nil {
+			t.Fatal("RoutingKey.Hash(blank peer) error = nil, want blank identity rejection")
 		}
 	})
 

@@ -797,6 +797,173 @@ func TestDispatchSessionPreCreateAppliesPatch(t *testing.T) {
 	}
 }
 
+func TestDispatchSessionLifecycleRejectsWorkspacePatchBeforeLaterHooks(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		event    HookEvent
+		dispatch func(context.Context, *Hooks, SessionLifecyclePayload) (SessionLifecyclePayload, error)
+	}{
+		{
+			name:  "Should isolate pre-resume hooks from an immutable workspace patch",
+			event: HookSessionPreResume,
+			dispatch: func(
+				ctx context.Context,
+				hooks *Hooks,
+				payload SessionLifecyclePayload,
+			) (SessionLifecyclePayload, error) {
+				return hooks.DispatchSessionPreResume(ctx, payload)
+			},
+		},
+		{
+			name:  "Should isolate pre-stop hooks from an immutable workspace patch",
+			event: HookSessionPreStop,
+			dispatch: func(
+				ctx context.Context,
+				hooks *Hooks,
+				payload SessionLifecyclePayload,
+			) (SessionLifecyclePayload, error) {
+				return hooks.DispatchSessionPreStop(ctx, payload)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			const originalWorkspaceID = "ws-session-lifecycle-original"
+			const originalWorkspace = "/workspace/original"
+			laterSyncPayload := make(chan SessionLifecyclePayload, 1)
+			asyncPayload := make(chan SessionLifecyclePayload, 1)
+			hooks := newTestHooks(
+				t,
+				WithNativeDeclarations([]HookDecl{
+					{
+						Name:         "patch-workspace",
+						Event:        tc.event,
+						Mode:         HookModeSync,
+						Priority:     300,
+						PrioritySet:  true,
+						ExecutorKind: HookExecutorNative,
+					},
+					{
+						Name:         "observe-sync",
+						Event:        tc.event,
+						Mode:         HookModeSync,
+						Priority:     200,
+						PrioritySet:  true,
+						ExecutorKind: HookExecutorNative,
+					},
+					{
+						Name:         "observe-async",
+						Event:        tc.event,
+						Mode:         HookModeAsync,
+						ExecutorKind: HookExecutorNative,
+					},
+				}),
+				WithExecutorResolver(testExecutorResolver(map[string]Executor{
+					"patch-workspace": NewTypedNativeExecutor(
+						func(
+							_ context.Context,
+							_ RegisteredHook,
+							_ SessionLifecyclePayload,
+						) (SessionCreatePatch, error) {
+							patchedWorkspaceID := "ws-session-lifecycle-patched"
+							patchedWorkspace := "/workspace/patched"
+							return SessionCreatePatch{
+								WorkspaceID: &patchedWorkspaceID,
+								Workspace:   &patchedWorkspace,
+							}, nil
+						},
+					),
+					"observe-sync": NewTypedNativeExecutor(
+						func(
+							_ context.Context,
+							_ RegisteredHook,
+							payload SessionLifecyclePayload,
+						) (SessionCreatePatch, error) {
+							laterSyncPayload <- payload
+							return SessionCreatePatch{}, nil
+						},
+					),
+					"observe-async": NewTypedNativeExecutor(
+						func(
+							_ context.Context,
+							_ RegisteredHook,
+							payload SessionLifecyclePayload,
+						) (SessionCreatePatch, error) {
+							asyncPayload <- payload
+							return SessionCreatePatch{}, nil
+						},
+					),
+				})),
+			)
+			if err := hooks.Rebuild(t.Context()); err != nil {
+				t.Fatalf("Rebuild() error = %v", err)
+			}
+
+			result, err := tc.dispatch(t.Context(), hooks, SessionLifecyclePayload{
+				PayloadBase: PayloadBase{Event: tc.event},
+				SessionContext: SessionContext{
+					SessionID:   "sess-session-lifecycle",
+					WorkspaceID: originalWorkspaceID,
+					Workspace:   originalWorkspace,
+				},
+			})
+			if err != nil {
+				t.Fatalf("Dispatch(%s) error = %v", tc.event, err)
+			}
+			assertImmutableSessionWorkspacePayload(t, "result", result, originalWorkspaceID, originalWorkspace)
+			select {
+			case payload := <-laterSyncPayload:
+				assertImmutableSessionWorkspacePayload(
+					t,
+					"later sync hook",
+					payload,
+					originalWorkspaceID,
+					originalWorkspace,
+				)
+			case <-t.Context().Done():
+				t.Fatalf("later sync hook did not run: %v", t.Context().Err())
+			}
+			select {
+			case payload := <-asyncPayload:
+				assertImmutableSessionWorkspacePayload(
+					t,
+					"async hook",
+					payload,
+					originalWorkspaceID,
+					originalWorkspace,
+				)
+			case <-t.Context().Done():
+				t.Fatalf("async hook did not run: %v", t.Context().Err())
+			}
+		})
+	}
+}
+
+func assertImmutableSessionWorkspacePayload(
+	t *testing.T,
+	label string,
+	payload SessionLifecyclePayload,
+	wantWorkspaceID string,
+	wantWorkspace string,
+) {
+	t.Helper()
+	if payload.WorkspaceID != wantWorkspaceID || payload.Workspace != wantWorkspace {
+		t.Fatalf(
+			"%s workspace = {%q %q}, want {%q %q}",
+			label,
+			payload.WorkspaceID,
+			payload.Workspace,
+			wantWorkspaceID,
+			wantWorkspace,
+		)
+	}
+}
+
 func TestDispatchSandboxPrepareAppliesEnvOverridesAndDeny(t *testing.T) {
 	t.Parallel()
 

@@ -11,16 +11,15 @@ func (b *Broker) metricsLocked(bridgeInstanceID string) *instanceDeliveryMetrics
 	if b.metrics == nil {
 		b.metrics = make(map[string]*instanceDeliveryMetrics)
 	}
-	trimmedID := strings.TrimSpace(bridgeInstanceID)
-	if trimmedID == "" {
+	if bridgeInstanceID == "" {
 		return nil
 	}
-	metrics := b.metrics[trimmedID]
+	metrics := b.metrics[bridgeInstanceID]
 	if metrics == nil {
 		metrics = &instanceDeliveryMetrics{
 			droppedByReason: make(map[string]int),
 		}
-		b.metrics[trimmedID] = metrics
+		b.metrics[bridgeInstanceID] = metrics
 	}
 	return metrics
 }

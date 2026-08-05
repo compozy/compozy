@@ -189,7 +189,7 @@ func addMCPAuthTargetFlags(cmd *cobra.Command, opts *mcpAuthCommandOptions) {
 func (o mcpAuthCommandOptions) resolveWorkspace(
 	cmd *cobra.Command,
 	deps commandDeps,
-	client DaemonClient,
+	client workspaceLookupClient,
 ) (mcpAuthCommandOptions, error) {
 	if contract.SettingsWorkspaceScopeKind(strings.TrimSpace(o.scope)) ==
 		contract.SettingsWorkspaceScopeWorkspace {
