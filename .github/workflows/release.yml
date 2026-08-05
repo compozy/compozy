@@ -70,7 +70,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           fetch-tags: true
@@ -121,7 +121,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           fetch-tags: true
@@ -217,7 +217,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           fetch-tags: true
@@ -252,7 +252,7 @@ jobs:
 
       - name: Upload E2E artifacts on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: e2e-nightly-artifacts
           path: |
@@ -272,7 +272,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 150
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           fetch-tags: true
@@ -301,7 +301,7 @@ jobs:
 
       - name: Upload integration artifacts on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: integration-artifacts
           path: |
@@ -342,7 +342,7 @@ jobs:
       npm_tag: ${{ steps.plan.outputs.npm_tag }}
       homebrew_skip_upload: ${{ steps.plan.outputs.homebrew_skip_upload }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.release_ref || github.sha }}
           fetch-depth: 0
@@ -442,7 +442,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.release-plan.outputs.release_ref }}
           fetch-depth: 0
@@ -581,7 +581,7 @@ jobs:
           ensure_annotated_tag "${sdk_go_tag}"
           git push origin "refs/tags/${RELEASE_TAG}" "refs/tags/${sdk_go_tag}"
 
-      - uses: goreleaser/goreleaser-action@v6
+      - uses: goreleaser/goreleaser-action@v7
         if: steps.publication.outputs.already_published != 'true'
         with:
           distribution: goreleaser-pro
@@ -612,7 +612,7 @@ jobs:
 
       - name: Checkout canonical formula renderer
         if: needs.release-plan.outputs.homebrew_skip_upload == 'false'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: main
           path: .release-tools
@@ -622,7 +622,7 @@ jobs:
 
       - name: Checkout Homebrew tap
         if: needs.release-plan.outputs.homebrew_skip_upload == 'false'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: compozy/homebrew-compozy
           ref: main

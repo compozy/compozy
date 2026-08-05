@@ -34,7 +34,7 @@ runs:
 
     - name: Cache Bun dependencies
       id: bun-cache
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: ~/.bun/install/cache
         key: ${{ runner.os }}-bun-${{ steps.setup-bun.outputs.bun-version }}-${{
@@ -54,7 +54,7 @@ runs:
     - name: Cache Playwright browsers
       if: inputs.install-playwright == 'true'
       id: playwright-cache
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: ~/.cache/ms-playwright
         key: ${{ runner.os }}-playwright-${{ hashFiles('bun.lock', '**/package.json', '.bun-version') }}

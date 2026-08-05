@@ -31,7 +31,7 @@ jobs:
       web: ${{ steps.filter.outputs.web }}
       relevant: ${{ steps.filter.outputs.backend == 'true' || steps.filter.outputs.web == 'true' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -114,7 +114,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.relevant == 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Go
         uses: ./.github/actions/setup-go
@@ -128,7 +128,7 @@ jobs:
           install-playwright: "false"
 
       - name: Restore Daytona sidecar proof
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/compozy-dev/daytona-check.stamp
           key: ${{ runner.os }}-daytona-proof-${{ github.sha }}
@@ -148,7 +148,7 @@ jobs:
     needs: [changes, preflight]
     if: needs.changes.outputs.relevant == 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Go for scaffold tests
         uses: ./.github/actions/setup-go
@@ -161,7 +161,7 @@ jobs:
           install-playwright: "false"
 
       - name: Restore Turbo cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .turbo
           key: ${{ runner.os }}-turbo-frontend-${{ hashFiles('bun.lock', 'turbo.json') }}-${{ github.sha }}
@@ -180,7 +180,7 @@ jobs:
 
       - name: Upload frontend artifacts on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: frontend-verify-artifacts
           path: web/dist
@@ -194,7 +194,7 @@ jobs:
     needs: [changes, preflight]
     if: needs.changes.outputs.relevant == 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Go
         uses: ./.github/actions/setup-go
@@ -204,7 +204,7 @@ jobs:
           install-golangci-lint: "true"
 
       - name: Restore golangci-lint cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/compozy-dev/golangci-lint
           key: ${{ runner.os }}-golangci-v2.12.2-${{ hashFiles('go.sum', '.golangci.yml') }}-${{ github.sha }}
@@ -237,7 +237,7 @@ jobs:
     needs: [changes, preflight]
     if: needs.changes.outputs.relevant == 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Go
         uses: ./.github/actions/setup-go
@@ -261,7 +261,7 @@ jobs:
     needs: [changes, preflight]
     if: needs.changes.outputs.relevant == 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Go
         uses: ./.github/actions/setup-go
@@ -303,7 +303,7 @@ jobs:
     timeout-minutes: 40
     needs: verify
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Go
         uses: ./.github/actions/setup-go
@@ -325,7 +325,7 @@ jobs:
 
       - name: Upload E2E artifacts on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: e2e-combined-artifacts
           path: |
