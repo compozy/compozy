@@ -4,9 +4,12 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -18,6 +21,7 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 const faultyMockAgentName = "mock-faulty"
@@ -45,6 +49,53 @@ func TestDaemonE2EACPmockCrashMidStreamProjectsRuntimeFailure(t *testing.T) {
 			"partial before crash",
 			false,
 		)
+
+		recoveryStream, err := harness.PromptSessionHTTP(ctx, session.ID, "continue after disconnect")
+		if err != nil {
+			t.Fatalf("PromptSessionHTTP(recovery) error = %v", err)
+		}
+		if !e2etest.RecordsContainTextDelta(recoveryStream, "recovered after disconnect") ||
+			sseStreamContainsEvent(recoveryStream, "error") {
+			t.Fatalf("recovery prompt stream = %#v, want recovered text and clean completion", recoveryStream)
+		}
+		transcript := mustSessionTranscript(t, ctx, harness, session.ID)
+		content := joinTranscriptContent(sessionTranscriptMessages(transcript))
+		if !strings.Contains(content, "partial before crash") ||
+			!strings.Contains(content, "recovered after disconnect") {
+			t.Fatalf("recovered transcript = %q, want partial and recovered assistant output", content)
+		}
+
+		cliSession := createFixtureBackedSession(t, ctx, harness, faultyMockAgentName, "faulty-cli-session")
+		stdout, stderr, cliErr := harness.CLI.Run(
+			ctx,
+			"session", "prompt", cliSession.ID, "trigger crash mid-stream", "-o", "jsonl",
+		)
+		if cliErr == nil {
+			t.Fatalf("CLI crash prompt error = nil, want nonzero exit; stdout=%s stderr=%s", stdout, stderr)
+		}
+		if !strings.Contains(stdout, "partial before crash") || !strings.Contains(stdout, `"type":"error"`) {
+			t.Fatalf("CLI crash prompt stdout = %q, want partial chunk and terminal error frame", stdout)
+		}
+
+		nativeSession := createFixtureBackedSession(t, ctx, harness, faultyMockAgentName, "faulty-native-session")
+		nativeErr := agentDefinitionE2EToolRequestError(
+			t,
+			ctx,
+			harness.HTTPClient,
+			harness.HTTPURL("/api/tools/"+toolspkg.ToolIDSessionPrompt.String()+"/invoke"),
+			compozycontract.ToolInvokeRequest{
+				WorkspaceID: harness.WorkspaceID,
+				Input: json.RawMessage(fmt.Sprintf(
+					`{"session_id":%q,"message":"trigger crash mid-stream","message_id":"msg-native-crash","idempotency_key":"idem-native-crash"}`,
+					nativeSession.ID,
+				)),
+			},
+		)
+		if nativeErr.Status != http.StatusBadGateway ||
+			nativeErr.Payload.Error.Code != toolspkg.ErrorCodeBackendFailed ||
+			!slices.Contains(nativeErr.Payload.Error.ReasonCodes, toolspkg.ReasonBackendDead) {
+			t.Fatalf("native session prompt error = %#v, want 502 tool_backend_failed/backend_dead", nativeErr)
+		}
 	})
 }
 
@@ -430,6 +481,10 @@ func assertFaultPromptProjection(
 	if got, want := udsSession.ID, sessionID; got != want {
 		t.Fatalf("UDS session ID = %q, want %q", got, want)
 	}
+	if udsSession.Failure == nil || udsSession.Failure.Kind != store.FailureProcess {
+		t.Fatalf("UDS session failure = %#v, want process_exit", udsSession.Failure)
+	}
+	assertCrashBundleExitCode(t, udsSession.Failure.CrashBundlePath, 23)
 
 	transcript := mustSessionTranscript(t, ctx, harness, sessionID)
 	content := joinTranscriptContent(sessionTranscriptMessages(transcript))
@@ -471,6 +526,29 @@ func assertFaultPromptProjection(
 	assertArtifactExists(t, harness, e2etest.ArtifactKindTranscript)
 	assertArtifactExists(t, harness, e2etest.ArtifactKindEvents)
 	assertArtifactExists(t, harness, e2etest.ArtifactKindSessionSandbox)
+}
+
+func assertCrashBundleExitCode(t testing.TB, path string, want int) {
+	t.Helper()
+	if strings.TrimSpace(path) == "" {
+		t.Fatal("crash bundle path = empty, want process diagnostics")
+	}
+	payload, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile(crash bundle %q) error = %v", path, err)
+	}
+	var bundle struct {
+		Process *struct {
+			ExitCode *int   `json:"exit_code"`
+			Signal   string `json:"signal"`
+		} `json:"process"`
+	}
+	if err := json.Unmarshal(payload, &bundle); err != nil {
+		t.Fatalf("json.Unmarshal(crash bundle %q) error = %v", path, err)
+	}
+	if bundle.Process == nil || bundle.Process.ExitCode == nil || *bundle.Process.ExitCode != want {
+		t.Fatalf("crash bundle process = %#v, want exit_code %d", bundle.Process, want)
+	}
 }
 
 func assertNoFatalBlockedCancelError(t testing.TB, events []compozycontract.AgentEventPayload) {

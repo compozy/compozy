@@ -17,7 +17,7 @@ import (
 
 const (
 	crashBundleDirName      = "crash-bundles"
-	crashBundleSchema       = "compozy.session_crash_bundle.v1"
+	crashBundleSchema       = "compozy.session_crash_bundle.v2"
 	maxCrashEvidenceBytes   = 32 << 10
 	crashBundleFileMode     = 0o600
 	crashBundleDirMode      = 0o700
@@ -44,6 +44,8 @@ type crashBundleProcess struct {
 	Args      []string  `json:"args,omitempty"`
 	Cwd       string    `json:"cwd,omitempty"`
 	StartedAt time.Time `json:"started_at"`
+	ExitCode  *int      `json:"exit_code,omitempty"`
+	Signal    string    `json:"signal,omitempty"`
 }
 
 func (m *Manager) attachCrashBundleToFailure(
@@ -134,13 +136,19 @@ func (m *Manager) writeCrashBundle(
 		CreatedAt: m.now().UTC(),
 	}
 	if proc := session.processHandle(); proc != nil {
-		document.Process = &crashBundleProcess{
+		process := &crashBundleProcess{
 			PID:       proc.PID,
 			Command:   diagnostics.RedactAndBound(proc.Command, maxCrashEvidenceBytes),
 			Args:      redactStringSlice(proc.Args),
 			Cwd:       diagnostics.RedactAndBound(proc.Cwd, maxCrashEvidenceBytes),
 			StartedAt: proc.StartedAt.UTC(),
 		}
+		if status, ok := proc.ExitStatus(); ok {
+			exitCode := status.ExitCode
+			process.ExitCode = &exitCode
+			process.Signal = status.Signal
+		}
+		document.Process = process
 	}
 
 	payload, err := json.MarshalIndent(document, "", "  ")

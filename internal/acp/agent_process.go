@@ -111,6 +111,25 @@ func (p *AgentProcess) Stderr() string {
 	return p.stderr.String()
 }
 
+// ExitStatus returns the OS exit facts exposed by the underlying process handle.
+func (p *AgentProcess) ExitStatus() (subprocess.ExitStatus, bool) {
+	if p == nil {
+		return subprocess.ExitStatus{}, false
+	}
+	if provider, ok := p.handle.(interface {
+		ExitStatus() (subprocess.ExitStatus, bool)
+	}); ok {
+		return provider.ExitStatus()
+	}
+	if p.managed != nil {
+		return p.managed.ExitStatus()
+	}
+	if p.cmd != nil {
+		return subprocess.ExitStatusFromProcessState(p.cmd.ProcessState)
+	}
+	return subprocess.ExitStatus{}, false
+}
+
 // HealthState returns the latest managed subprocess health snapshot.
 func (p *AgentProcess) HealthState() subprocess.HealthState {
 	if p == nil || p.managed == nil {

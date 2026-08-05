@@ -9,6 +9,10 @@ flowchart TD
     E3[Entry: UDS client] --> C
     C --> REST[Read bounded transcript tail + older pages via before_sequence]
     C --> STRM[Subscribe SSE: frames=transcript + after_sequence + epoch + generation]
+    C -->|ACP process disconnects mid-response| PFAIL[Persist delivered chunks + emit terminal error]
+    PFAIL --> DIAG[Read process_exit diagnostics + preserved transcript]
+    DIAG -->|new explicit prompt| RECOVER[Restart provider process without replaying the failed prompt]
+    RECOVER --> C
     STRM -->|no cursor| SNAP[Bounded snapshot, reset=false]
     STRM -->|missing/stale fence or reset cursor| RESET[Reset snapshot + explicit reason]
     STRM -->|empty delta with newer cursor| ADV[Advance safe cursor without adding an entry]
@@ -44,15 +48,18 @@ journey:
       verb: "Subscribe to the stream and read bounded history"
       expected_observable: "Transcript REST returns a bounded tail and older pages via `before_sequence`; transcript SSE reconnects with `after_sequence`, `epoch`, and `generation`, emits bounded deltas for matching fences, emits an explicit reset snapshot for `fence_missing`, `epoch_mismatch`, `generation_mismatch`, or `sequence_reset`, and may advance the cursor with an empty delta; idle streams emit keep-alive comments ≤ heartbeat"
     - step: 3
+      verb: "Handle an ACP process disconnect during a prompt"
+      expected_observable: "Already delivered chunks remain persisted; HTTP and UDS emit a terminal error, CLI JSONL prints the partial frames and exits nonzero, `compozy__session_prompt` returns `tool_backend_failed` with `backend_dead`, session diagnostics classify `process_exit`, and no automatic replay occurs"
+    - step: 4
       verb: "Stop the session and read during finalize"
       expected_observable: "Reads racing the stop return the persisted transcript, never a recorder-unavailable error; recap is byte-identical to the streamed payload"
-    - step: 4
+    - step: 5
       verb: "Compare list, detail, and status across surfaces"
       expected_observable: "State is identical across `list`, `detail`, and `status` through spawn → background → stop (and after a daemon restart); HTTP and UDS agree byte-for-byte on the same inputs"
   goal:
     observable: "The agent reads a complete, gap-free transcript and drives the session to a terminal outcome deterministically, with lifecycle state consistent across every surface"
-    side_effects: [session-created, prompt-streamed, session-stopped]
-  true_end_state: "Older REST pages remain loaded; reconnect after killing the client resumes from `after_sequence` with matching `epoch`/`generation`, or replaces the bounded tail only on an explicit reset; empty deltas still advance the cursor; list/detail/status agree after a daemon restart; HTTP and UDS return identical structured output."
+    side_effects: [session-created, prompt-streamed, partial-output-persisted, session-stopped]
+  true_end_state: "Older REST pages remain loaded; reconnect after killing the client resumes from `after_sequence` with matching `epoch`/`generation`, or replaces the bounded tail only on an explicit reset; empty deltas still advance the cursor; an ACP process disconnect retains delivered chunks and requires one new explicit prompt; list/detail/status agree after a daemon restart; HTTP and UDS return identical structured output."
   exit:
     natural: "The agent has a terminal outcome + a complete transcript and hands off / records the result."
   abandonment:
@@ -60,9 +67,12 @@ journey:
       how: "The client is killed mid-stream (crash, network)."
       resume: "Reconnect with `after_sequence`, `epoch`, and `generation`; matching fences resume with bounded deltas, while a reset snapshot names why the cached tail must be replaced; an empty delta still advances the safe cursor."
     - at_step: 3
+      how: "The ACP provider process disconnects after delivering part of the final response."
+      resume: "Inspect the persisted transcript and `process_exit` diagnostics, then send a new explicit prompt to restart the provider process in the same Compozy session; Compozy never replays the failed prompt automatically because it may already have caused side effects."
+    - at_step: 4
       how: "A read races the stop and hits a recorder-unavailable error, so the agent aborts."
       resume: "Reads during stop/finalize must degrade to the persisted transcript; the finding is any recorder error surfaced to the caller."
-  crosses: [CLI, HTTP, UDS, session-store, SSE-broadcaster, RT-042-parity-canary]
+  crosses: [CLI, HTTP, UDS, native-tool-registry, session-store, SSE-broadcaster, RT-042-parity-canary]
 
 design_reference:
   screens:
@@ -73,6 +83,7 @@ design_reference:
     - "Reconnects carry `after_sequence`, `epoch`, and `generation`; reset snapshots name `fence_missing`, `epoch_mismatch`, `generation_mismatch`, or `sequence_reset`."
     - "An empty `transcript_delta` may advance the safe cursor without adding a visible entry."
     - "Reads during stop/finalize return the persisted transcript, never a recorder error (task 21)."
+    - "An ACP process disconnect preserves delivered chunks, emits a terminal error, fails `compozy__session_prompt` with `backend_dead`, records `process_exit` diagnostics, and permits only an explicit next-prompt recovery — never automatic replay."
     - "List/detail/status agree through spawn→background→stop→restart (task 22); HTTP↔UDS byte parity (RT-042)."
 
 e2e_backbone:
@@ -80,6 +91,7 @@ e2e_backbone:
     - "E2E-runtime 1: long-session bounded REST pagination under lane latency (task 14)."
     - "E2E-runtime 3: reconnect with matching and stale transcript fences, including explicit reset reasons and empty-delta cursor advancement (task 17)."
     - "E2E-runtime 4: consistent state across list and detail through spawn → background → stop (task 22)."
+    - "E2E-runtime fault path: a real ACP subprocess disconnect after a partial response is projected through HTTP, UDS, CLI JSONL, `compozy__session_prompt`, persisted transcript, crash diagnostics, and same-session explicit recovery."
   manual:
     - "Manual §9.6: raw-stream contiguity — `compozy session events --follow` against a busy session, disconnect during a large output burst, reconnect; the printed sequence is contiguous with no skipped `sequence` (tasks 42/43)."
   telemetry:

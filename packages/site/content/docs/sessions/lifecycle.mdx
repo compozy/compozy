@@ -137,6 +137,29 @@ Two operational details matter here:
   events, health is consumed by `HEARTBEAT.md` wake decisions and the
   `compozy session health|status|inspect` surfaces.
 
+### When the provider disconnects during a prompt
+
+Compozy persists each accepted agent event before forwarding it. If the ACP subprocess disconnects
+after sending part of an answer, the stored assistant chunks remain in events and transcript reads.
+The prompt stream ends with an error instead of `done`, and the session stops with
+`failure.kind: "process_exit"`. HTTP and UDS clients receive the terminal error frame because the
+response status cannot change after streaming has started.
+
+`compozy session prompt <id> "..." -o jsonl` writes every frame it received, including the terminal
+error frame, then exits nonzero. The `compozy__session_prompt` native tool returns
+`tool_backend_failed` with reason `backend_dead` rather than reporting success. Inspect the session
+before continuing:
+
+```bash
+compozy session status sess-1234 -o json
+compozy session events sess-1234 --last 20 -o json
+```
+
+Compozy does not automatically retry the interrupted prompt. Its tool or external effects may have
+completed before the disconnect. A later, explicit prompt restarts the stopped runtime under the
+same Compozy session ID and retained transcript. Send a new continuation only after deciding whether
+the interrupted work is safe to repeat.
+
 ### Selecting the next runtime
 
 Persist next-prompt runtime intent without starting or reconfiguring ACP:
@@ -427,9 +450,11 @@ Current failure kinds are:
 | `unknown_failure`      | Compozy had an error but no more specific kind was available.                     |
 
 Crash bundles are written under `~/.compozy/logs/crash-bundles/` by default. They are JSON documents
-with schema `compozy.session_crash_bundle.v1`, session identity, provider identity, failure kind,
-process metadata, error text, and captured stderr when available. Bundle contents are bounded and
-redacted before they are written, and files are created with owner-only permissions.
+with schema `compozy.session_crash_bundle.v2`, session identity, provider identity, failure kind,
+process metadata, error text, and captured stderr when available. Completed process metadata also
+includes `exit_code` and the terminating `signal` when the operating system exposes them. Bundle
+contents are bounded and redacted before they are written, and files are created with owner-only
+permissions.
 
 ## Crash classification and transcript repair
 

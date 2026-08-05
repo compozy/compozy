@@ -6,11 +6,14 @@ import (
 	"errors"
 
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/transcript"
 )
+
+const fatalPromptProcessExitGrace = time.Second
 
 func (m *Manager) pumpPrompt(
 	lifecycleCtx context.Context,
@@ -112,6 +115,17 @@ func (m *Manager) stopSessionAfterFatalPromptFailure(
 		"agent runtime became unavailable during prompt",
 	)
 	proc.setWaitErrorOverride(acp.WrapFailure(failure.Kind, summary, errors.New(summary)))
+
+	waitBase := ctx
+	if waitBase == nil {
+		waitBase = m.fallbackLifecycleContext()
+	}
+	waitCtx, cancelWait := context.WithTimeout(context.WithoutCancel(waitBase), fatalPromptProcessExitGrace)
+	select {
+	case <-proc.Done():
+	case <-waitCtx.Done():
+	}
+	cancelWait()
 
 	stopCtx, cancel := detachedPromptStopContext(ctx, m)
 	defer cancel()

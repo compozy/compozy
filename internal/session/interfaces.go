@@ -159,6 +159,7 @@ type AgentProcess struct {
 	done                <-chan struct{}
 	waitFn              func() error
 	stderrFn            func() string
+	exitStatusFn        func() (subprocess.ExitStatus, bool)
 	healthStateFn       func() subprocess.HealthState
 	capsSnapshotFn      func() acp.Caps
 	pendingPermissionFn func() bool
@@ -185,6 +186,7 @@ type AgentProcessOptions struct {
 	Done              <-chan struct{}
 	Wait              func() error
 	Stderr            func() string
+	ExitStatus        func() (subprocess.ExitStatus, bool)
 	HealthState       func() subprocess.HealthState
 	PendingPermission func() bool
 	ApprovePermission func(context.Context, acp.ApproveRequest) error
@@ -228,6 +230,7 @@ func NewAgentProcess(opts AgentProcessOptions) *AgentProcess {
 		done:                done,
 		waitFn:              waitFn,
 		stderrFn:            stderrFn,
+		exitStatusFn:        opts.ExitStatus,
 		healthStateFn:       opts.HealthState,
 		capsSnapshotFn:      opts.CapsSnapshot,
 		pendingPermissionFn: opts.PendingPermission,
@@ -246,18 +249,24 @@ func (p *AgentProcess) Done() <-chan struct{} {
 // Wait blocks until the runtime process exits and returns its terminal error state.
 func (p *AgentProcess) Wait() error {
 	<-p.Done()
+	waitErr := p.waitFn()
 	p.waitOverrideMu.RLock()
 	override := p.waitErrOverride
 	p.waitOverrideMu.RUnlock()
-	if override != nil {
-		return override
-	}
-	return p.waitFn()
+	return errors.Join(waitErr, override)
 }
 
 // Stderr returns any captured stderr output for the runtime process.
 func (p *AgentProcess) Stderr() string {
 	return p.stderrFn()
+}
+
+// ExitStatus returns the stable OS exit diagnostics exposed by the runtime process.
+func (p *AgentProcess) ExitStatus() (subprocess.ExitStatus, bool) {
+	if p == nil || p.exitStatusFn == nil {
+		return subprocess.ExitStatus{}, false
+	}
+	return p.exitStatusFn()
 }
 
 // HealthState returns the latest runtime health snapshot when the driver
@@ -360,6 +369,7 @@ func wrapACPProcess(proc *acp.AgentProcess) *AgentProcess {
 		done:                proc.Done(),
 		waitFn:              proc.Wait,
 		stderrFn:            proc.Stderr,
+		exitStatusFn:        proc.ExitStatus,
 		healthStateFn:       proc.HealthState,
 		capsSnapshotFn:      proc.CapsSnapshot,
 		pendingPermissionFn: proc.HasPendingPermission,

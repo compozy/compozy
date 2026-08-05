@@ -372,25 +372,37 @@ func TestPromptFatalProcessFailureStopsSessionAndAllowsFreshResumeFallback(t *te
 	h := newHarness(t)
 	session := createSession(t, h)
 	originalACP := session.Info().ACPSessionID
+	processExitErr := errors.New("acp subprocess exited: exit status 23")
 	t.Cleanup(func() {
 		if _, ok := h.manager.Get(session.ID); ok {
 			reportSessionStop(t, h, session.ID)
 		}
 	})
+	h.driver.stopHook = func(proc *fakeProcess) error {
+		proc.crash(processExitErr, "codex stderr tail")
+		return nil
+	}
 
 	h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
-		events := make(chan acp.AgentEvent, 1)
+		events := make(chan acp.AgentEvent, 2)
 		go func() {
 			defer close(events)
+			events <- acp.AgentEvent{
+				Type:      acp.EventTypeAgentMessage,
+				SessionID: originalACP,
+				TurnID:    req.TurnID,
+				Timestamp: time.Now().UTC(),
+				Text:      "partial before disconnect",
+			}
 			events <- acp.AgentEvent{
 				Type:      acp.EventTypeError,
 				SessionID: originalACP,
 				TurnID:    req.TurnID,
 				Timestamp: time.Now().UTC(),
-				Error:     `{"code":-32603,"message":"Internal error: The Claude Agent process exited unexpectedly. Please start a new session."}`,
+				Error:     `RequestError -32603: peer disconnected before response`,
 				Failure: &store.SessionFailure{
 					Kind:    store.FailureProcess,
-					Summary: `{"code":-32603,"message":"Internal error: The Claude Agent process exited unexpectedly. Please start a new session."}`,
+					Summary: `RequestError -32603: peer disconnected before response`,
 				},
 			}
 		}()
@@ -402,14 +414,17 @@ func TestPromptFatalProcessFailureStopsSessionAndAllowsFreshResumeFallback(t *te
 		t.Fatalf("Prompt() error = %v", err)
 	}
 	events := collectEvents(t, eventsCh)
-	if got, want := len(events), 1; got != want {
+	if got, want := len(events), 2; got != want {
 		t.Fatalf("Prompt() events = %d, want %d", got, want)
 	}
-	if got, want := events[0].Type, acp.EventTypeError; got != want {
+	if got, want := events[0].Type, acp.EventTypeAgentMessage; got != want {
 		t.Fatalf("Prompt() first event type = %q, want %q", got, want)
 	}
-	if events[0].Failure == nil || events[0].Failure.Kind != store.FailureProcess {
-		t.Fatalf("Prompt() failure = %#v, want process_exit", events[0].Failure)
+	if got, want := events[0].Text, "partial before disconnect"; got != want {
+		t.Fatalf("Prompt() first event text = %q, want %q", got, want)
+	}
+	if events[1].Failure == nil || events[1].Failure.Kind != store.FailureProcess {
+		t.Fatalf("Prompt() failure = %#v, want process_exit", events[1].Failure)
 	}
 
 	h.notifier.waitForStopped(t, session.ID)
@@ -430,6 +445,17 @@ func TestPromptFatalProcessFailureStopsSessionAndAllowsFreshResumeFallback(t *te
 	}
 	if meta.Failure == nil || meta.Failure.Kind != store.FailureProcess {
 		t.Fatalf("meta.Failure = %#v, want process_exit", meta.Failure)
+	}
+	if !strings.Contains(meta.StopDetail, processExitErr.Error()) {
+		t.Fatalf("meta.StopDetail = %q, want real process exit diagnostic %q", meta.StopDetail, processExitErr)
+	}
+	stored := readStoredEvents(t, session)
+	if !containsEventType(stored, acp.EventTypeAgentMessage) || containsEventType(stored, acp.EventTypeDone) {
+		t.Fatalf("stored events = %#v, want partial agent message and no done event", stored)
+	}
+	partial := storedEventByType(t, stored, acp.EventTypeAgentMessage)
+	if !strings.Contains(partial.Content, "partial before disconnect") {
+		t.Fatalf("stored agent message = %s, want persisted partial chunk", partial.Content)
 	}
 
 	h.driver.startHook = func(opts acp.StartOpts, sequence int) (*fakeProcess, error) {
@@ -464,6 +490,25 @@ func TestPromptFatalProcessFailureStopsSessionAndAllowsFreshResumeFallback(t *te
 	}
 	if got := resumed.Info().ACPSessionID; got == "" || got == originalACP {
 		t.Fatalf("resumed ACPSessionID = %q, want fresh ACP session id distinct from %q", got, originalACP)
+	}
+
+	h.driver.mu.Lock()
+	h.driver.promptHook = nil
+	h.driver.stopHook = nil
+	h.driver.mu.Unlock()
+	recoveryEventsCh, err := h.manager.Prompt(testutil.Context(t), resumed.ID, "continue after disconnect")
+	if err != nil {
+		t.Fatalf("Prompt(recovered session) error = %v", err)
+	}
+	recoveryEvents := collectEvents(t, recoveryEventsCh)
+	if got, want := len(recoveryEvents), 2; got != want {
+		t.Fatalf("Prompt(recovered session) events = %d, want %d", got, want)
+	}
+	if recoveryEvents[0].Type != acp.EventTypeAgentMessage || recoveryEvents[1].Type != acp.EventTypeDone {
+		t.Fatalf("Prompt(recovered session) events = %#v, want agent message then done", recoveryEvents)
+	}
+	if got, want := len(h.driver.promptCalls), 2; got != want {
+		t.Fatalf("driver prompt calls = %d, want failed prompt plus one explicit recovery prompt", got)
 	}
 }
 

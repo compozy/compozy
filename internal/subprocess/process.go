@@ -98,6 +98,9 @@ type Process struct {
 	done          chan struct{}
 	waitMu        sync.RWMutex
 	waitErr       error
+	exitStatusMu  sync.RWMutex
+	exitStatus    ExitStatus
+	hasExitStatus bool
 	stopRequested bool
 	stopMu        sync.RWMutex
 	closeInputMu  sync.Mutex

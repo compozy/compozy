@@ -245,6 +245,135 @@ func TestUnixSocketClientSessionPromptShouldDecodeStructuredGoalJSON(t *testing.
 	})
 }
 
+func TestUnixSocketClientSessionPromptTerminalContract(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should return the raw terminal error with all preceding events", func(t *testing.T) {
+		t.Parallel()
+
+		body := strings.Join([]string{
+			"event: agent_message",
+			`data: {"type":"agent_message","timestamp":"2026-08-05T12:00:00Z","text":"partial before disconnect"}`,
+			"",
+			"event: error",
+			`data: {"type":"error","timestamp":"2026-08-05T12:00:01Z","error":"peer disconnected before response","failure":{"kind":"process_exit","summary":"ACP subprocess exited unexpectedly"}}`,
+			"",
+		}, "\n")
+		client := &unixSocketClient{
+			socketPath: "/tmp/compozy.sock",
+			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+				response := newHTTPResponse(http.StatusOK, body)
+				response.Header.Set("Content-Type", "text/event-stream")
+				response.Request = req
+				return response, nil
+			})},
+		}
+
+		record, err := client.doSessionPrompt(
+			t.Context(),
+			http.MethodPost,
+			"/api/workspaces/ws-1/sessions/sess-1/prompt",
+			nil,
+			SessionPromptRequest{Message: "hello"},
+		)
+		if err == nil || !strings.Contains(err.Error(), "peer disconnected before response") {
+			t.Fatalf("doSessionPrompt() error = %v, want terminal process failure", err)
+		}
+		if got, want := len(record.Events), 2; got != want {
+			t.Fatalf("doSessionPrompt() events = %d, want %d", got, want)
+		}
+		if record.Events[0].Text != "partial before disconnect" || record.Events[1].Type != "error" {
+			t.Fatalf("doSessionPrompt() events = %#v, want partial chunk then terminal error", record.Events)
+		}
+	})
+
+	t.Run("Should forward streamed frames before returning the terminal error", func(t *testing.T) {
+		t.Parallel()
+
+		body := strings.Join([]string{
+			`data: {"type":"text-delta","id":"turn-1-text","delta":"partial before disconnect"}`,
+			"",
+			`data: {"type":"error","errorText":"peer disconnected before response"}`,
+			"",
+			`data: {"type":"finish","finishReason":"error"}`,
+			"",
+			"data: [DONE]",
+			"",
+		}, "\n")
+		transport := roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+			switch {
+			case req.Method == http.MethodGet && req.URL.Path == "/api/sessions/sess-1":
+				return newHTTPResponse(
+					http.StatusOK,
+					`{"session":{"id":"sess-1","workspace_id":"ws-1","state":"active","created_at":"2026-08-05T12:00:00Z","updated_at":"2026-08-05T12:00:00Z"}}`,
+				), nil
+			case req.Method == http.MethodPost &&
+				req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/prompt":
+				response := newHTTPResponse(http.StatusOK, body)
+				response.Header.Set("Content-Type", "text/event-stream")
+				response.Request = req
+				return response, nil
+			default:
+				t.Fatalf("unexpected request = %s %s", req.Method, req.URL.Path)
+				return nil, errors.New("unexpected request")
+			}
+		})
+		client := &unixSocketClient{
+			socketPath: "/tmp/compozy.sock",
+			httpClient: &http.Client{Transport: transport},
+		}
+		client.streamClient = client.httpClient
+
+		var events []SSEEvent
+		err := client.StreamPromptSession(
+			t.Context(),
+			"sess-1",
+			SessionPromptRequest{Message: "hello"},
+			func(event SSEEvent) error {
+				events = append(events, event)
+				return nil
+			},
+		)
+		if err == nil || !strings.Contains(err.Error(), "peer disconnected before response") {
+			t.Fatalf("StreamPromptSession() error = %v, want terminal process failure", err)
+		}
+		if got, want := len(events), 4; got != want {
+			t.Fatalf("StreamPromptSession() forwarded events = %d, want %d", got, want)
+		}
+		if !strings.Contains(string(events[0].Data), "partial before disconnect") {
+			t.Fatalf("StreamPromptSession() first event = %s, want partial chunk", events[0].Data)
+		}
+	})
+
+	t.Run("Should reject a clean EOF without a terminal event", func(t *testing.T) {
+		t.Parallel()
+
+		client := &unixSocketClient{
+			socketPath: "/tmp/compozy.sock",
+			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+				response := newHTTPResponse(
+					http.StatusOK,
+					"event: agent_message\ndata: {\"type\":\"agent_message\",\"timestamp\":\"2026-08-05T12:00:00Z\",\"text\":\"partial\"}\n\n",
+				)
+				response.Header.Set("Content-Type", "text/event-stream")
+				response.Request = req
+				return response, nil
+			})},
+		}
+
+		_, err := client.doSessionPrompt(
+			t.Context(),
+			http.MethodPost,
+			"/api/workspaces/ws-1/sessions/sess-1/prompt",
+			nil,
+			SessionPromptRequest{Message: "hello"},
+		)
+		if err == nil || !strings.Contains(err.Error(), "ended before a terminal event") {
+			t.Fatalf("doSessionPrompt() error = %v, want incomplete stream failure", err)
+		}
+	})
+}
+
 func TestUnixSocketClientSessionInputMethods(t *testing.T) {
 	t.Parallel()
 
@@ -2060,6 +2189,10 @@ func TestUnixSocketClientMethods(t *testing.T) {
 						"event: agent_message",
 						`data: {"session_id":"sess-1","turn_id":"turn-1","type":"agent_message","timestamp":"2026-04-03T12:00:00Z","text":"hello back"}`,
 						"",
+						"id: 2",
+						"event: done",
+						`data: {"session_id":"sess-1","turn_id":"turn-1","type":"done","timestamp":"2026-04-03T12:00:01Z"}`,
+						"",
 					}, "\n"))
 					resp.Header.Set("Content-Type", "text/event-stream")
 					return resp, nil
@@ -2443,7 +2576,8 @@ func TestUnixSocketClientMethods(t *testing.T) {
 	}
 
 	promptEvents, err := client.PromptSession(ctx, "sess-1", "hello")
-	if err != nil || len(promptEvents) != 1 || promptEvents[0].Text != "hello back" {
+	if err != nil || len(promptEvents) != 2 || promptEvents[0].Text != "hello back" ||
+		promptEvents[1].Type != "done" {
 		t.Fatalf("PromptSession() = %#v, %v", promptEvents, err)
 	}
 
