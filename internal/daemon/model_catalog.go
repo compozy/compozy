@@ -22,6 +22,7 @@ type modelCatalogRuntime struct {
 	now          func() time.Time
 	timeout      time.Duration
 	configSource *modelcatalog.ProviderConfigSource
+	liveSources  map[string]*modelcatalog.LiveProviderSource
 
 	ctx     context.Context
 	workers *ownedWorkerGroup
@@ -254,10 +255,16 @@ func (d *Daemon) bootModelCatalog(ctx context.Context, state *bootState, cleanup
 		return err
 	}
 	for _, source := range sources {
-		configSource, ok := source.(*modelcatalog.ProviderConfigSource)
-		if ok && configSource.ID() == modelcatalog.SourceIDConfig {
-			runtime.configSource = configSource
-			break
+		switch typed := source.(type) {
+		case *modelcatalog.ProviderConfigSource:
+			if typed.ID() == modelcatalog.SourceIDConfig {
+				runtime.configSource = typed
+			}
+		case *modelcatalog.LiveProviderSource:
+			if runtime.liveSources == nil {
+				runtime.liveSources = make(map[string]*modelcatalog.LiveProviderSource)
+			}
+			runtime.liveSources[typed.ProviderIDs()[0]] = typed
 		}
 	}
 	state.modelCatalog = runtime

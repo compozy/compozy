@@ -739,7 +739,7 @@ describe("RuntimeSelector custom model id", () => {
     });
   });
 
-  it("Should commit an unknown query as a custom model id on Enter", async () => {
+  it("Should commit an exact model id on Enter from the dedicated entry", async () => {
     const user = userEvent.setup();
     const { onChange } = renderSelector({
       value: { provider: "codex", model: "", reasoning_effort: "" },
@@ -747,18 +747,19 @@ describe("RuntimeSelector custom model id", () => {
     });
 
     await openSelector(user);
-    const search = screen.getByTestId("runtime-selector-search");
-    fireEvent.change(search, { target: { value: "typed-custom-id" } });
-    fireEvent.keyDown(search, { key: "Enter" });
+    await user.click(screen.getByTestId("runtime-selector-custom"));
+    const exactInput = screen.getByRole("textbox", { name: "Exact model ID" });
+    await user.type(exactInput, "auto");
+    fireEvent.keyDown(exactInput, { key: "Enter" });
 
     expect(onChange).toHaveBeenLastCalledWith({
       provider: "codex",
-      model: "typed-custom-id",
+      model: "auto",
       reasoning_effort: "",
     });
   });
 
-  it("Should not emit a custom id when the query is empty", async () => {
+  it("Should expose a visible exact-id field and commit its value", async () => {
     const user = userEvent.setup();
     const { onChange } = renderSelector({
       value: { provider: "codex", model: "", reasoning_effort: "" },
@@ -769,8 +770,33 @@ describe("RuntimeSelector custom model id", () => {
     const custom = await screen.findByTestId("runtime-selector-custom");
     expect(custom).toHaveTextContent("Use an exact custom model ID…");
     await user.click(custom);
+    const exactInput = screen.getByRole("textbox", { name: "Exact model ID" });
+    expect(exactInput).toHaveFocus();
+    expect(screen.getByTestId("runtime-selector-custom")).toBeDisabled();
 
-    expect(onChange).not.toHaveBeenCalled();
+    await user.type(exactInput, "composer-2.5");
+    await user.click(screen.getByRole("button", { name: 'Use "composer-2.5"' }));
+
+    expect(onChange).toHaveBeenLastCalledWith({
+      provider: "codex",
+      model: "composer-2.5",
+      reasoning_effort: "",
+    });
+  });
+
+  it("Should keep exact-id entry available while the catalog is loading", async () => {
+    const user = userEvent.setup();
+    renderSelector({
+      value: { provider: "codex", model: "", reasoning_effort: "" },
+      models: [],
+      props: { loading: true },
+    });
+
+    await openSelector(user);
+    await user.click(screen.getByRole("button", { name: "Use an exact custom model ID…" }));
+
+    expect(screen.getByRole("textbox", { name: "Exact model ID" })).toHaveFocus();
+    expect(screen.queryByTestId("runtime-selector-loading")).not.toBeInTheDocument();
   });
 
   it("Should not offer a custom commit when no explicit provider is active", async () => {

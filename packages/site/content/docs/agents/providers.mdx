@@ -195,7 +195,7 @@ rate. Compozy does not substitute input rates for cache tokens or output rates f
 Provider Settings PUTs distinguish omission from an explicit membership change. If
 `models.curated` is omitted, Compozy preserves the server-owned raw membership even when catalog sources
 are temporarily unavailable. A present empty array is an explicit membership clear and fails with
-`503 Service Unavailable` when Compozy cannot enumerate the authoritative catalog. For a present array,
+`503 Service Unavailable` when Compozy cannot enumerate the current catalog sources. For a present array,
 Compozy compares every entry with the current effective catalog projection and persists only explicit
 deltas, including the five pricing fields, without copying unchanged catalog enrichment into
 `config.toml`. Use the request-level `model_curation` object or the atomic curation endpoint when the
@@ -204,6 +204,12 @@ change is limited to `hidden`, `featured`, `deprecated`, or a default reasoning 
 Discovery uses the resolved provider auth, env, and home policy and never creates an ACP session.
 When a discovery path is unavailable or fails, the model catalog records a source status and falls
 back to stale or lower-priority rows; session creation never depends on a successful discovery.
+Cursor has a built-in safe path: `cursor-agent models` runs once on the first catalog read when no
+Cursor discovery status exists. It uses the operator home required by Cursor's native login, caches
+the exact account model IDs, and runs again only through an explicit catalog refresh.
+Changes under `models.discovery` apply live: Compozy atomically rebinds and refreshes only the changed
+provider source. Model metadata edits do not invoke provider discovery, and a failed live refresh
+keeps prior rows stale instead of rejecting the config write.
 
 Session creation can override `provider`, `model`, `reasoning_effort`, and `speed` for one launch. Speed
 is provider-neutral, accepts `normal | fast`, and defaults to `normal`. Authoring

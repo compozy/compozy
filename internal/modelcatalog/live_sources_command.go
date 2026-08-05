@@ -58,6 +58,17 @@ func (s *LiveProviderSource) listCommand(
 	if err == nil {
 		return rows, nil
 	}
+	if s.adapter.parseCommandRows != nil {
+		rows, parseErr := s.adapter.parseCommandRows(s.providerID, result.Stdout, now)
+		if parseErr == nil {
+			return rows, nil
+		}
+		return nil, fmt.Errorf(
+			"model catalog: parse discovery command output for %q: %w",
+			s.providerID,
+			parseErr,
+		)
+	}
 	lineRows := parseLineModelRows(s.providerID, result.Stdout, now)
 	if len(lineRows) > 0 {
 		return lineRows, nil

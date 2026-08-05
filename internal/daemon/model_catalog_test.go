@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -40,6 +41,171 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		}
 		if !containsCatalogModel(models, "codex", "gpt-5.6-sol") {
 			t.Fatalf("ModelCatalog.ListModels(codex) missing builtin gpt-5.6-sol row: %#v", models)
+		}
+	})
+
+	t.Run("Should apply live discovery config without coupling metadata edits to provider access", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		homePaths := testHomePaths(t)
+		cfg := testConfig(t, homePaths)
+		provider, err := cfg.ResolveProvider("cursor")
+		if err != nil {
+			t.Fatalf("ResolveProvider(cursor) error = %v", err)
+		}
+		enabled := true
+		provider.Models.Discovery = compozyconfig.ProviderModelsDiscoveryConfig{
+			Enabled: &enabled,
+			Command: "cursor-old models",
+			Timeout: "2s",
+		}
+		cfg.Providers = map[string]compozyconfig.ProviderConfig{"cursor": provider}
+
+		executor := &configReloadDiscoveryExecutor{}
+		liveSource, err := modelcatalog.NewLiveProviderSource(
+			"cursor",
+			provider,
+			modelcatalog.LiveProviderSourcesConfig{
+				HomePaths:       homePaths,
+				CommandExecutor: executor,
+				DefaultTimeout:  5 * time.Second,
+			},
+		)
+		if err != nil {
+			t.Fatalf("NewLiveProviderSource() error = %v", err)
+		}
+		configSource := modelcatalog.NewConfigSource(cfg.Providers)
+		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
+		}
+		service, err := modelcatalog.NewService(
+			db,
+			[]modelcatalog.Source{configSource, liveSource},
+			modelcatalog.MergeOptions{},
+		)
+		if err != nil {
+			t.Fatalf("NewService() error = %v", err)
+		}
+		runtime, err := newModelCatalogRuntime(ctx, service, discardLogger(), nil, 5*time.Second)
+		if err != nil {
+			t.Fatalf("newModelCatalogRuntime() error = %v", err)
+		}
+		runtime.configSource = configSource
+		runtime.liveSources = map[string]*modelcatalog.LiveProviderSource{"cursor": liveSource}
+		t.Cleanup(func() {
+			if shutdownErr := runtime.Shutdown(testutil.Context(t)); shutdownErr != nil {
+				t.Fatalf("Shutdown() error = %v", shutdownErr)
+			}
+			if closeErr := db.Close(testutil.Context(t)); closeErr != nil {
+				t.Fatalf("CloseGlobalDB() error = %v", closeErr)
+			}
+		})
+
+		if _, err := runtime.Refresh(ctx, modelcatalog.RefreshOptions{
+			ProviderID: "cursor",
+			SourceID:   modelcatalog.SourceKindProviderLiveID("cursor"),
+			Force:      true,
+		}); err != nil {
+			t.Fatalf("Refresh(initial cursor) error = %v", err)
+		}
+
+		next := cfg
+		next.Providers = compozyconfig.CloneProviderConfigs(cfg.Providers)
+		provider = next.Providers["cursor"]
+		provider.Models.Discovery.Command = "cursor-new models"
+		provider.Models.Discovery.Timeout = "3s"
+		next.Providers["cursor"] = provider
+		if err := runtime.ReconcileConfig(ctx, &next); err != nil {
+			t.Fatalf("ReconcileConfig(new discovery command) error = %v", err)
+		}
+		request := executor.LastRequest(t)
+		if request.Command != "cursor-new" || !slices.Equal(request.Args, []string{"models"}) {
+			t.Fatalf("discovery request = %#v, want cursor-new models", request)
+		}
+		if request.Timeout != 3*time.Second {
+			t.Fatalf("discovery timeout = %s, want 3s", request.Timeout)
+		}
+		models, err := service.ListModels(ctx, modelcatalog.ListOptions{
+			ProviderID:         "cursor",
+			View:               modelcatalog.CatalogViewAll,
+			SkipRefreshIfEmpty: true,
+		})
+		if err != nil {
+			t.Fatalf("ListModels(after live config) error = %v", err)
+		}
+		if !containsCatalogModel(models, "cursor", "new-model") ||
+			containsCatalogModel(models, "cursor", "old-model") {
+			t.Fatalf("ListModels(after live config) = %#v, want only new-model", models)
+		}
+
+		callsBeforeMetadata := executor.CallCount()
+		provider = next.Providers["cursor"]
+		provider.Models.Curated = append(provider.Models.Curated, compozyconfig.ProviderModelConfig{
+			ID: "metadata-only",
+		})
+		next.Providers["cursor"] = provider
+		if err := runtime.ReconcileConfig(ctx, &next); err != nil {
+			t.Fatalf("ReconcileConfig(metadata only) error = %v", err)
+		}
+		if calls := executor.CallCount(); calls != callsBeforeMetadata {
+			t.Fatalf("discovery calls after metadata edit = %d, want %d", calls, callsBeforeMetadata)
+		}
+
+		provider = next.Providers["cursor"]
+		provider.Models.Discovery.Command = "cursor-offline models"
+		next.Providers["cursor"] = provider
+		if err := runtime.ReconcileConfig(ctx, &next); err != nil {
+			t.Fatalf("ReconcileConfig(offline discovery) error = %v", err)
+		}
+		models, err = service.ListModels(ctx, modelcatalog.ListOptions{
+			ProviderID:         "cursor",
+			View:               modelcatalog.CatalogViewAll,
+			IncludeStale:       true,
+			SkipRefreshIfEmpty: true,
+		})
+		if err != nil {
+			t.Fatalf("ListModels(offline discovery) error = %v", err)
+		}
+		model, ok := findCatalogModel(models, "new-model")
+		if !ok || !model.Stale {
+			t.Fatalf("offline discovery model = %#v, want stale new-model", model)
+		}
+		statuses, err := service.ListSourceStatus(ctx, "cursor")
+		if err != nil {
+			t.Fatalf("ListSourceStatus(offline discovery) error = %v", err)
+		}
+		status, ok := findSourceStatus(statuses, modelcatalog.SourceKindProviderLiveID("cursor"))
+		if !ok || status.RefreshState != modelcatalog.RefreshStateFailed {
+			t.Fatalf("offline live source status = %#v, want failed", status)
+		}
+
+		disabled := false
+		provider = next.Providers["cursor"]
+		provider.Models.Discovery.Enabled = &disabled
+		next.Providers["cursor"] = provider
+		if err := runtime.ReconcileConfig(ctx, &next); err != nil {
+			t.Fatalf("ReconcileConfig(disabled discovery) error = %v", err)
+		}
+		models, err = service.ListModels(ctx, modelcatalog.ListOptions{
+			ProviderID:         "cursor",
+			View:               modelcatalog.CatalogViewAll,
+			SkipRefreshIfEmpty: true,
+		})
+		if err != nil {
+			t.Fatalf("ListModels(disabled discovery) error = %v", err)
+		}
+		if containsCatalogModel(models, "cursor", "new-model") {
+			t.Fatalf("ListModels(disabled discovery) = %#v, want live row cleared", models)
+		}
+		statuses, err = service.ListSourceStatus(ctx, "cursor")
+		if err != nil {
+			t.Fatalf("ListSourceStatus(disabled discovery) error = %v", err)
+		}
+		status, ok = findSourceStatus(statuses, modelcatalog.SourceKindProviderLiveID("cursor"))
+		if !ok || status.RefreshState != modelcatalog.RefreshStateDisabled {
+			t.Fatalf("disabled live source status = %#v, want disabled", status)
 		}
 	})
 
@@ -451,9 +617,7 @@ func bootModelCatalogTestDaemonWithSetup(
 	}
 
 	daemonInstance := newTestDaemon(t, homePaths, &cfg)
-	var sessionManagerCatalog modelcatalog.Service
-	daemonInstance.newSessionManager = func(_ context.Context, deps SessionManagerDeps) (SessionManager, error) {
-		sessionManagerCatalog = deps.ModelCatalog
+	daemonInstance.newSessionManager = func(_ context.Context, _ SessionManagerDeps) (SessionManager, error) {
 		return &fakeSessionManager{}, nil
 	}
 	daemonInstance.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
@@ -473,13 +637,6 @@ func bootModelCatalogTestDaemonWithSetup(
 
 	if err := daemonInstance.boot(testutil.Context(t)); err != nil {
 		t.Fatalf("boot() error = %v", err)
-	}
-	if sessionManagerCatalog != daemonInstance.modelCatalog {
-		t.Fatalf(
-			"session manager ModelCatalog = %p, want daemon runtime %p",
-			sessionManagerCatalog,
-			daemonInstance.modelCatalog,
-		)
 	}
 	t.Cleanup(func() {
 		if err := daemonInstance.Shutdown(testutil.Context(t)); err != nil {
@@ -621,6 +778,51 @@ type recordingModelCatalogService struct {
 	refreshCalls int
 	lastRefresh  modelcatalog.RefreshOptions
 	lastList     modelcatalog.ListOptions
+}
+
+type configReloadDiscoveryExecutor struct {
+	mu       sync.Mutex
+	requests []modelcatalog.DiscoveryCommandRequest
+}
+
+func (e *configReloadDiscoveryExecutor) RunDiscoveryCommand(
+	_ context.Context,
+	req modelcatalog.DiscoveryCommandRequest,
+) (modelcatalog.DiscoveryCommandResult, error) {
+	e.mu.Lock()
+	e.requests = append(e.requests, req)
+	e.mu.Unlock()
+	if req.Command == "cursor-offline" {
+		return modelcatalog.DiscoveryCommandResult{}, errors.New("cursor discovery offline")
+	}
+	modelID := "old-model"
+	displayName := "Old Model"
+	if req.Command == "cursor-new" {
+		modelID = "new-model"
+		displayName = "New Model"
+	}
+	return modelcatalog.DiscoveryCommandResult{
+		Stdout:   modelID + " - " + displayName,
+		ExitCode: 0,
+	}, nil
+}
+
+func (e *configReloadDiscoveryExecutor) LastRequest(
+	t *testing.T,
+) modelcatalog.DiscoveryCommandRequest {
+	t.Helper()
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if len(e.requests) == 0 {
+		t.Fatal("discovery requests = empty")
+	}
+	return e.requests[len(e.requests)-1]
+}
+
+func (e *configReloadDiscoveryExecutor) CallCount() int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return len(e.requests)
 }
 
 func (s *recordingModelCatalogService) ListModels(

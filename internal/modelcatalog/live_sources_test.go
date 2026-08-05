@@ -235,6 +235,64 @@ func TestLiveProviderSources(t *testing.T) {
 		}
 	})
 
+	t.Run("Should parse exact Cursor account model ids from the native CLI", func(t *testing.T) {
+		t.Parallel()
+
+		executor := &fakeDiscoveryExecutor{result: DiscoveryCommandResult{Stdout: `Available models
+
+auto - Auto (default)
+composer-2.5 - Composer 2.5
+
+Tip: use --model <id> to select a model
+`}}
+		provider := compozyconfig.ProviderConfig{HomePolicy: compozyconfig.ProviderHomePolicyOperator}
+		source := newLiveSourceForTest(t, "cursor", provider, LiveProviderSourcesConfig{
+			BaseEnv:         []string{"PATH=/bin", "HOME=/Users/operator"},
+			CommandExecutor: executor,
+		})
+
+		rows, err := source.ListModels(testutil.Context(t), ListOptions{
+			ProviderID: "cursor",
+			Now:        testTime(0),
+		})
+		if err != nil {
+			t.Fatalf("ListModels() error = %v", err)
+		}
+		if got, want := rowModelIDs(rows), []string{"auto", "composer-2.5"}; !slices.Equal(got, want) {
+			t.Fatalf("row ids = %#v, want %#v", got, want)
+		}
+		if rows[0].DisplayName != "Auto (default)" || rows[1].DisplayName != "Composer 2.5" {
+			t.Fatalf("display names = %q/%q, want Cursor labels", rows[0].DisplayName, rows[1].DisplayName)
+		}
+		if !source.BootstrapOnList() {
+			t.Fatal("BootstrapOnList() = false, want true")
+		}
+		req := executor.singleRequest(t)
+		if req.Command != "cursor-agent" || !slices.Equal(req.Args, []string{"models"}) {
+			t.Fatalf("command = %q %#v, want cursor-agent models", req.Command, req.Args)
+		}
+		if got := envValue(req.Env, "HOME"); got != "/Users/operator" {
+			t.Fatalf("HOME = %q, want operator home", got)
+		}
+	})
+
+	t.Run("Should reject Cursor command output without model rows", func(t *testing.T) {
+		t.Parallel()
+
+		executor := &fakeDiscoveryExecutor{result: DiscoveryCommandResult{
+			Stdout: "Available models\n\nTip: sign in to list models\n",
+		}}
+		source := newLiveSourceForTest(t, "cursor", compozyconfig.ProviderConfig{}, LiveProviderSourcesConfig{
+			BaseEnv:         []string{"PATH=/bin"},
+			CommandExecutor: executor,
+		})
+
+		_, err := source.ListModels(testutil.Context(t), ListOptions{ProviderID: "cursor", Now: testTime(0)})
+		if err == nil || !strings.Contains(err.Error(), "returned no model rows") {
+			t.Fatalf("ListModels() error = %v, want no model rows", err)
+		}
+	})
+
 	t.Run("Should parse OpenCode model command output and apply effective env home policy", func(t *testing.T) {
 		t.Parallel()
 
@@ -644,7 +702,7 @@ func TestLiveProviderSourceRegistration(t *testing.T) {
 			BaseEnv:        []string{"PATH=/bin"},
 			SecretResolver: mapSecretResolver{"env:OPENAI_API_KEY": "sk-test"},
 		})
-		target, err := source.discoveryTarget()
+		target, err := source.discoveryTarget(source.providerSnapshot())
 		if err != nil {
 			t.Fatalf("discoveryTarget() error = %v", err)
 		}
@@ -676,7 +734,7 @@ func TestLiveProviderSourceRegistration(t *testing.T) {
 		hidden = true
 		provider.Models.Discovery.Endpoint = "https://mutated.invalid/models"
 
-		target, err := source.discoveryTarget()
+		target, err := source.discoveryTarget(source.providerSnapshot())
 		if err != nil {
 			t.Fatalf("discoveryTarget() error = %v", err)
 		}

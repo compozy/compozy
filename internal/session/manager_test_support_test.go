@@ -19,7 +19,6 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/events"
-	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/sandbox"
 	skillspkg "github.com/compozy/compozy/internal/skills"
@@ -153,15 +152,6 @@ func reportSessionStop(t *testing.T, h *harness, sessionID string) {
 	if err := h.manager.Stop(testutil.Context(t), sessionID); err != nil {
 		t.Errorf("Stop(%q) cleanup error = %v", sessionID, err)
 	}
-}
-
-type modelCatalogFunc func(context.Context, modelcatalog.ListOptions) ([]modelcatalog.Model, error)
-
-func (f modelCatalogFunc) ListModels(
-	ctx context.Context,
-	opts modelcatalog.ListOptions,
-) ([]modelcatalog.Model, error) {
-	return f(ctx, opts)
 }
 
 func newHarness(t *testing.T, extraOpts ...Option) *harness {

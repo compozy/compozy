@@ -11,8 +11,10 @@ import (
 
 	"os"
 	"os/exec"
+	"reflect"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -24,6 +26,7 @@ const (
 	liveSourcesOpenAIEnvName        = "OPENAI_API_KEY"
 	liveSourcesClaudeKey            = "claude"
 	liveSourcesCodexKey             = "codex"
+	liveSourcesCursorKey            = "cursor"
 	liveSourcesHermesKey            = "hermes"
 	liveSourcesOllamaKey            = "ollama"
 	liveSourcesOpenaiKey            = "openai"
@@ -222,7 +225,6 @@ func SourceKindProviderLiveID(providerID string) string {
 // LiveProviderSource performs side-effect-free model discovery for one provider.
 type LiveProviderSource struct {
 	providerID      string
-	provider        compozyconfig.ProviderConfig
 	adapter         liveProviderAdapter
 	sourceID        string
 	homePaths       compozyconfig.HomePaths
@@ -231,9 +233,17 @@ type LiveProviderSource struct {
 	httpClient      *http.Client
 	commandExecutor DiscoveryCommandExecutor
 	defaultTimeout  time.Duration
+
+	providerMu sync.RWMutex
+	provider   compozyconfig.ProviderConfig
 }
 
 var _ Source = (*LiveProviderSource)(nil)
+
+// BootstrapOnList reports whether the source should discover once before its first catalog projection.
+func (s *LiveProviderSource) BootstrapOnList() bool {
+	return s.adapter.bootstrapOnList
+}
 
 // ID returns the provider_live source id.
 func (s *LiveProviderSource) ID() string {
@@ -255,6 +265,35 @@ func (s *LiveProviderSource) ProviderIDs() []string {
 	return []string{s.providerID}
 }
 
+// ReplaceProvider atomically applies the provider config used by subsequent discovery calls.
+func (s *LiveProviderSource) ReplaceProvider(provider compozyconfig.ProviderConfig) bool {
+	next := compozyconfig.CloneProviderConfig(provider)
+	s.providerMu.Lock()
+	defer s.providerMu.Unlock()
+	changed := liveDiscoveryConfigChanged(s.provider, next)
+	s.provider = next
+	return changed
+}
+
+func liveDiscoveryConfigChanged(
+	current compozyconfig.ProviderConfig,
+	next compozyconfig.ProviderConfig,
+) bool {
+	return !reflect.DeepEqual(current.Models.Discovery, next.Models.Discovery) ||
+		strings.TrimSpace(current.BaseURL) != strings.TrimSpace(next.BaseURL) ||
+		current.EffectiveHarness() != next.EffectiveHarness() ||
+		current.EffectiveAuthMode() != next.EffectiveAuthMode() ||
+		current.EffectiveEnvPolicy() != next.EffectiveEnvPolicy() ||
+		current.EffectiveHomePolicy() != next.EffectiveHomePolicy() ||
+		!reflect.DeepEqual(current.EffectiveCredentialSlots(), next.EffectiveCredentialSlots())
+}
+
+func (s *LiveProviderSource) providerSnapshot() compozyconfig.ProviderConfig {
+	s.providerMu.RLock()
+	defer s.providerMu.RUnlock()
+	return compozyconfig.CloneProviderConfig(s.provider)
+}
+
 // ListModels discovers live provider models without touching ACP sessions.
 func (s *LiveProviderSource) ListModels(ctx context.Context, opts ListOptions) ([]ModelRow, error) {
 	if ctx == nil {
@@ -263,11 +302,12 @@ func (s *LiveProviderSource) ListModels(ctx context.Context, opts ListOptions) (
 	if requested := strings.TrimSpace(opts.ProviderID); requested != "" && requested != s.providerID {
 		return nil, nil
 	}
-	target, err := s.discoveryTarget()
+	provider := s.providerSnapshot()
+	target, err := s.discoveryTarget(provider)
 	if err != nil {
 		return nil, err
 	}
-	env, err := s.discoveryEnv(ctx)
+	env, err := s.discoveryEnv(ctx, provider)
 	if err != nil {
 		return nil, err
 	}

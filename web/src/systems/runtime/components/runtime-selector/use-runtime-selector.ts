@@ -43,6 +43,7 @@ export function useRuntimeSelector({ value, onChange, providers, models }: UseRu
   const open = popupState.phase === "open";
   const railFilter = popupState.phase === "open" ? popupState.railFilter : "all";
   const query = popupState.phase === "open" ? popupState.query : "";
+  const entryMode = popupState.phase === "open" ? popupState.entryMode : "catalog";
   // The active row is a compound (provider,model) cursor, never a list index.
   // The derived index below therefore follows the model through reordering.
   const activeRow = popupState.phase === "open" ? popupState.activeRow : null;
@@ -78,6 +79,7 @@ export function useRuntimeSelector({ value, onChange, providers, models }: UseRu
   );
 
   const listModel = buildRuntimeListModel({
+    exactEntry: entryMode === "exact",
     query,
     railFilter,
     models,
@@ -117,6 +119,9 @@ export function useRuntimeSelector({ value, onChange, providers, models }: UseRu
   const changeQuery = (next: string) => {
     popupStore.trigger.queryChanged({ query: next });
   };
+
+  const startExactEntry = () => popupStore.trigger.exactEntryStarted();
+  const cancelExactEntry = () => popupStore.trigger.exactEntryCanceled();
 
   const emitSelection = (provider: string, id: string, model: RuntimeModelOption | undefined) => {
     const rz = resolveReasoningState(model);
@@ -195,6 +200,11 @@ export function useRuntimeSelector({ value, onChange, providers, models }: UseRu
   };
 
   const commitHighlight = () => {
+    if (entryMode === "exact") {
+      if (query.trim().length === 0) return false;
+      pickCustom(query);
+      return true;
+    }
     const row = highlightIndex >= 0 ? listModel.flatRows[highlightIndex]?.model : undefined;
     if (row && !row.disabled) {
       pickModel(row.provider, row.id);
@@ -245,6 +255,9 @@ export function useRuntimeSelector({ value, onChange, providers, models }: UseRu
     changeRail,
     query,
     changeQuery,
+    entryMode,
+    startExactEntry,
+    cancelExactEntry,
     highlightIndex,
     highlightRow,
     favoriteAnnouncement,

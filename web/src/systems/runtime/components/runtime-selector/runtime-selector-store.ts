@@ -7,12 +7,15 @@ export interface RuntimeSelectorActiveRow {
   key: string;
 }
 
+export type RuntimeSelectorEntryMode = "catalog" | "exact";
+
 interface RuntimeSelectorPopupClosed {
   phase: "closed";
 }
 
 interface RuntimeSelectorPopupOpen {
   activeRow: RuntimeSelectorActiveRow | null;
+  entryMode: RuntimeSelectorEntryMode;
   favoriteAnnouncement: string;
   phase: "open";
   query: string;
@@ -24,6 +27,8 @@ export type RuntimeSelectorPopupState = RuntimeSelectorPopupClosed | RuntimeSele
 
 type RuntimeSelectorPopupEvents = {
   activeRowChanged: { row: RuntimeSelectorActiveRow | null };
+  exactEntryCanceled: {};
+  exactEntryStarted: {};
   favoriteAnnounced: { message: string };
   popupClosed: {};
   popupOpened: {};
@@ -34,6 +39,7 @@ type RuntimeSelectorPopupEvents = {
 function openPopupState(): RuntimeSelectorPopupOpen {
   return {
     activeRow: null,
+    entryMode: "catalog",
     favoriteAnnouncement: "",
     phase: "open",
     query: "",
@@ -50,6 +56,14 @@ export const runtimeSelectorPopupLogic = createStoreLogic<
     activeRowChanged: (context, event) => {
       if (context.phase !== "open") return context;
       return { ...context, activeRow: event.row };
+    },
+    exactEntryCanceled: context => {
+      if (context.phase !== "open") return context;
+      return { ...context, activeRow: null, entryMode: "catalog", query: "" };
+    },
+    exactEntryStarted: context => {
+      if (context.phase !== "open") return context;
+      return { ...context, activeRow: null, entryMode: "exact", query: "" };
     },
     favoriteAnnounced: (context, event) => {
       if (context.phase !== "open") return context;

@@ -20,7 +20,10 @@ flowchart TD
     ACCEPT --> ACT[Activate returned owner workspace]
     ACT --> NAV[Navigate and focus the created session composer]
     NAV --> SEL[Composer shows Next prompt runtime selector]
-    SEL --> PICK[Choose provider, model, reasoning, and speed or keep effective default]
+    SEL --> CHOICE{Catalog row or exact model ID?}
+    CHOICE -->|catalog row| PICK[Choose provider, model, reasoning, and speed or keep effective default]
+    CHOICE -->|exact ID| EXACT[Open the labelled exact-ID field and enter the provider value]
+    EXACT --> PICK
     PICK --> SAVE[Selection persists immediately with a revision]
     SAVE --> SEND[Submit first separate prompt]
     SEND --> SNAP[Prompt captures one immutable runtime snapshot from the saved selection]
@@ -55,7 +58,7 @@ journey:
       expected_observable: "Create gives immediate truthful feedback, persists one durable logical session without queuing a prompt, activates the returned owner workspace, and navigates to the created session."
     - step: 4
       verb: "Choose the runtime for the next prompt in the composer"
-      expected_observable: "The destination composer exposes one accessible Next prompt selector; its provider, model, reasoning, and speed choice persists immediately and is captured when the next prompt is submitted."
+      expected_observable: "The destination composer exposes one accessible Next prompt selector; catalog rows and the clearly labelled exact-ID entry both preserve the chosen provider value, persist immediately, and are captured by the next prompt."
   goal:
     observable: "A session launches once and its composer remains the durable place to choose or change the runtime for the next prompt."
     side_effects: [logical-session-created, owner-workspace-activated, session-runtime-selection-persisted, prompt-runtime-snapshotted-on-dispatch]
@@ -83,6 +86,7 @@ design_reference:
     - "Create yields one durable session and uses its returned workspace_id before navigation, so the destination is never redirected or silently scoped to the previous workspace."
     - "Workspace, name, working path, and Network participation are advanced launch details; changing workspace clears only selections whose scope changed."
     - "A chosen prompt runtime is not presented as an agent-default mutation or as a property of earlier prompts."
+    - "Use an exact custom model ID opens a labelled field, keeps its provider target explicit, preserves case, and never disappears behind catalog loading."
 
 e2e_backbone:
   web:

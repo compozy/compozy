@@ -102,13 +102,6 @@ func WithProviderSecretResolver(resolver ProviderSecretResolver) Option {
 	}
 }
 
-// WithModelCatalog injects the authoritative provider/model catalog used before startup.
-func WithModelCatalog(catalog ModelCatalog) Option {
-	return func(manager *Manager) {
-		manager.modelCatalog = catalog
-	}
-}
-
 // WithMCPResolver injects the skill MCP resolver used during session start.
 func WithMCPResolver(resolver MCPResolver) Option {
 	return func(manager *Manager) {

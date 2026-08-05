@@ -8,7 +8,6 @@ import (
 
 	"github.com/compozy/compozy/internal/admission"
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/sandbox"
 	"github.com/compozy/compozy/internal/session/inputqueue"
@@ -98,11 +97,6 @@ type ProviderSecretResolver interface {
 	ResolveRef(ctx context.Context, ref string) (string, error)
 }
 
-// ModelCatalog exposes the provider/model projection needed for startup preflight.
-type ModelCatalog interface {
-	ListModels(ctx context.Context, opts modelcatalog.ListOptions) ([]modelcatalog.Model, error)
-}
-
 // Option customizes the session manager.
 type Option func(*Manager)
 
@@ -171,7 +165,6 @@ type Manager struct {
 	sandbox                      *sandbox.Registry
 	agentResolver                AgentResolver
 	providerSecrets              ProviderSecretResolver
-	modelCatalog                 ModelCatalog
 	skillRegistry                SkillRegistry
 	toolsetCatalog               toolspkg.ToolsetCatalog
 	mcpResolver                  MCPResolver

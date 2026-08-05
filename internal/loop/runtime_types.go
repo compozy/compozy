@@ -110,7 +110,7 @@ func (e *RuntimeValidationError) Unwrap() error {
 	return ErrValidation
 }
 
-// RuntimeCatalog validates provider/model authority without moving provider policy into the engine.
+// RuntimeCatalog validates provider identity and preserves exact model IDs for the provider boundary.
 type RuntimeCatalog interface {
 	CanonicalProvider(string) string
 	ValidateRuntime(context.Context, RuntimeSpec) error

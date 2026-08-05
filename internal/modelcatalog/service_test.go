@@ -675,36 +675,35 @@ func TestMergeRows(t *testing.T) {
 func TestCatalogViews(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should suppress noncanonical Cursor aliases from the public catalog", func(t *testing.T) {
+	t.Run("Should treat discovered Cursor models as curated fallback metadata", func(t *testing.T) {
 		t.Parallel()
 
+		available := true
 		store := newMemoryStore()
-		store.rows[sourceProviderKey(SourceIDBuiltin, "cursor")] = []ModelRow{
+		store.rows[sourceProviderKey("provider_live:cursor", "cursor")] = []ModelRow{
 			testRow(
-				SourceIDBuiltin,
-				SourceKindBuiltin,
-				PriorityBuiltin,
+				"provider_live:cursor",
+				SourceKindProviderLive,
+				PriorityProviderLive,
 				"cursor",
-				"grok-4.5[effort=high,fast=true]",
+				"auto",
 				testTime(0),
-				func(row *ModelRow) { row.ExplicitlyCurated = true },
+				func(row *ModelRow) { row.Available = &available },
 			),
-		}
-		store.rows[sourceProviderKey(SourceIDConfig, "cursor")] = []ModelRow{
 			testRow(
-				SourceIDConfig,
-				SourceKindConfig,
-				PriorityConfig,
+				"provider_live:cursor",
+				SourceKindProviderLive,
+				PriorityProviderLive,
 				"cursor",
-				"cursor-grok-4.5-high",
+				"composer-2.5",
 				testTime(0),
-				func(row *ModelRow) { row.ExplicitlyCurated = true },
+				func(row *ModelRow) { row.Available = &available },
 			),
 		}
 		service := newTestService(t, store, nil)
 		models, err := service.ListModels(testutil.Context(t), ListOptions{
 			ProviderID:   "cursor",
-			View:         CatalogViewAll,
+			View:         CatalogViewCurated,
 			IncludeAll:   true,
 			IncludeStale: true,
 			Now:          testTime(1),
@@ -712,9 +711,9 @@ func TestCatalogViews(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ListModels(cursor) error = %v", err)
 		}
-		want := []string{"cursor/grok-4.5[effort=high,fast=true]"}
+		want := []string{"cursor/auto", "cursor/composer-2.5"}
 		if got := modelKeys(models); !slices.Equal(got, want) {
-			t.Fatalf("Cursor catalog models = %#v, want %#v", got, want)
+			t.Fatalf("curated Cursor models = %#v, want %#v", got, want)
 		}
 	})
 
@@ -1146,6 +1145,131 @@ func TestCatalogViews(t *testing.T) {
 
 func TestCatalogServiceRefresh(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should bootstrap opted-in sources once before the first catalog projection", func(t *testing.T) {
+		t.Parallel()
+
+		store := newMemoryStore()
+		store.rows[sourceProviderKey(SourceIDConfig, "claude")] = []ModelRow{
+			testRow(SourceIDConfig, SourceKindConfig, PriorityConfig, "claude", "configured", testTime(0), nil),
+		}
+		cursorSource := &fakeSource{
+			id:            "provider_live:cursor",
+			kind:          SourceKindProviderLive,
+			priority:      PriorityProviderLive,
+			providers:     []string{"cursor"},
+			bootstrapList: true,
+			rows: []ModelRow{
+				testRow(
+					"provider_live:cursor",
+					SourceKindProviderLive,
+					PriorityProviderLive,
+					"cursor",
+					"composer-2.5",
+					testTime(0),
+					nil,
+				),
+			},
+		}
+		service := newTestService(t, store, []Source{cursorSource})
+
+		for range 2 {
+			models, err := service.ListModels(testutil.Context(t), ListOptions{
+				View:       CatalogViewAll,
+				IncludeAll: true,
+				Now:        testTime(1),
+			})
+			if err != nil {
+				t.Fatalf("ListModels() error = %v", err)
+			}
+			want := []string{"claude/configured", "cursor/composer-2.5"}
+			if got := modelKeys(models); !slices.Equal(got, want) {
+				t.Fatalf("model keys = %#v, want %#v", got, want)
+			}
+		}
+		if got := cursorSource.calls; got != 1 {
+			t.Fatalf("Cursor source calls = %d, want one first-read discovery", got)
+		}
+	})
+
+	t.Run("Should cache a failed list bootstrap until an explicit refresh", func(t *testing.T) {
+		t.Parallel()
+
+		cursorSource := &fakeSource{
+			id:            "provider_live:cursor",
+			kind:          SourceKindProviderLive,
+			priority:      PriorityProviderLive,
+			providers:     []string{"cursor"},
+			bootstrapList: true,
+			err:           errors.New("cursor unavailable"),
+		}
+		service := newTestService(t, newMemoryStore(), []Source{cursorSource})
+
+		_, err := service.ListModels(testutil.Context(t), ListOptions{
+			ProviderID: "cursor",
+			View:       CatalogViewAll,
+			Now:        testTime(1),
+		})
+		if !errors.Is(err, ErrAllSourcesFailed) {
+			t.Fatalf("first ListModels() error = %v, want ErrAllSourcesFailed", err)
+		}
+		models, err := service.ListModels(testutil.Context(t), ListOptions{
+			ProviderID: "cursor",
+			View:       CatalogViewAll,
+			Now:        testTime(2),
+		})
+		if err != nil {
+			t.Fatalf("cached ListModels() error = %v", err)
+		}
+		if len(models) != 0 {
+			t.Fatalf("cached models = %#v, want empty projection", models)
+		}
+		if got := cursorSource.calls; got != 1 {
+			t.Fatalf("Cursor source calls before explicit refresh = %d, want one", got)
+		}
+
+		_, err = service.Refresh(testutil.Context(t), RefreshOptions{
+			ProviderID: "cursor",
+			SourceID:   cursorSource.id,
+			Force:      true,
+			Now:        testTime(3),
+		})
+		if !errors.Is(err, ErrAllSourcesFailed) {
+			t.Fatalf("Refresh() error = %v, want ErrAllSourcesFailed", err)
+		}
+		if got := cursorSource.calls; got != 2 {
+			t.Fatalf("Cursor source calls after explicit refresh = %d, want two", got)
+		}
+	})
+
+	t.Run("Should honor SkipRefreshIfEmpty for opted-in list bootstrap sources", func(t *testing.T) {
+		t.Parallel()
+
+		cursorSource := &fakeSource{
+			id:            "provider_live:cursor",
+			kind:          SourceKindProviderLive,
+			priority:      PriorityProviderLive,
+			providers:     []string{"cursor"},
+			bootstrapList: true,
+		}
+		service := newTestService(t, newMemoryStore(), []Source{cursorSource})
+
+		models, err := service.ListModels(testutil.Context(t), ListOptions{
+			ProviderID:         "cursor",
+			View:               CatalogViewAll,
+			SkipRefreshIfEmpty: true,
+			Now:                testTime(1),
+		})
+		if err != nil {
+			t.Fatalf("ListModels() error = %v", err)
+		}
+		if len(models) != 0 {
+			t.Fatalf("models = %#v, want empty projection", models)
+		}
+		if cursorSource.calls != 0 {
+			t.Fatalf("Cursor source calls = %d, want zero", cursorSource.calls)
+		}
+	})
 
 	t.Run("Should respect stale filters when listing merged models", func(t *testing.T) {
 		t.Parallel()
@@ -2176,14 +2300,15 @@ func TestCatalogServiceRefreshConcurrency(t *testing.T) {
 }
 
 type fakeSource struct {
-	id        string
-	kind      SourceKind
-	priority  int
-	providers []string
-	rows      []ModelRow
-	err       error
-	ttl       time.Duration
-	calls     int
+	id            string
+	kind          SourceKind
+	priority      int
+	providers     []string
+	rows          []ModelRow
+	err           error
+	ttl           time.Duration
+	bootstrapList bool
+	calls         int
 }
 
 type sourceWithoutProviderIDs struct {
@@ -2236,6 +2361,10 @@ func (s *fakeSource) ProviderIDs() []string {
 
 func (s *fakeSource) TTL() time.Duration {
 	return s.ttl
+}
+
+func (s *fakeSource) BootstrapOnList() bool {
+	return s.bootstrapList
 }
 
 func (s *fakeSource) ListModels(_ context.Context, opts ListOptions) ([]ModelRow, error) {

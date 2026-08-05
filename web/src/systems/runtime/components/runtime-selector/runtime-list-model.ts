@@ -31,6 +31,7 @@ export interface RuntimeListGroup {
 }
 
 export interface RuntimeListModel {
+  exactEntry: boolean;
   searching: boolean;
   pinned: RuntimeGroupModel[];
   pinnedHeading: string;
@@ -42,6 +43,7 @@ export interface RuntimeListModel {
 }
 
 interface BuildRuntimeListModelArgs {
+  exactEntry: boolean;
   query: string;
   railFilter: RailFilter;
   models: RuntimeModelOption[];
@@ -102,6 +104,7 @@ function rankModels(
 }
 
 export function buildRuntimeListModel({
+  exactEntry,
   query,
   railFilter,
   models,
@@ -114,7 +117,8 @@ export function buildRuntimeListModel({
 }: BuildRuntimeListModelArgs): RuntimeListModel {
   const trimmedQuery = query.trim().toLowerCase();
   const tokens = trimmedQuery.length > 0 ? trimmedQuery.split(/\s+/) : [];
-  const searching = tokens.length > 0;
+  const hasQuery = tokens.length > 0;
+  const searching = !exactEntry && hasQuery;
   // The rail is a local list filter only; a non-empty search always spans
   // every provider (design HTML: search ignores the rail selection).
   const effectiveRail: RailFilter = searching ? "all" : railFilter;
@@ -139,7 +143,7 @@ export function buildRuntimeListModel({
   // providers: favorites and recents are keyed by the compound identity.
   let pinned: RuntimeGroupModel[] = [];
   let pinnedHeading = "";
-  if (!searching && (railFilter === "all" || railFilter === "fav")) {
+  if (!exactEntry && !searching && (railFilter === "all" || railFilter === "fav")) {
     const favoriteModels = models.filter(isFavoriteModel);
     if (railFilter === "fav") {
       pinned = favoriteModels.map(model => toRow(model, "pinned"));
@@ -165,7 +169,7 @@ export function buildRuntimeListModel({
   // spans the full `view=all` set. A provider-scoped rail is a local filter
   // over the loaded cross-provider set; "fav" hides the grouped section.
   const groups: RuntimeListGroup[] = [];
-  if (effectiveRail !== "fav") {
+  if (!exactEntry && effectiveRail !== "fav") {
     const providerFilter = effectiveRail === "all" ? null : effectiveRail;
     const grouped = new Map<string, RuntimeModelOption[]>();
     for (const model of models) {
@@ -195,12 +199,18 @@ export function buildRuntimeListModel({
   const knownForActiveProvider =
     activeCustomProvider.length > 0 &&
     modelByKey.has(runtimeModelKey(activeCustomProvider, customId));
-  const canCommitCustom = searching && activeCustomProvider.length > 0 && !knownForActiveProvider;
+  const canCommitCustom =
+    hasQuery && activeCustomProvider.length > 0 && (exactEntry || !knownForActiveProvider);
   const customCommit = canCommitCustom ? customId : "";
-  const customLabel = customCommit ? `Use "${customCommit}"` : "Use an exact custom model ID…";
+  const customLabel = customCommit
+    ? `Use "${customCommit}"`
+    : exactEntry
+      ? "Use model ID"
+      : "Use an exact custom model ID…";
   const showCustom = effectiveRail !== "fav" && activeCustomProvider.length > 0;
 
   return {
+    exactEntry,
     searching,
     pinned,
     pinnedHeading,

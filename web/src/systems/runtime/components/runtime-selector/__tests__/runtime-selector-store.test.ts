@@ -14,7 +14,8 @@ describe("runtime selector stores", () => {
   it("Should reset popup-only filter, query, cursor, and announcement when closed", () => {
     const store = runtimeSelectorPopupLogic.createStore();
     const [opened] = store.transition(store.getInitialSnapshot(), { type: "popupOpened" });
-    const [filtered] = store.transition(opened, { type: "railChanged", railFilter: "codex" });
+    const [exact] = store.transition(opened, { type: "exactEntryStarted" });
+    const [filtered] = store.transition(exact, { type: "railChanged", railFilter: "codex" });
     const [searched] = store.transition(filtered, { type: "queryChanged", query: "gpt" });
     const [highlighted] = store.transition(searched, {
       type: "activeRowChanged",
@@ -28,6 +29,7 @@ describe("runtime selector stores", () => {
 
     expect(announced.context).toEqual({
       phase: "open",
+      entryMode: "exact",
       railFilter: "codex",
       query: "gpt",
       activeRow: { cursor: "group:codex:gpt", key: "codex:gpt" },

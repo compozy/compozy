@@ -6,7 +6,6 @@ import (
 	"github.com/compozy/compozy/internal/admission"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/memory"
-	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/sandbox"
 	"github.com/compozy/compozy/internal/session"
@@ -31,7 +30,6 @@ type SessionManagerDeps struct {
 	AgentResolver          session.AgentResolver
 	SkillRegistry          session.SkillRegistry
 	MCPResolver            session.MCPResolver
-	ModelCatalog           modelcatalog.Service
 	WorkspaceResolver      workspacepkg.RuntimeResolver
 	ParticipationResolver  participation.Resolver
 	SandboxRegistry        *sandbox.Registry
@@ -80,7 +78,6 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		}),
 		SkillRegistry:          skillRegistryDependency(state.skillsRegistry),
 		MCPResolver:            mcpResolverDependency(state.mcpResolver),
-		ModelCatalog:           state.modelCatalog,
 		WorkspaceResolver:      state.workspaceResolver,
 		ParticipationResolver:  state.participationResolver,
 		SandboxRegistry:        state.sandboxRegistry,

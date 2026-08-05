@@ -70,7 +70,7 @@ design_reference:
     - "No Cost cap (USD) input in the form the dry-run validates (cost is display-only)."
     - "The preview reflects the CANONICAL resolved config (defaults ⊕ config.toml ⊕ loop_config ⊕ per-run overrides, clamped), not the raw definition defaults."
     - "Explicit false, zero, and valid empty defaults retain presence and origin; absence is never inferred from a zero value."
-    - "Unknown input keys, wrong types, authoritative unknown models, and missing bound secrets fail before ACP spawn with stable typed diagnostics."
+    - "Unknown input keys, wrong types, unknown providers, and missing bound secrets fail before ACP spawn with stable typed diagnostics; exact model IDs for known providers pass through unchanged."
 
 e2e_backbone:
   runtime: []

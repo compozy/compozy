@@ -315,7 +315,7 @@ func newBootLoopCoordinatorRuntime(
 		gateEvaluator,
 		actions,
 		loopRuntimeCatalogFactory{
-			homePaths: homePaths, workspaceResolver: workspaceResolver, models: state.modelCatalog,
+			homePaths: homePaths, workspaceResolver: workspaceResolver,
 		},
 		state.loopTargetHealth,
 		state.logger,

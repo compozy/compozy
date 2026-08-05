@@ -21,8 +21,8 @@ durations separately with Cursor/Grok 4.5 selected.
 
 The fixed replay kept truthful pending feedback until live ACP confirmation,
 then released the modal before destination navigation without a post-success
-focus-trap delay. Canonical model selection and invalid-model preflight are
-covered by the same live/session-manager correction.
+focus-trap delay. Session admission validates the provider and preserves the
+exact model ID; the ACP/provider boundary owns any later model rejection.
 
 Post-fix Goal acceptance on 2026-07-13 reopened the scenario: session
 `sess-e74df4386f8d5a77` became visually usable after a 14.764-second create,

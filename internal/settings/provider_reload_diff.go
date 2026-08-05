@@ -29,12 +29,8 @@ func diffProviderSettings(
 
 	changed := make([]string, 0, len(orderedIDs))
 	for _, providerID := range orderedIDs {
-		currentProvider, currentExists := current[providerID]
-		desiredProvider, desiredExists := desired[providerID]
-		if !currentExists || !desiredExists {
-			changed = append(changed, "providers."+providerID)
-			continue
-		}
+		currentProvider := current[providerID]
+		desiredProvider := desired[providerID]
 		if reflect.DeepEqual(currentProvider, desiredProvider) {
 			continue
 		}
