@@ -3,6 +3,7 @@
     "pages": [
         "index",
         "approve",
+        "commands",
         "events",
         "health",
         "history",

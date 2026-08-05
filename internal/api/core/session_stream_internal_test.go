@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	commandpkg "github.com/compozy/compozy/internal/command"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/transcript"
@@ -54,6 +55,25 @@ type wakeStreamSubscriberStub struct {
 	*rawStreamSubscriberStub
 	wakeCalls int
 	wakes     <-chan store.SessionEvent
+}
+
+type commandStreamManagerStub struct {
+	sessionManagerStub
+	catalog    commandpkg.Catalog
+	commandErr error
+}
+
+func (s *commandStreamManagerStub) CommandCatalog(
+	ctx context.Context,
+	_ string,
+) (commandpkg.Catalog, error) {
+	if err := ctx.Err(); err != nil {
+		return commandpkg.Catalog{}, err
+	}
+	if s.commandErr != nil {
+		return commandpkg.Catalog{}, s.commandErr
+	}
+	return s.catalog, nil
 }
 
 func (s *wakeStreamSubscriberStub) SubscribeSessionEventWakes(
@@ -191,6 +211,58 @@ func TestTranscriptStreamErrorHandling(t *testing.T) {
 		}
 		if strings.Contains(logs.String(), `"level":"WARN"`) {
 			t.Fatalf("stream logged expected deletion at warning level: %s", logs.String())
+		}
+	})
+
+	t.Run("Should continue transcript delivery when the command catalog is unavailable", func(t *testing.T) {
+		t.Parallel()
+
+		catalogErr := errors.New("catalog temporarily unavailable")
+		var logs bytes.Buffer
+		info := streamTestSessionInfo("sess-command")
+		info.State = session.StateStopped
+		manager := &commandStreamManagerStub{
+			sessionManagerStub: sessionManagerStub{
+				transcriptPage: func(
+					context.Context,
+					string,
+					transcript.PageQuery,
+				) (transcript.Page, error) {
+					return transcript.Page{Generation: 1}, nil
+				},
+			},
+			commandErr: catalogErr,
+		}
+		handlers := &BaseHandlers{
+			Sessions: manager,
+			Logger:   slog.New(slog.NewJSONHandler(&logs, nil)),
+		}
+		gin.SetMode(gin.TestMode)
+		ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+		ctx.Request = httptest.NewRequestWithContext(context.Background(), "GET", "/stream", http.NoBody)
+		writer := &streamTestFlushWriter{}
+
+		handlers.streamTranscriptSessionEvents(
+			ctx,
+			writer,
+			"sess-command",
+			info,
+			store.EventQuery{Limit: 2},
+			nil,
+			sessionStreamOptions{frameMode: contract.SessionStreamFrameTranscript},
+			sessionEventStreamSubscription{},
+		)
+
+		if strings.Contains(writer.String(), "event: error") {
+			t.Fatalf("stream emitted terminal error for auxiliary catalog failure: %s", writer.String())
+		}
+		for _, fragment := range []string{"event: transcript_snapshot", "event: session_stopped"} {
+			if !strings.Contains(writer.String(), fragment) {
+				t.Fatalf("stream body missing %q after catalog failure: %s", fragment, writer.String())
+			}
+		}
+		if !strings.Contains(logs.String(), catalogErr.Error()) {
+			t.Fatalf("catalog failure log missing %q: %s", catalogErr, logs.String())
 		}
 	})
 }
@@ -594,6 +666,107 @@ func TestWriteGoalSnapshotChangedEvents(t *testing.T) {
 		}
 		if strings.Contains(body, "event: transcript_delta") {
 			t.Fatalf("Goal snapshot signal was emitted as a transcript delta: %s", body)
+		}
+	})
+}
+
+func TestWriteSessionCommandsChangedUsesRevisionAsWakeSignal(t *testing.T) {
+	t.Parallel()
+	t.Run("Should emit only a changed command revision", func(t *testing.T) {
+		t.Parallel()
+
+		first, err := commandpkg.BuildCatalog(commandpkg.DefaultBuiltins(), nil, nil)
+		if err != nil {
+			t.Fatalf("BuildCatalog(first) error = %v", err)
+		}
+		manager := &commandStreamManagerStub{catalog: first}
+		handlers := &BaseHandlers{Sessions: manager}
+		writer := &streamTestFlushWriter{}
+		revision, err := handlers.writeSessionCommandsChanged(
+			t.Context(), writer, "sess-command", "",
+		)
+		if err != nil {
+			t.Fatalf("writeSessionCommandsChanged(initial) error = %v", err)
+		}
+		if revision != first.Revision || writer.Len() != 0 {
+			t.Fatalf("initial revision/body = %q/%q, want silent initialization", revision, writer.String())
+		}
+
+		second, err := commandpkg.BuildCatalog(
+			commandpkg.DefaultBuiltins(),
+			[]commandpkg.AgentSpec{{Name: "compact", SourceID: "coder"}},
+			nil,
+		)
+		if err != nil {
+			t.Fatalf("BuildCatalog(second) error = %v", err)
+		}
+		manager.catalog = second
+		revision, err = handlers.writeSessionCommandsChanged(
+			t.Context(), writer, "sess-command", revision,
+		)
+		if err != nil {
+			t.Fatalf("writeSessionCommandsChanged(changed) error = %v", err)
+		}
+		if revision != second.Revision {
+			t.Fatalf("changed revision = %q, want %q", revision, second.Revision)
+		}
+		for _, fragment := range []string{
+			"event: session_commands_changed",
+			`"session_id":"sess-command"`,
+			`"revision":"` + second.Revision + `"`,
+		} {
+			if !strings.Contains(writer.String(), fragment) {
+				t.Fatalf("command wake body missing %q: %s", fragment, writer.String())
+			}
+		}
+		if strings.Contains(writer.String(), `"commands"`) {
+			t.Fatalf("command wake frame contains catalog data: %s", writer.String())
+		}
+
+		stableWriter := &streamTestFlushWriter{}
+		revision, err = handlers.writeSessionCommandsChanged(
+			t.Context(),
+			stableWriter,
+			"sess-command",
+			second.Revision,
+		)
+		if err != nil {
+			t.Fatalf("writeSessionCommandsChanged(unchanged) error = %v", err)
+		}
+		if revision != second.Revision || stableWriter.Len() != 0 {
+			t.Fatalf(
+				"unchanged revision/body = %q/%q, want silent no-op",
+				revision,
+				stableWriter.String(),
+			)
+		}
+	})
+
+	t.Run("Should retain the previous revision when the catalog read fails", func(t *testing.T) {
+		t.Parallel()
+
+		catalogErr := errors.New("catalog temporarily unavailable")
+		var logs bytes.Buffer
+		handlers := &BaseHandlers{
+			Sessions: &commandStreamManagerStub{commandErr: catalogErr},
+			Logger:   slog.New(slog.NewJSONHandler(&logs, nil)),
+		}
+		writer := &streamTestFlushWriter{}
+
+		revision, err := handlers.writeSessionCommandsChanged(
+			t.Context(),
+			writer,
+			"sess-command",
+			"revision-before",
+		)
+		if err != nil {
+			t.Fatalf("writeSessionCommandsChanged() error = %v", err)
+		}
+		if revision != "revision-before" || writer.Len() != 0 {
+			t.Fatalf("revision/body = %q/%q, want unchanged and empty", revision, writer.String())
+		}
+		if !strings.Contains(logs.String(), catalogErr.Error()) {
+			t.Fatalf("catalog failure log missing %q: %s", catalogErr, logs.String())
 		}
 	})
 }

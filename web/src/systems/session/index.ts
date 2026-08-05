@@ -43,6 +43,8 @@ export type {
   SessionAttachResponse,
   SessionBadge,
   SessionCatalogEventPayload,
+  SessionCommandPayload,
+  SessionCommandsResponse,
   SessionRecapPayload,
   SessionRecapResponse,
   SessionUsagePayload,
@@ -98,6 +100,7 @@ export {
   fetchSessionClarifications,
   deleteSession,
   fetchSession,
+  fetchSessionCommands,
   fetchSessionEvents,
   fetchSessionHistory,
   fetchSessionInputs,
@@ -153,6 +156,7 @@ export {
 } from "./lib/session-deeplink-search";
 export {
   sessionClarificationsOptions,
+  sessionCommandsOptions,
   sessionInputsOptions,
   sessionDetailOptions,
   sessionEventsOptions,
@@ -164,6 +168,13 @@ export {
   sessionTranscriptOptions,
   sessionsListOptions,
 } from "./lib/query-options";
+export {
+  sessionCommandMenuCatalog,
+  useSessionCommands,
+  type SessionCommandMenuCatalog,
+  type SessionCommandMenuItem,
+  type SessionCommandMenuSection,
+} from "./hooks/use-session-commands";
 export {
   useCancelSessionInput,
   usePromoteSessionInput,

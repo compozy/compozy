@@ -13,7 +13,14 @@ func toolListBundle(response ToolsResponseRecord) outputBundle {
 		response,
 		response.Tools,
 		toolOperatorToolsValue,
-		[]string{toolOperatorToolIDHeader, "BACKEND", "SOURCE", cliStatusHeader, "CALLABLE", "REASONS"},
+		[]string{
+			toolOperatorToolIDHeader,
+			"BACKEND",
+			automationSourceHeader,
+			cliStatusHeader,
+			"CALLABLE",
+			"REASONS",
+		},
 		"tools",
 		[]string{
 			toolOperatorToolIDKey,

@@ -364,6 +364,19 @@
     "output_schema_digest": "64171711abe36c366e04ff318f6424d525ba2b1a53db625f6a73adc0f4753bf3"
   },
   {
+    "tool_id": "compozy__command_list",
+    "native_name": "command_list",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "7d11b95a06235b3bd74486bcb6af083f20b2dc1bf261af21d0f1cc8f2562b32f",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
     "tool_id": "compozy__config_diff",
     "native_name": "config_diff",
     "toolsets": [
@@ -2497,7 +2510,7 @@
     "read_only": true,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "a9d32983befeb2896585253a23c38c96fb92a410c64346c8a224628ad83ce01f",
+    "input_schema_digest": "f646503ec390df98ec1737a9e00c6db2d55a16c7176df6d40e0d065bd07973fd",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {

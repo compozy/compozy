@@ -2024,6 +2024,156 @@ func TestRegistryLoadContent(t *testing.T) {
 	}
 }
 
+func TestRegistryCommandCandidatesRespectScopeSourceAndActivation(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve scope source activation and disabled state", func(t *testing.T) {
+		t.Parallel()
+
+		registry := newTestRegistry(
+			t,
+			RegistryConfig{DisabledSkills: []string{"review"}},
+			WithActivationContextProvider(func(
+				_ context.Context,
+				target ActivationTarget,
+			) (ActivationContext, error) {
+				if target.WorkspaceID != "ws-command-catalog" || target.SessionID != "sess-command-catalog" {
+					t.Fatalf("activation target = %#v, want workspace/session identity", target)
+				}
+				return ActivationContext{Platform: "linux"}, nil
+			}),
+		)
+		records := []resources.Record[SkillResourceSpec]{
+			{
+				ID:    "global:base",
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+				Spec: SkillResourceSpec{
+					Name:        "base",
+					Description: "Global base",
+					Source:      skillSourceName(SourceUser),
+					FilePath:    "/global/base/SKILL.md", Enabled: true,
+				},
+			},
+			{
+				ID:    "global:extension-review",
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+				Spec: SkillResourceSpec{
+					Name:        "review",
+					Description: "Extension review",
+					Source:      skillSourceName(SourceBundled),
+					FilePath:    "/extensions/ops/skills/review/SKILL.md", Enabled: true,
+					InstalledFromExtension: "ops",
+				},
+			},
+			{
+				ID: "global:marketplace-review",
+				Scope: resources.ResourceScope{
+					Kind: resources.ResourceScopeKindGlobal,
+				},
+				Spec: SkillResourceSpec{
+					Name:        "review",
+					Description: "Marketplace review",
+					Source:      skillSourceName(SourceMarketplace),
+					FilePath:    "/marketplace/review/SKILL.md", Enabled: true,
+					Provenance: &Provenance{Registry: "official", Slug: "@compozy/review"},
+				},
+			},
+			{
+				ID:    "workspace:deploy",
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-command-catalog"},
+				Spec: SkillResourceSpec{
+					Name:        "deploy",
+					Description: "Workspace deploy",
+					Source:      skillSourceName(SourceWorkspace),
+					FilePath:    "/workspace/deploy/SKILL.md", Enabled: true,
+				},
+			},
+			{
+				ID:    "workspace:inactive-extension",
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-command-catalog"},
+				Spec: SkillResourceSpec{
+					Name:        "darwin-only",
+					Description: "Inactive on Linux",
+					Source:      skillSourceName(SourceBundled),
+					FilePath:    "/extensions/ops/skills/darwin-only/SKILL.md", Enabled: true,
+					InstalledFromExtension: "ops",
+					ActivationGates:        ActivationGates{Platforms: []string{"darwin"}},
+				},
+			},
+			{
+				ID:    "workspace:disabled-extension",
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-command-catalog"},
+				Spec: SkillResourceSpec{
+					Name:        "release",
+					Description: "Workspace-disabled extension",
+					Source:      skillSourceName(SourceBundled),
+					FilePath:    "/extensions/ops/skills/release/SKILL.md", Enabled: true,
+					InstalledFromExtension: "ops",
+				},
+			},
+		}
+		if err := registry.ApplyResourceRecords(t.Context(), 1, records); err != nil {
+			t.Fatalf("ApplyResourceRecords() error = %v", err)
+		}
+		resolved := &workspacepkg.ResolvedWorkspace{
+			Workspace: workspacepkg.Workspace{ID: "ws-command-catalog", RootDir: t.TempDir()},
+			Config: compozyconfig.Config{
+				Skills: compozyconfig.SkillsConfig{DisabledSkills: []string{"release"}},
+			},
+		}
+		candidates, err := registry.CommandCandidatesForAgentDefSession(
+			t.Context(),
+			resolved,
+			compozyconfig.AgentDef{Name: "coder"},
+			"sess-command-catalog",
+		)
+		if err != nil {
+			t.Fatalf("CommandCandidatesForAgentDefSession() error = %v", err)
+		}
+		type candidateIdentity struct {
+			name, kind, id, key, scope string
+			qualified, available       bool
+		}
+		got := make([]candidateIdentity, 0, len(candidates))
+		for _, candidate := range candidates {
+			got = append(got, candidateIdentity{
+				name: candidate.Skill.Meta.Name, kind: candidate.SourceKind, id: candidate.SourceID,
+				key: candidate.SourceKey, scope: candidate.Scope,
+				qualified: candidate.Qualified, available: candidate.Available,
+			})
+		}
+		want := []candidateIdentity{
+			{
+				name: "darwin-only", kind: "extension", id: "ops", key: "ops", scope: "workspace",
+				qualified: true, available: false,
+			},
+			{
+				name: "release", kind: "extension", id: "ops", key: "ops", scope: "workspace",
+				qualified: true, available: false,
+			},
+			{
+				name: "review", kind: "extension", id: "ops", key: "ops", scope: "global",
+				qualified: true, available: false,
+			},
+			{
+				name: "review", kind: "marketplace", id: "official",
+				key: "official:@compozy/review", scope: "global", qualified: true, available: false,
+			},
+			{
+				name: "base", kind: "user", key: commandSkillPathKey(&Skill{FilePath: "/global/base/SKILL.md"}),
+				scope: "global", available: true,
+			},
+			{
+				name: "deploy", kind: "workspace",
+				key:   commandSkillPathKey(&Skill{FilePath: "/workspace/deploy/SKILL.md"}),
+				scope: "workspace", available: true,
+			},
+		}
+		if !slices.Equal(got, want) {
+			t.Fatalf("command candidates = %#v, want %#v", got, want)
+		}
+	})
+}
+
 func TestCloneSkillPreservesNilProvenance(t *testing.T) {
 	t.Parallel()
 

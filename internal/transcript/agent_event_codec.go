@@ -23,7 +23,33 @@ func MarshalPromptInputEvent(event acp.AgentEvent, authoredText string) (string,
 
 func marshalAgentEvent(event acp.AgentEvent, authoredText string) (string, error) {
 	typedToolPayload := event.HasToolPayload()
-	payload := canonicalEventPayload{
+	payload := canonicalPayloadFromAgentEvent(event, authoredText)
+
+	if len(event.Raw) > 0 {
+		var rawPayload map[string]any
+		if err := json.Unmarshal(event.Raw, &rawPayload); err == nil {
+			applyLegacyRawPayload(&payload, event, rawPayload, typedToolPayload)
+		}
+	}
+	if detail := strings.TrimSpace(event.ToolErrorDetail()); detail != "" {
+		if payload.ToolResult == nil {
+			payload.ToolResult = &ToolResult{}
+		}
+		payload.ToolResult.Error = detail
+	}
+
+	payload.ToolName = firstNonEmpty(payload.ToolName, event.Title)
+	redactCanonicalPayload(&payload)
+
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return "", fmt.Errorf("transcript: marshal agent event: %w", err)
+	}
+	return string(data), nil
+}
+
+func canonicalPayloadFromAgentEvent(event acp.AgentEvent, authoredText string) canonicalEventPayload {
+	return canonicalEventPayload{
 		Schema:            CanonicalSchema,
 		Type:              event.Type,
 		SessionID:         event.SessionID,
@@ -50,58 +76,46 @@ func marshalAgentEvent(event acp.AgentEvent, authoredText string) (string, error
 		Synthetic:         clonePromptSyntheticMeta(event.Synthetic),
 		Goal:              acp.CloneGoalPromptMeta(event.Goal),
 		AvailableCommands: event.AvailableCommands.Values(),
+		SkillInvocations:  event.SkillInvocations(),
 		Usage:             event.Usage,
 		Runtime:           cloneRuntimeActivity(event.Runtime),
 		PromptRuntime:     event.PromptRuntimeSnapshot(),
 	}
+}
 
-	if len(event.Raw) > 0 {
-		var rawPayload map[string]any
-		if err := json.Unmarshal(event.Raw, &rawPayload); err == nil {
-			if event.Type == acp.EventTypePermission ||
-				event.Type == acp.EventTypeClarify ||
-				event.Type == events.SessionCompactionFired ||
-				event.Type == events.TranscriptMarkerCreated ||
-				event.Type == events.TranscriptMarkerRedacted {
-				payload.Raw = acp.CloneRawMessage(event.Raw)
-			}
-			payload.ToolName = firstNonEmpty(payload.ToolName, legacyToolName(rawPayload))
-			payload.ToolKind = firstNonEmpty(payload.ToolKind, nestedString(rawPayload, "kind"))
-			payload.ToolInput = acp.CloneRawMessage(firstNonEmptyRaw(
-				payload.ToolInput,
-				rawMessageFromValue(rawPayload["rawInput"]),
-			))
-			if event.Type == acp.EventTypeToolResult {
-				rawToolError := strings.EqualFold(nestedString(rawPayload, "status"), "failed")
-				effectiveToolError := rawToolError
-				if typedToolPayload {
-					effectiveToolError = payload.ToolError
-				}
-				payload.ToolResult = buildToolResult(
-					payload.ToolName,
-					effectiveToolError,
-					extractLegacyContentText(rawPayload["content"]),
-					rawPayload["rawOutput"],
-				)
-				payload.ToolError = effectiveToolError
-			}
+func applyLegacyRawPayload(
+	payload *canonicalEventPayload,
+	event acp.AgentEvent,
+	rawPayload map[string]any,
+	typedToolPayload bool,
+) {
+	if event.Type == acp.EventTypePermission ||
+		event.Type == acp.EventTypeClarify ||
+		event.Type == events.SessionCompactionFired ||
+		event.Type == events.TranscriptMarkerCreated ||
+		event.Type == events.TranscriptMarkerRedacted {
+		payload.Raw = acp.CloneRawMessage(event.Raw)
+	}
+	payload.ToolName = firstNonEmpty(payload.ToolName, legacyToolName(rawPayload))
+	payload.ToolKind = firstNonEmpty(payload.ToolKind, nestedString(rawPayload, "kind"))
+	payload.ToolInput = acp.CloneRawMessage(firstNonEmptyRaw(
+		payload.ToolInput,
+		rawMessageFromValue(rawPayload["rawInput"]),
+	))
+	if event.Type == acp.EventTypeToolResult {
+		rawToolError := strings.EqualFold(nestedString(rawPayload, "status"), "failed")
+		effectiveToolError := rawToolError
+		if typedToolPayload {
+			effectiveToolError = payload.ToolError
 		}
+		payload.ToolResult = buildToolResult(
+			payload.ToolName,
+			effectiveToolError,
+			extractLegacyContentText(rawPayload["content"]),
+			rawPayload["rawOutput"],
+		)
+		payload.ToolError = effectiveToolError
 	}
-	if detail := strings.TrimSpace(event.ToolErrorDetail()); detail != "" {
-		if payload.ToolResult == nil {
-			payload.ToolResult = &ToolResult{}
-		}
-		payload.ToolResult.Error = detail
-	}
-
-	payload.ToolName = firstNonEmpty(payload.ToolName, event.Title)
-	redactCanonicalPayload(&payload)
-
-	data, err := json.Marshal(payload)
-	if err != nil {
-		return "", fmt.Errorf("transcript: marshal agent event: %w", err)
-	}
-	return string(data), nil
 }
 
 // UnmarshalAgentEvent converts a canonical stored payload back into an ACP event.
@@ -139,6 +153,7 @@ func UnmarshalAgentEvent(payload string) (acp.AgentEvent, error) {
 		Runtime:          cloneRuntimeActivity(decoded.Runtime),
 		Raw:              acp.CloneRawMessage(decoded.Raw),
 	}
+	event = event.WithSkillInvocations(decoded.SkillInvocations)
 	event = event.WithPromptRuntime(decoded.PromptRuntime)
 	if messageID := strings.TrimSpace(decoded.MessageID); messageID != "" {
 		event = event.WithMessageID(messageID)

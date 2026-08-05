@@ -106,6 +106,7 @@ func expectedNativeEntries() map[string]toolmeta.Entry {
 		"compozy__bridges_list":                   expectedNativeEntry("Reading", " ", false, "🌉", "auto"),
 		"compozy__bridges_status":                 expectedNativeEntry("Reading", " ", false, "🌉", "auto"),
 		"compozy__clarify":                        expectedNativeEntry("Asking", " ", false, "💬", "auto"),
+		"compozy__command_list":                   expectedNativeEntry("Reading", " ", false, "💬", "auto"),
 		"compozy__config_diff":                    expectedNativeEntry("Reading", " ", false, "⚙️", "auto"),
 		"compozy__config_get":                     expectedNativeEntry("Reading", " ", false, "⚙️", "auto"),
 		"compozy__config_list":                    expectedNativeEntry("Reading", " ", false, "⚙️", "auto"),

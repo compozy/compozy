@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { SessionPayload } from "../../types";
-import { sessionDetailOptions } from "../query-options";
+import { sessionCommandsOptions, sessionDetailOptions } from "../query-options";
 
 function pollingIntervalFor(state: SessionPayload["state"] | undefined): number | false {
   const refetchInterval = sessionDetailOptions("ws_alpha", "sess_1").refetchInterval;
@@ -29,5 +29,15 @@ describe("sessionDetailOptions", () => {
     expect(pollingIntervalFor("stopping")).toBe(5_000);
     expect(pollingIntervalFor("stopped")).toBe(false);
     expect(pollingIntervalFor(undefined)).toBe(false);
+  });
+});
+
+describe("sessionCommandsOptions", () => {
+  it("Should key the command catalog by workspace and session", () => {
+    const options = sessionCommandsOptions(" ws_alpha ", "sess_1");
+    expect(options.queryKey).toEqual(["session-commands", "ws_alpha", "sess_1"]);
+    expect(options.enabled).toBe(true);
+    expect(sessionCommandsOptions("", "sess_1").enabled).toBe(false);
+    expect(sessionCommandsOptions("   ", "sess_1").enabled).toBe(false);
   });
 });

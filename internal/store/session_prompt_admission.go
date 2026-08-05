@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	commandpkg "github.com/compozy/compozy/internal/command"
 )
 
 const (
@@ -64,6 +66,7 @@ type SessionPromptAdmission struct {
 	Mode                string
 	AuthoredText        string
 	Runtime             SessionInputRuntime
+	SkillInvocations    []commandpkg.Invocation
 	TurnID              string
 	EventID             string
 	Result              *SessionPromptAdmissionResult
@@ -87,6 +90,7 @@ type SessionPromptAdmissionRequest struct {
 	Mode               string
 	AuthoredText       string
 	Runtime            SessionInputRuntime
+	SkillInvocations   []commandpkg.Invocation
 	TurnID             string
 	EventID            string
 	Now                time.Time
@@ -106,6 +110,7 @@ func (r SessionPromptAdmissionRequest) Normalize() SessionPromptAdmissionRequest
 	normalized.Mode = strings.TrimSpace(normalized.Mode)
 	normalized.AuthoredText = strings.TrimSpace(normalized.AuthoredText)
 	normalized.Runtime = normalized.Runtime.Normalize()
+	normalized.SkillInvocations = append([]commandpkg.Invocation(nil), normalized.SkillInvocations...)
 	normalized.TurnID = strings.TrimSpace(normalized.TurnID)
 	normalized.EventID = strings.TrimSpace(normalized.EventID)
 	if normalized.Now.IsZero() {

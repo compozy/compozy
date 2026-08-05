@@ -15,6 +15,7 @@ func newSessionCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newSessionSoulCommand(deps))
 	cmd.AddCommand(newSessionHealthCommand(deps))
 	cmd.AddCommand(newSessionStatusCommand(deps))
+	cmd.AddCommand(newSessionCommandsCommand(deps))
 	cmd.AddCommand(newSessionUsageCommand(deps))
 	cmd.AddCommand(newSessionInspectCommand(deps))
 	cmd.AddCommand(newSessionResumeCommand(deps))

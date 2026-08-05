@@ -71,7 +71,7 @@ func (m *Manager) applyGoalCommand(
 	req *promptRequest,
 	opts SendPromptOpts,
 ) (bool, *SendPromptResult, error) {
-	if !opts.AllowGoalCommands {
+	if !opts.AllowCommands {
 		return false, nil, nil
 	}
 	decision, handled, err := m.dispatchGoalCommand(ctx, req, opts)

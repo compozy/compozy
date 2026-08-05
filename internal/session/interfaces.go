@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	commandpkg "github.com/compozy/compozy/internal/command"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/resources"
@@ -88,6 +89,22 @@ type TurnEndNotifier func(sessionID string)
 
 // PromptInputAugmenter can add bounded daemon-local context before prompt dispatch.
 type PromptInputAugmenter func(ctx context.Context, session *Session, message string) (string, error)
+
+// CommandService projects and expands slash commands for one concrete session.
+type CommandService interface {
+	Catalog(
+		ctx context.Context,
+		info *Info,
+		agent compozyconfig.AgentDef,
+	) (commandpkg.Catalog, error)
+	Expand(
+		ctx context.Context,
+		info *Info,
+		agent compozyconfig.AgentDef,
+		invocations []commandpkg.Invocation,
+		message string,
+	) (string, error)
+}
 
 // LedgerMaterializer is the thin session-end seam for forensic ledger projection.
 type LedgerMaterializer interface {

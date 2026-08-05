@@ -3,11 +3,13 @@ package globaldb
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	commandpkg "github.com/compozy/compozy/internal/command"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
@@ -332,6 +334,11 @@ func insertSessionInputQueueEntry(
 	if normalized.RunGeneration != nil {
 		runGeneration = sql.NullInt64{Int64: *normalized.RunGeneration, Valid: true}
 	}
+	skillInvocations := append([]commandpkg.Invocation{}, normalized.SkillInvocations...)
+	skillInvocationsJSON, err := json.Marshal(skillInvocations)
+	if err != nil {
+		return store.SessionInputQueueEntry{}, fmt.Errorf("store: encode session input skill invocations: %w", err)
+	}
 	if err := sqlcgen.New(exec).InsertSessionInputQueueEntry(ctx, sqlcgen.InsertSessionInputQueueEntryParams{
 		ID: normalized.ID, SessionID: normalized.SessionID,
 		PromptAdmissionID: sql.NullString{
@@ -342,7 +349,8 @@ func insertSessionInputQueueEntry(
 		TurnID: normalized.TurnID, TargetTurnID: normalized.TargetTurnID, EventID: normalized.EventID,
 		Status: store.SessionInputQueueStatusQueued,
 		Mode:   normalized.Mode, Delivery: normalized.Delivery, Text: normalized.Text,
-		RuntimeProvider: normalized.Runtime.Provider, RuntimeModel: normalized.Runtime.Model,
+		SkillInvocationsJson: string(skillInvocationsJSON),
+		RuntimeProvider:      normalized.Runtime.Provider, RuntimeModel: normalized.Runtime.Model,
 		RuntimeReasoningEffort: normalized.Runtime.ReasoningEffort, RuntimeSpeed: normalized.Runtime.Speed,
 		SessionGeneration: normalized.SessionGeneration,
 		TaskRunID:         normalized.TaskRunID, RunGeneration: runGeneration, EnqueuedAt: nowRaw, UpdatedAt: nowRaw,

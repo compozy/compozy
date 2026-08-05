@@ -25,6 +25,7 @@ const (
 
 var sessionTools = []toolspkg.Descriptor{
 	sessionListDescriptor(),
+	commandListDescriptor(),
 	sessionCreateDescriptor(),
 	sessionPromptDescriptor(),
 	sessionRewindDescriptor(),

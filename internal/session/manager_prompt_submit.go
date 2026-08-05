@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
+	commandpkg "github.com/compozy/compozy/internal/command"
 )
 
 func (m *Manager) submitPromptRequest(ctx context.Context, req promptRequest) (<-chan acp.AgentEvent, error) {
@@ -41,7 +42,7 @@ func (m *Manager) submitPromptRequest(ctx context.Context, req promptRequest) (<
 	if err != nil {
 		return nil, err
 	}
-	turnState := newPromptTurnDispatchState(session, req.turnID, req.turnSource, message)
+	req.skillInvocations = commandpkg.ReconcileInvocations(message, req.skillInvocations)
 	if !slotReserved {
 		proc, err = session.beginExclusivePromptSetup()
 		if err != nil {
@@ -53,10 +54,31 @@ func (m *Manager) submitPromptRequest(ctx context.Context, req promptRequest) (<
 			return nil, err
 		}
 	}
+	session.setCurrentTurnID(req.turnID)
+	session.setCurrentTurnSource(req.turnSource)
+	session.setCurrentPromptMessage(req.authoredMessage)
+	session.setCurrentPromptMeta(req.meta)
+	session.setCurrentSkillInvocations(req.skillInvocations)
+	stateOwned := true
+	defer func() {
+		if stateOwned {
+			session.clearCurrentTurnID()
+			session.clearCurrentTurnSource()
+			session.clearCurrentPromptMessage()
+			session.clearCurrentPromptMeta()
+			session.clearCurrentSkillInvocations()
+		}
+	}()
+	dispatchMessage, err := m.promptDispatchMessage(ctx, session, message)
+	if err != nil {
+		return nil, err
+	}
+	turnState := newPromptTurnDispatchState(session, req.turnID, req.turnSource, message)
 	if err := m.dispatchTurnStart(ctx, turnState); err != nil {
 		return nil, err
 	}
-	return m.submitPromptInReservedSlot(ctx, session, proc, req, message, turnState)
+	stateOwned = false
+	return m.submitPromptInReservedSlot(ctx, session, proc, req, message, dispatchMessage, turnState)
 }
 
 func (m *Manager) submitPromptInReservedSlot(
@@ -65,12 +87,9 @@ func (m *Manager) submitPromptInReservedSlot(
 	proc *AgentProcess,
 	req promptRequest,
 	message string,
+	dispatchMessage string,
 	turnState *promptTurnDispatchState,
 ) (<-chan acp.AgentEvent, error) {
-	session.setCurrentTurnID(req.turnID)
-	session.setCurrentTurnSource(turnState.turnSource)
-	session.setCurrentPromptMessage(req.authoredMessage)
-	session.setCurrentPromptMeta(req.meta)
 	promptExecutionCtx, cancelPromptExecution := m.promptExecutionContext(ctx, turnState.managed != nil)
 	session.setCurrentPromptCancel(cancelPromptExecution)
 	clearTurnSource := true
@@ -81,16 +100,13 @@ func (m *Manager) submitPromptInReservedSlot(
 			session.clearCurrentTurnSource()
 			session.clearCurrentPromptMessage()
 			session.clearCurrentPromptMeta()
+			session.clearCurrentSkillInvocations()
 			session.clearCurrentPromptCancel()
 		}
 	}()
 
 	req.message = message
 	if err := m.recordPromptInputEvent(ctx, session, &req); err != nil {
-		return nil, err
-	}
-	dispatchMessage, err := m.promptDispatchMessage(ctx, session, message)
-	if err != nil {
 		return nil, err
 	}
 	replayBlock := m.pendingResumeReplay(session.ID)
@@ -200,15 +216,19 @@ func (m *Manager) startPromptPump(
 }
 
 func (m *Manager) promptDispatchMessage(ctx context.Context, session *Session, message string) (string, error) {
-	if m.inputAugmenter == nil {
-		return message, nil
+	expanded, err := m.expandPromptSkillInvocations(ctx, session, message)
+	if err != nil {
+		return "", err
 	}
-	augmented, err := m.inputAugmenter(ctx, session, message)
+	if m.inputAugmenter == nil {
+		return expanded, nil
+	}
+	augmented, err := m.inputAugmenter(ctx, session, expanded)
 	if err != nil {
 		return "", fmt.Errorf("session: augment prompt input: %w", err)
 	}
 	if strings.TrimSpace(augmented) == "" {
-		return message, nil
+		return expanded, nil
 	}
 	return augmented, nil
 }

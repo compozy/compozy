@@ -12,6 +12,12 @@ type CreateSessionRequest = contract.CreateSessionRequest
 // SessionRecord is the shared daemon session payload.
 type SessionRecord = contract.SessionPayload
 
+// SessionCommandsRecord is the unified session command catalog.
+type SessionCommandsRecord = contract.SessionCommandsResponse
+
+// SessionCommandRecord is one command in the unified session catalog.
+type SessionCommandRecord = contract.SessionCommandPayload
+
 // SetSessionRuntimeRequest selects the default runtime for future prompts.
 type SetSessionRuntimeRequest = contract.SetSessionRuntimeRequest
 

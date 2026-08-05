@@ -121,6 +121,91 @@ func TestUDSTransportSessionOwnerProjectionMatchesHTTP(t *testing.T) {
 	})
 }
 
+func TestUDSTransportSessionCommandsProjectionMatchesHTTP(t *testing.T) {
+	acpmock.RequireDriver(t)
+	t.Parallel()
+
+	t.Run("Should return the same session command catalog and workspace fence over HTTP and UDS", func(t *testing.T) {
+		t.Parallel()
+
+		runtimeHarness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+			MockAgents: []e2etest.MockAgentSpec{{
+				FixturePath:  transportMockFixturePath(t, "automation_task_fixture.json"),
+				FixtureAgent: "automation-runner",
+				AgentName:    transportUDSAutomationAgent,
+			}},
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+
+		created, err := runtimeHarness.CreateSession(ctx, compozycontract.CreateSessionRequest{
+			AgentName:     transportUDSAutomationAgent,
+			WorkspacePath: runtimeHarness.WorkspaceRoot,
+		})
+		if err != nil {
+			t.Fatalf("CreateSession() error = %v", err)
+		}
+		created = waitForTransportSessionActive(t, ctx, runtimeHarness, created)
+
+		clients, err := runtimeHarness.TransportClients()
+		if err != nil {
+			t.Fatalf("TransportClients() error = %v", err)
+		}
+		path := transportHarnessSessionPath(t, runtimeHarness, created.ID, "/commands")
+		httpResponse := mustUnixRequest(t, clients.HTTPClient, http.MethodGet, runtimeHarness.HTTPURL(path), nil, nil)
+		udsResponse := mustUnixRequest(t, clients.UDSClient, http.MethodGet, runtimeHarness.UDSURL(path), nil, nil)
+		httpBody := readAndCloseHTTPBody(t, httpResponse)
+		udsBody := readAndCloseHTTPBody(t, udsResponse)
+		if httpResponse.StatusCode != http.StatusOK || udsResponse.StatusCode != http.StatusOK {
+			t.Fatalf(
+				"session commands status parity = HTTP %d / UDS %d, want %d; bodies=%s / %s",
+				httpResponse.StatusCode,
+				udsResponse.StatusCode,
+				http.StatusOK,
+				httpBody,
+				udsBody,
+			)
+		}
+		if !jsonEqual(httpBody, udsBody) {
+			t.Fatalf("session commands payloads differ: HTTP=%s UDS=%s", httpBody, udsBody)
+		}
+
+		var catalog compozycontract.SessionCommandsResponse
+		if err := json.Unmarshal(httpBody, &catalog); err != nil {
+			t.Fatalf("json.Unmarshal(session commands) error = %v; body=%s", err, httpBody)
+		}
+		if strings.TrimSpace(catalog.Revision) == "" || len(catalog.Commands) == 0 {
+			t.Fatalf("session commands catalog = %#v, want non-empty revision and commands", catalog)
+		}
+		for _, command := range catalog.Commands {
+			if strings.Contains(command.Source.Key, string(filepath.Separator)) ||
+				strings.Contains(command.Source.Key, "/") {
+				t.Fatalf("session command source key = %q, want path-free identity", command.Source.Key)
+			}
+		}
+
+		foreignPath := "/api/workspaces/foreign-workspace/sessions/" + url.PathEscape(created.ID) + "/commands"
+		httpForeign := mustUnixRequest(t, clients.HTTPClient, http.MethodGet, runtimeHarness.HTTPURL(foreignPath), nil, nil)
+		udsForeign := mustUnixRequest(t, clients.UDSClient, http.MethodGet, runtimeHarness.UDSURL(foreignPath), nil, nil)
+		httpForeignBody := readAndCloseHTTPBody(t, httpForeign)
+		udsForeignBody := readAndCloseHTTPBody(t, udsForeign)
+		if httpForeign.StatusCode != http.StatusNotFound || udsForeign.StatusCode != http.StatusNotFound {
+			t.Fatalf(
+				"foreign session commands status parity = HTTP %d / UDS %d, want %d; bodies=%s / %s",
+				httpForeign.StatusCode,
+				udsForeign.StatusCode,
+				http.StatusNotFound,
+				httpForeignBody,
+				udsForeignBody,
+			)
+		}
+		if !jsonEqual(httpForeignBody, udsForeignBody) {
+			t.Fatalf("foreign session commands errors differ: HTTP=%s UDS=%s", httpForeignBody, udsForeignBody)
+		}
+	})
+}
+
 func TestUDSTransportDaemonDrainMatchesHTTPAndCLI(t *testing.T) {
 	t.Parallel()
 	acpmock.RequireDriver(t)
@@ -1887,14 +1972,17 @@ func TestUDSTransportObserveHarnessLifecycleParityMatchesHTTP(t *testing.T) {
 	if !strings.Contains(httpHarnessEvents[2].Summary, "surface=turn") {
 		t.Fatalf("turn summary = %q, want turn surface", httpHarnessEvents[2].Summary)
 	}
-	if !strings.Contains(httpHarnessEvents[3].Summary, "augmenter=durable_memory") {
-		t.Fatalf("augmenter summary = %q, want durable memory metadata", httpHarnessEvents[3].Summary)
+	if !strings.Contains(httpHarnessEvents[3].Summary, "augmenter=workspace_knowledge") {
+		t.Fatalf("augmenter summary = %q, want workspace knowledge metadata", httpHarnessEvents[3].Summary)
 	}
-	if !strings.Contains(httpHarnessEvents[4].Summary, "augmenter=skills") {
-		t.Fatalf("augmenter summary = %q, want skills metadata", httpHarnessEvents[4].Summary)
+	if !strings.Contains(httpHarnessEvents[4].Summary, "augmenter=durable_memory") {
+		t.Fatalf("augmenter summary = %q, want durable memory metadata", httpHarnessEvents[4].Summary)
 	}
-	if !strings.Contains(httpHarnessEvents[5].Summary, "augmenter=situation") {
-		t.Fatalf("augmenter summary = %q, want situation metadata", httpHarnessEvents[5].Summary)
+	if !strings.Contains(httpHarnessEvents[5].Summary, "augmenter=skills") {
+		t.Fatalf("augmenter summary = %q, want skills metadata", httpHarnessEvents[5].Summary)
+	}
+	if !strings.Contains(httpHarnessEvents[6].Summary, "augmenter=situation") {
+		t.Fatalf("augmenter summary = %q, want situation metadata", httpHarnessEvents[6].Summary)
 	}
 }
 
@@ -2572,6 +2660,7 @@ func wantTransportObserveHarnessTypes() []string {
 		"harness.context_resolved",
 		"harness.section_selected",
 		"harness.context_resolved",
+		"harness.augmenter_applied",
 		"harness.augmenter_applied",
 		"harness.augmenter_applied",
 		"harness.augmenter_applied",

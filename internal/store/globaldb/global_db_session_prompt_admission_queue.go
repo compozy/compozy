@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	commandpkg "github.com/compozy/compozy/internal/command"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
@@ -349,5 +350,6 @@ func bindQueueAdmission(
 	req.EventID = admission.EventID
 	req.Text = admission.AuthoredText
 	req.Runtime = admission.Runtime
+	req.SkillInvocations = append([]commandpkg.Invocation(nil), admission.SkillInvocations...)
 	return req
 }

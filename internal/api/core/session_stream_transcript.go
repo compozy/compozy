@@ -13,9 +13,11 @@ import (
 )
 
 type transcriptStreamState struct {
-	cursor     int64
-	generation int64
-	epoch      int64
+	cursor           int64
+	generation       int64
+	epoch            int64
+	commandRevision  string
+	commandCheckedAt time.Time
 }
 
 func (h *BaseHandlers) streamTranscriptSessionEvents(
@@ -44,6 +46,14 @@ func (h *BaseHandlers) streamTranscriptSessionEvents(
 		h.writeTranscriptStreamError(writer, fmt.Errorf("initialize transcript stream: %w", err))
 		return
 	}
+	state.commandRevision, err = h.writeSessionCommandsChanged(
+		c.Request.Context(), writer, sessionID, "",
+	)
+	if err != nil {
+		h.writeTranscriptStreamError(writer, err)
+		return
+	}
+	state.commandCheckedAt = time.Now()
 	if info != nil && info.State == session.StateStopped {
 		h.logSSEWriteFailure("session_stopped", h.writeSessionStoppedEvent(writer, info))
 		return
@@ -123,6 +133,14 @@ func (h *BaseHandlers) refreshTranscriptStream(
 	limit int,
 	namedEvents []store.SessionEvent,
 ) (transcriptStreamState, *session.Info, error) {
+	if time.Since(state.commandCheckedAt) >= time.Second {
+		revision, err := h.writeSessionCommandsChanged(ctx, writer, sessionID, state.commandRevision)
+		if err != nil {
+			return state, info, err
+		}
+		state.commandRevision = revision
+		state.commandCheckedAt = time.Now()
+	}
 	if err := h.writeGoalSnapshotChangedEvents(ctx, writer, sessionID, state.cursor, namedEvents); err != nil {
 		return state, info, err
 	}
@@ -131,7 +149,7 @@ func (h *BaseHandlers) refreshTranscriptStream(
 		return state, info, fmt.Errorf("query transcript stream status: %w", err)
 	}
 	if latest != nil && transcriptEpoch(latest) != state.epoch {
-		state, err = h.resetTranscriptStream(
+		resetState, resetErr := h.resetTranscriptStream(
 			ctx,
 			writer,
 			sessionID,
@@ -139,7 +157,9 @@ func (h *BaseHandlers) refreshTranscriptStream(
 			limit,
 			contract.TranscriptSnapshotReasonEpochMismatch,
 		)
-		return state, latest, err
+		resetState.commandRevision = state.commandRevision
+		resetState.commandCheckedAt = state.commandCheckedAt
+		return resetState, latest, resetErr
 	}
 	if latest != nil {
 		info = latest
@@ -157,8 +177,10 @@ func (h *BaseHandlers) refreshTranscriptStream(
 		resetReason = contract.TranscriptSnapshotReasonSequenceReset
 	}
 	if resetReason != "" {
-		state, err = h.resetTranscriptStream(ctx, writer, sessionID, info, limit, resetReason)
-		return state, info, err
+		resetState, resetErr := h.resetTranscriptStream(ctx, writer, sessionID, info, limit, resetReason)
+		resetState.commandRevision = state.commandRevision
+		resetState.commandCheckedAt = state.commandCheckedAt
+		return resetState, info, resetErr
 	}
 
 	nextCursor, generation, err := h.writeTranscriptChangePages(
@@ -206,6 +228,8 @@ func (h *BaseHandlers) pollAndStreamSessionTranscript(
 	defer ticker.Stop()
 	keepAlive := time.NewTicker(sessionStreamKeepAliveInterval)
 	defer keepAlive.Stop()
+	commandRefresh := time.NewTicker(time.Second)
+	defer commandRefresh.Stop()
 
 	currentInfo := info
 	for {
@@ -218,6 +242,16 @@ func (h *BaseHandlers) pollAndStreamSessionTranscript(
 			if !h.writeKeepAlive(writer) {
 				return
 			}
+		case <-commandRefresh.C:
+			revision, err := h.writeSessionCommandsChanged(
+				c.Request.Context(), writer, sessionID, state.commandRevision,
+			)
+			if err != nil {
+				h.writeTranscriptStreamError(writer, err)
+				return
+			}
+			state.commandRevision = revision
+			state.commandCheckedAt = time.Now()
 		case <-ticker.C:
 			var err error
 			state, currentInfo, err = h.refreshTranscriptStream(
@@ -246,6 +280,8 @@ func (h *BaseHandlers) pushAndStreamSessionTranscript(
 ) {
 	keepAlive := time.NewTicker(sessionStreamKeepAliveInterval)
 	defer keepAlive.Stop()
+	commandRefresh := time.NewTicker(time.Second)
+	defer commandRefresh.Stop()
 
 	currentInfo := info
 	for {
@@ -258,6 +294,16 @@ func (h *BaseHandlers) pushAndStreamSessionTranscript(
 			if !h.writeKeepAlive(writer) {
 				return
 			}
+		case <-commandRefresh.C:
+			revision, err := h.writeSessionCommandsChanged(
+				c.Request.Context(), writer, sessionID, state.commandRevision,
+			)
+			if err != nil {
+				h.writeTranscriptStreamError(writer, err)
+				return
+			}
+			state.commandRevision = revision
+			state.commandCheckedAt = time.Now()
 		case event, ok := <-subscription.events:
 			if !ok {
 				h.logSessionStreamSubscriptionClosed(

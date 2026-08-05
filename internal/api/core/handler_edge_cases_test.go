@@ -520,7 +520,7 @@ func TestCorePromptDispatchShouldBuildOneCanonicalSessionCommand(t *testing.T) {
 			t.Fatalf("body = %q, want accepted stream start", recorder.Body.String())
 		}
 		if gotOpts.Message != "inspect the release" || gotOpts.MessageID != "msg-core-dispatch" ||
-			gotOpts.IdempotencyKey != "idem-core-dispatch" || !gotOpts.AllowGoalCommands {
+			gotOpts.IdempotencyKey != "idem-core-dispatch" || !gotOpts.AllowCommands {
 			t.Fatalf("SendPrompt() opts = %#v, want canonical prompt metadata", gotOpts)
 		}
 		if gotOpts.Runtime == nil || gotOpts.Runtime.Provider != "codex" || gotOpts.Runtime.Model != "gpt-5.6-sol" ||

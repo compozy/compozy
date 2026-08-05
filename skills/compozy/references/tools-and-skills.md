@@ -8,6 +8,7 @@
 - Oversized tool results
 - Marketplace discovery
 - Skill loading
+- Session command catalog
 - Bundled skill resources
 - Skill provenance and shadows
 - Native Compozy tool map
@@ -161,6 +162,28 @@ provides no environment context.
 Inactive skills stay manageable and readable with structured reasons but are absent from catalogs.
 Keep administrative `enabled` separate from runtime `activation.active`.
 Tool-gated skills re-evaluate on the next projection without a daemon restart.
+
+## Session Command Catalog
+
+Read the command catalog for the exact session before referring an operator to a slash command:
+
+    compozy session commands <session-id> -o json
+
+The HTTP/UDS equivalent is `GET /api/workspaces/{workspace_id}/sessions/{session_id}/commands`.
+Inside a bound session, resolve canonical `compozy__command_list` and pass `session_id`. The catalog
+contains daemon controls, ACP-advertised commands, and only the enabled, active skills effective for
+that session. `/run` is reserved and absent.
+
+Daemon and ACP controls are standalone prompts. Skill tokens can appear after any whitespace boundary,
+including in the middle of a prompt; repeated references to one exact skill activate it once. Bare
+tokens name the effective bundled, global, additional, workspace, or agent-local winner. Extension
+skills use `/extension-id:skill`; Marketplace skills use `/registry-id:skill`.
+
+Slash activation belongs to authenticated operator prompt ingress. Agent-authored prompts and
+`compozy__session_prompt` keep slash-shaped text literal. When a catalog row identifies a skill, pass
+its opaque `id` as `command_id` to the session-bound `compozy__skill_view`; this reads the exact source
+without exposing or reconstructing a filesystem path. If that source is no longer effective, treat
+the unavailable result as terminal and read the catalog again.
 
 ## Bundled Skill Resources
 

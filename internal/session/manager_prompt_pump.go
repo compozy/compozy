@@ -144,6 +144,7 @@ func (m *Manager) finishPromptPump(
 		session.clearCurrentTurnSource()
 		session.clearCurrentPromptMessage()
 		session.clearCurrentPromptMeta()
+		session.clearCurrentSkillInvocations()
 		session.clearCurrentPromptCancel()
 	}
 	if fatalPromptFailure == nil {

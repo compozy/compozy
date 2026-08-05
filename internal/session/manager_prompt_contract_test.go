@@ -13,6 +13,7 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/compozy/compozy/internal/acp"
+	commandpkg "github.com/compozy/compozy/internal/command"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/store"
@@ -1106,6 +1107,115 @@ func TestPromptAugmenterPreservesStoredUserMessageAndAugmentsDriverDispatch(t *t
 	if strings.Contains(stored[0].Content, "MEMORY RECALL") {
 		t.Fatalf("stored user_message content = %s, want no augmentation block", stored[0].Content)
 	}
+}
+
+func TestPromptSkillCommandsPreserveAuthoredTextAndExpandOnlyOperatorIngress(t *testing.T) {
+	t.Parallel()
+
+	service := &promptCommandServiceStub{}
+	h := newHarness(t, WithCommandService(service))
+	sess := createSession(t, h)
+	t.Cleanup(func() {
+		reportSessionStop(t, h, sess.ID)
+	})
+
+	result, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, SendPromptOpts{
+		Message: "Please /review this change", AllowCommands: true,
+		Caller: PromptCaller{Kind: "human", ID: "operator", Source: "http"},
+	})
+	if err != nil {
+		t.Fatalf("SendPrompt() error = %v", err)
+	}
+	_ = collectEvents(t, result.Events)
+	if got, want := service.catalogCalls, 1; got != want {
+		t.Fatalf("Catalog() calls = %d, want %d", got, want)
+	}
+	if len(service.expanded) != 1 || service.expanded[0].Token != "/review" {
+		t.Fatalf("Expand() invocations = %#v, want one /review", service.expanded)
+	}
+	if got, want := h.driver.promptCalls[0].Message, "VERIFIED REVIEW INSTRUCTIONS\n\nPlease /review this change"; got != want {
+		t.Fatalf("driver prompt message = %q, want %q", got, want)
+	}
+	stored := readStoredEvents(t, sess)
+	if len(stored) == 0 || !strings.Contains(stored[0].Content, `"text":"Please /review this change"`) ||
+		!strings.Contains(stored[0].Content, `"skill_invocations"`) {
+		t.Fatalf("stored prompt event = %#v, want authored text and durable invocation refs", stored)
+	}
+	if strings.Contains(stored[0].Content, "VERIFIED REVIEW INSTRUCTIONS") {
+		t.Fatalf("stored prompt event contains provider-only instructions: %s", stored[0].Content)
+	}
+
+	for _, caller := range []PromptCaller{
+		{},
+		{Kind: "agent", ID: "agent-1", Source: "native_tool"},
+	} {
+		_, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, SendPromptOpts{
+			Message: "Please /review this untrusted prompt", AllowCommands: true, Caller: caller,
+		})
+		if err == nil {
+			t.Fatalf("SendPrompt(untrusted caller %#v) error = nil, want rejection", caller)
+		}
+	}
+	if got, want := service.catalogCalls, 1; got != want {
+		t.Fatalf("Catalog() calls after untrusted ingress = %d, want %d", got, want)
+	}
+	if got, want := len(h.driver.promptCalls), 1; got != want {
+		t.Fatalf("driver prompt calls after untrusted ingress = %d, want %d", got, want)
+	}
+
+	internalService := &promptCommandServiceStub{}
+	internalHarness := newHarness(t, WithCommandService(internalService))
+	internalSession := createSession(t, internalHarness)
+	t.Cleanup(func() {
+		reportSessionStop(t, internalHarness, internalSession.ID)
+	})
+	internalEvents, err := internalHarness.manager.Prompt(
+		testutil.Context(t),
+		internalSession.ID,
+		"Please /review this internal prompt",
+	)
+	if err != nil {
+		t.Fatalf("Prompt(internal) error = %v", err)
+	}
+	_ = collectEvents(t, internalEvents)
+	if internalService.catalogCalls != 0 || len(internalService.expanded) != 0 {
+		t.Fatalf(
+			"internal command service calls = catalog %d expanded %#v, want none",
+			internalService.catalogCalls,
+			internalService.expanded,
+		)
+	}
+	if got, want := internalHarness.driver.promptCalls[0].Message, "Please /review this internal prompt"; got != want {
+		t.Fatalf("internal driver message = %q, want literal %q", got, want)
+	}
+}
+
+type promptCommandServiceStub struct {
+	catalogCalls int
+	expanded     []commandpkg.Invocation
+}
+
+func (s *promptCommandServiceStub) Catalog(
+	context.Context,
+	*Info,
+	compozyconfig.AgentDef,
+) (commandpkg.Catalog, error) {
+	s.catalogCalls++
+	return commandpkg.BuildCatalog(commandpkg.DefaultBuiltins(), nil, []commandpkg.SkillSpec{{
+		Name: "review", Description: "Review carefully", Available: true,
+		Source: commandpkg.Source{Kind: "workspace", Scope: "workspace"},
+	}})
+}
+
+func (s *promptCommandServiceStub) Expand(
+	_ context.Context,
+	_ *Info,
+	_ compozyconfig.AgentDef,
+	invocations []commandpkg.Invocation,
+	message string,
+) (string, error) {
+	s.expanded = append(s.expanded, invocations...)
+	return "VERIFIED REVIEW INSTRUCTIONS\n\n" + message, nil
 }
 
 func TestPromptNetworkAugmenterPreservesStoredUserMessageAndAugmentsDriverDispatch(t *testing.T) {

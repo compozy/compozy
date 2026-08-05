@@ -5,9 +5,11 @@ import (
 	"database/sql"
 	"errors"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
+	commandpkg "github.com/compozy/compozy/internal/command"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 )
@@ -53,6 +55,43 @@ func TestGlobalDBSessionInputQueueGeneration(t *testing.T) {
 		}
 		if got, want := claimed.Runtime, wantRuntime; got != want {
 			t.Fatalf("claimed runtime = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("Should preserve exact skill invocation refs through queue leasing", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		sessionID := registerInputQueueSession(t, globalDB)
+		now := time.Date(2026, 8, 4, 12, 0, 0, 0, time.UTC)
+		want := []commandpkg.Invocation{{
+			Ref: commandpkg.SkillRef{
+				CommandID: "skill:extension:ops:review",
+				Name:      "review",
+				Source: commandpkg.Source{
+					Kind: "extension", ID: "ops", Key: "ops", Scope: "workspace",
+				},
+			},
+			Token: "/ops:review", Start: 7, End: 18,
+		}}
+		enqueued, _, err := globalDB.EnqueueSessionInput(ctx, store.SessionInputQueueInsert{
+			ID: "inq-skill-ref", SessionID: sessionID,
+			Mode: store.SessionInputQueueModeQueue, Text: "Please /ops:review",
+			SkillInvocations: want, SessionGeneration: 0, QueueCap: 10, Now: now,
+		})
+		if err != nil {
+			t.Fatalf("EnqueueSessionInput() error = %v", err)
+		}
+		if !slices.Equal(enqueued.SkillInvocations, want) {
+			t.Fatalf("enqueued skill refs = %#v, want %#v", enqueued.SkillInvocations, want)
+		}
+		claimed, ok, err := globalDB.ClaimNextSessionInput(ctx, sessionID, now.Add(time.Second))
+		if err != nil || !ok {
+			t.Fatalf("ClaimNextSessionInput() = ok %v, error %v", ok, err)
+		}
+		if !slices.Equal(claimed.SkillInvocations, want) {
+			t.Fatalf("claimed skill refs = %#v, want %#v", claimed.SkillInvocations, want)
 		}
 	})
 
@@ -1128,6 +1167,13 @@ func TestGlobalDBSessionPromptAdmission(t *testing.T) {
 		workspaceID := "ws-input-queue-workspace"
 		now := time.Date(2026, 7, 31, 12, 0, 0, 0, time.UTC)
 		req := promptAdmissionRequest(workspaceID, sessionID, "exact", now)
+		req.SkillInvocations = []commandpkg.Invocation{{
+			Ref: commandpkg.SkillRef{
+				CommandID: "skill:workspace::review", Name: "review",
+				Source: commandpkg.Source{Kind: "workspace", Scope: "workspace"},
+			},
+			Token: "/review", Start: 8, End: 15,
+		}}
 
 		first, created, err := globalDB.ClaimSessionPromptAdmission(ctx, req)
 		if err != nil {
@@ -1149,6 +1195,9 @@ func TestGlobalDBSessionPromptAdmission(t *testing.T) {
 		}
 		if replayed.ID != first.ID || replayed.MessageID != first.MessageID {
 			t.Fatalf("replayed admission = %#v, want identity from %#v", replayed, first)
+		}
+		if !slices.Equal(replayed.SkillInvocations, req.SkillInvocations) {
+			t.Fatalf("replayed skill refs = %#v, want %#v", replayed.SkillInvocations, req.SkillInvocations)
 		}
 
 		fingerprintCollision := req

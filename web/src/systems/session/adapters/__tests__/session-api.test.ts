@@ -35,6 +35,7 @@ import {
   steerSessionPrompt,
   stopSession,
 } from "../session-api";
+import { fetchSessionCommands } from "../session-command-api";
 
 const mockSession = {
   id: "sess-001",
@@ -152,6 +153,19 @@ describe("fetchSessions", () => {
     const result = await fetchSessions();
 
     expect(result).toEqual(response);
+  });
+});
+
+describe("fetchSessionCommands", () => {
+  it("reads the normalized workspace-fenced command catalog", async () => {
+    const response = { commands: [], revision: "revision-1" };
+    mockJsonResponse(response);
+
+    await expect(fetchSessionCommands(" ws_alpha ", " sess-001 ")).resolves.toEqual(response);
+
+    await expectFetchRequest({
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/commands",
+    });
   });
 });
 

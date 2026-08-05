@@ -45,3 +45,35 @@ func (h *BaseHandlers) writeGoalSnapshotChangedEvents(
 	}
 	return nil
 }
+
+func (h *BaseHandlers) writeSessionCommandsChanged(
+	ctx context.Context,
+	writer FlushWriter,
+	sessionID string,
+	previousRevision string,
+) (string, error) {
+	manager, ok := h.Sessions.(SessionCommandCatalogManager)
+	if !ok {
+		return previousRevision, nil
+	}
+	catalog, err := manager.CommandCatalog(ctx, sessionID)
+	if err != nil {
+		h.sessionStreamLogger().WarnContext(
+			ctx,
+			"api: session command catalog unavailable; continuing transcript stream",
+			"session_id", sessionID,
+			"error", err,
+		)
+		return previousRevision, nil
+	}
+	if previousRevision == "" || catalog.Revision == previousRevision {
+		return catalog.Revision, nil
+	}
+	if err := WriteSSE(writer, SSEMessage{
+		Name: contract.SessionStreamEventCommandsChanged,
+		Data: contract.SessionCommandsChangedPayload{SessionID: sessionID, Revision: catalog.Revision},
+	}); err != nil {
+		return previousRevision, fmt.Errorf("write session command catalog change: %w", err)
+	}
+	return catalog.Revision, nil
+}

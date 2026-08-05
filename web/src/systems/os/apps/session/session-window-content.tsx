@@ -28,7 +28,7 @@ export function SessionWindowContent({
   workspaceId: string;
   onDeleteSuccess: () => void;
 }) {
-  const page = useSessionWindowController({ sessionId, session, onDeleteSuccess });
+  const page = useSessionWindowController({ sessionId, workspaceId, session, onDeleteSuccess });
   const {
     controls,
     inspector,
@@ -37,6 +37,8 @@ export function SessionWindowContent({
     sessionVault,
     deleteDialog,
     clearDialog,
+    commandCatalog,
+    refreshCommandCatalog,
   } = page;
 
   return (
@@ -79,6 +81,8 @@ export function SessionWindowContent({
           onReplaceQueuedPrompt={controls.handleReplaceQueuedPrompt}
           onSteerQueuedPrompt={controls.handleSteerQueuedPrompt}
           runtimeControl={<SessionPromptRuntimeSelector canPrompt={controls.canPrompt} />}
+          commandCatalog={commandCatalog}
+          onCommandCatalogOpen={refreshCommandCatalog}
         />
       </div>
       {inspector.open ? (

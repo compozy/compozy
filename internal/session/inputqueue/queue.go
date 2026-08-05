@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	commandpkg "github.com/compozy/compozy/internal/command"
 	"github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/store"
@@ -38,13 +39,14 @@ type Service struct {
 }
 
 type insertSpec struct {
-	sessionID    string
-	text         string
-	mode         string
-	delivery     string
-	targetTurnID string
-	generation   int64
-	runtime      store.SessionInputRuntime
+	sessionID        string
+	text             string
+	mode             string
+	delivery         string
+	targetTurnID     string
+	generation       int64
+	runtime          store.SessionInputRuntime
+	skillInvocations []commandpkg.Invocation
 }
 
 // Option customizes a Service.
@@ -106,14 +108,16 @@ func (s *Service) Enqueue(
 	text string,
 	generation int64,
 	runtime store.SessionInputRuntime,
+	skillInvocations []commandpkg.Invocation,
 ) (store.SessionInputQueueEntry, int, error) {
 	insert, err := s.newInsert(insertSpec{
-		sessionID:  sessionID,
-		text:       text,
-		mode:       store.SessionInputQueueModeQueue,
-		delivery:   store.SessionInputDeliveryAfterTurn,
-		generation: generation,
-		runtime:    runtime,
+		sessionID:        sessionID,
+		text:             text,
+		mode:             store.SessionInputQueueModeQueue,
+		delivery:         store.SessionInputDeliveryAfterTurn,
+		generation:       generation,
+		runtime:          runtime,
+		skillInvocations: append([]commandpkg.Invocation(nil), skillInvocations...),
 	})
 	if err != nil {
 		return store.SessionInputQueueEntry{}, 0, err
@@ -164,14 +168,16 @@ func (s *Service) EnqueueInterrupt(
 	text string,
 	targetTurnID string,
 	runtime store.SessionInputRuntime,
+	skillInvocations []commandpkg.Invocation,
 ) (store.SessionInputQueueEntry, int, error) {
 	insert, err := s.newInsert(insertSpec{
-		sessionID:    sessionID,
-		text:         text,
-		mode:         store.SessionInputQueueModeInterrupt,
-		delivery:     store.SessionInputDeliveryInterruptThenPrompt,
-		targetTurnID: targetTurnID,
-		runtime:      runtime,
+		sessionID:        sessionID,
+		text:             text,
+		mode:             store.SessionInputQueueModeInterrupt,
+		delivery:         store.SessionInputDeliveryInterruptThenPrompt,
+		targetTurnID:     targetTurnID,
+		runtime:          runtime,
+		skillInvocations: append([]commandpkg.Invocation(nil), skillInvocations...),
 	})
 	if err != nil {
 		return store.SessionInputQueueEntry{}, 0, err
@@ -205,15 +211,17 @@ func (s *Service) StageSteer(
 	targetTurnID string,
 	generation int64,
 	runtime store.SessionInputRuntime,
+	skillInvocations []commandpkg.Invocation,
 ) (store.SessionInputQueueEntry, error) {
 	insert, err := s.newInsert(insertSpec{
-		sessionID:    sessionID,
-		text:         text,
-		mode:         store.SessionInputQueueModeSteer,
-		delivery:     store.SessionInputDeliveryInterruptThenPrompt,
-		targetTurnID: targetTurnID,
-		generation:   generation,
-		runtime:      runtime,
+		sessionID:        sessionID,
+		text:             text,
+		mode:             store.SessionInputQueueModeSteer,
+		delivery:         store.SessionInputDeliveryInterruptThenPrompt,
+		targetTurnID:     targetTurnID,
+		generation:       generation,
+		runtime:          runtime,
+		skillInvocations: append([]commandpkg.Invocation(nil), skillInvocations...),
 	})
 	if err != nil {
 		return store.SessionInputQueueEntry{}, err
@@ -253,6 +261,7 @@ func (s *Service) prepareAdmittedEntry(
 	spec.sessionID = admission.SessionID
 	spec.text = admission.AuthoredText
 	spec.runtime = admission.Runtime
+	spec.skillInvocations = append([]commandpkg.Invocation(nil), admission.SkillInvocations...)
 	insert, err := s.newInsert(spec)
 	if err != nil {
 		return nil, store.SessionInputQueueInsert{}, err
@@ -378,6 +387,7 @@ func (s *Service) newInsert(spec insertSpec) (store.SessionInputQueueInsert, err
 		TargetTurnID:      strings.TrimSpace(spec.targetTurnID),
 		Text:              message,
 		Runtime:           spec.runtime,
+		SkillInvocations:  append([]commandpkg.Invocation(nil), spec.skillInvocations...),
 		SessionGeneration: spec.generation,
 		QueueCap:          s.cfg.QueueCap,
 		Now:               s.now(),

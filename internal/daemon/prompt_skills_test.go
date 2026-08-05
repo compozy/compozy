@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,9 +11,11 @@ import (
 	"sync/atomic"
 	"testing"
 
+	commandpkg "github.com/compozy/compozy/internal/command"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
 	skillspkg "github.com/compozy/compozy/internal/skills"
+	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -274,6 +277,108 @@ func TestNewSkillsCatalogAugmenterUsesCurrentRegistryStatePerPrompt(t *testing.T
 			t.Fatalf("concrete agent names = %#v, want %#v", got, want)
 		}
 	})
+}
+
+func TestSessionCommandServiceProjectsAndRevalidatesExactSkillSources(t *testing.T) {
+	t.Parallel()
+	t.Run("Should project and revalidate exact skill sources", func(t *testing.T) {
+		t.Parallel()
+
+		workspaceSkill := &skillspkg.Skill{
+			Meta:   skillspkg.SkillMeta{Name: "review", Description: "Workspace review"},
+			Source: skillspkg.SourceWorkspace, CommandScope: "workspace", Enabled: true,
+			FilePath: "/workspace/review/SKILL.md",
+		}
+		extensionSkill := &skillspkg.Skill{
+			Meta:   skillspkg.SkillMeta{Name: "review", Description: "Extension review"},
+			Source: skillspkg.SourceBundled, CommandScope: "workspace", Enabled: true,
+			InstalledFromExtension: "ops", FilePath: "/extension/review/SKILL.md",
+		}
+		registry := &stubSessionCommandSkills{
+			candidates: []skillspkg.CommandCandidate{
+				{
+					Skill: workspaceSkill, SourceKind: "workspace", Scope: "workspace", Available: true,
+				},
+				{
+					Skill: extensionSkill, SourceKind: "extension", SourceID: "ops", SourceKey: "ops",
+					Scope: "workspace", Qualified: true, Available: true,
+				},
+			},
+			content: map[string]string{
+				workspaceSkill.FilePath: "Workspace instructions.",
+				extensionSkill.FilePath: "Extension instructions.",
+			},
+		}
+		resolver := &stubPromptSkillsWorkspaceResolver{resolved: workspacepkg.ResolvedWorkspace{
+			Workspace: workspacepkg.Workspace{ID: "ws-command", RootDir: "/workspace"},
+		}}
+		service := newSessionCommandService(registry, func() promptSkillsWorkspaceResolver { return resolver })
+		info := &session.Info{
+			ID: "sess-command", AgentName: "coder", WorkspaceID: "ws-command", Workspace: "/workspace",
+			AdvertisedCommands: []store.SessionAdvertisedCommand{{Name: "compact", Description: "Compact context"}},
+		}
+		agent := compozyconfig.AgentDef{Name: "coder"}
+		catalog, err := service.Catalog(t.Context(), info, agent)
+		if err != nil {
+			t.Fatalf("Catalog() error = %v", err)
+		}
+		tokens := make([]string, 0, len(catalog.Commands))
+		for _, descriptor := range catalog.Commands {
+			tokens = append(tokens, descriptor.CanonicalToken)
+		}
+		if got, want := strings.Join(tokens, ","), "/goal,/compact,/ops:review,/review"; got != want {
+			t.Fatalf("Catalog() tokens = %q, want %q", got, want)
+		}
+		invocations, err := commandpkg.ParseSkillInvocations("Please /ops:review this", catalog)
+		if err != nil {
+			t.Fatalf("ParseSkillInvocations() error = %v", err)
+		}
+		expanded, err := service.Expand(t.Context(), info, agent, invocations, "Please /ops:review this")
+		if err != nil {
+			t.Fatalf("Expand() error = %v", err)
+		}
+		if !strings.Contains(expanded, "Extension instructions.") ||
+			!strings.HasSuffix(expanded, "Please /ops:review this") {
+			t.Fatalf("Expand() = %q, want verified instructions plus authored text", expanded)
+		}
+
+		registry.candidates = registry.candidates[:1]
+		_, err = service.Expand(t.Context(), info, agent, invocations, "Please /ops:review this")
+		if !errors.Is(err, commandpkg.ErrUnavailable) {
+			t.Fatalf("Expand(stale source) error = %v, want ErrUnavailable", err)
+		}
+	})
+}
+
+type stubSessionCommandSkills struct {
+	candidates []skillspkg.CommandCandidate
+	content    map[string]string
+}
+
+func (s *stubSessionCommandSkills) CommandCandidatesForAgentSession(
+	context.Context,
+	*workspacepkg.ResolvedWorkspace,
+	string,
+	string,
+) ([]skillspkg.CommandCandidate, error) {
+	return append([]skillspkg.CommandCandidate(nil), s.candidates...), nil
+}
+
+func (s *stubSessionCommandSkills) CommandCandidatesForAgentDefSession(
+	context.Context,
+	*workspacepkg.ResolvedWorkspace,
+	compozyconfig.AgentDef,
+	string,
+) ([]skillspkg.CommandCandidate, error) {
+	return append([]skillspkg.CommandCandidate(nil), s.candidates...), nil
+}
+
+func (s *stubSessionCommandSkills) LoadContent(_ context.Context, skill *skillspkg.Skill) (string, error) {
+	content, ok := s.content[skill.FilePath]
+	if !ok {
+		return "", fmt.Errorf("missing content for %s", skill.FilePath)
+	}
+	return content, nil
 }
 
 func BenchmarkSkillsCatalogAugmenterCatalogReplayModes(b *testing.B) {

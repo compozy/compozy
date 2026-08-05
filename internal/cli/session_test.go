@@ -1347,6 +1347,45 @@ func TestSessionHistoryUsesCursorFlags(t *testing.T) {
 	})
 }
 
+func TestSessionCommandsRendersUnifiedCatalog(t *testing.T) {
+	t.Parallel()
+	t.Run("Should render the unified command catalog", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			listSessionCommandsFn: func(_ context.Context, id string) (SessionCommandsRecord, error) {
+				if id != "sess-1" {
+					t.Fatalf("ListSessionCommands() id = %q, want sess-1", id)
+				}
+				return SessionCommandsRecord{
+					Revision: "revision-1",
+					Commands: []contract.SessionCommandPayload{{
+						ID: "skill:extension:ops:review", CanonicalToken: "/ops:review",
+						DisplayName: "/review", Description: "Review carefully", Lane: "skill",
+						Source: contract.SessionCommandSource{
+							Kind: "extension", ID: "ops", Key: "ops", Scope: "workspace",
+						},
+						Placements: []string{"standalone", "inline"},
+					}},
+				}, nil
+			},
+		})
+		stdout, _, err := executeRootCommand(t, deps, "session", "commands", "sess-1", "-o", "json")
+		if err != nil {
+			t.Fatalf("executeRootCommand(session commands) error = %v", err)
+		}
+		var decoded SessionCommandsRecord
+		if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
+			t.Fatalf("json.Unmarshal(session commands) error = %v", err)
+		}
+		if decoded.Revision != "revision-1" || len(decoded.Commands) != 1 ||
+			decoded.Commands[0].CanonicalToken != "/ops:review" ||
+			decoded.Commands[0].Source.Key != "ops" {
+			t.Fatalf("decoded commands = %#v", decoded)
+		}
+	})
+}
+
 func TestSessionWaitReturnsImmediatelyForStoppedSession(t *testing.T) {
 	t.Parallel()
 

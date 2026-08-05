@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -224,7 +225,8 @@ func sameSessionInputMutation(
 		entry.TargetTurnID == replacement.TargetTurnID &&
 		entry.Mode == replacement.Mode &&
 		entry.Delivery == replacement.Delivery &&
-		entry.Text == replacement.Text
+		entry.Text == replacement.Text &&
+		slices.Equal(entry.SkillInvocations, replacement.SkillInvocations)
 }
 
 func cancelPriorPendingSessionSteers(

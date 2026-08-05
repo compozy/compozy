@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 
+	commandpkg "github.com/compozy/compozy/internal/command"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/transcript"
 )
@@ -48,9 +49,18 @@ func (m *Manager) ReplacePendingInput(
 	if ctx == nil {
 		return PendingInput{}, errors.New("session: replace pending input context is required")
 	}
+	if err := validateCommandIngress(opts.AllowCommands, opts.Caller); err != nil {
+		return PendingInput{}, err
+	}
 	session, err := m.lookupPromptSession(ctx, id)
 	if err != nil {
 		return PendingInput{}, err
+	}
+	request := promptRequest{target: session.ID, authoredMessage: opts.Text}
+	if opts.AllowCommands {
+		if err := m.preparePromptSkillInvocations(ctx, &request); err != nil {
+			return PendingInput{}, err
+		}
 	}
 	entry, _, err := m.inputQueue.Replace(
 		ctx,
@@ -59,6 +69,7 @@ func (m *Manager) ReplacePendingInput(
 		opts.Text,
 		opts.MessageID,
 		opts.IdempotencyKey,
+		request.skillInvocations,
 	)
 	if err != nil {
 		return PendingInput{}, err
@@ -79,6 +90,9 @@ func (m *Manager) PromotePendingInputToSteer(
 	if ctx == nil {
 		return SendPromptResult{}, errors.New("session: promote pending input context is required")
 	}
+	if err := validateCommandIngress(opts.AllowCommands, opts.Caller); err != nil {
+		return SendPromptResult{}, err
+	}
 	session, err := m.lookupPromptSession(ctx, id)
 	if err != nil {
 		return SendPromptResult{}, err
@@ -86,6 +100,12 @@ func (m *Manager) PromotePendingInputToSteer(
 	targetTurnID := strings.TrimSpace(opts.ExpectedTurnID)
 	if targetTurnID == "" {
 		return SendPromptResult{}, errors.Join(ErrActiveTurnMismatch, errors.New("expected turn id is required"))
+	}
+	request := promptRequest{target: session.ID, authoredMessage: opts.Text}
+	if opts.AllowCommands {
+		if err := m.preparePromptSkillInvocations(ctx, &request); err != nil {
+			return SendPromptResult{}, err
+		}
 	}
 	replayed, found, err := m.inputQueue.ReplayPromotion(
 		ctx,
@@ -95,6 +115,7 @@ func (m *Manager) PromotePendingInputToSteer(
 		targetTurnID,
 		opts.MessageID,
 		opts.IdempotencyKey,
+		request.skillInvocations,
 	)
 	if err != nil {
 		return SendPromptResult{}, err
@@ -114,6 +135,7 @@ func (m *Manager) PromotePendingInputToSteer(
 		targetTurnID,
 		opts.MessageID,
 		opts.IdempotencyKey,
+		request.skillInvocations,
 	)
 	if err != nil {
 		return SendPromptResult{}, err
@@ -149,17 +171,18 @@ func promotedInputResult(entry *store.SessionInputQueueEntry) SendPromptResult {
 func pendingInputFromStore(entry *store.SessionInputQueueEntry) PendingInput {
 	runtime := runtimeSelectionFromStore(entry.Runtime)
 	return PendingInput{
-		ID:              entry.ID,
-		SessionID:       entry.SessionID,
-		MessageID:       entry.MessageID,
-		IdempotencyKey:  entry.IdempotencyKey,
-		TargetTurnID:    entry.TargetTurnID,
-		Status:          entry.Status,
-		Mode:            BusyInputMode(entry.Mode),
-		Delivery:        entry.Delivery,
-		Text:            entry.Text,
-		QueueGeneration: entry.SessionGeneration,
-		EnqueuedAt:      entry.EnqueuedAt,
-		Runtime:         runtime,
+		ID:               entry.ID,
+		SessionID:        entry.SessionID,
+		MessageID:        entry.MessageID,
+		IdempotencyKey:   entry.IdempotencyKey,
+		TargetTurnID:     entry.TargetTurnID,
+		Status:           entry.Status,
+		Mode:             BusyInputMode(entry.Mode),
+		Delivery:         entry.Delivery,
+		Text:             entry.Text,
+		QueueGeneration:  entry.SessionGeneration,
+		EnqueuedAt:       entry.EnqueuedAt,
+		Runtime:          runtime,
+		SkillInvocations: append([]commandpkg.Invocation(nil), entry.SkillInvocations...),
 	}
 }

@@ -47,7 +47,8 @@ import (
 )
 
 const (
-	bootNameKey = "name"
+	bootNameKey   = "name"
+	bootSourceKey = "source"
 )
 
 type bootState struct {
@@ -73,6 +74,7 @@ type bootState struct {
 	promptAssembler        session.PromptAssembler
 	startupOverlay         session.StartupPromptOverlay
 	promptAugmenter        session.PromptInputAugmenter
+	commandService         session.CommandService
 	notifier               *hooksNotifier
 	registry               Registry
 	deadEntities           *deadentity.Service
@@ -232,6 +234,10 @@ func (d *Daemon) bootPromptProviders(ctx context.Context, state *bootState) erro
 			skillsCfg,
 			skills.WithLogger(state.logger),
 			skills.WithActivationContextProvider(newSkillActivationContextProvider(state)),
+		)
+		state.commandService = newSessionCommandService(
+			state.skillsRegistry,
+			func() promptSkillsWorkspaceResolver { return state.workspaceResolver },
 		)
 		state.mcpResolver = skills.NewMCPResolver(state.cfg.Skills, state.logger)
 		appendProviders = append(appendProviders, skills.NewCatalogProvider(state.skillsRegistry))

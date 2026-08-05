@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
+	commandpkg "github.com/compozy/compozy/internal/command"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/transcript"
 )
@@ -20,6 +21,7 @@ type humanQueuedInput struct {
 	status            string
 	text              string
 	runtime           store.SessionInputRuntime
+	skillInvocations  []commandpkg.Invocation
 	sessionGeneration int64
 }
 
@@ -62,6 +64,7 @@ func (m *Manager) startNextQueuedInputPrompt(sessionID string) {
 		status:            entry.Status,
 		text:              entry.Text,
 		runtime:           entry.Runtime,
+		skillInvocations:  append([]commandpkg.Invocation(nil), entry.SkillInvocations...),
 		sessionGeneration: entry.SessionGeneration,
 	})
 }
@@ -114,15 +117,16 @@ func (m *Manager) newQueuedInputPromptRequest(
 	entry humanQueuedInput,
 ) (promptRequest, error) {
 	req := promptRequest{
-		target:          target,
-		message:         entry.text,
-		authoredMessage: entry.text,
-		messageID:       entry.messageID,
-		idempotencyKey:  entry.idempotencyKey,
-		eventID:         entry.eventID,
-		turnSource:      TurnSourceUser,
-		meta:            acp.PromptMeta{TurnSource: string(TurnSourceUser)},
-		runtime:         runtimeSelectionFromStore(entry.runtime),
+		target:           target,
+		message:          entry.text,
+		authoredMessage:  entry.text,
+		messageID:        entry.messageID,
+		idempotencyKey:   entry.idempotencyKey,
+		eventID:          entry.eventID,
+		turnSource:       TurnSourceUser,
+		meta:             acp.PromptMeta{TurnSource: string(TurnSourceUser)},
+		runtime:          runtimeSelectionFromStore(entry.runtime),
+		skillInvocations: append([]commandpkg.Invocation(nil), entry.skillInvocations...),
 	}
 	turnID := strings.TrimSpace(entry.turnID)
 	if turnID == "" {

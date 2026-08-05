@@ -21,6 +21,7 @@ import (
 	core "github.com/compozy/compozy/internal/api/core"
 	apitest "github.com/compozy/compozy/internal/api/testutil"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	commandpkg "github.com/compozy/compozy/internal/command"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/config/lifecycle"
 	"github.com/compozy/compozy/internal/diagnosticcontract"
@@ -61,6 +62,24 @@ type nativeSessionPageHealthManager struct {
 	healthByID  map[string]heartbeat.SessionHealth
 	healthCalls int
 	healthInfos []*session.Info
+}
+
+type nativeSessionCommandManager struct {
+	apitest.StubSessionManager
+	catalog commandpkg.Catalog
+}
+
+func (m *nativeSessionCommandManager) CommandCatalog(
+	ctx context.Context,
+	id string,
+) (commandpkg.Catalog, error) {
+	if err := ctx.Err(); err != nil {
+		return commandpkg.Catalog{}, err
+	}
+	if id != "sess-command" {
+		return commandpkg.Catalog{}, fmt.Errorf("command catalog session = %q", id)
+	}
+	return m.catalog, nil
 }
 
 type nativeClarifyBrokerStub struct{}
@@ -841,6 +860,263 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
+	t.Run("Should list the same workspace-fenced session command catalog through the native tool", func(t *testing.T) {
+		t.Parallel()
+
+		catalog, err := commandpkg.BuildCatalog(
+			commandpkg.DefaultBuiltins(),
+			nil,
+			[]commandpkg.SkillSpec{{
+				Name: "review", Description: "Review carefully", Available: true,
+				Source: commandpkg.Source{Kind: "workspace", Scope: "workspace"},
+			}},
+		)
+		if err != nil {
+			t.Fatalf("BuildCatalog() error = %v", err)
+		}
+		manager := &nativeSessionCommandManager{
+			StubSessionManager: nativeNetworkTestSessionManager("ws-command"),
+			catalog:            catalog,
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: manager, Workspaces: nativeNetworkTestWorkspaceService(t),
+		}, nativeApproveAllPolicyInputs())
+		result, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDCommandList,
+				Input:  json.RawMessage(`{"workspace":"ws-command","session_id":"sess-command"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(command_list) error = %v", err)
+		}
+		var payload contract.SessionCommandsResponse
+		if err := json.Unmarshal(result.Structured, &payload); err != nil {
+			t.Fatalf("json.Unmarshal(command_list) error = %v", err)
+		}
+		if payload.Revision != catalog.Revision || len(payload.Commands) != 2 ||
+			payload.Commands[1].CanonicalToken != "/review" {
+			t.Fatalf("command_list payload = %#v", payload)
+		}
+	})
+
+	t.Run("Should report a missing session command catalog as an unavailable dependency", func(t *testing.T) {
+		t.Parallel()
+
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions:   nativeNetworkTestSessionManager("ws-command"),
+			Workspaces: nativeNetworkTestWorkspaceService(t),
+		}, nativeApproveAllPolicyInputs())
+		_, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDCommandList,
+				Input:  json.RawMessage(`{"workspace":"ws-command","session_id":"sess-command"}`),
+			},
+		)
+		requireToolReason(
+			t,
+			err,
+			toolspkg.ErrToolUnavailable,
+			toolspkg.ReasonDependencyMissing,
+		)
+	})
+
+	t.Run("Should reject ambiguous skill view targets as invalid input", func(t *testing.T) {
+		t.Parallel()
+
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Skills: newLoadedNativeSkillRegistry(t),
+		}, nativeApproveAllPolicyInputs())
+		_, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSkillView,
+				Input:  json.RawMessage(`{"name":"compozy","command_id":"skill:workspace:compozy:sha256:abc"}`),
+			},
+		)
+		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
+	})
+
+	t.Run("Should reject a missing skill view target as invalid input", func(t *testing.T) {
+		t.Parallel()
+
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Skills: newLoadedNativeSkillRegistry(t),
+		}, nativeApproveAllPolicyInputs())
+		_, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSkillView,
+				Input:  json.RawMessage(`{}`),
+			},
+		)
+		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
+	})
+
+	t.Run("Should require a session-scoped caller for command id skill views", func(t *testing.T) {
+		t.Parallel()
+
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Skills: newLoadedNativeSkillRegistry(t),
+		}, nativeApproveAllPolicyInputs())
+		_, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSkillView,
+				Input:  json.RawMessage(`{"command_id":"skill:workspace:review:sha256:abc"}`),
+			},
+		)
+		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
+	})
+
+	t.Run("Should require a concrete session agent for command id skill views", func(t *testing.T) {
+		t.Parallel()
+
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions:   nativeNetworkTestSessionManager("ws-command"),
+			Workspaces: nativeNetworkTestWorkspaceService(t),
+			Skills:     newLoadedNativeSkillRegistry(t),
+		}, nativeApproveAllPolicyInputs())
+		_, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true, WorkspaceID: "ws-command", SessionID: "sess-command"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSkillView,
+				Input:  json.RawMessage(`{"command_id":"skill:workspace:review:sha256:abc"}`),
+			},
+		)
+		requireToolReason(
+			t,
+			err,
+			toolspkg.ErrToolUnavailable,
+			toolspkg.ReasonDependencyMissing,
+		)
+	})
+
+	t.Run("Should require a source-qualified skill registry for command id skill views", func(t *testing.T) {
+		t.Parallel()
+
+		manager := &nativeSessionAgentManager{
+			StubSessionManager: nativeNetworkTestSessionManager("ws-command"),
+			agent:              compozyconfig.AgentDef{Name: "coder"},
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions:   manager,
+			Workspaces: nativeNetworkTestWorkspaceService(t),
+			Skills: nativeSkillsWithoutCommandCandidates{
+				SkillsRegistry: newLoadedNativeSkillRegistry(t),
+			},
+		}, nativeApproveAllPolicyInputs())
+		_, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true, WorkspaceID: "ws-command", SessionID: "sess-command"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSkillView,
+				Input:  json.RawMessage(`{"command_id":"skill:workspace:review:sha256:abc"}`),
+			},
+		)
+		requireToolReason(
+			t,
+			err,
+			toolspkg.ErrToolUnavailable,
+			toolspkg.ReasonDependencyMissing,
+		)
+	})
+
+	t.Run("Should read the exact session skill by command id without exposing its path", func(t *testing.T) {
+		t.Parallel()
+
+		skillRegistry := newLoadedNativeSkillRegistry(t)
+		workspaces := nativeNetworkTestWorkspaceService(t)
+		manager := &nativeSessionAgentManager{
+			StubSessionManager: nativeNetworkTestSessionManager("ws-command"),
+			agent:              compozyconfig.AgentDef{Name: "coder"},
+		}
+		info, err := manager.Status(t.Context(), "sess-command")
+		if err != nil {
+			t.Fatalf("Status() error = %v", err)
+		}
+		catalog, err := newSessionCommandService(
+			skillRegistry,
+			func() promptSkillsWorkspaceResolver { return workspaces },
+		).Catalog(t.Context(), info, manager.agent)
+		if err != nil {
+			t.Fatalf("Catalog() error = %v", err)
+		}
+		var commandID string
+		for _, descriptor := range catalog.Commands {
+			if descriptor.Skill != nil {
+				commandID = descriptor.ID
+				break
+			}
+		}
+		if commandID == "" {
+			t.Fatal("Catalog() returned no skill command")
+		}
+
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: manager, Workspaces: workspaces, Skills: skillRegistry,
+		}, nativeApproveAllPolicyInputs())
+		result, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true, WorkspaceID: "ws-command", SessionID: "sess-command"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSkillView,
+				Input:  json.RawMessage(fmt.Sprintf(`{"command_id":%q}`, commandID)),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(skill_view command_id) error = %v", err)
+		}
+		if !strings.Contains(string(result.Structured), commandID) || len(result.Content) != 1 ||
+			strings.TrimSpace(result.Content[0].Text) == "" {
+			t.Fatalf("skill_view command_id result = %#v", result)
+		}
+		var payload map[string]any
+		if err := json.Unmarshal(result.Structured, &payload); err != nil {
+			t.Fatalf("json.Unmarshal(skill_view command_id) error = %v", err)
+		}
+		viewedSkill, ok := payload["skill"].(map[string]any)
+		if !ok {
+			t.Fatalf("skill_view command_id skill = %#v, want object", payload["skill"])
+		}
+		for _, field := range []string{"dir", "path", "file_path", "diagnostics"} {
+			if _, exposed := viewedSkill[field]; exposed {
+				t.Fatalf("skill_view command_id exposed field %q: %#v", field, viewedSkill)
+			}
+		}
+	})
+
+	t.Run("Should report an unknown session skill command id as not found", func(t *testing.T) {
+		t.Parallel()
+
+		manager := &nativeSessionAgentManager{
+			StubSessionManager: nativeNetworkTestSessionManager("ws-command"),
+			agent:              compozyconfig.AgentDef{Name: "coder"},
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions:   manager,
+			Workspaces: nativeNetworkTestWorkspaceService(t),
+			Skills:     newLoadedNativeSkillRegistry(t),
+		}, nativeApproveAllPolicyInputs())
+		_, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true, WorkspaceID: "ws-command", SessionID: "sess-command"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSkillView,
+				Input:  json.RawMessage(`{"command_id":"skill:workspace:missing:sha256:abc"}`),
+			},
+		)
+		requireToolReason(t, err, toolspkg.ErrToolNotFound, toolspkg.ReasonToolUnknown)
+	})
+
 	t.Run("Should expose bootstrap diagnostics and exclude non-MVP lifecycle tools", func(t *testing.T) {
 		t.Parallel()
 
@@ -1340,8 +1616,9 @@ func TestDaemonNativeTools(t *testing.T) {
 	t.Run("Should reject foreign workspace inputs for scoped session and skill native tools", func(t *testing.T) {
 		t.Parallel()
 
+		manager := &nativeSessionCommandManager{StubSessionManager: nativeNetworkTestSessionManager("ws-1")}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Sessions:   nativeNetworkTestSessionManager("ws-1"),
+			Sessions:   manager,
 			Workspaces: nativeNetworkTestWorkspaceService(t),
 			Skills:     newLoadedNativeSkillRegistry(t),
 		}, nativeApproveAllPolicyInputs())
@@ -1355,6 +1632,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			{toolspkg.ToolIDSkillList, json.RawMessage("{\"workspace\":\"ws-2\"}")},
 			{toolspkg.ToolIDSkillSearch, json.RawMessage("{\"query\":\"compozy\",\"workspace\":\"ws-2\"}")},
 			{toolspkg.ToolIDSkillView, json.RawMessage("{\"name\":\"compozy\",\"workspace\":\"ws-2\"}")},
+			{toolspkg.ToolIDCommandList, json.RawMessage("{\"workspace\":\"ws-2\",\"session_id\":\"sess-1\"}")},
 		}
 		for _, tc := range cases {
 			t.Run(tc.id.String(), func(t *testing.T) {
@@ -9885,6 +10163,28 @@ func TestNativeSkillsForSessionAgentUsesLiveAuthoredDefinition(t *testing.T) {
 type nativeSessionAgentManager struct {
 	apitest.StubSessionManager
 	agent compozyconfig.AgentDef
+}
+
+type nativeSkillsWithoutCommandCandidates struct {
+	core.SkillsRegistry
+}
+
+func (r nativeSkillsWithoutCommandCandidates) ForAgentSession(
+	ctx context.Context,
+	resolved *workspacepkg.ResolvedWorkspace,
+	agentName string,
+	_ string,
+) ([]*skills.Skill, error) {
+	return r.ForAgent(ctx, resolved, agentName)
+}
+
+func (r nativeSkillsWithoutCommandCandidates) ForAgentDefSession(
+	ctx context.Context,
+	resolved *workspacepkg.ResolvedWorkspace,
+	agent compozyconfig.AgentDef,
+	_ string,
+) ([]*skills.Skill, error) {
+	return r.ForAgent(ctx, resolved, agent.Name)
 }
 
 func (m *nativeSessionAgentManager) SessionAgentDefinition(string) (compozyconfig.AgentDef, bool) {

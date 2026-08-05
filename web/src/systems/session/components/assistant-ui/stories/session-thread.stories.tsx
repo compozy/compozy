@@ -64,7 +64,7 @@ const meta: Meta<typeof SessionThread> = {
     docs: {
       description: {
         component:
-          "Shell wrapping `@assistant-ui/react` ThreadPrimitive + ComposerPrimitive. The composer input box is raised onto `--elevated` with a `--line-strong` ring so it reads distinctly against the `--canvas-soft` shell; focus-within shifts the ring to `--accent`. Idle shows an `--accent` send disc (`--accent-ink` glyph, never raw white); while a turn runs the primary disc becomes a `--danger` Stop, Enter queues the draft (with a visible hint), and queued prompts fuse onto the composer top as steer/edit/remove rows. Clear-conversation lives in the topbar, not the composer.",
+          "Shell wrapping `@assistant-ui/react` ThreadPrimitive + ComposerPrimitive. The composer input box is raised onto `--elevated` with a `--line-strong` ring so it reads distinctly against the `--canvas-soft` shell; focus-within shifts the ring to `--accent`. The native slash trigger inserts canonical tokens without sending: leading prompts offer the catalog sections and inline prompts offer skills. Idle shows an `--accent` send disc (`--accent-ink` glyph, never raw white); while a turn runs the primary disc becomes a `--danger` Stop, Enter queues the draft (with a visible hint), and queued prompts fuse onto the composer top as steer/edit/remove rows. Clear-conversation lives in the topbar, not the composer.",
       },
     },
   },
@@ -137,6 +137,69 @@ export const TranscriptError: Story = {
  */
 export const Empty: Story = {
   args: baseArgs,
+};
+
+/**
+ * Slash catalog — type `/` to browse built-in, agent, and skill sections; add
+ * prompt text before `/` to see the inline skills-only projection.
+ */
+export const SlashCommandCatalog: Story = {
+  args: {
+    ...baseArgs,
+    commandCatalog: {
+      standaloneSections: [
+        {
+          id: "built-in",
+          label: "Built-in",
+          commands: [{ id: "goal", token: "/goal", label: "Goal" }],
+        },
+        {
+          id: "agent",
+          label: "Agent",
+          commands: [{ id: "review", token: "/review", label: "Review" }],
+        },
+        {
+          id: "skills",
+          label: "Skills",
+          commands: [
+            {
+              id: "frontend-qa",
+              token: "/frontend-qa",
+              label: "Frontend QA",
+              description: "Run the browser quality pass.",
+            },
+          ],
+        },
+      ],
+      inlineSkills: [
+        {
+          id: "frontend-qa",
+          token: "/frontend-qa",
+          label: "Frontend QA",
+          description: "Run the browser quality pass.",
+        },
+      ],
+    },
+  },
+  parameters: {
+    ...storybookMswParameters({
+      session: [
+        compozyApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}", () =>
+          HttpResponse.json({
+            session: { ...primarySessionFixture, state: "stopped" },
+          })
+        ),
+        compozyApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}/transcript", () =>
+          HttpResponse.json(transcriptPayload([]))
+        ),
+      ],
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.type(await canvas.findByLabelText("Session prompt"), "/");
+    await expect(await canvas.findByLabelText("Session commands")).toBeVisible();
+  },
 };
 
 /**

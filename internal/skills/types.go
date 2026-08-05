@@ -31,7 +31,19 @@ type Skill struct {
 	Provenance             *Provenance
 	InstalledFrom          string
 	InstalledFromExtension string
+	CommandScope           string
 	Diagnostics            SkillDiagnostics
+}
+
+// CommandCandidate is one exact skill definition projected for slash discovery.
+type CommandCandidate struct {
+	Skill      *Skill
+	SourceKind string
+	SourceID   string
+	SourceKey  string
+	Scope      string
+	Qualified  bool
+	Available  bool
 }
 
 // ActivationGates declares offer-time constraints from metadata.compozy.when.

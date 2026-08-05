@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, type RefCallback } from "react";
+import { useEffect, useLayoutEffect, useRef, type RefCallback } from "react";
 import { useAui, useAuiEvent, useAuiState } from "@assistant-ui/react";
 import { toast } from "sonner";
 
@@ -22,6 +22,7 @@ export function useSessionComposerState(sessionId: string): SessionComposerState
   const composerInputElementRef = useRef<HTMLTextAreaElement>(null);
   const hydratedSessionIdRef = useRef<string | null>(null);
   const hydratedDraftTextRef = useRef<string | null>(null);
+  const skipNextComposerSyncRef = useRef(false);
 
   const setComposerInputElement: RefCallback<HTMLTextAreaElement> = element => {
     composerInputElementRef.current = element;
@@ -62,8 +63,18 @@ export function useSessionComposerState(sessionId: string): SessionComposerState
     }
     hydratedSessionIdRef.current = sessionId;
     hydratedDraftTextRef.current = draftText;
+    skipNextComposerSyncRef.current = true;
     aui.composer.setText(draftText);
   }, [aui, draftText, sessionId]);
+
+  useEffect(() => {
+    if (skipNextComposerSyncRef.current) {
+      skipNextComposerSyncRef.current = false;
+      return;
+    }
+    if (composerText === draftText) return;
+    sessionStore.trigger.composerDraftChanged({ sessionId, text: composerText });
+  }, [composerText, draftText, sessionId]);
 
   useAuiEvent("composer.send", clearDraftForSession);
 

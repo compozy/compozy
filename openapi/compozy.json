@@ -263508,6 +263508,341 @@
         ]
       }
     },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/commands": {
+      "get": {
+        "operationId": "getSessionCommands",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "commands": {
+                      "items": {
+                        "properties": {
+                          "canonical_token": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": "string"
+                          },
+                          "display_name": {
+                            "type": "string"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "input_hint": {
+                            "type": "string"
+                          },
+                          "lane": {
+                            "type": "string"
+                          },
+                          "placements": {
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": "array"
+                          },
+                          "source": {
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "key": {
+                                "type": "string"
+                              },
+                              "kind": {
+                                "type": "string"
+                              },
+                              "scope": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "scope"
+                            ],
+                            "type": "object"
+                          }
+                        },
+                        "required": [
+                          "canonical_token",
+                          "description",
+                          "display_name",
+                          "id",
+                          "lane",
+                          "placements",
+                          "source"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "revision": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "commands",
+                    "revision"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Session not found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Command catalog unavailable"
+          }
+        },
+        "summary": "List commands available to a session",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
     "/api/workspaces/{workspace_id}/sessions/{session_id}/events": {
       "get": {
         "operationId": "listSessionEvents",
@@ -268469,6 +268804,58 @@
                           "session_id": {
                             "type": "string"
                           },
+                          "skill_invocations": {
+                            "items": {
+                              "properties": {
+                                "command_id": {
+                                  "type": "string"
+                                },
+                                "end": {
+                                  "type": "integer"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "source": {
+                                  "properties": {
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "key": {
+                                      "type": "string"
+                                    },
+                                    "kind": {
+                                      "type": "string"
+                                    },
+                                    "scope": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "kind",
+                                    "scope"
+                                  ],
+                                  "type": "object"
+                                },
+                                "start": {
+                                  "type": "integer"
+                                },
+                                "token": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "command_id",
+                                "end",
+                                "name",
+                                "source",
+                                "start",
+                                "token"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
                           "status": {
                             "type": "string"
                           },
@@ -269319,6 +269706,58 @@
                         },
                         "session_id": {
                           "type": "string"
+                        },
+                        "skill_invocations": {
+                          "items": {
+                            "properties": {
+                              "command_id": {
+                                "type": "string"
+                              },
+                              "end": {
+                                "type": "integer"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "source": {
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "key": {
+                                    "type": "string"
+                                  },
+                                  "kind": {
+                                    "type": "string"
+                                  },
+                                  "scope": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "scope"
+                                ],
+                                "type": "object"
+                              },
+                              "start": {
+                                "type": "integer"
+                              },
+                              "token": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "command_id",
+                              "end",
+                              "name",
+                              "source",
+                              "start",
+                              "token"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
                         },
                         "status": {
                           "type": "string"
@@ -278046,6 +278485,22 @@
                         "timestamp",
                         "turn_id",
                         "type"
+                      ],
+                      "type": "object"
+                    },
+                    "session_commands_changed": {
+                      "nullable": true,
+                      "properties": {
+                        "revision": {
+                          "type": "string"
+                        },
+                        "session_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "revision",
+                        "session_id"
                       ],
                       "type": "object"
                     },

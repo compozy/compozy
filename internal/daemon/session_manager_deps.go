@@ -24,6 +24,7 @@ type SessionManagerDeps struct {
 	PromptAssembler        session.PromptAssembler
 	StartupPromptOverlay   session.StartupPromptOverlay
 	PromptInputAugmenter   session.PromptInputAugmenter
+	CommandService         session.CommandService
 	WorkAdmission          admission.Checker
 	MemoryStore            *memory.Store
 	LedgerMaterializer     session.LedgerMaterializer
@@ -69,6 +70,7 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		PromptAssembler:      state.promptAssembler,
 		StartupPromptOverlay: state.startupOverlay,
 		PromptInputAugmenter: state.promptAugmenter,
+		CommandService:       state.commandService,
 		WorkAdmission:        &d.admission,
 		MemoryStore:          state.memoryStore,
 		LedgerMaterializer:   state.ledgerMaterializer,

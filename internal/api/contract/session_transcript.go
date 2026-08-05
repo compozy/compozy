@@ -9,6 +9,7 @@ const (
 	SessionStreamEventTranscriptSnapshot  = "transcript_snapshot"
 	SessionStreamEventTranscriptDelta     = "transcript_delta"
 	SessionStreamEventGoalSnapshotChanged = "goal_snapshot_changed"
+	SessionStreamEventCommandsChanged     = "session_commands_changed"
 
 	TranscriptSnapshotReasonFenceMissing       = "fence_missing"
 	TranscriptSnapshotReasonEpochMismatch      = "epoch_mismatch"
@@ -55,11 +56,18 @@ type TranscriptDeltaPayload struct {
 	HasMore       bool               `json:"has_more"`
 }
 
+// SessionCommandsChangedPayload invalidates one session command catalog revision.
+type SessionCommandsChangedPayload struct {
+	SessionID string `json:"session_id"`
+	Revision  string `json:"revision"`
+}
+
 // SessionStreamPayload documents the possible SSE frame payloads.
 type SessionStreamPayload struct {
-	Raw                 *SessionEventPayload        `json:"raw,omitempty"`
-	TranscriptSnapshot  *TranscriptSnapshotPayload  `json:"transcript_snapshot,omitempty"`
-	TranscriptDelta     *TranscriptDeltaPayload     `json:"transcript_delta,omitempty"`
-	GoalSnapshotChanged *GoalSnapshotChangedPayload `json:"goal_snapshot_changed,omitempty"`
-	SessionStopped      *SessionEventPayload        `json:"session_stopped,omitempty"`
+	Raw                 *SessionEventPayload           `json:"raw,omitempty"`
+	TranscriptSnapshot  *TranscriptSnapshotPayload     `json:"transcript_snapshot,omitempty"`
+	TranscriptDelta     *TranscriptDeltaPayload        `json:"transcript_delta,omitempty"`
+	GoalSnapshotChanged *GoalSnapshotChangedPayload    `json:"goal_snapshot_changed,omitempty"`
+	CommandsChanged     *SessionCommandsChangedPayload `json:"session_commands_changed,omitempty"`
+	SessionStopped      *SessionEventPayload           `json:"session_stopped,omitempty"`
 }

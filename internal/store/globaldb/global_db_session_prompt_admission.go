@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	commandpkg "github.com/compozy/compozy/internal/command"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
@@ -226,12 +227,21 @@ func claimSessionPromptAdmission(
 		return store.SessionPromptAdmission{}, false, err
 	}
 	nowRaw := store.FormatTimestamp(req.Now)
+	skillInvocations := append([]commandpkg.Invocation{}, req.SkillInvocations...)
+	skillInvocationsJSON, err := json.Marshal(skillInvocations)
+	if err != nil {
+		return store.SessionPromptAdmission{}, false, fmt.Errorf(
+			"store: encode session prompt admission skill invocations: %w",
+			err,
+		)
+	}
 	if err := queries.InsertSessionPromptAdmission(ctx, sqlcgen.InsertSessionPromptAdmissionParams{
 		ID: req.ID, WorkspaceID: req.WorkspaceID, SessionID: req.SessionID,
 		MessageID: req.MessageID, IdempotencyKey: req.IdempotencyKey, Operation: req.Operation,
 		FingerprintVersion: req.FingerprintVersion, RequestFingerprint: req.RequestFingerprint,
 		State: store.SessionPromptAdmissionReserved, Mode: req.Mode, AuthoredText: req.AuthoredText,
-		RuntimeProvider: req.Runtime.Provider, RuntimeModel: req.Runtime.Model,
+		SkillInvocationsJson: string(skillInvocationsJSON),
+		RuntimeProvider:      req.Runtime.Provider, RuntimeModel: req.Runtime.Model,
 		RuntimeReasoningEffort: req.Runtime.ReasoningEffort, RuntimeSpeed: req.Runtime.Speed,
 		TurnID: req.TurnID, EventID: req.EventID, CreatedAt: nowRaw, UpdatedAt: nowRaw,
 	}); err != nil {

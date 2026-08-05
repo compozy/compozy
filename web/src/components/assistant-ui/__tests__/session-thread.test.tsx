@@ -401,6 +401,112 @@ describe("SessionThread transcript states", () => {
     expect(screen.getAllByTestId("user-message-rewind")).toHaveLength(1);
   });
 
+  it("Should render verified skill invocation tokens from persisted user-message metadata", async () => {
+    const transcript = [
+      {
+        id: "user-skill-invocation",
+        role: "user",
+        content: "Review /frontend-qa before the release.",
+        metadata: {
+          skill_invocations: [
+            {
+              command_id: "skill:workspace:frontend-qa:sha256:abc123",
+              token: "/frontend-qa",
+              label: "Frontend QA",
+              source: "workspace",
+              start: 7,
+              end: 19,
+            },
+          ],
+        },
+        parts: [
+          {
+            type: "text",
+            text: "Review /frontend-qa before the release.",
+            state: "done",
+          },
+        ],
+      } as SessionMessage,
+    ];
+
+    renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
+
+    const directive = await screen.findByTestId("session-skill-directive");
+    expect(directive).toHaveAttribute("data-raw-token", "/frontend-qa");
+    expect(directive).toHaveAttribute(
+      "data-command-id",
+      "skill:workspace:frontend-qa:sha256:abc123"
+    );
+    expect(directive).toHaveTextContent("/frontend-qa");
+    expect(screen.getByTestId("user-message-bubble")).toHaveTextContent(
+      "Review /frontend-qa before the release."
+    );
+  });
+
+  it("Should render only the server-admitted skill occurrence", async () => {
+    const transcript = [
+      {
+        id: "user-repeated-skill-invocation",
+        role: "user",
+        content: "/review then /review",
+        metadata: {
+          skill_invocations: [
+            {
+              command_id: "skill:workspace:review:sha256:def456",
+              token: "/review",
+              label: "Review",
+              source: "workspace",
+              start: 13,
+              end: 20,
+            },
+          ],
+        },
+        parts: [{ type: "text", text: "/review then /review", state: "done" }],
+      } as SessionMessage,
+    ];
+
+    renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
+
+    expect(await screen.findAllByTestId("session-skill-directive")).toHaveLength(1);
+    expect(screen.getByTestId("user-message-bubble")).toHaveTextContent("/review then /review");
+  });
+
+  it("Should preserve spacing between adjacent verified directives", async () => {
+    const transcript = [
+      {
+        id: "user-adjacent-skill-invocations",
+        role: "user",
+        content: "/review /review",
+        metadata: {
+          skill_invocations: [
+            {
+              command_id: "skill:workspace:review:sha256:def456",
+              token: "/review",
+              label: "Review",
+              source: "workspace",
+              start: 0,
+              end: 7,
+            },
+            {
+              command_id: "skill:workspace:review:sha256:def456",
+              token: "/review",
+              label: "Review",
+              source: "workspace",
+              start: 8,
+              end: 15,
+            },
+          ],
+        },
+        parts: [{ type: "text", text: "/review /review", state: "done" }],
+      } as SessionMessage,
+    ];
+
+    renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
+
+    expect(await screen.findAllByTestId("session-skill-directive")).toHaveLength(2);
+    expect(screen.getByTestId("user-message-bubble").textContent).toBe("/review /review");
+  });
+
   it.each([
     ["goal-work", "Goal work"],
     ["goal-continuation", "Goal continuation"],
@@ -1452,7 +1558,7 @@ describe("SessionThread composer running semantics", () => {
     const user = userEvent.setup();
     const firstView = renderComposer({ isSessionRunning: false });
 
-    const textarea = await screen.findByTestId("composer-textarea");
+    const textarea = (await screen.findByTestId("composer-textarea")) as HTMLTextAreaElement;
     await user.type(textarea, "keep this draft");
     expect(textarea).toHaveValue("keep this draft");
     expect(sessionStore.getSnapshot().context.drafts[primarySessionFixture.id]).toBe(
@@ -1463,6 +1569,162 @@ describe("SessionThread composer running semantics", () => {
     renderComposer({ isSessionRunning: false });
 
     expect(await screen.findByTestId("composer-textarea")).toHaveValue("keep this draft");
+  });
+
+  it("Should insert a standalone command token without submitting the prompt", async () => {
+    const user = userEvent.setup();
+    const onCommandCatalogOpen = vi.fn();
+    renderComposer({
+      onCommandCatalogOpen,
+      commandCatalog: {
+        standaloneSections: [
+          {
+            id: "built-in",
+            label: "Built-in",
+            commands: [{ id: "goal", token: "/goal", label: "Goal" }],
+          },
+          {
+            id: "agent",
+            label: "Agent",
+            commands: [{ id: "review", token: "/review", label: "Review" }],
+          },
+          {
+            id: "skills",
+            label: "Skills",
+            commands: [{ id: "frontend-qa", token: "/frontend-qa", label: "Frontend QA" }],
+          },
+        ],
+        inlineSkills: [{ id: "frontend-qa", token: "/frontend-qa", label: "Frontend QA" }],
+      },
+    });
+
+    const textarea = await screen.findByTestId("composer-textarea");
+    expect(onCommandCatalogOpen).not.toHaveBeenCalled();
+    await user.type(textarea, "/");
+
+    const menu = await screen.findByTestId("composer-command-menu");
+    expect(onCommandCatalogOpen).toHaveBeenCalledTimes(1);
+    expect(within(menu).getAllByTestId("composer-command-section")).toHaveLength(3);
+    await user.click(within(menu).getByRole("option", { name: /Skills/i }));
+    await user.click(await within(menu).findByRole("option", { name: /Frontend QA/i }));
+
+    await waitFor(() => {
+      expect(textarea).toHaveValue("/frontend-qa ");
+      expect(sessionStore.getSnapshot().context.drafts[primarySessionFixture.id]).toBe(
+        "/frontend-qa "
+      );
+    });
+    expect(screen.queryByText("Frontend QA")).not.toBeInTheDocument();
+  });
+
+  it("Should preserve hook order when the command menu closes and reopens", async () => {
+    const user = userEvent.setup();
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    try {
+      renderComposer({
+        commandCatalog: {
+          standaloneSections: [
+            {
+              id: "skills",
+              label: "Skills",
+              commands: [{ id: "frontend-qa", token: "/frontend-qa", label: "Frontend QA" }],
+            },
+          ],
+          inlineSkills: [{ id: "frontend-qa", token: "/frontend-qa", label: "Frontend QA" }],
+        },
+      });
+
+      const textarea = await screen.findByTestId("composer-textarea");
+      await user.type(textarea, "/");
+      expect(await screen.findByTestId("composer-command-menu")).toBeInTheDocument();
+
+      await user.keyboard("{Escape}");
+      await waitFor(() => {
+        expect(screen.queryByTestId("composer-command-menu")).not.toBeInTheDocument();
+      });
+
+      await user.clear(textarea);
+      await user.type(textarea, "/");
+      expect(await screen.findByTestId("composer-command-menu")).toBeInTheDocument();
+
+      const hookOrderErrors = consoleError.mock.calls
+        .flatMap(args => args.map(String))
+        .filter(message =>
+          /change in the order of Hooks|Rendered (?:more|fewer) hooks than expected/i.test(message)
+        );
+      expect(hookOrderErrors).toEqual([]);
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
+  it("Should restrict an inline slash menu to skills", async () => {
+    const user = userEvent.setup();
+    renderComposer({
+      commandCatalog: {
+        standaloneSections: [
+          {
+            id: "built-in",
+            label: "Built-in",
+            commands: [{ id: "goal", token: "/goal", label: "Goal" }],
+          },
+          {
+            id: "skills",
+            label: "Skills",
+            commands: [{ id: "frontend-qa", token: "/frontend-qa", label: "Frontend QA" }],
+          },
+        ],
+        inlineSkills: [{ id: "frontend-qa", token: "/frontend-qa", label: "Frontend QA" }],
+      },
+    });
+
+    const textarea = (await screen.findByTestId("composer-textarea")) as HTMLTextAreaElement;
+    await user.type(textarea, "Review / then");
+    textarea.setSelectionRange("Review /".length, "Review /".length);
+    fireEvent.select(textarea);
+
+    const menu = await screen.findByTestId("composer-command-menu");
+    expect(within(menu).getAllByTestId("composer-command-section")).toHaveLength(1);
+    expect(within(menu).getByRole("option", { name: /Skills/i })).toBeInTheDocument();
+    expect(within(menu).queryByRole("option", { name: /Built-in/i })).not.toBeInTheDocument();
+    await user.click(within(menu).getByRole("option", { name: /Skills/i }));
+    await user.click(await within(menu).findByRole("option", { name: /Frontend QA/i }));
+
+    await waitFor(() => {
+      expect(textarea).toHaveValue("Review /frontend-qa then");
+    });
+  });
+
+  it("Should expose standalone controls after leading whitespace with trailing text", async () => {
+    renderComposer({
+      commandCatalog: {
+        standaloneSections: [
+          {
+            id: "built-in",
+            label: "Built-in",
+            commands: [{ id: "goal", token: "/goal", label: "Goal" }],
+          },
+          {
+            id: "agent",
+            label: "Agent",
+            commands: [{ id: "review", token: "/review", label: "Review" }],
+          },
+        ],
+        inlineSkills: [{ id: "frontend-qa", token: "/frontend-qa", label: "Frontend QA" }],
+      },
+    });
+
+    const textarea = await screen.findByTestId("composer-textarea");
+    textarea.focus();
+    fireEvent.change(textarea, {
+      target: { value: "  / remaining prompt", selectionStart: 3, selectionEnd: 3 },
+    });
+
+    const menu = await screen.findByTestId("composer-command-menu");
+    expect(within(menu).getAllByTestId("composer-command-section")).toHaveLength(2);
+    expect(within(menu).getByRole("option", { name: /Built-in/i })).toBeInTheDocument();
+    expect(within(menu).getByRole("option", { name: /Agent/i })).toBeInTheDocument();
   });
 
   it("Should preserve live composer text when a stale persisted draft arrives", async () => {

@@ -2011,6 +2011,11 @@ func TestUnixSocketClientMethods(t *testing.T) {
 						http.StatusOK,
 						`{"session":{"id":"sess-1","agent_name":"coder","workspace_id":"ws-1","workspace_path":"/tmp","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}}`,
 					), nil
+				case req.Method == http.MethodGet && req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/commands":
+					return newHTTPResponse(
+						http.StatusOK,
+						`{"commands":[{"id":"builtin:goal","canonical_token":"/goal","display_name":"/goal","description":"Goal","lane":"builtin","source":{"kind":"builtin","scope":"session"},"placements":["standalone"]}],"revision":"rev-commands"}`,
+					), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/stop":
 					return newHTTPResponse(http.StatusNoContent, ``), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/attach":
@@ -2398,6 +2403,12 @@ func TestUnixSocketClientMethods(t *testing.T) {
 	sessionInfo, err := client.GetSession(ctx, "sess-1")
 	if err != nil || sessionInfo.ID != "sess-1" {
 		t.Fatalf("GetSession() = %#v, %v", sessionInfo, err)
+	}
+
+	commands, err := client.ListSessionCommands(ctx, "sess-1")
+	if err != nil || commands.Revision != "rev-commands" || len(commands.Commands) != 1 ||
+		commands.Commands[0].CanonicalToken != "/goal" {
+		t.Fatalf("ListSessionCommands() = %#v, %v", commands, err)
 	}
 
 	if err := client.StopSession(ctx, "sess-1"); err != nil {

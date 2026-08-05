@@ -3,6 +3,7 @@ package globaldb
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -60,6 +61,9 @@ func sessionInputQueueFromGenerated(row *sqlcgen.SessionInputQueue) (store.Sessi
 		TerminalReasonCode:     strings.TrimSpace(row.TerminalReasonCode.String),
 		TerminalTokensReported: row.TerminalTokensReported != 0,
 		TerminalTokensUsed:     nullableInt64Pointer(row.TerminalTokensUsed),
+	}
+	if err := json.Unmarshal([]byte(row.SkillInvocationsJson), &entry.SkillInvocations); err != nil {
+		return store.SessionInputQueueEntry{}, fmt.Errorf("store: decode session input skill invocations: %w", err)
 	}
 	if err := parseSessionInputQueueTimes(
 		&entry, row.EnqueuedAt, row.UpdatedAt, row.DispatchStartedAt, row.SentAt,

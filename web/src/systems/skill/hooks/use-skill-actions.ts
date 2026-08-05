@@ -7,6 +7,7 @@ import {
   removeSkillMarketplace,
   updateSkillMarketplace,
 } from "../adapters/skill-api";
+import { sessionKeys } from "@/systems/session";
 import { skillKeys } from "../lib/query-keys";
 import type { SkillMarketplaceInstallRequest, SkillMarketplaceUpdateRequest } from "../types";
 
@@ -24,11 +25,15 @@ function invalidateSkillQueries(
     queryClient.invalidateQueries({ queryKey: skillKeys.list(workspace) }),
     queryClient.invalidateQueries({ queryKey: skillKeys.detail(name, workspace) }),
     queryClient.invalidateQueries({ queryKey: skillKeys.content(name, workspace) }),
+    queryClient.invalidateQueries({ queryKey: sessionKeys.workspaceCommands(workspace) }),
   ]);
 }
 
 function invalidateInstalled(queryClient: ReturnType<typeof useQueryClient>, workspace: string) {
-  return queryClient.invalidateQueries({ queryKey: skillKeys.list(workspace) });
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: skillKeys.list(workspace) }),
+    queryClient.invalidateQueries({ queryKey: sessionKeys.workspaceCommands(workspace) }),
+  ]);
 }
 
 export function useEnableSkill() {

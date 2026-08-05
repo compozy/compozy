@@ -3,20 +3,33 @@ import {
   MessagePartPrimitive,
   MessagePrimitive,
   type TextMessagePartProps,
+  useAuiState,
 } from "@assistant-ui/react";
 import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
+import { sessionSkillInvocationDirectives } from "./session-directive-registry";
+import { SessionDirectiveText } from "./session-directive-text";
 import { MessageActions } from "./message-actions";
-import { SessionDataEventMarker, SessionMessageText } from "./session-message-parts";
+import { SessionDataEventMarker } from "./session-message-parts";
 
 // The bubble clamps with a bottom mask at 176px — text is never truncated, the
 // mask lifts on "Show more". Slack beyond the cap avoids flapping on rounding.
 const USER_CLAMP_MAX_PX = 44 * 4;
 const USER_CLAMP_SLACK_PX = 8;
 
-function SessionTextPart({ text, status }: TextMessagePartProps) {
-  return <SessionMessageText text={text} streaming={status?.type === "running"} />;
+function SessionTextPart({
+  text,
+  status,
+  directives,
+}: TextMessagePartProps & { directives: ReturnType<typeof sessionSkillInvocationDirectives> }) {
+  return (
+    <SessionDirectiveText
+      text={text}
+      directives={directives}
+      streaming={status?.type === "running"}
+    />
+  );
 }
 
 function SessionDataPart(part: DataMessagePartProps<unknown>) {
@@ -79,6 +92,8 @@ function UserMessageBubble({ children }: { children: ReactNode }) {
 }
 
 export function UserMessage() {
+  const messageMetadata = useAuiState(state => state.message.metadata);
+  const directives = sessionSkillInvocationDirectives(messageMetadata);
   return (
     <MessagePrimitive.Root className="group/message flex w-full min-w-0 justify-end pt-1 pb-transcript-turn-gap">
       <div className="flex max-w-[80%] min-w-0 flex-col items-end gap-transcript-meta-gap">
@@ -86,7 +101,7 @@ export function UserMessage() {
           <MessagePrimitive.Parts>
             {({ part }) => {
               if (part.type === "text") {
-                return <SessionTextPart {...part} />;
+                return <SessionTextPart {...part} directives={directives} />;
               }
               if (part.type === "image") {
                 return <MessagePartPrimitive.Image />;

@@ -962,7 +962,8 @@ func TestRuntimeRegistryDispatchResultLimitingAndRedaction(t *testing.T) {
 					},
 				},
 				Structured: json.RawMessage(
-					`{"password":"secret","token_present":true,"max_input_tokens":1050000,` +
+					`{"password":"secret","token_present":true,"canonical_token":"/review",` +
+						`"max_input_tokens":1050000,` +
 						`"max_output_tokens":128000,"visible":"ok"}`,
 				),
 				Metadata: map[string]json.RawMessage{
@@ -1042,6 +1043,9 @@ func TestRuntimeRegistryDispatchResultLimitingAndRedaction(t *testing.T) {
 		}
 		if !strings.Contains(string(data), `"token_present":true`) {
 			t.Fatalf("result = %s, want public token_present diagnostic preserved", data)
+		}
+		if !strings.Contains(string(data), `"canonical_token":"/review"`) {
+			t.Fatalf("result = %s, want public canonical command token preserved", data)
 		}
 		if !strings.Contains(string(data), `"max_input_tokens":1050000`) ||
 			!strings.Contains(string(data), `"max_output_tokens":128000`) {
