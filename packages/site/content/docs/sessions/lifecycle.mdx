@@ -263,7 +263,8 @@ compozy session rewind sess-1234 \
 
 The CLI reads the current transcript fences immediately before the request. Scripts retrying one
 known request can pass all three `--expected-*` flags together with the original idempotency key.
-HTTP and UDS use `POST /api/workspaces/:workspace/sessions/:id/rewind` and require those same fences.
+HTTP and UDS use `POST /api/workspaces/:workspace_id/sessions/:session_id/rewind` and require those
+same fences.
 An identical `idempotency_key` retry returns the original result. A stale fence, busy session, queued
 input, pending approval, or daemon-managed session returns `409` without cutting the transcript.
 
