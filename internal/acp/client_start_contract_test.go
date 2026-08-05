@@ -2,6 +2,7 @@ package acp
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -15,6 +16,39 @@ import (
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/testutil"
 )
+
+func TestStartInitializeContract(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should send the ACP protocol version as a JSON number", func(t *testing.T) {
+		t.Parallel()
+
+		driver := New()
+		captureFile := filepath.Join(t.TempDir(), "initialize.jsonl")
+		proc := startHelperProcess(t, driver, "initialize_contract", "", StartOpts{
+			Env: helperEnvWithCapture("initialize_contract", "", captureFile),
+		})
+		defer stopProcess(t, driver, proc)
+
+		params := captureRequestParams(t, captureFile, acpsdk.AgentMethodInitialize)
+		protocolVersionJSON, ok := params["protocolVersion"]
+		if !ok {
+			t.Fatal("initialize protocolVersion missing")
+		}
+
+		var protocolVersion int
+		if err := json.Unmarshal(protocolVersionJSON, &protocolVersion); err != nil {
+			t.Fatalf("initialize protocolVersion = %s, want JSON number: %v", protocolVersionJSON, err)
+		}
+		if protocolVersion != acpsdk.ProtocolVersionNumber {
+			t.Fatalf(
+				"initialize protocolVersion = %d, want %d",
+				protocolVersion,
+				acpsdk.ProtocolVersionNumber,
+			)
+		}
+	})
+}
 
 func TestDaemonMatchedEnvPinsCurrentBinary(t *testing.T) {
 	t.Parallel()
