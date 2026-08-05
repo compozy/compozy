@@ -21,7 +21,7 @@ func (m *Manager) Resume(ctx context.Context, id string) (resumed *Session, err 
 	if err != nil {
 		return nil, err
 	}
-	unlockConversation, err := m.lockConversationOperation(ctx, target)
+	ctx, unlockConversation, err := m.lockConversationOperation(ctx, target)
 	if err != nil {
 		return nil, err
 	}

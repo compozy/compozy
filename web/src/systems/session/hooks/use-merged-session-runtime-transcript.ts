@@ -132,9 +132,11 @@ export function useMergedSessionRuntimeTranscript({
     runtimeMessages,
     includeRuntimeTail,
   });
+  const durableMessageIds = new Set(transcript.messages.map(message => message.id));
 
   return {
     ...transcript,
+    durableMessageIds,
     liveMessages: runtimeMessages,
     messages,
   };

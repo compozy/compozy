@@ -10,6 +10,7 @@ export interface SessionRewindVariables {
   idempotencyKey: string;
   messageId: string;
   sessionId: string;
+  signal: AbortSignal;
 }
 
 function rewindFence(
@@ -46,12 +47,17 @@ export function useSessionRewind(workspaceId: string) {
 
   return useMutation<SessionRewindResult, Error, SessionRewindVariables>({
     mutationKey: sessionKeys.rewindConversation(workspaceId),
-    mutationFn: ({ idempotencyKey, messageId, sessionId }) =>
-      rewindSession(workspaceId, sessionId, {
-        ...rewindFence(queryClient, workspaceId, sessionId),
-        idempotency_key: idempotencyKey,
-        message_id: messageId,
-      }),
+    mutationFn: ({ idempotencyKey, messageId, sessionId, signal }) =>
+      rewindSession(
+        workspaceId,
+        sessionId,
+        {
+          ...rewindFence(queryClient, workspaceId, sessionId),
+          idempotency_key: idempotencyKey,
+          message_id: messageId,
+        },
+        signal
+      ),
     onSuccess: async (result, { sessionId }) => {
       queryClient.setQueryData(sessionKeys.detail(workspaceId, sessionId), result.session);
       queryClient.removeQueries({

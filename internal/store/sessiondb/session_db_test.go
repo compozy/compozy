@@ -1554,6 +1554,20 @@ func TestSessionDBTranscriptProjection(t *testing.T) {
 		if err != nil {
 			t.Fatalf("OpenSessionDB() error = %v", err)
 		}
+		var closeSessionDBErr error
+		closeSessionDB := func() error {
+			if sessionDB == nil {
+				return closeSessionDBErr
+			}
+			closeSessionDBErr = sessionDB.Close(ctx)
+			sessionDB = nil
+			return closeSessionDBErr
+		}
+		t.Cleanup(func() {
+			if err := closeSessionDB(); err != nil {
+				t.Errorf("Close(session DB cleanup) error = %v", err)
+			}
+		})
 		input := []SessionEvent{
 			canonicalStoreEvent(t, acp.AgentEvent{
 				Type: acp.EventTypeUserMessage, SessionID: owner.SessionID,
@@ -1643,7 +1657,7 @@ func TestSessionDBTranscriptProjection(t *testing.T) {
 		if got, want := len(archived), 3; got != want {
 			t.Fatalf("len(archived) = %d, want %d", got, want)
 		}
-		if err := sessionDB.Close(ctx); err != nil {
+		if err := closeSessionDB(); err != nil {
 			t.Fatalf("Close() error = %v", err)
 		}
 		reopened, err := OpenSessionDB(ctx, owner, path)

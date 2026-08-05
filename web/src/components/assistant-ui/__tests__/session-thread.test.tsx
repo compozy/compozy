@@ -171,26 +171,30 @@ function renderThreadState({
 }) {
   const queryClient = createQueryClient();
   if (durableMessageIds.length > 0) {
-    const entries = durableMessageIds.map((id, index) => ({
-      sequence: index + 1,
-      message: { id, role: "user", parts: [{ type: "text", text: id, state: "done" }] },
-    }));
+    const entries: SessionTranscriptData["pages"][number]["entries"] = durableMessageIds.map(
+      (id, index) => ({
+        start_sequence: index + 1,
+        sequence: index + 1,
+        message: { id, role: "user", parts: [{ type: "text", text: id, state: "done" }] },
+      })
+    );
+    const transcriptData: SessionTranscriptData = {
+      pageParams: [undefined],
+      pages: [
+        {
+          cursor: entries.length,
+          entries,
+          epoch: 1,
+          generation: 1,
+          has_older: false,
+          limit: 200,
+          max_sequence: entries.length,
+        },
+      ],
+    };
     queryClient.setQueryData<SessionTranscriptData>(
       sessionKeys.transcript(fixtureWorkspaceId(), primarySessionFixture.id),
-      {
-        pageParams: [undefined],
-        pages: [
-          {
-            cursor: entries.length,
-            entries,
-            epoch: 1,
-            generation: 1,
-            has_older: false,
-            limit: 200,
-            max_sequence: entries.length,
-          },
-        ],
-      } as SessionTranscriptData
+      transcriptData
     );
   }
 

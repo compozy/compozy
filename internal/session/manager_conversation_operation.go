@@ -2,17 +2,30 @@ package session
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 )
+
+var errConversationOperationReentrant = errors.New("session: conversation operation cannot acquire its own lock")
+
+type conversationOperationOwners map[string]struct{}
 
 type conversationOperationLock struct {
 	token chan struct{}
 	refs  int
 }
 
-func (m *Manager) lockConversationOperation(ctx context.Context, sessionID string) (func(), error) {
+func (m *Manager) lockConversationOperation(
+	ctx context.Context,
+	sessionID string,
+) (context.Context, func(), error) {
 	target := strings.TrimSpace(sessionID)
+	if owners, ok := ctx.Value(conversationOperationOwnersContextKey{}).(conversationOperationOwners); ok {
+		if _, owned := owners[target]; owned {
+			return nil, nil, fmt.Errorf("%w: %s", errConversationOperationReentrant, target)
+		}
+	}
 	m.conversationOperationMu.Lock()
 	if m.conversationOperationLocks == nil {
 		m.conversationOperationLocks = make(map[string]*conversationOperationLock)
@@ -30,12 +43,27 @@ func (m *Manager) lockConversationOperation(ctx context.Context, sessionID strin
 	case <-lock.token:
 	case <-ctx.Done():
 		m.releaseConversationOperationRef(target, lock)
-		return nil, fmt.Errorf("session: wait for conversation operation %q: %w", target, ctx.Err())
+		return nil, nil, fmt.Errorf("session: wait for conversation operation %q: %w", target, ctx.Err())
 	}
-	return func() {
+	owners := addConversationOperationOwner(ctx, target)
+	operationCtx := context.WithValue(ctx, conversationOperationOwnersContextKey{}, owners)
+	return operationCtx, func() {
 		lock.token <- struct{}{}
 		m.releaseConversationOperationRef(target, lock)
 	}, nil
+}
+
+type conversationOperationOwnersContextKey struct{}
+
+func addConversationOperationOwner(ctx context.Context, target string) conversationOperationOwners {
+	owners := make(conversationOperationOwners)
+	if current, ok := ctx.Value(conversationOperationOwnersContextKey{}).(conversationOperationOwners); ok {
+		for sessionID := range current {
+			owners[sessionID] = struct{}{}
+		}
+	}
+	owners[target] = struct{}{}
+	return owners
 }
 
 func (m *Manager) releaseConversationOperationRef(target string, lock *conversationOperationLock) {

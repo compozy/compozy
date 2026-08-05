@@ -77,7 +77,7 @@ func (m *Manager) RewindConversation(
 	if m.isPending(request.sessionID) {
 		return ConversationRewindResult{}, fmt.Errorf("%w: %s", ErrConversationRewindBusy, request.sessionID)
 	}
-	unlockConversation, err := m.lockConversationOperation(ctx, request.sessionID)
+	ctx, unlockConversation, err := m.lockConversationOperation(ctx, request.sessionID)
 	if err != nil {
 		return ConversationRewindResult{}, err
 	}
@@ -336,7 +336,7 @@ func conversationHasManagedGoal(events []store.SessionEvent) bool {
 			RunID *string `json:"run_id"`
 		}
 		if err := json.Unmarshal([]byte(event.Content), &projection); err != nil {
-			continue
+			return true
 		}
 		if projection.RunID != nil && strings.TrimSpace(*projection.RunID) != "" {
 			return true
@@ -420,17 +420,16 @@ func (m *Manager) validateConversationRewindStopTail(
 	if len(events) != 1 {
 		return fmt.Errorf("%w: %s", ErrConversationRewindFenceConflict, sessionID)
 	}
-	for _, event := range events {
-		if event.Type != EventTypeSessionStopped {
-			return fmt.Errorf("%w: %s", ErrConversationRewindFenceConflict, sessionID)
-		}
-		var payload struct {
-			StopReason string `json:"stop_reason"`
-		}
-		if err := json.Unmarshal([]byte(event.Content), &payload); err != nil ||
-			payload.StopReason != string(store.StopCompleted) {
-			return fmt.Errorf("%w: %s", ErrConversationRewindFenceConflict, sessionID)
-		}
+	event := events[0]
+	if event.Type != EventTypeSessionStopped {
+		return fmt.Errorf("%w: %s", ErrConversationRewindFenceConflict, sessionID)
+	}
+	var payload struct {
+		StopReason string `json:"stop_reason"`
+	}
+	if err := json.Unmarshal([]byte(event.Content), &payload); err != nil ||
+		payload.StopReason != string(store.StopCompleted) {
+		return fmt.Errorf("%w: %s", ErrConversationRewindFenceConflict, sessionID)
 	}
 	return nil
 }

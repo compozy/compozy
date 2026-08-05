@@ -21,6 +21,9 @@ func (s *Session) beginPromptSetup() error {
 	if s.State != StateActive {
 		return fmt.Errorf("%w: %s", ErrSessionNotActive, s.ID)
 	}
+	if s.conversationRewindReserved {
+		return fmt.Errorf("%w: %s", ErrSessionNotActive, s.ID)
+	}
 	if s.process == nil {
 		return errors.New("session: agent process is not available")
 	}

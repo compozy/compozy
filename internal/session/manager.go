@@ -155,11 +155,11 @@ func (m *Manager) beginConversationFinalization(id string) error {
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if _, exists := m.conversationFinalizing[target]; exists {
-		return fmt.Errorf("%w: %s", ErrSessionNotActive, target)
-	}
 	if m.conversationFinalizing == nil {
 		m.conversationFinalizing = make(map[string]chan struct{})
+	}
+	if _, exists := m.conversationFinalizing[target]; exists {
+		return fmt.Errorf("%w: %s", ErrSessionNotActive, target)
 	}
 	m.conversationFinalizing[target] = make(chan struct{})
 	return nil

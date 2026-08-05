@@ -31,7 +31,7 @@ export async function rewindSession(
   workspaceId: string,
   id: string,
   params: SessionRewindRequest,
-  signal?: AbortSignal
+  signal: AbortSignal
 ): Promise<SessionRewindResult> {
   const request = new Request(
     new URL(

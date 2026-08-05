@@ -238,7 +238,16 @@ func replayedConversationRewind(
 	queries *sqlcgen.Queries,
 	request store.ConversationRewindRequest,
 ) (store.ConversationRewindResult, bool, error) {
-	receipt, err := queries.GetConversationRewindReceipt(ctx, request.IdempotencyKey)
+	return readConversationRewindReceipt(ctx, queries, request.IdempotencyKey, request.RequestHash)
+}
+
+func readConversationRewindReceipt(
+	ctx context.Context,
+	queries *sqlcgen.Queries,
+	idempotencyKey string,
+	requestHash string,
+) (store.ConversationRewindResult, bool, error) {
+	receipt, err := queries.GetConversationRewindReceipt(ctx, idempotencyKey)
 	if errors.Is(err, sql.ErrNoRows) {
 		return store.ConversationRewindResult{}, false, nil
 	}
@@ -248,7 +257,7 @@ func replayedConversationRewind(
 			err,
 		)
 	}
-	if receipt.RequestHash != request.RequestHash {
+	if receipt.RequestHash != requestHash {
 		return store.ConversationRewindResult{}, false, store.ErrConversationRewindIdempotencyConflict
 	}
 	result, err := conversationRewindResultFromReceipt(receipt)
@@ -271,7 +280,8 @@ func conversationRewindTarget(
 	if target == "" {
 		return store.ConversationRewindTarget{}, errors.New("store: conversation rewind message id is required")
 	}
-	row, err := sqlcgen.New(db).GetConversationRewindTarget(ctx, sql.NullString{
+	queries := sqlcgen.New(db)
+	row, err := queries.GetConversationRewindTarget(ctx, sql.NullString{
 		String: target,
 		Valid:  true,
 	})
@@ -284,7 +294,7 @@ func conversationRewindTarget(
 	if row.Kind != string(transcript.EntryKindUser) || row.Complete == 0 || !row.MessageJson.Valid {
 		return store.ConversationRewindTarget{}, store.ErrConversationRewindTargetInvalid
 	}
-	archivedPrefixEvents, err := sqlcgen.New(db).CountArchivedTranscriptEventsBeforeSequence(ctx, row.StartSequence)
+	archivedPrefixEvents, err := queries.CountArchivedTranscriptEventsBeforeSequence(ctx, row.StartSequence)
 	if err != nil {
 		return store.ConversationRewindTarget{}, fmt.Errorf(
 			"store: query archived conversation rewind prefix: %w",
@@ -304,11 +314,11 @@ func conversationRewindTarget(
 			parts = append(parts, part.Text)
 		}
 	}
-	state, err := sqlcgen.New(db).GetTranscriptProjectionState(ctx)
+	state, err := queries.GetTranscriptProjectionState(ctx)
 	if err != nil {
 		return store.ConversationRewindTarget{}, fmt.Errorf("store: query conversation rewind generation: %w", err)
 	}
-	maxSequence, err := sqlcgen.New(db).MaxActiveEventSequence(ctx)
+	maxSequence, err := queries.MaxActiveEventSequence(ctx)
 	if err != nil {
 		return store.ConversationRewindTarget{}, fmt.Errorf("store: query conversation rewind max sequence: %w", err)
 	}
@@ -323,6 +333,11 @@ func conversationRewindState(
 	ctx context.Context,
 	db projectionDB,
 ) (store.ConversationRewindState, bool, error) {
+	if ctx == nil {
+		return store.ConversationRewindState{}, false, errors.New(
+			"store: conversation rewind state context is required",
+		)
+	}
 	row, err := sqlcgen.New(db).GetConversationRewindState(ctx)
 	if errors.Is(err, sql.ErrNoRows) {
 		return store.ConversationRewindState{}, false, nil
@@ -358,22 +373,7 @@ func conversationRewindReceipt(
 			"store: conversation rewind receipt identity is required",
 		)
 	}
-	row, err := sqlcgen.New(db).GetConversationRewindReceipt(ctx, key)
-	if errors.Is(err, sql.ErrNoRows) {
-		return store.ConversationRewindResult{}, false, nil
-	}
-	if err != nil {
-		return store.ConversationRewindResult{}, false, fmt.Errorf("store: query conversation rewind receipt: %w", err)
-	}
-	if row.RequestHash != hash {
-		return store.ConversationRewindResult{}, false, store.ErrConversationRewindIdempotencyConflict
-	}
-	result, err := conversationRewindResultFromReceipt(row)
-	if err != nil {
-		return store.ConversationRewindResult{}, false, err
-	}
-	result.Replayed = true
-	return result, true, nil
+	return readConversationRewindReceipt(ctx, sqlcgen.New(db), key, hash)
 }
 
 func conversationRewindResultFromReceipt(

@@ -56,7 +56,7 @@ func (m *Manager) PrepareWorkspaceRemoval(
 		return nil, errors.New("session: workspace id is required")
 	}
 
-	lockedSessionIDs, operationUnlocks, err := m.lockWorkspaceConversationOperations(ctx, targetWorkspace)
+	ctx, lockedSessionIDs, operationUnlocks, err := m.lockWorkspaceConversationOperations(ctx, targetWorkspace)
 	if err != nil {
 		return nil, err
 	}
@@ -115,31 +115,27 @@ func (m *Manager) PrepareWorkspaceRemoval(
 func (m *Manager) lockWorkspaceConversationOperations(
 	ctx context.Context,
 	workspaceID string,
-) (map[string]struct{}, []func(), error) {
-	infos, err := m.ListAll(ctx)
+) (context.Context, map[string]struct{}, []func(), error) {
+	infos, err := m.sortedWorkspaceSessions(ctx, workspaceID)
 	if err != nil {
-		return nil, nil, fmt.Errorf(
-			"session: list sessions before workspace removal %q: %w",
-			workspaceID,
-			err,
-		)
+		return nil, nil, nil, err
 	}
-	sort.Slice(infos, func(i, j int) bool { return infos[i].ID < infos[j].ID })
 	lockedSessionIDs := make(map[string]struct{})
 	operationUnlocks := make([]func(), 0)
 	for _, info := range infos {
 		if info == nil || strings.TrimSpace(info.WorkspaceID) != workspaceID {
 			continue
 		}
-		unlock, lockErr := m.lockConversationOperation(ctx, info.ID)
+		operationCtx, unlock, lockErr := m.lockConversationOperation(ctx, info.ID)
 		if lockErr != nil {
 			releaseConversationOperations(operationUnlocks)
-			return nil, nil, lockErr
+			return nil, nil, nil, lockErr
 		}
+		ctx = operationCtx
 		operationUnlocks = append(operationUnlocks, unlock)
 		lockedSessionIDs[info.ID] = struct{}{}
 	}
-	return lockedSessionIDs, operationUnlocks, nil
+	return ctx, lockedSessionIDs, operationUnlocks, nil
 }
 
 func (m *Manager) workspaceRemovalInfos(
@@ -147,15 +143,10 @@ func (m *Manager) workspaceRemovalInfos(
 	workspaceID string,
 	lockedSessionIDs map[string]struct{},
 ) ([]*Info, error) {
-	infos, err := m.ListAll(ctx)
+	infos, err := m.sortedWorkspaceSessions(ctx, workspaceID)
 	if err != nil {
-		return nil, fmt.Errorf(
-			"session: list sessions before workspace removal %q: %w",
-			workspaceID,
-			err,
-		)
+		return nil, err
 	}
-	sort.Slice(infos, func(i, j int) bool { return infos[i].ID < infos[j].ID })
 	for _, info := range infos {
 		if info == nil || strings.TrimSpace(info.WorkspaceID) != workspaceID {
 			continue
@@ -168,6 +159,19 @@ func (m *Manager) workspaceRemovalInfos(
 			)
 		}
 	}
+	return infos, nil
+}
+
+func (m *Manager) sortedWorkspaceSessions(ctx context.Context, workspaceID string) ([]*Info, error) {
+	infos, err := m.ListAll(ctx)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"session: list sessions before workspace removal %q: %w",
+			workspaceID,
+			err,
+		)
+	}
+	sort.Slice(infos, func(i, j int) bool { return infos[i].ID < infos[j].ID })
 	return infos, nil
 }
 

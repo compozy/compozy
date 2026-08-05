@@ -121,7 +121,7 @@ func (m *Manager) RepairSession(
 	if err != nil {
 		return nil, err
 	}
-	unlockConversation, err := m.lockConversationOperation(ctx, target)
+	ctx, unlockConversation, err := m.lockConversationOperation(ctx, target)
 	if err != nil {
 		return nil, err
 	}

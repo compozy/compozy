@@ -2,21 +2,21 @@ import { useRef, useState, type ReactNode } from "react";
 import { AssistantRuntimeProvider, DataRenderers, Tools, useAui } from "@assistant-ui/react";
 import { useSelector } from "@xstate/store-react";
 
-import { useMergedSessionRuntimeTranscript } from "../hooks/use-merged-session-runtime-transcript";
-import { useSessionChatRuntime } from "../hooks/use-session-chat-runtime";
-import { useSessionClarifications } from "../hooks/use-session-clarifications";
-import { useSessionInputs } from "../hooks/use-session-inputs";
 import { SessionPromptDispatchPendingProvider } from "@/components/assistant-ui/session-prompt-dispatch-context";
 import {
   createSessionPromptDispatchStore,
   type SessionPromptDispatchStore,
 } from "@/components/assistant-ui/session-prompt-dispatch-store";
-import type { SessionStreamEventSourceFactory } from "../hooks/use-session-live-tail";
-import { CompozyEventDataUI, CompozyPermissionDataUI } from "../lib/session-data-ui";
-import { derivePendingPermissions } from "../lib/pending-permissions";
-import { sessionToolkit } from "../lib/session-toolkit";
-import { SessionRuntimeRenderProvider } from "../lib/session-runtime-render-context";
-import { SessionTranscriptThreadProvider } from "../lib/session-transcript-thread-context";
+import { useMergedSessionRuntimeTranscript } from "@/systems/session/hooks/use-merged-session-runtime-transcript";
+import { useSessionChatRuntime } from "@/systems/session/hooks/use-session-chat-runtime";
+import { useSessionClarifications } from "@/systems/session/hooks/use-session-clarifications";
+import { useSessionInputs } from "@/systems/session/hooks/use-session-inputs";
+import type { SessionStreamEventSourceFactory } from "@/systems/session/hooks/use-session-live-tail";
+import { CompozyEventDataUI, CompozyPermissionDataUI } from "@/systems/session/lib/session-data-ui";
+import { derivePendingPermissions } from "@/systems/session/lib/pending-permissions";
+import { sessionToolkit } from "@/systems/session/lib/session-toolkit";
+import { SessionRuntimeRenderProvider } from "@/systems/session/lib/session-runtime-render-context";
+import { SessionTranscriptThreadProvider } from "@/systems/session/lib/session-transcript-thread-context";
 
 function SessionRuntimeExtensions({
   sessionId,
@@ -57,6 +57,7 @@ function SessionRuntimeExtensions({
 
   return (
     <SessionRuntimeRenderProvider
+      durableMessageIds={transcript.durableMessageIds}
       resetRuntime={resetRuntime}
       rewindBlocked={rewindBlocked}
       sessionId={sessionId}

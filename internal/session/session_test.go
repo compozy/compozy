@@ -430,6 +430,21 @@ func TestBeginPromptSetupReturnsErrSessionNotActive(t *testing.T) {
 	}
 }
 
+func TestBeginPromptSetupRejectsReservedConversationRewind(t *testing.T) {
+	t.Parallel()
+
+	session := &Session{
+		ID:                         "sess-rewind-reserved",
+		State:                      StateActive,
+		conversationRewindReserved: true,
+	}
+
+	err := session.beginPromptSetup()
+	if !errors.Is(err, ErrSessionNotActive) {
+		t.Fatalf("beginPromptSetup() error = %v, want ErrSessionNotActive", err)
+	}
+}
+
 func TestNormalizeSessionTypeDefaultsToUser(t *testing.T) {
 	t.Parallel()
 

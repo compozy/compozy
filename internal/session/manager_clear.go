@@ -37,7 +37,7 @@ func (m *Manager) ClearConversation(ctx context.Context, id string) (_ *Session,
 	if m.isPending(target) {
 		return nil, fmt.Errorf("%w: %s", ErrSessionNotActive, target)
 	}
-	unlockConversation, err := m.lockConversationOperation(ctx, target)
+	ctx, unlockConversation, err := m.lockConversationOperation(ctx, target)
 	if err != nil {
 		return nil, err
 	}

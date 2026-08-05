@@ -315,22 +315,29 @@ describe("session actions", () => {
     const { result } = renderHook(() => useSessionRewind(WORKSPACE_ID), {
       wrapper: createWrapper(queryClient),
     });
+    const controller = new AbortController();
 
     await act(async () => {
       await result.current.mutateAsync({
         idempotencyKey: "rewind-idempotency-001",
         messageId: "message-001",
         sessionId: createdSession.id,
+        signal: controller.signal,
       });
     });
 
-    expect(rewindSession).toHaveBeenCalledWith(WORKSPACE_ID, createdSession.id, {
-      expected_epoch: 3,
-      expected_generation: 7,
-      expected_max_sequence: 19,
-      idempotency_key: "rewind-idempotency-001",
-      message_id: "message-001",
-    });
+    expect(rewindSession).toHaveBeenCalledWith(
+      WORKSPACE_ID,
+      createdSession.id,
+      {
+        expected_epoch: 3,
+        expected_generation: 7,
+        expected_max_sequence: 19,
+        idempotency_key: "rewind-idempotency-001",
+        message_id: "message-001",
+      },
+      controller.signal
+    );
     expect(queryClient.getQueryData(sessionKeys.detail(WORKSPACE_ID, createdSession.id))).toEqual(
       createdSession
     );

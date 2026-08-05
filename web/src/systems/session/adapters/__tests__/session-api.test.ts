@@ -505,14 +505,20 @@ describe("rewindSession", () => {
       rewind: { draft_text: "Use the earlier plan instead." },
       session: mockSession,
     });
+    const controller = new AbortController();
 
-    const result = await rewindSession(WORKSPACE_ID, "sess-001", {
-      expected_epoch: 3,
-      expected_generation: 7,
-      expected_max_sequence: 19,
-      idempotency_key: "rewind-idempotency-001",
-      message_id: "message-001",
-    });
+    const result = await rewindSession(
+      WORKSPACE_ID,
+      "sess-001",
+      {
+        expected_epoch: 3,
+        expected_generation: 7,
+        expected_max_sequence: 19,
+        idempotency_key: "rewind-idempotency-001",
+        message_id: "message-001",
+      },
+      controller.signal
+    );
 
     expect(result).toEqual({
       rewind: { draft_text: "Use the earlier plan instead." },
@@ -528,6 +534,7 @@ describe("rewindSession", () => {
       },
       method: "POST",
       path: "/api/workspaces/ws_alpha/sessions/sess-001/rewind",
+      signal: controller.signal,
     });
   });
 });

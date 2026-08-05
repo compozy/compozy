@@ -74,7 +74,8 @@ func TestRewindSessionConversationHandler(t *testing.T) {
 		homePaths := newTestHomePaths(t)
 		manager := stubSessionManager{
 			RewindFn: func(_ context.Context, id string, opts session.ConversationRewindOptions) (session.ConversationRewindResult, error) {
-				if id != "sess-123" || opts.MessageID != "msg-2" || opts.ExpectedEpoch != 3 ||
+				if id != "sess-123" || opts.MessageID != "msg-2" || opts.IdempotencyKey != "idem-1" ||
+					opts.ExpectedEpoch != 3 ||
 					opts.ExpectedGeneration != 4 || opts.ExpectedMaxSequence != 12 {
 					t.Fatalf("RewindConversation() = %q %#v, want routed request", id, opts)
 				}

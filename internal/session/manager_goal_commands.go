@@ -30,7 +30,7 @@ func (m *Manager) dispatchGoalCommand(
 	if !matched {
 		return GoalDispatchDecision{}, false, nil
 	}
-	unlockConversation, err := m.lockConversationOperation(ctx, req.target)
+	ctx, unlockConversation, err := m.lockConversationOperation(ctx, req.target)
 	if err != nil {
 		return GoalDispatchDecision{}, true, err
 	}

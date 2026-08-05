@@ -6,14 +6,17 @@ import {
 } from "./session-runtime-render-context-value";
 
 const noop = () => {};
+const noDurableMessageIds: ReadonlySet<string> = new Set();
 
 export function SessionRuntimeRenderProvider({
   children,
+  durableMessageIds = noDurableMessageIds,
   resetRuntime = noop,
   rewindBlocked = false,
   sessionId,
   workspaceId,
-}: SessionRuntimeRenderContextValue & { children: ReactNode }) {
-  const contextValue = { resetRuntime, rewindBlocked, sessionId, workspaceId };
+}: Partial<Pick<SessionRuntimeRenderContextValue, "durableMessageIds">> &
+  Omit<SessionRuntimeRenderContextValue, "durableMessageIds"> & { children: ReactNode }) {
+  const contextValue = { durableMessageIds, resetRuntime, rewindBlocked, sessionId, workspaceId };
   return <SessionRuntimeRenderContext value={contextValue}>{children}</SessionRuntimeRenderContext>;
 }

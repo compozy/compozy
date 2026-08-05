@@ -5387,6 +5387,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		var acceptedCreate session.CreateAcceptedOpts
 		var submittedPrompt session.SendPromptOpts
 		var submittedRewind session.ConversationRewindOptions
+		rewindSubmitCalls := 0
 		var selectedRuntime session.RuntimeSelection
 		var selectedRuntimeRevision int64
 		var clearedRuntimeRevision int64
@@ -5530,6 +5531,7 @@ func TestDaemonNativeTools(t *testing.T) {
 					if id != info.ID {
 						return session.ConversationRewindResult{}, session.ErrSessionNotFound
 					}
+					rewindSubmitCalls++
 					submittedRewind = opts
 					return session.ConversationRewindResult{
 						Session: &session.Session{
@@ -5796,6 +5798,25 @@ func TestDaemonNativeTools(t *testing.T) {
 				),
 				call: inputAdapter.sessionInputPromote,
 			},
+			{
+				name:   "rewind requires every transcript fence before workspace lookup",
+				toolID: toolspkg.ToolIDSessionRewind,
+				input: json.RawMessage(
+					`{"workspace":"ws-stable","session_id":"sess-1","message_id":"msg-rewind",` +
+						`"idempotency_key":"idem-rewind","expected_generation":0,"expected_max_sequence":0}`,
+				),
+				call: inputAdapter.sessionRewind,
+			},
+			{
+				name:   "rewind rejects a negative transcript fence before workspace lookup",
+				toolID: toolspkg.ToolIDSessionRewind,
+				input: json.RawMessage(
+					`{"workspace":"ws-stable","session_id":"sess-1","message_id":"msg-rewind",` +
+						`"idempotency_key":"idem-rewind","expected_epoch":0,` +
+						`"expected_generation":-1,"expected_max_sequence":0}`,
+				),
+				call: inputAdapter.sessionRewind,
+			},
 		} {
 			t.Run(testCase.name, func(t *testing.T) {
 				_, callErr := testCase.call(
@@ -5881,6 +5902,9 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("session_rewind opts = %#v", submittedRewind)
 		}
 		requireNativeStructuredContains(t, rewindResult, []byte(`"draft_text":"try another path"`))
+		if rewindSubmitCalls != 1 {
+			t.Fatalf("RewindConversation calls = %d, want 1", rewindSubmitCalls)
+		}
 
 		_, err = registry.Call(
 			t.Context(),
@@ -5894,8 +5918,9 @@ func TestDaemonNativeTools(t *testing.T) {
 				),
 			},
 		)
-		if err == nil {
-			t.Fatal("Registry.Call(session_rewind foreign workspace) error = nil")
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
+		if rewindSubmitCalls != 1 {
+			t.Fatalf("RewindConversation calls = %d after denied workspace, want 1", rewindSubmitCalls)
 		}
 
 		inputsResult, err := registry.Call(

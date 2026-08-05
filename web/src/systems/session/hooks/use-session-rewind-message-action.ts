@@ -1,28 +1,15 @@
 import { useAuiState } from "@assistant-ui/react";
-import { useInfiniteQuery } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { useSessionComposerPrefill } from "@/components/assistant-ui/hooks/use-session-composer-prefill";
 import { createClientId } from "@/lib/client-id";
-import { sessionTranscriptOptions } from "../lib/query-options";
-import type { SessionTranscriptData } from "../lib/session-transcript-query";
 import { useSessionRewind } from "./use-session-rewind";
 import { useSessionRuntimeRenderContext } from "./use-session-runtime-render-context";
 
 interface CurrentMessageState {
   id?: string;
   role?: string;
-}
-
-function messageIsDurable(
-  transcript: SessionTranscriptData | undefined,
-  messageId: string
-): boolean {
-  return (
-    transcript?.pages.some(page => page.entries.some(entry => entry.message.id === messageId)) ??
-    false
-  );
 }
 
 export function useSessionRewindMessageAction() {
@@ -33,10 +20,10 @@ export function useSessionRewindMessageAction() {
   const isThreadRunning = useAuiState(state => state.thread.isRunning);
   const [open, updateOpen] = useState(false);
   const idempotencyKeyRef = useRef<string | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const resetRuntime = context?.resetRuntime;
   const workspaceId = context?.workspaceId ?? "";
   const sessionId = context?.sessionId ?? "";
-  const transcript = useInfiniteQuery(sessionTranscriptOptions(workspaceId, sessionId)).data;
   const rewind = useSessionRewind(workspaceId);
   const messageId = typeof currentMessage.id === "string" ? currentMessage.id : "";
   const busy = isThreadRunning || rewind.isPending || (context?.rewindBlocked ?? true);
@@ -44,10 +31,21 @@ export function useSessionRewindMessageAction() {
     Boolean(context && resetRuntime && composerPrefill) &&
     currentMessage.role === "user" &&
     messageId.length > 0 &&
-    messageIsDurable(transcript, messageId);
+    (context?.durableMessageIds.has(messageId) ?? false);
+
+  useEffect(
+    () => () => {
+      abortControllerRef.current?.abort();
+    },
+    []
+  );
 
   const setOpen = (nextOpen: boolean) => {
-    if (!nextOpen) idempotencyKeyRef.current = null;
+    if (!nextOpen) {
+      abortControllerRef.current?.abort();
+      abortControllerRef.current = null;
+      idempotencyKeyRef.current = null;
+    }
     updateOpen(nextOpen);
   };
 
@@ -63,15 +61,37 @@ export function useSessionRewindMessageAction() {
 
   const confirm = async () => {
     if (!resetRuntime || !composerPrefill) return;
+    if (busy) {
+      setOpen(false);
+      return;
+    }
+    if (composerText.trim().length > 0) {
+      toast.warning("Clear the draft before rewinding.");
+      return;
+    }
     const idempotencyKey = idempotencyKeyRef.current ?? createClientId();
     idempotencyKeyRef.current = idempotencyKey;
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
     try {
-      const result = await rewind.mutateAsync({ idempotencyKey, messageId, sessionId });
+      const result = await rewind.mutateAsync({
+        idempotencyKey,
+        messageId,
+        sessionId,
+        signal: controller.signal,
+      });
+      if (controller.signal.aborted) return;
       resetRuntime();
       composerPrefill(result.rewind.draft_text);
       setOpen(false);
     } catch {
+      if (controller.signal.aborted) return;
       toast.error("Couldn't rewind this session. Refresh the conversation and try again.");
+    } finally {
+      if (abortControllerRef.current === controller) {
+        abortControllerRef.current = null;
+      }
     }
   };
 
