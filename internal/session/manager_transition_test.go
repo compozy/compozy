@@ -217,6 +217,43 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 		assertRestoredResumeCatalog(t, afterCatalog, beforeCatalog)
 	})
 
+	t.Run("Should reject archive after a resume transition begins", func(t *testing.T) {
+		t.Parallel()
+
+		catalog := newRecordingSessionCatalog()
+		h := newHarness(t, WithSessionCatalog(catalog))
+		stopped := createSession(t, h)
+		if err := h.manager.Stop(testutil.Context(t), stopped.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+
+		archiveReadStarted := make(chan struct{})
+		releaseArchiveRead := make(chan struct{})
+		var archiveReadOnce sync.Once
+		catalog.archiveReadHook = func() {
+			archiveReadOnce.Do(func() { close(archiveReadStarted) })
+			<-releaseArchiveRead
+		}
+		resumeResult := make(chan error, 1)
+		go func() {
+			_, resumeErr := h.manager.Resume(testutil.Context(t), stopped.ID)
+			resumeResult <- resumeErr
+		}()
+		<-archiveReadStarted
+
+		_, archiveErr := h.manager.Archive(testutil.Context(t), h.workspaceID, stopped.ID)
+		if !errors.Is(archiveErr, ErrSessionArchiveRequiresStopped) {
+			t.Fatalf("Archive() error = %v, want ErrSessionArchiveRequiresStopped", archiveErr)
+		}
+		close(releaseArchiveRead)
+		if resumeErr := <-resumeResult; resumeErr != nil {
+			t.Fatalf("Resume() error = %v", resumeErr)
+		}
+		if err := h.manager.Stop(testutil.Context(t), stopped.ID); err != nil {
+			t.Fatalf("Stop(resumed) error = %v", err)
+		}
+	})
+
 	t.Run("Should synchronize a successful attach CAS into the active session", func(t *testing.T) {
 		t.Parallel()
 
@@ -408,15 +445,16 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 }
 
 type recordingSessionCatalog struct {
-	mu            sync.Mutex
-	sessions      map[string]store.SessionInfo
-	registerHook  func(context.Context, store.SessionInfo) error
-	updateErr     error
-	updateHook    func(store.SessionStateUpdate) error
-	deleteErr     error
-	deleteHook    func(context.Context, string) error
-	attachErr     error
-	strictUpdates bool
+	mu              sync.Mutex
+	sessions        map[string]store.SessionInfo
+	registerHook    func(context.Context, store.SessionInfo) error
+	updateErr       error
+	updateHook      func(store.SessionStateUpdate) error
+	deleteErr       error
+	deleteHook      func(context.Context, string) error
+	attachErr       error
+	archiveReadHook func()
+	strictUpdates   bool
 }
 
 func newRecordingSessionCatalog() *recordingSessionCatalog {
@@ -506,6 +544,9 @@ func (c *recordingSessionCatalog) SessionArchivedAt(
 	workspaceID string,
 	sessionID string,
 ) (*time.Time, error) {
+	if c.archiveReadHook != nil {
+		c.archiveReadHook()
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	current, ok := c.sessions[sessionID]
@@ -529,6 +570,9 @@ func (c *recordingSessionCatalog) SetSessionArchived(
 	}
 	if archived && current.State != string(StateStopped) {
 		return store.SessionInfo{}, fmt.Errorf("%w: %s", store.ErrSessionArchiveRequiresStopped, sessionID)
+	}
+	if archived == (current.ArchivedAt != nil) {
+		return current, nil
 	}
 	if archived {
 		now := time.Now().UTC()

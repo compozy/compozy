@@ -1357,9 +1357,13 @@ func TestNewHostAPISessionManagerAdapter(t *testing.T) {
 		if !ok {
 			t.Fatalf("newHostAPISessionManagerAdapter() = %T, want session archive operations", adapter)
 		}
-		_, err := archiveManager.Archive(testutil.Context(t), "ws-archive", "sess-archive")
-		if err == nil {
-			t.Fatal("Archive() error = nil, want unsupported operation error")
+		_, archiveErr := archiveManager.Archive(testutil.Context(t), "ws-archive", "sess-archive")
+		if archiveErr == nil || !strings.Contains(archiveErr.Error(), "does not support session archiving") {
+			t.Fatalf("Archive() error = %v, want unsupported session archiving", archiveErr)
+		}
+		_, unarchiveErr := archiveManager.Unarchive(testutil.Context(t), "ws-archive", "sess-archive")
+		if unarchiveErr == nil || !strings.Contains(unarchiveErr.Error(), "does not support session archiving") {
+			t.Fatalf("Unarchive() error = %v, want unsupported session archiving", unarchiveErr)
 		}
 	})
 

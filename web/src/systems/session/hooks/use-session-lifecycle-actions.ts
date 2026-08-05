@@ -72,10 +72,14 @@ export function useSessionLifecycleActions(
   }
 
   const confirmDelete = () => {
-    if (!deleteSession) return;
+    if (!deleteSession || remove.isPending) return;
     const { id } = deleteSession;
-    setDeleteSession(null);
-    remove.mutate(id, { onError: error => reportActionError("delete", error) });
+    remove.mutate(id, {
+      onError: error => reportActionError("delete", error),
+      onSuccess: () => {
+        setDeleteSession(current => (current?.id === id ? null : current));
+      },
+    });
   };
 
   return {
@@ -88,14 +92,16 @@ export function useSessionLifecycleActions(
         archive.mutate(session.id, { onError: error => reportActionError("archive", error) }),
       onUnarchive: session =>
         unarchive.mutate(session.id, { onError: error => reportActionError("unarchive", error) }),
-      onDelete: session => setDeleteSession(session),
+      onDelete: session => {
+        if (!remove.isPending) setDeleteSession(session);
+      },
     },
     deleteDialog: {
       open: deleteSession !== null,
       session: deleteSession,
       isDeleting: remove.isPending,
       onOpenChange: open => {
-        if (!open) setDeleteSession(null);
+        if (!open && !remove.isPending) setDeleteSession(null);
       },
       onConfirm: confirmDelete,
     },

@@ -252,6 +252,7 @@ function DesktopShellBody({
       <OsSessionsModal
         open={overlays.activeOverlay === "sessions"}
         onOpenChange={open => overlays.setOverlayOpen("sessions", open)}
+        dismissalBlocked={sessionLifecycle.deleteDialog.open}
         sessions={attention.sessions}
         archivedSessions={attention.archivedSessions}
         archivedTotal={attention.archivedSessionsTotal}

@@ -230,15 +230,19 @@ func TestSessionWorkspaceStatusMappings(t *testing.T) {
 	if got := statusForSessionError(session.ErrPendingPermissionConflict); got != http.StatusConflict {
 		t.Fatalf("statusForSessionError(conflict) = %d, want %d", got, http.StatusConflict)
 	}
-	for _, archiveErr := range []error{
-		session.ErrSessionArchived,
-		session.ErrSessionArchiveRequiresStopped,
-		store.ErrSessionArchived,
-	} {
-		if got := statusForSessionError(archiveErr); got != http.StatusConflict {
-			t.Fatalf("statusForSessionError(%v) = %d, want %d", archiveErr, got, http.StatusConflict)
+	t.Run("Should map archive errors to conflict", func(t *testing.T) {
+		t.Parallel()
+
+		for _, archiveErr := range []error{
+			session.ErrSessionArchived,
+			session.ErrSessionArchiveRequiresStopped,
+			store.ErrSessionArchived,
+		} {
+			if got := statusForSessionError(archiveErr); got != http.StatusConflict {
+				t.Fatalf("statusForSessionError(%v) = %d, want %d", archiveErr, got, http.StatusConflict)
+			}
 		}
-	}
+	})
 	if got := statusForSessionError(transcript.ErrProjectionIncompatible); got != http.StatusServiceUnavailable {
 		t.Fatalf("statusForSessionError(projection incompatible) = %d, want %d", got, http.StatusServiceUnavailable)
 	}

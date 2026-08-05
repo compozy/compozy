@@ -30,7 +30,13 @@ export function SessionDeleteDialog({
   onConfirm,
 }: SessionDeleteDialogProps) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={nextOpen => {
+        if (isDeleting && !nextOpen) return;
+        onOpenChange(nextOpen);
+      }}
+    >
       <DialogContent showCloseButton={!isDeleting} className="max-w-md" data-testid="delete-dialog">
         <DialogHeader>
           <DialogTitle>Delete session</DialogTitle>

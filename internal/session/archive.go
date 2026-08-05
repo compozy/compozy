@@ -46,7 +46,13 @@ func (m *Manager) setArchived(
 	if !ok || archiveStore == nil {
 		return nil, ErrSessionArchiveUnavailable
 	}
-	stored, err := archiveStore.SetSessionArchived(ctx, workspaceID, sessionID, archived)
+	stored, err := m.setSessionArchivedWithResumeGuard(
+		ctx,
+		archiveStore,
+		workspaceID,
+		sessionID,
+		archived,
+	)
 	if err != nil {
 		switch {
 		case errors.Is(err, store.ErrSessionArchiveRequiresStopped):
@@ -60,6 +66,25 @@ func (m *Manager) setArchived(
 	info := sessionInfoFromCatalog(stored)
 	m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventUpserted, info))
 	return info, nil
+}
+
+func (m *Manager) setSessionArchivedWithResumeGuard(
+	ctx context.Context,
+	archiveStore store.SessionArchiveStore,
+	workspaceID string,
+	sessionID string,
+	archived bool,
+) (store.SessionInfo, error) {
+	if !archived {
+		return archiveStore.SetSessionArchived(ctx, workspaceID, sessionID, false)
+	}
+
+	m.resumeLifecycle.mu.Lock()
+	defer m.resumeLifecycle.mu.Unlock()
+	if m.resumeLifecycle.runs[sessionID] != nil {
+		return store.SessionInfo{}, fmt.Errorf("%w: %s", ErrSessionArchiveRequiresStopped, sessionID)
+	}
+	return archiveStore.SetSessionArchived(ctx, workspaceID, sessionID, true)
 }
 
 func (m *Manager) populateArchiveMetadata(ctx context.Context, info *Info) error {

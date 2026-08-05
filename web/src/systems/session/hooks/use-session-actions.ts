@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
 
 import { createClientId } from "@/lib/client-id";
 import {
@@ -50,6 +51,28 @@ function resolveWorkspaceId(
   return workspaceId ?? activeWorkspaceId ?? null;
 }
 
+function useAbortableMutationRequest() {
+  const controllersRef = useRef(new Set<AbortController>());
+
+  useEffect(
+    () => () => {
+      for (const controller of controllersRef.current) controller.abort();
+      controllersRef.current.clear();
+    },
+    []
+  );
+
+  return async <T>(request: (signal: AbortSignal) => Promise<T>): Promise<T> => {
+    const controller = new AbortController();
+    controllersRef.current.add(controller);
+    try {
+      return await request(controller.signal);
+    } finally {
+      controllersRef.current.delete(controller);
+    }
+  };
+}
+
 export function useCreateSession() {
   const queryClient = useQueryClient();
 
@@ -98,9 +121,11 @@ export function useArchiveSession(options: UseSessionWorkspaceOptions = {}) {
   const queryClient = useQueryClient();
   const { activeWorkspaceId } = useActiveWorkspace();
   const workspaceId = resolveWorkspaceId(options.workspaceId, activeWorkspaceId);
+  const request = useAbortableMutationRequest();
 
   return useMutation({
-    mutationFn: (id: string) => archiveSession(requireWorkspace(workspaceId), id),
+    mutationFn: (id: string) =>
+      request(signal => archiveSession(requireWorkspace(workspaceId), id, signal)),
     onSettled: (_data, _error, id) => {
       if (workspaceId) void invalidateSessionMutationQueries(queryClient, workspaceId, id);
     },
@@ -111,9 +136,11 @@ export function useUnarchiveSession(options: UseSessionWorkspaceOptions = {}) {
   const queryClient = useQueryClient();
   const { activeWorkspaceId } = useActiveWorkspace();
   const workspaceId = resolveWorkspaceId(options.workspaceId, activeWorkspaceId);
+  const request = useAbortableMutationRequest();
 
   return useMutation({
-    mutationFn: (id: string) => unarchiveSession(requireWorkspace(workspaceId), id),
+    mutationFn: (id: string) =>
+      request(signal => unarchiveSession(requireWorkspace(workspaceId), id, signal)),
     onSettled: (_data, _error, id) => {
       if (workspaceId) void invalidateSessionMutationQueries(queryClient, workspaceId, id);
     },

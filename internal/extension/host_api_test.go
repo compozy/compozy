@@ -526,72 +526,74 @@ func TestHostAPIHandlerSessionsStopStopsSession(t *testing.T) {
 }
 
 func TestHostAPIHandlerSessionsArchiveRoundTrip(t *testing.T) {
-	t.Parallel()
+	t.Run("Should archive and unarchive a stopped session", func(t *testing.T) {
+		t.Parallel()
 
-	env := newHostAPITestEnv(t)
-	env.grant(
-		"ext-archive",
-		[]string{"sessions/archive", "sessions/unarchive", "sessions/list"},
-		[]string{"session.write", "session.read"},
-	)
-	sess := env.createSession(t)
-	if err := env.sessions.Stop(testutil.Context(t), sess.ID); err != nil {
-		t.Fatalf("sessions.Stop() error = %v", err)
-	}
+		env := newHostAPITestEnv(t)
+		env.grant(
+			"ext-archive",
+			[]string{"sessions/archive", "sessions/unarchive", "sessions/list"},
+			[]string{"session.write", "session.read"},
+		)
+		sess := env.createSession(t)
+		if err := env.sessions.Stop(testutil.Context(t), sess.ID); err != nil {
+			t.Fatalf("sessions.Stop() error = %v", err)
+		}
 
-	result, err := env.call(t, "ext-archive", "sessions/archive", map[string]string{
-		"workspace_id": env.workspaceID,
-		"session_id":   sess.ID,
+		result, err := env.call(t, "ext-archive", "sessions/archive", map[string]string{
+			"workspace_id": env.workspaceID,
+			"session_id":   sess.ID,
+		})
+		if err != nil {
+			t.Fatalf("Handle(sessions/archive) error = %v", err)
+		}
+		var archived hostAPISessionStatus
+		decodeResult(t, result, &archived)
+		if archived.ArchivedAt == nil || archived.State != session.StateStopped {
+			t.Fatalf("sessions/archive result = %#v, want archived stopped session", archived)
+		}
+
+		defaultResult, err := env.call(
+			t,
+			"ext-archive",
+			"sessions/list",
+			map[string]string{"workspace": env.workspaceID},
+		)
+		if err != nil {
+			t.Fatalf("Handle(sessions/list default) error = %v", err)
+		}
+		var defaultList []hostAPISessionSummary
+		decodeResult(t, defaultResult, &defaultList)
+		if len(defaultList) != 0 {
+			t.Fatalf("sessions/list default = %#v, want archived session excluded", defaultList)
+		}
+
+		archiveResult, err := env.call(t, "ext-archive", "sessions/list", map[string]string{
+			"workspace": env.workspaceID,
+			"archive":   "only",
+		})
+		if err != nil {
+			t.Fatalf("Handle(sessions/list archive=only) error = %v", err)
+		}
+		var archivedList []hostAPISessionSummary
+		decodeResult(t, archiveResult, &archivedList)
+		if len(archivedList) != 1 || archivedList[0].ID != sess.ID || archivedList[0].ArchivedAt == nil {
+			t.Fatalf("sessions/list archive=only = %#v, want archived session", archivedList)
+		}
+
+		result, err = env.call(t, "ext-archive", "sessions/unarchive", map[string]string{
+			"workspace_id": env.workspaceID,
+			"session_id":   sess.ID,
+		})
+		if err != nil {
+			t.Fatalf("Handle(sessions/unarchive) error = %v", err)
+		}
+		var restored hostAPISessionStatus
+		decodeResult(t, result, &restored)
+		if restored.ArchivedAt != nil {
+			t.Fatalf("sessions/unarchive result = %#v, want archive marker cleared", restored)
+		}
 	})
-	if err != nil {
-		t.Fatalf("Handle(sessions/archive) error = %v", err)
-	}
-	var archived hostAPISessionStatus
-	decodeResult(t, result, &archived)
-	if archived.ArchivedAt == nil || archived.State != session.StateStopped {
-		t.Fatalf("sessions/archive result = %#v, want archived stopped session", archived)
-	}
-
-	defaultResult, err := env.call(
-		t,
-		"ext-archive",
-		"sessions/list",
-		map[string]string{"workspace": env.workspaceID},
-	)
-	if err != nil {
-		t.Fatalf("Handle(sessions/list default) error = %v", err)
-	}
-	var defaultList []hostAPISessionSummary
-	decodeResult(t, defaultResult, &defaultList)
-	if len(defaultList) != 0 {
-		t.Fatalf("sessions/list default = %#v, want archived session excluded", defaultList)
-	}
-
-	archiveResult, err := env.call(t, "ext-archive", "sessions/list", map[string]string{
-		"workspace": env.workspaceID,
-		"archive":   "only",
-	})
-	if err != nil {
-		t.Fatalf("Handle(sessions/list archive=only) error = %v", err)
-	}
-	var archivedList []hostAPISessionSummary
-	decodeResult(t, archiveResult, &archivedList)
-	if len(archivedList) != 1 || archivedList[0].ID != sess.ID || archivedList[0].ArchivedAt == nil {
-		t.Fatalf("sessions/list archive=only = %#v, want archived session", archivedList)
-	}
-
-	result, err = env.call(t, "ext-archive", "sessions/unarchive", map[string]string{
-		"workspace_id": env.workspaceID,
-		"session_id":   sess.ID,
-	})
-	if err != nil {
-		t.Fatalf("Handle(sessions/unarchive) error = %v", err)
-	}
-	var restored hostAPISessionStatus
-	decodeResult(t, result, &restored)
-	if restored.ArchivedAt != nil {
-		t.Fatalf("sessions/unarchive result = %#v, want archive marker cleared", restored)
-	}
 }
 
 func TestHostAPIHandlerSessionsStatusReturnsAuthorizedState(t *testing.T) {

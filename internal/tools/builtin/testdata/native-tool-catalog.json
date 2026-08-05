@@ -2289,7 +2289,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "7d11b95a06235b3bd74486bcb6af083f20b2dc1bf261af21d0f1cc8f2562b32f",
-    "output_schema_digest": "b97eb6ea4bc792cd27f46f8065e5e6001d3180f8c16a669df6f9f1347802ca00"
+    "output_schema_digest": "8d3bfa6a8b156cf8a52edb3e5af7f23d716bd0da84f9851445772d9ab8db3ee9"
   },
   {
     "tool_id": "compozy__session_create",
@@ -2498,7 +2498,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "7d11b95a06235b3bd74486bcb6af083f20b2dc1bf261af21d0f1cc8f2562b32f",
-    "output_schema_digest": "b97eb6ea4bc792cd27f46f8065e5e6001d3180f8c16a669df6f9f1347802ca00"
+    "output_schema_digest": "8d3bfa6a8b156cf8a52edb3e5af7f23d716bd0da84f9851445772d9ab8db3ee9"
   },
   {
     "tool_id": "compozy__skill_list",

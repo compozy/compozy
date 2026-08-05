@@ -39,6 +39,7 @@ interface SessionGroup {
 export interface OsSessionsModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  dismissalBlocked?: boolean;
   sessions: readonly SessionPayload[];
   archivedSessions: readonly SessionPayload[];
   archivedTotal?: number;
@@ -351,6 +352,7 @@ function ArchivedSessionsSection({
 export function OsSessionsModal({
   open,
   onOpenChange,
+  dismissalBlocked = false,
   sessions,
   archivedSessions,
   archivedTotal,
@@ -358,6 +360,11 @@ export function OsSessionsModal({
   sessionActions,
 }: OsSessionsModalProps) {
   const { coordinator, manager, collapsedAgentIds } = useOsSessionsModal();
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen && dismissalBlocked) return;
+    onOpenChange(nextOpen);
+  };
 
   const selectSession = (session: SessionPayload) => {
     onOpenChange(false);
@@ -370,16 +377,8 @@ export function OsSessionsModal({
       },
     });
   };
-  const actions: SessionLifecycleActionHandlers = {
-    ...sessionActions,
-    onDelete: session => {
-      onOpenChange(false);
-      sessionActions.onDelete(session);
-    },
-  };
-
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         unframed
         showCloseButton={false}
@@ -398,8 +397,8 @@ export function OsSessionsModal({
           collapsedAgentIds={collapsedAgentIds}
           onToggleGroup={agentName => manager.toggleRailGroup(agentName)}
           onSelectSession={selectSession}
-          onClose={() => onOpenChange(false)}
-          sessionActions={actions}
+          onClose={() => handleOpenChange(false)}
+          sessionActions={sessionActions}
         />
       </DialogContent>
     </Dialog>

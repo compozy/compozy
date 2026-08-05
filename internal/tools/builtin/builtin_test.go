@@ -166,12 +166,14 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 
 		descriptors := descriptorMap(NativeDescriptors())
 		assertSessionCreateMutationSchema(t, descriptors[toolspkg.ToolIDSessionCreate])
-		for _, id := range []toolspkg.ToolID{
-			toolspkg.ToolIDSessionArchive,
-			toolspkg.ToolIDSessionUnarchive,
-		} {
-			assertSessionTargetMutationSchema(t, descriptors[id])
-		}
+		t.Run("Should validate the session archive schema", func(t *testing.T) {
+			t.Parallel()
+			assertSessionTargetMutationSchema(t, descriptors[toolspkg.ToolIDSessionArchive])
+		})
+		t.Run("Should validate the session unarchive schema", func(t *testing.T) {
+			t.Parallel()
+			assertSessionTargetMutationSchema(t, descriptors[toolspkg.ToolIDSessionUnarchive])
+		})
 		assertSessionPromptMutationSchema(t, descriptors[toolspkg.ToolIDSessionPrompt])
 		assertSessionRuntimeMutationSchemas(t, descriptors)
 		assertSessionInputSchemas(t, descriptors)
@@ -1437,6 +1439,17 @@ func assertSessionTargetMutationSchema(t *testing.T, descriptor toolspkg.Descrip
 		t.Fatalf("%s input required = %#v, want [session_id]", descriptor.ID, input.Required)
 	}
 	assertSessionMutationEnvelopeSchema(t, descriptor.ID.String()+" output", descriptor.OutputSchema, "session")
+	var output nativeObjectSchema
+	if err := json.Unmarshal(descriptor.OutputSchema, &output); err != nil {
+		t.Fatalf("%s output schema unmarshal error = %v", descriptor.ID, err)
+	}
+	var sessionSchema nativeObjectSchema
+	if err := json.Unmarshal(output.Properties["session"], &sessionSchema); err != nil {
+		t.Fatalf("%s session output schema unmarshal error = %v", descriptor.ID, err)
+	}
+	if _, ok := sessionSchema.Properties["archived_at"]; !ok {
+		t.Fatalf("%s session output schema omits archived_at", descriptor.ID)
+	}
 }
 
 func assertSessionPromptMutationSchema(t *testing.T, descriptor toolspkg.Descriptor) {

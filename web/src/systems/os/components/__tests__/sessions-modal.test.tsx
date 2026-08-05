@@ -6,7 +6,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { SessionLifecycleActionHandlers, SessionPayload } from "@/systems/session";
 
@@ -191,5 +191,57 @@ describe("OsSessionsModal", () => {
     fireEvent.click(screen.getByTestId("session-row-actions-session-archived"));
     expect(screen.getByTestId("session-row-unarchive-session-archived")).toBeInTheDocument();
     expect(screen.queryByTestId("session-row-archive-session-archived")).toBeNull();
+  });
+
+  it("Should keep the catalog open when a row requests delete confirmation", async () => {
+    const shell = createShell();
+    const onDelete = vi.fn();
+    const onOpenChange = vi.fn();
+
+    render(
+      <OsShellContext.Provider value={shell}>
+        <OsSessionsModal
+          open
+          onOpenChange={onOpenChange}
+          sessions={SESSIONS}
+          archivedSessions={[]}
+          archivedTotal={0}
+          disconnected={false}
+          sessionActions={{ ...SESSION_ACTIONS, onDelete }}
+        />
+      </OsShellContext.Provider>
+    );
+
+    fireEvent.click(screen.getAllByTestId("session-row-actions-session-1")[0]!);
+    fireEvent.click(screen.getByTestId("session-row-delete-session-1"));
+
+    expect(onDelete).toHaveBeenCalledWith(SESSIONS[0]);
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
+  it("Should reject dismissal while a nested confirmation blocks it", async () => {
+    const user = userEvent.setup();
+    const shell = createShell();
+    const onOpenChange = vi.fn();
+
+    render(
+      <OsShellContext.Provider value={shell}>
+        <OsSessionsModal
+          open
+          onOpenChange={onOpenChange}
+          dismissalBlocked
+          sessions={SESSIONS}
+          archivedSessions={[]}
+          archivedTotal={0}
+          disconnected={false}
+          sessionActions={SESSION_ACTIONS}
+        />
+      </OsShellContext.Provider>
+    );
+
+    await user.keyboard("{Escape}");
+
+    expect(onOpenChange).not.toHaveBeenCalled();
+    expect(screen.getByTestId("os-sessions-modal")).toBeInTheDocument();
   });
 });

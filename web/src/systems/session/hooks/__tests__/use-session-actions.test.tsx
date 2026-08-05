@@ -515,14 +515,51 @@ describe("session actions", () => {
       await result.current.unarchive.mutateAsync(createdSession.id);
     });
 
-    expect(archiveSession).toHaveBeenCalledWith(WORKSPACE_ID, createdSession.id);
-    expect(unarchiveSession).toHaveBeenCalledWith(WORKSPACE_ID, createdSession.id);
+    expect(archiveSession).toHaveBeenCalledWith(
+      WORKSPACE_ID,
+      createdSession.id,
+      expect.any(AbortSignal)
+    );
+    expect(unarchiveSession).toHaveBeenCalledWith(
+      WORKSPACE_ID,
+      createdSession.id,
+      expect.any(AbortSignal)
+    );
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: sessionKeys.detail(WORKSPACE_ID, createdSession.id),
     });
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: sessionKeys.workspaceLists(WORKSPACE_ID),
     });
+  });
+
+  it("aborts an in-flight archive request when its hook unmounts", async () => {
+    let requestSignal: AbortSignal | undefined;
+    vi.mocked(archiveSession).mockImplementation(
+      (_workspaceId, _sessionId, signal) =>
+        new Promise((_resolve, reject) => {
+          requestSignal = signal;
+          signal?.addEventListener("abort", () =>
+            reject(new DOMException("Aborted", "AbortError"))
+          );
+        })
+    );
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const { result, unmount } = renderHook(() => useArchiveSession(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    let mutation!: Promise<SessionPayload>;
+    act(() => {
+      mutation = result.current.mutateAsync(createdSession.id);
+    });
+    await waitFor(() => expect(requestSignal).toBeInstanceOf(AbortSignal));
+    unmount();
+
+    expect(requestSignal?.aborted).toBe(true);
+    await expect(mutation).rejects.toThrow("Aborted");
   });
 
   it("reports a lifecycle action failure without showing a success notification", async () => {
@@ -541,6 +578,40 @@ describe("session actions", () => {
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith("Archive is unavailable");
     });
+  });
+
+  it("keeps the delete confirmation open until deletion succeeds", async () => {
+    let resolveDelete!: () => void;
+    vi.mocked(deleteSession).mockImplementation(
+      () =>
+        new Promise<void>(resolve => {
+          resolveDelete = resolve;
+        })
+    );
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const { result } = renderHook(() => useSessionLifecycleActions(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    act(() => {
+      result.current.actions.onDelete(createdSession);
+    });
+    expect(result.current.deleteDialog.open).toBe(true);
+
+    act(() => result.current.deleteDialog.onConfirm());
+
+    await waitFor(() => expect(result.current.deleteDialog.isDeleting).toBe(true));
+    expect(result.current.deleteDialog.open).toBe(true);
+    expect(result.current.deleteDialog.session).toEqual(createdSession);
+
+    act(() => result.current.deleteDialog.onOpenChange(false));
+    expect(result.current.deleteDialog.open).toBe(true);
+
+    await act(async () => resolveDelete());
+    await waitFor(() => expect(result.current.deleteDialog.open).toBe(false));
+    expect(result.current.deleteDialog.session).toBeNull();
   });
 
   it("useQueueSessionPrompt builds the canonical durable request from an action identity", async () => {

@@ -6342,26 +6342,34 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("session_list health = %#v, want nested page health", health)
 		}
 
-		for _, testCase := range []struct {
-			id   toolspkg.ToolID
-			want []byte
-		}{
-			{id: toolspkg.ToolIDSessionArchive, want: []byte(`"archived_at":"`)},
-			{id: toolspkg.ToolIDSessionUnarchive, want: []byte(`"archived_at":null`)},
-		} {
+		t.Run("Should archive a session", func(t *testing.T) {
 			result, callErr := registry.Call(
 				t.Context(),
 				toolspkg.Scope{Operator: true},
 				toolspkg.CallRequest{
-					ToolID: testCase.id,
+					ToolID: toolspkg.ToolIDSessionArchive,
 					Input:  json.RawMessage(`{"workspace":"ws-stable","session_id":"sess-1"}`),
 				},
 			)
 			if callErr != nil {
-				t.Fatalf("Registry.Call(%s) error = %v", testCase.id, callErr)
+				t.Fatalf("Registry.Call(session_archive) error = %v", callErr)
 			}
-			requireNativeStructuredContains(t, result, testCase.want)
-		}
+			requireNativeStructuredContains(t, result, []byte(`"archived_at":"`))
+		})
+		t.Run("Should unarchive a session", func(t *testing.T) {
+			result, callErr := registry.Call(
+				t.Context(),
+				toolspkg.Scope{Operator: true},
+				toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDSessionUnarchive,
+					Input:  json.RawMessage(`{"workspace":"ws-stable","session_id":"sess-1"}`),
+				},
+			)
+			if callErr != nil {
+				t.Fatalf("Registry.Call(session_unarchive) error = %v", callErr)
+			}
+			requireNativeStructuredContains(t, result, []byte(`"archived_at":null`))
+		})
 		if archiveTarget != "ws-1/sess-1" || unarchiveTarget != "ws-1/sess-1" {
 			t.Fatalf("archive targets = %q/%q, want ws-1/sess-1", archiveTarget, unarchiveTarget)
 		}

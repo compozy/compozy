@@ -59,7 +59,9 @@ func (g *SessionRepo) SetSessionArchived(
 		WHERE workspace_id = ? AND id = ?`
 	if archived {
 		archivedAt = store.FormatTimestamp(now)
-		query += " AND state = 'stopped'"
+		query += " AND state = 'stopped' AND archived_at IS NULL"
+	} else {
+		query += " AND archived_at IS NOT NULL"
 	}
 	result, err := g.db.ExecContext(
 		ctx,
