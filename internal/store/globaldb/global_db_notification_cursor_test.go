@@ -202,7 +202,6 @@ func TestGlobalDBNotificationCursorStore(t *testing.T) {
 		if err != nil {
 			t.Fatalf("openGlobalMigrationUpgrade() error = %v", err)
 		}
-		ctx = testutil.Context(t)
 		t.Cleanup(func() {
 			if closeErr := globalDB.Close(testutil.Context(t)); closeErr != nil {
 				t.Errorf("GlobalDB.Close() error = %v", closeErr)
