@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"testing"
 
@@ -62,6 +63,48 @@ func TestClearSessionConversationHandler(t *testing.T) {
 		)
 		if recorder.Code != http.StatusConflict {
 			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusConflict, recorder.Body.String())
+		}
+	})
+}
+
+func TestRewindSessionConversationHandler(t *testing.T) {
+	t.Run("Should return the restarted session and draft for the selected durable message", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := newTestHomePaths(t)
+		manager := stubSessionManager{
+			RewindFn: func(_ context.Context, id string, opts session.ConversationRewindOptions) (session.ConversationRewindResult, error) {
+				if id != "sess-123" || opts.MessageID != "msg-2" || opts.IdempotencyKey != "idem-1" ||
+					opts.ExpectedEpoch != 3 ||
+					opts.ExpectedGeneration != 4 || opts.ExpectedMaxSequence != 12 {
+					t.Fatalf("RewindConversation() = %q %#v, want routed request", id, opts)
+				}
+				return session.ConversationRewindResult{
+					Session: newSession(id), TranscriptEpoch: 4, TargetMessageID: opts.MessageID,
+					ArchivedFrom: 8, ArchivedThrough: 13, ArchivedEvents: 6,
+					Generation: 5, MaxSequence: 7, DraftText: "try again",
+				}, nil
+			},
+		}
+		engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, homePaths))
+		epoch, generation, maxSequence := int64(3), int64(4), int64(12)
+		body, err := json.Marshal(contract.SessionConversationRewindRequest{
+			MessageID: "msg-2", IdempotencyKey: "idem-1", ExpectedEpoch: &epoch,
+			ExpectedGeneration: &generation, ExpectedMaxSequence: &maxSequence,
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal() error = %v", err)
+		}
+		recorder := performRequest(t, engine, http.MethodPost,
+			"/api/workspaces/ws-workspace/sessions/sess-123/rewind", body)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+		}
+		var response contract.SessionConversationRewindResponse
+		decodeJSONResponse(t, recorder, &response)
+		if response.Session.ID != "sess-123" || response.Rewind.DraftText != "try again" ||
+			response.Rewind.TranscriptEpoch != 4 {
+			t.Fatalf("response = %#v, want restarted session and selected draft", response)
 		}
 	})
 }

@@ -5,6 +5,7 @@ import {
   formatMessageTimestamp,
   formatMessageTimestampFull,
 } from "@/systems/session/lib/format-timestamp";
+import { SessionRewindMessageAction } from "@/systems/session";
 import { CopyIconButton } from "@compozy/ui";
 import { deriveMessageActions } from "./message-actions.logic";
 
@@ -64,6 +65,7 @@ export function MessageActions({ align, copyLabel, testId }: MessageActionsProps
         <>
           {timestamp}
           {copy}
+          <SessionRewindMessageAction />
         </>
       ) : (
         <>

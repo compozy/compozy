@@ -150,6 +150,8 @@ type stubClient struct {
 	clearSessionRuntimeFn        func(context.Context, string, int64) (SessionRecord, error)
 	sessionRecapFn               func(context.Context, string, int) (SessionRecapRecord, error)
 	repairSessionFn              func(context.Context, string, SessionRepairQuery) (SessionRepairRecord, error)
+	getSessionTranscriptFn       func(context.Context, string) (SessionTranscriptRecord, error)
+	rewindSessionFn              func(context.Context, string, SessionRewindRequest) (SessionRewindRecord, error)
 	approveSessionFn             func(context.Context, string, SessionApprovalRequest) (SessionApprovalRecord, error)
 	listSessionClarificationsFn  func(context.Context, string) (ClarificationsRecord, error)
 	answerSessionClarificationFn func(
@@ -1603,6 +1605,24 @@ func (s *stubClient) RepairSession(
 		return s.repairSessionFn(ctx, id, query)
 	}
 	return SessionRepairRecord{}, errors.New("unexpected RepairSession call")
+}
+
+func (s *stubClient) RewindSession(
+	ctx context.Context,
+	id string,
+	request SessionRewindRequest,
+) (SessionRewindRecord, error) {
+	if s.rewindSessionFn != nil {
+		return s.rewindSessionFn(ctx, id, request)
+	}
+	return SessionRewindRecord{}, errors.New("unexpected RewindSession call")
+}
+
+func (s *stubClient) GetSessionTranscript(ctx context.Context, id string) (SessionTranscriptRecord, error) {
+	if s.getSessionTranscriptFn != nil {
+		return s.getSessionTranscriptFn(ctx, id)
+	}
+	return SessionTranscriptRecord{}, errors.New("unexpected GetSessionTranscript call")
 }
 
 func (s *stubClient) ApproveSession(

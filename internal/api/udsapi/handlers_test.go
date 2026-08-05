@@ -392,6 +392,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"POST /api/workspaces/:workspace_id/sessions/:session_id/approve",
 			"POST /api/workspaces/:workspace_id/sessions/:session_id/clarifications/:request_id/answer",
 			"POST /api/workspaces/:workspace_id/sessions/:session_id/clear",
+			"POST /api/workspaces/:workspace_id/sessions/:session_id/rewind",
 			"POST /api/workspaces/:workspace_id/sessions/:session_id/prompt",
 			"POST /api/workspaces/:workspace_id/sessions/:session_id/prompt/cancel",
 			"POST /api/workspaces/:workspace_id/sessions/:session_id/steer",

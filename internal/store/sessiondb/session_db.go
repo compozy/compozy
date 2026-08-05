@@ -32,6 +32,7 @@ type sessionWriteRequest struct {
 	usage   store.TokenUsage
 	hook    hookspkg.HookRunRecord
 	archive store.EventArchiveRequest
+	rewind  *store.ConversationRewindRequest
 	result  chan sessionWriteResult
 }
 
@@ -39,6 +40,7 @@ type sessionWriteResult struct {
 	event   store.SessionEvent
 	events  []store.SessionEvent
 	archive store.EventArchiveResult
+	rewind  store.ConversationRewindResult
 	err     error
 }
 
@@ -67,6 +69,8 @@ type SessionDB struct {
 
 var _ store.EventRecorder = (*SessionDB)(nil)
 var _ store.EventArchiver = (*SessionDB)(nil)
+var _ store.ConversationRewinder = (*SessionDB)(nil)
+var _ store.ConversationRewindReader = (*SessionDB)(nil)
 
 // OpenSessionDB opens or creates the per-session events database at path.
 func OpenSessionDB(ctx context.Context, owner store.SessionDBOwner, path string) (*SessionDB, error) {

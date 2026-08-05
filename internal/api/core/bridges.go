@@ -35,7 +35,7 @@ type bridgeScopeQuery struct {
 func (h *BaseHandlers) parseBridgeScopeQuery(ctx context.Context, c *gin.Context) (bridgeScopeQuery, error) {
 	scope := strings.ToLower(strings.TrimSpace(c.Query("scope")))
 	switch scope {
-	case "", "all", string(bridgepkg.ScopeGlobal), string(bridgepkg.ScopeWorkspace):
+	case "", queryFilterAllValue, string(bridgepkg.ScopeGlobal), string(bridgepkg.ScopeWorkspace):
 	default:
 		return bridgeScopeQuery{}, fmt.Errorf("%s: unsupported bridge list scope %q", h.transportName(), scope)
 	}

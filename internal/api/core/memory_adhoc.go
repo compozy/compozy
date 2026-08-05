@@ -107,7 +107,7 @@ func memoryDailyLogPayload(record memory.DailyLogRecord) contract.MemoryDailyLog
 func memoryDailyLogPath(record memory.DailyLogRecord) string {
 	selector := string(record.Scope.Normalize())
 	if selector == "" {
-		selector = "all"
+		selector = memoryDailyLogDefaultSelector
 	}
 	return "memory://daily/" + strings.TrimSpace(record.Date) + "/" + selector
 }

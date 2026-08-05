@@ -14,6 +14,7 @@
         "remove",
         "repair",
         "resume",
+        "rewind",
         "status",
         "stop",
         "usage",

@@ -16,7 +16,7 @@ func agentCatalogOperations() []OperationSpec {
 				queryParam("name", "Exact agent name", false),
 				queryParam("q", "Case-insensitive agent name or category search", false),
 				queryParam("category", "Exact category path joined by slash separators", false),
-				enumQueryParam("status", "Agent session status", []string{"active", "idle"}),
+				enumQueryParam("status", "Agent session status", []string{specActiveKey, "idle"}),
 				queryParam("cursor", "Opaque cursor bound to workspace and filters", false),
 				intQueryParam("limit", "Agents per page (1-100; default 50)"),
 			},

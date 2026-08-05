@@ -1,19 +1,22 @@
-import { useRef, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { AssistantRuntimeProvider, DataRenderers, Tools, useAui } from "@assistant-ui/react";
 import { useSelector } from "@xstate/store-react";
 
-import { useMergedSessionRuntimeTranscript } from "../hooks/use-merged-session-runtime-transcript";
-import { useSessionChatRuntime } from "../hooks/use-session-chat-runtime";
 import { SessionPromptDispatchPendingProvider } from "@/components/assistant-ui/session-prompt-dispatch-context";
 import {
   createSessionPromptDispatchStore,
   type SessionPromptDispatchStore,
 } from "@/components/assistant-ui/session-prompt-dispatch-store";
-import type { SessionStreamEventSourceFactory } from "../hooks/use-session-live-tail";
-import { CompozyEventDataUI, CompozyPermissionDataUI } from "../lib/session-data-ui";
-import { sessionToolkit } from "../lib/session-toolkit";
-import { SessionRuntimeRenderProvider } from "../lib/session-runtime-render-context";
-import { SessionTranscriptThreadProvider } from "../lib/session-transcript-thread-context";
+import { useMergedSessionRuntimeTranscript } from "@/systems/session/hooks/use-merged-session-runtime-transcript";
+import { useSessionChatRuntime } from "@/systems/session/hooks/use-session-chat-runtime";
+import { useSessionClarifications } from "@/systems/session/hooks/use-session-clarifications";
+import { useSessionInputs } from "@/systems/session/hooks/use-session-inputs";
+import type { SessionStreamEventSourceFactory } from "@/systems/session/hooks/use-session-live-tail";
+import { CompozyEventDataUI, CompozyPermissionDataUI } from "@/systems/session/lib/session-data-ui";
+import { derivePendingPermissions } from "@/systems/session/lib/pending-permissions";
+import { sessionToolkit } from "@/systems/session/lib/session-toolkit";
+import { SessionRuntimeRenderProvider } from "@/systems/session/lib/session-runtime-render-context";
+import { SessionTranscriptThreadProvider } from "@/systems/session/lib/session-transcript-thread-context";
 
 function SessionRuntimeExtensions({
   sessionId,
@@ -28,15 +31,38 @@ function SessionRuntimeExtensions({
   liveTailEnabled: boolean;
   children: ReactNode;
 }) {
+  const aui = useAui();
+  const [streamResetGeneration, setStreamResetGeneration] = useState(0);
   const transcript = useMergedSessionRuntimeTranscript({
     eventSourceFactory,
     liveTailEnabled,
+    resetGeneration: streamResetGeneration,
     sessionId,
     workspaceId,
   });
+  const clarifications = useSessionClarifications(workspaceId, sessionId);
+  const inputs = useSessionInputs(workspaceId, sessionId);
+  const rewindBlocked =
+    derivePendingPermissions(transcript.messages).length > 0 ||
+    clarifications.isPending ||
+    clarifications.isError ||
+    (clarifications.data?.length ?? 0) > 0 ||
+    inputs.isPending ||
+    inputs.isError ||
+    (inputs.data?.inputs.length ?? 0) > 0;
+  const resetRuntime = () => {
+    aui.thread.reset();
+    setStreamResetGeneration(generation => generation + 1);
+  };
 
   return (
-    <SessionRuntimeRenderProvider sessionId={sessionId} workspaceId={workspaceId}>
+    <SessionRuntimeRenderProvider
+      durableMessageIds={transcript.durableMessageIds}
+      resetRuntime={resetRuntime}
+      rewindBlocked={rewindBlocked}
+      sessionId={sessionId}
+      workspaceId={workspaceId}
+    >
       <SessionTranscriptThreadProvider
         liveMessages={transcript.liveMessages}
         messages={transcript.messages}

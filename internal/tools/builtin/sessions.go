@@ -27,6 +27,7 @@ var sessionTools = []toolspkg.Descriptor{
 	sessionListDescriptor(),
 	sessionCreateDescriptor(),
 	sessionPromptDescriptor(),
+	sessionRewindDescriptor(),
 	sessionRuntimeSetDescriptor(),
 	sessionRuntimeClearDescriptor(),
 	sessionInputsListDescriptor(),
@@ -484,7 +485,8 @@ const sessionEventQueryInputSchema = `{
 		"turn_id":{"type":"string"},
 		"after_sequence":{"type":"integer"},
 		"limit":{"type":"integer"},
-		"since":{"type":"string"}
+		"since":{"type":"string"},
+		"archive":{"type":"string","enum":["active","archived","all"]}
 	},
 	"additionalProperties":false
 }`

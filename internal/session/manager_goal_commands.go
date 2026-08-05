@@ -30,6 +30,11 @@ func (m *Manager) dispatchGoalCommand(
 	if !matched {
 		return GoalDispatchDecision{}, false, nil
 	}
+	ctx, unlockConversation, err := m.lockConversationOperation(ctx, req.target)
+	if err != nil {
+		return GoalDispatchDecision{}, true, err
+	}
+	defer unlockConversation()
 	workspaceID, lookupErr := m.goalCommandWorkspaceID(ctx, req.target)
 	if lookupErr != nil {
 		return GoalDispatchDecision{}, true, lookupErr

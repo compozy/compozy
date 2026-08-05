@@ -145,6 +145,103 @@ func TestSessionPromptPassesRuntimeSelection(t *testing.T) {
 	})
 }
 
+func TestSessionRewindForwardsTranscriptFences(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should forward the selected message identity and render the rewind result", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			rewindSessionFn: func(
+				_ context.Context,
+				id string,
+				request SessionRewindRequest,
+			) (SessionRewindRecord, error) {
+				if id != "sess-1" || request.MessageID != "msg-user-2" ||
+					request.IdempotencyKey != "idem-rewind-1" || request.ExpectedEpoch == nil ||
+					*request.ExpectedEpoch != 3 || request.ExpectedGeneration == nil ||
+					*request.ExpectedGeneration != 8 || request.ExpectedMaxSequence == nil ||
+					*request.ExpectedMaxSequence != 42 {
+					t.Fatalf("RewindSession() id = %q request = %#v", id, request)
+				}
+				return SessionRewindRecord{
+					Session: contract.SessionPayload{ID: id},
+					Rewind: contract.SessionConversationRewindPayload{
+						TranscriptEpoch: 4,
+						TargetMessageID: "msg-user-2",
+						ArchivedEvents:  7,
+						Generation:      9,
+						MaxSequence:     18,
+						DraftText:       "Try a different direction",
+					},
+				}, nil
+			},
+		})
+
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"session", "rewind", "sess-1",
+			"--message-id", "msg-user-2",
+			"--idempotency-key", "idem-rewind-1",
+			"--expected-epoch", "3",
+			"--expected-generation", "8",
+			"--expected-max-sequence", "42",
+			"-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(session rewind) error = %v", err)
+		}
+		var decoded SessionRewindRecord
+		if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
+			t.Fatalf("json.Unmarshal(session rewind) error = %v", err)
+		}
+		if decoded.Rewind.TargetMessageID != "msg-user-2" || decoded.Rewind.DraftText != "Try a different direction" {
+			t.Fatalf("session rewind output = %#v", decoded)
+		}
+	})
+
+	t.Run("Should read current transcript fences when no overrides are provided", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			getSessionTranscriptFn: func(_ context.Context, id string) (SessionTranscriptRecord, error) {
+				if id != "sess-1" {
+					t.Fatalf("GetSessionTranscript() id = %q, want sess-1", id)
+				}
+				return SessionTranscriptRecord{Epoch: 5, Generation: 9, MaxSequence: 44}, nil
+			},
+			rewindSessionFn: func(
+				_ context.Context,
+				_ string,
+				request SessionRewindRequest,
+			) (SessionRewindRecord, error) {
+				if request.ExpectedEpoch == nil || *request.ExpectedEpoch != 5 ||
+					request.ExpectedGeneration == nil || *request.ExpectedGeneration != 9 ||
+					request.ExpectedMaxSequence == nil || *request.ExpectedMaxSequence != 44 {
+					t.Fatalf("RewindSession() request = %#v", request)
+				}
+				return SessionRewindRecord{
+					Session: contract.SessionPayload{ID: "sess-1"},
+					Rewind:  contract.SessionConversationRewindPayload{TargetMessageID: "msg-user-2"},
+				}, nil
+			},
+		})
+
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"session", "rewind", "sess-1",
+			"--message-id", "msg-user-2",
+			"--idempotency-key", "idem-auto-fence",
+			"-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(session rewind auto fence) error = %v", err)
+		}
+	})
+}
+
 func TestSessionRuntimeCommandsPersistSelection(t *testing.T) {
 	t.Parallel()
 

@@ -15,7 +15,7 @@ import (
 
 const (
 	nativeListPageKey       = "page"
-	nativeBridgeScopeAll    = "all"
+	nativeBridgeScopeAll    = nativeFilterAllValue
 	nativeBridgeScopeGlobal = "global"
 )
 

@@ -83,6 +83,11 @@ type SessionManager interface {
 	StopWithCause(ctx context.Context, id string, cause session.StopCause, detail string) error
 	Resume(ctx context.Context, id string) (*session.Session, error)
 	ClearConversation(ctx context.Context, id string) (*session.Session, error)
+	RewindConversation(
+		ctx context.Context,
+		id string,
+		opts session.ConversationRewindOptions,
+	) (session.ConversationRewindResult, error)
 	Prompt(ctx context.Context, id string, msg string) (<-chan acp.AgentEvent, error)
 	PromptWithOpts(ctx context.Context, id string, opts session.PromptOpts) (<-chan acp.AgentEvent, error)
 	PromptSynthetic(ctx context.Context, id string, opts session.SyntheticPromptOpts) (<-chan acp.AgentEvent, error)

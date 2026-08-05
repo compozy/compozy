@@ -68,6 +68,8 @@ const (
 	ToolIDSessionCreate ToolID = "compozy__session_create"
 	// ToolIDSessionPrompt submits one prompt with an optional runtime snapshot.
 	ToolIDSessionPrompt ToolID = "compozy__session_prompt"
+	// ToolIDSessionRewind archives a conversation suffix and restarts the session context.
+	ToolIDSessionRewind ToolID = "compozy__session_rewind"
 	// ToolIDSessionRuntimeSet selects the default runtime for future prompts.
 	ToolIDSessionRuntimeSet ToolID = "compozy__session_runtime_set"
 	// ToolIDSessionRuntimeClear clears the default runtime for future prompts.

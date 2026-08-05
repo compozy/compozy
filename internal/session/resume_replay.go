@@ -35,13 +35,19 @@ func (m *Manager) buildResumeReplay(
 		return "", 0, errors.New("session: resume replay event recorder is not available")
 	}
 
-	events, err := recorder.Query(ctx, store.EventQuery{Archive: store.EventArchiveUnarchived})
+	messages, hasRewindBaseline, err := conversationRewindReplayBaseline(ctx, recorder)
 	if err != nil {
-		return "", 0, fmt.Errorf("session: query persisted events for resume replay: %w", err)
+		return "", 0, err
 	}
-	messages, err := transcript.Assemble(events)
-	if err != nil {
-		return "", 0, fmt.Errorf("session: assemble persisted resume replay: %w", err)
+	if !hasRewindBaseline {
+		events, queryErr := recorder.Query(ctx, store.EventQuery{Archive: store.EventArchiveUnarchived})
+		if queryErr != nil {
+			return "", 0, fmt.Errorf("session: query persisted events for resume replay: %w", queryErr)
+		}
+		messages, err = transcript.Assemble(events)
+		if err != nil {
+			return "", 0, fmt.Errorf("session: assemble persisted resume replay: %w", err)
+		}
 	}
 	messages = transcript.Prune(messages, transcript.PruneOptions{Dedup: true})
 	payload, err := json.Marshal(messages)
@@ -80,6 +86,39 @@ func (m *Manager) buildResumeReplay(
 	}, "\n"))
 	block := strings.Join(sections, "\n\n")
 	return block, len(messages), nil
+}
+
+func conversationRewindReplayBaseline(
+	ctx context.Context,
+	recorder EventRecorder,
+) ([]transcript.Message, bool, error) {
+	reader, ok := recorder.(store.ConversationRewindReader)
+	if !ok {
+		return nil, false, nil
+	}
+	state, found, err := reader.ConversationRewindState(ctx)
+	if err != nil {
+		return nil, false, fmt.Errorf("session: read conversation rewind replay state: %w", err)
+	}
+	if !found {
+		return nil, false, nil
+	}
+	var messages []transcript.Message
+	if err := json.Unmarshal([]byte(state.MessagesJSON), &messages); err != nil {
+		return nil, true, fmt.Errorf("session: decode conversation rewind replay baseline: %w", err)
+	}
+	events, err := recorder.Query(ctx, store.EventQuery{
+		AfterSequence: state.CoveredThroughSequence,
+		Archive:       store.EventArchiveUnarchived,
+	})
+	if err != nil {
+		return nil, true, fmt.Errorf("session: query conversation rewind replay suffix: %w", err)
+	}
+	suffix, err := transcript.Assemble(events)
+	if err != nil {
+		return nil, true, fmt.Errorf("session: assemble conversation rewind replay suffix: %w", err)
+	}
+	return append(messages, suffix...), true, nil
 }
 
 func promptWithResumeReplay(replayBlock string, message string) string {

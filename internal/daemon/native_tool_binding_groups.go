@@ -62,6 +62,10 @@ func (n *daemonNativeTools) sessionToolBindings(
 			call:         n.sessionPrompt,
 			availability: availability,
 		},
+		toolspkg.ToolIDSessionRewind: {
+			call:         n.sessionRewind,
+			availability: availability,
+		},
 		toolspkg.ToolIDSessionRuntimeSet: {
 			call:         n.sessionRuntimeSet,
 			availability: runtimeAvailability,

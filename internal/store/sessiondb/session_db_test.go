@@ -66,6 +66,8 @@ func TestOpenSessionDBCreatesSchemaAndEnablesWAL(t *testing.T) {
 			"transcript_projection_state",
 			"transcript_entries",
 			"transcript_tool_routes",
+			"conversation_rewind_state",
+			"conversation_rewind_receipts",
 		)
 		assertUniqueIndex(t, sessionDB.db, "events", "idx_events_sequence")
 		assertJournalModeWAL(t, sessionDB.db)
@@ -600,8 +602,8 @@ func TestOpenSessionDBAppliesBaselineAndRepeatedBootIsIdempotent(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Status(first) error = %v", err)
 		}
-		if firstStatus.Version != 5 || firstStatus.AppliedCount != 5 {
-			t.Fatalf("Status(first) = %#v, want version/applied count 5", firstStatus)
+		if firstStatus.Version != 6 || firstStatus.AppliedCount != 6 {
+			t.Fatalf("Status(first) = %#v, want version/applied count 6", firstStatus)
 		}
 		if err := verifySessionDBOwner(ctx, first.db, testSessionDBOwner("sess-idempotent")); err != nil {
 			t.Fatalf("verifySessionDBOwner() error = %v", err)
@@ -749,8 +751,8 @@ func TestOpenSessionDBAppliesBaselineAndRepeatedBootIsIdempotent(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Status(engine-migrated) error = %v", err)
 		}
-		if status.Version != 5 || status.AppliedCount != 5 {
-			t.Fatalf("Status(engine-migrated) = %#v, want version/applied count 5", status)
+		if status.Version != 6 || status.AppliedCount != 6 {
+			t.Fatalf("Status(engine-migrated) = %#v, want version/applied count 6", status)
 		}
 		migratedOwner := testSessionDBOwner("sess-prefix-upgrade")
 		if _, err := migrationDB.ExecContext(
@@ -1539,6 +1541,182 @@ func TestSessionDBTranscriptProjection(t *testing.T) {
 		}
 		if len(events) != 0 {
 			t.Fatalf("len(events) = %d, want raw event rollback", len(events))
+		}
+	})
+
+	t.Run("Should archive the suffix and preserve the rewind receipt across reopen", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		path := filepath.Join(t.TempDir(), SessionDatabaseName)
+		owner := testSessionDBOwner("sess-transcript-rewind")
+		sessionDB, err := OpenSessionDB(ctx, owner, path)
+		if err != nil {
+			t.Fatalf("OpenSessionDB() error = %v", err)
+		}
+		var closeSessionDBErr error
+		closeSessionDB := func() error {
+			if sessionDB == nil {
+				return closeSessionDBErr
+			}
+			closeSessionDBErr = sessionDB.Close(ctx)
+			sessionDB = nil
+			return closeSessionDBErr
+		}
+		t.Cleanup(func() {
+			if err := closeSessionDB(); err != nil {
+				t.Errorf("Close(session DB cleanup) error = %v", err)
+			}
+		})
+		input := []SessionEvent{
+			canonicalStoreEvent(t, acp.AgentEvent{
+				Type: acp.EventTypeUserMessage, SessionID: owner.SessionID,
+				TurnID: "turn-1", Text: "keep",
+			}, "coder"),
+			canonicalStoreEvent(t, acp.AgentEvent{
+				Type: acp.EventTypeAgentMessage, SessionID: owner.SessionID,
+				TurnID: "turn-1", Text: "kept answer",
+			}, "coder"),
+			canonicalStoreEvent(t, acp.AgentEvent{
+				Type: acp.EventTypeUserMessage, SessionID: owner.SessionID,
+				TurnID: "turn-2", Text: "try again",
+			}, "coder"),
+			canonicalStoreEvent(t, acp.AgentEvent{
+				Type: acp.EventTypeAgentMessage, SessionID: owner.SessionID,
+				TurnID: "turn-2", Text: "discarded answer",
+			}, "coder"),
+		}
+		if _, err := sessionDB.RecordPersistedBatch(ctx, input); err != nil {
+			t.Fatalf("RecordPersistedBatch() error = %v", err)
+		}
+		page, err := sessionDB.TranscriptPage(ctx, transcript.PageQuery{Limit: 10})
+		if err != nil {
+			t.Fatalf("TranscriptPage() error = %v", err)
+		}
+		if got, want := len(page.Entries), 4; got != want {
+			t.Fatalf("len(page.Entries) = %d, want %d", got, want)
+		}
+		target := page.Entries[2]
+		prefixEvents, err := sessionDB.Query(ctx, EventQuery{
+			BeforeSequence: target.StartSequence,
+			Archive:        store.EventArchiveUnarchived,
+		})
+		if err != nil {
+			t.Fatalf("Query(prefix) error = %v", err)
+		}
+		messages, err := transcript.Assemble(prefixEvents)
+		if err != nil {
+			t.Fatalf("Assemble(prefix) error = %v", err)
+		}
+		baseline, err := json.Marshal(messages)
+		if err != nil {
+			t.Fatalf("json.Marshal(prefix) error = %v", err)
+		}
+		result, err := sessionDB.RewindConversation(ctx, store.ConversationRewindRequest{
+			MessageID: target.Message.ID, IdempotencyKey: "idem-rewind", RequestHash: "hash-rewind",
+			ExpectedGeneration: page.Generation, ExpectedMaxSequence: page.MaxSequence,
+			TranscriptEpoch: 2, BaselineJSON: string(baseline),
+		})
+		if err != nil {
+			t.Fatalf("RewindConversation() error = %v", err)
+		}
+		if result.DraftText != "try again" || result.ArchivedEventCount != 2 || result.TranscriptEpoch != 2 {
+			t.Fatalf("RewindConversation() = %#v, want selected prompt and two archived events", result)
+		}
+		if got, want := result.MaxSequence, target.StartSequence-1; got != want {
+			t.Fatalf("RewindConversation().MaxSequence = %d, want active prefix max %d", got, want)
+		}
+		after, err := sessionDB.TranscriptPage(ctx, transcript.PageQuery{Limit: 10})
+		if err != nil {
+			t.Fatalf("TranscriptPage(after rewind) error = %v", err)
+		}
+		if got, want := len(after.Entries), 2; got != want {
+			t.Fatalf("len(after.Entries) = %d, want %d", got, want)
+		}
+		if got, want := after.MaxSequence, result.MaxSequence; got != want {
+			t.Fatalf("TranscriptPage(after rewind).MaxSequence = %d, want %d", got, want)
+		}
+		if _, err := sessionDB.AppendEventIfAbsent(ctx, SessionEvent{
+			ID: "rewind:audit", TurnID: "rewind:audit", Type: "session.conversation_rewound",
+			AgentName: "coder", Content: `{"target_message_id":"discarded"}`,
+			Archived: true, Timestamp: time.Now().UTC(),
+		}); err != nil {
+			t.Fatalf("AppendEventIfAbsent(archived audit) error = %v", err)
+		}
+		afterAudit, err := sessionDB.TranscriptPage(ctx, transcript.PageQuery{Limit: 10})
+		if err != nil {
+			t.Fatalf("TranscriptPage(after archived audit) error = %v", err)
+		}
+		if len(afterAudit.Entries) != len(after.Entries) || afterAudit.MaxSequence != after.MaxSequence {
+			t.Fatalf("TranscriptPage(after archived audit) = %#v, want unchanged active projection", afterAudit)
+		}
+		archived, err := sessionDB.Query(ctx, EventQuery{Archive: store.EventArchiveArchived})
+		if err != nil {
+			t.Fatalf("Query(archived) error = %v", err)
+		}
+		if got, want := len(archived), 3; got != want {
+			t.Fatalf("len(archived) = %d, want %d", got, want)
+		}
+		if err := closeSessionDB(); err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+		reopened, err := OpenSessionDB(ctx, owner, path)
+		if err != nil {
+			t.Fatalf("OpenSessionDB(reopen) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := reopened.Close(testutil.Context(t)); err != nil {
+				t.Errorf("Close(reopened) error = %v", err)
+			}
+		})
+		replayed, found, err := reopened.ConversationRewindReceipt(ctx, "idem-rewind", "hash-rewind")
+		if err != nil {
+			t.Fatalf("ConversationRewindReceipt() error = %v", err)
+		}
+		if !found || !replayed.Replayed || replayed.TargetMessageID != target.Message.ID {
+			t.Fatalf("ConversationRewindReceipt() = (%#v, %t), want durable replay", replayed, found)
+		}
+	})
+
+	t.Run("Should reject rewind when compaction archived a visible retained prefix", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		sessionDB := openTestSessionDB(t, "sess-transcript-rewind-compacted")
+		input := []SessionEvent{
+			canonicalStoreEvent(t, acp.AgentEvent{
+				Type: acp.EventTypeUserMessage, SessionID: sessionDB.owner.SessionID,
+				TurnID: "turn-1", Text: "compacted",
+			}, "coder"),
+			canonicalStoreEvent(t, acp.AgentEvent{
+				Type: acp.EventTypeAgentMessage, SessionID: sessionDB.owner.SessionID,
+				TurnID: "turn-1", Text: "old answer",
+			}, "coder"),
+			canonicalStoreEvent(t, acp.AgentEvent{
+				Type: acp.EventTypeUserMessage, SessionID: sessionDB.owner.SessionID,
+				TurnID: "turn-2", Text: "visible target",
+			}, "coder"),
+		}
+		persisted, err := sessionDB.RecordPersistedBatch(ctx, input)
+		if err != nil {
+			t.Fatalf("RecordPersistedBatch() error = %v", err)
+		}
+		if _, err := sessionDB.ArchiveEvents(ctx, store.EventArchiveRequest{
+			FromSequence: persisted[0].Sequence,
+			ToSequence:   persisted[1].Sequence,
+		}); err != nil {
+			t.Fatalf("ArchiveEvents(compacted prefix) error = %v", err)
+		}
+		page, err := sessionDB.TranscriptPage(ctx, transcript.PageQuery{Limit: 10})
+		if err != nil {
+			t.Fatalf("TranscriptPage() error = %v", err)
+		}
+		if got, want := len(page.Entries), 3; got != want {
+			t.Fatalf("len(visible entries) = %d, want %d", got, want)
+		}
+		_, err = sessionDB.ConversationRewindTarget(ctx, page.Entries[2].Message.ID)
+		if !errors.Is(err, store.ErrConversationRewindTargetInvalid) {
+			t.Fatalf("ConversationRewindTarget(compacted prefix) error = %v, want target invalid", err)
 		}
 	})
 }

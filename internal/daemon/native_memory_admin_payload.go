@@ -16,7 +16,7 @@ import (
 	yaml "github.com/goccy/go-yaml"
 )
 
-const nativeMemoryAdminScopeAll = "all"
+const nativeMemoryAdminScopeAll = nativeFilterAllValue
 
 func nativeMemoryAdminHeaderAndBody(content []byte) (memcontract.Header, string, error) {
 	var header memcontract.Header

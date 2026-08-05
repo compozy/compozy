@@ -96,9 +96,10 @@ type Info struct {
 
 // Session is the in-memory runtime representation of one active or stopping session.
 type Session struct {
-	mu            sync.RWMutex
-	persistMu     sync.Mutex
-	networkPeerMu sync.Mutex
+	mu                         sync.RWMutex
+	persistMu                  sync.Mutex
+	networkPeerMu              sync.Mutex
+	conversationRewindReserved bool
 
 	ID                       string
 	Name                     string

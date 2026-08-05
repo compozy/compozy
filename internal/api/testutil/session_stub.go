@@ -7,7 +7,6 @@ import (
 	core "github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
-	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/transcript"
 )
@@ -36,9 +35,14 @@ type StubSessionManager struct {
 	SetRuntimeSelectionFn   func(context.Context, string, session.RuntimeSelection, int64) (*session.Info, error)
 	ClearRuntimeSelectionFn func(context.Context, string, int64) (*session.Info, error)
 	ClearFn                 func(context.Context, string) (*session.Session, error)
-	PromptFn                func(context.Context, string, string) (<-chan acp.AgentEvent, error)
-	PromptWithOptsFn        func(context.Context, string, session.PromptOpts) (<-chan acp.AgentEvent, error)
-	PromptSyntheticFn       func(
+	RewindFn                func(
+		context.Context,
+		string,
+		session.ConversationRewindOptions,
+	) (session.ConversationRewindResult, error)
+	PromptFn          func(context.Context, string, string) (<-chan acp.AgentEvent, error)
+	PromptWithOptsFn  func(context.Context, string, session.PromptOpts) (<-chan acp.AgentEvent, error)
+	PromptSyntheticFn func(
 		context.Context,
 		string,
 		session.SyntheticPromptOpts,
@@ -324,6 +328,17 @@ func (s StubSessionManager) ClearConversation(
 	return nil, session.ErrSessionNotFound
 }
 
+func (s StubSessionManager) RewindConversation(
+	ctx context.Context,
+	id string,
+	opts session.ConversationRewindOptions,
+) (session.ConversationRewindResult, error) {
+	if s.RewindFn != nil {
+		return s.RewindFn(ctx, id, opts)
+	}
+	return session.ConversationRewindResult{}, session.ErrSessionNotFound
+}
+
 func (s StubSessionManager) Prompt(ctx context.Context, id string, msg string) (<-chan acp.AgentEvent, error) {
 	if s.PromptFn != nil {
 		return s.PromptFn(ctx, id, msg)
@@ -455,44 +470,3 @@ var _ core.SessionManager = (*StubSessionManager)(nil)
 var _ core.SessionCatalog = (*StubSessionManager)(nil)
 var _ core.SessionCatalogEventSubscriber = (*StubSessionManager)(nil)
 var _ core.AgentSessionMetricsReader = (*StubSessionManager)(nil)
-
-func storeSessionInfoFromRuntime(info *session.Info) store.SessionInfo {
-	storeInfo := store.SessionInfo{
-		ID:                info.ID,
-		Name:              info.Name,
-		AgentName:         info.AgentName,
-		Provider:          info.Provider,
-		Model:             info.Model,
-		ReasoningEffort:   info.ReasoningEffort,
-		Speed:             info.Speed,
-		SpeedResolution:   speedpkg.CloneResolution(info.SpeedResolution),
-		RuntimeStatus:     info.RuntimeStatus,
-		RuntimeTransition: info.RuntimeTransition,
-		RuntimeFailure:    info.RuntimeFailure,
-		WorkspaceID:       info.WorkspaceID,
-		SessionNetworkState: &store.SessionNetworkState{
-			NetworkSpec: info.NetworkParticipation,
-		},
-		SessionType:      string(info.Type),
-		Lineage:          info.Lineage,
-		State:            string(info.State),
-		StopReason:       info.StopReason,
-		StopDetail:       info.StopDetail,
-		Failure:          info.Failure,
-		Liveness:         info.Liveness,
-		Sandbox:          info.Sandbox,
-		SoulSnapshotID:   info.SoulSnapshotID,
-		SoulDigest:       info.SoulDigest,
-		ParentSoulDigest: info.ParentSoulDigest,
-		AttachedTo:       info.AttachedTo,
-		AttachExpiresAt:  info.AttachExpiresAt,
-		TranscriptEpoch:  info.TranscriptEpoch,
-		CreatedAt:        info.CreatedAt,
-		UpdatedAt:        info.UpdatedAt,
-	}
-	if info.ACPSessionID != "" {
-		acpSessionID := info.ACPSessionID
-		storeInfo.ACPSessionID = &acpSessionID
-	}
-	return storeInfo
-}

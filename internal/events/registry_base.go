@@ -20,6 +20,7 @@ var baseRegistryEntries = []Metadata{
 	notify(warning(SessionHung, "session", ComponentSession)),
 	notify(success(SessionRecovered, "session", ComponentSession)),
 	info(SessionCompactionFired, "session", ComponentSession),
+	info(SessionConversationRewound, "session", ComponentSession),
 
 	info(TaskCreated, "task", ComponentTask),
 	info(TaskUpdated, "task", ComponentTask),

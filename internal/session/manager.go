@@ -35,6 +35,12 @@ var (
 	ErrInvalidRuntimeOverride = errors.New("session: invalid runtime override")
 	// ErrValidation reports structurally invalid session creation input.
 	ErrValidation = errors.New("session: validation failed")
+	// ErrConversationRewindBusy reports that live session work prevents a safe rewind.
+	ErrConversationRewindBusy = errors.New("session: conversation rewind requires an idle session")
+	// ErrConversationRewindManaged reports that daemon-managed sessions cannot be rewound.
+	ErrConversationRewindManaged = errors.New("session: managed sessions cannot be rewound")
+	// ErrConversationRewindFenceConflict reports that the visible transcript changed before rewind.
+	ErrConversationRewindFenceConflict = errors.New("session: conversation rewind transcript changed")
 )
 
 // NewManager constructs a session manager with sensible defaults.
@@ -45,13 +51,14 @@ func NewManager(opts ...Option) (*Manager, error) {
 	}
 
 	manager := &Manager{
-		sessions:             make(map[string]*Session),
-		pending:              make(map[string]sessionReservation),
-		finalizing:           make(map[string]*sessionFinalization),
-		clearFinalizing:      make(map[string]chan struct{}),
-		promptDrains:         make(map[chan struct{}]struct{}),
-		managedInputLeases:   make(map[string]managedInputLease),
-		promptAdmissionLocks: make(map[string]*promptAdmissionLock),
+		sessions:                   make(map[string]*Session),
+		pending:                    make(map[string]sessionReservation),
+		finalizing:                 make(map[string]*sessionFinalization),
+		conversationFinalizing:     make(map[string]chan struct{}),
+		conversationOperationLocks: make(map[string]*conversationOperationLock),
+		promptDrains:               make(map[chan struct{}]struct{}),
+		managedInputLeases:         make(map[string]managedInputLease),
+		promptAdmissionLocks:       make(map[string]*promptAdmissionLock),
 		compactionLifecycle: sessionCompactionLifecycle{
 			runs: make(map[string]*sessionCompactionState),
 		},
@@ -137,42 +144,42 @@ func (m *Manager) isPending(id string) bool {
 	if _, ok := m.pending[target]; ok {
 		return true
 	}
-	_, ok := m.clearFinalizing[target]
+	_, ok := m.conversationFinalizing[target]
 	return ok
 }
 
-func (m *Manager) beginClearFinalization(id string) error {
+func (m *Manager) beginConversationFinalization(id string) error {
 	target := strings.TrimSpace(id)
 	if target == "" {
-		return errors.New("session: clear finalization session id is required")
+		return errors.New("session: conversation finalization session id is required")
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if _, exists := m.clearFinalizing[target]; exists {
+	if m.conversationFinalizing == nil {
+		m.conversationFinalizing = make(map[string]chan struct{})
+	}
+	if _, exists := m.conversationFinalizing[target]; exists {
 		return fmt.Errorf("%w: %s", ErrSessionNotActive, target)
 	}
-	if m.clearFinalizing == nil {
-		m.clearFinalizing = make(map[string]chan struct{})
-	}
-	m.clearFinalizing[target] = make(chan struct{})
+	m.conversationFinalizing[target] = make(chan struct{})
 	return nil
 }
 
-func (m *Manager) endClearFinalization(id string) {
+func (m *Manager) endConversationFinalization(id string) {
 	target := strings.TrimSpace(id)
 	m.mu.Lock()
-	done, exists := m.clearFinalizing[target]
+	done, exists := m.conversationFinalizing[target]
 	if exists {
-		delete(m.clearFinalizing, target)
+		delete(m.conversationFinalizing, target)
 		close(done)
 	}
 	m.mu.Unlock()
 }
 
-func (m *Manager) waitForClearFinalization(ctx context.Context, id string) error {
+func (m *Manager) waitForConversationFinalization(ctx context.Context, id string) error {
 	target := strings.TrimSpace(id)
 	m.mu.RLock()
-	done := m.clearFinalizing[target]
+	done := m.conversationFinalizing[target]
 	m.mu.RUnlock()
 	if done == nil {
 		return nil
@@ -181,7 +188,7 @@ func (m *Manager) waitForClearFinalization(ctx context.Context, id string) error
 	case <-done:
 		return nil
 	case <-ctx.Done():
-		return fmt.Errorf("session: wait for clear finalization for %q: %w", target, ctx.Err())
+		return fmt.Errorf("session: wait for conversation finalization for %q: %w", target, ctx.Err())
 	}
 }
 

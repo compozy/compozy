@@ -81,8 +81,9 @@ repair events to an already valid session store.
 Treat `transcript_marker.file_mutation_unverified` as a required verification signal: one or more persisted `edit` mutations failed without a later successful mutation for the same path in that turn. Inspect the bounded paths and verify them before trusting completion claims; the marker is advisory and does not replace filesystem inspection.
 
 Pressure compaction preserves complete prior turns in the workspace checkpoint before marking their
-event rows archived. Archived rows remain visible to `compozy session events` and `compozy session history`,
-but degraded replay excludes them to avoid duplicating checkpoint-covered context. Inspect
+event rows archived. Read archived rows with `compozy session events|history --archive archived`, or
+combine active and archived rows with `--archive all`. Degraded replay excludes them to avoid
+duplicating checkpoint-covered context. Inspect
 `session.compaction_fired` for the admitted sequence span; the event is correlation evidence, not a
 success verdict for the later archive.
 
@@ -127,6 +128,7 @@ cannot be validated fail closed.
     compozy session events <session-id> --after 42
     compozy session history <session-id>
     compozy session history <session-id> --last 20 --after 42
+    compozy session rewind <session-id> --message-id <message-id>
     compozy session prompt <session-id> "Summarize the last three tool results."
     compozy session runtime set <session-id> --provider claude --model claude-fable-5 --reasoning-effort max
     compozy session runtime clear <session-id>
@@ -151,6 +153,16 @@ select `--provider`; `--model`, `--reasoning-effort`, and `--speed` refine that 
 the next prompt applies it. `session runtime clear` returns resolution to the effective/agent default.
 Both commands use `runtime.selection_revision` as a compare-and-swap fence; omit
 `--expected-revision` to let the CLI read the current value, or pass it for an explicitly fenced write.
+
+`session rewind` cuts the active conversation immediately before one durable user message, returns
+that message as `draft_text`, and starts a fresh ACP context under the same Compozy session ID. The
+CLI reads the current transcript fences; pass all three `--expected-*` values only when retrying a
+previously fenced request. HTTP, UDS, and the native tool require the epoch, generation, and maximum
+sequence returned by the transcript API. Stale values return a conflict without changing the session.
+Rewind is available only for idle ordinary user sessions.
+It archives the removed suffix for audit. It does not undo file changes, tool or network effects,
+saved memory, or external provider actions. Use `--archive archived` or `--archive all` on events
+and history to inspect the discarded suffix.
 
 Each accepted prompt records its immutable runtime snapshot with the authored user event. Omitting
 runtime flags uses the durable `selected` value first, then the current `effective` selection; both

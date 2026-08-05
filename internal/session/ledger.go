@@ -14,7 +14,7 @@ func (m *Manager) materializeSessionLedger(ctx context.Context, session *Session
 		return nil
 	}
 	stopCause, _ := session.stopCauseDetail()
-	if stopCause == CauseClearConversation {
+	if stopCause == CauseClearConversation || stopCause == CauseConversationRewind {
 		return nil
 	}
 

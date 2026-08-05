@@ -14,6 +14,7 @@ interface UseMergedSessionRuntimeTranscriptOptions {
   workspaceId: string;
   eventSourceFactory?: SessionStreamEventSourceFactory;
   liveTailEnabled: boolean;
+  resetGeneration?: number;
 }
 
 interface RuntimeTailState {
@@ -28,21 +29,38 @@ export function useMergedSessionRuntimeTranscript({
   workspaceId,
   eventSourceFactory,
   liveTailEnabled,
+  resetGeneration,
 }: UseMergedSessionRuntimeTranscriptOptions) {
   const runtimeMessages = useAuiState(state => state.thread.messages);
   const runtimeIsRunning = useAuiState(state => state.thread.isRunning);
   const transcript = useSessionLiveTail({
     enabled: liveTailEnabled,
     eventSourceFactory,
+    resetGeneration,
     sessionId,
     workspaceId,
   });
-  const conversationResetPending =
+  const clearConversationPending =
     useIsMutating({
       exact: true,
       mutationKey: sessionKeys.clearConversation(workspaceId),
       predicate: mutation => mutation.state.variables === sessionId,
     }) > 0;
+  const rewindConversationPending =
+    useIsMutating({
+      exact: true,
+      mutationKey: sessionKeys.rewindConversation(workspaceId),
+      predicate: mutation => {
+        const variables = mutation.state.variables;
+        return (
+          typeof variables === "object" &&
+          variables !== null &&
+          "sessionId" in variables &&
+          variables.sessionId === sessionId
+        );
+      },
+    }) > 0;
+  const conversationResetPending = clearConversationPending || rewindConversationPending;
   const sessionKey = `${workspaceId}\u0000${sessionId}`;
   const hasOptimisticRuntimeMessage = runtimeMessages.some(isOptimisticRuntimeMessage);
   const [runtimeTailState, setRuntimeTailState] = useState<RuntimeTailState>(() => ({
@@ -114,9 +132,11 @@ export function useMergedSessionRuntimeTranscript({
     runtimeMessages,
     includeRuntimeTail,
   });
+  const durableMessageIds = new Set(transcript.messages.map(message => message.id));
 
   return {
     ...transcript,
+    durableMessageIds,
     liveMessages: runtimeMessages,
     messages,
   };

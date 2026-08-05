@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -28,6 +29,16 @@ type sessionPromptInput struct {
 	Mode           string                                  `json:"mode,omitempty"`
 	ExpectedTurnID string                                  `json:"expected_turn_id,omitempty"`
 	Runtime        *contract.PromptRuntimeSelectionPayload `json:"runtime,omitempty"`
+}
+
+type sessionRewindInput struct {
+	Workspace           string `json:"workspace,omitempty"`
+	SessionID           string `json:"session_id"`
+	MessageID           string `json:"message_id"`
+	IdempotencyKey      string `json:"idempotency_key"`
+	ExpectedEpoch       *int64 `json:"expected_epoch"`
+	ExpectedGeneration  *int64 `json:"expected_generation"`
+	ExpectedMaxSequence *int64 `json:"expected_max_sequence"`
 }
 
 func (n *daemonNativeTools) sessionCreate(
@@ -130,4 +141,86 @@ func (n *daemonNativeTools) sessionPrompt(
 		}
 	}
 	return n.nativeSessionPromptResult(result)
+}
+
+func (n *daemonNativeTools) sessionRewind(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	var input sessionRewindInput
+	if err := decodeNativeInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	sessionID, err := requiredNativeString(req.ToolID, "session_id", input.SessionID)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	messageID, err := requiredNativeString(req.ToolID, "message_id", input.MessageID)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	idempotencyKey, err := requiredNativeString(req.ToolID, "idempotency_key", input.IdempotencyKey)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	expectedEpoch, err := requiredNativeNonNegativeInt64(req.ToolID, "expected_epoch", input.ExpectedEpoch)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	expectedGeneration, err := requiredNativeNonNegativeInt64(
+		req.ToolID,
+		"expected_generation",
+		input.ExpectedGeneration,
+	)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	expectedMaxSequence, err := requiredNativeNonNegativeInt64(
+		req.ToolID,
+		"expected_max_sequence",
+		input.ExpectedMaxSequence,
+	)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	resolved, err := n.nativeResolvedWorkspace(ctx, req.ToolID, input.Workspace, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	workspaceID, err := nativeResolvedRegistryWorkspaceID(&resolved)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+	}
+	if _, err := n.nativeSessionInWorkspace(ctx, req.ToolID, workspaceID, sessionID); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	result, err := n.deps.Sessions.RewindConversation(ctx, sessionID, session.ConversationRewindOptions{
+		MessageID: messageID, IdempotencyKey: idempotencyKey,
+		ExpectedEpoch: expectedEpoch, ExpectedGeneration: expectedGeneration,
+		ExpectedMaxSequence: expectedMaxSequence,
+	})
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	payload := contract.SessionConversationRewindResponse{
+		Session: core.SessionPayloadFromInfo(result.Session.Info()),
+		Rewind: contract.SessionConversationRewindPayload{
+			TranscriptEpoch: result.TranscriptEpoch, TargetMessageID: result.TargetMessageID,
+			ArchivedFrom: result.ArchivedFrom, ArchivedThrough: result.ArchivedThrough,
+			ArchivedEvents: result.ArchivedEvents, Generation: result.Generation,
+			MaxSequence: result.MaxSequence, DraftText: result.DraftText, Replayed: result.Replayed,
+		},
+	}
+	return structuredResult(payload, payload.Rewind.TargetMessageID)
+}
+
+func requiredNativeNonNegativeInt64(id toolspkg.ToolID, field string, value *int64) (int64, error) {
+	if value == nil {
+		return 0, nativeRequiredInputError(id, field)
+	}
+	if *value < 0 {
+		return 0, nativeNetworkInputError(id, fmt.Errorf("%s must not be negative", field))
+	}
+	return *value, nil
 }

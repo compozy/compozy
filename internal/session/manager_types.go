@@ -118,25 +118,27 @@ type sessionResumeRun struct {
 
 // Manager owns active session lifecycle and runtime orchestration.
 type Manager struct {
-	mu                    sync.RWMutex
-	lifecycleMu           sync.Mutex
-	sessions              map[string]*Session
-	pending               map[string]sessionReservation
-	finalizing            map[string]*sessionFinalization
-	clearFinalizing       map[string]chan struct{}
-	promptDrains          map[chan struct{}]struct{}
-	spawnMu               sync.Mutex
-	managedInputMu        sync.Mutex
-	managedInputLeases    map[string]managedInputLease
-	goalCommandMu         sync.RWMutex
-	promptAdmissionMu     sync.Mutex
-	promptAdmissionLocks  map[string]*promptAdmissionLock
-	resumeReplayMu        sync.Mutex
-	resumeReplays         map[string]string
-	compactionLifecycle   sessionCompactionLifecycle
-	startLifecycle        sessionStartLifecycle
-	resumeLifecycle       sessionResumeLifecycle
-	processWatchLifecycle sessionProcessWatchLifecycle
+	mu                         sync.RWMutex
+	lifecycleMu                sync.Mutex
+	sessions                   map[string]*Session
+	pending                    map[string]sessionReservation
+	finalizing                 map[string]*sessionFinalization
+	conversationFinalizing     map[string]chan struct{}
+	conversationOperationMu    sync.Mutex
+	conversationOperationLocks map[string]*conversationOperationLock
+	promptDrains               map[chan struct{}]struct{}
+	spawnMu                    sync.Mutex
+	managedInputMu             sync.Mutex
+	managedInputLeases         map[string]managedInputLease
+	goalCommandMu              sync.RWMutex
+	promptAdmissionMu          sync.Mutex
+	promptAdmissionLocks       map[string]*promptAdmissionLock
+	resumeReplayMu             sync.Mutex
+	resumeReplays              map[string]string
+	compactionLifecycle        sessionCompactionLifecycle
+	startLifecycle             sessionStartLifecycle
+	resumeLifecycle            sessionResumeLifecycle
+	processWatchLifecycle      sessionProcessWatchLifecycle
 
 	syntheticMu           sync.Mutex
 	syntheticQueues       map[string][]queuedSyntheticPrompt

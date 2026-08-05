@@ -23,7 +23,7 @@ func sessionCatalogListOperation() OperationSpec {
 			enumQueryParam(
 				"state",
 				"Filter by exact session state",
-				[]string{"starting", "active", "stopping", "stopped"},
+				[]string{"starting", specActiveKey, "stopping", "stopped"},
 			),
 			enumQueryParam("type", "Filter by exact session type", sessionCatalogTypeValues()),
 			queryParam("agent", "Filter by exact agent definition name", false),

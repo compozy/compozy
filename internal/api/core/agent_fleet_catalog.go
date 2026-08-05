@@ -121,7 +121,7 @@ func parseAgentCatalogQuery(c *gin.Context) (agentCatalogQuery, error) {
 		return agentCatalogQuery{}, fmt.Errorf("%w: workspace is required", errAgentCatalogQueryInvalid)
 	}
 	status := strings.ToLower(strings.TrimSpace(c.Query("status")))
-	if status != "" && status != "active" && status != "idle" {
+	if status != "" && status != queryFilterActiveValue && status != "idle" {
 		return agentCatalogQuery{}, fmt.Errorf(
 			"%w: status must be active or idle",
 			errAgentCatalogQueryInvalid,
@@ -270,7 +270,7 @@ func agentMatchesCatalogQuery(
 			return false
 		}
 	}
-	if sessionsAvailable && query.Status == "active" && metric.Active == 0 {
+	if sessionsAvailable && query.Status == queryFilterActiveValue && metric.Active == 0 {
 		return false
 	}
 	if sessionsAvailable && query.Status == "idle" && metric.Active > 0 {

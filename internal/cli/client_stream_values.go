@@ -29,6 +29,9 @@ func sessionEventValues(query SessionEventQuery) url.Values {
 	if query.AfterSequence > 0 {
 		values.Set("after_sequence", strconv.FormatInt(query.AfterSequence, 10))
 	}
+	if archive := strings.TrimSpace(query.Archive); archive != "" {
+		values.Set("archive", archive)
+	}
 	return values
 }
 

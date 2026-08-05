@@ -19,6 +19,8 @@ import {
 import { toReadonlyThreadMessages } from "@/systems/session/lib/session-thread-repository";
 import type { SessionFailurePayload, SessionMessage, SessionState } from "@/systems/session/types";
 import type { SessionTranscriptThreadStatus } from "@/systems/session/lib/session-transcript-thread-context-value";
+import { sessionKeys } from "@/systems/session/lib/query-keys";
+import type { SessionTranscriptData } from "@/systems/session/lib/session-transcript-query";
 
 import { SessionThread } from "../session-thread";
 import { formatDataPreview } from "../session-message-parts.logic";
@@ -126,6 +128,20 @@ function createFetchMock() {
       return jsonResponse({ entries: [] });
     }
 
+    if (
+      pathname ===
+      `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/clarifications`
+    ) {
+      return jsonResponse({ clarifications: [] });
+    }
+
+    if (
+      pathname ===
+      `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/prompt/queue`
+    ) {
+      return jsonResponse({ inputs: [] });
+    }
+
     throw new Error(`Unhandled fetch in thread test: ${pathname}`);
   });
 }
@@ -140,6 +156,7 @@ function renderThreadState({
   acpSessionId,
   sessionState,
   failure = null,
+  durableMessageIds = [],
 }: {
   messages?: readonly ThreadMessage[];
   status: SessionTranscriptThreadStatus;
@@ -150,8 +167,36 @@ function renderThreadState({
   acpSessionId?: string;
   sessionState?: SessionState;
   failure?: SessionFailurePayload | null;
+  durableMessageIds?: string[];
 }) {
   const queryClient = createQueryClient();
+  if (durableMessageIds.length > 0) {
+    const entries: SessionTranscriptData["pages"][number]["entries"] = durableMessageIds.map(
+      (id, index) => ({
+        start_sequence: index + 1,
+        sequence: index + 1,
+        message: { id, role: "user", parts: [{ type: "text", text: id, state: "done" }] },
+      })
+    );
+    const transcriptData: SessionTranscriptData = {
+      pageParams: [undefined],
+      pages: [
+        {
+          cursor: entries.length,
+          entries,
+          epoch: 1,
+          generation: 1,
+          has_older: false,
+          limit: 200,
+          max_sequence: entries.length,
+        },
+      ],
+    };
+    queryClient.setQueryData<SessionTranscriptData>(
+      sessionKeys.transcript(fixtureWorkspaceId(), primarySessionFixture.id),
+      transcriptData
+    );
+  }
 
   render(
     <QueryClientProvider client={queryClient}>
@@ -340,6 +385,20 @@ describe("SessionThread transcript states", () => {
     expect(await screen.findByText("Launch readiness snapshot")).toBeInTheDocument();
     expect(screen.getByTestId("thread-messages")).toBeInTheDocument();
     expect(screen.queryByText(/Start a conversation/i)).not.toBeInTheDocument();
+  });
+
+  it("Should offer rewind only for a durable user message when session input is idle", async () => {
+    const messages = toReadonlyThreadMessages(sessionTranscriptFixture.slice(0, 2));
+
+    renderThreadState({
+      status: "success",
+      messages,
+      durableMessageIds: ["transcript_user_001"],
+    });
+
+    const rewind = await screen.findByRole("button", { name: "Rewind to here" });
+    await waitFor(() => expect(rewind).toBeEnabled());
+    expect(screen.getAllByTestId("user-message-rewind")).toHaveLength(1);
   });
 
   it.each([

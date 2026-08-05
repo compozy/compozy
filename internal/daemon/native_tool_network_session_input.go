@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"encoding/json"
+	"errors"
 
 	"fmt"
 
@@ -127,6 +128,7 @@ type sessionEventQueryInput struct {
 	AfterSequence int64  `json:"after_sequence,omitempty"`
 	Limit         int    `json:"limit,omitempty"`
 	Since         string `json:"since,omitempty"`
+	Archive       string `json:"archive,omitempty"`
 }
 
 type agentHeartbeatStatusInput struct {
@@ -146,12 +148,23 @@ type agentHeartbeatWakeInput struct {
 }
 
 func (i sessionEventQueryInput) eventQuery(id toolspkg.ToolID) (store.EventQuery, error) {
+	archive := store.EventArchiveUnarchived
+	switch strings.TrimSpace(i.Archive) {
+	case "", nativeFilterActiveValue:
+	case "archived":
+		archive = store.EventArchiveArchived
+	case nativeFilterAllValue:
+		archive = store.EventArchiveAll
+	default:
+		return store.EventQuery{}, nativeNetworkInputError(id, errors.New("archive must be active, archived, or all"))
+	}
 	query := store.EventQuery{
 		Type:          strings.TrimSpace(i.Type),
 		AgentName:     strings.TrimSpace(i.AgentName),
 		TurnID:        strings.TrimSpace(i.TurnID),
 		AfterSequence: i.AfterSequence,
 		Limit:         i.Limit,
+		Archive:       archive,
 	}
 	if rawSince := strings.TrimSpace(i.Since); rawSince != "" {
 		since, err := time.Parse(time.RFC3339, rawSince)

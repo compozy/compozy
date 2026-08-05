@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/session"
 
 	"github.com/gin-gonic/gin"
 )
@@ -30,6 +31,46 @@ func (h *BaseHandlers) ClearSessionConversation(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, contract.SessionResponse{Session: SessionPayloadFromInfo(sess.Info())})
+}
+
+// RewindSessionConversation cuts the active transcript before one durable user
+// message and restarts the same session with a fresh ACP context.
+func (h *BaseHandlers) RewindSessionConversation(c *gin.Context) {
+	_, sessionID, _, ok := h.routeSessionInWorkspace(c)
+	if !ok {
+		return
+	}
+	var req contract.SessionConversationRewindRequest
+	if err := decodeStrictJSONBody(c, &req); err != nil {
+		h.respondError(
+			c,
+			http.StatusBadRequest,
+			fmt.Errorf("%s: decode conversation rewind request: %w", h.transportName(), err),
+		)
+		return
+	}
+	if req.ExpectedEpoch == nil || req.ExpectedGeneration == nil || req.ExpectedMaxSequence == nil {
+		h.respondError(c, http.StatusBadRequest, errors.New("conversation rewind transcript fences are required"))
+		return
+	}
+	result, err := h.Sessions.RewindConversation(c.Request.Context(), sessionID, session.ConversationRewindOptions{
+		MessageID: req.MessageID, IdempotencyKey: req.IdempotencyKey,
+		ExpectedEpoch: *req.ExpectedEpoch, ExpectedGeneration: *req.ExpectedGeneration,
+		ExpectedMaxSequence: *req.ExpectedMaxSequence,
+	})
+	if err != nil {
+		h.respondError(c, StatusForSessionError(err), err)
+		return
+	}
+	c.JSON(http.StatusOK, contract.SessionConversationRewindResponse{
+		Session: SessionPayloadFromInfo(result.Session.Info()),
+		Rewind: contract.SessionConversationRewindPayload{
+			TranscriptEpoch: result.TranscriptEpoch, TargetMessageID: result.TargetMessageID,
+			ArchivedFrom: result.ArchivedFrom, ArchivedThrough: result.ArchivedThrough,
+			ArchivedEvents: result.ArchivedEvents, Generation: result.Generation,
+			MaxSequence: result.MaxSequence, DraftText: result.DraftText, Replayed: result.Replayed,
+		},
+	})
 }
 
 // SessionEvents returns the filtered session event list.

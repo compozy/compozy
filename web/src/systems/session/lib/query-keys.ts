@@ -37,6 +37,8 @@ export const sessionKeys = {
     [...sessionKeys.detail(workspace, id), "history"] as const,
   clearConversation: (workspace: string) =>
     [...sessionKeys.workspace(workspace), "clear-conversation"] as const,
+  rewindConversation: (workspace: string) =>
+    [...sessionKeys.workspace(workspace), "rewind-conversation"] as const,
   transcript: (workspace: string, id: string) =>
     [...sessionKeys.detail(workspace, id), "transcript"] as const,
   goal: (workspace: string, id: string) => [...sessionKeys.detail(workspace, id), "goal"] as const,

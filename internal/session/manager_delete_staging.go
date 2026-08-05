@@ -30,9 +30,10 @@ type stagedSessionDelete struct {
 }
 
 type workspaceUnregisterPreparation struct {
-	manager *Manager
-	staged  []stagedSessionDelete
-	release sync.Once
+	manager                      *Manager
+	staged                       []stagedSessionDelete
+	conversationOperationUnlocks []func()
+	release                      sync.Once
 }
 
 var _ workspacepkg.UnregisterPreparation = (*workspaceUnregisterPreparation)(nil)
@@ -55,9 +56,15 @@ func (m *Manager) PrepareWorkspaceRemoval(
 		return nil, errors.New("session: workspace id is required")
 	}
 
+	ctx, lockedSessionIDs, operationUnlocks, err := m.lockWorkspaceConversationOperations(ctx, targetWorkspace)
+	if err != nil {
+		return nil, err
+	}
+
 	m.lifecycleMu.Lock()
 	if sessionID, pending := m.pendingSessionForWorkspace(targetWorkspace); pending {
 		m.lifecycleMu.Unlock()
+		releaseConversationOperations(operationUnlocks)
 		return nil, fmt.Errorf(
 			"session: remove workspace %q: %w: %s",
 			targetWorkspace,
@@ -65,12 +72,12 @@ func (m *Manager) PrepareWorkspaceRemoval(
 			sessionID,
 		)
 	}
-	infos, err := m.ListAll(ctx)
+	infos, err := m.workspaceRemovalInfos(ctx, targetWorkspace, lockedSessionIDs)
 	if err != nil {
 		m.lifecycleMu.Unlock()
-		return nil, fmt.Errorf("session: list sessions before workspace removal %q: %w", targetWorkspace, err)
+		releaseConversationOperations(operationUnlocks)
+		return nil, err
 	}
-	sort.Slice(infos, func(i, j int) bool { return infos[i].ID < infos[j].ID })
 	staged := make([]stagedSessionDelete, 0)
 	for _, info := range infos {
 		if info == nil || strings.TrimSpace(info.WorkspaceID) != targetWorkspace {
@@ -79,6 +86,7 @@ func (m *Manager) PrepareWorkspaceRemoval(
 		if info.State == StateStarting || info.State == StateActive || info.State == StateStopping {
 			rollbackErr := m.rollbackStagedSessionDeletes(ctx, staged)
 			m.lifecycleMu.Unlock()
+			releaseConversationOperations(operationUnlocks)
 			activeErr := fmt.Errorf(
 				"session: remove workspace %q: %w: %s",
 				targetWorkspace,
@@ -91,19 +99,87 @@ func (m *Manager) PrepareWorkspaceRemoval(
 		if stageErr != nil {
 			rollbackErr := m.rollbackStagedSessionDeletes(ctx, staged)
 			m.lifecycleMu.Unlock()
+			releaseConversationOperations(operationUnlocks)
 			return nil, errors.Join(stageErr, rollbackErr)
 		}
 		staged = append(staged, entry)
 	}
 
-	return &workspaceUnregisterPreparation{manager: m, staged: staged}, nil
+	return &workspaceUnregisterPreparation{
+		manager:                      m,
+		staged:                       staged,
+		conversationOperationUnlocks: operationUnlocks,
+	}, nil
+}
+
+func (m *Manager) lockWorkspaceConversationOperations(
+	ctx context.Context,
+	workspaceID string,
+) (context.Context, map[string]struct{}, []func(), error) {
+	infos, err := m.sortedWorkspaceSessions(ctx, workspaceID)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	lockedSessionIDs := make(map[string]struct{})
+	operationUnlocks := make([]func(), 0)
+	for _, info := range infos {
+		if info == nil || strings.TrimSpace(info.WorkspaceID) != workspaceID {
+			continue
+		}
+		operationCtx, unlock, lockErr := m.lockConversationOperation(ctx, info.ID)
+		if lockErr != nil {
+			releaseConversationOperations(operationUnlocks)
+			return nil, nil, nil, lockErr
+		}
+		ctx = operationCtx
+		operationUnlocks = append(operationUnlocks, unlock)
+		lockedSessionIDs[info.ID] = struct{}{}
+	}
+	return ctx, lockedSessionIDs, operationUnlocks, nil
+}
+
+func (m *Manager) workspaceRemovalInfos(
+	ctx context.Context,
+	workspaceID string,
+	lockedSessionIDs map[string]struct{},
+) ([]*Info, error) {
+	infos, err := m.sortedWorkspaceSessions(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	for _, info := range infos {
+		if info == nil || strings.TrimSpace(info.WorkspaceID) != workspaceID {
+			continue
+		}
+		if _, locked := lockedSessionIDs[info.ID]; !locked {
+			return nil, fmt.Errorf(
+				"session: remove workspace %q: session catalog changed during preparation: %w",
+				workspaceID,
+				workspacepkg.ErrWorkspaceHasActiveSessions,
+			)
+		}
+	}
+	return infos, nil
+}
+
+func (m *Manager) sortedWorkspaceSessions(ctx context.Context, workspaceID string) ([]*Info, error) {
+	infos, err := m.ListAll(ctx)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"session: list sessions before workspace removal %q: %w",
+			workspaceID,
+			err,
+		)
+	}
+	sort.Slice(infos, func(i, j int) bool { return infos[i].ID < infos[j].ID })
+	return infos, nil
 }
 
 func (p *workspaceUnregisterPreparation) Commit(ctx context.Context) error {
 	if p == nil || p.manager == nil {
 		return nil
 	}
-	defer p.release.Do(p.manager.lifecycleMu.Unlock)
+	defer p.releaseResources()
 	return p.manager.commitStagedSessionDeletes(ctx, p.staged)
 }
 
@@ -115,8 +191,21 @@ func (p *workspaceUnregisterPreparation) Rollback(ctx context.Context) error {
 	if p == nil || p.manager == nil {
 		return nil
 	}
-	defer p.release.Do(p.manager.lifecycleMu.Unlock)
+	defer p.releaseResources()
 	return p.manager.rollbackStagedSessionDeletes(ctx, p.staged)
+}
+
+func (p *workspaceUnregisterPreparation) releaseResources() {
+	p.release.Do(func() {
+		p.manager.lifecycleMu.Unlock()
+		releaseConversationOperations(p.conversationOperationUnlocks)
+	})
+}
+
+func releaseConversationOperations(unlocks []func()) {
+	for _, unlock := range slices.Backward(unlocks) {
+		unlock()
+	}
 }
 
 func (m *Manager) stageSessionDelete(

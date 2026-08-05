@@ -110,6 +110,7 @@ export {
   promoteSessionInputToSteer,
   repairSession,
   replaceSessionInput,
+  rewindSession,
   resumeSession,
   sendSessionPrompt,
   setSessionRuntime,
@@ -119,6 +120,7 @@ export {
   steerSessionPrompt,
   stopSession,
 } from "./adapters/session-api";
+export type { SessionRewindRequest, SessionRewindResult } from "./adapters/session-api";
 export {
   useSetSessionRuntime,
   type SetSessionRuntimeVariables,
@@ -248,6 +250,7 @@ export {
   type SendSessionPromptParams,
   type SessionPromptActionParams,
 } from "./hooks/use-session-actions";
+export { useSessionRewind, type SessionRewindVariables } from "./hooks/use-session-rewind";
 export {
   useSessionCreateDialogController,
   useSessionCreateDialogViewModel,
@@ -272,6 +275,7 @@ export {
   type SessionCreateDialogProps,
 } from "./components/session-create-dialog";
 export { SessionCreateDialogHost } from "./components/session-create-dialog-host";
+export { SessionRewindMessageAction } from "./components/session-rewind-message-action";
 export {
   SessionResumeFailure,
   type SessionResumeFailureProps,

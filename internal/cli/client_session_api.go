@@ -23,6 +23,8 @@ type sessionClientAPI interface {
 	ClearSessionRuntime(context.Context, string, int64) (SessionRecord, error)
 	SessionRecap(context.Context, string, int) (SessionRecapRecord, error)
 	RepairSession(context.Context, string, SessionRepairQuery) (SessionRepairRecord, error)
+	GetSessionTranscript(context.Context, string) (SessionTranscriptRecord, error)
+	RewindSession(context.Context, string, SessionRewindRequest) (SessionRewindRecord, error)
 	ApproveSession(context.Context, string, SessionApprovalRequest) (SessionApprovalRecord, error)
 	ListSessionClarifications(context.Context, string) (ClarificationsRecord, error)
 	AnswerSessionClarification(

@@ -276,6 +276,7 @@ The HTTP query surfaces accept these filters:
 - `since`
 - `limit`
 - `after_sequence`
+- `archive` (`active`, `archived`, or `all`)
 
 For HTTP, `since` must be RFC3339 or RFC3339Nano. The CLI is more convenient: `compozy session events
 --since 5m` converts the duration into an absolute UTC timestamp before calling the API.
@@ -450,9 +451,10 @@ The `events` table stores:
 - `timestamp`
 - `archived`
 
-`archived` is a replay-projection flag, not deletion. Operator event and history reads include both
-archived and unarchived rows. Daemon degraded replay requests only unarchived rows after the
-workspace checkpoint has durably covered the archived sequence range.
+`archived` is a replay-projection flag, not deletion. Operator event and history reads default to
+active rows. Pass `archive=archived` to inspect only a discarded suffix or `archive=all` to include
+both archived and active rows. Daemon degraded replay requests only active rows after the workspace
+checkpoint has durably covered the archived sequence range.
 
 Queries are returned in ascending sequence order. If you request `limit`, Compozy selects the newest
 matching rows first and then re-sorts them ascending before returning them.

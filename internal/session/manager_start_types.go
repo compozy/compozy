@@ -52,6 +52,7 @@ type sessionStartSpec struct {
 	resumeReplay             bool
 	resumeReplayBlock        string
 	resumeReplayMessageCount int
+	resumeReplayReason       string
 	clearEventStoreOnOpen    bool
 	createdAt                time.Time
 	acpSessionID             string

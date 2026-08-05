@@ -13,4 +13,5 @@ const (
 	CauseProcessExited
 	CauseTimeout
 	CauseClearConversation
+	CauseConversationRewind
 )

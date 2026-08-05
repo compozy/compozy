@@ -249,6 +249,36 @@ When `session.supervision.inactivity_timeout` is crossed, Compozy cancels the pr
 the prompt does not finish within `session.supervision.timeout_cancel_grace`, the session is stopped
 with stop reason `timeout`.
 
+## Rewinding a conversation
+
+Rewind an idle user session when you want to retry from an earlier prompt without creating another
+Compozy session. The selected durable user message and every later active event are removed from the
+active transcript. Compozy returns the selected text as `draft_text`, keeps the same session ID, and
+starts a fresh ACP context from the retained prefix.
+
+```bash
+compozy session rewind sess-1234 \
+  --message-id msg_1234
+```
+
+The CLI reads the current transcript fences immediately before the request. Scripts retrying one
+known request can pass all three `--expected-*` flags together with the original idempotency key.
+HTTP and UDS use `POST /api/workspaces/:workspace_id/sessions/:session_id/rewind` and require those
+same fences.
+An identical `idempotency_key` retry returns the original result. A stale fence, busy session, queued
+input, pending approval, or daemon-managed session returns `409` without cutting the transcript.
+
+Rewind changes the conversation only. It does not undo file changes, tool effects, network actions,
+saved memory, or external provider actions. Removed events remain archived for audit:
+
+```bash
+compozy session events sess-1234 --archive archived
+compozy session history sess-1234 --archive all
+```
+
+The Web action appears on durable user messages. It requires an empty composer, confirms the same
+side-effect boundary, reloads the daemon-owned transcript, and places `draft_text` in the composer.
+
 ## Stopping a session
 
 Stop a running session from the CLI:

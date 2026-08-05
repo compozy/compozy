@@ -121,6 +121,11 @@ func (m *Manager) RepairSession(
 	if err != nil {
 		return nil, err
 	}
+	ctx, unlockConversation, err := m.lockConversationOperation(ctx, target)
+	if err != nil {
+		return nil, err
+	}
+	defer unlockConversation()
 
 	meta, err := m.readMetaWithContext(ctx, target)
 	if err != nil {

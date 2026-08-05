@@ -41,6 +41,12 @@ type ACPCapsRecord = contract.ACPCapsPayload
 // SessionRepairRecord reports one session repair pass returned by the daemon API.
 type SessionRepairRecord = contract.SessionRepairPayload
 
+type SessionTranscriptRecord = contract.SessionTranscriptResponse
+
+type SessionRewindRequest = contract.SessionConversationRewindRequest
+
+type SessionRewindRecord = contract.SessionConversationRewindResponse
+
 // SessionRepairIssueRecord is one inconsistency reported by session repair.
 type SessionRepairIssueRecord = contract.SessionRepairIssuePayload
 
@@ -98,4 +104,5 @@ type SessionEventQuery struct {
 	Since         time.Time
 	Last          int
 	AfterSequence int64
+	Archive       string
 }

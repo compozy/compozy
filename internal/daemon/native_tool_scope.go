@@ -231,7 +231,7 @@ func (n *daemonNativeTools) nativeSessionInWorkspace(
 		return nil, err
 	}
 	if info == nil || strings.TrimSpace(info.WorkspaceID) != strings.TrimSpace(workspaceID) {
-		return nil, fmt.Errorf("%w: session=%q workspace_id=%q", session.ErrSessionNotFound, sessionID, workspaceID)
+		return nil, nativeWorkspaceAccessDeniedError(id)
 	}
 	return info, nil
 }
