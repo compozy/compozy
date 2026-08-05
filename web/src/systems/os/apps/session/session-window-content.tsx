@@ -1,12 +1,13 @@
 import { SessionThread } from "@/components/assistant-ui/session-thread";
 import {
   SessionInspector,
+  SessionDeleteDialog,
   SessionPromptRuntimeSelector,
   SessionResumeFailure,
   type SessionPayload,
 } from "@/systems/session";
 
-import { SessionClearDialog, SessionDeleteDialog } from "./session-window-dialogs";
+import { SessionClearDialog } from "./session-window-dialogs";
 import { useSessionWindowController } from "./use-session-window-controller";
 
 function workingStartedAt(value: string | null | undefined): number | undefined {

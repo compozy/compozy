@@ -95,4 +95,6 @@ func registerHostAPISessionMethodHandlers(
 	handlers[hostAPISessionsStatusPath] = handler.handleSessionsStatus
 	handlers[string(extensioncontract.HostAPIMethodSessionsStatusGet)] = handler.handleSessionsStatusGet
 	handlers[hostAPISessionsStopPath] = handler.handleSessionsStop
+	handlers[string(extensioncontract.HostAPIMethodSessionsArchive)] = handler.handleSessionsArchive
+	handlers[string(extensioncontract.HostAPIMethodSessionsUnarchive)] = handler.handleSessionsUnarchive
 }

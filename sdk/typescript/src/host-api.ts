@@ -110,6 +110,8 @@ export class HostAPI {
     create: (params: SessionsCreateParams) => Promise<SessionCreateResult>;
     prompt: (params: SessionsPromptParams) => Promise<SessionPromptResult>;
     stop: (params: SessionTargetParams) => Promise<Record<string, never>>;
+    archive: (params: SessionTargetParams) => Promise<SessionStatus>;
+    unarchive: (params: SessionTargetParams) => Promise<SessionStatus>;
     status: (params: SessionTargetParams) => Promise<SessionStatus>;
     events: (params: SessionEventsParams) => Promise<SessionEvent[]>;
     refreshSoul: (params: SessionSoulRefreshParams) => Promise<AgentSoulPayload>;
@@ -199,6 +201,8 @@ export class HostAPI {
       create: async params => await this.request("sessions/create", params),
       prompt: async params => await this.request("sessions/prompt", params),
       stop: async params => await this.request("sessions/stop", params),
+      archive: async params => await this.request("sessions/archive", params),
+      unarchive: async params => await this.request("sessions/unarchive", params),
       status: async params => await this.request("sessions/status", params),
       events: async params => await this.request("sessions/events", params),
       refreshSoul: async params => await this.request("sessions/soul/refresh", params),

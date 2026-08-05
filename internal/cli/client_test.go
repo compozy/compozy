@@ -2018,6 +2018,16 @@ func TestUnixSocketClientMethods(t *testing.T) {
 					), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/stop":
 					return newHTTPResponse(http.StatusNoContent, ``), nil
+				case req.Method == http.MethodPost && req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/archive":
+					return newHTTPResponse(
+						http.StatusOK,
+						`{"session":{"id":"sess-1","agent_name":"coder","workspace_id":"ws-1","state":"stopped","archived_at":"2026-04-03T12:01:00Z","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:01:00Z"}}`,
+					), nil
+				case req.Method == http.MethodPost && req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/unarchive":
+					return newHTTPResponse(
+						http.StatusOK,
+						`{"session":{"id":"sess-1","agent_name":"coder","workspace_id":"ws-1","state":"stopped","archived_at":null,"created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:02:00Z"}}`,
+					), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/attach":
 					return newHTTPResponse(
 						http.StatusOK,
@@ -2414,6 +2424,18 @@ func TestUnixSocketClientMethods(t *testing.T) {
 	if err := client.StopSession(ctx, "sess-1"); err != nil {
 		t.Fatalf("StopSession() error = %v", err)
 	}
+	t.Run("Should archive and unarchive a session through the workspace routes", func(t *testing.T) {
+		t.Parallel()
+
+		archived, archiveErr := client.ArchiveSession(ctx, "sess-1")
+		if archiveErr != nil || archived.ArchivedAt == nil {
+			t.Fatalf("ArchiveSession() = %#v, %v, want archived session", archived, archiveErr)
+		}
+		restored, unarchiveErr := client.UnarchiveSession(ctx, "sess-1")
+		if unarchiveErr != nil || restored.ArchivedAt != nil {
+			t.Fatalf("UnarchiveSession() = %#v, %v, want restored session", restored, unarchiveErr)
+		}
+	})
 
 	resumed, err := client.ResumeSession(ctx, "sess-1")
 	if err != nil || resumed.ID != "sess-1" {
@@ -4095,23 +4117,29 @@ func TestReadAPIErrorAndHelpers(t *testing.T) {
 		t.Fatalf("sessionEventValues() = %v, want limit/after_sequence", got)
 	}
 
-	if got := sessionListValues(SessionListQuery{
-		Workspace:     "ws-1",
-		State:         "active",
-		Type:          "user",
-		Agent:         "coder",
-		Query:         "needle",
-		Resumable:     true,
-		IncludeHealth: true,
-		Sort:          "last_activity",
-		Cursor:        "cursor-1",
-		Limit:         2,
-	}); got.Get("workspace") != "ws-1" || got.Get("state") != "active" || got.Get("type") != "user" ||
-		got.Get("agent") != "coder" ||
-		got.Get("q") != "needle" || got.Get("resumable") != "true" || got.Get("sort") != "last_activity" ||
-		got.Get("include_health") != "true" || got.Get("cursor") != "cursor-1" || got.Get("limit") != "2" {
-		t.Fatalf("sessionListValues() = %v, want all page filters", got)
-	}
+	t.Run("Should serialize every session list page filter", func(t *testing.T) {
+		t.Parallel()
+
+		if got := sessionListValues(SessionListQuery{
+			Workspace:     "ws-1",
+			State:         "active",
+			Type:          "user",
+			Agent:         "coder",
+			Query:         "needle",
+			Resumable:     true,
+			Archive:       "only",
+			IncludeHealth: true,
+			Sort:          "last_activity",
+			Cursor:        "cursor-1",
+			Limit:         2,
+		}); got.Get("workspace") != "ws-1" || got.Get("state") != "active" || got.Get("type") != "user" ||
+			got.Get("agent") != "coder" ||
+			got.Get("q") != "needle" || got.Get("resumable") != "true" || got.Get("archive") != "only" ||
+			got.Get("sort") != "last_activity" ||
+			got.Get("include_health") != "true" || got.Get("cursor") != "cursor-1" || got.Get("limit") != "2" {
+			t.Fatalf("sessionListValues() = %v, want all page filters", got)
+		}
+	})
 
 	if got := logsListValues(LogsListQuery{
 		SessionID: "sess-1",

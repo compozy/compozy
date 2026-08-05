@@ -139,6 +139,78 @@ func TestManagerListAllMergesActiveAndStoppedSessions(t *testing.T) {
 func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should archive only stopped sessions and keep archived sessions directly readable", func(t *testing.T) {
+		t.Parallel()
+
+		catalog := &pagedRecordingSessionCatalog{recordingSessionCatalog: newRecordingSessionCatalog()}
+		h := newHarness(t, WithSessionCatalog(catalog))
+		ctx := testutil.Context(t)
+		stopped, err := h.manager.Create(ctx, CreateOpts{
+			AgentName: "coder",
+			Name:      "archivable",
+			Workspace: h.workspaceID,
+			Type:      SessionTypeUser,
+		})
+		if err != nil {
+			t.Fatalf("Create(stopped) error = %v", err)
+		}
+		if err := h.manager.Stop(ctx, stopped.ID); err != nil {
+			t.Fatalf("Stop(stopped) error = %v", err)
+		}
+		catalog.durable = sessionCatalogInfoFromRuntime(stopped.Info())
+
+		archived, err := h.manager.Archive(ctx, h.workspaceID, stopped.ID)
+		if err != nil {
+			t.Fatalf("Archive() error = %v", err)
+		}
+		if archived.ArchivedAt == nil || archived.State != StateStopped {
+			t.Fatalf("Archive() = %#v, want archived stopped session", archived)
+		}
+		defaultPage, err := h.manager.ListPage(ctx, ListQuery{WorkspaceID: h.workspaceID})
+		if err != nil {
+			t.Fatalf("ListPage(default) error = %v", err)
+		}
+		if defaultPage.Total != 0 || len(defaultPage.Sessions) != 0 {
+			t.Fatalf("ListPage(default) = %#v, want archived session excluded", defaultPage)
+		}
+		archivedPage, err := h.manager.ListPage(ctx, ListQuery{
+			WorkspaceID: h.workspaceID,
+			Archive:     ArchiveOnly,
+		})
+		if err != nil {
+			t.Fatalf("ListPage(archived) error = %v", err)
+		}
+		if archivedPage.Total != 1 || len(archivedPage.Sessions) != 1 ||
+			archivedPage.Sessions[0].ArchivedAt == nil {
+			t.Fatalf("ListPage(archived) = %#v, want archived session", archivedPage)
+		}
+		status, err := h.manager.Status(ctx, stopped.ID)
+		if err != nil || status.ArchivedAt == nil {
+			t.Fatalf("Status(archived) = %#v, %v, want direct-readable archive marker", status, err)
+		}
+		if _, err := h.manager.Resume(ctx, stopped.ID); !errors.Is(err, ErrSessionArchived) {
+			t.Fatalf("Resume(archived) error = %v, want ErrSessionArchived", err)
+		}
+		restored, err := h.manager.Unarchive(ctx, h.workspaceID, stopped.ID)
+		if err != nil || restored.ArchivedAt != nil {
+			t.Fatalf("Unarchive() = %#v, %v, want restored session", restored, err)
+		}
+
+		active := createSession(t, h)
+		t.Cleanup(func() {
+			if stopErr := h.manager.Stop(testutil.Context(t), active.ID); stopErr != nil &&
+				!errors.Is(stopErr, ErrSessionNotFound) {
+				t.Errorf("Stop(active cleanup) error = %v", stopErr)
+			}
+		})
+		if _, err := h.manager.Archive(ctx, h.workspaceID, active.ID); !errors.Is(
+			err,
+			ErrSessionArchiveRequiresStopped,
+		) {
+			t.Fatalf("Archive(active) error = %v, want ErrSessionArchiveRequiresStopped", err)
+		}
+	})
+
 	t.Run("Should treat onboarding as an ordinary user agent name", func(t *testing.T) {
 		t.Parallel()
 
@@ -608,12 +680,33 @@ func (c *pagedRecordingSessionCatalog) PageSessions(
 	if c.durable.ID == "" {
 		return store.SessionCatalogPage{}, nil
 	}
+	archived := c.durable.ArchivedAt != nil
+	if (query.Archive == store.SessionArchiveExclude && archived) ||
+		(query.Archive == store.SessionArchiveOnly && !archived) {
+		return store.SessionCatalogPage{}, nil
+	}
 	page := store.SessionCatalogPage{Total: 1}
 	position := sessionCatalogPosition(c.durable, query.Sort)
 	if query.After == nil || compareSessionCatalogPosition(position, *query.After) > 0 {
 		page.Sessions = []store.SessionInfo{c.durable}
 	}
 	return page, nil
+}
+
+func (c *pagedRecordingSessionCatalog) SetSessionArchived(
+	ctx context.Context,
+	workspaceID string,
+	sessionID string,
+	archived bool,
+) (store.SessionInfo, error) {
+	updated, err := c.recordingSessionCatalog.SetSessionArchived(ctx, workspaceID, sessionID, archived)
+	if err != nil {
+		return store.SessionInfo{}, err
+	}
+	if c.durable.ID == sessionID {
+		c.durable = updated
+	}
+	return updated, nil
 }
 
 func (c *pagedRecordingSessionCatalog) AggregateSessionsByAgent(

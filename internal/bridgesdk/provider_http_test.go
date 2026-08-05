@@ -6,8 +6,10 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"sync"
 	"testing"
+	"time"
 )
 
 func TestProviderHTTPServerOwnsListenerLifecycle(t *testing.T) {
@@ -21,6 +23,7 @@ func TestProviderHTTPServerOwnsListenerLifecycle(t *testing.T) {
 			Handler: http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 				writer.WriteHeader(http.StatusNoContent)
 			}),
+			RoutesReady: closedProviderRoutes(),
 			Go: func(run func()) bool {
 				wg.Go(run)
 				return true
@@ -72,6 +75,7 @@ func TestProviderHTTPServerOwnsListenerLifecycle(t *testing.T) {
 			Handler: http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 				writer.WriteHeader(http.StatusNoContent)
 			}),
+			RoutesReady: closedProviderRoutes(),
 			Go: func(run func()) bool {
 				wg.Go(run)
 				return true
@@ -98,6 +102,53 @@ func TestProviderHTTPServerOwnsListenerLifecycle(t *testing.T) {
 		wg.Wait()
 	})
 
+	t.Run("Should interrupt a request waiting for provider routes during shutdown", func(t *testing.T) {
+		t.Parallel()
+
+		routesReady := make(chan struct{})
+		server, err := NewProviderHTTPServer(ProviderHTTPConfig{
+			Handler: http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+				t.Fatal("provider handler ran before routes were ready")
+			}),
+			RoutesReady: routesReady,
+			Go:          func(func()) bool { return true },
+		})
+		if err != nil {
+			t.Fatalf("NewProviderHTTPServer() error = %v", err)
+		}
+		shutdown := make(chan struct{})
+		server.shutdown = shutdown
+		response := httptest.NewRecorder()
+		request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
+		handlerDone := make(chan struct{})
+		go func() {
+			server.serveWhenRoutesReady(shutdown, response, request)
+			close(handlerDone)
+		}()
+		select {
+		case <-handlerDone:
+			t.Fatal("request stopped waiting before routes or shutdown were ready")
+		case <-time.After(10 * time.Millisecond):
+		}
+
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+		select {
+		case <-handlerDone:
+		case <-time.After(time.Second):
+			t.Fatal("request remained blocked after shutdown")
+		}
+		if response.Code != http.StatusServiceUnavailable {
+			t.Fatalf("status = %d, want %d", response.Code, http.StatusServiceUnavailable)
+		}
+		if body := response.Body.String(); body != "provider routes are not ready\n" {
+			t.Fatalf("body = %q, want %q", body, "provider routes are not ready\n")
+		}
+	})
+
 	t.Run("Should reject incomplete server configuration", func(t *testing.T) {
 		t.Parallel()
 
@@ -109,6 +160,12 @@ func TestProviderHTTPServerOwnsListenerLifecycle(t *testing.T) {
 		}); err == nil {
 			t.Fatal("NewProviderHTTPServer(without Go) error = nil")
 		}
+		if _, err := NewProviderHTTPServer(ProviderHTTPConfig{
+			Handler: http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}),
+			Go:      func(func()) bool { return true },
+		}); err == nil || err.Error() != "bridgesdk: provider http routes readiness is required" {
+			t.Fatalf("NewProviderHTTPServer(without routes readiness) error = %v", err)
+		}
 	})
 
 	t.Run("Should release the listener when lifecycle ownership rejects startup", func(t *testing.T) {
@@ -118,7 +175,8 @@ func TestProviderHTTPServerOwnsListenerLifecycle(t *testing.T) {
 		var server *ProviderHTTPServer
 		var err error
 		server, err = NewProviderHTTPServer(ProviderHTTPConfig{
-			Handler: http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}),
+			Handler:     http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}),
+			RoutesReady: closedProviderRoutes(),
 			Go: func(func()) bool {
 				boundAddress = server.Address()
 				return false
@@ -139,4 +197,10 @@ func TestProviderHTTPServerOwnsListenerLifecycle(t *testing.T) {
 			t.Fatalf("Close(rebound listener) error = %v", err)
 		}
 	})
+}
+
+func closedProviderRoutes() <-chan struct{} {
+	ready := make(chan struct{})
+	close(ready)
+	return ready
 }

@@ -50,6 +50,7 @@ export const sessionFixtures: SessionPayload[] = [
     state: "active",
     badge: "running",
     attachable: true,
+    archived_at: null,
     available_commands: [],
     resolved_network_participation: liveParticipation(
       storyWorkspaceIds.product,
@@ -89,6 +90,7 @@ export const sessionFixtures: SessionPayload[] = [
     state: "active",
     badge: "running",
     attachable: true,
+    archived_at: null,
     available_commands: [],
     resolved_network_participation: liveParticipation(
       storyWorkspaceIds.hq,
@@ -107,6 +109,7 @@ export const sessionFixtures: SessionPayload[] = [
     state: "active",
     badge: "running",
     attachable: true,
+    archived_at: null,
     available_commands: [],
     resolved_network_participation: liveParticipation(
       storyWorkspaceIds.finance,
@@ -125,6 +128,7 @@ export const sessionFixtures: SessionPayload[] = [
     state: "active",
     badge: "running",
     attachable: true,
+    archived_at: null,
     available_commands: [],
     resolved_network_participation: liveParticipation(
       storyWorkspaceIds.hq,
@@ -143,6 +147,7 @@ export const sessionFixtures: SessionPayload[] = [
     state: "stopped",
     badge: "stopped",
     attachable: false,
+    archived_at: null,
     available_commands: [],
     resolved_network_participation: liveParticipation(
       storyWorkspaceIds.growth,
@@ -161,6 +166,7 @@ export const sessionFixtures: SessionPayload[] = [
     state: "active",
     badge: "running",
     attachable: true,
+    archived_at: null,
     available_commands: [],
     resolved_network_participation: liveParticipation(
       storyWorkspaceIds.growth,
@@ -179,6 +185,7 @@ export const sessionFixtures: SessionPayload[] = [
     state: "active",
     badge: "running",
     attachable: true,
+    archived_at: null,
     available_commands: [],
     resolved_network_participation: liveParticipation(
       storyWorkspaceIds.support,
@@ -197,6 +204,7 @@ export const sessionFixtures: SessionPayload[] = [
     state: "active",
     badge: "running",
     attachable: true,
+    archived_at: null,
     available_commands: [],
     resolved_network_participation: liveParticipation(
       storyWorkspaceIds.risk,
@@ -215,6 +223,7 @@ export const sessionFixtures: SessionPayload[] = [
     state: "active",
     badge: "running",
     attachable: true,
+    archived_at: null,
     available_commands: [],
     resolved_network_participation: liveParticipation(
       storyWorkspaceIds.risk,
@@ -233,6 +242,7 @@ export const sessionFixtures: SessionPayload[] = [
     state: "active",
     badge: "running",
     attachable: true,
+    archived_at: null,
     available_commands: [],
     resolved_network_participation: liveParticipation(
       storyWorkspaceIds.platform,
@@ -251,6 +261,7 @@ export const sessionFixtures: SessionPayload[] = [
     state: "active",
     badge: "running",
     attachable: true,
+    archived_at: null,
     available_commands: [],
     resolved_network_participation: liveParticipation(
       storyWorkspaceIds.platform,

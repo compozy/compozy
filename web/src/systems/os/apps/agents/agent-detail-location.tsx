@@ -29,7 +29,7 @@ import {
   type AgentInstructionFile,
   type AgentPayload,
 } from "@/systems/agent";
-import type { SessionPayload } from "@/systems/session";
+import { SessionDeleteDialog, type SessionPayload } from "@/systems/session";
 import { useActiveWorkspace } from "@/systems/workspace";
 import { useAgentDetail } from "./use-agent-detail";
 
@@ -235,6 +235,8 @@ export function AgentDetailLocation({ name, rawSearch }: AgentDetailContentProps
               <AgentSessionsTab
                 agentName={name}
                 sessions={page.sessions}
+                archivedSessions={page.archivedSessions}
+                archivedTotal={page.archivedSessionsTotal}
                 total={page.sessionsTotal}
                 active={page.activeSessionsTotal}
                 failed={page.failedSessionsTotal}
@@ -251,11 +253,29 @@ export function AgentDetailLocation({ name, rawSearch }: AgentDetailContentProps
                       : undefined
                 }
                 onLoadMore={page.onLoadMoreSessions}
+                archivedPaginationStatus={
+                  page.isLoadingMoreArchivedSessions
+                    ? "loading"
+                    : page.hasMoreArchivedSessions
+                      ? "available"
+                      : undefined
+                }
+                onLoadMoreArchived={page.onLoadMoreArchivedSessions}
+                sessionActions={page.sessionActions}
                 filter={search.filter}
                 onFilterChange={page.setFilter}
                 onNewSession={page.onNewSession}
                 onClearFilter={() => page.setFilter("all")}
               />
+              {page.sessionDeleteDialog.session ? (
+                <SessionDeleteDialog
+                  open={page.sessionDeleteDialog.open}
+                  onOpenChange={page.sessionDeleteDialog.onOpenChange}
+                  session={page.sessionDeleteDialog.session}
+                  isDeleting={page.sessionDeleteDialog.isDeleting}
+                  onConfirm={page.sessionDeleteDialog.onConfirm}
+                />
+              ) : null}
             </TabsContent>
           </div>
         </LaneTabs>

@@ -71,6 +71,20 @@
         "result": { "name": "EmptyResult", "value": "EmptyResult{}" }
     },
     {
+        "constant": "HostAPIMethodSessionsArchive",
+        "wire": "sessions/archive",
+        "family": "core",
+        "params": { "name": "SessionTargetParams", "value": "SessionTargetParams{}" },
+        "result": { "name": "SessionStatus", "value": "SessionStatus{}" }
+    },
+    {
+        "constant": "HostAPIMethodSessionsUnarchive",
+        "wire": "sessions/unarchive",
+        "family": "core",
+        "params": { "name": "SessionTargetParams", "value": "SessionTargetParams{}" },
+        "result": { "name": "SessionStatus", "value": "SessionStatus{}" }
+    },
+    {
         "constant": "HostAPIMethodSessionsStatus",
         "wire": "sessions/status",
         "family": "core",

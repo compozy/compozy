@@ -156,6 +156,7 @@ func sessionCatalogInfoFromRuntime(info *Info) store.SessionInfo {
 		SoulDigest:               strings.TrimSpace(info.SoulDigest),
 		ParentSoulDigest:         strings.TrimSpace(info.ParentSoulDigest),
 		TranscriptEpoch:          info.TranscriptEpoch,
+		ArchivedAt:               cloneTimePointer(info.ArchivedAt),
 		CreatedAt:                info.CreatedAt,
 		UpdatedAt:                info.UpdatedAt,
 	}

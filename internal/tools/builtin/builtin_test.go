@@ -166,6 +166,14 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 
 		descriptors := descriptorMap(NativeDescriptors())
 		assertSessionCreateMutationSchema(t, descriptors[toolspkg.ToolIDSessionCreate])
+		t.Run("Should validate the session archive schema", func(t *testing.T) {
+			t.Parallel()
+			assertSessionTargetMutationSchema(t, descriptors[toolspkg.ToolIDSessionArchive])
+		})
+		t.Run("Should validate the session unarchive schema", func(t *testing.T) {
+			t.Parallel()
+			assertSessionTargetMutationSchema(t, descriptors[toolspkg.ToolIDSessionUnarchive])
+		})
 		assertSessionPromptMutationSchema(t, descriptors[toolspkg.ToolIDSessionPrompt])
 		assertSessionRuntimeMutationSchemas(t, descriptors)
 		assertSessionInputSchemas(t, descriptors)
@@ -349,6 +357,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		sessionList := descriptors[toolspkg.ToolIDSessionList]
 		if !strings.Contains(string(sessionList.InputSchema), `"cursor"`) ||
 			!strings.Contains(string(sessionList.InputSchema), `"include_health"`) ||
+			!strings.Contains(string(sessionList.InputSchema), `"archive"`) ||
 			!strings.Contains(string(sessionList.InputSchema), `"type"`) ||
 			!strings.Contains(string(sessionList.InputSchema), `"last_activity"`) ||
 			!strings.Contains(string(sessionList.OutputSchema), `"page"`) ||
@@ -1128,6 +1137,8 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__session_create", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__session_archive", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__session_describe", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__session_events", risk: toolspkg.RiskRead,
@@ -1156,6 +1167,8 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__session_status", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__session_unarchive", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__skill_list", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__skill_search", risk: toolspkg.RiskRead,
@@ -1413,6 +1426,30 @@ func assertSessionCreateMutationSchema(t *testing.T, descriptor toolspkg.Descrip
 		input.Properties["network_participation"],
 	)
 	assertSessionMutationEnvelopeSchema(t, descriptor.ID.String()+" output", descriptor.OutputSchema, "session")
+}
+
+func assertSessionTargetMutationSchema(t *testing.T, descriptor toolspkg.Descriptor) {
+	t.Helper()
+	var input nativeObjectSchema
+	if err := json.Unmarshal(descriptor.InputSchema, &input); err != nil {
+		t.Fatalf("%s input schema unmarshal error = %v", descriptor.ID, err)
+	}
+	assertClosedObjectSchema(t, descriptor.ID.String()+" input", input, []string{"session_id", "workspace"})
+	if !slices.Equal(input.Required, []string{"session_id"}) {
+		t.Fatalf("%s input required = %#v, want [session_id]", descriptor.ID, input.Required)
+	}
+	assertSessionMutationEnvelopeSchema(t, descriptor.ID.String()+" output", descriptor.OutputSchema, "session")
+	var output nativeObjectSchema
+	if err := json.Unmarshal(descriptor.OutputSchema, &output); err != nil {
+		t.Fatalf("%s output schema unmarshal error = %v", descriptor.ID, err)
+	}
+	var sessionSchema nativeObjectSchema
+	if err := json.Unmarshal(output.Properties["session"], &sessionSchema); err != nil {
+		t.Fatalf("%s session output schema unmarshal error = %v", descriptor.ID, err)
+	}
+	if _, ok := sessionSchema.Properties["archived_at"]; !ok {
+		t.Fatalf("%s session output schema omits archived_at", descriptor.ID)
+	}
 }
 
 func assertSessionPromptMutationSchema(t *testing.T, descriptor toolspkg.Descriptor) {
@@ -2240,6 +2277,8 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 			t.Fatalf("Expand(sessions) error = %v", err)
 		}
 		if !slices.Contains(sessions, toolspkg.ToolIDSessionList) ||
+			!slices.Contains(sessions, toolspkg.ToolIDSessionArchive) ||
+			!slices.Contains(sessions, toolspkg.ToolIDSessionUnarchive) ||
 			!slices.Contains(sessions, toolspkg.ToolIDSessionCreate) ||
 			!slices.Contains(sessions, toolspkg.ToolIDSessionPrompt) ||
 			!slices.Contains(sessions, toolspkg.ToolIDSessionRewind) ||

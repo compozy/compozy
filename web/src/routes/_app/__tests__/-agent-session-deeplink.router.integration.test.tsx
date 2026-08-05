@@ -90,6 +90,7 @@ function makeSession(id: string, workspaceId: string, name: string): OwnedSessio
     state: "active",
     badge: "running",
     attachable: true,
+    archived_at: null,
     available_commands: [],
     created_at: "2026-07-13T00:00:00Z",
     updated_at: "2026-07-13T00:00:00Z",

@@ -94,6 +94,7 @@ const createdSession: SessionPayload = {
   state: "active",
   badge: "idle",
   attachable: true,
+  archived_at: null,
   available_commands: [],
   runtime: { status: "unbound", selection_revision: 0 },
   created_at: "2026-04-20T10:00:00Z",

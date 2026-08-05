@@ -27,6 +27,7 @@ func (g *SessionRepo) AggregateSessionsByAgent(
 
 	where, args, err := sessionCatalogPageFilters(store.SessionCatalogPageQuery{
 		WorkspaceID:         strings.TrimSpace(query.WorkspaceID),
+		Archive:             store.SessionArchiveExclude,
 		ExcludeIDs:          query.ExcludeIDs,
 		ExcludeSessionTypes: query.ExcludeSessionTypes,
 		ExcludeSpawnRoles:   query.ExcludeSpawnRoles,

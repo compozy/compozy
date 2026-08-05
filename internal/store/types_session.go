@@ -86,8 +86,29 @@ type SessionInfo struct {
 	AttachedTo       string
 	AttachExpiresAt  *time.Time
 	TranscriptEpoch  int64
+	ArchivedAt       *time.Time
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
+}
+
+// SessionArchiveFilter controls whether archived rows participate in a catalog read.
+type SessionArchiveFilter string
+
+const (
+	SessionArchiveExclude SessionArchiveFilter = "exclude"
+	SessionArchiveOnly    SessionArchiveFilter = "only"
+	SessionArchiveInclude SessionArchiveFilter = "include"
+)
+
+// Validate reports whether the archive filter is supported. An empty filter
+// leaves internal catalog reads unfiltered.
+func (f SessionArchiveFilter) Validate() error {
+	switch f {
+	case "", SessionArchiveExclude, SessionArchiveOnly, SessionArchiveInclude:
+		return nil
+	default:
+		return fmt.Errorf("store: unsupported session archive filter %q", f)
+	}
 }
 
 // Validate ensures the session record contains the required fields.
@@ -144,6 +165,7 @@ type SessionListQuery struct {
 	RootSessionID   string
 	SpawnRole       string
 	Resumable       bool
+	Archive         SessionArchiveFilter
 	Sort            string
 	Limit           int
 }
@@ -167,7 +189,10 @@ func (u SessionTranscriptEpochUpdate) Validate() error {
 
 // Validate ensures the query uses sane bounds.
 func (q SessionListQuery) Validate() error {
-	return requirePositiveLimit(q.Limit, "session limit")
+	if err := requirePositiveLimit(q.Limit, "session limit"); err != nil {
+		return err
+	}
+	return q.Archive.Validate()
 }
 
 // SessionAttachRequest identifies one explicit attach lock acquisition.

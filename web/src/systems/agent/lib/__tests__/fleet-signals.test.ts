@@ -23,6 +23,7 @@ function session(overrides: Partial<SessionPayload> = {}): SessionPayload {
     created_at: "2026-04-01T00:00:00Z",
     updated_at: "2026-04-01T01:00:00Z",
     ...overrides,
+    archived_at: overrides.archived_at ?? null,
   };
 }
 

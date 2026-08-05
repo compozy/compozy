@@ -61,7 +61,7 @@ func newSessionRewindCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, sessionRewindBundle(result))
+			return writeCommandOutput(cmd, sessionRewindBundle(&result))
 		},
 	}
 	cmd.Flags().Int64Var(&epoch, "expected-epoch", 0, "Transcript epoch returned by the transcript API")
@@ -77,7 +77,7 @@ func newSessionRewindCommand(deps commandDeps) *cobra.Command {
 	return cmd
 }
 
-func sessionRewindBundle(record SessionRewindRecord) outputBundle {
+func sessionRewindBundle(record *SessionRewindRecord) outputBundle {
 	return outputBundle{
 		jsonValue: record,
 		human: func() (string, error) {

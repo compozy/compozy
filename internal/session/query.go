@@ -111,7 +111,11 @@ func (m *Manager) Status(ctx context.Context, id string) (*Info, error) {
 			return nil, err
 		}
 	}
-	return m.sessionInfoFromMeta(ctx, meta), nil
+	info := m.sessionInfoFromMeta(ctx, meta)
+	if err := m.populateArchiveMetadata(ctx, info); err != nil {
+		return nil, err
+	}
+	return info, nil
 }
 
 // InputQueueSummary returns the durable busy-input state for one session.

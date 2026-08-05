@@ -7,7 +7,9 @@ import { useOnboardingStatus } from "@/systems/onboarding";
 import {
   SessionCreateDialogHost,
   SessionCreateProvider,
+  SessionDeleteDialog,
   useSessionCreateActions,
+  useSessionLifecycleActions,
 } from "@/systems/session";
 import { useSettingsSandboxes } from "@/systems/settings";
 import {
@@ -121,6 +123,7 @@ function DesktopShellBody({
   workspaceSetupDefaults: WorkspaceSetupDefaultsModel;
 }) {
   const sessionCreate = useSessionCreateActions();
+  const sessionLifecycle = useSessionLifecycleActions({ workspaceId: model.activeWorkspaceId });
   const openNewSession = () => {
     sessionCreate.openForAgent("");
   };
@@ -249,9 +252,22 @@ function DesktopShellBody({
       <OsSessionsModal
         open={overlays.activeOverlay === "sessions"}
         onOpenChange={open => overlays.setOverlayOpen("sessions", open)}
+        dismissalBlocked={sessionLifecycle.deleteDialog.open}
         sessions={attention.sessions}
+        archivedSessions={attention.archivedSessions}
+        archivedTotal={attention.archivedSessionsTotal}
         disconnected={attention.sessionsDisconnected}
+        sessionActions={sessionLifecycle.actions}
       />
+      {sessionLifecycle.deleteDialog.session ? (
+        <SessionDeleteDialog
+          open={sessionLifecycle.deleteDialog.open}
+          onOpenChange={sessionLifecycle.deleteDialog.onOpenChange}
+          session={sessionLifecycle.deleteDialog.session}
+          isDeleting={sessionLifecycle.deleteDialog.isDeleting}
+          onConfirm={sessionLifecycle.deleteDialog.onConfirm}
+        />
+      ) : null}
       <OsShortcutsDialog
         open={overlays.activeOverlay === "shortcuts"}
         onOpenChange={open => overlays.setOverlayOpen("shortcuts", open)}

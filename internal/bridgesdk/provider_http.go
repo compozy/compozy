@@ -16,6 +16,7 @@ type ProviderHTTPConfig struct {
 	ReadHeaderTimeout time.Duration
 	IdleTimeout       time.Duration
 	Handler           http.Handler
+	RoutesReady       <-chan struct{}
 	Go                func(func()) bool
 	OnError           func(error)
 }
@@ -27,6 +28,7 @@ type ProviderHTTPServer struct {
 	mu       sync.Mutex
 	server   *http.Server
 	listener net.Listener
+	shutdown chan struct{}
 	listenAt string
 	addr     string
 }
@@ -38,6 +40,9 @@ func NewProviderHTTPServer(config ProviderHTTPConfig) (*ProviderHTTPServer, erro
 	}
 	if config.Go == nil {
 		return nil, errors.New("bridgesdk: provider http goroutine owner is required")
+	}
+	if config.RoutesReady == nil {
+		return nil, errors.New("bridgesdk: provider http routes readiness is required")
 	}
 	return &ProviderHTTPServer{config: config}, nil
 }
@@ -66,13 +71,17 @@ func (s *ProviderHTTPServer) Start(listenAddr string) error {
 		s.mu.Unlock()
 		return fmt.Errorf("bridgesdk: listen for provider webhook: %w", err)
 	}
+	shutdown := make(chan struct{})
 	server := &http.Server{
-		Handler:           s.config.Handler,
+		Handler: http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			s.serveWhenRoutesReady(shutdown, writer, request)
+		}),
 		ReadHeaderTimeout: s.config.ReadHeaderTimeout,
 		IdleTimeout:       s.config.IdleTimeout,
 	}
 	s.listener = listener
 	s.server = server
+	s.shutdown = shutdown
 	s.listenAt = listenAddr
 	s.addr = listener.Addr().String()
 	s.mu.Unlock()
@@ -86,6 +95,21 @@ func (s *ProviderHTTPServer) Start(listenAddr string) error {
 		return errors.Join(ErrProviderStopped, s.Shutdown(context.Background()))
 	}
 	return nil
+}
+
+func (s *ProviderHTTPServer) serveWhenRoutesReady(
+	shutdown <-chan struct{},
+	writer http.ResponseWriter,
+	request *http.Request,
+) {
+	select {
+	case <-s.config.RoutesReady:
+		s.config.Handler.ServeHTTP(writer, request)
+	case <-shutdown:
+		http.Error(writer, "provider routes are not ready", http.StatusServiceUnavailable)
+	case <-request.Context().Done():
+		http.Error(writer, "provider routes are not ready", http.StatusServiceUnavailable)
+	}
 }
 
 // Address returns the configured listen address while the server is active.
@@ -109,19 +133,24 @@ func (s *ProviderHTTPServer) Shutdown(ctx context.Context) error {
 	s.mu.Lock()
 	server := s.server
 	listener := s.listener
+	shutdown := s.shutdown
 	s.server = nil
 	s.listener = nil
+	s.shutdown = nil
 	s.listenAt = ""
 	s.addr = ""
+	if shutdown != nil {
+		close(shutdown)
+	}
 	s.mu.Unlock()
 
 	var shutdownErr error
 	if server != nil {
 		if err := server.Shutdown(ctx); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			shutdownErr = errors.Join(shutdownErr, err)
-		}
-		if err := server.Close(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			shutdownErr = errors.Join(shutdownErr, err)
+			if closeErr := server.Close(); closeErr != nil && !errors.Is(closeErr, http.ErrServerClosed) {
+				shutdownErr = errors.Join(shutdownErr, closeErr)
+			}
 		}
 	}
 	if listener != nil {

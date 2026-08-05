@@ -29,6 +29,11 @@ func sessionCatalogListOperation() OperationSpec {
 			queryParam("agent", "Filter by exact agent definition name", false),
 			queryParam("q", "Search session id, name, agent, provider, or channel", false),
 			boolQueryParam("resumable", "Only list sessions eligible for explicit attach"),
+			enumQueryParam(
+				"archive",
+				"Archived session visibility",
+				[]string{"exclude", "only", "include"},
+			),
 			enumQueryParam("sort", "Stable session ordering", []string{"recent", "last_activity"}),
 			queryParam("cursor", "Opaque next_cursor from the previous page", false),
 			intQueryParam("limit", "Sessions per page (1-100)"),

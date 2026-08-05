@@ -15,6 +15,8 @@ const (
 	HostAPIMethodSessionsInputsCancel        = extensionprotocol.HostAPIMethodSessionsInputsCancel
 	HostAPIMethodSessionsInputsPromote       = extensionprotocol.HostAPIMethodSessionsInputsPromote
 	HostAPIMethodSessionsStop                = extensionprotocol.HostAPIMethodSessionsStop
+	HostAPIMethodSessionsArchive             = extensionprotocol.HostAPIMethodSessionsArchive
+	HostAPIMethodSessionsUnarchive           = extensionprotocol.HostAPIMethodSessionsUnarchive
 	HostAPIMethodSessionsStatus              = extensionprotocol.HostAPIMethodSessionsStatus
 	HostAPIMethodSessionsEvents              = extensionprotocol.HostAPIMethodSessionsEvents
 	HostAPIMethodSessionsSoulRefresh         = extensionprotocol.HostAPIMethodSessionsSoulRefresh

@@ -95,6 +95,11 @@ export function SessionStatusLine({
           </span>
         </>
       ) : null}
+      {session.archived_at !== null ? (
+        <span data-testid="session-status-archived" className="text-eyebrow text-subtle">
+          Archived
+        </span>
+      ) : null}
     </span>
   );
 }

@@ -63,6 +63,7 @@ func (s *Session) infoLocked() *Info {
 		AttachedTo:               strings.TrimSpace(s.AttachedTo),
 		AttachExpiresAt:          cloneSessionTimePtr(s.AttachExpiresAt),
 		TranscriptEpoch:          s.TranscriptEpoch,
+		ArchivedAt:               nil,
 		CreatedAt:                s.CreatedAt,
 		UpdatedAt:                s.UpdatedAt,
 	}

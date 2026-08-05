@@ -101,6 +101,30 @@ func (c *unixSocketClient) StopSession(ctx context.Context, id string) error {
 	)
 }
 
+func (c *unixSocketClient) ArchiveSession(ctx context.Context, id string) (SessionRecord, error) {
+	return c.setSessionArchived(ctx, id, "/archive")
+}
+
+func (c *unixSocketClient) UnarchiveSession(ctx context.Context, id string) (SessionRecord, error) {
+	return c.setSessionArchived(ctx, id, "/unarchive")
+}
+
+func (c *unixSocketClient) setSessionArchived(
+	ctx context.Context,
+	id string,
+	suffix string,
+) (SessionRecord, error) {
+	var response contract.SessionResponse
+	path, err := c.sessionScopedPath(ctx, id, suffix)
+	if err != nil {
+		return SessionRecord{}, err
+	}
+	if err := c.doJSON(ctx, http.MethodPost, path, nil, nil, &response); err != nil {
+		return SessionRecord{}, err
+	}
+	return response.Session, nil
+}
+
 func (c *unixSocketClient) DeleteSession(ctx context.Context, id string) error {
 	path, err := c.sessionScopedPath(ctx, id, "")
 	if err != nil {

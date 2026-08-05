@@ -295,6 +295,7 @@ func newWhatsAppProvider(stderr io.Writer) (*whatsappProvider, error) {
 		ReadHeaderTimeout: whatsappWebhookReadHeaderTimeout,
 		IdleTimeout:       whatsappWebhookIdleTimeout,
 		Handler:           http.HandlerFunc(provider.serveWebhookHTTP),
+		RoutesReady:       lifecycle.RoutesReady(),
 		Go:                lifecycle.Go,
 		OnError:           provider.setLastError,
 	})

@@ -246,6 +246,33 @@ function dragData(x: number, y: number) {
   };
 }
 
+function installAnimationFrameQueue() {
+  let nextID = 1;
+  const callbacks = new Map<number, FrameRequestCallback>();
+  vi.stubGlobal(
+    "requestAnimationFrame",
+    vi.fn((callback: FrameRequestCallback) => {
+      const id = nextID;
+      nextID += 1;
+      callbacks.set(id, callback);
+      return id;
+    })
+  );
+  vi.stubGlobal(
+    "cancelAnimationFrame",
+    vi.fn((id: number) => callbacks.delete(id))
+  );
+  return {
+    flush() {
+      const pending = [...callbacks.values()];
+      callbacks.clear();
+      act(() => {
+        for (const callback of pending) callback(performance.now());
+      });
+    },
+  };
+}
+
 /** Solo floating frame for the primary fixture window (frame rect = authoritative rect). */
 function primaryFrame(): OsWindowFrameModel {
   return {
@@ -274,6 +301,32 @@ function stackedFrame(): OsWindowFrameModel {
 }
 
 describe("useOsWindow", () => {
+  it("Should coalesce drag previews to the latest point in each animation frame", () => {
+    const frames = installAnimationFrameQueue();
+    const shell = createShell();
+    beginPrimarySnapGesture();
+    const previewed = vi.spyOn(windowManagerStore.trigger, "gesturePreviewed");
+    const { result } = renderHook(() => useOsWindow(primaryFrame()), {
+      wrapper: shell.wrapper,
+    });
+
+    act(() => {
+      result.current.handleDrag(
+        new MouseEvent("mousemove", { clientX: 200, clientY: 160 }),
+        dragData(200, 160)
+      );
+      result.current.handleDrag(
+        new MouseEvent("mousemove", { clientX: 360, clientY: 240 }),
+        dragData(360, 240)
+      );
+    });
+
+    expect(previewed).not.toHaveBeenCalled();
+    frames.flush();
+    expect(previewed).toHaveBeenCalledOnce();
+    expect(previewed).toHaveBeenCalledWith(expect.objectContaining({ point: { x: 360, y: 240 } }));
+  });
+
   it("Should defer a never-visible window and retain it after first visibility", () => {
     const shell = createShell();
     shell.setRuntimeState({ activeDesktopId: "desktop:other" });
@@ -641,6 +694,7 @@ describe("useWindowMergeTarget", () => {
     const head = document.createElement("div");
     head.setAttribute("data-slot", "os-window-head");
     Object.defineProperty(head, "getBoundingClientRect", {
+      configurable: true,
       value: () => ({
         left: 100,
         right: 400,
@@ -667,6 +721,7 @@ describe("useWindowMergeTarget", () => {
   }
 
   it("Should advertise a solo head as the group target while another frame drags over it", () => {
+    const frames = installAnimationFrameQueue();
     const shell = createShell();
     shell.setRuntimeState({ frames: { "desktop:main": [targetFrame()] } });
     const { result } = renderHook(() => useWindowMergeTarget(targetFrame(), true), {
@@ -676,6 +731,7 @@ describe("useWindowMergeTarget", () => {
 
     act(() => beginPrimarySnapGesture());
     act(() => pointerMove(200, 60));
+    frames.flush();
 
     expect(windowManagerStore.getSnapshot().context.deckDropTarget).toEqual({
       frameId: "window:target",
@@ -685,10 +741,12 @@ describe("useWindowMergeTarget", () => {
     expect(result.current.mergeTargeted).toBe(true);
 
     act(() => pointerMove(600, 60));
+    frames.flush();
     expect(windowManagerStore.getSnapshot().context.deckDropTarget).toBeNull();
   });
 
   it("Should not advertise a head occluded by a higher floating frame", () => {
+    const frames = installAnimationFrameQueue();
     const shell = createShell();
     const over: OsWindowFrameModel = {
       ...targetFrame(),
@@ -706,8 +764,35 @@ describe("useWindowMergeTarget", () => {
 
     act(() => beginPrimarySnapGesture());
     act(() => pointerMove(200, 60));
+    frames.flush();
 
     expect(windowManagerStore.getSnapshot().context.deckDropTarget).toBeNull();
+  });
+
+  it("Should measure only the latest pointer position once per animation frame", () => {
+    const frames = installAnimationFrameQueue();
+    const shell = createShell();
+    shell.setRuntimeState({ frames: { "desktop:main": [targetFrame()] } });
+    const { result } = renderHook(() => useWindowMergeTarget(targetFrame(), true), {
+      wrapper: shell.wrapper,
+    });
+    const chrome = chromeWithHead();
+    const head = chrome.querySelector('[data-slot="os-window-head"]');
+    if (!(head instanceof HTMLElement)) throw new Error("window head fixture is required");
+    const measure = vi.spyOn(head, "getBoundingClientRect");
+    result.current.chromeRef.current = chrome;
+
+    act(() => beginPrimarySnapGesture());
+    act(() => {
+      pointerMove(200, 60);
+      pointerMove(600, 60);
+      pointerMove(240, 70);
+    });
+
+    expect(measure).not.toHaveBeenCalled();
+    frames.flush();
+    expect(measure).toHaveBeenCalledOnce();
+    expect(windowManagerStore.getSnapshot().context.deckDropTarget?.frameId).toBe("window:target");
   });
 });
 

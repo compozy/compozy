@@ -50,7 +50,12 @@ export function runningAgentNames(sessions: SessionPayload[] | undefined): Set<s
 export function idleAttachableAgentNames(sessions: SessionPayload[] | undefined): Set<string> {
   const names = new Set<string>();
   for (const session of sessions ?? []) {
-    if (session.state === "active" && session.attachable && !isSessionRunning(session)) {
+    if (
+      session.archived_at === null &&
+      session.state === "active" &&
+      session.attachable &&
+      !isSessionRunning(session)
+    ) {
       names.add(session.agent_name);
     }
   }
@@ -64,6 +69,7 @@ export function isUserControllableSession(session: SessionPayload): boolean {
 export function canPromptSession(session: SessionPayload): boolean {
   return (
     isUserControllableSession(session) &&
+    session.archived_at === null &&
     (session.state === "active" || session.state === "stopped")
   );
 }

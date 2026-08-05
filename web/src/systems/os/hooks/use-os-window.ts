@@ -19,6 +19,7 @@ import { snapTargetConfigFromConfig } from "../lib/window-manager-view";
 import { windowManagerStore } from "../stores/window-manager-store";
 import { finishWindowManagerGesture } from "../stores/window-manager-store-commands";
 import { useDesktop } from "./use-desktop";
+import { useAnimationFrameLatest } from "./use-animation-frame-latest";
 import { useOsShell } from "./use-os-shell";
 import { useOsWindowResize } from "./use-os-window-resize";
 import {
@@ -27,6 +28,11 @@ import {
 } from "./use-window-manager-store";
 
 type OsDragEvent = Parameters<RndDragCallback>[0];
+
+interface PendingDragPreview {
+  point: { x: number; y: number };
+  swapModifierActive: boolean;
+}
 
 function applyAuthoritativeRndRect(rnd: Rnd | null, rect: OsRect) {
   rnd?.updatePosition({ x: rect.x, y: rect.y });
@@ -192,6 +198,27 @@ export function useOsWindow(frame: OsWindowFrameModel): OsWindowModel {
     return modifier !== undefined && modifier !== "none" && modifierActive(event, modifier);
   };
 
+  const dragPreview = useAnimationFrameLatest<PendingDragPreview>(pending => {
+    const snapshot = windowManagerStore.getSnapshot().context;
+    const gesture = snapshot.gesture;
+    const currentWorkArea = snapshot.workArea?.rect;
+    if (
+      gesture?.status !== "active" ||
+      gesture.source.windowId !== activeId ||
+      currentWorkArea === undefined
+    ) {
+      return;
+    }
+    windowManagerStore.trigger.gesturePreviewed({
+      point: pending.point,
+      preview:
+        snapshot.deckDropTarget !== null
+          ? null
+          : targetAt(pending.point, gesture.workArea, pending.swapModifierActive),
+      currentWorkArea,
+    });
+  });
+
   const snapBackToAuthoritative = () => {
     const authoritative = manager.getState().windows[activeId];
     if (authoritative) {
@@ -298,22 +325,27 @@ export function useOsWindow(frame: OsWindowFrameModel): OsWindowModel {
   };
 
   const handleDrag: RndDragCallback = (event, _data) => {
-    if (snapBackCancelled()) return;
+    if (snapBackCancelled()) {
+      dragPreview.cancel();
+      return;
+    }
     const point = layerPoint(event);
     const gesture = windowManagerStore.getSnapshot().context.gesture;
     const currentWorkArea = windowManagerStore.getSnapshot().context.workArea?.rect;
     if (!point || gesture?.status !== "active" || !currentWorkArea) return;
-    // A deck or head advertising the merge drop owns the affordance; a snap
-    // preview under it would promise a different commit than the release.
-    const mergeTargeted = windowManagerStore.getSnapshot().context.deckDropTarget !== null;
-    windowManagerStore.trigger.gesturePreviewed({
-      point,
-      preview: mergeTargeted ? null : targetAt(point, gesture.workArea, swapModifierHeld(event)),
-      currentWorkArea,
+    // Pointer streams can outpace paint by orders of magnitude. Keep only the
+    // latest point for the next frame so snap projection and shell subscribers
+    // never do duplicate work that cannot be displayed.
+    dragPreview.schedule({
+      value: {
+        point,
+        swapModifierActive: swapModifierHeld(event),
+      },
     });
   };
 
   const handleDragStop: RndDragCallback = (event, data) => {
+    dragPreview.cancel();
     if (settleCancelledDrag()) return;
     const point = layerPoint(event) ?? { x: data.x, y: data.y };
     const state = manager.getState();

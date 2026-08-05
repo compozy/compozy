@@ -48,7 +48,6 @@ Activate skills **before** writing code. Match task domain → activate all requ
 | Task completion               | `cy-final-verify`                                                   |                                     |
 
 - **Design-system / redesign passes**: run the `designer` agent in execution mode (not plan) and activate `eng-design` + `ui-craft` before touching any component. `ui-craft` is reference-routed — read the matched rows in full. `tokens.css` + generated `DESIGN.md` win over anything informal in the codebase.
-- **Visual verification is mandatory for every UI change** (`eng-ui-screenshot`; tests verify code, not pixels): capture the matching Storybook story on port 6006 (resolve ids via `list-stories.mjs` — bad ids hit the sub-20 KB "Couldn't find story" fallback), diff against a trusted baseline (before + after for surface-wide passes), and cite the capture when reporting done.
 
 ## Build Commands
 

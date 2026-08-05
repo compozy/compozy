@@ -22,6 +22,7 @@ export function normalizeSessionListFilters(filters: SessionListFilters = {}): S
   if (agent) normalized.agent = agent;
   if (search) normalized.q = search;
   if (filters.resumable !== undefined) normalized.resumable = filters.resumable;
+  if (filters.archive !== undefined) normalized.archive = filters.archive;
   if (filters.sort !== undefined) normalized.sort = filters.sort;
   if (filters.limit !== undefined) normalized.limit = filters.limit;
 

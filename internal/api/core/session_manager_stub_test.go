@@ -24,6 +24,8 @@ type sessionManagerStub struct {
 	repairSession       func(context.Context, session.RepairOpts) (*session.RepairResult, error)
 	delete              func(context.Context, string) error
 	stop                func(context.Context, string) error
+	archive             func(context.Context, string, string) (*session.Info, error)
+	unarchive           func(context.Context, string, string) (*session.Info, error)
 	stopWithCause       func(context.Context, string, session.StopCause, string) error
 	resume              func(context.Context, string) (*session.Session, error)
 	clearConversation   func(context.Context, string) (*session.Session, error)
@@ -163,6 +165,28 @@ func (s sessionManagerStub) Stop(ctx context.Context, id string) error {
 		return s.stop(ctx, id)
 	}
 	return session.ErrSessionNotFound
+}
+
+func (s sessionManagerStub) Archive(
+	ctx context.Context,
+	workspaceID string,
+	sessionID string,
+) (*session.Info, error) {
+	if s.archive != nil {
+		return s.archive(ctx, workspaceID, sessionID)
+	}
+	return nil, session.ErrSessionNotFound
+}
+
+func (s sessionManagerStub) Unarchive(
+	ctx context.Context,
+	workspaceID string,
+	sessionID string,
+) (*session.Info, error) {
+	if s.unarchive != nil {
+		return s.unarchive(ctx, workspaceID, sessionID)
+	}
+	return nil, session.ErrSessionNotFound
 }
 
 func (s sessionManagerStub) StopWithCause(

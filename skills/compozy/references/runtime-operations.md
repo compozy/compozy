@@ -120,6 +120,8 @@ cannot be validated fail closed.
     compozy session list --all -o json
     compozy session list --type user --state active --sort last_activity -o json
     compozy session list --resumable -o json
+    compozy session list --archived -o json
+    compozy session list --include-archived -o json
     compozy session status <session-id> -o json
     compozy session health <session-id> -o json
     compozy session inspect <session-id> --include-wake-events -o json
@@ -135,6 +137,8 @@ cannot be validated fail closed.
     compozy session resume <session-id>
     compozy session resume --latest --workspace checkout-api
     compozy session stop <session-id>
+    compozy session archive <session-id>
+    compozy session unarchive <session-id>
     compozy session remove <session-id>
     compozy session repair <session-id> --dry-run -o json
     compozy session soul refresh <session-id> --expected-digest sha256:old -o json
@@ -275,7 +279,11 @@ reasoning rate from output.
 Prefer `compozy session usage <session-id> -o json` when an agent needs the same aggregate over UDS.
 
 `compozy session stop` preserves durable history and ends attach eligibility; a later normal prompt
-restarts the same logical session. `compozy session remove`
+restarts the same logical session. `compozy session archive` hides a stopped session from the
+default catalog without deleting it. Archived sessions keep their history and remain directly
+readable, but cannot resume, attach, or accept a prompt until `compozy session unarchive` clears the
+archive marker. Use `session list --archived` for only archived sessions or
+`session list --include-archived` for both catalog sections. `compozy session remove`
 is destructive: it stops an active runtime when necessary, then removes the catalog row and persisted
 session directory. Use removal only when the operator intends to discard that history.
 

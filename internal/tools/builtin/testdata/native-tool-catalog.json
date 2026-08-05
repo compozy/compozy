@@ -2279,6 +2279,19 @@
     ]
   },
   {
+    "tool_id": "compozy__session_archive",
+    "native_name": "session_archive",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "7d11b95a06235b3bd74486bcb6af083f20b2dc1bf261af21d0f1cc8f2562b32f",
+    "output_schema_digest": "8d3bfa6a8b156cf8a52edb3e5af7f23d716bd0da84f9851445772d9ab8db3ee9"
+  },
+  {
     "tool_id": "compozy__session_create",
     "native_name": "session_create",
     "toolsets": [
@@ -2406,7 +2419,7 @@
     "read_only": true,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "f674e12153b1a019aba76dd8323e03f91a78410ebc6c2d10f55f1dd06572d9a9",
+    "input_schema_digest": "0202861f83acf2224e1068fefb556c7d45687fe66471f365034ed799ee9ac5b7",
     "output_schema_digest": "8003521e0a33d873299bea49afede257877a3cb3ea602bfc592b77ade7b96808"
   },
   {
@@ -2473,6 +2486,19 @@
     "open_world": false,
     "input_schema_digest": "7d11b95a06235b3bd74486bcb6af083f20b2dc1bf261af21d0f1cc8f2562b32f",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__session_unarchive",
+    "native_name": "session_unarchive",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "7d11b95a06235b3bd74486bcb6af083f20b2dc1bf261af21d0f1cc8f2562b32f",
+    "output_schema_digest": "8d3bfa6a8b156cf8a52edb3e5af7f23d716bd0da84f9851445772d9ab8db3ee9"
   },
   {
     "tool_id": "compozy__skill_list",

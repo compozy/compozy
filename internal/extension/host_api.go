@@ -159,6 +159,11 @@ type hostAPISessionAcceptanceManager interface {
 	CreateAccepted(ctx context.Context, opts session.CreateAcceptedOpts) (*session.Info, error)
 }
 
+type hostAPISessionArchiveManager interface {
+	Archive(ctx context.Context, workspaceID string, sessionID string) (*session.Info, error)
+	Unarchive(ctx context.Context, workspaceID string, sessionID string) (*session.Info, error)
+}
+
 type hostAPIRuntimePromptSessionManager interface {
 	SendPrompt(ctx context.Context, id string, opts session.SendPromptOpts) (session.SendPromptResult, error)
 }

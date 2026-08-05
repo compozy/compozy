@@ -19,6 +19,7 @@ import {
   useSessionCreateActions,
   useSessionCreateIsCreating,
   useSessionCreatePendingAgentName,
+  useSessionLifecycleActions,
   type SessionPayload,
 } from "@/systems/session";
 import { useActiveWorkspace } from "@/systems/workspace";
@@ -28,6 +29,8 @@ export interface UseAgentDetailResult {
   agentLoading: boolean;
   agentError: Error | null;
   sessions: SessionPayload[];
+  archivedSessions: SessionPayload[];
+  archivedSessionsTotal: number;
   sessionsTotal: number;
   activeSessionsTotal: number;
   failedSessionsTotal: number | null;
@@ -40,6 +43,9 @@ export interface UseAgentDetailResult {
   hasMoreSessions: boolean;
   isLoadingMoreSessions: boolean;
   onLoadMoreSessions: () => void;
+  hasMoreArchivedSessions: boolean;
+  isLoadingMoreArchivedSessions: boolean;
+  onLoadMoreArchivedSessions: () => void;
   /** Row-page loading only — never OR'd with the metrics query. */
   sessionsLoading: boolean;
   /** Row-page error only — never OR'd with the metrics query. */
@@ -56,6 +62,8 @@ export interface UseAgentDetailResult {
   onDelete: () => void;
   onBackToAgents: () => void;
   deleteDialog: ReturnType<typeof useAgentDeleteFlow>["confirmDialog"];
+  sessionActions: ReturnType<typeof useSessionLifecycleActions>["actions"];
+  sessionDeleteDialog: ReturnType<typeof useSessionLifecycleActions>["deleteDialog"];
 }
 
 export function useAgentDetail(name: string, rawSearch: AgentDetailSearch): UseAgentDetailResult {
@@ -75,12 +83,18 @@ export function useAgentDetail(name: string, rawSearch: AgentDetailSearch): UseA
   const metrics = useAgentCatalogMetrics(activeWorkspaceId, name);
   const {
     sessions,
+    archivedSessions,
+    archivedTotal: archivedSessionsTotal,
     hasMore: hasMoreSessions,
     isLoadingMore: isLoadingMoreSessions,
     loadMore: onLoadMoreSessions,
+    hasMoreArchived: hasMoreArchivedSessions,
+    isLoadingMoreArchived: isLoadingMoreArchivedSessions,
+    loadMoreArchived: onLoadMoreArchivedSessions,
     isLoading: sessionsLoading,
     isError: sessionsError,
   } = useAgentSessions(activeWorkspaceId, name);
+  const sessionLifecycle = useSessionLifecycleActions({ workspaceId: activeWorkspaceId });
 
   const deleteFlow = useAgentDeleteFlow({
     agent,
@@ -140,6 +154,8 @@ export function useAgentDetail(name: string, rawSearch: AgentDetailSearch): UseA
     agentLoading,
     agentError: (agentError as Error | null) ?? null,
     sessions,
+    archivedSessions,
+    archivedSessionsTotal,
     sessionsTotal: metrics.total,
     activeSessionsTotal: metrics.active,
     failedSessionsTotal: metrics.failed,
@@ -151,6 +167,9 @@ export function useAgentDetail(name: string, rawSearch: AgentDetailSearch): UseA
     hasMoreSessions,
     isLoadingMoreSessions,
     onLoadMoreSessions,
+    hasMoreArchivedSessions,
+    isLoadingMoreArchivedSessions,
+    onLoadMoreArchivedSessions,
     sessionsLoading,
     sessionsError,
     search,
@@ -165,6 +184,8 @@ export function useAgentDetail(name: string, rawSearch: AgentDetailSearch): UseA
     onDelete: deleteFlow.openDialog,
     onBackToAgents,
     deleteDialog: deleteFlow.confirmDialog,
+    sessionActions: sessionLifecycle.actions,
+    sessionDeleteDialog: sessionLifecycle.deleteDialog,
   };
 }
 

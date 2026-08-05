@@ -341,7 +341,7 @@ steps:
   - Read `openapi/compozy.json` and enumerate every used tag and every operation under `paths.*.<method>`.
   - For each tag `T`, assert `packages/site/content/docs/api/<tagSlug(T)>.mdx` exists and renders an `APIPage` block.
   - Crawl the rendered page at `http://127.0.0.1:$PORT/docs/api/<tagSlug>/` and assert each operation under `T` is referenced (operationId, method, or path appears in the rendered HTML body).
-  - Cross-check against the `internal/api/spec.Operations()` registry: assert the count of distinct operationIds matches `internal/api/spec/spec_test.go:1219-1232` (currently 202).
+  - Cross-check against the `internal/api/spec.Operations()` registry: assert the generated set of distinct operation ids matches the live registry exactly.
 expected:
   - Every used tag has its MDX file (asserted by existing `docs-api-reference.test.ts`, re-confirmed at the rendered HTML level).
   - Every operationId appears at least once in the rendered tree.
@@ -354,7 +354,7 @@ evidence:
 failure_signatures:
   - Missing MDX for a used tag → `bunx turbo run generate:openapi --filter=./packages/site` did not run during build; or `cleanGenerated` removed the file (`scripts/generate-openapi.ts:16-23`).
   - OperationId missing from the rendered page → `fumadocs-openapi`'s `generateFiles` skipped the operation (extensions, vendor extensions, or schema validation error in the spec).
-  - Operation count diverges from `internal/api/spec/spec_test.go:1219-1232` (202) → codegen drift; same failure mode as API-07 in `11-api-cli-parity.md`.
+  - Generated operation ids diverge from the live registry → codegen drift; same failure mode as API-07 in `11-api-cli-parity.md`.
 cleanup:
   - Kill static server.
 ```

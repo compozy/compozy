@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
 
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
 	"github.com/compozy/compozy/internal/session"
@@ -135,9 +136,18 @@ func hostAPISessionStatusFromInfo(info *session.Info) hostAPISessionStatus {
 		WorkspaceID: info.WorkspaceID,
 		Workspace:   info.Workspace,
 		State:       info.State,
+		ArchivedAt:  cloneHostAPITime(info.ArchivedAt),
 		StopReason:  info.StopReason,
 		StopDetail:  info.StopDetail,
 		CreatedAt:   info.CreatedAt,
 		UpdatedAt:   info.UpdatedAt,
 	}
+}
+
+func cloneHostAPITime(value *time.Time) *time.Time {
+	if value == nil {
+		return nil
+	}
+	cloned := value.UTC()
+	return &cloned
 }

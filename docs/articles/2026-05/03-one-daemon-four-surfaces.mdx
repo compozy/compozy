@@ -85,7 +85,7 @@ cmd := &cobra.Command{
 
 _Figure 2 — The CLI verb has no business logic; it delegates to `client.ListSessions`, which speaks the same HTTP wire format the web UI uses._
 
-`client.ListSessions` is the load-bearing line. The implementation in `internal/cli/client.go:1916` issues `GET /api/sessions` against the Unix-socket-backed client; the daemon answers that request with the same `BaseHandlers.ListSessions` method that serves the browser. The `-o json` flag — present on every state-reading verb — is the agent-manageable escape hatch: agents pipe structured output to other agents without parsing TTY decoration.
+`client.ListSessions` is the load-bearing line. It issues `GET /api/sessions` against the Unix-socket-backed client; the daemon answers that request with the same `BaseHandlers.ListSessions` method that serves the browser. Default lists exclude archived sessions. Scripts can request only archived rows with `--archived`, or the complete catalog with `--include-archived`. The `-o json` flag — present on every state-reading verb — is the agent-manageable escape hatch: agents pipe structured output to other agents without parsing TTY decoration.
 
 ## HTTP and SSE: long-poll over a generated contract
 
@@ -190,6 +190,8 @@ Surface parity is the kind of property that is invisible when it works and catas
 | Create a session              | `compozy session create --agent claude` | `POST /api/sessions`                     | `POST /api/sessions`                      | New-session dialog         |
 | Stream session events         | `compozy session events <id> --follow`  | `GET /workspaces/:w/sessions/:id/stream` | `GET /workspaces/:w/sessions/:id/stream`  | Live transcript view       |
 | Stop a session                | `compozy session stop <id>`             | `POST /workspaces/:w/sessions/:id/stop`  | `POST /workspaces/:w/sessions/:id/stop`   | Stop action on session row |
+| Archive a stopped session     | `compozy session archive <id>`          | `POST /workspaces/:w/sessions/:id/archive` | `POST /workspaces/:w/sessions/:id/archive` | Archive action on session row |
+| Restore an archived session   | `compozy session unarchive <id>`        | `POST /workspaces/:w/sessions/:id/unarchive` | `POST /workspaces/:w/sessions/:id/unarchive` | Unarchive action on session row |
 | Claim a task run (agent-only) | n/a                                 | n/a                                      | `POST /workspaces/:w/task-runs/:id/claim` | n/a                        |
 
 _Table 1 — The same daemon answers every cell except the last row, which is intentionally UDS-only because the `claim_token` it returns must never traverse a network surface._

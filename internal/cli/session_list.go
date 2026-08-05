@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"strconv"
 	"strings"
 	"time"
@@ -18,6 +19,8 @@ type sessionListFlags struct {
 	agentFilter     string
 	search          string
 	resumable       bool
+	archived        bool
+	includeArchived bool
 	includeHealth   bool
 	limit           int
 	sortKey         string
@@ -51,6 +54,8 @@ func newSessionListCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&flags.agentFilter, "agent", "", "Filter by exact agent definition name")
 	cmd.Flags().StringVar(&flags.search, "query", "", "Search session id, name, agent, provider, or channel")
 	cmd.Flags().BoolVar(&flags.resumable, "resumable", false, "Show only sessions eligible for resume attach")
+	cmd.Flags().BoolVar(&flags.archived, "archived", false, "Show only archived sessions")
+	cmd.Flags().BoolVar(&flags.includeArchived, "include-archived", false, "Include archived sessions")
 	cmd.Flags().
 		BoolVar(&flags.includeHealth, "include-health", false, "Include metadata-only health for returned sessions")
 	cmd.Flags().IntVar(&flags.limit, "limit", 0, "Sessions per page (1-100)")
@@ -60,6 +65,9 @@ func newSessionListCommand(deps commandDeps) *cobra.Command {
 }
 
 func runSessionListCommand(cmd *cobra.Command, deps commandDeps, flags sessionListFlags) error {
+	if flags.archived && flags.includeArchived {
+		return errors.New("cli: --archived and --include-archived are mutually exclusive")
+	}
 	client, err := clientFromDeps(deps)
 	if err != nil {
 		return err
@@ -75,8 +83,14 @@ func runSessionListCommand(cmd *cobra.Command, deps commandDeps, flags sessionLi
 		return err
 	}
 	state := strings.TrimSpace(flags.stateFilter)
-	if state == "" && !flags.includeAll && !flags.resumable {
+	if state == "" && !flags.includeAll && !flags.resumable && !flags.archived && !flags.includeArchived {
 		state = string(session.StateActive)
+	}
+	archive := string(session.ArchiveExclude)
+	if flags.archived {
+		archive = string(session.ArchiveOnly)
+	} else if flags.includeArchived {
+		archive = string(session.ArchiveInclude)
 	}
 	sort := strings.TrimSpace(flags.sortKey)
 	if sort == "" && flags.resumable {
@@ -89,6 +103,7 @@ func runSessionListCommand(cmd *cobra.Command, deps commandDeps, flags sessionLi
 		Agent:         flags.agentFilter,
 		Query:         flags.search,
 		Resumable:     flags.resumable,
+		Archive:       archive,
 		IncludeHealth: flags.includeHealth,
 		Limit:         flags.limit,
 		Sort:          sort,

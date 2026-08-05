@@ -19,6 +19,7 @@ SET attached_to = sqlc.arg(attached_to),
     updated_at = sqlc.arg(updated_at)
 WHERE id = sqlc.arg(id)
   AND state = 'active'
+  AND archived_at IS NULL
   AND (failure_kind IS NULL OR trim(failure_kind) = '')
   AND (stall_state IS NULL OR trim(stall_state) = '')
   AND (attached_to = '' OR attach_expires_at IS NULL OR attach_expires_at <= sqlc.arg(updated_at));

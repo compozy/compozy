@@ -25,6 +25,7 @@ function SessionPublisher({
     isDeleting: false,
     isStopping: false,
     isResuming: false,
+    isUnarchiving: false,
     isClearing: false,
     canClear: true,
     inspectorOpen,
@@ -32,6 +33,7 @@ function SessionPublisher({
     onDelete: vi.fn(),
     onStop,
     onResume: vi.fn(),
+    onUnarchive: vi.fn(),
     onClear: vi.fn(),
   });
   return null;
@@ -87,6 +89,7 @@ describe("useSessionTopbarSlot", () => {
         isDeleting: false,
         isStopping: false,
         isResuming: false,
+        isUnarchiving: false,
         isClearing: false,
         canClear: true,
         inspectorOpen: false,
@@ -94,6 +97,7 @@ describe("useSessionTopbarSlot", () => {
         onDelete: vi.fn(),
         onStop,
         onResume: vi.fn(),
+        onUnarchive: vi.fn(),
         onClear: vi.fn(),
       });
       return null;
@@ -107,5 +111,42 @@ describe("useSessionTopbarSlot", () => {
     fireEvent.click(screen.getByRole("button", { name: "More actions" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Stop session" }));
     expect(onStop).toHaveBeenCalledTimes(1);
+  });
+
+  it("Should offer unarchive without attach or resume controls for an archived session", () => {
+    const onUnarchive = vi.fn();
+
+    function ArchivedPublisher() {
+      useSessionTopbarSlot({
+        session: {
+          ...primarySessionFixture,
+          state: "stopped",
+          badge: "stopped",
+          attachable: true,
+          archived_at: "2026-08-04T12:00:00Z",
+        },
+        isDeleting: false,
+        isStopping: false,
+        isResuming: false,
+        isUnarchiving: false,
+        isClearing: false,
+        canClear: true,
+        inspectorOpen: false,
+        onInspectorToggle: vi.fn(),
+        onDelete: vi.fn(),
+        onStop: vi.fn(),
+        onResume: vi.fn(),
+        onUnarchive,
+        onClear: vi.fn(),
+      });
+      return null;
+    }
+
+    renderWithTopbar(<ArchivedPublisher />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Unarchive session" }));
+    expect(onUnarchive).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("button", { name: "Attach session" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Resume session" })).toBeNull();
   });
 });

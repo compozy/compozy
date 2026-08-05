@@ -40,6 +40,13 @@ func (m *Manager) Resume(ctx context.Context, id string) (resumed *Session, err 
 	defer func() {
 		m.finishSessionResume(target, run, resumed, err)
 	}()
+	meta, err := m.readMetaWithContext(ctx, target)
+	if err != nil {
+		return nil, err
+	}
+	if err := m.requireSessionUnarchived(ctx, meta.WorkspaceID, target); err != nil {
+		return nil, err
+	}
 	return m.resumeSession(ctx, target)
 }
 

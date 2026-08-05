@@ -176,9 +176,9 @@ func TestGlobalDBNotificationCursorStore(t *testing.T) {
 		if err != nil {
 			t.Fatalf("openGlobalMigrationPrefixDatabase() error = %v", err)
 		}
-		ctx := testutil.Context(t)
+		seedCtx := testutil.Context(t)
 		if _, err := legacyDB.ExecContext(
-			ctx,
+			seedCtx,
 			`INSERT INTO notification_cursors (
 				consumer_id, stream_name, subject_id, last_sequence, last_delivery_id,
 				last_delivered_at, last_error, updated_at
@@ -202,14 +202,14 @@ func TestGlobalDBNotificationCursorStore(t *testing.T) {
 		if err != nil {
 			t.Fatalf("openGlobalMigrationUpgrade() error = %v", err)
 		}
-		ctx = testutil.Context(t)
 		t.Cleanup(func() {
 			if closeErr := globalDB.Close(testutil.Context(t)); closeErr != nil {
 				t.Errorf("GlobalDB.Close() error = %v", closeErr)
 			}
 		})
+		queryCtx := testutil.Context(t)
 		var count int
-		if err := globalDB.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM notification_cursors`).
+		if err := globalDB.db.QueryRowContext(queryCtx, `SELECT COUNT(*) FROM notification_cursors`).
 			Scan(&count); err != nil {
 			t.Fatalf("count scoped notification cursors error = %v", err)
 		}

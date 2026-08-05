@@ -265,6 +265,7 @@ func newGitHubProvider(stderr io.Writer) (*githubProvider, error) {
 		ReadHeaderTimeout: githubWebhookReadHeaderTimeout,
 		IdleTimeout:       githubWebhookIdleTimeout,
 		Handler:           http.HandlerFunc(provider.serveWebhookHTTP),
+		RoutesReady:       lifecycle.RoutesReady(),
 		Go:                lifecycle.Go,
 		OnError:           provider.setLastError,
 	})

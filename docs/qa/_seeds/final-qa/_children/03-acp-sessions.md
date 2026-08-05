@@ -32,11 +32,14 @@ The HTTP surface for this module is registered at `internal/api/httpapi/routes.g
 ```
 POST   /api/sessions
 GET    /api/sessions
+GET    /api/sessions/catalog-stream
 GET    /api/sessions/:id
 GET    /api/sessions/:id/health
 GET    /api/sessions/:id/status
 GET    /api/sessions/:id/inspect
 POST   /api/sessions/:id/stop
+POST   /api/workspaces/:workspace_id/sessions/:id/archive
+POST   /api/workspaces/:workspace_id/sessions/:id/unarchive
 POST   /api/sessions/:id/resume
 POST   /api/sessions/:id/repair
 POST   /api/sessions/:id/clear
@@ -53,7 +56,7 @@ GET    /api/agent/context                      ← situation surface
 POST   /api/agent/spawn                        ← bounded child session
 ```
 
-The UDS surface mirrors the same routes (`internal/api/udsapi/routes.go:66-90`). The CLI shape is `compozy session {new|list|status|inspect|prompt|events|history|stop|resume|repair|wait}` (`internal/cli/session.go:16-37`) and `compozy spawn` for bounded child sessions (`internal/cli/spawn.go:28-76`). `compozy exec --ide claude --model …` is a separate headless surface and is **not** in scope here.
+The UDS surface mirrors the same routes. The CLI shape includes `compozy session {new|list|status|inspect|prompt|events|history|stop|archive|unarchive|resume|repair|wait}` and `compozy spawn` for bounded child sessions. Archive is reversible catalog metadata, not an ACP lifecycle state: only stopped sessions can enter it, and runtime actions require Unarchive first. `compozy exec --ide claude --model …` is a separate headless surface and is **not** in scope here.
 
 ACP-supported subagent commands (the binaries that a real-LLM scenario must exercise) come from the builtin provider table at `internal/config/provider.go:124-256`:
 

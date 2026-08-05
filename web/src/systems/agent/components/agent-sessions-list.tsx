@@ -1,10 +1,13 @@
 import { Link } from "@tanstack/react-router";
-import { MessageSquare } from "lucide-react";
+import { ChevronRight, MessageSquare } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 
 import {
   Empty,
   Button,
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
   Eyebrow,
   Pill,
   Skeleton,
@@ -20,16 +23,27 @@ import {
 } from "@compozy/ui";
 
 import { getAgentSessionStatus } from "../lib/session-status";
-import { getSessionDisplayTitle, isSessionRunning, type SessionPayload } from "@/systems/session";
+import {
+  getSessionDisplayTitle,
+  isSessionRunning,
+  SessionRowActions,
+  type SessionLifecycleActionHandlers,
+  type SessionPayload,
+} from "@/systems/session";
 
 const RELATIVE_TIME_REFRESH_MS = 30_000;
 
 export interface AgentSessionsListProps {
   agentName: string;
   sessions: SessionPayload[];
+  archivedSessions?: SessionPayload[];
+  archivedTotal?: number;
   status: "loading" | "error" | "ready";
+  archivedPaginationStatus?: "available" | "loading";
+  onLoadMoreArchived?: () => void;
   paginationStatus?: "available" | "loading";
   onLoadMore?: () => void;
+  sessionActions?: SessionLifecycleActionHandlers;
   emptyTitle?: ReactNode;
   emptyDescription?: ReactNode;
   emptyAction?: ReactNode;
@@ -38,9 +52,14 @@ export interface AgentSessionsListProps {
 export function AgentSessionsList({
   agentName,
   sessions,
+  archivedSessions = [],
+  archivedTotal,
   status,
+  archivedPaginationStatus,
+  onLoadMoreArchived,
   paginationStatus,
   onLoadMore,
+  sessionActions,
   emptyTitle = "No sessions yet",
   emptyDescription,
   emptyAction,
@@ -49,46 +68,50 @@ export function AgentSessionsList({
     emptyDescription === undefined
       ? `Start a new session for ${agentName} from the toolbar above.`
       : emptyDescription;
-  if (status === "loading") {
-    return <AgentSessionsSkeleton />;
-  }
-
-  if (status === "error") {
-    return (
-      <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-10">
-        <Empty
-          icon={MessageSquare}
-          title="Couldn't load sessions"
-          description="The session list failed to load. Try refreshing the page."
-          data-testid="agent-sessions-error"
-          fill={false}
-        />
-      </div>
-    );
-  }
-
-  if (sessions.length === 0) {
-    return (
-      <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-10">
-        <Empty
-          icon={MessageSquare}
-          title={emptyTitle}
-          description={resolvedEmptyDescription}
-          action={emptyAction}
-          data-testid="agent-sessions-empty"
-          fill={false}
-        />
-      </div>
-    );
-  }
-
   return (
-    <AgentSessionsTable
-      agentName={agentName}
-      sessions={sessions}
-      paginationStatus={paginationStatus}
-      onLoadMore={onLoadMore}
-    />
+    <div className="flex flex-col gap-3">
+      {status === "loading" ? <AgentSessionsSkeleton /> : null}
+      {status === "error" ? (
+        <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-10">
+          <Empty
+            icon={MessageSquare}
+            title="Couldn't load sessions"
+            description="The session list failed to load. Try refreshing the page."
+            data-testid="agent-sessions-error"
+            fill={false}
+          />
+        </div>
+      ) : null}
+      {status === "ready" && sessions.length === 0 && archivedSessions.length === 0 ? (
+        <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-10">
+          <Empty
+            icon={MessageSquare}
+            title={emptyTitle}
+            description={resolvedEmptyDescription}
+            action={emptyAction}
+            data-testid="agent-sessions-empty"
+            fill={false}
+          />
+        </div>
+      ) : null}
+      {status === "ready" && sessions.length > 0 ? (
+        <AgentSessionsTable
+          agentName={agentName}
+          sessions={sessions}
+          paginationStatus={paginationStatus}
+          onLoadMore={onLoadMore}
+          sessionActions={sessionActions}
+        />
+      ) : null}
+      <ArchivedSessionsSection
+        agentName={agentName}
+        sessions={archivedSessions}
+        total={archivedTotal}
+        paginationStatus={archivedPaginationStatus}
+        onLoadMore={onLoadMoreArchived}
+        sessionActions={sessionActions}
+      />
+    </div>
   );
 }
 
@@ -97,6 +120,7 @@ interface AgentSessionsTableProps {
   sessions: SessionPayload[];
   paginationStatus?: "available" | "loading";
   onLoadMore?: () => void;
+  sessionActions?: SessionLifecycleActionHandlers;
 }
 
 function AgentSessionsTable({
@@ -104,6 +128,7 @@ function AgentSessionsTable({
   sessions,
   paginationStatus,
   onLoadMore,
+  sessionActions,
 }: AgentSessionsTableProps) {
   const [now, setNow] = useState(Date.now);
 
@@ -123,11 +148,20 @@ function AgentSessionsTable({
               <TableHead className="text-right">Duration</TableHead>
               <TableHead className="text-right">Iterations</TableHead>
               <TableHead className="text-right">Last activity</TableHead>
+              <TableHead className="w-10">
+                <span className="sr-only">Actions</span>
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {sessions.map(session => (
-              <AgentSessionRow key={session.id} agentName={agentName} session={session} now={now} />
+              <AgentSessionRow
+                key={session.id}
+                agentName={agentName}
+                session={session}
+                now={now}
+                sessionActions={sessionActions}
+              />
             ))}
           </TableBody>
         </Table>
@@ -156,9 +190,10 @@ interface AgentSessionRowProps {
   agentName: string;
   session: SessionPayload;
   now: number;
+  sessionActions?: SessionLifecycleActionHandlers;
 }
 
-function AgentSessionRow({ agentName, session, now }: AgentSessionRowProps) {
+function AgentSessionRow({ agentName, session, now, sessionActions }: AgentSessionRowProps) {
   const status = getAgentSessionStatus(session);
   const running = isSessionRunning(session);
   const title = getSessionDisplayTitle(session);
@@ -179,10 +214,17 @@ function AgentSessionRow({ agentName, session, now }: AgentSessionRowProps) {
         </Link>
       </TableCell>
       <TableCell>
-        <Pill mono tone={status.tone} data-testid={`agent-session-status-${session.id}`}>
-          {running ? <Spinner className="size-3" /> : null}
-          {status.label}
-        </Pill>
+        <div className="flex flex-wrap justify-end gap-1">
+          <Pill mono tone={status.tone} data-testid={`agent-session-status-${session.id}`}>
+            {running ? <Spinner className="size-3" /> : null}
+            {status.label}
+          </Pill>
+          {session.archived_at !== null ? (
+            <Pill mono tone="neutral">
+              ARCHIVED
+            </Pill>
+          ) : null}
+        </div>
       </TableCell>
       <TableCell className="text-small-body text-right font-mono text-muted">
         {formatDuration(session.activity?.elapsed_seconds)}
@@ -193,7 +235,60 @@ function AgentSessionRow({ agentName, session, now }: AgentSessionRowProps) {
       <TableCell className="text-small-body text-right font-mono text-muted">
         {formatRelativeTime(session.activity?.last_activity_at ?? session.updated_at, now)}
       </TableCell>
+      <TableCell className="text-right">
+        {sessionActions ? <SessionRowActions session={session} actions={sessionActions} /> : null}
+      </TableCell>
     </TableRow>
+  );
+}
+
+function ArchivedSessionsSection({
+  agentName,
+  sessions,
+  total,
+  paginationStatus,
+  onLoadMore,
+  sessionActions,
+}: {
+  agentName: string;
+  sessions: SessionPayload[];
+  total?: number;
+  paginationStatus?: "available" | "loading";
+  onLoadMore?: () => void;
+  sessionActions?: SessionLifecycleActionHandlers;
+}) {
+  if (sessions.length === 0) return null;
+
+  return (
+    <Collapsible data-testid="agent-sessions-archived">
+      <CollapsibleTrigger
+        className="group/agent-sessions-archived"
+        render={
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            aria-label={total === undefined ? "Archived sessions" : `Archived sessions (${total})`}
+            className="w-full justify-start gap-2 px-2 text-small-body text-subtle"
+          />
+        }
+      >
+        <ChevronRight className="size-3 transition-transform group-data-panel-open/agent-sessions-archived:rotate-90" />
+        Archived
+        {total === undefined ? null : (
+          <span className="font-mono text-micro text-faint">{total}</span>
+        )}
+      </CollapsibleTrigger>
+      <CollapsibleContent className="pt-1">
+        <AgentSessionsTable
+          agentName={agentName}
+          sessions={sessions}
+          paginationStatus={paginationStatus}
+          onLoadMore={onLoadMore}
+          sessionActions={sessionActions}
+        />
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 

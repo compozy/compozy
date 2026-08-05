@@ -256,6 +256,39 @@ describe("Dialog", () => {
     expect(windowEl.contains(dialog)).toBe(true);
   });
 
+  it("Should keep preferred max-width when window-scoped instead of stretching to the host", async () => {
+    function WindowHost() {
+      const ref = React.useRef<HTMLDivElement | null>(null);
+      const [container, setContainer] = React.useState<HTMLDivElement | null>(null);
+      React.useEffect(() => setContainer(ref.current), []);
+      return (
+        <div
+          ref={ref}
+          data-testid="os-window"
+          style={{ width: 800, height: 600, position: "relative" }}
+        >
+          <OverlayContainerContext.Provider value={container}>
+            <Dialog defaultOpen>
+              <DialogContent showCloseButton={false} className="max-w-md">
+                <DialogTitle>Compact confirm</DialogTitle>
+              </DialogContent>
+            </Dialog>
+          </OverlayContainerContext.Provider>
+        </div>
+      );
+    }
+
+    render(<WindowHost />);
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+
+    const dialog = screen.getByRole("dialog");
+    // Inline maxWidth outranks preferred classes and stretches w-full panels; only
+    // the host height ceiling belongs on the style attribute when window-scoped.
+    expect(dialog.style.maxWidth).toBe("");
+    expect(dialog.style.maxHeight).toBe("calc(100% - 2rem)");
+    expect(dialog.className).toMatch(/max-w-md/);
+  });
+
   it("Should keep a window-scoped dialog open while a peer surface remains interactive", async () => {
     const user = userEvent.setup();
 

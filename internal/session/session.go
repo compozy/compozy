@@ -91,6 +91,7 @@ type Info struct {
 	AttachedTo               string
 	AttachExpiresAt          *time.Time
 	TranscriptEpoch          int64
+	ArchivedAt               *time.Time
 	CreatedAt                time.Time
 	UpdatedAt                time.Time
 }

@@ -65,6 +65,7 @@ function makeSession(overrides: Partial<SessionPayload> = {}): SessionPayload {
     created_at: "2026-04-06T10:00:00Z",
     updated_at: "2026-04-06T10:00:00Z",
     ...overrides,
+    archived_at: overrides.archived_at ?? null,
   };
 }
 
@@ -273,6 +274,7 @@ describe("useSession", () => {
       state: "active",
       badge: "idle",
       attachable: true,
+      archived_at: null,
       available_commands: [],
       created_at: "2026-04-06T10:00:00Z",
       updated_at: "2026-04-06T10:00:00Z",

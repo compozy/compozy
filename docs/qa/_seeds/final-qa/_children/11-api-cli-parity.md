@@ -31,7 +31,7 @@ Every scenario below is written for the **real-claude-code** lane unless explici
 
 ## 1. Module surface — Parity Matrix (HTTP × UDS × CLI)
 
-The OpenAPI spec is the source of truth. **`internal/api/spec/Operations()` returns 202 distinct `OperationSpec` entries** (`grep -hE "OperationID:" internal/api/spec/*.go | sort -u | wc -l` → 202; assertion in `internal/api/spec/spec_test.go:1219-1232` enforces uniqueness). Every operation declares a `Method`, `Path`, `OperationID`, and `Transports []Transport` field with values `TransportHTTP` and/or `TransportUDS` (`internal/api/spec/spec.go:121-122,144-157`).
+The OpenAPI spec is the source of truth. `internal/api/spec/Operations()` returns the live `OperationSpec` registry, and `internal/api/spec/spec_test.go` enforces unique operation ids without freezing a count in this plan. Every operation declares a `Method`, `Path`, `OperationID`, and `Transports []Transport` field with values `TransportHTTP` and/or `TransportUDS`.
 
 The full per-operation table is embedded in code: see `internal/api/spec/spec.go` (`var operationRegistry = []OperationSpec{...}`, lines 210-3547), `internal/api/spec/authored_context.go` (every `OperationSpec`), `internal/api/spec/settings.go`, `internal/api/spec/vault.go`, `internal/api/spec/resources_test.go` (the resource subset). The QA runner MUST read those files at scenario start and assert the matrix by group rather than by hand-curated copy. The grouped breakdown below is what the report renders to operators.
 
@@ -52,7 +52,7 @@ The full per-operation table is embedded in code: see `internal/api/spec/spec.go
 | `network`          | 11         | `httpapi/routes.go:254-266`                 | `udsapi/routes.go:292-306`                 | `compozy network`                                  | yes        | `POST /api/network/send` plus channel/peer reads.                                                                                                |
 | `observe`          | 4          | `httpapi/routes.go:114-123`                 | `udsapi/routes.go:135-148`                 | `compozy observe`                                  | yes        | `GET /api/observe/events/stream` is SSE only — see §1.b.                                                                                         |
 | `resources`        | 5          | `httpapi/routes.go:132-148`                 | `udsapi/routes.go:159-168`                 | (none today)                                  | partial    | **GAP**: `compozy resource` verb does not exist; HTTP requires `resourceAuthMiddleware`; UDS-only is the agent path. Either CLI `compozy resource` or explicit no-CLI doc note required. CLI gap noted in `cy-web-docs-impact` follow-up. |
-| `sessions`         | 20         | `httpapi/routes.go:66-87`                   | `udsapi/routes.go:64-87`                   | `compozy session`                                  | yes        | Includes prompt/interrupt/steer plus daemon-owned `session input list|edit|steer|cancel` operations.                                             |
+| `sessions`         | registry-derived | `httpapi/session_routes.go`             | `udsapi/session_routes.go`                  | `compozy session`                                  | yes        | Includes catalog streaming, archive/unarchive, prompt/interrupt/steer, and daemon-owned `session input list|edit|steer|cancel` operations.       |
 | `settings`         | 25         | `httpapi/routes.go:290-334`                 | `udsapi/routes.go:333-376`                 | `compozy config`                                   | partial    | HTTP mutations are loopback-only (`privilegedMutationGuard`). CLI uses local config edit + UDS reload. **GAP**: only `general/memory/skills/...` GET surfaces are UDS-mirrored; some PUTs go via UDS-no-auth. Per scenario API-09 below, prove that CLI flow can read every settings group. |
 | `skills`           | 5          | `httpapi/routes.go:227-234`                 | `udsapi/routes.go:259-268`                 | `compozy skill`                                    | yes        |                                                                                                                                                  |
 | `tasks`            | 26         | `httpapi/routes.go:193-225`                 | `udsapi/routes.go:219-244`                 | `compozy task`                                     | yes        | Includes triage `read/archive/dismiss`, dependencies `add/remove`, `enqueue`, `runs list`, `tree`, `timeline`, `stream`.                          |
@@ -64,7 +64,7 @@ The full per-operation table is embedded in code: see `internal/api/spec/spec.go
 | `agent-kernel-tasks` (UDS-only) | 5 | (none)                                  | `udsapi/routes.go:124-131`                 | `compozy task next/heartbeat/complete/fail/release` | uds+cli   | **EXPECTED gap**: peer-claim flow uses `X-Compozy-Session-ID`; HTTP refuses the agent identity check (no peer-cred). CLI passes the header transparently via `agentidentity.HeaderSessionID` (`internal/agentidentity/identity.go:25-29`). Validate as scenario API-12. |
 | `hosted-mcp` (UDS-only) | 1+ | (none)                                  | `udsapi/routes.go:29` (`registerHostedMCPRoutes`) | (no CLI)                                | uds-only   | Hosted MCP TCP bridge for sidecar; not exposed on HTTP, not exposed via CLI. Document as expected.                                              |
 
-**Total operations across the registry**: 202 (asserted at `internal/api/spec/spec_test.go:1219-1232`).
+**Total operations across the registry:** derive this from `spec.Operations()` during the run; the uniqueness and transport assertions own drift detection.
 
 **Real parity invariants to prove in CI**:
 
@@ -100,7 +100,7 @@ compozy
 ├── me (root) / me context
 ├── spawn
 ├── ch (list | recv | send | reply)
-├── session (new | list | stop | status | inspect | resume | repair | wait | prompt | events | history)
+├── session (new | list | stop | archive | unarchive | remove | status | inspect | resume | repair | wait | prompt | events | history)
 ├── bridge (list | get | create | update | enable | disable | restart | routes | test-delivery)
 ├── workspace (add | list | info | edit | remove)
 ├── agent (list | info)

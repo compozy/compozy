@@ -4,6 +4,7 @@ import * as React from "react";
 import type { OsWindowFrameModel } from "../lib/group-projection";
 import type { OsDesktopRuntimeStore, OsRect } from "../lib/os-types";
 import { windowManagerStore } from "../stores/window-manager-store";
+import { useAnimationFrameLatest } from "./use-animation-frame-latest";
 import { useOsShell } from "./use-os-shell";
 
 // Mirrors the deck row's hit forgiveness so both merge affordances feel alike.
@@ -113,24 +114,31 @@ export function useWindowMergeTarget(
     frameRef.current = frame;
   }, [frame]);
 
-  const frameId = frame.id;
-  React.useEffect(() => {
-    if (!enabled || !gestureElsewhere) return;
-    const onPointerMove = (event: globalThis.PointerEvent) => {
+  const { schedule: schedulePointerFrame, cancel: cancelPointerFrame } = useAnimationFrameLatest(
+    (point: { clientX: number; clientY: number }) => {
       updateSoloMergeTarget({
         frame: frameRef.current,
         state: manager.getState(),
         chrome: chromeRef.current,
-        clientX: event.clientX,
-        clientY: event.clientY,
+        clientX: point.clientX,
+        clientY: point.clientY,
       });
+    }
+  );
+
+  const frameId = frame.id;
+  React.useEffect(() => {
+    if (!enabled || !gestureElsewhere) return;
+    const onPointerMove = (event: globalThis.PointerEvent) => {
+      schedulePointerFrame({ value: { clientX: event.clientX, clientY: event.clientY } });
     };
     window.addEventListener("pointermove", onPointerMove);
     return () => {
       window.removeEventListener("pointermove", onPointerMove);
+      cancelPointerFrame();
       windowManagerStore.trigger.deckDropCleared({ frameId });
     };
-  }, [enabled, gestureElsewhere, frameId, manager]);
+  }, [cancelPointerFrame, enabled, frameId, gestureElsewhere, manager, schedulePointerFrame]);
 
   return { chromeRef, mergeTargeted };
 }

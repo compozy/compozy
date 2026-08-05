@@ -9,6 +9,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -19,6 +20,7 @@ type sessionListInput struct {
 	Agent         string `json:"agent,omitempty"`
 	Query         string `json:"q,omitempty"`
 	Resumable     bool   `json:"resumable,omitempty"`
+	Archive       string `json:"archive,omitempty"`
 	IncludeHealth bool   `json:"include_health,omitempty"`
 	Sort          string `json:"sort,omitempty"`
 	Cursor        string `json:"cursor,omitempty"`
@@ -54,6 +56,7 @@ func (n *daemonNativeTools) sessionList(
 		AgentName:   strings.TrimSpace(input.Agent),
 		Search:      strings.TrimSpace(input.Query),
 		Resumable:   input.Resumable,
+		Archive:     store.SessionArchiveFilter(strings.TrimSpace(input.Archive)),
 		Sort:        strings.TrimSpace(input.Sort),
 		Cursor:      strings.TrimSpace(input.Cursor),
 		Limit:       input.Limit,

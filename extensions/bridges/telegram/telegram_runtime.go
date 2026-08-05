@@ -88,6 +88,7 @@ func newTelegramProvider(stderr io.Writer) (*telegramProvider, error) {
 		ReadHeaderTimeout: telegramWebhookReadHeaderTimeout,
 		IdleTimeout:       telegramWebhookIdleTimeout,
 		Handler:           http.HandlerFunc(provider.serveWebhookHTTP),
+		RoutesReady:       lifecycle.RoutesReady(),
 		Go:                lifecycle.Go,
 		OnError:           provider.setLastError,
 	})

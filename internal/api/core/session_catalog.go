@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/gin-gonic/gin"
 )
 
@@ -89,6 +90,7 @@ func (h *BaseHandlers) parseSessionListQuery(c *gin.Context) (session.ListQuery,
 		AgentName:   strings.TrimSpace(c.Query("agent")),
 		Search:      strings.TrimSpace(c.Query("q")),
 		Resumable:   resumable,
+		Archive:     store.SessionArchiveFilter(strings.TrimSpace(c.Query("archive"))),
 		Sort:        strings.TrimSpace(c.Query("sort")),
 		Cursor:      strings.TrimSpace(c.Query("cursor")),
 		Limit:       limit,

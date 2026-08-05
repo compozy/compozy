@@ -51,6 +51,7 @@ type SessionPayload struct {
 	AttachedTo                   string                `json:"attached_to,omitempty"`
 	AttachExpiresAt              *time.Time            `json:"attach_expires_at,omitempty"`
 	TranscriptEpoch              int64                 `json:"transcript_epoch,omitempty"`
+	ArchivedAt                   *time.Time            `json:"archived_at"`
 	// StopReason is the session-level stop classification, distinct from AgentEventPayload.StopReason.
 	StopReason store.StopReason `json:"stop_reason,omitempty"`
 	// StopDetail is the session-level stop context paired with StopReason.

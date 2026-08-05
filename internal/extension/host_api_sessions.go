@@ -24,53 +24,88 @@ func (h *HostAPIHandler) handleSessionsList(ctx context.Context, raw json.RawMes
 	if err := decodeHostAPIParams(raw, &params); err != nil {
 		return nil, err
 	}
+	archive, err := normalizeHostAPISessionArchiveFilter(params.Archive)
+	if err != nil {
+		return nil, err
+	}
 
 	infos, err := h.sessions.ListAll(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	filterWorkspaceID := ""
-	filterWorkspaceRoot := ""
-	if workspaceRef := strings.TrimSpace(params.Workspace); workspaceRef != "" {
-		if h.workspaces != nil {
-			resolved, resolveErr := h.workspaces.Resolve(ctx, workspaceRef)
-			if resolveErr != nil {
-				return nil, resolveErr
-			}
-			filterWorkspaceID, resolveErr = hostAPIResolvedWorkspaceRegistrationID(&resolved)
-			if resolveErr != nil {
-				return nil, resolveErr
-			}
-			filterWorkspaceRoot = strings.TrimSpace(resolved.RootDir)
-		} else {
-			filterWorkspaceID = workspaceRef
-			filterWorkspaceRoot = workspaceRef
-		}
+	filterWorkspaceID, filterWorkspaceRoot, err := h.resolveHostAPISessionListWorkspace(
+		ctx,
+		params.Workspace,
+	)
+	if err != nil {
+		return nil, err
 	}
 
 	result := make([]hostAPISessionSummary, 0, len(infos))
 	for _, info := range infos {
-		if info == nil {
+		info, err = h.hostAPISessionWithArchiveMetadata(ctx, info)
+		if err != nil {
+			return nil, err
+		}
+		if !hostAPISessionMatchesArchive(info, archive) {
 			continue
 		}
-		if filterWorkspaceID != "" || filterWorkspaceRoot != "" {
-			if info.WorkspaceID != filterWorkspaceID && info.Workspace != filterWorkspaceRoot {
-				continue
-			}
+		if !hostAPISessionMatchesWorkspace(info, filterWorkspaceID, filterWorkspaceRoot) {
+			continue
 		}
 		result = append(result, hostAPISessionSummary{
-			ID:        info.ID,
-			Name:      info.Name,
-			Agent:     info.AgentName,
-			Runtime:   hostAPISessionRuntimePayloadFromInfo(info),
-			Workspace: info.Workspace,
-			State:     info.State,
-			CreatedAt: info.CreatedAt,
+			ID:         info.ID,
+			Name:       info.Name,
+			Agent:      info.AgentName,
+			Runtime:    hostAPISessionRuntimePayloadFromInfo(info),
+			Workspace:  info.Workspace,
+			State:      info.State,
+			ArchivedAt: cloneHostAPITime(info.ArchivedAt),
+			CreatedAt:  info.CreatedAt,
 		})
 	}
 
 	return result, nil
+}
+
+func (h *HostAPIHandler) handleSessionsArchive(ctx context.Context, raw json.RawMessage) (any, error) {
+	return h.handleSessionsArchiveState(ctx, raw, true)
+}
+
+func (h *HostAPIHandler) handleSessionsUnarchive(ctx context.Context, raw json.RawMessage) (any, error) {
+	return h.handleSessionsArchiveState(ctx, raw, false)
+}
+
+func (h *HostAPIHandler) handleSessionsArchiveState(
+	ctx context.Context,
+	raw json.RawMessage,
+	archived bool,
+) (any, error) {
+	var params hostAPISessionTargetParams
+	if err := decodeHostAPIParams(raw, &params); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(params.SessionID) == "" {
+		return nil, invalidParamsRPCError(errors.New("session_id is required"))
+	}
+	info, err := h.requireHostAPISessionWorkspace(ctx, params.WorkspaceID, params.SessionID)
+	if err != nil {
+		return nil, err
+	}
+	manager, ok := h.sessions.(hostAPISessionArchiveManager)
+	if !ok {
+		return nil, errors.New("extension: session archive manager is not configured")
+	}
+	if archived {
+		info, err = manager.Archive(ctx, info.WorkspaceID, info.ID)
+	} else {
+		info, err = manager.Unarchive(ctx, info.WorkspaceID, info.ID)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return hostAPISessionStatusFromInfo(info), nil
 }
 
 func (h *HostAPIHandler) handleSessionsCreate(ctx context.Context, raw json.RawMessage) (any, error) {

@@ -213,12 +213,11 @@ func TestRuntimeHarnessStopLifecycle(t *testing.T) {
 		t.Parallel()
 
 		readyPath := filepath.Join(t.TempDir(), "ready")
-		scriptPath := writeCLIScript(t, `#!/bin/sh
+		cmd := exec.CommandContext(context.Background(), "sh", "-c", `
 trap '' INT
 printf ready > "$READY_PATH"
 while :; do sleep 1; done
 `)
-		cmd := exec.CommandContext(context.Background(), scriptPath)
 		cmd.Env = append(os.Environ(), "READY_PATH="+readyPath)
 		procutil.ConfigureCommandProcessGroup(cmd)
 		if err := cmd.Start(); err != nil {

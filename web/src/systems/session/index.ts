@@ -91,6 +91,7 @@ export {
 } from "./components/session-prompt-runtime-selector";
 export {
   answerSessionClarification,
+  archiveSession,
   approveSession,
   cancelQueuedSessionPrompt,
   cancelSessionPrompt,
@@ -122,6 +123,7 @@ export {
   SessionNotFoundError,
   steerSessionPrompt,
   stopSession,
+  unarchiveSession,
 } from "./adapters/session-api";
 export type { SessionRewindRequest, SessionRewindResult } from "./adapters/session-api";
 export {
@@ -246,6 +248,7 @@ export type {
 } from "./lib/session-transcript-thread-context-value";
 export {
   useClearSessionConversation,
+  useArchiveSession,
   useCancelQueuedSessionPrompt,
   useCreateSession,
   useDeleteSession,
@@ -256,12 +259,21 @@ export {
   useSendSessionPrompt,
   useSteerSessionPrompt,
   useStopSession,
+  useUnarchiveSession,
   type CancelQueuedSessionPromptParams,
   type RepairSessionParams,
   type SendSessionPromptParams,
   type SessionPromptActionParams,
 } from "./hooks/use-session-actions";
 export { useSessionRewind, type SessionRewindVariables } from "./hooks/use-session-rewind";
+export {
+  useSessionLifecycleActions,
+  type SessionDeleteConfirmation,
+  type SessionLifecycleAction,
+  type SessionLifecycleActionHandlers,
+  type UseSessionLifecycleActionsOptions,
+  type UseSessionLifecycleActionsResult,
+} from "./hooks/use-session-lifecycle-actions";
 export {
   useSessionCreateDialogController,
   useSessionCreateDialogViewModel,
@@ -292,6 +304,11 @@ export {
   type SessionResumeFailureProps,
 } from "./components/session-resume-failure";
 export { SessionStatusLine, type SessionStatusLineProps } from "./components/session-status-line";
+export {
+  SessionDeleteDialog,
+  type SessionDeleteDialogProps,
+} from "./components/session-delete-dialog";
+export { SessionRowActions, type SessionRowActionsProps } from "./components/session-row-actions";
 export {
   SessionWorkspaceSwitchDialog,
   type SessionWorkspaceSwitchDialogProps,
@@ -332,11 +349,4 @@ export {
   type InspectorUsage,
   type SessionInspectorProps,
 } from "./components/session-inspector";
-export {
-  deriveFileReads,
-  deriveTraceEvents,
-  type InspectorFileEntry,
-  type InspectorTraceEvent,
-  type InspectorTraceKind,
-  type InspectorTraceStatus,
-} from "./components/session-inspector.logic";
+export { deriveFileReads, type InspectorFileEntry } from "./components/session-inspector.logic";
