@@ -65,11 +65,9 @@ function useAbortableMutationRequest() {
   return async <T>(request: (signal: AbortSignal) => Promise<T>): Promise<T> => {
     const controller = new AbortController();
     controllersRef.current.add(controller);
-    try {
-      return await request(controller.signal);
-    } finally {
-      controllersRef.current.delete(controller);
-    }
+    return Promise.resolve()
+      .then(() => request(controller.signal))
+      .finally(() => controllersRef.current.delete(controller));
   };
 }
 
