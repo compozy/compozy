@@ -58,6 +58,11 @@ func (h *BaseHandlers) CreateSession(c *gin.Context) {
 		h.respondError(c, statusForCreateSessionValidationError(err), err)
 		return
 	}
+	parentSessionID, err := h.resolveCreateSessionParent(c, req)
+	if err != nil {
+		h.respondError(c, StatusForAgentIdentityError(err), err)
+		return
+	}
 
 	opts := session.CreateOpts{
 		AgentName:            req.AgentName,
@@ -66,6 +71,9 @@ func (h *BaseHandlers) CreateSession(c *gin.Context) {
 		WorkspacePath:        req.WorkspacePath,
 		NetworkParticipation: req.NetworkParticipation,
 		Type:                 session.SessionTypeUser,
+	}
+	if parentSessionID != "" {
+		opts.Lineage = &store.SessionLineage{ParentSessionID: parentSessionID}
 	}
 	if h.SessionAcceptance == nil {
 		h.respondError(
@@ -82,6 +90,26 @@ func (h *BaseHandlers) CreateSession(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, contract.SessionResponse{Session: SessionPayloadFromInfo(info)})
+}
+
+// resolveCreateSessionParent picks the provenance parent for one create request:
+// an explicit parent wins; otherwise a validated agent caller links its own session.
+func (h *BaseHandlers) resolveCreateSessionParent(
+	c *gin.Context,
+	req contract.CreateSessionRequest,
+) (string, error) {
+	if explicit := strings.TrimSpace(req.ParentSessionID); explicit != "" {
+		return explicit, nil
+	}
+	credentials := agentCallerCredentialsFromRequest(c)
+	if !hasAgentCallerIdentityCredentials(credentials) {
+		return "", nil
+	}
+	caller, err := h.resolveAgentCaller(c.Request.Context(), credentials, agentActionSessionCreate)
+	if err != nil {
+		return "", fmt.Errorf("api: resolve create session caller identity: %w", err)
+	}
+	return caller.Session.ID, nil
 }
 
 // GetSession returns one session snapshot.

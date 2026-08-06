@@ -4293,6 +4293,8 @@ func TestReadAPIErrorAndHelpers(t *testing.T) {
 			State:         "active",
 			Type:          "user",
 			Agent:         "coder",
+			Parent:        "sess-parent",
+			Root:          "sess-root",
 			Query:         "needle",
 			Resumable:     true,
 			Archive:       "only",
@@ -4302,6 +4304,7 @@ func TestReadAPIErrorAndHelpers(t *testing.T) {
 			Limit:         2,
 		}); got.Get("workspace") != "ws-1" || got.Get("state") != "active" || got.Get("type") != "user" ||
 			got.Get("agent") != "coder" ||
+			got.Get("parent") != "sess-parent" || got.Get("root") != "sess-root" ||
 			got.Get("q") != "needle" || got.Get("resumable") != "true" || got.Get("archive") != "only" ||
 			got.Get("sort") != "last_activity" ||
 			got.Get("include_health") != "true" || got.Get("cursor") != "cursor-1" || got.Get("limit") != "2" {

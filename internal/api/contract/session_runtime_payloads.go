@@ -21,10 +21,13 @@ const (
 
 // CreateSessionRequest is the shared session creation request payload.
 type CreateSessionRequest struct {
-	AgentName            string                 `json:"agent_name,omitempty"`
-	Name                 string                 `json:"name,omitempty"`
-	Workspace            string                 `json:"workspace,omitempty"`
-	WorkspacePath        string                 `json:"workspace_path,omitempty"`
+	AgentName     string `json:"agent_name,omitempty"`
+	Name          string `json:"name,omitempty"`
+	Workspace     string `json:"workspace,omitempty"`
+	WorkspacePath string `json:"workspace_path,omitempty"`
+	// ParentSessionID records creation provenance; the parent must live in the
+	// target workspace and the link never narrows the child's lifecycle.
+	ParentSessionID      string                 `json:"parent_session_id,omitempty"`
 	NetworkParticipation *participation.Request `json:"network_participation,omitempty"`
 }
 

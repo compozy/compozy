@@ -155,6 +155,7 @@ function createShell({ live = true, withPeer = true } = {}) {
     resizeGroupFrames: vi.fn(() => acceptedOutcome()),
     balanceLayout: vi.fn(),
     navigateWindow: vi.fn(() => acceptedOutcome()),
+    retargetWindow: vi.fn(() => acceptedOutcome()),
     popWindowRoute: vi.fn(() => acceptedOutcome()),
     groupWindows: vi.fn(() => acceptedOutcome()),
     reorderStackMember: vi.fn(() => acceptedOutcome()),

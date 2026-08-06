@@ -147,6 +147,13 @@ function createStore(initialWindows: readonly OsWindow[] = []) {
       }
     })
   );
+  const retargetWindow = vi.fn((id: string, instanceKey: string, nextRoute: OsWindowRoute) =>
+    commandOutcome(() => {
+      if (windows[id]) {
+        windows[id] = { ...windows[id], instanceKey, route: nextRoute, navStack: [] };
+      }
+    })
+  );
   const restoreWindow = vi.fn((id: string) =>
     commandOutcome(() => {
       if (windows[id]) {
@@ -198,6 +205,7 @@ function createStore(initialWindows: readonly OsWindow[] = []) {
     minimizeWindow,
     zoomWindow,
     navigateWindow,
+    retargetWindow,
     popWindowRoute,
   };
 
@@ -210,6 +218,7 @@ function createStore(initialWindows: readonly OsWindow[] = []) {
     minimizeWindow,
     zoomWindow,
     navigateWindow,
+    retargetWindow,
     popWindowRoute,
     deferLifecycle: () => {
       lifecycleResult = new Promise<boolean>(resolve => {
@@ -237,6 +246,7 @@ function createStore(initialWindows: readonly OsWindow[] = []) {
       minimizeWindow,
       zoomWindow,
       navigateWindow,
+      retargetWindow,
       popWindowRoute,
     },
   };
@@ -685,5 +695,72 @@ describe("RoutingCoordinator", () => {
     store.settleLifecycle(false);
     await expect(pending).resolves.toBe(false);
     expect(router.navigate).not.toHaveBeenCalled();
+  });
+
+  it("Should retarget the current window in place with one history write", async () => {
+    const current = windowFixture("session", "/agents/coder/sessions/sess-a", "sess-a");
+    const { coordinator, router, store } = createCoordinator([current]);
+    coordinator.completeHydration();
+    vi.mocked(router.replace).mockClear();
+
+    const target = route("/agents/coder/sessions/sess-b");
+    await expect(
+      coordinator.userRetarget(current.id, {
+        app: "session",
+        instanceKey: "sess-b",
+        route: target,
+      })
+    ).resolves.toBe(true);
+
+    expect(store.spies.retargetWindow).toHaveBeenCalledWith(current.id, "sess-b", target);
+    expect(store.spies.openOrFocus).not.toHaveBeenCalled();
+    expect(router.navigate).toHaveBeenCalledOnce();
+    expect(router.navigate).toHaveBeenCalledWith(target);
+    expect(store.getState().windows[current.id]?.instanceKey).toBe("sess-b");
+  });
+
+  it("Should focus the target session's existing window instead of duplicating it", async () => {
+    const current = windowFixture("session", "/agents/coder/sessions/sess-a", "sess-a");
+    const other = windowFixture("session", "/agents/coder/sessions/sess-b", "sess-b");
+    const { coordinator, router, store } = createCoordinator([current, other]);
+    coordinator.completeHydration();
+    vi.mocked(router.replace).mockClear();
+
+    await expect(
+      coordinator.userRetarget(current.id, {
+        app: "session",
+        instanceKey: "sess-b",
+        route: route("/agents/coder/sessions/sess-b"),
+      })
+    ).resolves.toBe(true);
+
+    expect(store.spies.retargetWindow).not.toHaveBeenCalled();
+    expect(store.spies.focusWindow).toHaveBeenCalledWith(other.id);
+    expect(router.navigate).toHaveBeenCalledOnce();
+    expect(router.navigate).toHaveBeenCalledWith(other.route);
+    expect(store.getState().windows[current.id]?.instanceKey).toBe("sess-a");
+  });
+
+  it("Should reconcile an existing target window to the requested route", async () => {
+    const current = windowFixture("session", "/agents/coder/sessions/sess-a", "sess-a");
+    const other = windowFixture("session", "/agents/coder/sessions/sess-b/child", "sess-b");
+    const { coordinator, router, store } = createCoordinator([current, other]);
+    coordinator.completeHydration();
+    vi.mocked(router.replace).mockClear();
+    const target = route("/agents/coder/sessions/sess-b");
+
+    await expect(
+      coordinator.userRetarget(current.id, {
+        app: "session",
+        instanceKey: "sess-b",
+        route: target,
+      })
+    ).resolves.toBe(true);
+
+    expect(store.getState().focusedId).toBe(other.id);
+    expect(store.getState().windows[other.id]?.route).toEqual(target);
+    expect(store.getState().windows[current.id]?.instanceKey).toBe("sess-a");
+    expect(router.navigate).toHaveBeenCalledOnce();
+    expect(router.navigate).toHaveBeenCalledWith(target);
   });
 });

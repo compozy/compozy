@@ -112,9 +112,12 @@ type OpenWindowCommand struct {
 func (OpenWindowCommand) CommandID() CommandID { return CommandWindowOpen }
 
 type NavigateWindowCommand struct {
-	WindowID WindowID     `json:"window_id"`
-	Route    RouteIntent  `json:"route,omitzero"`
-	Mode     NavigateMode `json:"mode,omitempty"`
+	WindowID WindowID    `json:"window_id"`
+	Route    RouteIntent `json:"route,omitzero"`
+	// InstanceKey retargets the window to another app instance in the same
+	// navigation; valid only with replace mode and resets the nav stack.
+	InstanceKey *string      `json:"instance_key,omitempty"`
+	Mode        NavigateMode `json:"mode,omitempty"`
 }
 
 func (NavigateWindowCommand) CommandID() CommandID { return CommandWindowNavigate }

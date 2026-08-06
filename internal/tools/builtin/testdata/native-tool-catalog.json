@@ -2419,7 +2419,7 @@
     "read_only": true,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "0202861f83acf2224e1068fefb556c7d45687fe66471f365034ed799ee9ac5b7",
+    "input_schema_digest": "3cddc2c810e01b3edb0ff7724647ae1503acf97c8c64552a8bfc5567a2670efd",
     "output_schema_digest": "8003521e0a33d873299bea49afede257877a3cb3ea602bfc592b77ade7b96808"
   },
   {

@@ -30,6 +30,8 @@ type SessionCatalogPageQuery struct {
 	State               string
 	SessionType         string
 	AgentName           string
+	ParentSessionID     string
+	RootSessionID       string
 	Search              string
 	Resumable           bool
 	Archive             SessionArchiveFilter

@@ -18,6 +18,8 @@ type sessionListInput struct {
 	State         string `json:"state,omitempty"`
 	Type          string `json:"type,omitempty"`
 	Agent         string `json:"agent,omitempty"`
+	Parent        string `json:"parent,omitempty"`
+	Root          string `json:"root,omitempty"`
 	Query         string `json:"q,omitempty"`
 	Resumable     bool   `json:"resumable,omitempty"`
 	Archive       string `json:"archive,omitempty"`
@@ -50,16 +52,18 @@ func (n *daemonNativeTools) sessionList(
 		return toolspkg.ToolResult{}, errors.New("daemon: paged session catalog is required")
 	}
 	page, err := pager.ListPage(ctx, session.ListQuery{
-		WorkspaceID: workspaceID,
-		State:       strings.TrimSpace(input.State),
-		SessionType: session.Type(strings.TrimSpace(input.Type)),
-		AgentName:   strings.TrimSpace(input.Agent),
-		Search:      strings.TrimSpace(input.Query),
-		Resumable:   input.Resumable,
-		Archive:     store.SessionArchiveFilter(strings.TrimSpace(input.Archive)),
-		Sort:        strings.TrimSpace(input.Sort),
-		Cursor:      strings.TrimSpace(input.Cursor),
-		Limit:       input.Limit,
+		WorkspaceID:     workspaceID,
+		State:           strings.TrimSpace(input.State),
+		SessionType:     session.Type(strings.TrimSpace(input.Type)),
+		AgentName:       strings.TrimSpace(input.Agent),
+		ParentSessionID: strings.TrimSpace(input.Parent),
+		RootSessionID:   strings.TrimSpace(input.Root),
+		Search:          strings.TrimSpace(input.Query),
+		Resumable:       input.Resumable,
+		Archive:         store.SessionArchiveFilter(strings.TrimSpace(input.Archive)),
+		Sort:            strings.TrimSpace(input.Sort),
+		Cursor:          strings.TrimSpace(input.Cursor),
+		Limit:           input.Limit,
 	})
 	if err != nil {
 		if errors.Is(err, session.ErrListQueryInvalid) || errors.Is(err, session.ErrListCursorInvalid) {

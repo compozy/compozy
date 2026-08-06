@@ -17,6 +17,8 @@ type sessionListFlags struct {
 	stateFilter     string
 	typeFilter      string
 	agentFilter     string
+	parentFilter    string
+	rootFilter      string
 	search          string
 	resumable       bool
 	archived        bool
@@ -52,6 +54,8 @@ func newSessionListCommand(deps commandDeps) *cobra.Command {
 		"Filter by session type (user|system|coordinator|spawned)",
 	)
 	cmd.Flags().StringVar(&flags.agentFilter, "agent", "", "Filter by exact agent definition name")
+	cmd.Flags().StringVar(&flags.parentFilter, "parent", "", "Filter by exact parent session id")
+	cmd.Flags().StringVar(&flags.rootFilter, "root", "", "Filter by exact root session id (includes the root itself)")
 	cmd.Flags().StringVar(&flags.search, "query", "", "Search session id, name, agent, provider, or channel")
 	cmd.Flags().BoolVar(&flags.resumable, "resumable", false, "Show only sessions eligible for resume attach")
 	cmd.Flags().BoolVar(&flags.archived, "archived", false, "Show only archived sessions")
@@ -101,6 +105,8 @@ func runSessionListCommand(cmd *cobra.Command, deps commandDeps, flags sessionLi
 		State:         state,
 		Type:          flags.typeFilter,
 		Agent:         flags.agentFilter,
+		Parent:        flags.parentFilter,
+		Root:          flags.rootFilter,
 		Query:         flags.search,
 		Resumable:     flags.resumable,
 		Archive:       archive,
@@ -122,19 +128,20 @@ func sessionListBundle(page SessionListPage, now func() time.Time) outputBundle 
 		items,
 		"Sessions",
 		[]string{
-			"ID", sessionNameValue, sessionAgentValue, sessionProviderValue, sessionBackendValue,
+			"ID", sessionNameValue, sessionAgentValue, "Parent", sessionProviderValue, sessionBackendValue,
 			sessionStateValue, sessionBadgeValue, "Failure", sessionWorkspaceValue, sessionChannelValue,
 			"Health State", "Health", sessionUpdatedValue,
 		},
 		"sessions",
 		[]string{
-			"id", sessionNameKey, sessionAgentNameKey, sessionProviderKey, "sandbox_backend",
+			"id", sessionNameKey, sessionAgentNameKey, "parent_session_id", sessionProviderKey, "sandbox_backend",
 			sessionStateKey, sessionBadgeKey, taskFailureKindKey, workspaceSkillSource, sessionChannelKey,
 			"health_state", extensionHealthKey, sessionUpdatedAtKey,
 		},
 		func(item SessionRecord) []string {
 			return []string{
 				stringOrDash(item.ID), stringOrDash(item.Name), stringOrDash(item.AgentName),
+				stringOrDash(sessionParentID(item)),
 				stringOrDash(sessionRuntimeProvider(item)), stringOrDash(sessionSandboxBackend(item)),
 				stringOrDash(string(item.State)), stringOrDash(string(item.Badge)),
 				stringOrDash(sessionFailureKind(item)), stringOrDash(displaySessionWorkspace(item)),
@@ -144,7 +151,8 @@ func sessionListBundle(page SessionListPage, now func() time.Time) outputBundle 
 		},
 		func(item SessionRecord) []string {
 			return []string{
-				item.ID, item.Name, item.AgentName, sessionRuntimeProvider(item), sessionSandboxBackend(item),
+				item.ID, item.Name, item.AgentName, sessionParentID(item),
+				sessionRuntimeProvider(item), sessionSandboxBackend(item),
 				string(item.State), string(item.Badge), sessionFailureKind(item),
 				displaySessionWorkspace(item), sessionResolvedChannelRaw(item), sessionHealthState(item),
 				sessionHealthStatus(item), formatTime(item.UpdatedAt),
@@ -193,6 +201,13 @@ func sessionListBundle(page SessionListPage, now func() time.Time) outputBundle 
 		return itemsToon + "\n" + pageToon, nil
 	}
 	return bundle
+}
+
+func sessionParentID(item SessionRecord) string {
+	if item.Lineage == nil {
+		return ""
+	}
+	return strings.TrimSpace(item.Lineage.ParentSessionID)
 }
 
 func sessionHealthState(item SessionRecord) string {

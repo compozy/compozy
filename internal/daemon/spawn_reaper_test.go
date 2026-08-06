@@ -26,6 +26,8 @@ func TestSpawnReaperSweepClassifiesReasonsReleasesLeasesAndStopsChildren(t *test
 			spawnedReaperInfo("child-parent", "parent-stopped", future, true),
 			spawnedReaperInfo("child-orphan", "missing-parent", future, true),
 			rootReaperInfo("manual", session.StateActive),
+			provenanceReaperInfo("provenance-child", "parent-stopped"),
+			provenanceReaperInfo("provenance-orphan", "missing-parent"),
 		},
 		stopWithCauseErr: func(id string, _ session.StopCause, _ string) error {
 			sequence = append(sequence, "stop:"+id)
@@ -67,7 +69,10 @@ func TestSpawnReaperSweepClassifiesReasonsReleasesLeasesAndStopsChildren(t *test
 		t.Fatalf("report = %#v, want three classified reaps and three released leases", report)
 	}
 	if len(sessions.stopWithCauseCalls) != 3 {
-		t.Fatalf("stop calls = %#v, want three spawned children", sessions.stopWithCauseCalls)
+		t.Fatalf(
+			"stop calls = %#v, want only spawned children reaped and provenance user sessions left alone",
+			sessions.stopWithCauseCalls,
+		)
 	}
 	assertStopWithCause(t, sessions.stopWithCauseCalls, "child-ttl", session.CauseTimeout, "spawn_reaper:ttl_expired")
 	assertStopWithCause(
@@ -273,6 +278,22 @@ func rootReaperInfo(id string, state session.State) *session.Info {
 			PermissionPolicy: store.SessionPermissionPolicy{
 				Tools: []string{"read"},
 			},
+		},
+	}
+}
+
+func provenanceReaperInfo(id string, parentID string) *session.Info {
+	return &session.Info{
+		ID:          id,
+		AgentName:   "coder",
+		WorkspaceID: "ws-1",
+		Workspace:   "/repo",
+		Type:        session.SessionTypeUser,
+		State:       session.StateActive,
+		Lineage: &store.SessionLineage{
+			ParentSessionID: parentID,
+			RootSessionID:   parentID,
+			SpawnDepth:      1,
 		},
 	}
 }

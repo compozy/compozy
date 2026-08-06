@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CompozyOS · Session — domain index</title>
+<link rel="stylesheet" href="session.css">
+<style>
+body{display:block;background:var(--rail);min-height:100vh;padding:48px 24px}
+.wrap{max-width:680px;margin-inline:auto}
+h1{font-size:16px;font-weight:600;color:var(--fg-strong)}
+.sub{margin-top:4px;font-size:12.5px;color:var(--subtle)}
+.group{margin-top:28px}
+.group h2{font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
+.rows{margin-top:8px;display:flex;flex-direction:column;gap:2px}
+a.row{
+  display:flex;align-items:baseline;gap:10px;padding:8px 10px;
+  border-radius:var(--radius-md);text-decoration:none;color:var(--fg);
+  transition:background var(--dur) var(--ease);
+}
+a.row:hover{background:var(--row-hover)}
+.row b{font-size:13px;font-weight:500}
+.row span{font-size:11.5px;color:var(--subtle)}
+.row .mono{margin-left:auto;font-size:9.5px;color:var(--faint);white-space:nowrap}
+.tag-new{font-family:var(--font-mono);font-size:9px;color:var(--accent-strong)}
+</style>
+</head>
+<body>
+<div class="wrap" data-od-id="session-index">
+  <h1>Session domain</h1>
+  <p class="sub">Final pages and labs for the session surface. Vocabulary lives in <code>session.css</code>; spec in <code>SESSION-REDESIGN-SPEC.md</code>.</p>
+
+  <div class="group" data-od-id="finals">
+    <h2>Final pages</h2>
+    <div class="rows">
+      <a class="row" href="session-chat.html"><b>session-chat</b><span>document window · transcript, goal strip, permission dock, queue</span><span class="mono">final</span></a>
+      <a class="row" href="session-sidebar.html"><b>session-sidebar</b><span>in-window sessions rail + spawned-session threads <em class="tag-new">new · parent_id proposal</em></span><span class="mono">final</span></a>
+    </div>
+  </div>
+
+  <div class="group" data-od-id="labs">
+    <h2>Labs</h2>
+    <div class="rows">
+      <a class="row" href="session-design-system.html"><b>session-design-system</b><span>component vocabulary for the transcript surface</span><span class="mono">lab</span></a>
+      <a class="row" href="runtime-selector-variations.html"><b>runtime-selector-variations</b><span>composer runtime selector proposals (A chosen)</span><span class="mono">lab</span></a>
+    </div>
+  </div>
+</div>
+</body>
+</html>

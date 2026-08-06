@@ -610,6 +610,33 @@ func TestSessionMatchesListQuery(t *testing.T) {
 		}
 	})
 
+	t.Run("Should apply parent and root lineage filters", func(t *testing.T) {
+		t.Parallel()
+
+		child := *base
+		child.ID = "sess-child"
+		child.Lineage = &store.SessionLineage{
+			ParentSessionID: "sess-root",
+			RootSessionID:   "sess-root",
+			SpawnDepth:      1,
+		}
+		if !sessionMatchesListQuery(&child, ListQuery{ParentSessionID: "sess-root"}, now) {
+			t.Fatal("sessionMatchesListQuery(parent) = false, want provenance child match")
+		}
+		if !sessionMatchesListQuery(&child, ListQuery{RootSessionID: "sess-root"}, now) {
+			t.Fatal("sessionMatchesListQuery(root) = false, want descendant match")
+		}
+		if sessionMatchesListQuery(&child, ListQuery{ParentSessionID: "sess-other"}, now) {
+			t.Fatal("sessionMatchesListQuery(foreign parent) = true, want false")
+		}
+		if !sessionMatchesListQuery(base, ListQuery{RootSessionID: base.ID}, now) {
+			t.Fatal("sessionMatchesListQuery(own root) = false, want root session to match its own tree")
+		}
+		if sessionMatchesListQuery(base, ListQuery{ParentSessionID: "sess-root"}, now) {
+			t.Fatal("sessionMatchesListQuery(rootless parent) = true, want false")
+		}
+	})
+
 	t.Run("Should apply resumable eligibility before the page cut", func(t *testing.T) {
 		t.Parallel()
 

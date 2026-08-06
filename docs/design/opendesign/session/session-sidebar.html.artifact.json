@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "session/session-sidebar.html",
+  "entry": "session/session-sidebar.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-06T19:41:27.905Z",
+  "updatedAt": "2026-08-06T19:41:27.905Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

@@ -1,5 +1,6 @@
 // Suite: session document topbar publisher
-// Invariant: one session publisher exposes self-title, state mark, runtime meta, lifecycle controls, and inspector toggle before overflow.
+// Invariant: one session publisher exposes self-title, state mark, runtime meta, lifecycle controls,
+// sidebar toggle, and inspector toggle before overflow.
 // Boundary IN: useSessionTopbarSlot and the real Topbar slot consumer.
 // Boundary OUT: daemon mutations and window manager behavior.
 
@@ -15,10 +16,14 @@ function SessionPublisher({
   onStop,
   inspectorOpen = false,
   onInspectorToggle = vi.fn(),
+  sidebarOpen = false,
+  onSidebarToggle = vi.fn(),
 }: {
   onStop: () => void;
   inspectorOpen?: boolean;
   onInspectorToggle?: () => void;
+  sidebarOpen?: boolean;
+  onSidebarToggle?: () => void;
 }) {
   useSessionTopbarSlot({
     session: primarySessionFixture,
@@ -29,7 +34,9 @@ function SessionPublisher({
     isClearing: false,
     canClear: true,
     inspectorOpen,
+    sidebarOpen,
     onInspectorToggle,
+    onSidebarToggle,
     onDelete: vi.fn(),
     onStop,
     onResume: vi.fn(),
@@ -80,6 +87,26 @@ describe("useSessionTopbarSlot", () => {
     expect(onInspectorToggle).toHaveBeenCalledTimes(1);
   });
 
+  it.each([
+    { sidebarOpen: false, pressed: "false", label: "Open sessions sidebar" },
+    { sidebarOpen: true, pressed: "true", label: "Close sessions sidebar" },
+  ])("Should expose and operate the sessions sidebar toggle", ({ sidebarOpen, pressed, label }) => {
+    const onSidebarToggle = vi.fn();
+    renderWithTopbar(
+      <SessionPublisher
+        onStop={vi.fn()}
+        sidebarOpen={sidebarOpen}
+        onSidebarToggle={onSidebarToggle}
+      />
+    );
+
+    const toggle = screen.getByTestId("session-sidebar-toggle");
+    expect(toggle).toHaveAttribute("aria-pressed", pressed);
+    expect(toggle).toHaveAttribute("aria-label", label);
+    fireEvent.click(toggle);
+    expect(onSidebarToggle).toHaveBeenCalledTimes(1);
+  });
+
   it("Should keep an idle attachable session to one immediate action plus overflow", () => {
     const onStop = vi.fn();
 
@@ -93,6 +120,8 @@ describe("useSessionTopbarSlot", () => {
         isClearing: false,
         canClear: true,
         inspectorOpen: false,
+        sidebarOpen: false,
+        onSidebarToggle: vi.fn(),
         onInspectorToggle: vi.fn(),
         onDelete: vi.fn(),
         onStop,
@@ -132,6 +161,8 @@ describe("useSessionTopbarSlot", () => {
         isClearing: false,
         canClear: true,
         inspectorOpen: false,
+        sidebarOpen: false,
+        onSidebarToggle: vi.fn(),
         onInspectorToggle: vi.fn(),
         onDelete: vi.fn(),
         onStop: vi.fn(),

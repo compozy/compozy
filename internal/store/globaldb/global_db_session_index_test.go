@@ -250,6 +250,94 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 		}
 	})
 
+	t.Run("Should filter durable rows by parent and root session ids", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(
+			t,
+			globalDB,
+			"workspace-lineage-filters",
+			filepath.Join(t.TempDir(), "workspace-lineage-filters"),
+		)
+		baseAt := time.Date(2026, 7, 10, 12, 0, 0, 0, time.UTC)
+		root := sessionInfoForWorkspaceStateIndexTest(
+			"sess-prov-root",
+			workspaceID,
+			globalDBSessionStateActive,
+			baseAt,
+		)
+		root.Lineage = &store.SessionLineage{RootSessionID: "sess-prov-root"}
+		child := sessionInfoForWorkspaceStateIndexTest(
+			"sess-prov-child",
+			workspaceID,
+			globalDBSessionStateActive,
+			baseAt.Add(time.Minute),
+		)
+		child.Lineage = &store.SessionLineage{
+			ParentSessionID: "sess-prov-root",
+			RootSessionID:   "sess-prov-root",
+			SpawnDepth:      1,
+		}
+		grandchild := sessionInfoForWorkspaceStateIndexTest(
+			"sess-prov-grandchild",
+			workspaceID,
+			globalDBSessionStateActive,
+			baseAt.Add(2*time.Minute),
+		)
+		grandchild.Lineage = &store.SessionLineage{
+			ParentSessionID: "sess-prov-child",
+			RootSessionID:   "sess-prov-root",
+			SpawnDepth:      2,
+		}
+		foreign := sessionInfoForWorkspaceStateIndexTest(
+			"sess-prov-foreign",
+			workspaceID,
+			globalDBSessionStateActive,
+			baseAt.Add(3*time.Minute),
+		)
+		for _, sessionInfo := range []store.SessionInfo{root, child, grandchild, foreign} {
+			if err := globalDB.RegisterSession(ctx, sessionInfo); err != nil {
+				t.Fatalf("RegisterSession(%q) error = %v", sessionInfo.ID, err)
+			}
+		}
+
+		parentPage, err := globalDB.PageSessions(ctx, store.SessionCatalogPageQuery{
+			WorkspaceID:     workspaceID,
+			ParentSessionID: "sess-prov-root",
+			Sort:            "recent",
+			Limit:           10,
+		})
+		if err != nil {
+			t.Fatalf("PageSessions(parent) error = %v", err)
+		}
+		wantChildren := []string{"sess-prov-child"}
+		if got := sessionIDsForWorkspaceStateIndexTest(parentPage.Sessions); !slices.Equal(got, wantChildren) {
+			t.Fatalf("PageSessions(parent) ids = %#v, want %#v", got, wantChildren)
+		}
+		if parentPage.Total != 1 {
+			t.Fatalf("PageSessions(parent).Total = %d, want 1", parentPage.Total)
+		}
+
+		rootPage, err := globalDB.PageSessions(ctx, store.SessionCatalogPageQuery{
+			WorkspaceID:   workspaceID,
+			RootSessionID: "sess-prov-root",
+			Sort:          "recent",
+			Limit:         10,
+		})
+		if err != nil {
+			t.Fatalf("PageSessions(root) error = %v", err)
+		}
+		wantTree := []string{"sess-prov-grandchild", "sess-prov-child", "sess-prov-root"}
+		if got := sessionIDsForWorkspaceStateIndexTest(rootPage.Sessions); !slices.Equal(got, wantTree) {
+			t.Fatalf("PageSessions(root) ids = %#v, want %#v", got, wantTree)
+		}
+		if rootPage.Total != 3 {
+			t.Fatalf("PageSessions(root).Total = %d, want 3", rootPage.Total)
+		}
+	})
+
 	t.Run("Should count only resumable sessions before the page cut", func(t *testing.T) {
 		t.Parallel()
 

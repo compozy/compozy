@@ -122,6 +122,18 @@ export function navigateWindowCommand(
   };
 }
 
+/** Replace navigation that also re-keys the window's app instance. */
+export function retargetWindowCommand(
+  windowId: string,
+  instanceKey: string,
+  route: OsWindowRoute
+): WindowManagerCommandInput {
+  return {
+    commandId: "window.navigate",
+    payload: { window_id: windowId, route, instance_key: instanceKey },
+  };
+}
+
 /**
  * Tab half of the controller. It sits between the transport core and the
  * geometry runtime so neither of those files carries the tab surface.
@@ -136,6 +148,30 @@ export abstract class WindowManagerTabRuntime extends WindowManagerRuntimeCore {
     if (!outcome.accepted) return outcome;
     // The daemon owns the route, but the URL and the deck label must not lag a
     // round trip behind the click that caused them.
+    const intentId = randomWindowManagerId("wm-route");
+    windowManagerStore.trigger.routeIntentSet({ intent: { id: intentId, windowId: id, route } });
+    this.publish();
+    return {
+      accepted: true,
+      completion: outcome.completion.then(applied => {
+        windowManagerStore.trigger.routeIntentCleared({ windowId: id, intentId });
+        this.publish();
+        return applied;
+      }),
+    };
+  };
+
+  /**
+   * In-place instance switch: the window keeps its frame while the daemon
+   * re-keys it to another instance and resets its nav stack.
+   */
+  retargetWindow = (
+    id: string,
+    instanceKey: string,
+    route: OsWindowRoute
+  ): WindowManagerCommandOutcome => {
+    const outcome = this.dispatch(retargetWindowCommand(id, instanceKey, route));
+    if (!outcome.accepted) return outcome;
     const intentId = randomWindowManagerId("wm-route");
     windowManagerStore.trigger.routeIntentSet({ intent: { id: intentId, windowId: id, route } });
     this.publish();

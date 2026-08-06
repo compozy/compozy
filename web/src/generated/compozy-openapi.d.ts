@@ -7498,6 +7498,7 @@ export interface components {
       window_id: string;
     };
     WindowManagerNavigateWindowPayload: {
+      instance_key?: string | null;
       /** @enum {string} */
       mode?: "replace" | "push" | "pop";
       route?: {
@@ -46605,6 +46606,10 @@ export interface operations {
         type?: "user" | "system" | "coordinator" | "spawned";
         /** @description Filter by exact agent definition name */
         agent?: string;
+        /** @description Filter by exact parent session id */
+        parent?: string;
+        /** @description Filter by exact root session id (includes the root itself) */
+        root?: string;
         /** @description Search session id, name, agent, provider, or channel */
         q?: string;
         /** @description Only list sessions eligible for explicit attach */
@@ -47107,6 +47112,7 @@ export interface operations {
                   }
               )
             | null;
+          parent_session_id?: string;
           workspace?: string;
           workspace_path?: string;
         };

@@ -11,8 +11,8 @@ bug_ids: BUG-20260805-session-delete-dialog-disappears
 fix_status: fixed
 retest_status: pass
 fix_commits: PR-309-coderabbit-remediation
-evidence: /Users/pedronauck/dev/qa-labs/compozy-session-archive-20260805-031044-743468-lab/qa-artifacts/qa/journey-log.jsonl;/Users/pedronauck/dev/qa-labs/compozy-session-archive-20260805-031044-743468-lab/qa-artifacts/qa/screenshots/session-catalog-desktop.png;/Users/pedronauck/dev/qa-labs/compozy-session-archive-20260805-031044-743468-lab/qa-artifacts/qa/screenshots/session-catalog-narrow.png;/Users/pedronauck/dev/qa-labs/compozy-session-archive-review-20260805-060247-848289-lab/qa-artifacts/qa/journey-log.jsonl;docs/qa/evidence/2026-08-05-session-archive-coderabbit/CH-archive-session-catalog-delete-pending-fixed.png;docs/qa/evidence/2026-08-05-session-archive-coderabbit/session-catalog-visual.png
-last_report: docs/qa/reports/2026-08-05-session-archive-coderabbit.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-pr-327-coderabbit-20260806-224025-123277-lab/qa-artifacts/qa/journey-log.jsonl; docs/qa/evidence/2026-08-06-pr-327-coderabbit/catalog-filter-ancestor-path.png; docs/qa/evidence/2026-08-06-pr-327-coderabbit/catalog-group-collapsed.png
+last_report: docs/qa/reports/2026-08-06-pr-327-coderabbit.md
 overlaps: ET-web-desktop-shell-lifecycle; ET-web-command-palette-shortcuts
 ---
 
@@ -36,3 +36,10 @@ settled. See `BUG-20260805-session-delete-dialog-disappears`.
 QA completion 2026-08-05: opening and confirming deletion retained the global catalog under the
 confirmation. Escape was rejected while pending; successful deletion returned to the still-open,
 updated catalog.
+2026-08-06 session-sidebar impact flag: the modal body is now the shared SessionList component and renders provenance threads (children nested under their parent with a count toggle); the Recent back affordance moved into the All pane. Reset to untested for the next QA cycle.
+
+2026-08-06 re-walked live after the SessionList extraction: palette 'Toggle sessions' opens the modal, provenance thread (chip=5) renders in both panes, row click opens/focuses the session window. Evidence: lab journey-log.jsonl. Verdict: pass.
+
+2026-08-06 PR 327 CodeRabbit impact: the shared catalog now preserves cyclic sessions, restores complete ancestor paths while filtering, and removes collapsed thread/group bodies from keyboard and assistive-technology navigation. Reset for a targeted live re-walk.
+
+2026-08-06 PR 327 completion: Dock Sessions rendered four live sessions, and filtering for the grandchild kept the root and intermediate parent visible. Collapsed thread and agent bodies became inert while their toggles stayed reachable; expansion restored the rows, the catalog dismissed cleanly, and reopening after reload returned current runtime truth. Verdict: pass.

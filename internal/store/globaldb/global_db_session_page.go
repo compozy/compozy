@@ -133,6 +133,8 @@ func sessionCatalogPageFilters(
 		store.StringClause("state", query.State),
 		store.StringClause(sessionCatalogSessionTypeColumn, query.SessionType),
 		store.StringClause("agent_name", query.AgentName),
+		store.StringClause("parent_session_id", query.ParentSessionID),
+		store.StringClause("root_session_id", query.RootSessionID),
 	)
 	if search := strings.ToLower(strings.TrimSpace(query.Search)); search != "" {
 		where = append(where, `(instr(lower(id), ?) > 0 OR

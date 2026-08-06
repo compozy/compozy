@@ -78,6 +78,7 @@ export function SessionWindow({ windowId }: { windowId: string }) {
   return (
     <div className="flex min-h-full min-w-0 flex-col">
       <SessionWindowView
+        windowId={windowId}
         name={agentName}
         id={sessionId}
         workspaceId={activeWorkspaceId}

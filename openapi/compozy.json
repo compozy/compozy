@@ -5786,6 +5786,10 @@
           }
         ],
         "properties": {
+          "instance_key": {
+            "nullable": true,
+            "type": "string"
+          },
           "mode": {
             "enum": [
               "replace",
@@ -112037,6 +112041,22 @@
             }
           },
           {
+            "description": "Filter by exact parent session id",
+            "in": "query",
+            "name": "parent",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by exact root session id (includes the root itself)",
+            "in": "query",
+            "name": "root",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Search session id, name, agent, provider, or channel",
             "in": "query",
             "name": "q",
@@ -113487,6 +113507,9 @@
                         "type": "object"
                       }
                     ]
+                  },
+                  "parent_session_id": {
+                    "type": "string"
                   },
                   "workspace": {
                     "type": "string"

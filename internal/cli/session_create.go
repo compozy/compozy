@@ -1,6 +1,10 @@
 package cli
 
-import "github.com/spf13/cobra"
+import (
+	"strings"
+
+	"github.com/spf13/cobra"
+)
 
 const sessionCreateExample = `  # Start a session in the current workspace using the configured default agent
   compozy session new
@@ -17,6 +21,7 @@ func newSessionCreateCommand(deps commandDeps) *cobra.Command {
 		cwd          string
 		name         string
 		workspaceRef string
+		parentID     string
 		networkFlags networkParticipationFlags
 	)
 
@@ -43,6 +48,7 @@ func newSessionCreateCommand(deps commandDeps) *cobra.Command {
 				Name:                 name,
 				Workspace:            workspace,
 				WorkspacePath:        workspacePath,
+				ParentSessionID:      strings.TrimSpace(parentID),
 				NetworkParticipation: participationRequest,
 			})
 			if err != nil {
@@ -56,6 +62,7 @@ func newSessionCreateCommand(deps commandDeps) *cobra.Command {
 		StringVar(&workspaceRef, workspaceSkillSource, "", "Override workspace (ID, name, or path)")
 	cmd.Flags().StringVar(&cwd, "cwd", "", "Absolute workspace directory to auto-register")
 	cmd.Flags().StringVar(&name, sessionNameKey, "", "Optional session label")
+	cmd.Flags().StringVar(&parentID, "parent", "", "Record a same-workspace parent session as creation provenance")
 	bindNamedNetworkParticipationFlags(cmd, &networkFlags)
 	return cmd
 }
