@@ -229,14 +229,21 @@ func (s *HostedService) Launch(ctx context.Context, req HostedLaunchRequest) (co
 }
 
 // ArmLaunch starts the first-bind window after the ACP provider has initialized.
-func (s *HostedService) ArmLaunch(ctx context.Context, sessionID string) error {
+func (s *HostedService) ArmLaunch(ctx context.Context, sessionID string) (err error) {
+	sessionID = strings.TrimSpace(sessionID)
+	target := s.launchRecord(sessionID)
+	defer func() {
+		if err != nil {
+			s.discardUnarmedLaunch(sessionID, target)
+		}
+	}()
+
 	if err := ctxErr(ctx); err != nil {
 		return err
 	}
 	if s == nil || !s.enabled {
 		return ErrHostedDisabled
 	}
-	sessionID = strings.TrimSpace(sessionID)
 	if sessionID == "" {
 		return ErrHostedSessionRequired
 	}
@@ -245,7 +252,7 @@ func (s *HostedService) ArmLaunch(ctx context.Context, sessionID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	record := s.launches[sessionID]
-	if record == nil {
+	if record == nil || record != target {
 		return ErrHostedNonceInvalid
 	}
 	if record.armed {
@@ -254,6 +261,26 @@ func (s *HostedService) ArmLaunch(ctx context.Context, sessionID string) error {
 	record.expiresAt = now.Add(s.bindNonceTTL)
 	record.armed = true
 	return nil
+}
+
+func (s *HostedService) launchRecord(sessionID string) *hostedLaunchRecord {
+	if s == nil || sessionID == "" {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.launches[sessionID]
+}
+
+func (s *HostedService) discardUnarmedLaunch(sessionID string, target *hostedLaunchRecord) {
+	if s == nil || sessionID == "" || target == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if record := s.launches[sessionID]; record == target && !record.armed {
+		delete(s.launches, sessionID)
+	}
 }
 
 // CancelLaunch removes all hosted state for a failed session start.

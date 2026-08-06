@@ -141,13 +141,13 @@ metadata:
 The body after the closing `---` is the instruction set. Write it as concrete steps, not as marketing
 copy. A useful skill body usually includes:
 
-| Section      | Purpose                                                                                |
-| ------------ | -------------------------------------------------------------------------------------- |
-| When to use  | The trigger conditions that tell an agent this skill applies.                          |
-| Inputs       | Files, commands, environment variables, or assumptions the agent should inspect.       |
-| Sequence     | Ordered steps the agent should follow.                                                 |
-| Verification | How the agent should prove the work is correct.                                        |
-| Edge cases   | Mistakes the skill should prevent.                                                     |
+| Section      | Purpose                                                                                                                   |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| When to use  | The trigger conditions that tell an agent this skill applies.                                                             |
+| Inputs       | Files, commands, environment variables, or assumptions the agent should inspect.                                          |
+| Sequence     | Ordered steps the agent should follow.                                                                                    |
+| Verification | How the agent should prove the work is correct.                                                                           |
+| Edge cases   | Mistakes the skill should prevent.                                                                                        |
 | Resources    | Relative files a managed agent reads with `compozy__skill_view`; operators use `compozy skill view <name> --file <path>`. |
 
 Compozy scans the body for critical prompt-injection, destructive command, and credential-extraction

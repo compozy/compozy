@@ -439,7 +439,7 @@ func TestCatalogProviderPromptSectionUsesWorkspaceScopedSkills(t *testing.T) {
 func TestBuildCatalogUsesToolFirstSkillLoadingInstructions(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should keep managed skill loading on the native tool", func(t *testing.T) {
+	t.Run("Should not tell managed sessions to execute the operator skill view command", func(t *testing.T) {
 		t.Parallel()
 
 		got := BuildCatalog([]*Skill{
@@ -452,17 +452,21 @@ func TestBuildCatalogUsesToolFirstSkillLoadingInstructions(t *testing.T) {
 			},
 		})
 
-		if !strings.Contains(got, "Resolve canonical `compozy__skill_view` through the active harness") {
-			t.Fatalf("BuildCatalog() = %q, want harness-agnostic compozy__skill_view guidance", got)
-		}
-		if !strings.Contains(got, "`compozy skill view` is an operator-shell command only") {
-			t.Fatalf("BuildCatalog() = %q, want an explicit operator-only CLI boundary", got)
-		}
-		if strings.Contains(got, "use `compozy skill view") || strings.Contains(got, "fallback") {
-			t.Fatalf("BuildCatalog() = %q, want no managed CLI fallback guidance", got)
-		}
-		if !strings.Contains(got, "Do not invoke `compozy skill view` or read skill files directly") {
-			t.Fatalf("BuildCatalog() = %q, want the managed loading boundary", got)
+		guidance := strings.ToLower(got)
+		guidance = strings.ReplaceAll(
+			guidance,
+			"do not invoke `compozy skill view`",
+			"do not use the operator cli",
+		)
+		for _, forbidden := range []string{
+			"use `compozy skill view <name>` as an operator fallback",
+			"invoke `compozy skill view",
+			"run `compozy skill view",
+			"execute `compozy skill view",
+		} {
+			if strings.Contains(guidance, forbidden) {
+				t.Fatalf("BuildCatalog() = %q, want no managed CLI execution guidance", got)
+			}
 		}
 	})
 }

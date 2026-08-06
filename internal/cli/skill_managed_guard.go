@@ -8,8 +8,9 @@ import (
 )
 
 var errManagedSessionSkillCLIUnsupported = errors.New(
-	"cli: skill commands are available only from an operator shell; " +
-		"managed sessions must use compozy__skill_list, compozy__skill_search, or compozy__skill_view",
+	"cli: managed sessions cannot run compozy skill commands; " +
+		"use canonical compozy__skill_list, compozy__skill_search, or compozy__skill_view for read-only requests; " +
+		"skill install, remove, create, enable, disable, and update require an operator shell",
 )
 
 func ensureSkillCLIUsesSupportedSurface(deps commandDeps) error {

@@ -56,7 +56,10 @@ func TestNewSkillsCatalogAugmenterUsesCurrentRegistryStatePerPrompt(t *testing.T
 		if !strings.Contains(second, "resolve canonical `compozy__skill_view` for full skill/resource instructions") {
 			t.Fatalf("second prompt = %q, want compact harness-agnostic skill_view guidance", second)
 		}
-		if !strings.Contains(second, "Do not invoke `compozy skill view` or read skill files directly from a managed session") {
+		if !strings.Contains(
+			second,
+			"Do not invoke `compozy skill view` or read skill files directly from a managed session",
+		) {
 			t.Fatalf("second prompt = %q, want native-only managed skill guidance", second)
 		}
 		if !strings.Contains(second, "`compozy skill view` is an operator-shell command only") {

@@ -98,7 +98,8 @@ func (d *Driver) Start(ctx context.Context, opts StartOpts) (process *AgentProce
 	}
 	stageStartedAt = time.Now()
 	err = activateMCPServers(ctx, normalized)
-	d.logStartStage(normalized, process, "mcp_activation", stageOutcome(err, normalized.ActivateMCPServers == nil), stageStartedAt)
+	mcpActivationOutcome := stageOutcome(err, normalized.ActivateMCPServers == nil)
+	d.logStartStage(normalized, process, "mcp_activation", mcpActivationOutcome, stageStartedAt)
 	if err != nil {
 		return nil, d.cleanupFailedStart(process, err)
 	}

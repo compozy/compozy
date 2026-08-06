@@ -497,6 +497,29 @@ func TestSkillCommandsRejectManagedSessionCLI(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Should allow operator skill list through the daemon client", func(t *testing.T) {
+		t.Parallel()
+
+		clientCalls := 0
+		client := &stubClient{
+			listSkillsFn: func(context.Context, SkillQuery) ([]SkillRecord, error) { return nil, nil },
+		}
+		deps := newWorkspaceTestDeps(t, client)
+		markExtensionDaemonRunning(&deps)
+		deps.getenv = func(string) string { return "" }
+		deps.newClient = func(string) (DaemonClient, error) {
+			clientCalls++
+			return client, nil
+		}
+
+		if _, _, err := executeRootCommand(t, deps, "skill", "list"); err != nil {
+			t.Fatalf("skill list error = %v", err)
+		}
+		if clientCalls == 0 {
+			t.Fatal("skill list daemon client calls = 0, want at least one")
+		}
+	})
 }
 
 func TestSkillWorkspaceFlagValidation(t *testing.T) {

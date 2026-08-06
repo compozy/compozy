@@ -11,10 +11,11 @@ bug_ids: BUG-20260805-hosted-mcp-cold-start-nonce-expiry
 fix_status: fixed
 retest_status: pass
 fix_commits: PR #323 remediation commit
-evidence: /Users/pedronauck/dev/qa-labs/compozy-issue-314-delayed-native-skill-acceptance-20260806-001626-699034-lab/qa-artifacts/qa/verification-report.md
-last_report: docs/qa/reports/2026-08-05-issue-314-managed-skill-loading.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-managed-skill-cli-guard-20260806-021127-858332-lab/qa-artifacts/qa/verification-report.md;/Users/pedronauck/dev/qa-labs/compozy-managed-skill-cli-guard-20260806-021127-858332-lab/qa-artifacts/qa/cli-guard-evidence.json;/Users/pedronauck/dev/qa-labs/compozy-managed-skill-cli-guard-20260806-021127-858332-lab/qa-artifacts/qa/qa-audit-report.json;/Users/pedronauck/dev/qa-labs/compozy-managed-skill-cli-guard-20260806-021127-858332-lab/qa-artifacts/qa/teardown.json
+last_report: docs/qa/reports/2026-08-05-review-findings-managed-skills.md
 overlaps: ET-003
 ---
 
-The delayed first launch, exact native/operator body parity, full managed CLI guard, persisted events,
-and clean teardown passed in the linked report and isolated QA evidence.
+The current targeted run re-walked all twelve managed CLI verbs and the adjacent operator read/list
+canary against the rebuilt binary. The unchanged delayed provider and native-tool legs retain their
+full-walk evidence in the prior report.

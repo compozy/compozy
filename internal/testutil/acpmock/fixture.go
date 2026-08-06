@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
+	skillspkg "github.com/compozy/compozy/internal/skills"
 )
 
 const (
@@ -31,12 +32,10 @@ const (
 	currentAvailableSkillsSelfClosing = "<current-available-skills />"
 	currentSkillsCatalogOpeningLine   = "The <current-available-skills> block above is " +
 		"the authoritative current skill state for this turn."
-	currentSkillsCatalogFinalLine = "Do not invoke `compozy skill view` or read skill files directly from a managed session. " +
-		"If current tool policy denies canonical `compozy__skill_view`, report that the skill cannot be loaded; " +
-		"`compozy skill view` is an operator-shell command only."
-	durableMemoryOpen         = "<turn-recall>"
-	durableMemoryClose        = "</turn-recall>"
-	inboundBridgePromptPrefix = "Inbound bridge message"
+	currentSkillsCatalogFinalLine = skillspkg.ManagedSkillLoadingInstructions
+	durableMemoryOpen             = "<turn-recall>"
+	durableMemoryClose            = "</turn-recall>"
+	inboundBridgePromptPrefix     = "Inbound bridge message"
 )
 
 // LoadFixture parses and validates one fixture file.

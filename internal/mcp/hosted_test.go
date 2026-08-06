@@ -541,6 +541,48 @@ func TestHostedServiceReleaseAndFailureBranches(t *testing.T) {
 		}
 	})
 
+	t.Run("Should discard an unarmed launch when arming fails", func(t *testing.T) {
+		t.Parallel()
+
+		service := newHostedTestService(t, executable, registry, func() time.Time { return now })
+		if _, err := service.Launch(t.Context(), HostedLaunchRequest{SessionID: "sess-arm-failed"}); err != nil {
+			t.Fatalf("Launch() error = %v", err)
+		}
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		if err := service.ArmLaunch(ctx, "sess-arm-failed"); !errors.Is(err, context.Canceled) {
+			t.Fatalf("ArmLaunch(canceled) error = %v, want context.Canceled", err)
+		}
+		if err := service.ArmLaunch(t.Context(), "sess-arm-failed"); !errors.Is(err, ErrHostedNonceInvalid) {
+			t.Fatalf("ArmLaunch(after failed arm) error = %v, want ErrHostedNonceInvalid", err)
+		}
+	})
+
+	t.Run("Should preserve an armed launch when a repeat arm fails", func(t *testing.T) {
+		t.Parallel()
+
+		service := newHostedTestService(t, executable, registry, func() time.Time { return now })
+		launch, err := service.Launch(t.Context(), HostedLaunchRequest{SessionID: "sess-arm-preserved"})
+		if err != nil {
+			t.Fatalf("Launch() error = %v", err)
+		}
+		if err := service.ArmLaunch(t.Context(), "sess-arm-preserved"); err != nil {
+			t.Fatalf("ArmLaunch() error = %v", err)
+		}
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		if err := service.ArmLaunch(ctx, "sess-arm-preserved"); !errors.Is(err, context.Canceled) {
+			t.Fatalf("ArmLaunch(canceled repeat) error = %v, want context.Canceled", err)
+		}
+		if _, err := service.Bind(
+			t.Context(),
+			HostedBindRequest{SessionID: "sess-arm-preserved", Nonce: hostedLaunchNonce(t, launch.Args)},
+			peer,
+		); err != nil {
+			t.Fatalf("Bind(after canceled repeat arm) error = %v", err)
+		}
+	})
+
 	t.Run("Should release bind and session records", func(t *testing.T) {
 		t.Parallel()
 
