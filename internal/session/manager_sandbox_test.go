@@ -1750,6 +1750,10 @@ type orderingRecorder struct {
 	onClose func()
 }
 
+func (r *orderingRecorder) ListTokenUsage(context.Context) ([]store.TokenUsage, error) {
+	return nil, nil
+}
+
 func (r *orderingRecorder) Record(context.Context, store.SessionEvent) error {
 	return nil
 }

@@ -9,6 +9,7 @@ import {
   type LoopNodeLifecycle,
   type LoopNodeWaitView,
 } from "../../lib/loop-node-lifecycle";
+import { humanizeLoopNodeId } from "../../lib/loop-run-story-rows";
 import { LoopRunSection } from "./loop-run-section";
 
 interface LoopRunWaitingPanelProps {
@@ -19,8 +20,8 @@ interface LoopRunWaitingPanelProps {
 interface LoopRunAttentionPanelProps {
   nodes: readonly LoopNodeLifecycle[];
   renderNodeActions?: (node: LoopNodeLifecycle) => ReactNode;
-  /** Opens the quarantine entry for the node an attention flag names. */
-  onOpenQuarantine?: (node: LoopNodeLifecycle) => void;
+  /** Opens the quarantine entry for the quarantined producer node id. */
+  onOpenQuarantine?: (nodeId: string) => void;
 }
 
 /** `1080` seconds → `18m` — the wait-age form the daemon's `age_seconds` feeds. */
@@ -119,26 +120,112 @@ export function LoopRunWaitingPanel({ nodes, renderNodeActions }: LoopRunWaiting
   );
 }
 
-const ATTENTION_COPY: Record<string, { title: string; body: string }> = {
-  silence: {
-    title: "has gone quiet",
-    body: "No output, no tool call, no heartbeat — and no confirmed death either. Watch flag only: it clears itself on any evidence of life.",
-  },
-  dependency_quarantined: {
-    title: "can't move forward",
-    body: "Forward progress needs a lane that is set aside. The run parks here and says so — it never waits silently or fails without a reason.",
-  },
-  expired_wait: {
-    title: "waited past its deadline",
-    body: "The wait expired and this loop declares no timeout route, so nothing decided what happens next.",
-  },
+const ATTENTION_TITLE: Record<string, string> = {
+  silence: "has gone quiet",
+  expired_wait: "waited past its deadline",
 };
+
+const ATTENTION_BODY: Record<string, string> = {
+  silence:
+    "No output, no tool call, no heartbeat — and no confirmed death either. The flag clears itself on any evidence of life.",
+  expired_wait:
+    "The wait expired and this loop declares no timeout route, so nothing decided what happens next.",
+};
+
+interface DependencyAttentionGroup {
+  producerNodeId: string;
+  consumers: LoopNodeLifecycle[];
+}
+
+/** Consumers parked behind the same quarantined producer collapse to one row. */
+function groupDependencyAttention(nodes: readonly LoopNodeLifecycle[]): {
+  groups: DependencyAttentionGroup[];
+  singles: LoopNodeLifecycle[];
+} {
+  const byProducer = new Map<string, LoopNodeLifecycle[]>();
+  const singles: LoopNodeLifecycle[] = [];
+  for (const node of nodes) {
+    if (node.attentionFlag !== "dependency_quarantined") {
+      singles.push(node);
+      continue;
+    }
+    const producer = node.attentionProducerNodeId;
+    const members = byProducer.get(producer);
+    if (members) {
+      members.push(node);
+    } else {
+      byProducer.set(producer, [node]);
+    }
+  }
+  const groups = [...byProducer.entries()]
+    .map(([producerNodeId, consumers]) => ({ producerNodeId, consumers }))
+    .sort((left, right) => left.producerNodeId.localeCompare(right.producerNodeId));
+  return { groups, singles };
+}
+
+function joinLabels(labels: string[]): string {
+  if (labels.length <= 1) return labels[0] ?? "";
+  return `${labels.slice(0, -1).join(", ")} and ${labels.at(-1)}`;
+}
+
+function DependencyAttentionRow({
+  group,
+  withDivider,
+  onOpenQuarantine,
+}: {
+  group: DependencyAttentionGroup;
+  withDivider: boolean;
+  onOpenQuarantine?: (nodeId: string) => void;
+}) {
+  const producerLabel = group.producerNodeId
+    ? humanizeLoopNodeId(group.producerNodeId)
+    : "a parked step";
+  const consumerLabels = joinLabels(group.consumers.map(node => node.label));
+  const generation = group.consumers[0]?.generation;
+  return (
+    <div
+      className={`flex items-start gap-3 px-4 py-3.5 ${withDivider ? "border-t border-line-soft" : ""}`}
+      data-testid={`loop-run-attention-producer-${group.producerNodeId || "unknown"}`}
+    >
+      <span aria-hidden="true" className="mt-1.5 size-2 shrink-0 rounded-full bg-warning" />
+      <div className="min-w-0 flex-1">
+        <div className="text-ws-name font-medium text-warning">{producerLabel} is quarantined</div>
+        <p className="mt-0.75 max-w-[62ch] text-small-body leading-relaxed text-muted">
+          {consumerLabels
+            ? `${consumerLabels} ${group.consumers.length === 1 ? "is" : "are"} parked behind it until it is requeued.`
+            : "Downstream steps are parked behind it until it is requeued."}
+        </p>
+        <div className="mt-1.5 font-mono text-pill-group-badge text-faint">
+          {[
+            "dependency_quarantined",
+            group.producerNodeId || null,
+            generation !== undefined ? `gen ${generation}` : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        </div>
+      </div>
+      {group.producerNodeId && onOpenQuarantine ? (
+        <Button
+          className="min-h-6 shrink-0"
+          data-testid={`loop-run-attention-open-quarantine-${group.producerNodeId}`}
+          onClick={() => onOpenQuarantine(group.producerNodeId)}
+          size="sm"
+          type="button"
+          variant="outline"
+        >
+          Open quarantine entry
+        </Button>
+      ) : null}
+    </div>
+  );
+}
 
 /**
  * The Needs-attention panel (US-007 EC-2 / US-024 AC-4). An attention flag is
- * evidence, not a stop: the run keeps going, and the panel names the flag the
- * daemon wrote plus whatever it recorded as the reason. Flags carry warning
- * tone because they are a state the runtime reports, never decoration.
+ * evidence, not a stop: the run keeps going. Consumers parked behind one
+ * quarantined producer collapse into a single row that routes to the
+ * producer's repair record; other flags keep the daemon's own reason.
  */
 export function LoopRunAttentionPanel({
   nodes,
@@ -146,30 +233,39 @@ export function LoopRunAttentionPanel({
   onOpenQuarantine,
 }: LoopRunAttentionPanelProps) {
   if (nodes.length === 0) return null;
+  const { groups, singles } = groupDependencyAttention(nodes);
+  let rowIndex = 0;
   return (
     <LoopRunSection
       data-testid="loop-run-attention"
       label="Needs attention"
       right={<span className="font-mono text-mono-id text-subtle">{nodes.length} flagged</span>}
     >
-      <div className="grid gap-3 min-[900px]:grid-cols-2">
-        {nodes.map(node => {
-          const copy = ATTENTION_COPY[node.attentionFlag];
-          return (
-            <div
-              className="rounded-lg border border-warning/25 bg-warning-tint px-4 py-3.5"
-              data-testid={`loop-run-attention-${node.nodeId}`}
-              key={node.nodeId}
-            >
+      <div className="overflow-hidden rounded-lg border border-warning/25 bg-warning-tint">
+        {groups.map(group => (
+          <DependencyAttentionRow
+            group={group}
+            key={`producer-${group.producerNodeId}`}
+            onOpenQuarantine={onOpenQuarantine}
+            withDivider={rowIndex++ > 0}
+          />
+        ))}
+        {singles.map(node => (
+          <div
+            className={`flex items-start gap-3 px-4 py-3.5 ${rowIndex++ > 0 ? "border-t border-line-soft" : ""}`}
+            data-testid={`loop-run-attention-${node.nodeId}`}
+            key={node.nodeId}
+          >
+            <span aria-hidden="true" className="mt-1.5 size-2 shrink-0 rounded-full bg-warning" />
+            <div className="min-w-0 flex-1">
               <div className="text-ws-name font-medium text-warning">
-                {copy ? `${node.label} ${copy.title}` : `${node.label} needs attention`}
+                {node.label} {ATTENTION_TITLE[node.attentionFlag] ?? "needs attention"}
               </div>
-              <p className="mt-1 max-w-[60ch] text-small-body leading-relaxed text-muted">
-                {copy?.body ?? node.attentionReason}
+              <p className="mt-0.75 max-w-[62ch] text-small-body leading-relaxed text-muted">
+                {ATTENTION_BODY[node.attentionFlag] ?? node.attentionReason}
               </p>
-              <div className="mt-2 font-mono text-pill-group-badge text-faint">
+              <div className="mt-1.5 font-mono text-pill-group-badge text-faint">
                 {[
-                  "node_attention_flagged",
                   node.attentionFlag,
                   node.lastEvidenceAt
                     ? `last evidence ${formatRelativeTime(node.lastEvidenceAt)}`
@@ -179,24 +275,14 @@ export function LoopRunAttentionPanel({
                   .filter(Boolean)
                   .join(" · ")}
               </div>
-              <div className="mt-3 flex items-center gap-2">
-                {node.attentionFlag === "dependency_quarantined" && onOpenQuarantine ? (
-                  <Button
-                    className="min-h-6"
-                    data-testid={`loop-run-attention-open-quarantine-${node.nodeId}`}
-                    onClick={() => onOpenQuarantine(node)}
-                    size="sm"
-                    type="button"
-                    variant="outline"
-                  >
-                    Open quarantine entry
-                  </Button>
-                ) : null}
-                {renderNodeActions?.(node)}
-              </div>
             </div>
-          );
-        })}
+            {renderNodeActions ? (
+              <span className="flex shrink-0 items-center gap-2 pt-0.5">
+                {renderNodeActions(node)}
+              </span>
+            ) : null}
+          </div>
+        ))}
       </div>
     </LoopRunSection>
   );

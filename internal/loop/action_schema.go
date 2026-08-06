@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 
@@ -20,6 +21,8 @@ func validateRunAgentStructured(schema dsl.Schema, result ActionPromptResult) (j
 
 // ValidateActionStructured applies the Loop-owned generation-output schema validator.
 // Child action executors use this seam instead of owning a second schema implementation.
+// Free-text turns are scanned newest-first and the first candidate object that
+// satisfies the schema wins, so JSON quoted mid-turn cannot shadow the answer.
 func ValidateActionStructured(schema dsl.Schema, result ActionPromptResult) (json.RawMessage, error) {
 	if len(schema) == 0 {
 		if len(bytes.TrimSpace(result.Structured)) > 0 {
@@ -27,14 +30,31 @@ func ValidateActionStructured(schema dsl.Schema, result ActionPromptResult) (jso
 		}
 		return nil, nil
 	}
-	raw, err := structuredCandidate(result)
-	if err != nil {
-		return nil, actionSchemaInvalidError(err)
+	if len(bytes.TrimSpace(result.Structured)) > 0 {
+		if !json.Valid(result.Structured) {
+			return nil, actionSchemaInvalidError(errors.New("structured result is not valid JSON"))
+		}
+		raw := cloneRawMessage(result.Structured)
+		if err := validateJSONSchema(schema, raw); err != nil {
+			return nil, actionSchemaInvalidError(err)
+		}
+		return raw, nil
 	}
-	if err := validateJSONSchema(schema, raw); err != nil {
-		return nil, actionSchemaInvalidError(err)
+	candidates := extractJSONObjectCandidates(result.Text)
+	if len(candidates) == 0 {
+		return nil, actionSchemaInvalidError(errors.New("no JSON object found"))
 	}
-	return raw, nil
+	var newestErr error
+	for _, candidate := range slices.Backward(candidates) {
+		err := validateJSONSchema(schema, candidate)
+		if err == nil {
+			return candidate, nil
+		}
+		if newestErr == nil {
+			newestErr = err
+		}
+	}
+	return nil, actionSchemaInvalidError(newestErr)
 }
 
 func actionSchemaInvalidError(err error) error {
@@ -42,10 +62,26 @@ func actionSchemaInvalidError(err error) error {
 		reasonError(ReasonCodeActionSchemaInvalid, errors.Join(ErrActionSchemaInvalid, err), nil),
 		NewActionFailure(
 			string(ReasonCodeActionSchemaInvalid),
-			"The agent output did not satisfy the action output schema.",
+			schemaInvalidCause(err),
 			"Return one JSON object that satisfies every required output field, then retry the action.",
 		),
 	)
+}
+
+const schemaInvalidCauseLimit = 240
+
+func schemaInvalidCause(err error) string {
+	detail := ""
+	if err != nil {
+		detail = strings.TrimSpace(err.Error())
+	}
+	if detail == "" {
+		return "The agent output did not satisfy the action output schema."
+	}
+	if len(detail) > schemaInvalidCauseLimit {
+		detail = detail[:schemaInvalidCauseLimit] + "…"
+	}
+	return "The agent output did not satisfy the action output schema: " + detail
 }
 
 func structuredCandidate(result ActionPromptResult) (json.RawMessage, error) {
@@ -213,6 +249,30 @@ func shorthandPropertySchema(value any) any {
 	}
 }
 
+// runAgentPromptWithOutputContract appends the authored output schema so the
+// agent knows the exact terminal JSON shape before its first attempt.
+func runAgentPromptWithOutputContract(prompt string, schema dsl.Schema) (string, error) {
+	if len(schema) == 0 {
+		return prompt, nil
+	}
+	schemaDoc, err := normalizeLoopSchema(schema)
+	if err != nil {
+		return "", err
+	}
+	schemaData, err := json.Marshal(schemaDoc)
+	if err != nil {
+		return "", fmt.Errorf("marshal output contract schema: %w", err)
+	}
+	return fmt.Sprintf(
+		"%s\n\n"+
+			"Output contract:\n"+
+			"End your final message with exactly one JSON object that satisfies this output_schema "+
+			"(no other JSON object may follow it): %s",
+		prompt,
+		string(schemaData),
+	), nil
+}
+
 func schemaRetryPrompt(prompt string, schema dsl.Schema, validationErr error) (string, error) {
 	schemaDoc, err := normalizeLoopSchema(schema)
 	if err != nil {
@@ -233,47 +293,87 @@ func schemaRetryPrompt(prompt string, schema dsl.Schema, validationErr error) (s
 }
 
 func extractJSONObject(text string) (json.RawMessage, error) {
-	trimmed := strings.TrimSpace(text)
-	if raw, ok := validJSONObject(trimmed); ok {
-		return raw, nil
+	candidates := extractJSONObjectCandidates(text)
+	if len(candidates) == 0 {
+		return nil, errors.New("no JSON object found")
 	}
-	if raw, ok := extractFencedJSONObject(trimmed); ok {
-		return raw, nil
-	}
-	if raw, ok := extractBalancedJSONObject(trimmed); ok {
-		return raw, nil
-	}
-	return nil, errors.New("no JSON object found")
+	return candidates[0], nil
 }
 
-func extractFencedJSONObject(text string) (json.RawMessage, bool) {
+// extractJSONObjectCandidates returns every distinct top-level JSON object in
+// the turn text, in order of appearance.
+func extractJSONObjectCandidates(text string) []json.RawMessage {
+	trimmed := strings.TrimSpace(text)
+	if trimmed == "" {
+		return nil
+	}
+	seen := make(map[string]struct{})
+	candidates := make([]json.RawMessage, 0, 4)
+	appendCandidate := func(raw json.RawMessage) {
+		key := string(raw)
+		if _, duplicate := seen[key]; duplicate {
+			return
+		}
+		seen[key] = struct{}{}
+		candidates = append(candidates, raw)
+	}
+	if raw, ok := validJSONObject(trimmed); ok {
+		appendCandidate(raw)
+	}
+	for _, raw := range extractFencedJSONObjects(trimmed) {
+		appendCandidate(raw)
+	}
+	for _, raw := range extractBalancedJSONObjects(trimmed) {
+		appendCandidate(raw)
+	}
+	return candidates
+}
+
+func extractFencedJSONObjects(text string) []json.RawMessage {
+	objects := make([]json.RawMessage, 0, 2)
 	start := 0
 	for {
 		open := strings.Index(text[start:], "```")
 		if open < 0 {
-			return nil, false
+			return objects
 		}
 		bodyStart := start + open + len("```")
 		closeRel := strings.Index(text[bodyStart:], "```")
 		if closeRel < 0 {
-			return nil, false
+			return objects
 		}
 		body := text[bodyStart : bodyStart+closeRel]
 		if newline := strings.IndexByte(body, '\n'); newline >= 0 {
 			body = body[newline+1:]
 		}
 		if raw, ok := validJSONObject(strings.TrimSpace(body)); ok {
-			return raw, true
+			objects = append(objects, raw)
 		}
 		start = bodyStart + closeRel + len("```")
 	}
 }
 
-func extractBalancedJSONObject(text string) (json.RawMessage, bool) {
-	start := strings.IndexByte(text, '{')
-	if start < 0 {
-		return nil, false
+func extractBalancedJSONObjects(text string) []json.RawMessage {
+	objects := make([]json.RawMessage, 0, 2)
+	cursor := 0
+	for cursor < len(text) {
+		offset := strings.IndexByte(text[cursor:], '{')
+		if offset < 0 {
+			return objects
+		}
+		start := cursor + offset
+		raw, end, ok := balancedJSONObjectAt(text, start)
+		if ok {
+			objects = append(objects, raw)
+			cursor = end
+			continue
+		}
+		cursor = start + 1
 	}
+	return objects
+}
+
+func balancedJSONObjectAt(text string, start int) (json.RawMessage, int, bool) {
 	depth := 0
 	inString := false
 	escaped := false
@@ -300,11 +400,12 @@ func extractBalancedJSONObject(text string) (json.RawMessage, bool) {
 		case '}':
 			depth--
 			if depth == 0 {
-				return validJSONObject(strings.TrimSpace(text[start : idx+1]))
+				raw, ok := validJSONObject(strings.TrimSpace(text[start : idx+1]))
+				return raw, idx + 1, ok
 			}
 		}
 	}
-	return nil, false
+	return nil, len(text), false
 }
 
 func validJSONObject(candidate string) (json.RawMessage, bool) {

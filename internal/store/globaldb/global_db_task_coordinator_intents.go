@@ -229,6 +229,16 @@ func appendGenerationLifecycleEventWithExecutor(
 		return appendNodeOutcomeEffectEventWithExecutor(ctx, exec, run, generation, event, at)
 	case looppkg.GenerationLifecycleEventNodeQuarantined:
 		return appendNodeQuarantinedEffectEventWithExecutor(ctx, exec, run, generation, event, at)
+	case looppkg.GenerationLifecycleEventNodeAttentionFlagged:
+		return appendLoopRunEventWithExecutor(ctx, exec, run.ID, run.WorkspaceID,
+			loopRunEventNodeAttentionFlagged, map[string]any{
+				loopRunEventPayloadKeyGeneration:    generation,
+				loopRunEventPayloadKeyNodeID:        event.NodeID,
+				loopRunEventPayloadKeyItemIndex:     event.ItemIndex,
+				loopRunEventPayloadKeyAttentionFlag: event.AttentionFlag,
+				"producer_node_id":                  event.AttentionProducerNodeID,
+				loopRunEventPayloadKeyReason:        event.Reason,
+			}, at)
 	case looppkg.GenerationLifecycleEventNodePaused:
 		return appendGenerationNodePausedEvent(ctx, exec, run, generation, event, at)
 	case looppkg.GenerationLifecycleEventNodeWaitStarted:

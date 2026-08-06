@@ -47,18 +47,19 @@ func loopNodeControlFromGenerated(row sqlcgen.LoopNodeControl) (looppkg.NodeCont
 		)
 	}
 	control := looppkg.NodeControl{
-		LoopRunID:         looppkg.RunID(row.LoopRunID),
-		NodeID:            looppkg.NodeID(row.NodeID),
-		Paused:            row.Paused != 0,
-		Quarantined:       row.Quarantined != 0,
-		AttentionFlag:     row.AttentionFlag,
-		AttentionReason:   row.AttentionReason,
-		CancelState:       cancelState,
-		LastEvidenceAt:    loopTimePointer(row.LastEvidenceAt),
-		DeathResumeStreak: int(row.DeathResumeStreak),
-		Revision:          row.Revision,
-		UpdatedAt:         row.UpdatedAt.UTC(),
-		QuarantinedAt:     loopTimePointer(row.QuarantinedAt),
+		LoopRunID:               looppkg.RunID(row.LoopRunID),
+		NodeID:                  looppkg.NodeID(row.NodeID),
+		Paused:                  row.Paused != 0,
+		Quarantined:             row.Quarantined != 0,
+		AttentionFlag:           row.AttentionFlag,
+		AttentionReason:         row.AttentionReason,
+		AttentionProducerNodeID: row.AttentionProducerNodeID,
+		CancelState:             cancelState,
+		LastEvidenceAt:          loopTimePointer(row.LastEvidenceAt),
+		DeathResumeStreak:       int(row.DeathResumeStreak),
+		Revision:                row.Revision,
+		UpdatedAt:               row.UpdatedAt.UTC(),
+		QuarantinedAt:           loopTimePointer(row.QuarantinedAt),
 	}
 	if row.QuarantineEntryJson.Valid {
 		control.QuarantineEntry = json.RawMessage(row.QuarantineEntryJson.String)

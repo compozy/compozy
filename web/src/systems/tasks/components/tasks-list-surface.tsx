@@ -3,6 +3,7 @@ import { AlertCircle, ListChecks, Search } from "lucide-react";
 import { Button, Empty, ListingPage, Skeleton, Spinner } from "@compozy/ui";
 
 import { groupTasksForList, taskStatusFacetTotal } from "../lib/task-grouping";
+import { buildTaskListTree } from "../lib/task-hierarchy";
 import type { TaskListItem, TaskStatus } from "../types";
 import { TaskCard } from "./task-card";
 import { TaskGroup } from "./task-group";
@@ -40,7 +41,8 @@ export function TasksListSurface({
   onLoadMore,
   onRetryLoad,
 }: TasksListSurfaceProps) {
-  const buckets = groupTasksForList(tasks).filter(
+  const tree = buildTaskListTree(tasks);
+  const buckets = groupTasksForList(tree.roots).filter(
     bucket =>
       bucket.tasks.length > 0 || taskStatusFacetTotal(bucket.group.statuses, statusCounts) > 0
   );
@@ -104,7 +106,7 @@ export function TasksListSurface({
               totalCount={taskStatusFacetTotal(bucket.group.statuses, statusCounts)}
             >
               {bucket.tasks.map(task => (
-                <TaskCard key={task.id} task={task} />
+                <TaskCard key={task.id} subtasks={tree.childrenByParent.get(task.id)} task={task} />
               ))}
             </TaskGroup>
           ))

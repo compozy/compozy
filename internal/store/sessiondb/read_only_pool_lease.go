@@ -53,6 +53,13 @@ func (l *readOnlyPoolLease) History(
 	return l.entry.recorder.History(ctx, query)
 }
 
+func (l *readOnlyPoolLease) ListTokenUsage(ctx context.Context) ([]store.TokenUsage, error) {
+	if l == nil || l.entry == nil || l.entry.recorder == nil {
+		return nil, errors.New("store: read-only pool lease recorder is required")
+	}
+	return l.entry.recorder.ListTokenUsage(ctx)
+}
+
 func (l *readOnlyPoolLease) TranscriptPage(
 	ctx context.Context,
 	query transcript.PageQuery,

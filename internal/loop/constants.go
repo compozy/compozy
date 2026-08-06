@@ -6,6 +6,7 @@ const (
 	metadataNodeIDKey          = "node_id"
 	metadataItemIndexKey       = "item_index"
 	attentionDependencyFlag    = "dependency_quarantined"
+	loopTaskAttentionActorRef  = "loop-coordinator"
 	targetBreakerStateOpen     = "open"
 	targetBreakerStateHalfOpen = "half_open"
 	targetBreakerStateClosed   = "closed"

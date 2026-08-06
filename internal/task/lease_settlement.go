@@ -13,6 +13,12 @@ type HeartbeatRunLeaseSettlement struct {
 	Task Task
 }
 
+// BoundRunSessionSettlement is the durable task projection produced with a lease session binding.
+type BoundRunSessionSettlement struct {
+	Run  Run
+	Task Task
+}
+
 // ReleasedRunLeaseSettlement is the durable task projection produced with a release.
 type ReleasedRunLeaseSettlement struct {
 	Run               Run

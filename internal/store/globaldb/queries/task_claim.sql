@@ -117,10 +117,24 @@ WHERE id = sqlc.arg(id) AND status = sqlc.arg(queued_status);
 -- name: GetTaskRunMetadataForClaim :one
 SELECT metadata_json FROM task_runs WHERE id = sqlc.arg(id);
 
+-- name: BindLeasedTaskRunSession :execrows
+UPDATE task_runs
+SET session_id = sqlc.arg(session_id)
+WHERE id = sqlc.arg(id)
+  AND claim_token_hash = sqlc.arg(claim_token_hash)
+  AND status IN (sqlc.arg(claimed_status), sqlc.arg(starting_status), sqlc.arg(running_status));
+
 -- name: CountActiveTaskRunLeasesForSession :one
 SELECT COUNT(1)
 FROM task_runs
 WHERE session_id = sqlc.arg(session_id)
+  AND status IN (sqlc.arg(claimed_status), sqlc.arg(starting_status), sqlc.arg(running_status))
+  AND (lease_until IS NULL OR lease_until > sqlc.arg(now));
+
+-- name: CountActiveCoordinatorRunLeases :one
+SELECT COUNT(1)
+FROM task_runs
+WHERE run_kind = 'coordinator'
   AND status IN (sqlc.arg(claimed_status), sqlc.arg(starting_status), sqlc.arg(running_status))
   AND (lease_until IS NULL OR lease_until > sqlc.arg(now));
 

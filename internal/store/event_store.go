@@ -9,6 +9,7 @@ import (
 type EventReader interface {
 	Query(ctx context.Context, query EventQuery) ([]SessionEvent, error)
 	History(ctx context.Context, query EventQuery) ([]TurnHistory, error)
+	ListTokenUsage(ctx context.Context) ([]TokenUsage, error)
 }
 
 // EventWriter appends session events and token usage.

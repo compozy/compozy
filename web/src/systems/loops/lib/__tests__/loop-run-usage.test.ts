@@ -95,6 +95,24 @@ describe("buildRunUsage", () => {
     expect(rows.every(row => row.tone === "neutral")).toBe(true);
   });
 
+  it("Should say tokens are not reported instead of a confident zero", () => {
+    const rows = buildRunUsage(
+      run({
+        tokens_used: 0,
+        budget_tokens: 1_500_000,
+        budget_wall_sec: 0,
+        generation: 1,
+        iteration_cap: 50,
+      }),
+      95
+    );
+    const byKey = new Map(rows.map(row => [row.key, row]));
+    expect(byKey.get("tokens")?.value).toBe("not reported");
+    expect(byKey.get("tokens")?.max).toBe("");
+    expect(byKey.get("cost")?.value).toBe("—");
+    expect(byKey.get("cost")?.max).toBe("");
+  });
+
   it("Should warn near a ceiling and go danger at it (never on cost)", () => {
     const rows = buildRunUsage(
       run({

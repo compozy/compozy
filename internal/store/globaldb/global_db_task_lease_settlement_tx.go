@@ -55,6 +55,17 @@ func (s *taskLeaseSettlementTxStore) HeartbeatRunLease(
 	return s.tasks.runs.heartbeatRunLeaseWithExecutor(ctx, s.exec, normalized)
 }
 
+func (s *taskLeaseSettlementTxStore) BindLeasedRunSession(
+	ctx context.Context,
+	binding taskpkg.LeaseSessionBinding,
+) (taskpkg.Run, error) {
+	normalized, err := binding.Normalize(s.tasks.now())
+	if err != nil {
+		return taskpkg.Run{}, err
+	}
+	return s.tasks.runs.bindLeasedRunSessionWithExecutor(ctx, s.exec, normalized)
+}
+
 func (s *taskLeaseSettlementTxStore) ReleaseRunLease(
 	ctx context.Context,
 	release taskpkg.LeaseRelease,

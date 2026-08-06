@@ -148,6 +148,78 @@ func TestActionSchemaAndJSONInternalsShouldCoverStructuredExtraction(t *testing.
 		}
 	})
 
+	t.Run("Should validate the final answer when earlier JSON objects fail the schema", func(t *testing.T) {
+		t.Parallel()
+
+		schema := dsl.Schema{
+			"type":       "object",
+			"properties": map[string]any{"status": map[string]any{"type": "string"}},
+			"required":   []any{"status", "summary"},
+		}
+		turn := "Implemented the app. Here is package.json:\n" +
+			"```json\n{\"name\":\"todo-app\",\"private\":true}\n```\n" +
+			"All checks passed.\n" +
+			"{\"status\":\"completed\",\"summary\":\"todo app shipped\"}"
+		raw, err := ValidateActionStructured(schema, ActionPromptResult{Text: turn})
+		if err != nil {
+			t.Fatalf("ValidateActionStructured(mixed turn) error = %v", err)
+		}
+		var decoded map[string]any
+		if err := json.Unmarshal(raw, &decoded); err != nil {
+			t.Fatalf("unmarshal validated output error = %v", err)
+		}
+		if decoded["status"] != "completed" || decoded["summary"] != "todo app shipped" {
+			t.Fatalf("validated output = %v, want the final schema-passing object", decoded)
+		}
+	})
+
+	t.Run("Should surface the extraction detail when no JSON object exists", func(t *testing.T) {
+		t.Parallel()
+
+		schema := dsl.Schema{
+			"type":       "object",
+			"properties": map[string]any{"status": map[string]any{"type": "string"}},
+			"required":   []any{"status"},
+		}
+		_, err := ValidateActionStructured(schema, ActionPromptResult{Text: "Done — everything works."})
+		if !errors.Is(err, ErrActionSchemaInvalid) {
+			t.Fatalf("ValidateActionStructured(prose) error = %v, want ErrActionSchemaInvalid", err)
+		}
+		provider, ok := errors.AsType[SafeActionFailureProvider](err)
+		if !ok {
+			t.Fatalf("ValidateActionStructured(prose) error = %T, want SafeActionFailureProvider", err)
+		}
+		failure := provider.SafeActionFailure()
+		if !strings.Contains(failure.Cause, "no JSON object found") {
+			t.Fatalf("failure cause = %q, want the concrete extraction detail", failure.Cause)
+		}
+	})
+
+	t.Run("Should append the authored schema to the run-agent prompt contract", func(t *testing.T) {
+		t.Parallel()
+
+		schema := dsl.Schema{
+			"type":       "object",
+			"properties": map[string]any{"status": map[string]any{"type": "string"}},
+			"required":   []any{"status"},
+		}
+		prompt, err := runAgentPromptWithOutputContract("Do the task", schema)
+		if err != nil {
+			t.Fatalf("runAgentPromptWithOutputContract() error = %v", err)
+		}
+		if !strings.HasPrefix(prompt, "Do the task") || !strings.Contains(prompt, "Output contract:") ||
+			!strings.Contains(prompt, `"required":["status"]`) {
+			t.Fatalf("contract prompt = %q, want prompt plus authored schema", prompt)
+		}
+		unchanged, err := runAgentPromptWithOutputContract("Do the task", nil)
+		if err != nil {
+			t.Fatalf("runAgentPromptWithOutputContract(no schema) error = %v", err)
+		}
+		if unchanged != "Do the task" {
+			t.Fatalf("contract prompt without schema = %q, want untouched prompt", unchanged)
+		}
+	})
+
 	t.Run("Should validate full JSON schema and reject invalid output", func(t *testing.T) {
 		t.Parallel()
 

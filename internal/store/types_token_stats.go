@@ -57,17 +57,17 @@ func validateTokenCostShape(costStatus string, costSource string, amount *float6
 		return errors.New("store: token cost status and source must not carry surrounding whitespace")
 	}
 	switch status {
-	case tokenCostStatusActual:
-		if source != tokenCostSourceAgentReported || !validTokenStatsMoney(amount, currency) {
+	case TokenCostStatusActual:
+		if source != TokenCostSourceAgentReported || !validTokenStatsMoney(amount, currency) {
 			return errors.New(
 				"store: actual token cost requires agent_reported amount and currency; " +
 					"amount must be finite and non-negative",
 			)
 		}
-	case tokenCostStatusEstimated:
-		if source != tokenCostSourceCatalogConfig &&
-			source != tokenCostSourceModelsDev &&
-			source != tokenCostSourceBuiltin {
+	case TokenCostStatusEstimated:
+		if source != TokenCostSourceCatalogConfig &&
+			source != TokenCostSourceModelsDev &&
+			source != TokenCostSourceBuiltin {
 			return errors.New("store: estimated token cost requires a catalog source")
 		}
 		if !validTokenStatsMoney(amount, currency) {
@@ -76,12 +76,12 @@ func validateTokenCostShape(costStatus string, costSource string, amount *float6
 					"amount must be finite and non-negative",
 			)
 		}
-	case tokenCostStatusIncluded:
-		if source != tokenCostSourceNone || amount != nil || currency != nil {
+	case TokenCostStatusIncluded:
+		if source != TokenCostSourceNone || amount != nil || currency != nil {
 			return errors.New("store: included token cost cannot carry amount or currency")
 		}
-	case tokenCostStatusUnknown:
-		if source != tokenCostSourceNone || amount != nil || currency != nil {
+	case TokenCostStatusUnknown:
+		if source != TokenCostSourceNone || amount != nil || currency != nil {
 			return errors.New("store: unknown token cost cannot carry amount or currency")
 		}
 	default:

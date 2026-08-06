@@ -397,6 +397,50 @@ func (q *Queries) InsertHookRun(ctx context.Context, arg InsertHookRunParams) er
 	return err
 }
 
+const listTokenUsage = `-- name: ListTokenUsage :many
+SELECT turn_id, input_tokens, output_tokens, total_tokens, thought_tokens,
+       cache_read_tokens, cache_write_tokens, context_used, context_size,
+       cost_amount, cost_currency, timestamp
+FROM token_usage
+ORDER BY timestamp ASC, turn_id ASC
+`
+
+func (q *Queries) ListTokenUsage(ctx context.Context) ([]TokenUsage, error) {
+	rows, err := q.db.QueryContext(ctx, listTokenUsage)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []TokenUsage{}
+	for rows.Next() {
+		var i TokenUsage
+		if err := rows.Scan(
+			&i.TurnID,
+			&i.InputTokens,
+			&i.OutputTokens,
+			&i.TotalTokens,
+			&i.ThoughtTokens,
+			&i.CacheReadTokens,
+			&i.CacheWriteTokens,
+			&i.ContextUsed,
+			&i.ContextSize,
+			&i.CostAmount,
+			&i.CostCurrency,
+			&i.Timestamp,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const maxActiveEventSequence = `-- name: MaxActiveEventSequence :one
 SELECT CAST(COALESCE(MAX(sequence), 0) AS INTEGER) FROM events WHERE archived = 0
 `

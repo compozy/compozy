@@ -114,6 +114,7 @@ func loopGenerationOutputsPayload(
 			Status:          output.Status,
 			OutputRef:       output.OutputRef,
 			TaskRunID:       output.TaskRunID,
+			SessionID:       output.SessionID,
 			ChildLoopRunID:  output.ChildLoopRunID,
 			ResolvedRuntime: loopResolvedRuntimePayload(output.ResolvedRuntime),
 			Attempt:         output.Attempt,

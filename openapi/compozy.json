@@ -212351,6 +212351,9 @@
                               "attention_flag": {
                                 "type": "string"
                               },
+                              "attention_producer_node_id": {
+                                "type": "string"
+                              },
                               "attention_reason": {
                                 "type": "string"
                               },
@@ -212536,6 +212539,9 @@
                                   "source"
                                 ],
                                 "type": "object"
+                              },
+                              "session_id": {
+                                "type": "string"
                               },
                               "status": {
                                 "type": "string"
@@ -215213,6 +215219,9 @@
                                   ],
                                   "type": "object"
                                 },
+                                "session_id": {
+                                  "type": "string"
+                                },
                                 "status": {
                                   "type": "string"
                                 },
@@ -215399,6 +215408,9 @@
                       "items": {
                         "properties": {
                           "attention_flag": {
+                            "type": "string"
+                          },
+                          "attention_producer_node_id": {
                             "type": "string"
                           },
                           "attention_reason": {
@@ -216807,6 +216819,9 @@
                         "attention_flag": {
                           "type": "string"
                         },
+                        "attention_producer_node_id": {
+                          "type": "string"
+                        },
                         "attention_reason": {
                           "type": "string"
                         },
@@ -218092,6 +218107,9 @@
                         "attention_flag": {
                           "type": "string"
                         },
+                        "attention_producer_node_id": {
+                          "type": "string"
+                        },
                         "attention_reason": {
                           "type": "string"
                         },
@@ -218757,6 +218775,9 @@
                         "attention_flag": {
                           "type": "string"
                         },
+                        "attention_producer_node_id": {
+                          "type": "string"
+                        },
                         "attention_reason": {
                           "type": "string"
                         },
@@ -219420,6 +219441,9 @@
                       "nullable": true,
                       "properties": {
                         "attention_flag": {
+                          "type": "string"
+                        },
+                        "attention_producer_node_id": {
                           "type": "string"
                         },
                         "attention_reason": {
@@ -220093,6 +220117,9 @@
                         "attention_flag": {
                           "type": "string"
                         },
+                        "attention_producer_node_id": {
+                          "type": "string"
+                        },
                         "attention_reason": {
                           "type": "string"
                         },
@@ -220756,6 +220783,9 @@
                       "nullable": true,
                       "properties": {
                         "attention_flag": {
+                          "type": "string"
+                        },
+                        "attention_producer_node_id": {
                           "type": "string"
                         },
                         "attention_reason": {
@@ -221429,6 +221459,9 @@
                       "nullable": true,
                       "properties": {
                         "attention_flag": {
+                          "type": "string"
+                        },
+                        "attention_producer_node_id": {
                           "type": "string"
                         },
                         "attention_reason": {

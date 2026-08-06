@@ -6,16 +6,16 @@ import (
 )
 
 const (
-	tokenCostStatusActual    = "actual"
-	tokenCostStatusEstimated = "estimated"
-	tokenCostStatusIncluded  = "included"
-	tokenCostStatusUnknown   = "unknown"
+	TokenCostStatusActual    = "actual"
+	TokenCostStatusEstimated = "estimated"
+	TokenCostStatusIncluded  = "included"
+	TokenCostStatusUnknown   = "unknown"
 
-	tokenCostSourceAgentReported = "agent_reported"
-	tokenCostSourceCatalogConfig = "catalog_config"
-	tokenCostSourceModelsDev     = "models_dev"
-	tokenCostSourceBuiltin       = "builtin"
-	tokenCostSourceNone          = "none"
+	TokenCostSourceAgentReported = "agent_reported"
+	TokenCostSourceCatalogConfig = "catalog_config"
+	TokenCostSourceModelsDev     = "models_dev"
+	TokenCostSourceBuiltin       = "builtin"
+	TokenCostSourceNone          = "none"
 )
 
 // TokenStatsCostSummary is the compatible cost projection across token-stat rows.
@@ -66,23 +66,23 @@ func tokenStatsRowCost(stat TokenStats) (TokenStatsCostSummary, bool) {
 	status := strings.TrimSpace(stat.CostStatus)
 	source := strings.TrimSpace(stat.CostSource)
 	switch status {
-	case tokenCostStatusActual:
-		if source != tokenCostSourceAgentReported || stat.TotalCost == nil ||
+	case TokenCostStatusActual:
+		if source != TokenCostSourceAgentReported || stat.TotalCost == nil ||
 			!validAggregatedCostAmount(*stat.TotalCost) ||
 			normalizedCostCurrency(stat.CostCurrency) == "" {
 			return TokenStatsCostSummary{}, false
 		}
-	case tokenCostStatusEstimated:
-		if source != tokenCostSourceCatalogConfig &&
-			source != tokenCostSourceModelsDev && source != tokenCostSourceBuiltin {
+	case TokenCostStatusEstimated:
+		if source != TokenCostSourceCatalogConfig &&
+			source != TokenCostSourceModelsDev && source != TokenCostSourceBuiltin {
 			return TokenStatsCostSummary{}, false
 		}
 		if stat.TotalCost == nil || !validAggregatedCostAmount(*stat.TotalCost) ||
 			normalizedCostCurrency(stat.CostCurrency) == "" {
 			return TokenStatsCostSummary{}, false
 		}
-	case tokenCostStatusIncluded, tokenCostStatusUnknown:
-		if source != tokenCostSourceNone || stat.TotalCost != nil || stat.CostCurrency != nil {
+	case TokenCostStatusIncluded, TokenCostStatusUnknown:
+		if source != TokenCostSourceNone || stat.TotalCost != nil || stat.CostCurrency != nil {
 			return TokenStatsCostSummary{}, false
 		}
 	default:
@@ -112,5 +112,5 @@ func normalizedCostCurrency(currency *string) string {
 }
 
 func unknownTokenStatsCost() TokenStatsCostSummary {
-	return TokenStatsCostSummary{Status: tokenCostStatusUnknown, Source: tokenCostSourceNone}
+	return TokenStatsCostSummary{Status: TokenCostStatusUnknown, Source: TokenCostSourceNone}
 }

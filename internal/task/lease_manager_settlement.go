@@ -143,6 +143,57 @@ func (m *Service) heartbeatRunLeaseSettlement(
 	return commandResult.settlement, nil
 }
 
+func (m *Service) bindLeasedRunSessionSettlement(
+	ctx context.Context,
+	binding LeaseSessionBinding,
+	actor ActorContext,
+) (BoundRunSessionSettlement, error) {
+	commandResult := leaseSettlementCommandResult[BoundRunSessionSettlement]{}
+	err := m.store.WithLeaseSettlementTransaction(
+		ctx,
+		"bind leased task run session",
+		func(store LeaseSettlementMutationStore) error {
+			run, commandErr := store.BindLeasedRunSession(ctx, binding)
+			if commandErr != nil {
+				return commandErr
+			}
+			commandResult.settlement.Run = run
+
+			taskRecord, commandErr := store.GetTask(ctx, run.TaskID)
+			if commandErr != nil {
+				return commandErr
+			}
+			event, commandErr := m.newTaskEventAt(
+				run.TaskID,
+				run.ID,
+				taskEventRunSessionBound,
+				actor,
+				binding.Now,
+				runTransitionPayload{
+					Status:     run.Status,
+					TaskStatus: taskRecord.Status,
+					SessionID:  run.SessionID,
+				},
+			)
+			if commandErr != nil {
+				return commandErr
+			}
+			if commandErr := store.CreateTaskEvent(ctx, event); commandErr != nil {
+				return commandErr
+			}
+
+			commandResult.settlement.Task = taskRecord
+			commandResult.events = []Event{event}
+			return nil
+		},
+	)
+	if err != nil {
+		return BoundRunSessionSettlement{}, err
+	}
+	m.publishLeaseSettlement(ctx, commandResult.events, nil, actor)
+	return commandResult.settlement, nil
+}
+
 func (m *Service) releaseRunLeaseSettlement(
 	ctx context.Context,
 	release LeaseRelease,

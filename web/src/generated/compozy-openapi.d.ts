@@ -86574,6 +86574,7 @@ export interface operations {
             items: {
               control?: {
                 attention_flag?: string;
+                attention_producer_node_id?: string;
                 attention_reason?: string;
                 cancel_provenance?: {
                   actor_id: string;
@@ -86634,6 +86635,7 @@ export interface operations {
                     reasoning?: string;
                   };
                 } | null;
+                session_id?: string;
                 status: string;
                 task_run_id?: string;
               } | null;
@@ -87577,6 +87579,7 @@ export interface operations {
                     reasoning?: string;
                   };
                 } | null;
+                session_id?: string;
                 status: string;
                 task_run_id?: string;
               }[];
@@ -87635,6 +87638,7 @@ export interface operations {
             }[];
             node_controls: {
               attention_flag?: string;
+              attention_producer_node_id?: string;
               attention_reason?: string;
               cancel_provenance?: {
                 actor_id: string;
@@ -88191,6 +88195,7 @@ export interface operations {
           "application/json": {
             control?: {
               attention_flag?: string;
+              attention_producer_node_id?: string;
               attention_reason?: string;
               cancel_provenance?: {
                 actor_id: string;
@@ -88699,6 +88704,7 @@ export interface operations {
           "application/json": {
             control?: {
               attention_flag?: string;
+              attention_producer_node_id?: string;
               attention_reason?: string;
               cancel_provenance?: {
                 actor_id: string;
@@ -88955,6 +88961,7 @@ export interface operations {
           "application/json": {
             control?: {
               attention_flag?: string;
+              attention_producer_node_id?: string;
               attention_reason?: string;
               cancel_provenance?: {
                 actor_id: string;
@@ -89211,6 +89218,7 @@ export interface operations {
           "application/json": {
             control?: {
               attention_flag?: string;
+              attention_producer_node_id?: string;
               attention_reason?: string;
               cancel_provenance?: {
                 actor_id: string;
@@ -89468,6 +89476,7 @@ export interface operations {
           "application/json": {
             control?: {
               attention_flag?: string;
+              attention_producer_node_id?: string;
               attention_reason?: string;
               cancel_provenance?: {
                 actor_id: string;
@@ -89724,6 +89733,7 @@ export interface operations {
           "application/json": {
             control?: {
               attention_flag?: string;
+              attention_producer_node_id?: string;
               attention_reason?: string;
               cancel_provenance?: {
                 actor_id: string;
@@ -89982,6 +89992,7 @@ export interface operations {
           "application/json": {
             control?: {
               attention_flag?: string;
+              attention_producer_node_id?: string;
               attention_reason?: string;
               cancel_provenance?: {
                 actor_id: string;

@@ -363,6 +363,10 @@ type orderedRecorder struct {
 	events   []store.SessionEvent
 }
 
+func (r *orderedRecorder) ListTokenUsage(context.Context) ([]store.TokenUsage, error) {
+	return nil, nil
+}
+
 type recordingNetworkPeerLifecycle struct {
 	joinErr  error
 	leaveErr error

@@ -287,10 +287,10 @@ func expireWaitWithAttention(
 	}
 	return appendLoopRunEventWithExecutor(ctx, exec, due.run.ID, due.run.WorkspaceID,
 		loopRunEventNodeAttentionFlagged, map[string]any{
-			loopRunEventPayloadKeyGeneration: due.wait.Generation,
-			loopRunEventPayloadKeyNodeID:     due.wait.NodeID,
-			loopRunEventPayloadKeyItemIndex:  due.wait.ItemIndex,
-			"attention_flag":                 expiredWaitAttentionFlag,
-			loopRunEventPayloadKeyReason:     expiredWaitAttentionReason,
+			loopRunEventPayloadKeyGeneration:    due.wait.Generation,
+			loopRunEventPayloadKeyNodeID:        due.wait.NodeID,
+			loopRunEventPayloadKeyItemIndex:     due.wait.ItemIndex,
+			loopRunEventPayloadKeyAttentionFlag: expiredWaitAttentionFlag,
+			loopRunEventPayloadKeyReason:        expiredWaitAttentionReason,
 		}, now)
 }

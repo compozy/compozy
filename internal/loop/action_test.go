@@ -483,8 +483,12 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 		if len(prompts) != 2 {
 			t.Fatalf("prompt calls = %d, want schema retry", len(prompts))
 		}
-		if prompts[0] != "Summarize delivery" {
-			t.Fatalf("first prompt = %q, want rendered prompt", prompts[0])
+		if !strings.HasPrefix(prompts[0], "Summarize delivery") {
+			t.Fatalf("first prompt = %q, want rendered prompt first", prompts[0])
+		}
+		if !strings.Contains(prompts[0], "Output contract:") ||
+			!strings.Contains(prompts[0], `"required":["summary"]`) {
+			t.Fatalf("first prompt = %q, want authored output schema in the contract", prompts[0])
 		}
 		if !strings.Contains(prompts[1], "did not satisfy output_schema") {
 			t.Fatalf("retry prompt = %q, want schema validation feedback", prompts[1])

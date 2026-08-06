@@ -32,6 +32,7 @@ function node(overrides: Partial<LoopNodeLifecycle> & { nodeId: string }): LoopN
     quarantineEntry: null,
     attentionFlag: "",
     attentionReason: "",
+    attentionProducerNodeId: "",
     cancelState: "",
     cancelProvenance: null,
     lastEvidenceAt: null,
@@ -44,6 +45,7 @@ function node(overrides: Partial<LoopNodeLifecycle> & { nodeId: string }): LoopN
     disposition: "",
     outputStatus: "running",
     generation: 2,
+    sessionId: null,
     ...overrides,
   };
 }

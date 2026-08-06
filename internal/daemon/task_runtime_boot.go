@@ -302,6 +302,7 @@ func newTaskRuntimeManager(
 		taskpkg.WithCoordinatorPostCommitHandler(loopParentClosePostCommit{state: state}),
 		taskpkg.WithWorkAdmissionChecker(workAdmission),
 		taskpkg.WithWorkspaceAccessPolicy(state.accessPolicy),
+		taskpkg.WithRuntimeViewReader(&taskRuntimeViewReader{state: state}),
 	)
 	if timerArmer := newLoopRetryTimerArmer(ctx, store, state.logger, now); timerArmer != nil {
 		options = append(options, taskpkg.WithCoordinatorTimerArmer(timerArmer))

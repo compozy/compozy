@@ -1805,6 +1805,10 @@ type queryRecorderStub struct {
 	onAppend    func()
 }
 
+func (s *queryRecorderStub) ListTokenUsage(context.Context) ([]store.TokenUsage, error) {
+	return nil, nil
+}
+
 func (s *queryRecorderStub) Record(context.Context, store.SessionEvent) error {
 	return nil
 }

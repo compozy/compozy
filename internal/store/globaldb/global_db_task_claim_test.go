@@ -383,6 +383,106 @@ func TestGlobalDBClaimNextRunExactRunID(t *testing.T) {
 	})
 }
 
+func TestGlobalDBDaemonClaimAndLeasedSessionBinding(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should claim without a session for a daemon actor and bind the real session later", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 8, 5, 18, 0, 0, 0, time.UTC)
+		target := createExactRun(ctx, t, globalDB, "task-daemon-claim", "run-daemon-claim", taskpkg.PriorityMedium, now)
+
+		claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			RunID: target.ID, Scope: taskpkg.ScopeGlobal,
+			ClaimedBy:     &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "loop-action"},
+			LeaseDuration: 2 * time.Minute, Now: now,
+		})
+		if err != nil {
+			t.Fatalf("ClaimNextRun(daemon) error = %v", err)
+		}
+		if claim.Run.SessionID != "" {
+			t.Fatalf("claimed session id = %q, want empty until a real session binds", claim.Run.SessionID)
+		}
+
+		var bound taskpkg.Run
+		err = globalDB.WithLeaseSettlementTransaction(ctx, "bind test session",
+			func(store taskpkg.LeaseSettlementMutationStore) error {
+				var bindErr error
+				bound, bindErr = store.BindLeasedRunSession(ctx, taskpkg.LeaseSessionBinding{
+					RunID: claim.Run.ID, ClaimToken: claim.ClaimToken,
+					SessionID: "sess-real-acp", Now: now.Add(time.Second),
+				})
+				return bindErr
+			})
+		if err != nil {
+			t.Fatalf("BindLeasedRunSession() error = %v", err)
+		}
+		if bound.SessionID != "sess-real-acp" {
+			t.Fatalf("bound session id = %q, want the executing ACP session", bound.SessionID)
+		}
+		stored, err := globalDB.GetTaskRun(ctx, claim.Run.ID)
+		if err != nil {
+			t.Fatalf("GetTaskRun(bound) error = %v", err)
+		}
+		if stored.SessionID != "sess-real-acp" {
+			t.Fatalf("stored session id = %q, want persisted real session", stored.SessionID)
+		}
+	})
+
+	t.Run("Should reject a session binding with a mismatched claim token", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 8, 5, 18, 30, 0, 0, time.UTC)
+		target := createExactRun(ctx, t, globalDB, "task-daemon-fence", "run-daemon-fence", taskpkg.PriorityMedium, now)
+		if _, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			RunID: target.ID, Scope: taskpkg.ScopeGlobal,
+			ClaimedBy: &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "loop-action"},
+			Now:       now,
+		}); err != nil {
+			t.Fatalf("ClaimNextRun(daemon fence) error = %v", err)
+		}
+
+		err := globalDB.WithLeaseSettlementTransaction(ctx, "bind wrong token",
+			func(store taskpkg.LeaseSettlementMutationStore) error {
+				_, bindErr := store.BindLeasedRunSession(ctx, taskpkg.LeaseSessionBinding{
+					RunID: target.ID, ClaimToken: "compozy_claim_wrong-token",
+					SessionID: "sess-wrong", Now: now.Add(time.Second),
+				})
+				return bindErr
+			})
+		if err == nil {
+			t.Fatal("BindLeasedRunSession(wrong token) error = nil, want lease fence rejection")
+		}
+		stored, storedErr := globalDB.GetTaskRun(ctx, target.ID)
+		if storedErr != nil {
+			t.Fatalf("GetTaskRun(fenced) error = %v", storedErr)
+		}
+		if stored.SessionID != "" {
+			t.Fatalf("stored session id = %q, want unchanged empty binding", stored.SessionID)
+		}
+	})
+
+	t.Run("Should reject a sessionless claim without an explicit claimant identity", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 8, 5, 19, 0, 0, 0, time.UTC)
+		target := createExactRun(ctx, t, globalDB, "task-anon-claim", "run-anon-claim", taskpkg.PriorityMedium, now)
+
+		_, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			RunID: target.ID, Scope: taskpkg.ScopeGlobal, Now: now,
+		})
+		if !errors.Is(err, taskpkg.ErrValidation) {
+			t.Fatalf("ClaimNextRun(anonymous) error = %v, want validation rejection", err)
+		}
+	})
+}
+
 func TestGlobalDBNetworkWakeRunLeaseLifecycle(t *testing.T) {
 	t.Parallel()
 

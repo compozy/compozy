@@ -31,6 +31,8 @@ interface LoopRunNowCardProps {
   nodesById?: ReadonlyMap<string, LoopNodeLifecycle>;
   /** Renders the verb menu for one lifecycle row; omitted in read-only fixtures. */
   renderNodeActions?: (node: LoopNodeLifecycle) => ReactNode;
+  /** ACP session per node; rows link straight into the live agent session. */
+  nodeSessions?: ReadonlyMap<string, string>;
   /** Turns disclosure slot when the running node is a goal node. */
   children?: ReactNode;
 }
@@ -128,10 +130,12 @@ const NODE_LINE_DOT: Record<string, string> = {
 function NodeNowRow({
   line,
   actions,
+  sessionId,
   withDivider,
 }: {
   line: LoopNodeNowLine;
   actions?: ReactNode;
+  sessionId?: string;
   withDivider: boolean;
 }) {
   return (
@@ -158,6 +162,16 @@ function NodeNowRow({
         ) : null}
         {line.provenance ? (
           <div className="mt-2 font-mono text-mono-id text-subtle">{line.provenance}</div>
+        ) : null}
+        {sessionId ? (
+          <Link
+            className={NOW_OUTBOUND_LINK_CLASS}
+            data-testid={`loop-run-now-node-session-${line.nodeId}`}
+            params={{ id: sessionId }}
+            to="/session/$id"
+          >
+            <NowOutboundLinkContent label="Open session" />
+          </Link>
         ) : null}
         <div className="mt-1.5 font-mono text-pill-group-badge text-faint">{line.micro}</div>
       </div>
@@ -189,9 +203,11 @@ function NowOutboundLinkContent({ label }: { label: string }) {
  * Every rendered value traces to the run projection or streamed frames.
  */
 export function LoopRunNowCard(props: LoopRunNowCardProps) {
-  const { run, now, isLive, children, nodeLines, nodesById, renderNodeActions } = props;
+  const { run, now, isLive, children, nodeLines, nodesById, renderNodeActions, nodeSessions } =
+    props;
   const view = nowView(props);
   const lines = nodeLines ?? [];
+  const nowSessionId = now ? nodeSessions?.get(now.nodeId) : undefined;
   // The card exists when the run has something to say OR when at least one node
   // declares a lifecycle state — a run whose only story is "task_03 is paused"
   // still needs this surface.
@@ -223,6 +239,16 @@ export function LoopRunNowCard(props: LoopRunNowCardProps) {
                 <div className="mt-0.75 max-w-[60ch] text-small-body leading-relaxed text-muted">
                   {view.sub}
                 </div>
+              ) : null}
+              {run.status === "running" && nowSessionId ? (
+                <Link
+                  className={`${NOW_OUTBOUND_LINK_CLASS} mr-4`}
+                  data-testid="loop-run-now-session-link"
+                  params={{ id: nowSessionId }}
+                  to="/session/$id"
+                >
+                  <NowOutboundLinkContent label="Open session" />
+                </Link>
               ) : null}
               {run.status === "running" && now?.childRunId ? (
                 <Link
@@ -259,6 +285,7 @@ export function LoopRunNowCard(props: LoopRunNowCardProps) {
               actions={node && renderNodeActions ? renderNodeActions(node) : undefined}
               key={line.nodeId}
               line={line}
+              sessionId={nodeSessions?.get(line.nodeId)}
               withDivider={view !== null || index > 0}
             />
           );

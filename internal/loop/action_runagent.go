@@ -51,6 +51,10 @@ func (e *RunAgentActionExecutor) Execute(
 	if err != nil {
 		return ActionRawResult{}, err
 	}
+	spec.Prompt, err = runAgentPromptWithOutputContract(spec.Prompt, spec.OutputSchema)
+	if err != nil {
+		return ActionRawResult{}, err
+	}
 	runCtx, cancelRun, err := actionContextWithNodeTimeout(ctx, node.Timeout)
 	if err != nil {
 		return ActionRawResult{}, err

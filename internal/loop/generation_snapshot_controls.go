@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/task"
 )
 
@@ -37,6 +38,38 @@ func writeNodeControlMutation(
 	}
 	if mutation.Kind == NodeControlMutationCancel && mutation.CancelState == CancelStateCanceled {
 		return claimCanceledNodeWaits(ctx, tx, loopRunID, mutation)
+	}
+	return nil
+}
+
+// markQuarantinedNodeTasks parks the quarantined cells' workspace tasks in
+// needs-attention; requeue clears the flag.
+func markQuarantinedNodeTasks(
+	ctx context.Context,
+	tx task.Tx,
+	loopRunID string,
+	generation int,
+	payload GenerationSnapshotPayload,
+	control NodeControlMutation,
+) error {
+	reason := fmt.Sprintf("loop node %s is quarantined; requeue it from the run to resume", control.NodeID)
+	markedAt := store.FormatTimestamp(control.At)
+	for _, output := range payload.Outputs {
+		if output.NodeID != string(control.NodeID) || output.Status != generationOutputQuarantined {
+			continue
+		}
+		taskID := NodeCellTaskID(RunID(loopRunID), generation, output.NodeID, output.ItemIndex)
+		if _, err := tx.ExecContext(
+			ctx,
+			`UPDATE tasks SET
+				needs_attention_reason = ?, needs_attention_at = ?,
+				needs_attention_by_kind = ?, needs_attention_by_ref = ?, updated_at = ?
+			 WHERE id = ? AND needs_attention_at IS NULL`,
+			reason, markedAt, string(task.ActorKindDaemon), loopTaskAttentionActorRef,
+			markedAt, taskID,
+		); err != nil {
+			return fmt.Errorf("loop: mark quarantined node task %q needs attention: %w", taskID, err)
+		}
 	}
 	return nil
 }
@@ -82,7 +115,7 @@ func insertNewNodeControl(
 	loopRunID string,
 	mutation NodeControlMutation,
 ) (sql.Result, error) {
-	quarantined, entry, quarantinedAt, attentionFlag, attentionReason := nodeControlMutationValues(mutation)
+	values := nodeControlMutationValues(mutation)
 	paused := 0
 	if mutation.Kind == NodeControlMutationPause {
 		paused = 1
@@ -92,13 +125,14 @@ func insertNewNodeControl(
 		`INSERT INTO loop_node_controls (
 			loop_run_id, node_id, paused, pause_actor_kind, pause_actor_id, pause_reason,
 			pause_rule_id, pause_requested_at, quarantined, quarantine_entry_json, quarantined_at,
-			attention_flag, attention_reason, revision, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+			attention_flag, attention_reason, attention_producer_node_id, revision, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
 		ON CONFLICT(loop_run_id, node_id) DO NOTHING`,
 		loopRunID, mutation.NodeID, paused, sqlNullString(mutation.PauseActorKind),
 		sqlNullString(mutation.PauseActorID), sqlNullString(mutation.PauseReason),
-		sqlNullString(mutation.PauseRuleID), sqlNullTimeForMutation(mutation), quarantined, entry, quarantinedAt,
-		attentionFlag, attentionReason, mutation.At,
+		sqlNullString(mutation.PauseRuleID), sqlNullTimeForMutation(mutation),
+		values.quarantined, values.entry, values.quarantinedAt,
+		values.attentionFlag, values.attentionReason, values.attentionProducer, mutation.At,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("loop: insert node control %q: %w", mutation.NodeID, err)
@@ -112,7 +146,7 @@ func updateExistingNodeControl(
 	loopRunID string,
 	mutation NodeControlMutation,
 ) (sql.Result, error) {
-	quarantined, entry, quarantinedAt, attentionFlag, attentionReason := nodeControlMutationValues(mutation)
+	values := nodeControlMutationValues(mutation)
 	result, err := tx.ExecContext(
 		ctx,
 		`UPDATE loop_node_controls SET
@@ -127,6 +161,7 @@ func updateExistingNodeControl(
 			quarantined_at = CASE WHEN ? = 'quarantine' THEN ? ELSE quarantined_at END,
 			attention_flag = CASE WHEN ? = 'attention' THEN ? ELSE attention_flag END,
 			attention_reason = CASE WHEN ? = 'attention' THEN ? ELSE attention_reason END,
+			attention_producer_node_id = CASE WHEN ? = 'attention' THEN ? ELSE attention_producer_node_id END,
 			cancel_state = CASE WHEN ? = 'cancel' THEN ? ELSE cancel_state END,
 			revision = revision + 1,
 			updated_at = ?
@@ -137,11 +172,12 @@ func updateExistingNodeControl(
 		mutation.Kind, sqlNullString(mutation.PauseReason),
 		mutation.Kind, sqlNullString(mutation.PauseRuleID),
 		mutation.Kind, sqlNullTimeForMutation(mutation),
-		mutation.Kind, quarantined,
-		mutation.Kind, entry,
-		mutation.Kind, quarantinedAt,
-		mutation.Kind, attentionFlag,
-		mutation.Kind, attentionReason,
+		mutation.Kind, values.quarantined,
+		mutation.Kind, values.entry,
+		mutation.Kind, values.quarantinedAt,
+		mutation.Kind, values.attentionFlag,
+		mutation.Kind, values.attentionReason,
+		mutation.Kind, values.attentionProducer,
 		mutation.Kind, mutation.CancelState,
 		mutation.At, loopRunID, mutation.NodeID, mutation.ExpectedRevision,
 	)
@@ -158,9 +194,22 @@ func sqlNullTimeForMutation(mutation NodeControlMutation) any {
 	return mutation.At.UTC()
 }
 
-func nodeControlMutationValues(mutation NodeControlMutation) (int, any, any, string, string) {
+type nodeControlSQLValues struct {
+	quarantined       int
+	entry             any
+	quarantinedAt     any
+	attentionFlag     string
+	attentionReason   string
+	attentionProducer string
+}
+
+func nodeControlMutationValues(mutation NodeControlMutation) nodeControlSQLValues {
 	if mutation.Kind == NodeControlMutationQuarantine {
-		return 1, string(mutation.QuarantineEntry), mutation.At, "", ""
+		return nodeControlSQLValues{quarantined: 1, entry: string(mutation.QuarantineEntry), quarantinedAt: mutation.At}
 	}
-	return 0, nil, nil, mutation.AttentionFlag, mutation.AttentionReason
+	return nodeControlSQLValues{
+		attentionFlag:     mutation.AttentionFlag,
+		attentionReason:   mutation.AttentionReason,
+		attentionProducer: mutation.AttentionProducerNodeID,
+	}
 }

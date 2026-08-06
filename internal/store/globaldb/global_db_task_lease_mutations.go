@@ -102,6 +102,39 @@ func (g *TaskRunRepo) releaseRunLeaseWithExecutor(
 	return updated, nil
 }
 
+func (g *TaskRunRepo) bindLeasedRunSessionWithExecutor(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	binding taskpkg.LeaseSessionBinding,
+) (taskpkg.Run, error) {
+	current, err := g.tasks.getTaskRunWithExecutor(ctx, exec, binding.RunID)
+	if err != nil {
+		return taskpkg.Run{}, err
+	}
+	if err := requireCurrentRunLease(current, binding.ClaimToken, binding.Now); err != nil {
+		return taskpkg.Run{}, err
+	}
+	affected, err := sqlcgen.New(exec).BindLeasedTaskRunSession(ctx, sqlcgen.BindLeasedTaskRunSessionParams{
+		SessionID:      nullableTaskString(binding.SessionID),
+		ID:             binding.RunID,
+		ClaimTokenHash: nullableTaskString(current.ClaimTokenHash),
+		ClaimedStatus:  taskpkg.TaskRunStatusClaimed.String(),
+		StartingStatus: taskpkg.TaskRunStatusStarting.String(),
+		RunningStatus:  taskpkg.TaskRunStatusRunning.String(),
+	})
+	if err != nil {
+		return taskpkg.Run{}, fmt.Errorf("store: bind leased task run session %q: %w", binding.RunID, err)
+	}
+	if affected == 0 {
+		return taskpkg.Run{}, fmt.Errorf(
+			"store: task run lease %q: %w",
+			binding.RunID,
+			taskpkg.ErrTaskRunNotFound,
+		)
+	}
+	return g.tasks.getTaskRunWithExecutor(ctx, exec, binding.RunID)
+}
+
 func (g *TaskRunRepo) failRunLeaseMutationWithExecutor(
 	ctx context.Context,
 	exec taskSQLExecutor,

@@ -1014,9 +1014,31 @@ func TestGlobalDBLoopNodeRequeueShouldBeAtomic(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ListNodeControls() error = %v", err)
 		}
-		if len(controls) != 2 || controls[0].Quarantined || controls[0].Revision != 5 ||
-			controls[1].AttentionFlag != "dependency_quarantined" {
-			t.Fatalf("controls = %#v, want cleared quarantine and unrelated attention preserved", controls)
+		controlByNode := make(map[string]looppkg.NodeControl, len(controls))
+		for _, control := range controls {
+			controlByNode[string(control.NodeID)] = control
+		}
+		if len(controls) != 3 || controlByNode["finish"].Quarantined || controlByNode["finish"].Revision != 5 {
+			t.Fatalf("controls = %#v, want cleared quarantine on finish", controls)
+		}
+		if flagged := controlByNode["finish_consumer"]; flagged.AttentionFlag != "" ||
+			flagged.AttentionProducerNodeID != "" {
+			t.Fatalf("finish consumer control = %#v, want released dependency attention", flagged)
+		}
+		if unrelated := controlByNode["other_consumer"]; unrelated.AttentionFlag != "dependency_quarantined" ||
+			unrelated.AttentionProducerNodeID != "other_producer" {
+			t.Fatalf("unrelated control = %#v, want preserved attention", unrelated)
+		}
+		var attentionAt sql.NullTime
+		if err := globalDB.db.QueryRowContext(
+			ctx,
+			`SELECT needs_attention_at FROM tasks WHERE id = ?`,
+			looppkg.NodeCellTaskID(run.ID, 2, "finish", 0),
+		).Scan(&attentionAt); err != nil {
+			t.Fatalf("read requeued cell task attention error = %v", err)
+		}
+		if attentionAt.Valid {
+			t.Fatalf("cell task needs_attention_at = %v, want cleared on requeue", attentionAt.Time)
 		}
 		var epoch int64
 		var firstScheduledAt time.Time
@@ -1217,7 +1239,7 @@ func TestGlobalDBLoopNodeRequeueShouldBeAtomic(t *testing.T) {
 		if listErr != nil {
 			t.Fatalf("ListNodeControls() error = %v", listErr)
 		}
-		if len(controls) != 2 || !controls[0].Quarantined || len(controls[0].QuarantineEntry) == 0 {
+		if len(controls) != 3 || !controls[0].Quarantined || len(controls[0].QuarantineEntry) == 0 {
 			t.Fatalf("terminal controls = %#v, want inspectable quarantine unchanged", controls)
 		}
 	})
@@ -1243,7 +1265,7 @@ func TestGlobalDBLoopNodeRequeueShouldBeAtomic(t *testing.T) {
 		if listErr != nil {
 			t.Fatalf("ListNodeControls() error = %v", listErr)
 		}
-		if len(controls) != 2 || !controls[0].Quarantined || controls[0].Revision != 4 {
+		if len(controls) != 3 || !controls[0].Quarantined || controls[0].Revision != 4 {
 			t.Fatalf("cross-workspace controls = %#v, want unchanged quarantine", controls)
 		}
 	})
@@ -1276,8 +1298,89 @@ func TestGlobalDBLoopNodeRequeueShouldBeAtomic(t *testing.T) {
 		if listErr != nil {
 			t.Fatalf("ListNodeControls() error = %v", listErr)
 		}
-		if len(controls) != 2 || !controls[0].Quarantined || controls[0].Revision != 4 {
+		if len(controls) != 3 || !controls[0].Quarantined || controls[0].Revision != 4 {
 			t.Fatalf("cap controls = %#v, want unchanged quarantine", controls)
+		}
+	})
+}
+
+// Invariant: applying a quarantine control mutation parks the quarantined cell's
+// workspace task in needs-attention within the same boundary transaction.
+func TestGlobalDBQuarantineSnapshotShouldParkCellTasks(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should mark quarantined cell tasks needs-attention in the boundary transaction", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, time.August, 5, 20, 0, 0, 0, time.UTC)
+		seed := testLoopRun("looprun-quarantine-park", now, looppkg.StatusRunning)
+		created, err := globalDB.CreateLoopRunForStart(ctx, seed, dsl.ConcurrencyAllow)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		claim := claimCoordinatorRunForTest(
+			ctx,
+			t,
+			globalDB,
+			created.ID,
+			"seed-quarantine-park",
+			now.Add(time.Millisecond),
+		)
+		entry, err := json.Marshal(looppkg.QuarantineEntry{
+			NodeID:   "execute",
+			InputRef: "loop-run:" + string(created.ID) + ":node:execute:input",
+			Episodes: []looppkg.QuarantineEpisode{{
+				Generation: 1, QuarantinedAt: now,
+				Attempts: []looppkg.NodeAttempt{{
+					LoopRunID: created.ID, Generation: 1, NodeID: "execute", Attempt: 1,
+					Disposition: looppkg.AttemptQuarantined, StartedAt: now,
+				}},
+			}},
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal(quarantine entry) error = %v", err)
+		}
+		cellTaskID := looppkg.NodeCellTaskID(created.ID, 1, "execute", 0)
+		if _, err := globalDB.CompleteCoordinatorAndEnqueueNext(
+			ctx,
+			taskpkg.CoordinatorCompletion{
+				RunID: claim.Run.ID, ClaimToken: claim.ClaimToken,
+				Actor: coordinatorActorContextForTest(), Now: now.Add(time.Second),
+				Plan: taskpkg.CoordinatorCompletionPlan{
+					Yield: true,
+					NodeTasks: []taskpkg.CoordinatorTaskSpec{{
+						TaskID: cellTaskID, Title: "Loop quarantine-park node execute",
+					}},
+					Snapshot: taskpkg.GenerationSnapshot{
+						LoopRunID: string(created.ID), Generation: 1,
+						Payload: looppkg.GenerationSnapshotPayload{
+							Outputs: []looppkg.GenerationOutput{{
+								Generation: 1, NodeID: "execute", Status: "quarantined", Attempt: 1, Epoch: 1,
+							}},
+							Controls: []looppkg.NodeControlMutation{{
+								Kind: looppkg.NodeControlMutationQuarantine, NodeID: "execute",
+								QuarantineEntry: entry, At: now.Add(time.Second),
+							}},
+						},
+					},
+				},
+			},
+			looppkg.NewStoreFinalizer(),
+		); err != nil {
+			t.Fatalf("CompleteCoordinatorAndEnqueueNext(quarantine) error = %v", err)
+		}
+		parked, err := globalDB.GetTask(ctx, cellTaskID)
+		if err != nil {
+			t.Fatalf("GetTask(parked cell) error = %v", err)
+		}
+		if parked.NeedsAttention == nil || parked.NeedsAttention.At.IsZero() ||
+			!strings.Contains(parked.NeedsAttention.Reason, "quarantined") {
+			t.Fatalf(
+				"cell task needs_attention = %#v, want quarantine park with reason",
+				parked.NeedsAttention,
+			)
 		}
 	})
 }
@@ -4178,13 +4281,40 @@ func seedQuarantinedLoopNodeForTest(
 	if _, err := globalDB.db.ExecContext(
 		ctx,
 		`INSERT INTO loop_node_controls
-			(loop_run_id, node_id, attention_flag, attention_reason, revision, updated_at)
+			(loop_run_id, node_id, attention_flag, attention_reason, attention_producer_node_id, revision, updated_at)
 		 VALUES (?, 'other_consumer', 'dependency_quarantined',
-			'node other_consumer requires parked producer other_producer', 2, ?)`,
+			'node other_consumer requires parked producer other_producer', 'other_producer', 2, ?)`,
 		created.ID,
 		at,
 	); err != nil {
 		t.Fatalf("insert unrelated dependency attention error = %v", err)
+	}
+	if _, err := globalDB.db.ExecContext(
+		ctx,
+		`INSERT INTO loop_node_controls
+			(loop_run_id, node_id, attention_flag, attention_reason, attention_producer_node_id, revision, updated_at)
+		 VALUES (?, 'finish_consumer', 'dependency_quarantined',
+			'node finish_consumer requires parked producer finish', 'finish', 3, ?)`,
+		created.ID,
+		at,
+	); err != nil {
+		t.Fatalf("insert finish dependency attention error = %v", err)
+	}
+	cellTask := taskRecordForTest(looppkg.NodeCellTaskID(created.ID, 2, "finish", 0))
+	cellTask.WorkspaceID = string(created.WorkspaceID)
+	cellTask.Scope = taskpkg.ScopeWorkspace
+	if err := globalDB.CreateTask(ctx, cellTask); err != nil {
+		t.Fatalf("CreateTask(quarantined cell) error = %v", err)
+	}
+	if _, err := globalDB.db.ExecContext(
+		ctx,
+		`UPDATE tasks SET needs_attention_reason = 'loop node finish is quarantined',
+			needs_attention_at = ?, needs_attention_by_kind = 'daemon',
+			needs_attention_by_ref = 'loop-coordinator' WHERE id = ?`,
+		storepkg.FormatTimestamp(at),
+		cellTask.ID,
+	); err != nil {
+		t.Fatalf("mark quarantined cell task error = %v", err)
 	}
 	created.Status = status
 	created.Generation = 2

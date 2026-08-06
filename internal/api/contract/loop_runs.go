@@ -144,6 +144,7 @@ type LoopGenerationOutput struct {
 	Status          string               `json:"status"`
 	OutputRef       string               `json:"output_ref,omitempty"`
 	TaskRunID       string               `json:"task_run_id,omitempty"`
+	SessionID       string               `json:"session_id,omitempty"`
 	ChildLoopRunID  string               `json:"child_loop_run_id,omitempty"`
 	ResolvedRuntime *LoopResolvedRuntime `json:"resolved_runtime,omitempty"`
 	Attempt         int                  `json:"attempt,omitempty"`

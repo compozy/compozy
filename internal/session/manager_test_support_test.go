@@ -659,6 +659,10 @@ type fakeEventRecorder struct {
 	closeCalls int
 }
 
+func (r *fakeEventRecorder) ListTokenUsage(context.Context) ([]store.TokenUsage, error) {
+	return nil, nil
+}
+
 type markerFailingRecorder struct {
 	EventRecorder
 	failErr    error
@@ -682,6 +686,10 @@ type failingSinglePromptRecorder struct {
 	failErr error
 	failed  bool
 	events  []store.SessionEvent
+}
+
+func (r *failingSinglePromptRecorder) ListTokenUsage(context.Context) ([]store.TokenUsage, error) {
+	return nil, nil
 }
 
 func (r *failingSinglePromptRecorder) Record(ctx context.Context, event store.SessionEvent) error {

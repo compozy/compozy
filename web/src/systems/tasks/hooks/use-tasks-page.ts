@@ -13,6 +13,7 @@ import type {
 } from "../types";
 import { groupTasksForKanban } from "@/systems/tasks/lib/task-grouping";
 import type { KanbanColumnGroup } from "@/systems/tasks/lib/task-grouping";
+import { buildTaskListTree } from "@/systems/tasks/lib/task-hierarchy";
 import type { InboxLaneFilterId } from "@/systems/tasks/lib/inbox-grouping";
 import { taskStatusCountsFromFacets } from "@/systems/tasks/lib/task-list-query";
 import {
@@ -192,7 +193,10 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
   const allTasks = tasksQuery.data ?? [];
   const visibleTasks = allTasks;
   const statusCounts = taskStatusCountsFromFacets(tasksQuery.facets);
-  const kanbanColumns: KanbanColumnGroup[] = groupTasksForKanban(visibleTasks);
+  // Kanban shows top-level cards; nested subtasks stay behind their parent.
+  const kanbanColumns: KanbanColumnGroup[] = groupTasksForKanban(
+    buildTaskListTree(visibleTasks).roots
+  );
   const ownerOptions = tasksQuery.facets.owners.map(facet => ({
     kind: facet.owner.kind,
     ref: facet.owner.ref,

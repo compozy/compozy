@@ -2226,6 +2226,23 @@ func (s *inMemoryManagerStore) HeartbeatRunLease(
 	return cloneTaskRun(run), nil
 }
 
+func (s *inMemoryManagerStore) BindLeasedRunSession(
+	_ context.Context,
+	binding LeaseSessionBinding,
+) (Run, error) {
+	normalized, err := binding.Normalize(time.Now().UTC())
+	if err != nil {
+		return Run{}, err
+	}
+	run, err := s.requireCurrentTestLease(normalized.RunID, normalized.ClaimToken, normalized.Now)
+	if err != nil {
+		return Run{}, err
+	}
+	run.SessionID = normalized.SessionID
+	s.runs[run.ID] = cloneTaskRun(run)
+	return cloneTaskRun(run), nil
+}
+
 func (s *inMemoryManagerStore) ReleaseRunLease(
 	_ context.Context,
 	release LeaseRelease,

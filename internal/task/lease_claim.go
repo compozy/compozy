@@ -75,6 +75,46 @@ func (c ClaimCriteria) Normalize(defaultNow time.Time) (ClaimCriteria, error) {
 	return normalized, nil
 }
 
+func (c ClaimCriteria) validateTargetSessionBinding(path string) error {
+	if c.RunKind.Normalize() != RunKindNetworkWake {
+		if strings.TrimSpace(c.TargetSessionID) != "" {
+			return fmt.Errorf(
+				"%w: %s is only valid for network_wake claims",
+				ErrValidation,
+				nestedPath(path, "target_session_id"),
+			)
+		}
+		return nil
+	}
+	if c.Scope.Normalize() != ScopeWorkspace || strings.TrimSpace(c.WorkspaceID) == "" {
+		return fmt.Errorf(
+			"%w: network_wake claims require workspace scope",
+			ErrInvalidScopeBinding,
+		)
+	}
+	if strings.TrimSpace(c.TargetSessionID) == "" {
+		return fmt.Errorf(
+			"%w: %s is required for network_wake claims",
+			ErrValidation,
+			nestedPath(path, "target_session_id"),
+		)
+	}
+	if strings.TrimSpace(c.TargetSessionID) != strings.TrimSpace(c.ClaimerSessionID) {
+		return fmt.Errorf(
+			"%w: %s must match claimer_session_id for network_wake claims",
+			ErrPermissionDenied,
+			nestedPath(path, "target_session_id"),
+		)
+	}
+	return nil
+}
+
+// claimantRequiresSession reports whether the claimant identity is session-backed.
+// Session-backed claims carry the executing session; daemon-owned claims bind one later.
+func claimantRequiresSession(claimedBy *ActorIdentity) bool {
+	return claimedBy == nil || claimedBy.Kind.Normalize() == ActorKindAgentSession
+}
+
 // Validate reports whether the claim criteria is safe to execute transactionally.
 func (c ClaimCriteria) Validate(path string) error {
 	if err := ValidateScopeBinding(c.Scope, c.WorkspaceID, path, "workspace_id"); err != nil {
@@ -85,35 +125,10 @@ func (c ClaimCriteria) Validate(path string) error {
 			return err
 		}
 	}
-	if c.RunKind.Normalize() == RunKindNetworkWake {
-		if c.Scope.Normalize() != ScopeWorkspace || strings.TrimSpace(c.WorkspaceID) == "" {
-			return fmt.Errorf(
-				"%w: network_wake claims require workspace scope",
-				ErrInvalidScopeBinding,
-			)
-		}
-		if strings.TrimSpace(c.TargetSessionID) == "" {
-			return fmt.Errorf(
-				"%w: %s is required for network_wake claims",
-				ErrValidation,
-				nestedPath(path, "target_session_id"),
-			)
-		}
-		if strings.TrimSpace(c.TargetSessionID) != strings.TrimSpace(c.ClaimerSessionID) {
-			return fmt.Errorf(
-				"%w: %s must match claimer_session_id for network_wake claims",
-				ErrPermissionDenied,
-				nestedPath(path, "target_session_id"),
-			)
-		}
-	} else if strings.TrimSpace(c.TargetSessionID) != "" {
-		return fmt.Errorf(
-			"%w: %s is only valid for network_wake claims",
-			ErrValidation,
-			nestedPath(path, "target_session_id"),
-		)
+	if err := c.validateTargetSessionBinding(path); err != nil {
+		return err
 	}
-	if strings.TrimSpace(c.ClaimerSessionID) == "" {
+	if strings.TrimSpace(c.ClaimerSessionID) == "" && claimantRequiresSession(c.ClaimedBy) {
 		return fmt.Errorf(
 			"%w: %s is required",
 			ErrValidation,

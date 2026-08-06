@@ -17,10 +17,17 @@ func (g *TaskRunRepo) ensureClaimerHasNoActiveLease(
 	exec taskSQLExecutor,
 	criteria taskpkg.ClaimCriteria,
 ) error {
+	sessionID := strings.TrimSpace(criteria.ClaimerSessionID)
+	if sessionID == "" {
+		if criteria.RunKind.Normalize() == taskpkg.RunKindCoordinator {
+			return g.ensureCoordinatorLeaseSerialization(ctx, exec, criteria)
+		}
+		return nil
+	}
 	count, err := sqlcgen.New(exec).CountActiveTaskRunLeasesForSession(
 		ctx,
 		sqlcgen.CountActiveTaskRunLeasesForSessionParams{
-			SessionID:      sql.NullString{String: criteria.ClaimerSessionID, Valid: true},
+			SessionID:      sql.NullString{String: sessionID, Valid: true},
 			ClaimedStatus:  taskpkg.TaskRunStatusClaimed.String(),
 			StartingStatus: taskpkg.TaskRunStatusStarting.String(),
 			RunningStatus:  taskpkg.TaskRunStatusRunning.String(),
@@ -30,7 +37,7 @@ func (g *TaskRunRepo) ensureClaimerHasNoActiveLease(
 	if err != nil {
 		return fmt.Errorf(
 			"store: count active task-run leases for %q: %w",
-			criteria.ClaimerSessionID,
+			sessionID,
 			err,
 		)
 	}
@@ -38,7 +45,35 @@ func (g *TaskRunRepo) ensureClaimerHasNoActiveLease(
 		return fmt.Errorf(
 			"%w: session %q already owns an active task-run lease",
 			taskpkg.ErrActiveRunLease,
-			criteria.ClaimerSessionID,
+			sessionID,
+		)
+	}
+	return nil
+}
+
+// ensureCoordinatorLeaseSerialization keeps at most one coordinator run leased
+// daemon-wide; generation boundaries commit serially by design.
+func (g *TaskRunRepo) ensureCoordinatorLeaseSerialization(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	criteria taskpkg.ClaimCriteria,
+) error {
+	count, err := sqlcgen.New(exec).CountActiveCoordinatorRunLeases(
+		ctx,
+		sqlcgen.CountActiveCoordinatorRunLeasesParams{
+			ClaimedStatus:  taskpkg.TaskRunStatusClaimed.String(),
+			StartingStatus: taskpkg.TaskRunStatusStarting.String(),
+			RunningStatus:  taskpkg.TaskRunStatusRunning.String(),
+			Now:            nullableTaskTime(criteria.Now),
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("store: count active coordinator run leases: %w", err)
+	}
+	if count > 0 {
+		return fmt.Errorf(
+			"%w: a coordinator run already owns an active task-run lease",
+			taskpkg.ErrActiveRunLease,
 		)
 	}
 	return nil

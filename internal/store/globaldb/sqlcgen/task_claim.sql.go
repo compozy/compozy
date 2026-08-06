@@ -10,6 +10,38 @@ import (
 	"database/sql"
 )
 
+const bindLeasedTaskRunSession = `-- name: BindLeasedTaskRunSession :execrows
+UPDATE task_runs
+SET session_id = ?1
+WHERE id = ?2
+  AND claim_token_hash = ?3
+  AND status IN (?4, ?5, ?6)
+`
+
+type BindLeasedTaskRunSessionParams struct {
+	SessionID      sql.NullString `json:"session_id"`
+	ID             string         `json:"id"`
+	ClaimTokenHash sql.NullString `json:"claim_token_hash"`
+	ClaimedStatus  string         `json:"claimed_status"`
+	StartingStatus string         `json:"starting_status"`
+	RunningStatus  string         `json:"running_status"`
+}
+
+func (q *Queries) BindLeasedTaskRunSession(ctx context.Context, arg BindLeasedTaskRunSessionParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, bindLeasedTaskRunSession,
+		arg.SessionID,
+		arg.ID,
+		arg.ClaimTokenHash,
+		arg.ClaimedStatus,
+		arg.StartingStatus,
+		arg.RunningStatus,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const claimSelectedTaskRun = `-- name: ClaimSelectedTaskRun :execrows
 UPDATE task_runs
 SET status = ?1,
@@ -124,6 +156,33 @@ func (q *Queries) CompletionCreatedTaskClaimExists(ctx context.Context, arg Comp
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
+}
+
+const countActiveCoordinatorRunLeases = `-- name: CountActiveCoordinatorRunLeases :one
+SELECT COUNT(1)
+FROM task_runs
+WHERE run_kind = 'coordinator'
+  AND status IN (?1, ?2, ?3)
+  AND (lease_until IS NULL OR lease_until > ?4)
+`
+
+type CountActiveCoordinatorRunLeasesParams struct {
+	ClaimedStatus  string         `json:"claimed_status"`
+	StartingStatus string         `json:"starting_status"`
+	RunningStatus  string         `json:"running_status"`
+	Now            sql.NullString `json:"now"`
+}
+
+func (q *Queries) CountActiveCoordinatorRunLeases(ctx context.Context, arg CountActiveCoordinatorRunLeasesParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countActiveCoordinatorRunLeases,
+		arg.ClaimedStatus,
+		arg.StartingStatus,
+		arg.RunningStatus,
+		arg.Now,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const countActiveTaskRunLeasesForSession = `-- name: CountActiveTaskRunLeasesForSession :one

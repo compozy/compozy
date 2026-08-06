@@ -27,6 +27,7 @@ const (
 type loopActionTaskManager interface {
 	ClaimNextRun(context.Context, taskpkg.ClaimCriteria, taskpkg.ActorContext) (*taskpkg.ClaimResult, error)
 	HeartbeatRunLease(context.Context, taskpkg.LeaseHeartbeat, taskpkg.ActorContext) (*taskpkg.Run, error)
+	BindLeasedRunSession(context.Context, taskpkg.LeaseSessionBinding, taskpkg.ActorContext) (*taskpkg.Run, error)
 	CompleteRunLease(context.Context, taskpkg.LeaseCompletion, taskpkg.ActorContext) (*taskpkg.Run, error)
 	FailRunLease(context.Context, taskpkg.LeaseFailure, taskpkg.ActorContext) (*taskpkg.Run, error)
 }
@@ -192,11 +193,10 @@ func (r *loopActionRuntime) executeQueuedRun(
 		return err
 	}
 	claim, err := r.manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-		RunID:            strings.TrimSpace(run.ID),
-		Scope:            taskRecord.Scope.Normalize(),
-		WorkspaceID:      strings.TrimSpace(taskRecord.WorkspaceID),
-		RunKind:          taskpkg.RunKindWorker,
-		ClaimerSessionID: loopActionClaimerSessionID(run.ID),
+		RunID:       strings.TrimSpace(run.ID),
+		Scope:       taskRecord.Scope.Normalize(),
+		WorkspaceID: strings.TrimSpace(taskRecord.WorkspaceID),
+		RunKind:     taskpkg.RunKindWorker,
 		ClaimedBy: &taskpkg.ActorIdentity{
 			Kind: taskpkg.ActorKindDaemon,
 			Ref:  loopActionRuntimeActorRef,
@@ -301,10 +301,6 @@ func isQueuedLoopActionRun(run taskpkg.Run) bool {
 	return run.Status.Normalize() == taskpkg.TaskRunStatusQueued &&
 		run.RunKind.Normalize() == taskpkg.RunKindWorker &&
 		strings.TrimSpace(run.LoopRunID) != ""
-}
-
-func loopActionClaimerSessionID(runID string) string {
-	return loopActionRuntimeActorRef + ":" + strings.TrimSpace(runID)
 }
 
 func loopActionPayload(run taskpkg.Run) hookspkg.TaskRunEnqueuedPayload {

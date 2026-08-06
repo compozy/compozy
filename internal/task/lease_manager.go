@@ -34,6 +34,28 @@ func (m *Service) HeartbeatRunLease(
 	return &run, nil
 }
 
+// BindLeasedRunSession records the executing session for one active leased run after token verification.
+func (m *Service) BindLeasedRunSession(
+	ctx context.Context,
+	binding LeaseSessionBinding,
+	actor ActorContext,
+) (*Run, error) {
+	if err := requireWriteAuthority(actor); err != nil {
+		return nil, err
+	}
+	normalized, err := binding.Normalize(m.now().UTC())
+	if err != nil {
+		return nil, err
+	}
+	normalized.Actor = actor
+	settlement, err := m.bindLeasedRunSessionSettlement(ctx, normalized, actor)
+	if err != nil {
+		return nil, err
+	}
+	run := settlement.Run
+	return &run, nil
+}
+
 // ReleaseRunLease releases one active task-run lease after token verification and requeues the run.
 func (m *Service) ReleaseRunLease(
 	ctx context.Context,

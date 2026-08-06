@@ -397,12 +397,12 @@ func TestSchedulerTaskSourceLoopCoordinatorBackstopShouldDeferWhileConsumerLease
 			t.Fatalf("DeriveDaemonActorContext() error = %v", err)
 		}
 		if _, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-			Scope:            taskpkg.ScopeWorkspace,
-			WorkspaceID:      workspaceID,
-			RunKind:          taskpkg.RunKindCoordinator,
-			ClaimerSessionID: loopCoordinatorSessionID,
-			LeaseDuration:    taskpkg.DefaultRunLeaseDuration,
-			Now:              now,
+			Scope:         taskpkg.ScopeWorkspace,
+			WorkspaceID:   workspaceID,
+			RunKind:       taskpkg.RunKindCoordinator,
+			ClaimedBy:     &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: loopCoordinatorActorRef},
+			LeaseDuration: taskpkg.DefaultRunLeaseDuration,
+			Now:           now,
 		}, actor); err != nil {
 			t.Fatalf("ClaimNextRun(active coordinator) error = %v", err)
 		}
@@ -1125,12 +1125,11 @@ func parkSchedulerWatchEventsLoopForTest(
 	runner := newSchedulerWatchEventsCoordinatorForTest(t, db, targetTask.ID, resolved)
 	actor := schedulerCoordinatorActorContextForTest(t)
 	claim := claimSchedulerRunForTest(t, db, now, taskpkg.ClaimCriteria{
-		Scope:            taskpkg.ScopeWorkspace,
-		WorkspaceID:      workspaceID,
-		RunKind:          taskpkg.RunKindCoordinator,
-		ClaimerSessionID: loopCoordinatorSessionID,
-		ClaimedBy:        &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "loop-coordinator"},
-		LeaseDuration:    time.Minute,
+		Scope:         taskpkg.ScopeWorkspace,
+		WorkspaceID:   workspaceID,
+		RunKind:       taskpkg.RunKindCoordinator,
+		ClaimedBy:     &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "loop-coordinator"},
+		LeaseDuration: time.Minute,
 	})
 	plan, err := runner.Run(ctx, taskpkg.RunID(claim.Run.ID))
 	if err != nil {

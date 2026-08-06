@@ -417,6 +417,10 @@ type ledgerFailureRecorder struct {
 	closeErr error
 }
 
+func (r *ledgerFailureRecorder) ListTokenUsage(context.Context) ([]store.TokenUsage, error) {
+	return nil, nil
+}
+
 var _ store.EventReadCloser = (*ledgerFailureRecorder)(nil)
 
 func (r *ledgerFailureRecorder) Query(context.Context, store.EventQuery) ([]store.SessionEvent, error) {

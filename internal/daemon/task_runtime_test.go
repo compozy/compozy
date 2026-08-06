@@ -218,12 +218,30 @@ func TestLoopActionRuntimeEnforcesActionLiveness(t *testing.T) {
 		}
 	})
 
+	t.Run("Should persist a bound session once per distinct session id", func(t *testing.T) {
+		t.Parallel()
+
+		base := time.Date(2026, 8, 5, 12, 0, 0, 0, time.UTC)
+		var bound []string
+		usage := newLoopActionUsageState(
+			func() time.Time { return base },
+			func(sessionID string) { bound = append(bound, sessionID) },
+		)
+		usage.ReportActionSessionBound("sess-bind-a")
+		usage.ReportActionSessionBound("sess-bind-a")
+		usage.ReportActionSessionBound(" ")
+		usage.ReportActionSessionBound("sess-bind-b")
+		if len(bound) != 2 || bound[0] != "sess-bind-a" || bound[1] != "sess-bind-b" {
+			t.Fatalf("bound sessions = %v, want one persistence per distinct id", bound)
+		}
+	})
+
 	t.Run("Should treat session activity and an active tool as progress truth", func(t *testing.T) {
 		t.Parallel()
 
 		base := time.Date(2026, 7, 19, 0, 0, 0, 0, time.UTC)
 		current := base
-		usage := newLoopActionUsageState(func() time.Time { return current })
+		usage := newLoopActionUsageState(func() time.Time { return current }, nil)
 		usage.ReportActionSessionBound("sess-active-tool")
 		activityAt := base.Add(time.Minute)
 		runtime := &loopActionRuntime{sessions: loopActionSessionStatusStub{info: &session.Info{
@@ -256,7 +274,7 @@ func TestLoopActionRuntimeEnforcesActionLiveness(t *testing.T) {
 		t.Parallel()
 
 		base := time.Date(2026, 7, 19, 0, 0, 0, 0, time.UTC)
-		usage := newLoopActionUsageState(func() time.Time { return base })
+		usage := newLoopActionUsageState(func() time.Time { return base }, nil)
 		usage.ReportActionSessionBound("sess-stalled")
 		runtime := &loopActionRuntime{sessions: loopActionSessionStatusStub{info: &session.Info{
 			Liveness: &store.SessionLivenessMeta{StallState: store.SessionStallStateDetected},
@@ -520,6 +538,14 @@ func (m *loopActionCapacityTestManager) HeartbeatRunLease(
 	return &m.run, nil
 }
 
+func (m *loopActionCapacityTestManager) BindLeasedRunSession(
+	context.Context,
+	taskpkg.LeaseSessionBinding,
+	taskpkg.ActorContext,
+) (*taskpkg.Run, error) {
+	return &m.run, nil
+}
+
 func (m *loopActionCapacityTestManager) CompleteRunLease(
 	_ context.Context,
 	completion taskpkg.LeaseCompletion,
@@ -583,6 +609,14 @@ func (m *loopActionLivenessTestManager) HeartbeatRunLease(
 	taskpkg.ActorContext,
 ) (*taskpkg.Run, error) {
 	m.heartbeatCalls.Add(1)
+	return &m.run, nil
+}
+
+func (m *loopActionLivenessTestManager) BindLeasedRunSession(
+	context.Context,
+	taskpkg.LeaseSessionBinding,
+	taskpkg.ActorContext,
+) (*taskpkg.Run, error) {
 	return &m.run, nil
 }
 

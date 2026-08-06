@@ -5,10 +5,12 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/compozy/compozy/internal/diagnostics"
 	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
@@ -114,6 +116,9 @@ func applyNodeRequeue(
 	if err := clearNodeQuarantine(ctx, exec, mutation, prepared); err != nil {
 		return err
 	}
+	if err := clearQuarantinedNodeTaskAttention(ctx, exec, mutation); err != nil {
+		return err
+	}
 	if err := fenceRequeuedNodeAndDependents(ctx, exec, mutation, prepared.run.Generation); err != nil {
 		return err
 	}
@@ -157,6 +162,58 @@ func clearNodeQuarantine(
 	return requireSingleRequeueMutation(updated, mutation.NodeID)
 }
 
+// clearQuarantinedNodeTaskAttention releases the needs-attention park applied
+// to the node's cell tasks when the loop quarantined it.
+func clearQuarantinedNodeTaskAttention(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	mutation looppkg.NodeRequeueMutation,
+) error {
+	rows, err := exec.QueryContext(
+		ctx,
+		`SELECT generation, item_index FROM loop_generation_outputs
+		 WHERE loop_run_id = ? AND node_id = ? AND status = 'quarantined'`,
+		mutation.RunID,
+		mutation.NodeID,
+	)
+	if err != nil {
+		return fmt.Errorf("store: list quarantined cells for requeue: %w", err)
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			slog.Warn("store: close quarantined cell rows", "error", closeErr)
+		}
+	}()
+	taskIDs := make([]string, 0, 4)
+	for rows.Next() {
+		var generation, itemIndex int
+		if err := rows.Scan(&generation, &itemIndex); err != nil {
+			return fmt.Errorf("store: scan quarantined cell for requeue: %w", err)
+		}
+		taskIDs = append(taskIDs, looppkg.NodeCellTaskID(
+			mutation.RunID, generation, string(mutation.NodeID), itemIndex,
+		))
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("store: iterate quarantined cells for requeue: %w", err)
+	}
+	clearedAt := store.FormatTimestamp(mutation.RequestedAt)
+	for _, taskID := range taskIDs {
+		if _, err := exec.ExecContext(
+			ctx,
+			`UPDATE tasks SET
+				needs_attention_reason = NULL, needs_attention_at = NULL,
+				needs_attention_by_kind = NULL, needs_attention_by_ref = NULL, updated_at = ?
+			 WHERE id = ? AND needs_attention_at IS NOT NULL`,
+			clearedAt,
+			taskID,
+		); err != nil {
+			return fmt.Errorf("store: clear requeued node task attention %q: %w", taskID, err)
+		}
+	}
+	return nil
+}
+
 func fenceRequeuedNodeAndDependents(
 	ctx context.Context,
 	exec taskSQLExecutor,
@@ -174,19 +231,18 @@ func fenceRequeuedNodeAndDependents(
 	); err != nil {
 		return fmt.Errorf("store: fence requeued Loop node outputs: %w", err)
 	}
-	attentionSuffix := " requires parked producer " + string(mutation.NodeID)
 	if _, err := exec.ExecContext(
 		ctx,
 		`UPDATE loop_node_controls
-		 SET attention_flag = '', attention_reason = '', revision = revision + 1, updated_at = ?
+		 SET attention_flag = '', attention_reason = '', attention_producer_node_id = '',
+		     revision = revision + 1, updated_at = ?
 		 WHERE loop_run_id = ? AND attention_flag = 'dependency_quarantined'
 		   AND node_id <> ?
-		   AND substr(attention_reason, -length(?)) = ?`,
+		   AND attention_producer_node_id = ?`,
 		mutation.RequestedAt.UTC(),
 		mutation.RunID,
 		mutation.NodeID,
-		attentionSuffix,
-		attentionSuffix,
+		string(mutation.NodeID),
 	); err != nil {
 		return fmt.Errorf("store: clear requeue dependency attention: %w", err)
 	}

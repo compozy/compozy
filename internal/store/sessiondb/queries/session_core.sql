@@ -27,6 +27,13 @@ ON CONFLICT(turn_id) DO UPDATE SET
     cost_currency = COALESCE(excluded.cost_currency, token_usage.cost_currency),
     timestamp = excluded.timestamp;
 
+-- name: ListTokenUsage :many
+SELECT turn_id, input_tokens, output_tokens, total_tokens, thought_tokens,
+       cache_read_tokens, cache_write_tokens, context_used, context_size,
+       cost_amount, cost_currency, timestamp
+FROM token_usage
+ORDER BY timestamp ASC, turn_id ASC;
+
 -- name: InsertHookRun :exec
 INSERT INTO hook_runs (
     id, hook_name, event, source, mode, duration_ns, outcome, dispatch_depth,

@@ -179,6 +179,27 @@ func (m *Manager) Events(
 	return nil, fmt.Errorf("session: query events for %q: %w", target, err)
 }
 
+// TokenUsage returns the per-turn usage projection for active or stopped sessions.
+func (m *Manager) TokenUsage(ctx context.Context, id string) ([]store.TokenUsage, error) {
+	target := strings.TrimSpace(id)
+	recorder, cleanup, err := m.openQueryRecorder(ctx, target)
+	if err != nil {
+		return nil, err
+	}
+	usage, err := recorder.ListTokenUsage(ctx)
+	cleanupErr := cleanup()
+	if err != nil {
+		if cleanupErr != nil {
+			err = errors.Join(err, cleanupErr)
+		}
+		return nil, fmt.Errorf("session: list token usage for %q: %w", target, err)
+	}
+	if cleanupErr != nil {
+		return nil, cleanupErr
+	}
+	return usage, nil
+}
+
 // History returns turn-grouped persisted session events for active or stopped sessions.
 func (m *Manager) History(
 	ctx context.Context,

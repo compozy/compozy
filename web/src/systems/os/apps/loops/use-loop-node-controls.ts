@@ -169,7 +169,7 @@ export function useLoopNodeControls(workspaceId: string, runId: string) {
     onVerb,
     commit,
     closeDialog,
-    openQuarantine: (node: LoopNodeLifecycle) => setQuarantineNodeId(node.nodeId),
+    openQuarantine: (nodeId: string) => setQuarantineNodeId(nodeId),
     closeQuarantine: () => setQuarantineNodeId(null),
   };
 }

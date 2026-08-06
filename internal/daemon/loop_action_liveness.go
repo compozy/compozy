@@ -31,11 +31,12 @@ type loopActionSilenceWindowRunner interface {
 }
 
 type loopActionUsageState struct {
-	tokensUsed atomic.Int64
-	mu         sync.RWMutex
-	sessionID  string
-	progressAt time.Time
-	now        func() time.Time
+	tokensUsed     atomic.Int64
+	mu             sync.RWMutex
+	sessionID      string
+	progressAt     time.Time
+	now            func() time.Time
+	onSessionBound func(sessionID string)
 }
 
 type loopActionProgressSnapshot struct {
@@ -44,8 +45,8 @@ type loopActionProgressSnapshot struct {
 	progressAt time.Time
 }
 
-func newLoopActionUsageState(now func() time.Time) *loopActionUsageState {
-	return &loopActionUsageState{now: now, progressAt: now().UTC()}
+func newLoopActionUsageState(now func() time.Time, onSessionBound func(sessionID string)) *loopActionUsageState {
+	return &loopActionUsageState{now: now, progressAt: now().UTC(), onSessionBound: onSessionBound}
 }
 
 func (s *loopActionUsageState) ReportActionTokensUsed(tokensUsed int64) {
@@ -68,10 +69,15 @@ func (s *loopActionUsageState) ReportActionSessionBound(sessionID string) {
 	if s == nil {
 		return
 	}
+	trimmed := strings.TrimSpace(sessionID)
 	s.mu.Lock()
-	s.sessionID = strings.TrimSpace(sessionID)
+	changed := trimmed != "" && trimmed != s.sessionID
+	s.sessionID = trimmed
 	s.progressAt = s.now().UTC()
 	s.mu.Unlock()
+	if changed && s.onSessionBound != nil {
+		s.onSessionBound(trimmed)
+	}
 }
 
 func (s *loopActionUsageState) recordProgress() {
@@ -113,7 +119,9 @@ func (r *loopActionRuntime) executeClaimedRun(
 	deathStreakLimit int,
 ) (taskpkg.RunResult, bool, error) {
 	runCtx, cancelRun := loopActionExecutionContext(ctx, actionTimeout)
-	usage := newLoopActionUsageState(r.now)
+	usage := newLoopActionUsageState(r.now, func(sessionID string) {
+		r.persistBoundActionSession(ctx, claim, actor, sessionID)
+	})
 	runCtx = looppkg.ContextWithActionUsageReporter(runCtx, usage)
 	heartbeatErrC := r.startHeartbeat(
 		runCtx,
@@ -134,6 +142,9 @@ func (r *loopActionRuntime) executeClaimedRun(
 	}
 	if tokensUsed := usage.TokensUsed(); tokensUsed > result.TokensUsed {
 		result.TokensUsed = tokensUsed
+	}
+	if result.TokensUsed <= 0 {
+		result.TokensUsed = r.sessionProjectedTokens(ctx, usage.snapshot().sessionID)
 	}
 	if deadlineExceeded {
 		return result, false, errors.Join(newLoopActionTimeoutError(timeoutReason), heartbeatErr, runErr)
