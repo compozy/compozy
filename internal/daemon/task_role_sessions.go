@@ -178,6 +178,9 @@ func (r *taskRoleRuntime) starvationActivation(
 	run taskpkg.Run,
 	agentName string,
 ) (taskRoleActivation, bool, error) {
+	if run.IsLoopWorker() {
+		return taskRoleActivation{}, false, nil
+	}
 	agentName = strings.TrimSpace(agentName)
 	if agentName == "" {
 		return taskRoleActivation{}, false, nil

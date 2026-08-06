@@ -193,6 +193,12 @@ func TestManagerSessionLedger(t *testing.T) {
 		}
 		h.manager.ledgerMaterializer = materializer
 		session := createSession(t, h)
+		const originalPrompt = "before failed resume"
+		events, err := h.manager.Prompt(testutil.Context(t), session.ID, originalPrompt)
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+		collectEvents(t, events)
 		if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
 			t.Fatalf("Stop() error = %v", err)
 		}
@@ -205,8 +211,15 @@ func TestManagerSessionLedger(t *testing.T) {
 		if _, err := h.manager.Resume(testutil.Context(t), session.ID); !errors.Is(err, startErr) {
 			t.Fatalf("Resume() error = %v, want %v", err, startErr)
 		}
-		if _, err := os.Stat(ledgerPath); err != nil {
-			t.Fatalf("Stat(rematerialized ledger) error = %v", err)
+		ledger, err := os.ReadFile(ledgerPath)
+		if err != nil {
+			t.Fatalf("ReadFile(rematerialized ledger) error = %v", err)
+		}
+		if !strings.Contains(string(ledger), originalPrompt) {
+			t.Fatalf("rematerialized ledger does not contain original prompt: %s", ledger)
+		}
+		if !strings.Contains(string(ledger), EventTypeSessionStopped) {
+			t.Fatalf("rematerialized ledger does not contain %s: %s", EventTypeSessionStopped, ledger)
 		}
 		if meta := readMeta(t, session.MetaPath()); meta.State != string(StateStopped) {
 			t.Fatalf("meta state after failed resume = %q, want %q", meta.State, StateStopped)

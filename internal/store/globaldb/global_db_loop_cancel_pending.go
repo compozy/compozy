@@ -60,22 +60,34 @@ func queryPendingCancellations(
 	exec taskSQLExecutor,
 	limit int,
 ) (pending []looppkg.PendingCancellation, err error) {
-	rows, err := exec.QueryContext(ctx, `SELECT workspace_id, run_id, node_id, cancel_state,
-		cancel_reason, cancel_requested_at, cancel_actor_kind, cancel_actor_id
-	FROM (
-		SELECT run.workspace_id AS workspace_id, run.id AS run_id, '' AS node_id,
-			CASE WHEN MAX(control.cancel_state = 'requested') = 1
-				THEN 'requested' ELSE 'delivering' END AS cancel_state,
-			COALESCE(MIN(control.cancel_reason), '') AS cancel_reason,
-			MIN(control.cancel_requested_at) AS cancel_requested_at,
-			COALESCE(MIN(control.cancel_actor_kind), '') AS cancel_actor_kind,
-			COALESCE(MIN(control.cancel_actor_id), '') AS cancel_actor_id
+	rows, err := exec.QueryContext(ctx, `WITH pending_run_controls AS (
+		SELECT run.workspace_id, run.id AS run_id, control.node_id, control.cancel_state,
+			control.cancel_reason, control.cancel_requested_at,
+			control.cancel_actor_kind, control.cancel_actor_id,
+			MAX(CASE WHEN control.cancel_state = 'requested' THEN 1 ELSE 0 END)
+				OVER (PARTITION BY run.workspace_id, run.id) AS has_requested,
+			ROW_NUMBER() OVER (
+				PARTITION BY run.workspace_id, run.id
+				ORDER BY control.cancel_requested_at IS NULL, control.cancel_requested_at, control.node_id
+			) AS provenance_rank
 		FROM loop_runs AS run
 		JOIN loop_node_controls AS control ON control.loop_run_id = run.id
 		WHERE run.cancel_requested = 1 AND run.cancel_kind = 'cancel'
 			AND run.status IN ('queued','running','watching','needs-approval','paused')
 			AND control.cancel_state IN ('requested','delivering')
-		GROUP BY run.workspace_id, run.id
+	)
+	SELECT workspace_id, run_id, node_id, cancel_state,
+		cancel_reason, cancel_requested_at, cancel_actor_kind, cancel_actor_id
+	FROM (
+		SELECT workspace_id, run_id, '' AS node_id,
+			CASE WHEN has_requested = 1
+				THEN 'requested' ELSE 'delivering' END AS cancel_state,
+			COALESCE(cancel_reason, '') AS cancel_reason,
+			cancel_requested_at,
+			COALESCE(cancel_actor_kind, '') AS cancel_actor_kind,
+			COALESCE(cancel_actor_id, '') AS cancel_actor_id
+		FROM pending_run_controls
+		WHERE provenance_rank = 1
 		UNION ALL
 		SELECT run.workspace_id, run.id, control.node_id, control.cancel_state,
 			COALESCE(control.cancel_reason, ''), control.cancel_requested_at,

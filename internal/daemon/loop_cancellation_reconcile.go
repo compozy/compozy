@@ -43,6 +43,7 @@ func reconcileBootLoopCancellations(ctx context.Context, state *bootState) error
 		defaultMechanicalSchedulerSweepLimit,
 		actor,
 	)
+	// Boot recovery is fail-open because the scheduler backstop retries the same durable requests.
 	if err != nil {
 		state.logger.Warn("daemon: Loop cancellation boot retry deferred", "error", err)
 	}

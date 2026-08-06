@@ -455,6 +455,28 @@ var taskRoleRuntimeClock = time.Date(2026, 5, 6, 12, 5, 0, 0, time.UTC)
 func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should reject loop action worker runs", func(t *testing.T) {
+		t.Parallel()
+
+		taskRecord := taskRoleRuntimeTask("task-loop-starved", "frontend-engineer-agent")
+		run := taskRoleRuntimeRun("run-loop-starved", taskRecord.ID, "design-review")
+		run.LoopRunID = "loop-run-starved"
+		sessions := &taskRoleRuntimeSessions{}
+		runtime := newTaskRoleRuntimeForTest(t, newTaskRoleRuntimeStore(taskRecord, run), sessions)
+
+		if err := runtime.activateForStarvation(
+			context.Background(),
+			taskRecord,
+			run,
+			starvationSpawner{},
+		); err != nil {
+			t.Fatalf("activateForStarvation() error = %v", err)
+		}
+		if got := sessions.createCount(); got != 0 {
+			t.Fatalf("create count = %d, want 0 for loop worker", got)
+		}
+	})
+
 	t.Run("Should spawn the pool owner with a TTL-bounded spawn budget lineage", func(t *testing.T) {
 		t.Parallel()
 

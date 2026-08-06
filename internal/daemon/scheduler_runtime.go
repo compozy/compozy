@@ -64,7 +64,10 @@ func (d *Daemon) bootScheduler(ctx context.Context, state *bootState, cleanup *b
 	if state.deps.Loops != nil {
 		candidate, ok := state.deps.Loops.(looppkg.CancellationReconciler)
 		if !ok {
-			return errors.New("daemon: Loop service does not support cancellation reconciliation")
+			return errors.Join(
+				errors.New("daemon: Loop service does not support cancellation reconciliation"),
+				waker.shutdown(context.Background()),
+			)
 		}
 		cancellationReconciler = candidate
 	}
