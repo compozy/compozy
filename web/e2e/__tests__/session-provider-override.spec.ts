@@ -277,6 +277,7 @@ test("operator persists an advertised model and non-empty reasoning effort on th
   const reasoningSlider = reasoningStrip.getByRole("slider");
   await reasoningSlider.press("End");
   await appPage.keyboard.press("Escape");
+  await expect(appPage.getByRole("dialog", { name: "Runtime selector" })).toBeHidden();
   await expect(runtimeTrigger).toContainText(catalogModelLabel);
   await expect(runtimeTrigger).toContainText("High");
   const promptRequestPromise = appPage.waitForRequest(
