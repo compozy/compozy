@@ -109,6 +109,7 @@ describe("buildRunUsage", () => {
     const byKey = new Map(rows.map(row => [row.key, row]));
     expect(byKey.get("tokens")?.value).toBe("not reported");
     expect(byKey.get("tokens")?.max).toBe("");
+    expect(byKey.get("tokens")?.tone).toBe("neutral");
     expect(byKey.get("cost")?.value).toBe("—");
     expect(byKey.get("cost")?.max).toBe("");
   });

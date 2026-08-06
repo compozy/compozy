@@ -257,7 +257,7 @@ func runAgentPromptWithOutputContract(prompt string, schema dsl.Schema) (string,
 	}
 	schemaDoc, err := normalizeLoopSchema(schema)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("normalize output contract schema: %w", err)
 	}
 	schemaData, err := json.Marshal(schemaDoc)
 	if err != nil {
@@ -307,30 +307,35 @@ func extractJSONObjectCandidates(text string) []json.RawMessage {
 	if trimmed == "" {
 		return nil
 	}
+	collected := make([]jsonObjectCandidate, 0, 6)
+	if raw, ok := validJSONObject(trimmed); ok {
+		collected = append(collected, jsonObjectCandidate{raw: raw, offset: strings.Index(text, trimmed)})
+	}
+	collected = append(collected, extractFencedJSONObjects(text)...)
+	collected = append(collected, extractBalancedJSONObjects(text)...)
+	sort.SliceStable(collected, func(left, right int) bool {
+		return collected[left].offset < collected[right].offset
+	})
 	seen := make(map[string]struct{})
-	candidates := make([]json.RawMessage, 0, 4)
-	appendCandidate := func(raw json.RawMessage) {
-		key := string(raw)
+	candidates := make([]json.RawMessage, 0, len(collected))
+	for _, candidate := range collected {
+		key := string(candidate.raw)
 		if _, duplicate := seen[key]; duplicate {
-			return
+			continue
 		}
 		seen[key] = struct{}{}
-		candidates = append(candidates, raw)
-	}
-	if raw, ok := validJSONObject(trimmed); ok {
-		appendCandidate(raw)
-	}
-	for _, raw := range extractFencedJSONObjects(trimmed) {
-		appendCandidate(raw)
-	}
-	for _, raw := range extractBalancedJSONObjects(trimmed) {
-		appendCandidate(raw)
+		candidates = append(candidates, candidate.raw)
 	}
 	return candidates
 }
 
-func extractFencedJSONObjects(text string) []json.RawMessage {
-	objects := make([]json.RawMessage, 0, 2)
+type jsonObjectCandidate struct {
+	raw    json.RawMessage
+	offset int
+}
+
+func extractFencedJSONObjects(text string) []jsonObjectCandidate {
+	objects := make([]jsonObjectCandidate, 0, 2)
 	start := 0
 	for {
 		open := strings.Index(text[start:], "```")
@@ -343,18 +348,23 @@ func extractFencedJSONObjects(text string) []json.RawMessage {
 			return objects
 		}
 		body := text[bodyStart : bodyStart+closeRel]
+		bodyOffset := bodyStart
 		if newline := strings.IndexByte(body, '\n'); newline >= 0 {
 			body = body[newline+1:]
+			bodyOffset += newline + 1
 		}
-		if raw, ok := validJSONObject(strings.TrimSpace(body)); ok {
-			objects = append(objects, raw)
+		trimmedBody := strings.TrimSpace(body)
+		if raw, ok := validJSONObject(trimmedBody); ok {
+			objects = append(objects, jsonObjectCandidate{
+				raw: raw, offset: bodyOffset + strings.Index(body, trimmedBody),
+			})
 		}
 		start = bodyStart + closeRel + len("```")
 	}
 }
 
-func extractBalancedJSONObjects(text string) []json.RawMessage {
-	objects := make([]json.RawMessage, 0, 2)
+func extractBalancedJSONObjects(text string) []jsonObjectCandidate {
+	objects := make([]jsonObjectCandidate, 0, 2)
 	cursor := 0
 	for cursor < len(text) {
 		offset := strings.IndexByte(text[cursor:], '{')
@@ -364,7 +374,7 @@ func extractBalancedJSONObjects(text string) []json.RawMessage {
 		start := cursor + offset
 		raw, end, ok := balancedJSONObjectAt(text, start)
 		if ok {
-			objects = append(objects, raw)
+			objects = append(objects, jsonObjectCandidate{raw: raw, offset: start})
 			cursor = end
 			continue
 		}

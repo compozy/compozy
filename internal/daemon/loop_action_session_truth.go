@@ -45,12 +45,26 @@ func (r *loopActionRuntime) persistBoundActionSession(
 	claim *taskpkg.ClaimResult,
 	actor taskpkg.ActorContext,
 	sessionID string,
-) {
+) bool {
 	if r == nil || claim == nil {
-		return
+		return true
 	}
 	bindCtx, cancel := taskRunActivationContext(ctx)
 	defer cancel()
+	current, err := r.store.GetTaskRun(bindCtx, claim.Run.ID)
+	if err != nil {
+		r.logger.Error(
+			"daemon: read loop action run session binding",
+			daemonLogRunIDKey, claim.Run.ID,
+			coordinatorRuntimeTaskIDKey, claim.Run.TaskID,
+			"session_id", sessionID,
+			"error", err,
+		)
+		return loopActionSessionBindingTerminalError(err)
+	}
+	if strings.TrimSpace(current.SessionID) == sessionID {
+		return true
+	}
 	if _, err := r.manager.BindLeasedRunSession(bindCtx, taskpkg.LeaseSessionBinding{
 		RunID:      claim.Run.ID,
 		ClaimToken: claim.ClaimToken,
@@ -66,5 +80,21 @@ func (r *loopActionRuntime) persistBoundActionSession(
 			"session_id", sessionID,
 			"error", err,
 		)
+		return loopActionSessionBindingTerminalError(err)
 	}
+	return true
+}
+
+func loopActionSessionBindingTerminalError(err error) bool {
+	return errors.Is(err, context.Canceled) ||
+		errors.Is(err, store.ErrClosed) ||
+		errors.Is(err, taskpkg.ErrInvalidClaimToken) ||
+		errors.Is(err, taskpkg.ErrLeaseExpired) ||
+		errors.Is(err, taskpkg.ErrInvalidStatusTransition) ||
+		errors.Is(err, taskpkg.ErrValidation) ||
+		errors.Is(err, taskpkg.ErrPermissionDenied) ||
+		errors.Is(err, taskpkg.ErrTaskRunNotFound) ||
+		errors.Is(err, taskpkg.ErrTaskNotFound) ||
+		errors.Is(err, taskpkg.ErrPayloadTooLarge) ||
+		errors.Is(err, taskpkg.ErrConflict)
 }

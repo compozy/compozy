@@ -79,6 +79,8 @@ func (i GenerationLifecycleEventIntent) normalized() GenerationLifecycleEventInt
 	i.Route = gate.RouteAction(strings.TrimSpace(string(i.Route)))
 	i.Reason = strings.TrimSpace(i.Reason)
 	i.NodeID = strings.TrimSpace(i.NodeID)
+	i.AttentionFlag = strings.TrimSpace(i.AttentionFlag)
+	i.AttentionProducerNodeID = strings.TrimSpace(i.AttentionProducerNodeID)
 	i.TargetFamily = strings.TrimSpace(i.TargetFamily)
 	i.Target = strings.TrimSpace(i.Target)
 	i.BreakerState = strings.TrimSpace(i.BreakerState)

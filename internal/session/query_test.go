@@ -1103,10 +1103,12 @@ func TestManagerEventsAndHistoryRetryClosedActiveRecorder(t *testing.T) {
 		stub := &queryRecorderStub{
 			events:    []store.SessionEvent{wantEvent},
 			history:   []store.TurnHistory{{TurnID: wantEvent.TurnID, Events: []store.SessionEvent{wantEvent}}},
+			usage:     []store.TokenUsage{{TurnID: wantEvent.TurnID}},
 			queryErrs: []error{store.ErrClosed},
 			historyErrs: []error{
 				store.ErrClosed,
 			},
+			usageErrs: []error{store.ErrClosed},
 		}
 		session.setRecorder(stub)
 		t.Cleanup(func() {
@@ -1135,6 +1137,17 @@ func TestManagerEventsAndHistoryRetryClosedActiveRecorder(t *testing.T) {
 		}
 		if got := len(stub.historyCall); got != 2 {
 			t.Fatalf("History() calls = %d, want 2", got)
+		}
+
+		usage, err := h.manager.TokenUsage(testutil.Context(t), session.ID)
+		if err != nil {
+			t.Fatalf("TokenUsage() error = %v", err)
+		}
+		if len(usage) != 1 || usage[0].TurnID != wantEvent.TurnID {
+			t.Fatalf("TokenUsage() = %#v, want retry usage", usage)
+		}
+		if got := stub.usageCalls; got != 2 {
+			t.Fatalf("ListTokenUsage() calls = %d, want 2", got)
 		}
 	})
 }
@@ -1793,20 +1806,31 @@ func createEscapedStoredSession(t *testing.T, h *harness) string {
 type queryRecorderStub struct {
 	events      []store.SessionEvent
 	history     []store.TurnHistory
+	usage       []store.TokenUsage
 	queryErr    error
 	queryErrs   []error
 	historyErr  error
 	historyErrs []error
+	usageErrs   []error
 	closeCalls  int
 	queryCalls  []store.EventQuery
 	historyCall []store.EventQuery
+	usageCalls  int
 	appendErrs  []error
 	appendCalls int
 	onAppend    func()
 }
 
 func (s *queryRecorderStub) ListTokenUsage(context.Context) ([]store.TokenUsage, error) {
-	return nil, nil
+	s.usageCalls++
+	if len(s.usageErrs) > 0 {
+		err := s.usageErrs[0]
+		s.usageErrs = s.usageErrs[1:]
+		if err != nil {
+			return nil, err
+		}
+	}
+	return append([]store.TokenUsage(nil), s.usage...), nil
 }
 
 func (s *queryRecorderStub) Record(context.Context, store.SessionEvent) error {

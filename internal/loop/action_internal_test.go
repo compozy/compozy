@@ -173,6 +173,29 @@ func TestActionSchemaAndJSONInternalsShouldCoverStructuredExtraction(t *testing.
 		}
 	})
 
+	t.Run("Should preserve source order across JSON extractors", func(t *testing.T) {
+		t.Parallel()
+
+		schema := dsl.Schema{
+			"type":       "object",
+			"properties": map[string]any{"status": map[string]any{"type": "string"}},
+			"required":   []any{"status"},
+		}
+		raw, err := ValidateActionStructured(schema, ActionPromptResult{
+			Text: "Earlier {\"status\":\"embedded\"}.\n```json\n{\"status\":\"fenced\"}\n```",
+		})
+		if err != nil {
+			t.Fatalf("ValidateActionStructured() error = %v", err)
+		}
+		var decoded map[string]any
+		if err := json.Unmarshal(raw, &decoded); err != nil {
+			t.Fatalf("unmarshal validated output error = %v", err)
+		}
+		if got := decoded["status"]; got != "fenced" {
+			t.Fatalf("validated status = %v, want fenced", got)
+		}
+	})
+
 	t.Run("Should surface the extraction detail when no JSON object exists", func(t *testing.T) {
 		t.Parallel()
 
@@ -217,6 +240,16 @@ func TestActionSchemaAndJSONInternalsShouldCoverStructuredExtraction(t *testing.
 		}
 		if unchanged != "Do the task" {
 			t.Fatalf("contract prompt without schema = %q, want untouched prompt", unchanged)
+		}
+
+		_, err = runAgentPromptWithOutputContract("Do the task", dsl.Schema{
+			"payload": map[any]any{12: "bad"},
+		})
+		if !errors.Is(err, ErrValidation) || !strings.Contains(err.Error(), "normalize output contract schema") {
+			t.Fatalf(
+				"runAgentPromptWithOutputContract(invalid schema) error = %v, want wrapped ErrValidation",
+				err,
+			)
 		}
 	})
 

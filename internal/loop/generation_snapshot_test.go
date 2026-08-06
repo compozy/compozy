@@ -329,6 +329,37 @@ func TestGenerationSnapshotPayloadFromShouldNormalizeTypedIntents(t *testing.T) 
 func TestGenerationSnapshotLifecycleEventValidation(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should trim node attention provenance before validation", func(t *testing.T) {
+		t.Parallel()
+
+		payload, err := GenerationSnapshotPayloadFrom(GenerationSnapshotPayload{
+			Events: []GenerationLifecycleEventIntent{{
+				Kind:   GenerationLifecycleEventNodeAttentionFlagged,
+				NodeID: " consumer ", ItemIndex: 0, Reason: " producer is parked ",
+				AttentionFlag: " dependency_quarantined ", AttentionProducerNodeID: " producer ",
+			}},
+		})
+		if err != nil {
+			t.Fatalf("GenerationSnapshotPayloadFrom() error = %v", err)
+		}
+		event := payload.Events[0]
+		if event.NodeID != "consumer" || event.AttentionFlag != "dependency_quarantined" ||
+			event.AttentionProducerNodeID != "producer" {
+			t.Fatalf("normalized attention event = %#v, want trimmed provenance", event)
+		}
+
+		_, err = GenerationSnapshotPayloadFrom(GenerationSnapshotPayload{
+			Events: []GenerationLifecycleEventIntent{{
+				Kind:   GenerationLifecycleEventNodeAttentionFlagged,
+				NodeID: "consumer", ItemIndex: 0, Reason: "producer is parked",
+				AttentionFlag: " ", AttentionProducerNodeID: " producer ",
+			}},
+		})
+		if !errors.Is(err, ErrValidation) {
+			t.Fatalf("GenerationSnapshotPayloadFrom(blank attention flag) error = %v, want ErrValidation", err)
+		}
+	})
+
 	t.Run("Should reject a generation-started route", func(t *testing.T) {
 		t.Parallel()
 

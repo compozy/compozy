@@ -31,12 +31,14 @@ type loopActionSilenceWindowRunner interface {
 }
 
 type loopActionUsageState struct {
-	tokensUsed     atomic.Int64
-	mu             sync.RWMutex
-	sessionID      string
-	progressAt     time.Time
-	now            func() time.Time
-	onSessionBound func(sessionID string)
+	tokensUsed       atomic.Int64
+	mu               sync.RWMutex
+	bindingMu        sync.Mutex
+	sessionID        string
+	pendingSessionID string
+	progressAt       time.Time
+	now              func() time.Time
+	onSessionBound   func(sessionID string) bool
 }
 
 type loopActionProgressSnapshot struct {
@@ -45,7 +47,7 @@ type loopActionProgressSnapshot struct {
 	progressAt time.Time
 }
 
-func newLoopActionUsageState(now func() time.Time, onSessionBound func(sessionID string)) *loopActionUsageState {
+func newLoopActionUsageState(now func() time.Time, onSessionBound func(sessionID string) bool) *loopActionUsageState {
 	return &loopActionUsageState{now: now, progressAt: now().UTC(), onSessionBound: onSessionBound}
 }
 
@@ -70,13 +72,48 @@ func (s *loopActionUsageState) ReportActionSessionBound(sessionID string) {
 		return
 	}
 	trimmed := strings.TrimSpace(sessionID)
+	if trimmed == "" {
+		return
+	}
 	s.mu.Lock()
-	changed := trimmed != "" && trimmed != s.sessionID
-	s.sessionID = trimmed
+	changed := trimmed != s.sessionID
+	if changed {
+		s.sessionID = trimmed
+		s.pendingSessionID = trimmed
+	}
 	s.progressAt = s.now().UTC()
 	s.mu.Unlock()
 	if changed && s.onSessionBound != nil {
-		s.onSessionBound(trimmed)
+		s.retryPendingSessionBinding()
+	}
+}
+
+func (s *loopActionUsageState) retryPendingSessionBinding() {
+	if s == nil {
+		return
+	}
+	s.bindingMu.Lock()
+	defer s.bindingMu.Unlock()
+	for {
+		s.mu.RLock()
+		pending := s.pendingSessionID
+		bind := s.onSessionBound
+		s.mu.RUnlock()
+		if pending == "" {
+			return
+		}
+		if bind != nil && !bind(pending) {
+			return
+		}
+		s.mu.Lock()
+		if s.pendingSessionID == pending {
+			s.pendingSessionID = ""
+		}
+		hasPending := s.pendingSessionID != ""
+		s.mu.Unlock()
+		if !hasPending {
+			return
+		}
 	}
 }
 
@@ -119,8 +156,8 @@ func (r *loopActionRuntime) executeClaimedRun(
 	deathStreakLimit int,
 ) (taskpkg.RunResult, bool, error) {
 	runCtx, cancelRun := loopActionExecutionContext(ctx, actionTimeout)
-	usage := newLoopActionUsageState(r.now, func(sessionID string) {
-		r.persistBoundActionSession(ctx, claim, actor, sessionID)
+	usage := newLoopActionUsageState(r.now, func(sessionID string) bool {
+		return r.persistBoundActionSession(ctx, claim, actor, sessionID)
 	})
 	runCtx = looppkg.ContextWithActionUsageReporter(runCtx, usage)
 	heartbeatErrC := r.startHeartbeat(
@@ -137,6 +174,7 @@ func (r *loopActionRuntime) executeClaimedRun(
 	deadlineExceeded := errors.Is(runCtx.Err(), context.DeadlineExceeded)
 	cancelRun()
 	heartbeatErr := <-heartbeatErrC
+	usage.retryPendingSessionBinding()
 	if ctx.Err() != nil {
 		return taskpkg.RunResult{}, false, ctx.Err()
 	}
@@ -230,6 +268,8 @@ func (r *loopActionRuntime) heartbeatClaim(
 			if time.Now().Before(nextHeartbeat) {
 				continue
 			}
+			usage.retryPendingSessionBinding()
+			snapshot = usage.snapshot()
 			if err := r.extendActionLease(ctx, claim, actor, leaseDuration, snapshot.tokensUsed); err != nil {
 				return err
 			}

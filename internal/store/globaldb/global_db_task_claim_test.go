@@ -457,6 +457,9 @@ func TestGlobalDBDaemonClaimAndLeasedSessionBinding(t *testing.T) {
 		if err == nil {
 			t.Fatal("BindLeasedRunSession(wrong token) error = nil, want lease fence rejection")
 		}
+		if !errors.Is(err, taskpkg.ErrInvalidClaimToken) {
+			t.Fatalf("BindLeasedRunSession(wrong token) error = %v, want ErrInvalidClaimToken", err)
+		}
 		stored, storedErr := globalDB.GetTaskRun(ctx, target.ID)
 		if storedErr != nil {
 			t.Fatalf("GetTaskRun(fenced) error = %v", storedErr)

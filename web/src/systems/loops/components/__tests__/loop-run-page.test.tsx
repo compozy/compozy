@@ -313,6 +313,23 @@ describe("LoopRunAttentionPanel", () => {
     );
     expect(screen.queryByRole("button", { name: "Open quarantine entry" })).not.toBeInTheDocument();
   });
+
+  it("Should keep dependency consumers without producer provenance as separate rows", () => {
+    const consumers = ["collect", "review"].map(nodeId =>
+      loopNodeLifecycleFixture({
+        nodeId,
+        label: nodeId,
+        attentionFlag: "dependency_quarantined",
+        attentionReason: `node ${nodeId} requires an unavailable producer`,
+        attentionProducerNodeId: "",
+      })
+    );
+    render(<LoopRunAttentionPanel nodes={consumers} />);
+
+    expect(screen.getByTestId("loop-run-attention-collect")).toBeInTheDocument();
+    expect(screen.getByTestId("loop-run-attention-review")).toBeInTheDocument();
+    expect(screen.queryByTestId("loop-run-attention-producer-unknown")).not.toBeInTheDocument();
+  });
 });
 
 describe("LoopRunNeedsYouCard", () => {

@@ -45,9 +45,10 @@ func (r *taskRuntimeViewReader) GetSession(
 	if err != nil {
 		return nil, err
 	}
-	info, err := sessions.Status(ctx, strings.TrimSpace(sessionID))
+	trimmed := strings.TrimSpace(sessionID)
+	info, err := sessions.Status(ctx, trimmed)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("daemon: get task runtime session %q: %w", trimmed, err)
 	}
 	if info == nil {
 		return nil, fmt.Errorf("daemon: session %q status is empty", sessionID)
@@ -72,7 +73,12 @@ func (r *taskRuntimeViewReader) ListSessionEvents(
 	if err != nil {
 		return nil, err
 	}
-	return sessions.Events(ctx, strings.TrimSpace(sessionID), query)
+	trimmed := strings.TrimSpace(sessionID)
+	events, err := sessions.Events(ctx, trimmed, query)
+	if err != nil {
+		return nil, fmt.Errorf("daemon: list task runtime session events for %q: %w", trimmed, err)
+	}
+	return events, nil
 }
 
 func (r *taskRuntimeViewReader) ListSessionTokenStats(
@@ -86,7 +92,7 @@ func (r *taskRuntimeViewReader) ListSessionTokenStats(
 	trimmed := strings.TrimSpace(sessionID)
 	usage, err := sessions.TokenUsage(ctx, trimmed)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("daemon: list task runtime session token stats for %q: %w", trimmed, err)
 	}
 	return sessionTokenStatsFromUsage(trimmed, usage), nil
 }

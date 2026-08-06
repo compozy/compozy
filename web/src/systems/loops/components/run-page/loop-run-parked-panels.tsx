@@ -145,7 +145,7 @@ function groupDependencyAttention(nodes: readonly LoopNodeLifecycle[]): {
   const byProducer = new Map<string, LoopNodeLifecycle[]>();
   const singles: LoopNodeLifecycle[] = [];
   for (const node of nodes) {
-    if (node.attentionFlag !== "dependency_quarantined") {
+    if (node.attentionFlag !== "dependency_quarantined" || !node.attentionProducerNodeId) {
       singles.push(node);
       continue;
     }
