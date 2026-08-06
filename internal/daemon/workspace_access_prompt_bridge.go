@@ -80,7 +80,7 @@ func (b *workspaceAccessPromptBridge) RequestWorkspaceAccess(
 	response, err := sessions.RequestPermission(promptCtx, sessionID, acp.RequestPermissionRequest{
 		SessionId: acpsdk.SessionId(sessionID),
 		ToolCall: acpsdk.ToolCallUpdate{
-			ToolCallId: acpsdk.ToolCallId(toolApprovalCallID(call, nil)),
+			ToolCallId: acpsdk.ToolCallId(toolApprovalCallID(call)),
 			Title:      new(fmt.Sprintf("Access workspace %s", strings.TrimSpace(targetWorkspaceID))),
 			RawInput: map[string]any{
 				"tool_id":             descriptor.ID.String(),

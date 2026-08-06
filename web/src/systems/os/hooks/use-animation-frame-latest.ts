@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 interface AnimationFrameLatest<T> {
   cancel: () => void;
@@ -11,7 +11,7 @@ export function useAnimationFrameLatest<T>(onFrame: (value: T) => void): Animati
   const frameIDRef = useRef<number | null>(null);
   const pendingRef = useRef<{ value: T } | null>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     onFrameRef.current = onFrame;
   }, [onFrame]);
 

@@ -12,7 +12,10 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
-const defaultReadOnlyPoolTTL = 30 * time.Second
+const (
+	defaultReadOnlyPoolTTL         = 30 * time.Second
+	defaultReadOnlyPoolOpenTimeout = 30 * time.Second
+)
 
 var (
 	errReadOnlyPoolClosed               = errors.New("store: read-only pool is closed")
@@ -39,16 +42,17 @@ type ReadOnlyPoolConfig struct {
 
 // ReadOnlyPool reuses short-lived read-only session database handles for hot inactive sessions.
 type ReadOnlyPool struct {
-	mu        sync.Mutex
-	ttl       time.Duration
-	now       func() time.Time
-	open      ReadOnlyPoolOpener
-	entries   map[readOnlyPoolKey]*readOnlyPoolEntry
-	openings  map[readOnlyPoolKey]*readOnlyPoolOpening
-	closings  map[readOnlyPoolKey]map[*readOnlyPoolClose]struct{}
-	quiescing map[readOnlyPoolKey]*readOnlyPoolQuiescence
-	closed    bool
-	shutdown  *readOnlyPoolShutdown
+	mu          sync.Mutex
+	ttl         time.Duration
+	openTimeout time.Duration
+	now         func() time.Time
+	open        ReadOnlyPoolOpener
+	entries     map[readOnlyPoolKey]*readOnlyPoolEntry
+	openings    map[readOnlyPoolKey]*readOnlyPoolOpening
+	closings    map[readOnlyPoolKey]map[*readOnlyPoolClose]struct{}
+	quiescing   map[readOnlyPoolKey]*readOnlyPoolQuiescence
+	closed      bool
+	shutdown    *readOnlyPoolShutdown
 }
 
 type readOnlyPoolKey struct {
@@ -142,13 +146,14 @@ func NewReadOnlyPool(config ReadOnlyPoolConfig) *ReadOnlyPool {
 		}
 	}
 	return &ReadOnlyPool{
-		ttl:       ttl,
-		now:       now,
-		open:      open,
-		entries:   make(map[readOnlyPoolKey]*readOnlyPoolEntry),
-		openings:  make(map[readOnlyPoolKey]*readOnlyPoolOpening),
-		closings:  make(map[readOnlyPoolKey]map[*readOnlyPoolClose]struct{}),
-		quiescing: make(map[readOnlyPoolKey]*readOnlyPoolQuiescence),
+		ttl:         ttl,
+		openTimeout: defaultReadOnlyPoolOpenTimeout,
+		now:         now,
+		open:        open,
+		entries:     make(map[readOnlyPoolKey]*readOnlyPoolEntry),
+		openings:    make(map[readOnlyPoolKey]*readOnlyPoolOpening),
+		closings:    make(map[readOnlyPoolKey]map[*readOnlyPoolClose]struct{}),
+		quiescing:   make(map[readOnlyPoolKey]*readOnlyPoolQuiescence),
 	}
 }
 
@@ -210,13 +215,34 @@ func (p *ReadOnlyPool) openLease(ctx context.Context, key readOnlyPoolKey) (stor
 		p.openings[key] = opening
 		p.mu.Unlock()
 
-		openingCtx := context.WithoutCancel(ctx)
-		recorder, err := p.open(openingCtx, key.owner, key.path)
-		p.finishOpening(openingCtx, key, opening, recorder, err)
+		p.runOpening(ctx, key, opening)
 		return p.claimOpenedLease(ctx, key, opening)
 	}
 	p.mu.Unlock()
 	return p.claimOpenedLease(ctx, key, opening)
+}
+
+func (p *ReadOnlyPool) runOpening(
+	ctx context.Context,
+	key readOnlyPoolKey,
+	opening *readOnlyPoolOpening,
+) {
+	openingCtx, cancel := p.newOpeningContext(ctx)
+	defer cancel()
+	recorder, err := p.open(openingCtx, key.owner, key.path)
+	p.finishOpening(openingCtx, key, opening, recorder, err)
+}
+
+func (p *ReadOnlyPool) newOpeningContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	detached := context.WithoutCancel(ctx)
+	bounded, cancel := context.WithTimeout(detached, p.openTimeout)
+	callerDeadline, hasCallerDeadline := ctx.Deadline()
+	boundedDeadline, hasBoundedDeadline := bounded.Deadline()
+	if !hasCallerDeadline || !hasBoundedDeadline || !callerDeadline.Before(boundedDeadline) {
+		return bounded, cancel
+	}
+	cancel()
+	return context.WithDeadline(detached, callerDeadline)
 }
 
 func (p *ReadOnlyPool) claimOpenedLease(

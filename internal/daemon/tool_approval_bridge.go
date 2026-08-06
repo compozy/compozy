@@ -12,6 +12,7 @@ import (
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/compozy/compozy/internal/acp"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	"github.com/google/uuid"
 )
 
 const (
@@ -120,7 +121,7 @@ func (b *toolApprovalBridge) requestSessionToolApproval(
 	}
 	approvalCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	requestID := toolApprovalCallID(call, view)
+	requestID := toolApprovalCallID(call)
 
 	response, err := sessions.RequestPermission(
 		approvalCtx,
@@ -200,14 +201,13 @@ func toolApprovalOptions() []acpsdk.PermissionOption {
 	}
 }
 
-func toolApprovalCallID(call toolspkg.CallRequest, view *toolspkg.ToolView) string {
-	toolID := toolApprovalID(call, view)
-	for _, value := range []string{call.ToolCallID, call.CorrelationID, toolID.String()} {
+func toolApprovalCallID(call toolspkg.CallRequest) string {
+	for _, value := range []string{call.ToolCallID, call.CorrelationID} {
 		if trimmed := strings.TrimSpace(value); trimmed != "" {
 			return trimmed
 		}
 	}
-	return "hosted-tool-call"
+	return uuid.NewString()
 }
 
 func toolApprovalTitle(descriptor toolspkg.Descriptor) string {

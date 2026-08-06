@@ -5,6 +5,7 @@ import (
 	"errors"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -343,6 +344,94 @@ func TestToolApprovalBridgeRoutesAllowAndRejectOutcomes(t *testing.T) {
 		}
 	})
 
+	t.Run("Should isolate repeated fallback approvals in one session", func(t *testing.T) {
+		t.Parallel()
+
+		pending := make(chan acp.RequestPermissionRequest, 2)
+		var waitersMu sync.Mutex
+		waiters := make(map[string][]chan acp.RequestPermissionResponse)
+		requester := permissionRequesterFunc(func(
+			ctx context.Context,
+			_ string,
+			request acp.RequestPermissionRequest,
+		) (acp.RequestPermissionResponse, error) {
+			requestID, _ := request.Meta[acp.PermissionRequestIDMetaKey].(string)
+			response := make(chan acp.RequestPermissionResponse, 1)
+			waitersMu.Lock()
+			waiters[requestID] = append(waiters[requestID], response)
+			waitersMu.Unlock()
+			pending <- request
+			select {
+			case result := <-response:
+				return result, nil
+			case <-ctx.Done():
+				return acp.RequestPermissionResponse{}, ctx.Err()
+			}
+		})
+		resolve := func(requestID string, response acp.RequestPermissionResponse) {
+			waitersMu.Lock()
+			requestWaiters := waiters[requestID]
+			delete(waiters, requestID)
+			waitersMu.Unlock()
+			for _, waiter := range requestWaiters {
+				waiter <- response
+			}
+		}
+		bridge := newToolApprovalBridge(
+			func() sessionPermissionRequester { return requester },
+			time.Second,
+			nil,
+			nil,
+			nil,
+		)
+		call := toolApprovalTestCall(view.Descriptor.ID, "ws-1")
+		call.ToolCallID = ""
+		call.CorrelationID = ""
+		ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+		t.Cleanup(cancel)
+
+		firstResult := make(chan error, 1)
+		go func() {
+			firstResult <- bridge.RequestToolApproval(ctx, toolspkg.Scope{}, call, &view)
+		}()
+		first := <-pending
+
+		secondResult := make(chan error, 1)
+		go func() {
+			secondResult <- bridge.RequestToolApproval(ctx, toolspkg.Scope{}, call, &view)
+		}()
+		second := <-pending
+
+		firstID, _ := first.Meta[acp.PermissionRequestIDMetaKey].(string)
+		secondID, _ := second.Meta[acp.PermissionRequestIDMetaKey].(string)
+		if firstID == "" || secondID == "" || firstID == secondID {
+			t.Errorf("fallback permission request IDs = %q, %q, want distinct non-empty IDs", firstID, secondID)
+		}
+		if got := string(first.ToolCall.ToolCallId); got != firstID {
+			t.Errorf("first tool call ID = %q, want request ID %q", got, firstID)
+		}
+		if got := string(second.ToolCall.ToolCallId); got != secondID {
+			t.Errorf("second tool call ID = %q, want request ID %q", got, secondID)
+		}
+
+		resolve(firstID, acp.RequestPermissionResponse{
+			Outcome: acpsdk.NewRequestPermissionOutcomeSelected(toolApprovalAllowOnceID),
+		})
+		if err := <-firstResult; err != nil {
+			t.Fatalf("RequestToolApproval(first) error = %v, want nil", err)
+		}
+		select {
+		case err := <-secondResult:
+			t.Fatalf("second approval completed after resolving the first: %v", err)
+		default:
+		}
+
+		resolve(secondID, acp.RequestPermissionResponse{
+			Outcome: acpsdk.NewRequestPermissionOutcomeSelected(toolApprovalRejectOnceID),
+		})
+		requireToolApprovalReason(t, <-secondResult, toolspkg.ReasonApprovalRequired)
+	})
+
 	t.Run("Should reject selected reject option", func(t *testing.T) {
 		t.Parallel()
 
@@ -597,6 +686,20 @@ type recordingPermissionRequester struct {
 	err      error
 	fn       func(context.Context, string, acp.RequestPermissionRequest) (acp.RequestPermissionResponse, error)
 	requests []acp.RequestPermissionRequest
+}
+
+type permissionRequesterFunc func(
+	context.Context,
+	string,
+	acp.RequestPermissionRequest,
+) (acp.RequestPermissionResponse, error)
+
+func (f permissionRequesterFunc) RequestPermission(
+	ctx context.Context,
+	id string,
+	req acp.RequestPermissionRequest,
+) (acp.RequestPermissionResponse, error) {
+	return f(ctx, id, req)
 }
 
 var _ sessionPermissionRequester = (*recordingPermissionRequester)(nil)

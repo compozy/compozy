@@ -37,7 +37,7 @@ export function useWindowMergeTarget(
     snapshot => snapshot.context.deckDropTarget?.frameId === frame.id
   );
 
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     frameRef.current = frame;
   }, [frame]);
 
