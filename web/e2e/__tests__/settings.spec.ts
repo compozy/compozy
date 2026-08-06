@@ -422,6 +422,7 @@ test("operator routes a background role, persists it across reload, and keeps bu
   const sessionUI = sessionLifecycleSelectors(appPage);
   const settingsUI = settingsOperatorSelectors(appPage);
   const nextModel = "claude-haiku-4-5";
+  const nextModelLabel = "Claude Haiku 4.5";
 
   await ensureGlobalWorkspace(runtime);
   await useGlobalWorkspaceIfPrompted(sessionUI);
@@ -440,19 +441,15 @@ test("operator routes a background role, persists it across reload, and keeps bu
   await settingsUI.roles.toggle("auto_title").click();
   await settingsUI.roles.runtimeSelect("auto_title").click();
   await expect(appPage.getByTestId("runtime-selector-popup")).toBeVisible();
-  // An inherit-mode role pins no provider, and a custom model id is never
-  // emitted without one — target a real provider through the rail first.
-  await appPage
-    .locator(
-      '[data-testid="runtime-selector-popup"] [role="radio"][data-rail]:not([data-rail="all"]):not([data-rail="fav"])'
-    )
-    .first()
-    .click();
+  // Pick the provider-backed catalog row so the selector owns the complete
+  // provider/model decision instead of treating a known model as a custom ID.
   await appPage.getByTestId("runtime-selector-search").fill(nextModel);
-  await appPage.getByTestId("runtime-selector-custom").click();
+  await appPage
+    .locator(`[role="option"][data-provider="opencode"][data-model="${nextModel}"]`)
+    .click();
   await appPage.keyboard.press("Escape");
   await expect(appPage.getByTestId("runtime-selector-popup")).toHaveCount(0);
-  await expect(settingsUI.roles.runtimeSelect("auto_title")).toContainText(nextModel);
+  await expect(settingsUI.roles.runtimeSelect("auto_title")).toContainText(nextModelLabel);
   await expect(settingsUI.roles.saveButton).toBeEnabled();
 
   const applyResponse = appPage.waitForResponse(
@@ -469,7 +466,9 @@ test("operator routes a background role, persists it across reload, and keeps bu
   await reloadDaemonServedPage(appPage, runtime, "/settings/roles", {
     readyTestId: "settings-page-roles",
   });
-  await expect(settingsUI.roles.routeSummary("auto_title")).toContainText(nextModel);
+  await expect(settingsUI.roles.routeSummary("auto_title")).toContainText(
+    `opencode · ${nextModel}`
+  );
 
   const section = await runtime.requestJSON<{ config: { auto_title: { model: string } } }>(
     "/api/settings/roles"

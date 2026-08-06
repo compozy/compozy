@@ -28,12 +28,38 @@ INSERT INTO bridge_instances (
 ON CONFLICT(id) DO UPDATE SET
   scope = excluded.scope, workspace_id = excluded.workspace_id, platform = excluded.platform,
   extension_name = excluded.extension_name, display_name = excluded.display_name,
-  source = excluded.source, enabled = excluded.enabled, status = excluded.status,
+  source = excluded.source, enabled = excluded.enabled,
+  status = CASE
+    WHEN excluded.enabled = 1
+      AND bridge_instances.enabled = 1
+      AND excluded.extension_name = bridge_instances.extension_name
+      AND excluded.platform = bridge_instances.platform
+    THEN bridge_instances.status
+    ELSE excluded.status
+  END,
   dm_policy = excluded.dm_policy, routing_policy = excluded.routing_policy,
   provider_config = excluded.provider_config, delivery_defaults = excluded.delivery_defaults,
   notification_suppress = excluded.notification_suppress,
-  degradation_reason = excluded.degradation_reason,
-  degradation_message = excluded.degradation_message, updated_at = excluded.updated_at;
+  degradation_reason = CASE
+    WHEN excluded.enabled = 1
+      AND bridge_instances.enabled = 1
+      AND excluded.extension_name = bridge_instances.extension_name
+      AND excluded.platform = bridge_instances.platform
+    THEN bridge_instances.degradation_reason
+    ELSE excluded.degradation_reason
+  END,
+  degradation_message = CASE
+    WHEN excluded.enabled = 1
+      AND bridge_instances.enabled = 1
+      AND excluded.extension_name = bridge_instances.extension_name
+      AND excluded.platform = bridge_instances.platform
+    THEN bridge_instances.degradation_message
+    ELSE excluded.degradation_message
+  END,
+  updated_at = CASE
+    WHEN bridge_instances.updated_at > excluded.updated_at THEN bridge_instances.updated_at
+    ELSE excluded.updated_at
+  END;
 
 -- name: UpdateBridgeInstance :execrows
 UPDATE bridge_instances SET

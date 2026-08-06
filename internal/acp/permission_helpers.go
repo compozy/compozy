@@ -12,7 +12,7 @@ func permissionRequestIDFromMeta(meta any) string {
 		return ""
 	}
 
-	for _, key := range []string{permissionRequestIDKey, "requestId", "id"} {
+	for _, key := range []string{PermissionRequestIDMetaKey, "requestId", "id"} {
 		if value, ok := record[key].(string); ok && strings.TrimSpace(value) != "" {
 			return strings.TrimSpace(value)
 		}

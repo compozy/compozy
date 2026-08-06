@@ -16,6 +16,8 @@ import (
 )
 
 // ResourceProjectionStore is the bridge desired-runtime surface updated by resource projection.
+// ReplaceBridgeInstances must preserve newer provider-owned operational state
+// when the desired projection still targets the same enabled runtime.
 type ResourceProjectionStore interface {
 	ListBridgeInstances(ctx context.Context) ([]BridgeInstance, error)
 	ReplaceBridgeInstances(ctx context.Context, instances []BridgeInstance) error

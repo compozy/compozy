@@ -593,6 +593,7 @@ test.describe("Marketplace acquisition", () => {
 test.describe("Skills marketplace management", () => {
   const execFileAsync = promisify(execFile);
   const skillsContextAgentName = "skills-context-agent";
+  const skillsContextAcknowledgement = "qa-skills-context acknowledged";
   const skillsContextFixture = path.resolve(
     path.dirname(fileURLToPath(import.meta.url)),
     "..",
@@ -839,9 +840,9 @@ test.describe("Skills marketplace management", () => {
     );
     await baselineSessionUI.composerTextarea.fill("skill context before disable");
     await baselineSessionUI.composerTextarea.press("Enter");
-    await expect(baselineSessionUI.chatView).toContainText("qa-skills-context acknowledged", {
-      timeout: 30_000,
-    });
+    await expect(
+      baselineSessionUI.chatView.getByText(skillsContextAcknowledgement, { exact: true })
+    ).toHaveCount(2, { timeout: 30_000 });
     const baselinePrompt = await promptForSession(
       runtime,
       skillsContextAgentName,
@@ -892,9 +893,9 @@ test.describe("Skills marketplace management", () => {
     );
     await disabledSessionUI.composerTextarea.fill("skill context after disable");
     await disabledSessionUI.composerTextarea.press("Enter");
-    await expect(disabledSessionUI.chatView).toContainText("qa-skills-context acknowledged", {
-      timeout: 30_000,
-    });
+    await expect(
+      disabledSessionUI.chatView.getByText(skillsContextAcknowledgement, { exact: true })
+    ).toHaveCount(2, { timeout: 30_000 });
     const disabledPrompt = await promptForSession(
       runtime,
       skillsContextAgentName,
@@ -938,9 +939,9 @@ test.describe("Skills marketplace management", () => {
     );
     await restoredSessionUI.composerTextarea.fill("skill context after enable");
     await restoredSessionUI.composerTextarea.press("Enter");
-    await expect(restoredSessionUI.chatView).toContainText("qa-skills-context acknowledged", {
-      timeout: 30_000,
-    });
+    await expect(
+      restoredSessionUI.chatView.getByText(skillsContextAcknowledgement, { exact: true })
+    ).toHaveCount(2, { timeout: 30_000 });
     const restoredPrompt = await promptForSession(
       runtime,
       skillsContextAgentName,
@@ -1145,6 +1146,9 @@ test.describe("Skills marketplace management", () => {
     await sessionUI.composerTextarea.fill(SESSION_CREATE_FIRST_MESSAGE);
     await sessionUI.composerTextarea.press("Enter");
     await waitForSeedSessionActive(runtime, session.session.id);
+    await expect(
+      sessionUI.chatView.getByText(skillsContextAcknowledgement, { exact: true })
+    ).toHaveCount(1, { timeout: 30_000 });
     return session;
   }
 

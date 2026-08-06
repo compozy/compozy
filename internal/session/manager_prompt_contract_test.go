@@ -436,6 +436,11 @@ func TestPromptFatalProcessFailureStopsSessionAndAllowsFreshResumeFallback(t *te
 		if events[1].Failure.CrashBundlePath == "" {
 			t.Fatalf("Prompt() failure = %#v, want crash bundle path", events[1].Failure)
 		}
+		closedMeta := readMeta(t, session.MetaPath())
+		if closedMeta.State != string(StateStopped) || closedMeta.Failure == nil ||
+			closedMeta.Failure.Kind != store.FailureProcess {
+			t.Fatalf("meta after prompt stream close = %#v, want stopped process failure", closedMeta)
+		}
 		publicBundle := readCrashBundleDocument(t, events[1].Failure.CrashBundlePath)
 		if publicBundle.Process == nil || publicBundle.Process.ExitCode == nil ||
 			*publicBundle.Process.ExitCode != 23 {
@@ -963,14 +968,20 @@ func TestPromptPersistsUserMessageBeforeDriverPrompt(t *testing.T) {
 	})
 
 	var storedBeforePrompt []store.SessionEvent
-	h.driver.promptHook = func(_ *fakeProcess, _ acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+	h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
 		events, err := session.recorderHandle().Query(testutil.Context(t), store.EventQuery{})
 		if err != nil {
 			return nil, err
 		}
 		storedBeforePrompt = events
 
-		ch := make(chan acp.AgentEvent)
+		ch := make(chan acp.AgentEvent, 1)
+		ch <- acp.AgentEvent{
+			Type:             acp.EventTypeDone,
+			TurnID:           req.TurnID,
+			StopReason:       string(acp.PromptStopReasonEndTurn),
+			PromptStopReason: acp.PromptStopReasonEndTurn,
+		}
 		close(ch)
 		return ch, nil
 	}
@@ -1255,6 +1266,12 @@ func TestPromptRejectsConcurrentUserPromptWithoutPersistingSecondInput(t *testin
 		go func() {
 			defer close(events)
 			if req.TurnID != "turn-1" {
+				events <- acp.AgentEvent{
+					Type:             acp.EventTypeDone,
+					TurnID:           req.TurnID,
+					StopReason:       string(acp.PromptStopReasonEndTurn),
+					PromptStopReason: acp.PromptStopReasonEndTurn,
+				}
 				return
 			}
 

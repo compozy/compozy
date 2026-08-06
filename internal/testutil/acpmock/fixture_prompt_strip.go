@@ -1,6 +1,13 @@
 package acpmock
 
-import "strings"
+import (
+	"encoding/json"
+	"strings"
+)
+
+const loopOutputContractPrefix = "Output contract:\n" +
+	"End your final message with exactly one JSON object that satisfies this output_schema " +
+	"(no other JSON object may follow it): "
 
 func canonicalUserText(prompt string) string {
 	current := strings.TrimSpace(prompt)
@@ -57,7 +64,22 @@ func stripKnownPromptAugmentation(prompt string) string {
 	next = stripLeadingDurableMemoryBlock(next)
 	next = stripLeadingUserMessageBlock(next)
 	next = stripLeadingInboundBridgePrompt(next)
+	next = stripTrailingLoopOutputContract(next)
 	return strings.TrimSpace(next)
+}
+
+func stripTrailingLoopOutputContract(prompt string) string {
+	trimmed := strings.TrimSpace(prompt)
+	marker := "\n\n" + loopOutputContractPrefix
+	markerIndex := strings.LastIndex(trimmed, marker)
+	if markerIndex < 0 {
+		return trimmed
+	}
+	schema := strings.TrimSpace(trimmed[markerIndex+len(marker):])
+	if !strings.HasPrefix(schema, "{") || !json.Valid([]byte(schema)) {
+		return trimmed
+	}
+	return strings.TrimSpace(trimmed[:markerIndex])
 }
 
 func stripLeadingPromptBlock(prompt string, open string, closeTag string) string {

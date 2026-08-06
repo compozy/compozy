@@ -120,14 +120,16 @@ func (b *toolApprovalBridge) requestSessionToolApproval(
 	}
 	approvalCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
+	requestID := toolApprovalCallID(call, view)
 
 	response, err := sessions.RequestPermission(
 		approvalCtx,
 		sessionID,
 		acp.RequestPermissionRequest{
+			Meta:      map[string]any{acp.PermissionRequestIDMetaKey: requestID},
 			SessionId: acpsdk.SessionId(sessionID),
 			ToolCall: acpsdk.ToolCallUpdate{
-				ToolCallId: acpsdk.ToolCallId(toolApprovalCallID(call, view)),
+				ToolCallId: acpsdk.ToolCallId(requestID),
 				Title:      new(toolApprovalTitle(descriptor)),
 				Kind:       new(toolApprovalKind(descriptor)),
 				RawInput:   toolApprovalRawInput(call.Input),

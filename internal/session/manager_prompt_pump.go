@@ -209,18 +209,21 @@ func (m *Manager) finishPromptPump(
 			notifier(session.ID)
 		}
 	}
-	close(out)
 	if session == nil {
+		close(out)
 		return
 	}
 	if fatalPromptFailure != nil {
 		if fatal.finalizationOwned {
 			m.finalizeSessionAfterFatalPromptFailure(lifecycleCtx, session, fatal)
+			close(out)
 			return
 		}
 		m.stopSessionAfterFatalPromptFailure(lifecycleCtx, session, fatal.failure, fatal.errorText)
+		close(out)
 		return
 	}
+	close(out)
 	m.startNextQueuedInputPrompt(session.ID)
 	m.startNextQueuedSyntheticPrompt(session.ID)
 }
