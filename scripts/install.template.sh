@@ -6,7 +6,7 @@ COSIGN_VERSION="v2.2.4"
 COSIGN_BASE_URL="https://github.com/sigstore/cosign/releases/download/${COSIGN_VERSION}"
 COSIGN_CERT_IDENTITY_REGEXP='^https://github\.com/compozy/compozy/\.github/workflows/release\.yml@refs/heads/main$'
 COSIGN_CERT_OIDC_ISSUER="https://token.actions.githubusercontent.com"
-VERSION="${COMPOZY_VERSION:-v0.3.0-beta.2}"
+VERSION="${COMPOZY_VERSION:-__COMPOZY_PINNED_VERSION__}"
 INSTALL_DIR="${COMPOZY_INSTALL_DIR:-}"
 SKIP_BOOTSTRAP="false"
 DRY_RUN="false"
@@ -27,7 +27,7 @@ Usage:
   curl -fsSL https://compozy.com/install.sh | sh -s -- [options]
 
 Options:
-  --version vX.Y.Z      Install a specific release tag instead of v0.3.0-beta.2.
+  --version vX.Y.Z      Install a specific release tag instead of __COMPOZY_PINNED_VERSION__.
   --dir PATH            Install compozy into PATH.
   --skip-bootstrap      Install the binary only; do not run compozy install.
   --dry-run             Print the resolved install plan without writing files.

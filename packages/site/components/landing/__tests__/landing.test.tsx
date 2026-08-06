@@ -295,8 +295,10 @@ describe("NetworkSection", () => {
 });
 
 describe("InstallSection", () => {
+  const goInstallCommand = "go install github.com/compozy/compozy@v9.9.9-beta.9";
+
   it("shows method-specific bootstrap steps instead of repeating hosted bootstrap", () => {
-    render(<InstallSection />);
+    render(<InstallSection goInstallCommand={goInstallCommand} />);
     const installer = screen.getByRole("tab", { name: "Installer" });
     const npm = screen.getByRole("tab", { name: "npm" });
     expect(installer).toBeDefined();
@@ -312,8 +314,16 @@ describe("InstallSection", () => {
     expect(screen.getByText("Bootstrap your CompozyOS home")).toBeDefined();
   });
 
+  it("renders the resolved pinned Go command in the Go panel", () => {
+    render(<InstallSection goInstallCommand={goInstallCommand} />);
+
+    fireEvent.click(screen.getByRole("tab", { name: "Go" }));
+
+    expect(screen.getByText(goInstallCommand)).toBeDefined();
+  });
+
   it("wires tab roles, panels, and keyboard navigation", () => {
-    render(<InstallSection />);
+    render(<InstallSection goInstallCommand={goInstallCommand} />);
 
     const installer = screen.getByRole("tab", { name: "Installer" });
     const npm = screen.getByRole("tab", { name: "npm" });

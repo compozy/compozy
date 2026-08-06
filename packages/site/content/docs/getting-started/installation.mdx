@@ -42,25 +42,24 @@ Use the verified installer for a standalone beta install on macOS or Linux:
 curl -fsSL https://compozy.com/install.sh | sh
 ```
 
-The installer targets `v0.3.0-beta.2`, downloads a pinned temporary cosign verifier when `cosign`
-is not already on `PATH`, downloads the matching GitHub release archive, verifies `checksums.txt`
-against `checksums.txt.sigstore.json`, verifies the archive checksum, installs `compozy`, runs
-`compozy version`, and opens `compozy install` when an interactive terminal is available.
+The installer pins the latest published beta (currently <CurrentReleaseTag />), downloads a pinned
+temporary cosign verifier when `cosign` is not already on `PATH`, downloads the matching GitHub
+release archive, verifies `checksums.txt` against `checksums.txt.sigstore.json`, verifies the
+archive checksum, installs `compozy`, runs `compozy version`, and opens `compozy install` when an
+interactive terminal is available.
 
 Use flags when you need a pinned or scripted install:
 
+<InstallCommand method="curl-pinned" />
+
 ```bash
-curl -fsSL https://compozy.com/install.sh | sh -s -- --version v0.3.0-beta.2 --dir "$HOME/.local/bin"
 curl -fsSL https://compozy.com/install.sh | sh -s -- --skip-bootstrap
 curl -fsSL https://compozy.com/install.sh | sh -s -- --dry-run
 ```
 
 Environment variables are equivalent for automation:
 
-```bash
-curl -fsSL https://compozy.com/install.sh |
-  COMPOZY_VERSION=v0.3.0-beta.2 COMPOZY_INSTALL_DIR="$HOME/.local/bin" COMPOZY_SKIP_BOOTSTRAP=1 sh
-```
+<InstallCommand method="curl-env" />
 
 If the target directory is not on your `PATH`, the installer prints the exact directory to add.
 
@@ -74,11 +73,9 @@ npm install -g @compozy/cli@beta
 
 ### Option 3: explicit Go beta
 
-Go's `@latest` still resolves the v0.2 stable line during beta. Pin the v0.3 prerelease:
+Go's `@latest` still resolves the v0.2 stable line during beta. Pin the current v0.3 prerelease:
 
-```bash
-go install github.com/compozy/compozy@v0.3.0-beta.2
-```
+<InstallCommand method="go" />
 
 ### Option 4: Linux packages
 
@@ -136,8 +133,8 @@ bounded repair. Pass `--workspace <id|name|path>` only to override the inferred 
 `compozy update` keeps a beta install on newer v0.3 prereleases and never offers the v0.2 stable
 line. Use `compozy update --check` for a status-only check. Managed installs defer to their package
 manager and return the beta-safe command instead of mutating files directly:
-`npm install -g @compozy/cli@beta`, the hosted installer, or
-`go install github.com/compozy/compozy@v0.3.0-beta.2`. Homebrew guidance returns only after the
+`npm install -g @compozy/cli@beta`, the hosted installer, or the pinned `go install` command for
+the current beta (<CurrentReleaseTag />). Homebrew guidance returns only after the
 formula ships v0.3.0 stable. Windows direct-binary installs remain manual in this first cut.
 `compozy uninstall` removes runtime launch artifacts idempotently and preserves `~/.compozy` unless
 you explicitly pass `--purge --force`.

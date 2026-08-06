@@ -52,12 +52,13 @@ surfaces.
 
 ## 📦 Installation
 
-The documented beta is `v0.3.0-beta.2`. Homebrew continues to serve the deprecated v0.2 line during
-the beta window and is intentionally omitted here. The `compozy` formula returns with v0.3.0 stable.
+The v0.3 beta ships through the channels below. Homebrew continues to serve the deprecated v0.2 line
+during the beta window and is intentionally omitted here. The `compozy` formula returns with v0.3.0
+stable.
 
 #### Verified installer
 
-The installer targets the documented beta and verifies Sigstore provenance before installing the
+The installer pins the latest published beta and verifies Sigstore provenance before installing the
 binary on macOS or Linux.
 
 ```bash
@@ -72,10 +73,11 @@ npm install -g @compozy/cli@beta
 
 #### Go
 
-Go's `@latest` still resolves the v0.2 stable line while v0.3 is in beta, so use the explicit version:
+Go's `@latest` still resolves the v0.2 stable line while v0.3 is in beta, so install with the
+explicit tag shown on the [latest release](https://github.com/compozy/compozy/releases/latest):
 
 ```bash
-go install github.com/compozy/compozy@v0.3.0-beta.2
+go install github.com/compozy/compozy@<release-tag>
 ```
 
 #### From Source

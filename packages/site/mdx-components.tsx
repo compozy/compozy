@@ -11,6 +11,7 @@ import {
 import { GroupIndex, GroupRow } from "@/components/docs/group-index";
 import { Mermaid } from "@/components/docs/mermaid";
 import { PathCard, PathGrid, PathLink } from "@/components/docs/path-grid";
+import { CurrentReleaseTag, InstallCommand } from "@/components/docs/release-install";
 import {
   OpenAPIPage as OpenAPIPageClient,
   type OpenAPIPageProps_Preloaded,
@@ -36,6 +37,8 @@ export function getMDXComponents(openapiPreload?: OpenAPIPagePreload) {
     ...defaultMdxComponents,
     OpenAPIPage,
     APIPage: OpenAPIPage,
+    CurrentReleaseTag,
+    InstallCommand,
     Mermaid,
     GroupIndex,
     GroupRow,

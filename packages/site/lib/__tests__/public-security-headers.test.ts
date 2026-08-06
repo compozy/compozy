@@ -84,14 +84,8 @@ describe("public security headers", () => {
     );
   });
 
-  it("keeps install.sh served as a short-lived plain-text script", () => {
-    const installHeaders = headersByRoute().get("/install.sh");
-    expect(installHeaders).toBeDefined();
-    expect(installHeaders?.get("Content-Type")).toBe("text/plain; charset=utf-8");
-    expect(installHeaders?.get("Cache-Control")).toBe("public, max-age=300, must-revalidate");
-    expect(installHeaders?.has("Content-Security-Policy")).toBe(false);
-    expect(installHeaders?.has("X-Content-Type-Options")).toBe(false);
-  });
+  // install.sh is no longer a static asset: the /install.sh route renders the
+  // installer and owns its headers, asserted in public-install-contract.test.ts.
 
   it("declares content types for static export assets without reliable local inference", () => {
     const openGraphHeaders = headersByRoute().get("/opengraph-image");

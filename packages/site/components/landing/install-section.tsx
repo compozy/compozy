@@ -9,26 +9,30 @@ import { SectionHeader } from "./primitives/section-header";
 
 type TabId = "installer" | "npm" | "go";
 
-const INSTALL_TABS: { id: TabId; label: string; command: string; note: string }[] = [
-  {
-    id: "installer",
-    label: "Installer",
-    command: "curl -fsSL https://compozy.com/install.sh | sh",
-    note: "Verified beta · Sigstore provenance · opens bootstrap on an interactive terminal",
-  },
-  {
-    id: "npm",
-    label: "npm",
-    command: "npm install -g @compozy/cli@beta",
-    note: "Beta channel · Node package · managed updates",
-  },
-  {
-    id: "go",
-    label: "Go",
-    command: "go install github.com/compozy/compozy@v0.3.0-beta.2",
-    note: "Pinned beta · requires Go · builds from the public module",
-  },
-];
+type InstallTab = { id: TabId; label: string; command: string; note: string };
+
+function installTabs(goInstallCommand: string): InstallTab[] {
+  return [
+    {
+      id: "installer",
+      label: "Installer",
+      command: "curl -fsSL https://compozy.com/install.sh | sh",
+      note: "Verified beta · Sigstore provenance · opens bootstrap on an interactive terminal",
+    },
+    {
+      id: "npm",
+      label: "npm",
+      command: "npm install -g @compozy/cli@beta",
+      note: "Beta channel · Node package · managed updates",
+    },
+    {
+      id: "go",
+      label: "Go",
+      command: goInstallCommand,
+      note: "Pinned beta · requires Go · builds from the public module",
+    },
+  ];
+}
 
 type InstallStep = {
   title: string;
@@ -69,8 +73,9 @@ function getPanelId(id: TabId) {
   return `install-panel-${id}`;
 }
 
-export function InstallSection() {
+export function InstallSection({ goInstallCommand }: { goInstallCommand: string }) {
   const [tab, setTab] = useState<TabId>("installer");
+  const tabs = installTabs(goInstallCommand);
 
   function selectTab(next: TabId) {
     setTab(next);
@@ -78,7 +83,7 @@ export function InstallSection() {
   }
 
   function handleTabKeyDown(event: KeyboardEvent<HTMLButtonElement>, current: TabId) {
-    const index = INSTALL_TABS.findIndex(item => item.id === current);
+    const index = tabs.findIndex(item => item.id === current);
     if (index === -1) {
       return;
     }
@@ -86,23 +91,23 @@ export function InstallSection() {
     switch (event.key) {
       case "ArrowRight": {
         event.preventDefault();
-        const next = INSTALL_TABS[(index + 1) % INSTALL_TABS.length];
+        const next = tabs[(index + 1) % tabs.length];
         selectTab(next.id);
         return;
       }
       case "ArrowLeft": {
         event.preventDefault();
-        const next = INSTALL_TABS[(index - 1 + INSTALL_TABS.length) % INSTALL_TABS.length];
+        const next = tabs[(index - 1 + tabs.length) % tabs.length];
         selectTab(next.id);
         return;
       }
       case "Home":
         event.preventDefault();
-        selectTab(INSTALL_TABS[0].id);
+        selectTab(tabs[0].id);
         return;
       case "End":
         event.preventDefault();
-        selectTab(INSTALL_TABS[INSTALL_TABS.length - 1].id);
+        selectTab(tabs[tabs.length - 1].id);
         return;
       default:
         return;
@@ -124,7 +129,7 @@ export function InstallSection() {
           aria-label="Install methods"
           className="flex flex-wrap gap-1 rounded-md border border-line bg-canvas p-1"
         >
-          {INSTALL_TABS.map(t => (
+          {tabs.map(t => (
             <button
               key={t.id}
               type="button"
@@ -149,7 +154,7 @@ export function InstallSection() {
           ))}
         </div>
 
-        {INSTALL_TABS.map(t => (
+        {tabs.map(t => (
           <div
             key={t.id}
             id={getPanelId(t.id)}

@@ -58,8 +58,8 @@ function expectNoSkippedHeadingLevels(): void {
 }
 
 describe("public heading hierarchy", () => {
-  it("keeps the landing page to one primary heading", () => {
-    render(<HomePage />);
+  it("keeps the landing page to one primary heading", async () => {
+    render(await HomePage());
 
     // The h1 is the locked launch headline (COPY.md §2). Section h2 copy is owned by
     // components/landing/__tests__/landing.test.tsx; this suite owns the hierarchy itself,

@@ -5,10 +5,11 @@
     "type": "module",
     "scripts": {
         "generate:openapi": "bun run scripts/generate-openapi.ts",
+        "generate:install": "bun run scripts/generate-install-template.ts",
         "source:generate": "bun --bun fumadocs-mdx source.config.ts .source",
         "content:generate": "bun --bun velite build",
         "generate:content": "bun run source:generate && bun run content:generate",
-        "generate": "bun run generate:openapi && bun run generate:content",
+        "generate": "bun run generate:openapi && bun run generate:install && bun run generate:content",
         "predev": "bun run generate",
         "prebuild": "bun run generate",
         "dev": "next dev",

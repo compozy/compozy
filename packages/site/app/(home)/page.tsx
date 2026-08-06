@@ -13,6 +13,8 @@ import {
   SupportedAgents,
 } from "@/components/landing";
 import { WebSiteJsonLd } from "@/components/seo/structured-data";
+import { getCurrentRelease } from "@/lib/release/current-release";
+import { goInstallCommand } from "@/lib/release/install-commands";
 import { createPageMetadata, siteConfig } from "@/lib/site-config";
 import type { Metadata } from "next";
 
@@ -29,7 +31,8 @@ export const metadata: Metadata = {
   },
 };
 
-export default function HomePage() {
+export default async function HomePage() {
+  const release = await getCurrentRelease();
   return (
     <>
       <WebSiteJsonLd />
@@ -42,7 +45,7 @@ export default function HomePage() {
       <SupportedAgents />
       <NetworkSection />
       <BridgesSection />
-      <InstallSection />
+      <InstallSection goInstallCommand={goInstallCommand(release.tag)} />
       <Comparison />
       <FinalCta />
     </>

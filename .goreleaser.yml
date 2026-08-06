@@ -25,6 +25,7 @@ before:
     - go run github.com/magefile/mage@v1.17.2 daytonaSidecarsCheck
     - go run github.com/magefile/mage@v1.17.2 webBuild
     - go run github.com/magefile/mage@v1.17.2 webAssetsCheck
+    - bash scripts/render-install-script.sh {{ .Tag }} .artifacts/install.sh
 
 builds:
   - id: compozy
@@ -186,7 +187,7 @@ release:
   prerelease: auto
   make_latest: "{{ .Env.GITHUB_MAKE_LATEST }}"
   extra_files:
-    - glob: ./packages/site/public/install.sh
+    - glob: ./.artifacts/install.sh
       name_template: install.sh
 
 sboms:

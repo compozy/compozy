@@ -4,7 +4,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -78,6 +77,9 @@ func TestGoReleaserConfigPreservesTrustArtifactsAndPackageTargets(t *testing.T) 
 		if !stringSliceContains(hooks, "go run github.com/magefile/mage@v1.17.2 webAssetsCheck") {
 			t.Fatalf("before.hooks = %#v, want webAssetsCheck before GoReleaser builds binaries", hooks)
 		}
+		if !stringSliceContains(hooks, "bash scripts/render-install-script.sh {{ .Tag }} .artifacts/install.sh") {
+			t.Fatalf("before.hooks = %#v, want the installer rendered with the release tag", hooks)
+		}
 	})
 
 	t.Run("Should publish stable archives and curl installer asset", func(t *testing.T) {
@@ -115,7 +117,7 @@ func TestGoReleaserConfigPreservesTrustArtifactsAndPackageTargets(t *testing.T) 
 		}
 
 		extraFiles := sliceAt(t, release, "extra_files")
-		assertReleaseExtraFile(t, extraFiles, "./packages/site/public/install.sh", "install.sh")
+		assertReleaseExtraFile(t, extraFiles, "./.artifacts/install.sh", "install.sh")
 	})
 
 	t.Run("Should keep Homebrew publishing outside deprecated GoReleaser targets", func(t *testing.T) {
@@ -250,7 +252,7 @@ func TestGoReleaserArchivesStayAlignedWithPublicInstaller(t *testing.T) {
 
 	root := findRepoRootForReleaseConfigTest(t)
 	goreleaser := readYAMLMap(t, root, ".goreleaser.yml")
-	installScript := readTextFile(t, root, filepath.Join("packages", "site", "public", "install.sh"))
+	installScript := readTextFile(t, root, filepath.Join("scripts", "install.template.sh"))
 
 	projectName := stringAt(t, goreleaser, "project_name")
 	assertEqualString(t, "goreleaser project_name", projectName, "compozy")
@@ -308,18 +310,12 @@ func TestGoReleaserArchivesStayAlignedWithPublicInstaller(t *testing.T) {
 	if !strings.Contains(installScript, `TARGET="${INSTALL_DIR}/compozy"`) {
 		t.Fatalf("install.sh must install the same binary name GoReleaser builds")
 	}
-	t.Run("Should use a complete beta semantic version as the installer default", func(t *testing.T) {
+	t.Run("Should default to the rendered placeholder pin with COMPOZY_VERSION override", func(t *testing.T) {
 		t.Parallel()
 
 		installerVersion := shellAssignment(t, installScript, "VERSION")
-		betaVersion := regexp.MustCompile(
-			`^\$\{COMPOZY_VERSION:-v(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)-beta\.(?:0|[1-9][0-9]*)\}$`,
-		)
-		if !betaVersion.MatchString(installerVersion) {
-			t.Fatalf(
-				"installer VERSION = %q, want a complete beta semver default with COMPOZY_VERSION override",
-				installerVersion,
-			)
+		if got, want := installerVersion, "${COMPOZY_VERSION:-__COMPOZY_PINNED_VERSION__}"; got != want {
+			t.Fatalf("installer template VERSION = %q, want %q", got, want)
 		}
 	})
 	assertNotContainsText(t, "installer", installScript, "resolve_latest_release_tag")
@@ -673,13 +669,32 @@ func newReleasePreflightFixture(t *testing.T) (string, string) {
 	t.Helper()
 
 	repo := t.TempDir()
+	root := findRepoRootForReleaseConfigTest(t)
+	installTemplate := "#!/bin/sh\n" +
+		"VERSION=\"${COMPOZY_VERSION:-__COMPOZY_PINNED_VERSION__}\"\n" +
+		"COSIGN_VERSION=\"v2.2.4\"\n" +
+		"# checksums.txt.sigstore.json\n" +
+		"# refs/heads/main\n"
+	goreleaserConfig := "before:\n" +
+		"  hooks:\n" +
+		"    - bash scripts/render-install-script.sh {{ .Tag }} .artifacts/install.sh\n" +
+		"release:\n" +
+		"  extra_files:\n" +
+		"    - glob: ./.artifacts/install.sh\n" +
+		"signs:\n" +
+		"  - args:\n" +
+		"      - \"--bundle=${signature}\"\n" +
+		"npms:\n" +
+		"  - name: \"@compozy/cli\"\n"
 	files := map[string]string{
 		"RELEASE_BODY.md":                    "# Release body\n",
 		"RELEASE_NOTES.md":                   "# Release notes\n",
 		".goreleaser.release-header.md.tmpl": "# Header\n",
 		".goreleaser.release-footer.md.tmpl": "# Footer\n",
-		"packages/site/public/install.sh":    "#!/bin/sh\nCOSIGN_VERSION=\"v2.2.4\"\n# checksums.txt.sigstore.json\n# refs/heads/main\n",
-		".goreleaser.yml":                    "release:\n  extra_files:\n    - glob: ./packages/site/public/install.sh\nsigns:\n  - args:\n      - \"--bundle=${signature}\"\nnpms:\n  - name: \"@compozy/cli\"\n",
+		"scripts/install.template.sh":        installTemplate,
+		// The preflight executes the real renderer against the fixture template.
+		"scripts/render-install-script.sh": readTextFile(t, root, filepath.Join("scripts", "render-install-script.sh")),
+		".goreleaser.yml":                  goreleaserConfig,
 	}
 	for path, contents := range files {
 		target := filepath.Join(repo, path)

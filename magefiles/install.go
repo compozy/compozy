@@ -15,12 +15,26 @@ import (
 	"github.com/magefile/mage/sh"
 )
 
+// InstallerCheck renders the installer template with a throwaway tag and
+// verifies the rendered script parses and completes a dry run. The template
+// itself never ships: goreleaser bakes the release tag into each release
+// asset and the site route bakes in the latest published release.
 func InstallerCheck() error {
-	installer := filepath.Join("packages", "site", "public", "install.sh")
-	if err := sh.RunV("sh", "-n", installer); err != nil {
+	template := filepath.Join("scripts", "install.template.sh")
+	if err := sh.RunV("sh", "-n", template); err != nil {
 		return err
 	}
-	return sh.RunV("sh", installer, "--dry-run", "--skip-bootstrap")
+	tmpDir, err := os.MkdirTemp("", "compozy-installer-check-")
+	if err != nil {
+		return fmt.Errorf("create installer check dir: %w", err)
+	}
+	defer os.RemoveAll(tmpDir)
+	rendered := filepath.Join(tmpDir, "install.sh")
+	renderScript := filepath.Join("scripts", "render-install-script.sh")
+	if err := sh.RunV("bash", renderScript, "v9.9.9-beta.9", rendered); err != nil {
+		return err
+	}
+	return sh.RunV("sh", rendered, "--dry-run", "--skip-bootstrap")
 }
 
 func ReleaseInstallCheck() error {

@@ -5,10 +5,6 @@
   X-Frame-Options: DENY
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
 
-/install.sh
-  Content-Type: text/plain; charset=utf-8
-  Cache-Control: public, max-age=300, must-revalidate
-
 /opengraph-image
   Content-Type: image/png
 

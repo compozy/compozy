@@ -8,6 +8,7 @@
 .tanstack/
 bin/
 dist/
+.artifacts/
 web/embed/
 storybook-static/
 coverage.out

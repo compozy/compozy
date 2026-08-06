@@ -40,8 +40,15 @@
                 "content/docs/api/meta.json"
             ]
         },
+        "@compozy/site#generate:install": {
+            "inputs": [
+                "scripts/generate-install-template.ts",
+                "$TURBO_ROOT$/scripts/install.template.sh"
+            ],
+            "outputs": ["lib/install/template-content.ts"]
+        },
         "@compozy/site#generate:content": {
-            "dependsOn": ["generate:openapi"],
+            "dependsOn": ["generate:openapi", "generate:install"],
             "inputs": [
                 "$TURBO_DEFAULT$",
                 "!content/docs/api/meta.json",

@@ -17,17 +17,20 @@ Back up your global and workspace `.compozy/` directories before changing instal
 
 ## 1. Command map
 
-Install v0.3.0-beta.2 through one of the beta paths. Homebrew still serves v0.2 during the beta
-window and is therefore not an upgrade path.
+Install the current v0.3 beta through one of the beta paths. Homebrew still serves v0.2 during the
+beta window and is therefore not an upgrade path.
 
 ```bash
 npm install -g @compozy/cli@beta
 
-curl -fsSL https://compozy.com/install.sh | \
-  sh -s -- --version v0.3.0-beta.2
+curl -fsSL https://compozy.com/install.sh | sh
 
-go install github.com/compozy/compozy@v0.3.0-beta.2
+go install github.com/compozy/compozy@<release-tag>
 ```
+
+The hosted installer pins the latest published beta for you. For `go install`, copy the exact
+pinned tag from the [latest release](https://github.com/compozy/compozy/releases/latest) notes;
+Go's `@latest` still resolves the deprecated v0.2 line during the beta.
 
 Workspace-scoped v0.3 commands infer the active workspace in this order: positional workspace ref,
 `--workspace`, `COMPOZY_WORKSPACE`, validated session identity, then the current working directory.

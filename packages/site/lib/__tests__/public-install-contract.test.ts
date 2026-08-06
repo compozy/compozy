@@ -5,27 +5,43 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { basename, join, relative, resolve } from "node:path";
 import { spawn, spawnSync } from "node:child_process";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { GET as getInstallScriptRoute } from "../../app/install.sh/route";
 import { siteRoot } from "../content-test-utils";
+import { INSTALL_SCRIPT_TEMPLATE } from "../install/template-content";
+import { INSTALL_VERSION_PLACEHOLDER, renderInstallScript } from "../install/render-install-script";
+import {
+  NPM_INSTALL_COMMAND,
+  VERIFIED_INSTALLER_COMMAND,
+  curlEnvInstallCommand,
+  curlPinnedInstallCommand,
+  goInstallCommand,
+} from "../release/install-commands";
 
-const publicRoot = resolve(siteRoot, "public");
-const installScriptPath = resolve(publicRoot, "install.sh");
-const headersPath = resolve(publicRoot, "_headers");
+vi.mock("../release/current-release", () => ({
+  getCurrentRelease: vi.fn(async () => ({ tag: "v9.9.9-beta.9", source: "github" as const })),
+}));
+
+const repoRoot = resolve(siteRoot, "..", "..");
+const installTemplatePath = resolve(repoRoot, "scripts/install.template.sh");
+const renderScriptPath = resolve(repoRoot, "scripts/render-install-script.sh");
 const installPagePath = resolve(siteRoot, "content/docs/getting-started/installation.mdx");
+const migrationPagePath = resolve(siteRoot, "content/docs/migration/index.mdx");
 const launchPostPath = resolve(siteRoot, "content/blog/posts/introducing-compozyos.mdx");
 const landingInstallPath = resolve(siteRoot, "components/landing/install-section.tsx");
-const readmePath = resolve(siteRoot, "../../README.md");
-const releaseHeaderPath = resolve(siteRoot, "../../.goreleaser.release-header.md.tmpl");
-const releaseFooterPath = resolve(siteRoot, "../../.goreleaser.release-footer.md.tmpl");
-const cliffPath = resolve(siteRoot, "../../cliff.toml");
+const readmePath = resolve(repoRoot, "README.md");
+const rootMigrationGuidePath = resolve(repoRoot, "MIGRATION_GUIDE.md");
+const homebrewNoticePath = resolve(repoRoot, "docs/release/homebrew-beta-notice.md");
+const releaseHeaderPath = resolve(repoRoot, ".goreleaser.release-header.md.tmpl");
+const releaseFooterPath = resolve(repoRoot, ".goreleaser.release-footer.md.tmpl");
+const cliffPath = resolve(repoRoot, "cliff.toml");
 
-const betaVersion = "v0.3.0-beta.2";
-const npmInstallCommand = "npm install -g @compozy/cli@beta";
-const goInstallCommand = `go install github.com/compozy/compozy@${betaVersion}`;
-const verifiedInstallerCommand = "curl -fsSL https://compozy.com/install.sh | sh";
+const resolvedRouteTag = "v9.9.9-beta.9";
+const renderedTestTag = "v9.9.9";
 const sourceInstallCommand = "go build -o ./bin/compozy .";
 const firstSessionCommand = "compozy session new --agent general --name first-run";
 const historicalLaunchBeta = "v0.3.0-beta.1";
+const latestReleaseUrl = "https://github.com/compozy/compozy/releases/latest";
 const installOptions = ["--version", "--dir", "--skip-bootstrap", "--dry-run", "--help"];
 const installEnvVars = ["COMPOZY_VERSION", "COMPOZY_INSTALL_DIR", "COMPOZY_SKIP_BOOTSTRAP"];
 const cosignVersion = "v2.2.4";
@@ -36,7 +52,7 @@ const cosignDigests = {
   "linux/arm64": "658087351e1d4f9c396b5f59ee5437461c06128f4ce80ba899ccaa1c0b6a8a62",
 } as const;
 const installerReleaseGuaranteeSnippets = [
-  verifiedInstallerCommand,
+  VERIFIED_INSTALLER_COMMAND,
   "Requires:",
   "curl, tar, and sha256sum or shasum.",
   "Uses local cosign when available; otherwise downloads a pinned temporary cosign verifier.",
@@ -84,19 +100,37 @@ const ttyOpenProbePattern =
   /^\s*(?:if|elif)\s+!?\s*[^\n]*<\s*\/dev\/tty[^\n]*>\s*\/dev\/tty[^\n]*;\s*then/m;
 const credentialEnvPattern =
   /(?:API_?KEY|ACCESS_KEY|PRIVATE_KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTH|COOKIE|SESSION)|_KEY$/i;
+const pinnedBetaLiteralPattern = /-beta\.\d/;
 type InstallEnv = Record<string, string | undefined>;
 
 function readSiteFile(path: string): string {
   return readFileSync(path, "utf8");
 }
 
+function readInstallTemplate(): string {
+  return readSiteFile(installTemplatePath);
+}
+
+function writeRenderedInstallScript(root: string, tag: string): string {
+  const scriptPath = join(root, "install.sh");
+  writeFileSync(scriptPath, renderInstallScript(readInstallTemplate(), tag), "utf8");
+  chmodSync(scriptPath, 0o755);
+  return scriptPath;
+}
+
 function runInstallScript(args: string[]) {
-  const installDir = mkdtempSync(resolve(tmpdir(), "compozy-install-contract-"));
-  return spawnSync("sh", [installScriptPath, ...args, "--dir", installDir], {
-    cwd: siteRoot,
-    encoding: "utf8",
-    env: hermeticInstallEnv(),
-  });
+  const root = mkdtempSync(resolve(tmpdir(), "compozy-install-contract-"));
+  try {
+    const scriptPath = writeRenderedInstallScript(root, renderedTestTag);
+    const installDir = join(root, "bin");
+    return spawnSync("sh", [scriptPath, ...args, "--dir", installDir], {
+      cwd: siteRoot,
+      encoding: "utf8",
+      env: hermeticInstallEnv(),
+    });
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 }
 
 function currentInstallPlatform() {
@@ -253,8 +287,8 @@ function blocksHermeticInstallEnv(key: string): boolean {
 }
 
 describe("public install contract", () => {
-  it("keeps the install script safe for the public curl entrypoint", () => {
-    const script = readSiteFile(installScriptPath);
+  it("keeps the installer template safe for the public curl entrypoint", () => {
+    const script = readInstallTemplate();
     const downloadIndex = script.indexOf('curl -fsSL "$ARCHIVE_URL" -o "$ARCHIVE_PATH"');
     const checksumDownloadIndex = script.indexOf('curl -fsSL "$CHECKSUM_URL" -o "$CHECKSUM_PATH"');
     const bundleDownloadIndex = script.indexOf('curl -fsSL "$BUNDLE_URL" -o "$BUNDLE_PATH"');
@@ -277,7 +311,7 @@ describe("public install contract", () => {
     expect(script).toContain(
       "COSIGN_CERT_IDENTITY_REGEXP='^https://github\\.com/compozy/compozy/\\.github/workflows/release\\.yml@refs/heads/main$'"
     );
-    expect(script).toContain(`VERSION="\${COMPOZY_VERSION:-${betaVersion}}"`);
+    expect(script).toContain(`VERSION="\${COMPOZY_VERSION:-${INSTALL_VERSION_PLACEHOLDER}}"`);
     expect(script).toContain("v[0-9][A-Za-z0-9._-]*)");
     expect(script).toContain(
       'COSIGN_CERT_OIDC_ISSUER="https://token.actions.githubusercontent.com"'
@@ -305,13 +339,62 @@ describe("public install contract", () => {
     expect(extractIndex).toBeGreaterThan(checksumVerifyIndex);
   });
 
+  it("renders the template with an explicit tag and rejects unsafe tags", () => {
+    const template = readInstallTemplate();
+    const rendered = renderInstallScript(template, "v1.2.3-beta.4");
+
+    expect(rendered).toContain('VERSION="${COMPOZY_VERSION:-v1.2.3-beta.4}"');
+    expect(rendered).toContain("Install a specific release tag instead of v1.2.3-beta.4.");
+    expect(rendered).not.toContain(INSTALL_VERSION_PLACEHOLDER);
+
+    for (const tag of ["latest", "1.2.3", "v1.2", "v1.2.3;echo pwned", "v1.2.3 --flag", ""]) {
+      expect(() => renderInstallScript(template, tag), tag).toThrow(
+        /release tag must be a v-prefixed semver tag/
+      );
+    }
+    expect(() => renderInstallScript("#!/bin/sh\n", "v1.2.3")).toThrow(/missing placeholder/);
+  });
+
+  it("renders identical scripts through the TypeScript and shell renderers", () => {
+    const root = mkdtempSync(resolve(tmpdir(), "compozy-install-render-parity-"));
+    try {
+      const outputPath = join(root, "install.sh");
+      const result = spawnSync("bash", [renderScriptPath, resolvedRouteTag, outputPath], {
+        encoding: "utf8",
+      });
+
+      expect(result.status, result.stderr || result.stdout).toBe(0);
+      expect(readFileSync(outputPath, "utf8")).toBe(
+        renderInstallScript(readInstallTemplate(), resolvedRouteTag)
+      );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("serves the rendered installer with script-safe headers from /install.sh", async () => {
+    const response = await getInstallScriptRoute();
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toBe("text/plain; charset=utf-8");
+    expect(response.headers.get("Cache-Control")).toBe("public, max-age=300, must-revalidate");
+    expect(response.headers.get("X-Content-Type-Options")).toBe("nosniff");
+    expect(body).toBe(renderInstallScript(INSTALL_SCRIPT_TEMPLATE, resolvedRouteTag));
+    expect(body).toContain(`VERSION="\${COMPOZY_VERSION:-${resolvedRouteTag}}"`);
+    expect(body).not.toContain(INSTALL_VERSION_PLACEHOLDER);
+    expect(body).not.toContain("releases/latest");
+  });
+
   it("keeps documented installer options executable in dry-run mode", () => {
     const help = runInstallScript(["--help"]);
-    const dryRun = runInstallScript(["--dry-run", "--skip-bootstrap", "--version", "v0.1.0"]);
+    const defaultDryRun = runInstallScript(["--dry-run", "--skip-bootstrap"]);
+    const pinnedDryRun = runInstallScript(["--dry-run", "--skip-bootstrap", "--version", "v0.1.0"]);
     const badOption = runInstallScript(["--not-a-real-option"]);
 
     expect(help.status).toBe(0);
-    expect(help.stdout).toContain(verifiedInstallerCommand);
+    expect(help.stdout).toContain(VERIFIED_INSTALLER_COMMAND);
+    expect(help.stdout).toContain(`instead of ${renderedTestTag}.`);
     for (const option of installOptions) {
       expect(help.stdout, option).toContain(option);
     }
@@ -319,22 +402,26 @@ describe("public install contract", () => {
       expect(help.stdout, envVar).toContain(envVar);
     }
 
-    expect(dryRun.status).toBe(0);
-    expect(dryRun.stdout).toContain("Compozy installer");
-    expect(dryRun.stdout).toContain("release: compozy/compozy v0.1.0");
-    expect(dryRun.stdout).toContain(
+    expect(defaultDryRun.status).toBe(0);
+    expect(defaultDryRun.stdout).toContain(`release: compozy/compozy ${renderedTestTag}`);
+    expect(defaultDryRun.stdout).toContain("dry run complete");
+
+    expect(pinnedDryRun.status).toBe(0);
+    expect(pinnedDryRun.stdout).toContain("Compozy installer");
+    expect(pinnedDryRun.stdout).toContain("release: compozy/compozy v0.1.0");
+    expect(pinnedDryRun.stdout).toContain(
       "archive: https://github.com/compozy/compozy/releases/download/v0.1.0/"
     );
-    expect(dryRun.stdout).toContain("bootstrap: skipped");
-    expect(dryRun.stdout).toContain("dry run complete");
-    expect(dryRun.stderr).toBe("");
+    expect(pinnedDryRun.stdout).toContain("bootstrap: skipped");
+    expect(pinnedDryRun.stdout).toContain("dry run complete");
+    expect(pinnedDryRun.stderr).toBe("");
 
     expect(badOption.status).not.toBe(0);
     expect(badOption.stderr).toContain("unknown option: --not-a-real-option");
   });
 
   it("keeps public installer release guarantees and recovery text in source", () => {
-    const script = readSiteFile(installScriptPath);
+    const script = readInstallTemplate();
 
     for (const snippet of installerReleaseGuaranteeSnippets) {
       expect(script, snippet).toContain(snippet);
@@ -374,7 +461,7 @@ describe("public install contract", () => {
       ]);
 
       await withFixtureServer(routes, async baseURL => {
-        const script = readSiteFile(installScriptPath)
+        const script = renderInstallScript(readInstallTemplate(), renderedTestTag)
           .replace(
             'COSIGN_BASE_URL="https://github.com/sigstore/cosign/releases/download/${COSIGN_VERSION}"',
             'COSIGN_BASE_URL="' + baseURL + "/cosign/" + cosignVersion + '"'
@@ -436,47 +523,77 @@ describe("public install contract", () => {
   });
 
   it("opens the tty before starting interactive bootstrap", () => {
-    const script = readSiteFile(installScriptPath);
+    const script = readInstallTemplate();
 
     expect(script).not.toMatch(ttyPermissionProbePattern);
     expect(script).toMatch(ttyOpenProbePattern);
   });
 
-  it("serves install.sh with script-safe headers", () => {
-    const headers = readSiteFile(headersPath);
-    const installHeaderBlock = headers.match(/\/install\.sh\n([\s\S]*?)(?:\n\n|$)/)?.[1] ?? "";
+  it("keeps hand-maintained install surfaces free of pinned prerelease literals", () => {
+    const guardedPaths = [
+      installTemplatePath,
+      readmePath,
+      rootMigrationGuidePath,
+      installPagePath,
+      migrationPagePath,
+      landingInstallPath,
+      homebrewNoticePath,
+      releaseHeaderPath,
+      releaseFooterPath,
+    ];
 
-    expect(installHeaderBlock).toContain("Content-Type: text/plain; charset=utf-8");
-    expect(installHeaderBlock).toContain("Cache-Control: public, max-age=300, must-revalidate");
-    expect(headers).toContain("X-Content-Type-Options: nosniff");
-    expect(headers).toContain("Content-Security-Policy:");
+    const offenders = guardedPaths
+      .filter(path => pinnedBetaLiteralPattern.test(readSiteFile(path)))
+      .map(path => relative(repoRoot, path));
+    expect(offenders).toEqual([]);
   });
 
-  it("keeps living install surfaces on the latest published beta", () => {
+  it("keeps living install surfaces on the dynamic release contract", () => {
     const installPage = readSiteFile(installPagePath);
     const launchPost = readSiteFile(launchPostPath);
+    const readme = readSiteFile(readmePath);
+    const landing = readSiteFile(landingInstallPath);
 
-    for (const command of [verifiedInstallerCommand, npmInstallCommand, goInstallCommand]) {
+    for (const command of [VERIFIED_INSTALLER_COMMAND, NPM_INSTALL_COMMAND]) {
       const missingPrimaryCommand = [readmePath, landingInstallPath, installPagePath]
         .filter(path => !readSiteFile(path).includes(command))
-        .map(path => relative(siteRoot, path));
+        .map(path => relative(repoRoot, path));
       expect(missingPrimaryCommand, command).toEqual([]);
     }
 
-    expect(installPage).toContain(verifiedInstallerCommand);
+    for (const method of ["curl-pinned", "curl-env", "go"]) {
+      expect(installPage, method).toContain(`<InstallCommand method="${method}" />`);
+    }
+    expect(installPage).toContain("<CurrentReleaseTag />");
     expect(installPage).toContain(sourceInstallCommand);
-    expect(readSiteFile(readmePath)).toContain(firstSessionCommand);
-    expect(readSiteFile(landingInstallPath)).toContain(firstSessionCommand);
-    expect(launchPost).toContain(`records ${historicalLaunchBeta}`);
-    expect(launchPost).toContain("[installation guide](/docs/getting-started/installation)");
-    for (const option of installOptions.slice(0, -1)) {
-      expect(installPage, option).toContain(option);
-    }
-    for (const envVar of ["COMPOZY_VERSION", "COMPOZY_INSTALL_DIR", "COMPOZY_SKIP_BOOTSTRAP"]) {
-      expect(installPage, envVar).toContain(envVar);
-    }
     expect(installPage).toContain("pinned temporary cosign verifier");
     expect(installPage).toContain("checksums.txt.sigstore.json");
+    // --version/--dir and the env-var trio reach readers through the generated
+    // commands; the page keeps the static flag examples that carry no tag.
+    for (const option of ["--skip-bootstrap", "--dry-run"]) {
+      expect(installPage, option).toContain(option);
+    }
+    expect(curlPinnedInstallCommand(resolvedRouteTag)).toContain(`--version ${resolvedRouteTag}`);
+    expect(curlPinnedInstallCommand(resolvedRouteTag)).toContain("--dir");
+    for (const envVar of installEnvVars) {
+      expect(curlEnvInstallCommand(resolvedRouteTag), envVar).toContain(envVar);
+    }
+    expect(curlEnvInstallCommand(resolvedRouteTag)).toContain(
+      `COMPOZY_VERSION=${resolvedRouteTag}`
+    );
+    expect(goInstallCommand(resolvedRouteTag)).toBe(
+      `go install github.com/compozy/compozy@${resolvedRouteTag}`
+    );
+
+    expect(readme).toContain("go install github.com/compozy/compozy@");
+    expect(readme).toContain(latestReleaseUrl);
+    expect(readme).toContain(firstSessionCommand);
+    expect(landing).toContain(firstSessionCommand);
+    for (const guidePath of [rootMigrationGuidePath, migrationPagePath]) {
+      expect(readSiteFile(guidePath)).toContain(latestReleaseUrl);
+    }
+    expect(launchPost).toContain(`records ${historicalLaunchBeta}`);
+    expect(launchPost).toContain("[installation guide](/docs/getting-started/installation)");
   });
 
   it("keeps release collateral on the Compozy beta identity", () => {
@@ -486,11 +603,12 @@ describe("public install contract", () => {
     const cliff = readSiteFile(cliffPath);
 
     for (const content of [readme, header]) {
-      expect(content).toContain(npmInstallCommand);
+      expect(content).toContain(NPM_INSTALL_COMMAND);
       expect(content).toContain("go install github.com/compozy/compozy@");
-      expect(content).toContain(verifiedInstallerCommand);
+      expect(content).toContain(VERIFIED_INSTALLER_COMMAND);
       expect(content).not.toContain("brew install");
     }
+    expect(header).toContain(goInstallCommand("{{ .Tag }}"));
     expect(footer).toContain("github\\.com/compozy/compozy/");
     expect(cliff).toContain("github.com/compozy/compozy/compare/");
   });
