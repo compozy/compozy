@@ -128,14 +128,6 @@ export { bindingKindLabel, summarizeBindingKinds } from "./lib/loop-bindings";
 export type { LoopStartKinds } from "./lib/loop-start-kinds";
 export { describeStartKinds, RUN_FORM_START_KIND } from "./lib/loop-start-kinds";
 
-// Failure-contract posture (plain-language Spec 1 tiles)
-export type {
-  LoopEffectiveLifecycle,
-  LoopReliabilityIcon,
-  LoopReliabilityTile,
-} from "./lib/loop-reliability";
-export { buildLoopReliability, formatLoopDuration } from "./lib/loop-reliability";
-
 // Read-only graph projection
 export type { LoopGraph, LoopGraphEdge, LoopGraphNode, LoopNodeClass } from "./lib/loop-graph";
 export {

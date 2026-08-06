@@ -7209,6 +7209,42 @@ func TestTaskStatusFromPolicySnapshotPrecedence(t *testing.T) {
 			want:           TaskStatusCompleted,
 		},
 		{
+			name:          "Should keep the umbrella task in progress after a completed coordinator pulse",
+			currentStatus: TaskStatusInProgress,
+			runs: []Run{{
+				ID:       "run-coordinator-pulse",
+				RunKind:  RunKindCoordinator,
+				Status:   TaskRunStatusCompleted,
+				Attempt:  3,
+				QueuedAt: base,
+			}},
+			want: TaskStatusInProgress,
+		},
+		{
+			name:          "Should keep an explicitly closed coordinator task completed",
+			currentStatus: TaskStatusCompleted,
+			runs: []Run{{
+				ID:       "run-coordinator-final",
+				RunKind:  RunKindCoordinator,
+				Status:   TaskRunStatusCompleted,
+				Attempt:  6,
+				QueuedAt: base,
+			}},
+			want: TaskStatusCompleted,
+		},
+		{
+			name:          "Should complete a worker task from its completed terminal run",
+			currentStatus: TaskStatusInProgress,
+			runs: []Run{{
+				ID:       "run-worker-done",
+				RunKind:  RunKindWorker,
+				Status:   TaskRunStatusCompleted,
+				Attempt:  1,
+				QueuedAt: base,
+			}},
+			want: TaskStatusCompleted,
+		},
+		{
 			name:              "Should keep exhausted failed terminal run above needs attention",
 			currentStatus:     TaskStatusReady,
 			needsAttention:    true,

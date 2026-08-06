@@ -33,6 +33,9 @@ describe("TaskRunActivitySection", () => {
     expect(screen.getByText("Current attempt event")).toBeInTheDocument();
     expect(screen.queryByText("Sibling attempt event")).toBeNull();
     expect(screen.queryByText("Task-wide event")).toBeNull();
+    // TimelineEvent rows are list items; they only lay out inside the Timeline list.
+    const timeline = screen.getByRole("list", { name: "Run activity events" });
+    expect(timeline).toContainElement(screen.getByText("Current attempt event"));
   });
 
   it("Should explain when the current run has no activity yet", () => {

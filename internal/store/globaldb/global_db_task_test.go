@@ -1715,6 +1715,123 @@ func TestGlobalDBListTasksSearchAndActivityOrdering(t *testing.T) {
 	}
 }
 
+// Invariant: the catalog SQL derivation mirrors taskStatusFromPolicySnapshot —
+// a completed coordinator pulse keeps the umbrella task in_progress, and an
+// explicitly closed task keeps its persisted terminal status.
+func TestGlobalDBTaskCatalogCoordinatorPulseStaysInProgress(t *testing.T) {
+	t.Parallel()
+
+	insertCatalogRun := func(
+		ctx context.Context,
+		t *testing.T,
+		globalDB *GlobalDB,
+		id string,
+		taskID string,
+		runKind string,
+		status string,
+		attempt int,
+		queuedAt time.Time,
+	) {
+		t.Helper()
+		loopRunID := ""
+		if runKind == "coordinator" {
+			loopRunID = "looprun-catalog-test"
+		}
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`INSERT INTO task_runs (id, task_id, status, run_kind, attempt, origin_kind, origin_ref, queued_at, loop_run_id)
+			 VALUES (?, ?, ?, ?, ?, 'daemon', 'test', ?, NULLIF(?, ''))`,
+			id, taskID, status, runKind, attempt, store.FormatTimestamp(queuedAt), loopRunID,
+		); err != nil {
+			t.Fatalf("insert run %q error = %v", id, err)
+		}
+	}
+
+	t.Run("Should keep the umbrella task in progress after a completed coordinator pulse", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 8, 6, 10, 0, 0, 0, time.UTC)
+
+		umbrella := taskRecordForTest("task-catalog-coordinator")
+		umbrella.Status = taskpkg.TaskStatusInProgress
+		if err := globalDB.CreateTask(ctx, umbrella); err != nil {
+			t.Fatalf("CreateTask(umbrella) error = %v", err)
+		}
+		insertCatalogRun(ctx, t, globalDB, "run-pulse-1", umbrella.ID, "coordinator", "completed", 1, now)
+		insertCatalogRun(
+			ctx, t, globalDB, "run-pulse-2", umbrella.ID, "coordinator", "completed", 2, now.Add(time.Minute),
+		)
+
+		worker := taskRecordForTest("task-catalog-worker")
+		worker.Status = taskpkg.TaskStatusInProgress
+		if err := globalDB.CreateTask(ctx, worker); err != nil {
+			t.Fatalf("CreateTask(worker) error = %v", err)
+		}
+		insertCatalogRun(ctx, t, globalDB, "run-worker-1", worker.ID, "worker", "completed", 1, now)
+
+		closed := taskRecordForTest("task-catalog-closed")
+		closed.Status = taskpkg.TaskStatusCompleted
+		if err := globalDB.CreateTask(ctx, closed); err != nil {
+			t.Fatalf("CreateTask(closed) error = %v", err)
+		}
+		insertCatalogRun(ctx, t, globalDB, "run-closed-1", closed.ID, "coordinator", "completed", 6, now)
+
+		page, err := globalDB.ListTaskCatalog(ctx, taskpkg.CatalogQuery{
+			Scope: taskpkg.CatalogScopeGlobal,
+			Limit: 10,
+		})
+		if err != nil {
+			t.Fatalf("ListTaskCatalog() error = %v", err)
+		}
+		statusByID := make(map[string]taskpkg.Status, len(page.Tasks))
+		for _, summary := range page.Tasks {
+			statusByID[summary.ID] = summary.Status
+		}
+		if got := statusByID[umbrella.ID]; got != taskpkg.TaskStatusInProgress {
+			t.Fatalf("coordinator umbrella status = %q, want in_progress from a completed pulse", got)
+		}
+		if got := statusByID[worker.ID]; got != taskpkg.TaskStatusCompleted {
+			t.Fatalf("worker status = %q, want completed from its terminal run", got)
+		}
+		if got := statusByID[closed.ID]; got != taskpkg.TaskStatusCompleted {
+			t.Fatalf("closed umbrella status = %q, want persisted completed", got)
+		}
+
+		// Equivalence gate: the catalog's SQL projection must agree with the Go
+		// canonical derivation for every task, or the list view silently forks
+		// from detail and stream reads.
+		manager, err := taskpkg.NewManager(
+			taskpkg.WithStore(globalDB),
+			taskpkg.WithManagerNow(func() time.Time { return now.Add(time.Hour) }),
+		)
+		if err != nil {
+			t.Fatalf("task.NewManager() error = %v", err)
+		}
+		actor, err := taskpkg.DeriveDaemonActorContext("catalog-test", "daemon.catalog-test")
+		if err != nil {
+			t.Fatalf("DeriveDaemonActorContext() error = %v", err)
+		}
+		canonical, err := manager.ListTasks(ctx, taskpkg.Query{}, actor)
+		if err != nil {
+			t.Fatalf("ListTasks() error = %v", err)
+		}
+		for _, summary := range canonical {
+			catalogStatus, found := statusByID[summary.ID]
+			if !found {
+				continue
+			}
+			if catalogStatus != summary.Status {
+				t.Fatalf(
+					"catalog/canonical divergence for %q: catalog=%q canonical=%q",
+					summary.ID, catalogStatus, summary.Status,
+				)
+			}
+		}
+	})
+}
+
 func TestGlobalDBTaskCatalogPaginationAndFacets(t *testing.T) {
 	t.Parallel()
 
