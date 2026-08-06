@@ -3,7 +3,7 @@
 - **Scope:** Fresh-frame window drag grouping plus an adjacent desktop-shell reload canary.
 - **Cadence tier:** targeted
 - **Build:** working tree after `f8afbc10` · **Environment:** isolated lab `compozy-review-remediation-20260806-140818-700665-lab`, daemon `:52234`, Web `:3000`
-- **Started:** 2026-08-06T11:07:48-03:00 · **Status:** walks complete
+- **Started:** 2026-08-06T11:07:48-03:00 · **Status:** closed
 
 ## Personas
 
@@ -85,8 +85,8 @@ None expected.
 
 ## Final Status
 
-- **Exit gate (full automated suite):** pending rebase and final `make gate-full`
+- **Exit gate (full automated suite):** owned by the workflow checkpoint after rebase; this report is intentionally not rewritten after the content-addressed gate record is created.
 - **Issues by user impact:** Blocks-Completion 0 · Data-Loss 0 · Trust-Damage 0 · Friction 0 · Cosmetic 0
 - **Coverage:** 2/2 targeted journeys walked
-- **Verdict:** behavior passes; repository readiness remains pending rebase, final gate, and strict evidence re-audit
+- **Verdict:** targeted behavior and teardown pass; repository readiness remains governed by the post-rebase full gate and strict evidence re-audit.
 - **Teardown:** pass — `/Users/pedronauck/dev/qa-labs/compozy-review-remediation-20260806-140818-700665-lab/qa-artifacts/qa/teardown.json` reports `clean: true` with zero survivors.
