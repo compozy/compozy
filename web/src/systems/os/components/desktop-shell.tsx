@@ -131,7 +131,6 @@ function DesktopShellBody({
     attention,
     desktop,
     desktopRef,
-    gesturePreview,
     manager,
     managerSurfaces,
     onResize,
@@ -192,7 +191,6 @@ function DesktopShellBody({
           model={winLayer}
           reducedMotion={reducedMotion}
           transition={transition}
-          preview={gesturePreview}
           onTransitionComplete={onTransitionComplete}
           onResize={onResize}
           onFrameResize={onFrameResize}

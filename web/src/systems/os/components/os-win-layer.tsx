@@ -1,12 +1,18 @@
 import { Kbd } from "@compozy/ui";
 
 import type { DesktopLayerModel, OsWinLayerModel } from "../hooks/use-os-win-layer";
-import type { SnapTarget } from "../lib/snap-targets";
+import { useWindowManagerGesturePreview } from "../hooks/use-window-manager-store";
 import type { LayoutProjection } from "../lib/window-manager-types";
 import type { DesktopTransitionIntent } from "../stores/window-manager-store";
 import { OsSnapOverlay } from "./os-snap-overlay";
 import { OsSnapSeamLayer, type SeamGestureHandlers } from "./os-snap-seam";
 import { OsWindow } from "./os-window";
+
+/** Keeps frame-rate gesture updates from re-rendering the desktop and its windows. */
+function LiveSnapOverlay() {
+  const preview = useWindowManagerGesturePreview();
+  return <OsSnapOverlay preview={preview} />;
+}
 
 /** Maps transition state to a keyframe name; reduced motion still fires an instant fade so end events run. */
 function desktopTransitionAnimationName(input: {
@@ -41,7 +47,6 @@ function DesktopLayer({
   transition,
   onTransitionComplete,
   seamProjection,
-  preview,
   onResize,
   onFrameResize,
   onSeamPreview,
@@ -55,7 +60,6 @@ function DesktopLayer({
   transition: DesktopTransitionIntent | null;
   onTransitionComplete: () => void;
   seamProjection: LayoutProjection | undefined;
-  preview: SnapTarget | null;
 } & SeamGestureHandlers) {
   const incoming = transition?.toDesktopId === model.desktop.id;
   const outgoing = transition?.fromDesktopId === model.desktop.id;
@@ -122,7 +126,7 @@ function DesktopLayer({
             onFrameSeamPreview={onFrameSeamPreview}
             onSeamPreviewEnd={onSeamPreviewEnd}
           />
-          <OsSnapOverlay preview={preview} />
+          <LiveSnapOverlay />
         </>
       ) : null}
     </section>
@@ -134,7 +138,6 @@ export function OsWinLayer({
   model,
   reducedMotion,
   transition,
-  preview,
   onTransitionComplete,
   onResize,
   onFrameResize,
@@ -145,7 +148,6 @@ export function OsWinLayer({
   model: OsWinLayerModel;
   reducedMotion: boolean;
   transition: DesktopTransitionIntent | null;
-  preview: SnapTarget | null;
   onTransitionComplete: () => void;
 } & SeamGestureHandlers) {
   const { layerRef, desktops, presentation, viewportState, activeProjection } = model;
@@ -166,7 +168,6 @@ export function OsWinLayer({
           transition={transition}
           onTransitionComplete={onTransitionComplete}
           seamProjection={activeProjection}
-          preview={preview}
           onResize={onResize}
           onFrameResize={onFrameResize}
           onSeamPreview={onSeamPreview}
