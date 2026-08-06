@@ -1120,6 +1120,67 @@ func TestReloadChangedPaths(t *testing.T) {
 		})
 	}
 
+	t.Run("Should classify a new built-in model override as live", func(t *testing.T) {
+		t.Parallel()
+
+		disabled := false
+		current := &compozyconfig.Config{}
+		desired := &compozyconfig.Config{Providers: map[string]compozyconfig.ProviderConfig{
+			"cursor": {
+				Models: compozyconfig.ProviderModelsConfig{
+					Discovery: compozyconfig.ProviderModelsDiscoveryConfig{Enabled: &disabled},
+				},
+			},
+		}}
+		want := []string{"providers.cursor.models"}
+		if got := reloadChangedPaths(current, desired); !slices.Equal(got, want) {
+			t.Fatalf("reloadChangedPaths() = %#v, want %#v", got, want)
+		}
+		if got := classifyReloadLifecycle(current, desired); got != lifecycle.Live {
+			t.Fatalf("classifyReloadLifecycle() = %q, want %q", got, lifecycle.Live)
+		}
+	})
+
+	t.Run("Should classify removal of a model-only override as live", func(t *testing.T) {
+		t.Parallel()
+
+		disabled := false
+		current := &compozyconfig.Config{Providers: map[string]compozyconfig.ProviderConfig{
+			"cursor": {
+				Models: compozyconfig.ProviderModelsConfig{
+					Discovery: compozyconfig.ProviderModelsDiscoveryConfig{Enabled: &disabled},
+				},
+			},
+		}}
+		desired := &compozyconfig.Config{}
+		want := []string{"providers.cursor.models"}
+		if got := reloadChangedPaths(current, desired); !slices.Equal(got, want) {
+			t.Fatalf("reloadChangedPaths() = %#v, want %#v", got, want)
+		}
+		if got := classifyReloadLifecycle(current, desired); got != lifecycle.Live {
+			t.Fatalf("classifyReloadLifecycle() = %q, want %q", got, lifecycle.Live)
+		}
+	})
+
+	t.Run("Should keep a new provider runtime override restart required", func(t *testing.T) {
+		t.Parallel()
+
+		current := &compozyconfig.Config{}
+		desired := &compozyconfig.Config{Providers: map[string]compozyconfig.ProviderConfig{
+			"custom": {
+				Command: "custom-acp",
+				Models:  compozyconfig.ProviderModelsConfig{Default: "custom-model"},
+			},
+		}}
+		want := []string{"providers.custom", "providers.custom.models"}
+		if got := reloadChangedPaths(current, desired); !slices.Equal(got, want) {
+			t.Fatalf("reloadChangedPaths() = %#v, want %#v", got, want)
+		}
+		if got := classifyReloadLifecycle(current, desired); got != lifecycle.RestartRequired {
+			t.Fatalf("classifyReloadLifecycle() = %q, want %q", got, lifecycle.RestartRequired)
+		}
+	})
+
 	t.Run("Should emit every live Marketplace catalog path", func(t *testing.T) {
 		t.Parallel()
 

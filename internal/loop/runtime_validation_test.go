@@ -9,7 +9,7 @@ import (
 	"github.com/compozy/compozy/internal/loop/dsl"
 )
 
-func TestValidateResolvedRuntimeShouldRespectCatalogAuthority(t *testing.T) {
+func TestValidateResolvedRuntimeShouldHonorCatalogValidation(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should reject an unknown provider with task identity", func(t *testing.T) {
@@ -24,7 +24,7 @@ func TestValidateResolvedRuntimeShouldRespectCatalogAuthority(t *testing.T) {
 		})
 	})
 
-	t.Run("Should reject an unknown authoritative model", func(t *testing.T) {
+	t.Run("Should propagate a catalog model error", func(t *testing.T) {
 		t.Parallel()
 
 		_, err := loop.ValidateResolvedRuntime(
@@ -36,7 +36,7 @@ func TestValidateResolvedRuntimeShouldRespectCatalogAuthority(t *testing.T) {
 		})
 	})
 
-	t.Run("Should accept a non authoritative slash model", func(t *testing.T) {
+	t.Run("Should preserve a slash model accepted by the catalog", func(t *testing.T) {
 		t.Parallel()
 
 		got, err := loop.ValidateResolvedRuntime(

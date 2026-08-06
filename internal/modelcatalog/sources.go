@@ -31,7 +31,7 @@ func NewBuiltinSource() Source {
 		SourceIDBuiltin,
 		SourceKindBuiltin,
 		PriorityBuiltin,
-		builtinProviderConfigs(),
+		compozyconfig.BuiltinProviders(),
 	)
 }
 

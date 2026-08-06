@@ -1339,6 +1339,11 @@ reasoning rates do not fall back to input or output rates.
 Discovery adapters use the resolved provider auth, env, and home policy. Discovery never creates an
 ACP session; if discovery is unavailable or fails, the catalog records source status and falls back
 to stale or lower-priority rows. Session creation never depends on a successful discovery refresh.
+The built-in Cursor adapter uses `cursor-agent models` with the operator home. Its first catalog read
+records either the exact account rows or a failed status; later reads use that stored state until an
+explicit refresh runs.
+Writes under `providers.<id>.models.discovery` apply live. A changed discovery source refreshes
+immediately; provider model metadata changes do not rerun discovery.
 
 `OpenClaw`, `Hermes`, and `Pi` only register a live provider source when `models.discovery.enabled
 = true` and either `command` or `endpoint` is set; with no discovery wiring, those providers stay
@@ -1450,6 +1455,7 @@ explicit deadline, and joins outstanding refresh workers during shutdown.
 Live provider discovery is configured per provider through `[providers.<id>.models.discovery]`.
 Discovery refresh is serialized per `provider_id` before any subprocess or provider-home work, and
 concurrent refresh requests for the same provider coalesce behind the in-flight refresh.
+Cursor's default command is `cursor-agent models`; setting `command` overrides that discovery path.
 
 ## `[marketplace.catalog]`
 

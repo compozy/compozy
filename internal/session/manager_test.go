@@ -17,7 +17,6 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/admission"
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/network/participation"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	speedpkg "github.com/compozy/compozy/internal/speed"
@@ -403,99 +402,11 @@ func TestManagerWorkAdmission(t *testing.T) {
 func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 	t.Parallel()
 
-	const cursorModel = "grok-4.5[effort=high,fast=true]"
-	canonicalCursorCatalog := modelCatalogFunc(func(
-		_ context.Context,
-		_ modelcatalog.ListOptions,
-	) ([]modelcatalog.Model, error) {
-		return []modelcatalog.Model{{ProviderID: "cursor", ModelID: cursorModel}}, nil
-	})
-
-	t.Run("Should reject an explicit model alias before driver or storage startup", func(t *testing.T) {
+	t.Run("Should accept and persist an exact Cursor model id", func(t *testing.T) {
 		t.Parallel()
 
-		h := newHarness(t, WithModelCatalog(canonicalCursorCatalog))
-		_, err := h.manager.Create(testutil.Context(t), CreateOpts{
-			AgentName: "coder",
-			Provider:  "cursor",
-			Model:     "cursor-grok-4.5-high",
-			Workspace: h.workspaceID,
-		})
-		if !errors.Is(err, ErrInvalidRuntimeOverride) {
-			t.Fatalf("Create() error = %v, want ErrInvalidRuntimeOverride", err)
-		}
-		if got := len(h.driver.startCalls); got != 0 {
-			t.Fatalf("driver start calls = %d, want 0", got)
-		}
-		entries, readErr := os.ReadDir(h.homePaths.SessionsDir)
-		if readErr != nil {
-			t.Fatalf("ReadDir(sessions) error = %v", readErr)
-		}
-		if len(entries) != 0 {
-			t.Fatalf("session storage entries = %d, want 0", len(entries))
-		}
-	})
-
-	t.Run("Should recommend only available explicit models", func(t *testing.T) {
-		t.Parallel()
-
-		catalog := modelCatalogFunc(func(
-			_ context.Context,
-			_ modelcatalog.ListOptions,
-		) ([]modelcatalog.Model, error) {
-			return []modelcatalog.Model{
-				{ProviderID: "cursor", ModelID: "available-model", Available: new(true)},
-				{ProviderID: "cursor", ModelID: "unavailable-model", Available: new(false)},
-			}, nil
-		})
-		h := newHarness(t, WithModelCatalog(catalog))
-		_, err := h.manager.Create(testutil.Context(t), CreateOpts{
-			AgentName: "coder",
-			Provider:  "cursor",
-			Model:     "missing-model",
-			Workspace: h.workspaceID,
-		})
-		if !errors.Is(err, ErrInvalidRuntimeOverride) {
-			t.Fatalf("Create() error = %v, want ErrInvalidRuntimeOverride", err)
-		}
-		if !strings.Contains(err.Error(), "choose one of: available-model") {
-			t.Fatalf("Create() error = %v, want available-model recommendation", err)
-		}
-		if strings.Contains(err.Error(), "unavailable-model") {
-			t.Fatalf("Create() error = %v, want unavailable model omitted", err)
-		}
-	})
-
-	t.Run("Should report when a provider has no available explicit models", func(t *testing.T) {
-		t.Parallel()
-
-		catalog := modelCatalogFunc(func(
-			_ context.Context,
-			_ modelcatalog.ListOptions,
-		) ([]modelcatalog.Model, error) {
-			return []modelcatalog.Model{
-				{ProviderID: "cursor", ModelID: "unavailable-model", Available: new(false)},
-			}, nil
-		})
-		h := newHarness(t, WithModelCatalog(catalog))
-		_, err := h.manager.Create(testutil.Context(t), CreateOpts{
-			AgentName: "coder",
-			Provider:  "cursor",
-			Model:     "unavailable-model",
-			Workspace: h.workspaceID,
-		})
-		if !errors.Is(err, ErrInvalidRuntimeOverride) {
-			t.Fatalf("Create() error = %v, want ErrInvalidRuntimeOverride", err)
-		}
-		if !strings.Contains(err.Error(), "has no available explicit models") {
-			t.Fatalf("Create() error = %v, want no available explicit models", err)
-		}
-	})
-
-	t.Run("Should accept and persist the exact catalog descriptor", func(t *testing.T) {
-		t.Parallel()
-
-		h := newHarness(t, WithModelCatalog(canonicalCursorCatalog))
+		const cursorModel = "composer-2.5"
+		h := newHarness(t)
 		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
 			AgentName: "coder",
 			Provider:  "cursor",
@@ -521,6 +432,7 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 	t.Run("Should preserve native default startup and persist the provider current model", func(t *testing.T) {
 		t.Parallel()
 
+		const cursorModel = "cursor-grok-4.5-high"
 		h := newHarness(t)
 		resolvedWorkspace, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
 		if err != nil {
@@ -529,7 +441,7 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 		for index := range resolvedWorkspace.Agents {
 			if resolvedWorkspace.Agents[index].Name == "coder" {
 				resolvedWorkspace.Agents[index].Provider = "cursor"
-				resolvedWorkspace.Agents[index].Model = "cursor-grok-4.5-high"
+				resolvedWorkspace.Agents[index].Model = cursorModel
 			}
 		}
 		h.resolver.upsert(&resolvedWorkspace)

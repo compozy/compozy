@@ -737,9 +737,13 @@ describe("RuntimeSelector custom model id", () => {
       model: "custom-unknown-model",
       reasoning_effort: "",
     });
+    expect(screen.getByTestId("runtime-selector-popup")).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Search models and providers" })).toHaveValue(
+      "custom-unknown-model"
+    );
   });
 
-  it("Should commit an unknown query as a custom model id on Enter", async () => {
+  it("Should commit an exact model id on Enter from the dedicated entry", async () => {
     const user = userEvent.setup();
     const { onChange } = renderSelector({
       value: { provider: "codex", model: "", reasoning_effort: "" },
@@ -747,18 +751,27 @@ describe("RuntimeSelector custom model id", () => {
     });
 
     await openSelector(user);
-    const search = screen.getByTestId("runtime-selector-search");
-    fireEvent.change(search, { target: { value: "typed-custom-id" } });
-    fireEvent.keyDown(search, { key: "Enter" });
+    await user.click(screen.getByTestId("runtime-selector-custom"));
+    const exactInput = screen.getByRole("textbox", { name: "Exact model ID" });
+    await user.type(exactInput, "auto");
+    fireEvent.keyDown(exactInput, { key: "Enter" });
 
     expect(onChange).toHaveBeenLastCalledWith({
       provider: "codex",
-      model: "typed-custom-id",
+      model: "auto",
       reasoning_effort: "",
     });
+    await waitFor(() =>
+      expect(screen.queryByRole("textbox", { name: "Exact model ID" })).not.toBeInTheDocument()
+    );
+    const catalogSearch = screen.getByRole("combobox", {
+      name: "Search models and providers",
+    });
+    expect(catalogSearch).toHaveFocus();
+    expect(screen.getByTestId("runtime-selector-popup")).toBeInTheDocument();
   });
 
-  it("Should not emit a custom id when the query is empty", async () => {
+  it("Should expose a visible exact-id field and commit its value", async () => {
     const user = userEvent.setup();
     const { onChange } = renderSelector({
       value: { provider: "codex", model: "", reasoning_effort: "" },
@@ -769,8 +782,60 @@ describe("RuntimeSelector custom model id", () => {
     const custom = await screen.findByTestId("runtime-selector-custom");
     expect(custom).toHaveTextContent("Use an exact custom model ID…");
     await user.click(custom);
+    const exactInput = screen.getByRole("textbox", { name: "Exact model ID" });
+    expect(exactInput).toHaveFocus();
+    expect(screen.getByTestId("runtime-selector-custom")).toBeDisabled();
 
+    await user.type(exactInput, "composer-2.5");
+    await user.click(screen.getByRole("button", { name: 'Use "composer-2.5"' }));
+
+    expect(onChange).toHaveBeenLastCalledWith({
+      provider: "codex",
+      model: "composer-2.5",
+      reasoning_effort: "",
+    });
+    await waitFor(() =>
+      expect(screen.queryByRole("textbox", { name: "Exact model ID" })).not.toBeInTheDocument()
+    );
+    expect(screen.getByRole("combobox", { name: "Search models and providers" })).toHaveFocus();
+    expect(screen.getByTestId("runtime-selector-popup")).toBeInTheDocument();
+  });
+
+  it("Should cancel exact entry and restore focus to the catalog search", async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderSelector({
+      value: { provider: "codex", model: "", reasoning_effort: "" },
+      models: [model("known", { name: "Known" })],
+    });
+
+    await openSelector(user);
+    await user.click(screen.getByTestId("runtime-selector-custom"));
+    const exactInput = screen.getByRole("textbox", { name: "Exact model ID" });
+    await user.type(exactInput, "discard-me");
+    await user.click(screen.getByRole("button", { name: "Return to model search" }));
+
+    const catalogSearch = screen.getByRole("combobox", {
+      name: "Search models and providers",
+    });
+    expect(catalogSearch).toHaveValue("");
+    expect(catalogSearch).toHaveFocus();
+    expect(screen.getByTestId("runtime-selector-popup")).toBeInTheDocument();
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("Should keep exact-id entry available while the catalog is loading", async () => {
+    const user = userEvent.setup();
+    renderSelector({
+      value: { provider: "codex", model: "", reasoning_effort: "" },
+      models: [],
+      props: { loading: true },
+    });
+
+    await openSelector(user);
+    await user.click(screen.getByRole("button", { name: "Use an exact custom model ID…" }));
+
+    expect(screen.getByRole("textbox", { name: "Exact model ID" })).toHaveFocus();
+    expect(screen.queryByTestId("runtime-selector-loading")).not.toBeInTheDocument();
   });
 
   it("Should not offer a custom commit when no explicit provider is active", async () => {

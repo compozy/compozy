@@ -210,6 +210,14 @@ type Source interface {
 	ListModels(ctx context.Context, opts ListOptions) ([]ModelRow, error)
 }
 
+// SourceRowsReplacement is one provider-scoped source publication.
+type SourceRowsReplacement struct {
+	SourceID   string
+	ProviderID string
+	Rows       []ModelRow
+	Status     SourceStatus
+}
+
 // Store persists source rows and provider-scoped source status.
 type Store interface {
 	ReplaceSourceRows(
@@ -219,6 +227,8 @@ type Store interface {
 		rows []ModelRow,
 		status SourceStatus,
 	) error
+	// ReplaceSourceRowsBatch publishes every replacement atomically.
+	ReplaceSourceRowsBatch(ctx context.Context, replacements []SourceRowsReplacement) error
 	ListRows(ctx context.Context, opts ListOptions) ([]ModelRow, error)
 	ListSourceStatus(ctx context.Context, providerID string) ([]SourceStatus, error)
 }

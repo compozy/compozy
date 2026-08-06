@@ -9,7 +9,6 @@ import (
 
 	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/store"
-	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
 var _ modelcatalog.Store = (*ModelCatalogRepo)(nil)
@@ -47,31 +46,7 @@ func (g *ModelCatalogRepo) ReplaceSourceRows(
 		ctx,
 		"model catalog source replacement",
 		func(exec modelCatalogSQLExecutor) error {
-			queries := sqlcgen.New(exec)
-			if err := upsertModelCatalogSourceStatus(ctx, exec, normalizedStatus); err != nil {
-				return err
-			}
-			deleteParams := sqlcgen.DeleteModelCatalogReasoningEffortsParams{
-				SourceID: normalizedStatus.SourceID, ProviderID: normalizedStatus.ProviderID,
-			}
-			if err := queries.DeleteModelCatalogReasoningEfforts(ctx, deleteParams); err != nil {
-				return fmt.Errorf("store: delete model catalog reasoning efforts: %w", err)
-			}
-			if err := queries.DeleteModelCatalogRows(
-				ctx,
-				sqlcgen.DeleteModelCatalogRowsParams(deleteParams),
-			); err != nil {
-				return fmt.Errorf("store: delete model catalog source rows: %w", err)
-			}
-			for _, row := range normalizedRows {
-				if err := insertModelCatalogRow(ctx, exec, row); err != nil {
-					return err
-				}
-				if err := insertModelCatalogReasoningEfforts(ctx, exec, row); err != nil {
-					return err
-				}
-			}
-			return nil
+			return replaceModelCatalogSourceRows(ctx, exec, normalizedRows, normalizedStatus)
 		},
 	)
 }

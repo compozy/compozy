@@ -22,6 +22,9 @@ type modelCatalogRuntime struct {
 	now          func() time.Time
 	timeout      time.Duration
 	configSource *modelcatalog.ProviderConfigSource
+	liveSources  map[string]*modelcatalog.LiveProviderSource
+	// generationGate keeps source snapshots and persisted rows in one public generation.
+	generationGate lifecycleRWGate
 
 	ctx     context.Context
 	workers *ownedWorkerGroup
@@ -92,7 +95,7 @@ func (r *modelCatalogRuntime) ListModels(
 		listOpts := opts
 		listOpts.Refresh = false
 		listOpts.Now = now
-		models, listErr := r.service.ListModels(ctx, listOpts)
+		models, listErr := r.listModelsInGeneration(ctx, listOpts)
 		if listErr != nil {
 			return nil, listErr
 		}
@@ -102,6 +105,18 @@ func (r *modelCatalogRuntime) ListModels(
 		return models, nil
 	}
 	opts.Now = now
+	return r.listModelsInGeneration(ctx, opts)
+}
+
+func (r *modelCatalogRuntime) listModelsInGeneration(
+	ctx context.Context,
+	opts modelcatalog.ListOptions,
+) ([]modelcatalog.Model, error) {
+	release, err := r.generationGate.lock(ctx, true)
+	if err != nil {
+		return nil, fmt.Errorf("daemon: wait to list model catalog generation: %w", err)
+	}
+	defer release()
 	return r.service.ListModels(ctx, opts)
 }
 
@@ -115,7 +130,23 @@ func (r *modelCatalogRuntime) Refresh(
 	if ctx == nil {
 		return nil, errors.New("daemon: model catalog refresh context is required")
 	}
+	release, err := r.generationGate.lock(ctx, true)
+	if err != nil {
+		return nil, fmt.Errorf("daemon: wait to refresh model catalog generation: %w", err)
+	}
+	return r.refresh(ctx, opts, release, true)
+}
+
+func (r *modelCatalogRuntime) refresh(
+	ctx context.Context,
+	opts modelcatalog.RefreshOptions,
+	releaseGeneration func(),
+	detachOnRequestCancel bool,
+) ([]modelcatalog.SourceStatus, error) {
 	if err := r.ctx.Err(); err != nil {
+		if releaseGeneration != nil {
+			releaseGeneration()
+		}
 		return nil, fmt.Errorf("daemon: model catalog refresh unavailable: %w", err)
 	}
 	runtimeNow := r.now().UTC()
@@ -135,11 +166,17 @@ func (r *modelCatalogRuntime) Refresh(
 	complete, admitted := r.workers.Begin()
 	if !admitted {
 		cancel()
+		if releaseGeneration != nil {
+			releaseGeneration()
+		}
 		return nil, fmt.Errorf("daemon: model catalog refresh stopped: %w", r.ctx.Err())
 	}
 
-	go func() {
+	go func(release func()) {
 		defer complete()
+		if release != nil {
+			defer release()
+		}
 		stopRootCancel := context.AfterFunc(r.ctx, cancel)
 		defer func() {
 			stopRootCancel()
@@ -151,8 +188,12 @@ func (r *modelCatalogRuntime) Refresh(
 			r.logRefreshFailure(refreshOpts, err)
 		}
 		resultCh <- modelCatalogRefreshResult{statuses: statuses, err: err}
-	}()
+	}(releaseGeneration)
 
+	if !detachOnRequestCancel {
+		result := <-resultCh
+		return result.statuses, result.err
+	}
 	select {
 	case result := <-resultCh:
 		return result.statuses, result.err
@@ -170,6 +211,14 @@ func (r *modelCatalogRuntime) ListSourceStatus(
 	if r == nil || r.service == nil {
 		return nil, errors.New("daemon: model catalog service is unavailable")
 	}
+	if ctx == nil {
+		return nil, errors.New("daemon: model catalog status context is required")
+	}
+	release, err := r.generationGate.lock(ctx, true)
+	if err != nil {
+		return nil, fmt.Errorf("daemon: wait to list model catalog status generation: %w", err)
+	}
+	defer release()
 	return r.service.ListSourceStatus(ctx, providerID)
 }
 
@@ -254,10 +303,16 @@ func (d *Daemon) bootModelCatalog(ctx context.Context, state *bootState, cleanup
 		return err
 	}
 	for _, source := range sources {
-		configSource, ok := source.(*modelcatalog.ProviderConfigSource)
-		if ok && configSource.ID() == modelcatalog.SourceIDConfig {
-			runtime.configSource = configSource
-			break
+		switch typed := source.(type) {
+		case *modelcatalog.ProviderConfigSource:
+			if typed.ID() == modelcatalog.SourceIDConfig {
+				runtime.configSource = typed
+			}
+		case *modelcatalog.LiveProviderSource:
+			if runtime.liveSources == nil {
+				runtime.liveSources = make(map[string]*modelcatalog.LiveProviderSource)
+			}
+			runtime.liveSources[typed.ProviderIDs()[0]] = typed
 		}
 	}
 	state.modelCatalog = runtime

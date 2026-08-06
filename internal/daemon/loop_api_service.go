@@ -116,7 +116,7 @@ func newDaemonLoopAPIService(
 		compilerFactory: newLoopCompilerFactory(state.deps.ToolRegistry),
 	}
 	runtimeCatalog := loopRuntimeCatalogFactory{
-		homePaths: homePaths, workspaceResolver: state.workspaceResolver, models: state.modelCatalog,
+		homePaths: homePaths, workspaceResolver: state.workspaceResolver,
 	}
 	aggregate, err := looppkg.NewService(
 		persistence,

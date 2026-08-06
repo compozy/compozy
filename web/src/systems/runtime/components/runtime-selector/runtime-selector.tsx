@@ -1,4 +1,4 @@
-import { RefreshCw, Search } from "lucide-react";
+import { Plus, RefreshCw, Search, X } from "lucide-react";
 import { useRef, type ReactNode } from "react";
 
 import { type RuntimeSpeed } from "@/lib/api-contract";
@@ -83,6 +83,20 @@ export function RuntimeSelector({
     searchRef,
   });
   const modelName = controller.selectedModel?.name ?? value.model;
+  const exactEntry = controller.entryMode === "exact";
+  const exactInputId = `${popup.popupId}-exact-model-id`;
+  const handleStartExactEntry = () => {
+    controller.startExactEntry();
+    searchRef.current?.focus();
+  };
+  const handleCancelExactEntry = () => {
+    controller.cancelExactEntry();
+    searchRef.current?.focus();
+  };
+  const handleCommitCustom = (modelId: string) => {
+    const restoreSearchFocus = controller.entryMode === "exact";
+    if (controller.commitCustom(modelId) && restoreSearchFocus) searchRef.current?.focus();
+  };
 
   // Provider Settings closes the popup FIRST, then hands off to the surface (which
   // closes its own dialog/flow and navigates to /settings/providers) — never an
@@ -131,27 +145,46 @@ export function RuntimeSelector({
           data-testid="runtime-selector-popup"
         >
           <div className="flex h-9 shrink-0 items-center gap-2 border-b border-line-soft px-3">
-            <Search aria-hidden="true" className="size-3.5 shrink-0 text-subtle" />
+            {exactEntry ? (
+              <>
+                <Plus aria-hidden="true" className="size-3.5 shrink-0 text-subtle" />
+                <label htmlFor={exactInputId} className="shrink-0 text-badge font-medium text-fg">
+                  Exact model ID
+                </label>
+              </>
+            ) : (
+              <Search aria-hidden="true" className="size-3.5 shrink-0 text-subtle" />
+            )}
             <input
               ref={searchRef}
+              id={exactEntry ? exactInputId : undefined}
               type="text"
-              role="combobox"
-              aria-label="Search models and providers"
-              aria-expanded
-              aria-controls={popup.listId}
-              aria-autocomplete="list"
-              aria-activedescendant={popup.activeDescendant}
-              aria-keyshortcuts="Alt+F"
+              role={exactEntry ? undefined : "combobox"}
+              aria-label={exactEntry ? undefined : "Search models and providers"}
+              aria-expanded={exactEntry ? undefined : true}
+              aria-controls={exactEntry ? undefined : popup.listId}
+              aria-autocomplete={exactEntry ? undefined : "list"}
+              aria-activedescendant={exactEntry ? undefined : popup.activeDescendant}
+              aria-keyshortcuts={exactEntry ? undefined : "Alt+F"}
               value={controller.query}
               onChange={event => controller.changeQuery(event.target.value)}
               onKeyDown={popup.handleSearchKeyDown}
-              placeholder="Search models, providers…"
+              placeholder={exactEntry ? "composer-2.5" : "Search models, providers…"}
               autoComplete="off"
               spellCheck={false}
               data-testid="runtime-selector-search"
               className="min-w-0 flex-1 bg-transparent text-small-body text-fg-strong outline-none placeholder:text-subtle"
             />
-            {onRefreshCatalog ? (
+            {exactEntry ? (
+              <button
+                type="button"
+                aria-label="Return to model search"
+                onClick={handleCancelExactEntry}
+                className="grid size-6 shrink-0 place-items-center rounded-sm text-subtle outline-none transition-colors hover:bg-row-hover hover:text-fg-strong focus-visible:bg-row-hover focus-visible:ring-2 focus-visible:ring-accent"
+              >
+                <X aria-hidden="true" className="size-3.5" />
+              </button>
+            ) : onRefreshCatalog ? (
               <button
                 type="button"
                 aria-label="Refresh model catalog"
@@ -194,8 +227,8 @@ export function RuntimeSelector({
             onSelect={controller.pickModel}
             onHover={controller.highlightRow}
             onToggleFavorite={row => controller.toggleFavoriteFor(row.model)}
-            onCustomCommit={controller.pickCustom}
-            onFocusSearch={() => searchRef.current?.focus()}
+            onCustomCommit={handleCommitCustom}
+            onStartExactEntry={handleStartExactEntry}
           />
           <SelectorFooter
             reasoning={controller.reasoningState}

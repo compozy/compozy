@@ -29,35 +29,38 @@ func defaultEndpointPath(endpoint string) string {
 	return parsed.Path
 }
 
-func (s *LiveProviderSource) discoveryEnv(ctx context.Context) ([]string, error) {
+func (s *LiveProviderSource) discoveryEnv(
+	ctx context.Context,
+	provider compozyconfig.ProviderConfig,
+) ([]string, error) {
 	env := append([]string(nil), s.baseEnv...)
-	switch s.provider.EffectiveEnvPolicy() {
+	switch provider.EffectiveEnvPolicy() {
 	case compozyconfig.ProviderEnvPolicyIsolated:
 		env = procutil.IsolatedDaemonEnv(env)
 	default:
 		env = procutil.FilteredDaemonEnv(env)
 	}
 	env = providerenv.SetEnvValue(env, "COMPOZY_PROVIDER", s.providerID)
-	env = providerenv.SetEnvValue(env, "COMPOZY_PROVIDER_AUTH_MODE", string(s.provider.EffectiveAuthMode()))
-	env = providerenv.SetEnvValue(env, "COMPOZY_PROVIDER_ENV_POLICY", string(s.provider.EffectiveEnvPolicy()))
-	env = providerenv.SetEnvValue(env, "COMPOZY_PROVIDER_HOME_POLICY", string(s.provider.EffectiveHomePolicy()))
+	env = providerenv.SetEnvValue(env, "COMPOZY_PROVIDER_AUTH_MODE", string(provider.EffectiveAuthMode()))
+	env = providerenv.SetEnvValue(env, "COMPOZY_PROVIDER_ENV_POLICY", string(provider.EffectiveEnvPolicy()))
+	env = providerenv.SetEnvValue(env, "COMPOZY_PROVIDER_HOME_POLICY", string(provider.EffectiveHomePolicy()))
 
 	var err error
-	env, err = providerenv.ApplyHomePolicy(s.homePaths, s.providerID, s.provider.EffectiveHomePolicy(), env)
+	env, err = providerenv.ApplyHomePolicy(s.homePaths, s.providerID, provider.EffectiveHomePolicy(), env)
 	if err != nil {
 		return nil, fmt.Errorf("model catalog: apply provider home policy for %q: %w", s.providerID, err)
 	}
-	if s.provider.EffectiveHarness() == compozyconfig.ProviderHarnessPiACP &&
-		s.provider.EffectiveAuthMode() == compozyconfig.ProviderAuthModeNativeCLI {
-		env, err = providerenv.ApplyPiAgentDirPolicy(s.homePaths, s.providerID, s.provider.EffectiveHomePolicy(), env)
+	if provider.EffectiveHarness() == compozyconfig.ProviderHarnessPiACP &&
+		provider.EffectiveAuthMode() == compozyconfig.ProviderAuthModeNativeCLI {
+		env, err = providerenv.ApplyPiAgentDirPolicy(s.homePaths, s.providerID, provider.EffectiveHomePolicy(), env)
 		if err != nil {
 			return nil, fmt.Errorf("model catalog: apply pi discovery home policy for %q: %w", s.providerID, err)
 		}
 	}
-	if s.provider.EffectiveAuthMode() != compozyconfig.ProviderAuthModeBoundSecret {
+	if provider.EffectiveAuthMode() != compozyconfig.ProviderAuthModeBoundSecret {
 		return env, nil
 	}
-	for _, slot := range s.provider.EffectiveCredentialSlots() {
+	for _, slot := range provider.EffectiveCredentialSlots() {
 		next, err := s.injectProviderSecret(ctx, env, slot)
 		if err != nil {
 			return nil, err

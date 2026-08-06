@@ -84,13 +84,13 @@ func TestLoopRuntimeSelectionIntegration(t *testing.T) {
 		unknownProvider := contract.RunLoopRequest{ConfigOverrides: &contract.LoopConfig{
 			RuntimeDefaults: &contract.LoopRuntimeDefaults{Worker: contract.LoopRuntimeSpec{Provider: "flarp"}},
 		}}
-		unknownModel := contract.RunLoopRequest{ConfigOverrides: &contract.LoopConfig{
+		exactCursorModel := contract.RunLoopRequest{ConfigOverrides: &contract.LoopConfig{
 			RuntimeDefaults: &contract.LoopRuntimeDefaults{Worker: contract.LoopRuntimeSpec{
 				Provider: "cursor",
-				Model:    "missing-cursor-model",
+				Model:    "composer-2.5",
 			}},
 		}}
-		nonAuthoritativeModel := contract.RunLoopRequest{ConfigOverrides: &contract.LoopConfig{
+		arbitraryModel := contract.RunLoopRequest{ConfigOverrides: &contract.LoopConfig{
 			RuntimeDefaults: &contract.LoopRuntimeDefaults{Worker: contract.LoopRuntimeSpec{
 				Provider: acpmock.ProviderName,
 				Model:    "vendor/model",
@@ -124,35 +124,75 @@ func TestLoopRuntimeSelectionIntegration(t *testing.T) {
 					Field: "provider", Value: "flarp", Reason: "unknown_provider",
 				},
 			)
-			assertRuntimeValidationRequest(
-				t,
-				ctx,
-				transport.client,
-				transport.base+runPath+"?dry=true",
-				unknownModel,
-				contract.LoopRuntimeValidationItemPayload{
-					Field: "model", Value: "missing-cursor-model", Reason: "unknown_model",
-				},
-			)
-
-			var accepted contract.RunLoopResponse
+			var cursorAccepted contract.RunLoopResponse
 			status := loopRuntimeRawJSON(
 				t,
 				ctx,
 				transport.client,
 				transport.base+runPath+"?dry=true",
 				http.MethodPost,
-				nonAuthoritativeModel,
+				exactCursorModel,
+				&cursorAccepted,
+			)
+			if status != http.StatusOK || cursorAccepted.DryRun == nil {
+				t.Fatalf(
+					"%s exact Cursor model response = status:%d payload:%#v",
+					transport.name,
+					status,
+					cursorAccepted,
+				)
+			}
+			cursorWorker := cursorAccepted.DryRun.EffectiveConfig.RuntimeDefaults.Worker
+			if cursorWorker.Provider != "cursor" || cursorWorker.Model != "composer-2.5" {
+				t.Fatalf(
+					"%s exact Cursor effective worker = %#v, want cursor/composer-2.5",
+					transport.name,
+					cursorWorker,
+				)
+			}
+
+			var accepted contract.RunLoopResponse
+			status = loopRuntimeRawJSON(
+				t,
+				ctx,
+				transport.client,
+				transport.base+runPath+"?dry=true",
+				http.MethodPost,
+				arbitraryModel,
 				&accepted,
 			)
 			if status != http.StatusOK || accepted.DryRun == nil {
 				t.Fatalf(
-					"%s non-authoritative model response = status:%d payload:%#v",
+					"%s arbitrary model response = status:%d payload:%#v",
 					transport.name,
 					status,
 					accepted,
 				)
 			}
+		}
+		var cursorCLI contract.RunLoopResponse
+		if err := harness.CLI.RunJSONInDir(
+			ctx,
+			harness.WorkspaceRoot,
+			&cursorCLI,
+			"loop", "run",
+			"--workspace", harness.WorkspaceRoot,
+			"--name", definition.Meta.Name,
+			"--runtime", "worker=cursor/composer-2.5",
+			"--dry-run",
+			"-o", "json",
+		); err != nil {
+			t.Fatalf("CLI exact Cursor dry-run error = %v", err)
+		}
+		if cursorCLI.DryRun == nil {
+			t.Fatalf("CLI exact Cursor dry-run = %#v, want plan", cursorCLI)
+		}
+		cursorWorker := cursorCLI.DryRun.EffectiveConfig.RuntimeDefaults.Worker
+		if cursorWorker.Provider != "cursor" || cursorWorker.Model != "composer-2.5" {
+			t.Fatalf(
+				"CLI exact Cursor effective worker = %#v, want cursor/composer-2.5",
+				cursorWorker,
+			)
 		}
 
 		assertLoopRuntimeRunCount(t, ctx, harness, 0)

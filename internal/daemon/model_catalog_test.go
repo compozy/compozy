@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -40,6 +42,668 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		}
 		if !containsCatalogModel(models, "codex", "gpt-5.6-sol") {
 			t.Fatalf("ModelCatalog.ListModels(codex) missing builtin gpt-5.6-sol row: %#v", models)
+		}
+	})
+
+	t.Run("Should apply live discovery config without coupling metadata edits to provider access", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		homePaths := testHomePaths(t)
+		cfg := testConfig(t, homePaths)
+		provider, err := cfg.ResolveProvider("cursor")
+		if err != nil {
+			t.Fatalf("ResolveProvider(cursor) error = %v", err)
+		}
+		enabled := true
+		provider.Models.Discovery = compozyconfig.ProviderModelsDiscoveryConfig{
+			Enabled: &enabled,
+			Command: "cursor-old models",
+			Timeout: "2s",
+		}
+		cfg.Providers = map[string]compozyconfig.ProviderConfig{"cursor": provider}
+
+		executor := &configReloadDiscoveryExecutor{}
+		liveSource, err := modelcatalog.NewLiveProviderSource(
+			"cursor",
+			provider,
+			modelcatalog.LiveProviderSourcesConfig{
+				HomePaths:       homePaths,
+				CommandExecutor: executor,
+				DefaultTimeout:  5 * time.Second,
+			},
+		)
+		if err != nil {
+			t.Fatalf("NewLiveProviderSource() error = %v", err)
+		}
+		configSource := modelcatalog.NewConfigSource(cfg.Providers)
+		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
+		}
+		service, err := modelcatalog.NewService(
+			db,
+			[]modelcatalog.Source{configSource, liveSource},
+			modelcatalog.MergeOptions{},
+		)
+		if err != nil {
+			t.Fatalf("NewService() error = %v", err)
+		}
+		runtime, err := newModelCatalogRuntime(ctx, service, discardLogger(), nil, 5*time.Second)
+		if err != nil {
+			t.Fatalf("newModelCatalogRuntime() error = %v", err)
+		}
+		runtime.configSource = configSource
+		runtime.liveSources = map[string]*modelcatalog.LiveProviderSource{"cursor": liveSource}
+		t.Cleanup(func() {
+			if shutdownErr := runtime.Shutdown(testutil.Context(t)); shutdownErr != nil {
+				t.Fatalf("Shutdown() error = %v", shutdownErr)
+			}
+			if closeErr := db.Close(testutil.Context(t)); closeErr != nil {
+				t.Fatalf("CloseGlobalDB() error = %v", closeErr)
+			}
+		})
+
+		if _, err := runtime.Refresh(ctx, modelcatalog.RefreshOptions{
+			ProviderID: "cursor",
+			SourceID:   modelcatalog.SourceKindProviderLiveID("cursor"),
+			Force:      true,
+		}); err != nil {
+			t.Fatalf("Refresh(initial cursor) error = %v", err)
+		}
+
+		next := cfg
+		next.Providers = compozyconfig.CloneProviderConfigs(cfg.Providers)
+		provider = next.Providers["cursor"]
+		provider.Models.Discovery.Command = "cursor-new models"
+		provider.Models.Discovery.Timeout = "3s"
+		next.Providers["cursor"] = provider
+		if err := runtime.ReconcileConfig(ctx, &next); err != nil {
+			t.Fatalf("ReconcileConfig(new discovery command) error = %v", err)
+		}
+		request := executor.LastRequest(t)
+		if request.Command != "cursor-new" || !slices.Equal(request.Args, []string{"models"}) {
+			t.Fatalf("discovery request = %#v, want cursor-new models", request)
+		}
+		if request.Timeout != 3*time.Second {
+			t.Fatalf("discovery timeout = %s, want 3s", request.Timeout)
+		}
+		models, err := service.ListModels(ctx, modelcatalog.ListOptions{
+			ProviderID:         "cursor",
+			View:               modelcatalog.CatalogViewAll,
+			SkipRefreshIfEmpty: true,
+		})
+		if err != nil {
+			t.Fatalf("ListModels(after live config) error = %v", err)
+		}
+		if !containsCatalogModel(models, "cursor", "new-model") ||
+			containsCatalogModel(models, "cursor", "old-model") {
+			t.Fatalf("ListModels(after live config) = %#v, want only new-model", models)
+		}
+
+		callsBeforeMetadata := executor.CallCount()
+		provider = next.Providers["cursor"]
+		provider.Models.Curated = append(provider.Models.Curated, compozyconfig.ProviderModelConfig{
+			ID: "metadata-only",
+		})
+		next.Providers["cursor"] = provider
+		if err := runtime.ReconcileConfig(ctx, &next); err != nil {
+			t.Fatalf("ReconcileConfig(metadata only) error = %v", err)
+		}
+		if calls := executor.CallCount(); calls != callsBeforeMetadata {
+			t.Fatalf("discovery calls after metadata edit = %d, want %d", calls, callsBeforeMetadata)
+		}
+
+		provider = next.Providers["cursor"]
+		provider.Models.Discovery.Command = "cursor-offline models"
+		next.Providers["cursor"] = provider
+		if err := runtime.ReconcileConfig(ctx, &next); err != nil {
+			t.Fatalf("ReconcileConfig(offline discovery) error = %v", err)
+		}
+		models, err = service.ListModels(ctx, modelcatalog.ListOptions{
+			ProviderID:         "cursor",
+			View:               modelcatalog.CatalogViewAll,
+			IncludeStale:       true,
+			SkipRefreshIfEmpty: true,
+		})
+		if err != nil {
+			t.Fatalf("ListModels(offline discovery) error = %v", err)
+		}
+		model, ok := findCatalogModel(models, "new-model")
+		if !ok || !model.Stale {
+			t.Fatalf("offline discovery model = %#v, want stale new-model", model)
+		}
+		statuses, err := service.ListSourceStatus(ctx, "cursor")
+		if err != nil {
+			t.Fatalf("ListSourceStatus(offline discovery) error = %v", err)
+		}
+		status, ok := findSourceStatus(statuses, modelcatalog.SourceKindProviderLiveID("cursor"))
+		if !ok || status.RefreshState != modelcatalog.RefreshStateFailed {
+			t.Fatalf("offline live source status = %#v, want failed", status)
+		}
+
+		disabled := false
+		provider = next.Providers["cursor"]
+		provider.Models.Discovery.Enabled = &disabled
+		next.Providers["cursor"] = provider
+		if err := runtime.ReconcileConfig(ctx, &next); err != nil {
+			t.Fatalf("ReconcileConfig(disabled discovery) error = %v", err)
+		}
+		models, err = service.ListModels(ctx, modelcatalog.ListOptions{
+			ProviderID:         "cursor",
+			View:               modelcatalog.CatalogViewAll,
+			SkipRefreshIfEmpty: true,
+		})
+		if err != nil {
+			t.Fatalf("ListModels(disabled discovery) error = %v", err)
+		}
+		if containsCatalogModel(models, "cursor", "new-model") {
+			t.Fatalf("ListModels(disabled discovery) = %#v, want live row cleared", models)
+		}
+		statuses, err = service.ListSourceStatus(ctx, "cursor")
+		if err != nil {
+			t.Fatalf("ListSourceStatus(disabled discovery) error = %v", err)
+		}
+		status, ok = findSourceStatus(statuses, modelcatalog.SourceKindProviderLiveID("cursor"))
+		if !ok || status.RefreshState != modelcatalog.RefreshStateDisabled {
+			t.Fatalf("disabled live source status = %#v, want disabled", status)
+		}
+	})
+
+	t.Run("Should publish config and live rows as one serialized generation", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		homePaths := testHomePaths(t)
+		cfg := testConfig(t, homePaths)
+		provider, err := cfg.ResolveProvider("cursor")
+		if err != nil {
+			t.Fatalf("ResolveProvider(cursor) error = %v", err)
+		}
+		enabled := true
+		provider.Models.Default = "config-a"
+		provider.Models.Discovery = compozyconfig.ProviderModelsDiscoveryConfig{
+			Enabled: &enabled,
+			Command: "cursor-a models",
+			Timeout: "2s",
+		}
+		cfg.Providers = map[string]compozyconfig.ProviderConfig{"cursor": provider}
+
+		executor := newGenerationDiscoveryExecutor()
+		t.Cleanup(executor.releaseAll)
+		liveSource, err := modelcatalog.NewLiveProviderSource(
+			"cursor",
+			provider,
+			modelcatalog.LiveProviderSourcesConfig{
+				HomePaths:       homePaths,
+				CommandExecutor: executor,
+				DefaultTimeout:  5 * time.Second,
+			},
+		)
+		if err != nil {
+			t.Fatalf("NewLiveProviderSource() error = %v", err)
+		}
+		configSource := modelcatalog.NewConfigSource(cfg.Providers)
+		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
+		}
+		service, err := modelcatalog.NewService(
+			db,
+			[]modelcatalog.Source{configSource, liveSource},
+			modelcatalog.MergeOptions{},
+		)
+		if err != nil {
+			t.Fatalf("NewService() error = %v", err)
+		}
+		runtime, err := newModelCatalogRuntime(ctx, service, discardLogger(), nil, 5*time.Second)
+		if err != nil {
+			t.Fatalf("newModelCatalogRuntime() error = %v", err)
+		}
+		runtime.configSource = configSource
+		runtime.liveSources = map[string]*modelcatalog.LiveProviderSource{"cursor": liveSource}
+		t.Cleanup(func() {
+			if shutdownErr := runtime.Shutdown(testutil.Context(t)); shutdownErr != nil {
+				t.Fatalf("Shutdown() error = %v", shutdownErr)
+			}
+			if closeErr := db.Close(testutil.Context(t)); closeErr != nil {
+				t.Fatalf("CloseGlobalDB() error = %v", closeErr)
+			}
+		})
+
+		refreshA := make(chan error, 1)
+		go func() {
+			_, refreshErr := runtime.Refresh(ctx, modelcatalog.RefreshOptions{
+				ProviderID: "cursor",
+				SourceID:   modelcatalog.SourceKindProviderLiveID("cursor"),
+				Force:      true,
+			})
+			refreshA <- refreshErr
+		}()
+		executor.waitForCommand(t, "cursor-a")
+
+		next := cfg
+		next.Providers = compozyconfig.CloneProviderConfigs(cfg.Providers)
+		provider = next.Providers["cursor"]
+		provider.Models.Default = "config-b"
+		provider.Models.Discovery.Command = "cursor-b models"
+		next.Providers["cursor"] = provider
+		reconcileB := make(chan error, 1)
+		go func() {
+			reconcileB <- runtime.ReconcileConfig(ctx, &next)
+		}()
+
+		executor.release("cursor-a")
+		if refreshErr := waitForCatalogTestError(t, refreshA, "config A refresh"); refreshErr != nil {
+			t.Fatalf("Refresh(config A) error = %v", refreshErr)
+		}
+		executor.waitForCommand(t, "cursor-b")
+
+		type listResult struct {
+			models []modelcatalog.Model
+			err    error
+		}
+		readerStarted := make(chan struct{})
+		readerResult := make(chan listResult, 1)
+		go func() {
+			close(readerStarted)
+			models, listErr := runtime.ListModels(ctx, modelcatalog.ListOptions{
+				ProviderID:         "cursor",
+				View:               modelcatalog.CatalogViewAll,
+				IncludeAll:         true,
+				SkipRefreshIfEmpty: true,
+			})
+			readerResult <- listResult{models: models, err: listErr}
+		}()
+		<-readerStarted
+		select {
+		case result := <-readerResult:
+			t.Fatalf("ListModels() returned during config B publication: %#v", result)
+		default:
+		}
+
+		executor.release("cursor-b")
+		if reconcileErr := waitForCatalogTestError(t, reconcileB, "config B reconcile"); reconcileErr != nil {
+			t.Fatalf("ReconcileConfig(config B) error = %v", reconcileErr)
+		}
+		result := <-readerResult
+		if result.err != nil {
+			t.Fatalf("ListModels(after config B) error = %v", result.err)
+		}
+		if !containsCatalogModel(result.models, "cursor", "config-b") ||
+			!containsCatalogModel(result.models, "cursor", "live-b") ||
+			containsCatalogModel(result.models, "cursor", "config-a") ||
+			containsCatalogModel(result.models, "cursor", "live-a") {
+			t.Fatalf("ListModels(after config B) = %#v, want only generation B rows", result.models)
+		}
+		if got, want := executor.commands(), []string{"cursor-a", "cursor-b"}; !slices.Equal(got, want) {
+			t.Fatalf("discovery commands = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("Should honor reconciliation cancellation while waiting for an active generation", func(t *testing.T) {
+		t.Parallel()
+
+		service := newBlockingModelCatalogService()
+		runtime, err := newModelCatalogRuntime(
+			testutil.Context(t),
+			service,
+			discardLogger(),
+			nil,
+			5*time.Second,
+		)
+		if err != nil {
+			t.Fatalf("newModelCatalogRuntime() error = %v", err)
+		}
+		runtime.configSource = modelcatalog.NewConfigSource(map[string]compozyconfig.ProviderConfig{
+			"cursor": {Models: compozyconfig.ProviderModelsConfig{Default: "old-model"}},
+		})
+		runtime.liveSources = map[string]*modelcatalog.LiveProviderSource{}
+
+		refreshResult := make(chan error, 1)
+		go func() {
+			_, refreshErr := runtime.Refresh(testutil.Context(t), modelcatalog.RefreshOptions{
+				ProviderID: "cursor",
+				Force:      true,
+			})
+			refreshResult <- refreshErr
+		}()
+		waitForCatalogTestSignal(t, service.started, "active model catalog refresh")
+
+		alreadyCanceled, cancel := context.WithCancel(testutil.Context(t))
+		cancel()
+		err = runtime.ReconcileConfig(alreadyCanceled, &compozyconfig.Config{})
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("ReconcileConfig(already canceled) error = %v, want context.Canceled", err)
+		}
+
+		canceled := newCancelWhenWaitedContext(testutil.Context(t))
+		err = runtime.ReconcileConfig(canceled, &compozyconfig.Config{})
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("ReconcileConfig(wait cancellation) error = %v, want context.Canceled", err)
+		}
+		if got, want := runtime.configSource.ProviderIDs(), []string{"cursor"}; !slices.Equal(got, want) {
+			t.Fatalf("config source providers after canceled reconcile = %#v, want %#v", got, want)
+		}
+
+		if err := runtime.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+		if refreshErr := waitForCatalogTestError(
+			t,
+			refreshResult,
+			"active refresh shutdown",
+		); !errors.Is(refreshErr, context.Canceled) {
+			t.Fatalf("Refresh(shutdown) error = %v, want context.Canceled", refreshErr)
+		}
+	})
+
+	t.Run("Should validate status context before and while waiting for a generation", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		homePaths := testHomePaths(t)
+		cfg := testConfig(t, homePaths)
+		provider, err := cfg.ResolveProvider("cursor")
+		if err != nil {
+			t.Fatalf("ResolveProvider(cursor) error = %v", err)
+		}
+		enabled := true
+		provider.Models.Discovery = compozyconfig.ProviderModelsDiscoveryConfig{
+			Enabled: &enabled,
+			Command: "cursor-a models",
+			Timeout: "2s",
+		}
+		cfg.Providers = map[string]compozyconfig.ProviderConfig{"cursor": provider}
+		executor := newGenerationDiscoveryExecutor()
+		t.Cleanup(executor.releaseAll)
+		liveSource, err := modelcatalog.NewLiveProviderSource(
+			"cursor",
+			provider,
+			modelcatalog.LiveProviderSourcesConfig{
+				HomePaths:       homePaths,
+				CommandExecutor: executor,
+				DefaultTimeout:  5 * time.Second,
+			},
+		)
+		if err != nil {
+			t.Fatalf("NewLiveProviderSource() error = %v", err)
+		}
+		configSource := modelcatalog.NewConfigSource(cfg.Providers)
+		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
+		}
+		service, err := modelcatalog.NewService(
+			db,
+			[]modelcatalog.Source{configSource, liveSource},
+			modelcatalog.MergeOptions{},
+		)
+		if err != nil {
+			t.Fatalf("NewService() error = %v", err)
+		}
+		runtime, err := newModelCatalogRuntime(ctx, service, discardLogger(), nil, 5*time.Second)
+		if err != nil {
+			t.Fatalf("newModelCatalogRuntime() error = %v", err)
+		}
+		runtime.configSource = configSource
+		runtime.liveSources = map[string]*modelcatalog.LiveProviderSource{"cursor": liveSource}
+		t.Cleanup(func() {
+			if shutdownErr := runtime.Shutdown(testutil.Context(t)); shutdownErr != nil {
+				t.Fatalf("Shutdown() error = %v", shutdownErr)
+			}
+			if closeErr := db.Close(testutil.Context(t)); closeErr != nil {
+				t.Fatalf("CloseGlobalDB() error = %v", closeErr)
+			}
+		})
+
+		next := cfg
+		next.Providers = compozyconfig.CloneProviderConfigs(cfg.Providers)
+		provider = next.Providers["cursor"]
+		provider.Models.Discovery.Command = "cursor-b models"
+		next.Providers["cursor"] = provider
+		reconcileResult := make(chan error, 1)
+		go func() {
+			reconcileResult <- runtime.ReconcileConfig(ctx, &next)
+		}()
+		executor.waitForCommand(t, "cursor-b")
+
+		type statusResult struct {
+			statuses []modelcatalog.SourceStatus
+			err      error
+		}
+		nilResult := make(chan statusResult, 1)
+		go func() {
+			var missing context.Context
+			statuses, statusErr := runtime.ListSourceStatus(missing, "cursor")
+			nilResult <- statusResult{statuses: statuses, err: statusErr}
+		}()
+		select {
+		case result := <-nilResult:
+			if result.err == nil {
+				t.Fatal("ListSourceStatus(nil context) error = nil, want validation error")
+			}
+		case <-time.After(time.Second):
+			t.Fatal("ListSourceStatus(nil context) waited for generation lock")
+		}
+
+		canceledResult := make(chan statusResult, 1)
+		go func() {
+			statuses, statusErr := runtime.ListSourceStatus(
+				newCancelWhenWaitedContext(ctx),
+				"cursor",
+			)
+			canceledResult <- statusResult{statuses: statuses, err: statusErr}
+		}()
+		select {
+		case result := <-canceledResult:
+			if !errors.Is(result.err, context.Canceled) {
+				t.Fatalf("ListSourceStatus(wait cancellation) error = %v, want context.Canceled", result.err)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("ListSourceStatus(canceled context) waited for generation publication")
+		}
+
+		executor.release("cursor-b")
+		if reconcileErr := waitForCatalogTestError(
+			t,
+			reconcileResult,
+			"status generation reconcile",
+		); reconcileErr != nil {
+			t.Fatalf("ReconcileConfig() error = %v", reconcileErr)
+		}
+	})
+
+	t.Run("Should keep the previous generation when a later provider publication fails", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		homePaths := testHomePaths(t)
+		cfg := testConfig(t, homePaths)
+		providers := make(map[string]compozyconfig.ProviderConfig, 2)
+		for _, providerID := range []string{"claude", "codex"} {
+			provider, err := cfg.ResolveProvider(providerID)
+			if err != nil {
+				t.Fatalf("ResolveProvider(%s) error = %v", providerID, err)
+			}
+			provider.Models = compozyconfig.ProviderModelsConfig{Default: "old-" + providerID}
+			providers[providerID] = provider
+		}
+		cfg.Providers = providers
+		configSource := modelcatalog.NewConfigSource(cfg.Providers)
+		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
+		}
+		service, err := modelcatalog.NewService(
+			db,
+			[]modelcatalog.Source{configSource},
+			modelcatalog.MergeOptions{},
+		)
+		if err != nil {
+			t.Fatalf("NewService() error = %v", err)
+		}
+		for _, providerID := range []string{"claude", "codex"} {
+			if _, refreshErr := service.Refresh(ctx, modelcatalog.RefreshOptions{
+				ProviderID: providerID,
+				SourceID:   modelcatalog.SourceIDConfig,
+				Force:      true,
+			}); refreshErr != nil {
+				t.Fatalf("Refresh(seed %s) error = %v", providerID, refreshErr)
+			}
+		}
+		runtime, err := newModelCatalogRuntime(ctx, service, discardLogger(), nil, 5*time.Second)
+		if err != nil {
+			t.Fatalf("newModelCatalogRuntime() error = %v", err)
+		}
+		runtime.configSource = configSource
+		runtime.liveSources = map[string]*modelcatalog.LiveProviderSource{}
+		t.Cleanup(func() {
+			if shutdownErr := runtime.Shutdown(testutil.Context(t)); shutdownErr != nil {
+				t.Fatalf("Shutdown() error = %v", shutdownErr)
+			}
+			if closeErr := db.Close(testutil.Context(t)); closeErr != nil {
+				t.Fatalf("CloseGlobalDB() error = %v", closeErr)
+			}
+		})
+
+		next := cfg
+		next.Providers = compozyconfig.CloneProviderConfigs(cfg.Providers)
+		claude := next.Providers["claude"]
+		claude.Models = compozyconfig.ProviderModelsConfig{Default: "new-claude"}
+		next.Providers["claude"] = claude
+		codex := next.Providers["codex"]
+		codex.Models = compozyconfig.ProviderModelsConfig{
+			Default: "new-codex",
+			Curated: []compozyconfig.ProviderModelConfig{{
+				ID:               "invalid-codex",
+				ReasoningEfforts: []string{"high", "high"},
+			}},
+		}
+		next.Providers["codex"] = codex
+		err = runtime.ReconcileConfig(ctx, &next)
+		if err == nil {
+			t.Fatal("ReconcileConfig() error = nil, want later provider persistence failure")
+		}
+
+		models, listErr := runtime.ListModels(ctx, modelcatalog.ListOptions{
+			View:               modelcatalog.CatalogViewAll,
+			IncludeAll:         true,
+			SkipRefreshIfEmpty: true,
+		})
+		if listErr != nil {
+			t.Fatalf("ListModels(after failed generation) error = %v", listErr)
+		}
+		got := make([]string, 0, len(models))
+		for _, model := range models {
+			got = append(got, model.ProviderID+"/"+model.ModelID)
+		}
+		want := []string{"claude/old-claude", "codex/old-codex"}
+		if !slices.Equal(got, want) {
+			t.Fatalf("models after failed generation = %#v, want %#v", got, want)
+		}
+		for _, providerID := range []string{"claude", "codex"} {
+			rows, sourceErr := configSource.ListModels(ctx, modelcatalog.ListOptions{ProviderID: providerID})
+			if sourceErr != nil {
+				t.Fatalf("config source ListModels(%s) error = %v", providerID, sourceErr)
+			}
+			if len(rows) != 1 || rows[0].ModelID != "old-"+providerID {
+				t.Fatalf("config source rows for %s = %#v, want previous generation", providerID, rows)
+			}
+		}
+	})
+
+	t.Run("Should return live status persistence failures from config reconciliation", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		homePaths := testHomePaths(t)
+		cfg := testConfig(t, homePaths)
+		provider, err := cfg.ResolveProvider("cursor")
+		if err != nil {
+			t.Fatalf("ResolveProvider(cursor) error = %v", err)
+		}
+		enabled := true
+		provider.Models.Discovery = compozyconfig.ProviderModelsDiscoveryConfig{
+			Enabled: &enabled,
+			Command: "cursor-old models",
+			Timeout: "2s",
+		}
+		cfg.Providers = map[string]compozyconfig.ProviderConfig{"cursor": provider}
+
+		executor := &configReloadDiscoveryExecutor{}
+		liveSource, err := modelcatalog.NewLiveProviderSource(
+			"cursor",
+			provider,
+			modelcatalog.LiveProviderSourcesConfig{
+				HomePaths:       homePaths,
+				CommandExecutor: executor,
+				DefaultTimeout:  5 * time.Second,
+			},
+		)
+		if err != nil {
+			t.Fatalf("NewLiveProviderSource() error = %v", err)
+		}
+		configSource := modelcatalog.NewConfigSource(cfg.Providers)
+		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
+		}
+		persistErr := errors.New("catalog persistence unavailable")
+		store := &failingModelCatalogStore{
+			Store:        db,
+			failedSource: modelcatalog.SourceKindProviderLiveID("cursor"),
+			err:          persistErr,
+		}
+		service, err := modelcatalog.NewService(
+			store,
+			[]modelcatalog.Source{configSource, liveSource},
+			modelcatalog.MergeOptions{},
+		)
+		if err != nil {
+			t.Fatalf("NewService() error = %v", err)
+		}
+		runtime, err := newModelCatalogRuntime(ctx, service, discardLogger(), nil, 5*time.Second)
+		if err != nil {
+			t.Fatalf("newModelCatalogRuntime() error = %v", err)
+		}
+		runtime.configSource = configSource
+		runtime.liveSources = map[string]*modelcatalog.LiveProviderSource{"cursor": liveSource}
+		t.Cleanup(func() {
+			if shutdownErr := runtime.Shutdown(testutil.Context(t)); shutdownErr != nil {
+				t.Fatalf("Shutdown() error = %v", shutdownErr)
+			}
+			if closeErr := db.Close(testutil.Context(t)); closeErr != nil {
+				t.Fatalf("CloseGlobalDB() error = %v", closeErr)
+			}
+		})
+
+		next := cfg
+		next.Providers = compozyconfig.CloneProviderConfigs(cfg.Providers)
+		provider = next.Providers["cursor"]
+		provider.Models.Discovery.Command = "cursor-offline models"
+		next.Providers["cursor"] = provider
+		err = runtime.ReconcileConfig(ctx, &next)
+		if !errors.Is(err, persistErr) {
+			t.Fatalf("ReconcileConfig() error = %v, want persistence identity", err)
+		}
+		statuses, statusErr := db.ListSourceStatus(ctx, "cursor")
+		if statusErr != nil {
+			t.Fatalf("ListSourceStatus(cursor) error = %v", statusErr)
+		}
+		if status, ok := findSourceStatus(statuses, modelcatalog.SourceKindProviderLiveID("cursor")); ok &&
+			status.RefreshState == modelcatalog.RefreshStateFailed {
+			t.Fatalf("live source status = %#v, want no unpersisted failure", status)
+		}
+		rows, sourceErr := liveSource.ListModels(ctx, modelcatalog.ListOptions{ProviderID: "cursor"})
+		if sourceErr != nil {
+			t.Fatalf("live source ListModels(after failed reconcile) error = %v", sourceErr)
+		}
+		if len(rows) != 1 || rows[0].ModelID != "old-model" {
+			t.Fatalf("live source rows after failed reconcile = %#v, want old provider snapshot", rows)
+		}
+		if request := executor.LastRequest(t); request.Command != "cursor-old" {
+			t.Fatalf("live source command after failed reconcile = %q, want cursor-old", request.Command)
 		}
 	})
 
@@ -451,9 +1115,7 @@ func bootModelCatalogTestDaemonWithSetup(
 	}
 
 	daemonInstance := newTestDaemon(t, homePaths, &cfg)
-	var sessionManagerCatalog modelcatalog.Service
-	daemonInstance.newSessionManager = func(_ context.Context, deps SessionManagerDeps) (SessionManager, error) {
-		sessionManagerCatalog = deps.ModelCatalog
+	daemonInstance.newSessionManager = func(_ context.Context, _ SessionManagerDeps) (SessionManager, error) {
 		return &fakeSessionManager{}, nil
 	}
 	daemonInstance.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
@@ -473,13 +1135,6 @@ func bootModelCatalogTestDaemonWithSetup(
 
 	if err := daemonInstance.boot(testutil.Context(t)); err != nil {
 		t.Fatalf("boot() error = %v", err)
-	}
-	if sessionManagerCatalog != daemonInstance.modelCatalog {
-		t.Fatalf(
-			"session manager ModelCatalog = %p, want daemon runtime %p",
-			sessionManagerCatalog,
-			daemonInstance.modelCatalog,
-		)
 	}
 	t.Cleanup(func() {
 		if err := daemonInstance.Shutdown(testutil.Context(t)); err != nil {
@@ -623,6 +1278,170 @@ type recordingModelCatalogService struct {
 	lastList     modelcatalog.ListOptions
 }
 
+type configReloadDiscoveryExecutor struct {
+	mu       sync.Mutex
+	requests []modelcatalog.DiscoveryCommandRequest
+}
+
+type generationDiscoveryExecutor struct {
+	mu        sync.Mutex
+	requests  []modelcatalog.DiscoveryCommandRequest
+	started   chan modelcatalog.DiscoveryCommandRequest
+	releaseA  chan struct{}
+	releaseB  chan struct{}
+	releaseAO sync.Once
+	releaseBO sync.Once
+}
+
+func newGenerationDiscoveryExecutor() *generationDiscoveryExecutor {
+	return &generationDiscoveryExecutor{
+		started:  make(chan modelcatalog.DiscoveryCommandRequest, 2),
+		releaseA: make(chan struct{}),
+		releaseB: make(chan struct{}),
+	}
+}
+
+func (e *generationDiscoveryExecutor) RunDiscoveryCommand(
+	ctx context.Context,
+	req modelcatalog.DiscoveryCommandRequest,
+) (modelcatalog.DiscoveryCommandResult, error) {
+	e.mu.Lock()
+	e.requests = append(e.requests, req)
+	e.mu.Unlock()
+	e.started <- req
+
+	var release <-chan struct{}
+	var modelID string
+	switch req.Command {
+	case "cursor-a":
+		release = e.releaseA
+		modelID = "live-a"
+	case "cursor-b":
+		release = e.releaseB
+		modelID = "live-b"
+	default:
+		return modelcatalog.DiscoveryCommandResult{}, fmt.Errorf("unexpected discovery command %q", req.Command)
+	}
+	select {
+	case <-release:
+	case <-ctx.Done():
+		return modelcatalog.DiscoveryCommandResult{}, ctx.Err()
+	}
+	return modelcatalog.DiscoveryCommandResult{
+		Stdout:   modelID + " - " + modelID,
+		ExitCode: 0,
+	}, nil
+}
+
+func (e *generationDiscoveryExecutor) waitForCommand(t *testing.T, want string) {
+	t.Helper()
+	select {
+	case req := <-e.started:
+		if req.Command != want {
+			t.Fatalf("discovery command = %q, want %q", req.Command, want)
+		}
+	case <-time.After(time.Second):
+		t.Fatalf("timeout waiting for discovery command %q", want)
+	}
+}
+
+func (e *generationDiscoveryExecutor) release(command string) {
+	switch command {
+	case "cursor-a":
+		e.releaseAO.Do(func() { close(e.releaseA) })
+	case "cursor-b":
+		e.releaseBO.Do(func() { close(e.releaseB) })
+	}
+}
+
+func (e *generationDiscoveryExecutor) releaseAll() {
+	e.release("cursor-a")
+	e.release("cursor-b")
+}
+
+func (e *generationDiscoveryExecutor) commands() []string {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	commands := make([]string, 0, len(e.requests))
+	for _, req := range e.requests {
+		commands = append(commands, req.Command)
+	}
+	return commands
+}
+
+type failingModelCatalogStore struct {
+	modelcatalog.Store
+	failedSource string
+	err          error
+}
+
+var _ modelcatalog.Store = (*failingModelCatalogStore)(nil)
+
+func (s *failingModelCatalogStore) ReplaceSourceRows(
+	ctx context.Context,
+	sourceID string,
+	providerID string,
+	rows []modelcatalog.ModelRow,
+	status modelcatalog.SourceStatus,
+) error {
+	if sourceID == s.failedSource {
+		return s.err
+	}
+	return s.Store.ReplaceSourceRows(ctx, sourceID, providerID, rows, status)
+}
+
+func (s *failingModelCatalogStore) ReplaceSourceRowsBatch(
+	ctx context.Context,
+	replacements []modelcatalog.SourceRowsReplacement,
+) error {
+	for _, replacement := range replacements {
+		if replacement.SourceID == s.failedSource {
+			return s.err
+		}
+	}
+	return s.Store.ReplaceSourceRowsBatch(ctx, replacements)
+}
+
+func (e *configReloadDiscoveryExecutor) RunDiscoveryCommand(
+	_ context.Context,
+	req modelcatalog.DiscoveryCommandRequest,
+) (modelcatalog.DiscoveryCommandResult, error) {
+	e.mu.Lock()
+	e.requests = append(e.requests, req)
+	e.mu.Unlock()
+	if req.Command == "cursor-offline" {
+		return modelcatalog.DiscoveryCommandResult{}, errors.New("cursor discovery offline")
+	}
+	modelID := "old-model"
+	displayName := "Old Model"
+	if req.Command == "cursor-new" {
+		modelID = "new-model"
+		displayName = "New Model"
+	}
+	return modelcatalog.DiscoveryCommandResult{
+		Stdout:   modelID + " - " + displayName,
+		ExitCode: 0,
+	}, nil
+}
+
+func (e *configReloadDiscoveryExecutor) LastRequest(
+	t *testing.T,
+) modelcatalog.DiscoveryCommandRequest {
+	t.Helper()
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if len(e.requests) == 0 {
+		t.Fatal("discovery requests = empty")
+	}
+	return e.requests[len(e.requests)-1]
+}
+
+func (e *configReloadDiscoveryExecutor) CallCount() int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return len(e.requests)
+}
+
 func (s *recordingModelCatalogService) ListModels(
 	_ context.Context,
 	opts modelcatalog.ListOptions,
@@ -692,12 +1511,50 @@ type modelCatalogStoreRegistry struct {
 	*recordingRegistry
 }
 
+type cancelWhenWaitedContext struct {
+	context.Context
+	done     chan struct{}
+	cancel   sync.Once
+	mu       sync.Mutex
+	canceled bool
+}
+
+func newCancelWhenWaitedContext(parent context.Context) *cancelWhenWaitedContext {
+	return &cancelWhenWaitedContext{Context: parent, done: make(chan struct{})}
+}
+
+func (c *cancelWhenWaitedContext) Done() <-chan struct{} {
+	c.cancel.Do(func() {
+		c.mu.Lock()
+		c.canceled = true
+		close(c.done)
+		c.mu.Unlock()
+	})
+	return c.done
+}
+
+func (c *cancelWhenWaitedContext) Err() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.canceled {
+		return context.Canceled
+	}
+	return nil
+}
+
 func (r *modelCatalogStoreRegistry) ReplaceSourceRows(
 	context.Context,
 	string,
 	string,
 	[]modelcatalog.ModelRow,
 	modelcatalog.SourceStatus,
+) error {
+	return nil
+}
+
+func (r *modelCatalogStoreRegistry) ReplaceSourceRowsBatch(
+	context.Context,
+	[]modelcatalog.SourceRowsReplacement,
 ) error {
 	return nil
 }

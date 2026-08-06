@@ -267,46 +267,37 @@ func TestProviderConfigSources(t *testing.T) {
 		}
 	})
 
-	t.Run("Should expose builtin provider model defaults", func(t *testing.T) {
+	t.Run("Should expose only configured builtin provider model defaults", func(t *testing.T) {
 		t.Parallel()
 
-		for _, tc := range []struct {
-			name       string
-			providerID string
-			modelID    string
-		}{
-			{name: "Should expose Codex defaults", providerID: "codex"},
-			{
-				name:       "Should expose the canonical Cursor descriptor",
-				providerID: "cursor",
-				modelID:    "grok-4.5[effort=high,fast=true]",
-			},
-		} {
-			t.Run(tc.name, func(t *testing.T) {
-				t.Parallel()
+		source := NewBuiltinSource()
+		codexRows, err := source.ListModels(
+			testutil.Context(t),
+			ListOptions{ProviderID: "codex", Now: testTime(0)},
+		)
+		if err != nil {
+			t.Fatalf("ListModels(codex) error = %v", err)
+		}
+		if len(codexRows) == 0 {
+			t.Fatal("len(codexRows) = 0, want builtin Codex models")
+		}
+		if codexRows[0].SourceID != SourceIDBuiltin || codexRows[0].SourceKind != SourceKindBuiltin ||
+			codexRows[0].Priority != PriorityBuiltin {
+			t.Fatalf("row source = %#v, want builtin source metadata", codexRows[0])
+		}
+		if !codexRows[0].ExplicitlyCurated {
+			t.Fatal("builtin curated row ExplicitlyCurated = false, want true")
+		}
 
-				source := NewBuiltinSource()
-				rows, err := source.ListModels(
-					testutil.Context(t),
-					ListOptions{ProviderID: tc.providerID, Now: testTime(0)},
-				)
-				if err != nil {
-					t.Fatalf("ListModels() error = %v", err)
-				}
-				if len(rows) == 0 {
-					t.Fatalf("len(rows) = 0, want builtin %s models", tc.providerID)
-				}
-				if tc.modelID != "" && rows[0].ModelID != tc.modelID {
-					t.Fatalf("ModelID = %q, want %q", rows[0].ModelID, tc.modelID)
-				}
-				if rows[0].SourceID != SourceIDBuiltin || rows[0].SourceKind != SourceKindBuiltin ||
-					rows[0].Priority != PriorityBuiltin {
-					t.Fatalf("row source = %#v, want builtin source metadata", rows[0])
-				}
-				if !rows[0].ExplicitlyCurated {
-					t.Fatal("builtin curated row ExplicitlyCurated = false, want true")
-				}
-			})
+		cursorRows, err := source.ListModels(
+			testutil.Context(t),
+			ListOptions{ProviderID: "cursor", Now: testTime(0)},
+		)
+		if err != nil {
+			t.Fatalf("ListModels(cursor) error = %v", err)
+		}
+		if len(cursorRows) != 0 {
+			t.Fatalf("Cursor builtin rows = %#v, want live discovery only", cursorRows)
 		}
 	})
 }

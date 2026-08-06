@@ -29,7 +29,7 @@ func (m *Manager) acceptSessionStart(
 		return nil, errors.New("session: start spec is required")
 	}
 
-	runtime, err := m.resolveSessionStartRuntime(acceptCtx, spec)
+	runtime, err := m.resolveSessionStartRuntime(spec)
 	if err != nil {
 		spec.startLogger(m).Warn(
 			"session.start.runtime_prepare_failed",

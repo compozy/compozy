@@ -294,6 +294,75 @@ func TestGlobalDBModelCatalogStore(t *testing.T) {
 		}
 	})
 
+	t.Run("Should roll back every replacement when a later batch write fails", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		for _, providerID := range []string{"claude", "codex"} {
+			replaceModelCatalogRows(
+				t,
+				globalDB,
+				"config",
+				providerID,
+				modelcatalog.SourceKindConfig,
+				120,
+				[]modelcatalog.ModelRow{
+					modelCatalogRow("config", providerID, "old-"+providerID, modelcatalog.SourceKindConfig, 120),
+				},
+			)
+		}
+
+		invalid := modelCatalogRow("config", "codex", "new-codex", modelcatalog.SourceKindConfig, 120)
+		invalid.ReasoningEfforts = []modelcatalog.ReasoningEffort{
+			modelcatalog.ReasoningEffortHigh,
+			modelcatalog.ReasoningEffortHigh,
+		}
+		err := globalDB.ReplaceSourceRowsBatch(ctx, []modelcatalog.SourceRowsReplacement{
+			{
+				SourceID:   "config",
+				ProviderID: "claude",
+				Rows: []modelcatalog.ModelRow{
+					modelCatalogRow("config", "claude", "new-claude", modelcatalog.SourceKindConfig, 120),
+				},
+				Status: modelCatalogStatus("config", "claude", modelcatalog.SourceKindConfig, 120),
+			},
+			{
+				SourceID:   "config",
+				ProviderID: "codex",
+				Rows:       []modelcatalog.ModelRow{invalid},
+				Status:     modelCatalogStatus("config", "codex", modelcatalog.SourceKindConfig, 120),
+			},
+		})
+		if err == nil {
+			t.Fatal("ReplaceSourceRowsBatch() error = nil, want later replacement failure")
+		}
+
+		rows, err := globalDB.ListRows(ctx, modelcatalog.ListOptions{
+			SourceID:     "config",
+			IncludeAll:   true,
+			IncludeStale: true,
+		})
+		if err != nil {
+			t.Fatalf("ListRows(after failed batch) error = %v", err)
+		}
+		got := make([]string, 0, len(rows))
+		for _, row := range rows {
+			got = append(got, row.ProviderID+"/"+row.ModelID)
+		}
+		want := []string{"claude/old-claude", "codex/old-codex"}
+		if !slices.Equal(got, want) {
+			t.Fatalf("rows after failed batch = %#v, want %#v", got, want)
+		}
+		statuses, err := globalDB.ListSourceStatus(ctx, "")
+		if err != nil {
+			t.Fatalf("ListSourceStatus(after failed batch) error = %v", err)
+		}
+		if len(statuses) != 2 || statuses[0].RowCount != 1 || statuses[1].RowCount != 1 {
+			t.Fatalf("statuses after failed batch = %#v, want two original one-row statuses", statuses)
+		}
+	})
+
 	t.Run("Should persist empty optional source timestamps", func(t *testing.T) {
 		t.Parallel()
 

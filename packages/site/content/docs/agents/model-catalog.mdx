@@ -43,6 +43,12 @@ Higher-priority non-empty fields win; lower-priority sources fill missing fields
 fresher `refreshed_at`, then ascending `source_id`. `models.dev` and `builtin` rows can enrich
 metadata but never prove account-level availability.
 
+Cursor registers `provider_live:cursor` with the native `cursor-agent models` command. The first
+catalog read with no recorded Cursor discovery status runs that command under the provider's resolved
+home policy, preserves each returned ID and display name, and stores the rows before returning the
+projection. Later reads use the stored result. A failed first attempt is also stored as source status;
+use the normal refresh surfaces to retry or update the account catalog.
+
 Input, output, cache-read, cache-write, and reasoning prices merge independently and retain the
 source of the winning field. A cost estimate is available only when every nonzero usage bucket has
 its own finite, non-negative rate and all active rates have compatible provenance. Rates are never
@@ -364,7 +370,9 @@ a recorded source status (with redacted error) instead of corrupting the project
 
 ## Refresh lifetime and serialization
 
-- Catalog list calls return cached rows immediately when present.
+- Cursor discovery runs once on the first catalog read that has no `provider_live:cursor` status.
+- Later catalog list calls return stored rows without rerunning the Cursor CLI.
+- A recorded failed or disabled first attempt is retried only by an explicit refresh.
 - Refresh detaches from request cancellation via `context.WithoutCancel(ctx)` and re-attaches an
   explicit deadline through `context.WithDeadline`.
 - Refresh work is **serialized** per `provider_id` before any subprocess or provider-home work.

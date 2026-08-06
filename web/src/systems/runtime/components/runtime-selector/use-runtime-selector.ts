@@ -43,6 +43,7 @@ export function useRuntimeSelector({ value, onChange, providers, models }: UseRu
   const open = popupState.phase === "open";
   const railFilter = popupState.phase === "open" ? popupState.railFilter : "all";
   const query = popupState.phase === "open" ? popupState.query : "";
+  const entryMode = popupState.phase === "open" ? popupState.entryMode : "catalog";
   // The active row is a compound (provider,model) cursor, never a list index.
   // The derived index below therefore follows the model through reordering.
   const activeRow = popupState.phase === "open" ? popupState.activeRow : null;
@@ -78,6 +79,7 @@ export function useRuntimeSelector({ value, onChange, providers, models }: UseRu
   );
 
   const listModel = buildRuntimeListModel({
+    exactEntry: entryMode === "exact",
     query,
     railFilter,
     models,
@@ -118,6 +120,9 @@ export function useRuntimeSelector({ value, onChange, providers, models }: UseRu
     popupStore.trigger.queryChanged({ query: next });
   };
 
+  const startExactEntry = () => popupStore.trigger.exactEntryStarted();
+  const cancelExactEntry = () => popupStore.trigger.exactEntryCanceled();
+
   const emitSelection = (provider: string, id: string, model: RuntimeModelOption | undefined) => {
     const rz = resolveReasoningState(model);
     const keepsLevel =
@@ -141,14 +146,21 @@ export function useRuntimeSelector({ value, onChange, providers, models }: UseRu
 
   const pickCustom = (modelId: string) => {
     const id = modelId.trim();
-    if (id.length === 0) return;
+    if (id.length === 0) return false;
     const provider = activeCustomProvider;
     // Fail closed on a missing/unknown provider — a custom ID must never be
     // emitted with an empty or guessed provider (no default substitution).
-    if (provider.length === 0 || !providerById.has(provider)) return;
+    if (provider.length === 0 || !providerById.has(provider)) return false;
     // A custom ID may coincide with a known row for the active provider; reuse
     // its reasoning profile, otherwise commit it as a provisional exact ID.
     emitSelection(provider, id, modelByKey.get(runtimeModelKey(provider, id)));
+    return true;
+  };
+
+  const commitCustom = (modelId: string) => {
+    if (!pickCustom(modelId)) return false;
+    if (entryMode === "exact") popupStore.trigger.exactEntryCommitted();
+    return true;
   };
 
   const setReasoning = (effort: RuntimeSelectorValue["reasoning_effort"]) => {
@@ -195,6 +207,9 @@ export function useRuntimeSelector({ value, onChange, providers, models }: UseRu
   };
 
   const commitHighlight = () => {
+    if (entryMode === "exact") {
+      return commitCustom(query);
+    }
     const row = highlightIndex >= 0 ? listModel.flatRows[highlightIndex]?.model : undefined;
     if (row && !row.disabled) {
       pickModel(row.provider, row.id);
@@ -245,6 +260,9 @@ export function useRuntimeSelector({ value, onChange, providers, models }: UseRu
     changeRail,
     query,
     changeQuery,
+    entryMode,
+    startExactEntry,
+    cancelExactEntry,
     highlightIndex,
     highlightRow,
     favoriteAnnouncement,
@@ -259,6 +277,7 @@ export function useRuntimeSelector({ value, onChange, providers, models }: UseRu
     reasoningState,
     pickModel,
     pickCustom,
+    commitCustom,
     setReasoning,
   };
 }

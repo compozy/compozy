@@ -346,7 +346,8 @@ when that Loop is dry-run or submitted, and failures return typed `input_default
 `compozy loop validate` performs static definition validation. Dry-run and submission perform
 effective validation after workspace, stored, and per-run layers resolve, then the daemon validates
 again immediately before binding. Failures return structured `runtime_validation` items and spawn
-no ACP process. Model membership is enforced only for providers with an authoritative catalog.
+no ACP process. Provider IDs must resolve; exact model IDs pass through unchanged and the ACP/provider
+boundary reports a model rejection when it cannot bind that ID.
 
 Successful generation outputs expose the binder-applied `resolved_runtime` triple plus per-field
 provenance through `compozy loop status`, HTTP/UDS run detail, `compozy__loop_status`, and

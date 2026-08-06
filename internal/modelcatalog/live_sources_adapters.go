@@ -7,6 +7,8 @@ import (
 
 	"strings"
 	"time"
+
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 type liveDiscoveryKind string
@@ -30,6 +32,8 @@ type liveProviderAdapter struct {
 	defaultKind       liveDiscoveryKind
 	defaultEndpoint   string
 	defaultCommand    string
+	bootstrapOnList   bool
+	parseCommandRows  func(string, string, time.Time) ([]ModelRow, error)
 	authScheme        liveAuthScheme
 	authRequired      bool
 	credentialEnvKeys []string
@@ -103,6 +107,12 @@ var liveProviderAdapters = map[string]liveProviderAdapter{
 		defaultKind:    liveDiscoveryCommand,
 		defaultCommand: "opencode models",
 	},
+	liveSourcesCursorKey: {
+		defaultKind:      liveDiscoveryCommand,
+		defaultCommand:   "cursor-agent models",
+		bootstrapOnList:  true,
+		parseCommandRows: parseCursorModelRows,
+	},
 	"openclaw": {
 		defaultKind: liveDiscoveryNone,
 	},
@@ -114,8 +124,10 @@ var liveProviderAdapters = map[string]liveProviderAdapter{
 	},
 }
 
-func (s *LiveProviderSource) discoveryTarget() (liveDiscoveryTarget, error) {
-	discovery := s.provider.Models.Discovery
+func (s *LiveProviderSource) discoveryTarget(
+	provider compozyconfig.ProviderConfig,
+) (liveDiscoveryTarget, error) {
+	discovery := provider.Models.Discovery
 	configuredCommand := strings.TrimSpace(discovery.Command)
 	configuredEndpoint := strings.TrimSpace(discovery.Endpoint)
 	hasConfiguredPath := configuredCommand != "" || configuredEndpoint != ""
@@ -145,7 +157,7 @@ func (s *LiveProviderSource) discoveryTarget() (liveDiscoveryTarget, error) {
 	case liveDiscoveryHTTP:
 		return liveDiscoveryTarget{
 			kind:     liveDiscoveryHTTP,
-			endpoint: s.defaultEndpoint(),
+			endpoint: s.defaultEndpoint(provider),
 			timeout:  timeout,
 		}, nil
 	case liveDiscoveryCommand:
@@ -174,8 +186,8 @@ func (s *LiveProviderSource) discoveryTimeout(raw string) (time.Duration, error)
 	return timeout, nil
 }
 
-func (s *LiveProviderSource) defaultEndpoint() string {
-	baseURL := strings.TrimSpace(s.provider.BaseURL)
+func (s *LiveProviderSource) defaultEndpoint(provider compozyconfig.ProviderConfig) string {
+	baseURL := strings.TrimSpace(provider.BaseURL)
 	if baseURL == "" {
 		return s.adapter.defaultEndpoint
 	}

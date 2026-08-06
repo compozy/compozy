@@ -675,36 +675,35 @@ func TestMergeRows(t *testing.T) {
 func TestCatalogViews(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should suppress noncanonical Cursor aliases from the public catalog", func(t *testing.T) {
+	t.Run("Should treat discovered Cursor models as curated fallback metadata", func(t *testing.T) {
 		t.Parallel()
 
+		available := true
 		store := newMemoryStore()
-		store.rows[sourceProviderKey(SourceIDBuiltin, "cursor")] = []ModelRow{
+		store.rows[sourceProviderKey("provider_live:cursor", "cursor")] = []ModelRow{
 			testRow(
-				SourceIDBuiltin,
-				SourceKindBuiltin,
-				PriorityBuiltin,
+				"provider_live:cursor",
+				SourceKindProviderLive,
+				PriorityProviderLive,
 				"cursor",
-				"grok-4.5[effort=high,fast=true]",
+				"auto",
 				testTime(0),
-				func(row *ModelRow) { row.ExplicitlyCurated = true },
+				func(row *ModelRow) { row.Available = &available },
 			),
-		}
-		store.rows[sourceProviderKey(SourceIDConfig, "cursor")] = []ModelRow{
 			testRow(
-				SourceIDConfig,
-				SourceKindConfig,
-				PriorityConfig,
+				"provider_live:cursor",
+				SourceKindProviderLive,
+				PriorityProviderLive,
 				"cursor",
-				"cursor-grok-4.5-high",
+				"composer-2.5",
 				testTime(0),
-				func(row *ModelRow) { row.ExplicitlyCurated = true },
+				func(row *ModelRow) { row.Available = &available },
 			),
 		}
 		service := newTestService(t, store, nil)
 		models, err := service.ListModels(testutil.Context(t), ListOptions{
 			ProviderID:   "cursor",
-			View:         CatalogViewAll,
+			View:         CatalogViewCurated,
 			IncludeAll:   true,
 			IncludeStale: true,
 			Now:          testTime(1),
@@ -712,9 +711,9 @@ func TestCatalogViews(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ListModels(cursor) error = %v", err)
 		}
-		want := []string{"cursor/grok-4.5[effort=high,fast=true]"}
+		want := []string{"cursor/auto", "cursor/composer-2.5"}
 		if got := modelKeys(models); !slices.Equal(got, want) {
-			t.Fatalf("Cursor catalog models = %#v, want %#v", got, want)
+			t.Fatalf("curated Cursor models = %#v, want %#v", got, want)
 		}
 	})
 
@@ -1146,6 +1145,275 @@ func TestCatalogViews(t *testing.T) {
 
 func TestCatalogServiceRefresh(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should bootstrap opted-in sources once before the first catalog projection", func(t *testing.T) {
+		t.Parallel()
+
+		store := newMemoryStore()
+		store.rows[sourceProviderKey(SourceIDConfig, "claude")] = []ModelRow{
+			testRow(SourceIDConfig, SourceKindConfig, PriorityConfig, "claude", "configured", testTime(0), nil),
+		}
+		cursorSource := &fakeSource{
+			id:            "provider_live:cursor",
+			kind:          SourceKindProviderLive,
+			priority:      PriorityProviderLive,
+			providers:     []string{"cursor"},
+			bootstrapList: true,
+			rows: []ModelRow{
+				testRow(
+					"provider_live:cursor",
+					SourceKindProviderLive,
+					PriorityProviderLive,
+					"cursor",
+					"composer-2.5",
+					testTime(0),
+					nil,
+				),
+			},
+		}
+		service := newTestService(t, store, []Source{cursorSource})
+
+		for range 2 {
+			models, err := service.ListModels(testutil.Context(t), ListOptions{
+				View:       CatalogViewAll,
+				IncludeAll: true,
+				Now:        testTime(1),
+			})
+			if err != nil {
+				t.Fatalf("ListModels() error = %v", err)
+			}
+			want := []string{"claude/configured", "cursor/composer-2.5"}
+			if got := modelKeys(models); !slices.Equal(got, want) {
+				t.Fatalf("model keys = %#v, want %#v", got, want)
+			}
+		}
+		if got := cursorSource.calls; got != 1 {
+			t.Fatalf("Cursor source calls = %d, want one first-read discovery", got)
+		}
+	})
+
+	t.Run("Should claim one bootstrap attempt across concurrent first lists", func(t *testing.T) {
+		t.Parallel()
+
+		source := newBlockingRefreshSource(map[string][]ModelRow{
+			"cursor": {
+				testRow(
+					"provider_live:shared",
+					SourceKindProviderLive,
+					PriorityProviderLive,
+					"cursor",
+					"composer-2.5",
+					testTime(1),
+					nil,
+				),
+			},
+		})
+		source.bootstrapList = true
+		t.Cleanup(source.release)
+		service := newTestService(t, newMemoryStore(), []Source{source})
+		waited := make(chan string, 1)
+		service.onBootstrapWait = func(sourceID string, providerID string) {
+			waited <- sourceID + "/" + providerID
+		}
+		ctx := testutil.Context(t)
+		type listResult struct {
+			models []Model
+			err    error
+		}
+		results := make(chan listResult, 2)
+		list := func() {
+			models, err := service.ListModels(ctx, ListOptions{
+				ProviderID: "cursor",
+				View:       CatalogViewAll,
+				IncludeAll: true,
+				Now:        testTime(1),
+			})
+			results <- listResult{models: models, err: err}
+		}
+
+		go list()
+		source.waitForCalls(t, 1)
+		go list()
+		select {
+		case key := <-waited:
+			if key != "provider_live:shared/cursor" {
+				t.Fatalf("bootstrap wait key = %q, want provider_live:shared/cursor", key)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("timeout waiting for concurrent bootstrap claim")
+		}
+		source.release()
+
+		for range 2 {
+			result := <-results
+			if result.err != nil {
+				t.Fatalf("ListModels() error = %v", result.err)
+			}
+			if got, want := modelKeys(result.models), []string{"cursor/composer-2.5"}; !slices.Equal(got, want) {
+				t.Fatalf("model keys = %#v, want %#v", got, want)
+			}
+		}
+		if got, want := source.callCount(), 1; got != want {
+			t.Fatalf("Cursor source calls = %d, want one claimed bootstrap", got)
+		}
+	})
+
+	t.Run("Should let a live bootstrap waiter recover from owner cancellation", func(t *testing.T) {
+		t.Parallel()
+
+		source := newBlockingRefreshSource(map[string][]ModelRow{
+			"cursor": {
+				testRow(
+					"provider_live:shared",
+					SourceKindProviderLive,
+					PriorityProviderLive,
+					"cursor",
+					"composer-2.5",
+					testTime(1),
+					nil,
+				),
+			},
+		})
+		source.bootstrapList = true
+		t.Cleanup(source.release)
+		service := newTestService(t, newMemoryStore(), []Source{source})
+		waited := make(chan struct{}, 1)
+		service.onBootstrapWait = func(string, string) {
+			waited <- struct{}{}
+		}
+
+		ownerCtx, cancelOwner := context.WithCancel(testutil.Context(t))
+		defer cancelOwner()
+		type listResult struct {
+			models []Model
+			err    error
+		}
+		ownerResult := make(chan listResult, 1)
+		go func() {
+			models, err := service.ListModels(ownerCtx, ListOptions{
+				ProviderID: "cursor",
+				View:       CatalogViewAll,
+				IncludeAll: true,
+				Now:        testTime(1),
+			})
+			ownerResult <- listResult{models: models, err: err}
+		}()
+		source.waitForCalls(t, 1)
+
+		waiterResult := make(chan listResult, 1)
+		go func() {
+			models, err := service.ListModels(testutil.Context(t), ListOptions{
+				ProviderID: "cursor",
+				View:       CatalogViewAll,
+				IncludeAll: true,
+				Now:        testTime(1),
+			})
+			waiterResult <- listResult{models: models, err: err}
+		}()
+		select {
+		case <-waited:
+		case <-time.After(time.Second):
+			t.Fatal("timeout waiting for live bootstrap waiter")
+		}
+
+		cancelOwner()
+		owner := <-ownerResult
+		if !errors.Is(owner.err, context.Canceled) {
+			t.Fatalf("owner ListModels() error = %v, want context.Canceled", owner.err)
+		}
+		source.waitForCalls(t, 2)
+		source.release()
+
+		waiter := <-waiterResult
+		if waiter.err != nil {
+			t.Fatalf("waiter ListModels() error = %v", waiter.err)
+		}
+		if got, want := modelKeys(waiter.models), []string{"cursor/composer-2.5"}; !slices.Equal(got, want) {
+			t.Fatalf("waiter model keys = %#v, want %#v", got, want)
+		}
+		if got, want := source.callCount(), 2; got != want {
+			t.Fatalf("Cursor source calls = %d, want one canceled and one recovered attempt", got)
+		}
+	})
+
+	t.Run("Should cache a failed list bootstrap until an explicit refresh", func(t *testing.T) {
+		t.Parallel()
+
+		cursorSource := &fakeSource{
+			id:            "provider_live:cursor",
+			kind:          SourceKindProviderLive,
+			priority:      PriorityProviderLive,
+			providers:     []string{"cursor"},
+			bootstrapList: true,
+			err:           errors.New("cursor unavailable"),
+		}
+		service := newTestService(t, newMemoryStore(), []Source{cursorSource})
+
+		_, err := service.ListModels(testutil.Context(t), ListOptions{
+			ProviderID: "cursor",
+			View:       CatalogViewAll,
+			Now:        testTime(1),
+		})
+		if !errors.Is(err, ErrAllSourcesFailed) {
+			t.Fatalf("first ListModels() error = %v, want ErrAllSourcesFailed", err)
+		}
+		models, err := service.ListModels(testutil.Context(t), ListOptions{
+			ProviderID: "cursor",
+			View:       CatalogViewAll,
+			Now:        testTime(2),
+		})
+		if err != nil {
+			t.Fatalf("cached ListModels() error = %v", err)
+		}
+		if len(models) != 0 {
+			t.Fatalf("cached models = %#v, want empty projection", models)
+		}
+		if got := cursorSource.calls; got != 1 {
+			t.Fatalf("Cursor source calls before explicit refresh = %d, want one", got)
+		}
+
+		_, err = service.Refresh(testutil.Context(t), RefreshOptions{
+			ProviderID: "cursor",
+			SourceID:   cursorSource.id,
+			Force:      true,
+			Now:        testTime(3),
+		})
+		if !errors.Is(err, ErrAllSourcesFailed) {
+			t.Fatalf("Refresh() error = %v, want ErrAllSourcesFailed", err)
+		}
+		if got := cursorSource.calls; got != 2 {
+			t.Fatalf("Cursor source calls after explicit refresh = %d, want two", got)
+		}
+	})
+
+	t.Run("Should honor SkipRefreshIfEmpty for opted-in list bootstrap sources", func(t *testing.T) {
+		t.Parallel()
+
+		cursorSource := &fakeSource{
+			id:            "provider_live:cursor",
+			kind:          SourceKindProviderLive,
+			priority:      PriorityProviderLive,
+			providers:     []string{"cursor"},
+			bootstrapList: true,
+		}
+		service := newTestService(t, newMemoryStore(), []Source{cursorSource})
+
+		models, err := service.ListModels(testutil.Context(t), ListOptions{
+			ProviderID:         "cursor",
+			View:               CatalogViewAll,
+			SkipRefreshIfEmpty: true,
+			Now:                testTime(1),
+		})
+		if err != nil {
+			t.Fatalf("ListModels() error = %v", err)
+		}
+		if len(models) != 0 {
+			t.Fatalf("models = %#v, want empty projection", models)
+		}
+		if cursorSource.calls != 0 {
+			t.Fatalf("Cursor source calls = %d, want zero", cursorSource.calls)
+		}
+	})
 
 	t.Run("Should respect stale filters when listing merged models", func(t *testing.T) {
 		t.Parallel()
@@ -2173,17 +2441,116 @@ func TestCatalogServiceRefreshConcurrency(t *testing.T) {
 			t.Fatalf("source calls = %d, want %d shared global snapshot", got, want)
 		}
 	})
+
+	t.Run("Should not let an older global snapshot overwrite an explicit refresh", func(t *testing.T) {
+		t.Parallel()
+
+		source := newMutableRefreshSource(map[string][]ModelRow{
+			"claude": {
+				testRow(
+					"provider_live:shared",
+					SourceKindProviderLive,
+					PriorityProviderLive,
+					"claude",
+					"old-y",
+					testTime(35),
+					nil,
+				),
+			},
+			"codex": {
+				testRow(
+					"provider_live:shared",
+					SourceKindProviderLive,
+					PriorityProviderLive,
+					"codex",
+					"old-x",
+					testTime(35),
+					nil,
+				),
+			},
+		})
+		store := newBlockingProviderReplaceStore(newMemoryStore(), "claude")
+		t.Cleanup(store.release)
+		service := newTestService(t, store, []Source{source})
+		ctx := testutil.Context(t)
+
+		globalResult := make(chan refreshTestResult, 1)
+		go func() {
+			statuses, err := service.Refresh(ctx, RefreshOptions{Force: true, Now: testTime(35)})
+			globalResult <- refreshTestResult{statuses: statuses, err: err}
+		}()
+		store.waitUntilBlocked(t)
+		source.replace(map[string][]ModelRow{
+			"claude": {
+				testRow(
+					"provider_live:shared",
+					SourceKindProviderLive,
+					PriorityProviderLive,
+					"claude",
+					"new-y",
+					testTime(36),
+					nil,
+				),
+			},
+			"codex": {
+				testRow(
+					"provider_live:shared",
+					SourceKindProviderLive,
+					PriorityProviderLive,
+					"codex",
+					"new-x",
+					testTime(36),
+					nil,
+				),
+			},
+		})
+
+		explicitResult := make(chan refreshTestResult, 1)
+		go func() {
+			statuses, err := service.Refresh(ctx, RefreshOptions{
+				ProviderID: "codex",
+				Force:      true,
+				Now:        testTime(36),
+			})
+			explicitResult <- refreshTestResult{statuses: statuses, err: err}
+		}()
+		source.requireCallCountStable(t, 1, 25*time.Millisecond)
+
+		store.release()
+		for _, resultCh := range []<-chan refreshTestResult{globalResult, explicitResult} {
+			result := <-resultCh
+			if result.err != nil {
+				t.Fatalf("Refresh() error = %v", result.err)
+			}
+		}
+		rows, err := store.ListRows(ctx, ListOptions{
+			ProviderID:   "codex",
+			SourceID:     source.ID(),
+			IncludeAll:   true,
+			IncludeStale: true,
+		})
+		if err != nil {
+			t.Fatalf("ListRows(codex) error = %v", err)
+		}
+		if len(rows) != 1 || rows[0].ModelID != "new-x" {
+			t.Fatalf("final codex rows = %#v, want only new-x", rows)
+		}
+		if got, want := source.callCount(), 2; got != want {
+			t.Fatalf("source calls = %d, want ordered global and explicit refreshes", got)
+		}
+	})
 }
 
 type fakeSource struct {
-	id        string
-	kind      SourceKind
-	priority  int
-	providers []string
-	rows      []ModelRow
-	err       error
-	ttl       time.Duration
-	calls     int
+	id            string
+	kind          SourceKind
+	priority      int
+	providers     []string
+	rows          []ModelRow
+	err           error
+	ttl           time.Duration
+	bootstrapList bool
+	calls         int
 }
 
 type sourceWithoutProviderIDs struct {
@@ -2238,6 +2605,10 @@ func (s *fakeSource) TTL() time.Duration {
 	return s.ttl
 }
 
+func (s *fakeSource) BootstrapOnList() bool {
+	return s.bootstrapList
+}
+
 func (s *fakeSource) ListModels(_ context.Context, opts ListOptions) ([]ModelRow, error) {
 	s.calls++
 	rows := make([]ModelRow, 0, len(s.rows))
@@ -2257,6 +2628,7 @@ type refreshTestResult struct {
 type blockingRefreshSource struct {
 	mu             sync.Mutex
 	rowsByProvider map[string][]ModelRow
+	bootstrapList  bool
 	calls          int
 	callsCh        chan int
 	releaseCh      chan struct{}
@@ -2296,6 +2668,10 @@ func (s *blockingRefreshSource) ProviderIDs() []string {
 
 func (s *blockingRefreshSource) TTL() time.Duration {
 	return 0
+}
+
+func (s *blockingRefreshSource) BootstrapOnList() bool {
+	return s.bootstrapList
 }
 
 func (s *blockingRefreshSource) ListModels(ctx context.Context, opts ListOptions) ([]ModelRow, error) {
@@ -2384,6 +2760,127 @@ type memoryStore struct {
 	replaceCount int
 }
 
+type mutableRefreshSource struct {
+	mu             sync.Mutex
+	rowsByProvider map[string][]ModelRow
+	calls          int
+}
+
+func newMutableRefreshSource(rowsByProvider map[string][]ModelRow) *mutableRefreshSource {
+	source := &mutableRefreshSource{}
+	source.replace(rowsByProvider)
+	return source
+}
+
+func (s *mutableRefreshSource) ID() string         { return "provider_live:shared" }
+func (s *mutableRefreshSource) Kind() SourceKind   { return SourceKindProviderLive }
+func (s *mutableRefreshSource) Priority() int      { return PriorityProviderLive }
+func (s *mutableRefreshSource) TTL() time.Duration { return 0 }
+
+func (s *mutableRefreshSource) ProviderIDs() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	providers := make([]string, 0, len(s.rowsByProvider))
+	for providerID := range s.rowsByProvider {
+		providers = append(providers, providerID)
+	}
+	slices.Sort(providers)
+	return providers
+}
+
+func (s *mutableRefreshSource) ListModels(_ context.Context, opts ListOptions) ([]ModelRow, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.calls++
+	if opts.ProviderID != "" {
+		return cloneModelRows(s.rowsByProvider[opts.ProviderID]), nil
+	}
+	providers := make([]string, 0, len(s.rowsByProvider))
+	for providerID := range s.rowsByProvider {
+		providers = append(providers, providerID)
+	}
+	slices.Sort(providers)
+	rows := make([]ModelRow, 0)
+	for _, providerID := range providers {
+		rows = append(rows, cloneModelRows(s.rowsByProvider[providerID])...)
+	}
+	return rows, nil
+}
+
+func (s *mutableRefreshSource) replace(rowsByProvider map[string][]ModelRow) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.rowsByProvider = make(map[string][]ModelRow, len(rowsByProvider))
+	for providerID, rows := range rowsByProvider {
+		s.rowsByProvider[providerID] = cloneModelRows(rows)
+	}
+}
+
+func (s *mutableRefreshSource) callCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.calls
+}
+
+func (s *mutableRefreshSource) requireCallCountStable(t *testing.T, want int, duration time.Duration) {
+	t.Helper()
+	timer := time.NewTimer(duration)
+	defer timer.Stop()
+	<-timer.C
+	if got := s.callCount(); got != want {
+		t.Fatalf("source calls = %d while global publication was blocked, want %d", got, want)
+	}
+}
+
+type blockingProviderReplaceStore struct {
+	*memoryStore
+	providerID  string
+	blocked     chan struct{}
+	releaseCh   chan struct{}
+	blockOnce   sync.Once
+	releaseOnce sync.Once
+}
+
+func newBlockingProviderReplaceStore(store *memoryStore, providerID string) *blockingProviderReplaceStore {
+	return &blockingProviderReplaceStore{
+		memoryStore: store,
+		providerID:  providerID,
+		blocked:     make(chan struct{}),
+		releaseCh:   make(chan struct{}),
+	}
+}
+
+func (s *blockingProviderReplaceStore) ReplaceSourceRows(
+	ctx context.Context,
+	sourceID string,
+	providerID string,
+	rows []ModelRow,
+	status SourceStatus,
+) error {
+	if providerID == s.providerID {
+		s.blockOnce.Do(func() { close(s.blocked) })
+		select {
+		case <-s.releaseCh:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	return s.memoryStore.ReplaceSourceRows(ctx, sourceID, providerID, rows, status)
+}
+
+func (s *blockingProviderReplaceStore) waitUntilBlocked(t *testing.T) {
+	t.Helper()
+	select {
+	case <-s.blocked:
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for provider row publication to block")
+	}
+}
+
+func (s *blockingProviderReplaceStore) release() {
+	s.releaseOnce.Do(func() { close(s.releaseCh) })
+}
+
 type failOnSourceStatusReadStore struct {
 	Store
 	mu      sync.Mutex
@@ -2428,6 +2925,21 @@ func (s *memoryStore) ReplaceSourceRows(
 	key := sourceProviderKey(sourceID, providerID)
 	s.rows[key] = cloneModelRows(rows)
 	s.statuses[key] = status
+	return nil
+}
+
+func (s *memoryStore) ReplaceSourceRowsBatch(
+	_ context.Context,
+	replacements []SourceRowsReplacement,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, replacement := range replacements {
+		s.replaceCount++
+		key := sourceProviderKey(replacement.SourceID, replacement.ProviderID)
+		s.rows[key] = cloneModelRows(replacement.Rows)
+		s.statuses[key] = replacement.Status
+	}
 	return nil
 }
 

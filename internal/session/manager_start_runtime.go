@@ -11,7 +11,6 @@ import (
 )
 
 func (m *Manager) resolveSessionStartRuntime(
-	ctx context.Context,
 	spec *sessionStartSpec,
 ) (sessionStartRuntime, error) {
 	artifacts, err := m.resolveWorkspaceAgentArtifactsForSession(spec.agentName, spec.sessionType, &spec.workspace)
@@ -27,9 +26,6 @@ func (m *Manager) resolveSessionStartRuntime(
 	}
 	if err := spec.validateRuntimeOverrides(); err != nil {
 		return sessionStartRuntime{}, fmt.Errorf("session: validate runtime overrides for %q: %w", spec.sessionID, err)
-	}
-	if err := m.validateExplicitModel(ctx, spec, resolved); err != nil {
-		return sessionStartRuntime{}, fmt.Errorf("session: validate model for %q: %w", spec.sessionID, err)
 	}
 	if err := spec.applyResolvedReasoningEffort(resolved); err != nil {
 		return sessionStartRuntime{}, err

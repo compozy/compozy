@@ -236,7 +236,7 @@ func (m *Manager) preparePromptRuntimePlan(
 	spec.model = selection.Model
 	spec.reasoningEffort = selection.ReasoningEffort
 	spec.speed = selection.Speed
-	runtime, err := m.resolveSessionStartRuntime(ctx, &spec)
+	runtime, err := m.resolveSessionStartRuntime(&spec)
 	if err != nil {
 		return nil, err
 	}
