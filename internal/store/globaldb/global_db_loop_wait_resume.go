@@ -175,12 +175,12 @@ func recordWaitAdmissionFailure(
 		}
 		if err := appendLoopRunEventWithExecutor(ctx, exec, run.ID, run.WorkspaceID,
 			loopRunEventNodeAttentionFlagged, map[string]any{
-				loopRunEventPayloadKeyGeneration: mutation.Generation,
-				loopRunEventPayloadKeyNodeID:     mutation.NodeID,
-				loopRunEventPayloadKeyItemIndex:  mutation.ItemIndex,
-				"attention_flag":                 "wait_intervention",
-				loopRunEventPayloadKeyReason:     "wait payload admission failed repeatedly",
-				"admission_failures":             nextFailures,
+				loopRunEventPayloadKeyGeneration:    mutation.Generation,
+				loopRunEventPayloadKeyNodeID:        mutation.NodeID,
+				loopRunEventPayloadKeyItemIndex:     mutation.ItemIndex,
+				loopRunEventPayloadKeyAttentionFlag: "wait_intervention",
+				loopRunEventPayloadKeyReason:        "wait payload admission failed repeatedly",
+				"admission_failures":                nextFailures,
 			}, mutation.RequestedAt); err != nil {
 			return looppkg.NodeWait{}, err
 		}

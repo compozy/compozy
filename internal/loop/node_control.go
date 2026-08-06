@@ -41,19 +41,20 @@ type ControlProvenance struct {
 
 // NodeControl is the cross-generation control state for one authored node.
 type NodeControl struct {
-	LoopRunID         RunID
-	NodeID            NodeID
-	Paused            bool
-	PauseProvenance   *ControlProvenance
-	Quarantined       bool
-	QuarantineEntry   json.RawMessage
-	QuarantinedAt     *time.Time
-	AttentionFlag     string
-	AttentionReason   string
-	CancelState       CancelState
-	CancelProvenance  *ControlProvenance
-	LastEvidenceAt    *time.Time
-	DeathResumeStreak int
-	Revision          int64
-	UpdatedAt         time.Time
+	LoopRunID               RunID
+	NodeID                  NodeID
+	Paused                  bool
+	PauseProvenance         *ControlProvenance
+	Quarantined             bool
+	QuarantineEntry         json.RawMessage
+	QuarantinedAt           *time.Time
+	AttentionFlag           string
+	AttentionReason         string
+	AttentionProducerNodeID string
+	CancelState             CancelState
+	CancelProvenance        *ControlProvenance
+	LastEvidenceAt          *time.Time
+	DeathResumeStreak       int
+	Revision                int64
+	UpdatedAt               time.Time
 }

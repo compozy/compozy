@@ -110,6 +110,15 @@ type LeaseHeartbeat struct {
 	Actor         ActorContext  `json:"-"`
 }
 
+// LeaseSessionBinding captures a token-fenced session attachment for one leased run.
+type LeaseSessionBinding struct {
+	RunID      string       `json:"run_id"`
+	ClaimToken string       `json:"claim_token"`
+	SessionID  string       `json:"session_id"`
+	Now        time.Time    `json:"now"`
+	Actor      ActorContext `json:"-"`
+}
+
 // LeaseRelease captures a token-fenced release request.
 type LeaseRelease struct {
 	RunID      string       `json:"run_id"`
@@ -265,6 +274,36 @@ func (h LeaseHeartbeat) Validate(path string) error {
 			nestedPath(path, "tokens_used"),
 			h.TokensUsed,
 		)
+	}
+	return nil
+}
+
+// Normalize returns a validated session-binding request with default time applied.
+func (b LeaseSessionBinding) Normalize(defaultNow time.Time) (LeaseSessionBinding, error) {
+	normalized := b
+	normalized.RunID = strings.TrimSpace(normalized.RunID)
+	normalized.ClaimToken = strings.TrimSpace(normalized.ClaimToken)
+	normalized.SessionID = strings.TrimSpace(normalized.SessionID)
+	normalized.Now = normalizeLeaseNow(normalized.Now, defaultNow)
+	if err := normalized.Validate("lease_session_binding"); err != nil {
+		return LeaseSessionBinding{}, err
+	}
+	return normalized, nil
+}
+
+// Validate reports whether the session-binding request is internally consistent.
+func (b LeaseSessionBinding) Validate(path string) error {
+	if err := validateLeaseRunToken(b.RunID, b.ClaimToken, path); err != nil {
+		return err
+	}
+	if strings.TrimSpace(b.SessionID) == "" {
+		return fmt.Errorf("%w: %s is required", ErrValidation, nestedPath(path, sessionEvidenceIDKey))
+	}
+	if err := ValidateReferenceSize(b.SessionID, nestedPath(path, sessionEvidenceIDKey)); err != nil {
+		return err
+	}
+	if b.Now.IsZero() {
+		return fmt.Errorf("%w: %s is required", ErrValidation, nestedPath(path, "now"))
 	}
 	return nil
 }

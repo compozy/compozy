@@ -25,7 +25,7 @@ func appendCoordinatorTasksForOutputs(
 		if GenerationOutputStatusParked(output.Status) {
 			continue
 		}
-		if requiredParkedProducer(graph, topology, outputs, output) != "" {
+		if _, parked := requiredParkedProducerOutput(graph, topology, outputs, output); parked {
 			continue
 		}
 		node, ok := graphNode(graph, dsl.NodeID(output.NodeID))
@@ -77,7 +77,7 @@ func appendCoordinatorDependenciesForOutputs(
 		if GenerationOutputStatusParked(output.Status) {
 			continue
 		}
-		if requiredParkedProducer(graph, topology, outputs, output) != "" {
+		if _, parked := requiredParkedProducerOutput(graph, topology, outputs, output); parked {
 			continue
 		}
 		nodeID := dsl.NodeID(output.NodeID)

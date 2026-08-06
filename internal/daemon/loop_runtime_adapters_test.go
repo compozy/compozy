@@ -770,6 +770,80 @@ func TestCollectLoopPromptResultShouldNotTreatProtocolRawAsStructuredOutput(t *t
 		}
 	})
 
+	t.Run("Should concatenate streamed deltas without corrupting JSON string literals", func(t *testing.T) {
+		t.Parallel()
+
+		manager := loopPromptResultSessionManager{events: []acp.AgentEvent{
+			{Type: acp.EventTypeAgentMessage, Text: `{"status":"completed","summary":"root scripts (dev:`},
+			{Type: acp.EventTypeAgentMessage, Text: `server, test) pass",`},
+			{Type: acp.EventTypeAgentMessage, Text: `"files_changed":["server/index.ts"]}`},
+		}}
+		result, err := collectLoopPromptResult(
+			context.Background(),
+			manager,
+			"sess-loop-deltas",
+			looppkg.ActionPromptRequest{Message: "loop delta probe"},
+		)
+		if err != nil {
+			t.Fatalf("collectLoopPromptResult() error = %v", err)
+		}
+		if !json.Valid([]byte(result.Text)) {
+			t.Fatalf("collectLoopPromptResult() text = %q, want valid JSON across deltas", result.Text)
+		}
+		var decoded map[string]any
+		if err := json.Unmarshal([]byte(result.Text), &decoded); err != nil {
+			t.Fatalf("unmarshal joined deltas error = %v", err)
+		}
+		if decoded["summary"] != "root scripts (dev:server, test) pass" {
+			t.Fatalf("joined summary = %v, want delta boundary inside the string preserved", decoded["summary"])
+		}
+	})
+
+	t.Run("Should keep only agent-message chunks when the agent answered", func(t *testing.T) {
+		t.Parallel()
+
+		manager := loopPromptResultSessionManager{events: []acp.AgentEvent{
+			{Type: acp.EventTypeThought, Text: "Let me inspect {\"name\":\"todo-app\"} first"},
+			{Type: acp.EventTypeUserMessage, Text: "kickoff directive"},
+			{Type: acp.EventTypeAgentMessage, Text: `{"status":"completed","summary":"shipped"}`},
+		}}
+		result, err := collectLoopPromptResult(
+			context.Background(),
+			manager,
+			"sess-loop-filter",
+			looppkg.ActionPromptRequest{Message: "loop filter probe"},
+		)
+		if err != nil {
+			t.Fatalf("collectLoopPromptResult() error = %v", err)
+		}
+		if strings.Contains(result.Text, "todo-app") || strings.Contains(result.Text, "kickoff directive") {
+			t.Fatalf("collectLoopPromptResult() text = %q, want thought and user chunks excluded", result.Text)
+		}
+		if !strings.Contains(result.Text, `"status":"completed"`) {
+			t.Fatalf("collectLoopPromptResult() text = %q, want the agent answer preserved", result.Text)
+		}
+	})
+
+	t.Run("Should fall back to every chunk when no agent message arrived", func(t *testing.T) {
+		t.Parallel()
+
+		manager := loopPromptResultSessionManager{events: []acp.AgentEvent{
+			{Type: acp.EventTypeThought, Text: "only thoughts this turn"},
+		}}
+		result, err := collectLoopPromptResult(
+			context.Background(),
+			manager,
+			"sess-loop-fallback",
+			looppkg.ActionPromptRequest{Message: "loop fallback probe"},
+		)
+		if err != nil {
+			t.Fatalf("collectLoopPromptResult() error = %v", err)
+		}
+		if !strings.Contains(result.Text, "only thoughts this turn") {
+			t.Fatalf("collectLoopPromptResult() text = %q, want fallback to full transcript", result.Text)
+		}
+	})
+
 	t.Run("Should preserve a reported zero token total", func(t *testing.T) {
 		t.Parallel()
 

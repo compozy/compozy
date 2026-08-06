@@ -239,7 +239,10 @@ export function LoopQuarantineSheet({
           <div className="px-5 py-6">
             <SheetTitle>No quarantine entry</SheetTitle>
             <SheetDescription className="mt-1">
-              The daemon has not recorded a repair record for this node.
+              {node
+                ? `${node.label} is not quarantined, so there is no repair record to show. ` +
+                  "If a step is parked behind a quarantined one, open the entry from that step instead."
+                : "This node has no repair record. Pick a quarantined step from the Needs attention panel."}
             </SheetDescription>
           </div>
         )}

@@ -113,6 +113,7 @@ CREATE TABLE loop_node_controls (
 		'', 'silence', 'resume_exhausted', 'dependency_quarantined', 'wait_intervention', 'expired_wait'
 	)),
 	attention_reason      TEXT NOT NULL DEFAULT '',
+	attention_producer_node_id TEXT NOT NULL DEFAULT '',
 	cancel_state          TEXT NOT NULL DEFAULT '' CHECK (cancel_state IN (
 		'', 'requested', 'delivering', 'draining', 'canceled'
 	)),

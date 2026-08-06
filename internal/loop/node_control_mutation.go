@@ -26,12 +26,15 @@ type NodeControlMutation struct {
 	QuarantineEntry  json.RawMessage         `json:"quarantine_entry,omitempty"`
 	AttentionFlag    string                  `json:"attention_flag,omitempty"`
 	AttentionReason  string                  `json:"attention_reason,omitempty"`
-	CancelState      CancelState             `json:"cancel_state,omitempty"`
-	PauseActorKind   string                  `json:"pause_actor_kind,omitempty"`
-	PauseActorID     string                  `json:"pause_actor_id,omitempty"`
-	PauseReason      string                  `json:"pause_reason,omitempty"`
-	PauseRuleID      string                  `json:"pause_rule_id,omitempty"`
-	At               time.Time               `json:"at"`
+	// AttentionProducerNodeID names the parked producer that owns the repair
+	// record a dependency-quarantined consumer routes to.
+	AttentionProducerNodeID string      `json:"attention_producer_node_id,omitempty"`
+	CancelState             CancelState `json:"cancel_state,omitempty"`
+	PauseActorKind          string      `json:"pause_actor_kind,omitempty"`
+	PauseActorID            string      `json:"pause_actor_id,omitempty"`
+	PauseReason             string      `json:"pause_reason,omitempty"`
+	PauseRuleID             string      `json:"pause_rule_id,omitempty"`
+	At                      time.Time   `json:"at"`
 }
 
 func (m NodeControlMutation) normalized() NodeControlMutation {
@@ -39,6 +42,7 @@ func (m NodeControlMutation) normalized() NodeControlMutation {
 	m.NodeID = NodeID(strings.TrimSpace(string(m.NodeID)))
 	m.AttentionFlag = strings.TrimSpace(m.AttentionFlag)
 	m.AttentionReason = strings.TrimSpace(m.AttentionReason)
+	m.AttentionProducerNodeID = strings.TrimSpace(m.AttentionProducerNodeID)
 	m.CancelState = CancelState(strings.TrimSpace(string(m.CancelState)))
 	m.PauseActorKind = strings.TrimSpace(m.PauseActorKind)
 	m.PauseActorID = strings.TrimSpace(m.PauseActorID)
@@ -67,8 +71,9 @@ func (m NodeControlMutation) validate() error {
 			return fmt.Errorf("%w: quarantine mutation entry must be valid JSON", ErrValidation)
 		}
 	case NodeControlMutationAttention:
-		if m.AttentionFlag != attentionDependencyFlag || m.AttentionReason == "" {
-			return fmt.Errorf("%w: attention mutation requires a quarantined dependency", ErrValidation)
+		if m.AttentionFlag != attentionDependencyFlag || m.AttentionReason == "" ||
+			m.AttentionProducerNodeID == "" {
+			return fmt.Errorf("%w: attention mutation requires a quarantined dependency producer", ErrValidation)
 		}
 	case NodeControlMutationCancel:
 		if !m.ExpectExisting || m.CancelState != CancelStateCanceled {

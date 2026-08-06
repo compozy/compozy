@@ -227,6 +227,7 @@ export function useLoopRunPage(workspaceId: string, runId: string) {
     nodeNowLines: buildNodeNowLines(nodeLifecycles, view?.graph ?? null, live.retrySchedules),
     waitingNodes: view?.waitingNodes ?? [],
     attentionNodes: view?.attentionNodes ?? [],
+    nodeSessions: view?.nodeSessions ?? new Map<string, string>(),
     handlePause,
     handleResume,
     handleCancel,

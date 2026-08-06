@@ -24,6 +24,7 @@ vi.mock("@tanstack/react-router", async importOriginal => {
 const { LoopRunProgressPanel } = await import("../run-page/loop-run-progress-panel");
 const { LoopRunStoryTimeline } = await import("../run-page/loop-run-story-timeline");
 const { LoopRunNowCard } = await import("../run-page/loop-run-now-card");
+const { LoopRunAttentionPanel } = await import("../run-page/loop-run-parked-panels");
 const { LoopRunNeedsYouCard } = await import("../run-page/loop-run-needs-you-card");
 const { LoopRunOutcomeCard } = await import("../run-page/loop-run-outcome-card");
 const { LoopRunControls } = await import("../run-page/loop-run-controls");
@@ -232,6 +233,102 @@ describe("LoopRunNowCard", () => {
     render(<LoopRunNowCard run={run({ status: "paused", generation: 2 })} now={null} isLive />);
     expect(screen.getByTestId("loop-run-now-label")).toHaveTextContent("Paused");
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("Should open the live agent session in one click when the cell has one bound", () => {
+    render(
+      <LoopRunNowCard
+        run={run({ status: "running", generation: 2 })}
+        now={now}
+        isLive
+        nodeSessions={new Map([["fix_batches", "sess-live-agent"]])}
+        nodeLines={[
+          {
+            nodeId: "execute_task",
+            state: "retrying",
+            headline: "execute task is retrying",
+            body: "Next attempt shortly.",
+            chip: null,
+            provenance: null,
+            micro: "execute_task · gen 2",
+          },
+        ]}
+        nodesById={
+          new Map([["execute_task", loopNodeLifecycleFixture({ nodeId: "execute_task" })]])
+        }
+      />
+    );
+    expect(screen.getByTestId("loop-run-now-session-link")).toHaveAttribute(
+      "data-params",
+      JSON.stringify({ id: "sess-live-agent" })
+    );
+    // A lifecycle row without a bound session offers no dead session affordance.
+    expect(screen.queryByTestId("loop-run-now-node-session-execute_task")).not.toBeInTheDocument();
+  });
+});
+
+describe("LoopRunAttentionPanel", () => {
+  it("Should collapse consumers behind one quarantined producer and route its entry", () => {
+    const onOpenQuarantine = vi.fn();
+    const consumers = ["collect", "review", "verify", "approve"].map(nodeId =>
+      loopNodeLifecycleFixture({
+        nodeId,
+        label: nodeId,
+        attentionFlag: "dependency_quarantined",
+        attentionReason: `node ${nodeId} requires parked producer execute_task`,
+        attentionProducerNodeId: "execute_task",
+        generation: 3,
+      })
+    );
+    render(<LoopRunAttentionPanel nodes={consumers} onOpenQuarantine={onOpenQuarantine} />);
+
+    const row = screen.getByTestId("loop-run-attention-producer-execute_task");
+    expect(row).toHaveTextContent("execute task is quarantined");
+    expect(row).toHaveTextContent(
+      "collect, review, verify and approve are parked behind it until it is requeued."
+    );
+    expect(screen.getByTestId("loop-run-attention")).toHaveTextContent("4 flagged");
+
+    const buttons = screen.getAllByRole("button", { name: "Open quarantine entry" });
+    expect(buttons).toHaveLength(1);
+    fireEvent.click(buttons[0]);
+    expect(onOpenQuarantine).toHaveBeenCalledWith("execute_task");
+  });
+
+  it("Should keep the daemon's own reason for non-dependency flags", () => {
+    render(
+      <LoopRunAttentionPanel
+        nodes={[
+          loopNodeLifecycleFixture({
+            nodeId: "watcher",
+            label: "watcher",
+            attentionFlag: "expired_wait",
+            attentionReason: "wait expired without a timeout route",
+          }),
+        ]}
+      />
+    );
+    expect(screen.getByTestId("loop-run-attention-watcher")).toHaveTextContent(
+      "watcher waited past its deadline"
+    );
+    expect(screen.queryByRole("button", { name: "Open quarantine entry" })).not.toBeInTheDocument();
+  });
+
+  it("Should keep dependency consumers without producer provenance as separate rows", () => {
+    const consumers = ["collect", "review"].map(nodeId =>
+      loopNodeLifecycleFixture({
+        nodeId,
+        label: nodeId,
+        attentionFlag: "dependency_quarantined",
+        attentionReason: `node ${nodeId} requires an unavailable producer`,
+        attentionProducerNodeId: "",
+      })
+    );
+    render(<LoopRunAttentionPanel nodes={consumers} />);
+
+    expect(screen.getByTestId("loop-run-attention-collect")).toBeInTheDocument();
+    expect(screen.getByTestId("loop-run-attention-review")).toBeInTheDocument();
+    expect(screen.queryByTestId("loop-run-attention-producer-unknown")).not.toBeInTheDocument();
   });
 });
 

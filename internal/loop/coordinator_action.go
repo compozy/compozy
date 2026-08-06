@@ -448,7 +448,7 @@ func actionRunResultPayload(output ActionOutput) (json.RawMessage, error) {
 		payload["status"] = output.Status
 	}
 	if len(payload) == 0 {
-		payload["status"] = "completed"
+		payload["status"] = string(ActionPromptOutcomeCompleted)
 	}
 	data, err := json.Marshal(payload)
 	if err != nil {

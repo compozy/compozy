@@ -731,28 +731,29 @@ type LoopNodeAttempt struct {
 }
 
 type LoopNodeControl struct {
-	LoopRunID           string         `json:"loop_run_id"`
-	NodeID              string         `json:"node_id"`
-	Paused              int64          `json:"paused"`
-	PauseActorKind      sql.NullString `json:"pause_actor_kind"`
-	PauseActorID        sql.NullString `json:"pause_actor_id"`
-	PauseReason         sql.NullString `json:"pause_reason"`
-	PauseRuleID         sql.NullString `json:"pause_rule_id"`
-	PauseRequestedAt    sql.NullTime   `json:"pause_requested_at"`
-	Quarantined         int64          `json:"quarantined"`
-	QuarantineEntryJson sql.NullString `json:"quarantine_entry_json"`
-	QuarantinedAt       sql.NullTime   `json:"quarantined_at"`
-	AttentionFlag       string         `json:"attention_flag"`
-	AttentionReason     string         `json:"attention_reason"`
-	CancelState         string         `json:"cancel_state"`
-	CancelActorKind     sql.NullString `json:"cancel_actor_kind"`
-	CancelActorID       sql.NullString `json:"cancel_actor_id"`
-	CancelReason        sql.NullString `json:"cancel_reason"`
-	CancelRequestedAt   sql.NullTime   `json:"cancel_requested_at"`
-	LastEvidenceAt      sql.NullTime   `json:"last_evidence_at"`
-	DeathResumeStreak   int64          `json:"death_resume_streak"`
-	Revision            int64          `json:"revision"`
-	UpdatedAt           time.Time      `json:"updated_at"`
+	LoopRunID               string         `json:"loop_run_id"`
+	NodeID                  string         `json:"node_id"`
+	Paused                  int64          `json:"paused"`
+	PauseActorKind          sql.NullString `json:"pause_actor_kind"`
+	PauseActorID            sql.NullString `json:"pause_actor_id"`
+	PauseReason             sql.NullString `json:"pause_reason"`
+	PauseRuleID             sql.NullString `json:"pause_rule_id"`
+	PauseRequestedAt        sql.NullTime   `json:"pause_requested_at"`
+	Quarantined             int64          `json:"quarantined"`
+	QuarantineEntryJson     sql.NullString `json:"quarantine_entry_json"`
+	QuarantinedAt           sql.NullTime   `json:"quarantined_at"`
+	AttentionFlag           string         `json:"attention_flag"`
+	AttentionReason         string         `json:"attention_reason"`
+	AttentionProducerNodeID string         `json:"attention_producer_node_id"`
+	CancelState             string         `json:"cancel_state"`
+	CancelActorKind         sql.NullString `json:"cancel_actor_kind"`
+	CancelActorID           sql.NullString `json:"cancel_actor_id"`
+	CancelReason            sql.NullString `json:"cancel_reason"`
+	CancelRequestedAt       sql.NullTime   `json:"cancel_requested_at"`
+	LastEvidenceAt          sql.NullTime   `json:"last_evidence_at"`
+	DeathResumeStreak       int64          `json:"death_resume_streak"`
+	Revision                int64          `json:"revision"`
+	UpdatedAt               time.Time      `json:"updated_at"`
 }
 
 type LoopNodeWait struct {

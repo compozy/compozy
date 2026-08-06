@@ -417,6 +417,10 @@ type filteringTranscriptRecorder struct {
 	changeCalls []transcript.ChangeQuery
 }
 
+func (r *filteringTranscriptRecorder) ListTokenUsage(context.Context) ([]store.TokenUsage, error) {
+	return nil, nil
+}
+
 type blockingTranscriptRecorder struct {
 	filteringTranscriptRecorder
 	started chan struct{}

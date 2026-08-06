@@ -26,21 +26,24 @@ type LoopControlProvenancePayload struct {
 
 // LoopNodeControlPayload is the public durable control state for one authored node.
 type LoopNodeControlPayload struct {
-	LoopRunID         string                        `json:"loop_run_id"`
-	NodeID            string                        `json:"node_id"`
-	Paused            bool                          `json:"paused"`
-	PauseProvenance   *LoopControlProvenancePayload `json:"pause_provenance,omitempty"`
-	Quarantined       bool                          `json:"quarantined"`
-	QuarantineEntry   json.RawMessage               `json:"quarantine_entry,omitempty"`
-	QuarantinedAt     *time.Time                    `json:"quarantined_at,omitempty"`
-	AttentionFlag     string                        `json:"attention_flag,omitempty"`
-	AttentionReason   string                        `json:"attention_reason,omitempty"`
-	CancelState       string                        `json:"cancel_state,omitempty"`
-	CancelProvenance  *LoopControlProvenancePayload `json:"cancel_provenance,omitempty"`
-	LastEvidenceAt    *time.Time                    `json:"last_evidence_at,omitempty"`
-	DeathResumeStreak int                           `json:"death_resume_streak"`
-	Revision          int64                         `json:"revision"`
-	UpdatedAt         time.Time                     `json:"updated_at"`
+	LoopRunID       string                        `json:"loop_run_id"`
+	NodeID          string                        `json:"node_id"`
+	Paused          bool                          `json:"paused"`
+	PauseProvenance *LoopControlProvenancePayload `json:"pause_provenance,omitempty"`
+	Quarantined     bool                          `json:"quarantined"`
+	QuarantineEntry json.RawMessage               `json:"quarantine_entry,omitempty"`
+	QuarantinedAt   *time.Time                    `json:"quarantined_at,omitempty"`
+	AttentionFlag   string                        `json:"attention_flag,omitempty"`
+	AttentionReason string                        `json:"attention_reason,omitempty"`
+	// AttentionProducerNodeID routes a dependency-parked consumer to the
+	// quarantined producer that owns the repair record.
+	AttentionProducerNodeID string                        `json:"attention_producer_node_id,omitempty"`
+	CancelState             string                        `json:"cancel_state,omitempty"`
+	CancelProvenance        *LoopControlProvenancePayload `json:"cancel_provenance,omitempty"`
+	LastEvidenceAt          *time.Time                    `json:"last_evidence_at,omitempty"`
+	DeathResumeStreak       int                           `json:"death_resume_streak"`
+	Revision                int64                         `json:"revision"`
+	UpdatedAt               time.Time                     `json:"updated_at"`
 }
 
 // LoopNodeWaitPayload is one public durable wait cell.

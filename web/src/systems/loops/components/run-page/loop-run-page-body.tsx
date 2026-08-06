@@ -116,8 +116,10 @@ export interface LoopRunPageBodyProps extends Omit<ComponentProps<"div">, "child
   nodesById?: ReadonlyMap<string, LoopNodeLifecycle>;
   /** Renders the verb menu for one node; omitted in read-only fixtures. */
   renderNodeActions?: (node: LoopNodeLifecycle) => ReactNode;
-  /** Opens the quarantine entry sheet for one node. */
-  onOpenQuarantine?: (node: LoopNodeLifecycle) => void;
+  /** ACP session per node; the Happening-now rows link straight into them. */
+  nodeSessions?: ReadonlyMap<string, string>;
+  /** Opens the quarantine entry sheet for the quarantined node id. */
+  onOpenQuarantine?: (nodeId: string) => void;
   onDecision: (decision: LoopGateDecision, gateId: string) => void;
   onStartNewRun: () => void;
 }
@@ -174,6 +176,7 @@ export function LoopRunPageBody({
   nodeLifecycles,
   nodesById,
   renderNodeActions,
+  nodeSessions,
   onOpenQuarantine,
   onDecision,
   onStartNewRun,
@@ -207,6 +210,7 @@ export function LoopRunPageBody({
       nodeLines={nodeNowLines}
       nodesById={nodesById}
       renderNodeActions={renderNodeActions}
+      nodeSessions={nodeSessions}
     >
       {nowTurnsSlot}
     </LoopRunNowCard>

@@ -10,6 +10,7 @@ import {
   attentionNodes,
   type LoopNodeLifecycle,
   projectNodeLifecycles,
+  sessionsByNode,
   waitingNodes,
 } from "./loop-node-lifecycle";
 import type {
@@ -156,6 +157,8 @@ export interface LoopRunPageView {
   waitingNodes: LoopNodeLifecycle[];
   /** Nodes carrying an attention flag — the Needs attention panel's source. */
   attentionNodes: LoopNodeLifecycle[];
+  /** ACP session per node from the latest generation — one click into the agent. */
+  nodeSessions: ReadonlyMap<string, string>;
 }
 
 export function projectLoopRunPageView(input: LoopRunPageViewInput): LoopRunPageView {
@@ -230,5 +233,6 @@ export function projectLoopRunPageView(input: LoopRunPageViewInput): LoopRunPage
     nodeLifecycles,
     waitingNodes: waitingNodes(nodeLifecycles),
     attentionNodes: attentionNodes(nodeLifecycles),
+    nodeSessions: sessionsByNode(generations),
   };
 }

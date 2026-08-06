@@ -139,6 +139,7 @@ func generationOutputFromGenerated(row sqlcgen.ListLoopGenerationOutputsRow) (lo
 	}
 	output.NextAttemptAt = loopTimePointer(row.NextAttemptAt)
 	output.FirstScheduledAt = loopTimePointer(row.FirstScheduledAt)
+	output.SessionID = row.SessionID
 	return output, nil
 }
 

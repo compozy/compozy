@@ -82,6 +82,21 @@ var _ store.EventReadCloser = (*ReadOnlySessionDB)(nil)
 var _ store.EventMetadataReadCloser = (*ReadOnlySessionDB)(nil)
 var _ store.ConversationRewindReader = (*ReadOnlySessionDB)(nil)
 
+// ListTokenUsage returns the per-turn usage projection without mutating the database.
+func (s *ReadOnlySessionDB) ListTokenUsage(ctx context.Context) ([]store.TokenUsage, error) {
+	if s == nil || s.db == nil {
+		return nil, errors.New("store: read-only session database is required")
+	}
+	if ctx == nil {
+		return nil, errors.New("store: list token usage context is required")
+	}
+	rows, err := sqlcgen.New(s.db).ListTokenUsage(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("store: list read-only token usage: %w", err)
+	}
+	return tokenUsageFromGenerated(rows)
+}
+
 func (s *ReadOnlySessionDB) ConversationRewindTarget(
 	ctx context.Context,
 	messageID string,

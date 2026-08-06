@@ -256,6 +256,7 @@ type LeaseSettlementMutationStore interface {
 	CreateTaskEvent(ctx context.Context, event Event) error
 	ClaimNextRun(ctx context.Context, criteria ClaimCriteria) (ClaimResult, error)
 	HeartbeatRunLease(ctx context.Context, heartbeat LeaseHeartbeat) (Run, error)
+	BindLeasedRunSession(ctx context.Context, binding LeaseSessionBinding) (Run, error)
 	ReleaseRunLease(ctx context.Context, release LeaseRelease) (Run, error)
 	ListActiveSessionRunLeases(ctx context.Context, sessionID string) ([]Run, error)
 	ReleaseSessionRunLease(

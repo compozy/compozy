@@ -1103,6 +1103,10 @@ type stubRecorder struct {
 	closeCalls int
 }
 
+func (s *stubRecorder) ListTokenUsage(context.Context) ([]store.TokenUsage, error) {
+	return nil, nil
+}
+
 func (s *stubRecorder) Record(context.Context, store.SessionEvent) error {
 	return nil
 }

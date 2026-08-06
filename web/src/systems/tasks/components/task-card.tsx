@@ -4,29 +4,36 @@ import { MonoId, Pill } from "@compozy/ui";
 
 import {
   formatAttemptLabel,
+  parseLoopTaskId,
   taskApprovalStateLabel,
   taskHasApprovalPending,
   taskIsBlocked,
   taskOwnerLabel,
   taskPriorityLabel,
   taskPriorityTone,
+  taskShortId,
   taskStatusTone,
 } from "../lib/task-formatters";
 import type { TaskListItem } from "../types";
+import { TaskSubtaskList } from "./task-subtask-list";
 import { TasksListRow } from "./tasks-list-row";
 
 export interface TaskCardProps {
   task: TaskListItem;
+  /** Children nested under this row; rendered as a collapsed subtask group. */
+  subtasks?: TaskListItem[];
 }
 
-export function TaskCard({ task }: TaskCardProps) {
+export function TaskCard({ task, subtasks }: TaskCardProps) {
   const isBlocked = taskIsBlocked(task);
   const needsAttention = task.status === "needs_attention";
   const showApproval = taskHasApprovalPending(task);
   const activeRun = task.active_run ?? null;
   const ownerLabel = taskOwnerLabel(task.owner);
+  const nestedSubtasks = subtasks ?? [];
   const childCount = task.child_count ?? 0;
   const dependencyCount = task.dependency_count ?? 0;
+  const loopIdentity = parseLoopTaskId(task.id);
   const failedRunError =
     task.status === "failed" && task.active_run?.error ? task.active_run.error : null;
 
@@ -38,14 +45,15 @@ export function TaskCard({ task }: TaskCardProps) {
   if (activeRun) {
     metaItems.push(
       <span data-testid={`task-card-attempt-${task.id}`} key="attempt">
-        {formatAttemptLabel(activeRun.attempt, activeRun.max_attempts) ?? ""}
+        {/* Loop cells retry through generations; the task-level max is not their budget. */}
+        {formatAttemptLabel(activeRun.attempt, loopIdentity ? null : activeRun.max_attempts) ?? ""}
       </span>
     );
   }
-  if (childCount > 0) {
+  if (childCount > 0 && nestedSubtasks.length === 0) {
     metaItems.push(
       <span data-testid={`task-card-children-${task.id}`} key="children">
-        {childCount} {childCount === 1 ? "child" : "children"}
+        {childCount} {childCount === 1 ? "subtask" : "subtasks"}
       </span>
     );
   }
@@ -60,7 +68,7 @@ export function TaskCard({ task }: TaskCardProps) {
     metaItems.push(
       <span className="inline-flex items-center gap-1" key="parent">
         <span>parent</span>
-        <MonoId size="sm" value={task.parent_task_id} />
+        <MonoId size="sm" value={taskShortId({ id: task.parent_task_id })} />
       </span>
     );
   }
@@ -112,5 +120,17 @@ export function TaskCard({ task }: TaskCardProps) {
     </>
   );
 
-  return <TasksListRow meta={metaItems} task={task} trailing={trailing} />;
+  if (nestedSubtasks.length === 0) {
+    return <TasksListRow meta={metaItems} task={task} trailing={trailing} />;
+  }
+  return (
+    <div
+      className="border-b border-line-soft last:border-b-0"
+      data-slot="task-card-with-subtasks"
+      data-testid={`task-card-nested-${task.id}`}
+    >
+      <TasksListRow className="border-b-0" meta={metaItems} task={task} trailing={trailing} />
+      <TaskSubtaskList parentTaskId={task.id} subtasks={nestedSubtasks} />
+    </div>
+  );
 }

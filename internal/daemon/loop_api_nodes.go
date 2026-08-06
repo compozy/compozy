@@ -343,21 +343,22 @@ func loopNodeMutationResponse(
 
 func loopNodeControlPayload(control looppkg.NodeControl) contract.LoopNodeControlPayload {
 	return contract.LoopNodeControlPayload{
-		LoopRunID:         string(control.LoopRunID),
-		NodeID:            string(control.NodeID),
-		Paused:            control.Paused,
-		PauseProvenance:   loopControlProvenancePayload(control.PauseProvenance),
-		Quarantined:       control.Quarantined,
-		QuarantineEntry:   append(json.RawMessage(nil), control.QuarantineEntry...),
-		QuarantinedAt:     cloneTimePointer(control.QuarantinedAt),
-		AttentionFlag:     control.AttentionFlag,
-		AttentionReason:   control.AttentionReason,
-		CancelState:       string(control.CancelState),
-		CancelProvenance:  loopControlProvenancePayload(control.CancelProvenance),
-		LastEvidenceAt:    cloneTimePointer(control.LastEvidenceAt),
-		DeathResumeStreak: control.DeathResumeStreak,
-		Revision:          control.Revision,
-		UpdatedAt:         control.UpdatedAt.UTC(),
+		LoopRunID:               string(control.LoopRunID),
+		NodeID:                  string(control.NodeID),
+		Paused:                  control.Paused,
+		PauseProvenance:         loopControlProvenancePayload(control.PauseProvenance),
+		Quarantined:             control.Quarantined,
+		QuarantineEntry:         append(json.RawMessage(nil), control.QuarantineEntry...),
+		QuarantinedAt:           cloneTimePointer(control.QuarantinedAt),
+		AttentionFlag:           control.AttentionFlag,
+		AttentionReason:         control.AttentionReason,
+		AttentionProducerNodeID: control.AttentionProducerNodeID,
+		CancelState:             string(control.CancelState),
+		CancelProvenance:        loopControlProvenancePayload(control.CancelProvenance),
+		LastEvidenceAt:          cloneTimePointer(control.LastEvidenceAt),
+		DeathResumeStreak:       control.DeathResumeStreak,
+		Revision:                control.Revision,
+		UpdatedAt:               control.UpdatedAt.UTC(),
 	}
 }
 

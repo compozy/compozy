@@ -41,6 +41,9 @@ type GenerationOutput struct {
 	NextAttemptAt    *time.Time       `json:"next_attempt_at,omitempty"`
 	FirstScheduledAt *time.Time       `json:"first_scheduled_at,omitempty"`
 	Epoch            int64            `json:"epoch,omitempty"`
+	// SessionID is the ACP session bound to the cell's task run; it is a
+	// read-model join and never part of snapshot state.
+	SessionID string `json:"-"`
 	// ExpectedEpoch is the cell epoch observed by the planner. It is used only
 	// for compare-and-swap and is never stored as domain state.
 	ExpectedEpoch *int64 `json:"expected_epoch,omitempty"`
@@ -116,6 +119,11 @@ func (f *StoreFinalizer) WriteGenerationSnapshot(
 	for _, control := range payload.Controls {
 		if err := writeNodeControlMutation(ctx, tx, loopRunID, control); err != nil {
 			return err
+		}
+		if control.Kind == NodeControlMutationQuarantine {
+			if err := markQuarantinedNodeTasks(ctx, tx, loopRunID, snap.Generation, payload, control); err != nil {
+				return err
+			}
 		}
 	}
 	for _, wait := range payload.Waits {

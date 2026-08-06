@@ -198,6 +198,7 @@ function LoopRunDetail({ workspaceId, runId, topbarIdentity, workspaceName }: Lo
         waitingNodes={page.waitingNodes}
         attentionNodes={page.attentionNodes}
         nodesById={page.nodesById}
+        nodeSessions={page.nodeSessions}
         renderNodeActions={node => (
           <LoopNodeRowActions
             isPending={nodeControls.isPending}

@@ -218,12 +218,65 @@ func TestLoopActionRuntimeEnforcesActionLiveness(t *testing.T) {
 		}
 	})
 
+	t.Run("Should persist a bound session once per distinct session id", func(t *testing.T) {
+		t.Parallel()
+
+		base := time.Date(2026, 8, 5, 12, 0, 0, 0, time.UTC)
+		var bound []string
+		usage := newLoopActionUsageState(
+			func() time.Time { return base },
+			func(sessionID string) bool {
+				bound = append(bound, sessionID)
+				return true
+			},
+		)
+		usage.ReportActionSessionBound("sess-bind-a")
+		usage.ReportActionSessionBound("sess-bind-a")
+		usage.ReportActionSessionBound(" ")
+		usage.ReportActionSessionBound("sess-bind-a")
+		usage.ReportActionSessionBound("sess-bind-b")
+		if len(bound) != 2 || bound[0] != "sess-bind-a" || bound[1] != "sess-bind-b" {
+			t.Fatalf("bound sessions = %v, want one persistence per distinct id", bound)
+		}
+	})
+
+	t.Run("Should retry a failed session binding before completing the lease", func(t *testing.T) {
+		t.Parallel()
+
+		manager, taskRecord, run := newLoopActionLivenessTestFixture()
+		manager.bindFailures.Store(1)
+		runner := &loopActionLivenessTestRunner{completeAfter: time.Millisecond, sessionID: "sess-bind-retry"}
+		runtime, err := newLoopActionRuntime(
+			manager,
+			&loopActionCapacityTestStore{taskRecord: taskRecord, run: run},
+			runner,
+			nil,
+			discardLogger(),
+			nil,
+		)
+		if err != nil {
+			t.Fatalf("newLoopActionRuntime() error = %v", err)
+		}
+
+		if err := runtime.executeQueuedRun(
+			context.Background(), taskRecord, run, loopActionRuntimeReasonEnqueued,
+		); err != nil {
+			t.Fatalf("executeQueuedRun() error = %v", err)
+		}
+		if got := manager.bindCalls.Load(); got != 2 {
+			t.Fatalf("BindLeasedRunSession() calls = %d, want initial failure plus one retry", got)
+		}
+		if got := manager.lastBoundSession(); got != "sess-bind-retry" {
+			t.Fatalf("last bound session = %q, want sess-bind-retry", got)
+		}
+	})
+
 	t.Run("Should treat session activity and an active tool as progress truth", func(t *testing.T) {
 		t.Parallel()
 
 		base := time.Date(2026, 7, 19, 0, 0, 0, 0, time.UTC)
 		current := base
-		usage := newLoopActionUsageState(func() time.Time { return current })
+		usage := newLoopActionUsageState(func() time.Time { return current }, nil)
 		usage.ReportActionSessionBound("sess-active-tool")
 		activityAt := base.Add(time.Minute)
 		runtime := &loopActionRuntime{sessions: loopActionSessionStatusStub{info: &session.Info{
@@ -256,7 +309,7 @@ func TestLoopActionRuntimeEnforcesActionLiveness(t *testing.T) {
 		t.Parallel()
 
 		base := time.Date(2026, 7, 19, 0, 0, 0, 0, time.UTC)
-		usage := newLoopActionUsageState(func() time.Time { return base })
+		usage := newLoopActionUsageState(func() time.Time { return base }, nil)
 		usage.ReportActionSessionBound("sess-stalled")
 		runtime := &loopActionRuntime{sessions: loopActionSessionStatusStub{info: &session.Info{
 			Liveness: &store.SessionLivenessMeta{StallState: store.SessionStallStateDetected},
@@ -520,6 +573,14 @@ func (m *loopActionCapacityTestManager) HeartbeatRunLease(
 	return &m.run, nil
 }
 
+func (m *loopActionCapacityTestManager) BindLeasedRunSession(
+	context.Context,
+	taskpkg.LeaseSessionBinding,
+	taskpkg.ActorContext,
+) (*taskpkg.Run, error) {
+	return &m.run, nil
+}
+
 func (m *loopActionCapacityTestManager) CompleteRunLease(
 	_ context.Context,
 	completion taskpkg.LeaseCompletion,
@@ -560,6 +621,10 @@ func (*loopActionCapacityTestRunner) ActionRunTimeout(
 type loopActionLivenessTestManager struct {
 	heartbeatCalls atomic.Int32
 	completedCalls atomic.Int32
+	bindCalls      atomic.Int32
+	bindFailures   atomic.Int32
+	bindMu         sync.Mutex
+	boundSessionID string
 	failure        taskpkg.LeaseFailure
 	run            taskpkg.Run
 }
@@ -584,6 +649,27 @@ func (m *loopActionLivenessTestManager) HeartbeatRunLease(
 ) (*taskpkg.Run, error) {
 	m.heartbeatCalls.Add(1)
 	return &m.run, nil
+}
+
+func (m *loopActionLivenessTestManager) BindLeasedRunSession(
+	_ context.Context,
+	binding taskpkg.LeaseSessionBinding,
+	_ taskpkg.ActorContext,
+) (*taskpkg.Run, error) {
+	call := m.bindCalls.Add(1)
+	if call <= m.bindFailures.Load() {
+		return nil, errors.New("bind unavailable")
+	}
+	m.bindMu.Lock()
+	m.boundSessionID = binding.SessionID
+	m.bindMu.Unlock()
+	return &m.run, nil
+}
+
+func (m *loopActionLivenessTestManager) lastBoundSession() string {
+	m.bindMu.Lock()
+	defer m.bindMu.Unlock()
+	return m.boundSessionID
 }
 
 func (m *loopActionLivenessTestManager) CompleteRunLease(

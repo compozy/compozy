@@ -67,6 +67,8 @@ export interface LoopNodeLifecycle {
   quarantineEntry: LoopQuarantineEntry | null;
   attentionFlag: string;
   attentionReason: string;
+  /** The parked producer a dependency-flagged consumer routes to for repair. */
+  attentionProducerNodeId: string;
   cancelState: string;
   cancelProvenance: LoopControlProvenance | null;
   lastEvidenceAt: string | null;
@@ -80,6 +82,8 @@ export interface LoopNodeLifecycle {
   disposition: string;
   outputStatus: string;
   generation: number;
+  /** ACP session bound to the node's latest cell run; null when none bound yet. */
+  sessionId: string | null;
 }
 
 function provenance(value: LoopControlProvenance | null | undefined): LoopControlProvenance | null {
@@ -199,6 +203,7 @@ export function projectNodeLifecycles(input: LoopNodeLifecycleInput): LoopNodeLi
       quarantineEntry: readQuarantineEntry(control?.quarantine_entry),
       attentionFlag: control?.attention_flag ?? "",
       attentionReason: control?.attention_reason ?? "",
+      attentionProducerNodeId: control?.attention_producer_node_id ?? "",
       cancelState: control?.cancel_state ?? "",
       cancelProvenance: provenance(control?.cancel_provenance),
       lastEvidenceAt: control?.last_evidence_at ?? null,
@@ -211,9 +216,24 @@ export function projectNodeLifecycles(input: LoopNodeLifecycleInput): LoopNodeLi
       disposition: output?.disposition ?? "",
       outputStatus: output?.status ?? "",
       generation: Number(output?.generation ?? input.runGeneration),
+      sessionId: output?.session_id ? output.session_id : null,
     });
   }
   return rows;
+}
+
+/**
+ * ACP session per node from the latest generation's cells — the run page's
+ * one-click path into the live agent conversation.
+ */
+export function sessionsByNode(
+  generations: readonly LoopRunGeneration[] | undefined
+): Map<string, string> {
+  const sessions = new Map<string, string>();
+  for (const [nodeId, output] of latestOutputs(generations)) {
+    if (output.session_id) sessions.set(nodeId, output.session_id);
+  }
+  return sessions;
 }
 
 /** Nodes the daemon flagged for attention — an overlay, not an exclusive state. */

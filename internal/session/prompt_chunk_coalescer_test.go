@@ -347,6 +347,10 @@ type failingBatchRecorder struct {
 	usageCalls int
 }
 
+func (r *failingBatchRecorder) ListTokenUsage(context.Context) ([]store.TokenUsage, error) {
+	return nil, nil
+}
+
 func (r *failingBatchRecorder) Record(_ context.Context, event store.SessionEvent) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()

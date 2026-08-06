@@ -49,6 +49,9 @@ export function tasksListOptions(filters: TaskListFilter = {}, enabled = true) {
     initialPageParam: INITIAL_CURSOR,
     getNextPageParam: lastPage => (lastPage.page.has_more ? lastPage.page.next_cursor : undefined),
     staleTime: DEFAULT_STALE_TIME,
+    // The catalog has no SSE subscription; without a poll a stale status stays
+    // on screen for as long as the window keeps focus.
+    refetchInterval: DEFAULT_REFETCH_INTERVAL,
     enabled,
   });
 }

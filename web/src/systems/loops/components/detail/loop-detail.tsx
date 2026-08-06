@@ -32,7 +32,6 @@ import { LoopDeclaredInputs } from "./loop-declared-inputs";
 import { LoopDeleteAction } from "./loop-delete-action";
 import { LoopLimitsPanel } from "./loop-limits-panel";
 import { LoopRecentRuns } from "./loop-recent-runs";
-import { LoopReliabilityPanel } from "./loop-reliability-panel";
 import { LoopStartBindingsPanel, type LoopBindingPagination } from "./loop-start-bindings-panel";
 import { LoopStatsPanel } from "./loop-stats-panel";
 import { LoopVersionsPanel } from "./loop-versions-panel";
@@ -176,7 +175,6 @@ export function LoopDetailView({
                 contract={definition.contract}
                 concurrency={definition.concurrency}
               />
-              <LoopReliabilityPanel effectiveLifecycle={loop.effective_lifecycle} graph={graph} />
               <Section
                 label="Body · DAG"
                 right={

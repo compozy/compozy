@@ -16,6 +16,7 @@ export function loopNodeLifecycleFixture(
     quarantineEntry: null,
     attentionFlag: "",
     attentionReason: "",
+    attentionProducerNodeId: "",
     cancelState: "",
     cancelProvenance: null,
     lastEvidenceAt: null,
@@ -28,6 +29,7 @@ export function loopNodeLifecycleFixture(
     disposition: "",
     outputStatus: "running",
     generation: 2,
+    sessionId: null,
     ...overrides,
   };
 }

@@ -278,15 +278,19 @@ func collectLoopPromptResult(
 	if err != nil {
 		return looppkg.ActionPromptResult{}, err
 	}
-	var text strings.Builder
+	var agentText strings.Builder
+	var allText strings.Builder
 	var tokensUsed int64
 	tokensReported := false
 	for event := range events {
+		// Chunks are streaming deltas of one turn, not lines: any injected
+		// separator lands inside JSON string literals and corrupts the answer.
+		// The transcript projector concatenates the same way.
 		if strings.TrimSpace(event.Text) != "" {
-			if text.Len() > 0 {
-				text.WriteByte('\n')
+			if event.Type == acp.EventTypeAgentMessage {
+				agentText.WriteString(event.Text)
 			}
-			text.WriteString(event.Text)
+			allText.WriteString(event.Text)
 		}
 		if tokens, ok := loopPromptTokensUsed(event.Usage); ok {
 			tokensUsed = tokens
@@ -296,8 +300,14 @@ func collectLoopPromptResult(
 			}
 		}
 	}
+	// Agent-message chunks are the action answer; thought and user chunks only
+	// backstop providers that never emit an agent message on this turn.
+	text := agentText.String()
+	if strings.TrimSpace(text) == "" {
+		text = allText.String()
+	}
 	return looppkg.ActionPromptResult{
-		Text:           text.String(),
+		Text:           text,
 		TokensUsed:     tokensUsed,
 		TokensReported: tokensReported,
 	}, nil

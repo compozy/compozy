@@ -311,7 +311,7 @@ func (q *Queries) ListLoopNodeAttempts(ctx context.Context, arg ListLoopNodeAtte
 }
 
 const listLoopNodeControls = `-- name: ListLoopNodeControls :many
-SELECT control.loop_run_id, control.node_id, control.paused, control.pause_actor_kind, control.pause_actor_id, control.pause_reason, control.pause_rule_id, control.pause_requested_at, control.quarantined, control.quarantine_entry_json, control.quarantined_at, control.attention_flag, control.attention_reason, control.cancel_state, control.cancel_actor_kind, control.cancel_actor_id, control.cancel_reason, control.cancel_requested_at, control.last_evidence_at, control.death_resume_streak, control.revision, control.updated_at FROM loop_node_controls AS control
+SELECT control.loop_run_id, control.node_id, control.paused, control.pause_actor_kind, control.pause_actor_id, control.pause_reason, control.pause_rule_id, control.pause_requested_at, control.quarantined, control.quarantine_entry_json, control.quarantined_at, control.attention_flag, control.attention_reason, control.attention_producer_node_id, control.cancel_state, control.cancel_actor_kind, control.cancel_actor_id, control.cancel_reason, control.cancel_requested_at, control.last_evidence_at, control.death_resume_streak, control.revision, control.updated_at FROM loop_node_controls AS control
 JOIN loop_runs AS run ON run.id = control.loop_run_id
 WHERE run.workspace_id = ?1 AND control.loop_run_id = ?2
 ORDER BY control.node_id ASC
@@ -345,6 +345,7 @@ func (q *Queries) ListLoopNodeControls(ctx context.Context, arg ListLoopNodeCont
 			&i.QuarantinedAt,
 			&i.AttentionFlag,
 			&i.AttentionReason,
+			&i.AttentionProducerNodeID,
 			&i.CancelState,
 			&i.CancelActorKind,
 			&i.CancelActorID,

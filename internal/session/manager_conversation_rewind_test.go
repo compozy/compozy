@@ -16,6 +16,10 @@ type rewindBaselineRecorder struct {
 	state store.ConversationRewindState
 }
 
+func (r *rewindBaselineRecorder) ListTokenUsage(context.Context) ([]store.TokenUsage, error) {
+	return nil, nil
+}
+
 func (r *rewindBaselineRecorder) ConversationRewindTarget(
 	context.Context,
 	string,

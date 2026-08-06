@@ -94,9 +94,11 @@ WHERE id = sqlc.arg(id);
 -- name: ListLoopGenerationOutputs :many
 SELECT output.generation, output.node_id, output.item_index, output.status, output.output_ref,
        output.task_run_id, output.child_loop_run_id, output.resolved_runtime_json,
-       output.attempt, output.next_attempt_at, output.first_scheduled_at, output.epoch
+       output.attempt, output.next_attempt_at, output.first_scheduled_at, output.epoch,
+       COALESCE(run_link.session_id, '') AS session_id
 FROM loop_generation_outputs AS output
 JOIN loop_runs AS run ON run.id = output.loop_run_id
+LEFT JOIN task_runs AS run_link ON run_link.id = output.task_run_id
 WHERE output.loop_run_id = sqlc.arg(loop_run_id)
   AND output.generation = sqlc.arg(generation)
   AND run.workspace_id = sqlc.arg(workspace_id)

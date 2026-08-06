@@ -111,6 +111,9 @@ export function buildRunUsage(run: LoopRunRecord, elapsedSeconds: number): LoopR
   const wallCapped = run.budget_wall_sec > 0;
   const tokensCapped = run.budget_tokens > 0;
   const roundsCapped = run.iteration_cap > 0;
+  // Zero tokens means the agent never reported usage, not a free run; showing a
+  // confident `0 / ~$0.00` would be plausible-but-untrue UI.
+  const tokensReported = run.tokens_used > 0;
   return [
     {
       key: "time",
@@ -122,15 +125,20 @@ export function buildRunUsage(run: LoopRunRecord, elapsedSeconds: number): LoopR
     {
       key: "tokens",
       label: "Tokens",
-      value: formatTokenCount(run.tokens_used),
-      max: tokensCapped ? `/ ${formatTokenCount(run.budget_tokens)}` : "/ ∞",
-      tone: tokensCapped ? ratioTone(run.tokens_used / run.budget_tokens) : "neutral",
+      value: tokensReported ? formatTokenCount(run.tokens_used) : "not reported",
+      max: tokensReported
+        ? tokensCapped
+          ? `/ ${formatTokenCount(run.budget_tokens)}`
+          : "/ ∞"
+        : "",
+      tone:
+        tokensCapped && tokensReported ? ratioTone(run.tokens_used / run.budget_tokens) : "neutral",
     },
     {
       key: "cost",
       label: "Cost",
-      value: deriveCostEstimate(run.tokens_used),
-      max: "estimate",
+      value: tokensReported ? deriveCostEstimate(run.tokens_used) : "—",
+      max: tokensReported ? "estimate" : "",
       tone: "neutral",
     },
     {
@@ -175,11 +183,17 @@ export function usageSnapshotFacts(run: LoopRunRecord, elapsedSeconds: number): 
     },
     {
       label: "Tokens",
-      value: `${formatTokenCount(run.tokens_used)} / ${
-        run.budget_tokens > 0 ? formatTokenCount(run.budget_tokens) : "∞"
-      }`,
+      value:
+        run.tokens_used > 0
+          ? `${formatTokenCount(run.tokens_used)} / ${
+              run.budget_tokens > 0 ? formatTokenCount(run.budget_tokens) : "∞"
+            }`
+          : "not reported",
     },
-    { label: "Cost", value: `${deriveCostEstimate(run.tokens_used)} est.` },
+    {
+      label: "Cost",
+      value: run.tokens_used > 0 ? `${deriveCostEstimate(run.tokens_used)} est.` : "—",
+    },
     { label: "Round", value: String(run.generation) },
   ];
 }

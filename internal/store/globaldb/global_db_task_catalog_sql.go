@@ -11,7 +11,7 @@ import (
 const taskCatalogCTEBody = `,
 base_runs AS MATERIALIZED (
 	SELECT
-		tr.id, tr.task_id, tr.workspace_id, tr.status, tr.attempt, tr.recovery_count,
+		tr.id, tr.task_id, tr.workspace_id, tr.status, tr.run_kind, tr.attempt, tr.recovery_count,
 		tr.previous_run_id, tr.failure_kind,
 		tr.claimed_by_kind, tr.claimed_by_ref, tr.session_id, tr.lease_until,
 		tr.heartbeat_at, tr.network_spec_json, tr.network_mode, tr.network_channel,
@@ -42,7 +42,7 @@ dependency_tasks AS MATERIALIZED (
 	) edge ON edge.depends_on_task_id = dependency.id
 ),
 dependency_runs AS MATERIALIZED (
-	SELECT run.id, run.task_id, run.status, run.attempt, run.queued_at
+	SELECT run.id, run.task_id, run.status, run.run_kind, run.attempt, run.queued_at
 	FROM dependency_tasks dependency
 	CROSS JOIN task_runs AS run INDEXED BY idx_task_runs_task
 	WHERE run.task_id = dependency.id
@@ -60,6 +60,7 @@ dependency_latest_terminal_candidates AS (
 	SELECT
 		task_id,
 		status,
+		run_kind,
 		ROW_NUMBER() OVER (
 			PARTITION BY task_id
 			ORDER BY attempt DESC, queued_at DESC, id DESC
@@ -70,18 +71,19 @@ dependency_latest_terminal_candidates AS (
 dependency_completion AS (
 	-- A dependency blocks only when its canonical status is not completed. Under
 	-- taskStatusFromPolicySnapshot, completed depends on raw terminal state and
-	-- run precedence; dependency blockers can never promote a task to completed.
+	-- run precedence; a completed coordinator pulse never completes its task, and
+	-- dependency blockers can never promote a task to completed.
 	SELECT
 		dependency.id AS task_id,
 		CASE
 			WHEN dependency.status IN ('canceled', 'draft') THEN 0
 			WHEN COALESCE(policy.has_active, 0) = 1 THEN 0
 			WHEN COALESCE(policy.has_queued_or_claimed, 0) = 1 THEN 0
-			WHEN terminal.status = 'completed' THEN 1
+			WHEN dependency.status = 'completed' THEN 1
+			WHEN terminal.status = 'completed' AND terminal.run_kind <> 'coordinator' THEN 1
 			WHEN terminal.status = 'canceled' THEN 0
 			WHEN terminal.status = 'failed'
 				AND COALESCE(policy.max_attempt, 0) + 1 > dependency.max_attempts THEN 0
-			WHEN dependency.status = 'completed' THEN 1
 			ELSE 0
 		END AS is_completed
 	FROM dependency_tasks dependency
@@ -140,6 +142,7 @@ latest_terminal_candidates AS (
 	SELECT
 		task_id,
 		status,
+		run_kind,
 		ROW_NUMBER() OVER (
 			PARTITION BY task_id
 			ORDER BY attempt DESC, queued_at DESC, id DESC
@@ -196,13 +199,16 @@ catalog_derived AS (
 		CASE
 			WHEN t.status IN ('canceled', 'draft') THEN t.status
 			WHEN COALESCE(rp.has_active, 0) = 1 THEN 'in_progress'
+			WHEN t.status IN ('completed', 'failed', 'canceled')
+				AND COALESCE(rp.has_queued_or_claimed, 0) = 0 THEN t.status
+			WHEN lt.status = 'completed'
+				AND lt.run_kind = 'coordinator'
+				AND COALESCE(rp.has_queued_or_claimed, 0) = 0 THEN 'in_progress'
 			WHEN lt.status = 'completed' AND COALESCE(rp.has_queued_or_claimed, 0) = 0 THEN 'completed'
 			WHEN lt.status = 'failed'
 				AND COALESCE(rp.has_queued_or_claimed, 0) = 0
 				AND COALESCE(rp.max_attempt, 0) + 1 > t.max_attempts THEN 'failed'
 			WHEN lt.status = 'canceled' AND COALESCE(rp.has_queued_or_claimed, 0) = 0 THEN 'canceled'
-			WHEN t.status IN ('completed', 'failed', 'canceled')
-				AND COALESCE(rp.has_queued_or_claimed, 0) = 0 THEN t.status
 			WHEN t.needs_attention_at IS NOT NULL THEN 'needs_attention'
 			WHEN COALESCE(rp.has_queued_or_claimed, 0) = 1 THEN
 				CASE WHEN (

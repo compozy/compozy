@@ -10,10 +10,7 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
-const (
-	loopCoordinatorActorRef  = "loop-coordinator"
-	loopCoordinatorSessionID = "daemon-loop-coordinator"
-)
+const loopCoordinatorActorRef = "loop-coordinator"
 
 func (s schedulerTaskSource) RunLoopCoordinatorBackstop(
 	ctx context.Context,
@@ -47,13 +44,12 @@ func (s schedulerTaskSource) RunLoopCoordinatorBackstop(
 		startedForScope := 0
 		for startedForScope < defaultLoopCoordinatorBackstopLimit {
 			claim, err := s.manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-				Scope:            scope.scope,
-				WorkspaceID:      scope.workspaceID,
-				RunKind:          taskpkg.RunKindCoordinator,
-				ClaimerSessionID: loopCoordinatorSessionID,
-				ClaimedBy:        &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: loopCoordinatorActorRef},
-				LeaseDuration:    taskpkg.DefaultRunLeaseDuration,
-				Now:              now,
+				Scope:         scope.scope,
+				WorkspaceID:   scope.workspaceID,
+				RunKind:       taskpkg.RunKindCoordinator,
+				ClaimedBy:     &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: loopCoordinatorActorRef},
+				LeaseDuration: taskpkg.DefaultRunLeaseDuration,
+				Now:           now,
 			}, actor)
 			if errors.Is(err, taskpkg.ErrActiveRunLease) {
 				return started, nil

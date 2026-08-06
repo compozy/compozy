@@ -8643,6 +8643,13 @@ func (r *recordingRegistry) HeartbeatRunLease(
 	return taskpkg.Run{}, taskpkg.ErrTaskRunNotFound
 }
 
+func (r *recordingRegistry) BindLeasedRunSession(
+	context.Context,
+	taskpkg.LeaseSessionBinding,
+) (taskpkg.Run, error) {
+	return taskpkg.Run{}, taskpkg.ErrTaskRunNotFound
+}
+
 func (r *recordingRegistry) FailRunLeaseMutation(
 	context.Context,
 	taskpkg.LeaseFailure,

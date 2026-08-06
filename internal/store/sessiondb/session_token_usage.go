@@ -2,6 +2,7 @@ package sessiondb
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 
@@ -27,6 +28,70 @@ func (s *SessionDB) RecordTokenUsage(ctx context.Context, usage store.TokenUsage
 		usage:  usage,
 		result: make(chan sessionWriteResult, 1),
 	})
+}
+
+// ListTokenUsage returns the per-turn usage projection recorded for the session.
+func (s *SessionDB) ListTokenUsage(ctx context.Context) ([]store.TokenUsage, error) {
+	if s == nil {
+		return nil, errors.New("store: session database is required")
+	}
+	if ctx == nil {
+		return nil, errors.New("store: list token usage context is required")
+	}
+	rows, err := sqlcgen.New(s.db).ListTokenUsage(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("store: list token usage: %w", err)
+	}
+	return tokenUsageFromGenerated(rows)
+}
+
+func tokenUsageFromGenerated(rows []sqlcgen.TokenUsage) ([]store.TokenUsage, error) {
+	usages := make([]store.TokenUsage, 0, len(rows))
+	for _, row := range rows {
+		timestamp, err := store.ParseTimestamp(row.Timestamp)
+		if err != nil {
+			return nil, fmt.Errorf("store: parse token usage timestamp for turn %q: %w", row.TurnID, err)
+		}
+		usages = append(usages, store.TokenUsage{
+			TurnID:           row.TurnID,
+			InputTokens:      nullableInt64Pointer(row.InputTokens),
+			OutputTokens:     nullableInt64Pointer(row.OutputTokens),
+			TotalTokens:      nullableInt64Pointer(row.TotalTokens),
+			ThoughtTokens:    nullableInt64Pointer(row.ThoughtTokens),
+			CacheReadTokens:  nullableInt64Pointer(row.CacheReadTokens),
+			CacheWriteTokens: nullableInt64Pointer(row.CacheWriteTokens),
+			ContextUsed:      nullableInt64Pointer(row.ContextUsed),
+			ContextSize:      nullableInt64Pointer(row.ContextSize),
+			CostAmount:       nullableFloat64Pointer(row.CostAmount),
+			CostCurrency:     nullableStringPointer(row.CostCurrency),
+			Timestamp:        timestamp,
+		})
+	}
+	return usages, nil
+}
+
+func nullableInt64Pointer(value sql.NullInt64) *int64 {
+	if !value.Valid {
+		return nil
+	}
+	result := value.Int64
+	return &result
+}
+
+func nullableFloat64Pointer(value sql.NullFloat64) *float64 {
+	if !value.Valid {
+		return nil
+	}
+	result := value.Float64
+	return &result
+}
+
+func nullableStringPointer(value sql.NullString) *string {
+	if !value.Valid {
+		return nil
+	}
+	result := value.String
+	return &result
 }
 
 func (s *SessionDB) writeTokenUsage(ctx context.Context, usage store.TokenUsage) error {

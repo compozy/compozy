@@ -30,6 +30,8 @@ const (
 	GenerationLifecycleEventNodeCanceled GenerationLifecycleEventKind = "node_canceled"
 	// GenerationLifecycleEventNodeQuarantined records one durable quarantine episode.
 	GenerationLifecycleEventNodeQuarantined GenerationLifecycleEventKind = "node_quarantined"
+	// GenerationLifecycleEventNodeAttentionFlagged records one dependency-parked attention flag.
+	GenerationLifecycleEventNodeAttentionFlagged GenerationLifecycleEventKind = "node_attention_flagged"
 	// GenerationLifecycleEventNodePaused records one automatic pause episode.
 	GenerationLifecycleEventNodePaused GenerationLifecycleEventKind = "node_paused"
 	// GenerationLifecycleEventNodeWaitStarted records one durable wait entry.
@@ -56,16 +58,19 @@ type GenerationLifecycleEventIntent struct {
 	Failure         *ClassifiedFailure           `json:"failure,omitempty"`
 	Disposition     AttemptDisposition           `json:"disposition,omitempty"`
 	QuarantineEntry json.RawMessage              `json:"quarantine_entry,omitempty"`
-	TargetFamily    string                       `json:"target_family,omitempty"`
-	Target          string                       `json:"target,omitempty"`
-	BreakerState    string                       `json:"breaker_state,omitempty"`
-	ActorKind       string                       `json:"actor_kind,omitempty"`
-	ActorID         string                       `json:"actor_id,omitempty"`
-	RuleID          string                       `json:"rule_id,omitempty"`
-	WaitKind        string                       `json:"wait_kind,omitempty"`
-	AheadArrival    string                       `json:"ahead_arrival,omitempty"`
-	AheadCursors    map[string]int64             `json:"ahead_cursors,omitempty"`
-	Effects         []RenderedEffectIntent       `json:"effects,omitempty"`
+	AttentionFlag   string                       `json:"attention_flag,omitempty"`
+	// AttentionProducerNodeID names the parked producer behind a dependency attention flag.
+	AttentionProducerNodeID string                 `json:"attention_producer_node_id,omitempty"`
+	TargetFamily            string                 `json:"target_family,omitempty"`
+	Target                  string                 `json:"target,omitempty"`
+	BreakerState            string                 `json:"breaker_state,omitempty"`
+	ActorKind               string                 `json:"actor_kind,omitempty"`
+	ActorID                 string                 `json:"actor_id,omitempty"`
+	RuleID                  string                 `json:"rule_id,omitempty"`
+	WaitKind                string                 `json:"wait_kind,omitempty"`
+	AheadArrival            string                 `json:"ahead_arrival,omitempty"`
+	AheadCursors            map[string]int64       `json:"ahead_cursors,omitempty"`
+	Effects                 []RenderedEffectIntent `json:"effects,omitempty"`
 }
 
 func (i GenerationLifecycleEventIntent) normalized() GenerationLifecycleEventIntent {
@@ -74,6 +79,8 @@ func (i GenerationLifecycleEventIntent) normalized() GenerationLifecycleEventInt
 	i.Route = gate.RouteAction(strings.TrimSpace(string(i.Route)))
 	i.Reason = strings.TrimSpace(i.Reason)
 	i.NodeID = strings.TrimSpace(i.NodeID)
+	i.AttentionFlag = strings.TrimSpace(i.AttentionFlag)
+	i.AttentionProducerNodeID = strings.TrimSpace(i.AttentionProducerNodeID)
 	i.TargetFamily = strings.TrimSpace(i.TargetFamily)
 	i.Target = strings.TrimSpace(i.Target)
 	i.BreakerState = strings.TrimSpace(i.BreakerState)
@@ -121,6 +128,8 @@ func (i GenerationLifecycleEventIntent) validate() error {
 		err = i.validateNodeCanceled()
 	case GenerationLifecycleEventNodeQuarantined:
 		err = i.validateNodeQuarantined()
+	case GenerationLifecycleEventNodeAttentionFlagged:
+		err = i.validateNodeAttentionFlagged()
 	case GenerationLifecycleEventNodePaused:
 		err = i.validateNodePaused()
 	case GenerationLifecycleEventNodeWaitStarted:
@@ -169,6 +178,14 @@ func (i GenerationLifecycleEventIntent) validateNodeWaitStarted() error {
 		return nil
 	}
 	return fmt.Errorf("%w: node_wait_started event has incomplete wait identity", ErrValidation)
+}
+
+func (i GenerationLifecycleEventIntent) validateNodeAttentionFlagged() error {
+	if i.NodeID != "" && i.ItemIndex >= 0 && i.AttentionFlag != "" &&
+		i.AttentionProducerNodeID != "" && i.Reason != "" {
+		return nil
+	}
+	return fmt.Errorf("%w: node_attention_flagged event has incomplete provenance", ErrValidation)
 }
 
 func (i GenerationLifecycleEventIntent) validateNodePaused() error {

@@ -248,20 +248,32 @@ func (r *CoordinatorRunner) applyParkedDependencyAttention(
 		if _, exists := planned[nodeID]; exists {
 			continue
 		}
-		dependency := requiredParkedProducer(graph, topology, outputs, output)
-		if dependency == "" {
+		producer, producerFound := requiredParkedProducerOutput(graph, topology, outputs, output)
+		if !producerFound {
 			continue
 		}
+		dependency := producer.NodeID
 		reason := fmt.Sprintf("node %s requires parked producer %s", output.NodeID, dependency)
 		control := controlByNode[nodeID]
-		if control.AttentionFlag == attentionDependencyFlag && control.AttentionReason == reason {
+		if control.AttentionFlag == attentionDependencyFlag && control.AttentionReason == reason &&
+			control.AttentionProducerNodeID == dependency {
 			continue
 		}
 		payload.Controls = append(payload.Controls, NodeControlMutation{
 			Kind: NodeControlMutationAttention, NodeID: nodeID,
 			ExpectedRevision: control.Revision, ExpectExisting: control.NodeID != "",
-			AttentionFlag: attentionDependencyFlag, AttentionReason: reason, At: r.now().UTC(),
+			AttentionFlag: attentionDependencyFlag, AttentionReason: reason,
+			AttentionProducerNodeID: dependency, At: r.now().UTC(),
 		})
+		// Waits already narrate themselves through node_wait_started; only a
+		// quarantined producer marks the durable moment the run parked.
+		if producer.Status == generationOutputQuarantined {
+			payload.Events = append(payload.Events, GenerationLifecycleEventIntent{
+				Kind: GenerationLifecycleEventNodeAttentionFlagged, NodeID: output.NodeID,
+				ItemIndex: output.ItemIndex, Reason: reason,
+				AttentionFlag: attentionDependencyFlag, AttentionProducerNodeID: dependency,
+			})
+		}
 		planned[nodeID] = struct{}{}
 	}
 	plan.Snapshot.Payload = payload
@@ -279,19 +291,19 @@ func generationHasParkedOutput(outputs []GenerationOutput) bool {
 	return false
 }
 
-func requiredParkedProducer(
+func requiredParkedProducerOutput(
 	graph dsl.Graph,
 	topology controlTopology,
 	outputs []GenerationOutput,
 	consumer GenerationOutput,
-) string {
+) (GenerationOutput, bool) {
 	outputMap := generationOutputMap(outputs)
 	visited := make(map[generationOutputKey]struct{})
-	var walk func(GenerationOutput) string
-	walk = func(current GenerationOutput) string {
+	var walk func(GenerationOutput) (GenerationOutput, bool)
+	walk = func(current GenerationOutput) (GenerationOutput, bool) {
 		key := generationOutputKey{nodeID: current.NodeID, itemIndex: current.ItemIndex}
 		if _, seen := visited[key]; seen {
-			return ""
+			return GenerationOutput{}, false
 		}
 		visited[key] = struct{}{}
 		for _, dependency := range topology.dependencies[dsl.NodeID(current.NodeID)] {
@@ -302,16 +314,16 @@ func requiredParkedProducer(
 				continue
 			}
 			if GenerationOutputStatusParked(upstream.Status) {
-				return upstream.NodeID
+				return upstream, true
 			}
-			if producer := walk(upstream); producer != "" {
-				return producer
+			if producer, found := walk(upstream); found {
+				return producer, true
 			}
 		}
-		return ""
+		return GenerationOutput{}, false
 	}
 	if _, found := graphNode(graph, NodeID(consumer.NodeID)); !found {
-		return ""
+		return GenerationOutput{}, false
 	}
 	return walk(consumer)
 }

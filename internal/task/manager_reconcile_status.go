@@ -247,14 +247,14 @@ func taskStatusFromPolicySnapshot(
 	if runState.hasActive {
 		return TaskStatusInProgress
 	}
+	// An explicitly closed task stays closed; later run evidence never reopens it.
+	if isTerminalTaskStatus(status) && !runState.hasQueuedOrClaimed {
+		return status
+	}
 	if runState.hasLatestTerminal && !runState.hasQueuedOrClaimed {
 		if terminalStatus, ok := taskStatusFromTerminalRun(runState.latestTerminal, attemptsExhausted); ok {
 			return terminalStatus
 		}
-	}
-
-	if isTerminalTaskStatus(status) && !runState.hasQueuedOrClaimed {
-		return status
 	}
 	if needsAttention {
 		return TaskStatusNeedsAttention
@@ -300,6 +300,11 @@ func taskRunPolicyState(runs []Run) taskRunPolicySnapshot {
 func taskStatusFromTerminalRun(run Run, attemptsExhausted bool) (Status, bool) {
 	switch run.Status.Normalize() {
 	case TaskRunStatusCompleted:
+		// A completed coordinator pulse is loop progress between boundaries, not
+		// task completion; only the loop terminal closes the umbrella task.
+		if run.RunKind.Normalize() == RunKindCoordinator {
+			return TaskStatusInProgress, true
+		}
 		return TaskStatusCompleted, true
 	case TaskRunStatusFailed:
 		return TaskStatusFailed, attemptsExhausted

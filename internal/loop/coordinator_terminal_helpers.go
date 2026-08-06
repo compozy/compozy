@@ -329,6 +329,11 @@ func coordinatorNodeTaskID(
 	return fmt.Sprintf("loop.%s.g%d.node.%s.%d", loopRunID, generation, nodeID, itemIndex)
 }
 
+// NodeCellTaskID is the canonical workspace-task id for one loop node cell.
+func NodeCellTaskID(loopRunID RunID, generation int, nodeID string, itemIndex int) string {
+	return coordinatorNodeTaskID(loopRunID, generation, dsl.NodeID(nodeID), itemIndex)
+}
+
 func coordinatorNodeRunID(
 	loopRunID RunID,
 	generation int,
