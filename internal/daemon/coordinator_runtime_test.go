@@ -368,14 +368,14 @@ func TestCoordinatorRuntimeSkipsIneligibleRuns(t *testing.T) {
 		wantReason string
 	}{
 		{
-			name:       "disabled config",
+			name:       "Should skip disabled config",
 			task:       coordinatorRuntimeTask(),
 			run:        coordinatorRuntimeRun(),
 			cfg:        compozyconfig.DefaultResolvedCoordinatorRole(),
 			wantReason: coordinator.DecisionDisabled,
 		},
 		{
-			name: "global scope",
+			name: "Should skip global scope",
 			task: func() taskpkg.Task {
 				task := coordinatorRuntimeTask()
 				task.Scope = taskpkg.ScopeGlobal
@@ -385,6 +385,18 @@ func TestCoordinatorRuntimeSkipsIneligibleRuns(t *testing.T) {
 			run:        coordinatorRuntimeRun(),
 			cfg:        coordinatorRuntimeConfig(),
 			wantReason: coordinator.DecisionGlobalScope,
+		},
+		{
+			name: "Should skip loop action worker run",
+			task: coordinatorRuntimeTask(),
+			run: func() taskpkg.Run {
+				run := coordinatorRuntimeRun()
+				run.RunKind = taskpkg.RunKindWorker
+				run.LoopRunID = "loop-run-1"
+				return run
+			}(),
+			cfg:        coordinatorRuntimeConfig(),
+			wantReason: coordinator.DecisionLoopWorker,
 		},
 	}
 

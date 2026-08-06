@@ -53,7 +53,7 @@ func TestCreateAllowedToolsOverrideNarrowsAgentProfile(t *testing.T) {
 	t.Run("Should persist narrowed tool policy for a subset override", func(t *testing.T) {
 		t.Parallel()
 
-		h := newHarness(t)
+		h := newHostedMCPHarness(t)
 		addHarnessAgent(t, h, compozyconfig.AgentDef{
 			Name:     "tool-coder",
 			Provider: "claude",
@@ -139,7 +139,7 @@ func TestCreateAllowedToolsOverrideNarrowsAgentProfile(t *testing.T) {
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
 
-				h := newHarness(t)
+				h := newHostedMCPHarness(t)
 				addHarnessAgent(t, h, compozyconfig.AgentDef{
 					Name:     "unchanged-coder",
 					Provider: "claude",
@@ -183,7 +183,7 @@ func TestCreateSpawnedAndCoordinatorSessionsValidateLineage(t *testing.T) {
 		t.Parallel()
 
 		now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
-		h := newHarness(t, WithNow(func() time.Time { return now }))
+		h := newHostedMCPHarness(t, WithNow(func() time.Time { return now }))
 		parent := createSession(t, h)
 		t.Cleanup(func() {
 			if err := h.manager.Stop(testutil.Context(t), parent.ID); err != nil {

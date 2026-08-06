@@ -1244,8 +1244,8 @@ func TestBootExtensionsBuildsManagerWhenNoExtensionsInstalled(t *testing.T) {
 	if err != nil {
 		t.Fatalf("registry.Get(%s) error = %v", devcycle.Name, err)
 	}
-	if info.Enabled || info.Source != extensionpkg.SourceBundled {
-		t.Fatalf("dev-cycle info = %#v, want installed but disabled bundled extension", info)
+	if !info.Enabled || info.Source != extensionpkg.SourceBundled {
+		t.Fatalf("dev-cycle info = %#v, want installed and enabled bundled extension", info)
 	}
 	if got, want := filepath.Base(info.ManifestPath), "extension.json"; got != want {
 		t.Fatalf("dev-cycle manifest file = %q, want %q", got, want)

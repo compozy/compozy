@@ -49,12 +49,35 @@ type CancellationResult struct {
 	Applied             bool
 }
 
+// PendingCancellation carries one durable delivery command and its current session bindings.
+type PendingCancellation struct {
+	WorkspaceID WorkspaceID
+	RunID       RunID
+	NodeID      NodeID
+	State       CancelState
+	Reason      string
+	RequestedAt time.Time
+	RequestedBy task.ActorIdentity
+	SessionIDs  []string
+}
+
 // CancellationStore owns atomic cancellation state, fencing, Goal cleanup, and terminal truth.
 type CancellationStore interface {
 	RequestRunCancellation(context.Context, CancellationMutation) (CancellationResult, error)
 	AdvanceRunCancellation(context.Context, CancellationMutation, CancelState) (CancellationResult, error)
 	RequestNodeCancellation(context.Context, CancellationMutation) (CancellationResult, error)
 	AdvanceNodeCancellation(context.Context, CancellationMutation, CancelState) (CancellationResult, error)
+}
+
+// CancellationReconciliationStore lists durable cancellation deliveries that still need progress.
+type CancellationReconciliationStore interface {
+	CancellationStore
+	ListPendingCancellations(context.Context, int) ([]PendingCancellation, error)
+}
+
+// CancellationReconciler retries committed cooperative cancellation delivery.
+type CancellationReconciler interface {
+	ReconcilePendingCancellations(context.Context, int, task.ActorContext) (int, error)
 }
 
 // CancellationSessionController performs post-commit prompt cancellation or immediate process stop.

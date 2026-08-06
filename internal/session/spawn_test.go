@@ -220,7 +220,7 @@ func TestManagerSpawnCreatesChildWithDurableLineageAndNarrowPermissions(t *testi
 		t.Parallel()
 
 		now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
-		h := newHarness(t, WithNow(func() time.Time { return now }))
+		h := newHostedMCPHarness(t, WithNow(func() time.Time { return now }))
 		parentPolicy := store.SessionPermissionPolicy{
 			Tools:           []string{testToolEdit, testToolRead},
 			Skills:          []string{"go", "tests"},
@@ -293,7 +293,7 @@ func TestManagerSpawnCreatesChildWithDurableLineageAndNarrowPermissions(t *testi
 	t.Run("Should keep children local by default and enforce their delegated channel scope", func(t *testing.T) {
 		t.Parallel()
 
-		h := newHarness(t, WithParticipationResolver(newTestSessionParticipationResolver(t, true)))
+		h := newHostedMCPHarness(t, WithParticipationResolver(newTestSessionParticipationResolver(t, true)))
 		parent, err := h.manager.Create(testutil.Context(t), CreateOpts{
 			AgentName:                    "coder",
 			Workspace:                    h.workspaceID,
@@ -594,7 +594,7 @@ func TestManagerSpawnRejectsPolicyViolations(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			h := newHarness(t)
+			h := newHostedMCPHarness(t)
 			parent := createSpawnParent(t, h, store.SessionPermissionPolicy{
 				Tools: []string{testToolRead},
 			}, store.SessionSpawnBudget{MaxChildren: 1, MaxDepth: 1})
@@ -614,7 +614,7 @@ func TestManagerSpawnStoppedParentRules(t *testing.T) {
 	t.Run("Should reject stopped parents for regular spawned sessions", func(t *testing.T) {
 		t.Parallel()
 
-		h := newHarness(t)
+		h := newHostedMCPHarness(t)
 		parent := createSpawnParent(t, h, store.SessionPermissionPolicy{
 			Tools: []string{testToolRead},
 		}, store.SessionSpawnBudget{MaxChildren: 2, MaxDepth: 1})
@@ -635,7 +635,7 @@ func TestManagerSpawnStoppedParentRules(t *testing.T) {
 	t.Run("Should allow daemon memory extractor spawns from stopped parents", func(t *testing.T) {
 		t.Parallel()
 
-		h := newHarness(t)
+		h := newHostedMCPHarness(t)
 		parent, err := h.manager.Create(testutil.Context(t), CreateOpts{
 			AgentName:                    "coder",
 			Name:                         "networked parent",
@@ -692,7 +692,7 @@ func TestManagerSpawnStoppedParentRules(t *testing.T) {
 	t.Run("Should reject stopped parent override outside memory extractor role", func(t *testing.T) {
 		t.Parallel()
 
-		h := newHarness(t)
+		h := newHostedMCPHarness(t)
 		parent := createSpawnParent(t, h, store.SessionPermissionPolicy{
 			Tools: []string{testToolRead},
 		}, store.SessionSpawnBudget{MaxChildren: 2, MaxDepth: 1})
@@ -712,7 +712,7 @@ func TestManagerSpawnStoppedParentRules(t *testing.T) {
 	t.Run("Should reject stopped parent override with auto stop lineage", func(t *testing.T) {
 		t.Parallel()
 
-		h := newHarness(t)
+		h := newHostedMCPHarness(t)
 		parent := createSpawnParent(t, h, store.SessionPermissionPolicy{
 			Tools: []string{testToolRead},
 		}, store.SessionSpawnBudget{MaxChildren: 2, MaxDepth: 1})
@@ -739,7 +739,7 @@ func TestManagerSpawnHooksCarryLineageAndCannotWidenPermissions(t *testing.T) {
 		t.Parallel()
 
 		hooks := &recordingSessionSpawnHooks{}
-		h := newHarness(t, WithHookSet(HookSet{Spawn: hooks}))
+		h := newHostedMCPHarness(t, WithHookSet(HookSet{Spawn: hooks}))
 		parent := createSpawnParent(t, h, store.SessionPermissionPolicy{
 			Tools: []string{testToolRead},
 		}, store.SessionSpawnBudget{MaxChildren: 2, MaxDepth: 1})
@@ -788,7 +788,7 @@ func TestManagerSpawnHooksCarryLineageAndCannotWidenPermissions(t *testing.T) {
 				return payload
 			},
 		}
-		h := newHarness(t, WithHookSet(HookSet{Spawn: hooks}))
+		h := newHostedMCPHarness(t, WithHookSet(HookSet{Spawn: hooks}))
 		parent := createSpawnParent(t, h, store.SessionPermissionPolicy{
 			Tools: []string{testToolRead},
 		}, store.SessionSpawnBudget{MaxChildren: 2, MaxDepth: 1})

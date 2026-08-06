@@ -96,6 +96,18 @@ func TestDecideBootstrap(t *testing.T) {
 			want: DecisionNonExecutableRun,
 		},
 		{
+			name: "Should skip loop action worker run",
+			task: baseTask,
+			run: func() taskpkg.Run {
+				run := baseRun
+				run.RunKind = taskpkg.RunKindWorker
+				run.LoopRunID = "loop-run-1"
+				return run
+			}(),
+			cfg:  enabled,
+			want: DecisionLoopWorker,
+		},
+		{
 			name: "Should skip task run mismatch",
 			task: baseTask,
 			run: func() taskpkg.Run {

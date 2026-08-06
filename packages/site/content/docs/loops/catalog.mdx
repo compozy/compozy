@@ -31,7 +31,8 @@ The catalog does not show a start-binding badge. A badge derived from one bounde
 sample could claim that a Loop has no binding when the matching definition is on a later page.
 Open Loop detail for the authoritative, independently paged binding lists.
 
-Two first-party Loops ship through the default-enrolled `dev-cycle` extension:
+Two first-party Loops ship through the bundled `dev-cycle` extension, which is enabled when Compozy
+installs it into a fresh home:
 
 - **`software-delivery`** — Engineering · delivery. Executes already-authored tasks in dependency
   order, reviews them, remediates failures, and verifies against the project's checks.
@@ -42,7 +43,8 @@ Two first-party Loops ship through the default-enrolled `dev-cycle` extension:
 The **Workspace** group stays empty until you fork a Loop. A workspace with only the two
 `dev-cycle` Loops is the honest empty state — the catalog never invents extra Loops to look fuller;
 it shows the real runs of the Loops you have. Disabling `dev-cycle` removes those two Loops, their
-default agents, and their artifact tools together.
+default agents, and their artifact tools together. That disabled state survives daemon restarts and
+extension updates until you enable it again.
 
 <OperatorNote label="Derived metrics">
   Success rate and run counts are a derived read model computed over real runs — they are aggregates

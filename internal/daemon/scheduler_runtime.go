@@ -9,6 +9,7 @@ import (
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	looppkg "github.com/compozy/compozy/internal/loop"
 	schedulerpkg "github.com/compozy/compozy/internal/scheduler"
 	"github.com/compozy/compozy/internal/situation"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -59,6 +60,14 @@ func (d *Daemon) bootScheduler(ctx context.Context, state *bootState, cleanup *b
 		workspaces: state.workspaceResolver,
 		agents:     agentCatalogDependency(state.agentCatalog),
 	}
+	var cancellationReconciler looppkg.CancellationReconciler
+	if state.deps.Loops != nil {
+		candidate, ok := state.deps.Loops.(looppkg.CancellationReconciler)
+		if !ok {
+			return errors.New("daemon: Loop service does not support cancellation reconciliation")
+		}
+		cancellationReconciler = candidate
+	}
 	runtime, err := newSchedulerRuntime(
 		ctx,
 		state.tasks,
@@ -66,6 +75,7 @@ func (d *Daemon) bootScheduler(ctx context.Context, state *bootState, cleanup *b
 		state.situationContext,
 		waker,
 		spawner,
+		cancellationReconciler,
 		starvationThresholdsFromConfig(state.cfg.Autonomy.Scheduler),
 		logger,
 	)
@@ -133,6 +143,7 @@ func newSchedulerRuntime(
 	situation *situation.Service,
 	waker *schedulerSessionWaker,
 	spawner starvationSpawner,
+	cancellationReconciler looppkg.CancellationReconciler,
 	thresholds schedulerpkg.StarvationThresholds,
 	logger *slog.Logger,
 ) (*schedulerRuntime, error) {
@@ -175,6 +186,7 @@ func newSchedulerRuntime(
 			loopWaitDueScan:        newLoopWaitDueScanState(),
 			loopWaitEscalationScan: newLoopWaitEscalationScanState(),
 			coordinatorBackstop:    tasks.coordinatorBackstop,
+			cancellationReconciler: cancellationReconciler,
 		},
 		schedulerSessionSource{sessions: sessions, situation: situation, logger: logger},
 		waker,

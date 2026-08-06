@@ -35,6 +35,8 @@ var (
 	ErrInvalidRuntimeOverride = errors.New("session: invalid runtime override")
 	// ErrValidation reports structurally invalid session creation input.
 	ErrValidation = errors.New("session: validation failed")
+	// ErrHostedMCPUnavailable reports that a session requiring Compozy tools cannot host them.
+	ErrHostedMCPUnavailable = errors.New("session: required hosted MCP is unavailable")
 	// ErrConversationRewindBusy reports that live session work prevents a safe rewind.
 	ErrConversationRewindBusy = errors.New("session: conversation rewind requires an idle session")
 	// ErrConversationRewindManaged reports that daemon-managed sessions cannot be rewound.

@@ -178,8 +178,8 @@ func InstallLocalManaged(
 		)
 	}
 
-	installOpts := append([]InstallOption(nil), opts...)
-	installOpts = append(installOpts, WithInstallEnabled(false))
+	installOpts := []InstallOption{WithInstallEnabled(false)}
+	installOpts = append(installOpts, opts...)
 	if err := registry.Install(manifest, finalDir, installedChecksum, installOpts...); err != nil {
 		return removeManagedInstallOnError(
 			finalDir,

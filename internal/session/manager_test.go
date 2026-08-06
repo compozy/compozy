@@ -1156,6 +1156,78 @@ func TestCreateInjectsOnlyHostedMCPServerWhenLauncherConfigured(t *testing.T) {
 	}
 }
 
+func TestCreateRequiresHostedMCPForRestrictedTools(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should fail before provider start when hosted launcher is unavailable", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		_, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName:            "coder",
+			Name:                 "restricted",
+			Workspace:            h.workspaceID,
+			AllowedToolsOverride: []string{toolspkg.ToolIDTaskRunClaimNext.String()},
+		})
+		if !errors.Is(err, ErrHostedMCPUnavailable) {
+			t.Fatalf("Create() error = %v, want %v", err, ErrHostedMCPUnavailable)
+		}
+		if got := len(h.driver.startCalls); got != 0 {
+			t.Fatalf("provider start calls = %d, want 0", got)
+		}
+	})
+
+	t.Run("Should fail before provider start when provider disables session MCP", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		h.resolver.upsert(&workspacepkg.ResolvedWorkspace{
+			Workspace: workspacepkg.Workspace{
+				ID:      h.workspaceID,
+				RootDir: h.workspace,
+				Name:    h.workspaceName,
+			},
+			Config: h.cfg,
+			Agents: []compozyconfig.AgentDef{{
+				Name:     "coder",
+				Provider: "openclaw",
+				Prompt:   "You are helpful.",
+			}},
+		})
+		_, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName:            "coder",
+			Name:                 "restricted",
+			Workspace:            h.workspaceID,
+			AllowedToolsOverride: []string{toolspkg.ToolIDTaskRunClaimNext.String()},
+		})
+		if !errors.Is(err, ErrHostedMCPUnavailable) {
+			t.Fatalf("Create() error = %v, want %v", err, ErrHostedMCPUnavailable)
+		}
+		if got := len(h.driver.startCalls); got != 0 {
+			t.Fatalf("provider start calls = %d, want 0", got)
+		}
+	})
+
+	t.Run("Should fail before provider start when a verdict-only session requires tools", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		_, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName:            "coder",
+			Name:                 "restricted-verdict",
+			Workspace:            h.workspaceID,
+			RuntimeMode:          RuntimeModeVerdictOnly,
+			AllowedToolsOverride: []string{toolspkg.ToolIDTaskRunClaimNext.String()},
+		})
+		if !errors.Is(err, ErrHostedMCPUnavailable) {
+			t.Fatalf("Create() error = %v, want %v", err, ErrHostedMCPUnavailable)
+		}
+		if got := len(h.driver.startCalls); got != 0 {
+			t.Fatalf("provider start calls = %d, want 0", got)
+		}
+	})
+}
+
 func TestCreateOmitsMCPServersForVerdictOnlyRuntime(t *testing.T) {
 	t.Parallel()
 

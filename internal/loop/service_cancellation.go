@@ -94,17 +94,7 @@ func (s *service) cancelRun(
 	if kind == RunCancelKill {
 		return parentCloseErr
 	}
-	if _, err := store.AdvanceRunCancellation(ctx, mutation, CancelStateDelivering); err != nil {
-		return errors.Join(parentCloseErr, err)
-	}
-	if err := s.deliverSessionCancellation(ctx, result.SessionIDs, kind, mutation.Reason); err != nil {
-		return errors.Join(parentCloseErr, err)
-	}
-	draining, err := store.AdvanceRunCancellation(ctx, mutation, CancelStateDraining)
-	if err != nil {
-		return errors.Join(parentCloseErr, err)
-	}
-	s.activateCancellationResult(ctx, &draining)
+	s.deferCancellationDelivery(ctx, store, mutation, &result)
 	return parentCloseErr
 }
 
@@ -144,17 +134,7 @@ func (s *service) cancelNode(
 			s.deliverSessionCancellation(ctx, result.SessionIDs, kind, mutation.Reason),
 		)
 	}
-	if _, err := store.AdvanceNodeCancellation(ctx, mutation, CancelStateDelivering); err != nil {
-		return errors.Join(parentCloseErr, err)
-	}
-	if err := s.deliverSessionCancellation(ctx, result.SessionIDs, kind, mutation.Reason); err != nil {
-		return errors.Join(parentCloseErr, err)
-	}
-	draining, err := store.AdvanceNodeCancellation(ctx, mutation, CancelStateDraining)
-	if err != nil {
-		return errors.Join(parentCloseErr, err)
-	}
-	s.activateCancellationResult(ctx, &draining)
+	s.deferCancellationDelivery(ctx, store, mutation, &result)
 	return parentCloseErr
 }
 

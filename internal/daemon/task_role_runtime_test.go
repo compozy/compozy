@@ -25,6 +25,24 @@ import (
 func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should reject loop action worker runs", func(t *testing.T) {
+		t.Parallel()
+
+		taskRecord := taskRoleRuntimeTask("task-loop-worker", "frontend-engineer-agent")
+		run := taskRoleRuntimeRun("run-loop-worker", taskRecord.ID, "design-review")
+		run.LoopRunID = "loop-run-1"
+		store := newTaskRoleRuntimeStore(taskRecord, run)
+		runtime := newTaskRoleRuntimeForTest(t, store, &taskRoleRuntimeSessions{})
+
+		_, ok, err := runtime.activationForRun(context.Background(), taskRecord, run)
+		if err != nil {
+			t.Fatalf("activationForRun() error = %v", err)
+		}
+		if ok {
+			t.Fatal("activationForRun() eligible = true, want false for loop worker")
+		}
+	})
+
 	t.Run("Should start the pool owner agent session when a run is enqueued", func(t *testing.T) {
 		t.Parallel()
 

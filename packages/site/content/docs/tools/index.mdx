@@ -97,6 +97,11 @@ does not add an automatic bootstrap/catalog allowlist over that hosted projectio
 definitions, session lineage, disabled sources, denylists, and approval/risk gates still narrow or
 block invocation.
 
+An agent or delegated session that requires specific tools cannot start without that hosted
+projection. Compozy returns an availability diagnostic before provider startup if hosted MCP is
+missing, cannot launch, or is disabled by the provider. Unrestricted sessions may still start
+without hosted tools when their contract does not require them.
+
 `compozy__tool_list` returns only the currently callable projection. `compozy__tool_search` and
 `compozy__tool_info` are diagnostic: they can return known descriptors with callable or denied status so
 an agent can explain whether a tool is absent, unavailable, or policy-denied before falling back to

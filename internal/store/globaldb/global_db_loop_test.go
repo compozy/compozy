@@ -239,10 +239,16 @@ func inventoryNodeIDsForTest(items []looppkg.NodeInventoryItem) []looppkg.NodeID
 func TestGlobalDBLoopRunCancellationShouldFenceBeforeTerminalizing(t *testing.T) {
 	t.Parallel()
 
-	globalDB := openLoopTestGlobalDB(t)
+	globalDB := openLoopTestGlobalDB(t, "ws-1", "ws-other")
 	ctx := testutil.Context(t)
 	now := time.Date(2026, time.August, 3, 1, 0, 0, 0, time.UTC)
 	run, taskRunID := seedLiveLoopLivenessCellForTest(t, globalDB, now)
+	foreignSeed := testLoopRun("looprun-cancel-foreign", now, looppkg.StatusRunning)
+	foreignSeed.WorkspaceID = "ws-other"
+	foreignRun, err := globalDB.CreateLoopRunForStart(ctx, foreignSeed, dsl.ConcurrencyAllow)
+	if err != nil {
+		t.Fatalf("CreateLoopRunForStart(foreign cancellation fixture) error = %v", err)
+	}
 	if _, err := globalDB.db.ExecContext(ctx, `INSERT INTO loop_generation_outputs (
 		loop_run_id, generation, node_id, item_index, status, attempt, first_scheduled_at, epoch
 	) VALUES (?, 1, 'hold', 0, 'waiting', 1, ?, 1)`, run.ID, now); err != nil {
@@ -264,6 +270,36 @@ func TestGlobalDBLoopRunCancellationShouldFenceBeforeTerminalizing(t *testing.T)
 	}
 	if !result.Applied || result.Terminal {
 		t.Fatalf("RequestRunCancellation() = %#v, want durable non-terminal request", result)
+	}
+	seedLoopCancellationBindingForTest(
+		t,
+		globalDB,
+		string(run.ID),
+		string(run.WorkspaceID),
+		"main",
+		1,
+		"session-cancel-owned",
+		now,
+	)
+	seedLoopCancellationBindingForTest(
+		t,
+		globalDB,
+		string(foreignRun.ID),
+		string(foreignRun.WorkspaceID),
+		"other-workspace",
+		1,
+		"session-cancel-other",
+		now,
+	)
+	pending, err := globalDB.ListPendingCancellations(ctx, 10)
+	if err != nil {
+		t.Fatalf("ListPendingCancellations(requested) error = %v", err)
+	}
+	if len(pending) != 1 || pending[0].WorkspaceID != run.WorkspaceID || pending[0].RunID != run.ID ||
+		pending[0].NodeID != "" || pending[0].State != looppkg.CancelStateRequested ||
+		pending[0].RequestedBy.Ref != mutation.Actor.Actor.Ref ||
+		!slices.Equal(pending[0].SessionIDs, []string{"session-cancel-owned"}) {
+		t.Fatalf("pending cancellation = %#v, want exact workspace-owned run delivery", pending)
 	}
 	stored, err := globalDB.GetLoopRun(ctx, run.WorkspaceID, run.ID)
 	if err != nil {
@@ -312,6 +348,17 @@ func TestGlobalDBLoopRunCancellationShouldFenceBeforeTerminalizing(t *testing.T)
 				"run cancellation wake key = %q, want explicit run scope",
 				cancellationWakeIdempotencyKey(mutation),
 			)
+		}
+		pending, err = globalDB.ListPendingCancellations(ctx, 10)
+		if err != nil {
+			t.Fatalf("ListPendingCancellations(%s) error = %v", state, err)
+		}
+		if state == looppkg.CancelStateDelivering {
+			if len(pending) != 1 || pending[0].State != looppkg.CancelStateDelivering {
+				t.Fatalf("delivering pending cancellation = %#v, want one delivering command", pending)
+			}
+		} else if len(pending) != 0 {
+			t.Fatalf("draining pending cancellations = %#v, want none", pending)
 		}
 	}
 	if result.Terminal || result.Run.Status != looppkg.StatusRunning {

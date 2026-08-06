@@ -24,6 +24,7 @@ const (
 	DecisionGlobalScope      = "global_scope"
 	DecisionMissingWorkspace = "missing_workspace"
 	DecisionNonExecutableRun = "non_executable_run"
+	DecisionLoopWorker       = "loop_action"
 	DecisionTaskRunMismatch  = "task_run_mismatch"
 	DecisionExisting         = "existing_coordinator"
 	DecisionDenied           = "denied"
@@ -132,6 +133,10 @@ func DecideBootstrap(task taskpkg.Task, run taskpkg.Run, cfg compozyconfig.Resol
 	}
 	if decision.WorkspaceID == "" {
 		decision.Reason = DecisionMissingWorkspace
+		return decision
+	}
+	if run.IsLoopWorker() {
+		decision.Reason = DecisionLoopWorker
 		return decision
 	}
 	if !IsExecutableRunStatus(run.Status) {

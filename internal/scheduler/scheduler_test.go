@@ -1022,6 +1022,37 @@ func TestRunOnceRunsLoopCoordinatorBackstop(t *testing.T) {
 	}
 }
 
+// Invariant: every mechanical scheduler pass retries committed Loop cancellations with
+// the configured sweep bound and daemon authority. This scheduler suite owns invocation.
+func TestRunOnceRunsLoopCancellationBackstop(t *testing.T) {
+	t.Parallel()
+
+	base := time.Date(2026, 8, 6, 0, 30, 0, 0, time.UTC)
+	source := &fakeLoopCancellationTaskSource{fakeTaskSource: &fakeTaskSource{}, reconciled: 2}
+	scheduler := newTestScheduler(
+		t,
+		source,
+		&fakeSessionSource{},
+		&fakeWaker{},
+		WithClock(clockwork.NewFakeClockAt(base)),
+		WithSweepLimit(7),
+	)
+
+	result, err := scheduler.RunOnce(testutil.Context(t))
+	if err != nil {
+		t.Fatalf("RunOnce() error = %v", err)
+	}
+	if result.ReconciledCancellations != 2 {
+		t.Fatalf("ReconciledCancellations = %d, want 2", result.ReconciledCancellations)
+	}
+	if source.calls != 1 || source.limit != 7 {
+		t.Fatalf("cancellation backstop calls = %d limit = %d, want 1/7", source.calls, source.limit)
+	}
+	if source.actor.Actor.Kind != taskpkg.ActorKindDaemon {
+		t.Fatalf("cancellation backstop actor kind = %q, want daemon", source.actor.Actor.Kind)
+	}
+}
+
 func TestRunOnceDelegatesTransientTaskBlockExpiry(t *testing.T) {
 	t.Parallel()
 
@@ -1597,6 +1628,25 @@ type fakeLoopBackstopTaskSource struct {
 	calls int
 	now   time.Time
 	actor taskpkg.ActorContext
+}
+
+type fakeLoopCancellationTaskSource struct {
+	*fakeTaskSource
+	calls      int
+	limit      int
+	reconciled int
+	actor      taskpkg.ActorContext
+}
+
+func (f *fakeLoopCancellationTaskSource) ReconcilePendingCancellations(
+	_ context.Context,
+	limit int,
+	actor taskpkg.ActorContext,
+) (int, error) {
+	f.calls++
+	f.limit = limit
+	f.actor = actor
+	return f.reconciled, nil
 }
 
 func (f *fakeLoopBackstopTaskSource) RunLoopCoordinatorBackstop(

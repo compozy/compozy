@@ -580,6 +580,36 @@ func TestInstallLocalManaged(t *testing.T) {
 			t.Fatal("registry installed enabled = true, want false before enable")
 		}
 	})
+
+	t.Run("Should honor an explicit enabled state", func(t *testing.T) {
+		t.Parallel()
+
+		sourceDir := t.TempDir()
+		writeFile(t, filepath.Join(sourceDir, manifestTOMLFileName), "[extension]\nname = \"enabled-ext\"\n")
+		sourceChecksum, err := ComputeDirectoryChecksum(sourceDir)
+		if err != nil {
+			t.Fatalf("ComputeDirectoryChecksum(source) error = %v", err)
+		}
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		registry := &recordingManagedInstallRegistry{}
+
+		if err := InstallLocalManaged(
+			homePaths,
+			registry,
+			&Manifest{Name: "enabled-ext"},
+			sourceDir,
+			sourceChecksum,
+			WithInstallEnabled(true),
+		); err != nil {
+			t.Fatalf("InstallLocalManaged() error = %v", err)
+		}
+		if !registry.installedEnabled {
+			t.Fatal("registry installed enabled = false, want explicit enabled state")
+		}
+	})
 }
 
 func TestInstallLocalManagedNormalizesProvidedChecksum(t *testing.T) {

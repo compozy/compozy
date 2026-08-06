@@ -437,8 +437,12 @@ func TestPromptFatalProcessFailureStopsSessionAndAllowsFreshResumeFallback(t *te
 			t.Fatalf("Prompt() failure = %#v, want crash bundle path", events[1].Failure)
 		}
 		publicBundle := readCrashBundleDocument(t, events[1].Failure.CrashBundlePath)
-		if publicBundle.Process == nil || publicBundle.Process.ExitCode == nil || *publicBundle.Process.ExitCode != 23 {
-			t.Fatalf("public crash bundle process = %#v, want exit code 23 before stopped notification", publicBundle.Process)
+		if publicBundle.Process == nil || publicBundle.Process.ExitCode == nil ||
+			*publicBundle.Process.ExitCode != 23 {
+			t.Fatalf(
+				"public crash bundle process = %#v, want exit code 23 before stop",
+				publicBundle.Process,
+			)
 		}
 		if publicBundle.Process.Signal != "" {
 			t.Fatalf("public crash bundle signal = %q, want empty for numeric exit", publicBundle.Process.Signal)
@@ -602,8 +606,9 @@ func TestPromptStreamClosureWithoutTerminalStopsSession(t *testing.T) {
 			t.Fatalf("Prompt() terminal failure = %#v, want public crash bundle path", terminal.Failure)
 		}
 		publicBundle := readCrashBundleDocument(t, terminal.Failure.CrashBundlePath)
-		if publicBundle.Process == nil || publicBundle.Process.ExitCode == nil || *publicBundle.Process.ExitCode != 23 {
-			t.Fatalf("public crash bundle process = %#v, want exit code 23 before stopped notification", publicBundle.Process)
+		if publicBundle.Process == nil || publicBundle.Process.ExitCode == nil ||
+			*publicBundle.Process.ExitCode != 23 {
+			t.Fatalf("public crash bundle process = %#v, want exit code 23 before stop", publicBundle.Process)
 		}
 		if got, want := publicBundle.Stderr, "codex stderr after EOF"; got != want {
 			t.Fatalf("public crash bundle stderr = %q, want %q", got, want)
@@ -709,7 +714,9 @@ func TestPromptGenericFailureKeepsSessionActive(t *testing.T) {
 func TestCancelPrompt(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should keep the session active when the canceled provider stream closes without a terminal", func(t *testing.T) {
+	t.Run("Should keep the session active when the canceled provider stream closes without a terminal", func(
+		t *testing.T,
+	) {
 		t.Parallel()
 
 		h := newHarness(t)
@@ -790,7 +797,7 @@ func TestCancelPrompt(t *testing.T) {
 		}
 		if len(canceledEvents) != 1 || canceledEvents[0].Type != acp.EventTypeDone ||
 			canceledEvents[0].PromptStopReason != acp.PromptStopReasonCancelled {
-			t.Fatalf("canceled prompt events = %#v, want one cancelled done event", canceledEvents)
+			t.Fatalf("canceled prompt events = %#v, want one canceled done event", canceledEvents)
 		}
 		if err := h.manager.WaitForPromptDrains(testutil.Context(t)); err != nil {
 			t.Fatalf("WaitForPromptDrains() error = %v", err)
@@ -1864,8 +1871,9 @@ func TestProcessExitDuringActivePromptPersistsAgentCrashedStopReason(t *testing.
 			t.Fatalf("Prompt() terminal failure = %#v, want public crash bundle path", terminal.Failure)
 		}
 		publicBundle := readCrashBundleDocument(t, terminal.Failure.CrashBundlePath)
-		if publicBundle.Process == nil || publicBundle.Process.ExitCode == nil || *publicBundle.Process.ExitCode != 23 {
-			t.Fatalf("public crash bundle process = %#v, want exit code 23 before stopped notification", publicBundle.Process)
+		if publicBundle.Process == nil || publicBundle.Process.ExitCode == nil ||
+			*publicBundle.Process.ExitCode != 23 {
+			t.Fatalf("public crash bundle process = %#v, want exit code 23 before stop", publicBundle.Process)
 		}
 		if got, want := publicBundle.Stderr, "codex stderr after process exit"; got != want {
 			t.Fatalf("public crash bundle stderr = %q, want %q", got, want)
@@ -1962,8 +1970,9 @@ func TestProcessExitDuringActivePromptPersistsAgentCrashedStopReason(t *testing.
 			t.Fatalf("Prompt() terminal error = %q, want stable exit status diagnostic", terminal.Error)
 		}
 		publicBundle := readCrashBundleDocument(t, terminal.Failure.CrashBundlePath)
-		if publicBundle.Process == nil || publicBundle.Process.ExitCode == nil || *publicBundle.Process.ExitCode != 23 {
-			t.Fatalf("public crash bundle process = %#v, want exit code 23 before stopped notification", publicBundle.Process)
+		if publicBundle.Process == nil || publicBundle.Process.ExitCode == nil ||
+			*publicBundle.Process.ExitCode != 23 {
+			t.Fatalf("public crash bundle process = %#v, want exit code 23 before stop", publicBundle.Process)
 		}
 		if got, want := publicBundle.Stderr, "codex stderr after status observation"; got != want {
 			t.Fatalf("public crash bundle stderr = %q, want %q", got, want)

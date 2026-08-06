@@ -59,6 +59,7 @@ func EnsureManagedInstall(homePaths compozyconfig.HomePaths, registry *extension
 			stagingDir,
 			checksum,
 			extensionpkg.WithInstallSource(extensionpkg.SourceBundled),
+			extensionpkg.WithInstallEnabled(true),
 		)
 	case err != nil:
 		return fmt.Errorf("dev-cycle: inspect existing extension: %w", err)

@@ -209,6 +209,20 @@ func newHarness(t *testing.T, extraOpts ...Option) *harness {
 	return h
 }
 
+func newHostedMCPHarness(t *testing.T, extraOpts ...Option) *harness {
+	t.Helper()
+
+	hosted := &recordingHostedMCPLauncher{
+		server: compozyconfig.MCPServer{
+			Name:      "compozy-hosted-tools",
+			Transport: compozyconfig.MCPServerTransportStdio,
+			Command:   "/bin/compozy",
+			Args:      []string{"tool", "mcp", "--session", "test"},
+		},
+	}
+	return newHarness(t, append(extraOpts, WithHostedMCPLauncher(hosted))...)
+}
+
 func newManagerWithHarness(t *testing.T, h *harness, extraOpts ...Option) *Manager {
 	t.Helper()
 

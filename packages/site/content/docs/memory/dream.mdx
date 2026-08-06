@@ -189,8 +189,9 @@ Possible outcomes:
 - It does **not** replace the extractor. Mid-session candidate extraction is the
   `session.message_persisted` hook and the bounded extractor queue. Dreaming consumes the resulting
   signal and the `_inbox/` material.
-- It does **not** touch session ledgers. Forensic ledgers are immutable after materialization (see
-  [Sessions](/docs/sessions)).
+- It does **not** touch session ledgers. A forensic ledger is a read-only projection of a stopped
+  session; resume retires that projection, and the next stop materializes a replacement from the
+  durable event store (see [Sessions](/docs/sessions)).
 
 ## Related Pages
 

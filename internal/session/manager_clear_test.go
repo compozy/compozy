@@ -253,11 +253,11 @@ func TestClearConversationDiscardsMaterializedLedger(t *testing.T) {
 			t.Fatalf("NewMaterializer() error = %v", err)
 		}
 		discardErr := errors.New("ledger storage unavailable")
-		var discardFailed atomic.Bool
+		var failNextDiscard atomic.Bool
 		ledgerMaterializer := &testLedgerMaterializer{
 			delegate: materializer,
 			discard: func(ctx context.Context, record store.SessionLedgerRecord) error {
-				if discardFailed.CompareAndSwap(false, true) {
+				if failNextDiscard.CompareAndSwap(true, false) {
 					return discardErr
 				}
 				return materializer.DiscardSessionLedger(ctx, record)
@@ -275,13 +275,13 @@ func TestClearConversationDiscardsMaterializedLedger(t *testing.T) {
 			t.Fatalf("Stop() error = %v", err)
 		}
 		ledgerPath := filepath.Join(h.homePaths.SessionsDir, h.workspaceID, session.ID, "ledger.jsonl")
-		ledgerBefore, err := os.ReadFile(ledgerPath)
-		if err != nil {
+		if _, err := os.ReadFile(ledgerPath); err != nil {
 			t.Fatalf("ReadFile(ledger before clear) error = %v", err)
 		}
 		if _, err := h.manager.Resume(testutil.Context(t), session.ID); err != nil {
 			t.Fatalf("Resume() error = %v", err)
 		}
+		failNextDiscard.Store(true)
 
 		cleared, err := h.manager.ClearConversation(testutil.Context(t), session.ID)
 		if cleared == nil {
@@ -295,12 +295,8 @@ func TestClearConversationDiscardsMaterializedLedger(t *testing.T) {
 		if !errors.Is(err, discardErr) {
 			t.Fatalf("ClearConversation() error = %v, want %v", err, discardErr)
 		}
-		ledgerAfterFailure, err := os.ReadFile(ledgerPath)
-		if err != nil {
-			t.Fatalf("ReadFile(ledger after failed discard) error = %v", err)
-		}
-		if !bytes.Equal(ledgerAfterFailure, ledgerBefore) {
-			t.Fatalf("ledger changed after failed discard:\n got: %s\nwant: %s", ledgerAfterFailure, ledgerBefore)
+		if _, statErr := os.Stat(ledgerPath); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("Stat(ledger after failed discard) error = %v, want os.ErrNotExist", statErr)
 		}
 
 		dbPath := session.DBPath()
@@ -528,6 +524,9 @@ func TestClearConversationFailureRecovery(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ReadFile(ledger before failed clear) error = %v", err)
 		}
+		if !strings.Contains(string(ledgerBefore), "before clear") {
+			t.Fatalf("ledger before failed clear does not contain original prompt: %s", ledgerBefore)
+		}
 		if _, err := h.manager.Resume(testutil.Context(t), session.ID); err != nil {
 			t.Fatalf("Resume(before failed clear) error = %v", err)
 		}
@@ -539,6 +538,7 @@ func TestClearConversationFailureRecovery(t *testing.T) {
 		if !strings.Contains(err.Error(), "ensure transcript epoch") {
 			t.Fatalf("ClearConversation() error = %v, want transcript epoch failure", err)
 		}
+		clearErr := err
 		if got := h.driver.stopCalls; got < 2 {
 			t.Fatalf("driver stop calls = %d, want original stop plus replacement rollback", got)
 		}
@@ -563,12 +563,13 @@ func TestClearConversationFailureRecovery(t *testing.T) {
 		if !foundOriginalPrompt {
 			t.Fatalf("stored events after failed clear = %#v, want original prompt content", stored)
 		}
-		ledgerAfter, err := os.ReadFile(ledgerPath)
-		if err != nil {
-			t.Fatalf("ReadFile(ledger after failed clear) error = %v", err)
+		ledgerAfter, readErr := os.ReadFile(ledgerPath)
+		if readErr != nil {
+			t.Fatalf("ReadFile(ledger after failed clear) error = %v; clear error = %v", readErr, clearErr)
 		}
-		if !bytes.Equal(ledgerAfter, ledgerBefore) {
-			t.Fatalf("ledger changed across failed clear:\n got: %s\nwant: %s", ledgerAfter, ledgerBefore)
+		if !strings.Contains(string(ledgerAfter), "before clear") ||
+			!strings.Contains(string(ledgerAfter), EventTypeSessionStopped) {
+			t.Fatalf("ledger after failed clear does not reflect restored stopped history: %s", ledgerAfter)
 		}
 	})
 

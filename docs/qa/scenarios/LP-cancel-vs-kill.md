@@ -11,8 +11,8 @@ bug_ids:
 fix_status:
 retest_status: pass
 fix_commits:
-evidence: looprun-db9; looprun-1e5; looprun-08b; looprun-d7f; /Users/pedronauck/dev/qa-labs/compozy-loop-node-lifecycle-20260803-191237-281307-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-08-03-loop-node-lifecycle.md
+evidence: looprun-db9; looprun-1e5; looprun-08b; looprun-d7f; /Users/pedronauck/dev/qa-labs/compozy-loop-node-lifecycle-20260803-191237-281307-lab/qa-artifacts/qa;/Users/pedronauck/dev/qa-labs/compozy-loop-agent-ownership-r2-20260806-040706-936266-lab/qa-artifacts/qa/evidence/loop-cancel-draining.json;/Users/pedronauck/dev/qa-labs/compozy-loop-agent-ownership-r2-20260806-040706-936266-lab/qa-artifacts/qa/evidence/loop-cancel-latest.json
+last_report: docs/qa/reports/2026-08-06-loop-agent-ownership.md
 overlaps: LP-016
 ---
 
