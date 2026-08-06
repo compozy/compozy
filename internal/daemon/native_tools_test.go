@@ -5529,6 +5529,9 @@ func TestDaemonNativeTools(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Launch() error = %v", err)
 		}
+		if err = service.ArmLaunch(t.Context(), "sess-scope"); err != nil {
+			t.Fatalf("ArmLaunch() error = %v", err)
+		}
 		peer := mcppkg.PeerInfo{
 			PID:            os.Getpid(),
 			UID:            os.Getuid(),
@@ -5606,6 +5609,9 @@ func TestDaemonNativeTools(t *testing.T) {
 		})
 		if err != nil {
 			t.Fatalf("Launch() error = %v", err)
+		}
+		if err = service.ArmLaunch(t.Context(), "sess-schema"); err != nil {
+			t.Fatalf("ArmLaunch() error = %v", err)
 		}
 		peer := mcppkg.PeerInfo{
 			PID:            os.Getpid(),

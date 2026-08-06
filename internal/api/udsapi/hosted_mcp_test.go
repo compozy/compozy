@@ -254,6 +254,9 @@ func launchAndBindHostedMCP(
 	if err != nil {
 		t.Fatalf("HostedService.Launch() error = %v", err)
 	}
+	if err = service.ArmLaunch(t.Context(), sessionID); err != nil {
+		t.Fatalf("HostedService.ArmLaunch() error = %v", err)
+	}
 	bind, err := service.Bind(t.Context(), mcppkg.HostedBindRequest{
 		SessionID: sessionID,
 		Nonce:     hostedMCPTestNonce(t, launch.Args),

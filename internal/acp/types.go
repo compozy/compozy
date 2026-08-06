@@ -2,6 +2,7 @@
 package acp
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -70,6 +71,7 @@ type StartOpts struct {
 	ProviderName         string
 	ProviderConfig       *compozyconfig.ProviderConfig
 	ProviderAuthEnv      *authproviders.ProbeEnv
+	ActivateMCPServers   func(context.Context) error
 
 	launchIdentity *preparedLaunchIdentity
 }

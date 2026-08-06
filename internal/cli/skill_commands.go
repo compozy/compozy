@@ -22,6 +22,9 @@ func newSkillCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   skillCommandsSkillKey,
 		Short: "Manage local AgentSkills",
+		PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
+			return ensureSkillCLIUsesSupportedSurface(deps)
+		},
 	}
 
 	cmd.AddCommand(newSkillListCommand(deps))

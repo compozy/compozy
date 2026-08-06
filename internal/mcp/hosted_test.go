@@ -36,6 +36,14 @@ func TestHostedServiceBindNonceLifecycle(t *testing.T) {
 		}
 		nonce := hostedLaunchNonce(t, launch.Args)
 		peer := hostedTestPeer(executable)
+		now = now.Add(time.Minute)
+		_, err = service.Bind(t.Context(), HostedBindRequest{SessionID: "sess-1", Nonce: nonce}, peer)
+		if !errors.Is(err, ErrHostedNonceInvalid) {
+			t.Fatalf("Bind(before ArmLaunch) error = %v, want ErrHostedNonceInvalid", err)
+		}
+		if err = service.ArmLaunch(t.Context(), "sess-1"); err != nil {
+			t.Fatalf("ArmLaunch() error = %v", err)
+		}
 
 		bind, err := service.Bind(t.Context(), HostedBindRequest{SessionID: "sess-1", Nonce: nonce}, peer)
 		if err != nil {
@@ -74,6 +82,10 @@ func TestHostedServiceBindNonceLifecycle(t *testing.T) {
 			t.Fatalf("Launch(expired) error = %v", err)
 		}
 		expiredNonce := hostedLaunchNonce(t, expiring.Args)
+		now = now.Add(time.Minute)
+		if err = service.ArmLaunch(t.Context(), "sess-expired"); err != nil {
+			t.Fatalf("ArmLaunch(expired) error = %v", err)
+		}
 		now = now.Add(3 * time.Second)
 
 		_, err = service.Bind(t.Context(), HostedBindRequest{SessionID: "sess-expired", Nonce: expiredNonce}, peer)
@@ -141,6 +153,9 @@ func TestHostedServiceValidatesPeerAndBinaryFailClosed(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Launch() error = %v", err)
 		}
+		if err = service.ArmLaunch(t.Context(), "sess-1"); err != nil {
+			t.Fatalf("ArmLaunch() error = %v", err)
+		}
 		nonce := hostedLaunchNonce(t, launch.Args)
 
 		_, err = service.Bind(
@@ -186,6 +201,9 @@ func TestHostedServiceValidatesPeerAndBinaryFailClosed(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Launch() error = %v", err)
 		}
+		if err = service.ArmLaunch(t.Context(), "sess-1"); err != nil {
+			t.Fatalf("ArmLaunch() error = %v", err)
+		}
 		nonce := hostedLaunchNonce(t, launch.Args)
 		peer := hostedTestPeer(alternate)
 
@@ -227,6 +245,9 @@ func TestHostedServiceProjectionAndCallUseRegistryScope(t *testing.T) {
 		})
 		if err != nil {
 			t.Fatalf("Launch() error = %v", err)
+		}
+		if err = service.ArmLaunch(t.Context(), "sess-1"); err != nil {
+			t.Fatalf("ArmLaunch() error = %v", err)
 		}
 		peer := hostedTestPeer(executable)
 		bind, err := service.Bind(
@@ -309,6 +330,9 @@ func TestHostedServiceProjectionAndCallUseRegistryScope(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Launch() error = %v", err)
 		}
+		if err = service.ArmLaunch(t.Context(), "sess-bootstrap"); err != nil {
+			t.Fatalf("ArmLaunch() error = %v", err)
+		}
 		bind, err := service.Bind(
 			t.Context(),
 			HostedBindRequest{
@@ -372,6 +396,9 @@ func TestHostedServiceProjectionMatchesRegistrySessionProjection(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Launch() error = %v", err)
 		}
+		if err = service.ArmLaunch(t.Context(), "sess-1"); err != nil {
+			t.Fatalf("ArmLaunch() error = %v", err)
+		}
 		bind, err := service.Bind(
 			t.Context(),
 			HostedBindRequest{SessionID: "sess-1", Nonce: hostedLaunchNonce(t, launch.Args)},
@@ -432,6 +459,9 @@ func TestHostedServiceCallUsesRegistryApprovalBridge(t *testing.T) {
 		})
 		if err != nil {
 			t.Fatalf("Launch() error = %v", err)
+		}
+		if err = service.ArmLaunch(t.Context(), "sess-approval"); err != nil {
+			t.Fatalf("ArmLaunch() error = %v", err)
 		}
 		bind, err := service.Bind(
 			t.Context(),
@@ -511,6 +541,48 @@ func TestHostedServiceReleaseAndFailureBranches(t *testing.T) {
 		}
 	})
 
+	t.Run("Should discard an unarmed launch when arming fails", func(t *testing.T) {
+		t.Parallel()
+
+		service := newHostedTestService(t, executable, registry, func() time.Time { return now })
+		if _, err := service.Launch(t.Context(), HostedLaunchRequest{SessionID: "sess-arm-failed"}); err != nil {
+			t.Fatalf("Launch() error = %v", err)
+		}
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		if err := service.ArmLaunch(ctx, "sess-arm-failed"); !errors.Is(err, context.Canceled) {
+			t.Fatalf("ArmLaunch(canceled) error = %v, want context.Canceled", err)
+		}
+		if err := service.ArmLaunch(t.Context(), "sess-arm-failed"); !errors.Is(err, ErrHostedNonceInvalid) {
+			t.Fatalf("ArmLaunch(after failed arm) error = %v, want ErrHostedNonceInvalid", err)
+		}
+	})
+
+	t.Run("Should preserve an armed launch when a repeat arm fails", func(t *testing.T) {
+		t.Parallel()
+
+		service := newHostedTestService(t, executable, registry, func() time.Time { return now })
+		launch, err := service.Launch(t.Context(), HostedLaunchRequest{SessionID: "sess-arm-preserved"})
+		if err != nil {
+			t.Fatalf("Launch() error = %v", err)
+		}
+		if err := service.ArmLaunch(t.Context(), "sess-arm-preserved"); err != nil {
+			t.Fatalf("ArmLaunch() error = %v", err)
+		}
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		if err := service.ArmLaunch(ctx, "sess-arm-preserved"); !errors.Is(err, context.Canceled) {
+			t.Fatalf("ArmLaunch(canceled repeat) error = %v, want context.Canceled", err)
+		}
+		if _, err := service.Bind(
+			t.Context(),
+			HostedBindRequest{SessionID: "sess-arm-preserved", Nonce: hostedLaunchNonce(t, launch.Args)},
+			peer,
+		); err != nil {
+			t.Fatalf("Bind(after canceled repeat arm) error = %v", err)
+		}
+	})
+
 	t.Run("Should release bind and session records", func(t *testing.T) {
 		t.Parallel()
 
@@ -552,6 +624,9 @@ func TestHostedServiceReleaseAndFailureBranches(t *testing.T) {
 		launch, err := service.Launch(t.Context(), HostedLaunchRequest{SessionID: "sess-no-registry"})
 		if err != nil {
 			t.Fatalf("Launch() error = %v", err)
+		}
+		if err = service.ArmLaunch(t.Context(), "sess-no-registry"); err != nil {
+			t.Fatalf("ArmLaunch() error = %v", err)
 		}
 		_, err = service.Bind(
 			t.Context(),
@@ -640,6 +715,9 @@ func hostedTestBind(
 	launch, err := service.Launch(t.Context(), HostedLaunchRequest{SessionID: sessionID})
 	if err != nil {
 		t.Fatalf("Launch(%q) error = %v", sessionID, err)
+	}
+	if err := service.ArmLaunch(t.Context(), sessionID); err != nil {
+		t.Fatalf("ArmLaunch(%q) error = %v", sessionID, err)
 	}
 	bind, err := service.Bind(
 		t.Context(),

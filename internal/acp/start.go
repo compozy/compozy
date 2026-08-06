@@ -96,10 +96,27 @@ func (d *Driver) Start(ctx context.Context, opts StartOpts) (process *AgentProce
 	if err != nil {
 		return nil, d.cleanupFailedStart(process, err)
 	}
+	stageStartedAt = time.Now()
+	err = activateMCPServers(ctx, normalized)
+	mcpActivationOutcome := stageOutcome(err, normalized.ActivateMCPServers == nil)
+	d.logStartStage(normalized, process, "mcp_activation", mcpActivationOutcome, stageStartedAt)
+	if err != nil {
+		return nil, d.cleanupFailedStart(process, err)
+	}
 	if err := d.negotiateSession(ctx, process, normalized); err != nil {
 		return nil, d.cleanupFailedStart(process, err)
 	}
 	return process, nil
+}
+
+func activateMCPServers(ctx context.Context, opts StartOpts) error {
+	if opts.ActivateMCPServers == nil {
+		return nil
+	}
+	if err := opts.ActivateMCPServers(ctx); err != nil {
+		return WrapFailure(store.FailureStartup, "hosted MCP activation failed", err)
+	}
+	return nil
 }
 
 func (d *Driver) runProviderPreStart(ctx context.Context, opts StartOpts) error {

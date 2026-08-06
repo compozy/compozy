@@ -36,6 +36,10 @@ func (m *Manager) sessionStartOpts(
 		Speed:           s.speed,
 		ResumeSessionID: s.acpSessionID,
 		ToolGateway:     newProviderNativeToolGateway(m, session, s.runtimeMode),
+		ActivateMCPServers: m.sessionMCPServerActivator(
+			s.sessionID,
+			mcpServers,
+		),
 	}
 }
 

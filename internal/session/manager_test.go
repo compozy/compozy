@@ -1144,6 +1144,9 @@ func TestCreateInjectsOnlyHostedMCPServerWhenLauncherConfigured(t *testing.T) {
 		requests[0].AgentName != "coder" {
 		t.Fatalf("hosted launch request = %#v, want session/workspace/agent scope", requests[0])
 	}
+	if armed := hosted.armedSessionIDs(); !slices.Equal(armed, []string{session.ID}) {
+		t.Fatalf("hosted armed sessions = %#v, want [%q]", armed, session.ID)
+	}
 
 	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
 		t.Fatalf("Stop() error = %v", err)

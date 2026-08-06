@@ -98,6 +98,7 @@ func startHelperProcess(
 	opts.ProviderName = overrides.ProviderName
 	opts.ProviderConfig = overrides.ProviderConfig
 	opts.ProviderAuthEnv = overrides.ProviderAuthEnv
+	opts.ActivateMCPServers = overrides.ActivateMCPServers
 
 	proc, err := driver.Start(testutil.Context(t), opts)
 	if err != nil {
