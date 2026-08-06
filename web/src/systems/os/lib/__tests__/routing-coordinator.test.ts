@@ -740,4 +740,27 @@ describe("RoutingCoordinator", () => {
     expect(router.navigate).toHaveBeenCalledWith(other.route);
     expect(store.getState().windows[current.id]?.instanceKey).toBe("sess-a");
   });
+
+  it("Should reconcile an existing target window to the requested route", async () => {
+    const current = windowFixture("session", "/agents/coder/sessions/sess-a", "sess-a");
+    const other = windowFixture("session", "/agents/coder/sessions/sess-b/child", "sess-b");
+    const { coordinator, router, store } = createCoordinator([current, other]);
+    coordinator.completeHydration();
+    vi.mocked(router.replace).mockClear();
+    const target = route("/agents/coder/sessions/sess-b");
+
+    await expect(
+      coordinator.userRetarget(current.id, {
+        app: "session",
+        instanceKey: "sess-b",
+        route: target,
+      })
+    ).resolves.toBe(true);
+
+    expect(store.getState().focusedId).toBe(other.id);
+    expect(store.getState().windows[other.id]?.route).toEqual(target);
+    expect(store.getState().windows[current.id]?.instanceKey).toBe("sess-a");
+    expect(router.navigate).toHaveBeenCalledOnce();
+    expect(router.navigate).toHaveBeenCalledWith(target);
+  });
 });

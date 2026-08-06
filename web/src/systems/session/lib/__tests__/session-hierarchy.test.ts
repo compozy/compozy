@@ -72,6 +72,19 @@ describe("buildSessionTree", () => {
     expect(tree.roots.map(session => session.id)).toEqual(["sess-cyclic"]);
     expect(tree.childrenByParent.size).toBe(0);
   });
+
+  it("Should keep every participant in a multi-session cycle visible as a root", () => {
+    const first = treeSession("sess-first", { parent: "sess-second" });
+    const second = treeSession("sess-second", { parent: "sess-first" });
+    const child = treeSession("sess-child", { parent: "sess-first" });
+
+    const tree = buildSessionTree([first, second, child]);
+
+    expect(tree.roots.map(session => session.id)).toEqual(["sess-first", "sess-second"]);
+    expect(tree.childrenByParent.get("sess-first")?.map(session => session.id)).toEqual([
+      "sess-child",
+    ]);
+  });
 });
 
 describe("collectThreadSessions", () => {

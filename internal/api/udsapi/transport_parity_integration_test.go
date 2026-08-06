@@ -1508,10 +1508,28 @@ func assertTransportSessionProvenanceParity(
 	if err := runtimeHarness.UDSJSON(ctx, http.MethodGet, rootQuery, nil, &udsTree); err != nil {
 		t.Fatalf("UDS list root filter error = %v", err)
 	}
+	var httpTree compozycontract.SessionCatalogResponse
+	if err := runtimeHarness.HTTPJSON(ctx, http.MethodGet, rootQuery, nil, &httpTree); err != nil {
+		t.Fatalf("HTTP list root filter error = %v", err)
+	}
 	wantTree := append([]string{parent.ID}, childIDs...)
 	slices.Sort(wantTree)
-	if got := transportSessionCatalogIDs(udsTree); !slices.Equal(got, wantTree) {
-		t.Fatalf("root filter ids = %#v, want whole tree %#v", got, wantTree)
+	udsTreeIDs := transportSessionCatalogIDs(udsTree)
+	httpTreeIDs := transportSessionCatalogIDs(httpTree)
+	if !slices.Equal(udsTreeIDs, wantTree) || !slices.Equal(httpTreeIDs, wantTree) {
+		t.Fatalf(
+			"root filter ids uds=%#v http=%#v, want whole tree %#v on both transports",
+			udsTreeIDs,
+			httpTreeIDs,
+			wantTree,
+		)
+	}
+	if udsTree.Page.Total != 3 || httpTree.Page.Total != 3 {
+		t.Fatalf(
+			"root filter totals uds=%d http=%d, want 3 on both transports",
+			udsTree.Page.Total,
+			httpTree.Page.Total,
+		)
 	}
 }
 

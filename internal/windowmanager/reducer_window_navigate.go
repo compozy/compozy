@@ -7,6 +7,9 @@ func (r *reducer) navigateWindow(snapshot *Snapshot, command NavigateWindowComma
 	if !exists {
 		return false, fmt.Errorf("window %q: %w", command.WindowID, ErrWindowNotFound)
 	}
+	if command.InstanceKey != nil && command.Mode != NavigateReplace {
+		return false, fmt.Errorf("instance retarget requires replace mode: %w", ErrInvalidCommand)
+	}
 	if command.Mode == NavigatePop {
 		if command.Route.Pathname != "" || command.Route.Search != nil {
 			return false, fmt.Errorf("pop navigation cannot include a route: %w", ErrInvalidCommand)
@@ -19,9 +22,6 @@ func (r *reducer) navigateWindow(snapshot *Snapshot, command NavigateWindowComma
 	} else {
 		if command.Mode != NavigateReplace && command.Mode != NavigatePush {
 			return false, fmt.Errorf("navigation mode %q: %w", command.Mode, ErrInvalidCommand)
-		}
-		if command.InstanceKey != nil && command.Mode != NavigateReplace {
-			return false, fmt.Errorf("instance retarget requires replace mode: %w", ErrInvalidCommand)
 		}
 		route, err := CanonicalRouteIntent(command.Route)
 		if err != nil {

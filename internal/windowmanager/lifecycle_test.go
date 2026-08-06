@@ -1490,6 +1490,24 @@ func TestWindowNavigation(t *testing.T) {
 		if !errors.Is(err, ErrInvalidCommand) {
 			t.Fatalf("Execute(push retarget) error = %v, want %v", err, ErrInvalidCommand)
 		}
+
+		popKey := "sess-e"
+		_, err = environment.manager.Execute(
+			t.Context(),
+			CommandRequest{
+				WorkspaceID:      "workspace-a",
+				CommandID:        CommandWindowNavigate,
+				ExpectedRevision: snapshot.Revision,
+				Payload: NavigateWindowCommand{
+					WindowID:    "w1",
+					InstanceKey: &popKey,
+					Mode:        NavigatePop,
+				},
+			},
+		)
+		if !errors.Is(err, ErrInvalidCommand) {
+			t.Fatalf("Execute(pop retarget) error = %v, want %v", err, ErrInvalidCommand)
+		}
 	})
 }
 

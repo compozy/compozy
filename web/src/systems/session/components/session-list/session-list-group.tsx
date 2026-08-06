@@ -60,6 +60,7 @@ export function SessionListGroup({
         />
       </button>
       <div
+        inert={collapsed}
         className={cn(
           "grid transition-[grid-template-rows] duration-base",
           collapsed ? "grid-rows-[0fr]" : "grid-rows-[1fr]"

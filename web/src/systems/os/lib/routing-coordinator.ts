@@ -227,8 +227,8 @@ export class RoutingCoordinator {
   /**
    * In-place session/instance switch from inside a window (sidebar rows). The
    * ≤1-window-per-instance invariant wins: when the target instance already
-   * owns a live window, that window is activated instead of duplicating it;
-   * otherwise the current window is re-keyed and one history entry follows.
+   * owns a live window, that window is activated and reconciled to the target
+   * route; otherwise the current window is re-keyed. One history entry follows.
    */
   async userRetarget(
     windowId: string,
@@ -242,7 +242,13 @@ export class RoutingCoordinator {
       instanceKey: target.instanceKey,
     });
     if (existing && existing.id !== windowId) {
-      return this.userActivateWindow(existing.id);
+      if (sameOsWindowRoute(existing.route, target.route)) {
+        return this.userActivateWindow(existing.id);
+      }
+      const outcome = this.manager.openOrFocus(target);
+      if (!(await outcome.completion)) return false;
+      this.pushRoute(target.route);
+      return true;
     }
     if (existing && existing.id === windowId) {
       if (sameOsWindowRoute(win.route, target.route)) return true;

@@ -1,4 +1,4 @@
-import { Eraser, PanelRight, Play, RotateCcw, Square, SquareTerminal, Trash2 } from "lucide-react";
+import { Eraser, List, PanelRight, Play, RotateCcw, Square, Trash2 } from "lucide-react";
 
 import {
   Button,
@@ -124,9 +124,7 @@ export function useSessionTopbarSlot({
       data-testid="session-sidebar-toggle"
       onClick={onSidebarToggle}
     >
-      {/* Mirrors the dock's sessions icon so the rail toggle reads as "sessions",
-          not as a second panel toggle beside the inspector's PanelRight. */}
-      <SquareTerminal aria-hidden="true" className="size-3" />
+      <List aria-hidden="true" className="size-3" />
     </Button>
   );
 

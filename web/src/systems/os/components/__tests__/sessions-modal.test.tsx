@@ -139,16 +139,22 @@ describe("OsSessionsModal", () => {
     expect(toggle).toHaveAttribute("aria-expanded", "true");
     await user.click(toggle!);
     expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(
+      within(thread!).getByTestId("os-sessions-modal-session-session-child").closest("[inert]")
+    ).not.toBeNull();
     await user.click(toggle!);
     expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(
+      within(thread!).getByTestId("os-sessions-modal-session-session-child").closest("[inert]")
+    ).toBeNull();
   });
 
-  it("Should keep a thread's parent visible when only its child matches the filter", async () => {
+  it("Should keep a thread's full ancestor path when only a descendant matches", async () => {
     const user = userEvent.setup();
     const shell = createShell();
-    const child = session({
+    const parent = session({
       id: "session-child",
-      name: "Scrape pricing pages",
+      name: "Digest references",
       agent_name: "webgen",
       lineage: {
         parent_session_id: "session-1",
@@ -166,12 +172,32 @@ describe("OsSessionsModal", () => {
         },
       },
     });
+    const grandchild = session({
+      id: "session-grandchild",
+      name: "Scrape pricing pages",
+      agent_name: "webgen",
+      lineage: {
+        parent_session_id: parent.id,
+        root_session_id: "session-1",
+        spawn_depth: 2,
+        auto_stop_on_parent: false,
+        spawn_budget: { max_children: 0, max_depth: 0, ttl_seconds: 0 },
+        permission_policy: {
+          tools: [],
+          skills: [],
+          mcp_servers: [],
+          workspace_paths: [],
+          network_channels: [],
+          sandbox_profiles: [],
+        },
+      },
+    });
     render(
       <OsShellContext.Provider value={shell}>
         <OsSessionsModal
           open
           onOpenChange={() => {}}
-          sessions={[...SESSIONS, child]}
+          sessions={[...SESSIONS, parent, grandchild]}
           archivedSessions={[]}
           disconnected={false}
           sessionActions={SESSION_ACTIONS}
@@ -183,6 +209,9 @@ describe("OsSessionsModal", () => {
     await user.type(filter, "scrape");
     expect(screen.getAllByTestId("os-sessions-modal-session-session-1")).not.toHaveLength(0);
     expect(screen.getAllByTestId("os-sessions-modal-session-session-child")).not.toHaveLength(0);
+    expect(screen.getAllByTestId("os-sessions-modal-session-session-grandchild")).not.toHaveLength(
+      0
+    );
     expect(screen.queryByTestId("os-sessions-modal-session-session-2")).toBeNull();
   });
 
@@ -208,17 +237,27 @@ describe("OsSessionsModal", () => {
 
     await user.click(screen.getByRole("button", { name: "Show all sessions" }));
     const group = screen.getByRole("button", { name: /codex/i, expanded: true });
+    const groupSection = group.closest("section");
+    expect(groupSection).not.toBeNull();
+    const groupedSession = within(groupSection!).getByTestId("os-sessions-modal-session-session-1");
+    expect(groupedSession.closest("[inert]")).toBeNull();
     await user.click(group);
     expect(group).toHaveAttribute("aria-expanded", "false");
+    expect(groupedSession.closest("[inert]")).not.toBeNull();
     expect(shell.manager.getState().railCollapsedAgentIds).toEqual(["codex"]);
 
     first.unmount();
     renderModal(shell);
     await user.click(screen.getByRole("button", { name: "Show all sessions" }));
-    expect(screen.getByRole("button", { name: /codex/i, expanded: false })).toHaveAttribute(
-      "aria-expanded",
-      "false"
-    );
+    const persistedGroup = screen.getByRole("button", { name: /codex/i, expanded: false });
+    expect(persistedGroup).toHaveAttribute("aria-expanded", "false");
+    const persistedSection = persistedGroup.closest("section");
+    expect(persistedSection).not.toBeNull();
+    expect(
+      within(persistedSection!)
+        .getByTestId("os-sessions-modal-session-session-1")
+        .closest("[inert]")
+    ).not.toBeNull();
   });
 
   it("Should dismiss the Dialog and restore focus to the opener (UT-084)", async () => {

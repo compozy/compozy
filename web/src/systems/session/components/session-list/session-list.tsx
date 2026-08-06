@@ -41,8 +41,8 @@ export interface SessionListProps {
 
 /**
  * Shared sessions catalog body: filterable recent ⇄ all panes with provenance
- * threads. A child matching the filter keeps its parent visible so a thread
- * never renders detached from its root.
+ * threads. A matching descendant keeps its full ancestor path visible so a
+ * thread never renders detached from its root.
  */
 export function SessionList({
   sessions,
@@ -78,9 +78,24 @@ export function SessionList({
     const rootMatches = matchesFilter(root);
     const matchingDescendants = descendants.filter(matchesFilter);
     if (!rootMatches && matchingDescendants.length === 0) continue;
+    let childSessions = descendants;
+    if (!rootMatches) {
+      const visibleDescendantIds = new Set(matchingDescendants.map(session => session.id));
+      const descendantsById = new Map(descendants.map(session => [session.id, session]));
+      for (const matchingSession of matchingDescendants) {
+        let parentId = matchingSession.lineage?.parent_session_id ?? "";
+        while (parentId !== "" && parentId !== root.id) {
+          const ancestor = descendantsById.get(parentId);
+          if (!ancestor) break;
+          visibleDescendantIds.add(ancestor.id);
+          parentId = ancestor.lineage?.parent_session_id ?? "";
+        }
+      }
+      childSessions = descendants.filter(session => visibleDescendantIds.has(session.id));
+    }
     threads.push({
       session: root,
-      childSessions: rootMatches ? descendants : matchingDescendants,
+      childSessions,
     });
   }
   const visibleCount = threads.reduce(

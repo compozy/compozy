@@ -68,12 +68,13 @@ export function SessionListThread({
     <div data-testid={`${testIdPrefix}-thread-${session.id}`}>
       {rootRow}
       <div
+        inert={collapsed}
         className={cn(
           "grid transition-[grid-template-rows] duration-base",
           collapsed ? "grid-rows-[0fr]" : "grid-rows-[1fr]"
         )}
       >
-        <div className="relative min-h-0 overflow-hidden pl-5 before:absolute before:top-0.5 before:bottom-1 before:left-[11px] before:w-px before:bg-line-strong">
+        <div className="relative min-h-0 overflow-hidden pl-5 before:absolute before:top-0.5 before:bottom-1 before:left-2.75 before:w-px before:bg-line-strong">
           {childSessions.map(child => (
             <SessionListRow
               key={child.id}
