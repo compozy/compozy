@@ -239,10 +239,21 @@ func inventoryNodeIDsForTest(items []looppkg.NodeInventoryItem) []looppkg.NodeID
 func TestGlobalDBLoopRunCancellationShouldFenceBeforeTerminalizing(t *testing.T) {
 	t.Parallel()
 
-	globalDB := openLoopTestGlobalDB(t)
+	globalDB := openLoopTestGlobalDB(t, "ws-1", "ws-other")
 	ctx := testutil.Context(t)
 	now := time.Date(2026, time.August, 3, 1, 0, 0, 0, time.UTC)
 	run, taskRunID := seedLiveLoopLivenessCellForTest(t, globalDB, now)
+	foreignSeed := testLoopRun("looprun-cancel-foreign", now, looppkg.StatusRunning)
+	foreignSeed.WorkspaceID = "ws-other"
+	foreignRun, err := globalDB.CreateLoopRunForStart(ctx, foreignSeed, dsl.ConcurrencyAllow)
+	if err != nil {
+		t.Fatalf("CreateLoopRunForStart(foreign cancellation fixture) error = %v", err)
+	}
+	if _, err := globalDB.db.ExecContext(ctx, `INSERT INTO loop_generation_outputs (
+		loop_run_id, generation, node_id, item_index, status, attempt, first_scheduled_at, epoch
+	) VALUES (?, 1, 'other-workspace', 0, 'waiting', 1, ?, 1)`, foreignRun.ID, now); err != nil {
+		t.Fatalf("seed foreign run cancellation output error = %v", err)
+	}
 	if _, err := globalDB.db.ExecContext(ctx, `INSERT INTO loop_generation_outputs (
 		loop_run_id, generation, node_id, item_index, status, attempt, first_scheduled_at, epoch
 	) VALUES (?, 1, 'hold', 0, 'waiting', 1, ?, 1)`, run.ID, now); err != nil {
@@ -264,6 +275,90 @@ func TestGlobalDBLoopRunCancellationShouldFenceBeforeTerminalizing(t *testing.T)
 	}
 	if !result.Applied || result.Terminal {
 		t.Fatalf("RequestRunCancellation() = %#v, want durable non-terminal request", result)
+	}
+	seedLoopCancellationBindingForTest(
+		t,
+		globalDB,
+		string(run.ID),
+		string(run.WorkspaceID),
+		"main",
+		1,
+		"session-cancel-owned",
+		now,
+	)
+	foreignMutation := looppkg.CancellationMutation{
+		WorkspaceID: foreignRun.WorkspaceID, RunID: foreignRun.ID, Kind: looppkg.RunCancelCancel,
+		Reason: "foreign operator request", Actor: operatorActorContextForTest("operator:cancel-foreign"),
+		RequestedAt: now.Add(90 * time.Second),
+	}
+	foreignResult, err := globalDB.RequestRunCancellation(ctx, foreignMutation)
+	if err != nil {
+		t.Fatalf("RequestRunCancellation(foreign) error = %v", err)
+	}
+	if !foreignResult.Applied || foreignResult.Terminal {
+		t.Fatalf("RequestRunCancellation(foreign) = %#v, want durable non-terminal request", foreignResult)
+	}
+	seedLoopCancellationBindingForTest(
+		t,
+		globalDB,
+		string(foreignRun.ID),
+		string(foreignRun.WorkspaceID),
+		"other-workspace",
+		1,
+		"session-cancel-other",
+		now,
+	)
+	earlyProvenanceAt := now.Add(30 * time.Second)
+	laterProvenanceAt := now.Add(2 * time.Minute)
+	if _, err := globalDB.db.ExecContext(ctx, `UPDATE loop_node_controls
+		SET cancel_actor_kind = ?, cancel_actor_id = ?, cancel_reason = ?, cancel_requested_at = ?
+		WHERE loop_run_id = ? AND node_id = 'hold'`,
+		taskpkg.ActorKindHuman, "z-early-actor", "z-early-reason", earlyProvenanceAt, run.ID); err != nil {
+		t.Fatalf("seed earliest run cancellation provenance error = %v", err)
+	}
+	if _, err := globalDB.db.ExecContext(ctx, `UPDATE loop_node_controls
+		SET cancel_actor_kind = ?, cancel_actor_id = ?, cancel_reason = ?, cancel_requested_at = ?
+		WHERE loop_run_id = ? AND node_id = 'work'`,
+		taskpkg.ActorKindAgentSession, "a-later-actor", "a-later-reason", laterProvenanceAt, run.ID); err != nil {
+		t.Fatalf("seed later run cancellation provenance error = %v", err)
+	}
+	pending, err := globalDB.ListPendingCancellations(ctx, 10)
+	if err != nil {
+		t.Fatalf("ListPendingCancellations(requested) error = %v", err)
+	}
+	if len(pending) != 2 {
+		t.Fatalf("pending cancellations = %#v, want one command per workspace", pending)
+	}
+	pendingByRun := make(map[looppkg.RunID]looppkg.PendingCancellation, len(pending))
+	for _, command := range pending {
+		pendingByRun[command.RunID] = command
+	}
+	ownedPending, ok := pendingByRun[run.ID]
+	if !ok || ownedPending.WorkspaceID != run.WorkspaceID || ownedPending.NodeID != "" ||
+		ownedPending.State != looppkg.CancelStateRequested ||
+		ownedPending.RequestedBy.Kind != taskpkg.ActorKindHuman ||
+		ownedPending.RequestedBy.Ref != "z-early-actor" || ownedPending.Reason != "z-early-reason" ||
+		!ownedPending.RequestedAt.Equal(earlyProvenanceAt) ||
+		!slices.Equal(ownedPending.SessionIDs, []string{"session-cancel-owned"}) {
+		t.Fatalf("owned pending cancellation = %#v, want correlated earliest provenance", ownedPending)
+	}
+	foreignPending, ok := pendingByRun[foreignRun.ID]
+	if !ok || foreignPending.WorkspaceID != foreignRun.WorkspaceID || foreignPending.NodeID != "" ||
+		foreignPending.State != looppkg.CancelStateRequested ||
+		foreignPending.RequestedBy.Ref != foreignMutation.Actor.Actor.Ref ||
+		!slices.Equal(foreignPending.SessionIDs, []string{"session-cancel-other"}) {
+		t.Fatalf("foreign pending cancellation = %#v, want exact foreign workspace delivery", foreignPending)
+	}
+	if _, err := globalDB.db.ExecContext(ctx, `UPDATE loop_node_controls
+		SET cancel_actor_kind = ?, cancel_actor_id = ?, cancel_reason = ?, cancel_requested_at = ?
+		WHERE loop_run_id = ?`, mutation.Actor.Actor.Kind, mutation.Actor.Actor.Ref,
+		mutation.Reason, mutation.RequestedAt, run.ID); err != nil {
+		t.Fatalf("restore run cancellation provenance error = %v", err)
+	}
+	for _, state := range []looppkg.CancelState{looppkg.CancelStateDelivering, looppkg.CancelStateDraining} {
+		if _, err := globalDB.AdvanceRunCancellation(ctx, foreignMutation, state); err != nil {
+			t.Fatalf("AdvanceRunCancellation(foreign, %s) error = %v", state, err)
+		}
 	}
 	stored, err := globalDB.GetLoopRun(ctx, run.WorkspaceID, run.ID)
 	if err != nil {
@@ -312,6 +407,17 @@ func TestGlobalDBLoopRunCancellationShouldFenceBeforeTerminalizing(t *testing.T)
 				"run cancellation wake key = %q, want explicit run scope",
 				cancellationWakeIdempotencyKey(mutation),
 			)
+		}
+		pending, err = globalDB.ListPendingCancellations(ctx, 10)
+		if err != nil {
+			t.Fatalf("ListPendingCancellations(%s) error = %v", state, err)
+		}
+		if state == looppkg.CancelStateDelivering {
+			if len(pending) != 1 || pending[0].State != looppkg.CancelStateDelivering {
+				t.Fatalf("delivering pending cancellation = %#v, want one delivering command", pending)
+			}
+		} else if len(pending) != 0 {
+			t.Fatalf("draining pending cancellations = %#v, want none", pending)
 		}
 	}
 	if result.Terminal || result.Run.Status != looppkg.StatusRunning {

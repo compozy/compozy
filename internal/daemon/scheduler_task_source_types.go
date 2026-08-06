@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	looppkg "github.com/compozy/compozy/internal/loop"
 	schedulerpkg "github.com/compozy/compozy/internal/scheduler"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -11,6 +12,7 @@ import (
 var _ schedulerpkg.StarvationStore = (*globaldb.GlobalDB)(nil)
 var _ schedulerpkg.TaskSource = schedulerTaskSource{}
 var _ schedulerpkg.LoopCoordinatorBackstop = schedulerTaskSource{}
+var _ schedulerpkg.LoopCancellationBackstop = schedulerTaskSource{}
 
 type schedulerTaskSource struct {
 	manager                *taskpkg.Service
@@ -20,4 +22,5 @@ type schedulerTaskSource struct {
 	loopWaitDueScan        *loopWaitDueScanState
 	loopWaitEscalationScan *loopWaitEscalationScanState
 	coordinatorBackstop    loopCoordinatorBackstopRunner
+	cancellationReconciler looppkg.CancellationReconciler
 }

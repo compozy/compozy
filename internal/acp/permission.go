@@ -12,9 +12,8 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
-const (
-	permissionRequestIDKey = "request_id"
-)
+// PermissionRequestIDMetaKey pins the externally addressable permission request ID in ACP metadata.
+const PermissionRequestIDMetaKey = "request_id"
 
 var (
 	// ErrPermissionDenied reports that the configured static policy rejected an operation.

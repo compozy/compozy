@@ -210,8 +210,9 @@ func (p *ReadOnlyPool) openLease(ctx context.Context, key readOnlyPoolKey) (stor
 		p.openings[key] = opening
 		p.mu.Unlock()
 
-		recorder, err := p.open(ctx, key.owner, key.path)
-		p.finishOpening(ctx, key, opening, recorder, err)
+		openingCtx := context.WithoutCancel(ctx)
+		recorder, err := p.open(openingCtx, key.owner, key.path)
+		p.finishOpening(openingCtx, key, opening, recorder, err)
 		return p.claimOpenedLease(ctx, key, opening)
 	}
 	p.mu.Unlock()

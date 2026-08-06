@@ -308,6 +308,9 @@ func (m *Manager) preparePromptPumpEventForDelivery(
 	}
 	normalized = m.preparePromptEvent(ctx, turnState, normalized)
 	normalized = transcript.RedactAgentEvent(normalized)
+	if isFatalPromptFailureEvent(normalized) {
+		session.setFailure(store.CloneSessionFailure(normalized.Failure))
+	}
 	return normalized, false
 }
 

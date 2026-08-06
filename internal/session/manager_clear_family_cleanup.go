@@ -87,11 +87,19 @@ func (m *Manager) restoreClearedConversationFailure(
 	if err := discardSessionDBClearCommit(dbPath); err != nil {
 		errs = append(errs, err)
 	}
+	metaRestored := true
 	if err := store.WriteSessionMeta(metaPath, meta); err != nil {
+		metaRestored = false
 		errs = append(errs, fmt.Errorf("session: restore cleared metadata for %q: %w", meta.ID, err))
 	}
 	if err := discardSessionDBClearManifest(dbPath); err != nil {
 		errs = append(errs, err)
+	}
+	if metaRestored {
+		lease.Release()
+		if err := m.rematerializeStoppedSessionLedger(ctx, meta.ID); err != nil {
+			errs = append(errs, err)
+		}
 	}
 	return errors.Join(errs...)
 }

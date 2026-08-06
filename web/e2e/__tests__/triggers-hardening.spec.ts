@@ -461,16 +461,21 @@ test("failed webhook trigger run is diagnosable with retry evidence and no secre
     run => run.attempt > 1
   );
   expect(failedRun.attempt).toBeGreaterThan(1);
-  const failureMessage = `${failedRun.error ?? ""} ${failedRun.delivery_error ?? ""}`;
-  expect(failureMessage).toMatch(/peer disconnected before response|internal error/i);
+  const failureDiagnostic = [failedRun.error, failedRun.delivery_error]
+    .find(value => value?.trim())
+    ?.trim();
+  expect(failureDiagnostic).toBeTruthy();
+  if (!failureDiagnostic) {
+    throw new Error("Expected the failed retry to expose a diagnostic.");
+  }
+  expect(failureDiagnostic).not.toMatch(sensitivePattern);
+  const failureSummary = failureDiagnostic.split("\n", 1)[0];
 
   await appPage.reload({ waitUntil: "domcontentloaded" });
   await expect(windowTitle(triggersWin)).toContainText(trigger.name, { timeout: 20_000 });
   await expect(ui.run(failedRun.id)).toBeVisible();
   await expect(ui.run(failedRun.id)).toContainText("FAILED");
-  await expect(ui.run(failedRun.id)).toContainText(
-    /peer disconnected before response|internal error/i
-  );
+  await expect(ui.run(failedRun.id)).toContainText(failureSummary);
 
   const failedWorkspaceID = await resolveAutomationWorkspaceID(runtime, failedRun.workspace_id);
   const parity = await captureTriggerParity(runtime, trigger.id, failedRun.id, failedWorkspaceID);

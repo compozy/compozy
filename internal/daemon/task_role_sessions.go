@@ -106,6 +106,9 @@ func (r *taskRoleRuntime) activateForStarvation(
 	if ctx == nil {
 		return errors.New("daemon: starvation activation context is required")
 	}
+	if run.IsLoopWorker() {
+		return nil
+	}
 	agentName, err := r.resolveStarvationAgent(ctx, taskRecord, run, spawner)
 	if err != nil {
 		return err
@@ -178,6 +181,9 @@ func (r *taskRoleRuntime) starvationActivation(
 	run taskpkg.Run,
 	agentName string,
 ) (taskRoleActivation, bool, error) {
+	if run.IsLoopWorker() {
+		return taskRoleActivation{}, false, nil
+	}
 	agentName = strings.TrimSpace(agentName)
 	if agentName == "" {
 		return taskRoleActivation{}, false, nil

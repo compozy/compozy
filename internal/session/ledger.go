@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -55,6 +56,42 @@ func (m *Manager) discardOwnedMaterializedSessionLedger(
 	}
 	if err := m.ledgerMaterializer.DiscardSessionLedger(ledgerCtx, record); err != nil {
 		return fmt.Errorf("session: discard materialized ledger for %q: %w", normalizedOwner.SessionID, err)
+	}
+	return nil
+}
+
+func (m *Manager) discardMaterializedSessionLedgerForResume(
+	ctx context.Context,
+	meta store.SessionMeta,
+) error {
+	owner, err := m.resolveStoredSessionOwner(ctx, meta.ID, meta.WorkspaceID)
+	if err != nil {
+		return fmt.Errorf("session: resolve ledger owner before resume %q: %w", meta.ID, err)
+	}
+	dbPath := store.SessionDBFile(filepath.Join(m.homePaths.SessionsDir, owner.SessionID))
+	return m.discardOwnedMaterializedSessionLedger(ctx, owner, dbPath)
+}
+
+func (m *Manager) rematerializeStoppedSessionLedger(ctx context.Context, sessionID string) error {
+	if m == nil || m.ledgerMaterializer == nil {
+		return nil
+	}
+	meta, err := m.readMetaWithContext(ctx, sessionID)
+	if err != nil {
+		return fmt.Errorf("session: read metadata to restore ledger for %q: %w", sessionID, err)
+	}
+	owner, err := m.resolveStoredSessionOwner(ctx, meta.ID, meta.WorkspaceID)
+	if err != nil {
+		return fmt.Errorf("session: resolve ledger owner after failed resume %q: %w", sessionID, err)
+	}
+	dbPath := store.SessionDBFile(filepath.Join(m.homePaths.SessionsDir, owner.SessionID))
+	record := sessionLedgerRecordFromInfo(sessionInfoFromMeta(meta), dbPath)
+	record.SessionID = owner.SessionID
+	record.WorkspaceID = owner.WorkspaceID
+	ledgerCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
+	defer cancel()
+	if err := m.ledgerMaterializer.MaterializeSessionLedger(ledgerCtx, record); err != nil {
+		return fmt.Errorf("session: restore materialized ledger for %q: %w", sessionID, err)
 	}
 	return nil
 }

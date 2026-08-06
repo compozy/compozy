@@ -212,6 +212,11 @@ Only normal prompt dispatch triggers that restart.
 The per-session store is append-only for the Compozy session ID. Attach records and transcript markers
 are additional evidence, not replacements for earlier events.
 
+The stopped-session `ledger.jsonl` is a read-only projection, not the source of truth. Before a
+stopped session resumes, Compozy removes that projection so new events cannot conflict with stale
+content. The next stop rebuilds it from the complete event store. If provider startup fails, Compozy
+restores the stopped-session ledger before returning the failure.
+
 ### The command name is historical
 
 `compozy session resume` remains the operator command name, but its contract is attach. Scripts should

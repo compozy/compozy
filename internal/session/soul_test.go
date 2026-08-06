@@ -327,7 +327,7 @@ func TestManagerSpawnSoulLineage(t *testing.T) {
 	t.Run("Should record parent soul digest without implicit inheritance", func(t *testing.T) {
 		t.Parallel()
 
-		h := newHarness(t, WithSoulSnapshotStore(newFakeSoulSnapshotStore()))
+		h := newHostedMCPHarness(t, WithSoulSnapshotStore(newFakeSoulSnapshotStore()))
 		writeSessionSoul(t, h.workspace, "coder", validSessionSoul("Reviewer", "Parent body."))
 		addHarnessAgent(t, h, compozyconfig.AgentDef{
 			Name:     "reviewer",

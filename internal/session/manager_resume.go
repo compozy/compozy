@@ -78,11 +78,19 @@ func (m *Manager) resumeSession(ctx context.Context, target string) (*Session, e
 	if err != nil {
 		return nil, err
 	}
-	if isUnboundLogicalResume(meta) {
-		return m.resumeAcceptedLogicalSession(ctx, &spec)
+	if err := m.discardMaterializedSessionLedgerForResume(ctx, meta); err != nil {
+		return nil, err
 	}
-
-	return m.startResumedSession(ctx, target, meta, &spec)
+	var resumed *Session
+	if isUnboundLogicalResume(meta) {
+		resumed, err = m.resumeAcceptedLogicalSession(ctx, &spec)
+	} else {
+		resumed, err = m.startResumedSession(ctx, target, meta, &spec)
+	}
+	if err != nil {
+		return nil, errors.Join(err, m.rematerializeStoppedSessionLedger(ctx, target))
+	}
+	return resumed, nil
 }
 
 func (m *Manager) waitForResumedSession(

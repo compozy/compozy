@@ -287,6 +287,7 @@ func callApprovalToolWithDecision(
 	defer ticker.Stop()
 	timeout := time.NewTimer(5 * time.Second)
 	defer timeout.Stop()
+	var lastApprovalErr error
 	for awaitingApproval := true; awaitingApproval; {
 		select {
 		case outcome := <-outcomeCh:
@@ -297,13 +298,13 @@ func callApprovalToolWithDecision(
 				outcome.err,
 			)
 		case <-ticker.C:
-			err := harness.ApproveSessionPermission(ctx, sessionID, compozycontract.ApproveSessionRequest{
+			lastApprovalErr = harness.ApproveSessionPermission(ctx, sessionID, compozycontract.ApproveSessionRequest{
 				RequestID: toolCallID,
 				Decision:  decision,
 			})
-			awaitingApproval = err != nil
+			awaitingApproval = lastApprovalErr != nil
 		case <-timeout.C:
-			t.Fatalf("timed out waiting for native tool approval prompt")
+			t.Fatalf("timed out waiting for native tool approval prompt: last approval error: %v", lastApprovalErr)
 		case <-ctx.Done():
 			t.Fatalf("waiting for native tool approval prompt: %v", ctx.Err())
 		}

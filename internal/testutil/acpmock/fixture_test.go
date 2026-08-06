@@ -987,6 +987,16 @@ hello alpha
 			}, "\n"),
 			want: "Provide a follow-up runtime bridge summary",
 		},
+		{
+			name: "Should strip Loop output contract suffix",
+			prompt: strings.Join([]string{
+				"local loop probe",
+				"",
+				loopOutputContractPrefix +
+					`{"properties":{"summary":{"type":"string"}},"required":["summary"],"type":"object"}`,
+			}, "\n"),
+			want: "local loop probe",
+		},
 	}
 
 	for _, tt := range tests {

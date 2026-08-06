@@ -291,7 +291,8 @@ func triggerPayloadField(raw string) (string, error) {
 	body := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(trimmed, "{{"), "}}"))
 	body = strings.TrimPrefix(body, ".")
 	parts := strings.Split(body, ".")
-	if len(parts) != 3 || parts[0] != "trigger" || parts[1] != "payload" || strings.TrimSpace(parts[2]) == "" {
+	if len(parts) != 3 || parts[0] != "trigger" || parts[1] != watchEventsFieldPayload ||
+		strings.TrimSpace(parts[2]) == "" {
 		return "", fmt.Errorf("%w: input_mapping must be {{ .trigger.payload.<field> }}", ErrValidation)
 	}
 	if strings.ContainsAny(parts[2], " \t\r\n") {

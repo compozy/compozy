@@ -2701,6 +2701,7 @@ test("E2E-023: the 12-window envelope holds for drag frames, restore, and conver
   let currentX = grip.x;
   let currentY = grip.y;
   let pressed = false;
+  let longTasks: number[] = [];
   try {
     await dragInput.send("Input.dispatchMouseEvent", {
       type: "mouseMoved",
@@ -2736,6 +2737,7 @@ test("E2E-023: the 12-window envelope holds for drag frames, restore, and conver
       currentY = targetY;
       step += 1;
     }
+    longTasks = await appPage.evaluate(() => Reflect.get(window, "__osLongTasks") as number[]);
   } finally {
     try {
       if (pressed) {
@@ -2752,7 +2754,6 @@ test("E2E-023: the 12-window envelope holds for drag frames, restore, and conver
       await dragInput.detach();
     }
   }
-  const longTasks = await appPage.evaluate(() => Reflect.get(window, "__osLongTasks") as number[]);
   const worstFrame = longTasks.length > 0 ? Math.max(...longTasks) : 0;
 
   const peerA = await openPeerPage(browser, runtime);

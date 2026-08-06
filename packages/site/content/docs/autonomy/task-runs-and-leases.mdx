@@ -25,6 +25,10 @@ CLI path:
 compozy task next --wait --lease-seconds 300 -o json
 ```
 
+Loop action workers are not part of this claim pool. The daemon's `loop-action` executor owns those
+runs from enqueue through completion, so coordinators, task-role sessions, and manual claim-next
+calls do not receive them. This keeps one execution owner for each Loop node.
+
 The claim is atomic. Compozy selects one eligible queued run, binds it to the current managed session,
 sets a lease deadline, and returns a synchronous claim response that includes:
 

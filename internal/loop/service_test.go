@@ -2334,6 +2334,83 @@ func TestServiceCancellationShouldRecordCanceledTerminalTruth(t *testing.T) {
 		}
 	})
 
+	t.Run("Should accept committed cancellation and retry deferred delivery", func(t *testing.T) {
+		t.Parallel()
+
+		store := newFakeLoopStore()
+		store.cancellationSessionIDs = []string{"session-work"}
+		run := seedFakeRun(store, loop.StatusRunning)
+		var deliveries int
+		var activated task.Run
+		deliveryErr := errors.New("provider cancellation unavailable")
+		svc := newTestServiceWithOptions(
+			t,
+			store,
+			validDefinition(),
+			loop.WithCancellationSessionController(loop.CancellationSessionControllerFuncs{
+				Cancel: func(context.Context, string, string) error {
+					deliveries++
+					if deliveries == 1 {
+						return deliveryErr
+					}
+					return nil
+				},
+			}),
+			loop.WithCoordinatorRunActivator(loop.CoordinatorRunActivatorFunc(func(
+				_ context.Context,
+				run task.Run,
+			) {
+				activated = run
+			})),
+		)
+
+		if err := svc.CancelRun(
+			context.Background(), run.WorkspaceID, run.ID, "operator request", humanActor(t),
+		); err != nil {
+			t.Fatalf("CancelRun() error = %v, want durable request accepted", err)
+		}
+		got := store.cancellationStates
+		want := []loop.CancelState{loop.CancelStateDelivering}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("cancellation states = %#v, want %#v before retry", got, want)
+		}
+
+		request := store.lastCancellationRequest(t)
+		store.pendingCancellations = []loop.PendingCancellation{{
+			WorkspaceID: request.WorkspaceID,
+			RunID:       request.RunID,
+			State:       loop.CancelStateDelivering,
+			Reason:      request.Reason,
+			RequestedAt: request.RequestedAt,
+			RequestedBy: request.Actor.Actor,
+			SessionIDs:  []string{"session-work"},
+		}}
+		reconciler, ok := svc.(loop.CancellationReconciler)
+		if !ok {
+			t.Fatalf("service = %T, want CancellationReconciler", svc)
+		}
+		actor, err := task.DeriveDaemonActorContext("scheduler", "daemon.scheduler")
+		if err != nil {
+			t.Fatalf("DeriveDaemonActorContext() error = %v", err)
+		}
+		reconciled, err := reconciler.ReconcilePendingCancellations(context.Background(), 10, actor)
+		if err != nil {
+			t.Fatalf("ReconcilePendingCancellations() error = %v", err)
+		}
+		if reconciled != 1 || deliveries != 2 {
+			t.Fatalf("reconciled/deliveries = %d/%d, want 1/2", reconciled, deliveries)
+		}
+		if got, want := store.cancellationStates, []loop.CancelState{
+			loop.CancelStateDelivering,
+			loop.CancelStateDraining,
+		}; !reflect.DeepEqual(got, want) {
+			t.Fatalf("cancellation states = %#v, want %#v after retry", got, want)
+		}
+		if activated.LoopRunID != string(run.ID) {
+			t.Fatalf("coordinator activation = %#v, want retried Run", activated)
+		}
+	})
+
 	t.Run("Should preserve a terminal completion that wins the race", func(t *testing.T) {
 		t.Parallel()
 
@@ -2801,9 +2878,25 @@ type fakeLoopStore struct {
 	cancellationLeases               []loop.GoalPromptLease
 	cancellationErr                  error
 	cancellationErrByRun             map[loop.RunID]error
+	pendingCancellations             []loop.PendingCancellation
 	generationOutputs                map[loop.RunID][]loop.GenerationOutput
 	waitResumeMutation               *loop.WaitResumeMutation
 	creates                          int
+}
+
+func (s *fakeLoopStore) ListPendingCancellations(
+	_ context.Context,
+	limit int,
+) ([]loop.PendingCancellation, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.cancellationErr != nil {
+		return nil, s.cancellationErr
+	}
+	count := min(limit, len(s.pendingCancellations))
+	result := make([]loop.PendingCancellation, count)
+	copy(result, s.pendingCancellations[:count])
+	return result, nil
 }
 
 func newFakeLoopStore() *fakeLoopStore {

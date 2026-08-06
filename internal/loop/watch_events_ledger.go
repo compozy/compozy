@@ -77,19 +77,19 @@ type WatchEvent struct {
 // EventMap returns the CEL-facing event namespace used by watch-events filters.
 func (e WatchEvent) EventMap() map[string]any {
 	event := map[string]any{
-		actionKindMetaKey: strings.TrimSpace(e.Kind),
-		"seq":             e.Seq,
-		"stream":          strings.TrimSpace(e.Stream),
-		"at":              strings.TrimSpace(e.At),
-		"workspace_id":    strings.TrimSpace(e.WorkspaceID),
-		"task_id":         strings.TrimSpace(e.TaskID),
-		"run_id":          strings.TrimSpace(e.RunID),
-		"loop_run_id":     strings.TrimSpace(e.LoopRunID),
-		"loop_name":       strings.TrimSpace(e.LoopName),
-		"session_id":      strings.TrimSpace(e.SessionID),
-		"channel":         strings.TrimSpace(e.Channel),
-		"work_id":         strings.TrimSpace(e.WorkID),
-		"payload":         cloneAnyMap(e.Payload),
+		actionKindMetaKey:       strings.TrimSpace(e.Kind),
+		"seq":                   e.Seq,
+		"stream":                strings.TrimSpace(e.Stream),
+		"at":                    strings.TrimSpace(e.At),
+		"workspace_id":          strings.TrimSpace(e.WorkspaceID),
+		"task_id":               strings.TrimSpace(e.TaskID),
+		"run_id":                strings.TrimSpace(e.RunID),
+		"loop_run_id":           strings.TrimSpace(e.LoopRunID),
+		"loop_name":             strings.TrimSpace(e.LoopName),
+		"session_id":            strings.TrimSpace(e.SessionID),
+		"channel":               strings.TrimSpace(e.Channel),
+		"work_id":               strings.TrimSpace(e.WorkID),
+		watchEventsFieldPayload: cloneAnyMap(e.Payload),
 	}
 	return event
 }

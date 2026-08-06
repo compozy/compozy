@@ -102,17 +102,21 @@ workspace) materialize under `$COMPOZY_HOME/sessions/_unbound/<session_id>/`.
   ledger.jsonl
 ```
 
-| Path                                                              | Format | Description                                                                                             |
-| ----------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------- |
-| `$COMPOZY_HOME/sessions/<session-id>/events.db`                   | SQLite | Per-session event store for ACP events, turns, token usage, permission decisions, and hook run history. |
-| `$COMPOZY_HOME/sessions/<session-id>/meta.json`                   | JSON   | Quick metadata used by session listing and reconciliation paths.                                        |
-| `$COMPOZY_HOME/sessions/<workspace_id>/<session_id>/ledger.jsonl` | JSONL  | Forensic ledger materialized after session stop. Read-only and content-addressed; idempotent on rerun.  |
-| `$COMPOZY_HOME/sessions/_unbound/<session_id>/ledger.jsonl`       | JSONL  | Forensic ledger for sessions without a resolved workspace_id.                                           |
+| Path                                                              | Format | Description                                                                                                     |
+| ----------------------------------------------------------------- | ------ | --------------------------------------------------------------------------------------------------------------- |
+| `$COMPOZY_HOME/sessions/<session-id>/events.db`                   | SQLite | Per-session event store for ACP events, turns, token usage, permission decisions, and hook run history.         |
+| `$COMPOZY_HOME/sessions/<session-id>/meta.json`                   | JSON   | Quick metadata used by session listing and reconciliation paths.                                                |
+| `$COMPOZY_HOME/sessions/<workspace_id>/<session_id>/ledger.jsonl` | JSONL  | Read-only forensic projection materialized after session stop and replaced after a resumed session stops again. |
+| `$COMPOZY_HOME/sessions/_unbound/<session_id>/ledger.jsonl`       | JSONL  | Forensic ledger for sessions without a resolved workspace_id.                                                   |
 
 The forensic ledger is never a memory scope, never queried by recall, and never accepted as a
 controller write target — it is operator-readable history only. After materialization, live
 `events.db` rows for the same session are purged once `[memory.session] events_purge_grace`
 elapses.
+
+When a stopped session resumes, Compozy removes its materialized ledger before accepting new
+events. The append-only `events.db` remains the source of truth, and the next stop writes a new
+ledger with the complete history. A failed provider resume restores the stopped projection.
 
 ## Agent Files
 

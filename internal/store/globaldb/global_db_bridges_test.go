@@ -875,6 +875,102 @@ func TestGlobalDBReplaceBridgeInstancesAtomicallySwapsProjection(t *testing.T) {
 	}
 }
 
+func TestGlobalDBReplaceBridgeInstancesPreservesNewerOperationalState(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		status      bridges.BridgeStatus
+		degradation *bridges.BridgeDegradation
+	}{
+		{
+			name:   "Should preserve a provider ready report published after projection build",
+			status: bridges.BridgeStatusReady,
+		},
+		{
+			name:   "Should preserve provider degradation published after projection build",
+			status: bridges.BridgeStatusAuthRequired,
+			degradation: &bridges.BridgeDegradation{
+				Reason:  bridges.BridgeDegradationReasonAuthFailed,
+				Message: "provider credentials rejected",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			globalDB := openTestGlobalDB(t)
+			builtAt := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
+			initial := bridges.BridgeInstance{
+				ID:            "brg-operational-rebase",
+				Scope:         bridges.ScopeGlobal,
+				Platform:      "telegram",
+				ExtensionName: "ext-telegram",
+				DisplayName:   "Before projection",
+				Source:        bridges.BridgeInstanceSourceDynamic,
+				Enabled:       true,
+				Status:        bridges.BridgeStatusStarting,
+				DMPolicy:      bridges.BridgeDMPolicyOpen,
+				RoutingPolicy: bridges.RoutingPolicy{IncludePeer: true},
+				CreatedAt:     builtAt.Add(-time.Hour),
+				UpdatedAt:     builtAt,
+			}
+			if err := globalDB.InsertBridgeInstance(testutil.Context(t), initial); err != nil {
+				t.Fatalf("InsertBridgeInstance(initial) error = %v", err)
+			}
+
+			staleProjection := initial
+			staleProjection.DisplayName = "Projected display name"
+			staleProjection.UpdatedAt = builtAt.Add(time.Minute)
+
+			reportedAt := builtAt.Add(2 * time.Minute)
+			providerState := initial
+			providerState.Status = tt.status
+			providerState.Degradation = tt.degradation
+			providerState.UpdatedAt = reportedAt
+			if err := globalDB.UpdateBridgeInstance(testutil.Context(t), providerState); err != nil {
+				t.Fatalf("UpdateBridgeInstance(provider state) error = %v", err)
+			}
+
+			if err := globalDB.ReplaceBridgeInstances(
+				testutil.Context(t),
+				[]bridges.BridgeInstance{staleProjection},
+			); err != nil {
+				t.Fatalf("ReplaceBridgeInstances(stale projection) error = %v", err)
+			}
+
+			loaded, err := globalDB.GetBridgeInstance(testutil.Context(t), initial.ID)
+			if err != nil {
+				t.Fatalf("GetBridgeInstance() error = %v", err)
+			}
+			if got, want := loaded.DisplayName, staleProjection.DisplayName; got != want {
+				t.Fatalf("loaded.DisplayName = %q, want desired value %q", got, want)
+			}
+			if got, want := loaded.Status, tt.status; got != want {
+				t.Fatalf("loaded.Status = %q, want newer provider status %q", got, want)
+			}
+			if tt.degradation == nil {
+				if loaded.Degradation != nil {
+					t.Fatalf("loaded.Degradation = %#v, want no degradation", loaded.Degradation)
+				}
+			} else if loaded.Degradation == nil ||
+				loaded.Degradation.Reason != tt.degradation.Reason ||
+				loaded.Degradation.Message != tt.degradation.Message {
+				t.Fatalf(
+					"loaded.Degradation = %#v, want newer provider degradation %#v",
+					loaded.Degradation,
+					tt.degradation,
+				)
+			}
+			if !loaded.UpdatedAt.Equal(reportedAt) {
+				t.Fatalf("loaded.UpdatedAt = %s, want newer provider time %s", loaded.UpdatedAt, reportedAt)
+			}
+		})
+	}
+}
+
 func TestGlobalDBBridgeRouteCRUD(t *testing.T) {
 	t.Parallel()
 

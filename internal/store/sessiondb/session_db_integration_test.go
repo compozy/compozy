@@ -1969,6 +1969,89 @@ func TestReadOnlyPoolLifecycle(t *testing.T) {
 		}
 	})
 
+	t.Run("Should cancel the initiating caller without poisoning the shared opener", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+		t.Cleanup(cancel)
+
+		started := make(chan struct{})
+		release := make(chan struct{})
+		pool := NewReadOnlyPool(ReadOnlyPoolConfig{
+			Open: func(ctx context.Context, owner store.SessionDBOwner, path string) (store.EventReadCloser, error) {
+				close(started)
+				select {
+				case <-release:
+					return &readOnlyPoolTestReader{}, nil
+				case <-ctx.Done():
+					return nil, ctx.Err()
+				}
+			},
+		})
+
+		type openResult struct {
+			lease store.EventReadCloser
+			err   error
+		}
+		openingCtx, cancelOpening := context.WithCancel(ctx)
+		firstResult := make(chan openResult, 1)
+		go func() {
+			lease, err := pool.Open(
+				openingCtx,
+				testSessionDBOwner("sess-read-only-initiator"),
+				"initiator.db",
+			)
+			firstResult <- openResult{lease: lease, err: err}
+		}()
+
+		select {
+		case <-started:
+		case <-ctx.Done():
+			t.Fatalf("Open(first) did not reach the opener: %v", ctx.Err())
+		}
+		secondResult := make(chan openResult, 1)
+		go func() {
+			lease, err := pool.Open(
+				ctx,
+				testSessionDBOwner("sess-read-only-initiator"),
+				"initiator.db",
+			)
+			secondResult <- openResult{lease: lease, err: err}
+		}()
+		cancelOpening()
+		close(release)
+
+		first := <-firstResult
+		if first.err != nil {
+			t.Fatalf("Open(first canceled after shared open) error = %v", first.err)
+		}
+		if first.lease == nil {
+			t.Fatal("Open(first canceled after shared open) lease = nil, want completed recorder")
+		}
+		if err := first.lease.Close(ctx); err != nil {
+			t.Fatalf("Close(first lease) error = %v", err)
+		}
+
+		select {
+		case second := <-secondResult:
+			if second.err != nil {
+				t.Fatalf("Open(second) error = %v", second.err)
+			}
+			if second.lease == nil {
+				t.Fatal("Open(second) lease = nil, want shared recorder")
+			}
+			if err := second.lease.Close(ctx); err != nil {
+				t.Fatalf("Close(second lease) error = %v", err)
+			}
+		case <-ctx.Done():
+			t.Fatalf("Open(second) did not claim the shared opener: %v", ctx.Err())
+		}
+
+		if err := pool.Close(ctx); err != nil {
+			t.Fatalf("Close(pool) error = %v", err)
+		}
+	})
+
 	t.Run("Should claim a completed opener even when its caller is canceled", func(t *testing.T) {
 		t.Parallel()
 
@@ -2433,6 +2516,10 @@ func (r *readOnlyPoolTestReader) History(
 	context.Context,
 	store.EventQuery,
 ) ([]store.TurnHistory, error) {
+	return nil, nil
+}
+
+func (*readOnlyPoolTestReader) ListTokenUsage(context.Context) ([]store.TokenUsage, error) {
 	return nil, nil
 }
 

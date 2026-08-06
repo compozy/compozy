@@ -1741,7 +1741,13 @@ func TestGlobalDBTaskCatalogCoordinatorPulseStaysInProgress(t *testing.T) {
 			ctx,
 			`INSERT INTO task_runs (id, task_id, status, run_kind, attempt, origin_kind, origin_ref, queued_at, loop_run_id)
 			 VALUES (?, ?, ?, ?, ?, 'daemon', 'test', ?, NULLIF(?, ''))`,
-			id, taskID, status, runKind, attempt, store.FormatTimestamp(queuedAt), loopRunID,
+			id,
+			taskID,
+			status,
+			runKind,
+			attempt,
+			store.FormatTimestamp(queuedAt),
+			loopRunID,
 		); err != nil {
 			t.Fatalf("insert run %q error = %v", id, err)
 		}

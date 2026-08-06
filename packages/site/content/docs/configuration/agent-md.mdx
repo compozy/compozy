@@ -50,6 +50,10 @@ equivalent `compozy ...` commands. Operator-only management examples include MCP
 daemon lifecycle, raw secret writes, and trust-root config. These flows remain CLI/HTTP/UDS by
 design and are not promoted into the tool surface.
 
+If `tools`, `toolsets`, or a delegated session policy requires a concrete tool surface, hosted MCP
+is part of the startup contract. Compozy fails session creation before provider startup when it
+cannot project that surface; it does not send the agent a prompt that requires unavailable tools.
+
 Compozy also adds a daemon-owned runtime envelope around the agent body at session startup. The envelope
 states that the session is running inside Compozy, carries session/workspace facts, and is not something
 agent authors need to repeat in every `AGENT.md`.

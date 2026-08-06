@@ -25,6 +25,24 @@ import (
 func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should reject loop action worker runs", func(t *testing.T) {
+		t.Parallel()
+
+		taskRecord := taskRoleRuntimeTask("task-loop-worker", "frontend-engineer-agent")
+		run := taskRoleRuntimeRun("run-loop-worker", taskRecord.ID, "design-review")
+		run.LoopRunID = "loop-run-1"
+		store := newTaskRoleRuntimeStore(taskRecord, run)
+		runtime := newTaskRoleRuntimeForTest(t, store, &taskRoleRuntimeSessions{})
+
+		_, ok, err := runtime.activationForRun(context.Background(), taskRecord, run)
+		if err != nil {
+			t.Fatalf("activationForRun() error = %v", err)
+		}
+		if ok {
+			t.Fatal("activationForRun() eligible = true, want false for loop worker")
+		}
+	})
+
 	t.Run("Should start the pool owner agent session when a run is enqueued", func(t *testing.T) {
 		t.Parallel()
 
@@ -436,6 +454,31 @@ var taskRoleRuntimeClock = time.Date(2026, 5, 6, 12, 5, 0, 0, time.UTC)
 
 func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should reject loop action worker runs", func(t *testing.T) {
+		t.Parallel()
+
+		taskRecord := taskRoleRuntimeTask("task-loop-starved", "")
+		taskRecord.Owner = nil
+		run := taskRoleRuntimeRun("run-loop-starved", taskRecord.ID, "design-review")
+		run.LoopRunID = "loop-run-starved"
+		run.RequiredCapabilities = []string{"go"}
+		sessions := &taskRoleRuntimeSessions{}
+		runtime := newTaskRoleRuntimeForTest(t, newTaskRoleRuntimeStore(taskRecord, run), sessions)
+		resolverErr := errors.New("loop worker must not resolve a starvation agent")
+
+		if err := runtime.activateForStarvation(
+			context.Background(),
+			taskRecord,
+			run,
+			starvationSpawner{workspaces: &fakeSpawnWorkspaceResolver{err: resolverErr}},
+		); err != nil {
+			t.Fatalf("activateForStarvation() error = %v", err)
+		}
+		if got := sessions.createCount(); got != 0 {
+			t.Fatalf("create count = %d, want 0 for loop worker", got)
+		}
+	})
 
 	t.Run("Should spawn the pool owner with a TTL-bounded spawn budget lineage", func(t *testing.T) {
 		t.Parallel()

@@ -80,7 +80,8 @@ three actions:
 paused` only at the boundary. Pause is hidden or disabled outside `running`.
 - **Resume** continues a paused (or pause-requested) run.
 - **Cancel run** cooperatively moves through request, delivery, and drain before ending `canceled`
-  with cause `operator_cancel`.
+  with cause `operator_cancel`. The request is durable: boot recovery and scheduler sweeps retry
+  interrupted delivery until the active worker acknowledges it and the run drains.
 - **Kill run** immediately fences stale work and ends `canceled` with cause `operator_kill`. It is
   destructive and never happens as a hidden escalation from Cancel.
 

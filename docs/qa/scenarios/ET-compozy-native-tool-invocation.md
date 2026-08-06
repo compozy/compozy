@@ -11,8 +11,8 @@ bug_ids: BUG-20260727-runtime-legacy-identity
 fix_status: fixed
 retest_status: pass
 fix_commits: e4df8634
-evidence: /Users/pedronauck/dev/qa-labs/compozy-mcp-2026-catalog-v2-final-rerun-20260730-204949-514647-lab/qa-artifacts/qa/notes/native-hosted-task-evidence.json; /var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/compozyqa-cd29600f38c8/runtime/sessions/sess-90553d81675e984c/events.db
-last_report: docs/qa/reports/2026-07-30-mcp-2026-catalog-v2.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-mcp-2026-catalog-v2-final-rerun-20260730-204949-514647-lab/qa-artifacts/qa/notes/native-hosted-task-evidence.json; /var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/compozyqa-cd29600f38c8/runtime/sessions/sess-90553d81675e984c/events.db;/Users/pedronauck/dev/qa-labs/compozy-loop-agent-ownership-r2-20260806-040706-936266-lab/qa-artifacts/qa/operator-kickoff.jsonl;/Users/pedronauck/dev/qa-labs/compozy-loop-agent-ownership-r2-20260806-040706-936266-lab/qa-artifacts/qa/evidence/extension-enabled-final-tool.json
+last_report: docs/qa/reports/2026-08-06-loop-agent-ownership.md
 overlaps: ET-native-tool-approval-grants;ET-workspace-host-api-mcp
 ---
 

@@ -139,7 +139,8 @@ func (g *BridgeRepo) GetBridgeInstance(ctx context.Context, id string) (bridges.
 	return bridgeInstanceFromGenerated(row)
 }
 
-// ReplaceBridgeInstances atomically swaps the daemon-visible bridge instance projection.
+// ReplaceBridgeInstances atomically swaps desired bridge fields while preserving
+// newer provider-owned operational state for unchanged enabled runtimes.
 func (g *BridgeRepo) ReplaceBridgeInstances(ctx context.Context, instances []bridges.BridgeInstance) (err error) {
 	if err := g.checkReady(ctx, "replace bridge instances"); err != nil {
 		return err

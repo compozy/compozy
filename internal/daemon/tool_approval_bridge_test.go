@@ -335,6 +335,9 @@ func TestToolApprovalBridgeRoutesAllowAndRejectOutcomes(t *testing.T) {
 		if request.ToolCall.ToolCallId != "call-1" || request.SessionId != "sess-1" {
 			t.Fatalf("permission request = %#v, want hosted call context", request)
 		}
+		if got := request.Meta[acp.PermissionRequestIDMetaKey]; got != "call-1" {
+			t.Fatalf("permission request ID metadata = %#v, want call-1", got)
+		}
 		if got, want := len(request.Options), 4; got != want {
 			t.Fatalf("permission options = %#v, want %d options", request.Options, want)
 		}

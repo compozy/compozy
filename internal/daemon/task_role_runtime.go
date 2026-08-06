@@ -266,6 +266,9 @@ func (r *taskRoleRuntime) activationForRun(
 	taskRecord taskpkg.Task,
 	run taskpkg.Run,
 ) (taskRoleActivation, bool, error) {
+	if run.IsLoopWorker() {
+		return taskRoleActivation{}, false, nil
+	}
 	if run.Status.Normalize() != taskpkg.TaskRunStatusQueued {
 		return taskRoleActivation{}, false, nil
 	}

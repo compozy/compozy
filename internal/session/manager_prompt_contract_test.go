@@ -436,9 +436,18 @@ func TestPromptFatalProcessFailureStopsSessionAndAllowsFreshResumeFallback(t *te
 		if events[1].Failure.CrashBundlePath == "" {
 			t.Fatalf("Prompt() failure = %#v, want crash bundle path", events[1].Failure)
 		}
+		closedMeta := readMeta(t, session.MetaPath())
+		if closedMeta.State != string(StateStopped) || closedMeta.Failure == nil ||
+			closedMeta.Failure.Kind != store.FailureProcess {
+			t.Fatalf("meta after prompt stream close = %#v, want stopped process failure", closedMeta)
+		}
 		publicBundle := readCrashBundleDocument(t, events[1].Failure.CrashBundlePath)
-		if publicBundle.Process == nil || publicBundle.Process.ExitCode == nil || *publicBundle.Process.ExitCode != 23 {
-			t.Fatalf("public crash bundle process = %#v, want exit code 23 before stopped notification", publicBundle.Process)
+		if publicBundle.Process == nil || publicBundle.Process.ExitCode == nil ||
+			*publicBundle.Process.ExitCode != 23 {
+			t.Fatalf(
+				"public crash bundle process = %#v, want exit code 23 before stop",
+				publicBundle.Process,
+			)
 		}
 		if publicBundle.Process.Signal != "" {
 			t.Fatalf("public crash bundle signal = %q, want empty for numeric exit", publicBundle.Process.Signal)
@@ -602,8 +611,9 @@ func TestPromptStreamClosureWithoutTerminalStopsSession(t *testing.T) {
 			t.Fatalf("Prompt() terminal failure = %#v, want public crash bundle path", terminal.Failure)
 		}
 		publicBundle := readCrashBundleDocument(t, terminal.Failure.CrashBundlePath)
-		if publicBundle.Process == nil || publicBundle.Process.ExitCode == nil || *publicBundle.Process.ExitCode != 23 {
-			t.Fatalf("public crash bundle process = %#v, want exit code 23 before stopped notification", publicBundle.Process)
+		if publicBundle.Process == nil || publicBundle.Process.ExitCode == nil ||
+			*publicBundle.Process.ExitCode != 23 {
+			t.Fatalf("public crash bundle process = %#v, want exit code 23 before stop", publicBundle.Process)
 		}
 		if got, want := publicBundle.Stderr, "codex stderr after EOF"; got != want {
 			t.Fatalf("public crash bundle stderr = %q, want %q", got, want)
@@ -709,7 +719,9 @@ func TestPromptGenericFailureKeepsSessionActive(t *testing.T) {
 func TestCancelPrompt(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should keep the session active when the canceled provider stream closes without a terminal", func(t *testing.T) {
+	t.Run("Should keep the session active when the canceled provider stream closes without a terminal", func(
+		t *testing.T,
+	) {
 		t.Parallel()
 
 		h := newHarness(t)
@@ -790,7 +802,7 @@ func TestCancelPrompt(t *testing.T) {
 		}
 		if len(canceledEvents) != 1 || canceledEvents[0].Type != acp.EventTypeDone ||
 			canceledEvents[0].PromptStopReason != acp.PromptStopReasonCancelled {
-			t.Fatalf("canceled prompt events = %#v, want one cancelled done event", canceledEvents)
+			t.Fatalf("canceled prompt events = %#v, want one canceled done event", canceledEvents)
 		}
 		if err := h.manager.WaitForPromptDrains(testutil.Context(t)); err != nil {
 			t.Fatalf("WaitForPromptDrains() error = %v", err)
@@ -956,14 +968,20 @@ func TestPromptPersistsUserMessageBeforeDriverPrompt(t *testing.T) {
 	})
 
 	var storedBeforePrompt []store.SessionEvent
-	h.driver.promptHook = func(_ *fakeProcess, _ acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+	h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
 		events, err := session.recorderHandle().Query(testutil.Context(t), store.EventQuery{})
 		if err != nil {
 			return nil, err
 		}
 		storedBeforePrompt = events
 
-		ch := make(chan acp.AgentEvent)
+		ch := make(chan acp.AgentEvent, 1)
+		ch <- acp.AgentEvent{
+			Type:             acp.EventTypeDone,
+			TurnID:           req.TurnID,
+			StopReason:       string(acp.PromptStopReasonEndTurn),
+			PromptStopReason: acp.PromptStopReasonEndTurn,
+		}
 		close(ch)
 		return ch, nil
 	}
@@ -1248,6 +1266,12 @@ func TestPromptRejectsConcurrentUserPromptWithoutPersistingSecondInput(t *testin
 		go func() {
 			defer close(events)
 			if req.TurnID != "turn-1" {
+				events <- acp.AgentEvent{
+					Type:             acp.EventTypeDone,
+					TurnID:           req.TurnID,
+					StopReason:       string(acp.PromptStopReasonEndTurn),
+					PromptStopReason: acp.PromptStopReasonEndTurn,
+				}
 				return
 			}
 
@@ -1864,8 +1888,9 @@ func TestProcessExitDuringActivePromptPersistsAgentCrashedStopReason(t *testing.
 			t.Fatalf("Prompt() terminal failure = %#v, want public crash bundle path", terminal.Failure)
 		}
 		publicBundle := readCrashBundleDocument(t, terminal.Failure.CrashBundlePath)
-		if publicBundle.Process == nil || publicBundle.Process.ExitCode == nil || *publicBundle.Process.ExitCode != 23 {
-			t.Fatalf("public crash bundle process = %#v, want exit code 23 before stopped notification", publicBundle.Process)
+		if publicBundle.Process == nil || publicBundle.Process.ExitCode == nil ||
+			*publicBundle.Process.ExitCode != 23 {
+			t.Fatalf("public crash bundle process = %#v, want exit code 23 before stop", publicBundle.Process)
 		}
 		if got, want := publicBundle.Stderr, "codex stderr after process exit"; got != want {
 			t.Fatalf("public crash bundle stderr = %q, want %q", got, want)
@@ -1962,8 +1987,9 @@ func TestProcessExitDuringActivePromptPersistsAgentCrashedStopReason(t *testing.
 			t.Fatalf("Prompt() terminal error = %q, want stable exit status diagnostic", terminal.Error)
 		}
 		publicBundle := readCrashBundleDocument(t, terminal.Failure.CrashBundlePath)
-		if publicBundle.Process == nil || publicBundle.Process.ExitCode == nil || *publicBundle.Process.ExitCode != 23 {
-			t.Fatalf("public crash bundle process = %#v, want exit code 23 before stopped notification", publicBundle.Process)
+		if publicBundle.Process == nil || publicBundle.Process.ExitCode == nil ||
+			*publicBundle.Process.ExitCode != 23 {
+			t.Fatalf("public crash bundle process = %#v, want exit code 23 before stop", publicBundle.Process)
 		}
 		if got, want := publicBundle.Stderr, "codex stderr after status observation"; got != want {
 			t.Fatalf("public crash bundle stderr = %q, want %q", got, want)

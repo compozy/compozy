@@ -178,6 +178,10 @@ Tool discovery works the same way. The `tools` and `toolsets` frontmatter fields
 means no agent-local allowlist. For a bare managed session, hosted MCP projects the full
 availability-gated callable catalog. Populate `tools` or `toolsets` only when the agent should be
 limited to that explicit surface.
+When an agent definition or delegated session policy requires specific tools, Compozy must project
+hosted MCP before provider startup. If that projection is unavailable or the provider disables
+session MCP, session creation fails with an availability diagnostic instead of starting an agent
+that cannot follow its tool contract.
 Discovery-only policies can still name `compozy__bootstrap` and `compozy__catalog`; Compozy just no longer
 injects those toolsets as a default cap for every bare hosted session. Denies, session lineage,
 disabled sources, and approval/risk gates still narrow or block invocation.

@@ -11,8 +11,8 @@ bug_ids: BUG-20260805-hosted-mcp-cold-start-nonce-expiry
 fix_status: fixed
 retest_status: pass
 fix_commits: PR #323 remediation commit
-evidence: /Users/pedronauck/dev/qa-labs/compozy-managed-skill-cli-guard-20260806-021127-858332-lab/qa-artifacts/qa/verification-report.md;/Users/pedronauck/dev/qa-labs/compozy-managed-skill-cli-guard-20260806-021127-858332-lab/qa-artifacts/qa/cli-guard-evidence.json;/Users/pedronauck/dev/qa-labs/compozy-managed-skill-cli-guard-20260806-021127-858332-lab/qa-artifacts/qa/qa-audit-report.json;/Users/pedronauck/dev/qa-labs/compozy-managed-skill-cli-guard-20260806-021127-858332-lab/qa-artifacts/qa/teardown.json
-last_report: docs/qa/reports/2026-08-05-review-findings-managed-skills.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-managed-skill-cli-guard-20260806-021127-858332-lab/qa-artifacts/qa/verification-report.md;/Users/pedronauck/dev/qa-labs/compozy-managed-skill-cli-guard-20260806-021127-858332-lab/qa-artifacts/qa/cli-guard-evidence.json;/Users/pedronauck/dev/qa-labs/compozy-managed-skill-cli-guard-20260806-021127-858332-lab/qa-artifacts/qa/qa-audit-report.json;/Users/pedronauck/dev/qa-labs/compozy-managed-skill-cli-guard-20260806-021127-858332-lab/qa-artifacts/qa/teardown.json;/Users/pedronauck/dev/qa-labs/compozy-loop-agent-ownership-r2-20260806-040706-936266-lab/qa-artifacts/qa/operator-kickoff.jsonl;/Users/pedronauck/dev/qa-labs/compozy-loop-agent-ownership-r2-20260806-040706-936266-lab/qa-artifacts/qa/evidence/growth-pm-hosted-tools-session.png
+last_report: docs/qa/reports/2026-08-06-loop-agent-ownership.md
 overlaps: ET-003
 ---
 
