@@ -427,6 +427,14 @@ test("operator repairs an interrupted session through HTTP, UDS, and CLI without
   await ui.composerTextarea.press("Enter");
   await expect(ui.chatView).toContainText("partial before crash", { timeout: 15_000 });
   await expect(ui.resumeButton).not.toBeVisible({ timeout: 20_000 });
+  await expect
+    .poll(async () => {
+      const payload = await runtime.requestJSON<SessionEnvelope>(
+        sessionAPIPath(workspace.id, session.id)
+      );
+      return payload.session.state;
+    })
+    .toBe("stopped");
 
   const beforeRepair = await captureSessionSnapshot(runtime, workspace.id, session.id);
   expect(JSON.stringify(beforeRepair.history)).toContain("trigger crash mid-stream");
