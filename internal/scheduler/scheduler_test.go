@@ -1080,6 +1080,9 @@ func TestRunOnceRunsLoopCancellationBackstop(t *testing.T) {
 		)
 
 		result, err := scheduler.RunOnce(testutil.Context(t))
+		if err == nil {
+			t.Fatal("RunOnce() error = nil, want wrapped backstop failure")
+		}
 		if !errors.Is(err, backstopErr) ||
 			!strings.Contains(err.Error(), "scheduler: Loop cancellation backstop:") {
 			t.Fatalf("RunOnce() error = %v, want wrapped backstop failure", err)

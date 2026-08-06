@@ -458,17 +458,20 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 	t.Run("Should reject loop action worker runs", func(t *testing.T) {
 		t.Parallel()
 
-		taskRecord := taskRoleRuntimeTask("task-loop-starved", "frontend-engineer-agent")
+		taskRecord := taskRoleRuntimeTask("task-loop-starved", "")
+		taskRecord.Owner = nil
 		run := taskRoleRuntimeRun("run-loop-starved", taskRecord.ID, "design-review")
 		run.LoopRunID = "loop-run-starved"
+		run.RequiredCapabilities = []string{"go"}
 		sessions := &taskRoleRuntimeSessions{}
 		runtime := newTaskRoleRuntimeForTest(t, newTaskRoleRuntimeStore(taskRecord, run), sessions)
+		resolverErr := errors.New("loop worker must not resolve a starvation agent")
 
 		if err := runtime.activateForStarvation(
 			context.Background(),
 			taskRecord,
 			run,
-			starvationSpawner{},
+			starvationSpawner{workspaces: &fakeSpawnWorkspaceResolver{err: resolverErr}},
 		); err != nil {
 			t.Fatalf("activateForStarvation() error = %v", err)
 		}
