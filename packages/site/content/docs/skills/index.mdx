@@ -79,9 +79,9 @@ groups can be nested as deeply as the workspace needs:
 ```
 
 The `name` in frontmatter, not the directory path, is the skill identity and catalog key. Groups do
-not create namespaces or change how agents call `compozy__skill_view`, `compozy skill view`, or
-`compozy skill where`. Declarations with the same `name` keep normal source precedence and shadow
-audit behavior.
+not create namespaces or change the name passed to managed `compozy__skill_view` or the operator
+`compozy skill view` and `compozy skill where` commands. Declarations with the same `name` keep
+normal source precedence and shadow audit behavior.
 
 Use `--group` to scaffold a workspace skill under a group:
 
@@ -126,13 +126,6 @@ The operator and API surfaces resolve the same effective skill set:
 If `for_agent` is omitted, Compozy returns the base effective set for the selected global or workspace
 resolution context. If `for_agent` is present, Compozy overlays the winning agent's `skills/` tree and
 applies that agent's logical `skills.disabled` tombstones before returning the result.
-
-Inside a managed session, the CLI uses a session-bound, read-only local transport that supplies the
-daemon-issued identity to skill endpoints. Missing `workspace` and `for_agent` values resolve to that session's
-workspace and agent. An explicit cross-workspace request still goes through the session's permission
-policy, and a request for another agent is rejected. Do not set or replace `COMPOZY_SESSION_ID`,
-`COMPOZY_AGENT`, or `COMPOZY_AGENT_TRANSPORT_SOCKET`. Operator calls outside a managed session keep the
-explicit operator behavior above.
 
 Management responses retain enabled skills that are currently ineligible for prompt catalogs.
 Their `activation.active` field is `false`, and `activation.reasons` reports the unmet
@@ -216,17 +209,19 @@ The prompt catalog has this shape:
 </available-skills>
 
 Resolve canonical `compozy__skill_view` through the active harness, then call the returned tool
-reference with `{ "name": "compozy" }` to load full instructions for any skill, or
-`compozy skill view <name>` from a managed session shell or operator shell when the tool path is unavailable.
+reference with `{ "name": "compozy" }` to load full instructions for any skill.
 Use the returned tool reference for canonical `compozy__skill_view` with
-`{ "name": "compozy", "file": "references/network.md" }` (or
-`compozy skill view <name> --file <path>`) to read a
-specific skill resource file.
+`{ "name": "compozy", "file": "references/network.md" }` to read a specific skill resource file.
 ```
 
-When the runtime denies `compozy__skill_view` for the active scope, agents fall back to
-`compozy skill view`. The conditional guidance is part of the rendered catalog so the prompt never
-advertises a CLI fallback when the dedicated tool is callable.
+Managed sessions do not fall back to the CLI or direct file reads. When policy denies
+`compozy__skill_view`, the skill is unavailable in that session. `compozy skill view <name>` remains
+available to operators from their own shell.
+
+When `COMPOZY_SESSION_ID` or `COMPOZY_AGENT` is present, `compozy skill` commands stop before local
+resolution or a daemon request and point the caller to the native skill tools. This prevents
+accidental use of an unsupported path; it is not a sandbox against code that clears its environment
+or opens the same-user operator socket directly.
 
 Runtime prompts do not repeat the full current-skill catalog after every turn when the resolved
 catalog is unchanged for the session. The first prompt, and any later catalog change, carries the

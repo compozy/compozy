@@ -60,7 +60,7 @@ func TestBuildCatalogFormatsCatalogSortedEscapedAndWithUsageInstructions(t *test
 		"",
 		"Resolve canonical `compozy__skill_view` through the active harness, then call the returned tool reference to load full instructions for any skill.",
 		"Use the returned tool reference for canonical `compozy__skill_view` to read a specific skill resource file when the skill references one.",
-		"If current tool policy denies canonical `compozy__skill_view`, use `compozy skill view <name>` as an operator fallback.",
+		"Do not invoke `compozy skill view` or read skill files directly from a managed session. If current tool policy denies canonical `compozy__skill_view`, report that the skill cannot be loaded; `compozy skill view` is an operator-shell command only.",
 	}, "\n")
 
 	if got != want {
@@ -90,7 +90,7 @@ func TestBuildCurrentCatalogFormatsAuthoritativeTurnScopedCatalog(t *testing.T) 
 		"If it differs from any earlier <available-skills> startup snapshot, trust the current block.",
 		"Resolve canonical `compozy__skill_view` through the active harness, then call the returned tool reference to load full instructions for any skill.",
 		"Use the returned tool reference for canonical `compozy__skill_view` to read a specific skill resource file when the skill references one.",
-		"If current tool policy denies canonical `compozy__skill_view`, use `compozy skill view <name>` as an operator fallback.",
+		"Do not invoke `compozy skill view` or read skill files directly from a managed session. If current tool policy denies canonical `compozy__skill_view`, report that the skill cannot be loaded; `compozy skill view` is an operator-shell command only.",
 	}, "\n")
 
 	if got != want {
@@ -424,7 +424,7 @@ func TestCatalogProviderPromptSectionUsesWorkspaceScopedSkills(t *testing.T) {
 		"",
 		"Resolve canonical `compozy__skill_view` through the active harness, then call the returned tool reference to load full instructions for any skill.",
 		"Use the returned tool reference for canonical `compozy__skill_view` to read a specific skill resource file when the skill references one.",
-		"If current tool policy denies canonical `compozy__skill_view`, use `compozy skill view <name>` as an operator fallback.",
+		"Do not invoke `compozy skill view` or read skill files directly from a managed session. If current tool policy denies canonical `compozy__skill_view`, report that the skill cannot be loaded; `compozy skill view` is an operator-shell command only.",
 	}, "\n")
 
 	if got != want {
@@ -439,7 +439,7 @@ func TestCatalogProviderPromptSectionUsesWorkspaceScopedSkills(t *testing.T) {
 func TestBuildCatalogUsesToolFirstSkillLoadingInstructions(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should prefer skill view tool over CLI fallback", func(t *testing.T) {
+	t.Run("Should keep managed skill loading on the native tool", func(t *testing.T) {
 		t.Parallel()
 
 		got := BuildCatalog([]*Skill{
@@ -455,11 +455,14 @@ func TestBuildCatalogUsesToolFirstSkillLoadingInstructions(t *testing.T) {
 		if !strings.Contains(got, "Resolve canonical `compozy__skill_view` through the active harness") {
 			t.Fatalf("BuildCatalog() = %q, want harness-agnostic compozy__skill_view guidance", got)
 		}
-		if !strings.Contains(got, "operator fallback") {
-			t.Fatalf("BuildCatalog() = %q, want conditional operator fallback guidance", got)
+		if !strings.Contains(got, "`compozy skill view` is an operator-shell command only") {
+			t.Fatalf("BuildCatalog() = %q, want an explicit operator-only CLI boundary", got)
 		}
-		if strings.Contains(got, "Use `compozy skill view <name>` to load full instructions") {
-			t.Fatalf("BuildCatalog() = %q, want no CLI-first loading guidance", got)
+		if strings.Contains(got, "use `compozy skill view") || strings.Contains(got, "fallback") {
+			t.Fatalf("BuildCatalog() = %q, want no managed CLI fallback guidance", got)
+		}
+		if !strings.Contains(got, "Do not invoke `compozy skill view` or read skill files directly") {
+			t.Fatalf("BuildCatalog() = %q, want the managed loading boundary", got)
 		}
 	})
 }

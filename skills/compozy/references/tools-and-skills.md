@@ -36,7 +36,9 @@ longer caps that projection to bootstrap/catalog tools unless the agent definiti
 lineage explicitly narrows it. Use `compozy__tool_search` and `compozy__tool_info` to diagnose known but
 denied tools; use `compozy__tool_list` when you need only the currently callable set.
 
-For skills, resolve canonical `compozy__skill_search`/`compozy__skill_view`, then call returned references. Use CLI fallback only when denied, absent, or explicitly requested.
+In a managed session, resolve canonical `compozy__skill_search`/`compozy__skill_view`, then call returned references. Do not invoke the operator CLI or read skill files directly. If policy denies the native tool, report the skill as unavailable. Operators can use `compozy skill view` from their own shell.
+
+`compozy skill` commands reject accidental use while `COMPOZY_SESSION_ID` or `COMPOZY_AGENT` is present and point to native skill tools. Treat this as a supported-path guard, not authorization: clearing environment markers or opening the same-user operator socket is outside this guard.
 
 ## Oversized Tool Results
 
@@ -148,14 +150,8 @@ or extension-specific browse endpoints.
 ## Skill Loading
 
 Scan roots allow groups at any depth (300 `SKILL.md` max); frontmatter `name` stays identity. Scaffold
-with `compozy skill create <name> --group <path>`. Resolve skill search/view through the harness.
-
-When the native skill view is denied or unavailable, run `compozy skill view <name>`. Inside a managed
-session, the CLI uses a session-bound, read-only local transport; leave `--workspace` and `--for-agent`
-unset to use that session's scope. Never set or replace `COMPOZY_SESSION_ID`, `COMPOZY_AGENT`, or
-`COMPOZY_AGENT_TRANSPORT_SOCKET`. Explicit cross-workspace reads still use the session permission
-policy, and another agent scope is rejected. An operator shell outside a managed session keeps explicit
-operator scope.
+with `compozy skill create <name> --group <path>`. Managed sessions resolve skill search/view through
+the harness and never fall back to the operator CLI or direct file reads.
 
 Repeated `<current-available-skills>` or `<compozy-situation-context>` sections may be `unchanged`.
 Reuse the latest full section for that ACP session and workspace; live surfaces remain authoritative.
@@ -196,7 +192,7 @@ the unavailable result as terminal and read the catalog again.
 
 The bundled `compozy` skill ships `SKILL.md` plus flat `references/*.md` resources.
 
-Bundled `dev-cycle` globally publishes exactly `cy-create-prd`, `cy-create-techspec`, `cy-create-tasks`, `cy-execute-task`, `cy-workflow-memory`, `cy-review-round`, `cy-fix-reviews`, `cy-final-verify`, and `git-rebase` to managed sessions. Inspect them with `compozy skill list|view`; workspace definitions shadow only locally.
+Bundled `dev-cycle` globally publishes exactly `cy-create-prd`, `cy-create-techspec`, `cy-create-tasks`, `cy-execute-task`, `cy-workflow-memory`, `cy-review-round`, `cy-fix-reviews`, `cy-final-verify`, and `git-rebase` to managed sessions. Operators inspect them with `compozy skill list|view`; managed sessions use the native skill tools. Workspace definitions shadow only locally.
 
 ## Skill Provenance And Shadows
 

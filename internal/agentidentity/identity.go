@@ -8,18 +8,21 @@ import (
 	"fmt"
 	"strings"
 
-	identityprotocol "github.com/compozy/compozy/internal/agentidentity/protocol"
 	"github.com/compozy/compozy/internal/session"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 const (
-	EnvSessionID       = identityprotocol.EnvSessionID
-	EnvAgent           = identityprotocol.EnvAgent
-	EnvTransportSocket = identityprotocol.EnvTransportSocket
-	HeaderSessionID    = identityprotocol.HeaderSessionID
-	HeaderAgent        = identityprotocol.HeaderAgent
+	// EnvSessionID is the daemon-issued session identifier visible inside agent sessions.
+	EnvSessionID = "COMPOZY_SESSION_ID"
+	// EnvAgent is the daemon-issued agent name visible inside agent sessions.
+	EnvAgent = "COMPOZY_AGENT"
+
+	// HeaderSessionID carries EnvSessionID over the local UDS HTTP transport.
+	HeaderSessionID = "X-Compozy-Session-ID"
+	// HeaderAgent carries EnvAgent over the local UDS HTTP transport.
+	HeaderAgent = "X-Compozy-Agent"
 )
 
 // ResolveOptions configures agent caller resolution.

@@ -34,7 +34,7 @@ The agent-manageability claim in the Compozy copy system makes the consequence e
 
 ## One daemon, four windows into it
 
-Compozy is a single Go binary. When `compozy daemon start` runs, that one process opens four control surfaces over the same in-memory handler set and the same SQLite-backed event ledger. The CLI talks to the daemon over a Unix domain socket. The web UI talks to the daemon over HTTP and Server-Sent Events. Local subprocess agents talk to the daemon over the same Unix socket the CLI uses. The daemon never serves a request that bypasses its shared handlers.
+Compozy is a single Go binary. When `compozy daemon start` runs, that one process opens four control surfaces over the same in-memory handler set and the same SQLite-backed event ledger. The operator CLI talks to the daemon over a Unix domain socket. The web UI talks to the daemon over HTTP and Server-Sent Events. Managed agents use daemon-native tools projected into their session. The daemon never serves a request that bypasses its shared handlers.
 
 ```mermaid
 flowchart LR
@@ -47,9 +47,9 @@ flowchart LR
   end
   cli[CLI · compozy session list]
   web[Web UI · TanStack Query]
-  agent[Local agent subprocess]
+  agent[Managed agent session]
   cli -- "UDS · GET /api/sessions" --> core
-  agent -- "UDS · GET /api/sessions" --> core
+  agent -- "Native tools · scoped call" --> core
   web -- "HTTP · GET /api/sessions" --> core
   core -- "SSE · named events" --> web
 ```
@@ -111,7 +111,7 @@ Three properties of that loop matter for parity. The event has already been dura
 
 The HTTP surface is bound to loopback by default and gated by an origin-aware middleware; nothing about the parity argument depends on exposing the daemon to a network. The point is that _if_ a future operator decides to remote a session over WireGuard or an SSH tunnel, the wire format is already the one the local browser uses.
 
-## UDS: local subprocess control, no port
+## UDS: operator control, no port
 
 The third surface is the one most agents never see by name, which is the point. The daemon listens on a Unix domain socket — `internal/api/udsapi/server.go:723` calls `listenConfig.Listen(ctx, "unix", socketPath)` — and registers the same handlers against a parallel Gin engine. The two registration files are essentially mirrors of each other.
 
@@ -127,7 +127,7 @@ func registerSessionRoutes(...) {                           func registerSession
 
 _Figure 4 — The HTTP and UDS registrars wire the identical `BaseHandlers` method into the same path. Transports differ in authentication and listener, not in business logic._
 
-Three things become cheap once the local control plane is a socket instead of a port. Parallel QA runs no longer fight for `:2123`; each isolated `COMPOZY_HOME` gets its own socket path, and an operator can drive five daemons from one shell. Local subprocess agents — Claude Code, OpenClaw, or Hermes spawned by the runtime — authenticate by peer credential rather than by handing tokens around. And the daemon never has to negotiate TLS for a request that never leaves the host.
+Three things become cheap once the local control plane is a socket instead of a port. Parallel QA runs no longer fight for `:2123`; each isolated `COMPOZY_HOME` gets its own socket path, and an operator can drive five daemons from one shell. Filesystem ownership keeps unrelated local users out of an operator's socket. Managed agents do not use that operator boundary for skill loading; their native tools carry the session, workspace, and agent scope inside the daemon. The daemon also avoids negotiating TLS for a request that never leaves the host.
 
 The UDS surface is also where the daemon exposes a small set of task-claim verbs that intentionally do not exist on HTTP. `ClaimTaskRun`, `CompleteTaskRun`, and their peers are agent-only operations that take a `claim_token`, and Compozy keeps those tokens off any network-reachable surface by registering them only against the local socket. The parity invariant says _most state moves through both transports_; the security invariant says _some state, by design, only moves through the one transport an attacker on the LAN cannot reach_. Both are explicit, and both live in the same registration file an operator can read.
 

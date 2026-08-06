@@ -44,3 +44,18 @@ func (m *Manager) sessionMCPServers(
 	}
 	return []compozyconfig.MCPServer{hosted}, nil
 }
+
+func (m *Manager) sessionMCPServerActivator(
+	sessionID string,
+	servers []compozyconfig.MCPServer,
+) func(context.Context) error {
+	if m.hostedMCP == nil || len(servers) == 0 {
+		return nil
+	}
+	return func(ctx context.Context) error {
+		if err := m.hostedMCP.ArmLaunch(ctx, sessionID); err != nil {
+			return fmt.Errorf("session: arm hosted MCP launch for %q: %w", sessionID, err)
+		}
+		return nil
+	}
+}

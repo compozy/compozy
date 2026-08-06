@@ -111,37 +111,6 @@ func TestACPIntegrationToolHostFileWriteReadAndTerminal(t *testing.T) {
 	})
 }
 
-func TestACPIntegrationManagedTerminalIdentity(t *testing.T) {
-	t.Run("Should preserve daemon issued identity over provider terminal environment", func(t *testing.T) {
-		t.Parallel()
-
-		driver := New()
-		env := helperEnv("terminal_identity", "")
-		terminalEnv := []string{
-			"COMPOZY_SESSION_ID=sess-managed",
-			"COMPOZY_AGENT=general",
-		}
-		proc := startHelperProcess(t, driver, "terminal_identity", "", StartOpts{
-			Env:         env,
-			TerminalEnv: terminalEnv,
-		})
-		defer stopProcess(t, driver, proc)
-
-		eventsCh, err := driver.Prompt(testutil.Context(t), proc, PromptRequest{
-			TurnID:  "turn-integration-terminal-identity",
-			Message: "inspect managed terminal identity",
-		})
-		if err != nil {
-			t.Fatalf("Prompt() error = %v", err)
-		}
-
-		events := collectEvents(t, eventsCh)
-		if !containsEventText(events, "sess-managed|general") {
-			t.Fatalf("Prompt() events = %#v, want daemon issued terminal identity", events)
-		}
-	})
-}
-
 func TestACPIntegrationRequestPermissionPolicy(t *testing.T) {
 	t.Run("Should allow an interactive edit permission request", func(t *testing.T) {
 		t.Parallel()

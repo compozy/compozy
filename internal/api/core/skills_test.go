@@ -4,22 +4,18 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	registrypkg "github.com/compozy/compozy/internal/registry"
-	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/skills"
 	skillmarketplace "github.com/compozy/compozy/internal/skills/marketplace"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
-	"github.com/compozy/compozy/internal/workspaceaccess"
 	"github.com/gin-gonic/gin"
 )
 
@@ -63,7 +59,6 @@ func newSkillsHandlerFixtureWithMarketplaceAndResources(
 	workspaces testutil.StubWorkspaceService,
 	marketplace core.SkillMarketplaceService,
 	skillResources core.SkillResourceSyncer,
-	configure ...func(*core.BaseHandlerConfig),
 ) *gin.Engine {
 	t.Helper()
 
@@ -74,7 +69,7 @@ func newSkillsHandlerFixtureWithMarketplaceAndResources(
 	cfg.HTTP.Port = 2123
 	cfg.Daemon.Socket = "/tmp/skills-test.sock"
 
-	handlerConfig := &core.BaseHandlerConfig{
+	handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 		TransportName:    "skills-test",
 		Sessions:         testutil.StubSessionManager{},
 		Observer:         testutil.StubObserver{},
@@ -89,11 +84,7 @@ func newSkillsHandlerFixtureWithMarketplaceAndResources(
 		Now:              func() time.Time { return time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC) },
 		PollInterval:     5 * time.Millisecond,
 		HTTPPort:         cfg.HTTP.Port,
-	}
-	for _, apply := range configure {
-		apply(handlerConfig)
-	}
-	handlers := core.NewBaseHandlers(handlerConfig)
+	})
 
 	engine := gin.New()
 	engine.GET("/api/skills", handlers.ListSkills)
@@ -379,16 +370,6 @@ func TestStatusForSkillError(t *testing.T) {
 		{"Should return 200 for nil error", nil, http.StatusOK},
 		{"Should return 404 for skill not found", core.ErrSkillNotFound, http.StatusNotFound},
 		{"Should return 400 for validation error", core.ErrSkillValidation, http.StatusBadRequest},
-		{
-			"Should return 401 for mismatched agent identity",
-			agentidentity.ErrIdentityMismatch,
-			http.StatusUnauthorized,
-		},
-		{
-			"Should return 403 for unauthorized agent identity",
-			agentidentity.ErrIdentityUnauthorized,
-			http.StatusForbidden,
-		},
 		{"Should return 500 for unknown error", http.ErrServerClosed, http.StatusInternalServerError},
 	}
 
@@ -1205,157 +1186,6 @@ func TestGetSkillContent(t *testing.T) {
 			t.Fatalf("content = %q, want %q", resp.Content, "Workspace body")
 		}
 	})
-
-	t.Run("Should scope a managed session to its daemon-validated workspace and agent", func(t *testing.T) {
-		t.Parallel()
-
-		skill := testSkill()
-		registry := &stubSkillsRegistry{
-			ForAgentFn: func(
-				_ context.Context,
-				resolved *workspacepkg.ResolvedWorkspace,
-				agentName string,
-			) ([]*skills.Skill, error) {
-				if resolved == nil || resolved.ID != "ws-managed" {
-					t.Fatalf("ForAgent() resolved = %#v, want ws-managed", resolved)
-				}
-				if agentName != "general" {
-					t.Fatalf("ForAgent() agent = %q, want general", agentName)
-				}
-				return []*skills.Skill{skill}, nil
-			},
-			LoadContentFn: func(_ context.Context, loaded *skills.Skill) (string, error) {
-				if loaded != skill {
-					t.Fatalf("LoadContent() skill = %#v, want managed skill", loaded)
-				}
-				return "Managed skill body", nil
-			},
-		}
-		engine := newManagedSkillsHandlerFixture(t, registry)
-		rec := performManagedSkillRequest(
-			t,
-			engine,
-			"/api/skills/test-skill/content",
-			agentidentity.Credentials{SessionID: "sess-managed", AgentName: "general"},
-		)
-
-		if rec.Code != http.StatusOK {
-			t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
-		}
-		var resp contract.SkillContentResponse
-		testutil.DecodeJSONResponse(t, rec, &resp)
-		if resp.Content != "Managed skill body" {
-			t.Fatalf("content = %q, want managed skill body", resp.Content)
-		}
-	})
-
-	t.Run("Should reject a managed session requesting a foreign workspace", func(t *testing.T) {
-		t.Parallel()
-
-		registry := &stubSkillsRegistry{
-			ForAgentFn: func(
-				context.Context,
-				*workspacepkg.ResolvedWorkspace,
-				string,
-			) ([]*skills.Skill, error) {
-				t.Fatal("ForAgent() called after workspace denial")
-				return nil, nil
-			},
-		}
-		engine := newManagedSkillsHandlerFixture(t, registry)
-		rec := performManagedSkillRequest(
-			t,
-			engine,
-			"/api/skills/test-skill/content?workspace=ws-foreign",
-			agentidentity.Credentials{SessionID: "sess-managed", AgentName: "general"},
-		)
-
-		if rec.Code != http.StatusForbidden {
-			t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusForbidden, rec.Body.String())
-		}
-	})
-
-	t.Run("Should reject a managed session requesting another agent scope", func(t *testing.T) {
-		t.Parallel()
-
-		registry := &stubSkillsRegistry{
-			ForAgentFn: func(
-				context.Context,
-				*workspacepkg.ResolvedWorkspace,
-				string,
-			) ([]*skills.Skill, error) {
-				t.Fatal("ForAgent() called after agent scope denial")
-				return nil, nil
-			},
-		}
-		engine := newManagedSkillsHandlerFixture(t, registry)
-		rec := performManagedSkillRequest(
-			t,
-			engine,
-			"/api/skills/test-skill/content?workspace=ws-managed&for_agent=reviewer",
-			agentidentity.Credentials{SessionID: "sess-managed", AgentName: "general"},
-		)
-
-		if rec.Code != http.StatusForbidden {
-			t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusForbidden, rec.Body.String())
-		}
-	})
-}
-
-func newManagedSkillsHandlerFixture(t *testing.T, registry core.SkillsRegistry) *gin.Engine {
-	t.Helper()
-	workspaces := testutil.StubWorkspaceService{
-		ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
-			return workspacepkg.ResolvedWorkspace{
-				Workspace: workspacepkg.Workspace{ID: ref, RootDir: "/workspace/" + ref, Name: ref},
-			}, nil
-		},
-	}
-	return newSkillsHandlerFixtureWithMarketplaceAndResources(
-		t,
-		registry,
-		workspaces,
-		nil,
-		nil,
-		func(cfg *core.BaseHandlerConfig) {
-			cfg.Sessions = testutil.StubSessionManager{
-				StatusFn: func(_ context.Context, id string) (*session.Info, error) {
-					return &session.Info{
-						ID:          id,
-						AgentName:   "general",
-						WorkspaceID: "ws-managed",
-						State:       session.StateActive,
-					}, nil
-				},
-			}
-			cfg.WorkspaceAccess = testutil.StubWorkspaceAccessPolicy{
-				AuthorizeFn: func(
-					_ context.Context,
-					req workspaceaccess.Request,
-				) (workspaceaccess.Decision, error) {
-					if req.TargetWorkspaceID != "ws-foreign" {
-						t.Fatalf("Authorize() target workspace = %q, want ws-foreign", req.TargetWorkspaceID)
-					}
-					return workspaceaccess.Decision{Source: workspaceaccess.SourceDenied}, nil
-				},
-			}
-		},
-	)
-}
-
-func performManagedSkillRequest(
-	t *testing.T,
-	engine *gin.Engine,
-	target string,
-	credentials agentidentity.Credentials,
-) *httptest.ResponseRecorder {
-	t.Helper()
-	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, target, http.NoBody)
-	req.Header.Set(agentidentity.HeaderSessionID, credentials.SessionID)
-	req.Header.Set(agentidentity.HeaderAgent, credentials.AgentName)
-	rec := httptest.NewRecorder()
-	engine.ServeHTTP(rec, req)
-	return rec
 }
 
 func TestEnableSkill(t *testing.T) {

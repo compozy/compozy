@@ -82,6 +82,7 @@ type IDGenerator func() (string, error)
 // HostedMCPLauncher mints and releases session-bound hosted MCP launch records.
 type HostedMCPLauncher interface {
 	Launch(ctx context.Context, req HostedMCPLaunchRequest) (compozyconfig.MCPServer, error)
+	ArmLaunch(ctx context.Context, sessionID string) error
 	CancelLaunch(sessionID string)
 	ReleaseSession(sessionID string)
 }
@@ -184,7 +185,6 @@ type Manager struct {
 	transcriptEpochStore         store.SessionTranscriptEpochStore
 	ledgerMaterializer           LedgerMaterializer
 	homePaths                    compozyconfig.HomePaths
-	daemonSocket                 string
 	workspace                    workspacepkg.RuntimeResolver
 	workspaceAccess              workspaceaccess.Policy
 	readSessionMeta              sessionMetaReader

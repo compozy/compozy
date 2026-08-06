@@ -30,6 +30,9 @@ func (s *HostedService) bindLaunch(
 	if !ok || launch == nil || !constantHashEqual(launch.nonceHash, tokenHash(nonce)) {
 		return nil, ErrHostedNonceInvalid
 	}
+	if !launch.armed {
+		return nil, ErrHostedNonceInvalid
+	}
 	if !launch.established && !launch.expiresAt.After(now) {
 		delete(s.launches, sessionID)
 		return nil, ErrHostedNonceExpired

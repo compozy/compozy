@@ -50,6 +50,43 @@ func TestStartInitializeContract(t *testing.T) {
 	})
 }
 
+func TestStartActivatesMCPAfterInitializeBeforeSessionNegotiation(t *testing.T) {
+	t.Parallel()
+
+	driver := New()
+	captureFile := filepath.Join(t.TempDir(), "mcp-activation-order.jsonl")
+	activated := false
+	proc := startHelperProcess(t, driver, "stream_updates", "", StartOpts{
+		Env: helperEnvWithCapture("stream_updates", "", captureFile),
+		MCPServers: []compozyconfig.MCPServer{{
+			Name:      "compozy-hosted-tools",
+			Transport: compozyconfig.MCPServerTransportStdio,
+			Command:   "/bin/compozy",
+		}},
+		ActivateMCPServers: func(ctx context.Context) error {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			if !captureMethodExists(t, captureFile, acpsdk.AgentMethodInitialize) {
+				t.Fatal("MCP activation ran before ACP initialize completed")
+			}
+			if captureMethodExists(t, captureFile, acpsdk.AgentMethodSessionNew) {
+				t.Fatal("MCP activation ran after ACP session/new")
+			}
+			activated = true
+			return nil
+		},
+	})
+	defer stopProcess(t, driver, proc)
+
+	if !activated {
+		t.Fatal("ActivateMCPServers was not called")
+	}
+	if !captureMethodExists(t, captureFile, acpsdk.AgentMethodSessionNew) {
+		t.Fatal("ACP session/new was not sent after MCP activation")
+	}
+}
+
 func TestDaemonMatchedEnvPinsCurrentBinary(t *testing.T) {
 	t.Parallel()
 

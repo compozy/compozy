@@ -1232,6 +1232,9 @@ func TestCreateInjectsOnlyHostedMCPServerWhenLauncherConfigured(t *testing.T) {
 		requests[0].AgentName != "coder" {
 		t.Fatalf("hosted launch request = %#v, want session/workspace/agent scope", requests[0])
 	}
+	if armed := hosted.armedSessionIDs(); !slices.Equal(armed, []string{session.ID}) {
+		t.Fatalf("hosted armed sessions = %#v, want [%q]", armed, session.ID)
+	}
 
 	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
 		t.Fatalf("Stop() error = %v", err)
@@ -1468,37 +1471,6 @@ func TestCreateWithoutChannelOmitsNetworkChannelEnv(t *testing.T) {
 	if got, ok := lookupEnvValue(env, "COMPOZY_PEER_ID"); ok {
 		t.Fatalf("COMPOZY_PEER_ID = %q, want unset", got)
 	}
-}
-
-func TestCreatePassesManagedProcessIdentity(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should pass daemon identity and socket to the ACP process runtime", func(t *testing.T) {
-		t.Parallel()
-
-		h := newHarness(t, WithPromptAssembler(nil))
-		created, err := h.manager.Create(testutil.Context(t), CreateOpts{
-			AgentName: "coder",
-			Workspace: h.workspaceID,
-		})
-		if err != nil {
-			t.Fatalf("Create() error = %v", err)
-		}
-		t.Cleanup(func() {
-			reportSessionStop(t, h, created.ID)
-		})
-
-		started := h.driver.startCalls[0]
-		if got, want := started.DaemonSocket, h.homePaths.DaemonSocket; got != want {
-			t.Fatalf("DaemonSocket = %q, want %q", got, want)
-		}
-		if got, ok := lookupEnvValue(started.TerminalEnv, "COMPOZY_SESSION_ID"); !ok || got != created.ID {
-			t.Fatalf("terminal COMPOZY_SESSION_ID = %q, %v, want %q", got, ok, created.ID)
-		}
-		if got, ok := lookupEnvValue(started.TerminalEnv, "COMPOZY_AGENT"); !ok || got != "coder" {
-			t.Fatalf("terminal COMPOZY_AGENT = %q, %v, want %q", got, ok, "coder")
-		}
-	})
 }
 
 func TestACPDriverAdapterErrorPaths(t *testing.T) {

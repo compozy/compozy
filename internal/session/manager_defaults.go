@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"strings"
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -25,9 +24,6 @@ func (m *Manager) applyRuntimeDefaults() error {
 	}
 	if m.lifecycleCtx == nil {
 		m.lifecycleCtx = context.Background()
-	}
-	if strings.TrimSpace(m.daemonSocket) == "" {
-		m.daemonSocket = strings.TrimSpace(m.homePaths.DaemonSocket)
 	}
 	if m.providerSecrets == nil {
 		m.providerSecrets = envProviderSecretResolver{lookupEnv: os.LookupEnv}

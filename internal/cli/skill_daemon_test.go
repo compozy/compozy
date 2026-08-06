@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
 	"strings"
 	"testing"
 
@@ -418,198 +419,84 @@ func TestSkillMarketplaceCommandsUseDaemonWhenRunning(t *testing.T) {
 	})
 }
 
-func TestSkillCommandsAutoScopeToAgentSession(t *testing.T) {
+func TestSkillCommandsRejectManagedSessionCLI(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should defer managed read scope validation to the daemon", func(t *testing.T) {
-		t.Parallel()
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{name: "list", args: []string{"skill", "list"}},
+		{name: "view", args: []string{"skill", "view", "compozy"}},
+		{name: "info", args: []string{"skill", "info", "skill_compozy"}},
+		{name: "inspect", args: []string{"skill", "inspect", "compozy"}},
+		{name: "where", args: []string{"skill", "where", "compozy"}},
+		{name: "search", args: []string{"skill", "search", "review"}},
+		{name: "install", args: []string{"skill", "install", "review"}},
+		{name: "remove", args: []string{"skill", "remove", "review"}},
+		{name: "update", args: []string{"skill", "update", "review", "--check"}},
+		{name: "create", args: []string{"skill", "create", "review"}},
+		{name: "enable", args: []string{"skill", "enable", "review"}},
+		{name: "disable", args: []string{"skill", "disable", "review"}},
+	}
+	for _, test := range tests {
+		t.Run("Should reject managed "+test.name+" before client or filesystem access", func(t *testing.T) {
+			t.Parallel()
 
-		const (
-			sessionID = "sess-1"
-			agentName = "general"
-		)
+			clientCalls := 0
+			workspace := t.TempDir()
+			deps := newWorkspaceTestDeps(t, &stubClient{})
+			deps.getwd = func() (string, error) { return workspace, nil }
+			deps.newClient = func(string) (DaemonClient, error) {
+				clientCalls++
+				return &stubClient{}, nil
+			}
+			deps.getenv = func(key string) string {
+				switch key {
+				case agentidentity.EnvSessionID:
+					return "sess-managed"
+				case agentidentity.EnvAgent:
+					return "general"
+				default:
+					return ""
+				}
+			}
 
-		record := SkillRecord{
-			Name:        "layered-skill",
-			Description: "Agent-local layered skill",
-			Version:     "1.0.0",
-			Source:      "agent-local",
-			Enabled:     true,
-			Dir:         "/compozy-home/agents/general/skills/layered-skill",
-		}
-		deps := newWorkspaceTestDeps(t, &stubClient{
-			getSessionFn: func(_ context.Context, _ string) (SessionRecord, error) {
-				t.Fatal("GetSession() should not preflight managed skill scope")
-				return SessionRecord{}, errors.New("unexpected session lookup")
-			},
-			listSkillsFn: func(_ context.Context, query SkillQuery) ([]SkillRecord, error) {
-				if got := query.Workspace; got != "" {
-					t.Fatalf("ListSkills() workspace = %q, want daemon default", got)
-				}
-				if got := query.ForAgent; got != "" {
-					t.Fatalf("ListSkills() for_agent = %q, want daemon default", got)
-				}
-				if query.Caller != (agentidentity.Credentials{SessionID: sessionID, AgentName: agentName}) {
-					t.Fatalf("ListSkills() caller = %#v, want managed identity", query.Caller)
-				}
-				return []SkillRecord{record}, nil
-			},
-			getSkillFn: func(_ context.Context, name string, query SkillQuery) (SkillRecord, error) {
-				if name != record.Name {
-					t.Fatalf("GetSkill() name = %q, want %q", name, record.Name)
-				}
-				if got := query.Workspace; got != "" {
-					t.Fatalf("GetSkill() workspace = %q, want daemon default", got)
-				}
-				if got := query.ForAgent; got != "" {
-					t.Fatalf("GetSkill() for_agent = %q, want daemon default", got)
-				}
-				if query.Caller != (agentidentity.Credentials{SessionID: sessionID, AgentName: agentName}) {
-					t.Fatalf("GetSkill() caller = %#v, want managed identity", query.Caller)
-				}
-				return record, nil
-			},
-			getSkillContentFn: func(_ context.Context, name string, query SkillQuery) (string, error) {
-				if name != record.Name {
-					t.Fatalf("GetSkillContent() name = %q, want %q", name, record.Name)
-				}
-				if got := query.Workspace; got != "" {
-					t.Fatalf("GetSkillContent() workspace = %q, want daemon default", got)
-				}
-				if got := query.ForAgent; got != "" {
-					t.Fatalf("GetSkillContent() for_agent = %q, want daemon default", got)
-				}
-				if query.Caller != (agentidentity.Credentials{SessionID: sessionID, AgentName: agentName}) {
-					t.Fatalf("GetSkillContent() caller = %#v, want managed identity", query.Caller)
-				}
-				return "Agent layered skill marker AGT-LAYERED-500", nil
-			},
+			_, _, err := executeRootCommand(t, deps, test.args...)
+			if !errors.Is(err, errManagedSessionSkillCLIUnsupported) {
+				t.Fatalf("skill %s error = %v, want managed-session supported-path guard", test.name, err)
+			}
+			if clientCalls != 0 {
+				t.Fatalf("skill %s client calls = %d, want zero", test.name, clientCalls)
+			}
+			entries, readErr := os.ReadDir(workspace)
+			if readErr != nil {
+				t.Fatalf("ReadDir(%q) error = %v", workspace, readErr)
+			}
+			if len(entries) != 0 {
+				t.Fatalf("skill %s workspace entries = %#v, want no filesystem changes", test.name, entries)
+			}
 		})
-		deps.getenv = func(key string) string {
-			switch key {
-			case agentidentity.EnvSessionID:
-				return sessionID
-			case agentidentity.EnvAgent:
-				return agentName
-			default:
+	}
+
+	markers := []string{agentidentity.EnvSessionID, agentidentity.EnvAgent}
+	for _, marker := range markers {
+		t.Run("Should reject list when only "+marker+" is present", func(t *testing.T) {
+			t.Parallel()
+
+			deps := newWorkspaceTestDeps(t, &stubClient{})
+			deps.getenv = func(key string) string {
+				if key == marker {
+					return "managed-marker"
+				}
 				return ""
 			}
-		}
-
-		stdout, _, err := executeRootCommand(t, deps, "skill", "list", "-o", "json")
-		if err != nil {
-			t.Fatalf("skill list auto-scope error = %v", err)
-		}
-		var listed []skillListItem
-		if err := json.Unmarshal([]byte(stdout), &listed); err != nil {
-			t.Fatalf("json.Unmarshal(skill list) error = %v; stdout=%s", err, stdout)
-		}
-		if len(listed) != 1 || listed[0].Source != "agent-local" {
-			t.Fatalf("listed skills = %#v, want one agent-local record", listed)
-		}
-
-		stdout, _, err = executeRootCommand(t, deps, "skill", "view", record.Name)
-		if err != nil {
-			t.Fatalf("skill view auto-scope error = %v", err)
-		}
-		if !strings.Contains(stdout, "AGT-LAYERED-500") {
-			t.Fatalf("skill view auto-scope output = %q, want agent-local marker", stdout)
-		}
-	})
-
-	t.Run("Should defer managed mutation scope validation to the daemon", func(t *testing.T) {
-		t.Parallel()
-
-		const (
-			sessionID = "sess-2"
-			agentName = "general"
-			skillName = "layered-skill"
-		)
-
-		deps := newWorkspaceTestDeps(t, &stubClient{
-			getSessionFn: func(_ context.Context, _ string) (SessionRecord, error) {
-				t.Fatal("GetSession() should not preflight managed skill scope")
-				return SessionRecord{}, errors.New("unexpected session lookup")
-			},
-			disableSkillFn: func(_ context.Context, name string, query SkillQuery) (SkillActionRecord, error) {
-				if name != skillName {
-					t.Fatalf("DisableSkill() name = %q, want %q", name, skillName)
-				}
-				if got := query.Workspace; got != "" {
-					t.Fatalf("DisableSkill() workspace = %q, want daemon default", got)
-				}
-				if got := query.ForAgent; got != "" {
-					t.Fatalf("DisableSkill() for_agent = %q, want daemon default", got)
-				}
-				if query.Caller != (agentidentity.Credentials{SessionID: sessionID, AgentName: agentName}) {
-					t.Fatalf("DisableSkill() caller = %#v, want managed identity", query.Caller)
-				}
-				return SkillActionRecord{OK: true}, nil
-			},
-		})
-		deps.getenv = func(key string) string {
-			switch key {
-			case agentidentity.EnvSessionID:
-				return sessionID
-			case agentidentity.EnvAgent:
-				return agentName
-			default:
-				return ""
+			_, _, err := executeRootCommand(t, deps, "skill", "list")
+			if !errors.Is(err, errManagedSessionSkillCLIUnsupported) {
+				t.Fatalf("skill list error = %v, want managed-session supported-path guard", err)
 			}
-		}
-
-		stdout, _, err := executeRootCommand(t, deps, "skill", "disable", skillName, "-o", "json")
-		if err != nil {
-			t.Fatalf("skill disable auto-scope error = %v", err)
-		}
-		if !strings.Contains(stdout, `"ok": true`) {
-			t.Fatalf("skill disable auto-scope output = %q, want ok=true payload", stdout)
-		}
-	})
-
-	t.Run("Should use the managed transport without trusting environment identity", func(t *testing.T) {
-		t.Parallel()
-
-		const skillName = "layered-skill"
-		deps := newWorkspaceTestDeps(t, &stubClient{
-			getSessionFn: func(_ context.Context, _ string) (SessionRecord, error) {
-				t.Fatal("GetSession() should not preflight managed skill scope")
-				return SessionRecord{}, errors.New("unexpected session lookup")
-			},
-			getSkillFn: func(_ context.Context, name string, query SkillQuery) (SkillRecord, error) {
-				if name != skillName {
-					t.Fatalf("GetSkill() name = %q, want %q", name, skillName)
-				}
-				if query.Caller != (agentidentity.Credentials{}) {
-					t.Fatalf("GetSkill() caller = %#v, want transport-owned identity", query.Caller)
-				}
-				return SkillRecord{Name: skillName, Enabled: true}, nil
-			},
-			getSkillContentFn: func(_ context.Context, name string, query SkillQuery) (string, error) {
-				if name != skillName {
-					t.Fatalf("GetSkillContent() name = %q, want %q", name, skillName)
-				}
-				if query.Caller != (agentidentity.Credentials{}) {
-					t.Fatalf("GetSkillContent() caller = %#v, want transport-owned identity", query.Caller)
-				}
-				return "Transport-owned identity", nil
-			},
 		})
-		deps.getenv = func(key string) string {
-			if key == agentidentity.EnvTransportSocket {
-				return "/tmp/managed-agent.sock"
-			}
-			return ""
-		}
-
-		stdout, _, err := executeRootCommand(t, deps, "skill", "view", skillName)
-		if err != nil {
-			t.Fatalf("skill view managed transport error = %v", err)
-		}
-		if !strings.Contains(stdout, "Transport-owned identity") {
-			t.Fatalf("skill view managed transport output = %q, want marker", stdout)
-		}
-	})
+	}
 }
 
 func TestSkillWorkspaceFlagValidation(t *testing.T) {

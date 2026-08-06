@@ -53,9 +53,6 @@ func (p *AgentProcess) waitForExit(ctx context.Context, processRecordTimeout tim
 			waitErr = errors.Join(waitErr, fmt.Errorf("acp: release subprocess tree: %w", groupWaitErr))
 		}
 	}
-	if transportErr := closeManagedAgentTransport(p.agentTransport); transportErr != nil {
-		waitErr = errors.Join(waitErr, fmt.Errorf("acp: close managed agent transport: %w", transportErr))
-	}
 	p.setWaitError(waitErr)
 	if p.processRecord != nil {
 		recordCtx, cancelRecord := processRecordContext(ctx, processRecordTimeout)
@@ -108,9 +105,6 @@ func normalizeStartOpts(opts StartOpts) (StartOpts, error) {
 	}
 	if normalized.Env != nil {
 		normalized.Env = append([]string(nil), normalized.Env...)
-	}
-	if normalized.TerminalEnv != nil {
-		normalized.TerminalEnv = append([]string(nil), normalized.TerminalEnv...)
 	}
 	if normalized.MCPServers != nil {
 		normalized.MCPServers = append([]compozyconfig.MCPServer(nil), normalized.MCPServers...)

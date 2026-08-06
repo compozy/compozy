@@ -23,18 +23,18 @@ func listSkillsOperationSpec() OperationSpec {
 		Summary:     "List effective skills for the selected global, workspace, or agent scope",
 		Tags:        []string{specSkillsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: skillScopeParameters(
+		Parameters: []ParameterSpec{
 			queryParam(specWorkspaceKey, "Workspace id or path for resolution context", false),
 			queryParam("for_agent", "Logical agent name for agent-local resolution", false),
-		),
-		Responses: skillScopeResponses([]ResponseSpec{
+		},
+		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.SkillsResponse{}},
 			{Status: 400, Description: specInvalidSkillLookupDescription, Body: contract.ErrorPayload{}},
 			{Status: 404, Description: "Skill scope not found", Body: contract.ErrorPayload{}},
 			{Status: 422, Description: specInvalidAgentLocalLayerDescription, Body: contract.ErrorPayload{}},
 			{Status: 503, Description: specSkillsRegistryIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-		}),
+		},
 	}
 }
 func installSkillMarketplaceOperationSpec() OperationSpec {
@@ -103,19 +103,19 @@ func getSkillOperationSpec() OperationSpec {
 		Summary:     "Get one skill definition",
 		Tags:        []string{specSkillsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: skillScopeParameters(
+		Parameters: []ParameterSpec{
 			pathParam("name", "Skill name"),
 			queryParam(specWorkspaceKey, "Workspace id or path for resolution context", false),
 			queryParam("for_agent", "Logical agent name for agent-local resolution", false),
-		),
-		Responses: skillScopeResponses([]ResponseSpec{
+		},
+		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.SkillResponse{}},
 			{Status: 400, Description: specInvalidSkillLookupDescription, Body: contract.ErrorPayload{}},
 			{Status: 404, Description: specSkillOrScopeNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 422, Description: specInvalidAgentLocalLayerDescription, Body: contract.ErrorPayload{}},
 			{Status: 503, Description: specSkillsRegistryIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-		}),
+		},
 	}
 }
 func getSkillContentOperationSpec() OperationSpec {
@@ -126,19 +126,19 @@ func getSkillContentOperationSpec() OperationSpec {
 		Summary:     "Get the raw content for one skill",
 		Tags:        []string{specSkillsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: skillScopeParameters(
+		Parameters: []ParameterSpec{
 			pathParam("name", "Skill name"),
 			queryParam(specWorkspaceKey, "Workspace id or path for resolution context", false),
 			queryParam("for_agent", "Logical agent name for agent-local resolution", false),
-		),
-		Responses: skillScopeResponses([]ResponseSpec{
+		},
+		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.SkillContentResponse{}},
 			{Status: 400, Description: specInvalidSkillLookupDescription, Body: contract.ErrorPayload{}},
 			{Status: 404, Description: specSkillOrScopeNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 422, Description: specInvalidAgentLocalLayerDescription, Body: contract.ErrorPayload{}},
 			{Status: 503, Description: specSkillsRegistryIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-		}),
+		},
 	}
 }
 func getSkillShadowsOperationSpec() OperationSpec {
@@ -149,19 +149,19 @@ func getSkillShadowsOperationSpec() OperationSpec {
 		Summary:     "Get resolver provenance and shadow declarations for one skill",
 		Tags:        []string{specSkillsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: skillScopeParameters(
+		Parameters: []ParameterSpec{
 			pathParam("name", "Skill name"),
 			queryParam(specWorkspaceKey, "Workspace id or path for resolution context", false),
 			queryParam("for_agent", "Logical agent name for agent-local resolution", false),
-		),
-		Responses: skillScopeResponses([]ResponseSpec{
+		},
+		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.SkillShadowsResponse{}},
 			{Status: 400, Description: specInvalidSkillLookupDescription, Body: contract.ErrorPayload{}},
 			{Status: 404, Description: specSkillOrScopeNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 422, Description: specInvalidAgentLocalLayerDescription, Body: contract.ErrorPayload{}},
 			{Status: 503, Description: specSkillsRegistryIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-		}),
+		},
 	}
 }
 func enableSkillOperationSpec() OperationSpec {
@@ -172,19 +172,19 @@ func enableSkillOperationSpec() OperationSpec {
 		Summary:     "Enable one skill",
 		Tags:        []string{specSkillsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: skillScopeParameters(
+		Parameters: []ParameterSpec{
 			pathParam("name", "Skill name"),
 			queryParam(specWorkspaceKey, "Workspace id or path for resolution context", false),
 			queryParam("for_agent", "Logical agent name for agent-local resolution", false),
-		),
-		Responses: skillScopeResponses([]ResponseSpec{
+		},
+		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.SkillActionResponse{}},
 			{Status: 400, Description: specInvalidSkillLookupDescription, Body: contract.ErrorPayload{}},
 			{Status: 404, Description: specSkillOrScopeNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 422, Description: specInvalidAgentLocalLayerDescription, Body: contract.ErrorPayload{}},
 			{Status: 503, Description: specSkillsRegistryIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-		}),
+		},
 	}
 }
 func disableSkillOperationSpec() OperationSpec {
@@ -195,38 +195,18 @@ func disableSkillOperationSpec() OperationSpec {
 		Summary:     "Disable one skill",
 		Tags:        []string{specSkillsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: skillScopeParameters(
+		Parameters: []ParameterSpec{
 			pathParam("name", "Skill name"),
 			queryParam(specWorkspaceKey, "Workspace id or path for resolution context", false),
 			queryParam("for_agent", "Logical agent name for agent-local resolution", false),
-		),
-		Responses: skillScopeResponses([]ResponseSpec{
+		},
+		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.SkillActionResponse{}},
 			{Status: 400, Description: specInvalidSkillLookupDescription, Body: contract.ErrorPayload{}},
 			{Status: 404, Description: specSkillOrScopeNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 422, Description: specInvalidAgentLocalLayerDescription, Body: contract.ErrorPayload{}},
 			{Status: 503, Description: specSkillsRegistryIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-		}),
+		},
 	}
-}
-
-func skillScopeParameters(parameters ...ParameterSpec) []ParameterSpec {
-	return append(optionalAgentIdentityHeaderParameters(), parameters...)
-}
-
-func skillScopeResponses(responses []ResponseSpec) []ResponseSpec {
-	return append(
-		responses,
-		ResponseSpec{
-			Status:      401,
-			Description: "Managed caller identity is missing or invalid",
-			Body:        contract.ErrorPayload{},
-		},
-		ResponseSpec{
-			Status:      403,
-			Description: "Managed caller is not authorized for the requested skill scope",
-			Body:        contract.ErrorPayload{},
-		},
-	)
 }

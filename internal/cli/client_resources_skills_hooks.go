@@ -60,15 +60,7 @@ func (c *unixSocketClient) ListSkills(ctx context.Context, query SkillQuery) ([]
 	var response struct {
 		Skills []SkillRecord `json:"skills"`
 	}
-	if err := c.doAgentJSON(
-		ctx,
-		http.MethodGet,
-		"/api/skills",
-		skillValues(query),
-		nil,
-		query.Caller,
-		&response,
-	); err != nil {
+	if err := c.doJSON(ctx, http.MethodGet, "/api/skills", skillValues(query), nil, &response); err != nil {
 		return nil, err
 	}
 	return response.Skills, nil
@@ -78,13 +70,12 @@ func (c *unixSocketClient) GetSkill(ctx context.Context, name string, query Skil
 	var response struct {
 		Skill SkillRecord `json:"skill"`
 	}
-	if err := c.doAgentJSON(
+	if err := c.doJSON(
 		ctx,
 		http.MethodGet,
 		"/api/skills/"+url.PathEscape(strings.TrimSpace(name)),
 		skillValues(query),
 		nil,
-		query.Caller,
 		&response,
 	); err != nil {
 		return SkillRecord{}, err
@@ -96,13 +87,12 @@ func (c *unixSocketClient) GetSkillContent(ctx context.Context, name string, que
 	var response struct {
 		Content string `json:"content"`
 	}
-	if err := c.doAgentJSON(
+	if err := c.doJSON(
 		ctx,
 		http.MethodGet,
 		"/api/skills/"+url.PathEscape(strings.TrimSpace(name))+"/content",
 		skillValues(query),
 		nil,
-		query.Caller,
 		&response,
 	); err != nil {
 		return "", err
@@ -116,13 +106,12 @@ func (c *unixSocketClient) GetSkillShadows(
 	query SkillQuery,
 ) (SkillShadowsRecord, error) {
 	var response SkillShadowsRecord
-	if err := c.doAgentJSON(
+	if err := c.doJSON(
 		ctx,
 		http.MethodGet,
 		"/api/skills/"+url.PathEscape(strings.TrimSpace(name))+"/shadows",
 		skillValues(query),
 		nil,
-		query.Caller,
 		&response,
 	); err != nil {
 		return SkillShadowsRecord{}, err

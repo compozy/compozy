@@ -1972,34 +1972,6 @@ func assertAgentRequestHeaders(t *testing.T, req *http.Request, credentials agen
 	}
 }
 
-func TestUnixSocketClientSkillMethodsSendIdentityHeaders(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should send managed identity when loading skill content", func(t *testing.T) {
-		t.Parallel()
-
-		credentials := agentidentity.Credentials{SessionID: "sess-managed", AgentName: "coder"}
-		client := &unixSocketClient{
-			socketPath: "/tmp/compozy.sock",
-			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
-				if req.Method != http.MethodGet || req.URL.Path != "/api/skills/review/content" {
-					t.Fatalf("request = %s %s, want GET /api/skills/review/content", req.Method, req.URL.Path)
-				}
-				assertAgentRequestHeaders(t, req, credentials)
-				return newHTTPResponse(http.StatusOK, `{"content":"# Review"}`), nil
-			})},
-		}
-
-		content, err := client.GetSkillContent(context.Background(), "review", SkillQuery{Caller: credentials})
-		if err != nil {
-			t.Fatalf("GetSkillContent() error = %v", err)
-		}
-		if content != "# Review" {
-			t.Fatalf("GetSkillContent() = %q, want skill content", content)
-		}
-	})
-}
-
 func TestUnixSocketClientMethods(t *testing.T) {
 	t.Parallel()
 

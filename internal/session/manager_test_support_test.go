@@ -1015,8 +1015,16 @@ type recordingHostedMCPLauncher struct {
 	mu       sync.Mutex
 	server   compozyconfig.MCPServer
 	requests []HostedMCPLaunchRequest
+	arms     []string
 	cancels  []string
 	releases []string
+}
+
+func (l *recordingHostedMCPLauncher) ArmLaunch(_ context.Context, sessionID string) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.arms = append(l.arms, sessionID)
+	return nil
 }
 
 var _ HostedMCPLauncher = (*recordingHostedMCPLauncher)(nil)
@@ -1049,6 +1057,12 @@ func (l *recordingHostedMCPLauncher) launchRequests() []HostedMCPLaunchRequest {
 	return append([]HostedMCPLaunchRequest(nil), l.requests...)
 }
 
+func (l *recordingHostedMCPLauncher) armedSessionIDs() []string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return append([]string(nil), l.arms...)
+}
+
 func (l *recordingHostedMCPLauncher) releaseSessionIDs() []string {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -1061,7 +1075,7 @@ func newFakeDriver() *fakeDriver {
 	}
 }
 
-func (d *fakeDriver) Start(_ context.Context, opts acp.StartOpts) (*AgentProcess, error) {
+func (d *fakeDriver) Start(ctx context.Context, opts acp.StartOpts) (*AgentProcess, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -1070,6 +1084,11 @@ func (d *fakeDriver) Start(_ context.Context, opts acp.StartOpts) (*AgentProcess
 	copied.Env = append([]string(nil), opts.Env...)
 	copied.MCPServers = append([]compozyconfig.MCPServer(nil), opts.MCPServers...)
 	d.startCalls = append(d.startCalls, copied)
+	if copied.ActivateMCPServers != nil {
+		if err := copied.ActivateMCPServers(ctx); err != nil {
+			return nil, err
+		}
+	}
 
 	sequence := len(d.startCalls)
 	var proc *fakeProcess

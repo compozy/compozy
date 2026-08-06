@@ -74,7 +74,6 @@ func (p *AgentProcess) handleCreateTerminal(
 	if err != nil {
 		return acpsdk.CreateTerminalResponse{}, err
 	}
-	request.Env = mergeManagedTerminalEnv(request.Env, p.terminalEnv)
 
 	ownership := terminalOwnership{
 		ownerSessionID: p.SessionID,

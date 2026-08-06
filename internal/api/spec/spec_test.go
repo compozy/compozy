@@ -1124,7 +1124,6 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				listSkills := operationFor(t, doc, "/api/skills", "GET")
 				assertParameter(t, listSkills, "workspace", openapi3.ParameterInQuery, false)
 				assertParameter(t, listSkills, "for_agent", openapi3.ParameterInQuery, false)
-				assertManagedSkillIdentityHeaders(t, listSkills)
 				listSkillsSchema := jsonResponseSchema(t, listSkills, 200)
 				skillSchema := propertySchema(t, listSkillsSchema, "skills").Items.Value
 				assertRequired(t, skillSchema, "activation")
@@ -1171,17 +1170,14 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				getSkill := operationFor(t, doc, "/api/skills/{name}", "GET")
 				assertParameter(t, getSkill, "workspace", openapi3.ParameterInQuery, false)
 				assertParameter(t, getSkill, "for_agent", openapi3.ParameterInQuery, false)
-				assertManagedSkillIdentityHeaders(t, getSkill)
 
 				getSkillContent := operationFor(t, doc, "/api/skills/{name}/content", "GET")
 				assertParameter(t, getSkillContent, "workspace", openapi3.ParameterInQuery, false)
 				assertParameter(t, getSkillContent, "for_agent", openapi3.ParameterInQuery, false)
-				assertManagedSkillIdentityHeaders(t, getSkillContent)
 
 				getSkillShadows := operationFor(t, doc, "/api/skills/{name}/shadows", "GET")
 				assertParameter(t, getSkillShadows, "workspace", openapi3.ParameterInQuery, false)
 				assertParameter(t, getSkillShadows, "for_agent", openapi3.ParameterInQuery, false)
-				assertManagedSkillIdentityHeaders(t, getSkillShadows)
 				shadowsSchema := jsonResponseSchema(t, getSkillShadows, 200)
 				assertRequired(t, shadowsSchema, "name", "winner", "shadows")
 				winnerSchema := propertySchema(t, shadowsSchema, "winner")
@@ -1190,12 +1186,10 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				enableSkill := operationFor(t, doc, "/api/skills/{name}/enable", "POST")
 				assertParameter(t, enableSkill, "workspace", openapi3.ParameterInQuery, false)
 				assertParameter(t, enableSkill, "for_agent", openapi3.ParameterInQuery, false)
-				assertManagedSkillIdentityHeaders(t, enableSkill)
 
 				disableSkill := operationFor(t, doc, "/api/skills/{name}/disable", "POST")
 				assertParameter(t, disableSkill, "workspace", openapi3.ParameterInQuery, false)
 				assertParameter(t, disableSkill, "for_agent", openapi3.ParameterInQuery, false)
-				assertManagedSkillIdentityHeaders(t, disableSkill)
 			},
 		},
 		{
@@ -3172,14 +3166,6 @@ func assertParameter(t *testing.T, operation *openapi3.Operation, name string, i
 		}
 	}
 	t.Fatalf("missing parameter %q in %s", name, in)
-}
-
-func assertManagedSkillIdentityHeaders(t *testing.T, operation *openapi3.Operation) {
-	t.Helper()
-	assertParameter(t, operation, agentidentity.HeaderSessionID, openapi3.ParameterInHeader, false)
-	assertParameter(t, operation, agentidentity.HeaderAgent, openapi3.ParameterInHeader, false)
-	assertResponseStatus(t, operation, http.StatusUnauthorized)
-	assertResponseStatus(t, operation, http.StatusForbidden)
 }
 
 func assertParameterAbsent(t *testing.T, operation *openapi3.Operation, name string, in string) {

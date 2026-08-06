@@ -2,6 +2,7 @@
 package acp
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -56,8 +57,6 @@ type StartOpts struct {
 	Cwd                  string
 	AdditionalDirs       []string
 	Env                  []string
-	TerminalEnv          []string
-	DaemonSocket         string
 	MCPServers           []compozyconfig.MCPServer
 	Permissions          compozyconfig.PermissionMode
 	SystemPrompt         string
@@ -72,6 +71,7 @@ type StartOpts struct {
 	ProviderName         string
 	ProviderConfig       *compozyconfig.ProviderConfig
 	ProviderAuthEnv      *authproviders.ProbeEnv
+	ActivateMCPServers   func(context.Context) error
 
 	launchIdentity *preparedLaunchIdentity
 }

@@ -28,8 +28,6 @@ func (m *Manager) sessionStartOpts(
 		Cwd:             s.cwd,
 		AdditionalDirs:  append([]string(nil), s.workspace.AdditionalDirs...),
 		Env:             env,
-		TerminalEnv:     append([]string(nil), env...),
-		DaemonSocket:    strings.TrimSpace(m.daemonSocket),
 		MCPServers:      mcpServers,
 		Permissions:     m.startPermissions(session.Type, startSpecPermissions(s, resolved.Permissions)),
 		SystemPrompt:    resolved.Prompt,
@@ -38,6 +36,10 @@ func (m *Manager) sessionStartOpts(
 		Speed:           s.speed,
 		ResumeSessionID: s.acpSessionID,
 		ToolGateway:     newProviderNativeToolGateway(m, session, s.runtimeMode),
+		ActivateMCPServers: m.sessionMCPServerActivator(
+			s.sessionID,
+			mcpServers,
+		),
 	}
 }
 

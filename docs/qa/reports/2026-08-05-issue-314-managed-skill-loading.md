@@ -1,9 +1,9 @@
-# QA Run Report — 2026-08-05 — Issue 314 managed skill loading
+# QA Run Report — 2026-08-05 — Issue 314 native managed skill loading
 
-- **Scope:** Issue #314 — managed Codex sessions load installed skills through the native seam or documented CLI fallback while preserving identity and policy boundaries
+- **Scope:** Issue #314 — a managed Codex session loads an installed skill omitted from its prompt catalog through the native seam; the CLI remains an operator surface
 - **Cadence tier:** targeted
-- **Build:** working tree · **Environment:** isolated local daemon and provider home from the QA bootstrap manifest
-- **Started:** 2026-08-05T18:09:45-03:00 · **Completed:** 2026-08-05T18:24:14-03:00 · **Status:** pass
+- **Build:** working tree · **Environment:** fresh isolated runtime and provider homes from the QA bootstrap manifest
+- **Started:** 2026-08-06T00:18:26Z · **Completed:** 2026-08-06T00:31:51Z · **Status:** pass
 
 ## Personas
 
@@ -13,13 +13,13 @@
 
 ## Flows in Scope
 
-- `J-load-skill-in-managed-session` — load one installed skill through native and CLI paths without gaining broader authority (`../journeys/J-load-skill-in-managed-session.md`)
+- `J-load-skill-in-managed-session` — load an omitted skill through the native seam and verify the operator CLI independently (`../journeys/J-load-skill-in-managed-session.md`)
 
 ## Session Matrix & Results
 
 | # | Charter | Journey / Scenario | Persona | Tour | Status | Issue | Fix commit |
 |---|---|---|---|---|---|---|---|
-| 1 | CH-managed-session-skill-loading | J-load-skill-in-managed-session / ET-managed-session-skill-loading | Ada | Feature Tour | Pass | | |
+| 1 | CH-managed-session-skill-loading | J-load-skill-in-managed-session / ET-managed-session-skill-loading | Ada | Feature Tour | Pass | [cold hosted-tool bind](../bugs/BUG-20260805-hosted-mcp-cold-start-nonce-expiry.md) | PR #323 remediation commit |
 
 Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) | Blocked (human decision)`
 
@@ -27,53 +27,66 @@ Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) 
 
 ### CH-managed-session-skill-loading
 
-- Session `sess-fde197161ff83533` ran with workspace `ws_8d47ffbddfb5e2ef`, agent `general`, Codex `gpt-5.6-sol`, and workspace permission mode `approve-reads`.
-- Native `compozy__skill_view` returned the workspace `release-signal` body with `HELIX-SKILL-314` and the 15% threshold (event 32).
-- The provider process exposed `COMPOZY_AGENT_TRANSPORT_SOCKET=/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/cz-agent-1284359853/transport.sock`; `test -S` returned 0 (event 59).
-- Managed `compozy skill view release-signal` returned the same body with exit 0 (event 72). Replacing only `COMPOZY_SESSION_ID` and `COMPOZY_AGENT` still returned the bound session body with exit 0 (event 80).
-- `--for-agent reviewer` was denied with exit 77 (event 88). Foreign workspace `ws_2f579f45788c8c97` was denied by the session permission policy with exit 77 (event 98).
-- `compozy status` was rejected by the capability transport with `managed_transport_denied` and exit 1 (event 106). A final own-scope skill read still succeeded with exit 0 (event 109).
-- An operator shell with all managed identity and transport variables unset read the same body through the regular daemon socket with exit 0.
-- Stopping the session removed both the capability socket and its `cz-agent-1284359853` directory. The mandatory teardown stopped registered daemon PID 13473 and recorded `clean: true` with no survivors.
-
-### Read-only capability retest
-
-- Session `sess-518717aea033acef` ran in workspace `ws_5dbcd88c162fa761` with the final read-only route allowlist.
-- Managed `compozy skill view release-signal` returned the distinctive body with exit 0 (event 50).
-- Managed `compozy skill disable release-signal` was rejected with `managed_transport_denied` and exit 1 (event 58).
-- A second `compozy skill view release-signal` returned the same body with exit 0 (event 64), proving the denied mutation did not damage the read path.
-- The mandatory teardown stopped registered daemon PID 27403 and recorded `clean: true` with no survivors in `/Users/pedronauck/dev/qa-labs/compozy-issue-314-read-only-skill-transport-20260805-211857-719811-lab/qa-artifacts/qa/teardown.json`.
+- The fresh workspace contained 220 `aa-context-fill-*` skills and `zz-native-seam-marker`. The
+  persisted 75,618-byte provider prompt contained 418 catalog entries, including the fillers, but no
+  target catalog entry or body. The target name occurred once only in the user's request.
+- The first and only provider session, `sess-08797076cb99e02f`, started through a wrapper that delayed
+  Codex ACP by 35 seconds. Initialize took 36,958 ms; hosted-MCP activation then completed in 0 ms,
+  `session/new` in 443 ms, and bind in 79 ms without nonce expiry or retry.
+- The agent resolved `compozy__skill_view` with `compozy__tool_info` at event 11, called
+  `compozy__skill_view` at event 15, and received the exact marker-bearing body at event 16. Events
+  18–21 returned the exact marker and heliotrope sentence to the operator.
+- The normalized native result and independent operator `compozy skill view` result were both 173
+  bytes with SHA-256 `9eb83bd03cfa8e4763ff8c1808dda9f5305fae0f066a88e606fa07bb08e4ebca`.
+- The persisted tool calls contain no shell, terminal, operator CLI, or direct skill-file read.
+- All twelve `compozy skill` verbs failed with the supported-path error when managed environment
+  markers were present. The target remained enabled and active, no new skill was created, and the
+  independent operator command still succeeded.
+- Teardown completed with `clean: true`, no survivors, and the runtime socket removed. It escalated the
+  registered daemon after the graceful-stop window and removed the remaining lab-referenced provider
+  process.
 
 ## What Was Fixed
 
-The managed CLI fallback now enters through a per-session capability socket owned by the local ACP process. That socket only proxies read-only skill routes and replaces caller-supplied identity headers with daemon-owned session and agent identity.
+The unsafe managed CLI capability transport and caller-supplied identity contract were removed. A
+managed session loads skills only through the daemon-native tool; `compozy skill view` remains an
+operator-shell command. The CLI now has an early supported-path guard when managed environment markers
+are present. It prevents accidental unsupported use; it is not a security boundary against arbitrary
+same-UID code.
 
 ## Paper Cuts
 
-None recorded yet.
+None.
 
 ## Runtime Errors Observed
 
-- Expected denial: mismatched agent scope, exit 77.
-- Expected denial: foreign workspace under `approve-reads`, exit 77.
-- Expected denial: non-skill `compozy status` route, exit 1 with `managed_transport_denied`.
-- Expected denial: skill mutation through the managed read-only transport, exit 1 with `managed_transport_denied`.
+None. The intentionally delayed first launch bound hosted MCP without nonce expiry.
 
 ## Human Verifications Needed
 
-None recorded yet.
+None.
 
 ## Decisions for a Human
 
-None recorded yet.
+The earlier request to prove that an arbitrary same-UID provider cannot open the operator UDS was
+withdrawn by the approved hard cut. Without an OS sandbox, a dedicated UID, or a non-inherited
+credential, the provider and operator can emit identical socket requests. This change therefore makes
+no such security claim: managed skill loading uses only the native seam, while the normal UDS and
+`compozy skill view` remain operator surfaces.
 
 ## Learnings
 
-The capability must be attached to the ACP provider process, not an individual terminal callback. Codex executes internal commands as descendants of `codex app-server`, so a terminal-only descriptor does not reach those commands. Process-scoped socket ownership also gives one lifecycle boundary for provider commands and terminal callbacks.
+Behavioral acceptance must inspect persisted managed events, not merely invoke the native registry in
+isolation. Delaying provider startup beyond the former TTL proved that nonce lifetime must begin when
+the runtime makes binding possible, not while an external provider initializes.
 
 ## Final Status
 
-- **Exit gate (full automated suite):** recorded by `make gate-status` at workstream close
+- **Exit gate (full automated suite):** `make gate-full` runs after this final report mutation; the PR
+  records the resulting current gate evidence.
 - **Issues by user impact:** Blocks-Completion 0 · Data-Loss 0 · Trust-Damage 0 · Friction 0 · Cosmetic 0
-- **Coverage:** native tool, managed CLI, forged environment identity, mismatched agent, foreign workspace policy, non-skill route denial, skill-mutation denial, operator CLI, final own-scope recovery, and process teardown
-- **Verdict:** Pass
+- **Coverage:** truncated catalog, deliberately delayed first Codex launch, native tool discovery/view,
+  exact-body parity, persisted event inspection, all skill CLI verbs under the supported-path guard,
+  operator CLI, and clean teardown
+- **Verdict:** Behavioral Pass; workstream completion remains conditional on the final current
+  `make gate-full` record.

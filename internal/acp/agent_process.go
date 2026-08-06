@@ -41,8 +41,6 @@ type AgentProcess struct {
 	terminals       *terminalManager
 	processRegistry *toolruntime.Registry
 	processRecord   *toolruntime.Handle
-	terminalEnv     []acpsdk.EnvVariable
-	agentTransport  *managedAgentTransport
 
 	terminalOwnershipMu sync.RWMutex
 	terminalOwnership   map[string]terminalOwnership

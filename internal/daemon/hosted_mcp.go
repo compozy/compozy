@@ -74,6 +74,13 @@ func (l hostedMCPLauncherAdapter) Launch(
 	})
 }
 
+func (l hostedMCPLauncherAdapter) ArmLaunch(ctx context.Context, sessionID string) error {
+	if l.service == nil {
+		return mcppkg.ErrHostedDisabled
+	}
+	return l.service.ArmLaunch(ctx, sessionID)
+}
+
 func (l hostedMCPLauncherAdapter) CancelLaunch(sessionID string) {
 	if l.service != nil {
 		l.service.CancelLaunch(sessionID)

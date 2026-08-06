@@ -31,8 +31,9 @@ const (
 	currentAvailableSkillsSelfClosing = "<current-available-skills />"
 	currentSkillsCatalogOpeningLine   = "The <current-available-skills> block above is " +
 		"the authoritative current skill state for this turn."
-	currentSkillsCatalogFinalLine = "If current tool policy denies canonical `compozy__skill_view`, " +
-		"use `compozy skill view <name>` as an operator fallback."
+	currentSkillsCatalogFinalLine = "Do not invoke `compozy skill view` or read skill files directly from a managed session. " +
+		"If current tool policy denies canonical `compozy__skill_view`, report that the skill cannot be loaded; " +
+		"`compozy skill view` is an operator-shell command only."
 	durableMemoryOpen         = "<turn-recall>"
 	durableMemoryClose        = "</turn-recall>"
 	inboundBridgePromptPrefix = "Inbound bridge message"

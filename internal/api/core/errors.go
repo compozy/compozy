@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/admission"
-	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
@@ -280,15 +279,6 @@ func StatusForSkillError(err error) int {
 		return http.StatusBadRequest
 	case errors.Is(err, ErrSkillUnprocessable):
 		return http.StatusUnprocessableEntity
-	case errors.Is(err, errAgentIdentityUnavailable),
-		errors.Is(err, agentidentity.ErrIdentityLookupUnavailable):
-		return http.StatusServiceUnavailable
-	case errors.Is(err, agentidentity.ErrIdentityUnauthorized):
-		return http.StatusForbidden
-	case errors.Is(err, agentidentity.ErrIdentityRequired),
-		errors.Is(err, agentidentity.ErrIdentityMismatch),
-		errors.Is(err, agentidentity.ErrIdentityStale):
-		return http.StatusUnauthorized
 	case errors.Is(err, workspacepkg.ErrWorkspaceNotFound):
 		return http.StatusNotFound
 	case errors.Is(err, workspacepkg.ErrWorkspaceRootMissing):

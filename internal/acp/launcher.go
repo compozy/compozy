@@ -22,14 +22,9 @@ type Handle = sandbox.Handle
 type LaunchSpec = sandbox.LaunchSpec
 
 var (
-	_ sandbox.Launcher              = (*localLauncher)(nil)
-	_ managedAgentTransportLauncher = (*localLauncher)(nil)
-	_ sandbox.Handle                = (*localProcessHandle)(nil)
+	_ sandbox.Launcher = (*localLauncher)(nil)
+	_ sandbox.Handle   = (*localProcessHandle)(nil)
 )
-
-type managedAgentTransportLauncher interface {
-	supportsManagedAgentTransport()
-}
 
 type localLauncher struct {
 	logger      *slog.Logger
@@ -58,8 +53,6 @@ func newLocalLauncher(logger *slog.Logger, stopTimeout time.Duration) *localLaun
 		stopTimeout: stopTimeout,
 	}
 }
-
-func (*localLauncher) supportsManagedAgentTransport() {}
 
 func (l *localLauncher) Launch(
 	ctx context.Context,
