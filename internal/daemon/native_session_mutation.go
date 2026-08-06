@@ -136,8 +136,8 @@ func (n *daemonNativeTools) sessionPrompt(
 		return toolspkg.ToolResult{}, err
 	}
 	if result.Events != nil {
-		for range result.Events {
-			continue
+		if err := drainNativeSessionPromptEvents(result.Events); err != nil {
+			return toolspkg.ToolResult{}, err
 		}
 	}
 	return n.nativeSessionPromptResult(result)

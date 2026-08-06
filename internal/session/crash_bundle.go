@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -17,7 +18,7 @@ import (
 
 const (
 	crashBundleDirName      = "crash-bundles"
-	crashBundleSchema       = "compozy.session_crash_bundle.v1"
+	crashBundleSchema       = "compozy.session_crash_bundle.v2"
 	maxCrashEvidenceBytes   = 32 << 10
 	crashBundleFileMode     = 0o600
 	crashBundleDirMode      = 0o700
@@ -44,6 +45,8 @@ type crashBundleProcess struct {
 	Args      []string  `json:"args,omitempty"`
 	Cwd       string    `json:"cwd,omitempty"`
 	StartedAt time.Time `json:"started_at"`
+	ExitCode  *int      `json:"exit_code,omitempty"`
+	Signal    string    `json:"signal,omitempty"`
 }
 
 func (m *Manager) attachCrashBundleToFailure(
@@ -84,9 +87,13 @@ func (m *Manager) attachPromptFailureDiagnostics(
 	}
 	var eventErr error
 	if strings.TrimSpace(event.Error) != "" {
-		eventErr = fmt.Errorf("%s", event.Error)
+		eventErr = errors.New(event.Error)
 	}
-	failure, err := m.attachCrashBundleToFailure(ctx, session, event.Failure, eventErr, "")
+	stderr := ""
+	if proc := session.processHandle(); proc != nil && isProcessDone(proc) {
+		stderr = proc.Stderr()
+	}
+	failure, err := m.attachCrashBundleToFailure(ctx, session, event.Failure, eventErr, stderr)
 	if err != nil {
 		m.sessionLogger(session).Warn(
 			"session: write prompt failure crash bundle failed",
@@ -105,6 +112,16 @@ func (m *Manager) writeCrashBundle(
 	failure store.SessionFailure,
 	err error,
 	stderr string,
+) (string, error) {
+	return m.writeCrashBundleAtPath(session, failure, err, stderr, "")
+}
+
+func (m *Manager) writeCrashBundleAtPath(
+	session *Session,
+	failure store.SessionFailure,
+	err error,
+	stderr string,
+	targetPath string,
 ) (string, error) {
 	if session == nil {
 		return "", nil
@@ -134,13 +151,20 @@ func (m *Manager) writeCrashBundle(
 		CreatedAt: m.now().UTC(),
 	}
 	if proc := session.processHandle(); proc != nil {
-		document.Process = &crashBundleProcess{
+		process := &crashBundleProcess{
 			PID:       proc.PID,
 			Command:   diagnostics.RedactAndBound(proc.Command, maxCrashEvidenceBytes),
 			Args:      redactStringSlice(proc.Args),
 			Cwd:       diagnostics.RedactAndBound(proc.Cwd, maxCrashEvidenceBytes),
 			StartedAt: proc.StartedAt.UTC(),
 		}
+		if status, ok := proc.ExitStatus(); ok {
+			if exitCode, available := status.ExitCodeValue(); available {
+				process.ExitCode = &exitCode
+			}
+			process.Signal = status.Signal
+		}
+		document.Process = process
 	}
 
 	payload, err := json.MarshalIndent(document, "", "  ")
@@ -149,11 +173,32 @@ func (m *Manager) writeCrashBundle(
 	}
 	payload = append(payload, '\n')
 
-	path := filepath.Join(dir, crashBundleFileName(info.ID, failure.Kind, document.CreatedAt))
+	path := filepath.Clean(targetPath)
+	if targetPath == "" {
+		path = filepath.Join(dir, crashBundleFileName(info.ID, failure.Kind, document.CreatedAt))
+	} else if filepath.Dir(path) != filepath.Clean(dir) {
+		return "", fmt.Errorf("session: crash bundle path %q is outside %q", targetPath, dir)
+	}
 	if err := fileutil.AtomicWriteFile(path, payload, crashBundleFileMode); err != nil {
 		return "", fmt.Errorf("session: write crash bundle %q: %w", path, err)
 	}
 	return path, nil
+}
+
+func reusableCrashBundleFailure(
+	existing *store.SessionFailure,
+	classified *store.SessionFailure,
+) (*store.SessionFailure, bool) {
+	if existing == nil || classified == nil {
+		return nil, false
+	}
+	normalizedExisting := existing.Normalize()
+	normalizedClassified := classified.Normalize()
+	if normalizedExisting.CrashBundlePath == "" || normalizedExisting.Kind != normalizedClassified.Kind {
+		return nil, false
+	}
+	normalizedClassified.CrashBundlePath = normalizedExisting.CrashBundlePath
+	return &normalizedClassified, true
 }
 
 func failureShouldHaveCrashBundle(kind store.FailureKind) bool {

@@ -55,8 +55,17 @@ Attachability is explicit live runtime state. Use `compozy session list --resuma
 not restart `stopped`, and stopped sessions reject attach.
 
 A normal prompt to a stopped user session restarts its ACP process, reloads the durable provider
-history, and submits the prompt against the same session ID. Concurrent prompts share one restart.
-Attach, queue management, steer, interrupt, and other control operations never trigger this restart.
+history, and submits the new prompt against the same session ID. Concurrent prompts share one
+restart. Attach, queue management, steer, interrupt, and other control operations never trigger this
+restart.
+
+If ACP disconnects during a prompt, Compozy keeps every event already persisted, emits a terminal
+error, and stops the failed runtime with `failure.kind=process_exit`. A JSONL prompt command writes
+the frames it received, including the error frame, then exits nonzero. `compozy__session_prompt`
+returns `tool_backend_failed` with `backend_dead` instead of reporting a successful tool call. Inspect
+status, events, and the crash bundle before sending another prompt. Compozy never automatically
+replays the interrupted prompt because its external effects may be indeterminate; a new explicit
+prompt is the safe restart boundary.
 
 After prompt admission, the daemon owns the turn lifetime. Closing a browser tab, navigating away from the web app, dropping an SSE stream, or disconnecting a CLI/UDS response only detaches that viewer; it does not cancel the accepted prompt. Use explicit runtime intent such as `compozy session stop`, prompt cancel, or interrupt controls when cancellation is required.
 

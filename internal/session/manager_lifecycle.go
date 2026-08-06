@@ -111,8 +111,19 @@ func (m *Manager) handleProcessExit(
 	if state != StateActive && state != StateStopping {
 		return nil
 	}
+	if session.currentPromptCompletion() != nil {
+		m.waitForActivePromptProcessExit(ctx, session)
+		if !session.isCurrentProcess(proc) {
+			return nil
+		}
+		state = session.Info().State
+		if state != StateActive && state != StateStopping {
+			return nil
+		}
+	}
 
-	if !session.stopWasRequested() {
+	stopCause, _ := session.stopCauseDetail()
+	if !session.stopWasRequested() && stopCause == CauseNone {
 		switch waitErr {
 		case nil:
 			if session.IsPrompting() {
@@ -187,7 +198,20 @@ func (m *Manager) persistStopClassification(ctx context.Context, session *Sessio
 		if proc := session.processHandle(); proc != nil {
 			stderr = proc.Stderr()
 		}
-		failure, bundleErr = m.attachCrashBundleToFailure(ctx, session, failure, waitErr, stderr)
+		if reusable, ok := reusableCrashBundleFailure(session.Info().Failure, failure); ok {
+			failure = reusable
+			if _, err := m.writeCrashBundleAtPath(
+				session,
+				*reusable,
+				waitErr,
+				stderr,
+				reusable.CrashBundlePath,
+			); err != nil {
+				bundleErr = err
+			}
+		} else {
+			failure, bundleErr = m.attachCrashBundleToFailure(ctx, session, failure, waitErr, stderr)
+		}
 	}
 	session.setStopClassification(stopReason, stopDetail)
 	session.setFailure(failure)

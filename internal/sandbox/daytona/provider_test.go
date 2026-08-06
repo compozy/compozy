@@ -21,6 +21,7 @@ import (
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/sandbox"
+	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/toolruntime"
 )
 
@@ -352,6 +353,36 @@ func TestDaytonaLauncherLaunchReturnsHandleStreams(t *testing.T) {
 	t.Run("Should launch the pinned remote executable and expose handle streams", func(t *testing.T) {
 		t.Parallel()
 		testDaytonaLauncherLaunchReturnsHandleStreams(t)
+	})
+	t.Run("Should expose the completed remote exit code through ACP diagnostics", func(t *testing.T) {
+		t.Parallel()
+
+		launcher := &daytonaLauncher{
+			transport: &fakeTransport{sessions: []*fakeSession{
+				newFakeCommandSession([]byte("stdout"), 23, "remote stderr"),
+			}},
+			sandbox: sandboxInfo{ID: "sandbox", APIURL: defaultAPIURL},
+		}
+		handle, err := launcher.Launch(context.Background(), sandbox.LaunchSpec{
+			ResolvedExecutable: "/remote/bin/agent",
+			Cwd:                "/workspace",
+		})
+		if err != nil {
+			t.Fatalf("Launch() error = %v", err)
+		}
+		if err := handle.Wait(); err == nil {
+			t.Fatal("Wait() error = nil, want remote exit failure")
+		}
+		diagnostics, ok := handle.(interface {
+			ExitStatus() (subprocess.ExitStatus, bool)
+		})
+		if !ok {
+			t.Fatalf("handle = %T, want exit status diagnostics", handle)
+		}
+		status, ok := diagnostics.ExitStatus()
+		if !ok || status.ExitCode != 23 || status.Signal != "" {
+			t.Fatalf("ExitStatus() = %#v, %t; want exit code 23 without signal", status, ok)
+		}
 	})
 }
 

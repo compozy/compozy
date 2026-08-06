@@ -163,16 +163,15 @@ func TestPromptSyntheticHeartbeatWakeOptions(t *testing.T) {
 		h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
 			if req.TurnID == "turn-1" {
 				close(firstPromptEntered)
-				events := make(chan acp.AgentEvent)
+				events := make(chan acp.AgentEvent, 1)
 				go func() {
 					<-releaseFirstPrompt
+					events <- acp.AgentEvent{Type: acp.EventTypeDone, TurnID: req.TurnID}
 					close(events)
 				}()
 				return events, nil
 			}
-			events := make(chan acp.AgentEvent)
-			close(events)
-			return events, nil
+			return completedSyntheticPromptEvents(req.TurnID), nil
 		}
 
 		userEvents, err := h.manager.Prompt(testutil.Context(t), session.ID, "user prompt")
@@ -270,17 +269,15 @@ func TestPromptSyntheticQueuesBehindActiveTurnAndPreservesStoredOrder(t *testing
 	h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
 		if req.TurnID == "turn-1" {
 			close(firstPromptEntered)
-			events := make(chan acp.AgentEvent)
+			events := make(chan acp.AgentEvent, 1)
 			go func() {
 				<-releaseFirstPrompt
+				events <- acp.AgentEvent{Type: acp.EventTypeDone, TurnID: req.TurnID}
 				close(events)
 			}()
 			return events, nil
 		}
-
-		events := make(chan acp.AgentEvent)
-		close(events)
-		return events, nil
+		return completedSyntheticPromptEvents(req.TurnID), nil
 	}
 
 	userEventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "user prompt")
@@ -320,14 +317,17 @@ func TestPromptSyntheticQueuesBehindActiveTurnAndPreservesStoredOrder(t *testing
 	if err != nil {
 		t.Fatalf("Query() error = %v", err)
 	}
-	if len(stored) < 2 {
-		t.Fatalf("stored events = %d, want at least the user and synthetic input events", len(stored))
+	if len(stored) < 3 {
+		t.Fatalf("stored events = %d, want user, terminal, and synthetic input events", len(stored))
 	}
 	if got := stored[0].Type; got != acp.EventTypeUserMessage {
 		t.Fatalf("stored[0].Type = %q, want %q", got, acp.EventTypeUserMessage)
 	}
-	if got := stored[1].Type; got != acp.EventTypeSyntheticReentry {
-		t.Fatalf("stored[1].Type = %q, want %q", got, acp.EventTypeSyntheticReentry)
+	if got := stored[1].Type; got != acp.EventTypeDone {
+		t.Fatalf("stored[1].Type = %q, want %q", got, acp.EventTypeDone)
+	}
+	if got := stored[2].Type; got != acp.EventTypeSyntheticReentry {
+		t.Fatalf("stored[2].Type = %q, want %q", got, acp.EventTypeSyntheticReentry)
 	}
 }
 
@@ -364,16 +364,15 @@ func TestPromptSyntheticInterruptsAgentWaitingTurnWhenRequested(t *testing.T) {
 					Detail: "waiting for detached work",
 				})
 				close(firstPromptEntered)
-				events := make(chan acp.AgentEvent)
+				events := make(chan acp.AgentEvent, 1)
 				go func() {
 					<-releaseFirstPrompt
+					events <- acp.AgentEvent{Type: acp.EventTypeDone, TurnID: req.TurnID}
 					close(events)
 				}()
 				return events, nil
 			}
-			events := make(chan acp.AgentEvent)
-			close(events)
-			return events, nil
+			return completedSyntheticPromptEvents(req.TurnID), nil
 		}
 
 		userEventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "user prompt")
@@ -455,16 +454,15 @@ func TestPromptSyntheticInterruptsAgentWaitingTurnWhenRequested(t *testing.T) {
 					Detail: "waiting for detached work",
 				})
 				close(firstPromptEntered)
-				events := make(chan acp.AgentEvent)
+				events := make(chan acp.AgentEvent, 1)
 				go func() {
 					<-releaseFirstPrompt
+					events <- acp.AgentEvent{Type: acp.EventTypeDone, TurnID: req.TurnID}
 					close(events)
 				}()
 				return events, nil
 			}
-			events := make(chan acp.AgentEvent)
-			close(events)
-			return events, nil
+			return completedSyntheticPromptEvents(req.TurnID), nil
 		}
 
 		userEventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "user prompt")
@@ -496,4 +494,11 @@ func TestPromptSyntheticInterruptsAgentWaitingTurnWhenRequested(t *testing.T) {
 		_ = collectEvents(t, userEventsCh)
 		_ = collectEvents(t, syntheticEventsCh)
 	})
+}
+
+func completedSyntheticPromptEvents(turnID string) <-chan acp.AgentEvent {
+	events := make(chan acp.AgentEvent, 1)
+	events <- acp.AgentEvent{Type: acp.EventTypeDone, TurnID: turnID}
+	close(events)
+	return events
 }

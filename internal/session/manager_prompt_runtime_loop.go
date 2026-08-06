@@ -2,9 +2,7 @@ package session
 
 import (
 	"context"
-
 	"errors"
-
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
@@ -33,8 +31,7 @@ func (m *Manager) pumpPrompt(
 			activity,
 			releaseExecution,
 			out,
-			fatal.failure,
-			fatal.errorText,
+			fatal,
 		)
 	}()
 
@@ -80,12 +77,13 @@ func (m *Manager) flushPromptChunkCoalescer(
 	out chan<- acp.AgentEvent,
 	loop *promptPumpLoopState,
 	coalescer *promptChunkCoalescer,
+	fatal *promptPumpFatal,
 ) (*store.SessionFailure, string, bool) {
 	events, ok := coalescer.take()
 	if !ok {
 		return nil, "", false
 	}
-	return m.handlePromptPumpChunkBatch(ctx, deliveryCtx, session, turnState, out, loop, events)
+	return m.handlePromptPumpChunkBatch(ctx, deliveryCtx, session, turnState, out, loop, events, fatal)
 }
 
 func (m *Manager) stopSessionAfterFatalPromptFailure(
@@ -97,7 +95,7 @@ func (m *Manager) stopSessionAfterFatalPromptFailure(
 	if m == nil || session == nil || failure == nil {
 		return
 	}
-	if info := session.Info(); info == nil || info.State != StateActive {
+	if info := session.Info(); info == nil || (info.State != StateActive && info.State != StateStopping) {
 		return
 	}
 
@@ -112,6 +110,7 @@ func (m *Manager) stopSessionAfterFatalPromptFailure(
 		"agent runtime became unavailable during prompt",
 	)
 	proc.setWaitErrorOverride(acp.WrapFailure(failure.Kind, summary, errors.New(summary)))
+	session.setFailure(store.CloneSessionFailure(failure))
 
 	stopCtx, cancel := detachedPromptStopContext(ctx, m)
 	defer cancel()
@@ -202,6 +201,7 @@ func (m *Manager) handlePromptPumpEvent(
 	loop *promptPumpLoopState,
 	event acp.AgentEvent,
 	runtimeEvent bool,
+	fatal *promptPumpFatal,
 ) (*store.SessionFailure, string, bool) {
 	if failure, errorText, stop, handled := m.emitPromptDeadlineWarningBeforeError(
 		ctx,
@@ -212,11 +212,20 @@ func (m *Manager) handlePromptPumpEvent(
 		loop,
 		event,
 		runtimeEvent,
+		fatal,
 	); handled {
 		return failure, errorText, stop
 	}
 
-	normalized, skip := m.preparePromptPumpEventForDelivery(ctx, session, turnState, loop, event, runtimeEvent)
+	normalized, skip := m.preparePromptPumpEventForDelivery(
+		ctx,
+		session,
+		turnState,
+		loop,
+		event,
+		runtimeEvent,
+		fatal,
+	)
 	if skip {
 		return nil, "", false
 	}
@@ -245,6 +254,7 @@ func (m *Manager) emitPromptDeadlineWarningBeforeError(
 	loop *promptPumpLoopState,
 	event acp.AgentEvent,
 	runtimeEvent bool,
+	fatal *promptPumpFatal,
 ) (*store.SessionFailure, string, bool, bool) {
 	if runtimeEvent || event.Type != acp.EventTypeError || loop.activity == nil {
 		return nil, "", false, false
@@ -267,6 +277,7 @@ func (m *Manager) emitPromptDeadlineWarningBeforeError(
 		loop,
 		warning,
 		true,
+		fatal,
 	)
 	if failure == nil && errorText == "" && !stop {
 		return nil, "", false, false
@@ -281,12 +292,20 @@ func (m *Manager) preparePromptPumpEventForDelivery(
 	loop *promptPumpLoopState,
 	event acp.AgentEvent,
 	runtimeEvent bool,
+	fatal *promptPumpFatal,
 ) (acp.AgentEvent, bool) {
 	normalized := m.normalizeEvent(session, turnState.turnID, event)
+	normalized = promptErrorForExitedProcess(session.processHandle(), normalized)
 	if runtimeEvent && loop.activity != nil && loop.activity.shouldSkipDeliveredPromptDeadlineWarning(normalized) {
 		return acp.AgentEvent{}, true
 	}
-	normalized = m.attachPromptFailureDiagnostics(ctx, session, normalized)
+	attachDiagnostics := true
+	if isFatalPromptFailureEvent(normalized) {
+		attachDiagnostics = m.prepareFatalPromptFailureEvent(ctx, session, normalized, fatal)
+	}
+	if attachDiagnostics {
+		normalized = m.attachPromptFailureDiagnostics(ctx, session, normalized)
+	}
 	normalized = m.preparePromptEvent(ctx, turnState, normalized)
 	normalized = transcript.RedactAgentEvent(normalized)
 	return normalized, false

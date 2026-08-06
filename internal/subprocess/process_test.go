@@ -68,6 +68,90 @@ func TestLaunchSpawnsProcessAndConnectsPipes(t *testing.T) {
 	}
 }
 
+func TestProcessExitDiagnostics(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should capture the exit code and stderr before wrapping the wait error", func(t *testing.T) {
+		t.Parallel()
+
+		process := launchHelperProcess(t, "exit_23", LaunchConfig{DisableTransport: true})
+		if err := process.Wait(); err == nil || !strings.Contains(err.Error(), "fixture exiting with code 23") {
+			t.Fatalf("Wait() error = %v, want captured stderr", err)
+		}
+
+		status, ok := process.ExitStatus()
+		if !ok {
+			t.Fatal("ExitStatus() available = false, want true")
+		}
+		if got, want := status.ExitCode, 23; got != want {
+			t.Fatalf("ExitStatus().ExitCode = %d, want %d", got, want)
+		}
+		if status.Signal != "" {
+			t.Fatalf("ExitStatus().Signal = %q, want empty for an exit code", status.Signal)
+		}
+	})
+
+	t.Run("Should capture the terminating signal when the platform exposes one", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("Windows process state does not expose a terminating signal")
+		}
+
+		process := launchHelperProcess(t, "raw_echo", LaunchConfig{DisableTransport: true})
+		if err := process.cmd.Process.Kill(); err != nil {
+			t.Fatalf("Process.Kill() error = %v", err)
+		}
+		waitErr := process.Wait()
+		if waitErr == nil {
+			t.Fatal("Wait() error = nil, want signal termination error")
+		}
+		var exitErr *exec.ExitError
+		if !errors.As(waitErr, &exitErr) {
+			t.Fatalf("Wait() error = %T %[1]v, want *exec.ExitError", waitErr)
+		}
+
+		status, ok := process.ExitStatus()
+		if !ok {
+			t.Fatal("ExitStatus() available = false, want true")
+		}
+		if strings.TrimSpace(status.Signal) == "" {
+			t.Fatalf("ExitStatus().Signal = %q, want terminating signal", status.Signal)
+		}
+	})
+}
+
+func TestExitStatusExitCodeValue(t *testing.T) {
+	t.Parallel()
+
+	for _, testCase := range []struct {
+		name   string
+		status ExitStatus
+		want   int
+		ok     bool
+	}{
+		{
+			name:   "expose a Windows-style numeric exit code",
+			status: ExitStatus{ExitCode: 23},
+			want:   23,
+			ok:     true,
+		},
+		{
+			name:   "omit the Unix negative sentinel when a signal is present",
+			status: ExitStatus{ExitCode: -1, Signal: "killed"},
+			ok:     false,
+		},
+	} {
+		t.Run("Should "+testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, ok := testCase.status.ExitCodeValue()
+			if got != testCase.want || ok != testCase.ok {
+				t.Fatalf("ExitCodeValue() = %d, %t; want %d, %t", got, ok, testCase.want, testCase.ok)
+			}
+		})
+	}
+}
+
 func TestEnvironmentLookupUsesPlatformSemantics(t *testing.T) {
 	t.Parallel()
 
@@ -1149,6 +1233,10 @@ func newHelperServer(scenario string, shutdownMarker string) *helperServer {
 }
 
 func (h *helperServer) run() int {
+	if h.scenario == "exit_23" {
+		writeHelperDiagnostic("fixture exiting with code 23\n")
+		return 23
+	}
 	if h.scenario == "raw_echo" {
 		if _, err := io.Copy(os.Stdout, os.Stdin); err != nil {
 			writeHelperDiagnostic("raw echo: %v\n", err)

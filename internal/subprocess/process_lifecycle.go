@@ -30,6 +30,7 @@ func (p *Process) checkpointShutdownRequested(ctx context.Context) error {
 
 func (p *Process) waitForExit(ctx context.Context) {
 	waitErr := p.cmd.Wait()
+	p.captureExitStatus(p.cmd.ProcessState)
 	if p.stderrPipeline != nil {
 		if flushErr := p.stderrPipeline.Flush(); flushErr != nil {
 			waitErr = errors.Join(waitErr, fmt.Errorf("subprocess: flush stderr: %w", flushErr))

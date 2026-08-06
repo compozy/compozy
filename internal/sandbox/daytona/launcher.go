@@ -7,6 +7,7 @@ import (
 	"path"
 
 	"github.com/compozy/compozy/internal/sandbox"
+	"github.com/compozy/compozy/internal/subprocess"
 )
 
 var (
@@ -76,6 +77,17 @@ func (h *daytonaHandle) Stderr() string {
 		return ""
 	}
 	return h.session.Stderr()
+}
+
+func (h *daytonaHandle) ExitStatus() (subprocess.ExitStatus, bool) {
+	if h == nil || h.session == nil {
+		return subprocess.ExitStatus{}, false
+	}
+	exitCode, ok := h.session.ExitCode()
+	if !ok {
+		return subprocess.ExitStatus{}, false
+	}
+	return subprocess.ExitStatus{ExitCode: exitCode}, true
 }
 
 func (h *daytonaHandle) Done() <-chan struct{} {

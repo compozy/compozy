@@ -86,6 +86,20 @@ func (s *Session) setCurrentTurnID(turnID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.currentTurnID = strings.TrimSpace(turnID)
+	s.currentPromptCancelTurn = ""
+	if s.currentTurnID != "" && s.currentPromptDone == nil {
+		s.currentPromptDone = make(chan struct{})
+	}
+}
+
+func (s *Session) currentPromptCompletion() <-chan struct{} {
+	if s == nil {
+		return nil
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.currentPromptDone
 }
 
 func (s *Session) setCurrentTurnSource(source TurnSource) {
@@ -143,6 +157,58 @@ func (s *Session) cancelCurrentPrompt() bool {
 	return true
 }
 
+func (s *Session) requestCurrentPromptCancellation() (
+	string,
+	*AgentProcess,
+	context.CancelFunc,
+	bool,
+) {
+	if s == nil {
+		return "", nil, nil, false
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.promptSetupCount == 0 && s.currentTurnSource == "" && s.currentTurnID == "" {
+		return "", nil, nil, false
+	}
+	turnID := strings.TrimSpace(s.currentTurnID)
+	if turnID != "" {
+		s.currentPromptCancelTurn = turnID
+	}
+	return turnID, s.process, s.currentPromptCancel, true
+}
+
+func (s *Session) promptCancellationRequested(turnID string) bool {
+	if s == nil {
+		return false
+	}
+
+	target := strings.TrimSpace(turnID)
+	if target == "" {
+		return false
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.currentPromptCancelTurn == target
+}
+
+func (s *Session) clearPromptCancellation(turnID string) {
+	if s == nil {
+		return
+	}
+
+	target := strings.TrimSpace(turnID)
+	if target == "" {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.currentPromptCancelTurn == target {
+		s.currentPromptCancelTurn = ""
+	}
+}
+
 func (s *Session) clearCurrentTurnSource() {
 	if s == nil {
 		return
@@ -161,6 +227,19 @@ func (s *Session) clearCurrentTurnID() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.currentTurnID = ""
+}
+
+func (s *Session) finishCurrentPromptCompletion() {
+	if s == nil {
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.currentPromptDone != nil {
+		close(s.currentPromptDone)
+		s.currentPromptDone = nil
+	}
 }
 
 func (s *Session) clearCurrentPromptMeta() {

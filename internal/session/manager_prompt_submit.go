@@ -62,11 +62,13 @@ func (m *Manager) submitPromptRequest(ctx context.Context, req promptRequest) (<
 	stateOwned := true
 	defer func() {
 		if stateOwned {
+			session.clearPromptCancellation(req.turnID)
 			session.clearCurrentTurnID()
 			session.clearCurrentTurnSource()
 			session.clearCurrentPromptMessage()
 			session.clearCurrentPromptMeta()
 			session.clearCurrentSkillInvocations()
+			session.finishCurrentPromptCompletion()
 		}
 	}()
 	dispatchMessage, err := m.promptDispatchMessage(ctx, session, message)
@@ -96,12 +98,14 @@ func (m *Manager) submitPromptInReservedSlot(
 	defer func() {
 		if clearTurnSource {
 			cancelPromptExecution()
+			session.clearPromptCancellation(req.turnID)
 			session.clearCurrentTurnID()
 			session.clearCurrentTurnSource()
 			session.clearCurrentPromptMessage()
 			session.clearCurrentPromptMeta()
 			session.clearCurrentSkillInvocations()
 			session.clearCurrentPromptCancel()
+			session.finishCurrentPromptCompletion()
 		}
 	}()
 

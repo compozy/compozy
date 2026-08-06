@@ -17,9 +17,18 @@ import (
 const (
 	sessionPromptBodyLimit = 1 << 20
 	promptResultEventName  = "prompt_result"
+	promptDoneEventName    = "done"
+	promptFinishEventName  = "finish"
 )
 
 var errSessionPromptBodyTooLarge = errors.New("session prompt response exceeds size limit")
+
+var errSessionPromptStreamIncomplete = errors.New("session prompt stream ended before a terminal event")
+
+type sessionPromptStreamState struct {
+	terminal bool
+	failure  error
+}
 
 type goalCommandAPIError struct {
 	statusCode int
@@ -67,7 +76,8 @@ func (c *unixSocketClient) doSessionPrompt(
 	}
 	if sessionPromptIsEventStream(response) {
 		events := make([]AgentEventRecord, 0)
-		if err := decodeSSE(ctx, response.Body, func(event SSEEvent) error {
+		state := sessionPromptStreamState{}
+		decodeErr := decodeSSE(ctx, response.Body, func(event SSEEvent) error {
 			var payload AgentEventRecord
 			if len(event.Data) > 0 {
 				if err := json.Unmarshal(event.Data, &payload); err != nil {
@@ -78,11 +88,16 @@ func (c *unixSocketClient) doSessionPrompt(
 				payload.Type = event.Event
 			}
 			events = append(events, payload)
-			return nil
-		}); err != nil {
-			return SessionPromptRecord{}, err
+			return state.observe(event)
+		})
+		record := SessionPromptRecord{Events: events}
+		if decodeErr != nil || state.failure != nil {
+			return record, errors.Join(decodeErr, state.failure)
 		}
-		return SessionPromptRecord{Events: events}, nil
+		if !state.terminal {
+			return record, errSessionPromptStreamIncomplete
+		}
+		return record, nil
 	}
 
 	body, err := readSessionPromptBody(response.Body)
@@ -125,9 +140,22 @@ func (c *unixSocketClient) StreamPromptSession(
 	}
 	if sessionPromptIsEventStream(response) {
 		if handler == nil {
-			return drainResponseBody(http.MethodPost, path, response.Body)
+			handler = func(SSEEvent) error { return nil }
 		}
-		return decodeSSE(ctx, response.Body, handler)
+		state := sessionPromptStreamState{}
+		decodeErr := decodeSSE(ctx, response.Body, func(event SSEEvent) error {
+			if err := state.observe(event); err != nil {
+				return err
+			}
+			return handler(event)
+		})
+		if decodeErr != nil || state.failure != nil {
+			return errors.Join(decodeErr, state.failure)
+		}
+		if !state.terminal {
+			return errSessionPromptStreamIncomplete
+		}
+		return nil
 	}
 	body, err := readSessionPromptBody(response.Body)
 	if err != nil {
@@ -140,6 +168,46 @@ func (c *unixSocketClient) StreamPromptSession(
 		return nil
 	}
 	return handler(SSEEvent{Event: promptResultEventName, Data: body})
+}
+
+func (s *sessionPromptStreamState) observe(event SSEEvent) error {
+	if strings.TrimSpace(string(event.Data)) == "[DONE]" {
+		s.terminal = true
+		return nil
+	}
+	var payload struct {
+		Type      string                          `json:"type"`
+		Error     string                          `json:"error"`
+		ErrorText string                          `json:"errorText"`
+		Failure   *contract.SessionFailurePayload `json:"failure"`
+	}
+	if len(event.Data) > 0 {
+		if err := json.Unmarshal(event.Data, &payload); err != nil {
+			return fmt.Errorf("cli: decode prompt stream event: %w", err)
+		}
+	}
+	eventType := strings.TrimSpace(payload.Type)
+	if eventType == "" {
+		eventType = strings.TrimSpace(event.Event)
+	}
+	switch eventType {
+	case automationErrorKey:
+		s.terminal = true
+		message := strings.TrimSpace(payload.ErrorText)
+		if message == "" {
+			message = strings.TrimSpace(payload.Error)
+		}
+		if message == "" && payload.Failure != nil {
+			message = strings.TrimSpace(payload.Failure.Summary)
+		}
+		if message == "" {
+			message = "daemon reported a terminal prompt failure"
+		}
+		s.failure = fmt.Errorf("cli: session prompt stream failed: %s", message)
+	case promptDoneEventName, promptFinishEventName, promptResultEventName:
+		s.terminal = true
+	}
+	return nil
 }
 
 func sessionPromptIsEventStream(response *http.Response) bool {

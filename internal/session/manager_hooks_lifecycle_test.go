@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/acp"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
@@ -148,6 +149,210 @@ func TestSessionNetworkLifecycleHandling(t *testing.T) {
 
 func TestStopWithCauseLifecycle(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should preserve stop hooks around a fatal prompt failure", func(t *testing.T) {
+		t.Parallel()
+
+		type lifecycleStep struct {
+			name  string
+			state State
+		}
+
+		var (
+			stepsMu sync.Mutex
+			steps   []lifecycleStep
+			session *Session
+		)
+		recordStep := func(name string) {
+			stepsMu.Lock()
+			defer stepsMu.Unlock()
+			steps = append(steps, lifecycleStep{name: name, state: session.Info().State})
+		}
+
+		dispatcher := &spyHookDispatcher{
+			dispatchSessionPreStopFn: func(
+				_ context.Context,
+				payload hookspkg.SessionPreStopPayload,
+			) (hookspkg.SessionPreStopPayload, error) {
+				recordStep("pre-stop")
+				return payload, nil
+			},
+			dispatchSessionPostStopFn: func(
+				_ context.Context,
+				payload hookspkg.SessionPostStopPayload,
+			) (hookspkg.SessionPostStopPayload, error) {
+				recordStep("post-stop")
+				return payload, nil
+			},
+		}
+		h := newHarness(t, WithHookSet(fullHookSet(dispatcher)))
+		session = createSession(t, h)
+		t.Cleanup(func() {
+			if _, ok := h.manager.Get(session.ID); ok {
+				reportSessionStop(t, h, session.ID)
+			}
+		})
+
+		h.driver.stopHook = func(proc *fakeProcess) error {
+			recordStep("driver-stop")
+			proc.crash(errors.New("acp subprocess exited: exit status 23"), "codex stderr tail")
+			return nil
+		}
+		h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			events := make(chan acp.AgentEvent, 1)
+			events <- acp.AgentEvent{
+				Type:      acp.EventTypeError,
+				TurnID:    req.TurnID,
+				Timestamp: time.Now().UTC(),
+				Error:     "ACP process disconnected",
+				Failure: &store.SessionFailure{
+					Kind:    store.FailureProcess,
+					Summary: "ACP process disconnected",
+				},
+			}
+			close(events)
+			return events, nil
+		}
+
+		events, err := h.manager.Prompt(testutil.Context(t), session.ID, "hello")
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+		promptEvents := collectEvents(t, events)
+		if got, want := len(promptEvents), 1; got != want {
+			t.Fatalf("Prompt() events = %d, want %d", got, want)
+		}
+		if failure := promptEvents[0].Failure; failure == nil || failure.Kind != store.FailureProcess {
+			t.Fatalf("Prompt() failure = %#v, want process_exit", failure)
+		}
+		h.notifier.waitForStopped(t, session.ID)
+
+		stepsMu.Lock()
+		gotSteps := append([]lifecycleStep(nil), steps...)
+		stepsMu.Unlock()
+		wantSteps := []lifecycleStep{
+			{name: "pre-stop", state: StateActive},
+			{name: "driver-stop", state: StateStopping},
+			{name: "post-stop", state: StateStopped},
+		}
+		if len(gotSteps) != len(wantSteps) {
+			t.Fatalf("fatal prompt lifecycle steps = %#v, want %#v", gotSteps, wantSteps)
+		}
+		for i := range wantSteps {
+			if gotSteps[i] != wantSteps[i] {
+				t.Fatalf("fatal prompt lifecycle step %d = %#v, want %#v", i, gotSteps[i], wantSteps[i])
+			}
+		}
+		if got, want := h.driver.stopCalls, 1; got != want {
+			t.Fatalf("driver stop calls = %d, want %d", got, want)
+		}
+		if got, want := h.notifier.stoppedCount(), 1; got != want {
+			t.Fatalf("stopped notifications = %d, want %d", got, want)
+		}
+		if _, ok := h.manager.Get(session.ID); ok {
+			t.Fatalf("Get(%q) found session after fatal prompt finalization", session.ID)
+		}
+	})
+
+	t.Run("Should preserve lifecycle hooks when process exit wins prompt stream closure", func(t *testing.T) {
+		t.Parallel()
+
+		type lifecycleStep struct {
+			name  string
+			state State
+		}
+
+		var (
+			stepsMu sync.Mutex
+			steps   []lifecycleStep
+			session *Session
+		)
+		recordStep := func(name string) {
+			stepsMu.Lock()
+			defer stepsMu.Unlock()
+			steps = append(steps, lifecycleStep{name: name, state: session.Info().State})
+		}
+
+		dispatcher := &spyHookDispatcher{
+			dispatchSessionPreStopFn: func(
+				_ context.Context,
+				payload hookspkg.SessionPreStopPayload,
+			) (hookspkg.SessionPreStopPayload, error) {
+				recordStep("pre-stop")
+				return payload, nil
+			},
+			dispatchSessionPostStopFn: func(
+				_ context.Context,
+				payload hookspkg.SessionPostStopPayload,
+			) (hookspkg.SessionPostStopPayload, error) {
+				recordStep("post-stop")
+				return payload, nil
+			},
+		}
+		h := newHarness(t, WithHookSet(fullHookSet(dispatcher)))
+		session = createSession(t, h)
+		h.notifier.finalizingHook = func(context.Context, *Session) {
+			recordStep("finalizing")
+		}
+		t.Cleanup(func() {
+			if _, ok := h.manager.Get(session.ID); ok {
+				reportSessionStop(t, h, session.ID)
+			}
+		})
+
+		source := make(chan acp.AgentEvent)
+		h.driver.promptHook = func(_ *fakeProcess, _ acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			return source, nil
+		}
+		events, err := h.manager.Prompt(testutil.Context(t), session.ID, "hello")
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+		h.driver.lastProcess().crash(
+			acp.WrapFailure(
+				store.FailureProcess,
+				"ACP subprocess exited unexpectedly",
+				errors.New("acp subprocess exited: exit status 23"),
+			),
+			"codex stderr tail",
+		)
+		close(source)
+
+		promptEvents := collectEvents(t, events)
+		if got, want := len(promptEvents), 1; got != want {
+			t.Fatalf("Prompt() events = %d, want %d", got, want)
+		}
+		if failure := promptEvents[0].Failure; failure == nil || failure.Kind != store.FailureProcess {
+			t.Fatalf("Prompt() failure = %#v, want process_exit", failure)
+		}
+		h.notifier.waitForStopped(t, session.ID)
+
+		stepsMu.Lock()
+		gotSteps := append([]lifecycleStep(nil), steps...)
+		stepsMu.Unlock()
+		wantSteps := []lifecycleStep{
+			{name: "pre-stop", state: StateActive},
+			{name: "finalizing", state: StateStopping},
+			{name: "post-stop", state: StateStopped},
+		}
+		if len(gotSteps) != len(wantSteps) {
+			t.Fatalf("process-exit lifecycle steps = %#v, want %#v", gotSteps, wantSteps)
+		}
+		for i := range wantSteps {
+			if gotSteps[i] != wantSteps[i] {
+				t.Fatalf("process-exit lifecycle step %d = %#v, want %#v", i, gotSteps[i], wantSteps[i])
+			}
+		}
+		if got := h.driver.stopCalls; got != 0 {
+			t.Fatalf("driver stop calls = %d, want none for an already exited process", got)
+		}
+		if got, want := h.notifier.stoppedCount(), 1; got != want {
+			t.Fatalf("stopped notifications = %d, want %d", got, want)
+		}
+		if _, ok := h.manager.Get(session.ID); ok {
+			t.Fatalf("Get(%q) found session after process-exit finalization", session.ID)
+		}
+	})
 
 	t.Run("Should reject a pre-stop workspace mutation before persistence", func(t *testing.T) {
 		t.Parallel()

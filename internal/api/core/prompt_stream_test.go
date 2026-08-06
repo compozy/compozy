@@ -1,6 +1,7 @@
 package core_test
 
 import (
+	"context"
 	"encoding/json"
 	"reflect"
 	"strings"
@@ -10,6 +11,47 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/api/core"
 )
+
+func TestDeliverPromptEventStream(t *testing.T) {
+	t.Run("Should emit an explicit terminal failure when the upstream stream closes without a terminal event", func(
+		t *testing.T,
+	) {
+		t.Parallel()
+
+		writer := &bufferFlusher{}
+		encoder := core.NewPromptStreamEncoder(func() time.Time {
+			return time.Date(2026, 8, 5, 12, 0, 0, 0, time.UTC)
+		})
+		if err := encoder.Start(writer, "turn-incomplete"); err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+		events := make(chan acp.AgentEvent, 1)
+		events <- acp.AgentEvent{
+			Type:   acp.EventTypeAgentMessage,
+			TurnID: "turn-incomplete",
+			Text:   "partial response",
+		}
+		close(events)
+
+		core.DeliverPromptEventStream(
+			context.Background(),
+			make(chan struct{}),
+			events,
+			func() {},
+			encoder,
+			writer,
+		)
+
+		stream := writer.String()
+		if !strings.Contains(stream, `"type":"error"`) ||
+			!strings.Contains(stream, "ended before a terminal event") {
+			t.Fatalf("stream = %q, want explicit incomplete-stream failure", stream)
+		}
+		if !strings.Contains(stream, "data: [DONE]") {
+			t.Fatalf("stream = %q, want a terminal sentinel after the failure", stream)
+		}
+	})
+}
 
 func TestPromptStreamEncoderStart(t *testing.T) {
 	t.Run("ShouldEmitAcceptedTurnIDImmediately", func(t *testing.T) {

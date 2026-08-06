@@ -137,6 +137,13 @@ func (h *localProcessHandle) Wait() error {
 	return h.process.Wait()
 }
 
+func (h *localProcessHandle) ExitStatus() (subprocess.ExitStatus, bool) {
+	if h == nil || h.process == nil {
+		return subprocess.ExitStatus{}, false
+	}
+	return h.process.ExitStatus()
+}
+
 func (h *localProcessHandle) Stop(ctx context.Context) error {
 	if h == nil || h.process == nil {
 		return nil

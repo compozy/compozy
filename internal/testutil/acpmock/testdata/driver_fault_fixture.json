@@ -27,6 +27,19 @@
                     ]
                 },
                 {
+                    "name": "recover-after-disconnect",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "continue after disconnect"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "recovered after disconnect"
+                        }
+                    ]
+                },
+                {
                     "name": "invalid-frame",
                     "match": {
                         "turn_source": "user",

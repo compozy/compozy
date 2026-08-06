@@ -26,13 +26,16 @@ func DeliverPromptEventStream(
 			return
 		case event, ok := <-events:
 			if !ok {
-				if err := encoder.Finish(writer, acp.AgentEvent{}); err != nil {
+				if err := encoder.Emit(writer, acp.PromptStreamIncompleteEvent()); err != nil {
 					return
 				}
 				return
 			}
 			if err := encoder.Emit(writer, event); err != nil {
 				cancel()
+				return
+			}
+			if event.Type == acp.EventTypeDone || event.Type == acp.EventTypeError {
 				return
 			}
 		}

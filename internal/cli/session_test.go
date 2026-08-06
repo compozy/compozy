@@ -2545,6 +2545,54 @@ func TestSessionPromptJSONLOutput(t *testing.T) {
 		}
 	})
 
+	t.Run("Should keep emitted JSONL frames and return a nonzero command error", func(t *testing.T) {
+		t.Parallel()
+
+		streamErr := errors.New("peer disconnected before response")
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			streamPromptSessionFn: func(
+				_ context.Context,
+				_ string,
+				_ SessionPromptRequest,
+				handler SSEHandler,
+			) error {
+				for _, event := range []SSEEvent{
+					{Data: mustJSON(t, map[string]any{
+						"type":  "text-delta",
+						"id":    "turn-1-text",
+						"delta": "partial before disconnect",
+					})},
+					{Data: mustJSON(t, map[string]any{
+						"type":      "error",
+						"errorText": streamErr.Error(),
+					})},
+				} {
+					if err := handler(event); err != nil {
+						return err
+					}
+				}
+				return streamErr
+			},
+		})
+
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"session", "prompt", "sess-1", "hello", "-o", "jsonl",
+		)
+		if !errors.Is(err, streamErr) {
+			t.Fatalf("executeRootCommand(session prompt jsonl) error = %v, want %v", err, streamErr)
+		}
+		lines := strings.Split(strings.TrimSpace(stdout), "\n")
+		if got, want := len(lines), 2; got != want {
+			t.Fatalf("session prompt jsonl lines = %d, want %d; output=%q", got, want, stdout)
+		}
+		if !strings.Contains(lines[0], "partial before disconnect") ||
+			!strings.Contains(lines[1], "peer disconnected before response") {
+			t.Fatalf("session prompt jsonl output = %q, want partial chunk and terminal error", stdout)
+		}
+	})
+
 	t.Run("Should emit one direct line for a structured Goal result", func(t *testing.T) {
 		t.Parallel()
 
