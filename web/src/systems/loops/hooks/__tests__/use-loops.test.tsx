@@ -71,37 +71,37 @@ describe("loop read hooks", () => {
     const { result } = renderHook(() => useLoops(WS), { wrapper: createWrapper() });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.loops.map(loop => loop.name)).toEqual([
-      "software-delivery",
+      "implement-tasks",
       "review-and-fix",
     ]);
     expect(result.current.total).toBe(2);
     expect(result.current.facets).toEqual({
-      categories: { delivery: 1, Engineering: 1 },
-      kinds: { read_only: 1, workspace: 1 },
+      categories: { Engineering: 2 },
+      kinds: { read_only: 2 },
       statuses: { running: 2 },
     });
   });
 
   it("Should fetch a definition, config and annotations for one loop", async () => {
     const wrapper = createWrapper();
-    const detail = renderHook(() => useLoop(WS, "software-delivery"), { wrapper });
+    const detail = renderHook(() => useLoop(WS, "implement-tasks"), { wrapper });
     await waitFor(() => expect(detail.result.current.isSuccess).toBe(true));
-    expect(detail.result.current.data?.definition.meta.name).toBe("software-delivery");
+    expect(detail.result.current.data?.definition.meta.name).toBe("implement-tasks");
 
-    const config = renderHook(() => useLoopConfig(WS, "software-delivery"), { wrapper });
+    const config = renderHook(() => useLoopConfig(WS, "implement-tasks"), { wrapper });
     await waitFor(() => expect(config.result.current.isSuccess).toBe(true));
     expect(config.result.current.data?.iteration_cap).toBe(16);
 
-    const annotations = renderHook(() => useLoopAnnotations(WS, "software-delivery"), { wrapper });
+    const annotations = renderHook(() => useLoopAnnotations(WS, "implement-tasks"), { wrapper });
     await waitFor(() => expect(annotations.result.current.isSuccess).toBe(true));
     expect(annotations.result.current.data).toHaveLength(2);
   });
 
   it("Should fetch the workspace runs list and a single run detail", async () => {
     const wrapper = createWrapper();
-    const runs = renderHook(() => useLoopRuns(WS, { loop: "software-delivery" }), { wrapper });
+    const runs = renderHook(() => useLoopRuns(WS, { loop: "implement-tasks" }), { wrapper });
     await waitFor(() => expect(runs.result.current.isSuccess).toBe(true));
-    expect(runs.result.current.data?.runs.every(run => run.loop_name === "software-delivery")).toBe(
+    expect(runs.result.current.data?.runs.every(run => run.loop_name === "implement-tasks")).toBe(
       true
     );
 

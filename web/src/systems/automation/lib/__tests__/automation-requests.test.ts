@@ -22,7 +22,7 @@ function loopJobDraft() {
     name: "daily-loop",
     loop_target: {
       workspace_id: "ws_stale",
-      loop_name: "software-delivery",
+      loop_name: "implement-tasks",
       inputs: {},
       input_mapping: {},
     },

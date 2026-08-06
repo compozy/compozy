@@ -34,7 +34,7 @@ export const JobConfirmation: Story = {
   args: {
     isPending: false,
     kind: "jobs",
-    name: "software-delivery-qa",
+    name: "implement-tasks-qa",
     onConfirm: fn(),
   },
   play: async ({ canvasElement }) => {

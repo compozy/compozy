@@ -15,7 +15,7 @@ const ROWS = [
     kind: "watch",
   },
   {
-    name: "software-delivery",
+    name: "implement-tasks",
     desc: "Ship the requested change end to end and prove it.",
     kind: "delivery",
   },

@@ -184,6 +184,67 @@ func TestReadOnlyPoolLifecycle(t *testing.T) {
 		}
 	})
 
+	t.Run("Should bound and release the detached opener context", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		observed := make(chan context.Context, 1)
+		pool := NewReadOnlyPool(ReadOnlyPoolConfig{
+			Open: func(openingCtx context.Context, _ store.SessionDBOwner, _ string) (store.EventReadCloser, error) {
+				observed <- openingCtx
+				return &readOnlyPoolTestReader{}, nil
+			},
+		})
+		lease, err := pool.Open(context.WithoutCancel(ctx), testSessionDBOwner("sess-bounded-opener"), "bounded.db")
+		if err != nil {
+			t.Fatalf("Open() error = %v", err)
+		}
+		openingCtx := <-observed
+		if _, ok := openingCtx.Deadline(); !ok {
+			t.Error("read-only pool opener context has no deadline")
+		}
+		if !errors.Is(openingCtx.Err(), context.Canceled) {
+			t.Errorf("read-only pool opener context error = %v, want context.Canceled after opening", openingCtx.Err())
+		}
+		if err := lease.Close(ctx); err != nil {
+			t.Fatalf("Close(lease) error = %v", err)
+		}
+		if err := pool.Close(ctx); err != nil {
+			t.Fatalf("Close(pool) error = %v", err)
+		}
+	})
+
+	t.Run("Should preserve an earlier caller deadline on the detached opener", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		callerDeadline := time.Now().Add(time.Second)
+		callerCtx, cancel := context.WithDeadline(context.WithoutCancel(ctx), callerDeadline)
+		t.Cleanup(cancel)
+		observed := make(chan context.Context, 1)
+		pool := NewReadOnlyPool(ReadOnlyPoolConfig{
+			Open: func(openingCtx context.Context, _ store.SessionDBOwner, _ string) (store.EventReadCloser, error) {
+				observed <- openingCtx
+				return &readOnlyPoolTestReader{}, nil
+			},
+		})
+		lease, err := pool.Open(callerCtx, testSessionDBOwner("sess-earlier-opener-deadline"), "earlier.db")
+		if err != nil {
+			t.Fatalf("Open() error = %v", err)
+		}
+		openingCtx := <-observed
+		openingDeadline, ok := openingCtx.Deadline()
+		if !ok || !openingDeadline.Equal(callerDeadline) {
+			t.Errorf("read-only pool opener deadline = %v, %v, want %v", openingDeadline, ok, callerDeadline)
+		}
+		if err := lease.Close(ctx); err != nil {
+			t.Fatalf("Close(lease) error = %v", err)
+		}
+		if err := pool.Close(ctx); err != nil {
+			t.Fatalf("Close(pool) error = %v", err)
+		}
+	})
+
 	t.Run("Should keep the same session path isolated by workspace owner", func(t *testing.T) {
 		t.Parallel()
 

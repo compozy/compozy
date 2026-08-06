@@ -31,7 +31,7 @@ func TestLoopSourceSyncerIntegrationShouldProjectFSPrecedence(t *testing.T) {
 		homePaths := loopIntegrationHome(t)
 		if _, _, err := looppkg.WriteDefinition(
 			homePaths.LoopsDir,
-			[]byte(testLoopYAML("software-delivery", "global shadow")),
+			[]byte(testLoopYAML("implement-tasks", "global shadow")),
 			looppkg.WriteDefinitionOptions{Source: looppkg.SourceUser},
 		); err != nil {
 			t.Fatalf("WriteDefinition(global) error = %v", err)
@@ -41,7 +41,7 @@ func TestLoopSourceSyncerIntegrationShouldProjectFSPrecedence(t *testing.T) {
 		workspaceLoopsDir := filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.LoopsDirName)
 		if _, _, err := looppkg.WriteDefinition(
 			workspaceLoopsDir,
-			[]byte(testLoopYAML("software-delivery", "workspace shadow")),
+			[]byte(testLoopYAML("implement-tasks", "workspace shadow")),
 			looppkg.WriteDefinitionOptions{Source: looppkg.SourceWorkspace},
 		); err != nil {
 			t.Fatalf("WriteDefinition(workspace) error = %v", err)
@@ -93,16 +93,16 @@ func TestLoopSourceSyncerIntegrationShouldProjectFSPrecedence(t *testing.T) {
 		resolved := looppkg.ResolveEffectiveResources(records, "ws-1")
 		found := false
 		for _, record := range resolved {
-			if record.Spec.Name != "software-delivery" {
+			if record.Spec.Name != "implement-tasks" {
 				continue
 			}
 			found = true
 			if got, want := record.Spec.Description, "workspace shadow"; got != want {
-				t.Fatalf("resolved software-delivery description = %q, want %q", got, want)
+				t.Fatalf("resolved implement-tasks description = %q, want %q", got, want)
 			}
 		}
 		if !found {
-			t.Fatal("resolved software-delivery not found")
+			t.Fatal("resolved implement-tasks not found")
 		}
 	})
 
@@ -252,7 +252,7 @@ func TestLoopWatcherIntegrationShouldResyncForkedFileBackedEdits(t *testing.T) {
 		sourceRoot := t.TempDir()
 		_, sourcePath, err := looppkg.WriteDefinition(
 			sourceRoot,
-			[]byte(testLoopYAML("software-delivery", "source")),
+			[]byte(testLoopYAML("implement-tasks", "source")),
 			looppkg.WriteDefinitionOptions{Source: looppkg.SourceUser},
 		)
 		if err != nil {
@@ -409,7 +409,10 @@ func assertDevCycleLoopCatalog(
 		}
 		return
 	}
-	for _, name := range []string{"software-delivery", "review-and-fix"} {
+	if got, want := len(found), 2; got != want {
+		t.Fatalf("dev-cycle loops = %#v, want exactly %d bundled loops", found, want)
+	}
+	for _, name := range []string{"implement-tasks", "review-and-fix"} {
 		spec, ok := found[name]
 		if !ok {
 			t.Fatalf("dev-cycle loop %q missing from catalog; found %#v", name, found)

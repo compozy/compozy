@@ -80,33 +80,40 @@ describe("LoopTargetFields", () => {
   it("Should list selectable loops and auto-generate a typed input form for the chosen loop", () => {
     render(<Harness />);
     const select = screen.getByTestId("loop-target-select");
-    expect(select).toHaveTextContent("software-delivery");
+    expect(select).toHaveTextContent("implement-tasks");
     // No inputs render until a loop is picked.
     expect(screen.queryByTestId("loop-target-inputs")).not.toBeInTheDocument();
 
-    fireEvent.change(select, { target: { value: "software-delivery" } });
+    fireEvent.change(select, { target: { value: "implement-tasks" } });
     const controls = screen.getAllByTestId("loop-input-control").map(node => node.dataset.input);
-    expect(controls).toEqual(["goal", "max_files"]);
-    expect(screen.getByTestId("loop-input-field-goal")).toBeInTheDocument();
-    expect(screen.getByTestId("loop-input-field-max_files")).toHaveAttribute("type", "number");
+    expect(controls).toEqual(["slug", "implementer", "auto_commit"]);
+    expect(screen.getByTestId("loop-input-field-slug")).toBeInTheDocument();
+    expect(screen.getByTestId("loop-input-field-implementer")).toBeInTheDocument();
+    expect(screen.getByTestId("loop-input-switch-auto_commit")).toBeInTheDocument();
   });
 
   it("Should write static input values onto the loop target", () => {
     render(<Harness />);
     fireEvent.change(screen.getByTestId("loop-target-select"), {
-      target: { value: "software-delivery" },
+      target: { value: "implement-tasks" },
     });
-    fireEvent.change(screen.getByTestId("loop-input-field-goal"), {
-      target: { value: "ship it" },
+    fireEvent.change(screen.getByTestId("loop-input-field-slug"), {
+      target: { value: "billing-webhooks" },
     });
-    expect((screen.getByTestId("loop-input-field-goal") as HTMLInputElement).value).toBe("ship it");
+    expect((screen.getByTestId("loop-input-field-slug") as HTMLInputElement).value).toBe(
+      "billing-webhooks"
+    );
+    expect(JSON.parse(screen.getByTestId("loop-target-value").textContent ?? "{}")).toMatchObject({
+      loop_name: "implement-tasks",
+      inputs: { slug: "billing-webhooks" },
+    });
   });
 
   it("Should round-trip bounded Live participation and expose only Loop-valid strategies", () => {
     render(
       <Harness
         initialValue={{
-          loop_name: "software-delivery",
+          loop_name: "implement-tasks",
           inputs: {},
           input_mapping: {},
           network_participation: {
@@ -139,16 +146,16 @@ describe("LoopTargetFields", () => {
   it("Should render the event-payload mapping table only when enabled", () => {
     const { rerender } = render(<Harness />);
     fireEvent.change(screen.getByTestId("loop-target-select"), {
-      target: { value: "software-delivery" },
+      target: { value: "implement-tasks" },
     });
     expect(screen.queryByTestId("loop-input-mapping")).not.toBeInTheDocument();
 
     rerender(<Harness showMapping />);
     fireEvent.change(screen.getByTestId("loop-target-select"), {
-      target: { value: "software-delivery" },
+      target: { value: "implement-tasks" },
     });
     expect(screen.getByTestId("loop-input-mapping")).toBeInTheDocument();
-    expect(screen.getByTestId("loop-mapping-field-goal")).toBeInTheDocument();
+    expect(screen.getByTestId("loop-mapping-field-slug")).toBeInTheDocument();
   });
 
   it("Should render a load error instead of the empty workspace copy", () => {
@@ -176,7 +183,7 @@ describe("LoopTargetFields", () => {
 
     const select = screen.getByRole("combobox", { name: "Loop" });
     expect(select).toHaveValue("review-and-fix");
-    expect(select).toHaveTextContent("software-delivery");
+    expect(select).toHaveTextContent("implement-tasks");
     expect(select).toHaveTextContent("review-and-fix (unavailable for schedule)");
     expect(screen.getByRole("alert")).toHaveTextContent(
       "review-and-fix does not declare the schedule start kind"

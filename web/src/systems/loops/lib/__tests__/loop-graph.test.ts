@@ -11,7 +11,7 @@ import {
   topoOrder,
 } from "../loop-graph";
 
-const definition = loopDetailByName.get("software-delivery")!.definition;
+const definition = loopDetailByName.get("quality-gate-demo")!.definition;
 
 describe("loop-graph", () => {
   it("Should project the daemon graph (opaque in OpenAPI) into typed nodes and edges", () => {

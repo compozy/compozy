@@ -4,7 +4,7 @@
     "pages": [
         "index",
         "review-and-fix-loop",
-        "software-delivery-loop",
+        "implement-tasks-loop",
         "morning-briefing-job",
         "webhook-to-agent-run",
         "react-to-session-end"

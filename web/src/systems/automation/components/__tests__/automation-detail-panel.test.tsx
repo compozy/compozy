@@ -260,7 +260,7 @@ describe("AutomationDetailPanel", () => {
         target_kind: "loop",
         loop_target: {
           workspace_id: "ws_alpha",
-          loop_name: "software-delivery",
+          loop_name: "implement-tasks",
           inputs: { slug: "helix-v1-launch", dry_run: false },
           input_mapping: {},
         },
@@ -276,10 +276,8 @@ describe("AutomationDetailPanel", () => {
       ],
     });
 
-    expect(screen.getByTestId("automation-detail-meta")).toHaveTextContent(
-      "Loop: software-delivery"
-    );
-    expect(screen.getByTestId("automation-target-details")).toHaveTextContent("software-delivery");
+    expect(screen.getByTestId("automation-detail-meta")).toHaveTextContent("Loop: implement-tasks");
+    expect(screen.getByTestId("automation-target-details")).toHaveTextContent("implement-tasks");
     expect(screen.getByTestId("automation-target-details")).toHaveTextContent("helix-v1-launch");
     expect(screen.queryByText("Prompt")).not.toBeInTheDocument();
     expect(screen.queryByText(/Agent:/)).not.toBeInTheDocument();
@@ -299,7 +297,7 @@ describe("AutomationDetailPanel", () => {
         target_kind: "loop",
         loop_target: {
           workspace_id: "ws_alpha",
-          loop_name: "software-delivery",
+          loop_name: "implement-tasks",
           inputs: { slug: "helix-v1-launch" },
           input_mapping: { branch: "data.branch" },
         },
@@ -308,9 +306,7 @@ describe("AutomationDetailPanel", () => {
       runs: [],
     });
 
-    expect(screen.getByTestId("automation-detail-meta")).toHaveTextContent(
-      "Loop: software-delivery"
-    );
+    expect(screen.getByTestId("automation-detail-meta")).toHaveTextContent("Loop: implement-tasks");
     expect(screen.getByTestId("automation-target-details")).toHaveTextContent("data.branch");
     expect(screen.queryByText("Prompt template")).not.toBeInTheDocument();
     expect(screen.queryByText(/Dispatches to/)).not.toBeInTheDocument();

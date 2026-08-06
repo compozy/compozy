@@ -57,14 +57,14 @@ function Harness({
 }
 
 describe("LoopCatalog", () => {
-  it("Should render Built-in and Custom groups with success rate and the last-outcome pill", () => {
+  it("Should render the bundled group with success rate and the last-outcome pill", () => {
     render(<Harness onRun={() => {}} />);
     expect(screen.getByTestId("loop-group-read-only")).toHaveTextContent("Built-in");
-    expect(screen.getByTestId("loop-group-workspace")).toHaveTextContent("Custom");
+    expect(screen.queryByTestId("loop-group-workspace")).not.toBeInTheDocument();
     expect(screen.getByText("90%")).toBeInTheDocument();
     expect(screen.getByText("100%")).toBeInTheDocument();
     expect(screen.getAllByText("Running")).toHaveLength(2);
-    expect(screen.getByTestId("loop-catalog-best")).toHaveTextContent("best Gen 2 · 0.82");
+    expect(screen.queryByTestId("loop-catalog-best")).not.toBeInTheDocument();
   });
 
   it("Should show the canceled terminal on a roster row without offering a stop control", () => {
@@ -89,7 +89,7 @@ describe("LoopCatalog", () => {
     expect(screen.queryByTestId("loop-group-workspace")).not.toBeInTheDocument();
     expect(screen.getByTestId("loop-group-read-only")).toBeInTheDocument();
     expect(screen.getByText("review-and-fix")).toBeInTheDocument();
-    expect(screen.queryByText("software-delivery")).not.toBeInTheDocument();
+    expect(screen.queryByText("implement-tasks")).not.toBeInTheDocument();
   });
 
   it("Should offer clear filters when a server-filtered page is empty", () => {
@@ -104,46 +104,46 @@ describe("LoopCatalog", () => {
 
   it("Should render the cards grid inside the same groups when view is cards", () => {
     render(<Harness onRun={() => {}} view="cards" />);
-    expect(screen.getAllByTestId("loop-catalog-card-grid")).toHaveLength(2);
-    expect(screen.getByTestId("loop-catalog-card-software-delivery")).toBeInTheDocument();
-    expect(screen.getByTestId("loop-group-workspace")).toBeInTheDocument();
+    expect(screen.getAllByTestId("loop-catalog-card-grid")).toHaveLength(1);
+    expect(screen.getByTestId("loop-catalog-card-implement-tasks")).toBeInTheDocument();
+    expect(screen.queryByTestId("loop-group-workspace")).not.toBeInTheDocument();
     expect(screen.queryByTestId("loop-catalog-row")).not.toBeInTheDocument();
   });
 
   it("Should launch a run from the card without navigating to the detail link", () => {
     const onRun = vi.fn();
     render(<Harness onRun={onRun} view="cards" />);
-    const card = screen.getByTestId("loop-catalog-card-software-delivery");
-    const link = within(card).getByRole("link", { name: "Open software-delivery" });
-    const runButton = within(card).getByTestId("loop-catalog-run-software-delivery");
+    const card = screen.getByTestId("loop-catalog-card-implement-tasks");
+    const link = within(card).getByRole("link", { name: "Open implement-tasks" });
+    const runButton = within(card).getByTestId("loop-catalog-run-implement-tasks");
     expect(link).not.toContainElement(runButton);
     fireEvent.click(runButton);
     expect(onRun).toHaveBeenCalledTimes(1);
-    expect(onRun.mock.calls[0][0].name).toBe("software-delivery");
+    expect(onRun.mock.calls[0][0].name).toBe("implement-tasks");
   });
 
   it("Should launch a run inline without navigating to the detail row", () => {
     const onRun = vi.fn();
     render(<Harness onRun={onRun} />);
     const deliveryRow = screen
-      .getByText("software-delivery")
+      .getByText("implement-tasks")
       .closest("[data-testid='loop-catalog-row']");
     const runButton = within(deliveryRow as HTMLElement).getByTestId(
-      "loop-catalog-run-software-delivery"
+      "loop-catalog-run-implement-tasks"
     );
     fireEvent.click(runButton);
     expect(onRun).toHaveBeenCalledTimes(1);
-    expect(onRun.mock.calls[0][0].name).toBe("software-delivery");
+    expect(onRun.mock.calls[0][0].name).toBe("implement-tasks");
   });
 
   it("Should keep the inline Run button outside the detail link", () => {
     render(<Harness onRun={() => {}} />);
     const deliveryRow = screen
-      .getByText("software-delivery")
+      .getByText("implement-tasks")
       .closest("[data-testid='loop-catalog-row']");
     const row = deliveryRow as HTMLElement;
-    const link = within(row).getByRole("link", { name: "Open software-delivery" });
-    const runButton = within(row).getByTestId("loop-catalog-run-software-delivery");
+    const link = within(row).getByRole("link", { name: "Open implement-tasks" });
+    const runButton = within(row).getByTestId("loop-catalog-run-implement-tasks");
     expect(link).not.toContainElement(runButton);
   });
 

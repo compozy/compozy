@@ -1,12 +1,12 @@
 import type { LoopDetail } from "../types";
 import { loopDetailByName } from "./fixtures";
 
-/** Lifecycle editor fixtures derived from the canonical software-delivery detail. */
+/** Lifecycle editor fixtures derived from the workspace-only quality-gate detail. */
 
 type RawNode = Record<string, unknown>;
 type RawGraph = { nodes: RawNode[]; edges: unknown[] };
 
-const delivery = loopDetailByName.get("software-delivery")!;
+const qualityGate = loopDetailByName.get("quality-gate-demo")!;
 
 function graphOf(detail: LoopDetail): RawGraph {
   return detail.definition.graph as unknown as RawGraph;
@@ -95,18 +95,18 @@ export const RUN_LOOP_NODE: RawNode = {
 
 /** A custom loop whose run-agent node carries the whole authored failure contract. */
 export const lifecycleAuthoredDetail: LoopDetail = withNode(
-  delivery,
+  qualityGate,
   "execute_task",
   LIFECYCLE_EXECUTE_TASK
 );
 
 /** The authored contract terminal reactions (ADR-010 §1). */
 export const contractTerminalsDetail: LoopDetail = {
-  ...delivery,
+  ...qualityGate,
   definition: {
-    ...delivery.definition,
+    ...qualityGate.definition,
     contract: {
-      ...delivery.definition.contract,
+      ...qualityGate.definition.contract,
       on_failed: [{ tool: "compozy__network_send", with: { channel: "ops" } }],
       on_canceled: [{ emit: { kind: "delivery_canceled" } }],
     },
@@ -114,17 +114,21 @@ export const contractTerminalsDetail: LoopDetail = {
 };
 
 /** A custom loop carrying the wait control node. */
-export const waitNodeDetail: LoopDetail = withAppendedNode(delivery, WAIT_NODE, "approve");
+export const waitNodeDetail: LoopDetail = withAppendedNode(qualityGate, WAIT_NODE, "collect");
 
 /** The wait node whose expiry declares no path — the canonical warning-only verdict. */
 export const waitWarningDetail: LoopDetail = withAppendedNode(
-  delivery,
+  qualityGate,
   WAIT_NODE_WITHOUT_EXPIRY_PATH,
-  "approve"
+  "collect"
 );
 
 /** A custom loop carrying the run-loop node with `on_parent_close`. */
-export const runLoopNodeDetail: LoopDetail = withAppendedNode(delivery, RUN_LOOP_NODE, "approve");
+export const runLoopNodeDetail: LoopDetail = withAppendedNode(
+  qualityGate,
+  RUN_LOOP_NODE,
+  "collect"
+);
 
 /**
  * A read-only definition: immutable, Publish illegal, Fork the only mutation. `marketplace` is
@@ -133,19 +137,19 @@ export const runLoopNodeDetail: LoopDetail = withAppendedNode(delivery, RUN_LOOP
  * `version` drops to 1 so a test can prove a rejected publish never advances the pill.
  */
 export const readOnlySourceDetail: LoopDetail = {
-  ...delivery,
+  ...qualityGate,
   source: "marketplace",
   version: 1,
   definition: {
-    ...delivery.definition,
-    meta: { ...delivery.definition.meta, version: 1 },
+    ...qualityGate.definition,
+    meta: { ...qualityGate.definition.meta, version: 1 },
   },
 };
 
 /** Fixture combining reliability, wait, parent-close, and terminal-reaction fields. */
 export const fullLifecycleDetail: LoopDetail = (() => {
   const withNodes = withAppendedNode(
-    withAppendedNode(lifecycleAuthoredDetail, WAIT_NODE, "approve"),
+    withAppendedNode(lifecycleAuthoredDetail, WAIT_NODE, "collect"),
     RUN_LOOP_NODE,
     "await_deploy_ack"
   );

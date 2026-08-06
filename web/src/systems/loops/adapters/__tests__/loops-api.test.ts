@@ -107,8 +107,8 @@ describe("loops-api (request construction + error mapping)", () => {
   });
 
   it("Should POST a new loop and surface a 409 conflict as a typed error", async () => {
-    const body: CreateLoopRequest = { fork_from_name: "software-delivery" };
-    mockJsonResponse({ loop: { name: "software-delivery" } }, { status: 201 });
+    const body: CreateLoopRequest = { fork_from_name: "implement-tasks" };
+    mockJsonResponse({ loop: { name: "implement-tasks" } }, { status: 201 });
     await createLoop(WS, body);
     await expectFetchRequest({ path: "/api/workspaces/ws_1/loops", method: "POST", body });
 
@@ -120,12 +120,12 @@ describe("loops-api (request construction + error mapping)", () => {
     const body = { expected_version: 3 } as PatchLoopRequest;
     // No server-provided error message -> the adapter's stale-editor fallback is used.
     mockJsonResponse({}, { status: 409 });
-    await expect(patchLoop(WS, "software-delivery", body)).rejects.toMatchObject({
+    await expect(patchLoop(WS, "implement-tasks", body)).rejects.toMatchObject({
       status: 409,
       message: expect.stringContaining("modified by another editor"),
     });
     await expectFetchRequest({
-      path: "/api/workspaces/ws_1/loops/software-delivery",
+      path: "/api/workspaces/ws_1/loops/implement-tasks",
       method: "PATCH",
       body,
     });
@@ -133,16 +133,16 @@ describe("loops-api (request construction + error mapping)", () => {
 
   it("Should DELETE a loop without throwing on 204", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 204 }));
-    await expect(deleteLoop(WS, "software-delivery")).resolves.toBeUndefined();
+    await expect(deleteLoop(WS, "implement-tasks")).resolves.toBeUndefined();
     await expectFetchRequest({
-      path: "/api/workspaces/ws_1/loops/software-delivery",
+      path: "/api/workspaces/ws_1/loops/implement-tasks",
       method: "DELETE",
     });
   });
 
   it("Should treat a 404 config read as a missing Loop", async () => {
     mockJsonResponse({ error: "no config" }, { status: 404 });
-    await expect(getLoopConfig(WS, "software-delivery")).rejects.toMatchObject({ status: 404 });
+    await expect(getLoopConfig(WS, "implement-tasks")).rejects.toMatchObject({ status: 404 });
   });
 
   it("Should PUT the config override", async () => {
@@ -150,21 +150,21 @@ describe("loops-api (request construction + error mapping)", () => {
       config: { iteration_cap: 8 },
       effective_config: loopEffectiveConfigFixture,
     });
-    await putLoopConfig(WS, "software-delivery", { config: { iteration_cap: 8 } });
+    await putLoopConfig(WS, "implement-tasks", { config: { iteration_cap: 8 } });
     await expectFetchRequest({
-      path: "/api/workspaces/ws_1/loops/software-delivery/config",
+      path: "/api/workspaces/ws_1/loops/implement-tasks/config",
       method: "PUT",
       body: { config: { iteration_cap: 8 } },
     });
   });
 
   it("Should pass the dry flag through on a dry run and omit it on a real run", async () => {
-    mockJsonResponse({ dry_run: { loop_name: "software-delivery" } });
-    await runLoop(WS, "software-delivery", { inputs: {} }, { dry: true });
+    mockJsonResponse({ dry_run: { loop_name: "implement-tasks" } });
+    await runLoop(WS, "implement-tasks", { inputs: {} }, { dry: true });
     expect(new URL(fetchRequest().url).search).toBe("?dry=true");
 
     mockJsonResponse({ run: { id: "run_1" } }, { status: 201 });
-    await runLoop(WS, "software-delivery", { inputs: {} });
+    await runLoop(WS, "implement-tasks", { inputs: {} });
     expect(new URL(fetchRequest(1).url).search).toBe("");
   });
 
@@ -173,8 +173,8 @@ describe("loops-api (request construction + error mapping)", () => {
       { valid: false, errors: [{ code: "unknown_reference", message: "x", severity: "error" }] },
       { status: 422 }
     );
-    const result = await validateLoop(WS, "software-delivery", {
-      definition: { meta: { name: "software-delivery" } },
+    const result = await validateLoop(WS, "implement-tasks", {
+      definition: { meta: { name: "implement-tasks" } },
     } as never);
     expect(result.valid).toBe(false);
     expect(result.errors).toHaveLength(1);
@@ -186,7 +186,7 @@ describe("loops-api (request construction + error mapping)", () => {
       aggregates: { total: 0, live: 0, terminal: 0, succeeded: 0, failed: 0 },
     });
     await listLoopRuns(WS, {
-      loop: "software-delivery",
+      loop: "implement-tasks",
       status: "running",
       origin: "session",
       origin_session: "session_1",
@@ -194,7 +194,7 @@ describe("loops-api (request construction + error mapping)", () => {
       limit: 10,
     });
     await expectFetchRequest({
-      path: "/api/workspaces/ws_1/loop-runs?loop=software-delivery&status=running&origin=session&origin_session=session_1&live=true&limit=10",
+      path: "/api/workspaces/ws_1/loop-runs?loop=implement-tasks&status=running&origin=session&origin_session=session_1&live=true&limit=10",
       method: "GET",
     });
   });
@@ -260,18 +260,18 @@ describe("loops-api (request construction + error mapping)", () => {
   });
 
   it("Should GET + PUT annotations at the scoped editor endpoint", async () => {
-    mockJsonResponse({ annotations: [{ node_id: "plan", x: 1, y: 2 }] });
-    await getLoopAnnotations(WS, "software-delivery");
+    mockJsonResponse({ annotations: [{ node_id: "execute_task", x: 1, y: 2 }] });
+    await getLoopAnnotations(WS, "implement-tasks");
     await expectFetchRequest({
-      path: "/api/workspaces/ws_1/loops/software-delivery/annotations",
+      path: "/api/workspaces/ws_1/loops/implement-tasks/annotations",
       method: "GET",
     });
 
-    const body = { annotations: [{ node_id: "plan", x: 3, y: 4 }] };
+    const body = { annotations: [{ node_id: "execute_task", x: 3, y: 4 }] };
     mockJsonResponse(body);
-    await putLoopAnnotations(WS, "software-delivery", body);
+    await putLoopAnnotations(WS, "implement-tasks", body);
     await expectFetchRequest({
-      path: "/api/workspaces/ws_1/loops/software-delivery/annotations",
+      path: "/api/workspaces/ws_1/loops/implement-tasks/annotations",
       method: "PUT",
       body,
       callIndex: 1,
@@ -307,7 +307,7 @@ describe("loops-api (request construction + error mapping)", () => {
     });
 
     mockJsonResponse({ error: "x" }, { status: 409 });
-    await expect(runLoop(WS, "software-delivery", { inputs: {} })).rejects.toMatchObject({
+    await expect(runLoop(WS, "implement-tasks", { inputs: {} })).rejects.toMatchObject({
       status: 409,
     });
 
@@ -338,17 +338,42 @@ describe("loops-api (against MSW mock handlers)", () => {
 
   it("Should resolve the catalog, a definition, runs and a run detail from the fixtures", async () => {
     const loops = await listLoops(WS);
-    expect(loops.loops.map(loop => loop.name)).toEqual(["software-delivery", "review-and-fix"]);
+    expect(loops.loops.map(loop => loop.name)).toEqual(["implement-tasks", "review-and-fix"]);
 
-    const detail = await getLoop(WS, "software-delivery");
-    expect(detail.definition.meta.name).toBe("software-delivery");
+    const detail = await getLoop(WS, "implement-tasks");
+    expect(detail.definition.meta.name).toBe("implement-tasks");
+    expect(detail.definition.meta.version).toBe(0);
+    expect(detail.definition.concurrency).toBe("forbid");
+    expect(detail.definition.graph.nodes.map(node => node.id)).toEqual([
+      "slug_input",
+      "load_tasks",
+      "implement",
+      "execute_task",
+      "collect",
+    ]);
 
-    const runs = await listLoopRuns(WS, { loop: "software-delivery" });
-    expect(runs.runs.every(run => run.loop_name === "software-delivery")).toBe(true);
+    const runs = await listLoopRuns(WS, { loop: "implement-tasks" });
+    expect(runs.runs.every(run => run.loop_name === "implement-tasks")).toBe(true);
+    expect(runs.runs.every(run => run.definition_version === 0)).toBe(true);
     expect(runs.aggregates.total).toBeGreaterThan(0);
 
     const runDetail = await getLoopRun(WS, "looprun_running");
     expect(runDetail.run.status).toBe("running");
+    expect(runDetail.generations?.[0]?.outputs.map(output => output.node_id)).toEqual([
+      "slug_input",
+      "load_tasks",
+      "implement",
+      "execute_task",
+      "collect",
+    ]);
+
+    const stalledDetail = await getLoopRun(WS, "looprun_stalled");
+    expect(stalledDetail.generations?.map(generation => generation.generation)).toEqual([
+      1, 2, 3, 4,
+    ]);
+    expect(stalledDetail.generations?.map(generation => generation.parent_generation)).toEqual([
+      0, 1, 2, 3,
+    ]);
   });
 
   it("Should surface a 404 for an unknown loop name through the handler", async () => {
@@ -356,23 +381,23 @@ describe("loops-api (against MSW mock handlers)", () => {
   });
 
   it("Should resolve config, annotations, validate, run controls and a dry run from the fixtures", async () => {
-    expect(await getLoopConfig(WS, "software-delivery")).toMatchObject({
+    expect(await getLoopConfig(WS, "implement-tasks")).toMatchObject({
       config: { iteration_cap: 16 },
       effectiveConfig: { fan_out_width: 4 },
     });
     expect(
-      await putLoopConfig(WS, "software-delivery", { config: { iteration_cap: 9 } })
+      await putLoopConfig(WS, "implement-tasks", { config: { iteration_cap: 9 } })
     ).toMatchObject({
       config: { iteration_cap: 9 },
       effectiveConfig: { fan_out_width: 4 },
     });
-    expect(await getLoopAnnotations(WS, "software-delivery")).toHaveLength(2);
+    expect(await getLoopAnnotations(WS, "implement-tasks")).toHaveLength(2);
     expect(
-      await putLoopAnnotations(WS, "software-delivery", {
+      await putLoopAnnotations(WS, "implement-tasks", {
         annotations: [{ node_id: "n", x: 1, y: 2 }],
       })
     ).toEqual([{ node_id: "n", x: 1, y: 2 }]);
-    expect(await validateLoop(WS, "software-delivery", { definition: {} } as never)).toMatchObject({
+    expect(await validateLoop(WS, "implement-tasks", { definition: {} } as never)).toMatchObject({
       valid: true,
     });
     expect(await resumeLoopRun(WS, "looprun_running")).toEqual({ ok: true });
@@ -380,9 +405,59 @@ describe("loops-api (against MSW mock handlers)", () => {
       ok: true,
       run_id: "looprun_running",
     });
-    expect(await runLoop(WS, "software-delivery", { inputs: {} }, { dry: true })).toHaveProperty(
-      "dry_run"
+    const dryRun = await runLoop(
+      WS,
+      "implement-tasks",
+      { inputs: { slug: "billing-webhooks" } },
+      { dry: true }
     );
-    await expect(deleteLoop(WS, "software-delivery")).resolves.toBeUndefined();
+    expect(dryRun.dry_run).toMatchObject({
+      resolved_inputs: {
+        slug: "billing-webhooks",
+        implementer: "code_implementer",
+        auto_commit: false,
+      },
+      input_origins: {
+        slug: "run",
+        implementer: "definition",
+        auto_commit: "definition",
+      },
+    });
+    expect(dryRun.dry_run?.nodes).toEqual([
+      { id: "slug_input", class: "source", kind: "input" },
+      {
+        id: "load_tasks",
+        class: "action",
+        kind: "ext__dev_cycle__import_tasks",
+        depends_on: ["slug_input"],
+      },
+      {
+        id: "implement",
+        class: "control",
+        kind: "fan-out",
+        depends_on: ["load_tasks"],
+      },
+      {
+        id: "execute_task",
+        class: "action",
+        kind: "run-agent",
+        depends_on: ["implement"],
+      },
+      {
+        id: "collect",
+        class: "control",
+        kind: "collect",
+        depends_on: ["execute_task"],
+      },
+    ]);
+    const started = await runLoop(WS, "implement-tasks", {
+      inputs: { slug: "billing-webhooks" },
+    });
+    expect(started.run?.inputs).toEqual({
+      slug: "billing-webhooks",
+      implementer: "code_implementer",
+      auto_commit: false,
+    });
+    await expect(deleteLoop(WS, "implement-tasks")).resolves.toBeUndefined();
   });
 });

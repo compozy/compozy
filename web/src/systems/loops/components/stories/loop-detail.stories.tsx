@@ -16,7 +16,7 @@ const meta: Meta<typeof LoopDetailView> = {
   component: LoopDetailView,
   decorators: [
     Story => (
-      <LoopsStoryShell crumb="software-delivery">
+      <LoopsStoryShell crumb="implement-tasks">
         <Story />
       </LoopsStoryShell>
     ),
@@ -34,10 +34,10 @@ const meta: Meta<typeof LoopDetailView> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const loop = loopDetailByName.get("software-delivery")!;
-const catalogEntry = loopCatalogFixtures.find(entry => entry.name === "software-delivery")!;
+const loop = loopDetailByName.get("implement-tasks")!;
+const catalogEntry = loopCatalogFixtures.find(entry => entry.name === "implement-tasks")!;
 // Keeps the cooperative-cancel terminal in view: `canceled` is its own ending, not a failure.
-const deliveryRuns = loopRunFixtures.filter(run => run.loop_name === "software-delivery");
+const deliveryRuns = loopRunFixtures.filter(run => run.loop_name === "implement-tasks");
 const canceledRun = deliveryRuns.find(run => run.status === "canceled")!;
 const recentRuns = [
   ...deliveryRuns.filter(run => run.status !== "canceled").slice(0, 4),

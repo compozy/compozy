@@ -5,9 +5,14 @@ import (
 	"strings"
 )
 
-const loopOutputContractPrefix = "Output contract:\n" +
-	"End your final message with exactly one JSON object that satisfies this output_schema " +
-	"(no other JSON object may follow it): "
+const (
+	loopOutputContractPrefix = "Output contract:\n" +
+		"End your final message with exactly one JSON object that satisfies this output_schema " +
+		"(no other JSON object may follow it): "
+	outputContractPromptMarker   = "\n\n" + loopOutputContractPrefix
+	schemaRetryPromptMarker      = "\n\nYour previous response did not satisfy output_schema: "
+	schemaRetryInstructionMarker = "\nReturn exactly one JSON object that satisfies this output_schema: "
+)
 
 func canonicalUserText(prompt string) string {
 	current := strings.TrimSpace(prompt)
@@ -55,7 +60,7 @@ func lastLineMarkerIndex(text string, marker string) int {
 }
 
 func stripKnownPromptAugmentation(prompt string) string {
-	next := prompt
+	next := stripTrailingRunAgentPromptContract(prompt)
 	next = stripLeadingPromptBlock(next, compozySituationContextOpen, compozySituationContextClose)
 	next = stripLeadingSkillsCatalogBlock(next, currentAvailableSkillsOpen, currentAvailableSkillsClose)
 	next = stripLeadingSkillsCatalogBlock(next, availableSkillsOpen, availableSkillsClose)
@@ -80,6 +85,27 @@ func stripTrailingLoopOutputContract(prompt string) string {
 		return trimmed
 	}
 	return strings.TrimSpace(trimmed[:markerIndex])
+}
+
+func stripTrailingRunAgentPromptContract(prompt string) string {
+	trimmed := strings.TrimSpace(prompt)
+	if index := strings.LastIndex(trimmed, schemaRetryPromptMarker); index >= 0 {
+		retry := trimmed[index+len(schemaRetryPromptMarker):]
+		instructionIndex := strings.LastIndex(retry, schemaRetryInstructionMarker)
+		if instructionIndex >= 0 {
+			schema := strings.TrimSpace(retry[instructionIndex+len(schemaRetryInstructionMarker):])
+			if json.Valid([]byte(schema)) {
+				trimmed = strings.TrimSpace(trimmed[:index])
+			}
+		}
+	}
+	if index := strings.LastIndex(trimmed, outputContractPromptMarker); index >= 0 {
+		schema := strings.TrimSpace(trimmed[index+len(outputContractPromptMarker):])
+		if json.Valid([]byte(schema)) {
+			trimmed = strings.TrimSpace(trimmed[:index])
+		}
+	}
+	return trimmed
 }
 
 func stripLeadingPromptBlock(prompt string, open string, closeTag string) string {

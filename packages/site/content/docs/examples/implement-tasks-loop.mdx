@@ -1,32 +1,31 @@
 ---
-title: Software-delivery loop
-description: Take every authored task under one slug from pending to verified implementation, in dependency order, behind an acceptance gate and your own verification command.
+title: Implement-tasks loop
+description: Implement every authored task under one slug in dependency order, with task-level validation and tracking updates.
 maturity: shipped
 ---
 
 ## What you build
 
-An unattended delivery run over a set of task files. The Loop imports every task under
-`.compozy/tasks/<slug>`, implements them one at a time in dependency order, then puts the aggregate
-diff through three gates: an agent judge scoring the work against each task's acceptance criteria,
-your project's own verification command, and a human approval before anything is called shipped.
+An implementation run over a set of task files. The Loop imports every task under
+`.compozy/tasks/<slug>`, then implements them one at a time in dependency order. Each task run owns
+its focused validation, tracking updates, self-review, and optional commit.
 
-Use it when you have authored tasks under `.compozy/tasks/<slug>` and want them shipped unattended.
+Use it when you have authored tasks under `.compozy/tasks/<slug>` and want them implemented.
 
 ## The artifact
 
 This is the complete definition, exactly as it ships in the Compozy repository at
-`extensions/dev-cycle/loops/software-delivery/loop.yaml`. It runs against a current release.
+`extensions/dev-cycle/loops/implement-tasks/loop.yaml`. It runs against a current release.
 
-```yaml title="extensions/dev-cycle/loops/software-delivery/loop.yaml"
+```yaml title="extensions/dev-cycle/loops/implement-tasks/loop.yaml"
 apiVersion: compozy.loop/v1
 kind: Loop
 meta:
-  name: software-delivery
-  description: Deliver pending Compozy task files for one slug with a configurable verification gate.
+  name: implement-tasks
+  description: Implement pending Compozy task files for one slug.
   catalog:
-    use_when: "You have authored tasks under .compozy/tasks/<slug> and want them shipped unattended."
-    keywords: [delivery, tasks, implement, verify]
+    use_when: "You have authored tasks under .compozy/tasks/<slug> and want them implemented in dependency order."
+    keywords: [tasks, implement, engineering]
     category: Engineering
 
 concurrency: forbid
@@ -38,27 +37,18 @@ inputs:
   implementer:
     type: agent
     default: code_implementer
-  verify_command:
-    type: string
-    default: ""
   auto_commit:
     type: boolean
     default: false
-  target_branch:
-    type: string
-    default: main
 
 contract:
   goal: >
-    Ship every authored task under .compozy/tasks/{{ .inputs.slug }} in dependency order,
-    reviewed to acceptance and verified by the project's own checks.
+    Implement every authored task under .compozy/tasks/{{ .inputs.slug }} in dependency order.
   definition_of_done: >
-    All loaded tasks were handled, the acceptance judge approved with evidence, and the optional
-    project verification command passed when configured.
+    Every loaded task completed implementation, task-level validation, and tracking updates.
   iteration_cap: 50
   no_progress:
     window: 3
-    hash_fields: [delivery_artifact, gate_verdict]
   budget:
     tokens: 0
     wall_clock_sec: 0
@@ -131,7 +121,6 @@ graph:
           Verification:
           - Run focused checks for each changed surface.
           - Execute every explicit Validation, Test Plan, or Testing item from the task body.
-          - If `verify_command` is configured, the loop gate runs it after review.
           - Report exact commands and outcomes in the structured output.
 
           Tracking and commits:
@@ -151,13 +140,13 @@ graph:
           Closing directive:
           You have the full brief above — start work on {{ .item.title }} now instead of
           summarizing the plan back. Return `status`, `summary`, and `files_changed`. Use
-          `blocked` only for concrete external blockers after systematic debugging.
+          only `completed` after all required implementation and verification work succeeds.
         output_schema:
           type: object
           required: [status, summary]
           properties:
             status:
-              enum: [completed, blocked]
+              enum: [completed]
             summary:
               type: string
             files_changed:
@@ -172,48 +161,6 @@ graph:
       class: control
       kind: collect
 
-    - id: review
-      class: control
-      kind: gate
-      criteria:
-        - id: acceptance
-          type: agent-judge
-          agent: reviewer
-          rubric: >
-            Judge the aggregate diff for {{ .inputs.slug }} against each task's acceptance
-            criteria and the definition of done. Cite evidence (files, tests, command output)
-            for every pass and emit stable blocking issue ids for every failure.
-      verdict_policy: revise_until_clean
-      on_result:
-        pass: verify
-        fail: next_generation
-      max_revisions: 3
-
-    - id: verify
-      class: control
-      kind: gate
-      criteria:
-        - id: project_check
-          type: command
-          check: "{{ .inputs.verify_command }}"
-          expect: exit_zero
-      verdict_policy: fixed_passes
-      on_result:
-        pass: approve
-        fail: next_generation
-
-    - id: approve
-      class: control
-      kind: gate
-      criteria:
-        - id: ship
-          type: human
-          prompt: "Approve the delivered work for {{ .inputs.slug }} into {{ .inputs.target_branch }}?"
-      verdict_policy: fixed_passes
-      on_result:
-        pass: done
-        fail: next_generation
-
   edges:
     - from: slug_input
       to: load_tasks
@@ -223,12 +170,6 @@ graph:
       to: execute_task
     - from: execute_task
       to: collect
-    - from: collect
-      to: review
-    - from: review
-      to: verify
-    - from: verify
-      to: approve
 
 start:
   - kind: manual
@@ -241,8 +182,7 @@ start:
 
 ## Run it
 
-`slug` is the one required input. `implementer`, `verify_command`, `auto_commit`, and
-`target_branch` ship with defaults — leave `verify_command` empty to skip the command gate.
+`slug` is the one required input. `implementer` and `auto_commit` ship with defaults.
 
 ```bash
 # check the definition against compozy.loop/v1
@@ -252,15 +192,15 @@ compozy loop validate loop.yaml
 compozy loop create loop.yaml
 
 # rehearse a generation without side effects, then run it
-compozy loop run software-delivery --dry-run
-compozy loop run software-delivery
+compozy loop run --name implement-tasks --input slug=<slug> --dry-run
+compozy loop run --name implement-tasks --input slug=<slug>
 ```
 
 The definition ships inside the bundled `dev-cycle` extension, so the Loop is already published in
 your runtime. Validate and create are for when you copy the file out and adapt it.
 
 Its start surfaces are manual, CLI, HTTP, UDS, native tool, and schedule — note that unlike the
-review Loop it declares no webhook start, so a signed HTTP delivery cannot begin a delivery run.
+review Loop it declares no webhook start, so a signed HTTP delivery cannot begin the run.
 
 ## How it works
 
@@ -277,23 +217,13 @@ review Loop it declares no webhook start, so a signed HTTP delivery cannot begin
     run receives the task body, the workflow-memory paths, the verification expectations, and the
     commit policy, and returns `status`, `summary`, and `files_changed`.
   </WorkflowStep>
-  <WorkflowStep title="Judge the aggregate diff — `review`">
-    An agent-judge gate scores the whole diff against every task's acceptance criteria, citing
-    evidence for each pass and emitting stable issue ids for each failure. `revise_until_clean`
-    with `max_revisions: 3` sends failures back for another generation.
-  </WorkflowStep>
-  <WorkflowStep title="Run your own checks — `verify`">
-    A command gate runs `verify_command` and expects exit zero. This is where the project's real
-    test and lint suite decides, not the agent's opinion of its own work.
-  </WorkflowStep>
-  <WorkflowStep title="Ask a person — `approve`">
-    A human gate asks whether to approve the delivered work into `target_branch`. Passing ends the
-    Loop at `done`; failing starts another generation.
+  <WorkflowStep title="Collect the results — `collect`">
+    The terminal collect node joins the sequential task results. When every task action succeeds,
+    the daemon closes the Loop as `done` without adding a review, command, or approval gate.
   </WorkflowStep>
   <WorkflowStep title="The daemon enforces the exit">
-    `iteration_cap: 50`, a no-progress window of 3 generations hashed over the delivery artifact
-    and the gate verdict, `concurrency: forbid`, and `on_exceeded: halt` on the budget. Every run
-    ends in a named terminal state.
+    `iteration_cap: 50`, a no-progress window of 3 generations, `concurrency: forbid`, and
+    `on_exceeded: halt` on the budget remain in force. Every run ends in a named terminal state.
   </WorkflowStep>
 </Workflow>
 
@@ -315,11 +245,11 @@ review Loop it declares no webhook start, so a signed HTTP delivery cannot begin
     meta="Loops"
   />
   <GuideCard
-    href="/docs/autonomy/review-gate"
+    href="/docs/loops/guardrails"
     label="Concept"
-    title="Review gates"
-    description="Agent-judge, command, and human gate criteria, verdict policies, and how revisions are counted."
-    meta="Autonomy"
+    title="Guardrails"
+    description="How iteration, no-progress, budgets, concurrency, and named terminal outcomes bound a Loop run."
+    meta="Loops"
   />
   <GuideCard
     href="/marketplace/bundled/dev-cycle"

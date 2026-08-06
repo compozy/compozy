@@ -12,7 +12,7 @@ import {
 import type { ValidateLoopResult } from "../../types";
 import { lintDefinition } from "../../mocks/lint-definition";
 
-const def = loopDetailByName.get("software-delivery")!.definition;
+const def = loopDetailByName.get("quality-gate-demo")!.definition;
 
 describe("loop editor lint", () => {
   it("Should treat a passing verdict as clean with every invariant chip passing", () => {

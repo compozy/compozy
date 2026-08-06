@@ -24,7 +24,7 @@ export interface RouteStoryExclusion {
 
 const storyTaskId = "task_001";
 const storyTaskRunId = "run_001";
-const storyLoopName = "software-delivery";
+const storyLoopName = "implement-tasks";
 const storyLoopRunId = "looprun_running";
 const storyThreadId = "thread_launch_command";
 const storyDirectId = "direct_story_launch_corridor";

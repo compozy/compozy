@@ -264,11 +264,11 @@ describe("AutomationJobForm", () => {
     expect(screen.queryByTestId("job-prompt-input")).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByTestId("loop-target-select"), {
-      target: { value: "software-delivery" },
+      target: { value: "implement-tasks" },
     });
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        loop_target: expect.objectContaining({ loop_name: "software-delivery" }),
+        loop_target: expect.objectContaining({ loop_name: "implement-tasks" }),
       })
     );
     // Jobs fire on a schedule, not an event, so there is no payload mapping table.
@@ -301,7 +301,7 @@ describe("AutomationJobForm", () => {
     fireEvent.click(screen.getByTestId("job-target-loop"));
 
     const select = screen.getByRole("combobox", { name: "Loop" });
-    expect(select).toHaveTextContent("software-delivery");
+    expect(select).toHaveTextContent("implement-tasks");
     expect(select).not.toHaveTextContent("review-and-fix");
   });
 
@@ -311,7 +311,7 @@ describe("AutomationJobForm", () => {
     fireEvent.click(screen.getByTestId("job-scope-global"));
     fireEvent.click(screen.getByTestId("job-target-loop"));
     fireEvent.change(screen.getByTestId("loop-target-select"), {
-      target: { value: "software-delivery" },
+      target: { value: "implement-tasks" },
     });
 
     expect(onChange).toHaveBeenLastCalledWith(
@@ -320,7 +320,7 @@ describe("AutomationJobForm", () => {
         workspace_id: undefined,
         loop_target: expect.objectContaining({
           workspace_id: WORKSPACE_ID,
-          loop_name: "software-delivery",
+          loop_name: "implement-tasks",
         }),
       })
     );
@@ -397,13 +397,13 @@ describe("AutomationJobForm", () => {
       mode: "edit",
       draft: {
         ...createAutomationJobDraft(WORKSPACE_ID),
-        name: "software-delivery-daily-qa",
+        name: "implement-tasks-daily-qa",
         agent_name: "",
         prompt: "",
         target_kind: "loop",
         loop_target: {
           workspace_id: WORKSPACE_ID,
-          loop_name: "software-delivery",
+          loop_name: "implement-tasks",
           inputs: { slug: "helix-v1-launch", dry_run: false },
           input_mapping: {},
         },
@@ -412,7 +412,7 @@ describe("AutomationJobForm", () => {
 
     showPreview();
     const preview = screen.getByTestId("job-preview");
-    expect(preview).toHaveTextContent("start Loop software-delivery");
+    expect(preview).toHaveTextContent("start Loop implement-tasks");
     expect(preview).toHaveTextContent("helix-v1-launch");
     expect(preview).toHaveTextContent("dry_run");
     expect(preview).not.toHaveTextContent("Prompt the agent receives");

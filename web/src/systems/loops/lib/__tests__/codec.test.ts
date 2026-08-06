@@ -73,8 +73,8 @@ describe("loop codec", () => {
     expect(rebuilt).toEqual(def);
   });
 
-  it("Should round-trip the real software-delivery definition", () => {
-    const def = loopDetailByName.get("software-delivery")!.definition;
+  it("Should round-trip the real implement-tasks definition", () => {
+    const def = loopDetailByName.get("implement-tasks")!.definition;
     const { nodes, edges } = definitionToGraph(def);
     expect(graphToDefinition(def, nodes, edges)).toEqual(def);
   });

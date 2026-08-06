@@ -997,6 +997,29 @@ hello alpha
 			}, "\n"),
 			want: "local loop probe",
 		},
+		{
+			name: "Should strip run-agent output contract",
+			prompt: strings.Join([]string{
+				"hello alpha",
+				"",
+				"Output contract:",
+				"End your final message with exactly one JSON object that satisfies this output_schema (no other JSON object may follow it): {\"required\":[\"summary\"],\"type\":\"object\"}",
+			}, "\n"),
+			want: "hello alpha",
+		},
+		{
+			name: "Should strip run-agent schema retry and output contract",
+			prompt: strings.Join([]string{
+				"hello alpha",
+				"",
+				"Output contract:",
+				"End your final message with exactly one JSON object that satisfies this output_schema (no other JSON object may follow it): {\"required\":[\"summary\"],\"type\":\"object\"}",
+				"",
+				"Your previous response did not satisfy output_schema: loop: action schema validation failed",
+				"Return exactly one JSON object that satisfies this output_schema: {\"required\":[\"summary\"],\"type\":\"object\"}",
+			}, "\n"),
+			want: "hello alpha",
+		},
 	}
 
 	for _, tt := range tests {

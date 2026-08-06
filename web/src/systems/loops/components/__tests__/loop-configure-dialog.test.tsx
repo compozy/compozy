@@ -14,7 +14,7 @@ import {
 } from "../../mocks/fixtures";
 
 const WS = "ws_default";
-const delivery = loopDetailByName.get("software-delivery")!;
+const delivery = loopDetailByName.get("quality-gate-demo")!;
 const watch = loopDetailByName.get("review-and-fix")!;
 
 interface CapturedConfig {

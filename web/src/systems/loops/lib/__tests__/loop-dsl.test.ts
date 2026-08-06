@@ -4,7 +4,7 @@ import { loopDetailByName } from "../../mocks/fixtures";
 import type { LoopValidationIssue } from "../../types";
 import { buildDslView } from "../loop-dsl";
 
-const def = loopDetailByName.get("software-delivery")!.definition as unknown as Record<
+const def = loopDetailByName.get("quality-gate-demo")!.definition as unknown as Record<
   string,
   unknown
 >;

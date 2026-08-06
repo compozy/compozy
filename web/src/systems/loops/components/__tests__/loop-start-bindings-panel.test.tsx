@@ -49,7 +49,7 @@ describe("LoopStartBindingsPanel", () => {
       />
     );
     openStart();
-    // software-delivery declares schedule but not trigger/webhook.
+    // implement-tasks declares schedule but not trigger/webhook.
     expect(screen.getByTestId("loop-add-schedule")).toBeInTheDocument();
     expect(screen.queryByTestId("loop-add-trigger")).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("loop-add-schedule"));

@@ -14,7 +14,7 @@ Four persona families share this tree: the **Loops** surface (Bruno / Lea / Mari
 persona:
   name: Bruno
   base: Power User
-  goal: "Run software-delivery daily to drive already-authored tasks to a verified, reviewed, merged finish — and trust it stopped for the right reason."
+  goal: "Run implement-tasks daily to drive already-authored tasks through implementation and task-level validation — and trust it stopped for the right reason."
   device: desktop
   network: wifi-fast
   modality: mouse-keyboard
@@ -22,7 +22,7 @@ persona:
   patience_seconds: 20
 ```
 
-- **Who:** the developer who replaced `compozy tasks run` with the `software-delivery` Loop. Runs Loops many times a day, keeps the run page and CLI open side by side, knows the overrides and the ceilings.
+- **Who:** the developer who uses the `implement-tasks` Loop to execute authored task graphs. Runs Loops many times a day, keeps the run page and CLI open side by side, knows the overrides and the ceilings.
 - **What they reveal:** false `done` on an exhausted/stalled run (the trust-killer), meter drift, speed regressions in the run form, pause/resume/stop that lies about state, configure/fork friction, override clamps that don't hold, and partial task/automation catalogs presented as complete.
 - **Owns journeys:** J-01 arrive-and-use, J-02 dry-run, J-04 pause/resume, J-05 configure, J-06 fork-and-edit, J-08 watch-and-maintain, J-10 converse-and-decide, J-24 triage-work-at-scale, and J-diagnose-task-session-health. **Goal:** J-26 controls, J-27 editor, and J-28 context/budgets.
 

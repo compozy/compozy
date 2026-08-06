@@ -10,6 +10,7 @@ import type {
   LoopConfigUpdateRequest,
   LoopDefinition,
   LoopDefinitionMeta,
+  LoopDryRunNode,
   LoopValidationIssue,
 } from "@/systems/loops";
 
@@ -27,6 +28,45 @@ import {
 import { lintDefinition } from "./lint-definition";
 
 const catalogByName = new Map(loopCatalogFixtures.map(entry => [entry.name, entry]));
+
+function resolveRunInputs(
+  entry: (typeof loopCatalogFixtures)[number],
+  requested: Record<string, unknown>
+) {
+  const defaults = Object.fromEntries(
+    Object.entries(entry.inputs ?? {})
+      .filter(([, schema]) => schema.default !== undefined)
+      .map(([name, schema]) => [name, schema.default])
+  );
+  const resolved = { ...defaults, ...requested };
+  const origins = Object.fromEntries(
+    Object.keys(resolved).map(name => [
+      name,
+      Object.prototype.hasOwnProperty.call(requested, name) ? "run" : "definition",
+    ])
+  );
+  return { origins, resolved };
+}
+
+function previewNodes(definition: LoopDefinition | undefined): LoopDryRunNode[] {
+  if (!definition) return [];
+  const edges = definition.graph.edges as unknown as Array<{ from: string; to: string }>;
+  return (
+    definition.graph.nodes as unknown as Array<{
+      id: string;
+      class: LoopDryRunNode["class"];
+      kind: string;
+    }>
+  ).map(node => {
+    const dependsOn = edges.filter(edge => edge.to === node.id).map(edge => edge.from);
+    return {
+      id: node.id,
+      class: node.class,
+      kind: node.kind,
+      ...(dependsOn.length > 0 ? { depends_on: dependsOn } : {}),
+    };
+  });
+}
 
 /** Server-owned catalog read: the daemon filters, counts, and reports facets, not the client. */
 function readCatalogPage(url: URL) {
@@ -67,6 +107,7 @@ function tally(values: readonly (string | null | undefined)[]): Record<string, n
 const loopRunEventStreamEncoder = new TextEncoder();
 
 function createLoopRunEventsStreamResponse(workspaceId: string, runId: string): Response {
+  const generation = loopRunDetailByRunId.get(runId)?.run.generation ?? 1;
   const frame = {
     id: `${runId}:storybook:1`,
     seq: 1,
@@ -74,7 +115,7 @@ function createLoopRunEventsStreamResponse(workspaceId: string, runId: string): 
     workspace_id: workspaceId,
     loop_run_id: runId,
     kind: "node_running",
-    payload: { node_id: "execute_task", generation: 2 },
+    payload: { node_id: "execute_task", generation },
   };
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
@@ -99,7 +140,7 @@ export const handlers: HttpHandler[] = [
     HttpResponse.json(readCatalogPage(new URL(request.url)))
   ),
   compozyApiMock.post("/api/workspaces/{workspace_id}/loops", () =>
-    HttpResponse.json({ loop: loopDetailByName.get("software-delivery")! }, { status: 201 })
+    HttpResponse.json({ loop: loopDetailByName.get("implement-tasks")! }, { status: 201 })
   ),
   compozyApiMock.get("/api/workspaces/{workspace_id}/loops/{name}", ({ params }) => {
     const detail = loopDetailByName.get(String(params.name));
@@ -198,6 +239,7 @@ export const handlers: HttpHandler[] = [
       }
       const detail = entry.last_run ? loopRunDetailByRunId.get(entry.last_run.id) : undefined;
       const body = (await request.json().catch(() => ({}))) as {
+        inputs?: Record<string, unknown>;
         network_participation?: {
           mode?: string | null;
           channel_id?: string | null;
@@ -226,15 +268,17 @@ export const handlers: HttpHandler[] = [
         }
       }
       if (url.searchParams.get("dry") === "true") {
+        const definition = loopDetailByName.get(name)?.definition;
+        const inputs = resolveRunInputs(entry, body.inputs ?? {});
         return HttpResponse.json({
           dry_run: {
             loop_name: name,
             generation: 1,
-            resolved_inputs: {},
-            input_origins: {},
+            resolved_inputs: inputs.resolved,
+            input_origins: inputs.origins,
             resolved_network_participation: resolvedParticipation,
             contract: entry.contract,
-            nodes: [{ id: "plan", kind: "run-agent", class: "action" }],
+            nodes: previewNodes(definition),
             effective_config: {
               iteration_cap: 12,
               budget_tokens: 500_000,
@@ -267,6 +311,7 @@ export const handlers: HttpHandler[] = [
         {
           run: {
             ...detail.run,
+            inputs: resolveRunInputs(entry, body.inputs ?? {}).resolved,
             resolved_network_participation: resolvedParticipation,
           },
         },

@@ -10,10 +10,7 @@ import { useDesktopManagerSurfaces } from "./use-desktop-manager-surfaces";
 import { useDesktopOverlays } from "./use-desktop-overlays";
 import { useDesktopShellState } from "./use-desktop-shell-state";
 import type { DesktopShellModel } from "./use-desktop-shell-model";
-import {
-  useDesktopTransitionIntent,
-  useWindowManagerGesturePreview,
-} from "./use-window-manager-store";
+import { useDesktopTransitionIntent } from "./use-window-manager-store";
 import { useOsAttention } from "./use-os-attention";
 import { useOsReducedMotion } from "./use-os-reduced-motion";
 import { useOsShell } from "./use-os-shell";
@@ -75,7 +72,6 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
   const winLayer = useOsWinLayer();
   const reducedMotion = useOsReducedMotion();
   const transition = useDesktopTransitionIntent();
-  const gesturePreview = useWindowManagerGesturePreview();
   const { manager } = useOsShell();
   const pager = useDesktop(
     state => ({
@@ -128,7 +124,6 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
     attention,
     desktop,
     desktopRef,
-    gesturePreview,
     manager,
     managerSurfaces,
     onResize,

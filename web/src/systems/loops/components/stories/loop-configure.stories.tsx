@@ -18,20 +18,19 @@ const meta: Meta<typeof LoopConfigureDialog> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const deliveryLoop = loopDetailByName.get("software-delivery")!;
+const implementTasksLoop = loopDetailByName.get("implement-tasks")!;
 const watchLoop = loopDetailByName.get("review-and-fix")!;
 
 const noop = () => {};
 
-/** The full configure modal: command check + command field, locked agent-judge, human gate,
- *  re-attempt cards, and the 6 clamped limit overrides seeded from a stored config. */
-export const Delivery: Story = {
+/** The full configure modal for the bundled implement-tasks Loop. */
+export const ImplementTasks: Story = {
   render: () => (
     <StorySurface className="h-[880px] p-0">
       <LoopConfigureDialog
         open
         workspaceId="ws_default"
-        loop={deliveryLoop}
+        loop={implementTasksLoop}
         config={loopConfigFixture}
         effectiveConfig={loopEffectiveConfigFixture}
         onOpenChange={noop}
@@ -49,7 +48,7 @@ export const InheritedDefaults: Story = {
       <LoopConfigureDialog
         open
         workspaceId="ws_default"
-        loop={deliveryLoop}
+        loop={implementTasksLoop}
         config={null}
         effectiveConfig={loopEffectiveConfigFixture}
         onOpenChange={noop}

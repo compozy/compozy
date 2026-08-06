@@ -2,7 +2,7 @@
 // Invariant: OS hooks translate keyboard, pointer, and viewport changes into current shell actions and geometry.
 // Owning layer: the browser-to-OS-hook interaction boundary.
 import { act, fireEvent, render, renderHook, screen } from "@testing-library/react";
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useLayoutEffect } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { OsShellContext, type OsShellHandle } from "../../contexts/os-shell-context";
@@ -21,6 +21,7 @@ import {
   useOsZoomMenu,
 } from "../use-os-zoom-menu";
 import { useOsWindow } from "../use-os-window";
+import { useAnimationFrameLatest } from "../use-animation-frame-latest";
 import { useOsWindowCommands } from "../use-os-window-commands";
 import { useWindowMergeTarget } from "../use-window-merge-target";
 import { useOsWinLayer } from "../use-os-win-layer";
@@ -262,12 +263,16 @@ function installAnimationFrameQueue() {
     "cancelAnimationFrame",
     vi.fn((id: number) => callbacks.delete(id))
   );
+  const flushNow = () => {
+    const pending = [...callbacks.values()];
+    callbacks.clear();
+    for (const callback of pending) callback(performance.now());
+  };
   return {
+    flushNow,
     flush() {
-      const pending = [...callbacks.values()];
-      callbacks.clear();
       act(() => {
-        for (const callback of pending) callback(performance.now());
+        flushNow();
       });
     },
   };
@@ -299,6 +304,32 @@ function stackedFrame(): OsWindowFrameModel {
     stackId: "stack:primary",
   };
 }
+
+describe("useAnimationFrameLatest", () => {
+  it("Should flush pending work with the latest callback before passive effects", () => {
+    const frames = installAnimationFrameQueue();
+    const calls: string[] = [];
+    const { rerender } = renderHook(
+      ({ callbackVersion, flushBeforePassive }) => {
+        const api = useAnimationFrameLatest<string>(value => {
+          calls.push(`${callbackVersion}:${value}`);
+        });
+        useEffect(() => {
+          if (callbackVersion === 1) api.schedule({ value: "drag" });
+        }, [api, callbackVersion]);
+        useLayoutEffect(() => {
+          if (flushBeforePassive) frames.flushNow();
+        }, [flushBeforePassive]);
+        return api;
+      },
+      { initialProps: { callbackVersion: 1, flushBeforePassive: false } }
+    );
+
+    rerender({ callbackVersion: 2, flushBeforePassive: true });
+
+    expect(calls).toEqual(["2:drag"]);
+  });
+});
 
 describe("useOsWindow", () => {
   it("Should coalesce drag previews to the latest point in each animation frame", () => {
@@ -793,6 +824,44 @@ describe("useWindowMergeTarget", () => {
     frames.flush();
     expect(measure).toHaveBeenCalledOnce();
     expect(windowManagerStore.getSnapshot().context.deckDropTarget?.frameId).toBe("window:target");
+  });
+
+  it("Should use the committed frame when the coordinator runs before passive effects", () => {
+    const frames = installAnimationFrameQueue();
+    const shell = createShell();
+    const committedFrame = {
+      ...targetFrame(),
+      members: ["window:target", "window:latest"],
+      activeWindowId: "window:latest",
+    };
+    act(() => beginPrimarySnapGesture());
+    const { result, rerender } = renderHook(
+      ({ frame, flushBeforePassive }) => {
+        const model = useWindowMergeTarget(frame, true);
+        useLayoutEffect(() => {
+          if (!flushBeforePassive) return;
+          pointerMove(200, 60);
+          frames.flushNow();
+        }, [flushBeforePassive]);
+        return model;
+      },
+      {
+        initialProps: {
+          frame: targetFrame(),
+          flushBeforePassive: false,
+        },
+        wrapper: shell.wrapper,
+      }
+    );
+    result.current.chromeRef.current = chromeWithHead();
+
+    rerender({ frame: committedFrame, flushBeforePassive: true });
+
+    expect(windowManagerStore.getSnapshot().context.deckDropTarget).toEqual({
+      frameId: "window:target",
+      targetWindowId: "window:latest",
+      insertIndex: 2,
+    });
   });
 });
 

@@ -578,27 +578,52 @@ func TestEmbeddedLoopsShouldKeepDevCycleRuntimeContracts(t *testing.T) {
 		}
 	})
 
-	t.Run("Should keep software-delivery verification opt-in", func(t *testing.T) {
+	t.Run("Should keep implement-tasks focused on task implementation", func(t *testing.T) {
 		t.Parallel()
 
-		def := parseEmbeddedLoopForTest(t, "loops/software-delivery/loop.yaml")
-		verifyCommand, ok := def.Inputs["verify_command"]
-		if !ok {
-			t.Fatal("software-delivery input verify_command missing")
+		def := parseEmbeddedLoopForTest(t, "loops/implement-tasks/loop.yaml")
+		wantInputs := []string{"slug", "implementer", "auto_commit"}
+		if len(def.Inputs) != len(wantInputs) {
+			t.Fatalf("implement-tasks inputs = %#v, want exactly %#v", def.Inputs, wantInputs)
 		}
-		if got, want := verifyCommand.Default, ""; got != want {
-			t.Fatalf("verify_command default = %#v, want %q", got, want)
+		for _, input := range wantInputs {
+			if _, ok := def.Inputs[input]; !ok {
+				t.Fatalf("implement-tasks input %q missing", input)
+			}
 		}
-		verify := requireDevCycleNode(t, def, "verify")
-		if got, want := len(verify.Criteria), 1; got != want {
-			t.Fatalf("verify criteria = %d, want %d", got, want)
+
+		wantNodes := []dsl.NodeID{"slug_input", "load_tasks", "implement", "execute_task", "collect"}
+		if len(def.Graph.Nodes) != len(wantNodes) {
+			t.Fatalf("implement-tasks nodes = %#v, want exactly %#v", def.Graph.Nodes, wantNodes)
 		}
-		if got, want := verify.Criteria[0].Type, dsl.CriterionCommand; got != want {
-			t.Fatalf("verify criterion type = %q, want %q", got, want)
+		for index, wantNode := range wantNodes {
+			if got := def.Graph.Nodes[index].ID; got != wantNode {
+				t.Fatalf("implement-tasks node[%d] = %q, want %q", index, got, wantNode)
+			}
 		}
-		if got, want := verify.Criteria[0].Check, "{{ .inputs.verify_command }}"; got != want {
-			t.Fatalf("verify criterion check = %q, want %q", got, want)
+		wantEdges := [][2]dsl.NodeID{
+			{"slug_input", "load_tasks"},
+			{"load_tasks", "implement"},
+			{"implement", "execute_task"},
+			{"execute_task", "collect"},
 		}
+		if len(def.Graph.Edges) != len(wantEdges) {
+			t.Fatalf("implement-tasks edges = %#v, want exactly %#v", def.Graph.Edges, wantEdges)
+		}
+		for index, wantEdge := range wantEdges {
+			got := def.Graph.Edges[index]
+			if got.From != wantEdge[0] || got.To != wantEdge[1] {
+				t.Fatalf(
+					"implement-tasks edge[%d] = %q -> %q, want %q -> %q",
+					index,
+					got.From,
+					got.To,
+					wantEdge[0],
+					wantEdge[1],
+				)
+			}
+		}
+
 		execute := requireDevCycleNode(t, def, "execute_task")
 		prompt := requireStringParam(t, execute, "prompt")
 		for _, required := range []string{
@@ -620,12 +645,22 @@ func TestEmbeddedLoopsShouldKeepDevCycleRuntimeContracts(t *testing.T) {
 				t.Fatalf("execute_task prompt missing %q", required)
 			}
 		}
+		if strings.Contains(prompt, "verify_command") || strings.Contains(prompt, "`blocked`") {
+			t.Fatalf("execute_task prompt retains removed final-gate language: %q", prompt)
+		}
+		outputSchema := requireSchemaObject(t, execute.Params, "output_schema")
+		properties := requireSchemaObject(t, outputSchema, "properties")
+		status := requireSchemaObject(t, properties, "status")
+		statuses, ok := status["enum"].([]any)
+		if !ok || len(statuses) != 1 || statuses[0] != "completed" {
+			t.Fatalf("execute_task status enum = %#v, want [completed]", status["enum"])
+		}
 	})
 
-	t.Run("Should load software-delivery tasks through import_tasks action", func(t *testing.T) {
+	t.Run("Should load implement-tasks tasks through import_tasks action", func(t *testing.T) {
 		t.Parallel()
 
-		def := parseEmbeddedLoopForTest(t, "loops/software-delivery/loop.yaml")
+		def := parseEmbeddedLoopForTest(t, "loops/implement-tasks/loop.yaml")
 		loadTasks := requireDevCycleNode(t, def, "load_tasks")
 		if got, want := loadTasks.Class, dsl.NodeClassAction; got != want {
 			t.Fatalf("load_tasks class = %q, want %q", got, want)
@@ -655,21 +690,21 @@ func TestEmbeddedLoopsShouldKeepDevCycleRuntimeContracts(t *testing.T) {
 			loop.WithCompilerToolSchemaSource(devCycleToolSchemaSource(t)),
 		).Compile(def)
 		if err != nil {
-			t.Fatalf("Compile(software-delivery) error = %v", err)
+			t.Fatalf("Compile(implement-tasks) error = %v", err)
 		}
 		if resolved.Templates["nodes.implement.collection"] == nil {
-			t.Fatal("Compile(software-delivery) missing implement collection template")
+			t.Fatal("Compile(implement-tasks) missing implement collection template")
 		}
 	})
 
-	t.Run("Should render software-delivery implementer prompt for both commit modes", func(t *testing.T) {
+	t.Run("Should render implement-tasks implementer prompt for both commit modes", func(t *testing.T) {
 		t.Parallel()
 
-		def := parseEmbeddedLoopForTest(t, "loops/software-delivery/loop.yaml")
+		def := parseEmbeddedLoopForTest(t, "loops/implement-tasks/loop.yaml")
 		execute := requireDevCycleNode(t, def, "execute_task")
 		prompt := requireStringParam(t, execute, "prompt")
 
-		autoCommit := renderSoftwareDeliveryImplementerPromptForTest(t, prompt, true)
+		autoCommit := renderImplementTasksPromptForTest(t, prompt, true)
 		for _, required := range []string{
 			"Begin work on Ship loops immediately",
 			"Depends on: task_01, task_02",
@@ -682,7 +717,7 @@ func TestEmbeddedLoopsShouldKeepDevCycleRuntimeContracts(t *testing.T) {
 		if strings.Contains(autoCommit, "Leave changes uncommitted") {
 			t.Fatalf("auto_commit rendered prompt incorrectly leaves changes uncommitted")
 		}
-		manual := renderSoftwareDeliveryImplementerPromptForTest(t, prompt, false)
+		manual := renderImplementTasksPromptForTest(t, prompt, false)
 		if !strings.Contains(manual, "Leave changes uncommitted for manual review. Do not push.") {
 			t.Fatalf("manual rendered prompt missing leave-uncommitted instruction")
 		}
@@ -692,14 +727,14 @@ func TestEmbeddedLoopsShouldKeepDevCycleRuntimeContracts(t *testing.T) {
 	})
 }
 
-func renderSoftwareDeliveryImplementerPromptForTest(
+func renderImplementTasksPromptForTest(
 	t *testing.T,
 	prompt string,
 	autoCommit bool,
 ) string {
 	t.Helper()
 
-	rendered, err := refs.RenderTemplateString("software-delivery.execute_task.prompt", prompt, map[string]any{
+	rendered, err := refs.RenderTemplateString("implement-tasks.execute_task.prompt", prompt, map[string]any{
 		"inputs": map[string]any{
 			"slug":        "loops",
 			"auto_commit": autoCommit,

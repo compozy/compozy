@@ -194,7 +194,7 @@ export const LoopJob: Story = {
           target_kind: "loop",
           loop_target: {
             workspace_id: primaryAutomationJobFixture.workspace_id ?? "ws_hq",
-            loop_name: "software-delivery",
+            loop_name: "implement-tasks",
             inputs: { slug: "helix-v1-launch", dry_run: false },
             input_mapping: {},
           },

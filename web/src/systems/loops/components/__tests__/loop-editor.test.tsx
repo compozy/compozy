@@ -19,7 +19,7 @@ import {
 } from "../../mocks/fixture-editor-lifecycle";
 import { loopDetailByName } from "../../mocks/fixtures";
 
-const deliveryDetail = loopDetailByName.get("software-delivery")!;
+const deliveryDetail = loopDetailByName.get("quality-gate-demo")!;
 
 const WS = "ws_default";
 
@@ -59,7 +59,7 @@ function publishedNode(captured: { definition: PatchedDefinition | null }, id: s
 }
 
 function renderEditor(
-  name = "software-delivery",
+  name = "quality-gate-demo",
   extraHandlers: ReturnType<typeof http.post>[] = [],
   topbarIdentity?: Pick<TopbarSlotValue, "crumb" | "crumbs" | "onBack">
 ) {
@@ -103,11 +103,11 @@ describe("LoopEditor", () => {
     const onBack = vi.fn();
     const onOpenLoops = vi.fn();
     const onOpenLoop = vi.fn();
-    renderEditor("software-delivery", [], {
+    renderEditor("quality-gate-demo", [], {
       onBack,
       crumbs: [
         { id: "loops", label: "Loops", onSelect: onOpenLoops },
-        { id: "loop", label: "software-delivery", onSelect: onOpenLoop },
+        { id: "loop", label: "quality-gate-demo", onSelect: onOpenLoop },
       ],
       crumb: "Editor",
     });
@@ -238,7 +238,7 @@ describe("LoopEditor", () => {
         { status: 422 }
       )
     );
-    renderEditor("software-delivery", [cycleHandler]);
+    renderEditor("quality-gate-demo", [cycleHandler]);
     await screen.findByTestId("loop-editor");
     fireEvent.click(screen.getByTestId("loop-editor-validate"));
     await waitFor(() => expect(nodeCard("review")).toHaveAttribute("data-node-error", "true"));
@@ -271,7 +271,7 @@ describe("LoopEditor", () => {
         { status: 422 }
       )
     );
-    renderEditor("software-delivery", [reject]);
+    renderEditor("quality-gate-demo", [reject]);
     await screen.findByTestId("loop-editor");
     await waitFor(() => expect(screen.getByTestId("loop-editor-publish")).not.toBeDisabled());
     fireEvent.click(screen.getByTestId("loop-editor-publish"));
@@ -311,7 +311,7 @@ describe("LoopEditor", () => {
     const downValidate = http.post("/api/workspaces/:workspaceId/loops/:name/validate", () =>
       HttpResponse.json({ error: "linter offline" }, { status: 500 })
     );
-    renderEditor("software-delivery", [downValidate]);
+    renderEditor("quality-gate-demo", [downValidate]);
     await screen.findByTestId("loop-editor");
     // The mount auto-validate fails → the dock reports unavailable instead of "all pass".
     await waitFor(() =>
@@ -361,12 +361,12 @@ describe("LoopEditor", () => {
           version: 5,
           definition: {
             ...deliveryDetail.definition,
-            meta: { name: "software-delivery", version: 5, catalog: {} },
+            meta: { name: "quality-gate-demo", version: 5, catalog: {} },
           },
         },
       });
     });
-    const { onPublished } = renderEditor("software-delivery", [capture]);
+    const { onPublished } = renderEditor("quality-gate-demo", [capture]);
     await screen.findByTestId("loop-editor");
     await waitFor(() => expect(screen.getByTestId("loop-editor-version")).toHaveTextContent("v4"));
     fireEvent.click(screen.getByTestId("loop-palette-item-collect"));
@@ -388,7 +388,7 @@ describe("LoopEditor", () => {
       patchBody = (await request.json()) as typeof patchBody;
       return HttpResponse.json({ loop: deliveryDetail });
     });
-    renderEditor("software-delivery", [capture]);
+    renderEditor("quality-gate-demo", [capture]);
 
     await screen.findByTestId("loop-editor");
     fireEvent.change(screen.getByRole("textbox", { name: "Goal (optional)" }), {
@@ -416,7 +416,7 @@ describe("LoopEditor", () => {
 
   it("WT-005: carries the whole Spec 1 grammar through edit → PATCH → reopen unchanged", async () => {
     const { captured, handler } = capturePublish();
-    renderEditor("software-delivery", [handler, detailHandler(fullLifecycleDetail)]);
+    renderEditor("quality-gate-demo", [handler, detailHandler(fullLifecycleDetail)]);
     await screen.findByTestId("loop-editor");
     await waitFor(() => expect(screen.getAllByTestId("loop-editor-node")).toHaveLength(10));
 
@@ -480,7 +480,7 @@ describe("LoopEditor", () => {
   });
 
   it("WT-006: lets the daemon's named diagnostic gate Publish for on_error", async () => {
-    renderEditor("software-delivery", [detailHandler(fullLifecycleDetail)]);
+    renderEditor("quality-gate-demo", [detailHandler(fullLifecycleDetail)]);
     await screen.findByTestId("loop-editor");
     await waitFor(() => expect(screen.getByTestId("loop-editor-publish")).not.toBeDisabled());
 
@@ -506,7 +506,7 @@ describe("LoopEditor", () => {
 
   it("WT-006: builds each effect entry as emit XOR tool instead of validating it after the fact", async () => {
     const { captured, handler } = capturePublish();
-    renderEditor("software-delivery", [handler, detailHandler(fullLifecycleDetail)]);
+    renderEditor("quality-gate-demo", [handler, detailHandler(fullLifecycleDetail)]);
     await screen.findByTestId("loop-editor");
     fireEvent.click(nodeCard("execute_task"));
 
@@ -532,7 +532,7 @@ describe("LoopEditor", () => {
   });
 
   it("WT-007: keeps Publish enabled on a warning-only verdict and shows the warning", async () => {
-    renderEditor("software-delivery", [detailHandler(waitWarningDetail)]);
+    renderEditor("quality-gate-demo", [detailHandler(waitWarningDetail)]);
     await screen.findByTestId("loop-editor");
 
     // `wait_expiry_without_path` is a real daemon warning: visible, never a gate.
@@ -558,7 +558,7 @@ describe("LoopEditor", () => {
     const detail = http.get("/api/workspaces/:workspaceId/loops/:name", () =>
       HttpResponse.json({ loop: forked ? deliveryDetail : readOnlySourceDetail })
     );
-    renderEditor("software-delivery", [fork, detail]);
+    renderEditor("quality-gate-demo", [fork, detail]);
     await screen.findByTestId("loop-editor");
     await waitFor(() => expect(screen.getAllByTestId("loop-editor-node")).toHaveLength(8));
 
@@ -586,7 +586,7 @@ describe("LoopEditor", () => {
     expect(screen.getByTestId("loop-editor-validate")).not.toBeDisabled();
     fireEvent.click(screen.getByTestId("loop-editor-fork"));
     await waitFor(() => expect(forkBody).not.toBeNull());
-    expect(forkBody).toEqual({ fork_from_name: "software-delivery" });
+    expect(forkBody).toEqual({ fork_from_name: "quality-gate-demo" });
     await waitFor(() =>
       expect(screen.queryByTestId("loop-editor-readonly-strip")).not.toBeInTheDocument()
     );
@@ -597,7 +597,7 @@ describe("LoopEditor", () => {
     const reject = http.patch("/api/workspaces/:workspaceId/loops/:name", () =>
       HttpResponse.json({ valid: false, errors: PUBLISH_REJECTED_ISSUES }, { status: 422 })
     );
-    renderEditor("software-delivery", [reject]);
+    renderEditor("quality-gate-demo", [reject]);
     await screen.findByTestId("loop-editor");
     await waitFor(() => expect(screen.getByTestId("loop-editor-version")).toHaveTextContent("v4"));
     await waitFor(() => expect(screen.getByTestId("loop-editor-publish")).not.toBeDisabled());
@@ -652,7 +652,7 @@ describe("LoopEditor", () => {
         },
       });
     });
-    const { onPublished } = renderEditor("software-delivery", [loadFork, publish]);
+    const { onPublished } = renderEditor("quality-gate-demo", [loadFork, publish]);
 
     await screen.findByTestId("loop-editor");
     await waitFor(() => expect(screen.getByTestId("loop-editor-version")).toHaveTextContent("v0"));

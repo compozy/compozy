@@ -4,7 +4,7 @@ import { definitionToGraph } from "../codec";
 import { loopDetailByName } from "../../mocks/fixtures";
 import { annotationsToPositions, layoutEditorGraph } from "../loop-editor-layout";
 
-const def = loopDetailByName.get("software-delivery")!.definition;
+const def = loopDetailByName.get("quality-gate-demo")!.definition;
 
 describe("loop editor layout", () => {
   it("Should index saved annotations by node id, dropping non-finite coordinates", () => {

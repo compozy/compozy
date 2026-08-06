@@ -106,12 +106,12 @@ function showForm() {
 describe("AutomationTriggerForm", () => {
   beforeEach(async () => {
     const { loopCatalogFixtures } = await import("@/systems/loops/mocks/fixtures");
-    const softwareDelivery = loopCatalogFixtures.find(loop => loop.name === "software-delivery");
+    const implementTasks = loopCatalogFixtures.find(loop => loop.name === "implement-tasks");
     const reviewAndFix = loopCatalogFixtures.find(loop => loop.name === "review-and-fix");
-    if (!softwareDelivery || !reviewAndFix) throw new Error("Loop fixtures are incomplete");
+    if (!implementTasks || !reviewAndFix) throw new Error("Loop fixtures are incomplete");
 
     loopsState.current = [
-      { ...softwareDelivery, start: [{ kind: "schedule" }, { kind: "trigger" }] },
+      { ...implementTasks, start: [{ kind: "schedule" }, { kind: "trigger" }] },
       {
         ...reviewAndFix,
         inputs: { pr: { type: "number", required: true } },
@@ -381,11 +381,11 @@ describe("AutomationTriggerForm", () => {
     );
 
     fireEvent.change(screen.getByTestId("loop-target-select"), {
-      target: { value: "software-delivery" },
+      target: { value: "implement-tasks" },
     });
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        loop_target: expect.objectContaining({ loop_name: "software-delivery" }),
+        loop_target: expect.objectContaining({ loop_name: "implement-tasks" }),
       })
     );
     // A trigger fires from an event, so the payload mapping table is present.
@@ -397,14 +397,14 @@ describe("AutomationTriggerForm", () => {
     fireEvent.click(screen.getByTestId("target-mode-loop"));
 
     let select = screen.getByRole("combobox", { name: "Loop" });
-    expect(select).toHaveTextContent("software-delivery");
+    expect(select).toHaveTextContent("implement-tasks");
     expect(select).toHaveTextContent("review-and-fix");
     expect(select).not.toHaveTextContent("webhook-intake");
 
     fireEvent.click(screen.getByTestId("trigger-event-webhook"));
     select = screen.getByRole("combobox", { name: "Loop" });
     expect(select).toHaveTextContent("webhook-intake");
-    expect(select).not.toHaveTextContent("software-delivery");
+    expect(select).not.toHaveTextContent("implement-tasks");
     expect(select).not.toHaveTextContent("review-and-fix");
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({
@@ -469,7 +469,7 @@ describe("AutomationTriggerForm", () => {
         target_kind: "loop",
         loop_target: {
           workspace_id: "ws_alpha",
-          loop_name: "software-delivery",
+          loop_name: "implement-tasks",
           inputs: { goal: "Ship it" },
           input_mapping: {},
         },
@@ -479,12 +479,12 @@ describe("AutomationTriggerForm", () => {
     expect(screen.getByTestId("submit-trigger-form")).toBeEnabled();
     fireEvent.click(screen.getByTestId("trigger-event-webhook"));
 
-    expect(screen.getByRole("combobox", { name: "Loop" })).toHaveValue("software-delivery");
+    expect(screen.getByRole("combobox", { name: "Loop" })).toHaveValue("implement-tasks");
     expect(screen.getByRole("combobox", { name: "Loop" })).toBeDisabled();
     expect(screen.getByTestId("target-mode-agent")).toBeDisabled();
     expect(screen.getByTestId("target-mode-loop")).toBeDisabled();
     expect(within(screen.getByTestId("loop-target-fields")).getByRole("alert")).toHaveTextContent(
-      "software-delivery does not declare the webhook start kind"
+      "implement-tasks does not declare the webhook start kind"
     );
 
     showPreview();
@@ -510,7 +510,7 @@ describe("AutomationTriggerForm", () => {
         target_kind: "loop",
         loop_target: {
           workspace_id: "ws_alpha",
-          loop_name: "software-delivery",
+          loop_name: "implement-tasks",
           inputs: { slug: "helix-v1-launch" },
           input_mapping: { branch: "data.branch" },
         },
@@ -519,7 +519,7 @@ describe("AutomationTriggerForm", () => {
 
     showPreview();
     const preview = screen.getByTestId("trigger-preview");
-    expect(preview).toHaveTextContent("start Loop software-delivery");
+    expect(preview).toHaveTextContent("start Loop implement-tasks");
     expect(preview).toHaveTextContent("helix-v1-launch");
     expect(preview).toHaveTextContent("data.branch");
     expect(preview).not.toHaveTextContent("Prompt the agent receives");

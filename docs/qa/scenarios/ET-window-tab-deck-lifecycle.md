@@ -11,8 +11,8 @@ bug_ids:
 fix_status:
 retest_status: pass
 fix_commits:
-evidence: docs/qa/evidence/2026-08-01-window-tabs/keyboard-02-command-t-deck.png; docs/qa/evidence/2026-08-01-window-tabs/keyboard-04-dragged-network-window.png; docs/qa/evidence/2026-08-03-pr-291-remediation/CH-window-tabs-keyboard-flow-command-t.png; docs/qa/evidence/2026-08-03-pr-291-remediation/CH-window-tabs-keyboard-flow-reload.png; docs/qa/evidence/2026-08-03-pr-291-remediation/CH-window-tabs-keyboard-flow-drag.png; docs/qa/evidence/2026-08-03-pr-291-ci-remediation/CH-window-tabs-keyboard-flow-route-pop.png; docs/qa/evidence/2026-08-03-pr-291-ci-remediation/CH-window-tabs-keyboard-flow-deck-reload.png
-last_report: docs/qa/reports/2026-08-03-pr-291-ci-remediation.md
+evidence: docs/qa/evidence/2026-08-06-review-remediation/bruno-grouped-deck.png; docs/qa/evidence/2026-08-06-review-remediation/bruno-grouped-deck-reload.png
+last_report: docs/qa/reports/2026-08-06-review-remediation.md
 overlaps: ET-window-manager-layout-gestures; ET-web-desktop-shell-lifecycle
 ---
 
@@ -55,3 +55,12 @@ detail, returned through the public window-stack Back action, and confirmed the 
 Command-T created a Tasks + General deck that survived reload. The browser driver could not encode
 BracketLeft with a modifier, so the exact non-Apple Control-[ input is proven by the Linux-platform
 unit regression and E2E-032; the browser walk independently proved the same durable route-pop path.
+
+qa-impact: 2026-08-06 review remediation — animation-frame callbacks and merge-target frame reads
+now refresh during the layout phase so a pointer release cannot group against the previous committed
+frame. Reset for a fresh drag-grouping walk and reload canary from the current build.
+
+qa-completion: 2026-08-06 targeted retest — Bruno moved Settings, observed the live "Group as
+tabs" affordance over the Tasks head, released into one Tasks + Settings frame, and confirmed the
+same deck after reload. At 1280×800 with reduced motion, repeated Tasks dock activation cycled the
+existing deck without creating another frame.
