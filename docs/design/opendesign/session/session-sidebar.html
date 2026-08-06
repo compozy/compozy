@@ -1,0 +1,626 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CompozyOS · Session — in-window sessions sidebar</title>
+<link rel="stylesheet" href="session.css">
+<style>
+/* ============================================================
+   IN-WINDOW SESSIONS SIDEBAR — session-sidebar.html
+   The session document window grows a left rail that hosts the
+   SAME sessions-list component the dock's Sessions window uses
+   (os/os-v2.css §SESSIONS WINDOW, sidebar-sessions-02 anatomy),
+   so the user can switch sessions without leaving the window.
+
+   NEW · proposal: nested (spawned) sessions. Sessions carrying a
+   `parent_id` — an agent used Compozy to spawn a session — render
+   as a thread under their parent. Backend field `session.parent_id`
+   does not exist yet; every nesting control below cites it.
+
+   Authority per block:
+   - window frame ......... transcribed from session-chat.html
+   - session rows/groups .. transcribed from os/os-v2.css
+   - .sthread / .srow-kids  authorized delta (this proposal)
+   ============================================================ */
+
+/* ---- document-window frame (authority: session-chat.html) ---- */
+body{background:var(--rail);display:grid;place-items:center;min-height:100vh;padding:28px}
+.win{
+  width:min(1240px,100%);height:min(780px,calc(100vh - 76px));
+  display:flex;flex-direction:column;overflow:hidden;
+  background:var(--canvas);border:1px solid var(--line-strong);
+  border-radius:14px;box-shadow:var(--shadow-overlay);
+}
+.win-head{
+  display:flex;align-items:center;gap:10px;flex:none;
+  height:44px;padding:0 12px 0 14px;border-bottom:1px solid var(--line);
+}
+.win-dots{display:flex;gap:7px;flex:none}
+.win-dots i{width:11px;height:11px;border-radius:50%;background:var(--elevated);border:1px solid var(--line-strong)}
+.win-title{display:flex;align-items:center;gap:8px;min-width:0;font-size:13px;font-weight:500;color:var(--fg)}
+.win-title .sub{font-size:11px;font-weight:400;color:var(--subtle)}
+.win-actions{margin-left:auto;display:flex;gap:6px;flex:none}
+/* window title dot mirrors the list's status-dot vocabulary */
+.wt-dot{display:inline-grid;place-items:center;width:8px;flex:none}
+.wt-dot[data-status="running"] .status-dot{animation:session-live 2.6s ease-in-out infinite}
+
+/* sidebar toggle — client UI state only (no daemon payload) */
+.sb-toggle{
+  display:grid;place-items:center;width:24px;height:24px;flex:none;
+  border-radius:var(--radius-sm);color:var(--subtle);
+  transition:background var(--dur) var(--ease),color var(--dur) var(--ease);
+}
+.sb-toggle:hover{background:var(--row-hover);color:var(--fg)}
+.sb-toggle svg{width:14px;height:14px}
+
+/* ---- split body: sidebar + chat column ---- */
+.win-body{flex:1;min-height:0;display:flex}
+.main{flex:1;min-width:0;display:flex;flex-direction:column}
+.goal-zone{flex:none;padding-top:8px}
+.goal-zone .goalstrip{margin-bottom:0}
+.chat-scroll{flex:1;min-height:0;position:relative;
+  -webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 28px);
+          mask-image:linear-gradient(to bottom,transparent 0,#000 28px)}
+
+/* ============================================================
+   SIDEBAR — hosts the sessions-list component inside the window.
+   Rail surface matches the OS chrome (--rail) so the chat canvas
+   stays the lightest surface; hairline separates the two.
+   ============================================================ */
+.sb{
+  display:flex;flex-direction:column;flex:none;
+  width:264px;min-height:0;overflow:hidden; /* clips the 200% slide track */
+  background:var(--rail);border-right:1px solid var(--line);
+  transition:width .28s var(--ease),opacity .2s var(--ease);
+}
+.win[data-sidebar="closed"] .sb{width:0;opacity:0;overflow:hidden;border-right-color:transparent}
+.sb-head{flex:none;padding:10px 10px 6px}
+/* search — DS geometry: search fields sit at 28px */
+.sb-search{
+  display:flex;align-items:center;gap:7px;height:28px;padding:0 9px;
+  border:1px solid var(--line);border-radius:var(--radius-md);
+  background:var(--input-fill);color:var(--subtle);
+  transition:border-color var(--dur) var(--ease);
+}
+.sb-search:focus-within{border-color:var(--line-strong)}
+.sb-search svg{width:12px;height:12px;flex:none}
+.sb-search input{flex:1;min-width:0;border:0;background:none;outline:none;font-size:12px;color:var(--fg)}
+.sb-search input::placeholder{color:var(--faint)}
+
+/* two-pane slide: Recent ⇄ All (authority: os-v2.css .sr-track) */
+.sr-track{display:flex;width:200%;min-height:0;flex:1;transform:translate3d(0,0,0);transition:transform .32s var(--ease-in-out);will-change:transform}
+.sr-track[data-view="all"]{transform:translate3d(-50%,0,0)}
+.sr-pane{flex:0 0 50%;min-width:0;min-height:0;overflow-y:auto;padding:2px 10px 12px;display:flex;flex-direction:column}
+.sb-eyebrow{padding:6px 8px 4px;font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
+.sb-back{
+  display:flex;width:100%;align-items:center;gap:6px;
+  margin:2px 0 4px;padding:5px 8px;border-radius:var(--radius-sm);
+  color:var(--subtle);font-size:11.5px;font-weight:500;text-align:left;
+  transition:background var(--dur) var(--ease),color var(--dur) var(--ease);
+}
+.sb-back:hover{background:var(--row-hover);color:var(--fg)}
+.sb-back svg{width:12px;height:12px}
+
+/* ---- session rows (authority: os-v2.css, transcribed) ---- */
+.session-list{display:flex;flex-direction:column;gap:2px}
+.session-row{
+  position:relative;display:grid;grid-template-columns:8px minmax(0,1fr) auto;
+  align-items:start;gap:9px;width:100%;min-width:0;padding:7px 8px;
+  border:0;border-radius:var(--radius-md);background:transparent;color:var(--muted);
+  cursor:pointer;text-align:left;
+  transition:background var(--dur) var(--ease),color var(--dur) var(--ease);
+}
+.session-row:hover{background:var(--row-hover);color:var(--fg)}
+.status-dot{width:7px;height:7px;flex:0 0 7px;border-radius:var(--radius-pill);background:var(--neutral)}
+[data-status="running"] .status-dot{background:var(--accent);box-shadow:0 0 0 3px var(--accent-tint)}
+[data-status="idle"] .status-dot{background:var(--success)}
+[data-status="waiting-for-auth"] .status-dot{width:6px;height:6px;flex-basis:6px;border-radius:1px;background:var(--warning);transform:rotate(45deg)}
+[data-status="failed"] .status-dot{width:6.5px;height:6.5px;flex-basis:6.5px;border-radius:1.5px;background:var(--danger)}
+[data-status="stopped"] .status-dot{background:transparent;box-shadow:inset 0 0 0 1.5px var(--neutral)}
+.session-row .status-dot{justify-self:center;margin-top:5.9px}
+.session-row[data-status="waiting-for-auth"] .status-dot{margin-top:6.4px}
+.session-row[data-status="failed"] .status-dot{margin-top:6.1px}
+.session-row[data-status="running"] .status-dot{animation:session-live 2.6s ease-in-out infinite}
+@keyframes session-live{
+  0%,100%{box-shadow:0 0 0 3px var(--accent-tint)}
+  50%{box-shadow:0 0 0 4.5px color-mix(in srgb,var(--accent) 5%,transparent)}
+}
+.session-row__body{min-width:0;display:flex;flex-direction:column;gap:2px}
+.session-row__title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;color:var(--fg)}
+.session-row__sub{display:flex;min-width:0;align-items:center;gap:5px;overflow:hidden;font-size:10.5px;line-height:1.4;color:var(--subtle)}
+.session-row__sub b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500;color:var(--muted)}
+.session-row__state{flex:0 0 auto;white-space:nowrap}
+[data-status="failed"] .session-row__state{color:var(--danger)}
+[data-status="waiting-for-auth"] .session-row__state{color:var(--warning)}
+[data-status="running"] .session-row__state{color:var(--accent-strong)}
+.session-row__time{flex:0 0 auto;margin-top:2.5px;font-family:var(--font-mono);font-size:9px;color:var(--subtle);text-align:right;font-variant-numeric:tabular-nums}
+
+/* current session — selection marker (allowed by the accent budget) */
+.session-row[data-current]{background:var(--row-selected);color:var(--fg)}
+.session-row[data-current]::before{
+  content:"";position:absolute;left:0;top:7px;bottom:7px;width:2px;
+  border-radius:var(--radius-pill);background:var(--accent);
+}
+.session-row[data-current] .session-row__title{color:var(--fg-strong)}
+
+.show-all{
+  display:flex;width:100%;align-items:center;justify-content:center;gap:6px;
+  margin-top:5px;padding:8px;border:0;border-radius:var(--radius-md);
+  background:transparent;color:var(--subtle);cursor:pointer;
+  font-size:11.5px;font-weight:500;
+  transition:background var(--dur) var(--ease),color var(--dur) var(--ease);
+}
+.show-all:hover{background:var(--row-hover);color:var(--fg)}
+.show-all svg{width:12px;height:12px}
+
+/* ---- agent groups (authority: os-v2.css, transcribed) ---- */
+.agent-group{padding:2px 0}
+.agent-group + .agent-group{margin-top:3px;border-top:1px solid var(--line-soft);padding-top:5px}
+.agent-group__head{
+  position:sticky;top:0;z-index:2;
+  display:flex;width:100%;min-height:28px;align-items:center;gap:7px;padding:4px 8px;
+  border:0;border-radius:var(--radius-sm);
+  background:var(--rail);color:var(--muted);cursor:pointer;text-align:left;
+  transition:color var(--dur) var(--ease);
+}
+.agent-group__head:hover{color:var(--fg)}
+.agent-avatar{
+  display:inline-grid;width:18px;height:18px;flex:0 0 18px;place-items:center;
+  border-radius:var(--radius-xs);background:var(--elevated);color:var(--muted);
+  font-family:var(--font-mono);font-size:7.5px;font-weight:600;letter-spacing:.04em;
+}
+.agent-group__head:hover .agent-avatar{color:var(--fg)}
+.agent-group__name{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11.5px;font-weight:500;color:var(--fg)}
+.agent-group__count{flex:0 0 auto;font-family:var(--font-mono);font-size:9px;color:var(--faint)}
+.disclosure-icon{width:12px;height:12px;flex:0 0 12px;color:var(--faint);transform:rotate(0deg);transition:transform var(--dur) var(--ease)}
+[aria-expanded="true"]>.disclosure-icon{transform:rotate(90deg)}
+.agent-group__body{display:grid;grid-template-rows:1fr;transition:grid-template-rows .3s var(--ease)}
+.agent-group__body>.session-list{overflow:hidden;min-height:0;padding-left:10px;gap:1px;visibility:visible;transition:visibility .3s}
+.agent-group[data-collapsed="true"] .agent-group__body{grid-template-rows:0fr}
+.agent-group[data-collapsed="true"] .agent-group__body>.session-list{visibility:hidden}
+.agent-group .session-row{grid-template-columns:8px minmax(0,1fr) auto;align-items:center;min-height:28px;gap:8px;padding:4px 8px 4px 7px;border-radius:var(--radius-sm)}
+.agent-group .session-row .status-dot{margin-top:0}
+.agent-group .session-row__title{font-size:12px}
+.agent-group .session-row__time{margin-top:0}
+.sr-empty{padding:26px 14px;color:var(--muted);text-align:center;font-size:12px}
+
+/* ============================================================
+   NEW · SPAWNED-SESSION THREADS (proposal · session.parent_id)
+   A session whose agent used Compozy to spawn other sessions
+   renders as a thread: parent row + nested children behind a
+   hairline connector. Collapse follows the sidebar-sessions-02
+   contract (data-collapsed + grid-template-rows).
+   ============================================================ */
+.sthread{display:flex;flex-direction:column}
+.sthread__body{display:grid;grid-template-rows:1fr;transition:grid-template-rows .3s var(--ease)}
+.sthread[data-collapsed="true"] .sthread__body{grid-template-rows:0fr}
+.sthread__list{
+  position:relative;overflow:hidden;min-height:0;
+  display:flex;flex-direction:column;gap:1px;
+  padding-left:20px;
+  visibility:visible;transition:visibility .3s;
+}
+.sthread[data-collapsed="true"] .sthread__list{visibility:hidden}
+/* connector drops from the parent's status-dot column */
+.sthread__list::before{
+  content:"";position:absolute;left:11.5px;top:1px;bottom:5px;width:1px;
+  background:var(--line-strong);
+}
+.sthread .sthread__list .session-row{
+  grid-template-columns:8px minmax(0,1fr) auto;align-items:center;
+  min-height:28px;gap:8px;padding:4px 8px 4px 7px;border-radius:var(--radius-sm);
+}
+.sthread .sthread__list .session-row .status-dot{margin-top:0}
+.sthread .sthread__list .session-row__title{font-size:12px}
+.sthread .sthread__list .session-row__time{margin-top:0}
+/* inside agent groups the thread inherits the compact indent */
+.agent-group .sthread__list{padding-left:18px}
+.agent-group .sthread__list::before{left:10.5px}
+
+/* parent chip: disclosure + child count (+ most-urgent child signal
+   while collapsed). Sits in a 4th grid column on parent rows. */
+.session-row--parent,
+.agent-group .session-row--parent{grid-template-columns:8px minmax(0,1fr) auto auto}
+.srow-kids{
+  display:inline-flex;align-items:center;gap:4px;align-self:center;
+  margin-top:1px;padding:2px 5px;border-radius:var(--radius-pill);
+  color:var(--faint);font-family:var(--font-mono);font-size:9px;
+  font-variant-numeric:tabular-nums;
+  transition:background var(--dur) var(--ease),color var(--dur) var(--ease);
+}
+.srow-kids:hover{background:var(--badge-fill);color:var(--fg)}
+.srow-kids svg{width:10px;height:10px;transform:rotate(90deg);transition:transform var(--dur) var(--ease)}
+.sthread[data-collapsed="true"] .srow-kids svg{transform:rotate(0deg)}
+/* child signal dot: only earns pixels while the thread is folded */
+.srow-kids .kids-signal{display:none;width:5px;height:5px;border-radius:var(--radius-pill)}
+.sthread[data-collapsed="true"] .srow-kids .kids-signal{display:block}
+.kids-signal[data-tone="running"]{background:var(--accent)}
+.kids-signal[data-tone="failed"]{background:var(--danger)}
+.kids-signal[data-tone="waiting-for-auth"]{background:var(--warning)}
+
+/* sidebar footer — quiet action; the screen's single accent primary
+   stays the composer send */
+.sb-foot{flex:none;border-top:1px solid var(--line-soft);padding:6px 10px 8px}
+.sb-new{
+  display:flex;width:100%;align-items:center;gap:7px;
+  padding:6px 8px;border-radius:var(--radius-md);
+  color:var(--subtle);font-size:11.5px;font-weight:500;text-align:left;
+  transition:background var(--dur) var(--ease),color var(--dur) var(--ease);
+}
+.sb-new:hover{background:var(--row-hover);color:var(--fg)}
+.sb-new svg{width:12px;height:12px;flex:none}
+
+/* prototype nav — not product chrome */
+.proto-links{margin-top:12px;font-size:11px;color:var(--faint)}
+.proto-links a{color:var(--subtle);text-decoration:none}
+.proto-links a:hover{color:var(--fg)}
+</style>
+</head>
+<body>
+<div class="win" data-sidebar="open" data-od-id="session-window">
+
+  <!-- ===== window head: session self-titles; sidebar toggle joins the controls ===== -->
+  <header class="win-head" data-od-id="session-window-head">
+    <div class="win-dots"><i></i><i></i><i></i></div>
+    <button class="sb-toggle" id="sbToggle" type="button" aria-label="Toggle sessions sidebar" aria-expanded="true" data-od-id="sidebar-toggle">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="2.5"/><line x1="9.5" y1="4" x2="9.5" y2="20"/></svg>
+    </button>
+    <div class="win-title" data-od-id="session-window-title">
+      <span class="wt-dot" id="wtDot" data-status="running"><span class="status-dot"></span></span>
+      <span id="wtTitle">Calm transcript migration</span>
+      <span class="sub" id="wtSub">claude-code · compozy</span>
+    </div>
+    <div class="win-actions">
+      <!-- state-gated goal action (authority: session-chat.html) -->
+      <button class="btn btn--sm" type="button" data-od-id="goal-pause"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:11px;height:11px"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>Pause</button>
+      <button class="btn btn--sm btn--danger-ghost" type="button">Stop</button>
+    </div>
+  </header>
+
+  <div class="win-body">
+
+    <!-- ===== SIDEBAR: sessions list (same component the dock's Sessions window hosts) ===== -->
+    <aside class="sb" id="sb" data-od-id="sessions-sidebar" aria-label="Sessions">
+      <div class="sb-head">
+        <label class="sb-search" data-od-id="sessions-filter">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="5.2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="m13 13 3.4 3.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <input id="srFilter" placeholder="Filter sessions…" aria-label="Filter sessions" autocomplete="off">
+        </label>
+      </div>
+      <!-- data: GET /api/workspaces/:id/sessions · nesting: session.parent_id (proposed) -->
+      <div class="sr-track" id="srTrack" data-view="recent">
+        <div class="sr-pane" id="paneRecent" data-od-id="sessions-recent"></div>
+        <div class="sr-pane" id="paneAll" data-od-id="sessions-all"></div>
+      </div>
+      <div class="sb-foot">
+        <button class="sb-new" type="button" data-od-id="sidebar-new-session">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          New session
+        </button>
+      </div>
+    </aside>
+
+    <!-- ===== MAIN: transcript column (vocabulary: session.css) ===== -->
+    <div class="main">
+      <div class="goal-zone" data-od-id="goal-zone">
+        <div class="chat-col">
+          <div class="goalstrip" data-state="active" data-open="false" data-od-id="goal-strip">
+            <button class="goalstrip__line" type="button" data-toggle aria-expanded="false">
+              <span class="goalstrip__dot"></span>
+              <span class="goalstrip__kicker">Goal</span>
+              <span class="goalstrip__obj">Migrate session transcript to the calm-surface vocabulary</span>
+              <span class="goalstrip__fact">turn 3/20 · ctx 41%</span>
+              <span class="goalstrip__chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></span>
+            </button>
+            <div class="disclose"><div><div class="goalstrip__body">
+              <div class="goalstrip__row"><span class="goalstrip__k">Contract</span><span class="goalstrip__v">All 16 transcript components on session.css tokens; make verify green.</span></div>
+              <div class="goalstrip__row"><span class="goalstrip__k">Run</span><span class="goalstrip__v"><a href="#">plan-4 · generation 2</a> — active in this session</span></div>
+              <div class="goalstrip__row"><span class="goalstrip__k">Context</span><span class="goalstrip__v"><span class="goalstrip__mono">84,120 / 200,000 tokens · nudge at 70%</span></span></div>
+            </div></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="chat-scroll" data-od-id="session-transcript">
+        <div class="chat-col">
+          <div class="transcript">
+
+            <div class="liferule"><span>session resumed · 14:02</span></div>
+
+            <div class="t-row t-msg msg-user" data-od-id="msg-user-1">
+              <div class="msg-user__bubble">Spin up a child session with the research agent to digest the calm-surface references, then keep migrating the marker components here.</div>
+              <div class="msg-meta"><span>14:02</span><button type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button></div>
+            </div>
+
+            <div class="turnfold" data-open="false" data-od-id="turn-1-fold">
+              <button class="turnfold__btn" type="button" data-toggle aria-expanded="false">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+                <span>Worked for 58s</span>
+              </button>
+              <div class="disclose"><div><div class="turnfold__body">
+                <div class="trow" data-status="success"><div class="trow__line">
+                  <span class="trow__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg></span>
+                  <span class="trow__text"><span class="trow__verb">Ran</span><span class="trow__prev">compozy session new --agent research --parent s-3481</span></span>
+                  <span class="trow__aside"><span class="trow__status"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span></span>
+                </div></div>
+              </div></div></div>
+            </div>
+
+            <div class="t-row t-row--turn-end t-msg" data-od-id="msg-assistant-1">
+              <div class="msg-assistant md">
+                <p>Spawned <strong>Digest calm-surface references</strong> under this session — it shows nested
+                in the sidebar. I'll fold its digest back in when it settles; meanwhile the marker
+                migration continues here.</p>
+              </div>
+              <div class="msg-meta"><button type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button><span>14:03</span></div>
+            </div>
+
+            <div class="t-row t-msg msg-user" data-od-id="msg-user-2">
+              <div class="msg-user__bubble">Good — keep going on the markers.</div>
+              <div class="msg-meta"><span>14:05</span><button type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button></div>
+            </div>
+
+            <div class="t-row" style="display:flex;flex-direction:column;gap:2px" data-od-id="live-work">
+              <div class="trow" data-status="success"><div class="trow__line">
+                <span class="trow__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>
+                <span class="trow__text"><span class="trow__verb">Edited</span><span class="trow__prev">runtime-activity-notice.tsx</span></span>
+                <span class="diffstat"><b>+28</b><i>−104</i></span>
+                <span class="trow__aside"><span class="trow__status"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span></span>
+              </div></div>
+              <div class="trow" data-status="running"><div class="trow__line">
+                <span class="trow__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>
+                <span class="trow__text"><span class="trow__verb">Editing</span><span class="trow__prev">session-timeline-render.tsx</span></span>
+                <span class="trow__aside"><span class="trow__status"><svg class="trow__spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.2-8.56"/></svg></span></span>
+              </div></div>
+            </div>
+
+            <div class="t-row thinking-live" data-od-id="thinking-live"><span class="shimmer">Retoning the marker components…</span></div>
+
+            <div class="t-row working" data-od-id="working-row">
+              <span class="working__dots"><i></i><i></i><i></i></span>
+              <span class="working__label">Working for <span id="tick">2m 14s</span></span>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== composer (vocabulary: session.css; selector popup lives in session-chat.html) ===== -->
+      <div class="composer-zone" data-od-id="composer-zone">
+        <div class="chat-col">
+          <div class="composer" id="composer">
+            <textarea rows="1" placeholder="Reply to the agent…"></textarea>
+            <div class="composer__bar">
+              <div class="rtsel" data-od-id="runtime-selector">
+                <button class="pmr" type="button" aria-expanded="false" aria-haspopup="dialog" data-od-id="runtime-selector-trigger">
+                  <span class="provglyph"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M9.4 2.5h2.3L16 13.5h-2.3L9.4 2.5zM4.3 2.5h2.4l4.3 11H8.6l-.9-2.3H3.3l-.9 2.3H0l4.3-11zm2.6 6.7L5.5 5.4 4 9.2h2.9z"/></svg></span>
+                  <span class="pmr__name">Fable 5</span>
+                  <span class="im" data-hollow aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+                  <svg class="pmr__chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 4 4 4-4"/></svg>
+                </button>
+              </div>
+              <span class="composer__hint"><kbd>⏎</kbd> queue</span>
+              <span class="spacer"></span>
+              <button class="btn btn--ghost btn--sm" type="button" data-od-id="composer-queue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 12H3"/><path d="M16 6H3"/><path d="M16 18H3"/><path d="M18 9v6"/><path d="M21 12h-6"/></svg>Queue</button>
+              <button class="composer__stop" type="button" aria-label="Stop turn"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="7" y="7" width="10" height="10" rx="1.5"/></svg></button>
+              <button class="composer__send" type="button" aria-label="Send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p class="proto-links">session domain · <a href="session-chat.html">session-chat</a> · <a href="session-design-system.html">design system</a> · <a href="index.html">index</a></p>
+
+<script>
+/* ============================================================
+   Sessions data — runtime-plausible daemon truth.
+   Source: GET /api/workspaces/:id/sessions
+   NEW · parent_id (proposed backend field): set when an agent used
+   Compozy to spawn this session from another session.
+   ============================================================ */
+const AGENTS = [
+  { id:'webgen',   name:'webgen',   chip:'WG', provider:'claude-code' },
+  { id:'research', name:'research', chip:'RS', provider:'hermes' },
+  { id:'infra',    name:'infra',    chip:'IF', provider:'openclaw' },
+];
+const SESSIONS = [
+  { id:'s1',  agent:'webgen',   title:'Calm transcript migration',      status:'running',          time:'2m',  parent_id:null },
+  { id:'s1a', agent:'research', title:'Digest calm-surface references', status:'stopped',          time:'34m', parent_id:'s1' },
+  { id:'s1b', agent:'webgen',   title:'Migrate marker components',      status:'running',          time:'6m',  parent_id:'s1' },
+  { id:'s2',  agent:'webgen',   title:'Marketplace empty states',       status:'waiting-for-auth', time:'18m', parent_id:null },
+  { id:'s3',  agent:'webgen',   title:'Dashboard spacing audit',        status:'stopped',          time:'1h',  parent_id:null },
+  { id:'s4',  agent:'research', title:'Competitor pricing scan',        status:'running',          time:'3h',  parent_id:null },
+  { id:'s4a', agent:'research', title:'Scrape pricing pages',           status:'failed',           time:'1h',  parent_id:'s4' },
+  { id:'s5',  agent:'research', title:'ACP spec digest',                status:'stopped',          time:'5h',  parent_id:null },
+  { id:'s6',  agent:'infra',    title:'Nightly deps sweep',             status:'running',          time:'41m', parent_id:null },
+  { id:'s7',  agent:'infra',    title:'Release dry-run',                status:'failed',           time:'2d',  parent_id:null },
+];
+const STATE_LABEL = { running:'running', 'waiting-for-auth':'waiting', failed:'failed', stopped:'done', idle:'idle' };
+let currentId = 's1';
+/* collapse state persists like sidebar-sessions-02 (localStorage) */
+const store = { collapsedAgents: [], collapsedThreads: [] };
+try{ Object.assign(store, JSON.parse(localStorage.getItem('session-sidebar')||'{}')); }catch(e){ /* fresh state */ }
+const save = () => localStorage.setItem('session-sidebar', JSON.stringify(store));
+
+const agentById = id => AGENTS.find(a => a.id === id);
+const childrenOf = id => SESSIONS.filter(s => s.parent_id === id);
+const topLevel = () => SESSIONS.filter(s => !s.parent_id);
+/* most-urgent child state → collapsed-thread signal */
+const urgency = ['failed','waiting-for-auth','running'];
+const kidsSignal = kids => urgency.find(u => kids.some(k => k.status === u)) || null;
+
+function rowHTML(s, compact){
+  const a = agentById(s.agent);
+  const label = STATE_LABEL[s.status] || s.status;
+  const sub = compact ? '' : `<span class="session-row__sub"><b>${a.name}</b><span class="session-row__state">· ${label}</span></span>`;
+  const kids = childrenOf(s.id);
+  const cur = s.id === currentId ? ' data-current aria-current="true"' : '';
+  if(!kids.length){
+    return `<button class="session-row" data-status="${s.status}" data-sid="${s.id}"${cur}>
+      <span class="status-dot"></span>
+      <span class="session-row__body"><span class="session-row__title">${s.title}</span>${sub}</span>
+      <span class="session-row__time">${s.time}</span>
+    </button>`;
+  }
+  const sig = kidsSignal(kids);
+  const signal = sig ? `<span class="kids-signal" data-tone="${sig}"></span>` : '';
+  /* chip toggles the thread; the row itself still opens the session */
+  return `<button class="session-row session-row--parent" data-status="${s.status}" data-sid="${s.id}"${cur} title="${kids.length} spawned session${kids.length>1?'s':''}">
+    <span class="status-dot"></span>
+    <span class="session-row__body"><span class="session-row__title">${s.title}</span>${sub}</span>
+    <span class="session-row__time">${s.time}</span>
+    <span class="srow-kids" data-kids-toggle role="button" tabindex="0" aria-label="Toggle spawned sessions">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>${kids.length}${signal}
+    </span>
+  </button>`;
+}
+
+/* thread = parent row + nested children (proposal · session.parent_id).
+   Children keep their own agent in the sub line — a spawn may run a
+   different agent than its parent. */
+function threadHTML(s, compact, visibleIds){
+  const kids = childrenOf(s.id).filter(k => visibleIds.has(k.id));
+  if(!childrenOf(s.id).length) return rowHTML(s, compact);
+  const collapsed = store.collapsedThreads.includes(s.id);
+  return `<div class="sthread" data-collapsed="${collapsed}" data-thread="${s.id}">
+    ${rowHTML(s, compact)}
+    <div class="sthread__body"><div class="session-list sthread__list">
+      ${kids.map(k => rowHTML(k, true)).join('')}
+    </div></div>
+  </div>`;
+}
+
+function visibleSet(){
+  const q = document.getElementById('srFilter').value.trim().toLowerCase();
+  const match = s => !q || s.title.toLowerCase().includes(q) || agentById(s.agent).name.toLowerCase().includes(q);
+  const ids = new Set();
+  topLevel().forEach(p => {
+    const kids = childrenOf(p.id);
+    const kidHits = kids.filter(match);
+    /* a matching child keeps its parent visible (thread integrity) */
+    if(match(p) || kidHits.length){
+      ids.add(p.id);
+      (match(p) ? kids : kidHits).forEach(k => ids.add(k.id));
+    }
+  });
+  return ids;
+}
+
+function render(){
+  const ids = visibleSet();
+  const parents = topLevel().filter(p => ids.has(p.id));
+
+  const recent = parents.slice(0, 6);
+  document.getElementById('paneRecent').innerHTML =
+    '<p class="sb-eyebrow">Recent</p>'
+    + (recent.length
+      ? `<div class="session-list">${recent.map(p => threadHTML(p, false, ids)).join('')}</div>`
+      : '<p class="sr-empty">No sessions match.</p>')
+    + `<button class="show-all" data-show-all>Show all sessions
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m6.5 3.5 4.2 4.5-4.2 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>`;
+
+  document.getElementById('paneAll').innerHTML =
+    `<button class="sb-back" data-show-recent>
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m9.5 3.5-4.2 4.5 4.2 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Recent
+    </button>`
+    + (AGENTS.map(a => {
+      /* group by the PARENT's agent — spawns stay with their thread */
+      const rows = parents.filter(p => p.agent === a.id);
+      if(!rows.length) return '';
+      const total = rows.reduce((n,p) => n + 1 + childrenOf(p.id).filter(k => ids.has(k.id)).length, 0);
+      const collapsed = store.collapsedAgents.includes(a.id);
+      return `<div class="agent-group" data-collapsed="${collapsed}" data-agent="${a.id}">
+        <button class="agent-group__head" aria-expanded="${!collapsed}">
+          <span class="agent-avatar">${a.chip}</span>
+          <span class="agent-group__name">${a.name}</span>
+          <span class="agent-group__count">${total}</span>
+          <svg class="disclosure-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <div class="agent-group__body"><div class="session-list">${rows.map(p => threadHTML(p, true, ids)).join('')}</div></div>
+      </div>`;
+    }).join('') || '<p class="sr-empty">No sessions match.</p>');
+}
+
+/* ---- interactions ---- */
+const sb = document.getElementById('sb');
+
+sb.addEventListener('click', e => {
+  const kids = e.target.closest('[data-kids-toggle]');
+  if(kids){
+    e.stopPropagation();
+    const thread = kids.closest('.sthread');
+    const id = thread.dataset.thread;
+    const collapsed = thread.dataset.collapsed === 'true';
+    thread.dataset.collapsed = String(!collapsed);
+    store.collapsedThreads = collapsed
+      ? store.collapsedThreads.filter(x => x !== id)
+      : [...store.collapsedThreads, id];
+    save();
+    return;
+  }
+  const head = e.target.closest('.agent-group__head');
+  if(head){
+    const group = head.closest('.agent-group');
+    const id = group.dataset.agent;
+    const collapsed = group.dataset.collapsed === 'true';
+    group.dataset.collapsed = String(!collapsed);
+    head.setAttribute('aria-expanded', String(collapsed));
+    store.collapsedAgents = collapsed
+      ? store.collapsedAgents.filter(x => x !== id)
+      : [...store.collapsedAgents, id];
+    save();
+    return;
+  }
+  const row = e.target.closest('.session-row');
+  if(row){
+    currentId = row.dataset.sid;
+    const s = SESSIONS.find(x => x.id === currentId);
+    const a = agentById(s.agent);
+    document.getElementById('wtTitle').textContent = s.title;
+    document.getElementById('wtSub').textContent = `${a.provider} · compozy`;
+    document.getElementById('wtDot').dataset.status = s.status;
+    render();
+    return;
+  }
+  if(e.target.closest('[data-show-all]')) document.getElementById('srTrack').dataset.view = 'all';
+  if(e.target.closest('[data-show-recent]')) document.getElementById('srTrack').dataset.view = 'recent';
+});
+sb.addEventListener('keydown', e => {
+  if(e.key === 'Enter' && e.target.closest('[data-kids-toggle]')){ e.preventDefault(); e.target.closest('[data-kids-toggle]').click(); }
+});
+document.getElementById('srFilter').addEventListener('input', render);
+
+document.getElementById('sbToggle').addEventListener('click', () => {
+  const win = document.querySelector('.win');
+  const open = win.dataset.sidebar === 'open';
+  win.dataset.sidebar = open ? 'closed' : 'open';
+  document.getElementById('sbToggle').setAttribute('aria-expanded', String(!open));
+});
+
+/* disclosure toggles (goal strip, turn folds) — session-chat contract */
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-toggle]'); if(!t) return;
+  const host = t.closest('[data-open]'); if(!host) return;
+  const open = host.getAttribute('data-open') === 'true';
+  host.setAttribute('data-open', String(!open));
+  t.setAttribute('aria-expanded', String(!open));
+});
+
+/* working ticker */
+(()=>{ let s = 134; const el = document.getElementById('tick');
+setInterval(()=>{ s++; el.textContent = Math.floor(s/60)+'m '+String(s%60).padStart(2,'0')+'s'; }, 1000); })();
+
+/* autosize composer */
+(()=>{ const ta = document.querySelector('.composer textarea');
+ta.addEventListener('input', ()=>{ ta.style.height='auto'; ta.style.height=Math.min(ta.scrollHeight,180)+'px'; }); })();
+
+render();
+</script>
+</body>
+</html>

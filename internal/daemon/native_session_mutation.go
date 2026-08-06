@@ -10,6 +10,7 @@ import (
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -66,7 +67,7 @@ func (n *daemonNativeTools) sessionCreate(
 	if !ok {
 		return toolspkg.ToolResult{}, errors.New("daemon: durable session acceptance is required")
 	}
-	info, err := acceptance.CreateAccepted(ctx, session.CreateAcceptedOpts{Session: session.CreateOpts{
+	opts := session.CreateOpts{
 		AgentName: agent,
 		Name:      strings.TrimSpace(input.Name),
 		Workspace: workspaceID,
@@ -74,7 +75,16 @@ func (n *daemonNativeTools) sessionCreate(
 		NetworkParticipation: participation.CloneRequest(
 			input.NetworkParticipation,
 		),
-	}})
+	}
+	// The bound caller session is server-minted and not overridable through tool
+	// input. Cross-workspace creates stay unlinked: provenance never crosses the
+	// workspace isolation boundary.
+	callerSessionID := strings.TrimSpace(scope.SessionID)
+	callerWorkspaceID := strings.TrimSpace(scope.WorkspaceID)
+	if callerSessionID != "" && callerWorkspaceID != "" && callerWorkspaceID == workspaceID {
+		opts.Lineage = &store.SessionLineage{ParentSessionID: callerSessionID}
+	}
+	info, err := acceptance.CreateAccepted(ctx, session.CreateAcceptedOpts{Session: opts})
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}

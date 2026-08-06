@@ -18,6 +18,7 @@ import (
 const (
 	agentActionMe              = "agent.me"
 	agentActionCoordinatorRole = "agent.coordinator.config"
+	agentActionSessionCreate   = "session.create"
 )
 
 var (

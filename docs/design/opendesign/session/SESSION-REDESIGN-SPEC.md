@@ -365,3 +365,28 @@ is `session.css` (class contracts in §2); token authority stays `packages/ui/sr
 Acceptance for every phase: no `*-tint` wash inside the transcript, color budget §1 holds,
 failed rows stay collapsed, receipts stay outside folds, and no dual rendering path survives
 (Zero Legacy Tolerance).
+
+## 12. Addendum — in-window sessions sidebar (shipped 2026-08-06)
+
+`session-sidebar.html` extends this domain past the original transcript scope: the session window
+grows a left rail hosting the same sessions-list body the dock's Sessions surface uses, plus
+provenance threads for sessions whose `lineage.parent_session_id` is loaded (nested behind a
+hairline connector with a count toggle and a collapsed-state urgency dot). Shipped decisions that
+supersede the prototype where they differ:
+
+- Closed by default; topbar toggle carrying the dock's sessions icon (`SquareTerminal`) so it never
+  reads as a twin of the inspector's `PanelRight`, preference in
+  `localStorage compozy:session:sidebar:v1` (global open flag + per-thread collapse shared with the
+  dock modal).
+- Row activation retargets the window in place (`window.navigate` + `instance_key`, replace-only,
+  nav stack reset); a session already owning a window is focused instead (≤1 window per session).
+- The thread toggle sits in the row's trailing action cluster, not inside the row button (nested
+  interactive controls violate the a11y floor); children keep row actions for capability parity.
+- The Recent back affordance lives at the top of the All pane (prototype `.sb-back`), shared by
+  modal and sidebar.
+- Backend field is the existing `lineage.parent_session_id` (provenance-light on `user` sessions) —
+  the prototype's "proposed parent_id" already shipped as safe-spawn lineage; no new column.
+
+Implementation: `web/src/systems/session/components/session-list/*`, `session-sidebar.tsx`,
+`lib/session-hierarchy.ts`; story `systems/session/components/SessionSidebar`. QA:
+`docs/qa/scenarios/ET-web-session-sidebar-threads.md`, `RT-session-parent-provenance.md`.

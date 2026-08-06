@@ -1,0 +1,108 @@
+// Suite: session-hierarchy
+// Invariant: sessions nest under their loaded creation parent (orphans stay roots),
+// thread collection flattens descendants in list order, and collapsed-thread
+// signals surface the most urgent child state.
+// Owning layer: unit (systems/session/lib)
+import { describe, expect, it } from "vitest";
+
+import { sessionRuntime } from "../../mocks/fixtures";
+import type { SessionPayload } from "../../types";
+import {
+  buildSessionTree,
+  childSessionSignalTone,
+  collectThreadSessions,
+} from "../session-hierarchy";
+
+function treeSession(
+  id: string,
+  options: { parent?: string; badge?: string } = {}
+): SessionPayload {
+  return {
+    id,
+    name: `Session ${id}`,
+    agent_name: "coder",
+    runtime: sessionRuntime("claude"),
+    workspace_id: "ws-1",
+    state: "active",
+    badge: options.badge ?? "running",
+    attachable: true,
+    archived_at: null,
+    available_commands: [],
+    ...(options.parent
+      ? {
+          lineage: {
+            parent_session_id: options.parent,
+            root_session_id: options.parent,
+            spawn_depth: 1,
+            auto_stop_on_parent: false,
+            spawn_budget: { max_children: 0, max_depth: 0, ttl_seconds: 0 },
+            permission_policy: {
+              tools: [],
+              skills: [],
+              mcp_servers: [],
+              workspace_paths: [],
+              network_channels: [],
+              sandbox_profiles: [],
+            },
+          },
+        }
+      : {}),
+    created_at: "2026-04-17T12:00:00Z",
+    updated_at: "2026-04-17T18:00:00Z",
+  };
+}
+
+describe("buildSessionTree", () => {
+  it("Should nest children under a loaded parent and keep orphans as roots", () => {
+    const root = treeSession("sess-root");
+    const child = treeSession("sess-child", { parent: "sess-root" });
+    const orphan = treeSession("sess-orphan", { parent: "sess-unloaded" });
+
+    const tree = buildSessionTree([root, child, orphan]);
+
+    expect(tree.roots.map(session => session.id)).toEqual(["sess-root", "sess-orphan"]);
+    expect(tree.childrenByParent.get("sess-root")?.map(session => session.id)).toEqual([
+      "sess-child",
+    ]);
+  });
+
+  it("Should keep a self-parented session as a root", () => {
+    const cyclic = treeSession("sess-cyclic", { parent: "sess-cyclic" });
+    const tree = buildSessionTree([cyclic]);
+    expect(tree.roots.map(session => session.id)).toEqual(["sess-cyclic"]);
+    expect(tree.childrenByParent.size).toBe(0);
+  });
+});
+
+describe("collectThreadSessions", () => {
+  it("Should flatten deep descendants into their root thread in depth-first order", () => {
+    const sessions = [
+      treeSession("sess-root"),
+      treeSession("sess-a", { parent: "sess-root" }),
+      treeSession("sess-a1", { parent: "sess-a" }),
+      treeSession("sess-b", { parent: "sess-root" }),
+    ];
+    const tree = buildSessionTree(sessions);
+
+    expect(collectThreadSessions("sess-root", tree.childrenByParent).map(s => s.id)).toEqual([
+      "sess-a",
+      "sess-a1",
+      "sess-b",
+    ]);
+    expect(collectThreadSessions("sess-b", tree.childrenByParent)).toEqual([]);
+  });
+});
+
+describe("childSessionSignalTone", () => {
+  it("Should surface the most urgent child state with failed above waiting above running", () => {
+    const running = treeSession("sess-running", { parent: "p", badge: "running" });
+    const waiting = treeSession("sess-waiting", { parent: "p", badge: "waiting-for-auth" });
+    const failed = treeSession("sess-failed", { parent: "p", badge: "failed" });
+    const stopped = treeSession("sess-stopped", { parent: "p", badge: "stopped" });
+
+    expect(childSessionSignalTone([stopped])).toBeNull();
+    expect(childSessionSignalTone([stopped, running])).toBe("accent");
+    expect(childSessionSignalTone([running, waiting])).toBe("warning");
+    expect(childSessionSignalTone([running, waiting, failed])).toBe("danger");
+  });
+});

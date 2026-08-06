@@ -44,7 +44,7 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 	if err != nil {
 		return sessionStartSpec{}, err
 	}
-	lineage, err := m.normalizeCreateLineage(ctx, sessionID, sessionType, opts.Lineage)
+	lineage, err := m.normalizeCreateLineage(ctx, sessionID, sessionType, resolvedWorkspace.ID, opts.Lineage)
 	if err != nil {
 		return sessionStartSpec{}, err
 	}

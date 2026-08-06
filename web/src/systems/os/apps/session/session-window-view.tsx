@@ -12,6 +12,7 @@ import {
 import { SessionWindowContent } from "./session-window-content";
 
 export function SessionWindowView({
+  windowId,
   name,
   id,
   workspaceId,
@@ -21,6 +22,7 @@ export function SessionWindowView({
   error,
   onDeleteSuccess,
 }: {
+  windowId: string;
   name: string;
   id: string;
   workspaceId: string;
@@ -55,6 +57,7 @@ export function SessionWindowView({
         liveTailEnabled={liveTailEnabled}
       >
         <SessionWindowContent
+          windowId={windowId}
           agentName={resolvedAgentName}
           sessionId={id}
           session={session}

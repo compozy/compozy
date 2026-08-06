@@ -178,6 +178,7 @@ export function createLiveStoryShell({
     resizeGroupFrames: () => outcome(),
     balanceLayout: fn(),
     navigateWindow: () => outcome(),
+    retargetWindow: () => outcome(),
     popWindowRoute: () => outcome(),
     groupWindows: () => outcome(),
     reorderStackMember: () => outcome(),

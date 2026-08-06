@@ -17,13 +17,16 @@ import {
 } from "@/systems/session";
 import { useSessionVaultSecrets } from "@/systems/vault";
 
+import { useSessionWindowSidebar } from "./use-session-window-sidebar";
+
 export function useSessionWindowController(input: {
+  windowId: string;
   sessionId: string;
   workspaceId: string;
   session: SessionPayload;
   onDeleteSuccess: () => void;
 }) {
-  const { sessionId, workspaceId, session, onDeleteSuccess } = input;
+  const { windowId, sessionId, workspaceId, session, onDeleteSuccess } = input;
   const promptRuntime = useSessionPromptRuntimeContext();
   const controls = useSessionPageControls(sessionId, session, {
     getRuntimeSnapshot: () => getSessionPromptRuntimeSnapshot(promptRuntime),
@@ -57,6 +60,7 @@ export function useSessionWindowController(input: {
   const deleteDialog = useSessionDeleteDialog(controls.handleDelete);
   const clearDialog = useSessionClearDialog(controls.handleClear);
   const inspector = useSessionInspectorState(sessionId);
+  const sidebar = useSessionWindowSidebar({ windowId, workspaceId, sessionId });
   // Secondary goal reader for the head action — the goal strip inside the
   // thread owns the loop-stream reconciliation, so this instance reads cache only.
   const goal = useSessionGoalHeader(workspaceId, sessionId, {
@@ -72,6 +76,8 @@ export function useSessionWindowController(input: {
     isClearing: controls.isClearing,
     canClear: controls.canClear,
     inspectorOpen: inspector.open,
+    sidebarOpen: sidebar.open,
+    onSidebarToggle: sidebar.toggle,
     goalAction: (
       <SessionGoalHeadAction
         snapshot={goal.snapshot}
@@ -93,6 +99,7 @@ export function useSessionWindowController(input: {
   return {
     controls,
     inspector,
+    sidebar,
     inspectorMemory,
     inspectorUsage,
     sessionVault,

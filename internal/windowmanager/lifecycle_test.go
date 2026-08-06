@@ -1414,6 +1414,83 @@ func TestWindowNavigation(t *testing.T) {
 			}
 		},
 	)
+
+	t.Run("Should retarget the window instance on replace navigation and reset the nav stack", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		openTestWindow(t, environment.manager, "workspace-a", nil, "w1", "desktop-default")
+		executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			nil,
+			NavigateWindowCommand{WindowID: "w1", Route: testRoute("/sessions/sess-a"), Mode: NavigatePush},
+		)
+
+		targetKey := "sess-b"
+		retargeted := executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			nil,
+			NavigateWindowCommand{
+				WindowID:    "w1",
+				Route:       testRoute("/sessions/sess-b"),
+				InstanceKey: &targetKey,
+				Mode:        NavigateReplace,
+			},
+		)
+		window := retargeted.Snapshot.Windows["w1"]
+		if !retargeted.Applied ||
+			window.InstanceKey == nil || *window.InstanceKey != targetKey ||
+			window.Route.Pathname != "/sessions/sess-b" ||
+			len(window.NavStack) != 0 {
+			t.Fatalf("Execute(retarget) window = %+v applied=%v, want re-keyed window with empty nav stack",
+				window, retargeted.Applied)
+		}
+
+		sameRouteKey := "sess-c"
+		rekeyedOnly := executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			nil,
+			NavigateWindowCommand{
+				WindowID:    "w1",
+				Route:       testRoute("/sessions/sess-b"),
+				InstanceKey: &sameRouteKey,
+				Mode:        NavigateReplace,
+			},
+		)
+		window = rekeyedOnly.Snapshot.Windows["w1"]
+		if !rekeyedOnly.Applied || window.InstanceKey == nil || *window.InstanceKey != sameRouteKey {
+			t.Fatalf("Execute(same-route retarget) window = %+v applied=%v, want instance key change applied",
+				window, rekeyedOnly.Applied)
+		}
+
+		snapshot, err := environment.manager.Snapshot(t.Context(), "workspace-a")
+		if err != nil {
+			t.Fatalf("Snapshot() error = %v", err)
+		}
+		pushKey := "sess-d"
+		_, err = environment.manager.Execute(
+			t.Context(),
+			CommandRequest{
+				WorkspaceID:      "workspace-a",
+				CommandID:        CommandWindowNavigate,
+				ExpectedRevision: snapshot.Revision,
+				Payload: NavigateWindowCommand{
+					WindowID:    "w1",
+					Route:       testRoute("/sessions/sess-d"),
+					InstanceKey: &pushKey,
+					Mode:        NavigatePush,
+				},
+			},
+		)
+		if !errors.Is(err, ErrInvalidCommand) {
+			t.Fatalf("Execute(push retarget) error = %v, want %v", err, ErrInvalidCommand)
+		}
+	})
 }
 
 func TestRouteIntentValidation(t *testing.T) {

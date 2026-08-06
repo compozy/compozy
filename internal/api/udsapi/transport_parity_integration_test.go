@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/agentidentity"
 	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	apispec "github.com/compozy/compozy/internal/api/spec"
 	automationpkg "github.com/compozy/compozy/internal/automation"
@@ -1388,6 +1389,139 @@ func TestUDSTransportSessionRuntimeCreateReadMatchesHTTP(t *testing.T) {
 			httpDetail.Session.Runtime,
 		)
 	}
+
+	assertTransportSessionProvenanceParity(t, ctx, runtimeHarness, created.Session)
+}
+
+func assertTransportSessionProvenanceParity(
+	t *testing.T,
+	ctx context.Context,
+	runtimeHarness *e2etest.RuntimeHarness,
+	parent compozycontract.SessionPayload,
+) {
+	t.Helper()
+
+	var explicitChild compozycontract.SessionResponse
+	if err := runtimeHarness.UDSJSON(ctx, http.MethodPost, "/api/sessions", compozycontract.CreateSessionRequest{
+		AgentName:       parent.AgentName,
+		WorkspacePath:   runtimeHarness.WorkspaceRoot,
+		ParentSessionID: parent.ID,
+	}, &explicitChild); err != nil {
+		t.Fatalf("UDS create explicit provenance child error = %v", err)
+	}
+	if explicitChild.Session.Type != session.SessionTypeUser {
+		t.Fatalf("explicit child type = %q, want %q", explicitChild.Session.Type, session.SessionTypeUser)
+	}
+	if explicitChild.Session.Lineage == nil ||
+		explicitChild.Session.Lineage.ParentSessionID != parent.ID ||
+		explicitChild.Session.Lineage.RootSessionID != parent.ID ||
+		explicitChild.Session.Lineage.SpawnDepth != 1 {
+		t.Fatalf(
+			"explicit child lineage = %#v, want parent/root %q depth 1",
+			explicitChild.Session.Lineage,
+			parent.ID,
+		)
+	}
+	if explicitChild.Session.Lineage.TTLExpiresAt != nil || explicitChild.Session.Lineage.AutoStopOnParent {
+		t.Fatalf("explicit child lineage = %#v, want no governance coupling", explicitChild.Session.Lineage)
+	}
+
+	inferredBody, err := json.Marshal(compozycontract.CreateSessionRequest{
+		AgentName:     parent.AgentName,
+		WorkspacePath: runtimeHarness.WorkspaceRoot,
+	})
+	if err != nil {
+		t.Fatalf("marshal inferred create request error = %v", err)
+	}
+	inferredResp := mustUnixRequest(
+		t,
+		runtimeHarness.UDSClient,
+		http.MethodPost,
+		runtimeHarness.UDSURL("/api/sessions"),
+		inferredBody,
+		map[string]string{
+			agentidentity.HeaderSessionID: parent.ID,
+			agentidentity.HeaderAgent:     parent.AgentName,
+		},
+	)
+	inferredPayload, readErr := io.ReadAll(inferredResp.Body)
+	closeErr := inferredResp.Body.Close()
+	if readErr != nil {
+		t.Fatalf("read inferred create response error = %v", readErr)
+	}
+	if closeErr != nil {
+		t.Errorf("close inferred create response error = %v", closeErr)
+	}
+	if inferredResp.StatusCode != http.StatusCreated {
+		t.Fatalf(
+			"inferred create status = %d, want %d; body=%s",
+			inferredResp.StatusCode,
+			http.StatusCreated,
+			strings.TrimSpace(string(inferredPayload)),
+		)
+	}
+	var inferredChild compozycontract.SessionResponse
+	if err := json.Unmarshal(inferredPayload, &inferredChild); err != nil {
+		t.Fatalf("decode inferred create response error = %v", err)
+	}
+	if inferredChild.Session.Lineage == nil ||
+		inferredChild.Session.Lineage.ParentSessionID != parent.ID {
+		t.Fatalf(
+			"identity-inferred child lineage = %#v, want caller parent %q",
+			inferredChild.Session.Lineage,
+			parent.ID,
+		)
+	}
+
+	childIDs := []string{explicitChild.Session.ID, inferredChild.Session.ID}
+	slices.Sort(childIDs)
+	parentQuery := "/api/sessions?parent=" + url.QueryEscape(parent.ID)
+	rootQuery := "/api/sessions?root=" + url.QueryEscape(parent.ID)
+
+	var udsChildren compozycontract.SessionCatalogResponse
+	if err := runtimeHarness.UDSJSON(ctx, http.MethodGet, parentQuery, nil, &udsChildren); err != nil {
+		t.Fatalf("UDS list parent filter error = %v", err)
+	}
+	var httpChildren compozycontract.SessionCatalogResponse
+	if err := runtimeHarness.HTTPJSON(ctx, http.MethodGet, parentQuery, nil, &httpChildren); err != nil {
+		t.Fatalf("HTTP list parent filter error = %v", err)
+	}
+	udsChildIDs := transportSessionCatalogIDs(udsChildren)
+	httpChildIDs := transportSessionCatalogIDs(httpChildren)
+	if !slices.Equal(udsChildIDs, childIDs) || !slices.Equal(httpChildIDs, childIDs) {
+		t.Fatalf(
+			"parent filter ids uds=%#v http=%#v, want %#v on both transports",
+			udsChildIDs,
+			httpChildIDs,
+			childIDs,
+		)
+	}
+	if udsChildren.Page.Total != 2 || httpChildren.Page.Total != 2 {
+		t.Fatalf(
+			"parent filter totals uds=%d http=%d, want 2 on both transports",
+			udsChildren.Page.Total,
+			httpChildren.Page.Total,
+		)
+	}
+
+	var udsTree compozycontract.SessionCatalogResponse
+	if err := runtimeHarness.UDSJSON(ctx, http.MethodGet, rootQuery, nil, &udsTree); err != nil {
+		t.Fatalf("UDS list root filter error = %v", err)
+	}
+	wantTree := append([]string{parent.ID}, childIDs...)
+	slices.Sort(wantTree)
+	if got := transportSessionCatalogIDs(udsTree); !slices.Equal(got, wantTree) {
+		t.Fatalf("root filter ids = %#v, want whole tree %#v", got, wantTree)
+	}
+}
+
+func transportSessionCatalogIDs(page compozycontract.SessionCatalogResponse) []string {
+	ids := make([]string, 0, len(page.Sessions))
+	for _, item := range page.Sessions {
+		ids = append(ids, item.ID)
+	}
+	slices.Sort(ids)
+	return ids
 }
 
 func TestUDSTransportStoppedSessionRemainsUnattachable(t *testing.T) {

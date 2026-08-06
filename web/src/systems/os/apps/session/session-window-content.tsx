@@ -4,6 +4,7 @@ import {
   SessionDeleteDialog,
   SessionPromptRuntimeSelector,
   SessionResumeFailure,
+  SessionSidebar,
   type SessionPayload,
 } from "@/systems/session";
 
@@ -17,22 +18,31 @@ function workingStartedAt(value: string | null | undefined): number | undefined 
 }
 
 export function SessionWindowContent({
+  windowId,
   agentName,
   sessionId,
   session,
   workspaceId,
   onDeleteSuccess,
 }: {
+  windowId: string;
   agentName: string;
   sessionId: string;
   session: SessionPayload;
   workspaceId: string;
   onDeleteSuccess: () => void;
 }) {
-  const page = useSessionWindowController({ sessionId, workspaceId, session, onDeleteSuccess });
+  const page = useSessionWindowController({
+    windowId,
+    sessionId,
+    workspaceId,
+    session,
+    onDeleteSuccess,
+  });
   const {
     controls,
     inspector,
+    sidebar,
     inspectorMemory,
     inspectorUsage,
     sessionVault,
@@ -45,6 +55,19 @@ export function SessionWindowContent({
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+      <SessionSidebar
+        open={sidebar.open}
+        sessions={sidebar.sessions}
+        disconnected={sidebar.disconnected}
+        collapsedAgentIds={sidebar.collapsedAgentIds}
+        collapsedThreadIds={sidebar.collapsedThreadIds}
+        currentSessionId={sessionId}
+        onToggleGroup={sidebar.onToggleGroup}
+        onToggleThread={sidebar.onToggleThread}
+        onSelectSession={sidebar.onSelectSession}
+        onNewSession={sidebar.onNewSession}
+        sessionActions={sidebar.sessionActions}
+      />
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {controls.resumeFailure ? (
           <SessionResumeFailure
@@ -112,6 +135,15 @@ export function SessionWindowContent({
         isDeleting={controls.isDeleting}
         onConfirm={deleteDialog.confirmDelete}
       />
+      {sidebar.rowDeleteDialog.session ? (
+        <SessionDeleteDialog
+          open={sidebar.rowDeleteDialog.open}
+          onOpenChange={sidebar.rowDeleteDialog.onOpenChange}
+          session={sidebar.rowDeleteDialog.session}
+          isDeleting={sidebar.rowDeleteDialog.isDeleting}
+          onConfirm={sidebar.rowDeleteDialog.onConfirm}
+        />
+      ) : null}
       <SessionClearDialog
         open={clearDialog.open}
         onOpenChange={clearDialog.setOpen}

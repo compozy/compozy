@@ -39,16 +39,18 @@ var (
 
 // ListQuery describes one public session catalog page.
 type ListQuery struct {
-	WorkspaceID string
-	State       string
-	SessionType Type
-	AgentName   string
-	Search      string
-	Resumable   bool
-	Archive     store.SessionArchiveFilter
-	Sort        string
-	Cursor      string
-	Limit       int
+	WorkspaceID     string
+	State           string
+	SessionType     Type
+	AgentName       string
+	ParentSessionID string
+	RootSessionID   string
+	Search          string
+	Resumable       bool
+	Archive         store.SessionArchiveFilter
+	Sort            string
+	Cursor          string
+	Limit           int
 }
 
 // ListPage contains one bounded public session catalog result.
@@ -61,14 +63,16 @@ type ListPage struct {
 }
 
 type sessionListFingerprint struct {
-	WorkspaceID string                     `json:"workspace_id"`
-	State       string                     `json:"state"`
-	SessionType Type                       `json:"type"`
-	AgentName   string                     `json:"agent"`
-	Search      string                     `json:"q"`
-	Resumable   bool                       `json:"resumable"`
-	Archive     store.SessionArchiveFilter `json:"archive"`
-	Sort        string                     `json:"sort"`
+	WorkspaceID     string                     `json:"workspace_id"`
+	State           string                     `json:"state"`
+	SessionType     Type                       `json:"type"`
+	AgentName       string                     `json:"agent"`
+	ParentSessionID string                     `json:"parent"`
+	RootSessionID   string                     `json:"root"`
+	Search          string                     `json:"q"`
+	Resumable       bool                       `json:"resumable"`
+	Archive         store.SessionArchiveFilter `json:"archive"`
+	Sort            string                     `json:"sort"`
 }
 
 // ListPage returns a stable, bounded union of durable and active sessions.
@@ -101,6 +105,8 @@ func (m *Manager) ListPage(ctx context.Context, query ListQuery) (ListPage, erro
 		State:               normalized.State,
 		SessionType:         string(normalized.SessionType),
 		AgentName:           normalized.AgentName,
+		ParentSessionID:     normalized.ParentSessionID,
+		RootSessionID:       normalized.RootSessionID,
 		Search:              normalized.Search,
 		Resumable:           normalized.Resumable,
 		Archive:             normalized.Archive,
@@ -177,6 +183,8 @@ func normalizeListQuery(query ListQuery) (ListQuery, error) {
 	query.State = strings.TrimSpace(query.State)
 	query.SessionType = Type(strings.TrimSpace(string(query.SessionType)))
 	query.AgentName = strings.TrimSpace(query.AgentName)
+	query.ParentSessionID = strings.TrimSpace(query.ParentSessionID)
+	query.RootSessionID = strings.TrimSpace(query.RootSessionID)
 	query.Search = strings.ToLower(strings.TrimSpace(query.Search))
 	query.Archive = store.SessionArchiveFilter(strings.TrimSpace(string(query.Archive)))
 	query.Sort = strings.TrimSpace(query.Sort)
@@ -233,6 +241,9 @@ func sessionMatchesListQuery(info *Info, query ListQuery, now time.Time) bool {
 	if query.AgentName != "" && strings.TrimSpace(info.AgentName) != query.AgentName {
 		return false
 	}
+	if !sessionMatchesLineageFilters(info, query) {
+		return false
+	}
 	if query.Resumable && !AttachableForInfo(info, now) {
 		return false
 	}
@@ -255,6 +266,20 @@ func sessionMatchesListQuery(info *Info, query ListQuery, now time.Time) bool {
 		}
 	}
 	return false
+}
+
+func sessionMatchesLineageFilters(info *Info, query ListQuery) bool {
+	if query.ParentSessionID == "" && query.RootSessionID == "" {
+		return true
+	}
+	lineage := store.NormalizeSessionLineage(info.ID, info.Lineage)
+	if query.ParentSessionID != "" && lineage.ParentSessionID != query.ParentSessionID {
+		return false
+	}
+	if query.RootSessionID != "" && lineage.RootSessionID != query.RootSessionID {
+		return false
+	}
+	return true
 }
 
 func sessionMatchesArchiveFilter(info *Info, filter store.SessionArchiveFilter) bool {
@@ -309,14 +334,16 @@ func compareSessionCatalogPosition(left store.SessionCatalogPosition, right stor
 
 func sessionListFingerprintForQuery(query ListQuery) (string, error) {
 	fingerprint, err := listcursor.Fingerprint(sessionListFingerprint{
-		WorkspaceID: query.WorkspaceID,
-		State:       query.State,
-		SessionType: query.SessionType,
-		AgentName:   query.AgentName,
-		Search:      query.Search,
-		Resumable:   query.Resumable,
-		Archive:     query.Archive,
-		Sort:        query.Sort,
+		WorkspaceID:     query.WorkspaceID,
+		State:           query.State,
+		SessionType:     query.SessionType,
+		AgentName:       query.AgentName,
+		ParentSessionID: query.ParentSessionID,
+		RootSessionID:   query.RootSessionID,
+		Search:          query.Search,
+		Resumable:       query.Resumable,
+		Archive:         query.Archive,
+		Sort:            query.Sort,
 	})
 	if err != nil {
 		return "", fmt.Errorf("session: fingerprint list query: %w", err)

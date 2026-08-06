@@ -1,40 +1,23 @@
-import { ChevronLeft, ChevronRight, X } from "lucide-react";
-import { useState } from "react";
+import { X } from "lucide-react";
 
 import {
   Button,
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogTitle,
   Eyebrow,
   Icon,
-  PillDot,
-  SearchInput,
-  StatusDot,
-  Time,
-  type PillTone,
 } from "@compozy/ui";
 
-import { cn } from "@/lib/utils";
 import {
-  getSessionDisplayTitle,
-  SessionRowActions,
+  SessionList,
+  useSessionSidebarState,
   type SessionLifecycleActionHandlers,
   type SessionPayload,
 } from "@/systems/session";
 
 import { useOsSessionsModal } from "../hooks/use-os-sessions-modal";
-
-type ModalView = "recent" | "all";
-
-interface SessionGroup {
-  agentName: string;
-  sessions: SessionPayload[];
-}
 
 export interface OsSessionsModalProps {
   open: boolean;
@@ -47,309 +30,10 @@ export interface OsSessionsModalProps {
   sessionActions: SessionLifecycleActionHandlers;
 }
 
-function statusTone(badge: string): PillTone {
-  if (badge === "running") return "accent";
-  if (badge === "idle") return "success";
-  if (badge === "waiting-for-auth" || badge === "hung") return "warning";
-  if (badge === "failed" || badge === "unhealthy") return "danger";
-  return "neutral";
-}
-
-function SessionStatusMark({ badge }: { badge: string }) {
-  if (badge === "stopped") {
-    return <StatusDot tone="faint" variant="ring" label="stopped" />;
-  }
-  return <PillDot tone={statusTone(badge)} pulse={badge === "running"} size="sm" />;
-}
-
-function SessionRow({
-  session,
-  onSelect,
-  sessionActions,
-}: {
-  session: SessionPayload;
-  onSelect: () => void;
-  sessionActions: SessionLifecycleActionHandlers;
-}) {
-  return (
-    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-1">
-      <button
-        type="button"
-        className="grid min-w-0 grid-cols-[8px_minmax(0,1fr)_auto] items-start gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-row-hover focus-visible:shadow-focus-ring focus-visible:outline-none"
-        data-status={session.badge}
-        data-testid={`os-sessions-modal-session-${session.id}`}
-        onClick={onSelect}
-      >
-        <span className="mt-1.5 grid place-items-center">
-          <SessionStatusMark badge={session.badge} />
-        </span>
-        <span className="min-w-0">
-          <span className="block truncate text-small-body text-fg-strong">
-            {getSessionDisplayTitle(session)}
-          </span>
-          <span className="block truncate text-micro text-subtle">
-            <span className="font-medium text-muted">{session.agent_name}</span>
-            <span aria-hidden="true"> · </span>
-            {session.badge}
-            {session.archived_at !== null ? (
-              <>
-                <span aria-hidden="true"> · </span>
-                Archived
-              </>
-            ) : null}
-          </span>
-        </span>
-        <Time iso={session.updated_at} className="mt-0.5 font-mono text-micro text-subtle" />
-      </button>
-      <div className="pt-1">
-        <SessionRowActions session={session} actions={sessionActions} />
-      </div>
-    </div>
-  );
-}
-
-function SessionsModalBody({
-  sessions,
-  archivedSessions,
-  archivedTotal,
-  disconnected,
-  collapsedAgentIds,
-  onToggleGroup,
-  onSelectSession,
-  onClose,
-  sessionActions,
-}: {
-  sessions: readonly SessionPayload[];
-  archivedSessions: readonly SessionPayload[];
-  archivedTotal?: number;
-  disconnected: boolean;
-  collapsedAgentIds: readonly string[];
-  onToggleGroup: (agentName: string) => void;
-  onSelectSession: (session: SessionPayload) => void;
-  onClose: () => void;
-  sessionActions: SessionLifecycleActionHandlers;
-}) {
-  const [view, setView] = useState<ModalView>("recent");
-  const [filter, setFilter] = useState("");
-  const normalizedFilter = filter.trim().toLocaleLowerCase();
-  const matchesFilter = (session: SessionPayload) => {
-    if (normalizedFilter === "") return true;
-    return (
-      getSessionDisplayTitle(session).toLocaleLowerCase().includes(normalizedFilter) ||
-      session.agent_name.toLocaleLowerCase().includes(normalizedFilter)
-    );
-  };
-  const filtered = sessions.filter(matchesFilter);
-  const filteredArchived = archivedSessions.filter(matchesFilter);
-  const filteredArchivedTotal = normalizedFilter === "" ? archivedTotal : undefined;
-  const byAgent = new Map<string, SessionPayload[]>();
-  for (const session of filtered) {
-    const current = byAgent.get(session.agent_name) ?? [];
-    current.push(session);
-    byAgent.set(session.agent_name, current);
-  }
-  const groups: SessionGroup[] = [...byAgent.entries()].map(([agentName, groupedSessions]) => ({
-    agentName,
-    sessions: groupedSessions,
-  }));
-  const collapsedAgents = new Set(collapsedAgentIds);
-
-  return (
-    <div className="flex min-h-0 flex-1 flex-col" data-testid="os-sessions-modal-content">
-      <div className="flex items-center gap-2 px-3 pt-3 pb-1.5">
-        {view === "all" ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            aria-label="Back to recent sessions"
-            onClick={() => setView("recent")}
-          >
-            <Icon as={ChevronLeft} size="sm" />
-          </Button>
-        ) : null}
-        <Eyebrow className="min-w-0 flex-1 text-subtle">
-          Sessions <span className="ml-1 text-faint">{filtered.length}</span>
-        </Eyebrow>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          aria-label="Close sessions"
-          onClick={onClose}
-        >
-          <Icon as={X} size="sm" />
-        </Button>
-      </div>
-      <div className="px-3 py-1.5">
-        <SearchInput
-          value={filter}
-          onChange={setFilter}
-          placeholder="Filter sessions…"
-          aria-label="Filter sessions"
-          containerClassName="min-w-0"
-        />
-      </div>
-      {disconnected ? (
-        <p
-          className="mx-3 my-1 rounded-md border border-warning/30 bg-warning-tint px-2.5 py-2 text-small-body text-warning"
-          role="status"
-        >
-          Session updates are unavailable. Cached sessions remain visible.
-        </p>
-      ) : null}
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <div
-          className={cn(
-            "flex h-full min-h-0 w-[200%] transition-transform duration-shell-slow ease-spring",
-            view === "all" && "-translate-x-1/2"
-          )}
-          data-view={view}
-        >
-          <div className="flex h-full w-1/2 shrink-0 flex-col">
-            <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2.5 pt-0.5">
-              {filtered.slice(0, 6).map(session => (
-                <SessionRow
-                  key={session.id}
-                  session={session}
-                  onSelect={() => onSelectSession(session)}
-                  sessionActions={sessionActions}
-                />
-              ))}
-              {filtered.length === 0 ? (
-                <p className="px-3 py-8 text-center text-small-body text-muted">
-                  No sessions match.
-                </p>
-              ) : null}
-            </div>
-            <div className="shrink-0">
-              <ArchivedSessionsSection
-                sessions={filteredArchived}
-                total={filteredArchivedTotal}
-                onSelectSession={onSelectSession}
-                sessionActions={sessionActions}
-              />
-              <button
-                type="button"
-                className="flex w-full items-center justify-center gap-1.5 border-t border-line-soft px-2 py-2.5 text-small-body font-medium text-subtle transition-colors hover:bg-row-hover hover:text-fg focus-visible:shadow-focus-ring focus-visible:outline-none"
-                onClick={() => setView("all")}
-              >
-                Show all sessions
-                <Icon as={ChevronRight} size="sm" />
-              </button>
-            </div>
-          </div>
-          <div className="h-full w-1/2 shrink-0 overflow-y-auto px-2.5 pb-3">
-            {groups.map(group => {
-              const collapsed = collapsedAgents.has(group.agentName);
-              return (
-                <section
-                  key={group.agentName}
-                  className="border-b border-line-soft py-1 last:border-b-0"
-                >
-                  <button
-                    type="button"
-                    className="flex min-h-7 w-full items-center gap-2 rounded-sm px-2 py-1 text-left hover:bg-row-hover focus-visible:shadow-focus-ring focus-visible:outline-none"
-                    aria-expanded={!collapsed}
-                    onClick={() => onToggleGroup(group.agentName)}
-                  >
-                    <span className="grid size-5 place-items-center rounded-sm bg-elevated font-mono text-micro font-semibold text-muted">
-                      {group.agentName.slice(0, 2).toUpperCase()}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate text-small-body font-medium text-fg-strong">
-                      {group.agentName}
-                    </span>
-                    <span className="font-mono text-micro text-faint">{group.sessions.length}</span>
-                    <Icon
-                      as={ChevronRight}
-                      size="sm"
-                      className={cn("text-faint transition-transform", !collapsed && "rotate-90")}
-                    />
-                  </button>
-                  <div
-                    className={cn(
-                      "grid transition-[grid-template-rows] duration-base",
-                      collapsed ? "grid-rows-[0fr]" : "grid-rows-[1fr]"
-                    )}
-                  >
-                    <div className="min-h-0 overflow-hidden pl-2">
-                      {group.sessions.map(session => (
-                        <SessionRow
-                          key={session.id}
-                          session={session}
-                          onSelect={() => onSelectSession(session)}
-                          sessionActions={sessionActions}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                </section>
-              );
-            })}
-            {groups.length === 0 ? (
-              <p className="px-3 py-8 text-center text-small-body text-muted">No sessions match.</p>
-            ) : null}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ArchivedSessionsSection({
-  sessions,
-  total,
-  onSelectSession,
-  sessionActions,
-}: {
-  sessions: SessionPayload[];
-  total?: number;
-  onSelectSession: (session: SessionPayload) => void;
-  sessionActions: SessionLifecycleActionHandlers;
-}) {
-  if (sessions.length === 0) return null;
-
-  return (
-    <section className="px-2.5 py-4" data-testid="os-sessions-modal-archived">
-      <Collapsible>
-        <CollapsibleTrigger
-          className="group/os-sessions-archived"
-          render={
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              aria-label={
-                total === undefined ? "Archived sessions" : `Archived sessions (${total})`
-              }
-              className="w-full justify-start pl-2 gap-2 text-small-body text-subtle"
-            />
-          }
-        >
-          <ChevronRight className="size-3 transition-transform group-data-panel-open/os-sessions-archived:rotate-90" />
-          Archived
-          {total === undefined ? null : (
-            <span className="font-mono text-micro text-faint">{total}</span>
-          )}
-        </CollapsibleTrigger>
-        <CollapsibleContent className="pb-1">
-          {sessions.map(session => (
-            <SessionRow
-              key={session.id}
-              session={session}
-              onSelect={() => onSelectSession(session)}
-              sessionActions={sessionActions}
-            />
-          ))}
-        </CollapsibleContent>
-      </Collapsible>
-    </section>
-  );
-}
-
 /**
- * Global sessions catalog (shell-level Dialog). Same filter / recent↔all body
- * as the former rail; chrome matches ⌘K (portal, scrim, top offset).
+ * Global sessions catalog (shell-level Dialog). Shares the session-list body —
+ * including provenance threads — with the in-window sessions sidebar; chrome
+ * matches ⌘K (portal, scrim, top offset).
  */
 export function OsSessionsModal({
   open,
@@ -362,6 +46,7 @@ export function OsSessionsModal({
   sessionActions,
 }: OsSessionsModalProps) {
   const { coordinator, manager, collapsedAgentIds } = useOsSessionsModal();
+  const { collapsedThreadIds, toggleThread } = useSessionSidebarState();
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (!nextOpen && dismissalBlocked) return;
@@ -391,16 +76,34 @@ export function OsSessionsModal({
         <DialogDescription className="sr-only">
           Filter sessions and open one in the current workspace.
         </DialogDescription>
-        <SessionsModalBody
+        <SessionList
           sessions={sessions}
           archivedSessions={archivedSessions}
           archivedTotal={archivedTotal}
           disconnected={disconnected}
           collapsedAgentIds={collapsedAgentIds}
+          collapsedThreadIds={collapsedThreadIds}
           onToggleGroup={agentName => manager.toggleRailGroup(agentName)}
+          onToggleThread={toggleThread}
           onSelectSession={selectSession}
-          onClose={() => handleOpenChange(false)}
           sessionActions={sessionActions}
+          testIdPrefix="os-sessions-modal"
+          header={visibleCount => (
+            <div className="flex items-center gap-2 px-3 pt-3 pb-1.5">
+              <Eyebrow className="min-w-0 flex-1 text-subtle">
+                Sessions <span className="ml-1 text-faint">{visibleCount}</span>
+              </Eyebrow>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Close sessions"
+                onClick={() => handleOpenChange(false)}
+              >
+                <Icon as={X} size="sm" />
+              </Button>
+            </div>
+          )}
         />
       </DialogContent>
     </Dialog>

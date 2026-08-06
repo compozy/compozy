@@ -17,6 +17,8 @@ type SessionListQuery struct {
 	State         string
 	Type          string
 	Agent         string
+	Parent        string
+	Root          string
 	Query         string
 	Resumable     bool
 	Archive       string
@@ -87,6 +89,12 @@ func sessionListValues(query SessionListQuery) url.Values {
 	}
 	if trimmed := strings.TrimSpace(query.Agent); trimmed != "" {
 		values.Set("agent", trimmed)
+	}
+	if trimmed := strings.TrimSpace(query.Parent); trimmed != "" {
+		values.Set("parent", trimmed)
+	}
+	if trimmed := strings.TrimSpace(query.Root); trimmed != "" {
+		values.Set("root", trimmed)
 	}
 	if trimmed := strings.TrimSpace(query.Query); trimmed != "" {
 		values.Set("q", trimmed)

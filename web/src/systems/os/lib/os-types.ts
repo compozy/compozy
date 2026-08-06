@@ -190,6 +190,11 @@ export interface WindowManagerController extends OsDesktopRuntime {
     route: OsWindowRoute,
     mode?: OsNavigateMode
   ): WindowManagerCommandOutcome;
+  retargetWindow(
+    id: string,
+    instanceKey: string,
+    route: OsWindowRoute
+  ): WindowManagerCommandOutcome;
   popWindowRoute(id: string): WindowManagerCommandOutcome;
   groupWindows(
     targetWindowId: string,

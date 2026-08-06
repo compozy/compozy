@@ -6054,7 +6054,33 @@ func TestDaemonNativeTools(t *testing.T) {
 			got.ChannelID == nil || *got.ChannelID != "builders" {
 			t.Fatalf("session_create network participation = %#v, want named live builders", got)
 		}
+		if acceptedCreate.Session.Lineage != nil {
+			t.Fatalf(
+				"session_create operator lineage = %#v, want unlinked operator create",
+				acceptedCreate.Session.Lineage,
+			)
+		}
 		requireNativeStructuredContains(t, createdResult, []byte(`"sess-created"`))
+
+		boundCreateResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{SessionID: "sess-1", WorkspaceID: registryWorkspaceID, AgentName: "coder"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionCreate,
+				Input:  json.RawMessage(`{"agent":"coder","name":"provenance-peer"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(session_create bound) error = %v", err)
+		}
+		if acceptedCreate.Session.Lineage == nil ||
+			acceptedCreate.Session.Lineage.ParentSessionID != "sess-1" {
+			t.Fatalf(
+				"session_create bound lineage = %#v, want caller parent sess-1",
+				acceptedCreate.Session.Lineage,
+			)
+		}
+		requireNativeStructuredContains(t, boundCreateResult, []byte(`"sess-created"`))
 
 		_, err = registry.Call(
 			t.Context(),

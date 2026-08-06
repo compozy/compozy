@@ -69,10 +69,15 @@ func (m *Manager) normalizeCreateLineage(
 	ctx context.Context,
 	sessionID string,
 	sessionType Type,
+	workspaceID string,
 	lineage *store.SessionLineage,
 ) (*store.SessionLineage, error) {
 	normalizedType := normalizeSessionType(sessionType)
-	normalized := store.NormalizeSessionLineage(sessionID, lineage)
+	prepared, err := m.prepareProvenanceLineage(ctx, normalizedType, workspaceID, lineage)
+	if err != nil {
+		return nil, err
+	}
+	normalized := store.NormalizeSessionLineage(sessionID, prepared)
 	if err := store.ValidateSessionLineage(sessionID, normalized); err != nil {
 		return nil, fmt.Errorf("session: validate session lineage: %w", err)
 	}
@@ -81,10 +86,10 @@ func (m *Manager) normalizeCreateLineage(
 	switch {
 	case normalizedType == SessionTypeSpawned && !hasParent:
 		return nil, errors.New("session: spawned session lineage requires a parent session id")
-	case hasParent && normalizedType != SessionTypeSpawned:
-		return nil, errors.New("session: only spawned sessions may have a parent session id")
 	case normalizedType == SessionTypeCoordinator && hasParent:
 		return nil, errors.New("session: coordinator sessions must be root sessions")
+	case hasParent && normalizedType != SessionTypeSpawned && normalizedType != SessionTypeUser:
+		return nil, errors.New("session: only spawned or user sessions may have a parent session id")
 	}
 
 	requiresTTL := normalizedType == SessionTypeSpawned || normalizedType == SessionTypeCoordinator
@@ -109,6 +114,75 @@ func (m *Manager) normalizeCreateLineage(
 	}
 
 	return normalized, nil
+}
+
+// prepareProvenanceLineage fills server-owned root/depth for user sessions that
+// record a creation parent. Provenance links carry no spawn governance: shape
+// violations are rejected and the parent must live in the target workspace.
+func (m *Manager) prepareProvenanceLineage(
+	ctx context.Context,
+	sessionType Type,
+	workspaceID string,
+	lineage *store.SessionLineage,
+) (*store.SessionLineage, error) {
+	if lineage == nil || sessionType != SessionTypeUser {
+		return lineage, nil
+	}
+	parentID := strings.TrimSpace(lineage.ParentSessionID)
+	if parentID == "" {
+		return lineage, nil
+	}
+	if err := validateProvenanceLineageShape(lineage); err != nil {
+		return nil, err
+	}
+	parent, err := m.Status(ctx, parentID)
+	if err != nil {
+		return nil, fmt.Errorf("session: resolve parent session %q: %w", parentID, err)
+	}
+	targetWorkspaceID := strings.TrimSpace(workspaceID)
+	if targetWorkspaceID != "" && strings.TrimSpace(parent.WorkspaceID) != targetWorkspaceID {
+		return nil, fmt.Errorf(
+			"%w: parent session %q belongs to another workspace",
+			ErrValidation,
+			parentID,
+		)
+	}
+	parentLineage := store.NormalizeSessionLineage(parent.ID, parent.Lineage)
+	rootID := strings.TrimSpace(parentLineage.RootSessionID)
+	if rootID == "" {
+		rootID = parent.ID
+	}
+	filled := *lineage
+	filled.ParentSessionID = parentID
+	filled.RootSessionID = rootID
+	filled.SpawnDepth = parentLineage.SpawnDepth + 1
+	return &filled, nil
+}
+
+func validateProvenanceLineageShape(lineage *store.SessionLineage) error {
+	switch {
+	case lineage.TTLExpiresAt != nil:
+		return fmt.Errorf("%w: provenance lineage cannot carry a ttl deadline", ErrValidation)
+	case lineage.AutoStopOnParent:
+		return fmt.Errorf("%w: provenance lineage cannot auto-stop on parent", ErrValidation)
+	case strings.TrimSpace(lineage.SpawnRole) != "":
+		return fmt.Errorf("%w: provenance lineage cannot carry a spawn role", ErrValidation)
+	case lineage.SpawnBudget != (store.SessionSpawnBudget{}):
+		return fmt.Errorf("%w: provenance lineage cannot carry a spawn budget", ErrValidation)
+	case !sessionPermissionPolicyIsEmpty(lineage.PermissionPolicy):
+		return fmt.Errorf("%w: provenance lineage cannot carry a permission policy", ErrValidation)
+	}
+	return nil
+}
+
+func sessionPermissionPolicyIsEmpty(policy store.SessionPermissionPolicy) bool {
+	normalized := store.NormalizeSessionPermissionPolicy(policy)
+	return len(normalized.Tools) == 0 &&
+		len(normalized.Skills) == 0 &&
+		len(normalized.MCPServers) == 0 &&
+		len(normalized.WorkspacePaths) == 0 &&
+		len(normalized.NetworkChannels) == 0 &&
+		len(normalized.SandboxProfiles) == 0
 }
 
 func (m *Manager) validateCreateLineageReferences(ctx context.Context, lineage *store.SessionLineage) error {

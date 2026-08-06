@@ -50,9 +50,10 @@ type WindowManagerOpenWindowPayload struct {
 }
 
 type WindowManagerNavigateWindowPayload struct {
-	WindowID windowmanager.WindowID     `json:"window_id"`
-	Route    windowmanager.RouteIntent  `json:"route,omitzero"`
-	Mode     windowmanager.NavigateMode `json:"mode,omitempty"`
+	WindowID    windowmanager.WindowID     `json:"window_id"`
+	Route       windowmanager.RouteIntent  `json:"route,omitzero"`
+	InstanceKey *string                    `json:"instance_key,omitempty"`
+	Mode        windowmanager.NavigateMode `json:"mode,omitempty"`
 }
 
 type WindowManagerCloseWindowPayload struct {
@@ -222,7 +223,8 @@ func decodeNavigateWindowPayload(raw json.RawMessage) (windowmanager.Command, er
 		payload.Mode = windowmanager.NavigateReplace
 	}
 	return windowmanager.NavigateWindowCommand{
-		WindowID: payload.WindowID, Route: payload.Route, Mode: payload.Mode,
+		WindowID: payload.WindowID, Route: payload.Route,
+		InstanceKey: payload.InstanceKey, Mode: payload.Mode,
 	}, nil
 }
 

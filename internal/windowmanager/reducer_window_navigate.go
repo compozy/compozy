@@ -20,11 +20,16 @@ func (r *reducer) navigateWindow(snapshot *Snapshot, command NavigateWindowComma
 		if command.Mode != NavigateReplace && command.Mode != NavigatePush {
 			return false, fmt.Errorf("navigation mode %q: %w", command.Mode, ErrInvalidCommand)
 		}
+		if command.InstanceKey != nil && command.Mode != NavigateReplace {
+			return false, fmt.Errorf("instance retarget requires replace mode: %w", ErrInvalidCommand)
+		}
 		route, err := CanonicalRouteIntent(command.Route)
 		if err != nil {
 			return false, fmt.Errorf("window %q route: %w: %w", command.WindowID, err, ErrInvalidCommand)
 		}
-		if routeIntentsEqual(window.Route, route) {
+		retargeted := command.InstanceKey != nil &&
+			(window.InstanceKey == nil || *window.InstanceKey != *command.InstanceKey)
+		if routeIntentsEqual(window.Route, route) && !retargeted {
 			return false, nil
 		}
 		if command.Mode == NavigatePush {
@@ -34,6 +39,10 @@ func (r *reducer) navigateWindow(snapshot *Snapshot, command NavigateWindowComma
 					[]RouteIntent(nil),
 					window.NavStack[len(window.NavStack)-r.config.NavStackLimit:]...)
 			}
+		}
+		if retargeted {
+			window.InstanceKey = clonePointer(command.InstanceKey)
+			window.NavStack = nil
 		}
 		window.Route = route
 	}

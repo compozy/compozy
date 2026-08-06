@@ -14,6 +14,7 @@ HTML prototypes and design handoffs for Compozy web surfaces. Organized by produ
 | Settings | [`settings/`](settings/) | [`settings/settings-general.html`](settings/settings-general.html) |
 | Network | [`network/`](network/) | [`network/network.html`](network/network.html) |
 | Loops (active) | [`loops/`](loops/) | [`loops/index.html`](loops/index.html) · final pages + labs |
+| Session | [`session/`](session/) | [`session/index.html`](session/index.html) · spec [`SESSION-REDESIGN-SPEC.md`](session/SESSION-REDESIGN-SPEC.md) |
 | Systems (vault/sandbox) | [`systems/`](systems/) | [`systems/vault.html`](systems/vault.html) |
 | Shipped archives | [`_done/`](_done/) | agents · loops · marketplace · shell |
 

@@ -2,7 +2,7 @@
 // Invariant: the modal filters catalog truth, retains group state, and dismisses via Dialog.
 // Boundary IN: OsSessionsModal, OS controller, and routing coordinator.
 // Boundary OUT: session catalog transport and full browser window journeys.
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -89,6 +89,101 @@ function renderModal(
 describe("OsSessionsModal", () => {
   afterEach(() => {
     for (const manager of managers.splice(0)) manager.destroy();
+  });
+
+  it("Should nest provenance children under their parent thread and fold them behind the toggle", async () => {
+    const user = userEvent.setup();
+    const shell = createShell();
+    const child = session({
+      id: "session-child",
+      name: "Digest references",
+      agent_name: "webgen",
+      badge: "failed",
+      lineage: {
+        parent_session_id: "session-1",
+        root_session_id: "session-1",
+        spawn_depth: 1,
+        auto_stop_on_parent: false,
+        spawn_budget: { max_children: 0, max_depth: 0, ttl_seconds: 0 },
+        permission_policy: {
+          tools: [],
+          skills: [],
+          mcp_servers: [],
+          workspace_paths: [],
+          network_channels: [],
+          sandbox_profiles: [],
+        },
+      },
+    });
+    render(
+      <OsShellContext.Provider value={shell}>
+        <OsSessionsModal
+          open
+          onOpenChange={() => {}}
+          sessions={[...SESSIONS, child]}
+          archivedSessions={[]}
+          disconnected={false}
+          sessionActions={SESSION_ACTIONS}
+        />
+      </OsShellContext.Provider>
+    );
+
+    const [thread] = screen.getAllByTestId("os-sessions-modal-thread-session-1");
+    expect(thread).toBeDefined();
+    expect(
+      within(thread!).getByTestId("os-sessions-modal-session-session-child")
+    ).toBeInTheDocument();
+
+    const [toggle] = screen.getAllByTestId("os-sessions-modal-thread-toggle-session-1");
+    expect(toggle).toBeDefined();
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await user.click(toggle!);
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await user.click(toggle!);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("Should keep a thread's parent visible when only its child matches the filter", async () => {
+    const user = userEvent.setup();
+    const shell = createShell();
+    const child = session({
+      id: "session-child",
+      name: "Scrape pricing pages",
+      agent_name: "webgen",
+      lineage: {
+        parent_session_id: "session-1",
+        root_session_id: "session-1",
+        spawn_depth: 1,
+        auto_stop_on_parent: false,
+        spawn_budget: { max_children: 0, max_depth: 0, ttl_seconds: 0 },
+        permission_policy: {
+          tools: [],
+          skills: [],
+          mcp_servers: [],
+          workspace_paths: [],
+          network_channels: [],
+          sandbox_profiles: [],
+        },
+      },
+    });
+    render(
+      <OsShellContext.Provider value={shell}>
+        <OsSessionsModal
+          open
+          onOpenChange={() => {}}
+          sessions={[...SESSIONS, child]}
+          archivedSessions={[]}
+          disconnected={false}
+          sessionActions={SESSION_ACTIONS}
+        />
+      </OsShellContext.Provider>
+    );
+
+    const filter = screen.getByRole("searchbox", { name: "Filter sessions" });
+    await user.type(filter, "scrape");
+    expect(screen.getAllByTestId("os-sessions-modal-session-session-1")).not.toHaveLength(0);
+    expect(screen.getAllByTestId("os-sessions-modal-session-session-child")).not.toHaveLength(0);
+    expect(screen.queryByTestId("os-sessions-modal-session-session-2")).toBeNull();
   });
 
   it("Should filter live by title or agent and restore the full catalog when cleared (UT-067)", async () => {

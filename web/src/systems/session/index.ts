@@ -242,6 +242,10 @@ export {
   useSessionInspectorState,
   type UseSessionInspectorStateResult,
 } from "./hooks/use-session-inspector-state";
+export {
+  useSessionSidebarState,
+  type UseSessionSidebarStateResult,
+} from "./hooks/use-session-sidebar-state";
 export type {
   SessionTranscriptThreadState,
   SessionTranscriptThreadStatus,
@@ -309,6 +313,13 @@ export {
   type SessionDeleteDialogProps,
 } from "./components/session-delete-dialog";
 export { SessionRowActions, type SessionRowActionsProps } from "./components/session-row-actions";
+export { SessionList, type SessionListProps } from "./components/session-list/session-list";
+export { SessionSidebar, type SessionSidebarProps } from "./components/session-sidebar";
+export {
+  buildSessionTree,
+  childSessionSignalTone,
+  collectThreadSessions,
+} from "./lib/session-hierarchy";
 export {
   SessionWorkspaceSwitchDialog,
   type SessionWorkspaceSwitchDialogProps,

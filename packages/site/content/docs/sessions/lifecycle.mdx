@@ -87,6 +87,25 @@ Creation never accepts a prompt or runtime selector. It only creates the durable
 The agent definition supplies the defaults that the first prompt can use, but Compozy does not launch
 ACP or negotiate provider options until that prompt arrives.
 
+### Creation provenance
+
+A session created from inside another session records that origin in its `lineage`:
+
+- `compozy__session_create` (native tool) links the calling session automatically. The link is
+  server-derived from the bound caller, never a tool input, and is recorded only when the new
+  session lands in the caller's workspace.
+- `compozy session new --parent <session-id>` and `parent_session_id` on `POST /api/sessions` link
+  explicitly. The parent must exist in the target workspace; it does not need to be active.
+- An HTTP/UDS create carrying validated agent identity headers and no explicit parent infers the
+  caller's session as the parent.
+
+Provenance sets `lineage.parent_session_id`, inherits `root_session_id` from the parent's tree, and
+computes `spawn_depth` server-side. The session stays `type: "user"` with no TTL, auto-stop, spawn
+budget, or permission narrowing — governed children come only from
+[safe spawn](/docs/autonomy/safe-spawn). Query the hierarchy with the catalog filters `parent=<id>`
+(direct children) and `root=<id>` (the whole tree, root included), exposed as
+`compozy session list --parent/--root` and on `compozy__session_list`.
+
 ## Running an active session
 
 Once a session is `active`, a prompt supplies an immutable runtime snapshot. The first prompt binds

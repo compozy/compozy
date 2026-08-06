@@ -84,16 +84,18 @@ func (h *BaseHandlers) parseSessionListQuery(c *gin.Context) (session.ListQuery,
 		return session.ListQuery{}, false, err
 	}
 	query := session.ListQuery{
-		WorkspaceID: workspaceID,
-		State:       strings.TrimSpace(c.Query("state")),
-		SessionType: sessionType,
-		AgentName:   strings.TrimSpace(c.Query("agent")),
-		Search:      strings.TrimSpace(c.Query("q")),
-		Resumable:   resumable,
-		Archive:     store.SessionArchiveFilter(strings.TrimSpace(c.Query("archive"))),
-		Sort:        strings.TrimSpace(c.Query("sort")),
-		Cursor:      strings.TrimSpace(c.Query("cursor")),
-		Limit:       limit,
+		WorkspaceID:     workspaceID,
+		State:           strings.TrimSpace(c.Query("state")),
+		SessionType:     sessionType,
+		AgentName:       strings.TrimSpace(c.Query("agent")),
+		ParentSessionID: strings.TrimSpace(c.Query("parent")),
+		RootSessionID:   strings.TrimSpace(c.Query("root")),
+		Search:          strings.TrimSpace(c.Query("q")),
+		Resumable:       resumable,
+		Archive:         store.SessionArchiveFilter(strings.TrimSpace(c.Query("archive"))),
+		Sort:            strings.TrimSpace(c.Query("sort")),
+		Cursor:          strings.TrimSpace(c.Query("cursor")),
+		Limit:           limit,
 	}
 	return query, includeHealth, nil
 }

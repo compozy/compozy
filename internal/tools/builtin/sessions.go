@@ -249,6 +249,8 @@ const sessionListInputSchema = `{
 		"state":{"type":"string","enum":["starting","active","stopping","stopped"]},
 		"type":{"type":"string","enum":["user","system","coordinator","spawned"]},
 		"agent":{"type":"string"},
+		"parent":{"type":"string"},
+		"root":{"type":"string"},
 		"q":{"type":"string"},
 		"resumable":{"type":"boolean"},
 		"archive":{"type":"string","enum":["exclude","only","include"]},

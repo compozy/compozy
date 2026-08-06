@@ -45,6 +45,11 @@ type RoutingManager = {
     route: OsWindowRoute,
     mode?: "replace" | "push" | "pop"
   ): WindowManagerCommandOutcome;
+  retargetWindow(
+    windowId: string,
+    instanceKey: string,
+    route: OsWindowRoute
+  ): WindowManagerCommandOutcome;
   popWindowRoute(windowId: string): WindowManagerCommandOutcome;
 };
 
@@ -217,6 +222,39 @@ export class RoutingCoordinator {
     const focused = this.manager.getState().windows[windowId];
     if (focused) this.pushRoute(focused.route);
     return focused !== undefined;
+  }
+
+  /**
+   * In-place session/instance switch from inside a window (sidebar rows). The
+   * ≤1-window-per-instance invariant wins: when the target instance already
+   * owns a live window, that window is activated instead of duplicating it;
+   * otherwise the current window is re-keyed and one history entry follows.
+   */
+  async userRetarget(
+    windowId: string,
+    target: { app: OsOpenTarget["app"]; instanceKey: string; route: OsWindowRoute }
+  ): Promise<boolean> {
+    const state = this.manager.getState();
+    const win = state.windows[windowId];
+    if (!win) return false;
+    const existing = mruWindowInstance(state.windows, state.client?.focusOrder ?? [], {
+      app: target.app,
+      instanceKey: target.instanceKey,
+    });
+    if (existing && existing.id !== windowId) {
+      return this.userActivateWindow(existing.id);
+    }
+    if (existing && existing.id === windowId) {
+      if (sameOsWindowRoute(win.route, target.route)) return true;
+      const navigated = this.manager.navigateWindow(windowId, target.route);
+      if (!(await navigated.completion)) return false;
+      this.pushRoute(target.route);
+      return true;
+    }
+    const outcome = this.manager.retargetWindow(windowId, target.instanceKey, target.route);
+    if (!(await outcome.completion)) return false;
+    this.pushRoute(target.route);
+    return true;
   }
 
   /** Close: successor focus follows ADR-002 (next-top window, else desktop). */

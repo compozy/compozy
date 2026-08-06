@@ -1,4 +1,4 @@
-import { Eraser, PanelRight, Play, RotateCcw, Square, Trash2 } from "lucide-react";
+import { Eraser, PanelRight, Play, RotateCcw, Square, SquareTerminal, Trash2 } from "lucide-react";
 
 import {
   Button,
@@ -26,9 +26,11 @@ interface UseSessionTopbarSlotInput {
   isClearing: boolean;
   canClear: boolean;
   inspectorOpen: boolean;
+  sidebarOpen: boolean;
   /** The one state-gated goal action (Pause/Resume/Approve/Clear) riding the head. */
   goalAction?: React.ReactNode;
   onInspectorToggle: () => void;
+  onSidebarToggle: () => void;
   onDelete: () => void;
   onStop: () => void;
   onResume: () => void;
@@ -46,8 +48,10 @@ export function useSessionTopbarSlot({
   isClearing,
   canClear,
   inspectorOpen,
+  sidebarOpen,
   goalAction,
   onInspectorToggle,
+  onSidebarToggle,
   onDelete,
   onStop,
   onResume,
@@ -105,6 +109,27 @@ export function useSessionTopbarSlot({
     </Button>
   ) : null;
 
+  const sidebarToggle = (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon-sm"
+      aria-label={sidebarOpen ? "Close sessions sidebar" : "Open sessions sidebar"}
+      aria-pressed={sidebarOpen}
+      className={cn(
+        "size-11 focus-visible:shadow-focus-inset",
+        sidebarOpen ? "bg-elevated text-fg" : null
+      )}
+      data-state={sidebarOpen ? "open" : "closed"}
+      data-testid="session-sidebar-toggle"
+      onClick={onSidebarToggle}
+    >
+      {/* Mirrors the dock's sessions icon so the rail toggle reads as "sessions",
+          not as a second panel toggle beside the inspector's PanelRight. */}
+      <SquareTerminal aria-hidden="true" className="size-3" />
+    </Button>
+  );
+
   const inspectorToggle = (
     <Button
       type="button"
@@ -139,6 +164,7 @@ export function useSessionTopbarSlot({
     status: <SessionStatusLine session={session} showState={false} />,
     actions: (
       <>
+        {sidebarToggle}
         {goalAction}
         {primaryAction}
         {inspectorToggle}

@@ -51,6 +51,8 @@ Session tools: `compozy__session_list`, `compozy__session_create`, `compozy__ses
 
 `compozy__session_create` accepts only workspace, agent, and optional name. It creates an active
 logical session with `runtime.status="unbound"`; it does not accept or send a prompt or runtime.
+The calling session is recorded automatically as `lineage.parent_session_id` (provenance only, no
+governance) when the new session lands in the caller's workspace; the link is not a tool input.
 Use `compozy__session_prompt` with `session_id`, `message`, and an optional `runtime` snapshot. A
 first prompt to an unbound session requires `runtime.provider`; model, reasoning effort, and speed
 are optional snapshot fields. Read the runtime semantics, queued/interrupt snapshot behavior, and
@@ -81,8 +83,8 @@ zero-based `{choice,text,fallback}`. It is not approval. CLI: `compozy session c
 (choice presentation is one-based).
 
 `compozy__session_list` returns one counted catalog page and accepts workspace, exact state, exact
-session `type`, exact agent, search, resumability, health, archive visibility, sort, cursor, and limit
-inputs. Archive visibility defaults to `exclude`; use `only` or `include` when the workflow needs
+session `type`, exact agent, exact `parent` (direct children) or `root` (whole tree, root included),
+search, resumability, health, archive visibility, sort, cursor, and limit inputs. Archive visibility defaults to `exclude`; use `only` or `include` when the workflow needs
 archived rows. Use `type: "user"` when a workflow needs operator-created sessions without
 daemon-managed dream, system, coordinator, or spawned sessions. Archive only stopped sessions;
 unarchive before prompting or resuming one. Both archive operations preserve the session history.
