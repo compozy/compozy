@@ -76,19 +76,17 @@ function qualityGateGenerations(run: LoopRun): LoopRunGeneration[] {
     ],
   };
   const generations = run.generation >= 2 ? [g1, g2] : [g1];
-  const referenced = new Set(generations.map(generation => generation.generation));
-  for (const generation of [run.best_generation, run.generation]) {
-    if (!generation || referenced.has(generation)) continue;
+  const finalGeneration = Math.max(run.generation, run.best_generation ?? 0);
+  for (let generation = 3; generation <= finalGeneration; generation += 1) {
     generations.push({
       generation,
-      parent_generation: Math.max(0, generation - 1),
+      parent_generation: generation - 1,
       origin: run.best_generation === generation ? "ratchet_restore" : "gate_revise",
       verdicts: [],
       outputs: [],
     });
-    referenced.add(generation);
   }
-  return generations.sort((left, right) => left.generation - right.generation);
+  return generations;
 }
 
 function reviewGenerations(run: LoopRun): LoopRunGeneration[] {

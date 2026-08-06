@@ -103,6 +103,10 @@ describe("LoopTargetFields", () => {
     expect((screen.getByTestId("loop-input-field-slug") as HTMLInputElement).value).toBe(
       "billing-webhooks"
     );
+    expect(JSON.parse(screen.getByTestId("loop-target-value").textContent ?? "{}")).toMatchObject({
+      loop_name: "implement-tasks",
+      inputs: { slug: "billing-webhooks" },
+    });
   });
 
   it("Should round-trip bounded Live participation and expose only Loop-valid strategies", () => {

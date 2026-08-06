@@ -260,14 +260,14 @@ describe("loops-api (request construction + error mapping)", () => {
   });
 
   it("Should GET + PUT annotations at the scoped editor endpoint", async () => {
-    mockJsonResponse({ annotations: [{ node_id: "plan", x: 1, y: 2 }] });
+    mockJsonResponse({ annotations: [{ node_id: "execute_task", x: 1, y: 2 }] });
     await getLoopAnnotations(WS, "implement-tasks");
     await expectFetchRequest({
       path: "/api/workspaces/ws_1/loops/implement-tasks/annotations",
       method: "GET",
     });
 
-    const body = { annotations: [{ node_id: "plan", x: 3, y: 4 }] };
+    const body = { annotations: [{ node_id: "execute_task", x: 3, y: 4 }] };
     mockJsonResponse(body);
     await putLoopAnnotations(WS, "implement-tasks", body);
     await expectFetchRequest({
@@ -366,6 +366,14 @@ describe("loops-api (against MSW mock handlers)", () => {
       "execute_task",
       "collect",
     ]);
+
+    const stalledDetail = await getLoopRun(WS, "looprun_stalled");
+    expect(stalledDetail.generations?.map(generation => generation.generation)).toEqual([
+      1, 2, 3, 4,
+    ]);
+    expect(stalledDetail.generations?.map(generation => generation.parent_generation)).toEqual([
+      0, 1, 2, 3,
+    ]);
   });
 
   it("Should surface a 404 for an unknown loop name through the handler", async () => {
@@ -415,12 +423,32 @@ describe("loops-api (against MSW mock handlers)", () => {
         auto_commit: "definition",
       },
     });
-    expect(dryRun.dry_run?.nodes.map(node => node.id)).toEqual([
-      "slug_input",
-      "load_tasks",
-      "implement",
-      "execute_task",
-      "collect",
+    expect(dryRun.dry_run?.nodes).toEqual([
+      { id: "slug_input", class: "source", kind: "input" },
+      {
+        id: "load_tasks",
+        class: "action",
+        kind: "ext__dev_cycle__import_tasks",
+        depends_on: ["slug_input"],
+      },
+      {
+        id: "implement",
+        class: "control",
+        kind: "fan-out",
+        depends_on: ["load_tasks"],
+      },
+      {
+        id: "execute_task",
+        class: "action",
+        kind: "run-agent",
+        depends_on: ["implement"],
+      },
+      {
+        id: "collect",
+        class: "control",
+        kind: "collect",
+        depends_on: ["execute_task"],
+      },
     ]);
     const started = await runLoop(WS, "implement-tasks", {
       inputs: { slug: "billing-webhooks" },

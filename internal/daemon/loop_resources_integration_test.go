@@ -409,6 +409,9 @@ func assertDevCycleLoopCatalog(
 		}
 		return
 	}
+	if got, want := len(found), 2; got != want {
+		t.Fatalf("dev-cycle loops = %#v, want exactly %d bundled loops", found, want)
+	}
 	for _, name := range []string{"implement-tasks", "review-and-fix"} {
 		spec, ok := found[name]
 		if !ok {
