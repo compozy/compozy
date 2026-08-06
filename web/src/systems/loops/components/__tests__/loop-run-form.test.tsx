@@ -11,7 +11,7 @@ import { loopDetailByName, loopEffectiveConfigFixture } from "../../mocks/fixtur
 import type { LoopEffectiveConfig } from "../../types";
 
 const WS = "ws_default";
-const loop = loopDetailByName.get("software-delivery")!;
+const loop = loopDetailByName.get("implement-tasks")!;
 const watchLoop = loopDetailByName.get("review-and-fix")!;
 const savedConfig: Partial<LoopEffectiveConfig> = {
   iteration_cap: 3,
@@ -55,7 +55,7 @@ function renderForm(
 async function runRequestBody(): Promise<Record<string, unknown>> {
   const call = fetchMock.mock.calls.find(([input]) => {
     const url = input instanceof Request ? input.url : String(input);
-    return url.includes(`/api/workspaces/${WS}/loops/software-delivery/run`);
+    return url.includes(`/api/workspaces/${WS}/loops/implement-tasks/run`);
   });
   if (!call) throw new Error("run request was not issued");
   const [input, init] = call;
@@ -74,18 +74,24 @@ describe("LoopRunForm", () => {
 
   it("Should auto-generate a typed field per declared input with a type badge", () => {
     renderForm();
-    const goal = screen.getByTestId("loop-run-field-goal");
-    expect(goal).toHaveAttribute("data-input-type", "string");
-    expect(goal).toHaveTextContent("string");
-    const maxFiles = screen.getByTestId("loop-run-field-max_files");
-    expect(maxFiles).toHaveAttribute("data-input-type", "number");
+    const slug = screen.getByTestId("loop-run-field-slug");
+    expect(slug).toHaveAttribute("data-input-type", "string");
+    expect(slug).toHaveTextContent("string");
+    expect(screen.getByTestId("loop-run-field-implementer")).toHaveAttribute(
+      "data-input-type",
+      "agent"
+    );
+    expect(screen.getByTestId("loop-run-field-auto_commit")).toHaveAttribute(
+      "data-input-type",
+      "boolean"
+    );
   });
 
   it("Should keep Run and Dry run disabled until the required input is filled", () => {
     renderForm();
     expect(screen.getByTestId("loop-run-submit-button")).toBeDisabled();
-    fireEvent.change(screen.getByTestId("loop-run-field-input-goal"), {
-      target: { value: "ship billing webhooks" },
+    fireEvent.change(screen.getByTestId("loop-run-field-input-slug"), {
+      target: { value: "billing-webhooks" },
     });
     expect(screen.getByTestId("loop-run-submit-button")).not.toBeDisabled();
     expect(screen.getByTestId("loop-run-dry-button")).not.toBeDisabled();
@@ -96,17 +102,17 @@ describe("LoopRunForm", () => {
     const submit = screen.getByTestId("loop-run-submit-button");
     expect(submit).toBeDisabled();
     fireEvent.click(submit);
-    fireEvent.submit(screen.getByTestId("loop-run-field-input-goal").closest("form")!);
+    fireEvent.submit(screen.getByTestId("loop-run-field-input-slug").closest("form")!);
     await waitFor(() =>
-      expect(screen.getByTestId("loop-run-field-error-goal")).toBeInTheDocument()
+      expect(screen.getByTestId("loop-run-field-error-slug")).toBeInTheDocument()
     );
-    expect(screen.getByTestId("loop-run-field-error-goal")).toHaveTextContent(
-      "goal is required to run this loop."
+    expect(screen.getByTestId("loop-run-field-error-slug")).toHaveTextContent(
+      "slug is required to run this loop."
     );
     expect(onRunStarted).not.toHaveBeenCalled();
     const runCalls = fetchMock.mock.calls.filter(([input]) => {
       const url = input instanceof Request ? input.url : String(input);
-      return url.includes("/loops/software-delivery/run");
+      return url.includes("/loops/implement-tasks/run");
     });
     expect(runCalls).toHaveLength(0);
   });
@@ -144,8 +150,8 @@ describe("LoopRunForm", () => {
 
   it("Should render the gen-1 plan on Dry run without navigating", async () => {
     const { onRunStarted } = renderForm();
-    fireEvent.change(screen.getByTestId("loop-run-field-input-goal"), {
-      target: { value: "ship it" },
+    fireEvent.change(screen.getByTestId("loop-run-field-input-slug"), {
+      target: { value: "billing-webhooks" },
     });
     fireEvent.click(screen.getByTestId("loop-run-dry-button"));
     await waitFor(() => expect(screen.getByTestId("loop-run-plan")).toBeInTheDocument());
@@ -155,8 +161,8 @@ describe("LoopRunForm", () => {
 
   it("Should start a run and hand the run id back for navigation", async () => {
     const { onRunStarted } = renderForm();
-    fireEvent.change(screen.getByTestId("loop-run-field-input-goal"), {
-      target: { value: "ship it" },
+    fireEvent.change(screen.getByTestId("loop-run-field-input-slug"), {
+      target: { value: "billing-webhooks" },
     });
     fireEvent.click(screen.getByTestId("loop-run-submit-button"));
     await waitFor(() => expect(onRunStarted).toHaveBeenCalledWith("looprun_running"));
@@ -165,7 +171,7 @@ describe("LoopRunForm", () => {
 
   it("Should return canonical immutable snapshots from dry-run and run mock responses", async () => {
     const dryResponse = await fetch(
-      `http://localhost/api/workspaces/${WS}/loops/software-delivery/run?dry=true`,
+      `http://localhost/api/workspaces/${WS}/loops/implement-tasks/run?dry=true`,
       {
         body: JSON.stringify({ network_participation: { mode: "local" } }),
         headers: { "content-type": "application/json" },
@@ -186,7 +192,7 @@ describe("LoopRunForm", () => {
     );
 
     const runResponse = await fetch(
-      `http://localhost/api/workspaces/${WS}/loops/software-delivery/run`,
+      `http://localhost/api/workspaces/${WS}/loops/implement-tasks/run`,
       {
         body: JSON.stringify({
           network_participation: {
@@ -224,8 +230,8 @@ describe("LoopRunForm", () => {
   it("Should serialize an explicit Live run without legacy participation fields", async () => {
     renderForm();
     expect(screen.getByTestId("loop-run-participation-preview")).toHaveTextContent("Local");
-    fireEvent.change(screen.getByTestId("loop-run-field-input-goal"), {
-      target: { value: "ship it" },
+    fireEvent.change(screen.getByTestId("loop-run-field-input-slug"), {
+      target: { value: "billing-webhooks" },
     });
     fireEvent.change(screen.getByTestId("loop-run-participation-mode"), {
       target: { value: "live" },
@@ -263,8 +269,8 @@ describe("LoopRunForm", () => {
 
   it("Should ignore a second run submit while the first run mutation is pending", async () => {
     const { onRunStarted } = renderForm();
-    fireEvent.change(screen.getByTestId("loop-run-field-input-goal"), {
-      target: { value: "ship it" },
+    fireEvent.change(screen.getByTestId("loop-run-field-input-slug"), {
+      target: { value: "billing-webhooks" },
     });
     fireEvent.click(screen.getByTestId("loop-run-submit-button"));
     fireEvent.click(screen.getByTestId("loop-run-submit-button"));
@@ -272,7 +278,7 @@ describe("LoopRunForm", () => {
     const runRequests = fetchMock.mock.calls.filter(call => {
       const input = call[0];
       const url = input instanceof Request ? input.url : String(input);
-      return url.includes(`/api/workspaces/${WS}/loops/software-delivery/run`);
+      return url.includes(`/api/workspaces/${WS}/loops/implement-tasks/run`);
     });
     expect(runRequests).toHaveLength(1);
   });
@@ -290,8 +296,8 @@ describe("LoopRunForm", () => {
     expect(screen.getByTestId("loop-run-override-policy")).toHaveValue("escalate");
     expect(screen.getByTestId("loop-run-overrides-badge")).toHaveTextContent("loop defaults");
 
-    fireEvent.change(screen.getByTestId("loop-run-field-input-goal"), {
-      target: { value: "ship it" },
+    fireEvent.change(screen.getByTestId("loop-run-field-input-slug"), {
+      target: { value: "billing-webhooks" },
     });
     fireEvent.click(screen.getByTestId("loop-run-submit-button"));
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
@@ -317,8 +323,8 @@ describe("LoopRunForm", () => {
     expect(preview).toHaveTextContent("3 generations");
 
     fireEvent.change(capInput, { target: { value: "4" } });
-    fireEvent.change(screen.getByTestId("loop-run-field-input-goal"), {
-      target: { value: "ship it" },
+    fireEvent.change(screen.getByTestId("loop-run-field-input-slug"), {
+      target: { value: "billing-webhooks" },
     });
     fireEvent.click(screen.getByTestId("loop-run-submit-button"));
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());

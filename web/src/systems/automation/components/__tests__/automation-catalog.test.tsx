@@ -63,7 +63,7 @@ const loopTriggerFixture: AutomationTrigger = {
   target_kind: "loop",
   loop_target: {
     workspace_id: "ws_alpha",
-    loop_name: "software-delivery",
+    loop_name: "implement-tasks",
     inputs: { slug: "helix-v1-launch" },
     input_mapping: { branch: "data.branch" },
   },
@@ -80,7 +80,7 @@ describe("AutomationTriggerRow", () => {
     render(<AutomationTriggerRow trigger={loopTriggerFixture} />);
 
     const row = screen.getByTestId("automation-item-trg_loop");
-    expect(row).toHaveTextContent("Loop software-delivery");
+    expect(row).toHaveTextContent("Loop implement-tasks");
     expect(row).toHaveTextContent("slug: helix-v1-launch");
   });
 });

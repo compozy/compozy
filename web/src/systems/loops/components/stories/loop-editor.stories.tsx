@@ -19,11 +19,11 @@ import { loopDetailByName } from "../../mocks/fixtures";
 import type { LoopDetail } from "../../types";
 
 const WS = "ws_default";
-const delivery = loopDetailByName.get("software-delivery")!;
+const delivery = loopDetailByName.get("implement-tasks")!;
 
 type RawGraph = { nodes: Record<string, unknown>[]; edges: unknown[] };
 
-/** A software-delivery detail whose fan-out node breaches the ceiling, so the editor's
+/** A implement-tasks detail whose fan-out node breaches the ceiling, so the editor's
  *  auto-validate surfaces the fan_out_ceiling_exceeded issue + node badge + gate. */
 function overCeilingDetail(): LoopDetail {
   const graph = delivery.definition.graph as unknown as RawGraph;
@@ -122,15 +122,15 @@ const meta: Meta<typeof LoopEditor> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** The clean editor over a workspace software-delivery Loop: canvas, palette,
+/** The clean editor over a workspace implement-tasks Loop: canvas, palette,
  *  inspector, linter dock (all invariants pass), and the read-only Start summary. */
 export const Editor: Story = {
-  args: { workspaceId: WS, name: "software-delivery" },
+  args: { workspaceId: WS, name: "implement-tasks" },
 };
 
 /** The same canonical Loop definition rendered through the read-only DSL view. */
 export const DslView: Story = {
-  args: { workspaceId: WS, name: "software-delivery" },
+  args: { workspaceId: WS, name: "implement-tasks" },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(await canvas.findByTestId("loop-editor-view-dsl"));
@@ -140,7 +140,7 @@ export const DslView: Story = {
 /** Goal authoring block selected in the inspector, including the closed judge,
  *  exhaustion, continuous-session, and pre-submit retry fields. */
 export const GoalBlock: Story = {
-  args: { workspaceId: WS, name: "software-delivery" },
+  args: { workspaceId: WS, name: "implement-tasks" },
   parameters: { msw: { handlers: editorHandlers(goalDetail()) } },
   render: args => <EditorHarness {...args} heightClass="h-[1100px]" />,
 };
@@ -148,7 +148,7 @@ export const GoalBlock: Story = {
 /** A fan-out node over the daemon ceiling: the shared linter returns a per-node 422 —
  *  the fan-out chip fails, the node gets a danger ring + badge, and Publish is disabled. */
 export const FanOutError: Story = {
-  args: { workspaceId: WS, name: "software-delivery" },
+  args: { workspaceId: WS, name: "implement-tasks" },
   parameters: { msw: { handlers: editorHandlers(overCeilingDetail()) } },
 };
 
@@ -159,7 +159,7 @@ export const PackagedFork: Story = {
 
 /** Canvas node id/kind ellipsis inside the fixed-width card (long extension tool ids). */
 export const LongKindLabels: Story = {
-  args: { workspaceId: WS, name: "software-delivery" },
+  args: { workspaceId: WS, name: "implement-tasks" },
   parameters: { msw: { handlers: editorHandlers(longKindDetail()) } },
 };
 
@@ -199,7 +199,7 @@ function selectNode(id: string, folds: string[] = [], scrollOffset = 0) {
 
 /** VC-E1 — a custom Loop with unpublished edits: the dirty version pill at rest. */
 export const DirtyCustom: Story = {
-  args: { workspaceId: WS, name: "software-delivery" },
+  args: { workspaceId: WS, name: "implement-tasks" },
   parameters: { msw: { handlers: editorHandlers(fullLifecycleDetail) } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -209,14 +209,14 @@ export const DirtyCustom: Story = {
 
 /** VC-E2 — the Node inspector: reliability envelope, on_error, and the six triggers. */
 export const NodeReliability: Story = {
-  args: { workspaceId: WS, name: "software-delivery" },
+  args: { workspaceId: WS, name: "implement-tasks" },
   parameters: { msw: { handlers: editorHandlers(fullLifecycleDetail) } },
   play: selectNode("execute_task", ["Reliability", "Reactions"], 72),
 };
 
 /** VC-E3 — the Contract lane's seven terminal reactions; unauthored lists stay calm. */
 export const ContractTerminals: Story = {
-  args: { workspaceId: WS, name: "software-delivery" },
+  args: { workspaceId: WS, name: "implement-tasks" },
   parameters: { msw: { handlers: editorHandlers(fullLifecycleDetail) } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -227,21 +227,21 @@ export const ContractTerminals: Story = {
 
 /** VC-E4 — the wait inspector: mode XOR, expect, ahead_arrival, and the expiry fold. */
 export const WaitInspector: Story = {
-  args: { workspaceId: WS, name: "software-delivery" },
+  args: { workspaceId: WS, name: "implement-tasks" },
   parameters: { msw: { handlers: editorHandlers(fullLifecycleDetail) } },
   play: selectNode("await_deploy_ack", ["Expiry"]),
 };
 
 /** VC-E5 — the run-loop child close policy. */
 export const RunLoopParentClose: Story = {
-  args: { workspaceId: WS, name: "software-delivery" },
+  args: { workspaceId: WS, name: "implement-tasks" },
   parameters: { msw: { handlers: editorHandlers(fullLifecycleDetail) } },
   play: selectNode("release_notes"),
 };
 
 /** VC-E6 — the dock carrying one blocking error and one warning, expanded. */
 export const LintErrorAndWarning: Story = {
-  args: { workspaceId: WS, name: "software-delivery" },
+  args: { workspaceId: WS, name: "implement-tasks" },
   parameters: { msw: { handlers: editorHandlers(lintErrorAndWarningDetail) } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -254,7 +254,7 @@ export const LintErrorAndWarning: Story = {
 
 /** A warning-only verdict: visible, with Publish still enabled. */
 export const LintWarningOnly: Story = {
-  args: { workspaceId: WS, name: "software-delivery" },
+  args: { workspaceId: WS, name: "implement-tasks" },
   parameters: { msw: { handlers: editorHandlers(waitWarningDetail) } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -265,7 +265,7 @@ export const LintWarningOnly: Story = {
 
 /** A clean verdict: the Validation eyebrow carries no counter at all. */
 export const LintClean: Story = {
-  args: { workspaceId: WS, name: "software-delivery" },
+  args: { workspaceId: WS, name: "implement-tasks" },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(await canvas.findByTestId("loop-linter-toggle"));
@@ -274,13 +274,13 @@ export const LintClean: Story = {
 
 /** VC-E7 — a read-only marketplace source: every edit path closed, Fork the one verb. */
 export const ReadOnlySource: Story = {
-  args: { workspaceId: WS, name: "software-delivery" },
+  args: { workspaceId: WS, name: "implement-tasks" },
   parameters: { msw: { handlers: editorHandlers(readOnlySourceDetail) } },
 };
 
 /** VC-E8 — publish rejected: the danger strip lists the daemon's issues; the version holds. */
 export const PublishRejected: Story = {
-  args: { workspaceId: WS, name: "software-delivery" },
+  args: { workspaceId: WS, name: "implement-tasks" },
   parameters: {
     msw: {
       handlers: [

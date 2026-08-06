@@ -20,7 +20,7 @@ describe("loopEditorLogic", () => {
   // layer: the loop editor store logic. Canonical suite: this file.
   it("accepts only the latest validation settlement", async () => {
     const store = loopEditorLogic.createStore(undefined);
-    const definition = loopDetailByName.get("software-delivery")!.definition;
+    const definition = loopDetailByName.get("implement-tasks")!.definition;
     const first = deferred<ValidateLoopResult>();
     const second = deferred<ValidateLoopResult>();
     const valid: ValidateLoopResult = { valid: true, errors: [] };
@@ -53,7 +53,7 @@ describe("loopEditorLogic", () => {
 
   it("runs request regions in parallel and fences replaced draft work", async () => {
     const store = loopEditorLogic.createStore(undefined);
-    const loop = loopDetailByName.get("software-delivery")!;
+    const loop = loopDetailByName.get("implement-tasks")!;
     const positions = deferred<unknown>();
     const publish = deferred<typeof loop>();
     const validation = deferred<{ valid: true; errors: [] }>();
@@ -105,7 +105,7 @@ describe("loopEditorLogic", () => {
 
   it("Should settle a stale publish without completing the current editor flow", async () => {
     const store = loopEditorLogic.createStore(undefined);
-    const loop = loopDetailByName.get("software-delivery")!;
+    const loop = loopDetailByName.get("implement-tasks")!;
     const publish = deferred<typeof loop>();
     const published = vi.fn();
     store.on("publishCompleted", published);
@@ -125,7 +125,7 @@ describe("loopEditorLogic", () => {
 
   it("Should complete the current editor flow after a matching publish", async () => {
     const store = loopEditorLogic.createStore(undefined);
-    const loop = loopDetailByName.get("software-delivery")!;
+    const loop = loopDetailByName.get("implement-tasks")!;
     const published = vi.fn();
     store.on("publishCompleted", published);
     store.trigger.draftInitialized({ definition: loop.definition, edges: [], nodes: [] });
@@ -141,7 +141,7 @@ describe("loopEditorLogic", () => {
 
   it("Should surface a publish failure even when the draft changed after submission", async () => {
     const store = loopEditorLogic.createStore(undefined);
-    const loop = loopDetailByName.get("software-delivery")!;
+    const loop = loopDetailByName.get("implement-tasks")!;
     const publish = deferred<typeof loop>();
     store.trigger.draftInitialized({ definition: loop.definition, edges: [], nodes: [] });
     store.trigger.publishRequested({ execute: () => publish.promise });

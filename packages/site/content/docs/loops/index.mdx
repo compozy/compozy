@@ -71,9 +71,8 @@ The common path never touches a graph. On a fresh Compozy home, the bundled `dev
 is installed enabled, so its two first-party Loops can run directly — supply a couple of inputs and
 go:
 
-- **`software-delivery`** — executes already-authored tasks in dependency order, reviews results
-  (agent-judge or human approval), remediates failures, and verifies against the project's own
-  checks.
+- **`implement-tasks`** — implements already-authored tasks in dependency order. Each task run
+  performs its focused validation and tracking updates before the Loop collects the results.
 - **`review-and-fix`** — asks the configured reviewer agent to inspect a named task, records its
   structured findings as `.compozy/tasks/<task>/reviews-NNN/issue_NNN.md` files, remediates complete
   artifact batches, and repeats until a new review generation returns no issues.

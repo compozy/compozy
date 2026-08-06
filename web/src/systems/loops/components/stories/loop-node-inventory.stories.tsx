@@ -92,7 +92,7 @@ function InventoryStoryHost({
         items={items}
         loadedCount={items.length}
         loopFilter={loopFilter}
-        loopOptions={["issue-triage", "docs-refresh", "software-delivery"]}
+        loopOptions={["issue-triage", "docs-refresh", "implement-tasks"]}
         nowMs={STORY_NOW}
         onClearFilters={() => {}}
         onLoadMore={() => {}}
@@ -226,7 +226,7 @@ const CANCELED_RUNS: LoopRun[] = [
     ...loopRunFixtures[0],
     id: "looprun_canceled",
     status: "canceled",
-    loop_name: "software-delivery",
+    loop_name: "implement-tasks",
   },
   {
     ...loopRunFixtures[1],

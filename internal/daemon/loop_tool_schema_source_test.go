@@ -105,35 +105,35 @@ func TestLoopToolSchemaSource(t *testing.T) {
 		}
 	})
 
-	t.Run("Should compile software-delivery through registry backed dev-cycle schemas", func(t *testing.T) {
+	t.Run("Should compile implement-tasks through registry backed dev-cycle schemas", func(t *testing.T) {
 		t.Parallel()
 
 		source := newBundledDevCycleLoopSchemaSource(t)
-		data, err := fs.ReadFile(devcycle.FS(), "loops/software-delivery/loop.yaml")
+		data, err := fs.ReadFile(devcycle.FS(), "loops/implement-tasks/loop.yaml")
 		if err != nil {
-			t.Fatalf("ReadFile(software-delivery loop) error = %v", err)
+			t.Fatalf("ReadFile(implement-tasks loop) error = %v", err)
 		}
 		linter := newLoopLinterWithSchemaSource(source)
 		spec, def, err := looppkg.ParseResource(data, looppkg.ResourceParseOptions{
 			Source:                 looppkg.SourceMarketplace,
-			Dir:                    "loops/software-delivery",
-			FilePath:               "loops/software-delivery/loop.yaml",
+			Dir:                    "loops/implement-tasks",
+			FilePath:               "loops/implement-tasks/loop.yaml",
 			InstalledFromExtension: devcycle.Name,
 			Linter:                 linter,
 		})
 		if err != nil {
-			t.Fatalf("ParseResource(software-delivery) error = %v", err)
+			t.Fatalf("ParseResource(implement-tasks) error = %v", err)
 		}
-		if got, want := spec.Name, "software-delivery"; got != want {
+		if got, want := spec.Name, "implement-tasks"; got != want {
 			t.Fatalf("spec.Name = %q, want %q", got, want)
 		}
 
 		resolved, err := newLoopCompilerWithSchemaSource(source).Compile(def)
 		if err != nil {
-			t.Fatalf("Compile(software-delivery) error = %v", err)
+			t.Fatalf("Compile(implement-tasks) error = %v", err)
 		}
 		if _, ok := resolved.Templates["nodes.implement.collection"]; !ok {
-			t.Fatal("Compile(software-delivery) missing implement collection template")
+			t.Fatal("Compile(implement-tasks) missing implement collection template")
 		}
 	})
 }

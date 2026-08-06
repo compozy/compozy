@@ -164,7 +164,7 @@ func TestDaemonLoopAPIServiceShouldPublishWithServerManagedCASVersion(t *testing
 			t.Fatalf("ReadFile(source before delete) error = %v", err)
 		}
 
-		err = fixture.service.DeleteLoop(fixture.ctx, fixture.workspaceID, "software-delivery")
+		err = fixture.service.DeleteLoop(fixture.ctx, fixture.workspaceID, "implement-tasks")
 		if !errors.Is(err, looppkg.ErrDefinitionReadOnly) {
 			t.Fatalf("DeleteLoop(read-only) error = %v, want ErrDefinitionReadOnly", err)
 		}
@@ -178,7 +178,7 @@ func TestDaemonLoopAPIServiceShouldPublishWithServerManagedCASVersion(t *testing
 		if _, err := fixture.service.GetLoop(
 			fixture.ctx,
 			fixture.workspaceID,
-			"software-delivery",
+			"implement-tasks",
 		); err != nil {
 			t.Fatalf("GetLoop(after rejected delete) error = %v", err)
 		}
@@ -250,7 +250,7 @@ func TestDaemonLoopAPIServiceShouldPublishWithServerManagedCASVersion(t *testing
 		fixture := newLoopAPIForkFixture(t)
 
 		response, err := fixture.service.CreateLoop(fixture.ctx, fixture.workspaceID, contract.CreateLoopRequest{
-			ForkFromName: "software-delivery",
+			ForkFromName: "implement-tasks",
 		})
 		if err != nil {
 			t.Fatalf("CreateLoop(fork extension) error = %v", err)
@@ -315,7 +315,7 @@ func TestDaemonLoopAPIServiceShouldPublishWithServerManagedCASVersion(t *testing
 		created, err := fixture.service.CreateLoop(
 			fixture.ctx,
 			fixture.workspaceID,
-			contract.CreateLoopRequest{ForkFromName: "software-delivery"},
+			contract.CreateLoopRequest{ForkFromName: "implement-tasks"},
 		)
 		if err != nil {
 			t.Fatalf("CreateLoop(first) error = %v", err)
@@ -347,7 +347,7 @@ func TestDaemonLoopAPIServiceShouldPublishWithServerManagedCASVersion(t *testing
 		if _, err := fixture.service.CreateLoop(
 			fixture.ctx,
 			fixture.workspaceID,
-			contract.CreateLoopRequest{ForkFromName: "software-delivery"},
+			contract.CreateLoopRequest{ForkFromName: "implement-tasks"},
 		); err != nil {
 			t.Fatalf("CreateLoop(recreate) error = %v", err)
 		}
@@ -378,7 +378,7 @@ func TestDaemonLoopAPIServiceShouldPublishWithServerManagedCASVersion(t *testing
 		created, err := fixture.service.CreateLoop(
 			fixture.ctx,
 			fixture.workspaceID,
-			contract.CreateLoopRequest{ForkFromName: "software-delivery"},
+			contract.CreateLoopRequest{ForkFromName: "implement-tasks"},
 		)
 		if err != nil {
 			t.Fatalf("CreateLoop() error = %v", err)
@@ -492,7 +492,7 @@ func TestDaemonLoopAPIServiceShouldPublishWithServerManagedCASVersion(t *testing
 							fixture.ctx,
 							fixture.forkPath,
 							looppkg.WorkspaceID(fixture.workspaceID),
-							"software-delivery",
+							"implement-tasks",
 						); err != nil {
 							return fmt.Errorf("project copied fork: %w", err)
 						}
@@ -500,7 +500,7 @@ func TestDaemonLoopAPIServiceShouldPublishWithServerManagedCASVersion(t *testing
 						if err != nil {
 							return fmt.Errorf("read copied fork: %w", err)
 						}
-						data = []byte(strings.Replace(string(data), "name: software-delivery", "name: other", 1))
+						data = []byte(strings.Replace(string(data), "name: implement-tasks", "name: other", 1))
 						if err := os.WriteFile(fixture.forkPath, data, 0o600); err != nil {
 							return fmt.Errorf("corrupt copied fork: %w", err)
 						}
@@ -519,7 +519,7 @@ func TestDaemonLoopAPIServiceShouldPublishWithServerManagedCASVersion(t *testing
 				_, err := fixture.service.CreateLoop(
 					fixture.ctx,
 					fixture.workspaceID,
-					contract.CreateLoopRequest{ForkFromName: "software-delivery"},
+					contract.CreateLoopRequest{ForkFromName: "implement-tasks"},
 				)
 				if !tt.matches(err) {
 					t.Fatalf("CreateLoop(fork failure) error = %v, want injected post-copy failure", err)
@@ -846,7 +846,7 @@ func newLoopAPIForkFixture(t *testing.T) loopAPIForkFixture {
 		descriptor.ID: {Descriptor: descriptor},
 	}}
 	definition := strings.Replace(
-		testLoopYAML("software-delivery", "extension source"),
+		testLoopYAML("implement-tasks", "extension source"),
 		"version: 1",
 		"version: 0",
 		1,
@@ -871,7 +871,7 @@ func newLoopAPIForkFixture(t *testing.T) loopAPIForkFixture {
 	catalog := newResourceCatalog(looppkg.CloneResourceSpec)
 	catalog.Replace(1, []resources.Record[looppkg.ResourceSpec]{
 		{
-			ID:      "loop:extension:software-delivery",
+			ID:      "loop:extension:implement-tasks",
 			Version: 1,
 			Scope:   resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
 			Spec:    sourceSpec,
@@ -886,7 +886,7 @@ func newLoopAPIForkFixture(t *testing.T) loopAPIForkFixture {
 			workspaceRoot,
 			compozyconfig.DirName,
 			compozyconfig.LoopsDirName,
-			"software-delivery",
+			"implement-tasks",
 			looppkg.DefinitionFileName,
 		),
 		service: &daemonLoopAPIService{
@@ -909,7 +909,7 @@ func removeLoopAPIFixtureWorkspaceRecord(fixture *loopAPIForkFixture) {
 			scope := record.Scope.Normalize()
 			if scope.Kind == resources.ResourceScopeKindWorkspace &&
 				scope.ID == fixture.workspaceID &&
-				record.Spec.Name == "software-delivery" {
+				record.Spec.Name == "implement-tasks" {
 				continue
 			}
 			filtered = append(filtered, record)

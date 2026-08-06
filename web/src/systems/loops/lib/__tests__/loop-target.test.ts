@@ -8,7 +8,7 @@ import {
 } from "../loop-target";
 
 const base: LoopTargetDraft = {
-  loop_name: "software-delivery",
+  loop_name: "implement-tasks",
   inputs: { slug: "x" },
   input_mapping: {},
 };
@@ -22,7 +22,7 @@ describe("loop-target", () => {
   });
 
   it("Should keep the draft identity when the loop is unchanged", () => {
-    expect(setLoopTargetLoop(base, "software-delivery")).toBe(base);
+    expect(setLoopTargetLoop(base, "implement-tasks")).toBe(base);
   });
 
   it("Should set and clear static input values", () => {

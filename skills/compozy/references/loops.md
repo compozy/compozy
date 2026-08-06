@@ -323,7 +323,7 @@ with migration guidance.
 ```bash
 compozy loop run \
   --workspace . \
-  --name software-delivery \
+  --name implement-tasks \
   --runtime worker=codex/gpt-5.4@high \
   --runtime type=frontend:claude/opus \
   --runtime id=task_03:-/gpt-5.5-codex@xhigh \

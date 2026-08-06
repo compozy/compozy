@@ -12,7 +12,7 @@ import {
   unsetAtPath,
 } from "../loop-editor-draft";
 
-const def = loopDetailByName.get("software-delivery")!.definition;
+const def = loopDetailByName.get("quality-gate-demo")!.definition;
 
 describe("loop editor draft", () => {
   it("Should read a nested value at a raw path", () => {

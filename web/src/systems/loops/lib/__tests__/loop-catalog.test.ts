@@ -23,12 +23,12 @@ describe("loop-catalog", () => {
   it("Should classify read-only vs workspace loops by source", () => {
     expect(loopKind({ source: "marketplace" })).toBe("read-only");
     expect(loopKind({ source: "workspace" })).toBe("workspace");
-    expect(loopKind(delivery)).toBe("workspace");
+    expect(loopKind(delivery)).toBe("read-only");
     expect(loopKind(review)).toBe("read-only");
   });
 
   it("Should read only the category the daemon sent (no invented taxonomy)", () => {
-    expect(loopCategory(delivery)).toBe("delivery");
+    expect(loopCategory(delivery)).toBe("Engineering");
     expect(loopCategory(review)).toBe("Engineering");
     const blank: LoopCatalogEntry = {
       ...delivery,
@@ -38,7 +38,7 @@ describe("loop-catalog", () => {
   });
 
   it("Should count declared inputs and distinguish bounded review loops", () => {
-    expect(loopInputCount(delivery)).toBe(2);
+    expect(loopInputCount(delivery)).toBe(3);
     expect(loopInputCount(review)).toBe(4);
     expect(isUnboundedCap(review)).toBe(false);
     expect(isUnboundedCap(delivery)).toBe(false);
@@ -69,14 +69,14 @@ describe("loop-catalog", () => {
 
   it("Should filter by kind, category, and last-run status", () => {
     expect(matchesLoopFilter(delivery, { kind: "workspace", category: null, status: null })).toBe(
-      true
-    );
-    expect(matchesLoopFilter(delivery, { kind: "read-only", category: null, status: null })).toBe(
       false
     );
-    expect(matchesLoopFilter(delivery, { kind: "all", category: "delivery", status: null })).toBe(
+    expect(matchesLoopFilter(delivery, { kind: "read-only", category: null, status: null })).toBe(
       true
     );
+    expect(
+      matchesLoopFilter(delivery, { kind: "all", category: "Engineering", status: null })
+    ).toBe(true);
     expect(matchesLoopFilter(delivery, { kind: "all", category: "watch", status: null })).toBe(
       false
     );
@@ -93,12 +93,12 @@ describe("loop-catalog", () => {
   });
 
   it("Should label provenance as Built-in or Custom without changing the source values", () => {
-    expect(loopSourceLabel(delivery)).toBe("Custom");
+    expect(loopSourceLabel(delivery)).toBe("Built-in");
     expect(loopSourceLabel(review)).toBe("Built-in");
     expect(loopSourceLabel({ source: "marketplace" })).toBe("Built-in");
     expect(loopSourceLabel({ source: "user" })).toBe("Built-in");
     expect(loopSourceLabel({ source: "additional" })).toBe("Built-in");
-    expect(loopKind(delivery)).toBe("workspace");
+    expect(loopKind(delivery)).toBe("read-only");
     expect(loopKind(review)).toBe("read-only");
   });
 
@@ -122,9 +122,9 @@ describe("loop-catalog", () => {
       category: null,
       status: null,
     });
-    expect(all.map(group => group.kind)).toEqual(["read-only", "workspace"]);
-    expect(all.map(group => group.label)).toEqual(["Built-in", "Custom"]);
-    expect(all[0].entries).toHaveLength(1);
+    expect(all.map(group => group.kind)).toEqual(["read-only"]);
+    expect(all.map(group => group.label)).toEqual(["Built-in"]);
+    expect(all[0].entries).toHaveLength(2);
 
     const readOnlyOnly = groupLoopCatalog(loopCatalogFixtures, {
       kind: "read-only",

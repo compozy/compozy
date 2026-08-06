@@ -13,6 +13,7 @@ import type {
 import { buildLocalNetworkParticipationFixture } from "@/test/network-participation-fixtures";
 import { isTerminalLoopStatus } from "../lib/loop-formatters";
 import { heroEffectiveLifecycle, heroRunFixtures } from "./fixture-hero-path";
+import { implementTasksGraph } from "./fixture-implement-tasks";
 import { buildLoopRunDetailFixtures } from "./fixture-run-details";
 
 export const MOCK_WORKSPACE_ID = "ws_default";
@@ -26,7 +27,7 @@ function graph(
   return { nodes, edges } as unknown as LoopDefinitionGraph;
 }
 
-const deliveryGraph = graph(
+const qualityGateGraph = graph(
   [
     { id: "slug", class: "source", kind: "input" },
     { id: "load_tasks", class: "source", kind: "file-import" },
@@ -98,19 +99,28 @@ const reviewGraph = graph(
 );
 
 const graphByName: Record<string, LoopDefinitionGraph> = {
-  "software-delivery": deliveryGraph,
+  "implement-tasks": implementTasksGraph,
   "review-and-fix": reviewGraph,
+  "quality-gate-demo": qualityGateGraph,
 };
 
-// Vocabulary matches the canonical design spec (LOOPS-DESIGN-SPEC.md): the two
-// default dev-cycle Loops are `software-delivery` / `review-and-fix` (§4.1); `reattempt_strategy`
-// is `failed_only | full_body` (§5.5); verification criterion `type` is
-// `command | agent-judge | human | extension` (§5.3). Screens (tasks 19-22) build
-// on these MSW handlers, so the mock stays truthful to what the daemon emits.
+// The catalog contains the two bundled dev-cycle Loops. `quality-gate-demo` is a
+// workspace-only detail fixture used to cover generic gate UI without attributing
+// those states to the bundled `implement-tasks` Loop.
 
-const deliveryContract: LoopContract = {
-  goal: "Ship the requested change end to end and prove it.",
-  definition_of_done: "Configured project checks are green and the change is demonstrated.",
+const implementTasksContract: LoopContract = {
+  goal: "Implement every authored task under .compozy/tasks/{{ .inputs.slug }} in dependency order.",
+  definition_of_done:
+    "Every loaded task completed implementation, task-level validation, and tracking updates.",
+  iteration_cap: 50,
+  budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: "halt" },
+  no_progress: { window: 3 },
+  terminal_states: ["done", "no-op", "blocked", "failed", "exhausted", "stalled"],
+};
+
+const qualityGateContract: LoopContract = {
+  goal: "Exercise generic review, verification, and approval controls.",
+  definition_of_done: "Every configured gate passes.",
   iteration_cap: 50,
   budget: { tokens: 500_000, wall_clock_sec: 3_600, on_exceeded: "halt" },
   no_progress: { window: 3, hash_fields: ["delivery_artifact", "gate_verdict"] },
@@ -146,6 +156,7 @@ const reviewContract: LoopContract = {
 function buildRun(
   overrides: Partial<LoopRun> & Pick<LoopRun, "id" | "loop_name" | "status">
 ): LoopRun {
+  const definitionVersion = overrides.loop_name === "quality-gate-demo" ? 4 : 0;
   return {
     workspace_id: MOCK_WORKSPACE_ID,
     generation: 3,
@@ -160,7 +171,7 @@ function buildRun(
     created_at: "2026-07-05T12:00:00Z",
     started_at: "2026-07-05T12:00:00Z",
     last_progress_at: "2026-07-05T12:18:00Z",
-    definition_version: 4,
+    definition_version: definitionVersion,
     definition_digest: "sha256:mock-loop-definition",
     start_metadata: {},
     ...overrides,
@@ -171,11 +182,9 @@ export const loopRunFixtures: LoopRun[] = [
   // Live runs (Active table + KPIs).
   buildRun({
     id: "looprun_running",
-    loop_name: "software-delivery",
+    loop_name: "implement-tasks",
     status: "running",
-    generation: 2,
-    best_generation: 2,
-    best_score: 0.82,
+    generation: 1,
     tokens_used: 412_000,
     budget_tokens: 2_000_000,
     started_origin_kind: "schedule",
@@ -201,13 +210,13 @@ export const loopRunFixtures: LoopRun[] = [
   }),
   buildRun({
     id: "looprun_needs_approval",
-    loop_name: "software-delivery",
+    loop_name: "quality-gate-demo",
     status: "needs-approval",
     generation: 3,
     tokens_used: 1_100_000,
     budget_tokens: 2_000_000,
     started_origin_kind: "cli",
-    inputs: { slug: "billing-webhooks" },
+    inputs: { goal: "Review billing webhook delivery" },
   }),
   buildRun({
     id: "looprun_paused",
@@ -224,7 +233,7 @@ export const loopRunFixtures: LoopRun[] = [
   }),
   buildRun({
     id: "looprun_queued",
-    loop_name: "software-delivery",
+    loop_name: "implement-tasks",
     status: "queued",
     generation: 0,
     tokens_used: 0,
@@ -235,9 +244,9 @@ export const loopRunFixtures: LoopRun[] = [
   // Terminal runs (Past table). `done` rows land today for the "Done today" KPI.
   buildRun({
     id: "looprun_done_today",
-    loop_name: "software-delivery",
+    loop_name: "implement-tasks",
     status: "done",
-    generation: 2,
+    generation: 1,
     tokens_used: 520_000,
     budget_tokens: 2_000_000,
     started_origin_kind: "cli",
@@ -259,38 +268,38 @@ export const loopRunFixtures: LoopRun[] = [
   }),
   buildRun({
     id: "looprun_no-op",
-    loop_name: "software-delivery",
+    loop_name: "quality-gate-demo",
     status: "no-op",
     iteration_cap: 50,
     budget_tokens: 2_000_000,
     tokens_used: 12_000,
     generation: 1,
     started_origin_kind: "cli",
-    inputs: { slug: "empty-task-set" },
+    inputs: { goal: "Exercise a no-op gate path" },
   }),
   buildRun({
     id: "looprun_blocked",
-    loop_name: "software-delivery",
+    loop_name: "quality-gate-demo",
     status: "blocked",
     generation: 2,
     tokens_used: 140_000,
     budget_tokens: 2_000_000,
     started_origin_kind: "cli",
-    inputs: { slug: "task-03" },
+    inputs: { goal: "Exercise a blocked gate path" },
   }),
   buildRun({
     id: "looprun_failed",
-    loop_name: "software-delivery",
+    loop_name: "implement-tasks",
     status: "failed",
-    generation: 2,
+    generation: 1,
     tokens_used: 340_000,
     budget_tokens: 2_000_000,
     started_origin_kind: "schedule",
-    inputs: { slug: "approve-gate" },
+    inputs: { slug: "task-action-failure" },
   }),
   buildRun({
     id: "looprun_exhausted",
-    loop_name: "software-delivery",
+    loop_name: "quality-gate-demo",
     status: "exhausted",
     generation: 50,
     best_generation: 12,
@@ -299,13 +308,13 @@ export const loopRunFixtures: LoopRun[] = [
     tokens_used: 1_900_000,
     budget_tokens: 2_000_000,
     started_origin_kind: "cli",
-    inputs: { slug: "hard-problem" },
+    inputs: { goal: "Exercise iteration exhaustion" },
   }),
   buildRun({
     id: "looprun_exhausted_budget",
-    loop_name: "software-delivery",
+    loop_name: "implement-tasks",
     status: "exhausted",
-    generation: 6,
+    generation: 1,
     tokens_used: 2_000_000,
     budget_tokens: 2_000_000,
     started_origin_kind: "manual",
@@ -313,7 +322,7 @@ export const loopRunFixtures: LoopRun[] = [
   }),
   buildRun({
     id: "looprun_stalled",
-    loop_name: "software-delivery",
+    loop_name: "quality-gate-demo",
     status: "stalled",
     generation: 4,
     best_generation: 2,
@@ -321,7 +330,7 @@ export const loopRunFixtures: LoopRun[] = [
     tokens_used: 610_000,
     budget_tokens: 2_000_000,
     started_origin_kind: "cli",
-    inputs: { slug: "no-progress" },
+    inputs: { goal: "Exercise no-progress detection" },
   }),
   buildRun({
     id: "looprun_stalled_review",
@@ -356,19 +365,21 @@ function loopRunFixture(id: string): LoopRun {
 
 export const loopCatalogFixtures: LoopCatalogEntry[] = [
   {
-    name: "software-delivery",
-    source: "workspace",
-    version: 4,
-    description: "The canonical ship-a-change delivery loop.",
+    name: "implement-tasks",
+    source: "marketplace",
+    version: 0,
+    description: "Implement pending Compozy task files for one slug.",
     catalog: {
-      category: "delivery",
-      use_when: "You have a concrete change to ship with a verifiable definition of done.",
-      keywords: ["ship", "verify", "delivery"],
+      category: "Engineering",
+      use_when:
+        "You have authored tasks under .compozy/tasks/<slug> and want them implemented in dependency order.",
+      keywords: ["tasks", "implement", "engineering"],
     },
-    contract: deliveryContract,
+    contract: implementTasksContract,
     inputs: {
-      goal: { type: "string", required: true, description: "What to accomplish." },
-      max_files: { type: "number", required: false, default: 20 },
+      slug: { type: "string", required: true },
+      implementer: { type: "agent", required: false, default: "code_implementer" },
+      auto_commit: { type: "boolean", required: false, default: false },
     },
     // The 6 declared start kinds from the design (§4.2); a watch-source stays a body node.
     start: [
@@ -386,7 +397,7 @@ export const loopCatalogFixtures: LoopCatalogEntry[] = [
   {
     name: "review-and-fix",
     source: "marketplace",
-    version: 1,
+    version: 0,
     description:
       "Review a named task with an agent, write inspectable findings, and remediate them until a round comes back clean.",
     catalog: {
@@ -428,6 +439,7 @@ function buildDefinition(entry: LoopCatalogEntry): LoopDefinition {
       catalog: entry.catalog,
     },
     contract: entry.contract,
+    concurrency: entry.name === "quality-gate-demo" ? undefined : "forbid",
     graph: graphByName[entry.name] ?? graph([], []),
     inputs: entry.inputs,
     start: entry.start,
@@ -444,7 +456,50 @@ export const loopDetailFixtures: LoopDetail[] = loopCatalogFixtures.map(entry =>
   effective_lifecycle: heroEffectiveLifecycle,
 }));
 
-export const loopDetailByName = new Map(loopDetailFixtures.map(detail => [detail.name, detail]));
+export const qualityGateDetail: LoopDetail = {
+  name: "quality-gate-demo",
+  source: "workspace",
+  version: 4,
+  description: "Exercise generic gate states in stories and tests.",
+  catalog: {
+    category: "Testing",
+    use_when: "You need a custom Loop fixture that exercises gate controls.",
+    keywords: ["gates", "review", "approval"],
+  },
+  definition: {
+    apiVersion: "compozy.loop/v1",
+    kind: "Loop",
+    meta: {
+      name: "quality-gate-demo",
+      description: "Exercise generic gate states in stories and tests.",
+      version: 4,
+      catalog: {
+        category: "Testing",
+        use_when: "You need a custom Loop fixture that exercises gate controls.",
+        keywords: ["gates", "review", "approval"],
+      },
+    },
+    contract: qualityGateContract,
+    graph: qualityGateGraph,
+    inputs: {
+      goal: { type: "string", required: true, description: "What to accomplish." },
+      max_files: { type: "number", required: false, default: 20 },
+    },
+    start: [
+      { kind: "manual" },
+      { kind: "cli" },
+      { kind: "http" },
+      { kind: "uds" },
+      { kind: "native_tool" },
+      { kind: "schedule" },
+    ],
+  },
+  effective_lifecycle: heroEffectiveLifecycle,
+};
+
+export const loopDetailByName = new Map(
+  [...loopDetailFixtures, qualityGateDetail].map(detail => [detail.name, detail])
+);
 
 export const loopRunDetailFixtures = buildLoopRunDetailFixtures(loopRunFixtures, loopDetailByName);
 
@@ -489,6 +544,6 @@ export const loopEffectiveConfigFixture: LoopEffectiveConfig = {
 };
 
 export const loopAnnotationsFixture: LoopAnnotation[] = [
-  { node_id: "plan", x: 120, y: 80 },
+  { node_id: "load_tasks", x: 120, y: 80 },
   { node_id: "implement", x: 360, y: 80 },
 ];

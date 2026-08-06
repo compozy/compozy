@@ -26,9 +26,10 @@ const { loopCatalogFixtures, loopDetailByName, loopEffectiveConfigFixture, loopR
 const { readLoopGraph } = await import("../../lib/loop-graph");
 type LoopBindingRow = import("../../lib/loop-bindings").LoopBindingRow;
 
-const loop = loopDetailByName.get("software-delivery")!;
-const catalogEntry = loopCatalogFixtures.find(entry => entry.name === "software-delivery")!;
-const recentRuns = loopRunFixtures.filter(run => run.loop_name === "software-delivery").slice(0, 5);
+const loop = loopDetailByName.get("implement-tasks")!;
+const workspaceLoop = { ...loop, source: "workspace" as const };
+const catalogEntry = loopCatalogFixtures.find(entry => entry.name === "implement-tasks")!;
+const recentRuns = loopRunFixtures.filter(run => run.loop_name === "implement-tasks").slice(0, 5);
 const bindings: LoopBindingRow[] = [
   { id: "job", name: "nightly", kind: "schedule", enabled: false, meta: "Cron 0 3 * * *" },
 ];
@@ -82,11 +83,14 @@ function openRail(name: RegExp) {
 describe("LoopDetailView", () => {
   it("Should render the full definition page: header, contract, DAG, runs, and the right rail", () => {
     renderDetail();
-    expect(screen.getByTestId("loop-detail-header")).toHaveTextContent("software-delivery");
+    expect(screen.getByTestId("loop-detail-header")).toHaveTextContent("implement-tasks");
     expect(screen.getByTestId("loop-contract")).toBeInTheDocument();
     expect(screen.getByTestId("loop-dag")).toBeInTheDocument();
     expect(screen.getByTestId("loop-recent-runs")).toBeInTheDocument();
-    expect(screen.getAllByTestId("loop-recent-run-best")[0]).toHaveTextContent("Gen 2 · 0.82");
+    expect(screen.getAllByTestId("loop-recent-run-best")).toHaveLength(recentRuns.length);
+    expect(
+      screen.getAllByTestId("loop-recent-run-best").every(cell => cell.textContent === "—")
+    ).toBe(true);
     expect(screen.getByTestId("loop-declared-inputs")).toBeInTheDocument();
     expect(screen.getByTestId("loop-start-bindings")).toBeInTheDocument();
     expect(screen.getByTestId("loop-limits")).toBeInTheDocument();
@@ -94,19 +98,10 @@ describe("LoopDetailView", () => {
     expect(screen.getByTestId("loop-stats")).toBeInTheDocument();
   });
 
-  it("Should render the 8-node read-only body graph in order", () => {
+  it("Should render the implementation-only body graph in order", () => {
     renderDetail();
     const nodes = screen.getAllByTestId("loop-dag-node").map(node => node.dataset.nodeId);
-    expect(nodes).toEqual([
-      "slug",
-      "load_tasks",
-      "implement",
-      "execute_task",
-      "collect",
-      "review",
-      "verify",
-      "approve",
-    ]);
+    expect(nodes).toEqual(["slug_input", "load_tasks", "implement", "execute_task", "collect"]);
   });
 
   it("Should list the six possible endings as text and fold the 30d stats behind their gist", () => {
@@ -129,7 +124,7 @@ describe("LoopDetailView", () => {
     renderDetail({ onRun, onConfigure, onOpenEditor });
     fireEvent.click(screen.getByTestId("loop-run-action"));
     fireEvent.click(screen.getByTestId("loop-detail-overflow"));
-    expect(screen.getByTestId("loop-edit-action")).toHaveTextContent("Edit");
+    expect(screen.getByTestId("loop-edit-action")).toHaveTextContent("Fork & edit");
     fireEvent.click(screen.getByTestId("loop-edit-action"));
     fireEvent.click(screen.getByTestId("loop-detail-overflow"));
     fireEvent.click(screen.getByTestId("loop-configure-action"));
@@ -140,17 +135,17 @@ describe("LoopDetailView", () => {
 
   it("Should require the exact Loop name before deleting a workspace definition", () => {
     const onDelete = vi.fn();
-    renderDetail({ onDelete });
+    renderDetail({ onDelete }, savedConfig, workspaceLoop);
 
     fireEvent.click(screen.getByTestId("loop-detail-overflow"));
     fireEvent.click(screen.getByTestId("loop-delete-action"));
-    const dialog = screen.getByRole("dialog", { name: "Delete software-delivery?" });
+    const dialog = screen.getByRole("dialog", { name: "Delete implement-tasks?" });
     const confirm = within(dialog).getByRole("button", { name: "Delete loop" });
     expect(confirm).toBeDisabled();
     expect(onDelete).not.toHaveBeenCalled();
 
     fireEvent.change(within(dialog).getByRole("textbox", { name: "Type to confirm" }), {
-      target: { value: "software-delivery" },
+      target: { value: "implement-tasks" },
     });
     expect(confirm).toBeEnabled();
     fireEvent.click(confirm);
@@ -168,7 +163,7 @@ describe("LoopDetailView", () => {
 
   it("Should render the version without an unowned publish-state suffix", () => {
     renderDetail();
-    expect(screen.getAllByText("v4").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("v0").length).toBeGreaterThan(0);
     expect(screen.queryByText(/published/i)).not.toBeInTheDocument();
   });
 

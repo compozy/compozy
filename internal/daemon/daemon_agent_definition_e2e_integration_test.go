@@ -196,7 +196,7 @@ func assertDevCycleE2ECatalogPresence(
 	}
 	loopPresent := false
 	for _, loop := range loops.Loops {
-		if loop.Name == "software-delivery" {
+		if loop.Name == "implement-tasks" {
 			loopPresent = true
 		}
 	}

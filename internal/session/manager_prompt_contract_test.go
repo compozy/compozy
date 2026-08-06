@@ -797,7 +797,10 @@ func TestCancelPrompt(t *testing.T) {
 		for _, event := range canceledEvents {
 			if event.Failure != nil && (event.Failure.Kind == store.FailureTransport ||
 				event.Failure.Kind == store.FailureProcess) {
-				t.Fatalf("canceled prompt event failure kind = %q, want no fatal runtime failure", event.Failure.Kind)
+				t.Fatalf(
+					"canceled prompt event failure kind = %q, want no fatal runtime failure",
+					event.Failure.Kind,
+				)
 			}
 		}
 		if len(canceledEvents) != 1 || canceledEvents[0].Type != acp.EventTypeDone ||

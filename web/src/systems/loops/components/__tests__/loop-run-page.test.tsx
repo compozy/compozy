@@ -1067,7 +1067,7 @@ describe("LoopRunAboutRail", () => {
     );
     expect(screen.getByTestId("loop-run-about-loop")).toHaveAttribute(
       "data-params",
-      JSON.stringify({ name: "software-delivery" })
+      JSON.stringify({ name: "implement-tasks" })
     );
     expect(screen.getByTestId("loop-run-about-version")).toHaveTextContent("v4 · pinned");
     expect(screen.getByTestId("loop-run-input-pr")).toHaveTextContent("128");

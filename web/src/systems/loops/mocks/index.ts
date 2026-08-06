@@ -6,6 +6,7 @@ export {
   loopConfigFixture,
   loopDetailByName,
   loopDetailFixtures,
+  qualityGateDetail,
   loopRunAggregatesFixture,
   loopRunDetailByRunId,
   loopRunDetailFixtures,

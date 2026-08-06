@@ -19,29 +19,27 @@ import (
 )
 
 const (
-	softwareDeliveryE2ESlug         = "legacy-delivery"
-	softwareDeliveryImplementer     = "code_implementer"
-	softwareDeliveryReviewer        = "reviewer"
-	softwareDeliveryFixtureAgent    = "software_delivery_implementer"
-	softwareDeliveryReviewerFixture = "software_delivery_reviewer"
+	implementTasksE2ESlug      = "implement-tasks"
+	implementTasksImplementer  = "code_implementer"
+	implementTasksFixtureAgent = "implement_tasks_implementer"
 )
 
-func TestDaemonE2ESoftwareDeliveryShouldCompleteLegacyUserJourney(t *testing.T) {
+func TestDaemonE2EImplementTasksShouldCompleteTaskJourney(t *testing.T) {
 	t.Parallel()
-	t.Run("Should complete the software delivery journey after explicit extension enable", func(t *testing.T) {
+	t.Run("Should implement tasks after explicit extension enable", func(t *testing.T) {
 		t.Parallel()
 
 		driverPath := acpmock.RequireDriver(t)
 		homePaths := e2etest.NewHomePaths(t)
-		workspaceRoot := filepath.Join(t.TempDir(), "software-delivery-workspace")
-		fixturePath := mockFixturePath(t, "software_delivery_fixture.json")
-		seedSoftwareDeliveryTaskTree(t, workspaceRoot)
+		workspaceRoot := filepath.Join(t.TempDir(), "implement-tasks-workspace")
+		fixturePath := mockFixturePath(t, "implement_tasks_fixture.json")
+		seedImplementTasksTree(t, workspaceRoot)
 
 		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 			HomePaths: homePaths,
 			Workspace: e2etest.WorkspaceSeedOptions{Root: workspaceRoot},
 			ConfigSeed: e2etest.ConfigSeedOptions{
-				DefaultAgent:    softwareDeliveryImplementer,
+				DefaultAgent:    implementTasksImplementer,
 				DefaultProvider: acpmock.ProviderName,
 				PermissionMode:  config.PermissionModeApproveAll,
 				Mutate: func(cfg *config.Config) {
@@ -51,8 +49,8 @@ func TestDaemonE2ESoftwareDeliveryShouldCompleteLegacyUserJourney(t *testing.T) 
 					claudeProvider := acpmock.ProviderConfig(acpmock.BuildCommand(
 						driverPath,
 						fixturePath,
-						softwareDeliveryFixtureAgent,
-						filepath.Join(homePaths.LogsDir, "software-delivery-claude.jsonl"),
+						implementTasksFixtureAgent,
+						filepath.Join(homePaths.LogsDir, "implement-tasks-claude.jsonl"),
 					))
 					claudeProvider.Models.Reasoning.Apply = config.ReasoningApplyACPOption
 					cfg.Providers["claude"] = claudeProvider
@@ -70,38 +68,27 @@ func TestDaemonE2ESoftwareDeliveryShouldCompleteLegacyUserJourney(t *testing.T) 
 			extensionAgentFixtureConfig{
 				DriverPath:         driverPath,
 				FixturePath:        fixturePath,
-				FixtureAgentName:   softwareDeliveryFixtureAgent,
-				ExtensionAgentName: softwareDeliveryImplementer,
+				FixtureAgentName:   implementTasksFixtureAgent,
+				ExtensionAgentName: implementTasksImplementer,
 			},
 		)
-		configureExtensionAgentFixture(
-			t,
-			ctx,
-			harness,
-			extensionAgentFixtureConfig{
-				DriverPath:         driverPath,
-				FixturePath:        fixturePath,
-				FixtureAgentName:   softwareDeliveryReviewerFixture,
-				ExtensionAgentName: softwareDeliveryReviewer,
-			},
-		)
-		waitForLoopCatalogEntry(t, ctx, harness, "software-delivery")
+		waitForLoopCatalogEntry(t, ctx, harness, "implement-tasks")
 
 		stdout, stderr, err := harness.CLI.RunInDir(
 			ctx,
 			workspaceRoot,
 			"loop", "run",
 			"--workspace", workspaceRoot,
-			"--name", "software-delivery",
-			"--input", "slug="+softwareDeliveryE2ESlug,
+			"--name", "implement-tasks",
+			"--input", "slug="+implementTasksE2ESlug,
 			"--runtime", "type=frontend:claude/opus",
 		)
 		if err != nil {
-			t.Fatalf("CLI software-delivery run error = %v; stderr=%s", err, strings.TrimSpace(stderr))
+			t.Fatalf("CLI implement-tasks run error = %v; stderr=%s", err, strings.TrimSpace(stderr))
 		}
-		webURL, runID := softwareDeliveryRunURL(t, harness, stdout)
+		webURL, runID := implementTasksRunURL(t, harness, stdout)
 		if !strings.HasSuffix(strings.TrimSpace(stdout), webURL) {
-			t.Fatalf("CLI software-delivery output = %q, want web URL as final line", stdout)
+			t.Fatalf("CLI implement-tasks output = %q, want web URL as final line", stdout)
 		}
 
 		waitForLoopRunStatus(t, ctx, harness, runID, contract.LoopRunStatusDone)
@@ -116,19 +103,19 @@ func TestDaemonE2ESoftwareDeliveryShouldCompleteLegacyUserJourney(t *testing.T) 
 			"--run-id", runID,
 			"-o", "json",
 		); err != nil {
-			t.Fatalf("CLI software-delivery status error = %v", err)
+			t.Fatalf("CLI implement-tasks status error = %v", err)
 		}
-		assertSoftwareDeliveryRuntimes(t, detail)
+		assertImplementTasksRuntimes(t, detail)
 	})
 }
 
-func seedSoftwareDeliveryTaskTree(t testing.TB, workspaceRoot string) {
+func seedImplementTasksTree(t testing.TB, workspaceRoot string) {
 	t.Helper()
-	tasksDir := filepath.Join(workspaceRoot, ".compozy", "tasks", softwareDeliveryE2ESlug)
+	tasksDir := filepath.Join(workspaceRoot, ".compozy", "tasks", implementTasksE2ESlug)
 	files := map[string]string{
 		"_tasks.md": `---
 schema_version: "compozy.tasks/v2"
-workflow: legacy-delivery
+workflow: implement-tasks
 graph:
   nodes:
     - id: task_01
@@ -140,20 +127,20 @@ graph:
   edges: []
 ---
 
-# Legacy delivery tasks
+# Implementation tasks
 `,
 		"task_01.md": `---
 status: pending
-title: Frontend delivery
+title: Frontend implementation
 type: frontend
 complexity: high
 ---
 
-# Frontend delivery
+# Frontend implementation
 `,
 		"task_02.md": `---
 status: pending
-title: Documentation delivery
+title: Documentation implementation
 type: docs
 complexity: medium
 runtime:
@@ -162,16 +149,16 @@ runtime:
   reasoning: high
 ---
 
-# Documentation delivery
+# Documentation implementation
 `,
 		"task_03.md": `---
 status: pending
-title: Backend delivery
+title: Backend implementation
 type: backend
 complexity: low
 ---
 
-# Backend delivery
+# Backend implementation
 `,
 	}
 	if err := os.MkdirAll(tasksDir, 0o755); err != nil {
@@ -185,7 +172,7 @@ complexity: low
 	}
 }
 
-func softwareDeliveryRunURL(
+func implementTasksRunURL(
 	t testing.TB,
 	harness *e2etest.RuntimeHarness,
 	stdout string,
@@ -193,27 +180,27 @@ func softwareDeliveryRunURL(
 	t.Helper()
 	lines := strings.Split(strings.TrimSpace(stdout), "\n")
 	if len(lines) < 2 {
-		t.Fatalf("CLI software-delivery output = %q, want summary and final URL", stdout)
+		t.Fatalf("CLI implement-tasks output = %q, want summary and final URL", stdout)
 	}
 	webURL := strings.TrimSpace(lines[len(lines)-1])
 	parsed, err := url.Parse(webURL)
 	if err != nil {
-		t.Fatalf("parse software-delivery URL %q error = %v", webURL, err)
+		t.Fatalf("parse implement-tasks URL %q error = %v", webURL, err)
 	}
 	if got := parsed.Scheme + "://" + parsed.Host; got != harness.HTTPBaseURL {
-		t.Fatalf("software-delivery URL base = %q, want %q", got, harness.HTTPBaseURL)
+		t.Fatalf("implement-tasks URL base = %q, want %q", got, harness.HTTPBaseURL)
 	}
 	runID, err := url.PathUnescape(strings.TrimPrefix(parsed.EscapedPath(), "/loop-runs/"))
 	if err != nil {
-		t.Fatalf("unescape software-delivery run ID error = %v", err)
+		t.Fatalf("unescape implement-tasks run ID error = %v", err)
 	}
 	if runID == "" || parsed.Path != fmt.Sprintf(contract.LoopRunWebRoute, runID) {
-		t.Fatalf("software-delivery URL path = %q, want pinned route for run %q", parsed.Path, runID)
+		t.Fatalf("implement-tasks URL path = %q, want pinned route for run %q", parsed.Path, runID)
 	}
 	return webURL, runID
 }
 
-func assertSoftwareDeliveryRuntimes(t testing.TB, detail contract.LoopRunResponse) {
+func assertImplementTasksRuntimes(t testing.TB, detail contract.LoopRunResponse) {
 	t.Helper()
 	got := make(map[int]contract.LoopResolvedRuntime, 3)
 	for _, generation := range detail.Generations {
@@ -240,12 +227,12 @@ func assertSoftwareDeliveryRuntimes(t testing.TB, detail contract.LoopRunRespons
 		},
 	}
 	if len(got) != len(want) {
-		t.Fatalf("software-delivery resolved runtimes = %#v, want three task rows", got)
+		t.Fatalf("implement-tasks resolved runtimes = %#v, want three task rows", got)
 	}
 	for itemIndex, expected := range want {
 		loopRuntimeAssertJSONEqual(
 			t,
-			fmt.Sprintf("software-delivery item %d runtime", itemIndex),
+			fmt.Sprintf("implement-tasks item %d runtime", itemIndex),
 			got[itemIndex],
 			expected,
 		)

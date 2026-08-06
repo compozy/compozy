@@ -71,7 +71,7 @@ export const LoopTarget: Story = {
           target_kind: "loop",
           loop_target: {
             workspace_id: storyWorkspaceIds.hq,
-            loop_name: "software-delivery",
+            loop_name: "implement-tasks",
             inputs: { slug: "helix-v1-launch" },
             input_mapping: { branch: "data.branch" },
           },

@@ -5,14 +5,14 @@ title: Docs Examples section ships runnable artifacts with honest maturity label
 persona: Dora
 journey: J-evaluate-compozy-beta
 expected: /docs/examples appears in the sidebar under Guides & examples between Guides and Use cases with a FlaskConical icon, and lists five wave-one pages. Every example page follows the same anatomy — What you build, The artifact, Run it, How it works, Next steps — and carries a maturity chip in its masthead. The two Loop pages fence the exact `extensions/dev-cycle/loops/<name>/loop.yaml` shipped in the repository, copyable as one block. Every command shown is one the runtime accepts, and no page documents a mechanism that does not ship (no file-watch triggers, no invented config keys).
-entry_points: compozy.com /docs/examples; /docs/examples/review-and-fix-loop; /docs/examples/software-delivery-loop; /docs/examples/morning-briefing-job; /docs/examples/webhook-to-agent-run; /docs/examples/react-to-session-end
+entry_points: compozy.com /docs/examples; /docs/examples/review-and-fix-loop; /docs/examples/implement-tasks-loop; /docs/examples/morning-briefing-job; /docs/examples/webhook-to-agent-run; /docs/examples/react-to-session-end
 qa_status: pass
 bug_ids:
 fix_status:
 retest_status: pass
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-site-improvs-deep-review-20260730-024918-833208-lab/qa-artifacts/qa/visual-contract/deep-review-remediation/vc03-example-page; /Users/pedronauck/dev/qa-labs/compozy-site-improvs-deep-review-20260730-024918-833208-lab/qa-artifacts/qa/visual-contract/deep-review-remediation/vc08-example-page-mobile
-last_report: docs/qa/reports/2026-07-29-site-improvs-deep-review.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-implement-tasks-20260806-032332-797220-lab/qa-artifacts/qa/evidence/implement-tasks/docs-example.png
+last_report: docs/qa/reports/2026-08-05-implement-tasks.md
 overlaps: ET-site-docs-single-tree-ia; ET-site-docs-sidebar-opendesign; ET-dev-cycle-skill-bundle
 ---
 

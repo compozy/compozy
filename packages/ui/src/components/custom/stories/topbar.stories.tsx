@@ -47,7 +47,7 @@ function DetailActionsSetup() {
   useTopbarSlot({
     onBack: () => undefined,
     crumbs: [{ id: "loops", label: "Loops", onSelect: () => undefined }],
-    crumb: "software-delivery",
+    crumb: "implement-tasks",
     actions: (
       <div className="flex items-center gap-2">
         <Button size="sm" variant="ghost">

@@ -720,10 +720,9 @@ on_exceeded = "halt"
 threshold = 5
 probe_interval = "60s"
 
-[loops.inputs.software-delivery]
-# Explicit false, zero, and valid empty strings remain present values.
+[loops.inputs.implement-tasks]
+# Explicit false remains a present value.
 auto_commit = false
-verify_command = ""
 
 [loops.inputs.review-and-fix]
 auto_commit = false
@@ -1976,11 +1975,11 @@ created.
 Manage one value through the validated config writer:
 
 ```bash
-compozy config set loops.inputs.software-delivery.auto_commit false \
+compozy config set loops.inputs.implement-tasks.auto_commit false \
   --scope workspace --workspace /absolute/project/root
-compozy config get loops.inputs.software-delivery.auto_commit \
+compozy config get loops.inputs.implement-tasks.auto_commit \
   --workspace /absolute/project/root
-compozy config unset loops.inputs.software-delivery.auto_commit \
+compozy config unset loops.inputs.implement-tasks.auto_commit \
   --scope workspace --workspace /absolute/project/root
 ```
 

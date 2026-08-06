@@ -477,7 +477,7 @@ describe("runtime docs truth", () => {
     // is a claim about the repository, not an illustration. Drift here is a broken example.
     const loopExamples = [
       { page: "docs/examples/review-and-fix-loop.mdx", loop: "review-and-fix" },
-      { page: "docs/examples/software-delivery-loop.mdx", loop: "software-delivery" },
+      { page: "docs/examples/implement-tasks-loop.mdx", loop: "implement-tasks" },
     ];
 
     for (const { page, loop } of loopExamples) {

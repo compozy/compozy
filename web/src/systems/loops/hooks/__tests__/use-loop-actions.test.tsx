@@ -51,14 +51,14 @@ describe("loop mutation hooks", () => {
 
     await result.current.mutateAsync({
       workspaceId: WS,
-      data: { fork_from_name: "software-delivery" },
+      data: { fork_from_name: "implement-tasks" },
     });
 
     await waitFor(() => {
       expect(invalidate).toHaveBeenCalledWith({ queryKey: ["loops", "catalog", WS] });
     });
     expect(invalidate).toHaveBeenCalledWith({
-      queryKey: ["loops", "detail", WS, "software-delivery"],
+      queryKey: ["loops", "detail", WS, "implement-tasks"],
     });
   });
 
@@ -78,20 +78,20 @@ describe("loop mutation hooks", () => {
     await expect(
       result.current.mutateAsync({
         workspaceId: WS,
-        data: { fork_from_name: "software-delivery" },
+        data: { fork_from_name: "implement-tasks" },
       })
     ).rejects.toMatchObject({ status: 409 });
 
     await waitFor(() => {
       expect(invalidate).toHaveBeenCalledWith({
-        queryKey: ["loops", "detail", WS, "software-delivery"],
+        queryKey: ["loops", "detail", WS, "implement-tasks"],
       });
     });
     expect(invalidate).toHaveBeenCalledWith({
-      queryKey: ["loops", "config", WS, "software-delivery"],
+      queryKey: ["loops", "config", WS, "implement-tasks"],
     });
     expect(invalidate).toHaveBeenCalledWith({
-      queryKey: ["loops", "annotations", WS, "software-delivery"],
+      queryKey: ["loops", "annotations", WS, "implement-tasks"],
     });
   });
 
@@ -101,20 +101,20 @@ describe("loop mutation hooks", () => {
 
     await result.current.mutateAsync({
       workspaceId: WS,
-      name: "software-delivery",
+      name: "implement-tasks",
       data: { definition: {} } as never,
     });
 
     await waitFor(() => {
       expect(invalidate).toHaveBeenCalledWith({
-        queryKey: ["loops", "detail", WS, "software-delivery"],
+        queryKey: ["loops", "detail", WS, "implement-tasks"],
       });
     });
     expect(invalidate).toHaveBeenCalledWith({
-      queryKey: ["loops", "config", WS, "software-delivery"],
+      queryKey: ["loops", "config", WS, "implement-tasks"],
     });
     expect(invalidate).toHaveBeenCalledWith({
-      queryKey: ["loops", "annotations", WS, "software-delivery"],
+      queryKey: ["loops", "annotations", WS, "implement-tasks"],
     });
   });
 
@@ -122,18 +122,18 @@ describe("loop mutation hooks", () => {
     const { invalidate, remove, wrapper } = setup();
     const { result } = renderHook(() => useDeleteLoop(), { wrapper });
 
-    await result.current.mutateAsync({ workspaceId: WS, name: "software-delivery" });
+    await result.current.mutateAsync({ workspaceId: WS, name: "implement-tasks" });
 
     await waitFor(() => {
       expect(remove).toHaveBeenCalledWith({
-        queryKey: ["loops", "detail", WS, "software-delivery"],
+        queryKey: ["loops", "detail", WS, "implement-tasks"],
       });
     });
     expect(remove).toHaveBeenCalledWith({
-      queryKey: ["loops", "config", WS, "software-delivery"],
+      queryKey: ["loops", "config", WS, "implement-tasks"],
     });
     expect(remove).toHaveBeenCalledWith({
-      queryKey: ["loops", "annotations", WS, "software-delivery"],
+      queryKey: ["loops", "annotations", WS, "implement-tasks"],
     });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["loops", "catalog", WS] });
   });
@@ -156,7 +156,7 @@ describe("loop mutation hooks", () => {
 
     await result.current.mutateAsync({
       workspaceId: WS,
-      name: "software-delivery",
+      name: "implement-tasks",
       data: { inputs: {} },
     });
     await waitFor(() => {
@@ -167,7 +167,7 @@ describe("loop mutation hooks", () => {
     invalidate.mockClear();
     await result.current.mutateAsync({
       workspaceId: WS,
-      name: "software-delivery",
+      name: "implement-tasks",
       data: { inputs: {} },
       dry: true,
     });
@@ -215,7 +215,7 @@ describe("loop mutation hooks", () => {
 
     const verdict = await result.current.mutateAsync({
       workspaceId: WS,
-      name: "software-delivery",
+      name: "implement-tasks",
       data: { definition: {} } as never,
     });
 
@@ -229,13 +229,13 @@ describe("loop mutation hooks", () => {
 
     await result.current.mutateAsync({
       workspaceId: WS,
-      name: "software-delivery",
+      name: "implement-tasks",
       data: { config: { iteration_cap: 8 } },
     });
 
     await waitFor(() => {
       expect(invalidate).toHaveBeenCalledWith({
-        queryKey: ["loops", "config", WS, "software-delivery"],
+        queryKey: ["loops", "config", WS, "implement-tasks"],
       });
     });
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["loops", "runs", WS] });

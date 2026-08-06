@@ -20,7 +20,7 @@ story: Watching the live session is the single most important act while supervis
 
 The daemon persists the executing ACP session on the leased task run at bind time (`BindLeasedRunSession`, fenced by the claim token) and the run detail read joins it onto `generations[].outputs[].session_id`; the page view projects `nodeSessions` and the Happening-now card links hero + node rows. Token usage falls back to the session `token_usage` projection at node terminal when the live stream reported nothing.
 
-blocked-decision: walking this requires a fresh software-delivery dogfood run with live agent sessions (spends the operator's ACP account); pending the operator starting one.
+blocked-decision: walking this requires a fresh implement-tasks dogfood run with live agent sessions (spends the operator's ACP account); pending the operator starting one.
 
 src: web/src/systems/loops/components/run-page/loop-run-now-card.tsx; web/src/systems/loops/lib/loop-node-lifecycle.ts; web/src/systems/loops/lib/loop-run-usage.ts; internal/daemon/loop_action_liveness.go; internal/task/lease_manager.go; internal/store/globaldb/queries/loop_runtime.sql
 

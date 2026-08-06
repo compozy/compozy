@@ -33,7 +33,7 @@ The primary delivery mappings are:
 
 | v0.2.15                                                                             | v0.3 beta                                                                         | Notes                                                                                                                                                                                                           |
 | ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `compozy tasks run demo`                                                            | `compozy loop run --name software-delivery --input slug=demo`                     | Run from the project tree. Uses the bundled delivery Loop and the existing `.compozy/tasks/demo/` tree.                                                                                                         |
+| `compozy tasks run demo`                                                            | `compozy loop run --name implement-tasks --input slug=demo`                       | Run from the project tree. Uses the bundled task implementation Loop and the existing `.compozy/tasks/demo/` tree.                                                                                              |
 | `--task-runtime type=frontend,ide=codex,model=gpt-5.5-codex,reasoning-effort=xhigh` | `--runtime type=frontend:codex/gpt-5.5-codex@xhigh`                               | `--runtime` is repeatable. It also accepts `worker=`, `judge=`, `id=`, and `complexity=` selectors.                                                                                                             |
 | `--dry-run`                                                                         | `--dry-run`                                                                       | The v0.3 plan reports effective input values and origins and creates no run.                                                                                                                                    |
 | `--auto-commit`                                                                     | `--input auto_commit=true`                                                        | Supported by both bundled dev-cycle Loops. Neither Loop pushes.                                                                                                                                                 |
@@ -59,7 +59,7 @@ The complete v0.2 flag-family disposition is:
 
 | Legacy flag family                                                                                                                                                          | v0.3 disposition                                                                                                                                                      |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tasks run`: positional slug, `--name`                                                                                                                                      | `--name software-delivery --input slug=<slug>`; the Loop name and task slug are separate values.                                                                      |
+| `tasks run`: positional slug, `--name`                                                                                                                                      | `--name implement-tasks --input slug=<slug>`; the Loop name and task slug are separate values.                                                                        |
 | `--ide`, `--model`, `--reasoning-effort`, repeatable `--task-runtime`                                                                                                       | Express worker/judge or task rules with repeatable `--runtime`. Unsupported legacy providers are not aliased.                                                         |
 | `--format`, common structured output                                                                                                                                        | Use global `-o` with `human`, `json`, `jsonl`, or `toon`.                                                                                                             |
 | `--dry-run`, `--auto-commit`                                                                                                                                                | Retained as `--dry-run` and `--input auto_commit=<bool>`.                                                                                                             |
@@ -91,7 +91,7 @@ Explicit `false`, `0`, and valid empty strings remain present values.
 | `defaults.model`                                                                                                                                               | Expand to `loops.defaults.{delivery,watch}.runtime_defaults.{worker,judge}.model`.                                                                                   |
 | `defaults.reasoning_effort`                                                                                                                                    | Expand to `loops.defaults.{delivery,watch}.runtime_defaults.{worker,judge}.reasoning` for `low`, `medium`, `high`, `xhigh`, or `max`.                                |
 | `defaults.timeout`                                                                                                                                             | `session.limits.timeout`.                                                                                                                                            |
-| `defaults.auto_commit`                                                                                                                                         | `loops.inputs.software-delivery.auto_commit` and `loops.inputs.review-and-fix.auto_commit`.                                                                          |
+| `defaults.auto_commit`                                                                                                                                         | `loops.inputs.implement-tasks.auto_commit` and `loops.inputs.review-and-fix.auto_commit`.                                                                            |
 | `defaults.by_complexity.<level>.<field>`                                                                                                                       | Ordered delivery `runtime_rules` with `match.complexity`; levels are `low`, `medium`, `high`, and `critical`, and fields are `ide`, `model`, and `reasoning_effort`. |
 | `tasks.run.task_runtime_rules[]`                                                                                                                               | Ordered delivery `runtime_rules` with `match.type`. The persisted legacy schema supported type selectors only.                                                       |
 | `defaults.{output_format,access_mode,tail_lines,add_dirs,max_retries,retry_backoff_multiplier}`                                                                | Dropped; no runtime-config destination.                                                                                                                              |
@@ -120,12 +120,12 @@ You can manage an input default manually now:
 ```bash
 cd /absolute/project/root
 
-compozy config set loops.inputs.software-delivery.auto_commit false \
+compozy config set loops.inputs.implement-tasks.auto_commit false \
   --scope workspace
 
-compozy config get loops.inputs.software-delivery.auto_commit
+compozy config get loops.inputs.implement-tasks.auto_commit
 
-compozy config unset loops.inputs.software-delivery.auto_commit \
+compozy config unset loops.inputs.implement-tasks.auto_commit \
   --scope workspace
 ```
 
@@ -197,7 +197,7 @@ loader, or hidden fallback ships in v0.3.
 
 | v0.2.15 surface                                                                                | Status in v0.3                | Successor or workaround                                                                                  |
 | ---------------------------------------------------------------------------------------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `tasks run` basic delivery                                                                     | Replaced                      | Bundled `software-delivery` Loop.                                                                        |
+| `tasks run` basic delivery                                                                     | Replaced                      | Bundled `implement-tasks` Loop.                                                                          |
 | `--parallel-tasks` dependency waves                                                            | Deferred                      | Run serially; a custom Loop may model explicit safe fan-out.                                             |
 | `--multiple` / `--parallel` worktree isolation                                                 | Deferred                      | Create explicit worktrees/workspaces and start separate runs.                                            |
 | Tasks-run five-step wizard                                                                     | Removed                       | Supply explicit `loop run` flags and inspect `--dry-run -o json`.                                        |

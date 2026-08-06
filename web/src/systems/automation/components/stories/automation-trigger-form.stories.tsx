@@ -262,7 +262,7 @@ export const EditIncompatibleLoop: Story = {
         target_kind: "loop",
         loop_target: {
           workspace_id: storyWorkspaceIds.hq,
-          loop_name: "software-delivery",
+          loop_name: "implement-tasks",
           inputs: { goal: "Ship the queued delivery" },
           input_mapping: {},
         },

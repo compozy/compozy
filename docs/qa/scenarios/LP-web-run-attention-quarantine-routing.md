@@ -20,7 +20,7 @@ story: As the person a run parks for, the panel must tell me the one thing that 
 
 The daemon now records `attention_producer_node_id` on dependency-flagged node controls (migration 00055) and the requeue fence clears consumers by that structured field instead of string-matching the reason text. The panel groups consumers per producer and the button routes by producer id into `LoopQuarantineSheet`.
 
-blocked-decision: walking this requires a fresh software-delivery dogfood run that reaches quarantine (spawns real ACP agent sessions on the operator's account); pending the operator starting one.
+blocked-decision: walking this requires a fresh implement-tasks dogfood run that reaches quarantine (spawns real ACP agent sessions on the operator's account); pending the operator starting one.
 
 src: web/src/systems/loops/components/run-page/loop-run-parked-panels.tsx; web/src/systems/loops/components/run-page/loop-quarantine-sheet.tsx; internal/loop/coordinator_quarantine.go; internal/store/globaldb/global_db_loop_node_requeue.go
 

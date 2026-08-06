@@ -22,7 +22,7 @@ function job(overrides: Partial<AutomationJob>): AutomationJob {
     fire_limit: { max: 12, window: "1h" },
     created_at: "2026-07-05T00:00:00Z",
     updated_at: "2026-07-05T00:00:00Z",
-    loop_target: { loop_name: "software-delivery", workspace_id: WS },
+    loop_target: { loop_name: "implement-tasks", workspace_id: WS },
     ...overrides,
   } as AutomationJob;
 }
@@ -43,7 +43,7 @@ function trigger(overrides: Partial<AutomationTrigger>): AutomationTrigger {
     webhook_secret_present: false,
     created_at: "2026-07-05T00:00:00Z",
     updated_at: "2026-07-05T00:00:00Z",
-    loop_target: { loop_name: "software-delivery", workspace_id: WS },
+    loop_target: { loop_name: "implement-tasks", workspace_id: WS },
     ...overrides,
   } as AutomationTrigger;
 }
@@ -79,13 +79,13 @@ describe("loop-bindings-map", () => {
       [job({}), job({ id: "job_2", name: "morning" })],
       WS
     );
-    const entry = index.get("software-delivery");
+    const entry = index.get("implement-tasks");
     expect(entry?.kinds).toEqual(["schedule", "webhook"]);
     expect(entry?.rows).toHaveLength(3);
     // A different-workspace loop target must never leak into the index.
     const isolated = buildLoopBindingIndex(
       [],
-      [job({ loop_target: { loop_name: "software-delivery", workspace_id: "other" } })],
+      [job({ loop_target: { loop_name: "implement-tasks", workspace_id: "other" } })],
       WS
     );
     expect(isolated.size).toBe(0);

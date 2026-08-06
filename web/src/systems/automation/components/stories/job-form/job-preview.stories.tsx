@@ -77,14 +77,14 @@ export const LoopMode: Story = {
       preview={buildJobPreview(
         {
           ...createAutomationJobDraft(storyWorkspaceIds.hq),
-          name: "software-delivery-daily-qa",
+          name: "implement-tasks-daily-qa",
           agent_name: "",
           prompt: "",
           schedule: { mode: "cron", expr: "0 9 * * 1-5" },
           target_kind: "loop",
           loop_target: {
             workspace_id: storyWorkspaceIds.hq,
-            loop_name: "software-delivery",
+            loop_name: "implement-tasks",
             inputs: { slug: "helix-v1-launch", dry_run: false },
             input_mapping: {},
           },

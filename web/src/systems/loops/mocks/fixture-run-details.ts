@@ -1,10 +1,41 @@
 import type { LoopDetail, LoopRun, LoopRunDetail, LoopRunGeneration } from "../types";
 
-// Generations aligned to the delivery graph so the run-page timeline resolves
-// each node's real class/kind. G1 has one failed branch; G2 carries the clean
-// branches and re-runs only the failed one.
-function deliveryGenerations(run: LoopRun): LoopRunGeneration[] {
-  const live = run.status === "running" || run.status === "needs-approval";
+function implementTasksGenerations(run: LoopRun): LoopRunGeneration[] {
+  if (run.generation === 0) return [];
+  const generation = Math.max(1, run.generation);
+  const active = run.status === "running";
+  const failed = run.status === "failed";
+  return [
+    {
+      generation,
+      parent_generation: Math.max(0, generation - 1),
+      origin: "initial",
+      verdicts: [],
+      outputs: [
+        { node_id: "slug_input", status: "succeeded", generation },
+        { node_id: "load_tasks", status: "succeeded", generation },
+        { node_id: "implement", status: "succeeded", generation },
+        {
+          node_id: "execute_task",
+          status: active ? "running" : failed ? "failed" : "succeeded",
+          generation,
+          item_index: 0,
+          task_run_id: "tr_1",
+          resolved_runtime: {
+            provider: "openai",
+            model: "gpt-5.4",
+            reasoning: "high",
+            source: { provider: "run", model: "frontmatter", reasoning: "config" },
+          },
+        },
+        { node_id: "collect", status: active || failed ? "pending" : "succeeded", generation },
+      ],
+    },
+  ];
+}
+
+function qualityGateGenerations(run: LoopRun): LoopRunGeneration[] {
+  const live = run.status === "needs-approval";
   const g1: LoopRunGeneration = {
     generation: 1,
     parent_generation: 0,
@@ -13,33 +44,8 @@ function deliveryGenerations(run: LoopRun): LoopRunGeneration[] {
     outputs: [
       { node_id: "slug", status: "succeeded", generation: 1 },
       { node_id: "load_tasks", status: "succeeded", generation: 1 },
-      {
-        node_id: "execute_task",
-        status: "succeeded",
-        generation: 1,
-        item_index: 0,
-        task_run_id: "tr_1",
-      },
-      {
-        node_id: "execute_task",
-        status: "succeeded",
-        generation: 1,
-        item_index: 1,
-        task_run_id: "tr_2",
-      },
-      {
-        node_id: "execute_task",
-        status: "failed",
-        generation: 1,
-        item_index: 2,
-        task_run_id: "tr_3",
-        resolved_runtime: {
-          provider: "openai",
-          model: "gpt-5.4",
-          reasoning: "high",
-          source: { provider: "run", model: "frontmatter", reasoning: "config" },
-        },
-      },
+      { node_id: "implement", status: "succeeded", generation: 1 },
+      { node_id: "execute_task", status: "succeeded", generation: 1, item_index: 0 },
       { node_id: "collect", status: "succeeded", generation: 1 },
       { node_id: "review", status: "failed", generation: 1 },
     ],
@@ -48,43 +54,24 @@ function deliveryGenerations(run: LoopRun): LoopRunGeneration[] {
     generation: 2,
     parent_generation: 1,
     origin: "gate_revise",
-    verdicts:
-      run.best_generation === 2
-        ? [
-            {
-              gate_id: "review",
-              item_index: 0,
-              outcome: "rejected",
-              score: run.best_score,
-              criteria: [],
-              blocking_issues: [],
-            },
-          ]
-        : [],
+    verdicts: [
+      {
+        gate_id: "review",
+        item_index: 0,
+        outcome: "rejected",
+        score: run.best_score,
+        criteria: [],
+        blocking_issues: [],
+      },
+    ],
     outputs: [
+      { node_id: "slug", status: "reused", generation: 2 },
+      { node_id: "load_tasks", status: "reused", generation: 2 },
+      { node_id: "implement", status: "reused", generation: 2 },
       { node_id: "execute_task", status: "reused", generation: 2, item_index: 0 },
-      { node_id: "execute_task", status: "reused", generation: 2, item_index: 1 },
-      {
-        node_id: "execute_task",
-        status: live ? "running" : "succeeded",
-        generation: 2,
-        item_index: 2,
-        resolved_runtime: {
-          provider: "openai",
-          model: "gpt-5.4",
-          reasoning: "high",
-          source: { provider: "run", model: "frontmatter", reasoning: "config" },
-        },
-      },
-      {
-        node_id: "child_delivery",
-        status: "awaiting_child",
-        generation: 2,
-        child_loop_run_id: "looprun_child",
-      },
-      { node_id: "collect", status: live ? "pending" : "succeeded", generation: 2 },
-      { node_id: "review", status: live ? "pending" : "succeeded", generation: 2 },
-      { node_id: "verify", status: live ? "pending" : "succeeded", generation: 2 },
+      { node_id: "collect", status: "reused", generation: 2 },
+      { node_id: "review", status: "succeeded", generation: 2 },
+      { node_id: "verify", status: "succeeded", generation: 2 },
       { node_id: "approve", status: live ? "pending" : "succeeded", generation: 2 },
     ],
   };
@@ -96,19 +83,7 @@ function deliveryGenerations(run: LoopRun): LoopRunGeneration[] {
       generation,
       parent_generation: Math.max(0, generation - 1),
       origin: run.best_generation === generation ? "ratchet_restore" : "gate_revise",
-      verdicts:
-        run.best_generation === generation
-          ? [
-              {
-                gate_id: "review",
-                item_index: 0,
-                outcome: "rejected",
-                score: run.best_score,
-                criteria: [],
-                blocking_issues: [],
-              },
-            ]
-          : [],
+      verdicts: [],
       outputs: [],
     });
     referenced.add(generation);
@@ -131,6 +106,7 @@ function reviewGenerations(run: LoopRun): LoopRunGeneration[] {
         { node_id: "review", status: "succeeded", generation },
         { node_id: "has_issues", status: "succeeded", generation },
         { node_id: "write_artifacts", status: "succeeded", generation },
+        { node_id: "fix_batches", status: "succeeded", generation },
         {
           node_id: "fix_batch",
           status: active ? "running" : remainingStatus,
@@ -160,7 +136,11 @@ export function buildLoopRunDetailFixtures(
       },
       executed_definition: detail.definition,
       generations:
-        run.loop_name === "review-and-fix" ? reviewGenerations(run) : deliveryGenerations(run),
+        run.loop_name === "review-and-fix"
+          ? reviewGenerations(run)
+          : run.loop_name === "quality-gate-demo"
+            ? qualityGateGenerations(run)
+            : implementTasksGenerations(run),
       node_controls: [],
       waits: [],
     };

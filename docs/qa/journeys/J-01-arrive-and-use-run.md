@@ -1,6 +1,6 @@
-# J-01 — Arrive and use: run a default dev-cycle Loop to a verified finish
+# J-01 — Arrive and use: implement an authored task graph
 
-The hero path (PRD F11 layer 1, use-cases §2). A user arrives at the Loops catalog, launches a default-enrolled `dev-cycle` Loop with a couple of inputs, and watches it drive already-authored tasks to a verified terminal outcome — no authoring, no graph assembly. If this is one step harder than Compozy today, the design failed.
+The hero path (PRD F11 layer 1, use-cases §2). A user arrives at the Loops catalog, launches the default-enrolled `implement-tasks` Loop with a task slug, and watches it implement the already-authored task graph in dependency order — no Loop authoring or graph assembly. If this is one step harder than Compozy today, the design failed.
 
 For the v0.3 migration candidate, the same journey also proves that one run can resolve distinct
 per-task runtimes, persist the applied provider/model/reasoning provenance, expose it identically
@@ -9,7 +9,7 @@ through structured and Web reads after restart, and hand the operator a truthful
 ```mermaid
 flowchart TD
     A[Entry: home › Loops catalog] --> B{Filter / find a Loop}
-    B -->|dev-cycle: software-delivery| C[Row: goal, last outcome, 30d success-rate, inline Run]
+    B -->|dev-cycle: implement-tasks| C[Row: goal, last outcome, 30d success-rate, inline Run]
     B -->|empty custom group| B2[Custom group hidden until a fork exists]
     C -->|click row| D[Loop detail: contract + read-only DAG + recent runs]
     C -->|inline Run| E[Run form: auto-generated typed inputs]
@@ -21,11 +21,9 @@ flowchart TD
     F -->|Advanced overrides| G[6 limit fields show default/ceiling, clamp at ceiling; NO cost-cap input]
     F -->|yes, Run loop| H[Side effect: loop_run created 201, run page opens]
     H --> H2[CLI returns the persisted run id and effective-port Web deep link]
-    H2 --> I[run-detail: Running pill + contract header + applied runtime provenance + 5 meters + score, best, and origin when present + live SSE timeline]
-    I --> J{Verification gate}
-    J -->|pass| K[True end: terminal banner done — goal verified, meters final, outcome NOT coerced]
-    J -->|fail| L[Self-correction: revise failing tasks under guardrails, next generation]
-    L --> J
+    H2 --> I[run-detail: Running pill + contract header + applied runtime provenance + meters + live SSE timeline]
+    I --> J[Import tasks, execute each task sequentially, then collect results]
+    J --> K[True end: terminal banner done — every task completed, meters final, outcome NOT coerced]
     I -.->|user closes tab mid-run| X1[Abandon: re-find via global Runs; run keeps running server-side, resumes observation]
     F2 -.->|gives up at the form| X2[Abandon: leaves without running — first-impression friction is the bug]
 ```
@@ -33,22 +31,22 @@ flowchart TD
 ```yaml
 journey:
   id: J-01
-  name: "Run a default dev-cycle Loop to a verified finish (arrive-and-use)"
-  value_statement: "A user runs software-delivery with a few inputs and it drives their tasks to a truthful, verified terminal outcome without babysitting."
+  name: "Implement an authored task graph with the default dev-cycle Loop"
+  value_statement: "A user runs implement-tasks with a slug and it implements every authored task in dependency order without adding review, verification, or approval gates."
   personas: [Lea, Bruno]
   entry_points:
     - url: "web /loops (loops-catalog)"
       origin: in-app-nav
     - url: "web /loops/:name (loop-detail) › Run loop"
       origin: in-app-nav
-    - url: "CLI: compozy loop run --name software-delivery --input slug=my-feature --runtime <selector>=<provider/model/reasoning>"
+    - url: "CLI: compozy loop run --name implement-tasks --input slug=my-feature --runtime <selector>=<provider/model/reasoning>"
       origin: direct
     - url: "HTTP/UDS: POST /api/workspaces/:workspace_id/loops/:name/run"
       origin: direct
   actions:
     - step: 1
-      verb: "Browse the catalog and find software-delivery"
-      expected_observable: "Grouped list (dev-cycle/Custom), row shows goal, last-outcome pill, 30d success-rate, inline Run"
+      verb: "Browse the catalog and find implement-tasks"
+      expected_observable: "The Built-in group shows implement-tasks with its goal, last-outcome pill, 30d success-rate, and inline Run"
     - step: 2
       verb: "Open the run form and fill the declared inputs"
       expected_observable: "Form auto-generated from the declared input schema (type badges, required *); Run disabled until slug set"
@@ -62,12 +60,12 @@ journey:
       verb: "Run the Loop"
       expected_observable: "loop_run created (201); CLI/JSON/TOON identify the same persisted run and effective-port Web URL; the run page shows applied runtime provenance as read-only truth"
     - step: 6
-      verb: "Watch it self-correct and finish"
-      expected_observable: "A mixed task batch uses its bound provider/model/reasoning triples; failing tasks revise under guardrails; a terminal banner shows the single truthful outcome (done)"
+      verb: "Watch every task execute and finish"
+      expected_observable: "The imported task graph runs sequentially through execute_task, collect completes, and a terminal banner shows the single truthful outcome (done)"
   goal:
-    observable: "Terminal banner reads done with the goal verified; applied runtime provenance and Attempts/Tokens/Wall/Cost/Breadth meters show final truth"
+    observable: "Terminal banner reads done after every imported task completed implementation; applied runtime provenance and Attempts/Tokens/Wall/Cost/Breadth meters show final truth"
     side_effects: [loop_run-created, task_runs-executed, generation-timeline-events-streamed]
-  true_end_state: "Restart the daemon and reload the CLI, HTTP/UDS, native status, SSE-backed run page, and printed deep link: the run is still done, every surface agrees on persisted runtime plus optional score/best/provenance, the outcome is not coerced, and another workspace cannot observe it."
+  true_end_state: "Restart the daemon and reload the CLI, HTTP/UDS, native status, SSE-backed run page, and printed deep link: the run is still done, every surface agrees on the five-node implementation graph and persisted runtime provenance, no review/verify/approve nodes appear, and another workspace cannot observe it."
   exit:
     natural: "User lands on the terminal run page; can open the merged result / recent-runs history."
   abandonment:
@@ -87,7 +85,7 @@ design_reference:
   truthful_ui_checks:
     - "No Cost cap (USD) input on the run form; Cost is a display-only derived meter (ADR-017 §3)."
     - "Canonical stop-limit defaults render (iteration_cap 50, not the design HTML's 10; unbounded shown as ∞) — §9.5.1."
-    - "Terminal banner is truthful: a done shown here must be a genuine verified done, never a coerced exhausted/stalled (ADR-013 inv5)."
+    - "Terminal banner is truthful: done requires every imported task to complete; it is never coerced from exhausted/stalled and does not imply a separate review, verification, or approval phase."
     - "Running pulse only while live; gated by reduced-motion."
     - "Applied runtime is read-only persisted truth from the daemon binding; the Web never offers an unsupported runtime edit control."
     - "The CLI deep link uses the effective daemon port and opens this exact persisted run; dry-run never prints one."
@@ -95,14 +93,14 @@ design_reference:
 
 e2e_backbone:
   runtime:
-    - "E2E-runtime-1: Should run software-delivery to a verified terminal outcome unattended (PRD success metric)."
+    - "E2E-runtime-1: Should run implement-tasks through import, sequential execution, and collection to a truthful terminal outcome unattended."
     - "E2E-runtime-7: budget never kills a progressing run; no-progress → stalled; ceiling → exhausted (guardrail side of self-correction)."
   web:
     - "E2E-web-1: Catalog filter + success-rate + last-outcome pill + launch run inline → run form."
     - "E2E-web-2: Run form auto-generates typed inputs, Run gated until required, override default/ceiling + clamp, NO Cost cap input, start a run on Run."
-    - "E2E-web-3: Run page contract header (goal + DoD + verification rows + terminal chips + live Running pill, no pulse under reduced-motion)."
+    - "E2E-web-3: Run page contract header (goal + DoD + terminal chips + live Running pill, no pulse under reduced-motion)."
     - "E2E-web-4: Run page meters (Attempts/Tokens/Wall/Cost(derived)/Breadth, warn-tint near ceiling only, cost display-only, no cap control)."
-    - "E2E-web-5: Run page timeline (collapsible generations + node spine, carried-forward tags, gate verdict + routing)."
+    - "E2E-web-5: Run page timeline (collapsible generations + five-node implementation spine + carried-forward tags)."
   component:
     - "Web-unit-3 (right control per input type + block submit until required); Web-unit-4 (clamp + overrides-set badge); Web-unit-6 (meter warn-tint, no cost cap control)."
   followups:

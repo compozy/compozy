@@ -22,12 +22,12 @@ const meta: Meta<typeof LoopRunForm> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const deliveryLoop = loopDetailByName.get("software-delivery")!;
+const implementTasksLoop = loopDetailByName.get("implement-tasks")!;
 const watchLoop = loopDetailByName.get("review-and-fix")!;
 const liveRun = loopRunFixtures.find(
-  run => run.loop_name === "software-delivery" && run.status === "running"
+  run => run.loop_name === "implement-tasks" && run.status === "running"
 )!;
-const deliveryConfig = {
+const implementTasksConfig = {
   iteration_cap: 3,
   budget_on_exceeded: "escalate" as const,
   no_progress_window: 2,
@@ -50,7 +50,7 @@ function RunFormShell({ children }: { children: ReactNode }) {
       crumb="Run"
       crumbs={[
         { id: "loops", label: "Loops", onSelect: () => {} },
-        { id: "loop", label: "software-delivery", onSelect: () => {} },
+        { id: "loop", label: "implement-tasks", onSelect: () => {} },
       ]}
       onBack={() => {}}
     >
@@ -60,21 +60,21 @@ function RunFormShell({ children }: { children: ReactNode }) {
 }
 
 /** The hero run form: auto-generated typed inputs, Advanced overrides, live preview. */
-export const Delivery: Story = {
+export const ImplementTasks: Story = {
   render: () => (
     <RunFormShell>
       <LoopRunForm
         workspaceId="ws_default"
-        loop={deliveryLoop}
-        effectiveConfig={{ ...loopEffectiveConfigFixture, ...deliveryConfig }}
+        loop={implementTasksLoop}
+        effectiveConfig={{ ...loopEffectiveConfigFixture, ...implementTasksConfig }}
       />
     </RunFormShell>
   ),
 };
 
 /** The live preview reflects the explicit per-run cap without changing the saved baseline. */
-export const DeliveryWithRunOverride: Story = {
-  ...Delivery,
+export const ImplementTasksWithRunOverride: Story = {
+  ...ImplementTasks,
   tags: ["play-fn"],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -98,8 +98,8 @@ export const AlreadyRunning: Story = {
       <LoopRunForm
         activeRun={liveRun}
         workspaceId="ws_default"
-        loop={deliveryLoop}
-        effectiveConfig={{ ...loopEffectiveConfigFixture, ...deliveryConfig }}
+        loop={implementTasksLoop}
+        effectiveConfig={{ ...loopEffectiveConfigFixture, ...implementTasksConfig }}
       />
     </RunFormShell>
   ),

@@ -9,7 +9,7 @@ import {
   appRouteParameters,
 } from "@/storybook/route-story-meta";
 
-const deliveryLoopRoute = "/loops/software-delivery";
+const implementTasksLoopRoute = "/loops/implement-tasks";
 
 const meta: Meta<typeof StorybookRouteCanvas> = {
   title: "systems/loops/routes/Loops",
@@ -19,7 +19,7 @@ const meta: Meta<typeof StorybookRouteCanvas> = {
     docs: {
       description: {
         component:
-          "Full app-shell route stories for the Loops catalog and the software-delivery detail, configure, editor, and run routes.",
+          "Full app-shell route stories for the Loops catalog and the implement-tasks detail, configure, editor, and run routes.",
       },
     },
   },
@@ -36,25 +36,25 @@ export const Catalog: Story = {
 
 export const Detail: Story = {
   args: {},
-  parameters: appRouteParameters(deliveryLoopRoute),
+  parameters: appRouteParameters(implementTasksLoopRoute),
   render: () => <StorybookWorkspaceSetup />,
 };
 
 export const Configure: Story = {
   args: {},
-  parameters: appRouteParameters(`${deliveryLoopRoute}/configure`),
+  parameters: appRouteParameters(`${implementTasksLoopRoute}/configure`),
   render: () => <StorybookWorkspaceSetup />,
 };
 
 export const Editor: Story = {
   args: {},
-  parameters: appRouteParameters(`${deliveryLoopRoute}/editor`),
+  parameters: appRouteParameters(`${implementTasksLoopRoute}/editor`),
   render: () => <StorybookWorkspaceSetup />,
 };
 
 export const RunForm: Story = {
   args: {},
-  parameters: appRouteParameters(`${deliveryLoopRoute}/run`),
+  parameters: appRouteParameters(`${implementTasksLoopRoute}/run`),
   render: () => <StorybookWorkspaceSetup />,
 };
 

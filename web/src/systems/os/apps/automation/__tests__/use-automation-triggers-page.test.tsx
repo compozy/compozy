@@ -87,7 +87,7 @@ describe("useAutomationTriggersPage", () => {
 
   it("Should wait for an active workspace before consuming a loop-target trigger seed", async () => {
     const { result, rerender } = renderHook(
-      () => useAutomationTriggersPage({ loop: "software-delivery" }),
+      () => useAutomationTriggersPage({ loop: "implement-tasks" }),
       { wrapper: createWrapper() }
     );
 
@@ -104,7 +104,7 @@ describe("useAutomationTriggersPage", () => {
 
     await waitFor(() =>
       expect(result.current.editorDialogProps.editor?.draft.loop_target).toMatchObject({
-        loop_name: "software-delivery",
+        loop_name: "implement-tasks",
         workspace_id: "ws_default",
       })
     );
