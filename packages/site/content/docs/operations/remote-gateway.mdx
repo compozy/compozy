@@ -34,7 +34,7 @@ Two prerequisites hold for every enable, and the daemon refuses the transition w
 missing:
 
 1. **`gateway.enabled` must be true** in `config.toml`. It is the configuration ceiling — a hard
-   maximum, not a switch that turns anything on. Changing it requires a daemon restart.
+   maximum, not a switch that turns anything on. It applies through live configuration reload.
 2. **A connectivity provider must be enabled for that tier.** The runtime owns exposure policy;
    providers only contribute a reachability mechanism and health.
 

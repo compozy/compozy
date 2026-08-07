@@ -3,9 +3,9 @@ id: RT-gateway-self-audit
 area: RT
 title: Audit gateway posture through every structured surface
 persona: Dora
-journey: J-operate-daemon-schema
-expected: CLI, HTTP, UDS, and the gateway native tool return the same stable severity-ranked findings or an explicit no-findings result without changing gateway state or exposing credentials.
-entry_points: compozy gateway audit -o json; HTTP/UDS GET /api/gateway/audit; compozy__gateway action=audit
+journey: J-audit-and-teardown-gateway
+expected: Web, CLI, HTTP, UDS, and the gateway native tool return the same stable severity-ranked findings or an explicit no-findings result, and following a finding's remediation clears it without exposing credentials.
+entry_points: Web /settings/gateway; compozy gateway audit -o json; HTTP/UDS GET /api/gateway/audit; compozy__gateway action=audit
 qa_status: untested
 bug_ids:
 fix_status:

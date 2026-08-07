@@ -13,7 +13,7 @@ retest_status:
 fix_commits:
 evidence: /home/pedronauck/dev/qa-labs/compozy-hermes-bridge-task-10-20260713-022226-583543-lab/qa-artifacts/qa/notes/bridge-charter-results.json; /home/pedronauck/dev/qa-labs/compozy-hermes-bridge-task-10-20260713-022226-583543-lab/qa-artifacts/qa/issues/BUG-0039.md;/Users/pedronauck/dev/qa-labs/compozy-qa-misc-network-goal-release-site-20260730-060405-932516-lab/qa-artifacts/qa
 last_report: docs/qa/reports/2026-07-28-untested-full.md
-overlaps: NB-025; NB-bridge-tool-progress; NB-long-bridge-replies; NB-provider-progress-rendering
+overlaps: RT-gateway-public-ingress-bindings; NB-025; NB-bridge-tool-progress; NB-long-bridge-replies; NB-provider-progress-rendering
 ---
 
 An operator or agent configures a bridge through public Compozy surfaces, catches credential and webhook mistakes before enablement, and proves real delivery.

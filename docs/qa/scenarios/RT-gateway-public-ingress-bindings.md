@@ -3,7 +3,7 @@ id: RT-gateway-public-ingress-bindings
 area: RT
 title: Deliver webhooks and bridge callbacks through public ingress
 persona: Dora
-journey: J-operate-daemon-schema
+journey: J-deliver-through-public-gateway
 expected: A verified public gateway projects honest webhook and bridge callback URLs, accepts only explicitly confirmed same-workspace bindings, dispatches signed deliveries with attribution, proxies bound bridge callbacks only to their loopback adapter, rate-limits each endpoint and source, and requires reconfirmation after an address change; deleting a subject removes its binding and daemon downtime is a sender-visible failure.
 entry_points: GET automation trigger; GET bridge; POST and DELETE /api/gateway/ingress-bindings over private HTTP and UDS; public webhook and bridge callback routes; gateway ingress events
 qa_status: untested
@@ -13,7 +13,7 @@ retest_status:
 fix_commits:
 evidence:
 last_report:
-overlaps: RT-connectivity-provider-route; NB-web-bridge-setup
+overlaps: RT-connectivity-provider-route; RT-gateway-offline-delivery-redelivery; NB-web-bridge-setup
 ---
 
 Own the complete public-ingress journey for a pre-existing workspace webhook and a bridge with a

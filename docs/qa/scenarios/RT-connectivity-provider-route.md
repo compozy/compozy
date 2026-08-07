@@ -3,7 +3,7 @@ id: RT-connectivity-provider-route
 area: RT
 title: Verify and supervise a connectivity provider route
 persona: Dora
-journey: J-operate-daemon-schema
+journey: J-expose-and-pair-gateway
 expected: Enabling a selected provider establishes the assigned tier, publishes only an endpoint that echoes that tier's challenge under the verification policy, and on wrong-tier, unstable public endpoint, verification failure, outage, crash, or teardown leaves status degraded with no half-exposed route.
 entry_points: compozy gateway provider enable; compozy status -o json; GET /api/gateway/status over HTTP and UDS; gateway provider events
 qa_status: untested

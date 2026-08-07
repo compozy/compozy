@@ -3,7 +3,7 @@ id: RT-gateway-ssh-forward
 area: RT
 title: Reach a remote daemon through a scoped SSH forward
 persona: Bruno
-journey: J-operate-daemon-schema
+journey: J-connect-gateway-ssh
 expected: One SSH command verifies the remote binary, reuses or starts a loopback-only daemon, exposes a local-equivalent loopback forward, preserves the selected remote home, and tears down only the resources it owns.
 entry_points: compozy connect ssh <host>; system OpenSSH configuration and agent; remote compozy daemon lifecycle; loopback-forwarded CLI commands
 qa_status: untested

@@ -1,11 +1,11 @@
 ---
 id: RT-gateway-paired-device
 area: RT
-title: Pair and revoke a device through an isolated gateway tier
-persona: Ada
-journey: J-operate-daemon-schema
-expected: A one-time local pairing admits exactly one device to loopback-only private routes, HTTP and UDS report the same device state, and revocation closes its live streams before rejecting the credential.
-entry_points: UDS POST /api/gateway/pairings; private POST /api/gateway/pairings/redeem; private GET /api/status; HTTP/UDS /api/gateway/devices; compozy daemon status -o json
+title: Pair, manage, and revoke a remote device
+persona: Iris
+journey: J-expose-and-pair-gateway
+expected: A one-time local pairing shown as both QR and copyable text admits exactly one named device, device state agrees across web, HTTP, UDS, and CLI, and revocation closes live work before rejecting the credential.
+entry_points: Web /settings/gateway; UDS POST /api/gateway/pairings; private POST /api/gateway/pairings/redeem; HTTP/UDS /api/gateway/devices; compozy device list -o json
 qa_status: untested
 bug_ids:
 fix_status:
@@ -16,6 +16,6 @@ last_report:
 overlaps: RT-gateway-local-only-boot
 ---
 
-This scenario owns the Task 02 device-authentication boundary. Connectivity-provider setup, remote
-CLI verbs, and the browser operator surface arrive in later remote-gateway tasks. The user walk is
-deferred to the dedicated QA tasks at the end of the task graph.
+This scenario owns the device lifecycle across the operator surface and structured planes: mint,
+single-use redeem, rename, origin and activity display, immediate revoke, self/last-device revoke,
+and the empty inventory. The local daemon remains the recovery root after every device is revoked.
