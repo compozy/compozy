@@ -72,9 +72,7 @@ func (h *BaseHandlers) UnbindGatewayIngress(c *gin.Context) {
 		h.respondGatewayError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, contract.GatewayIngressUnbindResponse{
-		SubjectKind: string(result.Subject.Kind), SubjectID: result.Subject.ID, Changed: result.Changed,
-	})
+	c.JSON(http.StatusOK, GatewayIngressUnbindPayload(result))
 }
 
 func (h *BaseHandlers) gatewayIngressCaller(c *gin.Context) (*gateway.IngressCaller, error) {

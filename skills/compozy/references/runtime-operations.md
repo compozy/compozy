@@ -355,6 +355,13 @@ durable surfaces, provider state, resolved loopback listener addresses, paired d
 refusal that prevented exposure. A configured port of `0` asks the daemon to select a free port;
 use the resolved status address instead of assuming a default.
 
+Run `compozy gateway audit -o json`, call `GET /api/gateway/audit`, or use the `audit` action of
+`compozy__gateway` to check the same posture as ranked findings. A completed report always has
+`ran=true`; an empty result also has `no_findings=true`, so it cannot be confused with a skipped
+check. Findings have stable `id`, `severity`, and `remediation` fields. Provider downtime is a
+finding, not an audit transport error. The audit only reads current state, so re-run it after a
+repair to confirm that the finding cleared.
+
 Manage tier surfaces, providers, pairings, and devices through the private authenticated HTTP
 listener or UDS under `/api/gateway`. Mint pairing artifacts with `POST /api/gateway/pairings`, redeem them with
 `POST /api/gateway/pairings/redeem`, and list, rename, or revoke devices with `GET /api/gateway/devices`,
@@ -398,6 +405,14 @@ subject through the private listener or UDS with `POST /api/gateway/ingress-bind
 resolved by the daemon, not accepted from the caller. An endpoint-generation change produces
 `reconfirmation_required`. Public ingress has no store-and-forward queue: when the daemon or provider
 is offline, the sender must retry the failed delivery.
+
+Gateway API errors use stable codes. Branch on the returned code instead of matching prose. The
+repairable policy and state codes are `gateway_exposure_refused`, `gateway_consent_required`,
+`gateway_provider_trust_stale`, `gateway_digest_confirmation_required`,
+`gateway_endpoint_unverified`, `gateway_provider_degraded`, `gateway_generation_conflict`, and
+`gateway_tier_provider_conflict`. Authentication, pairing, device, ticket, ingress, and local-only
+failures use their matching `gateway_device_*`, `gateway_pairing_*`, `gateway_stream_ticket_invalid`,
+`gateway_ingress_*`, and `gateway_local_only_operation` codes.
 
 ### Remote CLI profiles and SSH forwards
 

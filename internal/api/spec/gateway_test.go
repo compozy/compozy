@@ -19,6 +19,10 @@ func TestGatewayOperationRegistry(t *testing.T) {
 		}
 		managementAuth := gatewayManagementAuth()
 		expected := map[string]expectedOperation{
+			"GET /api/gateway/audit": {
+				operationID: "getGatewayAudit", transports: []Transport{TransportHTTP, TransportUDS},
+				auth: managementAuth, statuses: []int{200, 500},
+			},
 			"GET /api/gateway/status": {
 				operationID: "getGatewayStatus", transports: []Transport{TransportHTTP, TransportUDS},
 				auth:     managementAuth,

@@ -15,6 +15,43 @@ type GatewayStatusPayload struct {
 	Refusal   *GatewayRefusalPayload   `json:"refusal,omitempty"`
 }
 
+// GatewayAuditPayload is one completed, redacted security posture audit.
+type GatewayAuditPayload struct {
+	Ran              bool                         `json:"ran"`
+	NoFindings       bool                         `json:"no_findings"`
+	LocalOnly        bool                         `json:"local_only"`
+	Status           GatewayStatusPayload         `json:"status"`
+	Auth             GatewayAuditAuthPayload      `json:"auth"`
+	DeviceHighlights GatewayDeviceHighlights      `json:"device_highlights"`
+	Findings         []GatewayAuditFindingPayload `json:"findings"`
+}
+
+// GatewayAuditAuthPayload describes the active remote authentication boundary.
+type GatewayAuditAuthPayload struct {
+	Mode              string `json:"mode"`
+	RequiredRemotely  bool   `json:"required_remotely"`
+	ActiveDeviceCount int    `json:"active_device_count"`
+}
+
+// GatewayDeviceHighlights summarizes inventory signals without credential material.
+type GatewayDeviceHighlights struct {
+	Active         int      `json:"active"`
+	Revoked        int      `json:"revoked"`
+	Stale          int      `json:"stale"`
+	RecentlyPaired int      `json:"recently_paired"`
+	StaleDeviceIDs []string `json:"stale_device_ids"`
+}
+
+// GatewayAuditFindingPayload is one stable, ranked, actionable finding.
+type GatewayAuditFindingPayload struct {
+	ID          string `json:"id"`
+	Severity    string `json:"severity"`
+	Summary     string `json:"summary"`
+	Remediation string `json:"remediation"`
+	Tier        string `json:"tier,omitempty"`
+	Resource    string `json:"resource,omitempty"`
+}
+
 // GatewayIngressPayload is the redacted reachability projection for one subject.
 type GatewayIngressPayload struct {
 	SubjectKind                 string     `json:"subject_kind"`

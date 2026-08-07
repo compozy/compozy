@@ -40,6 +40,8 @@ func (d *Daemon) nativeToolsDeps(
 		MemoryProviders:            state.deps.MemoryProviders,
 		MemorySessionLedger:        state.deps.MemorySessionLedger,
 		Bridges:                    state.deps.Bridges,
+		Gateway:                    state.deps.Gateway,
+		GatewayPermissionMode:      nativeGatewayPermissionModeSource(state.sessions),
 		HomePaths:                  d.homePaths,
 		Observer:                   state.observer,
 		HookBindings:               state.hookBindings,

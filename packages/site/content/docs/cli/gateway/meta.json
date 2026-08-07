@@ -1,4 +1,4 @@
 {
     "title": "Gateway",
-    "pages": ["index", "status", "provider", "surface"]
+    "pages": ["index", "audit", "status", "provider", "surface"]
 }

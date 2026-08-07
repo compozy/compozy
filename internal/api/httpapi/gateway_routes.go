@@ -15,6 +15,7 @@ func registerGatewayManagementRoutes(api gin.IRouter, handlers *Handlers, includ
 	}
 	gatewayRoutes := api.Group("/gateway")
 	gatewayRoutes.GET("/status", handlers.GetGatewayStatus)
+	gatewayRoutes.GET("/audit", handlers.GetGatewayAudit)
 	gatewayRoutes.POST("/surfaces", handlers.SetGatewaySurface)
 	gatewayRoutes.POST("/providers/:name/enable", handlers.EnableGatewayProvider)
 	gatewayRoutes.POST("/providers/:name/disable", handlers.DisableGatewayProvider)

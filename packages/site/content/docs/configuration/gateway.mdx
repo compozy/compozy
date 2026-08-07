@@ -107,3 +107,15 @@ daemon status for HTTP, UDS, and CLI consumers.
 
 An empty device list is valid. It means no remote device is paired; local HTTP and UDS access remain
 available, and a local caller can mint a new pairing artifact.
+
+## Audit and repair the posture
+
+Run `compozy gateway audit -o json` for a side-effect-free security check. The same report is
+available from `GET /api/gateway/audit` on the private tier and UDS, and from the
+`compozy__gateway` native tool. Each finding has a stable ID, severity, and a concrete remediation.
+A provider outage appears as a finding, so the rest of the posture remains available for inspection.
+
+A completed clean report returns `ran: true` and `no_findings: true`. Re-run the audit after a repair
+to confirm that its finding cleared. Agent sessions can always use the native tool's read actions;
+its management actions require `approve-all`. The native tool does not issue pairing artifacts,
+device credentials, or stream tickets.

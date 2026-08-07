@@ -5,6 +5,7 @@ import "github.com/compozy/compozy/internal/api/contract"
 const (
 	specAPIGatewayPath               = "/api/gateway"
 	specAPIGatewayStatusPath         = specAPIGatewayPath + "/status"
+	specAPIGatewayAuditPath          = specAPIGatewayPath + "/audit"
 	specAPIGatewaySurfacesPath       = specAPIGatewayPath + "/surfaces"
 	specAPIGatewayProvidersNamePath  = specAPIGatewayPath + "/providers/{name}"
 	specAPIGatewayPairingsPath       = specAPIGatewayPath + "/pairings"
@@ -21,6 +22,7 @@ const (
 func registryGatewayOperations() []OperationSpec {
 	return []OperationSpec{
 		gatewayStatusOperation(),
+		gatewayAuditOperation(),
 		gatewaySurfaceOperation(),
 		gatewayProviderEnableOperation(),
 		gatewayProviderDisableOperation(),
@@ -35,6 +37,23 @@ func registryGatewayOperations() []OperationSpec {
 		gatewayBridgeCallbackGetOperation(),
 		gatewayBridgeCallbackPostOperation(),
 		gatewayBridgeCallbackHeadOperation(),
+	}
+}
+
+func gatewayAuditOperation() OperationSpec {
+	return OperationSpec{
+		Method: httpMethodGet, Path: specAPIGatewayAuditPath,
+		OperationID: "getGatewayAudit", Summary: "Audit the current gateway security posture",
+		Tags: []string{specGatewayKey}, Transports: []Transport{TransportHTTP, TransportUDS},
+		Auth: gatewayManagementAuth(),
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "Completed gateway security audit", Body: contract.GatewayAuditPayload{}},
+			{
+				Status:      500,
+				Description: specInternalServerErrorDescription,
+				Body:        contract.ErrorPayload{},
+			},
+		},
 	}
 }
 

@@ -12,6 +12,7 @@ import (
 
 type gatewayClientAPI interface {
 	GetGatewayStatus(context.Context) (contract.GatewayStatusPayload, error)
+	GetGatewayAudit(context.Context) (contract.GatewayAuditPayload, error)
 	SetGatewaySurface(context.Context, contract.GatewaySurfaceRequest) (contract.GatewayStatusPayload, error)
 	EnableGatewayProvider(
 		context.Context,
@@ -35,6 +36,14 @@ func (c *daemonClient) GetGatewayStatus(ctx context.Context) (contract.GatewaySt
 	var response contract.GatewayStatusPayload
 	if err := c.doJSON(ctx, http.MethodGet, "/api/gateway/status", nil, nil, &response); err != nil {
 		return contract.GatewayStatusPayload{}, err
+	}
+	return response, nil
+}
+
+func (c *daemonClient) GetGatewayAudit(ctx context.Context) (contract.GatewayAuditPayload, error) {
+	var response contract.GatewayAuditPayload
+	if err := c.doJSON(ctx, http.MethodGet, "/api/gateway/audit", nil, nil, &response); err != nil {
+		return contract.GatewayAuditPayload{}, err
 	}
 	return response, nil
 }

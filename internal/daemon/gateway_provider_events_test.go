@@ -42,7 +42,7 @@ func TestGatewayProviderAuditSink(t *testing.T) {
 		}
 	})
 
-	t.Run("Should durably record a verified provider endpoint before publication", func(t *testing.T) {
+	t.Run("Should UT-151 durably record a verified provider endpoint before publication", func(t *testing.T) {
 		t.Parallel()
 		writer := &gatewayAuditWriter{}
 		sink := gatewayProviderAuditSink{
@@ -95,7 +95,7 @@ func TestGatewayProviderAuditSink(t *testing.T) {
 func TestGatewayIngressAuditSink(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should record redacted bind and warning unbind lifecycle events", func(t *testing.T) {
+	t.Run("Should UT-151 record redacted bind and warning unbind lifecycle events", func(t *testing.T) {
 		t.Parallel()
 		writer := &gatewayAuditWriter{}
 		sink := gatewayIngressAuditSink{
@@ -144,6 +144,29 @@ func TestGatewayIngressAuditSink(t *testing.T) {
 			if strings.Contains(string(summary.Content), "sk-ingress-audit-secret") {
 				t.Fatalf("event content leaked ingress secret: %s", summary.Content)
 			}
+		}
+	})
+
+	t.Run("Should UT-122 redact a secret-shaped actor id before persistence", func(t *testing.T) {
+		t.Parallel()
+		const rawActorID = "cpz_gwd_actor-secret-material-0123456789"
+		writer := &gatewayAuditWriter{}
+		sink := gatewayIngressAuditSink{writer: writer}
+		if err := sink.RecordIngressBound(testutil.Context(t), gateway.IngressMutationEvent{
+			Binding: gateway.IngressBinding{
+				Subject: gateway.IngressSubjectRef{Kind: gateway.IngressSubjectWebhookTrigger, ID: "trigger-1"},
+				Scope:   gateway.IngressScopeGlobal,
+			},
+			ActorKind: string(gateway.ActorKindOperatorDevice), ActorID: rawActorID,
+		}); err != nil {
+			t.Fatalf("RecordIngressBound() error = %v", err)
+		}
+		if len(writer.summaries) != 1 {
+			t.Fatalf("event count = %d, want 1", len(writer.summaries))
+		}
+		if strings.Contains(writer.summaries[0].ActorID, rawActorID) ||
+			!strings.Contains(writer.summaries[0].ActorID, "[REDACTED]") {
+			t.Fatalf("event actor id = %q, want redacted form", writer.summaries[0].ActorID)
 		}
 	})
 }

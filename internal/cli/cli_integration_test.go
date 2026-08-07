@@ -369,12 +369,25 @@ func TestRemoteCLIProfilesIntegrationIT060ThroughIT066(t *testing.T) {
 		if err != nil || len(consistent.Surfaces) != 1 || consistent.Surfaces[0].Desired != "enabled" {
 			t.Fatalf("second-client status = %#v, %v [IT-065]", consistent, err)
 		}
-		_, targetStderr, err := executeRootCommand(t, deps, "gateway", "status", "-o", "json")
+		statusOut, targetStderr, err := executeRootCommand(t, deps, "gateway", "status", "-o", "json")
 		if err != nil {
 			t.Fatalf("gateway status command error = %v", err)
 		}
 		if !strings.Contains(targetStderr, "target: laptop (https://gateway.example:443)") {
 			t.Fatalf("remote target indication = %q, want active profile and origin", targetStderr)
+		}
+		auditOut, auditStderr, err := executeRootCommand(t, deps, "gateway", "audit", "-o", "json")
+		if err != nil {
+			t.Fatalf("gateway audit command error = %v; stderr=%s", err, auditStderr)
+		}
+		for label, output := range map[string]string{
+			"gateway status CLI": statusOut + targetStderr,
+			"gateway audit CLI":  auditOut + auditStderr,
+		} {
+			if strings.Contains(output, state.credential) || strings.Contains(output, "compozy_claim_") ||
+				strings.Contains(output, "cpz_gwp_") || strings.Contains(output, "cpz_gwt_") {
+				t.Fatalf("[IT-080][IT-081] %s leaked gateway secret bytes: %s", label, output)
+			}
 		}
 
 		if err := remoteConcrete.doJSON(
@@ -533,6 +546,11 @@ func (s *remoteCLIIntegrationState) serveAuthenticatedHTTP(
 			}}
 		}
 		writeRemoteCLIJSON(writer, http.StatusOK, status)
+	case request.URL.Path == "/api/gateway/audit" && request.Method == http.MethodGet:
+		writeRemoteCLIJSON(writer, http.StatusOK, contract.GatewayAuditPayload{
+			Ran: true, NoFindings: true, LocalOnly: true,
+			Status: contract.GatewayStatusPayload{Enabled: true},
+		})
 	case request.URL.Path == "/api/gateway/surfaces" && request.Method == http.MethodPost:
 		s.surfaceOn = true
 		writeRemoteCLIJSON(writer, http.StatusOK, contract.GatewayStatusPayload{

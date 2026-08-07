@@ -3,6 +3,7 @@
 package daemon
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -193,6 +194,7 @@ func exerciseGatewayDaemonRealListenersAndTransportParity(t *testing.T) {
 	udsClient := gatewayDaemonUDSClient(homePaths.DaemonSocket)
 	admin := issueGatewayDaemonCredential(t, udsClient, "Admin")
 	assertGatewayPublicIngressStartsLoopE2E(t, client, udsClient, publicBaseURL)
+	assertGatewaySecretByteScans(t, client, udsClient, privateBaseURL, admin.Credential)
 	assertGatewayBrowserPairingRace(t, udsClient, privateBaseURL, admin.Credential)
 	assertGatewayStatusTransportParity(t, client, privateBaseURL, homePaths.DaemonSocket, admin.Credential)
 	assertGatewayDeviceTransportParity(t, client, privateBaseURL, homePaths.DaemonSocket, admin)
@@ -263,6 +265,117 @@ func exerciseGatewayDaemonRealListenersAndTransportParity(t *testing.T) {
 	if err == nil {
 		body := gatewayDaemonReadBody(t, offlineResponse)
 		t.Fatalf("stopped gateway remained reachable: %d/%s", offlineResponse.StatusCode, body)
+	}
+}
+
+func assertGatewaySecretByteScans(
+	t *testing.T,
+	client *http.Client,
+	udsClient *http.Client,
+	privateBaseURL string,
+	adminCredential string,
+) {
+	t.Helper()
+	const rawClaim = "compozy_claim_GATEWAY_IT080_1234567890"
+	artifact := mintGatewayDaemonPairing(t, udsClient)
+	rawCredential, err := gateway.GenerateDeviceCredential()
+	if err != nil {
+		t.Fatalf("GenerateDeviceCredential() error = %v", err)
+	}
+	redeemBody := gatewayDaemonMarshalJSON(t, contract.GatewayPairingRedeemRequest{
+		Artifact: artifact.Artifact, Name: rawClaim, ActorKind: string(gateway.ActorKindCLIProfile),
+		Credential: rawCredential,
+	})
+	redeem := gatewayDaemonRequest(
+		t,
+		udsClient,
+		http.MethodPost,
+		"http://unix/api/gateway/pairings/redeem",
+		"",
+		bytes.NewReader(redeemBody),
+	)
+	gatewayDaemonReadBody(t, redeem)
+	if redeem.StatusCode != http.StatusOK {
+		t.Fatalf("gateway redaction fixture redeem = %d, want 200", redeem.StatusCode)
+	}
+	ticket := mintGatewayDaemonStreamTicket(t, client, privateBaseURL, adminCredential)
+	secrets := [][]byte{
+		[]byte(rawClaim), []byte(rawCredential), []byte(artifact.Artifact),
+		[]byte(ticket.Ticket), []byte(adminCredential),
+	}
+
+	for label, target := range map[string]struct {
+		client     *http.Client
+		baseURL    string
+		credential string
+	}{
+		"private HTTP": {client: client, baseURL: privateBaseURL, credential: adminCredential},
+		"UDS":          {client: udsClient, baseURL: "http://unix"},
+	} {
+		for _, path := range []string{
+			"/api/gateway/status", "/api/gateway/audit", "/api/gateway/devices", "/api/logs",
+		} {
+			response := gatewayDaemonRequest(
+				t, target.client, http.MethodGet, target.baseURL+path, target.credential, nil,
+			)
+			body := gatewayDaemonReadBody(t, response)
+			if response.StatusCode != http.StatusOK {
+				t.Fatalf("[IT-080][IT-081] %s %s = %d/%s, want 200", label, path, response.StatusCode, body)
+			}
+			assertGatewayBytesExcludeSecrets(t, label+" "+path, body, secrets)
+		}
+	}
+
+	sseURL := privateBaseURL + "/api/logs/stream?replay=true&type=gateway.ingress.bound&ticket=" +
+		url.QueryEscape(ticket.Ticket)
+	streamCtx, cancelStream := context.WithTimeout(t.Context(), gatewayDaemonIntegrationTimeout)
+	defer cancelStream()
+	request, err := http.NewRequestWithContext(streamCtx, http.MethodGet, sseURL, http.NoBody)
+	if err != nil {
+		t.Fatalf("http.NewRequestWithContext(gateway redaction SSE) error = %v", err)
+	}
+	request.Header.Set("Origin", privateBaseURL)
+	request.Header.Set("Sec-Fetch-Site", "same-origin")
+	response, err := (&http.Client{}).Do(request)
+	if err != nil {
+		t.Fatalf("open gateway redaction SSE error = %v", err)
+	}
+	frame := gatewayDaemonReadSSEFrame(t, response)
+	assertGatewayBytesExcludeSecrets(t, "private HTTP SSE frame", frame, secrets)
+}
+
+func gatewayDaemonReadSSEFrame(t *testing.T, response *http.Response) []byte {
+	t.Helper()
+	if response.StatusCode != http.StatusOK {
+		body := gatewayDaemonReadBody(t, response)
+		t.Fatalf("gateway redaction SSE = %d/%s, want 200", response.StatusCode, body)
+	}
+	defer func() {
+		if err := response.Body.Close(); err != nil {
+			t.Errorf("close gateway redaction SSE: %v", err)
+		}
+	}()
+	reader := bufio.NewReader(response.Body)
+	var frame bytes.Buffer
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			t.Fatalf("read gateway redaction SSE frame: %v", err)
+		}
+		frame.WriteString(line)
+		if line == "\n" || line == "\r\n" {
+			break
+		}
+	}
+	return frame.Bytes()
+}
+
+func assertGatewayBytesExcludeSecrets(t *testing.T, source string, payload []byte, secrets [][]byte) {
+	t.Helper()
+	for _, secret := range secrets {
+		if bytes.Contains(payload, secret) {
+			t.Fatalf("[IT-080][IT-081] %s leaked %q: %s", source, secret, payload)
+		}
 	}
 }
 
@@ -359,6 +472,25 @@ func assertGatewayPublicIngressStartsLoopE2E(
 	gatewayDaemonDecodeBody(t, bind, &binding)
 	if bind.StatusCode != http.StatusCreated || !binding.Changed {
 		t.Fatalf("[E2E-003] bind ingress = %d/%#v, want new binding", bind.StatusCode, binding)
+	}
+	actorEvents := gatewayDaemonRequest(
+		t,
+		udsClient,
+		http.MethodGet,
+		"http://unix/api/logs?type=gateway.ingress.bound&actor_kind=human&actor_id=local-user",
+		"",
+		nil,
+	)
+	actorEventsBody := gatewayDaemonReadBody(t, actorEvents)
+	if actorEvents.StatusCode != http.StatusOK ||
+		!bytes.Contains(actorEventsBody, []byte(`"type":"gateway.ingress.bound"`)) ||
+		!bytes.Contains(actorEventsBody, []byte(`"actor_kind":"human"`)) ||
+		!bytes.Contains(actorEventsBody, []byte(`"actor_id":"local-user"`)) {
+		t.Fatalf(
+			"[IT-082] actor-filtered gateway events = %d/%s, want local ingress event",
+			actorEvents.StatusCode,
+			actorEventsBody,
+		)
 	}
 
 	getTrigger := gatewayDaemonRequest(

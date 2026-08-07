@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/compozy/compozy/internal/diagnostics"
@@ -35,6 +34,7 @@ func (s gatewayProviderAuditSink) RecordEndpointVerified(
 	if err := endpoint.Validate(); err != nil {
 		return fmt.Errorf("daemon: validate verified gateway endpoint: %w", err)
 	}
+	safeProvider := diagnostics.RedactAndBound(activation.ProviderName, maxGatewayAuditReasonBytes)
 	payload, err := json.Marshal(struct {
 		Provider   string `json:"provider"`
 		Tier       string `json:"tier"`
@@ -43,7 +43,7 @@ func (s gatewayProviderAuditSink) RecordEndpointVerified(
 		Scheme     string `json:"scheme"`
 		Stability  string `json:"stability"`
 	}{
-		Provider: strings.TrimSpace(activation.ProviderName), Tier: string(activation.Tier),
+		Provider: safeProvider, Tier: string(activation.Tier),
 		Generation: activation.Generation,
 		URL:        diagnostics.RedactAndBound(endpoint.URL, maxGatewayAuditReasonBytes),
 		Scheme:     endpoint.Scheme, Stability: string(endpoint.Stability),
@@ -57,7 +57,7 @@ func (s gatewayProviderAuditSink) RecordEndpointVerified(
 	}
 	if err := s.writer.WriteEventSummary(context.WithoutCancel(ctx), store.EventSummary{
 		Type: eventspkg.GatewayEndpointVerified, Outcome: string(eventspkg.OutcomeSuccess),
-		Provider: strings.TrimSpace(activation.ProviderName), Content: payload,
+		Provider: safeProvider, Content: payload,
 		Summary: "gateway provider endpoint verified", Timestamp: now().UTC(),
 	}); err != nil {
 		return fmt.Errorf("daemon: record verified gateway endpoint: %w", err)
@@ -77,6 +77,7 @@ func (s gatewayProviderAuditSink) RecordProviderStateChanged(
 	if ctx == nil {
 		return errors.New("daemon: gateway audit context is required")
 	}
+	safeProvider := diagnostics.RedactAndBound(activation.ProviderName, maxGatewayAuditReasonBytes)
 	safeCause := diagnostics.RedactAndBound(cause, maxGatewayAuditReasonBytes)
 	payload, err := json.Marshal(struct {
 		Provider   string `json:"provider"`
@@ -85,7 +86,7 @@ func (s gatewayProviderAuditSink) RecordProviderStateChanged(
 		State      string `json:"state"`
 		Cause      string `json:"cause,omitempty"`
 	}{
-		Provider: strings.TrimSpace(activation.ProviderName), Tier: string(activation.Tier),
+		Provider: safeProvider, Tier: string(activation.Tier),
 		Generation: activation.Generation, State: string(state), Cause: safeCause,
 	})
 	if err != nil {
@@ -104,7 +105,7 @@ func (s gatewayProviderAuditSink) RecordProviderStateChanged(
 	}
 	if err := s.writer.WriteEventSummary(context.WithoutCancel(ctx), store.EventSummary{
 		Type: eventspkg.GatewayProviderStateChanged, Outcome: string(outcome),
-		Provider: strings.TrimSpace(activation.ProviderName), Content: payload,
+		Provider: safeProvider, Content: payload,
 		Summary: "gateway provider state changed", Timestamp: now().UTC(),
 	}); err != nil {
 		return fmt.Errorf("daemon: record gateway provider state change: %w", err)
@@ -124,6 +125,7 @@ func (s gatewayProviderAuditSink) RecordProviderRefusal(
 	if ctx == nil {
 		return errors.New("daemon: gateway audit context is required")
 	}
+	safeProvider := diagnostics.RedactAndBound(activation.ProviderName, maxGatewayAuditReasonBytes)
 	reason := "provider contract refused"
 	if cause != nil {
 		reason = diagnostics.RedactAndBound(cause.Error(), maxGatewayAuditReasonBytes)
@@ -135,7 +137,7 @@ func (s gatewayProviderAuditSink) RecordProviderRefusal(
 		Kind       string `json:"kind"`
 		Reason     string `json:"reason"`
 	}{
-		Provider: strings.TrimSpace(activation.ProviderName), Tier: string(activation.Tier),
+		Provider: safeProvider, Tier: string(activation.Tier),
 		Generation: activation.Generation, Kind: string(kind), Reason: reason,
 	})
 	if err != nil {
@@ -153,7 +155,7 @@ func (s gatewayProviderAuditSink) RecordProviderRefusal(
 	}
 	if err := s.writer.WriteEventSummary(context.WithoutCancel(ctx), store.EventSummary{
 		Type: eventType, Outcome: string(eventspkg.OutcomeFailure),
-		Provider: strings.TrimSpace(activation.ProviderName), Content: payload,
+		Provider: safeProvider, Content: payload,
 		Summary: summary, Timestamp: now().UTC(),
 	}); err != nil {
 		return fmt.Errorf("daemon: record gateway provider refusal: %w", err)

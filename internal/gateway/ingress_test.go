@@ -220,6 +220,26 @@ func TestIngressProjectionAndBindings(t *testing.T) {
 		}
 	})
 
+	t.Run("Should UT-140 attribute a local binding event to the canonical human actor", func(t *testing.T) {
+		t.Parallel()
+		store, manager := newIngressTestManager(t, true, nil)
+		sink := &ingressEventSinkStub{}
+		manager.events = sink
+		ref := IngressSubjectRef{Kind: IngressSubjectWebhookTrigger, ID: "trigger-local-actor"}
+		store.subjects[ref] = IngressSubject{
+			IngressSubjectRef: ref,
+			Scope:             IngressScopeGlobal,
+			Path:              "/api/webhooks/global/local--wbh_actor",
+		}
+		if _, err := manager.bind(testContext(t), IngressBindRequest{Subject: ref, Confirmed: true}); err != nil {
+			t.Fatalf("bind() error = %v", err)
+		}
+		if len(sink.bound) != 1 || sink.bound[0].ActorKind != string(workspaceaccess.ActorHuman) ||
+			sink.bound[0].ActorID != "local-user" {
+			t.Fatalf("bound events = %#v, want canonical local human attribution", sink.bound)
+		}
+	})
+
 	t.Run(
 		"Should UT-094 require trigger and bridge reconfirmation after the public address changes [IT-048]",
 		func(t *testing.T) {

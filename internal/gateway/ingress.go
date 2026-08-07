@@ -287,7 +287,10 @@ func ingressMutationEvent(
 	if device, ok := DeviceFromContext(ctx); ok {
 		event.ActorKind = string(device.ActorKind)
 		event.ActorID = strings.TrimSpace(device.ID)
+		return event
 	}
+	event.ActorKind = string(workspaceaccess.ActorHuman)
+	event.ActorID = "local-user"
 	return event
 }
 

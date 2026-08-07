@@ -34,6 +34,7 @@ type nativeToolAvailabilitySet struct {
 	memorySessionLedger toolspkg.NativeAvailabilityFunc
 	observe             toolspkg.NativeAvailabilityFunc
 	bridges             toolspkg.NativeAvailabilityFunc
+	gateway             toolspkg.NativeAvailabilityFunc
 	config              toolspkg.NativeAvailabilityFunc
 	hookRead            toolspkg.NativeAvailabilityFunc
 	hookMutation        toolspkg.NativeAvailabilityFunc
@@ -113,7 +114,10 @@ func (n *daemonNativeTools) baseNativeToolAvailability() nativeToolAvailabilityS
 		observe: n.dependencyAvailability(func() bool {
 			return n.deps.Observer != nil
 		}),
-		bridges:  n.dependencyAvailability(n.bridgeCatalogReady),
+		bridges: n.dependencyAvailability(n.bridgeCatalogReady),
+		gateway: n.dependencyAvailability(func() bool {
+			return n.deps.Gateway != nil
+		}),
 		tasks:    n.dependencyAvailability(func() bool { return n.deps.Tasks != nil }),
 		config:   n.dependencyAvailability(configReady),
 		hookRead: n.dependencyAvailability(func() bool { return n.deps.Observer != nil }),

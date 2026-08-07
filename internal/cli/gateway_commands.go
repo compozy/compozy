@@ -32,9 +32,29 @@ func newGatewayCommand(deps commandDeps) *cobra.Command {
 		Long:  "Manage remote gateway exposure.\n\n" + gatewayOperationMatrix,
 	}
 	cmd.AddCommand(newGatewayStatusCommand(deps))
+	cmd.AddCommand(newGatewayAuditCommand(deps))
 	cmd.AddCommand(newGatewaySurfaceCommand(deps))
 	cmd.AddCommand(newGatewayProviderCommand(deps))
 	return cmd
+}
+
+func newGatewayAuditCommand(deps commandDeps) *cobra.Command {
+	return &cobra.Command{
+		Use:   "audit",
+		Short: "Audit gateway security posture",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			client, err := gatewayClientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			report, err := client.GetGatewayAudit(cmd.Context())
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, gatewayAuditOutput(report))
+		},
+	}
 }
 
 func newGatewayStatusCommand(deps commandDeps) *cobra.Command {

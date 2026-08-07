@@ -30,6 +30,24 @@ func (h *BaseHandlers) GetGatewayStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, payload)
 }
 
+func (h *BaseHandlers) GetGatewayAudit(c *gin.Context) {
+	ctx, err := h.gatewayIngressReadContext(c, "gateway.audit")
+	if err != nil {
+		h.respondGatewayError(c, errors.Join(gateway.ErrIngressForbidden, err))
+		return
+	}
+	if h == nil || h.Gateway == nil {
+		h.respondGatewayError(c, errGatewayServiceUnavailable)
+		return
+	}
+	report, err := h.Gateway.Audit(ctx)
+	if err != nil {
+		h.respondGatewayError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, GatewayAuditPayload(report))
+}
+
 func (h *BaseHandlers) gatewayStatusReadContext(c *gin.Context) (context.Context, error) {
 	return h.gatewayIngressReadContext(c, "gateway.status")
 }

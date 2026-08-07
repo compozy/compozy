@@ -30,6 +30,10 @@ func (s gatewayServiceStub) Status(context.Context) (gateway.Status, error) {
 	return gateway.Status{}, nil
 }
 
+func (s gatewayServiceStub) Audit(context.Context) (gateway.AuditReport, error) {
+	return gateway.AuditReport{Ran: true, NoFindings: true, Findings: []gateway.AuditFinding{}}, nil
+}
+
 func (s gatewayServiceStub) SetSurfaceExposure(
 	context.Context,
 	gateway.SurfaceExposureRequest,

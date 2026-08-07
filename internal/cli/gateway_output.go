@@ -50,6 +50,32 @@ func gatewayStatusOutput(record contract.GatewayStatusPayload) outputBundle {
 	})
 }
 
+func gatewayAuditOutput(report contract.GatewayAuditPayload) outputBundle {
+	return simpleGatewayOutput(report, func() string {
+		result := "findings"
+		if report.NoFindings {
+			result = "no findings"
+		}
+		return renderHumanSection("Gateway audit", []keyValue{
+			{Label: "Ran", Value: strconv.FormatBool(report.Ran)},
+			{Label: "Result", Value: result},
+			{Label: "Local only", Value: strconv.FormatBool(report.LocalOnly)},
+			{Label: "Findings", Value: strconv.Itoa(len(report.Findings))},
+			{Label: "Active devices", Value: strconv.Itoa(report.DeviceHighlights.Active)},
+		})
+	}, func() string {
+		return renderToonObject("gateway_audit", []string{
+			"ran", "no_findings", "local_only", "findings", "active_devices",
+		}, []string{
+			strconv.FormatBool(report.Ran),
+			strconv.FormatBool(report.NoFindings),
+			strconv.FormatBool(report.LocalOnly),
+			strconv.Itoa(len(report.Findings)),
+			strconv.Itoa(report.DeviceHighlights.Active),
+		})
+	})
+}
+
 func gatewayProfileFromConfig(
 	profile compozyconfig.GatewayConnectionConfig,
 	active string,

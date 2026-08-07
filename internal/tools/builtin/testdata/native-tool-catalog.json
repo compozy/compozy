@@ -814,6 +814,19 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
+    "tool_id": "compozy__gateway",
+    "native_name": "gateway",
+    "toolsets": [
+      "compozy__gateway"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "321047d0bcf821aff61f90103674205c14b699e40816758cd6ba1708aedc37de",
+    "output_schema_digest": "55ba044cc726dcde15f42a58f288f8a644ced9cb7617ae7ad9633c8951f0ddb5"
+  },
+  {
     "tool_id": "compozy__goal_get",
     "native_name": "goal_get",
     "toolsets": [

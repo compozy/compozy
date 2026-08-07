@@ -77565,6 +77565,466 @@
         ]
       }
     },
+    "/api/gateway/audit": {
+      "get": {
+        "operationId": "getGatewayAudit",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "auth": {
+                      "properties": {
+                        "active_device_count": {
+                          "type": "integer"
+                        },
+                        "mode": {
+                          "type": "string"
+                        },
+                        "required_remotely": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "active_device_count",
+                        "mode",
+                        "required_remotely"
+                      ],
+                      "type": "object"
+                    },
+                    "device_highlights": {
+                      "properties": {
+                        "active": {
+                          "type": "integer"
+                        },
+                        "recently_paired": {
+                          "type": "integer"
+                        },
+                        "revoked": {
+                          "type": "integer"
+                        },
+                        "stale": {
+                          "type": "integer"
+                        },
+                        "stale_device_ids": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "active",
+                        "recently_paired",
+                        "revoked",
+                        "stale",
+                        "stale_device_ids"
+                      ],
+                      "type": "object"
+                    },
+                    "findings": {
+                      "items": {
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "remediation": {
+                            "type": "string"
+                          },
+                          "resource": {
+                            "type": "string"
+                          },
+                          "severity": {
+                            "type": "string"
+                          },
+                          "summary": {
+                            "type": "string"
+                          },
+                          "tier": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "remediation",
+                          "severity",
+                          "summary"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "local_only": {
+                      "type": "boolean"
+                    },
+                    "no_findings": {
+                      "type": "boolean"
+                    },
+                    "ran": {
+                      "type": "boolean"
+                    },
+                    "status": {
+                      "properties": {
+                        "addresses": {
+                          "items": {
+                            "properties": {
+                              "address": {
+                                "type": "string"
+                              },
+                              "live": {
+                                "type": "boolean"
+                              },
+                              "tier": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "address",
+                              "live",
+                              "tier"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "bindings": {
+                          "items": {
+                            "properties": {
+                              "confirmed_at": {
+                                "format": "date-time",
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "confirmed_endpoint_generation": {
+                                "maximum": 18446744073709552000,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "enable_path": {
+                                "type": "string"
+                              },
+                              "endpoint_generation": {
+                                "maximum": 18446744073709552000,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "reachability": {
+                                "type": "string"
+                              },
+                              "scope_kind": {
+                                "type": "string"
+                              },
+                              "subject_id": {
+                                "type": "string"
+                              },
+                              "subject_kind": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              },
+                              "workspace_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "endpoint_generation",
+                              "reachability",
+                              "scope_kind",
+                              "subject_id",
+                              "subject_kind"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "changed": {
+                          "type": "boolean"
+                        },
+                        "devices": {
+                          "items": {
+                            "properties": {
+                              "actor_kind": {
+                                "type": "string"
+                              },
+                              "created_at": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "last_seen_at": {
+                                "format": "date-time",
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "pairing_origin": {
+                                "type": "string"
+                              },
+                              "revoke_epoch": {
+                                "maximum": 18446744073709552000,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "revoked_at": {
+                                "format": "date-time",
+                                "nullable": true,
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "actor_kind",
+                              "created_at",
+                              "id",
+                              "name",
+                              "pairing_origin",
+                              "revoke_epoch"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "providers": {
+                          "items": {
+                            "properties": {
+                              "cause": {
+                                "type": "string"
+                              },
+                              "desired": {
+                                "type": "string"
+                              },
+                              "generation": {
+                                "maximum": 18446744073709552000,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "health": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "observed": {
+                                "type": "string"
+                              },
+                              "tier": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "desired",
+                              "generation",
+                              "health",
+                              "name",
+                              "observed",
+                              "tier"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "refusal": {
+                          "nullable": true,
+                          "properties": {
+                            "cause": {
+                              "type": "string"
+                            },
+                            "fix": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "cause",
+                            "fix"
+                          ],
+                          "type": "object"
+                        },
+                        "surfaces": {
+                          "items": {
+                            "properties": {
+                              "desired": {
+                                "type": "string"
+                              },
+                              "generation": {
+                                "maximum": 18446744073709552000,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "observed": {
+                                "type": "string"
+                              },
+                              "surface": {
+                                "type": "string"
+                              },
+                              "tier": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "desired",
+                              "generation",
+                              "observed",
+                              "surface",
+                              "tier"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "tiers": {
+                          "items": {
+                            "properties": {
+                              "advertised": {
+                                "type": "boolean"
+                              },
+                              "desired": {
+                                "type": "string"
+                              },
+                              "listener_address": {
+                                "type": "string"
+                              },
+                              "observed": {
+                                "type": "string"
+                              },
+                              "tier": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "advertised",
+                              "desired",
+                              "observed",
+                              "tier"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "addresses",
+                        "bindings",
+                        "changed",
+                        "devices",
+                        "enabled",
+                        "providers",
+                        "surfaces",
+                        "tiers"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "auth",
+                    "device_highlights",
+                    "findings",
+                    "local_only",
+                    "no_findings",
+                    "ran",
+                    "status"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Completed gateway security audit"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Audit the current gateway security posture",
+        "tags": [
+          "gateway"
+        ],
+        "x-compozy-auth": {
+          "http": "device",
+          "uds": "local_socket"
+        },
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
     "/api/gateway/devices": {
       "get": {
         "operationId": "listGatewayDevices",

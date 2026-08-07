@@ -131,6 +131,7 @@ func TestGatewayTierRouteMatricesIT063IT064(t *testing.T) {
 			surfaceSet: SurfaceSetPrivate,
 			present: []string{
 				"POST /api/gateway/pairings/redeem",
+				"GET /api/gateway/audit",
 				"GET /api/gateway/status",
 				"POST /api/gateway/pairings",
 				"GET /api/status",
@@ -158,6 +159,7 @@ func TestGatewayTierRouteMatricesIT063IT064(t *testing.T) {
 				"GET /api/status",
 				"POST /api/gateway/pairings",
 				"POST /api/gateway/pairings/redeem",
+				"GET /api/gateway/audit",
 				"POST /api/gateway/stream-tickets",
 			},
 			wantRoutes: 5,
@@ -175,6 +177,7 @@ func TestGatewayTierRouteMatricesIT063IT064(t *testing.T) {
 				"POST /api/webhooks/global/:endpoint",
 				"POST /api/gateway/pairings",
 				"POST /api/gateway/pairings/redeem",
+				"GET /api/gateway/audit",
 				"GET /api/gateway/status",
 				"POST /api/tasks/:id/runs",
 				"GET /api/scheduler",

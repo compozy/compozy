@@ -1250,6 +1250,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/gateway/audit": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Audit the current gateway security posture */
+    get: operations["getGatewayAudit"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/gateway/devices": {
     parameters: {
       query?: never;
@@ -33146,6 +33163,141 @@ export interface operations {
               title: string;
             } | null;
             error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  getGatewayAudit: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Completed gateway security audit */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            auth: {
+              active_device_count: number;
+              mode: string;
+              required_remotely: boolean;
+            };
+            device_highlights: {
+              active: number;
+              recently_paired: number;
+              revoked: number;
+              stale: number;
+              stale_device_ids: string[];
+            };
+            findings: {
+              id: string;
+              remediation: string;
+              resource?: string;
+              severity: string;
+              summary: string;
+              tier?: string;
+            }[];
+            local_only: boolean;
+            no_findings: boolean;
+            ran: boolean;
+            status: {
+              addresses: {
+                address: string;
+                live: boolean;
+                tier: string;
+              }[];
+              bindings: {
+                /** Format: date-time */
+                confirmed_at?: string | null;
+                confirmed_endpoint_generation?: number;
+                enable_path?: string;
+                endpoint_generation: number;
+                reachability: string;
+                scope_kind: string;
+                subject_id: string;
+                subject_kind: string;
+                url?: string;
+                workspace_id?: string;
+              }[];
+              changed: boolean;
+              devices: {
+                actor_kind: string;
+                /** Format: date-time */
+                created_at: string;
+                id: string;
+                /** Format: date-time */
+                last_seen_at?: string | null;
+                name: string;
+                pairing_origin: string;
+                revoke_epoch: number;
+                /** Format: date-time */
+                revoked_at?: string | null;
+              }[];
+              enabled: boolean;
+              providers: {
+                cause?: string;
+                desired: string;
+                generation: number;
+                health: string;
+                name: string;
+                observed: string;
+                tier: string;
+              }[];
+              refusal?: {
+                cause: string;
+                fix: string;
+              } | null;
+              surfaces: {
+                desired: string;
+                generation: number;
+                observed: string;
+                surface: string;
+                tier: string;
+              }[];
+              tiers: {
+                advertised: boolean;
+                desired: string;
+                listener_address?: string;
+                observed: string;
+                tier: string;
+              }[];
+            };
           };
         };
       };

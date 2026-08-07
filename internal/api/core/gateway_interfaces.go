@@ -9,6 +9,7 @@ import (
 // GatewayService exposes remote reachability and device lifecycle operations.
 type GatewayService interface {
 	Status(context.Context) (gateway.Status, error)
+	Audit(context.Context) (gateway.AuditReport, error)
 	SetSurfaceExposure(context.Context, gateway.SurfaceExposureRequest) (gateway.Status, error)
 	EnableProvider(context.Context, gateway.ProviderEnableRequest) (gateway.Status, error)
 	DisableProvider(context.Context, gateway.Tier, string) (gateway.Status, error)

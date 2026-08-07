@@ -59,6 +59,8 @@ type daemonNativeToolsDeps struct {
 	MemoryProviders            core.MemoryProviderService
 	MemorySessionLedger        core.MemorySessionLedgerService
 	Bridges                    core.BridgeService
+	Gateway                    core.GatewayService
+	GatewayPermissionMode      func(context.Context, string) (string, error)
 	HomePaths                  compozyconfig.HomePaths
 	Observer                   core.Observer
 	HookBindings               hookBindingPublisher
