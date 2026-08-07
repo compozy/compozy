@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 0.3.0 - 2026-08-05
+## 0.3.0 - 2026-08-07
 
 ### ♻️ Refactoring
 
@@ -33,6 +33,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rewind sessions to durable conversation checkpoints (#310)
 - Add session-aware slash skill commands (#311)
 - Add reversible session archiving and list actions (#309)
+- Replace software-delivery with implement-tasks (#325)
+- **BREAKING:** remove software-delivery; use implement-tasks without gate inputs.
+- Parent and child sessions (#327)
 
 ### 🐛 Bug Fixes
 
@@ -47,6 +50,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Changelog generation (#292)
 - Make busy-session inputs durable (#304)
 - Restore durable ACP session continuity (#307)
+- Preserve Loop template manifests across hydration (#317)
+- Preserve ACP stream disconnect recovery (#319)
+- Discover Cursor model catalog before sessions (#320)
+- Keep managed skill loading on native seam (#323)
+- Loop run bugs (#324)
+- Enforce bundled agent and Loop ownership (#326)
+
+### 🧪 Testing
+
+- Guard ACP initialize protocol version (#318)
 
 ## 0.2.15 - 2026-07-17
 
