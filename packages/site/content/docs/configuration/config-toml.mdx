@@ -2302,6 +2302,30 @@ not bind non-loopback addresses.
 `gateway.public_ui.enabled` does not exist. Public operator UI reachability is an explicit,
 consented database transition, not a config value.
 
+### Client connection profiles
+
+`active_connection` and `[[gateway.connections]]` describe how _this_ machine reaches a remote
+daemon. They are written by `compozy connect` on the client side and are not read by a daemon that
+is serving a gateway.
+
+| Field                             | Type    | Default | Validation                                    | Lifecycle |
+| --------------------------------- | ------- | ------- | --------------------------------------------- | --------- |
+| `active_connection`               | string  | empty   | Name of a declared connection                 | Live      |
+| `connections[].name`              | string  | —       | Unique, non-empty                             | Live      |
+| `connections[].scheme`            | string  | —       | `https` or `ssh`                              | Live      |
+| `connections[].host`              | string  | —       | Non-empty host                                | Live      |
+| `connections[].port`              | integer | —       | `1` through `65535`                           | Live      |
+| `connections[].credential_file`   | string  | empty   | `<name>.cred` for an `https` connection       | Live      |
+| `connections[].default_workspace` | string  | empty   | Workspace id                                  | Live      |
+| `connections[].remote_home`       | string  | empty   | Remote `COMPOZY_HOME`; `ssh` connections only | Live      |
+
+A connection entry holds no secret: the device credential lives in the referenced file with
+owner-only permissions. Copying these entries to another machine does not transfer identity — use
+`compozy connect export` and `compozy connect import`.
+
+See the [Remote Gateway runbook](/docs/operations/remote-gateway) for the operator flows and the
+[Gateway Threat Model](/docs/operations/gateway-threat-model) for what each tier exposes.
+
 ## Related Pages
 
 - [mcp.json](/docs/configuration/mcp-json) documents JSON sidecars and whole-object replacement.

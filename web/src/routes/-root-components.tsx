@@ -10,15 +10,19 @@ import { AlertTriangle, Compass, RefreshCw } from "lucide-react";
 
 import { Button, Empty, buttonVariants } from "@compozy/ui";
 
+import { GatewayAccessBoundary } from "@/systems/gateway";
+
 export function RootComponent() {
   return (
-    <div
-      data-testid="root-shell"
-      className="flex h-dvh flex-col overflow-hidden bg-background text-foreground"
-    >
-      <SkipToContentLink />
-      <Outlet />
-    </div>
+    <GatewayAccessBoundary>
+      <div
+        data-testid="root-shell"
+        className="flex h-dvh flex-col overflow-hidden bg-background text-foreground"
+      >
+        <SkipToContentLink />
+        <Outlet />
+      </div>
+    </GatewayAccessBoundary>
   );
 }
 

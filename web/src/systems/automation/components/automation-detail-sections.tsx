@@ -8,6 +8,7 @@ import type { AgentTargetProjection, LoopTargetProjection } from "../lib/automat
 import { buildTriggerPreview } from "../lib/trigger-preview";
 import type { AutomationJob, AutomationTrigger } from "../types";
 import { AutomationTargetDetails } from "./automation-target-details";
+import { AutomationTriggerIngressCard } from "./automation-trigger-ingress-card";
 import { WebhookEndpointCard } from "./trigger-form/preview/webhook-endpoint-card";
 
 export function TriggerHookSection({
@@ -75,6 +76,9 @@ export function TriggerHookSection({
           <WebhookEndpointCard curl={webhook.curl} url={webhook.url} />
         </div>
       ) : null}
+      <div className="mt-3">
+        <AutomationTriggerIngressCard trigger={trigger} />
+      </div>
     </Section>
   );
 }

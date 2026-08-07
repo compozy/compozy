@@ -1,4 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactElement } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 const mockInvalidate = vi.fn();
@@ -50,14 +52,23 @@ const RootErrorBoundary: (props: { error: Error; reset: () => void }) => React.R
 const RootNotFoundBoundary: (props: { isNotFound: true; routeId: string }) => React.ReactNode =
   routeNotFoundComponent(Route);
 
+/**
+ * The shell is wrapped in the gateway access boundary, which drops the
+ * protected cache when the daemon ends this device's session — so rendering the
+ * root now requires the app's QueryClient, exactly as `main.tsx` provides it.
+ */
+function renderRoot(element: ReactElement) {
+  return render(<QueryClientProvider client={new QueryClient()}>{element}</QueryClientProvider>);
+}
+
 describe("RootComponent", () => {
   it("renders the Outlet inside the shell", () => {
-    render(<RootComponent />);
+    renderRoot(<RootComponent />);
     expect(within(screen.getByTestId("root-shell")).getByTestId("outlet")).toBeInTheDocument();
   });
 
   it("renders a skip-to-content link that targets the app-content main", () => {
-    render(<RootComponent />);
+    renderRoot(<RootComponent />);
     const link = screen.getByTestId("skip-to-content");
     expect(link).toHaveAttribute("href", "#app-content");
   });

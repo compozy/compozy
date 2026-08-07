@@ -14,6 +14,7 @@ import { handlers as onboardingHandlers } from "@/systems/onboarding/mocks";
 import { handlers as osHandlers } from "@/systems/os/mocks";
 import { handlers as runtimeHandlers } from "@/systems/runtime/mocks";
 import { handlers as sessionHandlers } from "@/systems/session/mocks";
+import { handlers as gatewayHandlers } from "@/systems/gateway/mocks";
 import { handlers as settingsHandlers } from "@/systems/settings/mocks";
 import { handlers as skillHandlers } from "@/systems/skill/mocks";
 import { handlers as schedulerHandlers } from "@/systems/scheduler/mocks";
@@ -66,7 +67,9 @@ export const storybookSystemHandlerGroups: StorybookHandlerGroups = {
   os: osHandlers,
   runtime: runtimeHandlers,
   session: sessionHandlers,
-  settings: settingsHandlers,
+  // Gateway is a settings section, so its reads ride the settings group rather
+  // than opening a system of their own.
+  settings: [...settingsHandlers, ...gatewayHandlers],
   skill: skillHandlers,
   scheduler: schedulerHandlers,
   tasks: tasksHandlers,

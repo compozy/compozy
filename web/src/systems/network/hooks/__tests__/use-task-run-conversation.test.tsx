@@ -3,6 +3,8 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { resetGatewayStreamAuth } from "@/lib/gateway-stream-auth";
+
 import type { TaskRunNetworkProjection } from "../../types";
 import { useTaskRunConversation } from "../use-task-run-conversation";
 
@@ -74,15 +76,39 @@ const network: TaskRunNetworkProjection = {
   },
 };
 
+/**
+ * The shared stream transport asks the listener whether it needs a ticket before
+ * it opens a socket. A local listener answers 404, which is what this lane is.
+ */
+function stubLocalListener() {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ error: "not found" }), {
+        status: 404,
+        headers: { "Content-Type": "application/json" },
+      })
+    )
+  );
+}
+
+async function openedSource(index = 0): Promise<FakeEventSource> {
+  await waitFor(() => expect(FakeEventSource.instances.length).toBeGreaterThan(index));
+  return FakeEventSource.instances[index];
+}
+
 describe("useTaskRunConversation", () => {
   beforeEach(() => {
+    resetGatewayStreamAuth();
     FakeEventSource.instance = null;
     FakeEventSource.instances = [];
     vi.stubGlobal("EventSource", FakeEventSource);
+    stubLocalListener();
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    resetGatewayStreamAuth();
   });
 
   it("Should refresh messages and apply truthful usage from run SSE frames", async () => {
@@ -94,12 +120,12 @@ describe("useTaskRunConversation", () => {
     const { result, unmount } = renderHook(() => useTaskRunConversation("run-1", network), {
       wrapper,
     });
-    const source = FakeEventSource.instance;
-    expect(source?.url).toBe("/api/task-runs/run-1/conversation/stream");
+    const source = await openedSource();
+    expect(source.url).toBe("/api/task-runs/run-1/conversation/stream");
 
     act(() => {
-      source?.emit("network.message", JSON.stringify({ message: { message_id: "msg-1" } }));
-      source?.emit(
+      source.emit("network.message", JSON.stringify({ message: { message_id: "msg-1" } }));
+      source.emit(
         "network.usage",
         JSON.stringify({
           usage: {
@@ -113,7 +139,7 @@ describe("useTaskRunConversation", () => {
     await waitFor(() => expect(result.current?.usage.total.wake_count).toBe(1));
     expect(invalidate).toHaveBeenCalledTimes(1);
     unmount();
-    expect(source?.closed).toBe(true);
+    expect(source.closed).toBe(true);
   });
 
   it("Should disclose reconnect state while EventSource retries", async () => {
@@ -122,8 +148,9 @@ describe("useTaskRunConversation", () => {
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     );
     const { result } = renderHook(() => useTaskRunConversation("run-1", network), { wrapper });
+    const source = await openedSource();
 
-    act(() => FakeEventSource.instance?.emit("error"));
+    act(() => source.emit("error"));
 
     await waitFor(() => expect(result.current?.streamError?.message).toMatch(/reconnecting/i));
   });
@@ -151,8 +178,8 @@ describe("useTaskRunConversation", () => {
       ({ runId, projection }) => useTaskRunConversation(runId, projection),
       { initialProps: { runId: "run-1", projection: network }, wrapper }
     );
-    const previousSource = FakeEventSource.instances[0];
-    const lateUsageListener = [...(previousSource?.listeners.get("network.usage") ?? [])][0];
+    const previousSource = await openedSource();
+    const lateUsageListener = [...(previousSource.listeners.get("network.usage") ?? [])][0];
 
     rerender({ runId: "run-2", projection: nextNetwork });
     act(() => {

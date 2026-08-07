@@ -5,6 +5,7 @@ import { useAui, useAuiState, type ThreadMessage } from "@assistant-ui/react";
 import { StrictMode, useEffect, useLayoutEffect, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { resetGatewayStreamAuth } from "@/lib/gateway-stream-auth";
 import { SessionThread } from "@/components/assistant-ui/session-thread";
 import { createSessionPromptDispatchStore } from "@/components/assistant-ui/session-prompt-dispatch-store";
 import { Toaster } from "@compozy/ui";
@@ -711,6 +712,13 @@ describe("SessionChatRuntimeProvider", () => {
       const requestURL = getRequestURL(input);
       const pathname = requestURL.pathname;
 
+      // The prompt POST streams its response, so the shared transport asks
+      // whether this listener authenticates streams with a ticket. A local
+      // listener does not register the minting route.
+      if (pathname === "/api/gateway/stream-tickets") {
+        return jsonResponse({ error: "not found" }, { status: 404 });
+      }
+
       if (pathname === "/api/sessions") {
         return jsonResponse({
           sessions: [primarySessionFixture],
@@ -813,10 +821,12 @@ describe("SessionChatRuntimeProvider", () => {
     });
 
     vi.stubGlobal("fetch", fetchMock);
+    resetGatewayStreamAuth();
   });
 
   afterEach(() => {
     vi.useRealTimers();
+    resetGatewayStreamAuth();
     vi.unstubAllGlobals();
     act(() => {
       sessionStore.trigger.sessionInteractionRemoved({ sessionId: primarySessionFixture.id });

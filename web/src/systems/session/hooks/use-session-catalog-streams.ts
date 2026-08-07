@@ -2,6 +2,7 @@ import { useStore, useSelector } from "@xstate/store-react";
 import { useEffect } from "react";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 
+import { createStreamEventSource } from "@/lib/ticketed-event-source";
 import type { WorkspacePayload } from "@/systems/workspace";
 
 import { sessionKeys } from "../lib/query-keys";
@@ -33,7 +34,7 @@ export function sessionCatalogStreamURL(): string {
 }
 
 function defaultEventSourceFactory(url: string): SessionCatalogEventSource {
-  return new EventSource(url);
+  return createStreamEventSource(url);
 }
 
 function parseSessionCatalogEvent(event: Event): SessionCatalogEventPayload | undefined {

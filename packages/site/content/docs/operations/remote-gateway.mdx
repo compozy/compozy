@@ -1,0 +1,211 @@
+---
+title: Remote Gateway
+description: Reach Compozy from another device or the public internet — enable exposure, pair devices, publish delivery URLs, and revoke access.
+---
+
+A fresh install is reachable only from the machine it runs on. The gateway is how you change that,
+one surface at a time, and how you take it back.
+
+Everything here is available in the web UI (**Settings → Gateway**), on the CLI, and over HTTP and
+UDS. The UI is a view of daemon state, never a second source of truth.
+
+<OperatorNote>
+  The daemon never binds a non-loopback address. Tier listeners bind loopback and a connectivity
+  provider terminates external traffic in front of them, so exposure is always something you turned
+  on and can turn off.
+</OperatorNote>
+
+## The exposure ladder
+
+Three independent decisions, each off until you enable it:
+
+| Surface                 | Tier    | What it exposes                                                              |
+| ----------------------- | ------- | ---------------------------------------------------------------------------- |
+| Private overlay         | private | The full product, to devices you have paired, over your own overlay network. |
+| Public delivery ingress | public  | Signed webhook and bridge deliveries only.                                   |
+| Public operator access  | public  | The operator UI and the whole management API on your public address.         |
+
+Turning any of them off takes effect immediately and survives a restart. A restart restores what you
+last asked for and never re-enables something you turned off.
+
+## Before you start
+
+Two prerequisites hold for every enable, and the daemon refuses the transition when either is
+missing:
+
+1. **`gateway.enabled` must be true** in `config.toml`. It is the configuration ceiling — a hard
+   maximum, not a switch that turns anything on. Changing it requires a daemon restart.
+2. **A connectivity provider must be enabled for that tier.** The runtime owns exposure policy;
+   providers only contribute a reachability mechanism and health.
+
+```bash
+compozy gateway status
+```
+
+Read the refusal it prints. Every refusal names its cause and the fix.
+
+## Enable the private overlay
+
+A provider is a connectivity extension. Get it ready in **Settings → Extensions** first — install
+it, enable it, confirm what it may reach, and bind the secrets it declares — because the daemon
+re-derives its install source and control digest from the live extension registry on every enable
+and refuses anything it cannot authorize. Workspace-scoped installs are refused outright:
+reachability is an operator-wide capability.
+
+Then activate it for the tier and turn the surface on:
+
+```bash
+compozy gateway provider enable <provider> --tier private --source <installed-source>
+compozy gateway surface enable operator_ui --tier private --generation <n>
+```
+
+**Settings → Gateway** does the same: the Connectivity providers section lists each installed
+provider with its live health, names anything still missing before it can be authorized, and
+activates or releases it per tier.
+
+The daemon binds the tier listener, asks the provider to establish reachability, then **verifies**
+the endpoint by fetching a one-time challenge through it. Only an endpoint that proves it reaches
+this daemon's listener is advertised.
+
+That is why status distinguishes four states:
+
+- `Off` — not reachable beyond this machine.
+- `Establishing` — the provider has not yet produced an endpoint the daemon could verify.
+- `Degraded` — the provider failed. Nothing is advertised while it recovers.
+- `Reachable` — verified: this address was proven to reach this daemon.
+
+An address only appears once it is verified. A provider that claims an endpoint but fails
+verification shows as establishing or degraded — never as reachable.
+
+## Pair a device
+
+Reaching an address is not authentication. Every device sees the pairing gate until it holds a
+device session.
+
+```bash
+compozy pair mint
+```
+
+In the UI, **Settings → Gateway → Pair a device** does the same and shows the result two ways: a
+scannable code and the same artifact as copyable text. Use whichever fits — a phone camera, a screen
+reader, a remote terminal, or a machine with no camera all reach the same place.
+
+<OperatorNote>
+  A pairing artifact is single-use and expires in five minutes by default. It is shown once and
+  cannot be read again — mint a new one instead of hunting for the old one. The scannable link
+  carries the artifact in the URL fragment, which browsers never send to a server, so scanning it
+  does not write the secret into a proxy or access log.
+</OperatorNote>
+
+Pairing artifacts are minted only from a trusted surface: this machine, or a device already paired
+over the private overlay. **The public address never mints or redeems a pairing** — a new device is
+admitted through the private tier or locally, and there is no configuration that changes that.
+
+On the new device, open the private address, enter the code, name the device, and you are in.
+
+## Publish a delivery URL
+
+Public delivery ingress accepts signed webhook and bridge callbacks. Enable it, then confirm each
+subject against the current public address:
+
+```bash
+compozy gateway surface enable webhook_ingress --tier public --generation <n>
+```
+
+The trigger and bridge views then show the delivery URL together with whether it currently answers.
+Confirm a subject before handing its URL to a sender; if the public address later changes, the URL
+is flagged for reconfirmation rather than silently redirecting deliveries.
+
+<OperatorNote>
+  Deliveries reach Compozy only while the daemon and its connectivity provider are running. There is
+  no store-and-forward queue for messages sent while it is offline — configure retries at the sender
+  and treat a connection failure as a failed delivery.
+</OperatorNote>
+
+## Enable public operator access
+
+This one puts the operator UI and the management API on your public address, so it asks for explicit
+consent stating exactly what becomes reachable — and it asks again on every enable. There is no
+"don't ask again".
+
+```bash
+compozy gateway surface enable operator_ui --tier public --generation <n> --consent
+```
+
+The daemon refuses this until at least one device is paired: publishing a gate nobody can pass is
+not a useful state, and publishing one anybody can pass is not a safe one.
+
+## Connect a remote CLI
+
+A remote machine redeems a pairing into a named connection profile:
+
+```bash
+compozy connect add <profile> --address <private-address> --pairing <artifact> --use
+```
+
+The credential lives in an encrypted client-local file on that machine; the profile entry holds only
+non-secret metadata. Moving a profile between machines uses `compozy connect export` and
+`compozy connect import` — copying the metadata alone never transfers identity.
+
+Remote reach is bounded and published. Verbs that own a local state transition — the agent kernel,
+resource mutation, the hosted MCP surface — stay on the daemon machine and refuse deterministically
+from a remote profile.
+
+## Connect over SSH
+
+When you already have SSH access to the machine, you do not need any exposure at all:
+
+```bash
+compozy connect ssh <host>
+```
+
+This uses your existing SSH trust — keys, configuration, and host verification. A changed host
+identity refuses the connection. It stops only daemons it started, and it opens no new reachable
+surface on either machine.
+
+## Review and revoke
+
+The device inventory lists every device that holds a session, where it was paired from, and when it
+was last active.
+
+```bash
+compozy device list
+compozy device rename <device-id> --name "Work phone"
+compozy device revoke <device-id>
+```
+
+Revocation is immediate and terminal. The revoke call bumps the device's epoch, cancels its live
+streams before returning, and fails any request already in flight rather than committing a partial
+write. The revoked device lands on an explicit "access ended" screen with no data behind it. A
+returning device needs a new pairing and gets a new identity.
+
+Losing every remote device is recoverable: local access on the daemon machine is the root of trust
+and can always mint a pairing and revoke a device. There is no password and no memorized secret.
+
+## Audit the posture
+
+```bash
+compozy gateway audit
+```
+
+Or **Run audit** in the UI. The audit reads current state without changing it, and returns findings
+ranked by severity, each with a stable identity and a remediation that names the next action. "No
+findings" is an explicit result.
+
+## Turn it off
+
+```bash
+compozy gateway surface disable operator_ui --tier public --generation <n>
+compozy gateway provider disable <provider> --tier public
+```
+
+Disabling is immediate and unconditional. Confirm with `compozy gateway status` that no address is
+advertised.
+
+## Related
+
+- [Gateway Threat Model](/docs/operations/gateway-threat-model) — what each tier exposes and the
+  guarantees that hold when something fails.
+- [Configuration reference](/docs/configuration/config-toml) — the `[gateway]` keys.
+- [Webhook triggers](/docs/automation/webhooks) — delivery URLs and verification.
+- [Bridge setup](/docs/bridges/setup) — binding a bridge callback to the public address.

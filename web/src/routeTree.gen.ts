@@ -42,6 +42,7 @@ import { Route as AppSettingsIndexRouteImport } from './routes/_app/settings/ind
 import { Route as AppSettingsAppearanceRouteImport } from './routes/_app/settings/appearance'
 import { Route as AppSettingsAutomationRouteImport } from './routes/_app/settings/automation'
 import { Route as AppSettingsExtensionsRouteImport } from './routes/_app/settings/extensions'
+import { Route as AppSettingsGatewayRouteImport } from './routes/_app/settings/gateway'
 import { Route as AppSettingsGeneralRouteImport } from './routes/_app/settings/general'
 import { Route as AppSettingsHooksRouteImport } from './routes/_app/settings/hooks'
 import { Route as AppSettingsLayoutsRouteImport } from './routes/_app/settings/layouts'
@@ -234,6 +235,11 @@ const AppSettingsExtensionsRoute = AppSettingsExtensionsRouteImport.update({
   path: '/extensions',
   getParentRoute: () => AppSettingsRoute,
 } as any)
+const AppSettingsGatewayRoute = AppSettingsGatewayRouteImport.update({
+  id: '/gateway',
+  path: '/gateway',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
 const AppSettingsGeneralRoute = AppSettingsGeneralRouteImport.update({
   id: '/general',
   path: '/general',
@@ -402,6 +408,7 @@ export interface FileRoutesByFullPath {
   '/settings/appearance': typeof AppSettingsAppearanceRoute
   '/settings/automation': typeof AppSettingsAutomationRoute
   '/settings/extensions': typeof AppSettingsExtensionsRoute
+  '/settings/gateway': typeof AppSettingsGatewayRoute
   '/settings/general': typeof AppSettingsGeneralRoute
   '/settings/hooks': typeof AppSettingsHooksRoute
   '/settings/layouts': typeof AppSettingsLayoutsRoute
@@ -458,6 +465,7 @@ export interface FileRoutesByTo {
   '/settings/appearance': typeof AppSettingsAppearanceRoute
   '/settings/automation': typeof AppSettingsAutomationRoute
   '/settings/extensions': typeof AppSettingsExtensionsRoute
+  '/settings/gateway': typeof AppSettingsGatewayRoute
   '/settings/general': typeof AppSettingsGeneralRoute
   '/settings/hooks': typeof AppSettingsHooksRoute
   '/settings/layouts': typeof AppSettingsLayoutsRoute
@@ -520,6 +528,7 @@ export interface FileRoutesById {
   '/_app/settings/appearance': typeof AppSettingsAppearanceRoute
   '/_app/settings/automation': typeof AppSettingsAutomationRoute
   '/_app/settings/extensions': typeof AppSettingsExtensionsRoute
+  '/_app/settings/gateway': typeof AppSettingsGatewayRoute
   '/_app/settings/general': typeof AppSettingsGeneralRoute
   '/_app/settings/hooks': typeof AppSettingsHooksRoute
   '/_app/settings/layouts': typeof AppSettingsLayoutsRoute
@@ -582,6 +591,7 @@ export interface FileRouteTypes {
     | '/settings/appearance'
     | '/settings/automation'
     | '/settings/extensions'
+    | '/settings/gateway'
     | '/settings/general'
     | '/settings/hooks'
     | '/settings/layouts'
@@ -638,6 +648,7 @@ export interface FileRouteTypes {
     | '/settings/appearance'
     | '/settings/automation'
     | '/settings/extensions'
+    | '/settings/gateway'
     | '/settings/general'
     | '/settings/hooks'
     | '/settings/layouts'
@@ -699,6 +710,7 @@ export interface FileRouteTypes {
     | '/_app/settings/appearance'
     | '/_app/settings/automation'
     | '/_app/settings/extensions'
+    | '/_app/settings/gateway'
     | '/_app/settings/general'
     | '/_app/settings/hooks'
     | '/_app/settings/layouts'
@@ -966,6 +978,13 @@ declare module '@tanstack/react-router' {
       path: '/extensions'
       fullPath: '/settings/extensions'
       preLoaderRoute: typeof AppSettingsExtensionsRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/gateway': {
+      id: '/_app/settings/gateway'
+      path: '/gateway'
+      fullPath: '/settings/gateway'
+      preLoaderRoute: typeof AppSettingsGatewayRouteImport
       parentRoute: typeof AppSettingsRoute
     }
     '/_app/settings/general': {
@@ -1321,6 +1340,7 @@ interface AppSettingsRouteChildren {
   AppSettingsAppearanceRoute: typeof AppSettingsAppearanceRoute
   AppSettingsAutomationRoute: typeof AppSettingsAutomationRoute
   AppSettingsExtensionsRoute: typeof AppSettingsExtensionsRoute
+  AppSettingsGatewayRoute: typeof AppSettingsGatewayRoute
   AppSettingsGeneralRoute: typeof AppSettingsGeneralRoute
   AppSettingsHooksRoute: typeof AppSettingsHooksRoute
   AppSettingsLayoutsRoute: typeof AppSettingsLayoutsRoute
@@ -1337,6 +1357,7 @@ const AppSettingsRouteChildren: AppSettingsRouteChildren = {
   AppSettingsAppearanceRoute: AppSettingsAppearanceRoute,
   AppSettingsAutomationRoute: AppSettingsAutomationRoute,
   AppSettingsExtensionsRoute: AppSettingsExtensionsRoute,
+  AppSettingsGatewayRoute: AppSettingsGatewayRoute,
   AppSettingsGeneralRoute: AppSettingsGeneralRoute,
   AppSettingsHooksRoute: AppSettingsHooksRoute,
   AppSettingsLayoutsRoute: AppSettingsLayoutsRoute,
