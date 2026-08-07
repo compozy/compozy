@@ -731,17 +731,8 @@ jobs:
             exit 1
           fi
 
-          for package_name in @compozy/cli @compozy/extension-sdk; do
-            dist_tags="$(npm view "${package_name}" dist-tags --json --registry=https://registry.npmjs.org)"
-            PACKAGE_NAME="${package_name}" DIST_TAGS_JSON="${dist_tags}" node <<'NODE'
-          const tags = JSON.parse(process.env.DIST_TAGS_JSON || "{}");
-          const expectedTag = process.env.NPM_TAG;
-          const version = process.env.RELEASE_VERSION;
-          if (tags[expectedTag] !== version) {
-            throw new Error(`${process.env.PACKAGE_NAME} ${expectedTag} points to ${tags[expectedTag]}, want ${version}`);
-          }
-          if (expectedTag === "beta" && tags.latest === version) {
-            throw new Error(`${process.env.PACKAGE_NAME} latest moved during a beta release`);
-          }
-          NODE
-          done
+          scripts/release-npm-readiness.sh \
+            "${RELEASE_VERSION}" \
+            "${NPM_TAG}" \
+            @compozy/cli \
+            @compozy/extension-sdk

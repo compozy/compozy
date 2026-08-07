@@ -385,7 +385,7 @@ func TestReleaseWorkflowConsumesExplicitPlan(t *testing.T) {
 		"sdk_go_tag=\"sdk/go/${RELEASE_TAG}\"",
 		"git push origin \"refs/tags/${RELEASE_TAG}\" \"refs/tags/${sdk_go_tag}\"",
 		"scripts/publish-extension-sdk.sh \"${RELEASE_VERSION}\" \"${NPM_TAG}\"",
-		"for package_name in @compozy/cli @compozy/extension-sdk",
+		"scripts/release-npm-readiness.sh",
 		"GORELEASER_CURRENT_TAG: ${{ needs.release-plan.outputs.release_tag }}",
 		"RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}",
 		"RELEASE_CHANNEL: ${{ needs.release-plan.outputs.release_channel }}",
@@ -641,6 +641,161 @@ func TestExtensionSDKPublisherAcceptsStrictSemVer(t *testing.T) {
 		}
 		if !strings.Contains(string(output), "npm tag is invalid") {
 			t.Fatalf("publish-extension-sdk.sh output = %s, want npm tag validation", output)
+		}
+	})
+}
+
+func TestNPMReleasePolicyWaitsForRegistryReadiness(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should wait until every package dist-tag converges", func(t *testing.T) {
+		t.Parallel()
+
+		root := findRepoRootForReleaseConfigTest(t)
+		binDir := t.TempDir()
+		counterPath := filepath.Join(binDir, "extension-sdk-queries")
+		npmStub := `#!/usr/bin/env bash
+set -euo pipefail
+if [[ "${1:-}" != "view" || "${3:-}" != "dist-tags" ]]; then
+  printf 'unexpected npm invocation: %s\n' "$*" >&2
+  exit 64
+fi
+if [[ "${2:-}" == "@compozy/extension-sdk" ]]; then
+  query_count=0
+  if [[ -f "${FAKE_NPM_SDK_COUNTER}" ]]; then
+    query_count="$(<"${FAKE_NPM_SDK_COUNTER}")"
+  fi
+  query_count=$((query_count + 1))
+  printf '%s\n' "${query_count}" >"${FAKE_NPM_SDK_COUNTER}"
+  if ((query_count == 1)); then
+    printf '{"latest":"0.3.0-beta.3","beta":"0.3.0-beta.5"}\n'
+    exit 0
+  fi
+fi
+printf '{"latest":"0.2.15","beta":"0.3.0-beta.6"}\n'
+`
+		if err := os.WriteFile(filepath.Join(binDir, "npm"), []byte(npmStub), 0o755); err != nil {
+			t.Fatalf("os.WriteFile(npm stub) error = %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(binDir, "sleep"), []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+			t.Fatalf("os.WriteFile(sleep stub) error = %v", err)
+		}
+
+		cmd := exec.CommandContext(
+			t.Context(),
+			"bash",
+			filepath.Join(root, "scripts", "release-npm-readiness.sh"),
+			"0.3.0-beta.6",
+			"beta",
+			"@compozy/cli",
+			"@compozy/extension-sdk",
+		)
+		cmd.Env = append(
+			os.Environ(),
+			"FAKE_NPM_SDK_COUNTER="+counterPath,
+			"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+		)
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("release-npm-readiness.sh error = %v, output = %s", err, output)
+		}
+		if !strings.Contains(string(output), "npm release policy converged after 2 attempts") {
+			t.Fatalf("release-npm-readiness.sh output = %s, want convergence evidence", output)
+		}
+		counter, err := os.ReadFile(counterPath)
+		if err != nil {
+			t.Fatalf("os.ReadFile(extension SDK query counter) error = %v", err)
+		}
+		if got, want := string(counter), "2\n"; got != want {
+			t.Fatalf("extension SDK query count = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should reject a beta release that moves the latest tag without retrying", func(t *testing.T) {
+		t.Parallel()
+
+		root := findRepoRootForReleaseConfigTest(t)
+		binDir := t.TempDir()
+		sleepMarker := filepath.Join(binDir, "sleep-called")
+		npmStub := `#!/bin/sh
+set -eu
+printf '{"latest":"0.3.0-beta.6","beta":"0.3.0-beta.6"}\n'
+`
+		if err := os.WriteFile(filepath.Join(binDir, "npm"), []byte(npmStub), 0o755); err != nil {
+			t.Fatalf("os.WriteFile(npm stub) error = %v", err)
+		}
+		sleepStub := "#!/bin/sh\nset -eu\nprintf 'called\\n' >\"${FAKE_SLEEP_MARKER}\"\n"
+		if err := os.WriteFile(filepath.Join(binDir, "sleep"), []byte(sleepStub), 0o755); err != nil {
+			t.Fatalf("os.WriteFile(sleep stub) error = %v", err)
+		}
+
+		cmd := exec.CommandContext(
+			t.Context(),
+			"bash",
+			filepath.Join(root, "scripts", "release-npm-readiness.sh"),
+			"0.3.0-beta.6",
+			"beta",
+			"@compozy/extension-sdk",
+		)
+		cmd.Env = append(
+			os.Environ(),
+			"FAKE_SLEEP_MARKER="+sleepMarker,
+			"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+		)
+		output, err := cmd.CombinedOutput()
+		if err == nil {
+			t.Fatalf("release-npm-readiness.sh error = nil, output = %s", output)
+		}
+		if !strings.Contains(string(output), "latest moved during a beta release") {
+			t.Fatalf("release-npm-readiness.sh output = %s, want latest-tag policy failure", output)
+		}
+		sleepCalls, readErr := os.ReadFile(sleepMarker)
+		if readErr == nil {
+			t.Fatalf("release-npm-readiness.sh retried a terminal policy violation: %s", sleepCalls)
+		}
+		if !os.IsNotExist(readErr) {
+			t.Fatalf("os.ReadFile(sleep marker) error = %v", readErr)
+		}
+	})
+
+	t.Run("Should stop with the last observed tags when readiness times out", func(t *testing.T) {
+		t.Parallel()
+
+		root := findRepoRootForReleaseConfigTest(t)
+		binDir := t.TempDir()
+		npmStub := `#!/bin/sh
+set -eu
+printf '{"latest":"0.3.0-beta.3","beta":"0.3.0-beta.5"}\n'
+`
+		if err := os.WriteFile(filepath.Join(binDir, "npm"), []byte(npmStub), 0o755); err != nil {
+			t.Fatalf("os.WriteFile(npm stub) error = %v", err)
+		}
+
+		cmd := exec.CommandContext(
+			t.Context(),
+			"bash",
+			filepath.Join(root, "scripts", "release-npm-readiness.sh"),
+			"0.3.0-beta.6",
+			"beta",
+			"@compozy/extension-sdk",
+		)
+		cmd.Env = append(
+			os.Environ(),
+			"NPM_RELEASE_READINESS_TIMEOUT_SECONDS=1",
+			"NPM_RELEASE_READINESS_INTERVAL_SECONDS=1",
+			"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+		)
+		output, err := cmd.CombinedOutput()
+		if err == nil {
+			t.Fatalf("release-npm-readiness.sh error = nil, output = %s", output)
+		}
+		for _, want := range []string{
+			"npm release policy did not converge within 1s",
+			"@compozy/extension-sdk beta points to 0.3.0-beta.5, want 0.3.0-beta.6",
+		} {
+			if !strings.Contains(string(output), want) {
+				t.Fatalf("release-npm-readiness.sh output = %s, want %q", output, want)
+			}
 		}
 	})
 }
