@@ -4,7 +4,7 @@ export type MarketplaceKindScope = "market" | "installed";
 
 export interface MarketplaceKindSearch {
   config_scope?: "global" | "workspace";
-  tab?: "installed";
+  tab?: "market";
   q?: string;
 }
 
@@ -16,7 +16,7 @@ export function validateMarketplaceKindSearch(
       search.config_scope === "global" || search.config_scope === "workspace"
         ? search.config_scope
         : undefined,
-    tab: search.tab === "installed" ? "installed" : undefined,
+    tab: search.tab === "market" ? "market" : undefined,
     q: normalizeListingSearchValue(search.q),
   };
 }
@@ -24,7 +24,7 @@ export function validateMarketplaceKindSearch(
 export function marketplaceKindScopeFromSearch(
   search: MarketplaceKindSearch
 ): MarketplaceKindScope {
-  return search.tab === "installed" ? "installed" : "market";
+  return search.tab === "market" ? "market" : "installed";
 }
 
 export function marketplaceKindPath(routeKind: string): `/marketplace/${string}` {

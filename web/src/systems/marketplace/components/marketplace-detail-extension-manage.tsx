@@ -251,9 +251,7 @@ function MarketplaceDetailExtensionManage({
       <RemoveExtensionDialog
         extension={extension}
         onOpenChange={open => (open ? requestRemoval() : dismissDialog())}
-        onRemoved={() =>
-          void navigate({ search: { tab: "installed" }, to: "/marketplace/extensions" })
-        }
+        onRemoved={() => void navigate({ search: {}, to: "/marketplace/extensions" })}
         open={activeDialog === "remove"}
       />
     </>

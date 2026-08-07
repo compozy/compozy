@@ -53,7 +53,7 @@ function MarketplaceDetailRouteBody({
   const entryName = entry?.name ?? entryId;
   const catalogPath = `/marketplace/${marketplaceRouteKindFor(kind)}` as const;
   const backToCatalog = () => {
-    void navigate({ to: catalogPath });
+    void navigate({ search: search.tab === "market" ? { tab: "market" } : {}, to: catalogPath });
   };
 
   useTopbarSlot({

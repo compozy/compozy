@@ -387,7 +387,7 @@ function ManageSection() {
         data-testid="settings-page-skills-link-skills"
         description="Install, update, and disable skills from the marketplace view."
         label="Manage installed skills"
-        render={<Link to="/marketplace/skills" search={{ tab: "installed" }} />}
+        render={<Link to="/marketplace/skills" />}
       />
     </SettingsGroup>
   );

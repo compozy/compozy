@@ -5,7 +5,7 @@ title: MCP remote-capable editor (stdio/Streamable HTTP) with mirrored validatio
 persona: Bruno
 journey: J-mcp-authorize-repair
 expected: The editor switches field sets by transport. stdio keeps command, ordered args, non-secret env, and typed secret input bindings; Streamable HTTP keeps url + discovered OAuth registration (`auto` or `pre_registered`) and scopes, and omits command/args/env/secret_env. Switching transport clears hidden fields so the new form remains completable. Existing plain env and secret bindings render as presence-only configured state; unchanged exact-target fields use `preserve_env` or `preserve_secrets`, while renames and scope changes require explicit replacement values. Vault inventory renders distinct loading, error/retry, ready-empty, and ready-with-refs states. Scope lives in `validateSearch`; an initial valid `workspace_id` is adopted once, then sidebar selection owns the workspace and updates the URL.
-entry_points: web `/marketplace/mcps?tab=installed` Add MCP server/Edit configuration; `PUT /api/settings/mcp-servers/{name}`
+entry_points: web `/marketplace/mcps` Add MCP server/Edit configuration; `PUT /api/settings/mcp-servers/{name}`
 qa_status: skipped
 bug_ids: BUG-20260715-mcp-editor-vault-ref-case
 fix_status: fixed

@@ -5,14 +5,14 @@ title: Manage installed extensions and their kits
 persona: Bruno
 journey: J-marketplace-acquisition
 expected: The Extensions Installed scope lists daemon-owned inventory, applies enable changes immediately, derives truthful update state, previews kit changes, and permits typed removal with owned-resource cleanup.
-entry_points: /marketplace/extensions?tab=installed; Marketplace Manage actions
+entry_points: /marketplace/extensions; Marketplace Manage actions
 qa_status: pass
 bug_ids:
 fix_status:
 retest_status: pass
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/marketplace-management-lifecycle.json;/Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/web/marketplace-extension-web-management-final.png;/Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa;/Users/pedronauck/dev/qa-labs/compozy-devtool-oss-launch-20260802-195112-911343-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-08-02-bundles-removal.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-critical-runtime-ui-fixes-20260807-225222-371495-lab/qa-artifacts/qa/marketplace-extension-evidence.md; /Users/pedronauck/dev/qa-labs/compozy-critical-runtime-ui-fixes-20260807-225222-371495-lab/qa-artifacts/qa/dev-cycle-trusted-detail.png
+last_report: docs/qa/reports/2026-08-07-critical-runtime-ui-fixes.md
 overlaps: ET-019; ET-020; ET-021; ET-ext-inventory; ET-ext-preview
 ---
 

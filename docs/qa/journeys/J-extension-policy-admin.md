@@ -8,6 +8,8 @@ hook source, and contributed-command metadata must agree across user and agent m
 flowchart TD
   A[Entry: Settings > Extensions, config CLI, or native config tools] --> B[Read trust, sources, dev cadence, and resource policy]
   B --> C[Change one live key and one restart-required resource key]
+  B --> BT[Inspect a bundled extension]
+  BT --> BV[Bundled provenance remains official and verified independent of side-load policy]
   C -->|invalid value| C1[Deterministic rejection preserves prior applied config]
   C --> D[Install from an enabled source with one explicit consent]
   D -->|source disabled or consent absent| D1[Actionable policy block and zero installed state]
@@ -57,7 +59,7 @@ journey:
       expected_observable: Defaults, validation, merge behavior, CLI registry, structured config tools, settings API, and docs agree; lifecycle is live or restart-required exactly as declared
     - step: 2
       verb: Exercise trust and source gates
-      expected_observable: Source disablement and missing consent fail with actionable diagnostics and zero residue; allowed installation keeps integrity distinct from trust
+      expected_observable: Source disablement and missing consent fail with actionable diagnostics and zero residue; allowed installation keeps integrity distinct from trust; bundled extensions remain official and verified without side-load consent
     - step: 3
       verb: Build and validate the manifest v2 declaration
       expected_observable: Permissions and provides are closed-set, generated from code, deterministic, and invalid values fail before registry or runtime mutation
@@ -70,7 +72,7 @@ journey:
   goal:
     observable: Complete extension policy and declaration agreement with no permissive fallback or hidden configuration key
     side_effects: [config-lifecycle-applied, policy-events-emitted, generated-manifest-built]
-  true_end_state: Fresh structured reads and Web settings show the intended policy, and one loaded extension exposes only its valid provides, permissions, hook source, and command metadata
+  true_end_state: Fresh structured reads and Web settings show the intended policy, bundled extensions remain verified, and one loaded extension exposes only its valid provides, permissions, hook source, and command metadata
   exit:
     natural: Continue with distribution or command execution under the applied policy
   abandonment:

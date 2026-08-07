@@ -101,7 +101,7 @@ export const routeStoryRegistry = [
   {
     system: "marketplace",
     routePath: "/marketplace/skills",
-    storybookPath: "/marketplace/skills?tab=installed",
+    storybookPath: "/marketplace/skills",
     title: "systems/marketplace/routes/Marketplace",
     storyName: "SkillsInstalled",
   },
@@ -269,7 +269,7 @@ export const routeStoryRegistry = [
   {
     system: "marketplace",
     routePath: "/marketplace/extensions",
-    storybookPath: "/marketplace/extensions?tab=installed",
+    storybookPath: "/marketplace/extensions",
     title: "systems/marketplace/routes/Marketplace",
     storyName: "ExtensionsInstalled",
   },

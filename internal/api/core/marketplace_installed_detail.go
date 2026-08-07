@@ -125,7 +125,7 @@ func (h *BaseHandlers) installedMCPMarketplaceEntry(
 				Kind: contract.MarketplaceKindMCP, EntryID: entryID, Name: name,
 				Version: version, Source: "installed", Transport: string(item.Transport),
 				Installed: true, InstalledName: name, InstalledVersion: version,
-				ManagePath: "/marketplace/mcps?tab=installed",
+				ManagePath: "/marketplace/mcps",
 			},
 		}, nil
 	}
@@ -188,7 +188,7 @@ func (h *BaseHandlers) installedSkillMarketplaceEntry(
 				Name: payload.Name, Description: payload.Description, Version: payload.Version,
 				Source: payload.Source, InstallSlug: installSlug, Installed: true,
 				InstalledName: payload.Name, InstalledVersion: payload.Version,
-				ManagePath: "/marketplace/skills?tab=installed",
+				ManagePath: "/marketplace/skills",
 			},
 			Skill: &contract.MarketplaceSkillDetailPayload{InstallSlug: installSlug},
 		}, nil

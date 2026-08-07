@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
@@ -168,6 +169,15 @@ func TestDevCycleManagedInstallShouldPreserveManagedManifestTools(t *testing.T) 
 		if installed.Source != extensionpkg.SourceBundled || !installed.Enabled {
 			t.Fatalf("installed dev-cycle = %#v, want enabled bundled extension", installed)
 		}
+		if installed.Provenance.InstalledFrom != "bundled" ||
+			installed.Provenance.RegistryTier != extensionpkg.ExtensionRegistryTierOfficial ||
+			!installed.Provenance.ChecksumVerified ||
+			installed.Provenance.AllowUnverified {
+			t.Fatalf(
+				"installed provenance = %#v, want bundled official verified provenance",
+				installed.Provenance,
+			)
+		}
 
 		manifest, err := extensionpkg.LoadManifest(filepath.Dir(installed.ManifestPath))
 		if err != nil {
@@ -257,6 +267,95 @@ func TestDevCycleManagedInstallShouldPreserveManagedManifestTools(t *testing.T) 
 					runtimeDescriptor,
 				)
 			}
+		}
+	})
+}
+
+func TestDevCycleManagedInstallShouldReconcileBundledProvenance(t *testing.T) {
+	t.Run("Should repair bundled trust metadata without changing enabled state or install time", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		globalDB, err := globaldb.OpenGlobalDB(testutil.Context(t), homePaths.DatabaseFile)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := globalDB.Close(testutil.Context(t)); err != nil {
+				t.Errorf("Close(globalDB) error = %v", err)
+			}
+		})
+		registry := extensionpkg.NewRegistry(globalDB.DB())
+
+		if err := EnsureManagedInstall(homePaths, registry); err != nil {
+			t.Fatalf("EnsureManagedInstall(first) error = %v", err)
+		}
+		before, err := registry.Get(Name)
+		if err != nil {
+			t.Fatalf("registry.Get(%q before) error = %v", Name, err)
+		}
+		if err := registry.Disable(Name); err != nil {
+			t.Fatalf("registry.Disable(%q) error = %v", Name, err)
+		}
+		stale := before.Provenance
+		stale.InstalledFrom = extensionpkg.ExtensionInstalledFromLocalPath
+		stale.RegistryTier = extensionpkg.ExtensionRegistryTierUnverified
+		stale.ChecksumVerified = true
+		stale.AllowUnverified = false
+		staleJSON, err := json.Marshal(stale)
+		if err != nil {
+			t.Fatalf("json.Marshal(stale provenance) error = %v", err)
+		}
+		if _, err := registry.DB().ExecContext(
+			testutil.Context(t),
+			`UPDATE extensions SET provenance_json = ? WHERE name = ?`,
+			string(staleJSON),
+			Name,
+		); err != nil {
+			t.Fatalf("persist stale provenance error = %v", err)
+		}
+
+		if err := EnsureManagedInstall(homePaths, registry); err != nil {
+			t.Fatalf("EnsureManagedInstall(reconcile) error = %v", err)
+		}
+		after, err := registry.Get(Name)
+		if err != nil {
+			t.Fatalf("registry.Get(%q after) error = %v", Name, err)
+		}
+		if after.Enabled {
+			t.Fatal("reconciled extension enabled = true, want preserved disabled state")
+		}
+		if !after.InstalledAt.Equal(before.InstalledAt) {
+			t.Fatalf("reconciled installed_at = %s, want %s", after.InstalledAt, before.InstalledAt)
+		}
+		if after.Provenance.InstalledFrom != "bundled" ||
+			after.Provenance.RegistryTier != extensionpkg.ExtensionRegistryTierOfficial ||
+			!after.Provenance.ChecksumVerified ||
+			after.Provenance.AllowUnverified {
+			t.Fatalf("reconciled provenance = %#v, want bundled official verified provenance", after.Provenance)
+		}
+		described := extensionpkg.DescribeExtension(
+			&extensionpkg.Extension{Info: *after},
+			false,
+			time.Now(),
+		)
+		if described.Trust == nil || described.Trust.Decision != extensionpkg.ExtensionTrustDecisionVerified {
+			t.Fatalf("described trust = %#v, want verified", described.Trust)
+		}
+
+		if err := EnsureManagedInstall(homePaths, registry); err != nil {
+			t.Fatalf("EnsureManagedInstall(idempotent) error = %v", err)
+		}
+		repeated, err := registry.Get(Name)
+		if err != nil {
+			t.Fatalf("registry.Get(%q repeated) error = %v", Name, err)
+		}
+		if repeated.Enabled || !repeated.InstalledAt.Equal(after.InstalledAt) ||
+			!repeated.Provenance.InstalledAt.Equal(after.Provenance.InstalledAt) {
+			t.Fatalf("repeated reconciliation changed stable metadata: before=%#v after=%#v", after, repeated)
 		}
 	})
 }

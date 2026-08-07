@@ -4,15 +4,15 @@ area: ET
 title: MCP management status matrix renders daemon truth
 persona: Bruno
 journey: J-mcp-authorize-repair
-expected: The `/marketplace/mcps?tab=installed` cards and detail management render daemon-owned auth, runtime, probe, and negotiated protocol version with truthful success/warning/danger/neutral tones. Failed, unavailable, denied, absent, and unknown runtime states are never labeled running. `probe=skipped` is never treated as a failure. Authorize/Reauthorize is offered only to OAuth Streamable HTTP remotes not authenticated (or auth_refresh_failed); stdio and non-OAuth remotes never get it.
-entry_points: web `/marketplace/mcps?tab=installed`; `GET /api/settings/mcp-servers`
+expected: The `/marketplace/mcps` cards and detail management render daemon-owned auth, runtime, probe, and negotiated protocol version with truthful success/warning/danger/neutral tones. Failed, unavailable, denied, absent, and unknown runtime states are never labeled running. `probe=skipped` is never treated as a failure. Authorize/Reauthorize is offered only to OAuth Streamable HTTP remotes not authenticated (or auth_refresh_failed); stdio and non-OAuth remotes never get it.
+entry_points: web `/marketplace/mcps`; `GET /api/settings/mcp-servers`
 qa_status: pass
 bug_ids:
 fix_status: fixed
 retest_status: pass
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-mcp-2026-catalog-v2-final-rerun-20260730-204949-514647-lab/qa-artifacts/qa/notes/web-status-matrix.json; /Users/pedronauck/dev/qa-labs/compozy-mcp-2026-catalog-v2-final-rerun-20260730-204949-514647-lab/qa-artifacts/qa/screenshots/mcp-status-matrix.png
-last_report: docs/qa/reports/2026-07-30-mcp-2026-catalog-v2.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-critical-runtime-ui-fixes-20260807-225222-371495-lab/qa-artifacts/qa/mcp-installed-default.png; /Users/pedronauck/dev/qa-labs/compozy-mcp-2026-catalog-v2-final-rerun-20260730-204949-514647-lab/qa-artifacts/qa/notes/web-status-matrix.json
+last_report: docs/qa/reports/2026-08-07-critical-runtime-ui-fixes.md
 overlaps: MS-029
 ---
 

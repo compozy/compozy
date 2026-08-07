@@ -1246,7 +1246,7 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 				RuntimeAvailable: true,
 				Links: []settingspkg.OperationalLink{{
 					Label: "skills",
-					Path:  "/marketplace/skills?tab=installed",
+					Path:  "/marketplace/skills",
 				}},
 			},
 		},

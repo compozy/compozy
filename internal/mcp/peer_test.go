@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -132,6 +133,14 @@ func TestPeerInfoFromUnixConnIdentifiesLocalPeer(t *testing.T) {
 		case result := <-resultCh:
 			if result.closeErr != nil && !errors.Is(result.closeErr, net.ErrClosed) {
 				t.Fatalf("accepted connection Close() error = %v", result.closeErr)
+			}
+			if errors.Is(result.err, ErrPeerCredentialsUnsupported) &&
+				(runtime.GOOS == "darwin" || runtime.GOOS == "linux") {
+				t.Fatalf(
+					"PeerInfoFromConn(unix) error = %v on %s, want supported peer inspection",
+					result.err,
+					runtime.GOOS,
+				)
 			}
 			if errors.Is(result.err, ErrPeerCredentialsUnsupported) {
 				t.Skipf("peer credential inspection unsupported on this platform: %v", result.err)

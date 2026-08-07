@@ -170,7 +170,7 @@ test("operator can distinguish skills actions that apply now from policy changes
 
     await settingsUI.skills.operationalLink.click();
     await expect.poll(() => new URL(appPage.url()).pathname).toBe("/marketplace/skills");
-    await expect.poll(() => new URL(appPage.url()).search).toBe("?tab=installed");
+    await expect.poll(() => new URL(appPage.url()).search).toBe("");
     await openAppWindow(appPage, "Settings", "settings");
     await expect.poll(() => new URL(appPage.url()).pathname).toBe("/settings/skills");
 
@@ -262,7 +262,7 @@ test("operator can manage MCP servers across global and workspace scopes with vi
 
   await ensureGlobalWorkspace(runtime);
   await useGlobalWorkspaceIfPrompted(sessionUI);
-  await appPage.goto(runtime.url("/marketplace/mcps?tab=installed"), {
+  await appPage.goto(runtime.url("/marketplace/mcps"), {
     waitUntil: "domcontentloaded",
   });
 
@@ -271,7 +271,7 @@ test("operator can manage MCP servers across global and workspace scopes with vi
   await expect(settingsUI.mcpServers.scopeGlobal).toBeVisible();
 
   await switchWorkspace(appPage, workspace.id, workspace.name);
-  await appPage.goto(runtime.url("/marketplace/mcps?tab=installed"), {
+  await appPage.goto(runtime.url("/marketplace/mcps"), {
     waitUntil: "domcontentloaded",
   });
   await expect(settingsUI.mcpServers.page).toBeVisible();

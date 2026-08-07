@@ -274,11 +274,30 @@ jobs:
           make build-go
           make boundaries
 
+  go-peer-darwin:
+    name: Go (Darwin peer identity without CGO)
+    runs-on: macos-latest
+    timeout-minutes: 10
+    needs: [changes, preflight]
+    if: needs.changes.outputs.relevant == 'true'
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: ./.github/actions/setup-go
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Verify Darwin hosted MCP peer identity
+        run: go test ./internal/mcp -run '^TestPeerInfoFromUnixConnIdentifiesLocalPeer$' -count=1
+        env:
+          CGO_ENABLED: 0
+
   verify:
     name: Verify (fmt, lint, unit, build)
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [changes, preflight, frontend, go-static, go-test, go-build]
+    needs: [changes, preflight, frontend, go-static, go-test, go-build, go-peer-darwin]
     if: always() && needs.changes.outputs.relevant == 'true'
     steps:
       - name: Require every verification lane
@@ -288,9 +307,10 @@ jobs:
           GO_STATIC_RESULT: ${{ needs.go-static.result }}
           GO_TEST_RESULT: ${{ needs.go-test.result }}
           GO_BUILD_RESULT: ${{ needs.go-build.result }}
+          GO_PEER_DARWIN_RESULT: ${{ needs.go-peer-darwin.result }}
         run: |
           set -euo pipefail
-          for result in "$PREFLIGHT_RESULT" "$FRONTEND_RESULT" "$GO_STATIC_RESULT" "$GO_TEST_RESULT" "$GO_BUILD_RESULT"; do
+          for result in "$PREFLIGHT_RESULT" "$FRONTEND_RESULT" "$GO_STATIC_RESULT" "$GO_TEST_RESULT" "$GO_BUILD_RESULT" "$GO_PEER_DARWIN_RESULT"; do
             if [[ "$result" != "success" ]]; then
               echo "Verification lane finished with result: $result"
               exit 1

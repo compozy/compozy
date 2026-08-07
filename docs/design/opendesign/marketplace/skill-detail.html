@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>pr-review · Skill · Marketplace</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="marketplace.css">
+<style>
+  /* page-local: requires-server row */
+  .reqrow{display:grid;grid-template-columns:24px minmax(0,1fr) auto;gap:11px;align-items:center;padding:11px 16px;transition:background var(--dur) var(--ease)}
+  a.reqrow:hover{background:var(--row-hover)}
+  .reqrow .iwell{width:24px;height:24px;border-radius:var(--radius);background:var(--btn-fill);border:1px solid var(--line-soft);display:grid;place-items:center;color:var(--subtle)}
+  .reqrow .iwell svg{width:13px;height:13px}
+  .reqrow .rn{font-size:12.5px;font-weight:510;color:var(--fg-strong)}
+  .reqrow .rd{font-size:11.5px;color:var(--subtle);margin-top:1px}
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="main">
+
+    <!-- head 44 · browse mode: no status pill, one primary -->
+    <header class="w2head" data-od-id="skill-detail-head">
+      <a class="w2-back" href="index.html" aria-label="Back to Marketplace"><i data-lucide="chevron-left"></i></a>
+      <nav class="w2-crumbs" aria-label="Breadcrumb">
+        <a class="w2-crumb" href="index.html">Marketplace</a>
+        <span class="w2-sep">/</span>
+        <span class="w2-title">pr-review</span>
+      </nav>
+      <span class="w2-flex"></span>
+      <div class="w2-actions">
+        <!-- gate: !entry.installed → POST /api/skills/marketplace/install {slug, version} -->
+        <button class="btn btn--primary" data-od-id="skill-install-cta"><i data-lucide="download"></i>Install</button>
+        <button class="btn btn--icon" id="moreBtn" aria-label="More actions" aria-haspopup="menu" aria-expanded="false"><i data-lucide="ellipsis"></i></button>
+        <div class="menu" id="moreMenu" role="menu">
+          <button class="menu__item" role="menuitem" type="button"><i data-lucide="copy"></i>Copy slug</button>
+          <button class="menu__item" role="menuitem" type="button"><i data-lucide="external-link"></i>Open repository</button>
+        </div>
+      </div>
+    </header>
+
+    <div class="scroll">
+      <div class="page">
+
+        <!-- lede -->
+        <div class="dh" data-od-id="skill-detail-lede">
+          <div class="dh__icon"><i data-lucide="sparkles"></i></div>
+          <div class="dh__main">
+            <div class="dh__namerow">
+              <h1 class="dh__name" tabindex="-1">pr-review</h1>
+              <span class="tag">skill</span>
+              <span class="tag">v1.4.0</span>
+            </div>
+            <div class="dh__meta">
+              <span class="mono">@compozy/pr-review</span><span class="dotsep"></span>
+              <span>Compozy</span><span class="dotsep"></span>
+              <span>8,214 downloads</span><span class="dotsep"></span>
+              <span>MIT</span><span class="dotsep"></span>
+              <span>updated 2w ago</span>
+            </div>
+            <p class="dh__lede">Structured pull-request review for your agents: reads the diff hunk by hunk, cross-checks claims against the codebase, and returns severity-ranked findings.</p>
+          </div>
+        </div>
+
+        <div class="layout">
+
+          <!-- ============ main column: the readme is the hero ============ -->
+          <div data-od-id="skill-detail-main">
+
+            <details class="sec" open data-od-id="skill-readme">
+              <summary>
+                <i class="si" data-lucide="book-open"></i>
+                <span class="st">Readme</span>
+                <span class="ssum">from the skill package</span>
+                <span class="spacer"></span>
+                <i class="chev" data-lucide="chevron-down"></i>
+              </summary>
+              <!-- source: detail enrichment — registry Detail.readme (skill-only) -->
+              <div class="panelbox">
+                <div class="readme">
+                  <h3>What it does</h3>
+                  <p>When an agent activates <code>pr-review</code>, it follows a disciplined review protocol instead of skimming the diff. It fetches the pull request, its comment threads and CI status through the GitHub MCP server, walks every hunk, and verifies each suspicious claim against the surrounding code before reporting it.</p>
+                  <p>The output is a structured review: findings ranked by severity, each anchored to a file and line, with a concrete failure scenario — not a list of style nits.</p>
+
+                  <h3>How it works</h3>
+                  <ol>
+                    <li><b>Fetch context.</b> Pull request metadata, review threads and check runs come in through the <code>github</code> MCP server.</li>
+                    <li><b>Walk the diff.</b> Every hunk is read in order; changed behavior is mapped to the code paths that call it.</li>
+                    <li><b>Verify before claiming.</b> Each candidate finding is re-checked against the repository at the PR's head — unverifiable claims are dropped, not hedged.</li>
+                    <li><b>Report.</b> Findings return as a ranked list ready to post as review comments or feed a fix loop.</li>
+                  </ol>
+
+                  <h3>When to use it</h3>
+                  <ul>
+                    <li>Reviewing incoming pull requests before merge — solo or as the review stage of a delivery loop.</li>
+                    <li>Auditing an unfamiliar branch: the same protocol works with a local diff.</li>
+                    <li>Not for docs-only changes — the protocol is tuned for behavior-bearing code.</li>
+                  </ul>
+
+                  <h3>Configuration</h3>
+                  <p>No configuration files. The skill declares the <code>github</code> MCP server in its frontmatter; the daemon wires it up automatically when the skill activates, gated by your <code>skills.allowed_marketplace_mcp</code> allow-list.</p>
+                </div>
+              </div>
+            </details>
+
+            <!-- requires: cross-surface dependency, wired automatically -->
+            <details class="sec" open data-od-id="skill-requires">
+              <summary>
+                <i class="si" data-lucide="server"></i>
+                <span class="st">Requires</span>
+                <span class="ssum">1 MCP server</span>
+                <span class="spacer"></span>
+                <i class="chev" data-lucide="chevron-down"></i>
+              </summary>
+              <!-- source: SKILL.md metadata.compozy.mcp_servers -->
+              <div class="panelbox">
+                <a class="reqrow" href="mcp-detail.html">
+                  <span class="iwell"><i data-lucide="server"></i></span>
+                  <span>
+                    <span class="rn">github</span>
+                    <span class="rd" style="display:block">Declared in the skill's frontmatter — wired up automatically when the skill activates, gated by your marketplace MCP allow-list.</span>
+                  </span>
+                  <i data-lucide="chevron-right" style="width:13px;height:13px;color:var(--faint)"></i>
+                </a>
+              </div>
+            </details>
+
+          </div>
+
+          <!-- ============ rail 320 ============ -->
+          <aside data-od-id="skill-detail-rail">
+
+            <details class="rsec" open>
+              <summary>
+                <i class="si" data-lucide="file-text"></i>
+                <span class="rt">Details</span>
+                <span class="rsum">v1.4.0 · MIT</span>
+                <i class="chev" data-lucide="chevron-down"></i>
+              </summary>
+              <!-- source: entry + skill enrichment {license, repository, versions} -->
+              <div class="rsec__body">
+                <div class="prow"><span class="prow__k">Version</span><span class="prow__v mono">v1.4.0</span></div>
+                <div class="prow"><span class="prow__k">Slug</span><span class="prow__v mono">@compozy/pr-review</span></div>
+                <div class="prow"><span class="prow__k">Author</span><span class="prow__v">Compozy</span></div>
+                <div class="prow"><span class="prow__k">License</span><span class="prow__v">MIT</span></div>
+                <div class="prow"><span class="prow__k">Downloads</span><span class="prow__v mono">8,214</span></div>
+                <div class="prow"><span class="prow__k">Source</span><span class="prow__v mono">compozy-catalog</span></div>
+                <div class="prow"><span class="prow__k">Repository</span><span class="prow__v"><a class="mono" href="#" title="github.com/compozy/pr-review">compozy/pr-review ↗</a></span></div>
+              </div>
+            </details>
+
+            <details class="rsec" open>
+              <summary>
+                <i class="si" data-lucide="history"></i>
+                <span class="rt">Versions</span>
+                <span class="rsum">3 releases</span>
+                <i class="chev" data-lucide="chevron-down"></i>
+              </summary>
+              <!-- source: registry Detail.versions[] — install pins the selected version -->
+              <div class="rsec__body">
+                <div class="verrow"><span class="vn">v1.4.0</span><span class="vcur">current</span><span class="vd">2w ago</span></div>
+                <div class="verrow"><span class="vn">v1.3.2</span><span class="vd">6w ago</span></div>
+                <div class="verrow"><span class="vn">v1.2.0</span><span class="vd">3mo ago</span></div>
+                <div class="rnote">Install pins the current version and a directory hash. Updates are explicit — never silent.</div>
+              </div>
+            </details>
+
+            <details class="rsec" open>
+              <summary>
+                <i class="si" data-lucide="tags"></i>
+                <span class="rt">Tags</span>
+                <span class="rsum">3</span>
+                <i class="chev" data-lucide="chevron-down"></i>
+              </summary>
+              <!-- source: skill.tags[] -->
+              <div class="rsec__body">
+                <div class="taglist">
+                  <span class="pill">code-review</span>
+                  <span class="pill">github</span>
+                  <span class="pill">workflow</span>
+                </div>
+              </div>
+            </details>
+
+            <details class="rsec">
+              <summary>
+                <i class="si" data-lucide="download"></i>
+                <span class="rt">On install</span>
+                <span class="rsum">hash-pinned · user scope</span>
+                <i class="chev" data-lucide="chevron-down"></i>
+              </summary>
+              <!-- source: skills marketplace install contract (staged copy + sidecar provenance) -->
+              <div class="rsec__body">
+                <div class="prow"><span class="prow__k">Copies to</span><span class="prow__v mono">~/.compozy/skills/pr-review</span></div>
+                <div class="prow"><span class="prow__k">Integrity</span><span class="prow__v">directory hash pinned</span></div>
+                <div class="prow"><span class="prow__k">Precedence</span><span class="prow__v">marketplace tier</span></div>
+                <div class="rnote">Workspace and agent-local skills with the same name shadow this copy.</div>
+              </div>
+            </details>
+
+          </aside>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/lucide@latest"></script>
+<script>
+  lucide.createIcons();
+  const moreBtn = document.getElementById('moreBtn');
+  const moreMenu = document.getElementById('moreMenu');
+  moreBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const open = moreMenu.classList.toggle('is-open');
+    moreBtn.setAttribute('aria-expanded', String(open));
+  });
+  document.addEventListener('click', () => {
+    moreMenu.classList.remove('is-open');
+    moreBtn.setAttribute('aria-expanded', 'false');
+  });
+</script>
+</body>
+</html>

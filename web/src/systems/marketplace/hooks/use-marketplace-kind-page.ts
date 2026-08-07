@@ -149,7 +149,7 @@ function useMarketplaceKindPage(
   const setScope = (next: MarketplaceKindScope) => {
     updateSearch(current => ({
       ...current,
-      tab: next === "installed" ? "installed" : undefined,
+      tab: next === "market" ? "market" : undefined,
     }));
   };
 

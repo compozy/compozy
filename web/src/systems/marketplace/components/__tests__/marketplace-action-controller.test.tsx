@@ -480,7 +480,7 @@ describe("useMarketplaceActionController", () => {
     );
     skillToast?.[1].action.onClick();
     expect(mocks.navigate).toHaveBeenCalledWith({
-      search: { tab: "installed" },
+      search: {},
       to: "/marketplace/skills",
     });
     expect(screen.getByRole("status", { name: "Pending entry" })).toHaveTextContent("idle");
@@ -670,7 +670,7 @@ describe("useMarketplaceActionController", () => {
     );
     verifiedToast?.[1].action.onClick();
     expect(mocks.navigate).toHaveBeenCalledWith({
-      search: { tab: "installed" },
+      search: {},
       to: "/marketplace/extensions",
     });
 
@@ -700,7 +700,7 @@ describe("useMarketplaceActionController", () => {
     );
     warningToast?.[1].action.onClick();
     expect(mocks.navigate).toHaveBeenLastCalledWith({
-      search: { tab: "installed" },
+      search: {},
       to: "/marketplace/extensions",
     });
   });

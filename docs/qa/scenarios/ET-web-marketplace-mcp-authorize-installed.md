@@ -5,7 +5,7 @@ title: Authorize an MCP server from Installed scope
 persona: Bruno
 journey: J-mcp-authorize-repair
 expected: An installed OAuth MCP server that needs login exposes Authorize in the MCP Installed scope and detail, reuses the scoped daemon authorization flow, and reports success only after authenticated status and token presence are both confirmed.
-entry_points: /marketplace/mcps?tab=installed; /marketplace/mcp/<entry-id>
+entry_points: /marketplace/mcps; /marketplace/mcp/<entry-id>
 qa_status: blocked-verify
 bug_ids:
 fix_status:

@@ -45,6 +45,7 @@ function MarketplaceCard({
           if (pending) event.preventDefault();
         }}
         params={{ entryId: entry.entry_id, kind }}
+        search={{ tab: "market" }}
         tabIndex={pending ? -1 : undefined}
         to="/marketplace/$kind/$entryId"
       >

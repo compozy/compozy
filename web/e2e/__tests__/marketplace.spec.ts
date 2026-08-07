@@ -220,6 +220,12 @@ test.describe("Marketplace acquisition", () => {
     const marketplace = marketplaceOperatorSelectors(marketplaceWin);
     await expect.poll(() => new URL(appPage.url()).pathname).toBe("/marketplace/skills");
     await expect(marketplace.kind("skill")).toBeVisible({ timeout: 20_000 });
+    await expect(appPage.getByTestId("marketplace-scope-installed-skill")).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    await appPage.getByTestId("marketplace-scope-market-skill").click();
+    await expect.poll(() => new URL(appPage.url()).search).toBe("?tab=market");
     await expect(marketplace.card(skillEntryID)).toBeVisible();
 
     const search = appPage.getByTestId("marketplace-kind-search-skill");
@@ -250,9 +256,11 @@ test.describe("Marketplace acquisition", () => {
     });
     await expect(
       marketplace.card(skillEntryID).getByRole("link", { name: `Manage ${skillEntryID}` })
-    ).toHaveAttribute("href", "/marketplace/skills?tab=installed");
+    ).toHaveAttribute("href", "/marketplace/skills");
 
-    await appPage.goto(runtime.url("/marketplace/mcps"), { waitUntil: "domcontentloaded" });
+    await appPage.goto(runtime.url("/marketplace/mcps?tab=market"), {
+      waitUntil: "domcontentloaded",
+    });
     await expect(marketplace.kind("mcp")).toBeVisible();
     await expect(marketplace.card(mcpEntryID)).toBeVisible();
     await marketplace.action(mcpEntryID).click();
@@ -281,7 +289,7 @@ test.describe("Marketplace acquisition", () => {
       ["mcps", "mcp"],
       ["extensions", "extension"],
     ] as const) {
-      await appPage.goto(runtime.url(`/marketplace/${routeKind}`), {
+      await appPage.goto(runtime.url(`/marketplace/${routeKind}?tab=market`), {
         waitUntil: "domcontentloaded",
       });
       await expect(marketplace.kind(apiKind)).toBeVisible({ timeout: 20_000 });
@@ -366,7 +374,9 @@ test.describe("Marketplace acquisition", () => {
     // A bound secret is a presence projection: the name is visible, the value never is.
     await expect(appPage.locator("body")).not.toContainText(kitSecretValue);
 
-    await appPage.goto(runtime.url("/marketplace/extensions"), { waitUntil: "domcontentloaded" });
+    await appPage.goto(runtime.url("/marketplace/extensions?tab=market"), {
+      waitUntil: "domcontentloaded",
+    });
     await expect(marketplace.kind("extension")).toBeVisible();
     const extensionCard = marketplace.card(extensionEntryID);
     const blockedAction = extensionCard.getByRole("button", {
@@ -386,6 +396,12 @@ test.describe("Marketplace acquisition", () => {
     await expect(
       marketplace.detail.getByRole("link", { name: "Settings › Extensions" })
     ).toHaveAttribute("href", "/settings/extensions");
+    await marketplaceWin.locator('[data-slot="topbar-back"]').click();
+    await expect.poll(() => new URL(appPage.url()).search).toBe("?tab=market");
+    await expect(appPage.getByTestId("marketplace-scope-market-extension")).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
 
     const installedCard = (name: string) =>
       appPage
@@ -393,7 +409,7 @@ test.describe("Marketplace acquisition", () => {
         .filter({ hasText: name })
         .first();
 
-    await appPage.goto(runtime.url("/marketplace/extensions?tab=installed"), {
+    await appPage.goto(runtime.url("/marketplace/extensions"), {
       waitUntil: "domcontentloaded",
     });
     await expect(marketplace.kind("extension")).toBeVisible({ timeout: 20_000 });
@@ -433,7 +449,7 @@ test.describe("Marketplace acquisition", () => {
     await appPage.reload({ waitUntil: "domcontentloaded" });
     await expect(marketplace.detail).toBeVisible({ timeout: 20_000 });
 
-    await appPage.goto(runtime.url("/marketplace/extensions?tab=installed"), {
+    await appPage.goto(runtime.url("/marketplace/extensions"), {
       waitUntil: "domcontentloaded",
     });
     const removableProviderCard = installedCard(kitExtensionName);
@@ -452,9 +468,7 @@ test.describe("Marketplace acquisition", () => {
     await removeDialog.getByRole("button", { name: "Remove extension" }).click();
     const removeResponse = await removeResponsePromise;
     expect(removeResponse.status(), await removeResponse.text()).toBe(200);
-    await expect
-      .poll(() => new URL(appPage.url()).toString())
-      .toContain("/marketplace/extensions?tab=installed");
+    await expect.poll(() => new URL(appPage.url()).toString()).toContain("/marketplace/extensions");
     await expect(installedCard(kitExtensionName)).toBeHidden();
 
     await marketplaceWin.getByRole("button", { name: "Close window" }).click();
@@ -764,7 +778,7 @@ test.describe("Skills marketplace management", () => {
     await appPage.reload({ waitUntil: "domcontentloaded" });
     await useGlobalWorkspaceIfPrompted(appPage);
 
-    await appPage.goto(runtime.url("/marketplace/skills?tab=installed"), {
+    await appPage.goto(runtime.url("/marketplace/skills"), {
       waitUntil: "domcontentloaded",
     });
     const marketplaceWin = appWindow(appPage, "marketplace");
@@ -976,7 +990,7 @@ test.describe("Skills marketplace management", () => {
       .toMatch(/list|empty/);
     await settingsUI.skills.operationalLink.click();
     await expect.poll(() => new URL(appPage.url()).pathname).toBe("/marketplace/skills");
-    await expect.poll(() => new URL(appPage.url()).search).toBe("?tab=installed");
+    await expect.poll(() => new URL(appPage.url()).search).toBe("");
     await expect(marketplace.kind("skill")).toBeVisible();
 
     const tamperEvidence = await captureTamperEvidence(runtime, workspace.id);
@@ -1362,12 +1376,12 @@ test.describe("MCP marketplace authorization", () => {
       await ensureGlobalWorkspace(runtime);
       await useGlobalWorkspaceIfPrompted(sessionUI);
 
-      await appPage.goto(runtime.url("/marketplace/mcps?tab=installed"), {
+      await appPage.goto(runtime.url("/marketplace/mcps"), {
         waitUntil: "domcontentloaded",
       });
       await switchWorkspace(appPage, workspace.id, workspace.name);
 
-      await appPage.goto(runtime.url("/marketplace/mcps?tab=installed"), {
+      await appPage.goto(runtime.url("/marketplace/mcps"), {
         waitUntil: "domcontentloaded",
       });
 
@@ -1453,11 +1467,11 @@ test.describe("MCP marketplace authorization", () => {
 
       await ensureGlobalWorkspace(runtime);
       await useGlobalWorkspaceIfPrompted(sessionUI);
-      await appPage.goto(runtime.url("/marketplace/mcps?tab=installed"), {
+      await appPage.goto(runtime.url("/marketplace/mcps"), {
         waitUntil: "domcontentloaded",
       });
       await switchWorkspace(appPage, workspace.id, workspace.name);
-      await appPage.goto(runtime.url("/marketplace/mcps?tab=installed"), {
+      await appPage.goto(runtime.url("/marketplace/mcps"), {
         waitUntil: "domcontentloaded",
       });
       const installedCard = appPage
@@ -1685,7 +1699,7 @@ test.describe("Extension marketplace runtime", () => {
       })
       .toBe("active");
 
-    await appPage.goto(runtime.url("/marketplace/extensions?tab=installed"), {
+    await appPage.goto(runtime.url("/marketplace/extensions"), {
       waitUntil: "domcontentloaded",
     });
     const marketplaceWin = appWindow(appPage, "marketplace");
@@ -2568,7 +2582,9 @@ test.describe("Extension update affordance", () => {
     expect(installed.provenance?.slug).toBe(repository);
 
     await useGlobalWorkspaceIfPrompted(appPage);
-    await appPage.goto(runtime.url("/marketplace/extensions"), { waitUntil: "domcontentloaded" });
+    await appPage.goto(runtime.url("/marketplace/extensions?tab=market"), {
+      waitUntil: "domcontentloaded",
+    });
     const marketplaceWin = appWindow(appPage, "marketplace");
     await expect(marketplaceWin).toBeVisible();
     const marketplace = marketplaceOperatorSelectors(marketplaceWin);
@@ -2606,7 +2622,7 @@ test.describe("Extension update affordance", () => {
       )
       .toBe("0.2.0");
 
-    await appPage.goto(runtime.url("/marketplace/extensions?tab=installed"), {
+    await appPage.goto(runtime.url("/marketplace/extensions"), {
       waitUntil: "domcontentloaded",
     });
     const installedCard = appPage

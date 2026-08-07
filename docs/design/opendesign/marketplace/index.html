@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Marketplace detail redesign · index</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="marketplace.css">
+<style>
+  .idx{max-width:760px;margin:0 auto;padding:48px 32px 96px}
+  .idx h1{font-size:22px;font-weight:600;letter-spacing:-.028em;color:var(--fg-strong)}
+  .idx .sub{margin-top:8px;font-size:13px;line-height:1.6;color:var(--muted);max-width:64ch}
+  .idx .eyebrow{display:block;margin:32px 0 10px}
+  .card{display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:13px;align-items:center;
+    padding:14px 16px;border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--canvas-soft);
+    margin-bottom:10px;transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease)}
+  .card:hover{background:var(--canvas-tint);border-color:var(--line-strong)}
+  .card .iwell{width:34px;height:34px;border-radius:var(--radius-md);background:var(--btn-fill);border:1px solid var(--line-soft);display:grid;place-items:center;color:var(--subtle)}
+  .card .iwell svg{width:16px;height:16px}
+  .card .cn{font-size:13.5px;font-weight:600;letter-spacing:-.012em;color:var(--fg-strong)}
+  .card .cf{font-family:var(--font-mono);font-size:10px;color:var(--faint);margin-top:1px}
+  .card .cd{font-size:12px;line-height:1.5;color:var(--muted);margin-top:4px;max-width:56ch}
+  .card .cside{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+  .note{margin-top:28px;padding:14px 16px;border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--canvas-soft);font-size:12px;line-height:1.6;color:var(--subtle)}
+  .note b{color:var(--fg);font-weight:600}
+  .note code{font-family:var(--font-mono);font-size:11px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="main">
+    <div class="scroll">
+      <div class="idx" data-od-id="marketplace-index">
+        <h1>Marketplace · entry detail redesign</h1>
+        <p class="sub">Three final pages, one per catalog kind. The old page pushed everything into a 320px sidebar and left the body empty — here the kind-specific content <em>is</em> the body, and the rail holds short collapsible property cards. Each kind gets its own anatomy and demonstrates a distinct lifecycle state.</p>
+
+        <span class="eyebrow">Final pages</span>
+
+        <a class="card" href="extension-detail.html" data-od-id="idx-extension">
+          <span class="iwell"><i data-lucide="blocks"></i></span>
+          <span>
+            <span class="cn">Extension · dev-cycle</span>
+            <span class="cf" style="display:block">extension-detail.html</span>
+            <span class="cd" style="display:block">Kit inventory as the hero (18 items in 5 groups), access &amp; permissions, environment, diagnostics, live logs. Rail: Manage · Runtime · Trust · Details · Provenance.</span>
+          </span>
+          <span class="cside">
+            <span class="pill" data-tone="success">installed · enabled</span>
+            <span class="pill" data-tone="warning">update available</span>
+          </span>
+        </a>
+
+        <a class="card" href="mcp-detail.html" data-od-id="idx-mcp">
+          <span class="iwell"><i data-lucide="server"></i></span>
+          <span>
+            <span class="cn">MCP server · github</span>
+            <span class="cf" style="display:block">mcp-detail.html</span>
+            <span class="cd" style="display:block">Authorization-first: OAuth status, scopes and consequence up top, connection facts, honest pre-probe tools state. Rail: 4-cell status (no false green) · Details · Used by · Registration.</span>
+          </span>
+          <span class="cside">
+            <span class="pill" data-tone="warning">needs authorization</span>
+          </span>
+        </a>
+
+        <a class="card" href="skill-detail.html" data-od-id="idx-skill">
+          <span class="iwell"><i data-lucide="sparkles"></i></span>
+          <span>
+            <span class="cn">Skill · pr-review</span>
+            <span class="cf" style="display:block">skill-detail.html</span>
+            <span class="cd" style="display:block">Browse mode: readme as the hero, declared MCP dependency with cross-link. Rail: Details · Versions (pinnable) · Tags · what installing does.</span>
+          </span>
+          <span class="cside">
+            <span class="pill">not installed</span>
+          </span>
+        </a>
+
+        <div class="note">
+          <b>Cross-links:</b> extension kit rows drill into <code>skill-detail.html</code> and <code>mcp-detail.html</code>; the skill's Requires section links the MCP server; the MCP rail's "Used by" links back to the skill.
+          <br><b>Shared layer:</b> <code>marketplace.css</code> — ds-core tokens verbatim + loop-detail lineage (44px <code>.w2head</code>, main + 320px rail, <code>details.sec</code> / <code>.rsec</code>).
+          <br><b>States covered:</b> installed·enabled·update-available (extension) · installed·needs-auth (MCP) · not-installed browse (skill). Every control cites its gating payload field or route in an HTML comment.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script>lucide.createIcons();</script>
+</body>
+</html>

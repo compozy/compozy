@@ -125,20 +125,20 @@ type Story = StoryObj<typeof meta>;
 
 export const SkillsMarketplace: Story = {
   args: {},
-  parameters: appRouteParameters("/marketplace/skills"),
+  parameters: appRouteParameters("/marketplace/skills?tab=market"),
   render: () => <StorybookWorkspaceSetup />,
 };
 
 export const SkillsInstalled: Story = {
   args: {},
-  parameters: appRouteParameters("/marketplace/skills?tab=installed"),
+  parameters: appRouteParameters("/marketplace/skills"),
   render: () => <StorybookWorkspaceSetup />,
 };
 
 export const SkillsLoading: Story = {
   args: {},
   parameters: {
-    ...appRouteParameters("/marketplace/skills"),
+    ...appRouteParameters("/marketplace/skills?tab=market"),
     ...storybookMswParameters({
       marketplace: [
         compozyApiMock.get("/api/marketplace/{kind}", async () => {
@@ -153,25 +153,25 @@ export const SkillsLoading: Story = {
 
 export const McpsMarketplace: Story = {
   args: {},
-  parameters: appRouteParameters("/marketplace/mcps"),
+  parameters: appRouteParameters("/marketplace/mcps?tab=market"),
   render: () => <StorybookWorkspaceSetup />,
 };
 
 export const McpsInstalled: Story = {
   args: {},
-  parameters: appRouteParameters("/marketplace/mcps?tab=installed"),
+  parameters: appRouteParameters("/marketplace/mcps"),
   render: () => <StorybookWorkspaceSetup />,
 };
 
 export const ExtensionsMarketplace: Story = {
   args: {},
-  parameters: appRouteParameters("/marketplace/extensions"),
+  parameters: appRouteParameters("/marketplace/extensions?tab=market"),
   render: () => <StorybookWorkspaceSetup />,
 };
 
 export const ExtensionsInstalled: Story = {
   args: {},
-  parameters: appRouteParameters("/marketplace/extensions?tab=installed"),
+  parameters: appRouteParameters("/marketplace/extensions"),
   render: () => <StorybookWorkspaceSetup />,
 };
 
@@ -246,7 +246,7 @@ export const DetailExtensionInstalled: Story = {
 export const ExtensionsUpdateAvailable: Story = {
   args: {},
   parameters: {
-    ...appRouteParameters("/marketplace/extensions"),
+    ...appRouteParameters("/marketplace/extensions?tab=market"),
     ...storybookMswParameters({
       marketplace: [
         compozyApiMock.get("/api/marketplace/{kind}", () =>
@@ -448,7 +448,7 @@ export const DetailMcpInstalled: Story = {
 export const SkillsError: Story = {
   args: {},
   parameters: {
-    ...appRouteParameters("/marketplace/skills"),
+    ...appRouteParameters("/marketplace/skills?tab=market"),
     ...storybookMswParameters({
       marketplace: [
         compozyApiMock.get("/api/marketplace/{kind}", () =>
@@ -463,7 +463,7 @@ export const SkillsError: Story = {
 export const SkillsEmpty: Story = {
   args: {},
   parameters: {
-    ...appRouteParameters("/marketplace/skills"),
+    ...appRouteParameters("/marketplace/skills?tab=market"),
     ...storybookMswParameters({
       marketplace: [
         compozyApiMock.get("/api/marketplace/{kind}", () =>

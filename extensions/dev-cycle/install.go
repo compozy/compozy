@@ -66,6 +66,9 @@ func EnsureManagedInstall(homePaths compozyconfig.HomePaths, registry *extension
 	case existing.Source != extensionpkg.SourceBundled:
 		return nil
 	case strings.EqualFold(existing.Checksum, checksum) && strings.TrimSpace(existing.Version) == manifest.Version:
+		if err := registry.ReconcileBundledProvenance(manifest); err != nil {
+			return fmt.Errorf("dev-cycle: reconcile bundled provenance: %w", err)
+		}
 		return nil
 	default:
 		return replaceBundledInstall(homePaths, registry, manifest, stagingDir, existing)

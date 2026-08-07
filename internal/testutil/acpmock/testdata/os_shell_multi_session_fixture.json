@@ -29,6 +29,19 @@
                             "kind": "driver_control",
                             "driver_control": {
                                 "action": "delay",
+                                "delay_ms": 800
+                            }
+                        },
+                        {
+                            "kind": "assistant",
+                            "chunks": [
+                                " Primary stream event arrived while the window was visible and unfocused."
+                            ]
+                        },
+                        {
+                            "kind": "driver_control",
+                            "driver_control": {
+                                "action": "delay",
                                 "delay_ms": 4000
                             }
                         },

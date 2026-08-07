@@ -87,18 +87,15 @@ func (r *extensionInfoRow) decode() error {
 	if err := decodeRegistryJSON(r.provenanceRaw, &r.info.Provenance); err != nil {
 		return fmt.Errorf("extension: decode provenance for %q: %w", r.info.Name, err)
 	}
-	r.info.Provenance = normalizeExtensionProvenance(r.info.Provenance, ExtensionProvenance{
-		Slug:             dereferenceOptionalString(r.info.RegistrySlug),
-		InstalledFrom:    installedFromForSource(r.info.Source),
-		SourceURL:        r.info.ManifestPath,
-		ChecksumSHA256:   r.info.Checksum,
-		ChecksumVerified: r.info.Source != SourceMarketplace,
-		RegistryTier:     ExtensionRegistryTierUnverified,
-		Permissions:      extensionPermissionsFromParts(r.info.Capabilities, r.info.Permissions),
-		InstalledAt:      r.info.InstalledAt,
-		InstalledBy:      extensionTrustInstalledByOperator,
-		AllowUnverified:  false,
-	})
+	fallbackProvenance := extensionInstallProvenance(
+		r.info.Source,
+		r.info.ManifestPath,
+		r.info.Checksum,
+		extensionPermissionsFromParts(r.info.Capabilities, r.info.Permissions),
+		r.info.InstalledAt,
+	)
+	fallbackProvenance.Slug = dereferenceOptionalString(r.info.RegistrySlug)
+	r.info.Provenance = normalizeExtensionProvenance(r.info.Provenance, fallbackProvenance)
 	r.info.NetworkRequirementDigest = strings.TrimSpace(r.info.NetworkRequirementDigest)
 	r.info.NetworkConfirmedBy = strings.TrimSpace(r.networkConfirmedBy.String)
 	if r.networkConfirmedAt.Valid {

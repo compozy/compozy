@@ -86,7 +86,7 @@ async function openInstalledServerEditor(
 /** matrix-desktop / matrix-mobile */
 export const Matrix: Story = {
   args: {},
-  parameters: managementParams("/marketplace/mcps?tab=installed"),
+  parameters: managementParams("/marketplace/mcps"),
   render: () => <StorybookWorkspaceSetup />,
 };
 
@@ -139,7 +139,7 @@ export const Unavailable: Story = {
 /** selected-needs-login-desktop */
 export const SelectedNeedsLogin: Story = {
   args: {},
-  parameters: managementParams("/marketplace/mcps?tab=installed"),
+  parameters: managementParams("/marketplace/mcps"),
   render: () => <StorybookWorkspaceSetup />,
 };
 
@@ -147,7 +147,7 @@ export const SelectedNeedsLogin: Story = {
 export const AuthorizeWaiting: Story = {
   args: {},
   tags: ["play-fn"],
-  parameters: managementParams("/marketplace/mcps?tab=installed"),
+  parameters: managementParams("/marketplace/mcps"),
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const page = await openAuthorizeWaiting(canvasElement);
@@ -159,7 +159,7 @@ export const AuthorizeWaiting: Story = {
 export const AuthorizeManual: Story = {
   args: {},
   tags: ["play-fn"],
-  parameters: managementParams("/marketplace/mcps?tab=installed"),
+  parameters: managementParams("/marketplace/mcps"),
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const page = await openAuthorizeWaiting(canvasElement);
@@ -173,7 +173,7 @@ export const AuthFailure: Story = {
   args: {},
   tags: ["play-fn"],
   parameters: {
-    ...appRouteParameters("/marketplace/mcps?tab=installed"),
+    ...appRouteParameters("/marketplace/mcps"),
     ...storybookMswParameters({
       settings: [
         compozyApiMock.get("/api/settings/mcp-servers", () =>
@@ -211,7 +211,7 @@ export const AuthBeginFailure: Story = {
   args: {},
   tags: ["play-fn"],
   parameters: {
-    ...appRouteParameters("/marketplace/mcps?tab=installed"),
+    ...appRouteParameters("/marketplace/mcps"),
     ...storybookMswParameters({
       settings: [
         compozyApiMock.get("/api/settings/mcp-servers", () =>
@@ -236,7 +236,7 @@ export const AuthBeginFailure: Story = {
 export const Authenticated: Story = {
   args: {},
   tags: ["play-fn"],
-  parameters: managementParams("/marketplace/mcps?tab=installed"),
+  parameters: managementParams("/marketplace/mcps"),
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const page = await openAuthorizeWaiting(canvasElement);
@@ -254,7 +254,7 @@ export const Authenticated: Story = {
 export const EditorStdio: Story = {
   args: {},
   tags: ["play-fn"],
-  parameters: managementParams("/marketplace/mcps?tab=installed"),
+  parameters: managementParams("/marketplace/mcps"),
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -306,7 +306,7 @@ export const EditorStdioIncompleteSecret: Story = {
 export const EditorHttp: Story = {
   args: {},
   tags: ["play-fn"],
-  parameters: managementParams("/marketplace/mcps?tab=installed"),
+  parameters: managementParams("/marketplace/mcps"),
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     await openInstalledServerEditor(canvasElement, "linear", "settings-mcp-editor-remote");
@@ -317,7 +317,7 @@ export const EditorHttp: Story = {
 export const EditorRemoteStatus: Story = {
   args: {},
   tags: ["play-fn"],
-  parameters: managementParams("/marketplace/mcps?tab=installed"),
+  parameters: managementParams("/marketplace/mcps"),
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     await openInstalledServerEditor(canvasElement, "sentry", "settings-mcp-editor-remote");
@@ -332,7 +332,7 @@ export const EditorRemoteStatus: Story = {
 export const Loading: Story = {
   args: {},
   parameters: {
-    ...appRouteParameters("/marketplace/mcps?tab=installed"),
+    ...appRouteParameters("/marketplace/mcps"),
     ...storybookMswParameters({
       settings: [
         compozyApiMock.get("/api/settings/mcp-servers", async ({ request }) => {
@@ -349,7 +349,7 @@ export const Loading: Story = {
 export const Empty: Story = {
   args: {},
   parameters: {
-    ...appRouteParameters("/marketplace/mcps?tab=installed"),
+    ...appRouteParameters("/marketplace/mcps"),
     ...storybookMswParameters({
       settings: [
         compozyApiMock.get("/api/settings/mcp-servers", () =>
@@ -368,7 +368,7 @@ export const Empty: Story = {
 export const Error: Story = {
   args: {},
   parameters: {
-    ...appRouteParameters("/marketplace/mcps?tab=installed"),
+    ...appRouteParameters("/marketplace/mcps"),
     ...storybookMswParameters({
       settings: [
         compozyApiMock.get("/api/settings/mcp-servers", ({ request }) => {

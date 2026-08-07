@@ -110,7 +110,16 @@ function MarketplaceKindPageBody({ kind, page, searchInputRef }: MarketplaceKind
             <RouteNav.Link
               aria-current={item.kind === kind ? "page" : undefined}
               key={item.routeKind}
-              render={<Link to={item.to} />}
+              render={
+                <Link
+                  search={{
+                    config_scope: page.mcpConfigScope,
+                    q: page.query || undefined,
+                    tab: page.scope === "market" ? "market" : undefined,
+                  }}
+                  to={item.to}
+                />
+              }
             >
               {item.label}
             </RouteNav.Link>

@@ -18,7 +18,7 @@ import (
 func buildSkillsOperationalLinks() []OperationalLink {
 	return []OperationalLink{{
 		Label: string(SectionSkills),
-		Path:  "/marketplace/skills?tab=installed",
+		Path:  "/marketplace/skills",
 	}}
 }
 

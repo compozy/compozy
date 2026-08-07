@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>dev-cycle · Extension · Marketplace</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="marketplace.css">
+<style>
+  /* page-local: capability/permission chips row + access grid */
+  .permrow{display:flex;align-items:flex-start;gap:11px;padding:11px 16px;border-top:1px solid var(--line-soft)}
+  .permrow:first-child{border-top:0}
+  .permrow svg{width:14px;height:14px;flex:none;margin-top:2px;color:var(--subtle)}
+  .permrow .pm{min-width:0}
+  .permrow .pt{font-size:12.5px;font-weight:510;color:var(--fg-strong)}
+  .permrow .pd{font-size:12px;line-height:1.55;color:var(--muted);margin-top:2px;max-width:64ch}
+  .permrow .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+  /* env rows */
+  .envrow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;padding:10px 16px;border-top:1px solid var(--line-soft)}
+  .envrow:first-child{border-top:0}
+  .envrow .en{font-family:var(--font-mono);font-size:11.5px;color:var(--fg)}
+  .envrow .ed{font-size:11.5px;color:var(--subtle);margin-top:1px}
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="main">
+
+    <!-- head 44 · identity once · status + 1 primary + overflow (patterns §03 T1/T2) -->
+    <header class="w2head" data-od-id="ext-detail-head">
+      <a class="w2-back" href="index.html" aria-label="Back to Marketplace"><i data-lucide="chevron-left"></i></a>
+      <nav class="w2-crumbs" aria-label="Breadcrumb">
+        <a class="w2-crumb" href="index.html">Marketplace</a>
+        <span class="w2-sep">/</span>
+        <span class="w2-title">dev-cycle</span>
+      </nav>
+      <span class="w2-flex"></span>
+      <div class="w2-actions">
+        <!-- gate: entry.installed && extension.enabled → success pill -->
+        <span class="pill" data-tone="success"><span class="dot"></span>installed · enabled</span>
+        <!-- gate: extension.update_available && !dev → PUT /api/extensions/dev-cycle {version} -->
+        <button class="btn btn--primary" data-od-id="ext-update-cta"><i data-lucide="circle-arrow-up"></i>Update to v0.3.2</button>
+        <button class="btn btn--icon" id="moreBtn" aria-label="More actions" aria-haspopup="menu" aria-expanded="false"><i data-lucide="ellipsis"></i></button>
+        <div class="menu" id="moreMenu" role="menu">
+          <!-- gate: POST /api/extensions/dev-cycle/reload -->
+          <button class="menu__item" role="menuitem" type="button"><i data-lucide="refresh-cw"></i>Reload</button>
+          <!-- gate: GET /api/extensions/dev-cycle/logs (jump) -->
+          <button class="menu__item" role="menuitem" type="button"><i data-lucide="scroll-text"></i>View logs</button>
+          <div class="menu__sep"></div>
+          <!-- gate: DELETE /api/extensions/dev-cycle (name-confirm dialog) -->
+          <button class="menu__item" role="menuitem" data-tone="danger" type="button"><i data-lucide="trash-2"></i>Remove…</button>
+        </div>
+      </div>
+    </header>
+
+    <div class="scroll">
+      <div class="page">
+
+        <!-- lede: 42px icon well · name · ≤2 tags · meta · one-sentence description -->
+        <div class="dh" data-od-id="ext-detail-lede">
+          <div class="dh__icon"><i data-lucide="blocks"></i></div>
+          <div class="dh__main">
+            <div class="dh__namerow">
+              <h1 class="dh__name" tabindex="-1">dev-cycle</h1>
+              <span class="tag">extension</span>
+              <span class="tag">v0.3.1</span>
+            </div>
+            <div class="dh__meta">
+              <span>Compozy</span><span class="dotsep"></span>
+              <span>compozy-catalog</span><span class="dotsep"></span>
+              <span>community tier</span><span class="dotsep"></span>
+              <span>updated 2d ago</span>
+            </div>
+            <p class="dh__lede">The full PRD-to-ship delivery cycle for Compozy workspaces: spec creation, task generation, implementation loops, review rounds and final verification — packaged as one kit.</p>
+          </div>
+        </div>
+
+        <div class="layout">
+
+          <!-- ============ main column: the kit is the hero ============ -->
+          <div data-od-id="ext-detail-main">
+
+            <!-- what it ships: 18-item kit, grouped, live-tagged -->
+            <details class="sec" open data-od-id="ext-kit-inventory">
+              <summary>
+                <i class="si" data-lucide="package"></i>
+                <span class="st">Kit inventory</span>
+                <span class="ssum">18 items · all live</span>
+                <span class="spacer"></span>
+                <i class="chev" data-lucide="chevron-down"></i>
+              </summary>
+              <!-- source: GET /api/extensions/dev-cycle/inventory → items[{kind,id,name,live}] -->
+              <div class="panelbox">
+                <div class="kgroup"><span class="eyebrow">Agents</span><span class="n">3</span></div>
+                <div class="krow"><span class="iwell"><i data-lucide="bot"></i></span><span class="kmain"><span class="kname">code_implementer</span><span class="kpath">extension/dev-cycle/agents/code_implementer.md</span></span><span class="kside"><span class="provchip">live</span></span></div>
+                <div class="krow"><span class="iwell"><i data-lucide="bot"></i></span><span class="kmain"><span class="kname">review_fixer</span><span class="kpath">extension/dev-cycle/agents/review_fixer.md</span></span><span class="kside"><span class="provchip">live</span></span></div>
+                <div class="krow"><span class="iwell"><i data-lucide="bot"></i></span><span class="kmain"><span class="kname">reviewer</span><span class="kpath">extension/dev-cycle/agents/reviewer.md</span></span><span class="kside"><span class="provchip">live</span></span></div>
+
+                <div class="kgroup"><span class="eyebrow">Loops</span><span class="n">2</span></div>
+                <div class="krow"><span class="iwell"><i data-lucide="workflow"></i></span><span class="kmain"><span class="kname">implement-tasks</span><span class="kpath">extension/dev-cycle/loops/implement-tasks.toml</span></span><span class="kside"><span class="provchip">live</span></span></div>
+                <div class="krow"><span class="iwell"><i data-lucide="workflow"></i></span><span class="kmain"><span class="kname">review-and-fix</span><span class="kpath">extension/dev-cycle/loops/review-and-fix.toml</span></span><span class="kside"><span class="provchip">live</span></span></div>
+
+                <div class="kgroup"><span class="eyebrow">Skills</span><span class="n">9</span></div>
+                <!-- skill rows drill into the skill detail surface -->
+                <a class="krow" href="skill-detail.html"><span class="iwell"><i data-lucide="sparkles"></i></span><span class="kmain"><span class="kname">cy-create-prd</span><span class="kpath">extension/dev-cycle/skills/cy-create-prd</span></span><span class="kside"><span class="provchip">live</span><i data-lucide="chevron-right" style="width:13px;height:13px;color:var(--faint)"></i></span></a>
+                <a class="krow" href="skill-detail.html"><span class="iwell"><i data-lucide="sparkles"></i></span><span class="kmain"><span class="kname">cy-create-tasks</span><span class="kpath">extension/dev-cycle/skills/cy-create-tasks</span></span><span class="kside"><span class="provchip">live</span><i data-lucide="chevron-right" style="width:13px;height:13px;color:var(--faint)"></i></span></a>
+                <a class="krow" href="skill-detail.html"><span class="iwell"><i data-lucide="sparkles"></i></span><span class="kmain"><span class="kname">cy-create-techspec</span><span class="kpath">extension/dev-cycle/skills/cy-create-techspec</span></span><span class="kside"><span class="provchip">live</span><i data-lucide="chevron-right" style="width:13px;height:13px;color:var(--faint)"></i></span></a>
+                <a class="krow" href="skill-detail.html"><span class="iwell"><i data-lucide="sparkles"></i></span><span class="kmain"><span class="kname">cy-execute-task</span><span class="kpath">extension/dev-cycle/skills/cy-execute-task</span></span><span class="kside"><span class="provchip">live</span><i data-lucide="chevron-right" style="width:13px;height:13px;color:var(--faint)"></i></span></a>
+                <a class="krow" href="skill-detail.html"><span class="iwell"><i data-lucide="sparkles"></i></span><span class="kmain"><span class="kname">cy-final-verify</span><span class="kpath">extension/dev-cycle/skills/cy-final-verify</span></span><span class="kside"><span class="provchip">live</span><i data-lucide="chevron-right" style="width:13px;height:13px;color:var(--faint)"></i></span></a>
+                <a class="krow" href="skill-detail.html"><span class="iwell"><i data-lucide="sparkles"></i></span><span class="kmain"><span class="kname">cy-fix-reviews</span><span class="kpath">extension/dev-cycle/skills/cy-fix-reviews</span></span><span class="kside"><span class="provchip">live</span><i data-lucide="chevron-right" style="width:13px;height:13px;color:var(--faint)"></i></span></a>
+                <a class="krow" href="skill-detail.html"><span class="iwell"><i data-lucide="sparkles"></i></span><span class="kmain"><span class="kname">cy-review-round</span><span class="kpath">extension/dev-cycle/skills/cy-review-round</span></span><span class="kside"><span class="provchip">live</span><i data-lucide="chevron-right" style="width:13px;height:13px;color:var(--faint)"></i></span></a>
+                <a class="krow" href="skill-detail.html"><span class="iwell"><i data-lucide="sparkles"></i></span><span class="kmain"><span class="kname">cy-workflow-memory</span><span class="kpath">extension/dev-cycle/skills/cy-workflow-memory</span></span><span class="kside"><span class="provchip">live</span><i data-lucide="chevron-right" style="width:13px;height:13px;color:var(--faint)"></i></span></a>
+                <a class="krow" href="skill-detail.html"><span class="iwell"><i data-lucide="sparkles"></i></span><span class="kmain"><span class="kname">git-rebase</span><span class="kpath">extension/dev-cycle/skills/git-rebase</span></span><span class="kside"><span class="provchip">live</span><i data-lucide="chevron-right" style="width:13px;height:13px;color:var(--faint)"></i></span></a>
+
+                <div class="kgroup"><span class="eyebrow">Tools</span><span class="n">3</span></div>
+                <div class="krow"><span class="iwell"><i data-lucide="wrench"></i></span><span class="kmain"><span class="kname">ext__dev_cycle__finalize_task</span><span class="kpath">extension/dev-cycle/tools/finalize_task · read-only</span></span><span class="kside"><span class="provchip">live</span></span></div>
+                <div class="krow"><span class="iwell"><i data-lucide="wrench"></i></span><span class="kmain"><span class="kname">ext__dev_cycle__import_tasks</span><span class="kpath">extension/dev-cycle/tools/import_tasks</span></span><span class="kside"><span class="provchip">live</span></span></div>
+                <div class="krow"><span class="iwell"><i data-lucide="wrench"></i></span><span class="kmain"><span class="kname">ext__dev_cycle__write_review</span><span class="kpath">extension/dev-cycle/tools/write_review</span></span><span class="kside"><span class="provchip">live</span></span></div>
+
+                <div class="kgroup"><span class="eyebrow">MCP servers</span><span class="n">1</span></div>
+                <a class="krow" href="mcp-detail.html"><span class="iwell"><i data-lucide="server"></i></span><span class="kmain"><span class="kname">github</span><span class="kpath">extension/dev-cycle/mcp/github · stdio</span></span><span class="kside"><span class="provchip">live</span><i data-lucide="chevron-right" style="width:13px;height:13px;color:var(--faint)"></i></span></a>
+              </div>
+            </details>
+
+            <!-- access & permissions -->
+            <details class="sec" open data-od-id="ext-access">
+              <summary>
+                <i class="si" data-lucide="shield"></i>
+                <span class="st">Access</span>
+                <span class="ssum">1 capability · publishes 4 resource families</span>
+                <span class="spacer"></span>
+                <i class="chev" data-lucide="chevron-down"></i>
+              </summary>
+              <!-- source: manifest capabilities.provides / permissions.requires / resources.publish -->
+              <div class="panelbox">
+                <div class="permrow">
+                  <i data-lucide="badge-check"></i>
+                  <div class="pm">
+                    <div class="pt">Provides capabilities</div>
+                    <div class="pd">Other extensions and skills can depend on these.</div>
+                    <div class="chips"><span class="chip">tool.provider</span></div>
+                  </div>
+                </div>
+                <div class="permrow">
+                  <i data-lucide="hand"></i>
+                  <div class="pm">
+                    <div class="pt">Requires host permissions</div>
+                    <div class="pd">None registered — this kit never calls privileged host APIs.</div>
+                  </div>
+                </div>
+                <div class="permrow">
+                  <i data-lucide="upload"></i>
+                  <div class="pm">
+                    <div class="pt">Publishes resources</div>
+                    <div class="pd">Granted at enable time, revoked on disable. Max scope: <code style="font-family:var(--font-mono);font-size:11px">workspace</code>.</div>
+                    <div class="chips"><span class="chip">agents</span><span class="chip">loops</span><span class="chip">skills</span><span class="chip">tools</span></div>
+                  </div>
+                </div>
+              </div>
+            </details>
+
+            <!-- environment -->
+            <details class="sec" open data-od-id="ext-environment">
+              <summary>
+                <i class="si" data-lucide="key-round"></i>
+                <span class="st">Environment</span>
+                <span class="ssum">1 required · all bound</span>
+                <span class="spacer"></span>
+                <i class="chev" data-lucide="chevron-down"></i>
+              </summary>
+              <!-- source: extension.requires_env / missing_env / bound_env_keys; PUT /api/extensions/dev-cycle/secrets -->
+              <div class="panelbox">
+                <div class="envrow">
+                  <div><div class="en">GITHUB_TOKEN</div><div class="ed">Required — used by the bundled github MCP server.</div></div>
+                  <span class="pill" data-tone="success">bound</span>
+                </div>
+                <div class="envrow">
+                  <div><div class="en">LINEAR_API_KEY</div><div class="ed">Optional — enables issue sync in review rounds.</div></div>
+                  <span class="pill">available</span>
+                </div>
+              </div>
+            </details>
+
+            <!-- diagnostics: closed, the gist still informs -->
+            <details class="sec" data-od-id="ext-diagnostics">
+              <summary>
+                <i class="si" data-lucide="stethoscope"></i>
+                <span class="st">Diagnostics</span>
+                <span class="ssum">no issues</span>
+                <span class="spacer"></span>
+                <i class="chev" data-lucide="chevron-down"></i>
+              </summary>
+              <!-- source: extension.diagnostics[] + last_error -->
+              <div class="panelbox">
+                <div class="empty">
+                  <i data-lucide="circle-check"></i>
+                  <b>Nothing to report</b>
+                  <p>No diagnostics recorded for this generation. Issues from validation, trust checks or the process supervisor show up here.</p>
+                </div>
+              </div>
+            </details>
+
+            <!-- logs -->
+            <details class="sec" open data-od-id="ext-logs">
+              <summary>
+                <i class="si" data-lucide="scroll-text"></i>
+                <span class="st">Logs</span>
+                <span class="ssum">following live</span>
+                <span class="spacer"></span>
+                <i class="chev" data-lucide="chevron-down"></i>
+              </summary>
+              <!-- source: GET /api/extensions/dev-cycle/logs + SSE extension_log (follow) -->
+              <div class="panelbox">
+                <div class="loghead">
+                  <span class="lstate"><span class="dot--pulse" style="width:6px;height:6px;background:var(--accent);display:inline-block"></span>live</span>
+                  <span class="spacer"></span>
+                  <span class="lbl" id="followLbl">Follow</span>
+                  <button class="switch" id="followSwitch" role="switch" aria-checked="true" aria-labelledby="followLbl"><span class="knob"></span></button>
+                </div>
+                <div class="log" data-od-id="ext-log-lines">
+<div><span class="t">18:41:02</span><span class="lvl">info</span>  subprocess started · pid 98375</div>
+<div><span class="t">18:41:02</span><span class="lvl">info</span>  registered 18 kit items in 84ms</div>
+<div><span class="t">18:41:03</span><span class="lvl">info</span>  health check ok · interval 30s</div>
+<div><span class="t">18:52:19</span><span class="lvl">info</span>  tool ext__dev_cycle__import_tasks · 12 tasks imported</div>
+<div><span class="t">19:04:41</span><span class="lvl">info</span>  loop implement-tasks · run r_7f2 started</div>
+<div><span class="t">19:11:56</span><span class="lvl">info</span>  health check ok</div>
+                </div>
+              </div>
+            </details>
+
+          </div>
+
+          <!-- ============ rail 320: short, collapsible, calm ============ -->
+          <aside data-od-id="ext-detail-rail">
+
+            <details class="rsec" open>
+              <summary>
+                <i class="si" data-lucide="sliders-horizontal"></i>
+                <span class="rt">Manage</span>
+                <span class="rsum">enabled</span>
+                <i class="chev" data-lucide="chevron-down"></i>
+              </summary>
+              <div class="rsec__body">
+                <div class="prow">
+                  <span class="prow__k" id="enLbl">Enabled</span>
+                  <!-- gate: !facts.dev → POST /api/extensions/dev-cycle/enable|disable -->
+                  <button class="switch" id="enableSwitch" role="switch" aria-checked="true" aria-labelledby="enLbl"><span class="knob"></span></button>
+                </div>
+                <div class="prow"><span class="prow__k">Workspace</span><span class="prow__v mono">default</span></div>
+                <div class="rnote">Disabling unpublishes all 18 kit items and stops the subprocess.</div>
+              </div>
+            </details>
+
+            <details class="rsec" open>
+              <summary>
+                <i class="si" data-lucide="activity"></i>
+                <span class="rt">Runtime</span>
+                <span class="rsum">healthy · up 31m</span>
+                <i class="chev" data-lucide="chevron-down"></i>
+              </summary>
+              <!-- source: extension.state/health/pid/uptime_seconds/consecutive_failures/restart_backoff_ms -->
+              <div class="rsec__body">
+                <div class="prow"><span class="prow__k">State</span><span class="prow__v"><span class="pill" data-tone="success">enabled</span></span></div>
+                <div class="prow"><span class="prow__k">Health</span><span class="prow__v">healthy</span></div>
+                <div class="prow"><span class="prow__k">Daemon</span><span class="prow__v">running</span></div>
+                <div class="prow"><span class="prow__k">PID</span><span class="prow__v mono">98375</span></div>
+                <div class="prow"><span class="prow__k">Uptime</span><span class="prow__v mono">31m 34s</span></div>
+                <div class="prow"><span class="prow__k">Failures</span><span class="prow__v mono">0</span></div>
+                <div class="prow"><span class="prow__k">Backoff</span><span class="prow__v mono">none</span></div>
+              </div>
+            </details>
+
+            <details class="rsec" open>
+              <summary>
+                <i class="si" data-lucide="shield-check"></i>
+                <span class="rt">Trust</span>
+                <span class="rsum">verified · community</span>
+                <i class="chev" data-lucide="chevron-down"></i>
+              </summary>
+              <!-- source: entry.trust {decision, registry_tier, checksum_verified, warnings} -->
+              <div class="rsec__body">
+                <div class="prow"><span class="prow__k">Decision</span><span class="prow__v"><span class="pill" data-tone="success">verified</span></span></div>
+                <div class="prow"><span class="prow__k">Registry tier</span><span class="prow__v">community</span></div>
+                <div class="prow"><span class="prow__k">Checksum</span><span class="prow__v">verified</span></div>
+                <div class="prow"><span class="prow__k">Warnings</span><span class="prow__v mono">0</span></div>
+              </div>
+            </details>
+
+            <details class="rsec">
+              <summary>
+                <i class="si" data-lucide="file-text"></i>
+                <span class="rt">Details</span>
+                <span class="rsum">v0.3.1 · compozy-catalog</span>
+                <i class="chev" data-lucide="chevron-down"></i>
+              </summary>
+              <div class="rsec__body">
+                <div class="prow"><span class="prow__k">Version</span><span class="prow__v mono">v0.3.1</span></div>
+                <div class="prow"><span class="prow__k">Entry ID</span><span class="prow__v mono">dev-cycle</span></div>
+                <div class="prow"><span class="prow__k">Author</span><span class="prow__v">Compozy</span></div>
+                <div class="prow"><span class="prow__k">Source</span><span class="prow__v mono">compozy-catalog</span></div>
+                <div class="prow"><span class="prow__k">Published</span><span class="prow__v">3w ago</span></div>
+                <div class="prow"><span class="prow__k">Updated</span><span class="prow__v">2d ago</span></div>
+                <div class="prow"><span class="prow__k">Repository</span><span class="prow__v"><a class="mono" href="#" title="github.com/compozy/dev-cycle">compozy/dev-cycle ↗</a></span></div>
+              </div>
+            </details>
+
+            <details class="rsec">
+              <summary>
+                <i class="si" data-lucide="fingerprint"></i>
+                <span class="rt">Provenance</span>
+                <span class="rsum">digest matched</span>
+                <i class="chev" data-lucide="chevron-down"></i>
+              </summary>
+              <!-- source: GET /api/extensions/dev-cycle/provenance -->
+              <div class="rsec__body">
+                <div class="prow"><span class="prow__k">Installed from</span><span class="prow__v">Marketplace registry</span></div>
+                <div class="prow"><span class="prow__k">Installed</span><span class="prow__v">2d ago · operator</span></div>
+                <div class="prow"><span class="prow__k">Checksum</span><span class="prow__v mono" title="7684d43368da5372594861ad42eeffab4a3297627966…">7684d4…7966</span></div>
+                <div class="prow"><span class="prow__k">Archive</span><span class="prow__v">digest matched</span></div>
+                <div class="prow"><span class="prow__k">Curated checksum</span><span class="prow__v">verified</span></div>
+              </div>
+            </details>
+
+          </aside>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/lucide@latest"></script>
+<script>
+  lucide.createIcons();
+
+  // overflow menu
+  const moreBtn = document.getElementById('moreBtn');
+  const moreMenu = document.getElementById('moreMenu');
+  moreBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const open = moreMenu.classList.toggle('is-open');
+    moreBtn.setAttribute('aria-expanded', String(open));
+  });
+  document.addEventListener('click', () => {
+    moreMenu.classList.remove('is-open');
+    moreBtn.setAttribute('aria-expanded', 'false');
+  });
+
+  // switches (prototype: local state only)
+  for (const id of ['followSwitch', 'enableSwitch']) {
+    const el = document.getElementById(id);
+    el.addEventListener('click', () => {
+      el.setAttribute('aria-checked', String(el.getAttribute('aria-checked') !== 'true'));
+    });
+  }
+</script>
+</body>
+</html>

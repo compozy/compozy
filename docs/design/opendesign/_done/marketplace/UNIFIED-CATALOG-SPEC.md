@@ -47,15 +47,15 @@ Body
 | Listing toolbar | Search + **scope** (Installed\|Marketplace PillGroup) | Underline tabs; Rows\|Cards view toggle; Filters chip bar |
 | Card grid | Entries for the active scope | Designer chrome / viewport toggles |
 
-URL state: `?tab=installed` selects Installed scope (`tab` omitted = Marketplace). `?q=` is the search query. Do **not** reintroduce page-body underline tabs for scope.
+URL state: omitting `tab` selects Installed scope; `?tab=market` selects Marketplace. `?q=` is the search query. Do **not** reintroduce page-body underline tabs for scope.
 
 ### Route table
 
 | Route | Content |
 | --- | --- |
 | `/marketplace` | Index — redirects to `/marketplace/skills` |
-| `/marketplace/skills` (default) · `/marketplace/mcps` · `/marketplace/extensions` · `/marketplace/bundles` | Shared kind template: §2.1 chrome + card grid. URL state: `?tab=installed`, `?q=` |
-| `/marketplace/$kind/$entryId` | Per-item detail for all four kinds (README, config template, trust rail, contents). Installed state adds management: skill content/shadows, extension enable/env/diagnostics/provenance, MCP config/status/auth. "Manage" lands on the kind's Installed scope (`?tab=installed`) |
+| `/marketplace/skills` (default) · `/marketplace/mcps` · `/marketplace/extensions` · `/marketplace/bundles` | Shared kind template: §2.1 chrome + card grid. URL state: `?tab=market`, `?q=` |
+| `/marketplace/$kind/$entryId` | Per-item detail for all four kinds (README, config template, trust rail, contents). Installed state adds management: skill content/shadows, extension enable/env/diagnostics/provenance, MCP config/status/auth. "Manage" lands on the kind's Installed scope with `tab` omitted. |
 | `/marketplace/bundles/activations/$id` | Bundle activation deep view (profile contents, inventory, bind switch, deactivate) — moved from `/extensions/bundles/$id` |
 
 ### Deleted routes (zero-legacy, no redirects)
@@ -66,7 +66,7 @@ URL state: `?tab=installed` selects Installed scope (`tab` omitted = Marketplace
 
 1. Topbar: breadcrumb `Home › Marketplace › Kind`, with Marketplace linked to `/marketplace`; center `RouteNav` with the four kind links; trailing ghost `Refresh` (`POST /api/marketplace/refresh?kind=`). Route identity (icon/H1) does **not** live in the topbar.
 2. PageHead (PH1): kind icon well + kind H1 + mono count + meta `N in the marketplace · N installed · N updates available`.
-3. Listing toolbar: SearchInput leading; trailing PillGroup **`Installed | Marketplace`** with Lucide-style icons (package / store bag). Installed segment carries a mono count chip. Default scope is Marketplace (`tab` omitted). **No** page-body underline tab strip for scope.
+3. Listing toolbar: SearchInput leading; trailing PillGroup **`Installed | Marketplace`** with Lucide-style icons (package / store bag). Installed segment carries a mono count chip. Default scope is Installed (`tab` omitted); Marketplace uses `?tab=market`. **No** page-body underline tab strip for scope.
 4. **Marketplace scope**: full catalog for the kind; installed entries are marked (`installed`/`active` pill, ghost `Manage` → Installed scope); updatable entries show `vX available` + `Update`; others show `Install`/`Activate`. MCP cards open the guided install dialog (stdio env fields / remote OAuth info + scope); bundle cards open the activation dialog (profile, scope, bind switch, "What changes" preview); unverified extensions confirm before install.
 5. **Installed scope**: same card anatomy, management trail per kind — skills: update + overflow (`via <bundle>` items swap Remove for "Open bundle activation"); MCPs: status pill (`running`/`authorize`) + `Authorize` when pending; extensions: enable switch + trust pill; bundles: profile/scope meta, deactivate via overflow. Remove/deactivate use the destructive modal (typed confirmation for removes).
 6. Search filters the active scope; `/` focuses it. Empty states: teaching empty per kind on Installed ("…shows up here" + CLI hint + "Browse the marketplace" button that switches scope), query-empty with Clear search, route error with Retry, loading skeleton grid.
@@ -105,7 +105,7 @@ Every deletion lands in the same PR as its replacement — no dual routes, no al
 | Path | Change |
 | --- | --- |
 | `web/src/routes/_app/marketplace.tsx` | Becomes the layout route: topbar breadcrumb + kind `RouteNav` + Refresh + `<Outlet/>`; index redirect → `/marketplace/skills`; drop the `kind` search param |
-| `web/src/routes/_app/marketplace.$kind.$entryId.tsx` + `systems/marketplace/components/marketplace-detail*.tsx` | Stays the single detail; installed state gains management sections (skill content/shadows from `skill-detail-panel.tsx`, extension sections from `extension-detail*.tsx`, MCP config/status/auth from settings dialogs); Manage → `/marketplace/{kind}?tab=installed` |
+| `web/src/routes/_app/marketplace.$kind.$entryId.tsx` + `systems/marketplace/components/marketplace-detail*.tsx` | Stays the single detail; installed state gains management sections (skill content/shadows from `skill-detail-panel.tsx`, extension sections from `extension-detail*.tsx`, MCP config/status/auth from settings dialogs); Manage → `/marketplace/{kind}` |
 | `web/src/systems/marketplace/components/use-marketplace-action-controller.tsx` | Extends beyond install/update/activate with remove, deactivate, enable/disable, authorize — delegating to the existing inventory mutations (`use-extension-actions.ts`, `use-skill-actions.ts`, settings MCP adapters) |
 | `web/src/systems/marketplace/components/marketplace-card.tsx`, `marketplace-entry-actions.tsx`, `marketplace-grid.tsx` | Marketplace-scope cards; grid stays cards-only (no rows switch) |
 | `web/src/systems/runtime/components/app-sidebar.tsx` | `CATALOG_NAV_ITEMS` (~lines 270–277): remove Extensions, Skills, MCP entries; keep Marketplace, Bridges, Knowledge |
