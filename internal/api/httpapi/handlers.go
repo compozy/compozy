@@ -8,6 +8,7 @@ import (
 	"github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/doctor"
+	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -77,6 +78,11 @@ type handlerConfig struct {
 	memoryLedger       core.MemorySessionLedgerService
 	runtimeMemory      doctor.RuntimeMemorySnapshotSource
 	deadEntities       doctor.DeadEntitySource
+	gateway            core.GatewayService
+	gatewayAdmission   gateway.AdmissionController
+	deviceAuth         gateway.DeviceAuthenticator
+	authLimiter        *gateway.AuthFailureLimiter
+	surfaceSet         SurfaceSet
 	staticFS           fs.FS
 	homePaths          compozyconfig.HomePaths
 	config             compozyconfig.Config
@@ -94,10 +100,13 @@ type handlerConfig struct {
 // Handlers expose request/response and SSE endpoints for the Compozy API.
 type Handlers struct {
 	*core.BaseHandlers
-	staticFS     fs.FS
-	resourceAuth []gin.HandlerFunc
-	Extensions   ExtensionService
-	boundHost    string
+	staticFS         fs.FS
+	resourceAuth     []gin.HandlerFunc
+	Extensions       ExtensionService
+	boundHost        string
+	deviceAuth       gateway.DeviceAuthenticator
+	gatewayAdmission gateway.AdmissionController
+	authLimiter      *gateway.AuthFailureLimiter
 }
 
 func newHandlers(cfg *handlerConfig) *Handlers {
@@ -112,13 +121,26 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 		cfg.httpPort = cfg.config.HTTP.Port
 	}
 	boundHost := handlerBoundHost(cfg)
+	authLimiter := cfg.authLimiter
+	if authLimiter == nil {
+		authLimiter = gateway.NewAuthFailureLimiter(10, time.Minute, func() time.Time { return time.Now().UTC() })
+	}
+	gatewayAdmission := cfg.gatewayAdmission
+	if gatewayAdmission == nil {
+		if admission, ok := cfg.gateway.(gateway.AdmissionController); ok {
+			gatewayAdmission = admission
+		}
+	}
 
 	return &Handlers{
-		BaseHandlers: core.NewBaseHandlers(coreHandlerConfig(cfg, boundHost)),
-		staticFS:     cfg.staticFS,
-		resourceAuth: append([]gin.HandlerFunc(nil), cfg.resourceAuth...),
-		Extensions:   cfg.extensions,
-		boundHost:    boundHost,
+		BaseHandlers:     core.NewBaseHandlers(coreHandlerConfig(cfg, boundHost)),
+		staticFS:         cfg.staticFS,
+		resourceAuth:     append([]gin.HandlerFunc(nil), cfg.resourceAuth...),
+		Extensions:       cfg.extensions,
+		boundHost:        boundHost,
+		deviceAuth:       cfg.deviceAuth,
+		gatewayAdmission: gatewayAdmission,
+		authLimiter:      authLimiter,
 	}
 }
 
@@ -186,6 +208,8 @@ func coreHandlerConfig(cfg *handlerConfig, boundHost string) *core.BaseHandlerCo
 		MemorySessionLedger:          cfg.memoryLedger,
 		RuntimeMemory:                cfg.runtimeMemory,
 		DeadEntities:                 cfg.deadEntities,
+		Gateway:                      cfg.gateway,
+		GatewayPairingSource:         gatewayPairingSource(cfg.surfaceSet),
 		HomePaths:                    cfg.homePaths,
 		Config:                       coreConfig,
 		Logger:                       cfg.logger,
@@ -194,6 +218,17 @@ func coreHandlerConfig(cfg *handlerConfig, boundHost string) *core.BaseHandlerCo
 		PollInterval:                 cfg.pollInterval,
 		AgentLoader:                  cfg.agentLoader,
 		HTTPPort:                     cfg.httpPort,
+	}
+}
+
+func gatewayPairingSource(surfaceSet SurfaceSet) string {
+	switch surfaceSet {
+	case SurfaceSetLocal:
+		return string(gateway.PairingSourceLocal)
+	case SurfaceSetPrivate:
+		return string(gateway.PairingSourcePrivate)
+	default:
+		return ""
 	}
 }
 

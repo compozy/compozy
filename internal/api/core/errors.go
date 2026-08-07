@@ -13,6 +13,7 @@ import (
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/gateway"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/modelcatalog"
@@ -81,6 +82,10 @@ func normalizeErrorStatus(status int, err error, maskInternalErrors bool) normal
 		maskInternalErrors = false
 	}
 	if errors.Is(err, admission.ErrDraining) {
+		maskInternalErrors = false
+	}
+	if errors.Is(err, gateway.ErrDeviceRevoked) {
+		status = http.StatusUnauthorized
 		maskInternalErrors = false
 	}
 	return normalizedErrorStatus{

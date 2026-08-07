@@ -19,7 +19,8 @@ for an external blocker proven by the test below.
 3. Apply the root-cause repair. Canonical generators, formatters, dependency
    bootstraps, and their deterministic outputs are in scope for gate closure,
    even when those outputs are outside the task's primary paths. Inspect every
-   resulting diff and preserve unrelated user changes.
+   resulting diff and preserve unrelated user changes — they ride into the
+   next checkpoint commit as-is; never revert or exclude them.
 4. Rerun the narrowest command that reproduces the failure. A blind rerun is
    not a repair: flaky tests, timeouts, races, and intermittent workers require
    a diagnosis or a changed precondition before retrying.
@@ -49,8 +50,11 @@ artifacts exist, and the phase's completion gate is PASS.
 Stop only when all of these are true:
 
 1. The phase cannot reach its completion criterion without a specific missing
-   credential, authorization, destructive-operation approval, product
-   decision, external service, or unavailable infrastructure.
+   credential, authorization, destructive-operation approval, external
+   service, or unavailable infrastructure. A product decision parks instead
+   (default it, log it under `## Open Questions`, continue); it qualifies
+   here only when no safe default exists and every remaining task depends
+   on it.
 2. Every safe in-scope alternative has been attempted and recorded with
    evidence. Complexity, a dirty worktree, a failing gate, repeated repair,
    generated drift, or elapsed time does not satisfy this condition.

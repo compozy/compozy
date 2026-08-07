@@ -53,6 +53,12 @@ func daemonStatusBundle(status DaemonStatus, now func() time.Time) outputBundle 
 		labels = append(labels, networkLabels...)
 		values = append(values, networkValues...)
 	}
+	if status.Gateway != nil {
+		gatewayRows, gatewayLabels, gatewayValues := daemonGatewayStatusFields(status.Gateway)
+		rows = append(rows, gatewayRows...)
+		labels = append(labels, gatewayLabels...)
+		values = append(values, gatewayValues...)
+	}
 
 	return outputBundle{
 		jsonValue: status,
@@ -63,6 +69,44 @@ func daemonStatusBundle(status DaemonStatus, now func() time.Time) outputBundle 
 			return renderToonObject(daemonDaemonKey, labels, values), nil
 		},
 	}
+}
+
+func daemonGatewayStatusFields(info *contract.GatewayStatusPayload) ([]keyValue, []string, []string) {
+	tiers := make([]string, 0, len(info.Tiers))
+	for _, tier := range info.Tiers {
+		listener := stringOrDash(tier.ListenerAddress)
+		tiers = append(tiers, tier.Tier+":"+tier.Desired+"/"+tier.Observed+"@"+listener+
+			" advertised="+strconv.FormatBool(tier.Advertised))
+	}
+	refusal := ""
+	if info.Refusal != nil {
+		refusal = strings.TrimSpace(info.Refusal.Cause)
+	}
+	return []keyValue{
+			{Label: "Gateway Enabled", Value: strconv.FormatBool(info.Enabled)},
+			{Label: "Gateway Tiers", Value: stringOrDash(strings.Join(tiers, ", "))},
+			{Label: "Gateway Surfaces", Value: strconv.Itoa(len(info.Surfaces))},
+			{Label: "Gateway Providers", Value: strconv.Itoa(len(info.Providers))},
+			{Label: "Gateway Addresses", Value: strconv.Itoa(len(info.Addresses))},
+			{Label: "Gateway Devices", Value: strconv.Itoa(len(info.Devices))},
+			{Label: "Gateway Refusal", Value: stringOrDash(refusal)},
+		}, []string{
+			"gateway_enabled",
+			"gateway_tiers",
+			"gateway_surfaces",
+			"gateway_providers",
+			"gateway_addresses",
+			"gateway_devices",
+			"gateway_refusal",
+		}, []string{
+			strconv.FormatBool(info.Enabled),
+			strings.Join(tiers, ", "),
+			strconv.Itoa(len(info.Surfaces)),
+			strconv.Itoa(len(info.Providers)),
+			strconv.Itoa(len(info.Addresses)),
+			strconv.Itoa(len(info.Devices)),
+			refusal,
+		}
 }
 
 func daemonNetworkStatusFields(info *contract.NetworkStatusPayload) ([]keyValue, []string, []string) {

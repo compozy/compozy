@@ -92,17 +92,6 @@ SELECT surface, tier, desired_state, observed_state, generation, consented_at
 FROM gateway_surface_exposure
 ORDER BY tier, surface;
 
--- name: CountActiveGatewayDeviceSessions :one
-SELECT count(*)
-FROM gateway_device_sessions
-WHERE revoked_at IS NULL;
-
--- name: ListActiveGatewayDeviceSessions :many
-SELECT id, name, actor_kind, pairing_origin, revoke_epoch, created_at, last_seen_at
-FROM gateway_device_sessions
-WHERE revoked_at IS NULL
-ORDER BY CASE WHEN last_seen_at IS NULL THEN 1 ELSE 0 END, last_seen_at DESC, created_at DESC, id;
-
 -- name: DisableAllGatewayProviderActivations :execrows
 UPDATE gateway_provider_activations
 SET desired_state = 'disabled',

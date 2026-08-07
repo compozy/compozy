@@ -186,6 +186,16 @@ func TestBootGatewayRefusalContinuesLocalOnly(t *testing.T) {
 	d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
 		return &fakeServer{name: "uds"}, nil
 	}
+	tierFactoryCalls := 0
+	d.gatewayTierFactory = func(
+		context.Context,
+		*RuntimeDeps,
+		gateway.Tier,
+		[]gateway.Surface,
+	) (Server, error) {
+		tierFactoryCalls++
+		return &fakeServer{name: "gateway-tier"}, nil
+	}
 
 	if err := d.boot(testutil.Context(t)); err != nil {
 		t.Fatalf("boot() error = %v, want local-only continuation [IT-002]", err)
@@ -208,6 +218,9 @@ func TestBootGatewayRefusalContinuesLocalOnly(t *testing.T) {
 	}
 	if d.httpServer == nil || d.udsServer == nil {
 		t.Fatal("local daemon servers did not start after gateway refusal")
+	}
+	if tierFactoryCalls != 0 {
+		t.Fatalf("gateway tier factory calls = %d, want 0 while authentication is inactive [IT-001]", tierFactoryCalls)
 	}
 }
 

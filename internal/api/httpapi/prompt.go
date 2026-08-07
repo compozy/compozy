@@ -7,6 +7,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/gateway"
 	"github.com/gin-gonic/gin"
 )
 
@@ -16,6 +17,7 @@ type uiMessageTextPart = contract.PromptUITextPart
 
 func (h *Handlers) promptSession(c *gin.Context) {
 	dispatch, ok := h.DispatchSessionPrompt(c)
+	gateway.ReleaseMutation(c.Request.Context())
 	if !ok {
 		return
 	}

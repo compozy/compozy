@@ -10,19 +10,6 @@ import (
 	"database/sql"
 )
 
-const countActiveGatewayDeviceSessions = `-- name: CountActiveGatewayDeviceSessions :one
-SELECT count(*)
-FROM gateway_device_sessions
-WHERE revoked_at IS NULL
-`
-
-func (q *Queries) CountActiveGatewayDeviceSessions(ctx context.Context) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countActiveGatewayDeviceSessions)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const disableAllGatewayProviderActivations = `-- name: DisableAllGatewayProviderActivations :execrows
 UPDATE gateway_provider_activations
 SET desired_state = 'disabled',
@@ -107,54 +94,6 @@ func (q *Queries) GetGatewaySurfaceExposure(ctx context.Context, arg GetGatewayS
 		&i.ConsentedAt,
 	)
 	return i, err
-}
-
-const listActiveGatewayDeviceSessions = `-- name: ListActiveGatewayDeviceSessions :many
-SELECT id, name, actor_kind, pairing_origin, revoke_epoch, created_at, last_seen_at
-FROM gateway_device_sessions
-WHERE revoked_at IS NULL
-ORDER BY CASE WHEN last_seen_at IS NULL THEN 1 ELSE 0 END, last_seen_at DESC, created_at DESC, id
-`
-
-type ListActiveGatewayDeviceSessionsRow struct {
-	ID            string         `json:"id"`
-	Name          string         `json:"name"`
-	ActorKind     string         `json:"actor_kind"`
-	PairingOrigin string         `json:"pairing_origin"`
-	RevokeEpoch   int64          `json:"revoke_epoch"`
-	CreatedAt     string         `json:"created_at"`
-	LastSeenAt    sql.NullString `json:"last_seen_at"`
-}
-
-func (q *Queries) ListActiveGatewayDeviceSessions(ctx context.Context) ([]ListActiveGatewayDeviceSessionsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listActiveGatewayDeviceSessions)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListActiveGatewayDeviceSessionsRow{}
-	for rows.Next() {
-		var i ListActiveGatewayDeviceSessionsRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.Name,
-			&i.ActorKind,
-			&i.PairingOrigin,
-			&i.RevokeEpoch,
-			&i.CreatedAt,
-			&i.LastSeenAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const listGatewayProviderActivations = `-- name: ListGatewayProviderActivations :many

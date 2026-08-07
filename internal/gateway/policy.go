@@ -3,7 +3,6 @@ package gateway
 import (
 	"context"
 	"errors"
-	"net/netip"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -25,7 +24,6 @@ type Policy interface {
 	Plan(context.Context) (ExposurePlan, error)
 	Transition(context.Context, TransitionRequest) (Status, error)
 	Reconcile(context.Context) (Status, error)
-	PublishListener(context.Context, Tier, netip.AddrPort) error
 	SetEnabled(context.Context, bool) error
 	Status(context.Context) (Status, error)
 	Acquire(Tier, Surface) (func(), error)
@@ -92,14 +90,6 @@ func (p *policy) Plan(ctx context.Context) (ExposurePlan, error) {
 		return ExposurePlan{}, err
 	}
 	return planSnapshot(snapshot), nil
-}
-
-func (p *policy) PublishListener(_ context.Context, tier Tier, addr netip.AddrPort) error {
-	if err := tier.Validate(); err != nil {
-		return err
-	}
-	p.reconciler.PublishListener(tier, addr)
-	return nil
 }
 
 func (p *policy) Status(ctx context.Context) (Status, error) {

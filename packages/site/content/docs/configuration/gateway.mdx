@@ -1,0 +1,76 @@
+---
+title: Gateway access model
+description: Understand how Compozy exposes private operator access and public ingress without turning the daemon into a public listener.
+---
+
+The gateway gives selected remote clients a path to the same daemon state available through local
+control surfaces. It keeps exposure explicit: configuration sets a machine-wide ceiling, durable
+gateway state records what should be reachable, and each tier has its own fixed route inventory.
+
+Use this page to understand the access model. Use the generated [Gateway API reference](/docs/api/gateway)
+for exact methods, request bodies, responses, and status codes.
+
+<OperatorNote>
+  Gateway tier listeners bind only to loopback. A connectivity provider publishes a verified route
+  to that listener; the daemon never binds a gateway tier directly to a non-loopback address.
+</OperatorNote>
+
+## Configuration is a ceiling
+
+`gateway.enabled` defaults to `false`. While it is false, no durable provider or surface choice can
+make a tier reachable. Setting it to `true` permits gateway state to be reconciled, but it does not
+enable a provider, tier, or surface by itself.
+
+Provider and surface intent lives in the Global DB, which means it is operator-global rather than
+workspace-scoped. Manage that intent through the Gateway API. The [`[gateway]` reference](/docs/configuration/config-toml#gateway)
+owns the listener ports, expiry windows, rate limit, verification timeout, and their defaults.
+
+## Tiers have separate route inventories
+
+The private and public tiers are separate listeners. Tier identity comes from the listener that
+accepted the connection, not from a request header.
+
+| Tier | Reachable surfaces | Pairing |
+| --- | --- | --- |
+| Private | Authenticated operator routes and the operator UI | Mint is authenticated; redeem exists before device authentication |
+| Public | Webhook ingress, the consented operator UI, or both | Mint and redeem routes do not exist |
+
+Webhook routes keep their own request verification and stay ahead of the device-authentication gate.
+Agent-kernel, hosted MCP, MCP Host API, and resource-mutation routes remain local-only and are not
+mounted on either tier listener.
+
+## Devices hold remote operator identity
+
+A pairing artifact admits one named device. It expires, can be redeemed once, and stays only in
+daemon memory while pending. The device receives one random credential; the database stores only its
+SHA-256 hash.
+
+- Browser redemption sets an `HttpOnly`, `Secure`, `SameSite=Lax` cookie. The response body does not
+  contain the credential.
+- UDS redemption returns the raw credential only to its local caller. Treat that value as secret
+  material; remote browser redemption never exposes it.
+- Credential-bearing responses disable caching and referrer forwarding.
+
+Every private operator request must authenticate as a device. A loopback source address and forwarded
+headers do not grant trust.
+
+## Streams use one-time tickets
+
+Long-lived streams do not place the device credential in a URL. An authenticated device first mints a
+short-lived stream ticket, then spends that ticket during the stream handshake. Reconnecting requires
+a new ticket.
+
+Revoking a device increments its durable revoke epoch and cancels all live streams registered to that
+device before the revoke operation returns. In-flight mutations check the same epoch at commit time,
+so a revoked device cannot finish a stale write.
+
+## Inspect current posture
+
+Gateway status reports desired and observed tier state, each resolved loopback listener address,
+active surfaces, verified provider addresses, provider health, refusal details, and the redacted
+device inventory. A listener address can appear before a provider address: this proves the local
+tier is bound without claiming it is externally reachable. The same projection is folded into
+daemon status for HTTP, UDS, and CLI consumers.
+
+An empty device list is valid. It means no remote device is paired; local HTTP and UDS access remain
+available, and a local caller can mint a new pairing artifact.

@@ -75162,6 +75162,3759 @@
         ]
       }
     },
+    "/api/gateway/devices": {
+      "get": {
+        "operationId": "listGatewayDevices",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "devices": {
+                      "items": {
+                        "properties": {
+                          "actor_kind": {
+                            "type": "string"
+                          },
+                          "created_at": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "last_seen_at": {
+                            "format": "date-time",
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "pairing_origin": {
+                            "type": "string"
+                          },
+                          "revoke_epoch": {
+                            "maximum": 18446744073709552000,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "revoked_at": {
+                            "format": "date-time",
+                            "nullable": true,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "actor_kind",
+                          "created_at",
+                          "id",
+                          "name",
+                          "pairing_origin",
+                          "revoke_epoch"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "devices"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "List the operator-global paired device inventory",
+        "tags": [
+          "gateway"
+        ],
+        "x-compozy-auth": {
+          "http": "device",
+          "uds": "local_socket"
+        },
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/gateway/devices/{id}": {
+      "delete": {
+        "operationId": "revokeGatewayDevice",
+        "parameters": [
+          {
+            "description": "Gateway device id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "canceled": {
+                      "type": "integer"
+                    },
+                    "changed": {
+                      "type": "boolean"
+                    },
+                    "device": {
+                      "properties": {
+                        "actor_kind": {
+                          "type": "string"
+                        },
+                        "created_at": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "last_seen_at": {
+                          "format": "date-time",
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "pairing_origin": {
+                          "type": "string"
+                        },
+                        "revoke_epoch": {
+                          "maximum": 18446744073709552000,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "revoked_at": {
+                          "format": "date-time",
+                          "nullable": true,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "actor_kind",
+                        "created_at",
+                        "id",
+                        "name",
+                        "pairing_origin",
+                        "revoke_epoch"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "canceled",
+                    "changed",
+                    "device"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Revoked"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Gateway device not found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Revoke one paired gateway device and its live streams",
+        "tags": [
+          "gateway"
+        ],
+        "x-compozy-auth": {
+          "http": "device",
+          "uds": "local_socket"
+        },
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      },
+      "patch": {
+        "operationId": "renameGatewayDevice",
+        "parameters": [
+          {
+            "description": "Gateway device id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "actor_kind": {
+                      "type": "string"
+                    },
+                    "created_at": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "last_seen_at": {
+                      "format": "date-time",
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "pairing_origin": {
+                      "type": "string"
+                    },
+                    "revoke_epoch": {
+                      "maximum": 18446744073709552000,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "revoked_at": {
+                      "format": "date-time",
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "actor_kind",
+                    "created_at",
+                    "id",
+                    "name",
+                    "pairing_origin",
+                    "revoke_epoch"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Renamed"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid gateway device name"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Gateway device not found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Rename one paired gateway device",
+        "tags": [
+          "gateway"
+        ],
+        "x-compozy-auth": {
+          "http": "device",
+          "uds": "local_socket"
+        },
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/gateway/pairings": {
+      "post": {
+        "operationId": "mintGatewayPairing",
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "artifact": {
+                      "type": "string"
+                    },
+                    "expires_at": {
+                      "format": "date-time",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "artifact",
+                    "expires_at"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Rate limited"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Mint a bounded one-time gateway pairing artifact",
+        "tags": [
+          "gateway"
+        ],
+        "x-compozy-auth": {
+          "http": "device",
+          "uds": "local_socket"
+        },
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/gateway/pairings/redeem": {
+      "post": {
+        "operationId": "redeemGatewayPairing",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "actor_kind": {
+                    "type": "string"
+                  },
+                  "artifact": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "actor_kind",
+                  "artifact",
+                  "name"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "credential": {
+                      "type": "string"
+                    },
+                    "device": {
+                      "properties": {
+                        "actor_kind": {
+                          "type": "string"
+                        },
+                        "created_at": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "last_seen_at": {
+                          "format": "date-time",
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "pairing_origin": {
+                          "type": "string"
+                        },
+                        "revoke_epoch": {
+                          "maximum": 18446744073709552000,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "revoked_at": {
+                          "format": "date-time",
+                          "nullable": true,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "actor_kind",
+                        "created_at",
+                        "id",
+                        "name",
+                        "pairing_origin",
+                        "revoke_epoch"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "device"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Redeemed"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid pairing request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid pairing artifact"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Pairing artifact already spent"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Pairing artifact expired"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Rate limited"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Redeem a one-time gateway pairing artifact",
+        "tags": [
+          "gateway"
+        ],
+        "x-compozy-auth": {
+          "http": "private_pre_auth",
+          "uds": "local_socket"
+        },
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/gateway/providers/{name}/disable": {
+      "post": {
+        "operationId": "disableGatewayProvider",
+        "parameters": [
+          {
+            "description": "Connectivity provider name",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Gateway tier",
+            "in": "query",
+            "name": "tier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "addresses": {
+                      "items": {
+                        "properties": {
+                          "address": {
+                            "type": "string"
+                          },
+                          "live": {
+                            "type": "boolean"
+                          },
+                          "tier": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "address",
+                          "live",
+                          "tier"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "changed": {
+                      "type": "boolean"
+                    },
+                    "devices": {
+                      "items": {
+                        "properties": {
+                          "actor_kind": {
+                            "type": "string"
+                          },
+                          "created_at": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "last_seen_at": {
+                            "format": "date-time",
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "pairing_origin": {
+                            "type": "string"
+                          },
+                          "revoke_epoch": {
+                            "maximum": 18446744073709552000,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "revoked_at": {
+                            "format": "date-time",
+                            "nullable": true,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "actor_kind",
+                          "created_at",
+                          "id",
+                          "name",
+                          "pairing_origin",
+                          "revoke_epoch"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "providers": {
+                      "items": {
+                        "properties": {
+                          "cause": {
+                            "type": "string"
+                          },
+                          "desired": {
+                            "type": "string"
+                          },
+                          "generation": {
+                            "maximum": 18446744073709552000,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "health": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "observed": {
+                            "type": "string"
+                          },
+                          "tier": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "desired",
+                          "generation",
+                          "health",
+                          "name",
+                          "observed",
+                          "tier"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "refusal": {
+                      "nullable": true,
+                      "properties": {
+                        "cause": {
+                          "type": "string"
+                        },
+                        "fix": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "cause",
+                        "fix"
+                      ],
+                      "type": "object"
+                    },
+                    "surfaces": {
+                      "items": {
+                        "properties": {
+                          "desired": {
+                            "type": "string"
+                          },
+                          "generation": {
+                            "maximum": 18446744073709552000,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "observed": {
+                            "type": "string"
+                          },
+                          "surface": {
+                            "type": "string"
+                          },
+                          "tier": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "desired",
+                          "generation",
+                          "observed",
+                          "surface",
+                          "tier"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "tiers": {
+                      "items": {
+                        "properties": {
+                          "advertised": {
+                            "type": "boolean"
+                          },
+                          "desired": {
+                            "type": "string"
+                          },
+                          "listener_address": {
+                            "type": "string"
+                          },
+                          "observed": {
+                            "type": "string"
+                          },
+                          "tier": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "advertised",
+                          "desired",
+                          "observed",
+                          "tier"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "addresses",
+                    "changed",
+                    "devices",
+                    "enabled",
+                    "providers",
+                    "surfaces",
+                    "tiers"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Disabled"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid gateway tier"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Gateway provider not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Gateway provider conflict"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Disable one named connectivity provider for a gateway tier",
+        "tags": [
+          "gateway"
+        ],
+        "x-compozy-auth": {
+          "http": "device",
+          "uds": "local_socket"
+        },
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/gateway/providers/{name}/enable": {
+      "post": {
+        "operationId": "enableGatewayProvider",
+        "parameters": [
+          {
+            "description": "Connectivity provider name",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "digest_confirmed": {
+                    "type": "string"
+                  },
+                  "expected_generation": {
+                    "maximum": 18446744073709552000,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "install_source": {
+                    "type": "string"
+                  },
+                  "tier": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "expected_generation",
+                  "install_source",
+                  "tier"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "addresses": {
+                      "items": {
+                        "properties": {
+                          "address": {
+                            "type": "string"
+                          },
+                          "live": {
+                            "type": "boolean"
+                          },
+                          "tier": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "address",
+                          "live",
+                          "tier"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "changed": {
+                      "type": "boolean"
+                    },
+                    "devices": {
+                      "items": {
+                        "properties": {
+                          "actor_kind": {
+                            "type": "string"
+                          },
+                          "created_at": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "last_seen_at": {
+                            "format": "date-time",
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "pairing_origin": {
+                            "type": "string"
+                          },
+                          "revoke_epoch": {
+                            "maximum": 18446744073709552000,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "revoked_at": {
+                            "format": "date-time",
+                            "nullable": true,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "actor_kind",
+                          "created_at",
+                          "id",
+                          "name",
+                          "pairing_origin",
+                          "revoke_epoch"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "providers": {
+                      "items": {
+                        "properties": {
+                          "cause": {
+                            "type": "string"
+                          },
+                          "desired": {
+                            "type": "string"
+                          },
+                          "generation": {
+                            "maximum": 18446744073709552000,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "health": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "observed": {
+                            "type": "string"
+                          },
+                          "tier": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "desired",
+                          "generation",
+                          "health",
+                          "name",
+                          "observed",
+                          "tier"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "refusal": {
+                      "nullable": true,
+                      "properties": {
+                        "cause": {
+                          "type": "string"
+                        },
+                        "fix": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "cause",
+                        "fix"
+                      ],
+                      "type": "object"
+                    },
+                    "surfaces": {
+                      "items": {
+                        "properties": {
+                          "desired": {
+                            "type": "string"
+                          },
+                          "generation": {
+                            "maximum": 18446744073709552000,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "observed": {
+                            "type": "string"
+                          },
+                          "surface": {
+                            "type": "string"
+                          },
+                          "tier": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "desired",
+                          "generation",
+                          "observed",
+                          "surface",
+                          "tier"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "tiers": {
+                      "items": {
+                        "properties": {
+                          "advertised": {
+                            "type": "boolean"
+                          },
+                          "desired": {
+                            "type": "string"
+                          },
+                          "listener_address": {
+                            "type": "string"
+                          },
+                          "observed": {
+                            "type": "string"
+                          },
+                          "tier": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "advertised",
+                          "desired",
+                          "observed",
+                          "tier"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "addresses",
+                    "changed",
+                    "devices",
+                    "enabled",
+                    "providers",
+                    "surfaces",
+                    "tiers"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Enabled"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid provider request"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Gateway provider conflict"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Provider digest confirmation required"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Enable one connectivity provider for a gateway tier",
+        "tags": [
+          "gateway"
+        ],
+        "x-compozy-auth": {
+          "http": "device",
+          "uds": "local_socket"
+        },
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/gateway/status": {
+      "get": {
+        "operationId": "getGatewayStatus",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "addresses": {
+                      "items": {
+                        "properties": {
+                          "address": {
+                            "type": "string"
+                          },
+                          "live": {
+                            "type": "boolean"
+                          },
+                          "tier": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "address",
+                          "live",
+                          "tier"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "changed": {
+                      "type": "boolean"
+                    },
+                    "devices": {
+                      "items": {
+                        "properties": {
+                          "actor_kind": {
+                            "type": "string"
+                          },
+                          "created_at": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "last_seen_at": {
+                            "format": "date-time",
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "pairing_origin": {
+                            "type": "string"
+                          },
+                          "revoke_epoch": {
+                            "maximum": 18446744073709552000,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "revoked_at": {
+                            "format": "date-time",
+                            "nullable": true,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "actor_kind",
+                          "created_at",
+                          "id",
+                          "name",
+                          "pairing_origin",
+                          "revoke_epoch"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "providers": {
+                      "items": {
+                        "properties": {
+                          "cause": {
+                            "type": "string"
+                          },
+                          "desired": {
+                            "type": "string"
+                          },
+                          "generation": {
+                            "maximum": 18446744073709552000,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "health": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "observed": {
+                            "type": "string"
+                          },
+                          "tier": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "desired",
+                          "generation",
+                          "health",
+                          "name",
+                          "observed",
+                          "tier"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "refusal": {
+                      "nullable": true,
+                      "properties": {
+                        "cause": {
+                          "type": "string"
+                        },
+                        "fix": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "cause",
+                        "fix"
+                      ],
+                      "type": "object"
+                    },
+                    "surfaces": {
+                      "items": {
+                        "properties": {
+                          "desired": {
+                            "type": "string"
+                          },
+                          "generation": {
+                            "maximum": 18446744073709552000,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "observed": {
+                            "type": "string"
+                          },
+                          "surface": {
+                            "type": "string"
+                          },
+                          "tier": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "desired",
+                          "generation",
+                          "observed",
+                          "surface",
+                          "tier"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "tiers": {
+                      "items": {
+                        "properties": {
+                          "advertised": {
+                            "type": "boolean"
+                          },
+                          "desired": {
+                            "type": "string"
+                          },
+                          "listener_address": {
+                            "type": "string"
+                          },
+                          "observed": {
+                            "type": "string"
+                          },
+                          "tier": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "advertised",
+                          "desired",
+                          "observed",
+                          "tier"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "addresses",
+                    "changed",
+                    "devices",
+                    "enabled",
+                    "providers",
+                    "surfaces",
+                    "tiers"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Get the operator-global gateway posture",
+        "tags": [
+          "gateway"
+        ],
+        "x-compozy-auth": {
+          "http": "device",
+          "uds": "local_socket"
+        },
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/gateway/stream-tickets": {
+      "post": {
+        "operationId": "mintGatewayStreamTicket",
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "expires_at": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "ticket": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "expires_at",
+                    "ticket"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Gateway device authentication required"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Mint a short-lived single-use stream ticket",
+        "tags": [
+          "gateway"
+        ],
+        "x-compozy-auth": {
+          "http": "device"
+        },
+        "x-compozy-transports": [
+          "http"
+        ]
+      }
+    },
+    "/api/gateway/surfaces": {
+      "post": {
+        "operationId": "setGatewaySurface",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "consent": {
+                    "type": "boolean"
+                  },
+                  "desired": {
+                    "type": "string"
+                  },
+                  "expected_generation": {
+                    "maximum": 18446744073709552000,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "surface": {
+                    "type": "string"
+                  },
+                  "tier": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "consent",
+                  "desired",
+                  "expected_generation",
+                  "surface",
+                  "tier"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "addresses": {
+                      "items": {
+                        "properties": {
+                          "address": {
+                            "type": "string"
+                          },
+                          "live": {
+                            "type": "boolean"
+                          },
+                          "tier": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "address",
+                          "live",
+                          "tier"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "changed": {
+                      "type": "boolean"
+                    },
+                    "devices": {
+                      "items": {
+                        "properties": {
+                          "actor_kind": {
+                            "type": "string"
+                          },
+                          "created_at": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "last_seen_at": {
+                            "format": "date-time",
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "pairing_origin": {
+                            "type": "string"
+                          },
+                          "revoke_epoch": {
+                            "maximum": 18446744073709552000,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "revoked_at": {
+                            "format": "date-time",
+                            "nullable": true,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "actor_kind",
+                          "created_at",
+                          "id",
+                          "name",
+                          "pairing_origin",
+                          "revoke_epoch"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "providers": {
+                      "items": {
+                        "properties": {
+                          "cause": {
+                            "type": "string"
+                          },
+                          "desired": {
+                            "type": "string"
+                          },
+                          "generation": {
+                            "maximum": 18446744073709552000,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "health": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "observed": {
+                            "type": "string"
+                          },
+                          "tier": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "desired",
+                          "generation",
+                          "health",
+                          "name",
+                          "observed",
+                          "tier"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "refusal": {
+                      "nullable": true,
+                      "properties": {
+                        "cause": {
+                          "type": "string"
+                        },
+                        "fix": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "cause",
+                        "fix"
+                      ],
+                      "type": "object"
+                    },
+                    "surfaces": {
+                      "items": {
+                        "properties": {
+                          "desired": {
+                            "type": "string"
+                          },
+                          "generation": {
+                            "maximum": 18446744073709552000,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "observed": {
+                            "type": "string"
+                          },
+                          "surface": {
+                            "type": "string"
+                          },
+                          "tier": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "desired",
+                          "generation",
+                          "observed",
+                          "surface",
+                          "tier"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "tiers": {
+                      "items": {
+                        "properties": {
+                          "advertised": {
+                            "type": "boolean"
+                          },
+                          "desired": {
+                            "type": "string"
+                          },
+                          "listener_address": {
+                            "type": "string"
+                          },
+                          "observed": {
+                            "type": "string"
+                          },
+                          "tier": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "advertised",
+                          "desired",
+                          "observed",
+                          "tier"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "addresses",
+                    "changed",
+                    "devices",
+                    "enabled",
+                    "providers",
+                    "surfaces",
+                    "tiers"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Updated"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid gateway surface request"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Gateway exposure conflict"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Gateway consent required"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Set durable exposure for one gateway surface",
+        "tags": [
+          "gateway"
+        ],
+        "x-compozy-auth": {
+          "http": "device",
+          "uds": "local_socket"
+        },
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
     "/api/hooks/catalog": {
       "get": {
         "operationId": "getHookCatalog",
@@ -143471,6 +147224,212 @@
                       "properties": {
                         "active_sessions": {
                           "type": "integer"
+                        },
+                        "gateway": {
+                          "nullable": true,
+                          "properties": {
+                            "addresses": {
+                              "items": {
+                                "properties": {
+                                  "address": {
+                                    "type": "string"
+                                  },
+                                  "live": {
+                                    "type": "boolean"
+                                  },
+                                  "tier": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "address",
+                                  "live",
+                                  "tier"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "changed": {
+                              "type": "boolean"
+                            },
+                            "devices": {
+                              "items": {
+                                "properties": {
+                                  "actor_kind": {
+                                    "type": "string"
+                                  },
+                                  "created_at": {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  },
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "last_seen_at": {
+                                    "format": "date-time",
+                                    "nullable": true,
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "pairing_origin": {
+                                    "type": "string"
+                                  },
+                                  "revoke_epoch": {
+                                    "maximum": 18446744073709552000,
+                                    "minimum": 0,
+                                    "type": "integer"
+                                  },
+                                  "revoked_at": {
+                                    "format": "date-time",
+                                    "nullable": true,
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "actor_kind",
+                                  "created_at",
+                                  "id",
+                                  "name",
+                                  "pairing_origin",
+                                  "revoke_epoch"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "enabled": {
+                              "type": "boolean"
+                            },
+                            "providers": {
+                              "items": {
+                                "properties": {
+                                  "cause": {
+                                    "type": "string"
+                                  },
+                                  "desired": {
+                                    "type": "string"
+                                  },
+                                  "generation": {
+                                    "maximum": 18446744073709552000,
+                                    "minimum": 0,
+                                    "type": "integer"
+                                  },
+                                  "health": {
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "observed": {
+                                    "type": "string"
+                                  },
+                                  "tier": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "desired",
+                                  "generation",
+                                  "health",
+                                  "name",
+                                  "observed",
+                                  "tier"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "refusal": {
+                              "nullable": true,
+                              "properties": {
+                                "cause": {
+                                  "type": "string"
+                                },
+                                "fix": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "cause",
+                                "fix"
+                              ],
+                              "type": "object"
+                            },
+                            "surfaces": {
+                              "items": {
+                                "properties": {
+                                  "desired": {
+                                    "type": "string"
+                                  },
+                                  "generation": {
+                                    "maximum": 18446744073709552000,
+                                    "minimum": 0,
+                                    "type": "integer"
+                                  },
+                                  "observed": {
+                                    "type": "string"
+                                  },
+                                  "surface": {
+                                    "type": "string"
+                                  },
+                                  "tier": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "desired",
+                                  "generation",
+                                  "observed",
+                                  "surface",
+                                  "tier"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "tiers": {
+                              "items": {
+                                "properties": {
+                                  "advertised": {
+                                    "type": "boolean"
+                                  },
+                                  "desired": {
+                                    "type": "string"
+                                  },
+                                  "listener_address": {
+                                    "type": "string"
+                                  },
+                                  "observed": {
+                                    "type": "string"
+                                  },
+                                  "tier": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "advertised",
+                                  "desired",
+                                  "observed",
+                                  "tier"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "addresses",
+                            "changed",
+                            "devices",
+                            "enabled",
+                            "providers",
+                            "surfaces",
+                            "tiers"
+                          ],
+                          "type": "object"
                         },
                         "http_host": {
                           "type": "string"
@@ -297092,6 +301051,9 @@
     },
     {
       "name": "filesystem"
+    },
+    {
+      "name": "gateway"
     },
     {
       "name": "network"

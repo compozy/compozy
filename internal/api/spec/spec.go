@@ -21,6 +21,8 @@ const (
 	specContentTypeEventStream = "text/event-stream"
 	specExpectedRevisionKey    = "expected_revision"
 	specFormatInt64            = "int64"
+	specParameterInPath        = openapi3.ParameterInPath
+	specParameterInQuery       = openapi3.ParameterInQuery
 )
 
 const (
@@ -100,6 +102,7 @@ const (
 	specBridgeServiceIsNotConfiguredDescription              = "Bridge service is not configured"
 	specConflictingSettingsChangeDescription                 = "Conflicting settings change"
 	specCreatedDescription                                   = "Created"
+	specUpdatedDescription                                   = "Updated"
 	specExtensionNotFoundDescription                         = "Extension not found"
 	specExtensionServiceIsNotConfiguredDescription           = "Extension service is not configured"
 	specForbiddenDescription                                 = "Forbidden"
@@ -151,6 +154,7 @@ const (
 	specDiagnosticsKey                                       = "diagnostics"
 	specOnboardingKey                                        = "onboarding"
 	specFilesystemKey                                        = "filesystem"
+	specGatewayKey                                           = "gateway"
 	specExtensionKey                                         = "extension"
 	specExtensionsKey                                        = "extensions"
 	specHooksKey                                             = "hooks"
@@ -214,6 +218,15 @@ type ResponseSpec struct {
 	ContentType string
 }
 
+// OperationAuth identifies the transport-owned trust boundary for an operation.
+type OperationAuth string
+
+const (
+	OperationAuthDevice         OperationAuth = "device"
+	OperationAuthLocalSocket    OperationAuth = "local_socket"
+	OperationAuthPrivatePreAuth OperationAuth = "private_pre_auth"
+)
+
 // OperationSpec describes one canonical REST operation.
 type OperationSpec struct {
 	Method      string
@@ -222,6 +235,7 @@ type OperationSpec struct {
 	Summary     string
 	Tags        []string
 	Transports  []Transport
+	Auth        map[Transport]OperationAuth
 	Parameters  []ParameterSpec
 	RequestBody any
 	// RequestBodyOptional keeps a request body schema documented while allowing empty requests.
@@ -249,6 +263,7 @@ func Document() (*openapi3.T, error) {
 			{Name: specDiagnosticsKey},
 			{Name: specOnboardingKey},
 			{Name: specFilesystemKey},
+			{Name: specGatewayKey},
 			{Name: specNetworkKey},
 			{Name: specNotificationsKey},
 			{Name: specExtensionsKey},

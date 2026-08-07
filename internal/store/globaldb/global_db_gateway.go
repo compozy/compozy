@@ -149,8 +149,10 @@ func transitionGatewayProvider(
 	default:
 		return false, fmt.Errorf("store: read gateway provider activation: %w", err)
 	}
-	if err := queries.UpsertGatewayProvider(ctx, gatewayProviderParams(req.Provider, now)); err != nil {
-		return false, fmt.Errorf("store: upsert gateway provider %q: %w", req.Provider.Name, err)
+	if req.Desired == gateway.DesiredEnabled {
+		if err := queries.UpsertGatewayProvider(ctx, gatewayProviderParams(req.Provider, now)); err != nil {
+			return false, fmt.Errorf("store: upsert gateway provider %q: %w", req.Provider.Name, err)
+		}
 	}
 	_, err = queries.TransitionGatewayProviderActivation(ctx, sqlcgen.TransitionGatewayProviderActivationParams{
 		ProviderName:       req.Provider.Name,

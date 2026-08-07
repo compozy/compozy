@@ -111,6 +111,14 @@ type Server interface {
 // ServerFactory constructs runtime components such as HTTP and UDS servers.
 type ServerFactory func(ctx context.Context, deps RuntimeDeps) (Server, error)
 
+// GatewayTierServerFactory constructs one daemon-owned loopback listener for a durable tier plan.
+type GatewayTierServerFactory func(
+	context.Context,
+	*RuntimeDeps,
+	gateway.Tier,
+	[]gateway.Surface,
+) (Server, error)
+
 // DreamTrigger exposes consolidation controls and health state to transport layers.
 type DreamTrigger = core.DreamTrigger
 
@@ -260,6 +268,8 @@ type Daemon struct {
 	newResourceReconcile         resourceReconcileDriverFactory
 	httpFactory                  ServerFactory
 	udsFactory                   ServerFactory
+	gatewayTierFactory           GatewayTierServerFactory
+	gatewayProviderEffects       gateway.EffectDriver
 	listProcesses                func(context.Context) ([]processInfo, error)
 	signalProcess                func(int, syscall.Signal) error
 	processAlive                 func(int) bool

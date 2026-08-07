@@ -108,6 +108,30 @@ func TestPolicyAuthorityAndRefusals(t *testing.T) {
 		}
 	})
 
+	t.Run("Should refuse webhook ingress outside the public tier", func(t *testing.T) {
+		t.Parallel()
+		store := &testStore{snapshot: Snapshot{Providers: []ProviderActivation{{
+			ProviderName: "connectivity-test", Tier: TierPrivate,
+			Desired: DesiredEnabled, Observed: ProviderDown, Generation: 1,
+		}}}}
+		policy := newTestPolicy(t, store, newTestEffects(nil), true)
+
+		_, err := policy.Transition(testContext(t), TransitionRequest{
+			Target: TargetSurface, Tier: TierPrivate, Surface: SurfaceWebhookIngress,
+			Desired: DesiredEnabled,
+		})
+		if !errors.Is(err, ErrExposureRefused) || !strings.Contains(err.Error(), "public tier") {
+			t.Fatalf("Transition() error = %v, want public-tier refusal", err)
+		}
+		snapshot, snapshotErr := store.Snapshot(testContext(t))
+		if snapshotErr != nil {
+			t.Fatalf("Snapshot() error = %v", snapshotErr)
+		}
+		if len(snapshot.Surfaces) != 0 {
+			t.Fatalf("snapshot surfaces = %#v, want invalid transition not persisted", snapshot.Surfaces)
+		}
+	})
+
 	t.Run("Should reject removed legacy exposure semantics without interpretation [UT-014]", func(t *testing.T) {
 		t.Parallel()
 		policy := newTestPolicy(t, &testStore{}, newTestEffects(nil), true)
@@ -117,6 +141,33 @@ func TestPolicyAuthorityAndRefusals(t *testing.T) {
 		})
 		if !errors.Is(err, ErrExposureRefused) || !strings.Contains(err.Error(), "legacy exposure mode") {
 			t.Fatalf("Transition() error = %v, want legacy-semantics refusal", err)
+		}
+	})
+
+	t.Run("Should surface an effect refusal in the transition status", func(t *testing.T) {
+		t.Parallel()
+		store := &testStore{snapshot: Snapshot{
+			Providers: []ProviderActivation{{
+				ProviderName: "connectivity-test", Tier: TierPrivate,
+				Desired: DesiredEnabled, Observed: ProviderDown, Generation: 1,
+			}},
+			Devices: []DeviceSession{{ID: "dev_test"}},
+		}}
+		effects := newTestEffects(nil)
+		effects.failAt = "bind"
+		effects.failErr = refusalError("the private listener is unavailable", "repair the listener and retry")
+		policy := newTestPolicy(t, store, effects, true)
+
+		status, err := policy.Transition(testContext(t), TransitionRequest{
+			Target: TargetSurface, Tier: TierPrivate, Surface: SurfaceOperatorUI,
+			Desired: DesiredEnabled,
+		})
+		if !errors.Is(err, ErrExposureRefused) {
+			t.Fatalf("Transition() error = %v, want ErrExposureRefused", err)
+		}
+		if status.Refusal == nil || status.Refusal.Cause != "the private listener is unavailable" ||
+			status.Refusal.Fix != "repair the listener and retry" {
+			t.Fatalf("Transition() refusal = %#v", status.Refusal)
 		}
 	})
 }
@@ -182,6 +233,17 @@ func TestPolicyGenerationFencingAndEffects(t *testing.T) {
 		}
 	})
 
+	t.Run("Should refuse an enabled tier plan without a provider", func(t *testing.T) {
+		t.Parallel()
+		reconciler := NewReconciler(&testStore{}, newTestEffects(nil))
+		err := reconciler.Reconcile(testContext(t), ExposurePlan{Tiers: []TierPlan{{
+			Tier: TierPrivate, Enabled: true,
+		}}})
+		if !errors.Is(err, ErrExposureRefused) {
+			t.Fatalf("Reconcile() error = %v, want ErrExposureRefused", err)
+		}
+	})
+
 	t.Run("Should apply persist bind establish verify advertise in fixed order [UT-017]", func(t *testing.T) {
 		t.Parallel()
 		log := &testCallLog{}
@@ -216,7 +278,7 @@ func TestPolicyGenerationFencingAndEffects(t *testing.T) {
 			want   []string
 		}{
 			{failAt: "persist", want: []string{"persist"}},
-			{failAt: "bind", want: []string{"persist", "bind", "unbind"}},
+			{failAt: "bind", want: []string{"persist", "bind"}},
 			{failAt: "establish", want: []string{"persist", "bind", "establish", "teardown", "unbind"}},
 			{failAt: "verify", want: []string{"persist", "bind", "establish", "verify", "teardown", "unbind"}},
 			{failAt: "advertise", want: []string{
@@ -260,6 +322,53 @@ func TestPolicyGenerationFencingAndEffects(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("Should redact and bound a provider failure before persistence", func(t *testing.T) {
+		t.Parallel()
+		const secret = "sk-gateway-persisted-secret"
+		store := &testStore{snapshot: enabledPrivateSnapshot()}
+		effects := newTestEffects(nil)
+		effects.failAt = "verify"
+		effects.failErr = errors.New("api_key=" + secret + strings.Repeat("x", 4096))
+		policy := newTestPolicy(t, store, effects, true)
+
+		if _, err := policy.Reconcile(testContext(t)); err == nil {
+			t.Fatal("Reconcile() error = nil, want verification failure")
+		}
+		snapshot, err := store.Snapshot(testContext(t))
+		if err != nil {
+			t.Fatalf("Snapshot() error = %v", err)
+		}
+		cause := snapshot.Providers[0].LastError
+		if strings.Contains(cause, secret) {
+			t.Fatalf("persisted LastError leaked secret: %q", cause)
+		}
+		if len(cause) > 2048 {
+			t.Fatalf("persisted LastError length = %d, want <= 2048", len(cause))
+		}
+	})
+
+	t.Run("Should restore the previous advertisement when listener replacement fails", func(t *testing.T) {
+		t.Parallel()
+		store := &testStore{snapshot: enabledPrivateSnapshot()}
+		effects := newTestEffects(nil)
+		policy := newTestPolicy(t, store, effects, true)
+		if _, err := policy.Reconcile(testContext(t)); err != nil {
+			t.Fatalf("Reconcile(initial) error = %v", err)
+		}
+		effects.failAt = "bind"
+		if _, err := policy.Reconcile(testContext(t)); err == nil {
+			t.Fatal("Reconcile(replacement) error = nil, want bind failure")
+		}
+		status, err := policy.Status(testContext(t))
+		if err != nil {
+			t.Fatalf("Status() error = %v", err)
+		}
+		if !effects.isAdvertised(TierPrivate) || !status.Tiers[0].Advertised ||
+			status.Tiers[0].ListenerAddress != "127.0.0.1:43210" {
+			t.Fatalf("restored private tier = %#v, advertised=%t", status.Tiers[0], effects.isAdvertised(TierPrivate))
+		}
+	})
 }
 
 func TestPolicyDisableSemantics(t *testing.T) {
@@ -288,7 +397,8 @@ func TestPolicyDisableSemantics(t *testing.T) {
 	t.Run("Should let an admitted request finish and refuse the next after disable [UT-020]", func(t *testing.T) {
 		t.Parallel()
 		store := &testStore{snapshot: enabledPrivateSnapshot()}
-		policy := newTestPolicy(t, store, newTestEffects(nil), true)
+		effects := newTestEffects(nil)
+		policy := newTestPolicy(t, store, effects, true)
 		if _, err := policy.Reconcile(testContext(t)); err != nil {
 			t.Fatalf("Reconcile() error = %v", err)
 		}
@@ -296,16 +406,31 @@ func TestPolicyDisableSemantics(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Acquire() error = %v", err)
 		}
+		released := make(chan struct{})
+		var releaseOnce sync.Once
+		effects.onCall = func(call string) {
+			if call != "withdraw" {
+				return
+			}
+			releaseOnce.Do(func() {
+				release()
+				close(released)
+			})
+		}
 		if _, err := policy.Transition(testContext(t), TransitionRequest{
 			Target: TargetSurface, Tier: TierPrivate, Surface: SurfaceOperatorUI,
 			Desired: DesiredDisabled, ExpectedGeneration: 1,
 		}); err != nil {
 			t.Fatalf("Transition(disable) error = %v", err)
 		}
+		select {
+		case <-released:
+		default:
+			t.Fatal("admission release remained blocked during listener withdrawal")
+		}
 		if _, err := policy.Acquire(TierPrivate, SurfaceOperatorUI); !errors.Is(err, ErrExposureRefused) {
 			t.Fatalf("Acquire() after disable error = %v, want ErrExposureRefused", err)
 		}
-		release()
 	})
 
 	t.Run("Should report a second disable as unchanged [UT-021]", func(t *testing.T) {
@@ -328,6 +453,100 @@ func TestPolicyDisableSemantics(t *testing.T) {
 		}
 		if second.Changed {
 			t.Fatal("second disable Changed = true, want false")
+		}
+	})
+
+	t.Run("Should preserve possible reachability but close admission when withdraw fails", func(t *testing.T) {
+		t.Parallel()
+		store := &testStore{snapshot: enabledPrivateSnapshot()}
+		effects := newTestEffects(nil)
+		policy := newTestPolicy(t, store, effects, true)
+		if _, err := policy.Reconcile(testContext(t)); err != nil {
+			t.Fatalf("Reconcile(initial) error = %v", err)
+		}
+		effects.failAt = "withdraw"
+		status, err := policy.Transition(testContext(t), TransitionRequest{
+			Target: TargetSurface, Tier: TierPrivate, Surface: SurfaceOperatorUI,
+			Desired: DesiredDisabled, ExpectedGeneration: 1,
+		})
+		if err == nil {
+			t.Fatal("Transition(disable) error = nil, want withdraw failure")
+		}
+		if !effects.isAdvertised(TierPrivate) || !status.Tiers[0].Advertised {
+			t.Fatalf(
+				"status after failed withdraw = %#v, provider advertised=%t",
+				status.Tiers[0],
+				effects.isAdvertised(TierPrivate),
+			)
+		}
+		if _, err := policy.Acquire(TierPrivate, SurfaceOperatorUI); !errors.Is(err, ErrExposureRefused) {
+			t.Fatalf("Acquire() after desired disable error = %v, want ErrExposureRefused", err)
+		}
+		effects.failAt = ""
+		if _, err := policy.Reconcile(testContext(t)); err != nil {
+			t.Fatalf("Reconcile(retry) error = %v", err)
+		}
+		status, err = policy.Status(testContext(t))
+		if err != nil {
+			t.Fatalf("Status(after retry) error = %v", err)
+		}
+		if status.Tiers[0].Advertised || status.Tiers[0].ListenerAddress != "" {
+			t.Fatalf("private tier after cleanup retry = %#v, want unreachable", status.Tiers[0])
+		}
+	})
+
+	t.Run("Should retain a stable refusal after a ceiling-disable cleanup failure", func(t *testing.T) {
+		t.Parallel()
+		store := &testStore{snapshot: enabledPrivateSnapshot()}
+		effects := newTestEffects(nil)
+		policy := newTestPolicy(t, store, effects, true)
+		if _, err := policy.Reconcile(testContext(t)); err != nil {
+			t.Fatalf("Reconcile() error = %v", err)
+		}
+		effects.failAt = "withdraw"
+
+		if err := policy.SetEnabled(testContext(t), false); err == nil {
+			t.Fatal("SetEnabled(false) error = nil, want cleanup failure")
+		}
+		status, err := policy.Status(testContext(t))
+		if err != nil {
+			t.Fatalf("Status() error = %v", err)
+		}
+		if status.Refusal == nil || status.Refusal.Cause != "gateway disable did not complete" ||
+			status.Refusal.Fix != "repair the failing listener or provider, then retry disabling the gateway" {
+			t.Fatalf("Status().Refusal = %#v", status.Refusal)
+		}
+	})
+
+	t.Run("Should retain the bound listener in status when unbind fails", func(t *testing.T) {
+		t.Parallel()
+		store := &testStore{snapshot: enabledPrivateSnapshot()}
+		effects := newTestEffects(nil)
+		policy := newTestPolicy(t, store, effects, true)
+		if _, err := policy.Reconcile(testContext(t)); err != nil {
+			t.Fatalf("Reconcile(initial) error = %v", err)
+		}
+		effects.failAt = "unbind"
+		status, err := policy.Transition(testContext(t), TransitionRequest{
+			Target: TargetSurface, Tier: TierPrivate, Surface: SurfaceOperatorUI,
+			Desired: DesiredDisabled, ExpectedGeneration: 1,
+		})
+		if err == nil {
+			t.Fatal("Transition(disable) error = nil, want unbind failure")
+		}
+		if status.Tiers[0].Advertised || status.Tiers[0].ListenerAddress != "127.0.0.1:43210" {
+			t.Fatalf("private tier after failed unbind = %#v, want withdrawn but still bound", status.Tiers[0])
+		}
+		effects.failAt = ""
+		if _, err := policy.Reconcile(testContext(t)); err != nil {
+			t.Fatalf("Reconcile(retry) error = %v", err)
+		}
+		status, err = policy.Status(testContext(t))
+		if err != nil {
+			t.Fatalf("Status(after retry) error = %v", err)
+		}
+		if status.Tiers[0].ListenerAddress != "" {
+			t.Fatalf("private tier after unbind retry = %#v, want no listener", status.Tiers[0])
 		}
 	})
 }

@@ -59,7 +59,7 @@ func clearSessionRuntimeOperationSpec() OperationSpec {
 			pathParam("session_id", "Session id"),
 			{
 				Name:        specExpectedRevisionKey,
-				In:          "query",
+				In:          specParameterInQuery,
 				Description: "Current runtime selection revision",
 				Required:    true,
 				Kind:        specIntegerKey,

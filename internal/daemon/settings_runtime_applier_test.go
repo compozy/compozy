@@ -3,7 +3,6 @@ package daemon
 import (
 	"context"
 	"errors"
-	"net/netip"
 	"os/exec"
 	"path/filepath"
 	"testing"
@@ -551,10 +550,6 @@ func (p *recordingGatewayPolicy) Transition(
 
 func (p *recordingGatewayPolicy) Reconcile(context.Context) (gateway.Status, error) {
 	return gateway.Status{}, nil
-}
-
-func (p *recordingGatewayPolicy) PublishListener(context.Context, gateway.Tier, netip.AddrPort) error {
-	return nil
 }
 
 func (p *recordingGatewayPolicy) SetEnabled(_ context.Context, enabled bool) error {

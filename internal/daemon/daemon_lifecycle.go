@@ -144,14 +144,14 @@ func (d *Daemon) shutdownDetached(ctx context.Context, targets *shutdownTargets)
 }
 
 func (d *Daemon) shutdownServersAndHooks(ctx context.Context, targets *shutdownTargets, errs *[]error) {
+	if targets.gateway != nil {
+		appendWrappedError(errs, "daemon: shutdown gateway", targets.gateway.Close(ctx))
+	}
 	if targets.httpServer != nil {
 		appendWrappedError(errs, "daemon: shutdown http server", targets.httpServer.Shutdown(ctx))
 	}
 	if targets.udsServer != nil {
 		appendWrappedError(errs, "daemon: shutdown uds server", targets.udsServer.Shutdown(ctx))
-	}
-	if targets.gateway != nil {
-		appendWrappedError(errs, "daemon: shutdown gateway", targets.gateway.Close(ctx))
 	}
 	if targets.supportBundles != nil {
 		appendWrappedError(errs, "daemon: shutdown support bundles", targets.supportBundles.Shutdown(ctx))

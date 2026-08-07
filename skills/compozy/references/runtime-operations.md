@@ -8,6 +8,7 @@
 - Session event store ownership
 - Background roles and usage cost
 - MCP serve and onboarding
+- Gateway exposure and device authentication
 - Automation suggestions
 - Messaging bridge delivery, diagnostics, and runtime boundaries
 
@@ -343,6 +344,34 @@ Native session tools are read-oriented. Clarification answers, recap, repair, ap
 inspect, and Soul refresh use CLI/HTTP/UDS management surfaces unless the live registry exposes a
 scoped native tool. `compozy__clarify` asks from inside the active session; it does not answer another
 session's question.
+
+## Gateway Exposure and Device Authentication
+
+Gateway policy is operator-global desired state. Inspect its effective posture in
+`.daemon.gateway` from `compozy status -o json`, through `GET /api/status`, or directly through
+`GET /api/gateway/status` on the private HTTP listener or UDS. The status reports enabled tiers,
+durable surfaces, provider state, resolved loopback listener addresses, paired devices, and any
+refusal that prevented exposure. A configured port of `0` asks the daemon to select a free port;
+use the resolved status address instead of assuming a default.
+
+Manage tier surfaces, providers, pairings, and devices through the private authenticated HTTP
+listener or UDS under `/api/gateway`. Mint pairing artifacts with `POST /pairings`, redeem them with
+`POST /pairings/redeem`, and list, rename, or revoke devices with `GET /devices`,
+`PATCH /devices/{id}`, and `DELETE /devices/{id}`. Pairing mint and redeem are physically absent from
+the public listener. Browser redemption installs a `Secure`, `HttpOnly`, `SameSite=Lax` cookie and
+does not return the raw credential; UDS returns the raw credential only to its local caller, which
+must protect it as secret material.
+
+Authenticated streaming over a tier listener uses a short-lived, single-use ticket. Obtain one with
+`POST /api/gateway/stream-tickets`, then pass it as the `ticket` query parameter on the SSE or
+WebSocket request. A consumed, expired, malformed, or revoked-device ticket is rejected uniformly;
+mint a fresh ticket for each reconnect. Revoking a device invalidates its future requests and closes
+its registered live streams.
+
+Tier listeners bind to daemon-owned loopback sockets. Connectivity providers publish those local
+listeners; they do not replace Gateway authentication or expose UDS-only APIs. The private tier owns
+operator management and the full operator surface. The public tier exposes only the selected
+operator and ingress surface union, never Gateway pairing or device management.
 
 ## Automation Suggestions
 

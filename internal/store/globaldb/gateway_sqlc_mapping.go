@@ -62,7 +62,7 @@ func gatewaySurfaceExposureFromGenerated(
 }
 
 func gatewayDeviceSessionFromGenerated(
-	row sqlcgen.ListActiveGatewayDeviceSessionsRow,
+	row sqlcgen.GatewayDeviceSession,
 ) (gateway.DeviceSession, error) {
 	revokeEpoch, err := gatewayUnsignedValue("device revoke epoch", row.RevokeEpoch)
 	if err != nil {
@@ -76,11 +76,25 @@ func gatewayDeviceSessionFromGenerated(
 	if err != nil {
 		return gateway.DeviceSession{}, fmt.Errorf("store: parse gateway device last-seen time: %w", err)
 	}
+	revokedAt, err := parseNullableGatewayTime(row.RevokedAt)
+	if err != nil {
+		return gateway.DeviceSession{}, fmt.Errorf("store: parse gateway device revoked time: %w", err)
+	}
 	return gateway.DeviceSession{
-		ID: row.ID, Name: row.Name, ActorKind: row.ActorKind,
+		ID: row.ID, Name: row.Name, ActorKind: gateway.ActorKind(row.ActorKind),
 		PairingOrigin: row.PairingOrigin, RevokeEpoch: revokeEpoch,
-		CreatedAt: createdAt, LastSeenAt: lastSeenAt,
+		CreatedAt: createdAt, LastSeenAt: lastSeenAt, RevokedAt: revokedAt,
 	}, nil
+}
+
+func gatewayStoredDeviceSessionFromGenerated(
+	row sqlcgen.GatewayDeviceSession,
+) (gateway.StoredDeviceSession, error) {
+	device, err := gatewayDeviceSessionFromGenerated(row)
+	if err != nil {
+		return gateway.StoredDeviceSession{}, err
+	}
+	return gateway.StoredDeviceSession{Session: device, TokenHash: row.TokenHash}, nil
 }
 
 func nullableGatewayTime(value time.Time) sql.NullString {

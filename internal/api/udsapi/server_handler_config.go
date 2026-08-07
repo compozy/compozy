@@ -57,6 +57,7 @@ func (s *Server) handlerConfig() *handlerConfig {
 		memoryLedger:       s.memoryLedger,
 		runtimeMemory:      s.runtimeMemory,
 		deadEntities:       s.deadEntities,
+		gateway:            s.gateway,
 		homePaths:          s.homePaths,
 		config:             s.config,
 		logger:             s.logger,

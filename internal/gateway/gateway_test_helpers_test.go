@@ -206,6 +206,7 @@ type testEffects struct {
 	mu         sync.Mutex
 	log        *testCallLog
 	failAt     string
+	failErr    error
 	onCall     func(string)
 	advertised map[Tier]bool
 }
@@ -222,6 +223,9 @@ func (e *testEffects) call(name string) error {
 		e.onCall(name)
 	}
 	if e.failAt == name {
+		if e.failErr != nil {
+			return e.failErr
+		}
 		return errors.New("injected " + name + " failure")
 	}
 	return nil

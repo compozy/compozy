@@ -115,6 +115,57 @@ func TestBundlesRenderHumanAndToon(t *testing.T) {
 	}
 }
 
+func TestDaemonStatusBundleGatewayPosture(t *testing.T) {
+	t.Parallel()
+	t.Run("Should render the complete gateway posture in human and TOON output [IT-007]", func(t *testing.T) {
+		t.Parallel()
+		assertDaemonStatusBundleGatewayPosture(t)
+	})
+}
+
+func assertDaemonStatusBundleGatewayPosture(t *testing.T) {
+	t.Helper()
+	bundle := daemonStatusBundle(DaemonStatus{
+		Status: "running",
+		Gateway: &contract.GatewayStatusPayload{
+			Enabled: true,
+			Tiers: []contract.GatewayTierPayload{{
+				Tier: "private", Desired: "enabled", Observed: "up",
+				ListenerAddress: "127.0.0.1:43123", Advertised: true,
+			}},
+			Surfaces:  []contract.GatewaySurfacePayload{{Surface: "operator_ui"}},
+			Providers: []contract.GatewayProviderPayload{{Name: "connectivity-test"}},
+			Addresses: []contract.GatewayAddressPayload{{Address: "https://private.example.test", Live: true}},
+			Devices:   []contract.GatewayDevicePayload{{ID: "dev_redacted"}},
+			Refusal:   &contract.GatewayRefusalPayload{Cause: "verification failed"},
+		},
+	}, func() time.Time { return fixedTestNow })
+
+	human, err := bundle.human()
+	if err != nil {
+		t.Fatalf("human() error = %v", err)
+	}
+	for _, want := range []string{
+		"Gateway Enabled", "private:enabled/up@127.0.0.1:43123 advertised=true",
+		"Gateway Surfaces", "Gateway Providers", "Gateway Addresses", "Gateway Devices",
+		"verification failed",
+	} {
+		if !strings.Contains(human, want) {
+			t.Fatalf("human output = %q, want %q", human, want)
+		}
+	}
+
+	toon, err := bundle.toon()
+	if err != nil {
+		t.Fatalf("toon() error = %v", err)
+	}
+	for _, want := range []string{"gateway_enabled", "gateway_tiers", "gateway_refusal"} {
+		if !strings.Contains(toon, want) {
+			t.Fatalf("TOON output = %q, want %q", toon, want)
+		}
+	}
+}
+
 func TestFormatHelpers(t *testing.T) {
 	t.Parallel()
 

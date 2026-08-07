@@ -105,6 +105,40 @@ func TestExecuteWrite(t *testing.T) {
 		}
 	})
 
+	t.Run("Should run the mutation fence before commit and roll back its rejection", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		db := openExecuteWriteTestDB(t, filepath.Join(t.TempDir(), "mutation-fence.db"))
+		if _, err := db.ExecContext(ctx, `CREATE TABLE items (id TEXT PRIMARY KEY)`); err != nil {
+			t.Fatalf("Create table error = %v", err)
+		}
+		sentinel := errors.New("mutation fence rejected commit")
+		fenceCalls := 0
+		ctx = ContextWithMutationCommitFence(ctx, func(context.Context) error {
+			fenceCalls++
+			return sentinel
+		})
+
+		err := ExecuteWrite(ctx, db, func(ctx context.Context, tx *WriteTx) error {
+			_, execErr := tx.ExecContext(ctx, `INSERT INTO items (id) VALUES ('rolled-back')`)
+			return execErr
+		})
+		if !errors.Is(err, sentinel) {
+			t.Fatalf("ExecuteWrite() error = %v, want mutation fence rejection", err)
+		}
+		if fenceCalls != 1 {
+			t.Fatalf("mutation fence calls = %d, want 1", fenceCalls)
+		}
+		var count int
+		if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM items`).Scan(&count); err != nil {
+			t.Fatalf("QueryRowContext(count) error = %v", err)
+		}
+		if count != 0 {
+			t.Fatalf("items count = %d, want fenced rollback to 0", count)
+		}
+	})
+
 	t.Run("Should expose query helpers inside the active transaction", func(t *testing.T) {
 		t.Parallel()
 

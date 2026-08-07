@@ -37,6 +37,7 @@ type Server struct {
 	configSet          bool
 	host               string
 	port               int
+	portSet            bool
 	logger             *slog.Logger
 	startedAt          time.Time
 	now                func() time.Time
@@ -336,7 +337,7 @@ func New(opts ...Option) (*Server, error) {
 	server.ensureEngine()
 	server.staticSource = staticSource.source
 	server.handlers = newHandlers(server.handlerConfig(staticSource.fs))
-	ginutil.QuietDebug(func() { RegisterRoutes(server.engine, server.handlers) })
+	ginutil.QuietDebug(func() { RegisterSurfaceRoutes(server.engine, server.handlers, server.surfaceSet) })
 
 	return server, nil
 }

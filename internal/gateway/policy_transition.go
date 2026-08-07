@@ -22,6 +22,7 @@ func (p *policy) Transition(ctx context.Context, req TransitionRequest) (Status,
 	}
 	if changed {
 		if err := p.reconcileLocked(ctx); err != nil {
+			p.setRefusal(err)
 			status, statusErr := p.Status(ctx)
 			status.Changed = true
 			return status, errors.Join(err, statusErr)
@@ -55,11 +56,21 @@ func (p *policy) SetEnabled(ctx context.Context, enabled bool) error {
 		if disableErr != nil {
 			disableErr = fmt.Errorf("gateway: disable durable exposure after ceiling change: %w", disableErr)
 		}
-		return errors.Join(disableErr, cleanupErr)
+		resultErr := errors.Join(disableErr, cleanupErr)
+		if resultErr != nil {
+			p.setRefusal(refusalError(
+				"gateway disable did not complete",
+				"repair the failing listener or provider, then retry disabling the gateway",
+			))
+			return resultErr
+		}
+		p.setRefusal(nil)
+		return nil
 	}
 	previous := p.enabled.Load()
 	p.enabled.Store(true)
 	if err := p.reconcileLocked(ctx); err != nil {
+		p.setRefusal(err)
 		p.enabled.Store(previous)
 		if !previous {
 			_, disableErr := p.store.DisableAll(ctx)
@@ -68,6 +79,7 @@ func (p *policy) SetEnabled(ctx context.Context, enabled bool) error {
 		}
 		return err
 	}
+	p.setRefusal(nil)
 	return nil
 }
 
@@ -177,6 +189,12 @@ func validateTransitionTarget(req TransitionRequest, snapshot Snapshot) error {
 	case TargetSurface:
 		if err := req.Surface.Validate(); err != nil {
 			return refusalError(err.Error(), "choose operator_ui or webhook_ingress")
+		}
+		if req.Surface == SurfaceWebhookIngress && req.Tier != TierPublic {
+			return refusalError(
+				"webhook ingress is available only on the public tier",
+				"enable webhook_ingress on the public tier",
+			)
 		}
 		if req.Desired == DesiredEnabled && !hasDesiredProvider(snapshot, req.Tier) {
 			return refusalError(

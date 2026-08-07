@@ -8,6 +8,7 @@ import (
 	"github.com/compozy/compozy/internal/api/udsapi"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/doctor"
+	"github.com/compozy/compozy/internal/gateway"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/situation"
@@ -78,5 +79,6 @@ type RuntimeDeps struct {
 	Extensions          udsapi.ExtensionService
 	Resources           core.ResourceService
 	WindowManager       windowmanager.Service
+	Gateway             *gateway.Service
 	StartedAt           time.Time
 }

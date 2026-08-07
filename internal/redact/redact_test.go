@@ -108,6 +108,19 @@ func TestStringRedactsCanonicalSecretTaxonomy(t *testing.T) {
 			leaks: []string{"cause-secret"},
 		},
 		{
+			name: "Should redact every gateway credential shape",
+			input: strings.Join([]string{
+				"cpz_gwd_device-secret-material",
+				"cpz_gwp_pairing-secret-material",
+				"cpz_gwt_stream-ticket-material",
+			}, " "),
+			leaks: []string{
+				"device-secret-material",
+				"pairing-secret-material",
+				"stream-ticket-material",
+			},
+		},
+		{
 			name: "Should redact shell flag values and bare secret binding references",
 			input: "deploy --password hunter2 --secret-ref vault:bridges/slack/token " +
 				"--api-key='api-flag-value' env:OPENAI_API_KEY",

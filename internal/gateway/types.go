@@ -180,11 +180,12 @@ type SurfaceExposure struct {
 type DeviceSession struct {
 	ID            string
 	Name          string
-	ActorKind     string
+	ActorKind     ActorKind
 	PairingOrigin string
 	RevokeEpoch   uint64
 	CreatedAt     time.Time
 	LastSeenAt    time.Time
+	RevokedAt     time.Time
 }
 
 // Snapshot is the complete operator-global durable gateway state.
@@ -244,10 +245,11 @@ type Status struct {
 
 // TierStatus summarizes desired and runtime state for a tier.
 type TierStatus struct {
-	Tier       Tier
-	Desired    DesiredState
-	Observed   string
-	Advertised bool
+	Tier            Tier
+	Desired         DesiredState
+	Observed        string
+	ListenerAddress string
+	Advertised      bool
 }
 
 // SurfaceStatus exposes desired versus observed surface state.

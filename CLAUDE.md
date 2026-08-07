@@ -11,7 +11,7 @@ No production users. Never sacrifice quality for backward compatibility; never w
 ## Critical Rules
 
 - <critical>Write responses in plain language: prefer everyday words over technical jargon, and define any technical term you must keep in one short clause.</critical>
-- **`make gate-full` MUST pass before closing a workstream** — final completion, commit batch, PR, handoff (see Build Commands). Intermediate tasks inside a loop/batch close on `make gate` (affected lanes only). Zero warnings, zero errors. Exception: docs-only changes that don't affect test/lint/typecheck.
+- **`make gate-full` MUST pass before closing a workstream** — final completion, commit batch, PR, handoff (see Build Commands). Intermediate tasks inside a loop/batch close on task-focused checks (task-named commands + scoped tests); `make gate` runs once when the batch enters its QA/review tail, `make gate-full` once at close. Zero warnings, zero errors. Exception: docs-only changes that don't affect test/lint/typecheck.
 - **`make lint` and `make bun-lint` are zero-tolerance** — any warning is a blocking failure.
 - **Check dependent package APIs** before writing integration code or tests.
 - **Never hand-edit `go.mod`** — use `go get`. **Never hand-add JS deps** — use `bun add`.
@@ -32,7 +32,7 @@ No production users. Never sacrifice quality for backward compatibility; never w
 - **Worktree isolation is mandatory for parallel QA** — unique `COMPOZY_HOME`, daemon ports, and `tmux-bridge` sockets. Default home/port is forbidden when concurrency is signaled.
 - **Deterministic QA bootstrap for local release/scenario QA** — start with `eng-qa-bootstrap`; fresh lab per pass; reuse a `bootstrap-manifest.json` only when continuing the same active QA loop. QA state lives in the committed `docs/qa/` tree (`scenarios/*.md`, content-addressed bugs, journeys, charters, dated reports); `state.csv` is a gitignored generated view, and the lab holds only run-scratch evidence indexed by path.
 - <critical>**QA process teardown is mandatory (L-029).** Every QA lab or isolated runtime envelope ends with `eval "$TEARDOWN_COMMAND"` (from the bootstrap manifest) or `make qa-reap` — on every terminal path (pass/fail/blocked/abort). Files may stay for forensics; processes never do. Completing a task while lab daemons, tmux servers, dev servers, browsers, or watchers are still alive is a blocking failure; cite `teardown.json` (`"clean": true`) as evidence. Register long-lived lab processes at `<QA_OUTPUT_PATH>/qa/pids/<name>.pid` on spawn.</critical>
-- **QA tracker impact — flag and verify before completing any task** — if the diff changes user-visible behavior (UI, CLI verb, API route, config key, copy), flag it in `docs/qa/scenarios/`: new behavior → add an `untested` content-addressed scenario file; changed behavior → reset the affected file's `qa_status` to `untested`. Pure refactors declare "no user-visible change". **Flag, then verify** — before completing, walk every scenario you added or reset per the `qa-execution` contract and record the verdict with evidence; a failing walk means fix the production code and re-walk until it passes. A flagged scenario left `untested`/`fail` at completion is a blocking failure; only a recorded `blocked-verify`/`blocked-decision` may stay unwalked. Use content-addressed ids for new scenarios and bugs; dedup same-behavior/same-symptom add/add conflicts instead of coordinating a shared counter.
+- **QA tracker impact — flag and verify before completing any task** — if the diff changes user-visible behavior (UI, CLI verb, API route, config key, copy), flag it in `docs/qa/scenarios/`: new behavior → add an `untested` content-addressed scenario file; changed behavior → reset the affected file's `qa_status` to `untested`. Pure refactors declare "no user-visible change". **Flag, then verify** — before completing, walk every scenario you added or reset per the `qa-execution` contract and record the verdict with evidence; a failing walk means fix the production code and re-walk until it passes. Inside a `cy-loop-tasks` run, intermediate tasks flag only — the walk runs once, in the loop's QA phase, before close. A flagged scenario left `untested`/`fail` at completion is a blocking failure; only a recorded `blocked-verify`/`blocked-decision` may stay unwalked. Use content-addressed ids for new scenarios and bugs; dedup same-behavior/same-symptom add/add conflicts instead of coordinating a shared counter.
 - **Provider-home policy matches the provider contract in local QA.** Bound-secret/brokered creds use `PROVIDER_HOME`/`PROVIDER_CODEX_HOME` from the bootstrap manifest. Exception: `native_cli` + `home_policy = operator` preserves the operator `HOME`/native login unless a scenario tests isolated provider-home.
 - **Isolated Web QA exports `COMPOZY_WEB_API_PROXY_TARGET`** — derive it from the bootstrap manifest/env; never hardcode `:2123`.
 - **Never parallelize config writes against one isolated QA home** — `compozy config set` and peers run sequentially per provider/runtime home.
@@ -116,6 +116,8 @@ Compozy Impact Audit:
 | UI / Design (any surface)                         | `eng-design` + `ui-craft` + `impeccable`                                                 | `eng-ui-screenshot`                   |
 | UI verification / visual diff                     | `eng-ui-screenshot` + `impeccable`                                                       |                                       |
 
+UI dimension deep-dives — activate only the dimension in scope: `better-typography` type/fonts/wrapping · `better-layout` grouping/spacing/disclosure · `better-accessibility` focus/ARIA/keyboard · `better-colors` OKLCH/token math · `better-ui` radius/icon/motion detail. `eng-design` + `DESIGN.md` win on conflict — flat depth beats layered shadows.
+
 Web-specific dispatch: `web/CLAUDE.md`. Site-specific: `packages/site/CLAUDE.md`.
 
 ## Build Commands
@@ -146,14 +148,7 @@ Web-local dev/build/format (`make web-dev`, `make web-build`, `make web-fmt`) ar
 
 - Format `<type>: <description>`; prefixes `feat|fix|refactor|docs|test|build`. Never `chore`/`style`/`ci`. Use `build:` for tooling/CI. PR-merged commits append `(#NN)`.
 - **One commit per remediation batch.** Each `cy-fix-reviews` round produces exactly one local commit.
-- Run `make gate-full` **once** at workstream close, before the final commit batch/PR — intermediate checkpoint commits in a task loop ride on `make gate`. The evidence record survives commits (fingerprint is content-keyed; the pre-commit hook only runs `lint-staged` — husky's `core.hooksPath` bypasses skeeper's managed hooks; sidecar sync is manual via `skeeper sync`). Re-run only if the hook modified tracked source — the record goes stale.
 - If a pre-commit hook fails, do **not** `git commit --amend` — fix the issue and create a new commit.
-
-## Code Search Hierarchy
-
-1. **Grep / Glob** — local project code.
-2. **`context7` skill** — external library docs.
-3. **`exa-web-search-free`** — web research, news, external examples.
 
 ## Surface Map
 

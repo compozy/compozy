@@ -4,6 +4,10 @@ import "github.com/gin-gonic/gin"
 
 // RegisterRoutes registers the shared Compozy API routes on the supplied Gin router.
 func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
+	RegisterSurfaceRoutes(router, handlers, SurfaceSetLocal)
+}
+
+func registerLocalRoutes(router gin.IRouter, handlers *Handlers) {
 	if handlers == nil {
 		return
 	}
@@ -17,35 +21,11 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 		api = api.Group("", loopbackAPIGuard(handlers.boundHost))
 	}
 
-	registerStatusRoutes(api, handlers)
-	registerOnboardingRoutes(api, handlers)
-	registerFilesystemRoutes(api, handlers)
-	registerBridgeRoutes(api, handlers)
-	registerNotificationRoutes(api, handlers)
-	registerWorkspaceRoutes(api, handlers)
-	registerWindowManagerRoutes(api, handlers)
-	registerSessionRoutes(api, handlers)
-	registerAgentRoutes(api, handlers)
-	registerRoleRoutes(api, handlers)
-	registerLogsRoutes(api, handlers)
-	registerSupportRoutes(api, handlers)
-	registerObserveRoutes(api, handlers)
-	registerHookRoutes(api, handlers)
+	registerOperatorRoutes(api, handlers)
+	registerAgentKernelRoutes(api, handlers)
 	registerResourceRoutes(api, handlers)
-	registerToolRoutes(api, handlers)
-	registerAutomationRoutes(api, handlers)
-	registerLoopRoutes(api, handlers)
-	registerTaskRoutes(api, handlers)
-	registerMarketplaceRoutes(api, handlers)
-	registerSkillRoutes(api, handlers)
-	registerMemoryRoutes(api, handlers)
-	registerNetworkRoutes(api, handlers)
-	registerExtensionRoutes(api, handlers)
-	registerSettingsRoutes(api, handlers)
-	registerVaultRoutes(api, handlers)
-	registerProviderRoutes(api, handlers)
-	registerModelCatalogRoutes(api, handlers)
-	registerOpenAIModelRoutes(api, handlers)
+	registerGatewayRedeemRoute(api, handlers)
+	registerGatewayManagementRoutes(api, handlers, false)
 
 	if engine, ok := router.(*gin.Engine); ok {
 		engine.NoRoute(handlers.serveStaticRoute)

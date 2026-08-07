@@ -7,8 +7,13 @@ import (
 	"net/netip"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
+
+	"github.com/compozy/compozy/internal/diagnostics"
 )
+
+const maxPersistedGatewayDiagnosticBytes = 2048
 
 // EffectDriver performs daemon-owned and provider-owned external effects.
 type EffectDriver interface {
@@ -45,8 +50,9 @@ func (refusingEffects) Withdraw(context.Context, Tier) error { return nil }
 
 type runtimeTierState struct {
 	RuntimeTier
-	inFlight int
-	provider *ProviderActivation
+	inFlight  atomic.Int64
+	provider  *ProviderActivation
+	accepting bool
 }
 
 // Reconciler drives durable desired state through ordered external effects.
@@ -67,14 +73,6 @@ func NewReconciler(store Store, effects EffectDriver) *Reconciler {
 		effects: effects,
 		runtime: map[Tier]*runtimeTierState{},
 	}
-}
-
-// PublishListener records a daemon-resolved loopback listener address.
-func (r *Reconciler) PublishListener(tier Tier, addr netip.AddrPort) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	state := r.runtimeState(tier)
-	state.Bound = addr
 }
 
 // Runtime returns a stable copy for status projection.
@@ -99,23 +97,19 @@ func (r *Reconciler) Runtime() []RuntimeTier {
 func (r *Reconciler) Acquire(tier Tier, surface Surface) (func(), error) {
 	r.mu.Lock()
 	state, ok := r.runtime[tier]
-	if !ok || !state.Advertised || !slices.Contains(state.Surfaces, surface) {
+	if !ok || !state.accepting || !state.Advertised || !slices.Contains(state.Surfaces, surface) {
 		r.mu.Unlock()
 		return nil, refusalError(
 			"the requested gateway surface is not reachable",
 			"enable the surface and wait for gateway status to report it on",
 		)
 	}
-	state.inFlight++
+	state.inFlight.Add(1)
 	r.mu.Unlock()
 	var once sync.Once
 	return func() {
 		once.Do(func() {
-			r.mu.Lock()
-			defer r.mu.Unlock()
-			if current := r.runtime[tier]; current != nil && current.inFlight > 0 {
-				current.inFlight--
-			}
+			state.inFlight.Add(-1)
 		})
 	}, nil
 }
@@ -145,73 +139,91 @@ func (r *Reconciler) Reconcile(ctx context.Context, plan ExposurePlan) error {
 	return errors.Join(errs...)
 }
 
-func (r *Reconciler) enableTier(ctx context.Context, plan TierPlan) (err error) {
+func (r *Reconciler) enableTier(ctx context.Context, plan TierPlan) error {
+	if plan.Provider == nil {
+		return refusalError(
+			"an enabled gateway tier requires a connectivity provider",
+			"enable a trusted provider for the tier before reconciling reachability",
+		)
+	}
 	provider := *plan.Provider
 	surfaces := surfaceNames(plan.Surfaces)
+	state := r.runtimeState(plan.Tier)
+	hadAdvertisement := state.Advertised
+	previousRuntime := state.RuntimeTier
+	previousRuntime.Addresses = append([]string(nil), state.Addresses...)
+	previousRuntime.Surfaces = append([]Surface(nil), state.Surfaces...)
+	previousProvider := state.provider
+	previousAccepting := state.accepting
+	state.accepting = false
+	if hadAdvertisement {
+		if err := r.withdrawTier(ctx, plan.Tier, state); err != nil {
+			state.accepting = previousAccepting
+			return err
+		}
+	}
 	bound, err := r.effects.Bind(ctx, plan.Tier)
 	if err != nil {
-		return errors.Join(err, r.effects.Unbind(ctx, plan.Tier))
-	}
-	compensate := func(includeWithdraw bool) error {
-		var errs []error
-		if includeWithdraw {
-			errs = append(errs, r.effects.Withdraw(ctx, plan.Tier))
+		if hadAdvertisement {
+			restoreErr := r.effects.Advertise(ctx, Reachability{
+				Tier: plan.Tier, Addresses: append([]string(nil), previousRuntime.Addresses...),
+				Health: HealthHealthy,
+			}, append([]Surface(nil), previousRuntime.Surfaces...))
+			state.RuntimeTier = previousRuntime
+			state.provider = previousProvider
+			state.accepting = restoreErr == nil && previousAccepting
+			return errors.Join(err, restoreErr)
 		}
-		errs = append(errs, r.effects.Teardown(ctx, provider), r.effects.Unbind(ctx, plan.Tier))
-		return errors.Join(errs...)
+		return err
 	}
+	state.Bound = bound
 	if err := r.assertCurrent(ctx, plan); err != nil {
-		return errors.Join(err, r.effects.Unbind(ctx, plan.Tier))
+		return errors.Join(err, r.unbindTier(ctx, plan.Tier, state))
 	}
+	providerCopy := provider
+	state.provider = &providerCopy
 	reachability, err := r.effects.Establish(ctx, provider, bound)
 	if err != nil {
-		return errors.Join(err, compensate(false))
+		return errors.Join(err, r.compensateTier(ctx, plan.Tier, provider, state, false))
 	}
 	if err := r.assertCurrent(ctx, plan); err != nil {
-		return errors.Join(err, compensate(false))
+		return errors.Join(err, r.compensateTier(ctx, plan.Tier, provider, state, false))
 	}
 	if err := r.effects.Verify(ctx, reachability); err != nil {
-		return errors.Join(r.markDegraded(ctx, plan, err), compensate(false))
+		return errors.Join(r.markDegraded(ctx, plan, err), r.compensateTier(ctx, plan.Tier, provider, state, false))
 	}
 	if err := r.assertCurrent(ctx, plan); err != nil {
-		return errors.Join(err, compensate(false))
+		return errors.Join(err, r.compensateTier(ctx, plan.Tier, provider, state, false))
 	}
-	if err := r.effects.Advertise(ctx, reachability, surfaces); err != nil {
-		return errors.Join(r.markDegraded(ctx, plan, err), compensate(true))
-	}
-	if err := r.assertCurrent(ctx, plan); err != nil {
-		return errors.Join(err, compensate(true))
-	}
-	if err := r.markObserved(ctx, plan, ProviderUp, SurfaceOn, ""); err != nil {
-		return errors.Join(err, compensate(true))
-	}
-	state := r.runtimeState(plan.Tier)
-	state.Bound = bound
 	state.Addresses = append([]string(nil), reachability.Addresses...)
 	state.Surfaces = append([]Surface(nil), surfaces...)
 	state.Advertised = true
-	providerCopy := provider
-	state.provider = &providerCopy
+	if err := r.effects.Advertise(ctx, reachability, surfaces); err != nil {
+		return errors.Join(r.markDegraded(ctx, plan, err), r.compensateTier(ctx, plan.Tier, provider, state, true))
+	}
+	if err := r.assertCurrent(ctx, plan); err != nil {
+		return errors.Join(err, r.compensateTier(ctx, plan.Tier, provider, state, true))
+	}
+	if err := r.markObserved(ctx, plan, ProviderUp, SurfaceOn, ""); err != nil {
+		return errors.Join(err, r.compensateTier(ctx, plan.Tier, provider, state, true))
+	}
+	state.accepting = true
 	return nil
 }
 
 func (r *Reconciler) disableTier(ctx context.Context, plan TierPlan) error {
 	state := r.runtimeState(plan.Tier)
-	state.Advertised = false
-	state.Addresses = nil
-	state.Surfaces = nil
+	state.accepting = false
 	var errs []error
-	errs = append(errs, r.effects.Withdraw(ctx, plan.Tier))
+	errs = append(errs, r.withdrawTier(ctx, plan.Tier, state))
 	provider := plan.Provider
 	if provider == nil {
 		provider = state.provider
 	}
 	if provider != nil {
-		errs = append(errs, r.effects.Teardown(ctx, *provider))
+		errs = append(errs, r.teardownTier(ctx, *provider, state))
 	}
-	errs = append(errs, r.effects.Unbind(ctx, plan.Tier))
-	state.Bound = netip.AddrPort{}
-	state.provider = nil
+	errs = append(errs, r.unbindTier(ctx, plan.Tier, state))
 	if cleanupErr := errors.Join(errs...); cleanupErr != nil {
 		return cleanupErr
 	}
@@ -219,6 +231,52 @@ func (r *Reconciler) disableTier(ctx context.Context, plan TierPlan) error {
 		return nil
 	}
 	return r.markObserved(ctx, plan, ProviderDown, SurfaceOff, "")
+}
+
+func (r *Reconciler) compensateTier(
+	ctx context.Context,
+	tier Tier,
+	provider ProviderActivation,
+	state *runtimeTierState,
+	includeWithdraw bool,
+) error {
+	state.accepting = false
+	var errs []error
+	if includeWithdraw {
+		errs = append(errs, r.withdrawTier(ctx, tier, state))
+	}
+	errs = append(errs, r.teardownTier(ctx, provider, state), r.unbindTier(ctx, tier, state))
+	return errors.Join(errs...)
+}
+
+func (r *Reconciler) withdrawTier(ctx context.Context, tier Tier, state *runtimeTierState) error {
+	if err := r.effects.Withdraw(ctx, tier); err != nil {
+		return err
+	}
+	state.Advertised = false
+	state.Addresses = nil
+	state.Surfaces = nil
+	return nil
+}
+
+func (r *Reconciler) teardownTier(
+	ctx context.Context,
+	provider ProviderActivation,
+	state *runtimeTierState,
+) error {
+	if err := r.effects.Teardown(ctx, provider); err != nil {
+		return err
+	}
+	state.provider = nil
+	return nil
+}
+
+func (r *Reconciler) unbindTier(ctx context.Context, tier Tier, state *runtimeTierState) error {
+	if err := r.effects.Unbind(ctx, tier); err != nil {
+		return err
+	}
+	state.Bound = netip.AddrPort{}
+	return nil
 }
 
 func (r *Reconciler) assertCurrent(ctx context.Context, plan TierPlan) error {
@@ -256,7 +314,8 @@ func (r *Reconciler) markObserved(
 }
 
 func (r *Reconciler) markDegraded(ctx context.Context, plan TierPlan, cause error) error {
-	markErr := r.markObserved(ctx, plan, ProviderDegraded, SurfaceOff, cause.Error())
+	safeCause := diagnostics.RedactAndBound(cause.Error(), maxPersistedGatewayDiagnosticBytes)
+	markErr := r.markObserved(ctx, plan, ProviderDegraded, SurfaceOff, safeCause)
 	return errors.Join(cause, markErr)
 }
 
@@ -276,16 +335,12 @@ func (r *Reconciler) Close(ctx context.Context) error {
 	var errs []error
 	for _, tier := range []Tier{TierPublic, TierPrivate} {
 		state := r.runtimeState(tier)
-		state.Advertised = false
-		state.Addresses = nil
-		state.Surfaces = nil
-		errs = append(errs, r.effects.Withdraw(ctx, tier))
+		state.accepting = false
+		errs = append(errs, r.withdrawTier(ctx, tier, state))
 		if state.provider != nil {
-			errs = append(errs, r.effects.Teardown(ctx, *state.provider))
+			errs = append(errs, r.teardownTier(ctx, *state.provider, state))
 		}
-		errs = append(errs, r.effects.Unbind(ctx, tier))
-		state.Bound = netip.AddrPort{}
-		state.provider = nil
+		errs = append(errs, r.unbindTier(ctx, tier, state))
 	}
 	return errors.Join(errs...)
 }

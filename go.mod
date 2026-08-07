@@ -40,6 +40,7 @@ require (
 	github.com/sigstore/sigstore-go v1.2.1
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
+	github.com/zalando/go-keyring v0.2.6
 	go.etcd.io/bbolt v1.5.0
 	go.uber.org/goleak v1.3.0
 	golang.org/x/crypto v0.53.0
@@ -206,7 +207,6 @@ require (
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78 // indirect
-	github.com/zalando/go-keyring v0.2.6 // indirect
 	github.com/zclconf/go-cty v1.14.4 // indirect
 	github.com/zclconf/go-cty-yaml v1.1.0 // indirect
 	go.mongodb.org/mongo-driver/v2 v2.7.0 // indirect

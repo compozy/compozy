@@ -1231,6 +1231,160 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/gateway/devices": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List the operator-global paired device inventory */
+    get: operations["listGatewayDevices"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/gateway/devices/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Revoke one paired gateway device and its live streams */
+    delete: operations["revokeGatewayDevice"];
+    options?: never;
+    head?: never;
+    /** Rename one paired gateway device */
+    patch: operations["renameGatewayDevice"];
+    trace?: never;
+  };
+  "/api/gateway/pairings": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Mint a bounded one-time gateway pairing artifact */
+    post: operations["mintGatewayPairing"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/gateway/pairings/redeem": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Redeem a one-time gateway pairing artifact */
+    post: operations["redeemGatewayPairing"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/gateway/providers/{name}/disable": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Disable one named connectivity provider for a gateway tier */
+    post: operations["disableGatewayProvider"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/gateway/providers/{name}/enable": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Enable one connectivity provider for a gateway tier */
+    post: operations["enableGatewayProvider"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/gateway/status": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get the operator-global gateway posture */
+    get: operations["getGatewayStatus"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/gateway/stream-tickets": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Mint a short-lived single-use stream ticket */
+    post: operations["mintGatewayStreamTicket"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/gateway/surfaces": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Set durable exposure for one gateway surface */
+    post: operations["setGatewaySurface"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/hooks/catalog": {
     parameters: {
       query?: never;
@@ -32080,6 +32234,1414 @@ export interface operations {
       };
     };
   };
+  listGatewayDevices: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            devices: {
+              actor_kind: string;
+              /** Format: date-time */
+              created_at: string;
+              id: string;
+              /** Format: date-time */
+              last_seen_at?: string | null;
+              name: string;
+              pairing_origin: string;
+              revoke_epoch: number;
+              /** Format: date-time */
+              revoked_at?: string | null;
+            }[];
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  revokeGatewayDevice: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Gateway device id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Revoked */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            canceled: number;
+            changed: boolean;
+            device: {
+              actor_kind: string;
+              /** Format: date-time */
+              created_at: string;
+              id: string;
+              /** Format: date-time */
+              last_seen_at?: string | null;
+              name: string;
+              pairing_origin: string;
+              revoke_epoch: number;
+              /** Format: date-time */
+              revoked_at?: string | null;
+            };
+          };
+        };
+      };
+      /** @description Gateway device not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  renameGatewayDevice: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Gateway device id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          name: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Renamed */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            actor_kind: string;
+            /** Format: date-time */
+            created_at: string;
+            id: string;
+            /** Format: date-time */
+            last_seen_at?: string | null;
+            name: string;
+            pairing_origin: string;
+            revoke_epoch: number;
+            /** Format: date-time */
+            revoked_at?: string | null;
+          };
+        };
+      };
+      /** @description Invalid gateway device name */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Gateway device not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  mintGatewayPairing: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            artifact: string;
+            /** Format: date-time */
+            expires_at: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Rate limited */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  redeemGatewayPairing: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          actor_kind: string;
+          artifact: string;
+          name: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Redeemed */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            credential?: string;
+            device: {
+              actor_kind: string;
+              /** Format: date-time */
+              created_at: string;
+              id: string;
+              /** Format: date-time */
+              last_seen_at?: string | null;
+              name: string;
+              pairing_origin: string;
+              revoke_epoch: number;
+              /** Format: date-time */
+              revoked_at?: string | null;
+            };
+          };
+        };
+      };
+      /** @description Invalid pairing request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid pairing artifact */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Pairing artifact already spent */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Pairing artifact expired */
+      410: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Rate limited */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  disableGatewayProvider: {
+    parameters: {
+      query: {
+        /** @description Gateway tier */
+        tier: string;
+      };
+      header?: never;
+      path: {
+        /** @description Connectivity provider name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Disabled */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            addresses: {
+              address: string;
+              live: boolean;
+              tier: string;
+            }[];
+            changed: boolean;
+            devices: {
+              actor_kind: string;
+              /** Format: date-time */
+              created_at: string;
+              id: string;
+              /** Format: date-time */
+              last_seen_at?: string | null;
+              name: string;
+              pairing_origin: string;
+              revoke_epoch: number;
+              /** Format: date-time */
+              revoked_at?: string | null;
+            }[];
+            enabled: boolean;
+            providers: {
+              cause?: string;
+              desired: string;
+              generation: number;
+              health: string;
+              name: string;
+              observed: string;
+              tier: string;
+            }[];
+            refusal?: {
+              cause: string;
+              fix: string;
+            } | null;
+            surfaces: {
+              desired: string;
+              generation: number;
+              observed: string;
+              surface: string;
+              tier: string;
+            }[];
+            tiers: {
+              advertised: boolean;
+              desired: string;
+              listener_address?: string;
+              observed: string;
+              tier: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid gateway tier */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Gateway provider not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Gateway provider conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  enableGatewayProvider: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Connectivity provider name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          digest_confirmed?: string;
+          expected_generation: number;
+          install_source: string;
+          tier: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Enabled */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            addresses: {
+              address: string;
+              live: boolean;
+              tier: string;
+            }[];
+            changed: boolean;
+            devices: {
+              actor_kind: string;
+              /** Format: date-time */
+              created_at: string;
+              id: string;
+              /** Format: date-time */
+              last_seen_at?: string | null;
+              name: string;
+              pairing_origin: string;
+              revoke_epoch: number;
+              /** Format: date-time */
+              revoked_at?: string | null;
+            }[];
+            enabled: boolean;
+            providers: {
+              cause?: string;
+              desired: string;
+              generation: number;
+              health: string;
+              name: string;
+              observed: string;
+              tier: string;
+            }[];
+            refusal?: {
+              cause: string;
+              fix: string;
+            } | null;
+            surfaces: {
+              desired: string;
+              generation: number;
+              observed: string;
+              surface: string;
+              tier: string;
+            }[];
+            tiers: {
+              advertised: boolean;
+              desired: string;
+              listener_address?: string;
+              observed: string;
+              tier: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid provider request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Gateway provider conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Provider digest confirmation required */
+      428: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  getGatewayStatus: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            addresses: {
+              address: string;
+              live: boolean;
+              tier: string;
+            }[];
+            changed: boolean;
+            devices: {
+              actor_kind: string;
+              /** Format: date-time */
+              created_at: string;
+              id: string;
+              /** Format: date-time */
+              last_seen_at?: string | null;
+              name: string;
+              pairing_origin: string;
+              revoke_epoch: number;
+              /** Format: date-time */
+              revoked_at?: string | null;
+            }[];
+            enabled: boolean;
+            providers: {
+              cause?: string;
+              desired: string;
+              generation: number;
+              health: string;
+              name: string;
+              observed: string;
+              tier: string;
+            }[];
+            refusal?: {
+              cause: string;
+              fix: string;
+            } | null;
+            surfaces: {
+              desired: string;
+              generation: number;
+              observed: string;
+              surface: string;
+              tier: string;
+            }[];
+            tiers: {
+              advertised: boolean;
+              desired: string;
+              listener_address?: string;
+              observed: string;
+              tier: string;
+            }[];
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  mintGatewayStreamTicket: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: date-time */
+            expires_at: string;
+            ticket: string;
+          };
+        };
+      };
+      /** @description Gateway device authentication required */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  setGatewaySurface: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          consent: boolean;
+          desired: string;
+          expected_generation: number;
+          surface: string;
+          tier: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Updated */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            addresses: {
+              address: string;
+              live: boolean;
+              tier: string;
+            }[];
+            changed: boolean;
+            devices: {
+              actor_kind: string;
+              /** Format: date-time */
+              created_at: string;
+              id: string;
+              /** Format: date-time */
+              last_seen_at?: string | null;
+              name: string;
+              pairing_origin: string;
+              revoke_epoch: number;
+              /** Format: date-time */
+              revoked_at?: string | null;
+            }[];
+            enabled: boolean;
+            providers: {
+              cause?: string;
+              desired: string;
+              generation: number;
+              health: string;
+              name: string;
+              observed: string;
+              tier: string;
+            }[];
+            refusal?: {
+              cause: string;
+              fix: string;
+            } | null;
+            surfaces: {
+              desired: string;
+              generation: number;
+              observed: string;
+              surface: string;
+              tier: string;
+            }[];
+            tiers: {
+              advertised: boolean;
+              desired: string;
+              listener_address?: string;
+              observed: string;
+              tier: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid gateway surface request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Gateway exposure conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Gateway consent required */
+      428: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
   getHookCatalog: {
     parameters: {
       query?: {
@@ -58669,6 +60231,55 @@ export interface operations {
             };
             daemon: {
               active_sessions: number;
+              gateway?: {
+                addresses: {
+                  address: string;
+                  live: boolean;
+                  tier: string;
+                }[];
+                changed: boolean;
+                devices: {
+                  actor_kind: string;
+                  /** Format: date-time */
+                  created_at: string;
+                  id: string;
+                  /** Format: date-time */
+                  last_seen_at?: string | null;
+                  name: string;
+                  pairing_origin: string;
+                  revoke_epoch: number;
+                  /** Format: date-time */
+                  revoked_at?: string | null;
+                }[];
+                enabled: boolean;
+                providers: {
+                  cause?: string;
+                  desired: string;
+                  generation: number;
+                  health: string;
+                  name: string;
+                  observed: string;
+                  tier: string;
+                }[];
+                refusal?: {
+                  cause: string;
+                  fix: string;
+                } | null;
+                surfaces: {
+                  desired: string;
+                  generation: number;
+                  observed: string;
+                  surface: string;
+                  tier: string;
+                }[];
+                tiers: {
+                  advertised: boolean;
+                  desired: string;
+                  listener_address?: string;
+                  observed: string;
+                  tier: string;
+                }[];
+              } | null;
               http_host: string;
               http_port: number;
               network?: {

@@ -47,9 +47,13 @@ func projectStatus(
 	}
 	for _, tier := range []Tier{TierPrivate, TierPublic} {
 		desired, observed := tierProjection(snapshot, tier)
+		listenerAddress := ""
+		if bound := runtimeByTier[tier].Bound; bound.IsValid() {
+			listenerAddress = bound.String()
+		}
 		status.Tiers = append(status.Tiers, TierStatus{
 			Tier: tier, Desired: desired, Observed: observed,
-			Advertised: runtimeByTier[tier].Advertised,
+			ListenerAddress: listenerAddress, Advertised: runtimeByTier[tier].Advertised,
 		})
 	}
 	sort.Slice(status.Addresses, func(i, j int) bool {
@@ -62,19 +66,13 @@ func projectStatus(
 }
 
 func tierProjection(snapshot Snapshot, tier Tier) (DesiredState, string) {
-	desired := DesiredDisabled
-	observed := string(ProviderDown)
 	for _, provider := range snapshot.Providers {
-		if provider.Tier != tier {
+		if provider.Tier != tier || provider.Desired != DesiredEnabled {
 			continue
 		}
-		if provider.Desired == DesiredEnabled {
-			desired = DesiredEnabled
-		}
-		observed = string(provider.Observed)
-		break
+		return DesiredEnabled, string(provider.Observed)
 	}
-	return desired, observed
+	return DesiredDisabled, string(ProviderDown)
 }
 
 func providerHealth(provider ProviderActivation) ProviderHealth {

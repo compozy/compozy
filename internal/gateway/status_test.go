@@ -26,6 +26,22 @@ func TestStatusProjection(t *testing.T) {
 		if status.Providers[0].Health != HealthHealthy || !status.Addresses[0].Live {
 			t.Fatalf("provider/address status = %#v/%#v", status.Providers[0], status.Addresses[0])
 		}
+		if status.Tiers[0].ListenerAddress != "127.0.0.1:43210" {
+			t.Fatalf("private listener = %q, want resolved loopback address", status.Tiers[0].ListenerAddress)
+		}
+	})
+
+	t.Run("Should publish the resolved listener before provider advertisement [IT-016]", func(t *testing.T) {
+		t.Parallel()
+		status := projectStatus(enabledPrivateSnapshot(), []RuntimeTier{{
+			Tier: TierPrivate, Bound: netip.MustParseAddrPort("127.0.0.1:43123"), Advertised: false,
+		}}, true, nil)
+		if status.Tiers[0].ListenerAddress != "127.0.0.1:43123" || status.Tiers[0].Advertised {
+			t.Fatalf("private tier = %#v, want bound listener before advertisement", status.Tiers[0])
+		}
+		if len(status.Addresses) != 0 {
+			t.Fatalf("provider addresses = %#v, want none before advertisement", status.Addresses)
+		}
 	})
 
 	t.Run("Should distinguish desired from observed while reconciliation is pending [UT-023]", func(t *testing.T) {
@@ -80,6 +96,23 @@ func TestStatusProjection(t *testing.T) {
 		if status.Tiers[1].Tier != TierPublic || status.Tiers[1].Advertised ||
 			status.Tiers[1].Desired != DesiredDisabled {
 			t.Fatalf("public tier = %#v, want independent disabled state", status.Tiers[1])
+		}
+	})
+
+	t.Run("Should prefer the enabled provider after a provider switch", func(t *testing.T) {
+		t.Parallel()
+		status := projectStatus(Snapshot{Providers: []ProviderActivation{
+			{
+				ProviderName: "connectivity-a", Tier: TierPrivate,
+				Desired: DesiredDisabled, Observed: ProviderDown, Generation: 2,
+			},
+			{
+				ProviderName: "connectivity-b", Tier: TierPrivate,
+				Desired: DesiredEnabled, Observed: ProviderUp, Generation: 1,
+			},
+		}}, nil, true, nil)
+		if status.Tiers[0].Desired != DesiredEnabled || status.Tiers[0].Observed != string(ProviderUp) {
+			t.Fatalf("private tier = %#v, want enabled/up from the active provider", status.Tiers[0])
 		}
 	})
 

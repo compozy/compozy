@@ -1,6 +1,9 @@
 package udsapi
 
-import core "github.com/compozy/compozy/internal/api/core"
+import (
+	core "github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/gateway"
+)
 
 func newHandlers(cfg *handlerConfig) *Handlers {
 	if cfg == nil {
@@ -81,6 +84,8 @@ func udsCoreHandlerConfig(cfg *handlerConfig) *core.BaseHandlerConfig {
 		MemorySessionLedger:          cfg.memoryLedger,
 		RuntimeMemory:                cfg.runtimeMemory,
 		DeadEntities:                 cfg.deadEntities,
+		Gateway:                      cfg.gateway,
+		GatewayPairingSource:         string(gateway.PairingSourceLocal),
 		HomePaths:                    cfg.homePaths,
 		Config:                       cfg.config,
 		Logger:                       cfg.logger,

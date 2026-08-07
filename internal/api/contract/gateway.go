@@ -1,0 +1,113 @@
+package contract
+
+import "time"
+
+// GatewayStatusPayload is the redacted operator-global exposure projection.
+type GatewayStatusPayload struct {
+	Enabled   bool                     `json:"enabled"`
+	Changed   bool                     `json:"changed"`
+	Tiers     []GatewayTierPayload     `json:"tiers"`
+	Surfaces  []GatewaySurfacePayload  `json:"surfaces"`
+	Providers []GatewayProviderPayload `json:"providers"`
+	Addresses []GatewayAddressPayload  `json:"addresses"`
+	Devices   []GatewayDevicePayload   `json:"devices"`
+	Refusal   *GatewayRefusalPayload   `json:"refusal,omitempty"`
+}
+
+type GatewayTierPayload struct {
+	Tier            string `json:"tier"`
+	Desired         string `json:"desired"`
+	Observed        string `json:"observed"`
+	ListenerAddress string `json:"listener_address,omitempty"`
+	Advertised      bool   `json:"advertised"`
+}
+
+type GatewaySurfacePayload struct {
+	Surface    string `json:"surface"`
+	Tier       string `json:"tier"`
+	Desired    string `json:"desired"`
+	Observed   string `json:"observed"`
+	Generation uint64 `json:"generation"`
+}
+
+type GatewayProviderPayload struct {
+	Name       string `json:"name"`
+	Tier       string `json:"tier"`
+	Desired    string `json:"desired"`
+	Observed   string `json:"observed"`
+	Generation uint64 `json:"generation"`
+	Health     string `json:"health"`
+	Cause      string `json:"cause,omitempty"`
+}
+
+type GatewayAddressPayload struct {
+	Tier    string `json:"tier"`
+	Address string `json:"address"`
+	Live    bool   `json:"live"`
+}
+
+type GatewayRefusalPayload struct {
+	Cause string `json:"cause"`
+	Fix   string `json:"fix"`
+}
+
+type GatewayDevicePayload struct {
+	ID            string     `json:"id"`
+	Name          string     `json:"name"`
+	ActorKind     string     `json:"actor_kind"`
+	PairingOrigin string     `json:"pairing_origin"`
+	RevokeEpoch   uint64     `json:"revoke_epoch"`
+	CreatedAt     time.Time  `json:"created_at"`
+	LastSeenAt    *time.Time `json:"last_seen_at,omitempty"`
+	RevokedAt     *time.Time `json:"revoked_at,omitempty"`
+}
+
+type GatewayPairingArtifactPayload struct {
+	Artifact  string    `json:"artifact"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
+type GatewayIssuedCredentialPayload struct {
+	Device     GatewayDevicePayload `json:"device"`
+	Credential string               `json:"credential,omitempty"`
+}
+
+type GatewayRevokePayload struct {
+	Device   GatewayDevicePayload `json:"device"`
+	Changed  bool                 `json:"changed"`
+	Canceled int                  `json:"canceled"`
+}
+
+type GatewayStreamTicketPayload struct {
+	Ticket    string    `json:"ticket"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
+type GatewayDevicesResponse struct {
+	Devices []GatewayDevicePayload `json:"devices"`
+}
+
+type GatewaySurfaceRequest struct {
+	Surface            string `json:"surface" binding:"required"`
+	Tier               string `json:"tier" binding:"required"`
+	Desired            string `json:"desired" binding:"required"`
+	ExpectedGeneration uint64 `json:"expected_generation"`
+	Consent            bool   `json:"consent"`
+}
+
+type GatewayProviderEnableRequest struct {
+	Tier               string `json:"tier" binding:"required"`
+	InstallSource      string `json:"install_source" binding:"required"`
+	DigestConfirmed    string `json:"digest_confirmed,omitempty"`
+	ExpectedGeneration uint64 `json:"expected_generation"`
+}
+
+type GatewayPairingRedeemRequest struct {
+	Artifact  string `json:"artifact" binding:"required"`
+	Name      string `json:"name" binding:"required"`
+	ActorKind string `json:"actor_kind" binding:"required"`
+}
+
+type GatewayDeviceRenameRequest struct {
+	Name string `json:"name" binding:"required"`
+}
