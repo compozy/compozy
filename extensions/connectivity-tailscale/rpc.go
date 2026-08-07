@@ -9,6 +9,8 @@ import (
 	compozysdk "github.com/compozy/compozy/sdk/go"
 )
 
+const providerConfigurationRPCErrorCode = -32000
+
 // RunProvider serves the bundled provider over the public extension SDK protocol.
 func RunProvider(ctx context.Context, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 	if ctx == nil {
@@ -38,9 +40,16 @@ func RunProvider(ctx context.Context, stdin io.Reader, stdout io.Writer, stderr 
 		compozysdk.WithStderr(stderr),
 	)
 	if err := compozysdk.ConnectivityProvider(extension, compozysdk.ConnectivityProviderHandlers{
-		Establish: provider.Establish,
-		Status:    provider.Status,
-		Teardown:  provider.Teardown,
+		Establish: func(
+			ctx context.Context,
+			extensionContext compozysdk.ExtensionContext,
+			request compozysdk.ConnectivityEstablishRequest,
+		) (compozysdk.ConnectivityReachability, error) {
+			reachability, establishErr := provider.Establish(ctx, extensionContext, request)
+			return reachability, providerRPCError(establishErr)
+		},
+		Status:   provider.Status,
+		Teardown: provider.Teardown,
 	}); err != nil {
 		return err
 	}
@@ -48,6 +57,17 @@ func RunProvider(ctx context.Context, stdin io.Reader, stdout io.Writer, stderr 
 	stopCtx, cancel := context.WithTimeout(context.Background(), providerShutdownTimeout)
 	defer cancel()
 	return errors.Join(runErr, provider.Close(stopCtx))
+}
+
+func providerRPCError(err error) error {
+	if !errors.Is(err, errAuthKeyBindingRequired) {
+		return err
+	}
+	return compozysdk.NewRPCError(
+		providerConfigurationRPCErrorCode,
+		"TS_AUTHKEY binding is required",
+		nil,
+	)
 }
 
 func providerDefinition() compozysdk.ExtensionDefinition {

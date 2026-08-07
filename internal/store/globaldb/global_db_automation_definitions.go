@@ -285,7 +285,12 @@ func (g *AutomationRepo) DeleteTrigger(ctx context.Context, id string) (err erro
 	if err != nil {
 		return fmt.Errorf("store: delete automation trigger %q: %w", trimmedID, err)
 	}
-	if err := requireAutomationAffected(affected, automation.ErrTriggerNotFound, trimmedID, "automation trigger"); err != nil {
+	if err := requireAutomationAffected(
+		affected,
+		automation.ErrTriggerNotFound,
+		trimmedID,
+		"automation trigger",
+	); err != nil {
 		return err
 	}
 	if err := tx.Commit(); err != nil {

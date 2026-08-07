@@ -23,6 +23,8 @@ type tailscaleNode interface {
 
 type tailscaleNodeFactory func(string, *slog.Logger) (tailscaleNode, error)
 
+var errAuthKeyBindingRequired = errors.New("connectivity-tailscale: TS_AUTHKEY binding is required")
+
 type tsnetNode struct {
 	server *tsnet.Server
 	logger *slog.Logger
@@ -40,7 +42,7 @@ func newTSNetNode(stateDir string, logger *slog.Logger) (tailscaleNode, error) {
 	}
 	authKey := strings.TrimSpace(os.Getenv("TS_AUTHKEY"))
 	if authKey == "" {
-		return nil, errors.New("connectivity-tailscale: TS_AUTHKEY binding is required")
+		return nil, errAuthKeyBindingRequired
 	}
 	server := &tsnet.Server{
 		Dir:      stateDir,

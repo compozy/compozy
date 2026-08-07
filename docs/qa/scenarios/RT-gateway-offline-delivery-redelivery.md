@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-deliver-through-public-gateway
 expected: A delivery attempted while the daemon is offline fails visibly at the sender and creates no hidden Compozy work; after ingress is healthy, one sender-side redelivery creates exactly one attributed Loop run or bridge effect.
 entry_points: External sender delivery log and redelivery action; public webhook or bridge callback URL; Compozy run or bridge detail
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-remote-gateway-20260807-202655-957508-lab/qa-artifacts/qa/test-cases/34-signed-webhook-local-pipeline.json;/Users/pedronauck/dev/qa-labs/compozy-remote-gateway-20260807-202655-957508-lab/qa-artifacts/qa/test-cases/40-webhook-boundaries-and-projection.json
+last_report: docs/qa/reports/2026-08-07-remote-gateway.md
 overlaps: RT-gateway-public-ingress-bindings; TA-060
 ---
 
@@ -24,3 +24,6 @@ Record the failed sender receipt, prove no run or callback effect appeared durin
 the daemon, confirm the binding is still live or explicitly needs reconfirmation, and use the sender's
 own redelivery path. Duplicate delivery identities must remain deduplicated.
 
+QA walk 2026-08-07: the signed local pipeline proved attribution and replay deduplication, with
+disabled and oversized deliveries producing no run. Sender-visible public downtime and redelivery
+remain blocked without a verified public provider endpoint.

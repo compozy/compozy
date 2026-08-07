@@ -51,8 +51,7 @@ export function GatewayExposureSection({
             <ShieldCheck />
             <AlertTitle>Remote reachability is turned off in configuration</AlertTitle>
             <AlertDescription>
-              Set <code>gateway.enabled</code> to true and restart the daemon before any of these
-              can take effect.
+              Set <code>gateway.enabled</code> to true. The change applies immediately.
             </AlertDescription>
           </Alert>
         </div>

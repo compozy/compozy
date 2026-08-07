@@ -120,6 +120,14 @@ func (d *Daemon) bootDeviceGateway(
 			)
 			return nil
 		}
+		if errors.Is(err, gateway.ErrProviderDegraded) {
+			state.logger.Warn(
+				"daemon: gateway provider degraded; continuing local-only",
+				"error",
+				err,
+			)
+			return nil
+		}
 		return fmt.Errorf("daemon: reconcile gateway before server advertisement: %w", err)
 	}
 	return nil

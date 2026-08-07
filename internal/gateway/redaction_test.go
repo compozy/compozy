@@ -33,7 +33,6 @@ func TestGatewayOutputRedaction(t *testing.T) {
 			"cpz_gwp_pairing-artifact-material-123456",
 			"cpz_gwt_stream-ticket-material-123456",
 		} {
-			secret := secret
 			t.Run("Should redact "+secret[:7], func(t *testing.T) {
 				t.Parallel()
 				data := marshalAuditPayload(t, auditReportWithSecret(secret))

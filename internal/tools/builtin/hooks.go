@@ -67,7 +67,7 @@ var hookTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDHooks},
-		[]string{hooksHooksKey, hooksRunsKey, "audit"},
+		[]string{hooksHooksKey, hooksRunsKey, descriptorKeywordAudit},
 		[]string{"hook run history", "hook audit"},
 	),
 	nativeDescriptor(

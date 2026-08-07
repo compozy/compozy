@@ -140,8 +140,12 @@ func auditFindings(status Status, highlights AuditDeviceHighlights) []AuditFindi
 	findings = append(findings, auditIngressFindings(status.Bindings)...)
 	if highlights.Stale > 0 {
 		findings = append(findings, AuditFinding{
-			ID: "gateway.devices.stale", Severity: AuditSeverityWarning,
-			Summary:     fmt.Sprintf("%d active gateway device(s) have been idle for more than 90 days.", highlights.Stale),
+			ID:       "gateway.devices.stale",
+			Severity: AuditSeverityWarning,
+			Summary: fmt.Sprintf(
+				"%d active gateway device(s) have been idle for more than 90 days.",
+				highlights.Stale,
+			),
 			Remediation: "Review the stale device IDs and run `compozy device revoke <device-id>` for each device no longer in use.",
 			Resource:    strings.Join(highlights.StaleDeviceIDs, ","),
 		})
@@ -232,7 +236,8 @@ func auditIngressFindings(bindings []IngressBindingStatus) []AuditFinding {
 				binding.Subject.Kind, strings.TrimSpace(binding.Subject.ID), binding.Reachability,
 			),
 			Remediation: "Restore a verified public ingress endpoint, then confirm the subject again through `/api/gateway/ingress-bindings`.",
-			Tier:        TierPublic, Resource: strings.TrimSpace(binding.Subject.ID),
+			Tier:        TierPublic,
+			Resource:    strings.TrimSpace(binding.Subject.ID),
 		})
 	}
 	return findings

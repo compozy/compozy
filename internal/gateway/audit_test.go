@@ -59,7 +59,10 @@ func TestGatewayAudit(t *testing.T) {
 			t.Fatalf("device highlights = %#v", report.DeviceHighlights)
 		}
 		if len(report.Findings) < 5 {
-			t.Fatalf("findings = %#v, want provider, drift, public UI, ingress, and stale-device findings", report.Findings)
+			t.Fatalf(
+				"findings = %#v, want provider, drift, public UI, ingress, and stale-device findings",
+				report.Findings,
+			)
 		}
 		findingIDs := make(map[string]struct{}, len(report.Findings))
 		for index := 1; index < len(report.Findings); index++ {
@@ -105,7 +108,8 @@ func TestGatewayAudit(t *testing.T) {
 				{Tier: TierPublic, Desired: DesiredDisabled, Observed: string(ProviderDown)},
 			},
 		}, now)
-		if !report.Ran || !report.NoFindings || !report.LocalOnly || report.Findings == nil || len(report.Findings) != 0 {
+		if !report.Ran || !report.NoFindings || !report.LocalOnly || report.Findings == nil ||
+			len(report.Findings) != 0 {
 			t.Fatalf("local-only audit = %#v", report)
 		}
 	})

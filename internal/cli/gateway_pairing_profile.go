@@ -3,6 +3,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"net"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -139,7 +140,7 @@ func completeGatewayPairingRedemption(
 		Artifact: artifact, Name: profile.Name, ActorKind: "cli_profile", Credential: credential,
 	})
 	if err != nil {
-		if isDefinitiveGatewayPairingRejection(err) {
+		if isDefinitiveGatewayPairingRejection(err) || gatewayPairingRequestNotSent(err) {
 			return prepared.Rollback(err)
 		}
 		return err
@@ -159,4 +160,9 @@ func completeGatewayPairingRedemption(
 		Device:  &issued.Device, Status: "paired",
 	}
 	return writeCommandOutput(cmd, gatewayProfileOutput(record))
+}
+
+func gatewayPairingRequestNotSent(err error) bool {
+	var operationError *net.OpError
+	return errors.As(err, &operationError) && operationError.Op == "dial"
 }

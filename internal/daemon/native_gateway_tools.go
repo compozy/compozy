@@ -54,6 +54,13 @@ type nativeGatewayResult struct {
 	Unbind   *contract.GatewayIngressUnbindResponse  `json:"unbind,omitempty"`
 }
 
+type nativeGatewayActionRequest struct {
+	scope  toolspkg.Scope
+	toolID toolspkg.ToolID
+	action string
+	input  nativeGatewayInput
+}
+
 func (n *daemonNativeTools) gatewayToolBindings(
 	availability toolspkg.NativeAvailabilityFunc,
 ) map[toolspkg.ToolID]nativeToolBinding {
@@ -78,7 +85,7 @@ func (n *daemonNativeTools) gatewayCall(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	if n == nil || n.deps == nil || n.deps.Gateway == nil {
+	if n == nil || n.deps == nil || n.deps.gatewayService() == nil {
 		return toolspkg.ToolResult{}, nativeUnavailableError(req.ToolID, "gateway service is unavailable")
 	}
 	if !isGatewayReadAction(action) {
@@ -91,7 +98,12 @@ func (n *daemonNativeTools) gatewayCall(
 		ctx = gateway.WithIngressReadWorkspace(ctx, workspaceID)
 	}
 
-	result, err := n.executeGatewayAction(ctx, scope, req.ToolID, action, input)
+	result, err := n.executeGatewayAction(ctx, nativeGatewayActionRequest{
+		scope:  scope,
+		toolID: req.ToolID,
+		action: action,
+		input:  input,
+	})
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -100,84 +112,119 @@ func (n *daemonNativeTools) gatewayCall(
 
 func (n *daemonNativeTools) executeGatewayAction(
 	ctx context.Context,
-	scope toolspkg.Scope,
-	toolID toolspkg.ToolID,
-	action string,
-	input nativeGatewayInput,
+	request nativeGatewayActionRequest,
 ) (nativeGatewayResult, error) {
-	result := nativeGatewayResult{Action: action, Redacted: true}
-	switch action {
+	switch request.action {
+	case gatewayActionStatus, gatewayActionAudit, gatewayActionDeviceList:
+		return n.executeGatewayReadAction(ctx, request)
+	case gatewayActionIngressBind, gatewayActionIngressUnbind:
+		return n.executeGatewayIngressAction(ctx, request)
+	default:
+		return n.executeGatewayMutationAction(ctx, request)
+	}
+}
+
+func (n *daemonNativeTools) executeGatewayReadAction(
+	ctx context.Context,
+	request nativeGatewayActionRequest,
+) (nativeGatewayResult, error) {
+	result := nativeGatewayResult{Action: request.action, Redacted: true}
+	switch request.action {
 	case gatewayActionStatus:
-		status, err := n.deps.Gateway.Status(ctx)
+		status, err := n.deps.gatewayService().Status(ctx)
 		if err != nil {
 			return nativeGatewayResult{}, err
 		}
 		payload := core.GatewayStatusPayload(status)
 		result.Status = &payload
 	case gatewayActionAudit:
-		report, err := n.deps.Gateway.Audit(ctx)
+		report, err := n.deps.gatewayService().Audit(ctx)
 		if err != nil {
 			return nativeGatewayResult{}, err
 		}
 		payload := core.GatewayAuditPayload(report)
 		result.Audit = &payload
 	case gatewayActionDeviceList:
-		devices, err := n.deps.Gateway.ListDevices(ctx)
+		devices, err := n.deps.gatewayService().ListDevices(ctx)
 		if err != nil {
 			return nativeGatewayResult{}, err
 		}
 		payload := core.GatewayDevicePayloads(devices)
 		result.Devices = &payload
+	default:
+		return nativeGatewayResult{}, nativeGatewayInputError(request.toolID, "action", "unsupported gateway action")
+	}
+	return result, nil
+}
+
+func (n *daemonNativeTools) executeGatewayMutationAction(
+	ctx context.Context,
+	request nativeGatewayActionRequest,
+) (nativeGatewayResult, error) {
+	result := nativeGatewayResult{Action: request.action, Redacted: true}
+	switch request.action {
 	case gatewayActionSurfaceSet:
-		status, err := n.gatewaySurfaceSet(ctx, toolID, input)
+		status, err := n.gatewaySurfaceSet(ctx, request.toolID, request.input)
 		if err != nil {
 			return nativeGatewayResult{}, err
 		}
 		payload := core.GatewayStatusPayload(status)
 		result.Status = &payload
 	case gatewayActionProviderEnable:
-		status, err := n.gatewayProviderEnable(ctx, toolID, input)
+		status, err := n.gatewayProviderEnable(ctx, request.toolID, request.input)
 		if err != nil {
 			return nativeGatewayResult{}, err
 		}
 		payload := core.GatewayStatusPayload(status)
 		result.Status = &payload
 	case gatewayActionProviderDisable:
-		status, err := n.gatewayProviderDisable(ctx, toolID, input)
+		status, err := n.gatewayProviderDisable(ctx, request.toolID, request.input)
 		if err != nil {
 			return nativeGatewayResult{}, err
 		}
 		payload := core.GatewayStatusPayload(status)
 		result.Status = &payload
 	case gatewayActionDeviceRename:
-		device, err := n.gatewayDeviceRename(ctx, toolID, input)
+		device, err := n.gatewayDeviceRename(ctx, request.toolID, request.input)
 		if err != nil {
 			return nativeGatewayResult{}, err
 		}
 		payload := core.GatewayDevicePayload(device)
 		result.Device = &payload
 	case gatewayActionDeviceRevoke:
-		revoked, err := n.gatewayDeviceRevoke(ctx, toolID, input)
+		revoked, err := n.gatewayDeviceRevoke(ctx, request.toolID, request.input)
 		if err != nil {
 			return nativeGatewayResult{}, err
 		}
 		result.Revoke = &contract.GatewayRevokePayload{
 			Device: core.GatewayDevicePayload(revoked.Device), Changed: revoked.Changed, Canceled: revoked.Canceled,
 		}
+	default:
+		return nativeGatewayResult{}, nativeGatewayInputError(request.toolID, "action", "unsupported gateway action")
+	}
+	return result, nil
+}
+
+func (n *daemonNativeTools) executeGatewayIngressAction(
+	ctx context.Context,
+	request nativeGatewayActionRequest,
+) (nativeGatewayResult, error) {
+	result := nativeGatewayResult{Action: request.action, Redacted: true}
+	switch request.action {
 	case gatewayActionIngressBind:
-		binding, err := n.gatewayIngressBind(ctx, scope, toolID, input)
+		binding, err := n.gatewayIngressBind(ctx, request.scope, request.toolID, request.input)
 		if err != nil {
 			return nativeGatewayResult{}, err
 		}
 		result.Binding = binding
 	case gatewayActionIngressUnbind:
-		unbound, err := n.gatewayIngressUnbind(ctx, scope, toolID, input)
+		unbound, err := n.gatewayIngressUnbind(ctx, request.scope, request.toolID, request.input)
 		if err != nil {
 			return nativeGatewayResult{}, err
 		}
 		result.Unbind = unbound
 	default:
-		return nativeGatewayResult{}, nativeGatewayInputError(toolID, "action", "unsupported gateway action")
+		return nativeGatewayResult{}, nativeGatewayInputError(request.toolID, "action", "unsupported gateway action")
 	}
 	return result, nil
 }

@@ -337,8 +337,8 @@ func TestPolicyGenerationFencingAndEffects(t *testing.T) {
 		effects.failErr = errors.New("api_key=" + secret + strings.Repeat("x", 4096))
 		policy := newTestPolicy(t, store, effects, true)
 
-		if _, err := policy.Reconcile(testContext(t)); err == nil {
-			t.Fatal("Reconcile() error = nil, want verification failure")
+		if _, err := policy.Reconcile(testContext(t)); !errors.Is(err, ErrProviderDegraded) {
+			t.Fatalf("Reconcile() error = %v, want ErrProviderDegraded", err)
 		}
 		snapshot, err := store.Snapshot(testContext(t))
 		if err != nil {

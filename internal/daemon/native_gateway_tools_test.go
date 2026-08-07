@@ -35,7 +35,7 @@ func TestDaemonNativeGatewayTool(t *testing.T) {
 			audit:  gateway.AuditReport{Ran: true, NoFindings: true, LocalOnly: true},
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Gateway: service,
+			Gateway: func() core.GatewayService { return service },
 			GatewayPermissionMode: func(context.Context, string) (string, error) {
 				return string(toolspkg.PermissionModeDenyAll), nil
 			},
@@ -68,7 +68,7 @@ func TestDaemonNativeGatewayTool(t *testing.T) {
 
 		service := &nativeGatewayService{}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Gateway: service,
+			Gateway: func() core.GatewayService { return service },
 			GatewayPermissionMode: func(context.Context, string) (string, error) {
 				return string(toolspkg.PermissionModeApproveReads), nil
 			},
@@ -95,7 +95,7 @@ func TestDaemonNativeGatewayTool(t *testing.T) {
 
 		service := &nativeGatewayService{status: gateway.Status{Enabled: true}}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Gateway: service,
+			Gateway: func() core.GatewayService { return service },
 			GatewayPermissionMode: func(_ context.Context, sessionID string) (string, error) {
 				if strings.TrimSpace(sessionID) != "session-all" {
 					t.Fatalf("permission session id = %q, want session-all", sessionID)
@@ -115,6 +115,35 @@ func TestDaemonNativeGatewayTool(t *testing.T) {
 		}
 		if service.surfaceSetCalls != 2 {
 			t.Fatalf("SetSurfaceExposure calls = %d, want 2", service.surfaceSetCalls)
+		}
+	})
+
+	// Invariant: native gateway calls resolve the service created after tool-registry boot.
+	// Owning layer: daemon composition root.
+	// Canonical suite: TestDaemonNativeGatewayTool.
+	t.Run("Should resolve the gateway service lazily after registry construction", func(t *testing.T) {
+		t.Parallel()
+
+		var service core.GatewayService
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Gateway: func() core.GatewayService { return service },
+		}, nativeApproveAllPolicyInputs())
+		service = &nativeGatewayService{
+			audit: gateway.AuditReport{Ran: true, NoFindings: true, LocalOnly: true},
+		}
+		result, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDGateway,
+			Input:  json.RawMessage(`{"action":"audit"}`),
+		})
+		if err != nil {
+			t.Fatalf("Registry.Call(gateway audit) error = %v", err)
+		}
+		var payload nativeGatewayResult
+		if err := json.Unmarshal(result.Structured, &payload); err != nil {
+			t.Fatalf("Unmarshal(gateway audit) error = %v", err)
+		}
+		if payload.Audit == nil || !payload.Audit.Ran || !payload.Audit.NoFindings || !payload.Audit.LocalOnly {
+			t.Fatalf("gateway audit payload = %#v, want local-only no-findings report", payload.Audit)
 		}
 	})
 }

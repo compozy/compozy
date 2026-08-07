@@ -132,6 +132,61 @@ func TestGatewayBootRedactsExposureRefusal(t *testing.T) {
 	}
 }
 
+func TestGatewayBootContinuesLocalOnlyWhenProviderDegraded(t *testing.T) {
+	homePaths := integrationHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	cfg.Network.Enabled = false
+	cfg.Gateway.Enabled = true
+	cfg.Gateway.PrivatePort = 0
+	cfg.Gateway.PublicPort = 0
+	seedGatewayEndToEndExposure(t, homePaths.DatabaseFile)
+
+	var logs bytes.Buffer
+	daemonInstance, err := New(
+		WithHomePaths(homePaths),
+		WithConfig(&cfg),
+		WithLogger(slog.New(slog.NewTextHandler(&logs, nil))),
+		WithGatewayProviderEffects(gatewayRefusingProviderEffects{
+			err: errors.New("TS_AUTHKEY binding is required"),
+		}),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if err := daemonInstance.boot(testutil.Context(t)); err != nil {
+		t.Fatalf("boot() error = %v, want degraded local-only continuation", err)
+	}
+	t.Cleanup(func() {
+		if err := daemonInstance.Shutdown(testutil.Context(t)); err != nil {
+			t.Errorf("Shutdown() error = %v", err)
+		}
+	})
+
+	status, err := daemonInstance.gateway.Status(testutil.Context(t))
+	if err != nil {
+		t.Fatalf("gateway.Status() error = %v", err)
+	}
+	if len(status.Providers) != 2 {
+		t.Fatalf("provider status = %#v, want both seeded tiers", status.Providers)
+	}
+	for _, provider := range status.Providers {
+		if provider.Observed != gateway.ProviderDegraded || provider.Health != gateway.HealthDegraded {
+			t.Fatalf("provider status = %#v, want every seeded tier degraded", status.Providers)
+		}
+	}
+	for _, tier := range status.Tiers {
+		if tier.Advertised || tier.ListenerAddress != "" {
+			t.Fatalf("gateway status = %#v, want no advertised or bound tier", status)
+		}
+	}
+	if len(status.Addresses) != 0 {
+		t.Fatalf("gateway addresses = %#v, want none", status.Addresses)
+	}
+	if output := logs.String(); !strings.Contains(output, "provider degraded; continuing local-only") {
+		t.Fatalf("gateway degradation log = %q, want local-only continuation", output)
+	}
+}
+
 func exerciseGatewayDaemonRealListenersAndTransportParity(t *testing.T) {
 	homePaths := integrationHomePaths(t)
 	cfg := testConfig(t, homePaths)

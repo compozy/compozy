@@ -59,7 +59,7 @@ type daemonNativeToolsDeps struct {
 	MemoryProviders            core.MemoryProviderService
 	MemorySessionLedger        core.MemorySessionLedgerService
 	Bridges                    core.BridgeService
-	Gateway                    core.GatewayService
+	Gateway                    func() core.GatewayService
 	GatewayPermissionMode      func(context.Context, string) (string, error)
 	HomePaths                  compozyconfig.HomePaths
 	Observer                   core.Observer
@@ -100,4 +100,11 @@ func (d *daemonNativeToolsDeps) agentSkills() agentSkillPublisher {
 		}
 	}
 	return d.AgentSkills
+}
+
+func (d *daemonNativeToolsDeps) gatewayService() core.GatewayService {
+	if d == nil || d.Gateway == nil {
+		return nil
+	}
+	return d.Gateway()
 }

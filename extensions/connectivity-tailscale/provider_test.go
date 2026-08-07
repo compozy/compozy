@@ -311,6 +311,35 @@ func TestBundledProviderDefinitionCarriesStateAndCredentialContract(t *testing.T
 	}
 }
 
+func TestBundledProviderRPCErrorContract(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should expose the missing auth-key binding without exposing a credential value", func(t *testing.T) {
+		t.Parallel()
+
+		err := providerRPCError(errAuthKeyBindingRequired)
+		rpcErr, ok := errors.AsType[*compozysdk.RPCError](err)
+		if !ok {
+			t.Fatalf("providerRPCError() error = %T, want *compozysdk.RPCError", err)
+		}
+		if rpcErr.Code != providerConfigurationRPCErrorCode || rpcErr.Message != "TS_AUTHKEY binding is required" {
+			t.Fatalf("providerRPCError() = %#v, want actionable configuration RPC error", rpcErr)
+		}
+		if len(rpcErr.Data) != 0 {
+			t.Fatalf("providerRPCError() data = %s, want no credential-bearing data", rpcErr.Data)
+		}
+	})
+
+	t.Run("Should leave unclassified provider failures masked by the SDK", func(t *testing.T) {
+		t.Parallel()
+
+		providerErr := errors.New("provider failed with sensitive implementation detail")
+		if got := providerRPCError(providerErr); !errors.Is(got, providerErr) {
+			t.Fatalf("providerRPCError() error = %v, want original unclassified error", got)
+		}
+	})
+}
+
 type fakeTailscaleNode struct {
 	mu              sync.Mutex
 	privateListener net.Listener

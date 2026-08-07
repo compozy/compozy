@@ -17,6 +17,7 @@ const (
 	defaultGatewayVerifyTimeout   = 10 * time.Second
 	maximumGatewayListenerPort    = 65535
 	positiveGatewayValueMessage   = "must be positive"
+	gatewayConnectionSchemeSSH    = "ssh"
 )
 
 // GatewayConfig controls the local gateway ceiling and runtime tunables.
@@ -162,7 +163,7 @@ func (c GatewayConnectionConfig) Validate() error {
 		return errors.New("name must contain only letters, digits, hyphens, or underscores")
 	}
 	scheme := strings.TrimSpace(c.Scheme)
-	if scheme != urlSchemeHTTPS && scheme != "ssh" {
+	if scheme != urlSchemeHTTPS && scheme != gatewayConnectionSchemeSSH {
 		return errors.New("scheme must be https or ssh")
 	}
 	host := strings.TrimSpace(c.Host)
@@ -183,10 +184,10 @@ func (c GatewayConnectionConfig) Validate() error {
 	if scheme == urlSchemeHTTPS && strings.TrimSpace(c.RemoteHome) != "" {
 		return errors.New("HTTPS profiles cannot set remote_home")
 	}
-	if scheme == "ssh" && credentialFile != "" {
+	if scheme == gatewayConnectionSchemeSSH && credentialFile != "" {
 		return errors.New("SSH profiles cannot reference a gateway credential")
 	}
-	if scheme == "ssh" && strings.TrimSpace(c.DefaultWorkspace) != "" {
+	if scheme == gatewayConnectionSchemeSSH && strings.TrimSpace(c.DefaultWorkspace) != "" {
 		return errors.New("SSH profiles cannot set default_workspace")
 	}
 	if strings.ContainsAny(c.RemoteHome, "\x00\r\n") {

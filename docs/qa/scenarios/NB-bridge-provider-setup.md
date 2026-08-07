@@ -6,13 +6,13 @@ persona: Tessa
 journey: J-connect-bridge-provider
 expected: Public Compozy surfaces generate a schema-valid Slack manifest; accept interactive or strict JSON setup without exposing secrets; require exactly one private-chat, ordinary-group, or forum-topic routing shape per Telegram bridge; reject credential-bearing upstream endpoints from provider configuration; return actionable pass, warn, fail, or skipped verification records without changing lifecycle state; make bare `compozy doctor` perform no live bridge checks while `compozy doctor --only bridge` opts in; register Telegram webhooks; send one real provider test message while preserving valid UTF-8 opaque target IDs, including URL-encoded `/` in the path ID, and accepting only literal `direct-send` or `reply` while rejecting explicit empty or null mode; and keep test-delivery dry-run only.
 entry_points: compozy bridge manifest; compozy bridge setup; compozy bridge verify; compozy bridge send-test; compozy doctor --only bridge; HTTP and UDS bridge manifest, verify, webhook-register, and send-test routes
-qa_status: untested
+qa_status: blocked-verify
 bug_ids: BUG-20260713-telegram-route-shapes
 fix_status: deferred
 retest_status:
 fix_commits:
-evidence: /home/pedronauck/dev/qa-labs/compozy-hermes-bridge-task-10-20260713-022226-583543-lab/qa-artifacts/qa/notes/bridge-charter-results.json; /home/pedronauck/dev/qa-labs/compozy-hermes-bridge-task-10-20260713-022226-583543-lab/qa-artifacts/qa/issues/BUG-0039.md;/Users/pedronauck/dev/qa-labs/compozy-qa-misc-network-goal-release-site-20260730-060405-932516-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-07-28-untested-full.md
+evidence: /home/pedronauck/dev/qa-labs/compozy-hermes-bridge-task-10-20260713-022226-583543-lab/qa-artifacts/qa/notes/bridge-charter-results.json; /home/pedronauck/dev/qa-labs/compozy-hermes-bridge-task-10-20260713-022226-583543-lab/qa-artifacts/qa/issues/BUG-0039.md;/Users/pedronauck/dev/qa-labs/compozy-qa-misc-network-goal-release-site-20260730-060405-932516-lab/qa-artifacts/qa;/Users/pedronauck/dev/qa-labs/compozy-remote-gateway-20260807-202655-957508-lab/qa-artifacts/qa/test-cases/40-webhook-boundaries-and-projection.json
+last_report: docs/qa/reports/2026-08-07-remote-gateway.md
 overlaps: RT-gateway-public-ingress-bindings; NB-025; NB-bridge-tool-progress; NB-long-bridge-replies; NB-provider-progress-rendering
 ---
 
@@ -33,3 +33,6 @@ walk.
 QA impact 2026-08-06: confirmed gateway bindings now supply bridge webhook registration URLs and
 ingress health while unbound external proxies remain unchanged. Status remains untested;
 remote-gateway Tasks 08–09 own the walk.
+
+QA walk 2026-08-07: adjacent webhook projection and delivery boundaries passed, but a real bridge
+callback through a verified public provider remains blocked without an authorized provider and bridge account.

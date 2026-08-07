@@ -55,9 +55,14 @@ func (n *daemonNativeTools) nativeToolAvailability() nativeToolAvailabilitySet {
 }
 
 func (n *daemonNativeTools) baseNativeToolAvailability() nativeToolAvailabilitySet {
-	configReady := func() bool {
-		return strings.TrimSpace(n.deps.HomePaths.ConfigFile) != ""
-	}
+	availability := n.coreNativeToolAvailability()
+	n.applySessionNativeToolAvailability(&availability)
+	n.applyMemoryNativeToolAvailability(&availability)
+	n.applyServiceNativeToolAvailability(&availability)
+	return availability
+}
+
+func (n *daemonNativeTools) coreNativeToolAvailability() nativeToolAvailabilitySet {
 	return nativeToolAvailabilitySet{
 		registry: n.registryAvailability(),
 		toolArtifacts: n.dependencyAvailability(func() bool {
@@ -77,67 +82,75 @@ func (n *daemonNativeTools) baseNativeToolAvailability() nativeToolAvailabilityS
 		networkUsage: n.networkParticipationAvailability(func() bool {
 			return n.deps.Network != nil && n.deps.NetworkUsage != nil
 		}),
-		sessions: n.dependencyAvailability(func() bool { return n.deps.Sessions != nil }),
-		sessionCatalog: n.dependencyAvailability(func() bool {
-			_, ok := n.deps.Sessions.(core.SessionPageManager)
-			return ok
-		}),
-		sessionRuntime: n.sessionRuntimeAvailability(),
-		sessionHealth: n.dependencyAvailability(func() bool {
-			return n.deps.SessionHealth != nil
-		}),
-		heartbeatStatus: n.dependencyAvailability(func() bool {
-			return n.deps.HeartbeatStatus != nil && n.deps.WorkspaceResolver != nil
-		}),
-		heartbeatWake: n.dependencyAvailability(func() bool {
-			return n.deps.HeartbeatWake != nil && n.deps.WorkspaceResolver != nil
-		}),
-		workspaces: n.dependencyAvailability(func() bool {
-			return n.deps.Workspaces != nil
-		}),
-		workspaceDetails: n.dependencyAvailability(func() bool {
-			return n.deps.Workspaces != nil && n.deps.Sessions != nil
-		}),
-		agentCreate: n.dependencyAvailability(func() bool {
-			return n.deps.Workspaces != nil && strings.TrimSpace(n.deps.HomePaths.AgentsDir) != ""
-		}),
-		taskNotifications: n.dependencyAvailability(func() bool {
-			return n.deps.Tasks != nil && n.deps.Bridges != nil
-		}),
-		memory:           n.dependencyAvailability(func() bool { return n.deps.MemoryStore != nil }),
-		memoryAdminStore: n.dependencyAvailability(func() bool { return n.deps.MemoryStore != nil }),
-		memoryExtractor:  n.dependencyAvailability(func() bool { return n.deps.MemoryExtractor != nil }),
-		memoryProviders:  n.dependencyAvailability(func() bool { return n.deps.MemoryProviders != nil }),
-		memorySessionLedger: n.dependencyAvailability(func() bool {
-			return n.deps.MemorySessionLedger != nil
-		}),
-		observe: n.dependencyAvailability(func() bool {
-			return n.deps.Observer != nil
-		}),
-		bridges: n.dependencyAvailability(n.bridgeCatalogReady),
-		gateway: n.dependencyAvailability(func() bool {
-			return n.deps.Gateway != nil
-		}),
-		tasks:    n.dependencyAvailability(func() bool { return n.deps.Tasks != nil }),
-		config:   n.dependencyAvailability(configReady),
-		hookRead: n.dependencyAvailability(func() bool { return n.deps.Observer != nil }),
-		hookMutation: n.dependencyAvailability(func() bool {
-			return configReady() && n.deps.Observer != nil
-		}),
-		automation: n.dependencyAvailability(func() bool { return n.automationManager() != nil }),
-		loops:      n.dependencyAvailability(func() bool { return n.loopService() != nil }),
-		extensions: n.dependencyAvailability(func() bool {
-			return n.deps.ExtensionRegistry != nil && strings.TrimSpace(n.deps.HomePaths.HomeDir) != ""
-		}),
-		marketplace: n.dependencyAvailability(func() bool {
-			return n.deps.MarketplaceCatalog != nil || n.deps.MarketplaceSkills != nil
-		}),
-		resources: n.dependencyAvailability(func() bool { return n.deps.Resources != nil }),
-		mcpStatus: n.dependencyAvailability(func() bool {
-			return n.mcpAuthProvider() != nil && n.settingsService() != nil
-		}),
-		mcpAuth: n.dependencyAvailability(func() bool { return n.mcpAuthProvider() != nil }),
 	}
+}
+
+func (n *daemonNativeTools) applySessionNativeToolAvailability(availability *nativeToolAvailabilitySet) {
+	availability.sessions = n.dependencyAvailability(func() bool { return n.deps.Sessions != nil })
+	availability.sessionCatalog = n.dependencyAvailability(func() bool {
+		_, ok := n.deps.Sessions.(core.SessionPageManager)
+		return ok
+	})
+	availability.sessionRuntime = n.sessionRuntimeAvailability()
+	availability.sessionHealth = n.dependencyAvailability(func() bool {
+		return n.deps.SessionHealth != nil
+	})
+	availability.heartbeatStatus = n.dependencyAvailability(func() bool {
+		return n.deps.HeartbeatStatus != nil && n.deps.WorkspaceResolver != nil
+	})
+	availability.heartbeatWake = n.dependencyAvailability(func() bool {
+		return n.deps.HeartbeatWake != nil && n.deps.WorkspaceResolver != nil
+	})
+	availability.workspaces = n.dependencyAvailability(func() bool {
+		return n.deps.Workspaces != nil
+	})
+	availability.workspaceDetails = n.dependencyAvailability(func() bool {
+		return n.deps.Workspaces != nil && n.deps.Sessions != nil
+	})
+	availability.agentCreate = n.dependencyAvailability(func() bool {
+		return n.deps.Workspaces != nil && strings.TrimSpace(n.deps.HomePaths.AgentsDir) != ""
+	})
+	availability.tasks = n.dependencyAvailability(func() bool { return n.deps.Tasks != nil })
+	availability.taskNotifications = n.dependencyAvailability(func() bool {
+		return n.deps.Tasks != nil && n.deps.Bridges != nil
+	})
+}
+
+func (n *daemonNativeTools) applyMemoryNativeToolAvailability(availability *nativeToolAvailabilitySet) {
+	availability.memory = n.dependencyAvailability(func() bool { return n.deps.MemoryStore != nil })
+	availability.memoryAdminStore = n.dependencyAvailability(func() bool { return n.deps.MemoryStore != nil })
+	availability.memoryExtractor = n.dependencyAvailability(func() bool { return n.deps.MemoryExtractor != nil })
+	availability.memoryProviders = n.dependencyAvailability(func() bool { return n.deps.MemoryProviders != nil })
+	availability.memorySessionLedger = n.dependencyAvailability(func() bool {
+		return n.deps.MemorySessionLedger != nil
+	})
+}
+
+func (n *daemonNativeTools) applyServiceNativeToolAvailability(availability *nativeToolAvailabilitySet) {
+	configReady := func() bool {
+		return strings.TrimSpace(n.deps.HomePaths.ConfigFile) != ""
+	}
+	availability.observe = n.dependencyAvailability(func() bool { return n.deps.Observer != nil })
+	availability.bridges = n.dependencyAvailability(n.bridgeCatalogReady)
+	availability.gateway = n.dependencyAvailability(func() bool { return n.deps.gatewayService() != nil })
+	availability.config = n.dependencyAvailability(configReady)
+	availability.hookRead = n.dependencyAvailability(func() bool { return n.deps.Observer != nil })
+	availability.hookMutation = n.dependencyAvailability(func() bool {
+		return configReady() && n.deps.Observer != nil
+	})
+	availability.automation = n.dependencyAvailability(func() bool { return n.automationManager() != nil })
+	availability.loops = n.dependencyAvailability(func() bool { return n.loopService() != nil })
+	availability.extensions = n.dependencyAvailability(func() bool {
+		return n.deps.ExtensionRegistry != nil && strings.TrimSpace(n.deps.HomePaths.HomeDir) != ""
+	})
+	availability.marketplace = n.dependencyAvailability(func() bool {
+		return n.deps.MarketplaceCatalog != nil || n.deps.MarketplaceSkills != nil
+	})
+	availability.resources = n.dependencyAvailability(func() bool { return n.deps.Resources != nil })
+	availability.mcpStatus = n.dependencyAvailability(func() bool {
+		return n.mcpAuthProvider() != nil && n.settingsService() != nil
+	})
+	availability.mcpAuth = n.dependencyAvailability(func() bool { return n.mcpAuthProvider() != nil })
 }
 
 func (n *daemonNativeTools) sessionRuntimeAvailability() toolspkg.NativeAvailabilityFunc {

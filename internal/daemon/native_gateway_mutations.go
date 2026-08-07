@@ -27,7 +27,7 @@ func (n *daemonNativeTools) gatewaySurfaceSet(
 	if err := desired.Validate(); err != nil {
 		return gateway.Status{}, nativeGatewayInputError(toolID, "desired", err.Error())
 	}
-	return n.deps.Gateway.SetSurfaceExposure(ctx, gateway.SurfaceExposureRequest{
+	return n.deps.gatewayService().SetSurfaceExposure(ctx, gateway.SurfaceExposureRequest{
 		Surface: surface, Tier: tier, Desired: desired,
 		ExpectedGeneration: input.ExpectedGeneration, Consent: input.Consent,
 	})
@@ -50,7 +50,7 @@ func (n *daemonNativeTools) gatewayProviderEnable(
 	if err := tier.Validate(); err != nil {
 		return gateway.Status{}, nativeGatewayInputError(toolID, "tier", err.Error())
 	}
-	return n.deps.Gateway.EnableProvider(ctx, gateway.ProviderEnableRequest{
+	return n.deps.gatewayService().EnableProvider(ctx, gateway.ProviderEnableRequest{
 		Provider: gateway.ProviderIdentity{
 			Name: provider, InstallSource: installSource, DigestConfirmed: strings.TrimSpace(input.DigestConfirmed),
 		},
@@ -71,7 +71,7 @@ func (n *daemonNativeTools) gatewayProviderDisable(
 	if err := tier.Validate(); err != nil {
 		return gateway.Status{}, nativeGatewayInputError(toolID, "tier", err.Error())
 	}
-	return n.deps.Gateway.DisableProvider(ctx, tier, provider)
+	return n.deps.gatewayService().DisableProvider(ctx, tier, provider)
 }
 
 func (n *daemonNativeTools) gatewayDeviceRename(
@@ -87,7 +87,7 @@ func (n *daemonNativeTools) gatewayDeviceRename(
 	if err != nil {
 		return gateway.DeviceSession{}, err
 	}
-	return n.deps.Gateway.RenameDevice(ctx, deviceID, name)
+	return n.deps.gatewayService().RenameDevice(ctx, deviceID, name)
 }
 
 func (n *daemonNativeTools) gatewayDeviceRevoke(
@@ -99,7 +99,7 @@ func (n *daemonNativeTools) gatewayDeviceRevoke(
 	if err != nil {
 		return gateway.RevokeResult{}, err
 	}
-	return n.deps.Gateway.RevokeDevice(ctx, deviceID)
+	return n.deps.gatewayService().RevokeDevice(ctx, deviceID)
 }
 
 func (n *daemonNativeTools) gatewayIngressBind(
@@ -112,13 +112,13 @@ func (n *daemonNativeTools) gatewayIngressBind(
 	if err != nil {
 		return nil, err
 	}
-	binding, err := n.deps.Gateway.BindIngress(ctx, gateway.IngressBindRequest{
+	binding, err := n.deps.gatewayService().BindIngress(ctx, gateway.IngressBindRequest{
 		Subject: ref, Confirmed: input.Confirmed, Caller: nativeGatewayIngressCaller(scope),
 	})
 	if err != nil {
 		return nil, err
 	}
-	projection, err := n.deps.Gateway.ProjectIngress(ctx, ref)
+	projection, err := n.deps.gatewayService().ProjectIngress(ctx, ref)
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +137,7 @@ func (n *daemonNativeTools) gatewayIngressUnbind(
 	if err != nil {
 		return nil, err
 	}
-	result, err := n.deps.Gateway.UnbindIngress(ctx, gateway.IngressUnbindRequest{
+	result, err := n.deps.gatewayService().UnbindIngress(ctx, gateway.IngressUnbindRequest{
 		Subject: ref, Caller: nativeGatewayIngressCaller(scope),
 	})
 	if err != nil {

@@ -6,13 +6,13 @@ persona: Ada
 journey: J-extension-agent-authoring
 expected: An agent session that activates the bundled `compozy` skill and reads `references/extension-authoring.md` completes scaffold, build, validate, dev, reload, logs, publish, search, provenance, install, invoke, update, and remove through native tools and structured output only, with no shell-out, hand-written manifest, invented permission/provide value, or credential in a tool transcript.
 entry_points: bundled skills/compozy/SKILL.md router row for writing extension code; skills/compozy/references/extension-authoring.md; `compozy__extensions_init`; `compozy__extensions_build`; `compozy__extensions_validate`; `compozy__extensions_dev`; `compozy__extensions_reload`; `compozy__extensions_logs`; `compozy__extensions_search`; `compozy__extensions_provenance`; `compozy__extensions_publish`; `compozy__extensions_install|update|remove`; `compozy__tool_invoke`
-qa_status: untested
+qa_status: blocked-verify
 bug_ids: BUG-20260729-public-extension-sdks-unpublished
 fix_status: pending
 retest_status: pending
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-ext-improvs-final-20260729-230047-267985-lab/qa-artifacts/qa/extension-charters.json
-last_report: docs/qa/reports/2026-07-29-ext-improvs.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-ext-improvs-final-20260729-230047-267985-lab/qa-artifacts/qa/extension-charters.json;/Users/pedronauck/dev/qa-labs/compozy-remote-gateway-20260807-202655-957508-lab/qa-artifacts/qa/test-cases/41-extension-template-discovery.json
+last_report: docs/qa/reports/2026-08-07-remote-gateway.md
 overlaps: ET-compozy-official-skill-discovery; ET-extension-code-first-authoring
 ---
 
@@ -45,3 +45,7 @@ agent-guided authoring outcome.
 
 QA impact 2026-08-06: the official skill and SDK now teach public connectivity-provider
 authoring, tier scopes, and live digest trust. Flag only; Tasks 08–09 own the re-walk.
+
+QA walk 2026-08-07: the skill routes and teaches the new provider workflow, but a clean external
+build cannot complete because the published SDK does not contain the connectivity-provider API.
+No repository-local dependency override was used as release evidence.

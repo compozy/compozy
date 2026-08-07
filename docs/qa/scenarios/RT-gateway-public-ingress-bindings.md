@@ -6,13 +6,13 @@ persona: Dora
 journey: J-deliver-through-public-gateway
 expected: A verified public gateway projects honest webhook and bridge callback URLs, accepts only explicitly confirmed same-workspace bindings, dispatches signed deliveries with attribution, proxies bound bridge callbacks only to their loopback adapter, rate-limits each endpoint and source, and requires reconfirmation after an address change; deleting a subject removes its binding and daemon downtime is a sender-visible failure.
 entry_points: GET automation trigger; GET bridge; POST and DELETE /api/gateway/ingress-bindings over private HTTP and UDS; public webhook and bridge callback routes; gateway ingress events
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-remote-gateway-20260807-202655-957508-lab/qa-artifacts/qa/test-cases/34-signed-webhook-local-pipeline.json;/Users/pedronauck/dev/qa-labs/compozy-remote-gateway-20260807-202655-957508-lab/qa-artifacts/qa/test-cases/40-webhook-boundaries-and-projection.json
+last_report: docs/qa/reports/2026-08-07-remote-gateway.md
 overlaps: RT-connectivity-provider-route; RT-gateway-offline-delivery-redelivery; NB-web-bridge-setup
 ---
 
@@ -23,3 +23,7 @@ run attribution; bridge verification; external-proxy coexistence; deletion/recre
 restart address; and sender-visible failure while the daemon is stopped.
 
 QA impact 2026-08-06: added for remote-gateway Task 04. Flag only; Tasks 08–09 own the walk.
+
+QA walk 2026-08-07: a real signed delivery reached one Loop with attribution; invalid signature,
+stale timestamp, replay, disabled trigger, and oversized body were distinct and side-effect free.
+Public binding, bridge callback, address change, and downtime legs remain blocked without a provider.

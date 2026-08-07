@@ -101,5 +101,8 @@ func (r *Reconciler) currentProviderActivation(
 func (r *Reconciler) markDegraded(ctx context.Context, plan TierPlan, cause error) error {
 	safeCause := diagnostics.RedactAndBound(cause.Error(), maxPersistedGatewayDiagnosticBytes)
 	markErr := r.markObserved(ctx, plan, ProviderDegraded, SurfaceOff, safeCause)
-	return errors.Join(cause, markErr)
+	if markErr != nil {
+		return errors.Join(cause, markErr)
+	}
+	return errors.Join(ErrProviderDegraded, cause)
 }

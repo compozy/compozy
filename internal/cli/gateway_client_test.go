@@ -545,6 +545,80 @@ func TestGatewayProfileTransactions(t *testing.T) {
 		}
 	})
 
+	// Invariant: a pairing request that never opened a connection leaves no credential, profile, or journal.
+	// Owning layer: CLI profile transaction workflow.
+	// Canonical suite: TestGatewayProfileTransactions.
+	t.Run("Should roll back pairing when the request never reached the gateway [US-019.EC-1]", func(t *testing.T) {
+		t.Parallel()
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
+			t.Fatalf("EnsureHomeLayout() error = %v", err)
+		}
+		credentials := map[string]string{}
+		target, err := UnauthenticatedGatewayClientTarget("laptop", "gateway.example", 443)
+		if err != nil {
+			t.Fatalf("UnauthenticatedGatewayClientTarget() error = %v", err)
+		}
+		gatewayAPI := &gatewayPairingAPIStub{beforeRedeem: func(
+			contract.GatewayPairingRedeemRequest,
+		) error {
+			return newGatewayReachabilityError(target, &net.OpError{
+				Op: "dial", Net: "tcp", Err: errors.New("connection refused"),
+			})
+		}}
+		deps := commandDeps{
+			resolveHome: func() (compozyconfig.HomePaths, error) { return homePaths, nil },
+			loadConfig:  func() (compozyconfig.Config, error) { return compozyconfig.LoadForHome(homePaths) },
+			newClient: func(ClientTarget) (DaemonClient, error) {
+				return &gatewayPairingDaemonClient{DaemonClient: &stubClient{}, gatewayClientAPI: gatewayAPI}, nil
+			},
+			writeGatewayCredential: func(_ string, name string, credential string) (string, error) {
+				credentials[name] = credential
+				return name + ".cred", nil
+			},
+			readGatewayCredential: func(_ string, name string) (string, error) {
+				credential, exists := credentials[name]
+				if !exists {
+					return "", os.ErrNotExist
+				}
+				return credential, nil
+			},
+			removeGatewayCredential: func(_ string, name string) error {
+				delete(credentials, name)
+				return nil
+			},
+		}
+		_, _, err = executeRootCommand(
+			t,
+			deps,
+			"connect", "add", "laptop", "--address", "https://gateway.example",
+			"--pairing", "pairing-once", "--use", "-o", "json",
+		)
+		assertGatewayClientErrorCode(t, err, gatewayReachabilityCode)
+		if _, exists := credentials["laptop"]; exists {
+			t.Fatal("unreachable pairing left a credential behind")
+		}
+		if _, err := readGatewayProfileTransactionJournal(
+			homePaths.GatewayCredentialsDir,
+			"laptop",
+		); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("readGatewayProfileTransactionJournal() error = %v, want os.ErrNotExist", err)
+		}
+		loaded, err := compozyconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome() error = %v", err)
+		}
+		if _, exists := findGatewayProfile(loaded.Gateway.Connections, "laptop"); exists {
+			t.Fatal("unreachable pairing left profile metadata behind")
+		}
+		if loaded.Gateway.ActiveConnection != "" {
+			t.Fatalf("active profile = %q, want local", loaded.Gateway.ActiveConnection)
+		}
+	})
+
 	t.Run(
 		"Should recover an activated device from its durable local credential after activation fails",
 		func(t *testing.T) {
