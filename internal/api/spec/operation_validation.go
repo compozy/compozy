@@ -63,7 +63,7 @@ func validateOperationRegistryEntry(
 
 func supportedOperationMethod(method string) bool {
 	switch method {
-	case httpMethodDelete, httpMethodGet, httpMethodPatch, httpMethodPost, httpMethodPut:
+	case httpMethodDelete, httpMethodGet, httpMethodHead, httpMethodPatch, httpMethodPost, httpMethodPut:
 		return true
 	default:
 		return false

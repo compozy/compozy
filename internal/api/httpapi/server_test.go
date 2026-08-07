@@ -424,6 +424,7 @@ func TestServerShutdownLifecycle(t *testing.T) {
 			httpServer: &http.Server{
 				Handler:           engine,
 				ReadHeaderTimeout: defaultReadHeaderTimeout,
+				ReadTimeout:       defaultReadTimeout,
 				IdleTimeout:       defaultIdleTimeout,
 			},
 			listener:  listener,

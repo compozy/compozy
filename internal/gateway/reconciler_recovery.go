@@ -13,6 +13,15 @@ const (
 // ReconcilerOption customizes provider recovery behavior.
 type ReconcilerOption func(*Reconciler)
 
+// WithReconcilerClock supplies deterministic timestamps for durable endpoint state.
+func WithReconcilerClock(now func() time.Time) ReconcilerOption {
+	return func(reconciler *Reconciler) {
+		if now != nil {
+			reconciler.now = now
+		}
+	}
+}
+
 // WithProviderRecoveryBackoff installs bounded restart intervals.
 func WithProviderRecoveryBackoff(minimum time.Duration, maximum time.Duration) ReconcilerOption {
 	return func(reconciler *Reconciler) {

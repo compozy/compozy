@@ -56,7 +56,7 @@ func (m *Manager) applyTriggerToRuntime(trigger Trigger) error {
 }
 
 func (m *Manager) runtimeTriggerRegistration(trigger Trigger) (TriggerRegistration, bool) {
-	if !trigger.Enabled {
+	if !trigger.Enabled && !strings.EqualFold(strings.TrimSpace(trigger.Event), triggerEventWebhook) {
 		return TriggerRegistration{}, false
 	}
 

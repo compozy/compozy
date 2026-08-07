@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/netip"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -72,6 +73,7 @@ type Reconciler struct {
 	recoveryMin    time.Duration
 	recoveryMax    time.Duration
 	providerStates ProviderStateReporter
+	now            func() time.Time
 	closed         bool
 }
 
@@ -86,6 +88,7 @@ func NewReconciler(store Store, effects EffectDriver, options ...ReconcilerOptio
 		recoveryCtx: recoveryCtx, recoveryCancel: recoveryCancel,
 		recoveries:  make(map[Tier]*providerRecovery),
 		recoveryMin: defaultProviderRecoveryMinimum, recoveryMax: defaultProviderRecoveryMaximum,
+		now: func() time.Time { return time.Now().UTC() },
 	}
 	for _, option := range options {
 		if option != nil {
@@ -149,12 +152,23 @@ func (r *Reconciler) Reconcile(ctx context.Context, plan ExposurePlan) error {
 		byTier[tierPlan.Tier] = tierPlan
 	}
 	var errs []error
+	if ingress, ok := r.store.(IngressStore); ok {
+		if _, err := ingress.SweepOrphanedIngressBindings(ctx); err != nil {
+			errs = append(errs, fmt.Errorf("gateway: sweep orphaned ingress bindings: %w", err))
+		}
+	}
 	for _, tier := range []Tier{TierPrivate, TierPublic} {
 		r.cancelRecoveryLocked(tier)
 		tierPlan := byTier[tier]
 		tierPlan.Tier = tier
 		var err error
 		if tierPlan.Enabled {
+			if tier == TierPublic && !r.runtimeState(tier).Advertised {
+				if err := r.markIngressEndpointUnavailable(ctx, tier); err != nil {
+					errs = append(errs, fmt.Errorf("gateway: clear stale %s endpoint: %w", tier, err))
+					continue
+				}
+			}
 			err = r.enableTier(ctx, tierPlan)
 		} else {
 			err = r.disableTier(ctx, tierPlan)
@@ -239,6 +253,9 @@ func (r *Reconciler) enableTier(ctx context.Context, plan TierPlan) error {
 	state.Endpoints = append([]AdvertisedEndpoint(nil), reachability.Endpoints...)
 	state.Surfaces = append([]Surface(nil), surfaces...)
 	state.Advertised = true
+	if err := r.syncIngressEndpoint(ctx, plan.Tier, reachability); err != nil {
+		return errors.Join(err, r.compensateTier(ctx, plan.Tier, provider, state, true))
+	}
 	if err := r.assertCurrent(ctx, plan); err != nil {
 		return errors.Join(err, r.compensateTier(ctx, plan.Tier, provider, state, true))
 	}
@@ -301,7 +318,40 @@ func (r *Reconciler) withdrawTier(ctx context.Context, tier Tier, state *runtime
 	state.Advertised = false
 	state.Endpoints = nil
 	state.Surfaces = nil
-	return nil
+	return r.markIngressEndpointUnavailable(ctx, tier)
+}
+
+func (r *Reconciler) markIngressEndpointUnavailable(ctx context.Context, tier Tier) error {
+	if tier != TierPublic {
+		return nil
+	}
+	ingress, ok := r.store.(IngressStore)
+	if !ok {
+		return nil
+	}
+	return ingress.MarkIngressEndpointUnavailable(ctx, tier, r.now().UTC())
+}
+
+func (r *Reconciler) syncIngressEndpoint(ctx context.Context, tier Tier, reachability Reachability) error {
+	if tier != TierPublic {
+		return nil
+	}
+	ingress, ok := r.store.(IngressStore)
+	if !ok {
+		return nil
+	}
+	urls := make([]string, 0, len(reachability.Endpoints))
+	for _, endpoint := range reachability.Endpoints {
+		if value := strings.TrimSpace(endpoint.URL); value != "" {
+			urls = append(urls, value)
+		}
+	}
+	slices.Sort(urls)
+	if len(urls) == 0 {
+		return ErrEndpointUnverified
+	}
+	_, _, err := ingress.SyncIngressEndpoint(ctx, tier, urls[0], r.now().UTC())
+	return err
 }
 
 func (r *Reconciler) teardownTier(

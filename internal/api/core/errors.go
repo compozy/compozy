@@ -362,6 +362,7 @@ func StatusForAutomationError(err error) int {
 		errors.Is(err, automationpkg.ErrFireLimitReached),
 		errors.Is(err, automationpkg.ErrDefinitionReadOnly),
 		errors.Is(err, automationpkg.ErrOverlayRequiresConfigSource),
+		errors.Is(err, automationpkg.ErrWebhookTriggerDisabled),
 		errors.Is(err, automationpkg.ErrWebhookReplayDetected):
 		return http.StatusConflict
 	case errors.Is(err, automationpkg.ErrWebhookSignatureInvalid),

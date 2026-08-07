@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	automation "github.com/compozy/compozy/internal/automation/model"
+	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
@@ -176,7 +177,8 @@ func (g *AutomationRepo) UpdateTrigger(
 		)
 	}
 	defer rollbackAutomationDefinitionTx(&err, tx, "update automation trigger")
-	affected, err := sqlcgen.New(tx).UpdateAutomationTrigger(ctx, params)
+	queries := sqlcgen.New(tx)
+	affected, err := queries.UpdateAutomationTrigger(ctx, params)
 	if err != nil {
 		return automation.Trigger{}, fmt.Errorf(
 			"store: update automation trigger %q: %w",
@@ -195,6 +197,21 @@ func (g *AutomationRepo) UpdateTrigger(
 	if err := upsertAutomationTriggerCatalog(ctx, tx, normalized); err != nil {
 		return automation.Trigger{}, err
 	}
+	if _, err := queries.DeleteMismatchedGatewayIngressBinding(
+		ctx,
+		sqlcgen.DeleteMismatchedGatewayIngressBindingParams{
+			SubjectKind: string(gateway.IngressSubjectWebhookTrigger),
+			SubjectID:   normalized.ID,
+			ScopeKind:   string(normalized.Scope),
+			WorkspaceID: nullableAutomationString(normalized.WorkspaceID),
+		},
+	); err != nil {
+		return automation.Trigger{}, fmt.Errorf(
+			"store: invalidate reassigned webhook ingress binding %q: %w",
+			normalized.ID,
+			err,
+		)
+	}
 	if err := tx.Commit(); err != nil {
 		return automation.Trigger{}, fmt.Errorf(
 			"store: commit update automation trigger %q: %w",
@@ -206,7 +223,7 @@ func (g *AutomationRepo) UpdateTrigger(
 }
 
 // DeleteTrigger removes an automation trigger definition.
-func (g *AutomationRepo) DeleteTrigger(ctx context.Context, id string) error {
+func (g *AutomationRepo) DeleteTrigger(ctx context.Context, id string) (err error) {
 	if err := g.checkReady(ctx, "delete automation trigger"); err != nil {
 		return err
 	}
@@ -214,11 +231,28 @@ func (g *AutomationRepo) DeleteTrigger(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	affected, err := g.queries.DeleteAutomationTrigger(ctx, trimmedID)
+	tx, err := g.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("store: begin automation trigger deletion: %w", err)
+	}
+	defer rollbackAutomationDefinitionTx(&err, tx, "delete automation trigger")
+	queries := sqlcgen.New(tx)
+	if _, err := queries.DeleteGatewayIngressBinding(ctx, sqlcgen.DeleteGatewayIngressBindingParams{
+		SubjectKind: string(gateway.IngressSubjectWebhookTrigger), SubjectID: trimmedID,
+	}); err != nil {
+		return fmt.Errorf("store: delete webhook ingress binding %q: %w", trimmedID, err)
+	}
+	affected, err := queries.DeleteAutomationTrigger(ctx, trimmedID)
 	if err != nil {
 		return fmt.Errorf("store: delete automation trigger %q: %w", trimmedID, err)
 	}
-	return requireAutomationAffected(affected, automation.ErrTriggerNotFound, trimmedID, "automation trigger")
+	if err := requireAutomationAffected(affected, automation.ErrTriggerNotFound, trimmedID, "automation trigger"); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("store: commit automation trigger deletion %q: %w", trimmedID, err)
+	}
+	return nil
 }
 
 // GetTrigger loads one persisted automation trigger definition by primary key.

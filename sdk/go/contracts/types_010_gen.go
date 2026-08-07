@@ -7,6 +7,10 @@ import (
 	"time"
 )
 
+type HeartbeatWakeResponse struct {
+	Decision HeartbeatWakeDecisionPayload `json:"decision"`
+}
+
 type HeartbeatWakeResult string
 
 type HeartbeatWakeSource string
@@ -172,11 +176,4 @@ type InitializeExtension struct {
 	Name       string `json:"name"`
 	Version    string `json:"version"`
 	SourceTier string `json:"source_tier"`
-}
-
-type InitializeExtensionInfo struct {
-	Name       string `json:"name"`
-	Version    string `json:"version"`
-	SDKName    string `json:"sdk_name,omitempty"`
-	SDKVersion string `json:"sdk_version,omitempty"`
 }

@@ -100,6 +100,7 @@ type TriggerPayload struct {
 	EndpointSlug         string                        `json:"endpoint_slug,omitempty"`
 	WebhookSecretPresent bool                          `json:"webhook_secret_present"`
 	WebhookSecretHash    string                        `json:"webhook_secret_hash,omitempty"`
+	Ingress              *GatewayIngressPayload        `json:"ingress,omitempty"`
 	CreatedAt            time.Time                     `json:"created_at"`
 	UpdatedAt            time.Time                     `json:"updated_at"`
 }

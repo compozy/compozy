@@ -33,7 +33,10 @@ func assertGatewayUDSRoutesMatchDocumentedOperations(t *testing.T) {
 		if !strings.HasPrefix(route.Path, "/api/gateway") {
 			continue
 		}
-		path := strings.ReplaceAll(strings.ReplaceAll(route.Path, ":name", "{name}"), ":id", "{id}")
+		path := strings.NewReplacer(
+			":name", "{name}", ":id", "{id}",
+			":subject_kind", "{subject_kind}", ":subject_id", "{subject_id}",
+		).Replace(route.Path)
 		actual = append(actual, route.Method+" "+path)
 	}
 	sort.Strings(actual)

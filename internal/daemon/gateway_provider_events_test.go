@@ -92,6 +92,56 @@ func TestGatewayProviderAuditSink(t *testing.T) {
 	})
 }
 
+func TestGatewayIngressAuditSink(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should record redacted bind and warning unbind lifecycle events", func(t *testing.T) {
+		t.Parallel()
+		writer := &gatewayAuditWriter{}
+		sink := gatewayIngressAuditSink{
+			writer: writer,
+			now:    func() time.Time { return time.Date(2026, 8, 7, 12, 0, 0, 0, time.UTC) },
+		}
+		binding := gateway.IngressBinding{
+			Subject: gateway.IngressSubjectRef{
+				Kind: gateway.IngressSubjectBridgeInstance,
+				ID:   "api_key=sk-ingress-audit-secret",
+			},
+			Scope: gateway.IngressScopeWorkspace, WorkspaceID: "ws-1", EndpointGeneration: 7,
+		}
+		event := gateway.IngressMutationEvent{
+			Binding: binding, ActorKind: string(gateway.ActorKindOperatorDevice), ActorID: "device-1",
+		}
+		if err := sink.RecordIngressBound(testutil.Context(t), event); err != nil {
+			t.Fatalf("RecordIngressBound() error = %v", err)
+		}
+		if err := sink.RecordIngressUnbound(testutil.Context(t), event); err != nil {
+			t.Fatalf("RecordIngressUnbound() error = %v", err)
+		}
+		if len(writer.summaries) != 2 {
+			t.Fatalf("event count = %d, want 2", len(writer.summaries))
+		}
+		bound, unbound := writer.summaries[0], writer.summaries[1]
+		if bound.Type != eventspkg.GatewayIngressBound ||
+			bound.Outcome != string(eventspkg.OutcomeSuccess) || bound.WorkspaceID != "ws-1" {
+			t.Fatalf("bound summary = %#v", bound)
+		}
+		if unbound.Type != eventspkg.GatewayIngressUnbound ||
+			unbound.Outcome != string(eventspkg.OutcomeWarning) || unbound.WorkspaceID != "ws-1" {
+			t.Fatalf("unbound summary = %#v", unbound)
+		}
+		if bound.ActorKind != string(gateway.ActorKindOperatorDevice) || bound.ActorID != "device-1" ||
+			unbound.ActorKind != bound.ActorKind || unbound.ActorID != bound.ActorID {
+			t.Fatalf("ingress event actors = bound:%s/%s unbound:%s/%s", bound.ActorKind, bound.ActorID, unbound.ActorKind, unbound.ActorID)
+		}
+		for _, summary := range writer.summaries {
+			if strings.Contains(string(summary.Content), "sk-ingress-audit-secret") {
+				t.Fatalf("event content leaked ingress secret: %s", summary.Content)
+			}
+		}
+	})
+}
+
 type gatewayAuditWriter struct {
 	summaries []store.EventSummary
 }

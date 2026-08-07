@@ -99,7 +99,7 @@ bridge instance. Presence in the catalog does not mean the provider is enabled o
 - The destination workspace exists and has a default agent.
 - The selected in-tree provider passes the install and status checks above.
 - You can administer the external app, bot, webhook, or repository integration.
-- A stable public HTTPS URL can reach the provider's local listener.
+- The public gateway tier has a verified address, or an existing stable HTTPS proxy can reach the provider's local listener.
 - You have a secret manager or shell environment ready for provider credentials.
 
 Inspect the workspace, extension registry, provider catalog, and existing bridge instances before
@@ -125,22 +125,22 @@ absent, disabled, or unhealthy; creating an instance cannot install or enable it
 
 ## Understand the network boundary
 
-The platform and provider use one public URL, while the extension listens on a local address and
-path:
+The managed path sends platform callbacks through the verified public gateway address and then to
+the provider-owned loopback listener:
 
 ```text
 external platform
-  → https://bridge.example.com/<provider>/<instance>
-  → reverse proxy or tunnel
-  → http://127.0.0.1:<provider-port>/<provider>/<instance>
+  → https://<verified-gateway>/api/bridge-callbacks/<bridge-id>
+  → http://127.0.0.1:<provider-port>/<provider-path>
 ```
 
-`provider_config.webhook.public_url` is the complete external callback. It is the value copied into
-the provider console and the destination probed by `compozy bridge verify` after enablement.
+`provider_config.webhook.listen_addr` and `provider_config.webhook.path` are required for this path.
+The listener must use a literal loopback IP and a fixed port. Confirming the bridge creates a binding
+to the current public endpoint generation; an address change requires confirmation again.
 
-`provider_config.webhook.listen_addr` and `provider_config.webhook.path` are the local listener
-coordinates. Compozy does not infer the public URL from proxy headers, the daemon HTTP address, or the
-listener address.
+An existing external proxy remains supported. Leave the bridge without a gateway binding and keep
+its complete callback in `provider_config.webhook.public_url`. Compozy does not rewrite or disable
+that path.
 
 One provider subprocess can own multiple bridge instances. Those instances share the provider's
 listener address and need distinct paths unless the provider explicitly documents safe shared-path
@@ -197,11 +197,25 @@ compozy bridge secret-bindings list "$BRIDGE_ID" -o json
 The reference is scoped to the edited bridge. Never reuse another bridge's
 `vault:bridges/<bridge>/<slot>` reference.
 
-### 3. Configure the provider console
+### 3. Confirm and configure the callback
 
-Copy the exact `webhook.public_url`, event selection, scopes, and app identity from the provider
-guide. Preserve the path through the reverse proxy. Do not copy a local `127.0.0.1` URL into an
-external console.
+For managed ingress, confirm the bridge through the private HTTP listener or UDS:
+
+```http
+POST /api/gateway/ingress-bindings
+Content-Type: application/json
+
+{
+  "subject_kind": "bridge_instance",
+  "subject_id": "<bridge-id>",
+  "confirmed": true
+}
+```
+
+Read the bridge again and copy `gateway_ingress.url` into the provider console. Continue only when
+`gateway_ingress.reachability` is `live`. For an external proxy, copy `webhook_public_url` instead.
+In both cases, preserve the provider guide's event selection, scopes, and app identity. Never copy a
+local `127.0.0.1` URL into an external console.
 
 ### 4. Verify while disabled
 
@@ -251,6 +265,16 @@ compozy bridge get "$BRIDGE_ID" -o json
 The bridge should settle at `ready`. A `degraded`, `auth_required`, or `error` state is evidence to
 repair, not a reason to continue to the happy-path test.
 
+Bridge health includes `ingress` after a gateway binding has been confirmed. `off` means the public
+surface or provider is down; `reconfirmation_required` means the public address changed. Reconfirm
+before asking the external platform to use the new URL. A bridge using only
+`provider_config.webhook.public_url` has no gateway ingress health and keeps its external proxy path.
+
+<OperatorNote>
+  Gateway callbacks work only while the daemon and connectivity provider are running. There is no
+  store-and-forward queue for platform callbacks; rely on the platform's delivery retry policy.
+</OperatorNote>
+
 ### 7. Prove inbound routing
 
 Trigger one real supported event from the provider. Then inspect the created route:
@@ -294,6 +318,8 @@ and UDS expose the same control handlers for agents and automation:
 | Verify                | `POST /api/bridges/:id/verify`                            |
 | Telegram registration | `POST /api/bridges/:id/webhook/register`                  |
 | Real test delivery    | `POST /api/bridges/:id/send-test`                         |
+| Gateway ingress bind  | `POST /api/gateway/ingress-bindings`                      |
+| Gateway ingress unbind | `DELETE /api/gateway/ingress-bindings/:kind/:id`         |
 
 The send-test request is `{ message, target }`; `target` accepts `peer_id`, `thread_id`, `group_id`,
 and `mode`. Use the generated [API reference](/docs/api/bridges) and

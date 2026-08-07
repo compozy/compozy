@@ -4,6 +4,8 @@ package contracts
 
 import "time"
 
+type SandboxObservationPatch struct{}
+
 type SandboxPreparePatch struct {
 	Deny         bool              `json:"deny,omitempty"`
 	DenyReason   string            `json:"deny_reason,omitempty"`
@@ -262,15 +264,4 @@ type SessionEvent struct {
 	Type      string    `json:"type"`
 	Timestamp time.Time `json:"timestamp"`
 	Data      any       `json:"data,omitempty"`
-}
-
-type SessionEventsParams struct {
-	WorkspaceID string    `json:"workspace_id"`
-	SessionID   string    `json:"session_id"`
-	Type        string    `json:"type,omitempty"`
-	AgentName   string    `json:"agent_name,omitempty"`
-	TurnID      string    `json:"turn_id,omitempty"`
-	Limit       int       `json:"limit,omitempty"`
-	Offset      int64     `json:"offset,omitempty"`
-	Since       time.Time `json:"since,omitzero"`
 }

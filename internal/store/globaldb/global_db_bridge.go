@@ -56,7 +56,7 @@ func (g *BridgeRepo) InsertBridgeInstance(ctx context.Context, instance bridges.
 }
 
 // UpdateBridgeInstance updates an existing persisted bridge instance row.
-func (g *BridgeRepo) UpdateBridgeInstance(ctx context.Context, instance bridges.BridgeInstance) error {
+func (g *BridgeRepo) UpdateBridgeInstance(ctx context.Context, instance bridges.BridgeInstance) (err error) {
 	if err := g.checkReady(ctx, "update bridge instance"); err != nil {
 		return err
 	}
@@ -83,7 +83,18 @@ func (g *BridgeRepo) UpdateBridgeInstance(ctx context.Context, instance bridges.
 	if err != nil {
 		return err
 	}
-	affected, err := g.queries.UpdateBridgeInstance(ctx, params)
+	tx, err := g.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("store: begin bridge instance update %q: %w", normalized.ID, err)
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			err = errors.Join(err, rollbackTx(tx, "bridge instance update"))
+		}
+	}()
+	queries := sqlcgen.New(tx)
+	affected, err := queries.UpdateBridgeInstance(ctx, params)
 	if err != nil {
 		return fmt.Errorf("store: update bridge instance %q: %w", normalized.ID, mapBridgeInstanceConstraintError(err))
 	}
@@ -91,12 +102,19 @@ func (g *BridgeRepo) UpdateBridgeInstance(ctx context.Context, instance bridges.
 	if affected == 0 {
 		return fmt.Errorf("store: bridge instance %q: %w", normalized.ID, bridges.ErrBridgeInstanceNotFound)
 	}
+	if err := reconcileBridgeIngressBinding(ctx, queries, normalized); err != nil {
+		return fmt.Errorf("store: invalidate reassigned bridge ingress binding %q: %w", normalized.ID, err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("store: commit bridge instance update %q: %w", normalized.ID, err)
+	}
+	committed = true
 
 	return nil
 }
 
 // DeleteBridgeInstance removes a persisted bridge instance row.
-func (g *BridgeRepo) DeleteBridgeInstance(ctx context.Context, id string) error {
+func (g *BridgeRepo) DeleteBridgeInstance(ctx context.Context, id string) (err error) {
 	if err := g.checkReady(ctx, "delete bridge instance"); err != nil {
 		return err
 	}
@@ -106,7 +124,23 @@ func (g *BridgeRepo) DeleteBridgeInstance(ctx context.Context, id string) error 
 		return errors.New("store: bridge instance id is required")
 	}
 
-	affected, err := g.queries.DeleteBridgeInstance(ctx, trimmedID)
+	tx, err := g.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("store: begin bridge instance deletion: %w", err)
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			err = errors.Join(err, rollbackTx(tx, "bridge instance deletion"))
+		}
+	}()
+	queries := sqlcgen.New(tx)
+	if _, err := queries.DeleteGatewayIngressBinding(ctx, sqlcgen.DeleteGatewayIngressBindingParams{
+		SubjectKind: "bridge_instance", SubjectID: trimmedID,
+	}); err != nil {
+		return fmt.Errorf("store: delete bridge ingress binding %q: %w", trimmedID, err)
+	}
+	affected, err := queries.DeleteBridgeInstance(ctx, trimmedID)
 	if err != nil {
 		return fmt.Errorf("store: delete bridge instance %q: %w", trimmedID, err)
 	}
@@ -114,7 +148,10 @@ func (g *BridgeRepo) DeleteBridgeInstance(ctx context.Context, id string) error 
 	if affected == 0 {
 		return fmt.Errorf("store: bridge instance %q: %w", trimmedID, bridges.ErrBridgeInstanceNotFound)
 	}
-
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("store: commit bridge instance deletion %q: %w", trimmedID, err)
+	}
+	committed = true
 	return nil
 }
 
@@ -170,12 +207,19 @@ func (g *BridgeRepo) ReplaceBridgeInstances(ctx context.Context, instances []bri
 		}
 	}()
 
+	queries := sqlcgen.New(tx)
 	for _, record := range prepared {
 		if err := upsertPreparedBridgeInstance(ctx, tx, record, g.now); err != nil {
 			return err
 		}
+		if err := reconcileBridgeIngressBinding(ctx, queries, record.instance); err != nil {
+			return fmt.Errorf(
+				"store: invalidate reassigned bridge ingress binding %q: %w",
+				record.instance.ID,
+				err,
+			)
+		}
 	}
-	queries := sqlcgen.New(tx)
 	rows, err := queries.ListBridgeInstanceIDs(ctx)
 	if err != nil {
 		return fmt.Errorf("store: query stale bridge instances during replacement: %w", err)
@@ -187,6 +231,11 @@ func (g *BridgeRepo) ReplaceBridgeInstances(ctx context.Context, instances []bri
 		}
 	}
 	for _, id := range staleIDs {
+		if _, err := queries.DeleteGatewayIngressBinding(ctx, sqlcgen.DeleteGatewayIngressBindingParams{
+			SubjectKind: "bridge_instance", SubjectID: id,
+		}); err != nil {
+			return fmt.Errorf("store: delete stale bridge ingress binding %q: %w", id, err)
+		}
 		if _, err := queries.DeleteBridgeInstance(ctx, id); err != nil {
 			return fmt.Errorf("store: delete stale bridge instance %q during replacement: %w", id, err)
 		}
@@ -196,6 +245,31 @@ func (g *BridgeRepo) ReplaceBridgeInstances(ctx context.Context, instances []bri
 		return fmt.Errorf("store: commit bridge instance replacement transaction: %w", err)
 	}
 	return nil
+}
+
+func reconcileBridgeIngressBinding(
+	ctx context.Context,
+	queries *sqlcgen.Queries,
+	instance bridges.BridgeInstance,
+) error {
+	target, targetErr := bridges.WebhookLocalTarget(instance)
+	if targetErr != nil || target == nil {
+		_, err := queries.DeleteGatewayIngressBinding(ctx, sqlcgen.DeleteGatewayIngressBindingParams{
+			SubjectKind: "bridge_instance",
+			SubjectID:   instance.ID,
+		})
+		return err
+	}
+	_, err := queries.DeleteMismatchedGatewayIngressBinding(
+		ctx,
+		sqlcgen.DeleteMismatchedGatewayIngressBindingParams{
+			SubjectKind: "bridge_instance",
+			SubjectID:   instance.ID,
+			ScopeKind:   string(instance.Scope),
+			WorkspaceID: nullableBridgeString(instance.WorkspaceID),
+		},
+	)
+	return err
 }
 
 type bridgeInstanceRecord struct {

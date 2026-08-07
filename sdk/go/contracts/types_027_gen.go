@@ -4,6 +4,8 @@ package contracts
 
 import "time"
 
+type Visibility string
+
 type WindowManagerActor struct {
 	Kind string `json:"kind,omitempty"`
 	ID   string `json:"id,omitempty"`

@@ -2229,6 +2229,7 @@ func testTrigger(scope Scope, name string, workspaceID string) Trigger {
 		FireLimit:        DefaultFireLimitConfig(),
 		Source:           JobSourceDynamic,
 		WebhookID:        "wbh_" + name,
+		EndpointSlug:     name,
 		WebhookSecretRef: "env:COMPOZY_TEST_WEBHOOK_SECRET",
 	}
 }

@@ -14,6 +14,7 @@ func GatewayStatusPayload(status gateway.Status) contract.GatewayStatusPayload {
 		Providers: make([]contract.GatewayProviderPayload, 0, len(status.Providers)),
 		Addresses: make([]contract.GatewayAddressPayload, 0, len(status.Addresses)),
 		Devices:   GatewayDevicePayloads(status.Devices),
+		Bindings:  make([]contract.GatewayIngressPayload, 0, len(status.Bindings)),
 	}
 	for _, tier := range status.Tiers {
 		payload.Tiers = append(payload.Tiers, contract.GatewayTierPayload{
@@ -42,11 +43,30 @@ func GatewayStatusPayload(status gateway.Status) contract.GatewayStatusPayload {
 			Tier: string(address.Tier), Address: address.Address, Live: address.Live,
 		})
 	}
+	for _, binding := range status.Bindings {
+		payload.Bindings = append(payload.Bindings, GatewayIngressPayload(binding))
+	}
 	if status.Refusal != nil {
 		payload.Refusal = &contract.GatewayRefusalPayload{
 			Cause: diagnostics.RedactAndBound(status.Refusal.Cause, maxDiagnosticPayloadBytes),
 			Fix:   diagnostics.RedactAndBound(status.Refusal.Fix, maxDiagnosticPayloadBytes),
 		}
+	}
+	return payload
+}
+
+func GatewayIngressPayload(projection gateway.IngressProjection) contract.GatewayIngressPayload {
+	payload := contract.GatewayIngressPayload{
+		SubjectKind: string(projection.Subject.Kind), SubjectID: projection.Subject.ID,
+		ScopeKind: string(projection.Scope), WorkspaceID: projection.WorkspaceID,
+		URL: projection.URL, Reachability: string(projection.Reachability),
+		EndpointGeneration:          projection.EndpointGeneration,
+		ConfirmedEndpointGeneration: projection.ConfirmedEndpointGeneration,
+		EnablePath:                  projection.EnablePath,
+	}
+	if !projection.ConfirmedAt.IsZero() {
+		confirmedAt := projection.ConfirmedAt
+		payload.ConfirmedAt = &confirmedAt
 	}
 	return payload
 }

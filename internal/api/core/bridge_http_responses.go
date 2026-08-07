@@ -2,15 +2,22 @@ package core
 
 import (
 	"context"
+	"errors"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	"github.com/compozy/compozy/internal/gateway"
 
 	"github.com/gin-gonic/gin"
 )
 
 func (h *BaseHandlers) respondBridge(c *gin.Context, status int, instance bridgepkg.BridgeInstance) {
-	resp, err := h.bridgeResponse(c.Request.Context(), instance)
+	projectionCtx, err := h.gatewayIngressReadContext(c, "bridges.read")
+	if err != nil {
+		h.respondGatewayError(c, errors.Join(gateway.ErrIngressForbidden, err))
+		return
+	}
+	resp, err := h.bridgeResponse(projectionCtx, instance)
 	if err != nil {
 		if h != nil && h.Logger != nil {
 			h.Logger.Warn(
@@ -52,8 +59,16 @@ func (h *BaseHandlers) bridgeResponse(
 	if err != nil {
 		return nil, err
 	}
+	health, err = h.enrichBridgeHealthIngress(ctx, health)
+	if err != nil {
+		return nil, err
+	}
+	bridgePayload, err := h.bridgePayload(ctx, instance)
+	if err != nil {
+		return nil, err
+	}
 	return &contract.BridgeResponse{
-		Bridge: BridgePayloadFromBridgeInstance(instance),
+		Bridge: bridgePayload,
 		Health: health,
 	}, nil
 }
@@ -70,7 +85,11 @@ func (h *BaseHandlers) bridgeHealthMap(ctx context.Context) (map[string]contract
 
 	health := make(map[string]contract.BridgeHealthPayload, len(observed))
 	for _, item := range observed {
-		health[item.BridgeInstanceID] = BridgeHealthPayloadFromObserve(item)
+		payload, projectErr := h.enrichBridgeHealthIngress(ctx, BridgeHealthPayloadFromObserve(item))
+		if projectErr != nil {
+			return nil, projectErr
+		}
+		health[item.BridgeInstanceID] = payload
 	}
 	return health, nil
 }

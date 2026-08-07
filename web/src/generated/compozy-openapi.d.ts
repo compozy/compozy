@@ -663,6 +663,25 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/bridge-callbacks/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Probe one bound bridge callback */
+    get: operations["probeGatewayBridgeCallback"];
+    put?: never;
+    /** Deliver one bound bridge callback */
+    post: operations["deliverGatewayBridgeCallback"];
+    delete?: never;
+    options?: never;
+    /** Probe one bound bridge callback */
+    head: operations["headGatewayBridgeCallback"];
+    patch?: never;
+    trace?: never;
+  };
   "/api/bridges": {
     parameters: {
       query?: never;
@@ -1264,6 +1283,40 @@ export interface paths {
     head?: never;
     /** Rename one paired gateway device */
     patch: operations["renameGatewayDevice"];
+    trace?: never;
+  };
+  "/api/gateway/ingress-bindings": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Confirm one subject against the verified public endpoint */
+    post: operations["bindGatewayIngress"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/gateway/ingress-bindings/{subject_kind}/{subject_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Remove one public ingress confirmation */
+    delete: operations["unbindGatewayIngress"];
+    options?: never;
+    head?: never;
+    patch?: never;
     trace?: never;
   };
   "/api/gateway/pairings": {
@@ -22804,6 +22857,19 @@ export interface operations {
                 window: string;
               };
               id: string;
+              ingress?: {
+                /** Format: date-time */
+                confirmed_at?: string | null;
+                confirmed_endpoint_generation?: number;
+                enable_path?: string;
+                endpoint_generation: number;
+                reachability: string;
+                scope_kind: string;
+                subject_id: string;
+                subject_kind: string;
+                url?: string;
+                workspace_id?: string;
+              } | null;
               loop_target?: {
                 input_mapping?: {
                   [key: string]: string;
@@ -23118,6 +23184,19 @@ export interface operations {
                 window: string;
               };
               id: string;
+              ingress?: {
+                /** Format: date-time */
+                confirmed_at?: string | null;
+                confirmed_endpoint_generation?: number;
+                enable_path?: string;
+                endpoint_generation: number;
+                reachability: string;
+                scope_kind: string;
+                subject_id: string;
+                subject_kind: string;
+                url?: string;
+                workspace_id?: string;
+              } | null;
               loop_target?: {
                 input_mapping?: {
                   [key: string]: string;
@@ -23392,6 +23471,19 @@ export interface operations {
                 window: string;
               };
               id: string;
+              ingress?: {
+                /** Format: date-time */
+                confirmed_at?: string | null;
+                confirmed_endpoint_generation?: number;
+                enable_path?: string;
+                endpoint_generation: number;
+                reachability: string;
+                scope_kind: string;
+                subject_id: string;
+                subject_kind: string;
+                url?: string;
+                workspace_id?: string;
+              } | null;
               loop_target?: {
                 input_mapping?: {
                   [key: string]: string;
@@ -23841,6 +23933,19 @@ export interface operations {
                 window: string;
               };
               id: string;
+              ingress?: {
+                /** Format: date-time */
+                confirmed_at?: string | null;
+                confirmed_endpoint_generation?: number;
+                enable_path?: string;
+                endpoint_generation: number;
+                reachability: string;
+                scope_kind: string;
+                subject_id: string;
+                subject_kind: string;
+                url?: string;
+                workspace_id?: string;
+              } | null;
               loop_target?: {
                 input_mapping?: {
                   [key: string]: string;
@@ -24345,6 +24450,652 @@ export interface operations {
       };
     };
   };
+  probeGatewayBridgeCallback: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Bridge instance id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Adapter response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "*/*": string;
+        };
+      };
+      /** @description Confirmed callback endpoint */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid callback request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Bound bridge callback not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Payload too large */
+      413: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Rate limited */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Bridge adapter unavailable */
+      502: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Bridge adapter timed out */
+      504: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Adapter-owned response */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "*/*": string;
+        };
+      };
+    };
+  };
+  deliverGatewayBridgeCallback: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Bridge instance id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          [key: string]: unknown;
+        };
+      };
+    };
+    responses: {
+      /** @description Adapter response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "*/*": string;
+        };
+      };
+      /** @description Confirmed callback endpoint */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid callback request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Bound bridge callback not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Payload too large */
+      413: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Rate limited */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Bridge adapter unavailable */
+      502: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Bridge adapter timed out */
+      504: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Adapter-owned response */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "*/*": string;
+        };
+      };
+    };
+  };
+  headGatewayBridgeCallback: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Bridge instance id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Adapter response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "*/*": string;
+        };
+      };
+      /** @description Confirmed callback endpoint */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid callback request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Bound bridge callback not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Payload too large */
+      413: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Rate limited */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Bridge adapter unavailable */
+      502: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Bridge adapter timed out */
+      504: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Adapter-owned response */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "*/*": string;
+        };
+      };
+    };
+  };
   listBridges: {
     parameters: {
       query?: {
@@ -24431,6 +25182,19 @@ export interface operations {
                     | "ready"
                     | "starting";
                 }[];
+                ingress?: {
+                  /** Format: date-time */
+                  confirmed_at?: string | null;
+                  confirmed_endpoint_generation?: number;
+                  enable_path?: string;
+                  endpoint_generation: number;
+                  reachability: string;
+                  scope_kind: string;
+                  subject_id: string;
+                  subject_kind: string;
+                  url?: string;
+                  workspace_id?: string;
+                } | null;
                 last_error?: string;
                 /** Format: date-time */
                 last_error_at?: string | null;
@@ -24489,6 +25253,19 @@ export interface operations {
               dm_policy?: "open" | "allowlist" | "pairing";
               enabled: boolean;
               extension_name: string;
+              gateway_ingress?: {
+                /** Format: date-time */
+                confirmed_at?: string | null;
+                confirmed_endpoint_generation?: number;
+                enable_path?: string;
+                endpoint_generation: number;
+                reachability: string;
+                scope_kind: string;
+                subject_id: string;
+                subject_kind: string;
+                url?: string;
+                workspace_id?: string;
+              } | null;
               id: string;
               notification_suppress: boolean;
               platform: string;
@@ -24798,6 +25575,19 @@ export interface operations {
               dm_policy?: "open" | "allowlist" | "pairing";
               enabled: boolean;
               extension_name: string;
+              gateway_ingress?: {
+                /** Format: date-time */
+                confirmed_at?: string | null;
+                confirmed_endpoint_generation?: number;
+                enable_path?: string;
+                endpoint_generation: number;
+                reachability: string;
+                scope_kind: string;
+                subject_id: string;
+                subject_kind: string;
+                url?: string;
+                workspace_id?: string;
+              } | null;
               id: string;
               notification_suppress: boolean;
               platform: string;
@@ -24864,6 +25654,19 @@ export interface operations {
                 /** @enum {string} */
                 status?: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
               }[];
+              ingress?: {
+                /** Format: date-time */
+                confirmed_at?: string | null;
+                confirmed_endpoint_generation?: number;
+                enable_path?: string;
+                endpoint_generation: number;
+                reachability: string;
+                scope_kind: string;
+                subject_id: string;
+                subject_kind: string;
+                url?: string;
+                workspace_id?: string;
+              } | null;
               last_error?: string;
               /** Format: date-time */
               last_error_at?: string | null;
@@ -25070,6 +25873,19 @@ export interface operations {
                     | "ready"
                     | "starting";
                 }[];
+                ingress?: {
+                  /** Format: date-time */
+                  confirmed_at?: string | null;
+                  confirmed_endpoint_generation?: number;
+                  enable_path?: string;
+                  endpoint_generation: number;
+                  reachability: string;
+                  scope_kind: string;
+                  subject_id: string;
+                  subject_kind: string;
+                  url?: string;
+                  workspace_id?: string;
+                } | null;
                 last_error?: string;
                 /** Format: date-time */
                 last_error_at?: string | null;
@@ -25579,6 +26395,19 @@ export interface operations {
               dm_policy?: "open" | "allowlist" | "pairing";
               enabled: boolean;
               extension_name: string;
+              gateway_ingress?: {
+                /** Format: date-time */
+                confirmed_at?: string | null;
+                confirmed_endpoint_generation?: number;
+                enable_path?: string;
+                endpoint_generation: number;
+                reachability: string;
+                scope_kind: string;
+                subject_id: string;
+                subject_kind: string;
+                url?: string;
+                workspace_id?: string;
+              } | null;
               id: string;
               notification_suppress: boolean;
               platform: string;
@@ -25645,6 +26474,19 @@ export interface operations {
                 /** @enum {string} */
                 status?: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
               }[];
+              ingress?: {
+                /** Format: date-time */
+                confirmed_at?: string | null;
+                confirmed_endpoint_generation?: number;
+                enable_path?: string;
+                endpoint_generation: number;
+                reachability: string;
+                scope_kind: string;
+                subject_id: string;
+                subject_kind: string;
+                url?: string;
+                workspace_id?: string;
+              } | null;
               last_error?: string;
               /** Format: date-time */
               last_error_at?: string | null;
@@ -25872,6 +26714,19 @@ export interface operations {
               dm_policy?: "open" | "allowlist" | "pairing";
               enabled: boolean;
               extension_name: string;
+              gateway_ingress?: {
+                /** Format: date-time */
+                confirmed_at?: string | null;
+                confirmed_endpoint_generation?: number;
+                enable_path?: string;
+                endpoint_generation: number;
+                reachability: string;
+                scope_kind: string;
+                subject_id: string;
+                subject_kind: string;
+                url?: string;
+                workspace_id?: string;
+              } | null;
               id: string;
               notification_suppress: boolean;
               platform: string;
@@ -25938,6 +26793,19 @@ export interface operations {
                 /** @enum {string} */
                 status?: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
               }[];
+              ingress?: {
+                /** Format: date-time */
+                confirmed_at?: string | null;
+                confirmed_endpoint_generation?: number;
+                enable_path?: string;
+                endpoint_generation: number;
+                reachability: string;
+                scope_kind: string;
+                subject_id: string;
+                subject_kind: string;
+                url?: string;
+                workspace_id?: string;
+              } | null;
               last_error?: string;
               /** Format: date-time */
               last_error_at?: string | null;
@@ -26135,6 +27003,19 @@ export interface operations {
               dm_policy?: "open" | "allowlist" | "pairing";
               enabled: boolean;
               extension_name: string;
+              gateway_ingress?: {
+                /** Format: date-time */
+                confirmed_at?: string | null;
+                confirmed_endpoint_generation?: number;
+                enable_path?: string;
+                endpoint_generation: number;
+                reachability: string;
+                scope_kind: string;
+                subject_id: string;
+                subject_kind: string;
+                url?: string;
+                workspace_id?: string;
+              } | null;
               id: string;
               notification_suppress: boolean;
               platform: string;
@@ -26201,6 +27082,19 @@ export interface operations {
                 /** @enum {string} */
                 status?: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
               }[];
+              ingress?: {
+                /** Format: date-time */
+                confirmed_at?: string | null;
+                confirmed_endpoint_generation?: number;
+                enable_path?: string;
+                endpoint_generation: number;
+                reachability: string;
+                scope_kind: string;
+                subject_id: string;
+                subject_kind: string;
+                url?: string;
+                workspace_id?: string;
+              } | null;
               last_error?: string;
               /** Format: date-time */
               last_error_at?: string | null;
@@ -26398,6 +27292,19 @@ export interface operations {
               dm_policy?: "open" | "allowlist" | "pairing";
               enabled: boolean;
               extension_name: string;
+              gateway_ingress?: {
+                /** Format: date-time */
+                confirmed_at?: string | null;
+                confirmed_endpoint_generation?: number;
+                enable_path?: string;
+                endpoint_generation: number;
+                reachability: string;
+                scope_kind: string;
+                subject_id: string;
+                subject_kind: string;
+                url?: string;
+                workspace_id?: string;
+              } | null;
               id: string;
               notification_suppress: boolean;
               platform: string;
@@ -26464,6 +27371,19 @@ export interface operations {
                 /** @enum {string} */
                 status?: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
               }[];
+              ingress?: {
+                /** Format: date-time */
+                confirmed_at?: string | null;
+                confirmed_endpoint_generation?: number;
+                enable_path?: string;
+                endpoint_generation: number;
+                reachability: string;
+                scope_kind: string;
+                subject_id: string;
+                subject_kind: string;
+                url?: string;
+                workspace_id?: string;
+              } | null;
               last_error?: string;
               /** Format: date-time */
               last_error_at?: string | null;
@@ -26931,6 +27851,19 @@ export interface operations {
               dm_policy?: "open" | "allowlist" | "pairing";
               enabled: boolean;
               extension_name: string;
+              gateway_ingress?: {
+                /** Format: date-time */
+                confirmed_at?: string | null;
+                confirmed_endpoint_generation?: number;
+                enable_path?: string;
+                endpoint_generation: number;
+                reachability: string;
+                scope_kind: string;
+                subject_id: string;
+                subject_kind: string;
+                url?: string;
+                workspace_id?: string;
+              } | null;
               id: string;
               notification_suppress: boolean;
               platform: string;
@@ -26997,6 +27930,19 @@ export interface operations {
                 /** @enum {string} */
                 status?: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
               }[];
+              ingress?: {
+                /** Format: date-time */
+                confirmed_at?: string | null;
+                confirmed_endpoint_generation?: number;
+                enable_path?: string;
+                endpoint_generation: number;
+                reachability: string;
+                scope_kind: string;
+                subject_id: string;
+                subject_kind: string;
+                url?: string;
+                workspace_id?: string;
+              } | null;
               last_error?: string;
               /** Format: date-time */
               last_error_at?: string | null;
@@ -32523,6 +33469,364 @@ export interface operations {
       };
     };
   };
+  bindGatewayIngress: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          confirmed: boolean;
+          subject_id: string;
+          subject_kind: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Already confirmed */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            binding: {
+              /** Format: date-time */
+              confirmed_at?: string | null;
+              confirmed_endpoint_generation?: number;
+              enable_path?: string;
+              endpoint_generation: number;
+              reachability: string;
+              scope_kind: string;
+              subject_id: string;
+              subject_kind: string;
+              url?: string;
+              workspace_id?: string;
+            };
+            changed: boolean;
+          };
+        };
+      };
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            binding: {
+              /** Format: date-time */
+              confirmed_at?: string | null;
+              confirmed_endpoint_generation?: number;
+              enable_path?: string;
+              endpoint_generation: number;
+              reachability: string;
+              scope_kind: string;
+              subject_id: string;
+              subject_kind: string;
+              url?: string;
+              workspace_id?: string;
+            };
+            changed: boolean;
+          };
+        };
+      };
+      /** @description Invalid ingress binding request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Ingress subject is outside the caller workspace */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Ingress subject not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Public ingress is not reachable */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  unbindGatewayIngress: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Ingress subject kind */
+        subject_kind: string;
+        /** @description Ingress subject id */
+        subject_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Unbound */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            changed: boolean;
+            subject_id: string;
+            subject_kind: string;
+          };
+        };
+      };
+      /** @description Invalid ingress subject */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Ingress subject is outside the caller workspace */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Ingress subject not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
   mintGatewayPairing: {
     parameters: {
       query?: never;
@@ -32908,6 +34212,19 @@ export interface operations {
               live: boolean;
               tier: string;
             }[];
+            bindings: {
+              /** Format: date-time */
+              confirmed_at?: string | null;
+              confirmed_endpoint_generation?: number;
+              enable_path?: string;
+              endpoint_generation: number;
+              reachability: string;
+              scope_kind: string;
+              subject_id: string;
+              subject_kind: string;
+              url?: string;
+              workspace_id?: string;
+            }[];
             changed: boolean;
             devices: {
               actor_kind: string;
@@ -33105,6 +34422,19 @@ export interface operations {
               live: boolean;
               tier: string;
             }[];
+            bindings: {
+              /** Format: date-time */
+              confirmed_at?: string | null;
+              confirmed_endpoint_generation?: number;
+              enable_path?: string;
+              endpoint_generation: number;
+              reachability: string;
+              scope_kind: string;
+              subject_id: string;
+              subject_kind: string;
+              url?: string;
+              workspace_id?: string;
+            }[];
             changed: boolean;
             devices: {
               actor_kind: string;
@@ -33288,6 +34618,19 @@ export interface operations {
               address: string;
               live: boolean;
               tier: string;
+            }[];
+            bindings: {
+              /** Format: date-time */
+              confirmed_at?: string | null;
+              confirmed_endpoint_generation?: number;
+              enable_path?: string;
+              endpoint_generation: number;
+              reachability: string;
+              scope_kind: string;
+              subject_id: string;
+              subject_kind: string;
+              url?: string;
+              workspace_id?: string;
             }[];
             changed: boolean;
             devices: {
@@ -33478,6 +34821,19 @@ export interface operations {
               address: string;
               live: boolean;
               tier: string;
+            }[];
+            bindings: {
+              /** Format: date-time */
+              confirmed_at?: string | null;
+              confirmed_endpoint_generation?: number;
+              enable_path?: string;
+              endpoint_generation: number;
+              reachability: string;
+              scope_kind: string;
+              subject_id: string;
+              subject_kind: string;
+              url?: string;
+              workspace_id?: string;
             }[];
             changed: boolean;
             devices: {
@@ -60237,6 +61593,19 @@ export interface operations {
                   live: boolean;
                   tier: string;
                 }[];
+                bindings: {
+                  /** Format: date-time */
+                  confirmed_at?: string | null;
+                  confirmed_endpoint_generation?: number;
+                  enable_path?: string;
+                  endpoint_generation: number;
+                  reachability: string;
+                  scope_kind: string;
+                  subject_id: string;
+                  subject_kind: string;
+                  url?: string;
+                  workspace_id?: string;
+                }[];
                 changed: boolean;
                 devices: {
                   actor_kind: string;
@@ -85139,6 +86508,8 @@ export interface operations {
     parameters: {
       query?: never;
       header: {
+        /** @description Unique webhook delivery id */
+        "X-Compozy-Webhook-Delivery-ID": string;
         /** @description Signed webhook timestamp */
         "X-Compozy-Webhook-Timestamp": string;
         /** @description Signed webhook HMAC signature */
@@ -85345,6 +86716,93 @@ export interface operations {
           };
         };
       };
+      /** @description Webhook delivery is disabled or already claimed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Payload too large */
+      413: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Rate limited */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
       /** @description Internal server error */
       500: {
         headers: {
@@ -85409,6 +86867,8 @@ export interface operations {
     parameters: {
       query?: never;
       header: {
+        /** @description Unique webhook delivery id */
+        "X-Compozy-Webhook-Delivery-ID": string;
         /** @description Signed webhook timestamp */
         "X-Compozy-Webhook-Timestamp": string;
         /** @description Signed webhook HMAC signature */
@@ -85590,6 +87050,93 @@ export interface operations {
       };
       /** @description Webhook trigger not found */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Webhook delivery is disabled or already claimed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Payload too large */
+      413: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Rate limited */
+      429: {
         headers: {
           [name: string]: unknown;
         };

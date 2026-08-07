@@ -7,6 +7,21 @@ import (
 	"time"
 )
 
+type TaskReferencePayload struct {
+	ID              string     `json:"id"`
+	Identifier      string     `json:"identifier,omitempty"`
+	Title           string     `json:"title"`
+	Status          Status     `json:"status"`
+	Priority        Priority   `json:"priority,omitempty"`
+	Owner           *Ownership `json:"owner,omitempty"`
+	Scope           TaskScope  `json:"scope"`
+	WorkspaceID     string     `json:"workspace_id,omitempty"`
+	LatestEventSeq  int64      `json:"latest_event_seq"`
+	Paused          bool       `json:"paused,omitempty"`
+	EffectivePaused bool       `json:"effective_paused,omitempty"`
+	PausedByTaskID  string     `json:"paused_by_task_id,omitempty"`
+}
+
 type TaskRun struct {
 	ID                           string                      `json:"id"`
 	TaskID                       string                      `json:"task_id"`
@@ -409,36 +424,4 @@ type TaskRunPreClaimPatch struct {
 	DenyReason              string   `json:"deny_reason,omitempty"`
 	AddRequiredCapabilities []string `json:"add_required_capabilities,omitempty"`
 	PriorityMin             *int     `json:"priority_min,omitempty"`
-}
-
-type TaskRunPreClaimPayload struct {
-	Event                        HookEvent            `json:"event"`
-	Timestamp                    time.Time            `json:"timestamp"`
-	TaskID                       string               `json:"task_id,omitempty"`
-	RunID                        string               `json:"run_id,omitempty"`
-	RunKind                      *string              `json:"run_kind,omitempty"`
-	WakeID                       string               `json:"wake_id,omitempty"`
-	OwnerKey                     string               `json:"owner_key,omitempty"`
-	TargetSessionID              string               `json:"target_session_id,omitempty"`
-	LoopRunID                    string               `json:"loop_run_id,omitempty"`
-	WorkspaceID                  string               `json:"workspace_id,omitempty"`
-	WorkflowID                   string               `json:"workflow_id,omitempty"`
-	ResolvedNetworkParticipation *Spec                `json:"resolved_network_participation"`
-	AgentName                    string               `json:"agent_name,omitempty"`
-	SessionID                    string               `json:"session_id,omitempty"`
-	ActorKind                    string               `json:"actor_kind,omitempty"`
-	ActorID                      string               `json:"actor_id,omitempty"`
-	OriginKind                   string               `json:"origin_kind,omitempty"`
-	OriginRef                    string               `json:"origin_ref,omitempty"`
-	TaskStatus                   string               `json:"task_status,omitempty"`
-	RunStatus                    string               `json:"run_status,omitempty"`
-	SoulSnapshotID               string               `json:"soul_snapshot_id,omitempty"`
-	SoulDigest                   string               `json:"soul_digest,omitempty"`
-	Attempt                      int                  `json:"attempt,omitempty"`
-	LeaseUntil                   time.Time            `json:"lease_until"`
-	ReleaseReason                string               `json:"release_reason,omitempty"`
-	Error                        string               `json:"error,omitempty"`
-	Criteria                     TaskRunClaimCriteria `json:"criteria"`
-	Denied                       bool                 `json:"denied,omitempty"`
-	DenyReason                   string               `json:"deny_reason,omitempty"`
 }

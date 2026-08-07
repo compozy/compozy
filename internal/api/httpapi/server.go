@@ -22,6 +22,7 @@ const (
 	serverLocalhostKey       = "localhost"
 	defaultPollInterval      = 100 * time.Millisecond
 	defaultReadHeaderTimeout = 5 * time.Second
+	defaultReadTimeout       = 30 * time.Second
 	defaultIdleTimeout       = 60 * time.Second
 )
 

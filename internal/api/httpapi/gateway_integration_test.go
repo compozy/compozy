@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -21,6 +22,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
+	automationpkg "github.com/compozy/compozy/internal/automation"
 	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/store"
@@ -74,6 +76,34 @@ func (s *gatewayIntegrationService) DisableProvider(
 	_ string,
 ) (gateway.Status, error) {
 	return s.Status(ctx)
+}
+
+func (*gatewayIntegrationService) ResolveIngressSubject(
+	context.Context,
+	gateway.IngressSubjectRef,
+) (gateway.IngressSubject, error) {
+	return gateway.IngressSubject{}, gateway.ErrIngressSubjectNotFound
+}
+
+func (*gatewayIntegrationService) BindIngress(
+	context.Context,
+	gateway.IngressBindRequest,
+) (gateway.IngressBinding, error) {
+	return gateway.IngressBinding{}, gateway.ErrIngressSubjectNotFound
+}
+
+func (*gatewayIntegrationService) UnbindIngress(
+	context.Context,
+	gateway.IngressUnbindRequest,
+) (gateway.UnbindResult, error) {
+	return gateway.UnbindResult{}, gateway.ErrIngressSubjectNotFound
+}
+
+func (*gatewayIntegrationService) ProjectIngress(
+	context.Context,
+	gateway.IngressSubjectRef,
+) (gateway.IngressProjection, error) {
+	return gateway.IngressProjection{}, gateway.ErrIngressSubjectNotFound
 }
 
 func TestGatewayPairingAndBrowserCredentialIntegration(t *testing.T) {
@@ -184,6 +214,201 @@ func TestGatewayAuthenticatedProductAndStatusParityIntegration(t *testing.T) {
 	t.Run("Should gate the full private product and preserve status facts across transports", func(t *testing.T) {
 		t.Parallel()
 		exerciseGatewayAuthenticatedProductAndStatusParityIntegration(t)
+	})
+}
+
+func TestGatewayPublicIngressWebhookIntegration(t *testing.T) {
+	runtime := newIntegrationRuntime(t)
+	publicServer := newGatewayPublicIngressIntegrationServer(t, runtime, 100)
+
+	t.Run("Should dispatch one signed delivery with trigger and delivery attribution [IT-040] [IT-044]", func(t *testing.T) {
+		trigger := createGatewayIntegrationWebhookTrigger(t, runtime, "signed-delivery")
+		payload := []byte(`{"payload":"deploy"}`)
+		timestamp := time.Now().UTC()
+		response, body := deliverGatewayIntegrationWebhook(
+			t,
+			publicServer.URL,
+			trigger,
+			"shared-secret",
+			"delivery-signed",
+			timestamp,
+			payload,
+			nil,
+		)
+		if response.StatusCode != http.StatusOK {
+			t.Fatalf("signed delivery status = %d, want %d; body=%s", response.StatusCode, http.StatusOK, body)
+		}
+		var delivery contract.WebhookDeliveryResponse
+		if err := json.Unmarshal(body, &delivery); err != nil {
+			t.Fatalf("json.Unmarshal(delivery) error = %v; body=%s", err, body)
+		}
+		if delivery.Result.Matched != 1 || len(delivery.Result.Runs) != 1 {
+			t.Fatalf("delivery result = %#v, want one run", delivery.Result)
+		}
+		run := getGatewayIntegrationRun(t, runtime, delivery.Result.Runs[0].ID)
+		if run.TriggerID != trigger.Trigger.ID || run.Metadata["delivery_id"] != "delivery-signed" {
+			t.Fatalf("run attribution = trigger:%q metadata:%#v", run.TriggerID, run.Metadata)
+		}
+	})
+
+	t.Run("Should reject stale oversized and disabled deliveries distinctly without a run [IT-041]", func(t *testing.T) {
+		trigger := createGatewayIntegrationWebhookTrigger(t, runtime, "rejection-classes")
+		payload := []byte(`{"payload":"deploy"}`)
+		staleAt := time.Now().UTC().Add(-10 * time.Minute)
+		staleResponse, staleBody := deliverGatewayIntegrationWebhook(
+			t, publicServer.URL, trigger, "shared-secret", "delivery-stale", staleAt, payload, nil,
+		)
+		if staleResponse.StatusCode != http.StatusUnauthorized || !bytes.Contains(staleBody, []byte("timestamp")) {
+			t.Fatalf("stale delivery = %d/%s, want timestamp-specific 401", staleResponse.StatusCode, staleBody)
+		}
+
+		oversized := bytes.Repeat([]byte("a"), (1<<20)+1)
+		oversizedResponse, oversizedBody := deliverGatewayIntegrationWebhook(
+			t, publicServer.URL, trigger, "shared-secret", "delivery-oversized", time.Now().UTC(), oversized, nil,
+		)
+		if oversizedResponse.StatusCode != http.StatusRequestEntityTooLarge {
+			t.Fatalf("oversized delivery = %d/%s, want 413", oversizedResponse.StatusCode, oversizedBody)
+		}
+
+		updateGatewayIntegrationTrigger(t, runtime, trigger.Trigger.ID, `{"enabled":false}`)
+		disabledAt := time.Now().UTC()
+		disabledResponse, disabledBody := deliverGatewayIntegrationWebhook(
+			t, publicServer.URL, trigger, "shared-secret", "delivery-disabled", disabledAt, payload, nil,
+		)
+		if disabledResponse.StatusCode != http.StatusConflict || !bytes.Contains(disabledBody, []byte("disabled")) {
+			t.Fatalf("disabled delivery = %d/%s, want disabled-specific 409", disabledResponse.StatusCode, disabledBody)
+		}
+		if runs := listGatewayIntegrationTriggerRuns(t, runtime, trigger.Trigger.ID); len(runs) != 0 {
+			t.Fatalf("rejected delivery runs = %#v, want none", runs)
+		}
+	})
+
+	t.Run("Should admit a bounded burst and return retry guidance after the limit [IT-042]", func(t *testing.T) {
+		limitedServer := newGatewayPublicIngressIntegrationServer(t, runtime, 2)
+		trigger := createGatewayIntegrationWebhookTrigger(t, runtime, "bounded-burst")
+		payload := []byte(`{"payload":"deploy"}`)
+		for index := 1; index <= 2; index++ {
+			response, body := deliverGatewayIntegrationWebhook(
+				t,
+				limitedServer.URL,
+				trigger,
+				"shared-secret",
+				fmt.Sprintf("delivery-burst-%d", index),
+				time.Now().UTC(),
+				payload,
+				nil,
+			)
+			if response.StatusCode != http.StatusOK {
+				t.Fatalf("burst delivery %d = %d/%s, want 200", index, response.StatusCode, body)
+			}
+		}
+		limited, body := deliverGatewayIntegrationWebhook(
+			t, limitedServer.URL, trigger, "shared-secret", "delivery-burst-3", time.Now().UTC(), payload, nil,
+		)
+		if limited.StatusCode != http.StatusTooManyRequests || limited.Header.Get("Retry-After") == "" {
+			t.Fatalf("over-bound delivery = %d/%s Retry-After=%q", limited.StatusCode, body, limited.Header.Get("Retry-After"))
+		}
+		if runs := listGatewayIntegrationTriggerRuns(t, runtime, trigger.Trigger.ID); len(runs) != 2 {
+			t.Fatalf("bounded burst runs = %d, want 2", len(runs))
+		}
+	})
+
+	t.Run("Should let exactly one identical delivery win a concurrent race [IT-043]", func(t *testing.T) {
+		trigger := createGatewayIntegrationWebhookTrigger(t, runtime, "duplicate-race")
+		payload := []byte(`{"payload":"deploy"}`)
+		timestamp := time.Now().UTC()
+		start := make(chan struct{})
+		statuses := make(chan int, 2)
+		errorsCh := make(chan error, 2)
+		var workers sync.WaitGroup
+		for range 2 {
+			workers.Add(1)
+			go func() {
+				defer workers.Done()
+				<-start
+				response, body, err := tryDeliverGatewayIntegrationWebhook(
+					t.Context(), publicServer.URL, trigger, "shared-secret", "delivery-race", timestamp, payload,
+				)
+				if err != nil {
+					errorsCh <- err
+					return
+				}
+				if response.StatusCode != http.StatusOK && response.StatusCode != http.StatusConflict {
+					errorsCh <- fmt.Errorf("duplicate delivery = %d/%s", response.StatusCode, body)
+					return
+				}
+				statuses <- response.StatusCode
+			}()
+		}
+		close(start)
+		workers.Wait()
+		close(statuses)
+		close(errorsCh)
+		for err := range errorsCh {
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		got := make([]int, 0, 2)
+		for status := range statuses {
+			got = append(got, status)
+		}
+		sort.Ints(got)
+		if !reflect.DeepEqual(got, []int{http.StatusOK, http.StatusConflict}) {
+			t.Fatalf("duplicate race statuses = %v, want [200 409]", got)
+		}
+		if runs := listGatewayIntegrationTriggerRuns(t, runtime, trigger.Trigger.ID); len(runs) != 1 {
+			t.Fatalf("duplicate race runs = %d, want exactly 1", len(runs))
+		}
+	})
+
+	t.Run("Should ignore operator credentials and reject browser-shaped visits without daemon detail [IT-046]", func(t *testing.T) {
+		trigger := createGatewayIntegrationWebhookTrigger(t, runtime, "auth-independence")
+		unsigned, unsignedBody := deliverGatewayIntegrationWebhook(
+			t,
+			publicServer.URL,
+			trigger,
+			"",
+			"delivery-unsigned",
+			time.Now().UTC(),
+			[]byte(`{"payload":"deploy"}`),
+			map[string]string{"Authorization": "Bearer cpz_gwd_operator-session"},
+		)
+		if unsigned.StatusCode != http.StatusBadRequest || bytes.Contains(unsignedBody, []byte("internal")) {
+			t.Fatalf("unsigned operator delivery = %d/%s, want masked 400", unsigned.StatusCode, unsignedBody)
+		}
+		path, err := gatewayIntegrationWebhookPath(trigger)
+		if err != nil {
+			t.Fatalf("gatewayIntegrationWebhookPath() error = %v", err)
+		}
+		visit, visitBody := gatewayIntegrationRequest(
+			t, http.MethodGet, publicServer.URL+path, nil, nil,
+		)
+		if visit.StatusCode != http.StatusNotFound || bytes.Contains(visitBody, []byte("daemon")) {
+			t.Fatalf("browser visit = %d/%s, want detail-free 404", visit.StatusCode, visitBody)
+		}
+		if runs := listGatewayIntegrationTriggerRuns(t, runtime, trigger.Trigger.ID); len(runs) != 0 {
+			t.Fatalf("authentication-confusion runs = %#v, want none", runs)
+		}
+	})
+
+	t.Run("Should expose a transport failure after the public listener stops [IT-045]", func(t *testing.T) {
+		offlineServer := newGatewayPublicIngressIntegrationServer(t, runtime, 100)
+		requestURL := offlineServer.URL + "/api/webhooks/global/offline--wbh_offline"
+		offlineServer.Close()
+		request, err := http.NewRequestWithContext(t.Context(), http.MethodPost, requestURL, strings.NewReader(`{}`))
+		if err != nil {
+			t.Fatalf("http.NewRequestWithContext(offline) error = %v", err)
+		}
+		response, err := gatewayIntegrationHTTPClient().Do(request)
+		if response != nil && response.Body != nil {
+			if closeErr := response.Body.Close(); closeErr != nil {
+				t.Fatalf("offline response body close error = %v", closeErr)
+			}
+		}
+		if err == nil {
+			t.Fatal("offline delivery error = nil, want sender-visible transport failure")
+		}
 	})
 }
 
@@ -624,6 +849,233 @@ func newGatewayIntegrationServer(t *testing.T, service *gatewayIntegrationServic
 	server := httptest.NewServer(router)
 	t.Cleanup(server.Close)
 	return server
+}
+
+func newGatewayPublicIngressIntegrationServer(
+	t *testing.T,
+	runtime integrationRuntime,
+	requestLimit int,
+) *httptest.Server {
+	t.Helper()
+
+	handlers := *runtime.server.handlers
+	handlers.gatewayAdmission = gatewayHTTPServiceStub{}
+	handlers.ingressLimiter = gateway.NewIngressRateLimiter(
+		requestLimit,
+		time.Minute,
+		func() time.Time { return time.Now().UTC() },
+	)
+	router := gin.New()
+	router.Use(requestBodyLimitMiddleware(maxAPIRequestBodyBytes))
+	RegisterSurfaceRoutes(router, &handlers, SurfaceSetPublicIngress)
+	server := httptest.NewServer(router)
+	t.Cleanup(server.Close)
+	return server
+}
+
+func createGatewayIntegrationWebhookTrigger(
+	t *testing.T,
+	runtime integrationRuntime,
+	name string,
+) contract.TriggerResponse {
+	t.Helper()
+
+	body, err := json.Marshal(map[string]any{
+		"scope": "global", "name": name, "agent_name": "coder",
+		"prompt": "review {{ index .Data \"payload\" }}", "event": "webhook",
+		"endpoint_slug": name, "webhook_secret_value": "shared-secret",
+	})
+	if err != nil {
+		t.Fatalf("json.Marshal(trigger) error = %v", err)
+	}
+	response := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodPost,
+		mustURL(runtime.host, runtime.port, "/api/automation/triggers"),
+		body,
+		nil,
+	)
+	if response.StatusCode != http.StatusCreated {
+		responseBody := readAndCloseHTTPBody(t, response)
+		t.Fatalf("create trigger status = %d, want %d; body=%s", response.StatusCode, http.StatusCreated, responseBody)
+	}
+	var trigger contract.TriggerResponse
+	decodeHTTPJSON(t, response, &trigger)
+	return trigger
+}
+
+func updateGatewayIntegrationTrigger(
+	t *testing.T,
+	runtime integrationRuntime,
+	triggerID string,
+	body string,
+) {
+	t.Helper()
+
+	response := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodPatch,
+		mustURL(runtime.host, runtime.port, "/api/automation/triggers/"+triggerID),
+		[]byte(body),
+		nil,
+	)
+	if response.StatusCode != http.StatusOK {
+		responseBody := readAndCloseHTTPBody(t, response)
+		t.Fatalf("update trigger status = %d, want %d; body=%s", response.StatusCode, http.StatusOK, responseBody)
+	}
+	closeHTTPBody(t, response.Body)
+}
+
+func gatewayIntegrationWebhookPath(trigger contract.TriggerResponse) (string, error) {
+	endpoint, err := automationpkg.FormatWebhookEndpoint(trigger.Trigger.EndpointSlug, trigger.Trigger.WebhookID)
+	if err != nil {
+		return "", fmt.Errorf("format webhook endpoint: %w", err)
+	}
+	return "/api/webhooks/global/" + endpoint, nil
+}
+
+func deliverGatewayIntegrationWebhook(
+	t *testing.T,
+	serverURL string,
+	trigger contract.TriggerResponse,
+	secret string,
+	deliveryID string,
+	timestamp time.Time,
+	payload []byte,
+	extraHeaders map[string]string,
+) (*http.Response, []byte) {
+	t.Helper()
+
+	response, body, err := tryDeliverGatewayIntegrationWebhook(
+		t.Context(), serverURL, trigger, secret, deliveryID, timestamp, payload, extraHeaders,
+	)
+	if err != nil {
+		t.Fatalf("deliver webhook error = %v", err)
+	}
+	return response, body
+}
+
+func tryDeliverGatewayIntegrationWebhook(
+	ctx context.Context,
+	serverURL string,
+	trigger contract.TriggerResponse,
+	secret string,
+	deliveryID string,
+	timestamp time.Time,
+	payload []byte,
+	extraHeaders ...map[string]string,
+) (*http.Response, []byte, error) {
+	path, err := gatewayIntegrationWebhookPath(trigger)
+	if err != nil {
+		return nil, nil, err
+	}
+	request, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		serverURL+path,
+		bytes.NewReader(payload),
+	)
+	if err != nil {
+		return nil, nil, fmt.Errorf("create webhook request: %w", err)
+	}
+	request.Header.Set(core.WebhookTimestampHeader, timestamp.Format(time.RFC3339Nano))
+	request.Header.Set(core.WebhookDeliveryIDHeader, deliveryID)
+	if secret != "" {
+		signature, signErr := automationpkg.SignWebhookPayload(secret, timestamp, payload)
+		if signErr != nil {
+			return nil, nil, fmt.Errorf("sign webhook payload: %w", signErr)
+		}
+		request.Header.Set(core.WebhookSignatureHeader, signature)
+	}
+	if len(extraHeaders) > 0 {
+		for key, value := range extraHeaders[0] {
+			request.Header.Set(key, value)
+		}
+	}
+	response, err := gatewayIntegrationHTTPClient().Do(request)
+	if err != nil {
+		return nil, nil, fmt.Errorf("deliver webhook: %w", err)
+	}
+	body, readErr := io.ReadAll(response.Body)
+	closeErr := response.Body.Close()
+	if err := errors.Join(readErr, closeErr); err != nil {
+		return response, nil, fmt.Errorf("read webhook response: %w", err)
+	}
+	return response, body, nil
+}
+
+func listGatewayIntegrationTriggerRuns(
+	t *testing.T,
+	runtime integrationRuntime,
+	triggerID string,
+) []contract.RunPayload {
+	t.Helper()
+
+	response := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		mustURL(runtime.host, runtime.port, "/api/automation/triggers/"+triggerID+"/runs"),
+		nil,
+		nil,
+	)
+	if response.StatusCode != http.StatusOK {
+		body := readAndCloseHTTPBody(t, response)
+		t.Fatalf("list trigger runs status = %d, want %d; body=%s", response.StatusCode, http.StatusOK, body)
+	}
+	var runs contract.RunsResponse
+	decodeHTTPJSON(t, response, &runs)
+	return runs.Runs
+}
+
+func getGatewayIntegrationRun(t *testing.T, runtime integrationRuntime, runID string) contract.RunPayload {
+	t.Helper()
+
+	response := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		mustURL(runtime.host, runtime.port, "/api/automation/runs/"+runID),
+		nil,
+		nil,
+	)
+	if response.StatusCode != http.StatusOK {
+		body := readAndCloseHTTPBody(t, response)
+		t.Fatalf("get run status = %d, want %d; body=%s", response.StatusCode, http.StatusOK, body)
+	}
+	var run contract.RunResponse
+	decodeHTTPJSON(t, response, &run)
+	return run.Run
+}
+
+func gatewayIntegrationRequest(
+	t *testing.T,
+	method string,
+	requestURL string,
+	body []byte,
+	headers map[string]string,
+) (*http.Response, []byte) {
+	t.Helper()
+
+	request, err := http.NewRequestWithContext(t.Context(), method, requestURL, bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("http.NewRequestWithContext() error = %v", err)
+	}
+	for key, value := range headers {
+		request.Header.Set(key, value)
+	}
+	response, err := gatewayIntegrationHTTPClient().Do(request)
+	if err != nil {
+		t.Fatalf("HTTP request error = %v", err)
+	}
+	responseBody, readErr := io.ReadAll(response.Body)
+	closeErr := response.Body.Close()
+	if err := errors.Join(readErr, closeErr); err != nil {
+		t.Fatalf("read HTTP response error = %v", err)
+	}
+	return response, responseBody
 }
 
 func issueGatewayIntegrationCredential(

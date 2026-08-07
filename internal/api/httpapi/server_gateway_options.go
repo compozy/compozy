@@ -77,3 +77,10 @@ func WithGatewayAuthLimiter(limiter *gateway.AuthFailureLimiter) Option {
 		server.authLimiter = limiter
 	}
 }
+
+// WithGatewayIngressLimiter overrides public ingress throttling, primarily for deterministic tests.
+func WithGatewayIngressLimiter(limiter *gateway.IngressRateLimiter) Option {
+	return func(server *Server) {
+		server.ingressLimiter = limiter
+	}
+}

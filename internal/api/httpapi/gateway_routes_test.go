@@ -143,6 +143,9 @@ func TestGatewayTierRouteMatrices(t *testing.T) {
 			present: []string{
 				"POST /api/webhooks/global/:endpoint",
 				"POST /api/webhooks/workspaces/:workspace_id/:endpoint",
+				"GET /api/bridge-callbacks/:id",
+				"POST /api/bridge-callbacks/:id",
+				"HEAD /api/bridge-callbacks/:id",
 			},
 			absent: []string{
 				"GET /api/status",
@@ -150,7 +153,7 @@ func TestGatewayTierRouteMatrices(t *testing.T) {
 				"POST /api/gateway/pairings/redeem",
 				"POST /api/gateway/stream-tickets",
 			},
-			wantRoutes: 2,
+			wantRoutes: 5,
 		},
 		{
 			name:       "Should expose authenticated operator routes without ingress on the public operator tier",
@@ -228,6 +231,64 @@ func TestGatewayTierRouteMatrices(t *testing.T) {
 	})
 }
 
+func TestGatewayIngressRateLimit(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
+	limiter := gateway.NewIngressRateLimiter(1, time.Minute, func() time.Time { return now })
+	handlers := newHandlers(&handlerConfig{
+		gatewayAdmission: gatewayHTTPServiceStub{},
+		ingressLimiter:   limiter,
+		surfaceSet:       SurfaceSetPublicIngress,
+		boundHost:        "127.0.0.1:2123",
+	})
+	router := gin.New()
+	RegisterSurfaceRoutes(router, handlers, SurfaceSetPublicIngress)
+
+	request := func(endpoint string, remoteAddr string, forwardedFor string) *httptest.ResponseRecorder {
+		t.Helper()
+		req := httptest.NewRequestWithContext(
+			t.Context(),
+			http.MethodPost,
+			"http://127.0.0.1:2123/api/webhooks/global/"+endpoint,
+			bytes.NewBufferString(`{"payload":"deploy"}`),
+		)
+		req.RemoteAddr = remoteAddr
+		req.Header.Set("X-Forwarded-For", forwardedFor)
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, req)
+		return response
+	}
+
+	first := request("deploy--wbh_one", "203.0.113.8:43001", "198.51.100.10")
+	if first.Code == http.StatusTooManyRequests {
+		t.Fatalf("first delivery status = %d, want request admitted", first.Code)
+	}
+	limited := request("deploy--wbh_one", "203.0.113.8:43002", "198.51.100.11")
+	if limited.Code != http.StatusTooManyRequests {
+		t.Fatalf("second delivery status = %d, want %d; body=%s", limited.Code, http.StatusTooManyRequests, limited.Body.String())
+	}
+	if got := limited.Header().Get("Retry-After"); got != "60" {
+		t.Fatalf("Retry-After = %q, want %q", got, "60")
+	}
+	var payload contract.ErrorPayload
+	if err := json.Unmarshal(limited.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("Unmarshal(rate-limit response) error = %v", err)
+	}
+	if payload.Code != "gateway_ingress_rate_limited" {
+		t.Fatalf("rate-limit payload = %#v, want gateway_ingress_rate_limited", payload)
+	}
+
+	otherEndpoint := request("release--wbh_two", "203.0.113.8:43003", "198.51.100.12")
+	if otherEndpoint.Code == http.StatusTooManyRequests {
+		t.Fatalf("other endpoint status = %d, want independent endpoint budget", otherEndpoint.Code)
+	}
+	otherSource := request("deploy--wbh_one", "203.0.113.9:43004", "203.0.113.8")
+	if otherSource.Code == http.StatusTooManyRequests {
+		t.Fatalf("other source status = %d, want independent source budget", otherSource.Code)
+	}
+}
+
 func TestGatewayHTTPRouteUnionMatchesDocumentedOperations(t *testing.T) {
 	t.Parallel()
 	t.Run("Should equal the documented gateway HTTP operation union", func(t *testing.T) {
@@ -254,7 +315,10 @@ func assertGatewayHTTPRouteUnionMatchesDocumentedOperations(t *testing.T) {
 			if len(parts) != 2 || !strings.HasPrefix(parts[1], "/api/gateway") {
 				continue
 			}
-			path := strings.ReplaceAll(strings.ReplaceAll(parts[1], ":name", "{name}"), ":id", "{id}")
+			path := strings.NewReplacer(
+				":name", "{name}", ":id", "{id}",
+				":subject_kind", "{subject_kind}", ":subject_id", "{subject_id}",
+			).Replace(parts[1])
 			actualSet[parts[0]+" "+path] = struct{}{}
 		}
 	}

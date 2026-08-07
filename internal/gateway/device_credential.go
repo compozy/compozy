@@ -58,6 +58,11 @@ func validOpaqueSecret(value, prefix string) bool {
 	return err == nil && len(decoded) == secretEntropyBytes
 }
 
+// IsDeviceCredential reports whether a value has the canonical gateway device credential shape.
+func IsDeviceCredential(value string) bool {
+	return validOpaqueSecret(strings.TrimSpace(value), deviceCredentialPrefix)
+}
+
 func constantTimeCredentialMatch(credential, storedHash string) bool {
 	computed := sha256.Sum256([]byte(credential))
 	expected := dummyCredentialHash[:]

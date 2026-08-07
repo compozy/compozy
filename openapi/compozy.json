@@ -49581,6 +49581,55 @@
                           "id": {
                             "type": "string"
                           },
+                          "ingress": {
+                            "nullable": true,
+                            "properties": {
+                              "confirmed_at": {
+                                "format": "date-time",
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "confirmed_endpoint_generation": {
+                                "maximum": 18446744073709552000,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "enable_path": {
+                                "type": "string"
+                              },
+                              "endpoint_generation": {
+                                "maximum": 18446744073709552000,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "reachability": {
+                                "type": "string"
+                              },
+                              "scope_kind": {
+                                "type": "string"
+                              },
+                              "subject_id": {
+                                "type": "string"
+                              },
+                              "subject_kind": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              },
+                              "workspace_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "endpoint_generation",
+                              "reachability",
+                              "scope_kind",
+                              "subject_id",
+                              "subject_kind"
+                            ],
+                            "type": "object"
+                          },
                           "loop_target": {
                             "nullable": true,
                             "properties": {
@@ -50514,6 +50563,55 @@
                         },
                         "id": {
                           "type": "string"
+                        },
+                        "ingress": {
+                          "nullable": true,
+                          "properties": {
+                            "confirmed_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "confirmed_endpoint_generation": {
+                              "maximum": 18446744073709552000,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "enable_path": {
+                              "type": "string"
+                            },
+                            "endpoint_generation": {
+                              "maximum": 18446744073709552000,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "reachability": {
+                              "type": "string"
+                            },
+                            "scope_kind": {
+                              "type": "string"
+                            },
+                            "subject_id": {
+                              "type": "string"
+                            },
+                            "subject_kind": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "workspace_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "endpoint_generation",
+                            "reachability",
+                            "scope_kind",
+                            "subject_id",
+                            "subject_kind"
+                          ],
+                          "type": "object"
                         },
                         "loop_target": {
                           "nullable": true,
@@ -51592,6 +51690,55 @@
                         "id": {
                           "type": "string"
                         },
+                        "ingress": {
+                          "nullable": true,
+                          "properties": {
+                            "confirmed_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "confirmed_endpoint_generation": {
+                              "maximum": 18446744073709552000,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "enable_path": {
+                              "type": "string"
+                            },
+                            "endpoint_generation": {
+                              "maximum": 18446744073709552000,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "reachability": {
+                              "type": "string"
+                            },
+                            "scope_kind": {
+                              "type": "string"
+                            },
+                            "subject_id": {
+                              "type": "string"
+                            },
+                            "subject_kind": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "workspace_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "endpoint_generation",
+                            "reachability",
+                            "scope_kind",
+                            "subject_id",
+                            "subject_kind"
+                          ],
+                          "type": "object"
+                        },
                         "loop_target": {
                           "nullable": true,
                           "properties": {
@@ -52516,6 +52663,55 @@
                         },
                         "id": {
                           "type": "string"
+                        },
+                        "ingress": {
+                          "nullable": true,
+                          "properties": {
+                            "confirmed_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "confirmed_endpoint_generation": {
+                              "maximum": 18446744073709552000,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "enable_path": {
+                              "type": "string"
+                            },
+                            "endpoint_generation": {
+                              "maximum": 18446744073709552000,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "reachability": {
+                              "type": "string"
+                            },
+                            "scope_kind": {
+                              "type": "string"
+                            },
+                            "subject_id": {
+                              "type": "string"
+                            },
+                            "subject_kind": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "workspace_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "endpoint_generation",
+                            "reachability",
+                            "scope_kind",
+                            "subject_id",
+                            "subject_kind"
+                          ],
+                          "type": "object"
                         },
                         "loop_target": {
                           "nullable": true,
@@ -53945,6 +54141,1478 @@
         ]
       }
     },
+    "/api/bridge-callbacks/{id}": {
+      "get": {
+        "operationId": "probeGatewayBridgeCallback",
+        "parameters": [
+          {
+            "description": "Bridge instance id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Adapter response"
+          },
+          "204": {
+            "description": "Confirmed callback endpoint"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid callback request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bound bridge callback not found"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Payload too large"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Rate limited"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bridge adapter unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bridge adapter timed out"
+          },
+          "default": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Adapter-owned response"
+          }
+        },
+        "summary": "Probe one bound bridge callback",
+        "tags": [
+          "gateway"
+        ],
+        "x-compozy-transports": [
+          "http"
+        ]
+      },
+      "head": {
+        "operationId": "headGatewayBridgeCallback",
+        "parameters": [
+          {
+            "description": "Bridge instance id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Adapter response"
+          },
+          "204": {
+            "description": "Confirmed callback endpoint"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid callback request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bound bridge callback not found"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Payload too large"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Rate limited"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bridge adapter unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bridge adapter timed out"
+          },
+          "default": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Adapter-owned response"
+          }
+        },
+        "summary": "Probe one bound bridge callback",
+        "tags": [
+          "gateway"
+        ],
+        "x-compozy-transports": [
+          "http"
+        ]
+      },
+      "post": {
+        "operationId": "deliverGatewayBridgeCallback",
+        "parameters": [
+          {
+            "description": "Bridge instance id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": {},
+                "type": "object"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Adapter response"
+          },
+          "204": {
+            "description": "Confirmed callback endpoint"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid callback request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bound bridge callback not found"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Payload too large"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Rate limited"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bridge adapter unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bridge adapter timed out"
+          },
+          "default": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Adapter-owned response"
+          }
+        },
+        "summary": "Deliver one bound bridge callback",
+        "tags": [
+          "gateway"
+        ],
+        "x-compozy-transports": [
+          "http"
+        ]
+      }
+    },
     "/api/bridges": {
       "get": {
         "operationId": "listBridges",
@@ -54159,6 +55827,55 @@
                             },
                             "type": "array"
                           },
+                          "ingress": {
+                            "nullable": true,
+                            "properties": {
+                              "confirmed_at": {
+                                "format": "date-time",
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "confirmed_endpoint_generation": {
+                                "maximum": 18446744073709552000,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "enable_path": {
+                                "type": "string"
+                              },
+                              "endpoint_generation": {
+                                "maximum": 18446744073709552000,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "reachability": {
+                                "type": "string"
+                              },
+                              "scope_kind": {
+                                "type": "string"
+                              },
+                              "subject_id": {
+                                "type": "string"
+                              },
+                              "subject_kind": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              },
+                              "workspace_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "endpoint_generation",
+                              "reachability",
+                              "scope_kind",
+                              "subject_id",
+                              "subject_kind"
+                            ],
+                            "type": "object"
+                          },
                           "last_error": {
                             "type": "string"
                           },
@@ -54303,6 +56020,55 @@
                           },
                           "extension_name": {
                             "type": "string"
+                          },
+                          "gateway_ingress": {
+                            "nullable": true,
+                            "properties": {
+                              "confirmed_at": {
+                                "format": "date-time",
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "confirmed_endpoint_generation": {
+                                "maximum": 18446744073709552000,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "enable_path": {
+                                "type": "string"
+                              },
+                              "endpoint_generation": {
+                                "maximum": 18446744073709552000,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "reachability": {
+                                "type": "string"
+                              },
+                              "scope_kind": {
+                                "type": "string"
+                              },
+                              "subject_id": {
+                                "type": "string"
+                              },
+                              "subject_kind": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              },
+                              "workspace_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "endpoint_generation",
+                              "reachability",
+                              "scope_kind",
+                              "subject_id",
+                              "subject_kind"
+                            ],
+                            "type": "object"
                           },
                           "id": {
                             "type": "string"
@@ -55093,6 +56859,55 @@
                         "extension_name": {
                           "type": "string"
                         },
+                        "gateway_ingress": {
+                          "nullable": true,
+                          "properties": {
+                            "confirmed_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "confirmed_endpoint_generation": {
+                              "maximum": 18446744073709552000,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "enable_path": {
+                              "type": "string"
+                            },
+                            "endpoint_generation": {
+                              "maximum": 18446744073709552000,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "reachability": {
+                              "type": "string"
+                            },
+                            "scope_kind": {
+                              "type": "string"
+                            },
+                            "subject_id": {
+                              "type": "string"
+                            },
+                            "subject_kind": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "workspace_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "endpoint_generation",
+                            "reachability",
+                            "scope_kind",
+                            "subject_id",
+                            "subject_kind"
+                          ],
+                          "type": "object"
+                        },
                         "id": {
                           "type": "string"
                         },
@@ -55289,6 +57104,55 @@
                             "type": "object"
                           },
                           "type": "array"
+                        },
+                        "ingress": {
+                          "nullable": true,
+                          "properties": {
+                            "confirmed_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "confirmed_endpoint_generation": {
+                              "maximum": 18446744073709552000,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "enable_path": {
+                              "type": "string"
+                            },
+                            "endpoint_generation": {
+                              "maximum": 18446744073709552000,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "reachability": {
+                              "type": "string"
+                            },
+                            "scope_kind": {
+                              "type": "string"
+                            },
+                            "subject_id": {
+                              "type": "string"
+                            },
+                            "subject_kind": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "workspace_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "endpoint_generation",
+                            "reachability",
+                            "scope_kind",
+                            "subject_id",
+                            "subject_kind"
+                          ],
+                          "type": "object"
                         },
                         "last_error": {
                           "type": "string"
@@ -55805,6 +57669,55 @@
                               "type": "object"
                             },
                             "type": "array"
+                          },
+                          "ingress": {
+                            "nullable": true,
+                            "properties": {
+                              "confirmed_at": {
+                                "format": "date-time",
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "confirmed_endpoint_generation": {
+                                "maximum": 18446744073709552000,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "enable_path": {
+                                "type": "string"
+                              },
+                              "endpoint_generation": {
+                                "maximum": 18446744073709552000,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "reachability": {
+                                "type": "string"
+                              },
+                              "scope_kind": {
+                                "type": "string"
+                              },
+                              "subject_id": {
+                                "type": "string"
+                              },
+                              "subject_kind": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              },
+                              "workspace_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "endpoint_generation",
+                              "reachability",
+                              "scope_kind",
+                              "subject_id",
+                              "subject_kind"
+                            ],
+                            "type": "object"
                           },
                           "last_error": {
                             "type": "string"
@@ -57118,6 +59031,55 @@
                         "extension_name": {
                           "type": "string"
                         },
+                        "gateway_ingress": {
+                          "nullable": true,
+                          "properties": {
+                            "confirmed_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "confirmed_endpoint_generation": {
+                              "maximum": 18446744073709552000,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "enable_path": {
+                              "type": "string"
+                            },
+                            "endpoint_generation": {
+                              "maximum": 18446744073709552000,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "reachability": {
+                              "type": "string"
+                            },
+                            "scope_kind": {
+                              "type": "string"
+                            },
+                            "subject_id": {
+                              "type": "string"
+                            },
+                            "subject_kind": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "workspace_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "endpoint_generation",
+                            "reachability",
+                            "scope_kind",
+                            "subject_id",
+                            "subject_kind"
+                          ],
+                          "type": "object"
+                        },
                         "id": {
                           "type": "string"
                         },
@@ -57314,6 +59276,55 @@
                             "type": "object"
                           },
                           "type": "array"
+                        },
+                        "ingress": {
+                          "nullable": true,
+                          "properties": {
+                            "confirmed_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "confirmed_endpoint_generation": {
+                              "maximum": 18446744073709552000,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "enable_path": {
+                              "type": "string"
+                            },
+                            "endpoint_generation": {
+                              "maximum": 18446744073709552000,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "reachability": {
+                              "type": "string"
+                            },
+                            "scope_kind": {
+                              "type": "string"
+                            },
+                            "subject_id": {
+                              "type": "string"
+                            },
+                            "subject_kind": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "workspace_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "endpoint_generation",
+                            "reachability",
+                            "scope_kind",
+                            "subject_id",
+                            "subject_kind"
+                          ],
+                          "type": "object"
                         },
                         "last_error": {
                           "type": "string"
@@ -57854,6 +59865,55 @@
                         "extension_name": {
                           "type": "string"
                         },
+                        "gateway_ingress": {
+                          "nullable": true,
+                          "properties": {
+                            "confirmed_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "confirmed_endpoint_generation": {
+                              "maximum": 18446744073709552000,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "enable_path": {
+                              "type": "string"
+                            },
+                            "endpoint_generation": {
+                              "maximum": 18446744073709552000,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "reachability": {
+                              "type": "string"
+                            },
+                            "scope_kind": {
+                              "type": "string"
+                            },
+                            "subject_id": {
+                              "type": "string"
+                            },
+                            "subject_kind": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "workspace_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "endpoint_generation",
+                            "reachability",
+                            "scope_kind",
+                            "subject_id",
+                            "subject_kind"
+                          ],
+                          "type": "object"
+                        },
                         "id": {
                           "type": "string"
                         },
@@ -58050,6 +60110,55 @@
                             "type": "object"
                           },
                           "type": "array"
+                        },
+                        "ingress": {
+                          "nullable": true,
+                          "properties": {
+                            "confirmed_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "confirmed_endpoint_generation": {
+                              "maximum": 18446744073709552000,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "enable_path": {
+                              "type": "string"
+                            },
+                            "endpoint_generation": {
+                              "maximum": 18446744073709552000,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "reachability": {
+                              "type": "string"
+                            },
+                            "scope_kind": {
+                              "type": "string"
+                            },
+                            "subject_id": {
+                              "type": "string"
+                            },
+                            "subject_kind": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "workspace_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "endpoint_generation",
+                            "reachability",
+                            "scope_kind",
+                            "subject_id",
+                            "subject_kind"
+                          ],
+                          "type": "object"
                         },
                         "last_error": {
                           "type": "string"
@@ -58527,6 +60636,55 @@
                         "extension_name": {
                           "type": "string"
                         },
+                        "gateway_ingress": {
+                          "nullable": true,
+                          "properties": {
+                            "confirmed_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "confirmed_endpoint_generation": {
+                              "maximum": 18446744073709552000,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "enable_path": {
+                              "type": "string"
+                            },
+                            "endpoint_generation": {
+                              "maximum": 18446744073709552000,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "reachability": {
+                              "type": "string"
+                            },
+                            "scope_kind": {
+                              "type": "string"
+                            },
+                            "subject_id": {
+                              "type": "string"
+                            },
+                            "subject_kind": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "workspace_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "endpoint_generation",
+                            "reachability",
+                            "scope_kind",
+                            "subject_id",
+                            "subject_kind"
+                          ],
+                          "type": "object"
+                        },
                         "id": {
                           "type": "string"
                         },
@@ -58723,6 +60881,55 @@
                             "type": "object"
                           },
                           "type": "array"
+                        },
+                        "ingress": {
+                          "nullable": true,
+                          "properties": {
+                            "confirmed_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "confirmed_endpoint_generation": {
+                              "maximum": 18446744073709552000,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "enable_path": {
+                              "type": "string"
+                            },
+                            "endpoint_generation": {
+                              "maximum": 18446744073709552000,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "reachability": {
+                              "type": "string"
+                            },
+                            "scope_kind": {
+                              "type": "string"
+                            },
+                            "subject_id": {
+                              "type": "string"
+                            },
+                            "subject_kind": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "workspace_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "endpoint_generation",
+                            "reachability",
+                            "scope_kind",
+                            "subject_id",
+                            "subject_kind"
+                          ],
+                          "type": "object"
                         },
                         "last_error": {
                           "type": "string"
@@ -59200,6 +61407,55 @@
                         "extension_name": {
                           "type": "string"
                         },
+                        "gateway_ingress": {
+                          "nullable": true,
+                          "properties": {
+                            "confirmed_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "confirmed_endpoint_generation": {
+                              "maximum": 18446744073709552000,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "enable_path": {
+                              "type": "string"
+                            },
+                            "endpoint_generation": {
+                              "maximum": 18446744073709552000,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "reachability": {
+                              "type": "string"
+                            },
+                            "scope_kind": {
+                              "type": "string"
+                            },
+                            "subject_id": {
+                              "type": "string"
+                            },
+                            "subject_kind": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "workspace_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "endpoint_generation",
+                            "reachability",
+                            "scope_kind",
+                            "subject_id",
+                            "subject_kind"
+                          ],
+                          "type": "object"
+                        },
                         "id": {
                           "type": "string"
                         },
@@ -59396,6 +61652,55 @@
                             "type": "object"
                           },
                           "type": "array"
+                        },
+                        "ingress": {
+                          "nullable": true,
+                          "properties": {
+                            "confirmed_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "confirmed_endpoint_generation": {
+                              "maximum": 18446744073709552000,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "enable_path": {
+                              "type": "string"
+                            },
+                            "endpoint_generation": {
+                              "maximum": 18446744073709552000,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "reachability": {
+                              "type": "string"
+                            },
+                            "scope_kind": {
+                              "type": "string"
+                            },
+                            "subject_id": {
+                              "type": "string"
+                            },
+                            "subject_kind": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "workspace_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "endpoint_generation",
+                            "reachability",
+                            "scope_kind",
+                            "subject_id",
+                            "subject_kind"
+                          ],
+                          "type": "object"
                         },
                         "last_error": {
                           "type": "string"
@@ -60659,6 +62964,55 @@
                         "extension_name": {
                           "type": "string"
                         },
+                        "gateway_ingress": {
+                          "nullable": true,
+                          "properties": {
+                            "confirmed_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "confirmed_endpoint_generation": {
+                              "maximum": 18446744073709552000,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "enable_path": {
+                              "type": "string"
+                            },
+                            "endpoint_generation": {
+                              "maximum": 18446744073709552000,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "reachability": {
+                              "type": "string"
+                            },
+                            "scope_kind": {
+                              "type": "string"
+                            },
+                            "subject_id": {
+                              "type": "string"
+                            },
+                            "subject_kind": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "workspace_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "endpoint_generation",
+                            "reachability",
+                            "scope_kind",
+                            "subject_id",
+                            "subject_kind"
+                          ],
+                          "type": "object"
+                        },
                         "id": {
                           "type": "string"
                         },
@@ -60855,6 +63209,55 @@
                             "type": "object"
                           },
                           "type": "array"
+                        },
+                        "ingress": {
+                          "nullable": true,
+                          "properties": {
+                            "confirmed_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "confirmed_endpoint_generation": {
+                              "maximum": 18446744073709552000,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "enable_path": {
+                              "type": "string"
+                            },
+                            "endpoint_generation": {
+                              "maximum": 18446744073709552000,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "reachability": {
+                              "type": "string"
+                            },
+                            "scope_kind": {
+                              "type": "string"
+                            },
+                            "subject_id": {
+                              "type": "string"
+                            },
+                            "subject_kind": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "workspace_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "endpoint_generation",
+                            "reachability",
+                            "scope_kind",
+                            "subject_id",
+                            "subject_kind"
+                          ],
+                          "type": "object"
                         },
                         "last_error": {
                           "type": "string"
@@ -75876,6 +78279,908 @@
         ]
       }
     },
+    "/api/gateway/ingress-bindings": {
+      "post": {
+        "operationId": "bindGatewayIngress",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "confirmed": {
+                    "type": "boolean"
+                  },
+                  "subject_id": {
+                    "type": "string"
+                  },
+                  "subject_kind": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "confirmed",
+                  "subject_id",
+                  "subject_kind"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "binding": {
+                      "properties": {
+                        "confirmed_at": {
+                          "format": "date-time",
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "confirmed_endpoint_generation": {
+                          "maximum": 18446744073709552000,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "enable_path": {
+                          "type": "string"
+                        },
+                        "endpoint_generation": {
+                          "maximum": 18446744073709552000,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "reachability": {
+                          "type": "string"
+                        },
+                        "scope_kind": {
+                          "type": "string"
+                        },
+                        "subject_id": {
+                          "type": "string"
+                        },
+                        "subject_kind": {
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": "string"
+                        },
+                        "workspace_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "endpoint_generation",
+                        "reachability",
+                        "scope_kind",
+                        "subject_id",
+                        "subject_kind"
+                      ],
+                      "type": "object"
+                    },
+                    "changed": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "binding",
+                    "changed"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Already confirmed"
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "binding": {
+                      "properties": {
+                        "confirmed_at": {
+                          "format": "date-time",
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "confirmed_endpoint_generation": {
+                          "maximum": 18446744073709552000,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "enable_path": {
+                          "type": "string"
+                        },
+                        "endpoint_generation": {
+                          "maximum": 18446744073709552000,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "reachability": {
+                          "type": "string"
+                        },
+                        "scope_kind": {
+                          "type": "string"
+                        },
+                        "subject_id": {
+                          "type": "string"
+                        },
+                        "subject_kind": {
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": "string"
+                        },
+                        "workspace_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "endpoint_generation",
+                        "reachability",
+                        "scope_kind",
+                        "subject_id",
+                        "subject_kind"
+                      ],
+                      "type": "object"
+                    },
+                    "changed": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "binding",
+                    "changed"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid ingress binding request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Ingress subject is outside the caller workspace"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Ingress subject not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Public ingress is not reachable"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Confirm one subject against the verified public endpoint",
+        "tags": [
+          "gateway"
+        ],
+        "x-compozy-auth": {
+          "http": "device",
+          "uds": "local_socket"
+        },
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/gateway/ingress-bindings/{subject_kind}/{subject_id}": {
+      "delete": {
+        "operationId": "unbindGatewayIngress",
+        "parameters": [
+          {
+            "description": "Ingress subject kind",
+            "in": "path",
+            "name": "subject_kind",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ingress subject id",
+            "in": "path",
+            "name": "subject_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "changed": {
+                      "type": "boolean"
+                    },
+                    "subject_id": {
+                      "type": "string"
+                    },
+                    "subject_kind": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "changed",
+                    "subject_id",
+                    "subject_kind"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Unbound"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid ingress subject"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Ingress subject is outside the caller workspace"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Ingress subject not found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Remove one public ingress confirmation",
+        "tags": [
+          "gateway"
+        ],
+        "x-compozy-auth": {
+          "http": "device",
+          "uds": "local_socket"
+        },
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
     "/api/gateway/pairings": {
       "post": {
         "operationId": "mintGatewayPairing",
@@ -76807,6 +80112,57 @@
                       },
                       "type": "array"
                     },
+                    "bindings": {
+                      "items": {
+                        "properties": {
+                          "confirmed_at": {
+                            "format": "date-time",
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "confirmed_endpoint_generation": {
+                            "maximum": 18446744073709552000,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "enable_path": {
+                            "type": "string"
+                          },
+                          "endpoint_generation": {
+                            "maximum": 18446744073709552000,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "reachability": {
+                            "type": "string"
+                          },
+                          "scope_kind": {
+                            "type": "string"
+                          },
+                          "subject_id": {
+                            "type": "string"
+                          },
+                          "subject_kind": {
+                            "type": "string"
+                          },
+                          "url": {
+                            "type": "string"
+                          },
+                          "workspace_id": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "endpoint_generation",
+                          "reachability",
+                          "scope_kind",
+                          "subject_id",
+                          "subject_kind"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
                     "changed": {
                       "type": "boolean"
                     },
@@ -76979,6 +80335,7 @@
                   },
                   "required": [
                     "addresses",
+                    "bindings",
                     "changed",
                     "devices",
                     "enabled",
@@ -77373,6 +80730,57 @@
                       },
                       "type": "array"
                     },
+                    "bindings": {
+                      "items": {
+                        "properties": {
+                          "confirmed_at": {
+                            "format": "date-time",
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "confirmed_endpoint_generation": {
+                            "maximum": 18446744073709552000,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "enable_path": {
+                            "type": "string"
+                          },
+                          "endpoint_generation": {
+                            "maximum": 18446744073709552000,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "reachability": {
+                            "type": "string"
+                          },
+                          "scope_kind": {
+                            "type": "string"
+                          },
+                          "subject_id": {
+                            "type": "string"
+                          },
+                          "subject_kind": {
+                            "type": "string"
+                          },
+                          "url": {
+                            "type": "string"
+                          },
+                          "workspace_id": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "endpoint_generation",
+                          "reachability",
+                          "scope_kind",
+                          "subject_id",
+                          "subject_kind"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
                     "changed": {
                       "type": "boolean"
                     },
@@ -77545,6 +80953,7 @@
                   },
                   "required": [
                     "addresses",
+                    "bindings",
                     "changed",
                     "devices",
                     "enabled",
@@ -77896,6 +81305,57 @@
                       },
                       "type": "array"
                     },
+                    "bindings": {
+                      "items": {
+                        "properties": {
+                          "confirmed_at": {
+                            "format": "date-time",
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "confirmed_endpoint_generation": {
+                            "maximum": 18446744073709552000,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "enable_path": {
+                            "type": "string"
+                          },
+                          "endpoint_generation": {
+                            "maximum": 18446744073709552000,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "reachability": {
+                            "type": "string"
+                          },
+                          "scope_kind": {
+                            "type": "string"
+                          },
+                          "subject_id": {
+                            "type": "string"
+                          },
+                          "subject_kind": {
+                            "type": "string"
+                          },
+                          "url": {
+                            "type": "string"
+                          },
+                          "workspace_id": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "endpoint_generation",
+                          "reachability",
+                          "scope_kind",
+                          "subject_id",
+                          "subject_kind"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
                     "changed": {
                       "type": "boolean"
                     },
@@ -78068,6 +81528,7 @@
                   },
                   "required": [
                     "addresses",
+                    "bindings",
                     "changed",
                     "devices",
                     "enabled",
@@ -78423,6 +81884,57 @@
                       },
                       "type": "array"
                     },
+                    "bindings": {
+                      "items": {
+                        "properties": {
+                          "confirmed_at": {
+                            "format": "date-time",
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "confirmed_endpoint_generation": {
+                            "maximum": 18446744073709552000,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "enable_path": {
+                            "type": "string"
+                          },
+                          "endpoint_generation": {
+                            "maximum": 18446744073709552000,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "reachability": {
+                            "type": "string"
+                          },
+                          "scope_kind": {
+                            "type": "string"
+                          },
+                          "subject_id": {
+                            "type": "string"
+                          },
+                          "subject_kind": {
+                            "type": "string"
+                          },
+                          "url": {
+                            "type": "string"
+                          },
+                          "workspace_id": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "endpoint_generation",
+                          "reachability",
+                          "scope_kind",
+                          "subject_id",
+                          "subject_kind"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
                     "changed": {
                       "type": "boolean"
                     },
@@ -78595,6 +82107,7 @@
                   },
                   "required": [
                     "addresses",
+                    "bindings",
                     "changed",
                     "devices",
                     "enabled",
@@ -147250,6 +150763,57 @@
                               },
                               "type": "array"
                             },
+                            "bindings": {
+                              "items": {
+                                "properties": {
+                                  "confirmed_at": {
+                                    "format": "date-time",
+                                    "nullable": true,
+                                    "type": "string"
+                                  },
+                                  "confirmed_endpoint_generation": {
+                                    "maximum": 18446744073709552000,
+                                    "minimum": 0,
+                                    "type": "integer"
+                                  },
+                                  "enable_path": {
+                                    "type": "string"
+                                  },
+                                  "endpoint_generation": {
+                                    "maximum": 18446744073709552000,
+                                    "minimum": 0,
+                                    "type": "integer"
+                                  },
+                                  "reachability": {
+                                    "type": "string"
+                                  },
+                                  "scope_kind": {
+                                    "type": "string"
+                                  },
+                                  "subject_id": {
+                                    "type": "string"
+                                  },
+                                  "subject_kind": {
+                                    "type": "string"
+                                  },
+                                  "url": {
+                                    "type": "string"
+                                  },
+                                  "workspace_id": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "endpoint_generation",
+                                  "reachability",
+                                  "scope_kind",
+                                  "subject_id",
+                                  "subject_kind"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
                             "changed": {
                               "type": "boolean"
                             },
@@ -147422,6 +150986,7 @@
                           },
                           "required": [
                             "addresses",
+                            "bindings",
                             "changed",
                             "devices",
                             "enabled",
@@ -207873,6 +211438,15 @@
             }
           },
           {
+            "description": "Unique webhook delivery id",
+            "in": "header",
+            "name": "X-Compozy-Webhook-Delivery-ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Signed webhook timestamp",
             "in": "header",
             "name": "X-Compozy-Webhook-Timestamp",
@@ -208431,6 +212005,225 @@
               }
             },
             "description": "Webhook trigger not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Webhook delivery is disabled or already claimed"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Payload too large"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Rate limited"
           },
           "500": {
             "content": {
@@ -208611,6 +212404,15 @@
             }
           },
           {
+            "description": "Unique webhook delivery id",
+            "in": "header",
+            "name": "X-Compozy-Webhook-Delivery-ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Signed webhook timestamp",
             "in": "header",
             "name": "X-Compozy-Webhook-Timestamp",
@@ -209169,6 +212971,225 @@
               }
             },
             "description": "Webhook trigger not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Webhook delivery is disabled or already claimed"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Payload too large"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Rate limited"
           },
           "500": {
             "content": {

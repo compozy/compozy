@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+type TargetKind string
+
 type Task struct {
 	ID                           string          `json:"id"`
 	Identifier                   string          `json:"identifier,omitempty"`
@@ -301,10 +303,4 @@ type TaskDashboardQueuePayload struct {
 	BacklogWarning        bool                             `json:"backlog_warning"`
 	BacklogStatus         string                           `json:"backlog_status"`
 	BacklogThresholdMilli int64                            `json:"backlog_threshold_ms"`
-}
-
-type TaskDashboardStatusBreakdownPayload struct {
-	Status       Status `json:"status"`
-	Count        int    `json:"count"`
-	SharePercent int    `json:"share_percent"`
 }

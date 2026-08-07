@@ -371,8 +371,14 @@ func TestTriggerEngineHandleWebhookDispatchesValidRequest(t *testing.T) {
 	if got, want := result.Matched, 1; got != want {
 		t.Fatalf("result.Matched = %d, want %d", got, want)
 	}
+	if got, want := len(result.Runs), 1; got != want {
+		t.Fatalf("len(result.Runs) = %d, want %d", got, want)
+	}
 	if got, want := len(creator.promptCalls()), 1; got != want {
 		t.Fatalf("len(Prompt calls) = %d, want %d", got, want)
+	}
+	if got, want := result.Runs[0].Metadata[triggerDeliveryIDKey], "delivery-valid"; got != want {
+		t.Fatalf("run delivery attribution = %#v, want %q [IT-044]", got, want)
 	}
 	if got, want := creator.promptCalls()[0].message, "Review payload deploy"; got != want {
 		t.Fatalf("Prompt().message = %q, want %q", got, want)
@@ -436,6 +442,10 @@ func TestTriggerEnginePersistentWebhookReservationCarriesDefinitionParticipation
 			t.Fatalf("len(result.Runs) = %d, want %d", got, want)
 		}
 		assertNamedParticipation(t, result.Runs[0].NetworkParticipation, "webhook-loop")
+		calls := starter.startCallSnapshot()
+		if len(calls) != 1 || calls[0].TriggerPayload[triggerDeliveryIDKey] != "delivery-participation" {
+			t.Fatalf("loop trigger delivery attribution = %#v, want delivery-participation", calls)
+		}
 		updates := store.updateSnapshot()
 		if len(updates) == 0 || updates[0].Status == RunScheduled {
 			t.Fatalf("run updates = %#v, want execution transitions without reservation backfill", updates)

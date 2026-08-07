@@ -16,6 +16,7 @@ type httpExtendedServices struct {
 	gatewayTier       gateway.Tier
 	deviceAuth        gateway.DeviceAuthenticator
 	authLimiter       *gateway.AuthFailureLimiter
+	ingressLimiter    *gateway.IngressRateLimiter
 	surfaceSet        SurfaceSet
 }
 

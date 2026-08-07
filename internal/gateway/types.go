@@ -279,9 +279,3 @@ type AddressStatus struct {
 	Address string
 	Live    bool
 }
-
-// IngressBindingStatus is reserved for task 04 and stays explicitly empty now.
-type IngressBindingStatus struct {
-	SubjectKind string
-	SubjectID   string
-}

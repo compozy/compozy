@@ -94,6 +94,37 @@ Read the trigger to get its webhook path:
 compozy automation triggers get <trigger-id>
 ```
 
+## Publish the delivery URL
+
+When the public gateway ingress surface has a verified address, trigger reads include an `ingress`
+object. Its `url` is the complete delivery URL. `reachability` tells you whether it is `live`,
+`unconfirmed`, `off`, or needs `reconfirmation_required`; do not treat the presence of a URL as proof
+that delivery is enabled.
+
+Confirm the trigger against the current public endpoint through the private HTTP listener or UDS:
+
+```http
+POST /api/gateway/ingress-bindings
+Content-Type: application/json
+
+{
+  "subject_kind": "webhook_trigger",
+  "subject_id": "<trigger-id>",
+  "confirmed": true
+}
+```
+
+The daemon resolves the trigger's global or workspace owner. A caller cannot select or override that
+scope. If the public address changes, the endpoint generation changes and the trigger reports
+`reconfirmation_required` until it is confirmed again. Remove a confirmation with
+`DELETE /api/gateway/ingress-bindings/webhook_trigger/<trigger-id>`.
+
+<OperatorNote>
+  Public ingress forwards requests only while the daemon and its connectivity provider are running.
+  It does not queue deliveries while Compozy is offline. Configure retries at the sender and treat a
+  connection failure as a failed delivery.
+</OperatorNote>
+
 ## Authentication
 
 Every webhook request must include these headers:
@@ -132,6 +163,7 @@ Compozy adds webhook metadata to every delivery:
 | `endpoint`      | Full endpoint segment.                 |
 | `endpoint_slug` | Human-readable slug from the endpoint. |
 | `webhook_id`    | Stable webhook ID.                     |
+| `delivery_id`   | Sender delivery ID, also stored in the run metadata. |
 | `timestamp`     | Parsed delivery timestamp.             |
 
 If the body is empty or not a JSON object, Compozy exposes the raw body as `.Data.payload` alongside
@@ -204,7 +236,7 @@ jobs:
 Store the full webhook URL in `COMPOZY_WEBHOOK_URL`, for example:
 
 ```text
-http://localhost:2123/api/webhooks/workspaces/ws_123/deploy--wbh_abc123
+https://gateway.example.com/api/webhooks/workspaces/ws_123/deploy--wbh_abc123
 ```
 
 ## Errors
@@ -214,7 +246,8 @@ http://localhost:2123/api/webhooks/workspaces/ws_123/deploy--wbh_abc123
 | `400`  | Invalid endpoint shape, missing required webhook headers, oversized body, or missing webhook secret configuration. |
 | `401`  | Stale timestamp, future timestamp, or invalid webhook signature.                                                   |
 | `404`  | No trigger registration matches the route.                                                                         |
-| `409`  | Replay delivery ID, fire limit, duplicate registration, or read-only definition conflict.                          |
+| `409`  | Disabled trigger, replay delivery ID, fire limit, duplicate registration, or read-only definition conflict.        |
+| `429`  | The delivery exceeded the per-endpoint and transport-source request budget; retry after `Retry-After`.             |
 | `503`  | Automation manager is not running.                                                                                 |
 
 ## Monitoring deliveries

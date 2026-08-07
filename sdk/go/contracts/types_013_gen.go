@@ -7,6 +7,12 @@ import (
 	"time"
 )
 
+type ModelSourceListParams struct {
+	ProviderID   string `json:"provider_id,omitempty"`
+	Refresh      bool   `json:"refresh,omitempty"`
+	IncludeStale bool   `json:"include_stale,omitempty"`
+}
+
 type ModelSourceListResponse struct {
 	Rows []ModelSourceRow `json:"rows"`
 }
@@ -250,8 +256,4 @@ type NetworkMessagePersistedPayload struct {
 	LastSeenAt  *time.Time `json:"last_seen_at,omitempty"`
 	TraceID     string     `json:"trace_id,omitempty"`
 	CausationID string     `json:"causation_id,omitempty"`
-}
-
-type NetworkObservationPatch struct {
-	Labels map[string]string `json:"labels,omitempty"`
 }

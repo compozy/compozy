@@ -3,26 +3,82 @@ package gateway
 import (
 	"context"
 	"errors"
+	"time"
+
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 // Service composes exposure policy with device authentication for API transports.
 type Service struct {
 	policy  Policy
 	devices *DeviceService
+	ingress *ingressManager
 }
 
-func NewService(policy Policy, devices *DeviceService) (*Service, error) {
+// ServiceOption adds optional gateway capabilities to the transport facade.
+type ServiceOption func(*Service) error
+
+// WithIngress configures workspace-authorized public ingress management.
+func WithIngress(
+	store IngressStore,
+	access workspaceaccess.Policy,
+	events IngressEventSink,
+	now func() time.Time,
+) ServiceOption {
+	return func(service *Service) error {
+		manager, err := newIngressManager(store, service.policy, access, events, now)
+		if err != nil {
+			return err
+		}
+		service.ingress = manager
+		return nil
+	}
+}
+
+func NewService(policy Policy, devices *DeviceService, options ...ServiceOption) (*Service, error) {
 	if policy == nil {
 		return nil, errors.New("gateway: policy is required")
 	}
 	if devices == nil {
 		return nil, errors.New("gateway: device service is required")
 	}
-	return &Service{policy: policy, devices: devices}, nil
+	service := &Service{policy: policy, devices: devices}
+	for _, option := range options {
+		if option == nil {
+			continue
+		}
+		if err := option(service); err != nil {
+			return nil, err
+		}
+	}
+	return service, nil
 }
 
 func (s *Service) Status(ctx context.Context) (Status, error) {
-	return s.policy.Status(ctx)
+	status, err := s.policy.Status(ctx)
+	if err != nil || s.ingress == nil {
+		return status, err
+	}
+	bindings, err := s.ingress.store.ListIngressBindings(ctx)
+	if err != nil {
+		return Status{}, err
+	}
+	status.Bindings = make([]IngressBindingStatus, 0, len(bindings))
+	readWorkspaceID, scopedRead := ingressReadWorkspace(ctx)
+	for _, binding := range bindings {
+		if scopedRead && binding.Scope == IngressScopeWorkspace && binding.WorkspaceID != readWorkspaceID {
+			continue
+		}
+		projection, projectErr := s.ingress.project(ctx, binding.Subject)
+		if errors.Is(projectErr, ErrIngressSubjectNotFound) {
+			continue
+		}
+		if projectErr != nil {
+			return Status{}, projectErr
+		}
+		status.Bindings = append(status.Bindings, projection)
+	}
+	return status, nil
 }
 
 func (s *Service) SetSurfaceExposure(ctx context.Context, req SurfaceExposureRequest) (Status, error) {
@@ -82,6 +138,34 @@ func (s *Service) RenameDevice(ctx context.Context, deviceID, name string) (Devi
 
 func (s *Service) MintStreamTicket(ctx context.Context, deviceID string) (StreamTicket, error) {
 	return s.devices.MintStreamTicket(ctx, deviceID)
+}
+
+func (s *Service) ResolveIngressSubject(ctx context.Context, ref IngressSubjectRef) (IngressSubject, error) {
+	if s == nil || s.ingress == nil {
+		return IngressSubject{}, ErrIngressSubjectNotFound
+	}
+	return s.ingress.store.ResolveIngressSubject(ctx, ref)
+}
+
+func (s *Service) BindIngress(ctx context.Context, req IngressBindRequest) (IngressBinding, error) {
+	if s == nil || s.ingress == nil {
+		return IngressBinding{}, ErrIngressSubjectNotFound
+	}
+	return s.ingress.bind(ctx, req)
+}
+
+func (s *Service) UnbindIngress(ctx context.Context, req IngressUnbindRequest) (UnbindResult, error) {
+	if s == nil || s.ingress == nil {
+		return UnbindResult{}, ErrIngressSubjectNotFound
+	}
+	return s.ingress.unbind(ctx, req)
+}
+
+func (s *Service) ProjectIngress(ctx context.Context, ref IngressSubjectRef) (IngressProjection, error) {
+	if s == nil || s.ingress == nil {
+		return IngressProjection{}, ErrIngressSubjectNotFound
+	}
+	return s.ingress.project(ctx, ref)
 }
 
 func (s *Service) Authenticate(ctx context.Context, credential string) (DeviceSession, error) {

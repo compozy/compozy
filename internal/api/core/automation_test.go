@@ -1467,6 +1467,9 @@ func TestAutomationHelperFunctionsAndErrors(t *testing.T) {
 		if status := StatusForAutomationError(automationpkg.ErrWebhookReplayDetected); status != http.StatusConflict {
 			t.Fatalf("StatusForAutomationError(webhook replay) = %d, want %d", status, http.StatusConflict)
 		}
+		if status := StatusForAutomationError(automationpkg.ErrWebhookTriggerDisabled); status != http.StatusConflict {
+			t.Fatalf("StatusForAutomationError(disabled webhook) = %d, want %d", status, http.StatusConflict)
+		}
 		if status := StatusForAutomationError(
 			automationpkg.ErrManagerNotRunning,
 		); status != http.StatusServiceUnavailable {

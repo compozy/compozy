@@ -31,8 +31,12 @@ var (
 	ErrDigestConfirmationRequired = errors.New("gateway digest confirmation required")
 	// ErrIngressSubjectNotFound reports an unknown webhook or bridge ingress subject.
 	ErrIngressSubjectNotFound = errors.New("gateway ingress subject not found")
+	// ErrIngressTargetUnavailable reports a subject whose daemon-local ingress target is invalid.
+	ErrIngressTargetUnavailable = errors.New("gateway ingress target unavailable")
 	// ErrIngressForbidden reports an ingress mutation outside the caller's workspace boundary.
 	ErrIngressForbidden = errors.New("gateway ingress forbidden")
+	// ErrIngressRateLimited reports a public sender exceeding one endpoint/source budget.
+	ErrIngressRateLimited = errors.New("gateway ingress rate limited")
 	// ErrLocalOnlyOperation reports an operation unavailable through a remote profile.
 	ErrLocalOnlyOperation = errors.New("gateway local-only operation")
 )

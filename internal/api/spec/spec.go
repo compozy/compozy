@@ -12,6 +12,7 @@ import (
 const (
 	httpMethodDelete = "DELETE"
 	httpMethodGet    = "GET"
+	httpMethodHead   = "HEAD"
 	httpMethodPatch  = "PATCH"
 	httpMethodPost   = "POST"
 	httpMethodPut    = "PUT"
@@ -212,6 +213,7 @@ type ParameterSpec struct {
 // ResponseSpec describes one OpenAPI response.
 type ResponseSpec struct {
 	Status      int
+	Default     bool
 	Description string
 	Body        any
 	Bodies      responseBodies

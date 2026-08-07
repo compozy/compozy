@@ -18,4 +18,8 @@ type GatewayService interface {
 	RevokeDevice(context.Context, string) (gateway.RevokeResult, error)
 	RenameDevice(context.Context, string, string) (gateway.DeviceSession, error)
 	MintStreamTicket(context.Context, string) (gateway.StreamTicket, error)
+	ResolveIngressSubject(context.Context, gateway.IngressSubjectRef) (gateway.IngressSubject, error)
+	BindIngress(context.Context, gateway.IngressBindRequest) (gateway.IngressBinding, error)
+	UnbindIngress(context.Context, gateway.IngressUnbindRequest) (gateway.UnbindResult, error)
+	ProjectIngress(context.Context, gateway.IngressSubjectRef) (gateway.IngressProjection, error)
 }

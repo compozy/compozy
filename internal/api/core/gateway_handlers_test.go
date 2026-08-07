@@ -11,14 +11,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/gateway"
+	"github.com/compozy/compozy/internal/session"
 	"github.com/gin-gonic/gin"
 )
 
 type gatewayServiceStub struct {
-	revoke func(context.Context, string) (gateway.RevokeResult, error)
-	calls  *atomic.Int32
+	revoke  func(context.Context, string) (gateway.RevokeResult, error)
+	bind    func(context.Context, gateway.IngressBindRequest) (gateway.IngressBinding, error)
+	unbind  func(context.Context, gateway.IngressUnbindRequest) (gateway.UnbindResult, error)
+	project func(context.Context, gateway.IngressSubjectRef) (gateway.IngressProjection, error)
+	calls   *atomic.Int32
 }
 
 func (s gatewayServiceStub) Status(context.Context) (gateway.Status, error) {
@@ -83,6 +88,43 @@ func (s gatewayServiceStub) RenameDevice(context.Context, string, string) (gatew
 
 func (s gatewayServiceStub) MintStreamTicket(context.Context, string) (gateway.StreamTicket, error) {
 	return gateway.StreamTicket{}, nil
+}
+
+func (s gatewayServiceStub) ResolveIngressSubject(
+	context.Context,
+	gateway.IngressSubjectRef,
+) (gateway.IngressSubject, error) {
+	return gateway.IngressSubject{}, gateway.ErrIngressSubjectNotFound
+}
+
+func (s gatewayServiceStub) BindIngress(
+	ctx context.Context,
+	request gateway.IngressBindRequest,
+) (gateway.IngressBinding, error) {
+	if s.bind != nil {
+		return s.bind(ctx, request)
+	}
+	return gateway.IngressBinding{}, gateway.ErrIngressSubjectNotFound
+}
+
+func (s gatewayServiceStub) UnbindIngress(
+	ctx context.Context,
+	request gateway.IngressUnbindRequest,
+) (gateway.UnbindResult, error) {
+	if s.unbind != nil {
+		return s.unbind(ctx, request)
+	}
+	return gateway.UnbindResult{}, gateway.ErrIngressSubjectNotFound
+}
+
+func (s gatewayServiceStub) ProjectIngress(
+	ctx context.Context,
+	ref gateway.IngressSubjectRef,
+) (gateway.IngressProjection, error) {
+	if s.project != nil {
+		return s.project(ctx, ref)
+	}
+	return gateway.IngressProjection{}, gateway.ErrIngressSubjectNotFound
 }
 
 func TestGatewayPayloadMappings(t *testing.T) {
@@ -382,4 +424,116 @@ func TestGatewayRequestValidation(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGatewayIngressAgentCallerBoundary(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should pass only the daemon-validated agent workspace into a binding mutation", func(t *testing.T) {
+		t.Parallel()
+
+		ref := gateway.IngressSubjectRef{Kind: gateway.IngressSubjectWebhookTrigger, ID: "trigger-1"}
+		handlers := &BaseHandlers{
+			TransportName: "uds-api",
+			Sessions: sessionManagerStub{status: func(_ context.Context, id string) (*session.Info, error) {
+				return &session.Info{
+					ID: id, AgentName: "coder", WorkspaceID: "ws-agent", State: session.StateActive,
+				}, nil
+			}},
+			Gateway: gatewayServiceStub{
+				bind: func(_ context.Context, request gateway.IngressBindRequest) (gateway.IngressBinding, error) {
+					if request.Caller == nil || request.Caller.SessionID != "sess-agent" ||
+						request.Caller.AgentName != "coder" || request.Caller.WorkspaceID != "ws-agent" {
+						t.Fatalf("BindIngress() caller = %#v", request.Caller)
+					}
+					return gateway.IngressBinding{Subject: request.Subject, Changed: true}, nil
+				},
+				project: func(context.Context, gateway.IngressSubjectRef) (gateway.IngressProjection, error) {
+					return gateway.IngressProjection{Subject: ref, Reachability: gateway.IngressReachabilityUnconfirmed}, nil
+				},
+			},
+		}
+		gin.SetMode(gin.TestMode)
+		router := gin.New()
+		router.POST("/ingress-bindings", handlers.BindGatewayIngress)
+		response := httptest.NewRecorder()
+		request := httptest.NewRequestWithContext(
+			t.Context(), http.MethodPost, "/ingress-bindings",
+			strings.NewReader(`{"subject_kind":"webhook_trigger","subject_id":"trigger-1","confirmed":true}`),
+		)
+		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set(agentidentity.HeaderSessionID, "sess-agent")
+		request.Header.Set(agentidentity.HeaderAgent, "coder")
+
+		router.ServeHTTP(response, request)
+
+		if response.Code != http.StatusCreated {
+			t.Fatalf("status = %d, want %d; body=%s", response.Code, http.StatusCreated, response.Body.String())
+		}
+	})
+
+	t.Run("Should return deterministic forbidden responses for cross-workspace bind and unbind [IT-049]", func(t *testing.T) {
+		t.Parallel()
+
+		handlers := &BaseHandlers{
+			TransportName: "uds-api",
+			Sessions: sessionManagerStub{status: func(_ context.Context, id string) (*session.Info, error) {
+				return &session.Info{
+					ID: id, AgentName: "coder", WorkspaceID: "ws-agent", State: session.StateActive,
+				}, nil
+			}},
+			Gateway: gatewayServiceStub{
+				bind: func(
+					_ context.Context,
+					request gateway.IngressBindRequest,
+				) (gateway.IngressBinding, error) {
+					if request.Caller == nil || request.Caller.WorkspaceID != "ws-agent" {
+						t.Fatalf("BindIngress() caller = %#v", request.Caller)
+					}
+					return gateway.IngressBinding{}, gateway.ErrIngressForbidden
+				},
+				unbind: func(
+					_ context.Context,
+					request gateway.IngressUnbindRequest,
+				) (gateway.UnbindResult, error) {
+					if request.Caller == nil || request.Caller.WorkspaceID != "ws-agent" {
+						t.Fatalf("UnbindIngress() caller = %#v", request.Caller)
+					}
+					return gateway.UnbindResult{}, gateway.ErrIngressForbidden
+				},
+			},
+		}
+		gin.SetMode(gin.TestMode)
+		router := gin.New()
+		router.POST("/ingress-bindings", handlers.BindGatewayIngress)
+		router.DELETE("/ingress-bindings/:subject_kind/:subject_id", handlers.UnbindGatewayIngress)
+		response := httptest.NewRecorder()
+		request := httptest.NewRequestWithContext(
+			t.Context(), http.MethodPost, "/ingress-bindings",
+			strings.NewReader(`{"subject_kind":"webhook_trigger","subject_id":"foreign-trigger","confirmed":true}`),
+		)
+		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set(agentidentity.HeaderSessionID, "sess-agent")
+		request.Header.Set(agentidentity.HeaderAgent, "coder")
+
+		router.ServeHTTP(response, request)
+
+		if response.Code != http.StatusForbidden || !strings.Contains(response.Body.String(), "gateway_ingress_forbidden") {
+			t.Fatalf("response = (%d, %q), want deterministic ingress denial",
+				response.Code, response.Body.String())
+		}
+
+		unbindResponse := httptest.NewRecorder()
+		unbindRequest := httptest.NewRequestWithContext(
+			t.Context(), http.MethodDelete, "/ingress-bindings/webhook_trigger/foreign-trigger", http.NoBody,
+		)
+		unbindRequest.Header.Set(agentidentity.HeaderSessionID, "sess-agent")
+		unbindRequest.Header.Set(agentidentity.HeaderAgent, "coder")
+		router.ServeHTTP(unbindResponse, unbindRequest)
+		if unbindResponse.Code != http.StatusForbidden ||
+			!strings.Contains(unbindResponse.Body.String(), "gateway_ingress_forbidden") {
+			t.Fatalf("unbind response = (%d, %q), want deterministic ingress denial",
+				unbindResponse.Code, unbindResponse.Body.String())
+		}
+	})
 }

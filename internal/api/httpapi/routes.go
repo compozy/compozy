@@ -433,7 +433,11 @@ func registerOpenAIModelRoutes(api gin.IRouter, handlers *Handlers) {
 }
 
 func registerWebhookRoutes(api gin.IRouter, handlers *Handlers) {
-	webhooks := api.Group("/webhooks")
+	webhooks := api.Group("/webhooks", handlers.gatewayIngressRateLimitMiddleware())
 	webhooks.POST("/global/:endpoint", handlers.DeliverGlobalWebhook)
 	webhooks.POST("/workspaces/:workspace_id/:endpoint", handlers.DeliverWorkspaceWebhook)
+	callbacks := api.Group("/bridge-callbacks", handlers.gatewayIngressRateLimitMiddleware())
+	callbacks.GET("/:id", handlers.ProxyGatewayBridgeCallback)
+	callbacks.POST("/:id", handlers.ProxyGatewayBridgeCallback)
+	callbacks.HEAD("/:id", handlers.ProxyGatewayBridgeCallback)
 }

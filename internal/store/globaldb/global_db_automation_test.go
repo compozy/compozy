@@ -2207,6 +2207,7 @@ func TestAutomationStoreHelperBranches(t *testing.T) {
 		Retry:            automation.DefaultRetryConfig(),
 		FireLimit:        automation.DefaultFireLimitConfig(),
 		WebhookID:        "wbh_helper-webhook",
+		EndpointSlug:     "helper-trigger",
 		WebhookSecretRef: "vault:automation/triggers/helper/webhook-secret",
 	})
 	if err != nil {

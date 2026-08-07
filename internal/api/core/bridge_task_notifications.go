@@ -12,6 +12,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	"github.com/compozy/compozy/internal/gateway"
 
 	"github.com/compozy/compozy/internal/notifications"
 	"github.com/compozy/compozy/internal/store"
@@ -216,6 +217,10 @@ func (h *BaseHandlers) transitionBridge(
 	}
 	resp, err := fn(h, c)
 	if err != nil {
+		if errors.Is(err, gateway.ErrIngressForbidden) {
+			h.respondGatewayError(c, err)
+			return
+		}
 		if errors.Is(err, errBridgeServiceUnavailable) {
 			h.respondError(c, http.StatusServiceUnavailable, err)
 			return
@@ -227,6 +232,13 @@ func (h *BaseHandlers) transitionBridge(
 }
 
 func (h *BaseHandlers) enableBridge(c *gin.Context) (*contract.BridgeResponse, error) {
+	projectionCtx, err := h.gatewayIngressReadContext(c, "bridges.enable")
+	if err != nil {
+		return nil, errors.Join(gateway.ErrIngressForbidden, err)
+	}
+	if err := h.authorizeBridgeIngressProjection(projectionCtx, c.Param("id")); err != nil {
+		return nil, err
+	}
 	bridges, ok := h.bridgeService()
 	if !ok {
 		return nil, errBridgeServiceUnavailable
@@ -235,10 +247,17 @@ func (h *BaseHandlers) enableBridge(c *gin.Context) (*contract.BridgeResponse, e
 	if err != nil {
 		return nil, err
 	}
-	return h.bridgeResponse(c.Request.Context(), *instance)
+	return h.bridgeResponse(projectionCtx, *instance)
 }
 
 func (h *BaseHandlers) disableBridge(c *gin.Context) (*contract.BridgeResponse, error) {
+	projectionCtx, err := h.gatewayIngressReadContext(c, "bridges.disable")
+	if err != nil {
+		return nil, errors.Join(gateway.ErrIngressForbidden, err)
+	}
+	if err := h.authorizeBridgeIngressProjection(projectionCtx, c.Param("id")); err != nil {
+		return nil, err
+	}
 	bridges, ok := h.bridgeService()
 	if !ok {
 		return nil, errBridgeServiceUnavailable
@@ -247,10 +266,17 @@ func (h *BaseHandlers) disableBridge(c *gin.Context) (*contract.BridgeResponse, 
 	if err != nil {
 		return nil, err
 	}
-	return h.bridgeResponse(c.Request.Context(), *instance)
+	return h.bridgeResponse(projectionCtx, *instance)
 }
 
 func (h *BaseHandlers) restartBridge(c *gin.Context) (*contract.BridgeResponse, error) {
+	projectionCtx, err := h.gatewayIngressReadContext(c, "bridges.restart")
+	if err != nil {
+		return nil, errors.Join(gateway.ErrIngressForbidden, err)
+	}
+	if err := h.authorizeBridgeIngressProjection(projectionCtx, c.Param("id")); err != nil {
+		return nil, err
+	}
 	bridges, ok := h.bridgeService()
 	if !ok {
 		return nil, errBridgeServiceUnavailable
@@ -259,7 +285,7 @@ func (h *BaseHandlers) restartBridge(c *gin.Context) (*contract.BridgeResponse, 
 	if err != nil {
 		return nil, err
 	}
-	return h.bridgeResponse(c.Request.Context(), *instance)
+	return h.bridgeResponse(projectionCtx, *instance)
 }
 
 func (h *BaseHandlers) bridgeService() (BridgeService, bool) {

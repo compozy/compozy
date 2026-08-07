@@ -20,6 +20,8 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/core"
+	automationpkg "github.com/compozy/compozy/internal/automation"
 	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
@@ -132,6 +134,7 @@ func TestGatewayBootRedactsExposureRefusal(t *testing.T) {
 func exerciseGatewayDaemonRealListenersAndTransportParity(t *testing.T) {
 	homePaths := integrationHomePaths(t)
 	cfg := testConfig(t, homePaths)
+	cfg.Automation.Enabled = true
 	cfg.Network.Enabled = false
 	cfg.Gateway.Enabled = true
 	cfg.Gateway.PrivatePort = 0
@@ -189,6 +192,7 @@ func exerciseGatewayDaemonRealListenersAndTransportParity(t *testing.T) {
 
 	udsClient := gatewayDaemonUDSClient(homePaths.DaemonSocket)
 	admin := issueGatewayDaemonCredential(t, udsClient, "Admin")
+	assertGatewayPublicIngressStartsLoopE2E(t, client, udsClient, publicBaseURL)
 	assertGatewayBrowserPairingRace(t, udsClient, privateBaseURL, admin.Credential)
 	assertGatewayStatusTransportParity(t, client, privateBaseURL, homePaths.DaemonSocket, admin.Credential)
 	assertGatewayDeviceTransportParity(t, client, privateBaseURL, homePaths.DaemonSocket, admin)
@@ -260,6 +264,316 @@ func exerciseGatewayDaemonRealListenersAndTransportParity(t *testing.T) {
 		body := gatewayDaemonReadBody(t, offlineResponse)
 		t.Fatalf("stopped gateway remained reachable: %d/%s", offlineResponse.StatusCode, body)
 	}
+}
+
+func assertGatewayPublicIngressStartsLoopE2E(
+	t *testing.T,
+	client *http.Client,
+	udsClient *http.Client,
+	publicBaseURL string,
+) {
+	t.Helper()
+
+	workspaceResponse := gatewayDaemonRequest(
+		t, udsClient, http.MethodGet, "http://unix/api/workspaces", "", nil,
+	)
+	var workspaces contract.WorkspacesResponse
+	gatewayDaemonDecodeBody(t, workspaceResponse, &workspaces)
+	if workspaceResponse.StatusCode != http.StatusOK || len(workspaces.Workspaces) == 0 {
+		t.Fatalf(
+			"[E2E-003] UDS workspaces = %d/%#v, want a default workspace",
+			workspaceResponse.StatusCode,
+			workspaces,
+		)
+	}
+	workspaceID := workspaces.Workspaces[0].ID
+	definition := gatewayWebhookLoopDefinition()
+	createLoopBody := gatewayDaemonMarshalJSON(t, contract.CreateLoopRequest{Definition: &definition})
+	createLoop := gatewayDaemonRequest(
+		t,
+		udsClient,
+		http.MethodPost,
+		"http://unix/api/workspaces/"+url.PathEscape(workspaceID)+"/loops",
+		"",
+		bytes.NewReader(createLoopBody),
+	)
+	var createdLoop contract.LoopResponse
+	gatewayDaemonDecodeBody(t, createLoop, &createdLoop)
+	if createLoop.StatusCode != http.StatusCreated || createdLoop.Loop.Name != definition.Meta.Name {
+		t.Fatalf(
+			"[E2E-003] create Loop = %d/%#v, want created %q",
+			createLoop.StatusCode,
+			createdLoop,
+			definition.Meta.Name,
+		)
+	}
+
+	const webhookSecret = "gateway-e2e-shared-secret"
+	enabled := true
+	createTriggerBody := gatewayDaemonMarshalJSON(t, contract.CreateTriggerRequest{
+		Scope:       automationpkg.AutomationScopeWorkspace,
+		Name:        "gateway-e2e-loop-webhook",
+		TargetKind:  automationpkg.TargetKindLoop,
+		WorkspaceID: workspaceID,
+		Event:       "webhook",
+		LoopTarget: &automationpkg.LoopTarget{
+			WorkspaceID: workspaceID,
+			LoopName:    definition.Meta.Name,
+		},
+		Enabled:            &enabled,
+		EndpointSlug:       "gateway-e2e-loop-webhook",
+		WebhookSecretValue: webhookSecret,
+	})
+	createTrigger := gatewayDaemonRequest(
+		t,
+		udsClient,
+		http.MethodPost,
+		"http://unix/api/automation/triggers",
+		"",
+		bytes.NewReader(createTriggerBody),
+	)
+	var trigger contract.TriggerResponse
+	gatewayDaemonDecodeBody(t, createTrigger, &trigger)
+	if createTrigger.StatusCode != http.StatusCreated || trigger.Trigger.ID == "" {
+		t.Fatalf(
+			"[E2E-003] create webhook Loop trigger = %d/%#v, want created trigger",
+			createTrigger.StatusCode,
+			trigger,
+		)
+	}
+
+	bindBody := gatewayDaemonMarshalJSON(t, contract.GatewayIngressBindRequest{
+		SubjectKind: string(gateway.IngressSubjectWebhookTrigger),
+		SubjectID:   trigger.Trigger.ID,
+		Confirmed:   true,
+	})
+	bind := gatewayDaemonRequest(
+		t,
+		udsClient,
+		http.MethodPost,
+		"http://unix/api/gateway/ingress-bindings",
+		"",
+		bytes.NewReader(bindBody),
+	)
+	var binding contract.GatewayIngressBindingResponse
+	gatewayDaemonDecodeBody(t, bind, &binding)
+	if bind.StatusCode != http.StatusCreated || !binding.Changed {
+		t.Fatalf("[E2E-003] bind ingress = %d/%#v, want new binding", bind.StatusCode, binding)
+	}
+
+	getTrigger := gatewayDaemonRequest(
+		t,
+		udsClient,
+		http.MethodGet,
+		"http://unix/api/automation/triggers/"+url.PathEscape(trigger.Trigger.ID),
+		"",
+		nil,
+	)
+	gatewayDaemonDecodeBody(t, getTrigger, &trigger)
+	if getTrigger.StatusCode != http.StatusOK || trigger.Trigger.Ingress == nil ||
+		trigger.Trigger.Ingress.Reachability != string(gateway.IngressReachabilityLive) ||
+		strings.TrimSpace(trigger.Trigger.Ingress.URL) == "" {
+		t.Fatalf(
+			"[E2E-003] displayed trigger ingress = %d/%#v, want live URL",
+			getTrigger.StatusCode,
+			trigger.Trigger.Ingress,
+		)
+	}
+
+	const deliveryID = "gateway-e2e-delivery-001"
+	payload := []byte(`{"release":"ready"}`)
+	timestamp := time.Now().UTC()
+	signature, err := automationpkg.SignWebhookPayload(webhookSecret, timestamp, payload)
+	if err != nil {
+		t.Fatalf("[E2E-003] SignWebhookPayload() error = %v", err)
+	}
+	shownURL, err := url.Parse(trigger.Trigger.Ingress.URL)
+	if err != nil {
+		t.Fatalf("[E2E-003] url.Parse(displayed ingress) error = %v", err)
+	}
+	publicListenerURL, err := url.Parse(publicBaseURL)
+	if err != nil {
+		t.Fatalf("[E2E-003] url.Parse(public listener) error = %v", err)
+	}
+	deliveryRequest, err := http.NewRequestWithContext(
+		testutil.Context(t),
+		http.MethodPost,
+		shownURL.String(),
+		bytes.NewReader(payload),
+	)
+	if err != nil {
+		t.Fatalf("[E2E-003] http.NewRequestWithContext(delivery) error = %v", err)
+	}
+	deliveryRequest.Header.Set(core.WebhookTimestampHeader, timestamp.Format(time.RFC3339Nano))
+	deliveryRequest.Header.Set(core.WebhookDeliveryIDHeader, deliveryID)
+	deliveryRequest.Header.Set(core.WebhookSignatureHeader, signature)
+	deliveryClient := &http.Client{
+		Timeout: gatewayDaemonIntegrationTimeout,
+		Transport: gatewayAdvertisedEndpointTransport{
+			advertisedHost: shownURL.Host,
+			listener:       publicListenerURL,
+			base:           client.Transport,
+		},
+	}
+	deliveryResponse, err := deliveryClient.Do(deliveryRequest)
+	if err != nil {
+		t.Fatalf("[E2E-003] deliver to displayed ingress URL error = %v", err)
+	}
+	var delivery contract.WebhookDeliveryResponse
+	gatewayDaemonDecodeBody(t, deliveryResponse, &delivery)
+	if deliveryResponse.StatusCode != http.StatusOK || delivery.Result.Matched != 1 ||
+		len(delivery.Result.Runs) != 1 {
+		t.Fatalf(
+			"[E2E-003] signed delivery = %d/%#v, want one matched run",
+			deliveryResponse.StatusCode,
+			delivery,
+		)
+	}
+	automationRun := delivery.Result.Runs[0]
+	if automationRun.TriggerID != trigger.Trigger.ID || automationRun.LoopRunID == "" ||
+		automationRun.Metadata["delivery_id"] != deliveryID {
+		t.Fatalf(
+			"[E2E-003] automation attribution = %#v, want trigger=%q delivery=%q and Loop run",
+			automationRun,
+			trigger.Trigger.ID,
+			deliveryID,
+		)
+	}
+
+	loopRun := waitForGatewayWebhookLoopRunStart(
+		t,
+		udsClient,
+		workspaceID,
+		automationRun.LoopRunID,
+	)
+	if loopRun.Run.StartedByKind != "automation" || loopRun.Run.StartedByRef != trigger.Trigger.ID ||
+		loopRun.Run.StartedOriginRef != "run:"+automationRun.ID ||
+		loopRun.Run.StartMetadata["automation_run_id"] != automationRun.ID {
+		t.Fatalf(
+			"[E2E-003] Loop run attribution = %#v, want trigger and delivery-linked automation run",
+			loopRun.Run,
+		)
+	}
+}
+
+type gatewayAdvertisedEndpointTransport struct {
+	advertisedHost string
+	listener       *url.URL
+	base           http.RoundTripper
+}
+
+func (t gatewayAdvertisedEndpointTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+	if request == nil || request.URL == nil {
+		return nil, errors.New("gateway E2E: advertised endpoint request URL is required")
+	}
+	if request.URL.Host != t.advertisedHost {
+		return nil, fmt.Errorf(
+			"gateway E2E: advertised host = %q, want %q",
+			request.URL.Host,
+			t.advertisedHost,
+		)
+	}
+	if t.listener == nil || strings.TrimSpace(t.listener.Host) == "" {
+		return nil, errors.New("gateway E2E: listener URL is required")
+	}
+	cloned := request.Clone(request.Context())
+	clonedURL := *request.URL
+	clonedURL.Scheme = t.listener.Scheme
+	clonedURL.Host = t.listener.Host
+	cloned.URL = &clonedURL
+	base := t.base
+	if base == nil {
+		base = http.DefaultTransport
+	}
+	return base.RoundTrip(cloned)
+}
+
+func gatewayWebhookLoopDefinition() contract.LoopDefinitionDocument {
+	return contract.LoopDefinitionDocument{
+		APIVersion:  "compozy.loop/v1",
+		Kind:        "Loop",
+		Concurrency: "allow",
+		Meta: contract.LoopDefinitionMeta{
+			Name:        "gateway-webhook-e2e",
+			Description: "Prove public webhook ingress starts a Loop.",
+			Catalog:     contract.LoopCatalogMeta{Category: "Testing"},
+		},
+		Contract: contract.LoopContract{
+			Goal:             "Record a signed gateway delivery.",
+			DefinitionOfDone: "The delivery marker is recorded.",
+			StopWhen:         "nodes.record_delivery.status == 'succeeded'",
+			IterationCap:     1,
+			NoProgress: contract.LoopNoProgress{
+				Window:     2,
+				HashFields: []string{"nodes.record_delivery.output.accepted"},
+			},
+			Budget: contract.LoopBudget{OnExceeded: contract.LoopBudgetExceededHalt},
+			TerminalStates: []string{
+				"done", "failed", "blocked", "exhausted", "stalled",
+			},
+		},
+		Graph: contract.LoopGraph{Nodes: []contract.LoopGraphNode{{
+			ID:    "record_delivery",
+			Class: contract.LoopNodeClassAction,
+			Kind:  "transform",
+			Params: map[string]any{
+				"map": map[string]any{"accepted": map[string]any{"value": true}},
+			},
+		}}},
+		Start: []contract.LoopStartBinding{{Kind: "webhook"}},
+	}
+}
+
+func waitForGatewayWebhookLoopRunStart(
+	t *testing.T,
+	udsClient *http.Client,
+	workspaceID string,
+	runID string,
+) contract.LoopRunResponse {
+	t.Helper()
+
+	deadline := time.Now().Add(gatewayDaemonIntegrationTimeout)
+	var last contract.LoopRunResponse
+	for time.Now().Before(deadline) {
+		response := gatewayDaemonRequest(
+			t,
+			udsClient,
+			http.MethodGet,
+			"http://unix/api/workspaces/"+url.PathEscape(workspaceID)+
+				"/loop-runs/"+url.PathEscape(runID),
+			"",
+			nil,
+		)
+		var run contract.LoopRunResponse
+		gatewayDaemonDecodeBody(t, response, &run)
+		if response.StatusCode != http.StatusOK {
+			t.Fatalf("[E2E-003] get Loop run = %d/%#v, want 200", response.StatusCode, run)
+		}
+		last = run
+		if run.Run.Status == contract.LoopRunStatusRunning || run.Run.Status == contract.LoopRunStatusDone {
+			return run
+		}
+		switch run.Run.Status {
+		case contract.LoopRunStatusFailed,
+			contract.LoopRunStatusBlocked,
+			contract.LoopRunStatusExhausted,
+			contract.LoopRunStatusStalled,
+			contract.LoopRunStatusCanceled:
+			t.Fatalf("[E2E-003] Loop run reached terminal status %q: %#v", run.Run.Status, run.Run)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatalf("[E2E-003] timed out waiting for Loop run %q to start: last=%#v", runID, last.Run)
+	return contract.LoopRunResponse{}
+}
+
+func gatewayDaemonMarshalJSON(t *testing.T, value any) []byte {
+	t.Helper()
+	payload, err := json.Marshal(value)
+	if err != nil {
+		t.Fatalf("json.Marshal(gateway daemon request) error = %v", err)
+	}
+	return payload
 }
 
 func seedGatewayEndToEndExposure(t *testing.T, databasePath string) {

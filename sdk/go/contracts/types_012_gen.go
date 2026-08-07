@@ -7,6 +7,10 @@ import (
 	"time"
 )
 
+type LoopObservationPatch struct {
+	Labels map[string]string `json:"labels,omitempty"`
+}
+
 type LoopStartedPayload struct {
 	Event                        HookEvent       `json:"event"`
 	Timestamp                    time.Time       `json:"timestamp"`
@@ -268,10 +272,4 @@ type ModelCatalogSourceStatusPayload struct {
 	RefreshState string `json:"refresh_state"`
 	RowCount     int    `json:"row_count"`
 	Stale        bool   `json:"stale"`
-}
-
-type ModelSourceListParams struct {
-	ProviderID   string `json:"provider_id,omitempty"`
-	Refresh      bool   `json:"refresh,omitempty"`
-	IncludeStale bool   `json:"include_stale,omitempty"`
 }

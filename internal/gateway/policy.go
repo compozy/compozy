@@ -68,8 +68,7 @@ func NewPolicy(store Store, effects EffectDriver, enabled bool, options ...Optio
 		return nil, errors.New("gateway: store is required")
 	}
 	p := &policy{
-		store:      store,
-		reconciler: NewReconciler(store, effects),
+		store: store,
 		auth: AuthGateFunc(func(context.Context) (bool, error) {
 			return false, nil
 		}),
@@ -81,6 +80,7 @@ func NewPolicy(store Store, effects EffectDriver, enabled bool, options ...Optio
 			option(p)
 		}
 	}
+	p.reconciler = NewReconciler(store, effects, WithReconcilerClock(p.now))
 	return p, nil
 }
 

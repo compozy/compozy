@@ -33,6 +33,8 @@ var gatewayErrorCodes = [...]struct {
 	{gateway.ErrProviderDegraded, "gateway_provider_degraded"},
 	{gateway.ErrIngressForbidden, "gateway_ingress_forbidden"},
 	{gateway.ErrIngressSubjectNotFound, "gateway_ingress_subject_not_found"},
+	{gateway.ErrIngressTargetUnavailable, "gateway_ingress_target_unavailable"},
+	{gateway.ErrIngressRateLimited, "gateway_ingress_rate_limited"},
 	{gateway.ErrLocalOnlyOperation, "gateway_local_only_operation"},
 	{gateway.ErrGenerationConflict, "gateway_generation_conflict"},
 	{gateway.ErrTierProviderConflict, "gateway_tier_provider_conflict"},
@@ -64,6 +66,7 @@ func StatusForGatewayError(err error) int {
 		errors.Is(err, gateway.ErrExposureRefused),
 		errors.Is(err, gateway.ErrProviderTrustStale),
 		errors.Is(err, gateway.ErrEndpointUnverified),
+		errors.Is(err, gateway.ErrIngressTargetUnavailable),
 		errors.Is(err, gateway.ErrGenerationConflict),
 		errors.Is(err, gateway.ErrTierProviderConflict):
 		return http.StatusConflict
@@ -71,7 +74,8 @@ func StatusForGatewayError(err error) int {
 		errors.Is(err, gateway.ErrDigestConfirmationRequired):
 		return http.StatusPreconditionRequired
 	case errors.Is(err, gateway.ErrPairingLimit),
-		errors.Is(err, gateway.ErrAuthRateLimited):
+		errors.Is(err, gateway.ErrAuthRateLimited),
+		errors.Is(err, gateway.ErrIngressRateLimited):
 		return http.StatusTooManyRequests
 	case errors.Is(err, gateway.ErrProviderDegraded):
 		return http.StatusServiceUnavailable

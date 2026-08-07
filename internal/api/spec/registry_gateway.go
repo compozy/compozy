@@ -3,15 +3,18 @@ package spec
 import "github.com/compozy/compozy/internal/api/contract"
 
 const (
-	specAPIGatewayPath              = "/api/gateway"
-	specAPIGatewayStatusPath        = specAPIGatewayPath + "/status"
-	specAPIGatewaySurfacesPath      = specAPIGatewayPath + "/surfaces"
-	specAPIGatewayProvidersNamePath = specAPIGatewayPath + "/providers/{name}"
-	specAPIGatewayPairingsPath      = specAPIGatewayPath + "/pairings"
-	specAPIGatewayPairingRedeemPath = specAPIGatewayPairingsPath + "/redeem"
-	specAPIGatewayDevicesPath       = specAPIGatewayPath + "/devices"
-	specAPIGatewayDevicesIDPath     = specAPIGatewayDevicesPath + "/{id}"
-	specAPIGatewayStreamTicketsPath = specAPIGatewayPath + "/stream-tickets"
+	specAPIGatewayPath               = "/api/gateway"
+	specAPIGatewayStatusPath         = specAPIGatewayPath + "/status"
+	specAPIGatewaySurfacesPath       = specAPIGatewayPath + "/surfaces"
+	specAPIGatewayProvidersNamePath  = specAPIGatewayPath + "/providers/{name}"
+	specAPIGatewayPairingsPath       = specAPIGatewayPath + "/pairings"
+	specAPIGatewayPairingRedeemPath  = specAPIGatewayPairingsPath + "/redeem"
+	specAPIGatewayDevicesPath        = specAPIGatewayPath + "/devices"
+	specAPIGatewayDevicesIDPath      = specAPIGatewayDevicesPath + "/{id}"
+	specAPIGatewayStreamTicketsPath  = specAPIGatewayPath + "/stream-tickets"
+	specAPIGatewayIngressPath        = specAPIGatewayPath + "/ingress-bindings"
+	specAPIGatewayIngressSubjectPath = specAPIGatewayIngressPath + "/{subject_kind}/{subject_id}"
+	specAPIBridgeCallbackPath        = "/api/bridge-callbacks/{id}"
 )
 
 func registryGatewayOperations() []OperationSpec {
@@ -26,6 +29,90 @@ func registryGatewayOperations() []OperationSpec {
 		gatewayDeviceRenameOperation(),
 		gatewayDeviceRevokeOperation(),
 		gatewayStreamTicketOperation(),
+		gatewayIngressBindOperation(),
+		gatewayIngressUnbindOperation(),
+		gatewayBridgeCallbackGetOperation(),
+		gatewayBridgeCallbackPostOperation(),
+		gatewayBridgeCallbackHeadOperation(),
+	}
+}
+
+func gatewayBridgeCallbackGetOperation() OperationSpec {
+	return gatewayBridgeCallbackOperation(httpMethodGet, "probeGatewayBridgeCallback", "Probe one bound bridge callback")
+}
+
+func gatewayBridgeCallbackPostOperation() OperationSpec {
+	operation := gatewayBridgeCallbackOperation(
+		httpMethodPost,
+		"deliverGatewayBridgeCallback",
+		"Deliver one bound bridge callback",
+	)
+	operation.RequestBody = map[string]any{}
+	return operation
+}
+
+func gatewayBridgeCallbackHeadOperation() OperationSpec {
+	return gatewayBridgeCallbackOperation(httpMethodHead, "headGatewayBridgeCallback", "Probe one bound bridge callback")
+}
+
+func gatewayBridgeCallbackOperation(method string, operationID string, summary string) OperationSpec {
+	return OperationSpec{
+		Method: method, Path: specAPIBridgeCallbackPath,
+		OperationID: operationID, Summary: summary,
+		Tags: []string{specGatewayKey}, Transports: []Transport{TransportHTTP},
+		Parameters: []ParameterSpec{pathParam("id", "Bridge instance id")},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "Adapter response", Body: binaryResponse{}, ContentType: "*/*"},
+			{Status: 204, Description: "Confirmed callback endpoint"},
+			{Status: 400, Description: "Invalid callback request", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: "Bound bridge callback not found", Body: contract.ErrorPayload{}},
+			{Status: 413, Description: specPayloadTooLargeDescription, Body: contract.ErrorPayload{}},
+			{Status: 429, Description: specRateLimitedDescription, Body: contract.ErrorPayload{}},
+			{Status: 502, Description: "Bridge adapter unavailable", Body: contract.ErrorPayload{}},
+			{Status: 504, Description: "Bridge adapter timed out", Body: contract.ErrorPayload{}},
+			{
+				Default: true, Description: "Adapter-owned response",
+				Body: binaryResponse{}, ContentType: "*/*",
+			},
+		},
+	}
+}
+
+func gatewayIngressBindOperation() OperationSpec {
+	return OperationSpec{
+		Method: httpMethodPost, Path: specAPIGatewayIngressPath,
+		OperationID: "bindGatewayIngress", Summary: "Confirm one subject against the verified public endpoint",
+		Tags: []string{specGatewayKey}, Transports: []Transport{TransportHTTP, TransportUDS},
+		Auth: gatewayManagementAuth(), RequestBody: contract.GatewayIngressBindRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "Already confirmed", Body: contract.GatewayIngressBindingResponse{}},
+			{Status: 201, Description: specCreatedDescription, Body: contract.GatewayIngressBindingResponse{}},
+			{Status: 400, Description: "Invalid ingress binding request", Body: contract.ErrorPayload{}},
+			{Status: 403, Description: "Ingress subject is outside the caller workspace", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: "Ingress subject not found", Body: contract.ErrorPayload{}},
+			{Status: 409, Description: "Public ingress is not reachable", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	}
+}
+
+func gatewayIngressUnbindOperation() OperationSpec {
+	return OperationSpec{
+		Method: httpMethodDelete, Path: specAPIGatewayIngressSubjectPath,
+		OperationID: "unbindGatewayIngress", Summary: "Remove one public ingress confirmation",
+		Tags: []string{specGatewayKey}, Transports: []Transport{TransportHTTP, TransportUDS},
+		Auth: gatewayManagementAuth(),
+		Parameters: []ParameterSpec{
+			pathParam("subject_kind", "Ingress subject kind"),
+			pathParam("subject_id", "Ingress subject id"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "Unbound", Body: contract.GatewayIngressUnbindResponse{}},
+			{Status: 400, Description: "Invalid ingress subject", Body: contract.ErrorPayload{}},
+			{Status: 403, Description: "Ingress subject is outside the caller workspace", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: "Ingress subject not found", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
 	}
 }
 

@@ -389,6 +389,15 @@ listeners; they do not replace Gateway authentication or expose UDS-only APIs. T
 operator management and the full operator surface. The public tier exposes only the selected
 operator and ingress surface union, never Gateway pairing or device management.
 
+Webhook triggers and bridge instances expose honest public-ingress projections. Read the trigger's
+`ingress` or the bridge's `gateway_ingress`; use its URL only when `reachability=live`. Confirm one
+subject through the private listener or UDS with `POST /api/gateway/ingress-bindings` and
+`{subject_kind, subject_id, confirmed:true}`. Remove it with
+`DELETE /api/gateway/ingress-bindings/{subject_kind}/{subject_id}`. Subject scope and workspace are
+resolved by the daemon, not accepted from the caller. An endpoint-generation change produces
+`reconfirmation_required`. Public ingress has no store-and-forward queue: when the daemon or provider
+is offline, the sender must retry the failed delivery.
+
 ## Automation Suggestions
 
 List one workspace's pending Job proposals with
@@ -415,6 +424,13 @@ An empty bridge `dm_policy` normalizes to permissive `open`. The current create/
 For `send-test` and `test-delivery`, preserve valid UTF-8 bridge, peer, thread, and group IDs exactly across CLI, HTTP, and UDS; URL-encode path IDs that contain `/`. Delivery mode is the literal `direct-send` or `reply`; aliases, case changes, surrounding whitespace, explicit empty strings, and `null` are invalid. Omitting mode uses the bridge instance default, then `direct-send` when no default exists.
 
 Credential-bearing API, OAuth, and service destinations are operator-owned adapter environment, not instance configuration. `provider_config` rejects `api_base_url`, `oauth_token_url`, `service_url`, `openid_metadata_url`, and `token_url`; use the provider's `COMPOZY_BRIDGE_*` process variables for trusted overrides. Provider clients use `bridgesdk.CredentialedHTTPClient`, returning the original `3xx` for classification without forwarding credentials or replaying mutation bodies. `webhook.public_url` must be public HTTPS, and verification blocks internal/special-use addresses, proxying, and redirects before reachability is attempted. Bridge reads expose the validated callback as optional `webhook_public_url`; clients use that projection for setup readiness instead of re-parsing `provider_config`.
+
+For gateway-managed callbacks, set `provider_config.webhook.listen_addr` to a fixed literal loopback
+IP and port and set `provider_config.webhook.path` to the adapter path. After explicit bridge binding,
+the platform callback uses `/api/bridge-callbacks/{bridge_id}` on the verified public gateway and is
+proxied only to that loopback target. Webhook registration uses the live `gateway_ingress.url` when
+available. A bridge without a gateway binding keeps its validated `webhook_public_url` and external
+proxy unchanged; its health omits gateway ingress.
 
 Terminal replies are split provider-side on natural boundaries with `(N/M)` markers. Compozy measures Slack at 40,000 UTF-16 code units, Telegram at 4,096 UTF-16 code units, Discord at 2,000 Unicode code points, Teams at 28,000 Unicode code points, Google Chat at 32,000 UTF-8 bytes, and WhatsApp at 4,096 Unicode code points. Every multi-chunk delivery acknowledges its last remote message. Edit-capable providers keep an oversized non-terminal response in one mutable preview and materialize its continuations only on the terminal update. Slack converts common Markdown to mrkdwn; Telegram sends escaped MarkdownV2 and retries a typed parse rejection as plain text.
 

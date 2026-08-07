@@ -40,6 +40,10 @@ func buildOperation(schemas openapi3.Schemas, spec OperationSpec) (*openapi3.Ope
 		if err != nil {
 			return nil, err
 		}
+		if response.Default {
+			operation.Responses.Set("default", &openapi3.ResponseRef{Value: built})
+			continue
+		}
 		operation.AddResponse(response.Status, built)
 	}
 	return operation, nil

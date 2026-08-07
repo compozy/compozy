@@ -67,6 +67,7 @@ func (s *Server) handlerConfig(staticFS fs.FS) *handlerConfig {
 		gatewayAdmission:   s.gatewayAdmission,
 		deviceAuth:         s.deviceAuth,
 		authLimiter:        s.authLimiter,
+		ingressLimiter:     s.ingressLimiter,
 		surfaceSet:         s.surfaceSet,
 		staticFS:           staticFS,
 		homePaths:          s.homePaths,

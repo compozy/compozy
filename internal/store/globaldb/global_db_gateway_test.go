@@ -1,14 +1,20 @@
 package globaldb
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/automation"
+	"github.com/compozy/compozy/internal/bridges"
 	"github.com/compozy/compozy/internal/gateway"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
+	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestGlobalDBGatewayTierKeysSurviveReopen(t *testing.T) {
@@ -99,6 +105,7 @@ func TestGlobalDBGatewayTierKeysSurviveReopen(t *testing.T) {
 			"gateway_providers",
 			"gateway_provider_activations",
 			"gateway_surface_exposure",
+			"gateway_endpoint_state",
 		} {
 			columns, columnsErr := tableColumns(ctx, reopened.db, table)
 			if columnsErr != nil {
@@ -119,6 +126,694 @@ func TestGlobalDBGatewayTierKeysSurviveReopen(t *testing.T) {
 			t.Fatalf("gateway provider index = %q, want enabled-only partial predicate", indexSQL)
 		}
 	})
+}
+
+func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve a stable public address across a real database restart [IT-051]", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		first, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(first) error = %v", err)
+		}
+		at := time.Date(2026, 8, 6, 11, 0, 0, 0, time.UTC)
+		endpoint, changed, err := first.SyncIngressEndpoint(
+			ctx, gateway.TierPublic, "https://gateway.example.test", at,
+		)
+		if err != nil || !changed || endpoint.Generation != 1 || !endpoint.Reachable {
+			t.Fatalf("SyncIngressEndpoint(first) = (%#v, %t, %v)", endpoint, changed, err)
+		}
+		if err := first.Close(ctx); err != nil {
+			t.Fatalf("Close(first) error = %v", err)
+		}
+
+		reopened, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(reopened) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := reopened.Close(ctx); err != nil {
+				t.Errorf("Close(reopened) error = %v", err)
+			}
+		})
+		persisted, err := reopened.GetIngressEndpoint(ctx, gateway.TierPublic)
+		if err != nil {
+			t.Fatalf("GetIngressEndpoint(reopened) error = %v", err)
+		}
+		if persisted.URL != endpoint.URL || persisted.Generation != 1 || !persisted.Reachable {
+			t.Fatalf("reopened endpoint = %#v, want stable generation 1", persisted)
+		}
+		stable, changed, err := reopened.SyncIngressEndpoint(
+			ctx, gateway.TierPublic, endpoint.URL, at.Add(time.Minute),
+		)
+		if err != nil || changed || stable.Generation != 1 {
+			t.Fatalf("SyncIngressEndpoint(reopened stable) = (%#v, %t, %v)", stable, changed, err)
+		}
+	})
+
+	t.Run("Should preserve generation for a stable address and advance it on change [UT-094]", func(t *testing.T) {
+		t.Parallel()
+		database := openFreshTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		at := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
+
+		first, changed, err := database.SyncIngressEndpoint(
+			ctx, gateway.TierPublic, "https://gateway.example.test", at,
+		)
+		if err != nil || !changed || first.Generation != 1 {
+			t.Fatalf("SyncIngressEndpoint(first) = (%#v, %t, %v), want generation 1 changed", first, changed, err)
+		}
+		stable, changed, err := database.SyncIngressEndpoint(
+			ctx, gateway.TierPublic, "https://gateway.example.test", at.Add(time.Minute),
+		)
+		if err != nil || changed || stable.Generation != 1 {
+			t.Fatalf("SyncIngressEndpoint(stable) = (%#v, %t, %v), want generation 1 unchanged", stable, changed, err)
+		}
+		moved, changed, err := database.SyncIngressEndpoint(
+			ctx, gateway.TierPublic, "https://gateway-two.example.test", at.Add(2*time.Minute),
+		)
+		if err != nil || !changed || moved.Generation != 2 {
+			t.Fatalf("SyncIngressEndpoint(changed) = (%#v, %t, %v), want generation 2 changed", moved, changed, err)
+		}
+	})
+
+	t.Run("Should resolve webhook ownership and delete its binding atomically [UT-095, UT-097]", func(t *testing.T) {
+		t.Parallel()
+		database := openFreshTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		insertGatewayTestWorkspace(t, ctx, database, "workspace-owner")
+		trigger := automationWebhookTriggerForTest(
+			automation.AutomationScopeWorkspace,
+			"gateway-owned-webhook",
+			"workspace-owner",
+			automation.JobSourceDynamic,
+		)
+		trigger.ID = "trigger-gateway-owned"
+		trigger.WebhookID = "wbh_gateway_owned"
+		trigger.EndpointSlug = "gateway-owned"
+		created, err := database.CreateTrigger(ctx, trigger)
+		if err != nil {
+			t.Fatalf("CreateTrigger() error = %v", err)
+		}
+		ref := gateway.IngressSubjectRef{Kind: gateway.IngressSubjectWebhookTrigger, ID: created.ID}
+		subject, err := database.ResolveIngressSubject(ctx, ref)
+		if err != nil {
+			t.Fatalf("ResolveIngressSubject() error = %v", err)
+		}
+		if subject.Scope != gateway.IngressScopeWorkspace || subject.WorkspaceID != "workspace-owner" ||
+			!strings.Contains(subject.Path, "/workspaces/workspace-owner/gateway-owned--wbh_gateway_owned") {
+			t.Fatalf("resolved subject = %#v, want persisted workspace owner and formatted path", subject)
+		}
+		if _, changed, err := database.PutIngressBinding(
+			ctx, subject, 3, time.Date(2026, 8, 6, 12, 30, 0, 0, time.UTC),
+		); err != nil || !changed {
+			t.Fatalf("PutIngressBinding() = changed:%t error:%v", changed, err)
+		}
+
+		if err := database.DeleteTrigger(ctx, created.ID); err != nil {
+			t.Fatalf("DeleteTrigger() error = %v", err)
+		}
+		assertNoIngressBindingRow(t, ctx, database, ref)
+		if _, err := database.GetIngressBinding(ctx, ref); !errors.Is(err, gateway.ErrIngressSubjectNotFound) {
+			t.Fatalf("GetIngressBinding(after delete) error = %v, want ErrIngressSubjectNotFound", err)
+		}
+	})
+
+	t.Run("Should bind canonical trigger resources and invalidate only ingress identity changes", func(t *testing.T) {
+		t.Parallel()
+		database := openFreshTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		insertGatewayTestWorkspace(t, ctx, database, "workspace-resource-trigger")
+		trigger := automationWebhookTriggerForTest(
+			automation.AutomationScopeWorkspace,
+			"gateway-resource-webhook",
+			"workspace-resource-trigger",
+			automation.JobSourceDynamic,
+		)
+		trigger.ID = "trigger-gateway-resource"
+		trigger.WebhookID = "wbh_gateway_resource"
+		trigger.EndpointSlug = "gateway-resource"
+		insertGatewayResourceRecord(
+			t,
+			ctx,
+			database,
+			"automation.trigger",
+			trigger.ID,
+			"workspace",
+			"workspace-resource-trigger",
+			trigger,
+		)
+
+		ref := gateway.IngressSubjectRef{Kind: gateway.IngressSubjectWebhookTrigger, ID: trigger.ID}
+		subject, err := database.ResolveIngressSubject(ctx, ref)
+		if err != nil {
+			t.Fatalf("ResolveIngressSubject(resource trigger) error = %v", err)
+		}
+		if subject.Scope != gateway.IngressScopeWorkspace ||
+			subject.WorkspaceID != "workspace-resource-trigger" ||
+			!strings.HasSuffix(subject.Path, "/gateway-resource--wbh_gateway_resource") {
+			t.Fatalf("resource trigger subject = %#v", subject)
+		}
+		if _, changed, err := database.PutIngressBinding(
+			ctx,
+			subject,
+			3,
+			time.Date(2026, 8, 6, 15, 30, 0, 0, time.UTC),
+		); err != nil || !changed {
+			t.Fatalf("PutIngressBinding(resource trigger) = changed:%t error:%v", changed, err)
+		}
+
+		trigger.Name = "Renamed without ingress changes"
+		updateGatewayResourceRecord(t, ctx, database, "automation.trigger", trigger.ID, trigger)
+		if _, err := database.GetIngressBinding(ctx, ref); err != nil {
+			t.Fatalf("GetIngressBinding(after display-only resource update) error = %v", err)
+		}
+
+		trigger.EndpointSlug = "gateway-resource-moved"
+		updateGatewayResourceRecord(t, ctx, database, "automation.trigger", trigger.ID, trigger)
+		assertNoIngressBindingRow(t, ctx, database, ref)
+
+		subject, err = database.ResolveIngressSubject(ctx, ref)
+		if err != nil {
+			t.Fatalf("ResolveIngressSubject(updated resource trigger) error = %v", err)
+		}
+		if _, _, err := database.PutIngressBinding(
+			ctx,
+			subject,
+			3,
+			time.Date(2026, 8, 6, 15, 31, 0, 0, time.UTC),
+		); err != nil {
+			t.Fatalf("PutIngressBinding(updated resource trigger) error = %v", err)
+		}
+		deleteGatewayResourceRecord(t, ctx, database, "automation.trigger", trigger.ID)
+		assertNoIngressBindingRow(t, ctx, database, ref)
+	})
+
+	t.Run("Should bind canonical bridge resources and clear confirmation on target changes", func(t *testing.T) {
+		t.Parallel()
+		database := openFreshTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		bridge := bridges.BridgeInstanceSpec{
+			Scope:         bridges.ScopeGlobal,
+			Platform:      "telegram",
+			ExtensionName: "telegram-adapter",
+			DisplayName:   "Gateway resource bridge",
+			Enabled:       true,
+			RoutingPolicy: bridges.RoutingPolicy{IncludePeer: true},
+			ProviderConfig: json.RawMessage(
+				`{"webhook":{"listen_addr":"127.0.0.1:43128","path":"/telegram"}}`,
+			),
+		}
+		const bridgeID = "bridge-gateway-resource"
+		insertGatewayResourceRecord(
+			t, ctx, database, "bridge.instance", bridgeID, "global", "", bridge,
+		)
+
+		ref := gateway.IngressSubjectRef{Kind: gateway.IngressSubjectBridgeInstance, ID: bridgeID}
+		subject, err := database.ResolveIngressSubject(ctx, ref)
+		if err != nil {
+			t.Fatalf("ResolveIngressSubject(resource bridge) error = %v", err)
+		}
+		if _, changed, err := database.PutIngressBinding(
+			ctx,
+			subject,
+			4,
+			time.Date(2026, 8, 6, 15, 40, 0, 0, time.UTC),
+		); err != nil || !changed {
+			t.Fatalf("PutIngressBinding(resource bridge) = changed:%t error:%v", changed, err)
+		}
+
+		bridge.DisplayName = "Renamed without target changes"
+		updateGatewayResourceRecord(t, ctx, database, "bridge.instance", bridgeID, bridge)
+		if _, err := database.GetIngressBinding(ctx, ref); err != nil {
+			t.Fatalf("GetIngressBinding(after display-only bridge update) error = %v", err)
+		}
+
+		bridge.ProviderConfig = json.RawMessage(
+			`{"webhook":{"public_url":"https://external.example.test/telegram"}}`,
+		)
+		updateGatewayResourceRecord(t, ctx, database, "bridge.instance", bridgeID, bridge)
+		assertNoIngressBindingRow(t, ctx, database, ref)
+
+		bridge.ProviderConfig = json.RawMessage(
+			`{"webhook":{"listen_addr":"127.0.0.1:43128","path":"/telegram"}}`,
+		)
+		updateGatewayResourceRecord(t, ctx, database, "bridge.instance", bridgeID, bridge)
+		subject, err = database.ResolveIngressSubject(ctx, ref)
+		if err != nil {
+			t.Fatalf("ResolveIngressSubject(restored resource bridge) error = %v", err)
+		}
+		if _, _, err := database.PutIngressBinding(
+			ctx,
+			subject,
+			4,
+			time.Date(2026, 8, 6, 15, 41, 0, 0, time.UTC),
+		); err != nil {
+			t.Fatalf("PutIngressBinding(restored resource bridge) error = %v", err)
+		}
+		deleteGatewayResourceRecord(t, ctx, database, "bridge.instance", bridgeID)
+		assertNoIngressBindingRow(t, ctx, database, ref)
+	})
+
+	t.Run("Should delete and recreate a bridge without preserving its confirmation [IT-050]", func(t *testing.T) {
+		t.Parallel()
+		database := openFreshTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		insertGatewayTestWorkspace(t, ctx, database, "workspace-owner")
+		instance := bridges.BridgeInstance{
+			ID:            "bridge-gateway-owned",
+			Scope:         bridges.ScopeWorkspace,
+			WorkspaceID:   "workspace-owner",
+			Platform:      "telegram",
+			ExtensionName: "telegram-adapter",
+			DisplayName:   "Gateway bridge",
+			Enabled:       true,
+			Status:        bridges.BridgeStatusReady,
+			RoutingPolicy: bridges.RoutingPolicy{IncludePeer: true},
+			ProviderConfig: json.RawMessage(
+				`{"webhook":{"listen_addr":"127.0.0.1:43123","path":"/telegram"}}`,
+			),
+		}
+		if err := database.InsertBridgeInstance(ctx, instance); err != nil {
+			t.Fatalf("InsertBridgeInstance() error = %v", err)
+		}
+		ref := gateway.IngressSubjectRef{Kind: gateway.IngressSubjectBridgeInstance, ID: instance.ID}
+		subject, err := database.ResolveIngressSubject(ctx, ref)
+		if err != nil {
+			t.Fatalf("ResolveIngressSubject() error = %v", err)
+		}
+		if _, changed, err := database.PutIngressBinding(
+			ctx, subject, 4, time.Date(2026, 8, 6, 13, 0, 0, 0, time.UTC),
+		); err != nil || !changed {
+			t.Fatalf("PutIngressBinding() = changed:%t error:%v", changed, err)
+		}
+		if err := database.DeleteBridgeInstance(ctx, instance.ID); err != nil {
+			t.Fatalf("DeleteBridgeInstance() error = %v", err)
+		}
+		assertNoIngressBindingRow(t, ctx, database, ref)
+
+		if err := database.InsertBridgeInstance(ctx, instance); err != nil {
+			t.Fatalf("InsertBridgeInstance(recreate) error = %v", err)
+		}
+		if _, err := database.GetIngressBinding(ctx, ref); !errors.Is(err, gateway.ErrIngressSubjectNotFound) {
+			t.Fatalf("GetIngressBinding(recreated) error = %v, want fresh confirmation", err)
+		}
+	})
+
+	t.Run("Should invalidate a webhook binding when its workspace owner changes", func(t *testing.T) {
+		t.Parallel()
+		database := openFreshTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		insertGatewayTestWorkspace(t, ctx, database, "workspace-before")
+		insertGatewayTestWorkspace(t, ctx, database, "workspace-after")
+		trigger := automationWebhookTriggerForTest(
+			automation.AutomationScopeWorkspace,
+			"gateway-reassigned-webhook",
+			"workspace-before",
+			automation.JobSourceDynamic,
+		)
+		trigger.ID = "trigger-gateway-reassigned"
+		trigger.WebhookID = "wbh_gateway_reassigned"
+		trigger.EndpointSlug = "gateway-reassigned"
+		created, err := database.CreateTrigger(ctx, trigger)
+		if err != nil {
+			t.Fatalf("CreateTrigger() error = %v", err)
+		}
+		ref := gateway.IngressSubjectRef{Kind: gateway.IngressSubjectWebhookTrigger, ID: created.ID}
+		subject, err := database.ResolveIngressSubject(ctx, ref)
+		if err != nil {
+			t.Fatalf("ResolveIngressSubject() error = %v", err)
+		}
+		if _, _, err := database.PutIngressBinding(
+			ctx,
+			subject,
+			1,
+			time.Date(2026, 8, 6, 14, 0, 0, 0, time.UTC),
+		); err != nil {
+			t.Fatalf("PutIngressBinding() error = %v", err)
+		}
+
+		created.WorkspaceID = "workspace-after"
+		created.UpdatedAt = created.UpdatedAt.Add(time.Minute)
+		if _, err := database.UpdateTrigger(ctx, created); err != nil {
+			t.Fatalf("UpdateTrigger(reassign) error = %v", err)
+		}
+		assertNoIngressBindingRow(t, ctx, database, ref)
+	})
+
+	t.Run("Should invalidate a bridge binding when replacement changes its workspace owner", func(t *testing.T) {
+		t.Parallel()
+		database := openFreshTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		insertGatewayTestWorkspace(t, ctx, database, "workspace-before")
+		insertGatewayTestWorkspace(t, ctx, database, "workspace-after")
+		instance := bridges.BridgeInstance{
+			ID:            "bridge-gateway-reassigned",
+			Scope:         bridges.ScopeWorkspace,
+			WorkspaceID:   "workspace-before",
+			Platform:      "telegram",
+			ExtensionName: "telegram-adapter",
+			DisplayName:   "Reassigned gateway bridge",
+			Enabled:       true,
+			Status:        bridges.BridgeStatusReady,
+			RoutingPolicy: bridges.RoutingPolicy{IncludePeer: true},
+			ProviderConfig: json.RawMessage(
+				`{"webhook":{"listen_addr":"127.0.0.1:43124","path":"/telegram"}}`,
+			),
+		}
+		if err := database.InsertBridgeInstance(ctx, instance); err != nil {
+			t.Fatalf("InsertBridgeInstance() error = %v", err)
+		}
+		ref := gateway.IngressSubjectRef{Kind: gateway.IngressSubjectBridgeInstance, ID: instance.ID}
+		subject, err := database.ResolveIngressSubject(ctx, ref)
+		if err != nil {
+			t.Fatalf("ResolveIngressSubject() error = %v", err)
+		}
+		if _, _, err := database.PutIngressBinding(
+			ctx,
+			subject,
+			1,
+			time.Date(2026, 8, 6, 14, 0, 0, 0, time.UTC),
+		); err != nil {
+			t.Fatalf("PutIngressBinding() error = %v", err)
+		}
+
+		instance.WorkspaceID = "workspace-after"
+		instance.UpdatedAt = time.Date(2026, 8, 6, 14, 1, 0, 0, time.UTC)
+		if err := database.ReplaceBridgeInstances(ctx, []bridges.BridgeInstance{instance}); err != nil {
+			t.Fatalf("ReplaceBridgeInstances(reassign) error = %v", err)
+		}
+		assertNoIngressBindingRow(t, ctx, database, ref)
+	})
+
+	t.Run("Should keep an external-proxy-only bridge outside gateway ingress", func(t *testing.T) {
+		t.Parallel()
+		database := openFreshTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		instance := bridges.BridgeInstance{
+			ID:            "bridge-external-proxy",
+			Scope:         bridges.ScopeGlobal,
+			Platform:      "telegram",
+			ExtensionName: "telegram-adapter",
+			DisplayName:   "External proxy bridge",
+			Status:        bridges.BridgeStatusDisabled,
+			RoutingPolicy: bridges.RoutingPolicy{IncludePeer: true},
+			ProviderConfig: json.RawMessage(
+				`{"webhook":{"public_url":"https://external.example.test/telegram"}}`,
+			),
+		}
+		if err := database.InsertBridgeInstance(ctx, instance); err != nil {
+			t.Fatalf("InsertBridgeInstance() error = %v", err)
+		}
+		_, err := database.ResolveIngressSubject(ctx, gateway.IngressSubjectRef{
+			Kind: gateway.IngressSubjectBridgeInstance,
+			ID:   instance.ID,
+		})
+		if !errors.Is(err, gateway.ErrIngressSubjectNotFound) {
+			t.Fatalf("ResolveIngressSubject(external proxy) error = %v, want ErrIngressSubjectNotFound", err)
+		}
+	})
+
+	t.Run("Should distinguish an invalid local bridge target from external proxy mode", func(t *testing.T) {
+		t.Parallel()
+		database := openFreshTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		instance := bridges.BridgeInstance{
+			ID:            "bridge-invalid-local-target",
+			Scope:         bridges.ScopeGlobal,
+			Platform:      "telegram",
+			ExtensionName: "telegram-adapter",
+			DisplayName:   "Invalid local target",
+			Status:        bridges.BridgeStatusDisabled,
+			RoutingPolicy: bridges.RoutingPolicy{IncludePeer: true},
+			ProviderConfig: json.RawMessage(
+				`{"webhook":{"listen_addr":"0.0.0.0:43124","path":"/telegram"}}`,
+			),
+		}
+		if err := database.InsertBridgeInstance(ctx, instance); err != nil {
+			t.Fatalf("InsertBridgeInstance() error = %v", err)
+		}
+		subject, err := database.ResolveIngressSubject(ctx, gateway.IngressSubjectRef{
+			Kind: gateway.IngressSubjectBridgeInstance,
+			ID:   instance.ID,
+		})
+		if err != nil {
+			t.Fatalf("ResolveIngressSubject(invalid local target) error = %v", err)
+		}
+		if !subject.TargetUnavailable {
+			t.Fatalf("ResolveIngressSubject(invalid local target) = %#v, want unavailable target", subject)
+		}
+	})
+
+	t.Run("Should require fresh confirmation after a bridge switches through external proxy mode", func(t *testing.T) {
+		t.Parallel()
+		database := openFreshTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		instance := bridges.BridgeInstance{
+			ID:            "bridge-mode-switch",
+			Scope:         bridges.ScopeGlobal,
+			Platform:      "telegram",
+			ExtensionName: "telegram-adapter",
+			DisplayName:   "Mode switch bridge",
+			Enabled:       true,
+			Status:        bridges.BridgeStatusReady,
+			RoutingPolicy: bridges.RoutingPolicy{IncludePeer: true},
+			ProviderConfig: json.RawMessage(
+				`{"webhook":{"listen_addr":"127.0.0.1:43125","path":"/telegram"}}`,
+			),
+		}
+		if err := database.InsertBridgeInstance(ctx, instance); err != nil {
+			t.Fatalf("InsertBridgeInstance() error = %v", err)
+		}
+		ref := gateway.IngressSubjectRef{Kind: gateway.IngressSubjectBridgeInstance, ID: instance.ID}
+		subject, err := database.ResolveIngressSubject(ctx, ref)
+		if err != nil {
+			t.Fatalf("ResolveIngressSubject() error = %v", err)
+		}
+		if _, _, err := database.PutIngressBinding(
+			ctx,
+			subject,
+			2,
+			time.Date(2026, 8, 6, 14, 30, 0, 0, time.UTC),
+		); err != nil {
+			t.Fatalf("PutIngressBinding() error = %v", err)
+		}
+
+		instance.ProviderConfig = json.RawMessage(
+			`{"webhook":{"public_url":"https://external.example.test/telegram"}}`,
+		)
+		instance.UpdatedAt = time.Date(2026, 8, 6, 14, 31, 0, 0, time.UTC)
+		if err := database.UpdateBridgeInstance(ctx, instance); err != nil {
+			t.Fatalf("UpdateBridgeInstance(external) error = %v", err)
+		}
+		assertNoIngressBindingRow(t, ctx, database, ref)
+
+		instance.ProviderConfig = json.RawMessage(
+			`{"webhook":{"listen_addr":"127.0.0.1:43125","path":"/telegram"}}`,
+		)
+		instance.UpdatedAt = instance.UpdatedAt.Add(time.Minute)
+		if err := database.UpdateBridgeInstance(ctx, instance); err != nil {
+			t.Fatalf("UpdateBridgeInstance(local again) error = %v", err)
+		}
+		if _, err := database.GetIngressBinding(ctx, ref); !errors.Is(err, gateway.ErrIngressSubjectNotFound) {
+			t.Fatalf("GetIngressBinding(local again) error = %v, want fresh confirmation", err)
+		}
+	})
+
+	t.Run("Should hide and sweep a binding whose subject vanished", func(t *testing.T) {
+		t.Parallel()
+		database := openFreshTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		ref := gateway.IngressSubjectRef{Kind: gateway.IngressSubjectWebhookTrigger, ID: "trigger-orphan"}
+		if _, err := database.db.ExecContext(
+			ctx,
+			`INSERT INTO gateway_ingress_bindings (
+				subject_kind, subject_id, scope_kind, workspace_id, endpoint_generation, confirmed_at
+			) VALUES (?, ?, 'global', NULL, 1, ?)`,
+			string(ref.Kind),
+			ref.ID,
+			store.FormatTimestamp(time.Date(2026, 8, 6, 13, 30, 0, 0, time.UTC)),
+		); err != nil {
+			t.Fatalf("insert orphan binding: %v", err)
+		}
+		if _, err := database.GetIngressBinding(ctx, ref); !errors.Is(err, gateway.ErrIngressSubjectNotFound) {
+			t.Fatalf("GetIngressBinding(orphan) error = %v, want ErrIngressSubjectNotFound", err)
+		}
+		removed, err := database.SweepOrphanedIngressBindings(ctx)
+		if err != nil || removed != 1 {
+			t.Fatalf("SweepOrphanedIngressBindings() = (%d, %v), want (1, nil)", removed, err)
+		}
+		assertNoIngressBindingRow(t, ctx, database, ref)
+	})
+
+	t.Run("Should delete workspace-owned bindings before cascading their subjects", func(t *testing.T) {
+		t.Parallel()
+		database := openFreshTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		insertGatewayTestWorkspace(t, ctx, database, "workspace-cascade")
+		trigger := automationWebhookTriggerForTest(
+			automation.AutomationScopeWorkspace,
+			"gateway-workspace-cascade",
+			"workspace-cascade",
+			automation.JobSourceDynamic,
+		)
+		trigger.ID = "trigger-workspace-cascade"
+		trigger.WebhookID = "wbh_workspace_cascade"
+		trigger.EndpointSlug = "workspace-cascade"
+		created, err := database.CreateTrigger(ctx, trigger)
+		if err != nil {
+			t.Fatalf("CreateTrigger() error = %v", err)
+		}
+		ref := gateway.IngressSubjectRef{Kind: gateway.IngressSubjectWebhookTrigger, ID: created.ID}
+		subject, err := database.ResolveIngressSubject(ctx, ref)
+		if err != nil {
+			t.Fatalf("ResolveIngressSubject() error = %v", err)
+		}
+		if _, _, err := database.PutIngressBinding(
+			ctx,
+			subject,
+			1,
+			time.Date(2026, 8, 6, 15, 0, 0, 0, time.UTC),
+		); err != nil {
+			t.Fatalf("PutIngressBinding() error = %v", err)
+		}
+		if err := database.DeleteWorkspace(ctx, "workspace-cascade"); err != nil {
+			t.Fatalf("DeleteWorkspace() error = %v", err)
+		}
+		assertNoIngressBindingRow(t, ctx, database, ref)
+	})
+}
+
+func insertGatewayTestWorkspace(t *testing.T, ctx context.Context, database *GlobalDB, id string) {
+	t.Helper()
+	at := time.Date(2026, 8, 6, 11, 0, 0, 0, time.UTC)
+	if err := database.InsertWorkspace(ctx, compozyworkspace.Workspace{
+		ID: id, RootDir: t.TempDir(), Name: id, CreatedAt: at, UpdatedAt: at,
+	}); err != nil {
+		t.Fatalf("InsertWorkspace(%q) error = %v", id, err)
+	}
+}
+
+func insertGatewayResourceRecord(
+	t *testing.T,
+	ctx context.Context,
+	database *GlobalDB,
+	kind string,
+	id string,
+	scopeKind string,
+	scopeID string,
+	spec any,
+) {
+	t.Helper()
+	payload, err := json.Marshal(spec)
+	if err != nil {
+		t.Fatalf("json.Marshal(%s resource) error = %v", kind, err)
+	}
+	var nullableScopeID any
+	if strings.TrimSpace(scopeID) != "" {
+		nullableScopeID = scopeID
+	}
+	at := store.FormatTimestamp(time.Date(2026, 8, 6, 15, 20, 0, 0, time.UTC))
+	if _, err := database.db.ExecContext(
+		ctx,
+		`INSERT INTO resource_records (
+			kind, id, version, scope_kind, scope_id, owner_kind, owner_id,
+			source_kind, source_id, spec_json, created_at, updated_at
+		) VALUES (?, ?, 1, ?, ?, 'operator', 'gateway-test', 'dynamic', 'gateway-test', ?, ?, ?)`,
+		kind,
+		id,
+		scopeKind,
+		nullableScopeID,
+		string(payload),
+		at,
+		at,
+	); err != nil {
+		t.Fatalf("insert %s resource %q error = %v", kind, id, err)
+	}
+}
+
+func updateGatewayResourceRecord(
+	t *testing.T,
+	ctx context.Context,
+	database *GlobalDB,
+	kind string,
+	id string,
+	spec any,
+) {
+	t.Helper()
+	payload, err := json.Marshal(spec)
+	if err != nil {
+		t.Fatalf("json.Marshal(updated %s resource) error = %v", kind, err)
+	}
+	result, err := database.db.ExecContext(
+		ctx,
+		`UPDATE resource_records SET version = version + 1, spec_json = ?, updated_at = ?
+		 WHERE kind = ? AND id = ?`,
+		string(payload),
+		store.FormatTimestamp(time.Date(2026, 8, 6, 15, 21, 0, 0, time.UTC)),
+		kind,
+		id,
+	)
+	if err != nil {
+		t.Fatalf("update %s resource %q error = %v", kind, id, err)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		t.Fatalf("RowsAffected(update %s resource %q) error = %v", kind, id, err)
+	}
+	if rows != 1 {
+		t.Fatalf("RowsAffected(update %s resource %q) = %d, want 1", kind, id, rows)
+	}
+}
+
+func deleteGatewayResourceRecord(
+	t *testing.T,
+	ctx context.Context,
+	database *GlobalDB,
+	kind string,
+	id string,
+) {
+	t.Helper()
+	result, err := database.db.ExecContext(
+		ctx,
+		`DELETE FROM resource_records WHERE kind = ? AND id = ?`,
+		kind,
+		id,
+	)
+	if err != nil {
+		t.Fatalf("delete %s resource %q error = %v", kind, id, err)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		t.Fatalf("RowsAffected(delete %s resource %q) error = %v", kind, id, err)
+	}
+	if rows != 1 {
+		t.Fatalf("RowsAffected(delete %s resource %q) = %d, want 1", kind, id, rows)
+	}
+}
+
+func assertNoIngressBindingRow(
+	t *testing.T,
+	ctx context.Context,
+	database *GlobalDB,
+	ref gateway.IngressSubjectRef,
+) {
+	t.Helper()
+	var count int
+	if err := database.db.QueryRowContext(
+		ctx,
+		`SELECT count(*) FROM gateway_ingress_bindings WHERE subject_kind = ? AND subject_id = ?`,
+		string(ref.Kind),
+		ref.ID,
+	).Scan(&count); err != nil {
+		t.Fatalf("count ingress bindings: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("ingress binding count = %d, want 0", count)
+	}
 }
 
 func assertGatewayProviderState(

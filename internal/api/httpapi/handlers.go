@@ -19,7 +19,9 @@ import (
 )
 
 const (
-	handlersLocalhostKey = "localhost"
+	handlersLocalhostKey               = "localhost"
+	defaultGatewayIngressRequestLimit  = 60
+	defaultGatewayIngressRequestWindow = time.Minute
 )
 
 type handlerConfig struct {
@@ -82,6 +84,7 @@ type handlerConfig struct {
 	gatewayAdmission   gateway.AdmissionController
 	deviceAuth         gateway.DeviceAuthenticator
 	authLimiter        *gateway.AuthFailureLimiter
+	ingressLimiter     *gateway.IngressRateLimiter
 	surfaceSet         SurfaceSet
 	staticFS           fs.FS
 	homePaths          compozyconfig.HomePaths
@@ -107,6 +110,7 @@ type Handlers struct {
 	deviceAuth       gateway.DeviceAuthenticator
 	gatewayAdmission gateway.AdmissionController
 	authLimiter      *gateway.AuthFailureLimiter
+	ingressLimiter   *gateway.IngressRateLimiter
 }
 
 func newHandlers(cfg *handlerConfig) *Handlers {
@@ -125,6 +129,14 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 	if authLimiter == nil {
 		authLimiter = gateway.NewAuthFailureLimiter(10, time.Minute, func() time.Time { return time.Now().UTC() })
 	}
+	ingressLimiter := cfg.ingressLimiter
+	if ingressLimiter == nil {
+		ingressLimiter = gateway.NewIngressRateLimiter(
+			defaultGatewayIngressRequestLimit,
+			defaultGatewayIngressRequestWindow,
+			func() time.Time { return time.Now().UTC() },
+		)
+	}
 	gatewayAdmission := cfg.gatewayAdmission
 	if gatewayAdmission == nil {
 		if admission, ok := cfg.gateway.(gateway.AdmissionController); ok {
@@ -141,6 +153,7 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 		deviceAuth:       cfg.deviceAuth,
 		gatewayAdmission: gatewayAdmission,
 		authLimiter:      authLimiter,
+		ingressLimiter:   ingressLimiter,
 	}
 }
 

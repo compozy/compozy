@@ -7,6 +7,18 @@ import (
 	"time"
 )
 
+type ResourceRecord struct {
+	Kind      ResourceKind    `json:"kind"`
+	ID        string          `json:"id"`
+	Version   int64           `json:"version"`
+	Scope     ResourceScope   `json:"scope"`
+	Owner     ResourceOwner   `json:"owner"`
+	Source    ResourceSource  `json:"source"`
+	Spec      json.RawMessage `json:"spec"`
+	CreatedAt time.Time       `json:"created_at"`
+	UpdatedAt time.Time       `json:"updated_at"`
+}
+
 type ResourceScope struct {
 	Kind ResourceScopeKind `json:"kind"`
 	ID   string            `json:"id,omitempty"`
@@ -150,5 +162,3 @@ type SandboxListParams struct {
 type SandboxListResult struct {
 	Sandboxes []SandboxSummary `json:"sandboxes"`
 }
-
-type SandboxObservationPatch struct{}

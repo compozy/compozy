@@ -137,6 +137,9 @@ func (g *WorkspaceRepo) DeleteWorkspace(ctx context.Context, id string) error {
 		if err := queries.DeleteSessionsByWorkspace(ctx, trimmedID); err != nil {
 			return fmt.Errorf("store: delete stopped sessions for workspace %q: %w", trimmedID, err)
 		}
+		if _, err := queries.DeleteGatewayIngressBindingsByWorkspace(ctx, store.SQLNullString(trimmedID)); err != nil {
+			return fmt.Errorf("store: delete gateway ingress bindings for workspace %q: %w", trimmedID, err)
+		}
 
 		affected, err := queries.DeleteWorkspace(ctx, trimmedID)
 		if err != nil {

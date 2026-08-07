@@ -1024,6 +1024,19 @@ export interface AutomationTriggersParams {
   limit?: number;
 }
 
+export interface GatewayIngressPayload {
+  subject_kind: string;
+  subject_id: string;
+  scope_kind: string;
+  workspace_id?: string;
+  url?: string;
+  reachability: string;
+  endpoint_generation: number;
+  confirmed_endpoint_generation?: number;
+  confirmed_at?: ISODateTime;
+  enable_path?: string;
+}
+
 export interface Trigger {
   id: string;
   scope: Scope;
@@ -1043,6 +1056,7 @@ export interface Trigger {
   endpoint_slug?: string;
   webhook_secret_present: boolean;
   webhook_secret_hash?: string;
+  ingress?: GatewayIngressPayload;
   created_at: ISODateTime;
   updated_at: ISODateTime;
 }
@@ -1156,6 +1170,7 @@ export interface BridgeTargetSnapshotResponse {
 
 export interface BridgeWebhookRegistrationRequest {
   bridge_instance_id: string;
+  public_url?: string;
 }
 
 export interface BridgeWebhookRegistrationResponse {

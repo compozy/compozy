@@ -29,3 +29,7 @@ identity byte, routes URL-encoded slash IDs as one identity, and rejects lossy U
 delivery-mode aliases, case changes, whitespace variants, explicit empty strings, and null before
 transport. Historical evidence is retained; status reset to untested pending a fresh public-surface
 walk.
+
+QA impact 2026-08-06: confirmed gateway bindings now supply bridge webhook registration URLs and
+ingress health while unbound external proxies remain unchanged. Status remains untested;
+remote-gateway Tasks 08–09 own the walk.

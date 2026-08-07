@@ -1,12 +1,14 @@
 package core
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	"github.com/compozy/compozy/internal/gateway"
 	redactpkg "github.com/compozy/compozy/internal/redact"
 	storepkg "github.com/compozy/compozy/internal/store"
 	"github.com/gin-gonic/gin"
@@ -37,10 +39,28 @@ func (h *BaseHandlers) RegisterBridgeWebhook(c *gin.Context) {
 	if !ok {
 		return
 	}
+	readCtx, err := h.gatewayIngressReadContext(c, "bridges.webhook.register")
+	if err != nil {
+		h.respondGatewayError(c, errors.Join(gateway.ErrIngressForbidden, err))
+		return
+	}
+	publicURL := ""
+	if h.Gateway != nil {
+		projection, projectErr := h.Gateway.ProjectIngress(readCtx, gateway.IngressSubjectRef{
+			Kind: gateway.IngressSubjectBridgeInstance, ID: instance.ID,
+		})
+		if projectErr != nil && !errors.Is(projectErr, gateway.ErrIngressSubjectNotFound) {
+			h.respondGatewayError(c, projectErr)
+			return
+		}
+		if projectErr == nil && projection.Reachability == gateway.IngressReachabilityLive {
+			publicURL = projection.URL
+		}
+	}
 	response, err := bridges.RegisterBridgeWebhook(
 		c.Request.Context(),
 		instance.ExtensionName,
-		bridgepkg.BridgeWebhookRegistrationRequest{BridgeInstanceID: instance.ID},
+		bridgepkg.BridgeWebhookRegistrationRequest{BridgeInstanceID: instance.ID, PublicURL: publicURL},
 	)
 	if err != nil {
 		h.respondError(c, StatusForBridgeError(err), err)

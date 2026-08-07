@@ -177,6 +177,27 @@ func TestRegistryMetadata(t *testing.T) {
 		}
 	})
 
+	t.Run("Should expose canonical gateway ingress lifecycle metadata", func(t *testing.T) {
+		t.Parallel()
+
+		for _, test := range []struct {
+			name    string
+			outcome Outcome
+		}{
+			{name: GatewayIngressBound, outcome: OutcomeSuccess},
+			{name: GatewayIngressUnbound, outcome: OutcomeWarning},
+		} {
+			metadata, ok := Lookup(test.name)
+			if !ok {
+				t.Fatalf("Lookup(%q) = false", test.name)
+			}
+			if metadata.Family != "gateway.ingress" || metadata.Component != ComponentGateway ||
+				metadata.Outcome != test.outcome || !metadata.GlobalScope || !metadata.EmitsToLogs {
+				t.Fatalf("gateway ingress metadata for %q = %#v", test.name, metadata)
+			}
+		}
+	})
+
 	t.Run("Should keep memory operation projections out of direct global writes", func(t *testing.T) {
 		t.Parallel()
 

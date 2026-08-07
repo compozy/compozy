@@ -49,7 +49,7 @@ func TestProviderSupervisorEnableSafety(t *testing.T) {
 		}
 	})
 
-	t.Run("Should refuse an ephemeral public endpoint before verification", func(t *testing.T) {
+	t.Run("Should refuse an ephemeral public endpoint before verification [IT-051]", func(t *testing.T) {
 		t.Parallel()
 		source := healthySupervisorSource(nil)
 		source.reachability.Tier = TierPublic

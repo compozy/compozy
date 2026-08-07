@@ -132,11 +132,18 @@ func (r BridgeCheckResponse) Validate() error {
 // BridgeWebhookRegistrationRequest selects the instance to register.
 type BridgeWebhookRegistrationRequest struct {
 	BridgeInstanceID string `json:"bridge_instance_id"`
+	PublicURL        string `json:"public_url,omitempty"`
 }
 
 // Validate requires an explicit bridge instance.
 func (r BridgeWebhookRegistrationRequest) Validate() error {
-	return requireField(r.BridgeInstanceID, "bridge webhook registration instance id")
+	if err := requireField(r.BridgeInstanceID, "bridge webhook registration instance id"); err != nil {
+		return err
+	}
+	if strings.TrimSpace(r.PublicURL) == "" {
+		return nil
+	}
+	return ValidateWebhookPublicURL(r.PublicURL)
 }
 
 // BridgeWebhookRegistrationResponse is the provider registration result.

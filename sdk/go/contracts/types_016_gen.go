@@ -2,10 +2,15 @@
 
 package contracts
 
-import (
-	"encoding/json"
-	"time"
-)
+import "time"
+
+type PermissionToolCall struct {
+	ID        string         `json:"id,omitempty"`
+	Kind      string         `json:"kind,omitempty"`
+	Title     string         `json:"title,omitempty"`
+	Status    string         `json:"status,omitempty"`
+	Locations []ToolLocation `json:"locations,omitempty"`
+}
 
 type PersistenceHealth struct {
 	Status             string `json:"status"`
@@ -144,15 +149,3 @@ type ResourceOwner struct {
 }
 
 type ResourceOwnerKind string
-
-type ResourceRecord struct {
-	Kind      ResourceKind    `json:"kind"`
-	ID        string          `json:"id"`
-	Version   int64           `json:"version"`
-	Scope     ResourceScope   `json:"scope"`
-	Owner     ResourceOwner   `json:"owner"`
-	Source    ResourceSource  `json:"source"`
-	Spec      json.RawMessage `json:"spec"`
-	CreatedAt time.Time       `json:"created_at"`
-	UpdatedAt time.Time       `json:"updated_at"`
-}

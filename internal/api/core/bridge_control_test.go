@@ -12,6 +12,7 @@ import (
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	"github.com/compozy/compozy/internal/gateway"
 	"github.com/gin-gonic/gin"
 )
 
@@ -63,7 +64,7 @@ func TestBridgeControlHandlersPreserveStructuredProviderResults(t *testing.T) {
 				extensionName string,
 				request bridgepkg.BridgeWebhookRegistrationRequest,
 			) (bridgepkg.BridgeWebhookRegistrationResponse, error) {
-				if extensionName != "telegram" || request.BridgeInstanceID != "brg-tg" {
+				if extensionName != "telegram" || request.BridgeInstanceID != "brg-tg" || request.PublicURL != "" {
 					t.Fatalf("RegisterBridgeWebhook() extension=%q request=%#v", extensionName, request)
 				}
 				return bridgepkg.BridgeWebhookRegistrationResponse{Status: bridgepkg.BridgeCheckStatusPass}, nil
@@ -78,6 +79,36 @@ func TestBridgeControlHandlersPreserveStructuredProviderResults(t *testing.T) {
 		testutil.DecodeJSONResponse(t, response, &payload)
 		if payload.BridgeInstanceID != "brg-tg" || payload.Status != bridgepkg.BridgeCheckStatusPass {
 			t.Fatalf("registration payload = %#v", payload)
+		}
+	})
+
+	t.Run("Should register the confirmed gateway callback instead of provider proxy configuration", func(t *testing.T) {
+		t.Parallel()
+
+		handlers, engine := newBridgeControlHandlerFixture(t, testutil.StubBridgeService{
+			GetInstanceFn: func(context.Context, string) (*bridgepkg.BridgeInstance, error) {
+				return &bridgepkg.BridgeInstance{ID: "brg-tg", ExtensionName: "telegram"}, nil
+			},
+			RegisterBridgeWebhookFn: func(
+				_ context.Context,
+				extensionName string,
+				request bridgepkg.BridgeWebhookRegistrationRequest,
+			) (bridgepkg.BridgeWebhookRegistrationResponse, error) {
+				if extensionName != "telegram" || request.BridgeInstanceID != "brg-tg" ||
+					request.PublicURL != "https://gateway.example.test/api/bridge-callbacks/brg-tg" {
+					t.Fatalf("RegisterBridgeWebhook() extension=%q request=%#v", extensionName, request)
+				}
+				return bridgepkg.BridgeWebhookRegistrationResponse{Status: bridgepkg.BridgeCheckStatusPass}, nil
+			},
+		})
+		handlers.Gateway = bridgeCallbackGatewayStub{projection: gateway.IngressProjection{
+			Subject: gateway.IngressSubjectRef{Kind: gateway.IngressSubjectBridgeInstance, ID: "brg-tg"},
+			URL:     "https://gateway.example.test/api/bridge-callbacks/brg-tg", Reachability: gateway.IngressReachabilityLive,
+		}}
+
+		response := performRequest(t, engine, http.MethodPost, "/bridges/brg-tg/webhook/register", nil)
+		if got, want := response.Code, http.StatusOK; got != want {
+			t.Fatalf("register status = %d, want %d; body=%s", got, want, response.Body.String())
 		}
 	})
 }

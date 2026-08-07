@@ -264,12 +264,12 @@ func (c FireLimitConfig) Validate(path string) error {
 }
 
 func validateWebhookTriggerFields(t Trigger, path string) error {
-	if strings.TrimSpace(t.EndpointSlug) == "" && strings.TrimSpace(t.WebhookID) == "" {
-		return errors.New(
-			nestedPath(path, "endpoint_slug") + " or " +
-				nestedPath(path, "webhook_id") +
-				" is required when event is \"webhook\"",
-		)
+	endpointSlug := strings.TrimSpace(t.EndpointSlug)
+	if endpointSlug == "" {
+		return errors.New(nestedPath(path, "endpoint_slug") + " is required when event is \"webhook\"")
+	}
+	if !isWebhookEndpointSlug(endpointSlug) {
+		return errors.New(nestedPath(path, "endpoint_slug") + " must be a URL-safe path segment")
 	}
 	webhookID := strings.TrimSpace(t.WebhookID)
 	if webhookID != "" && !strings.HasPrefix(webhookID, webhookIDPrefix) {

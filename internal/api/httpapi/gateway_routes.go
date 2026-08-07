@@ -22,6 +22,8 @@ func registerGatewayManagementRoutes(api gin.IRouter, handlers *Handlers, includ
 	gatewayRoutes.GET("/devices", handlers.ListGatewayDevices)
 	gatewayRoutes.PATCH("/devices/:id", handlers.RenameGatewayDevice)
 	gatewayRoutes.DELETE("/devices/:id", handlers.RevokeGatewayDevice)
+	gatewayRoutes.POST("/ingress-bindings", handlers.BindGatewayIngress)
+	gatewayRoutes.DELETE("/ingress-bindings/:subject_kind/:subject_id", handlers.UnbindGatewayIngress)
 	if includeStreamTickets {
 		gatewayRoutes.POST("/stream-tickets", handlers.MintGatewayStreamTicket)
 	}

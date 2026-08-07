@@ -7,6 +7,13 @@ import (
 	"time"
 )
 
+type InitializeExtensionInfo struct {
+	Name       string `json:"name"`
+	Version    string `json:"version"`
+	SDKName    string `json:"sdk_name,omitempty"`
+	SDKVersion string `json:"sdk_version,omitempty"`
+}
+
 type InitializeMethods struct {
 	DaemonRequests    []string `json:"daemon_requests"`
 	ExtensionServices []string `json:"extension_services"`
@@ -358,8 +365,4 @@ type LoopNodeTerminalPayload struct {
 	Target                       string          `json:"target,omitempty"`
 	Error                        string          `json:"error,omitempty"`
 	Details                      json.RawMessage `json:"details,omitempty"`
-}
-
-type LoopObservationPatch struct {
-	Labels map[string]string `json:"labels,omitempty"`
 }

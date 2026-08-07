@@ -7,6 +7,16 @@ import (
 	"time"
 )
 
+type NetworkUsageSummaryPayload struct {
+	WakeCount            int    `json:"wake_count"`
+	ReservedWakeCount    int    `json:"reserved_wake_count"`
+	ActualWakeCount      int    `json:"actual_wake_count"`
+	UnavailableWakeCount int    `json:"unavailable_wake_count"`
+	ChargedWallTime      string `json:"charged_wall_time"`
+	InputTokens          int64  `json:"input_tokens"`
+	OutputTokens         int64  `json:"output_tokens"`
+}
+
 type NetworkWorkClosedPayload struct {
 	Event       HookEvent  `json:"event"`
 	Timestamp   time.Time  `json:"timestamp"`
@@ -271,12 +281,4 @@ type PermissionSet struct {
 	WorkspacePaths  []string `json:"workspace_paths,omitempty"`
 	NetworkChannels []string `json:"network_channels,omitempty"`
 	SandboxProfiles []string `json:"sandbox_profiles,omitempty"`
-}
-
-type PermissionToolCall struct {
-	ID        string         `json:"id,omitempty"`
-	Kind      string         `json:"kind,omitempty"`
-	Title     string         `json:"title,omitempty"`
-	Status    string         `json:"status,omitempty"`
-	Locations []ToolLocation `json:"locations,omitempty"`
 }

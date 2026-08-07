@@ -5,14 +5,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/netip"
 	"net/url"
+	"strconv"
 	"strings"
 )
 
 type webhookProviderConfig struct {
 	Webhook struct {
-		PublicURL string `json:"public_url"`
+		PublicURL  string `json:"public_url"`
+		ListenAddr string `json:"listen_addr"`
+		Path       string `json:"path"`
 	} `json:"webhook"`
 }
 
@@ -34,6 +38,42 @@ var nonPublicWebhookPrefixes = []netip.Prefix{
 	netip.MustParsePrefix("2002::/16"),
 }
 
+// WebhookLocalTarget resolves the provider-owned loopback listener used by the gateway proxy.
+func WebhookLocalTarget(instance BridgeInstance) (*url.URL, error) {
+	config := webhookProviderConfig{}
+	raw := bytes.TrimSpace(instance.ProviderConfig)
+	if len(raw) == 0 {
+		return nil, errors.New("bridges: webhook local target is required")
+	}
+	if err := json.Unmarshal(raw, &config); err != nil {
+		return nil, fmt.Errorf("bridges: decode provider config: %w", err)
+	}
+	listenAddr := strings.TrimSpace(config.Webhook.ListenAddr)
+	host, port, err := net.SplitHostPort(listenAddr)
+	if err != nil {
+		return nil, fmt.Errorf("bridges: parse webhook listen_addr: %w", err)
+	}
+	address, err := netip.ParseAddr(strings.TrimSpace(host))
+	if err != nil || !address.Unmap().IsLoopback() {
+		return nil, errors.New("bridges: webhook listen_addr must use a loopback IP")
+	}
+	if strings.TrimSpace(port) == "" || port == "0" {
+		return nil, errors.New("bridges: gateway ingress requires a fixed webhook listen port")
+	}
+	portNumber, err := strconv.Atoi(port)
+	if err != nil || portNumber < 1 || portNumber > 65535 {
+		return nil, errors.New("bridges: valid webhook listen port between 1 and 65535 is required")
+	}
+	webhookPath := strings.TrimSpace(config.Webhook.Path)
+	if webhookPath == "" {
+		return nil, errors.New("bridges: webhook path is required")
+	}
+	if !strings.HasPrefix(webhookPath, "/") {
+		webhookPath = "/" + webhookPath
+	}
+	return &url.URL{Scheme: "http", Host: net.JoinHostPort(address.String(), port), Path: webhookPath}, nil
+}
+
 // WebhookPublicURL returns the configured external callback URL.
 func WebhookPublicURL(instance BridgeInstance) (string, error) {
 	config := webhookProviderConfig{}
@@ -48,29 +88,41 @@ func WebhookPublicURL(instance BridgeInstance) (string, error) {
 	if publicURL == "" {
 		return "", errors.New("bridges: webhook public_url is required")
 	}
+	if err := ValidateWebhookPublicURL(publicURL); err != nil {
+		return "", err
+	}
 	parsed, err := url.Parse(publicURL)
 	if err != nil {
 		return "", fmt.Errorf("bridges: parse webhook public_url: %w", err)
 	}
+	return parsed.String(), nil
+}
+
+// ValidateWebhookPublicURL enforces the public callback URL boundary.
+func ValidateWebhookPublicURL(publicURL string) error {
+	parsed, err := url.Parse(strings.TrimSpace(publicURL))
+	if err != nil {
+		return fmt.Errorf("bridges: parse webhook public_url: %w", err)
+	}
 	if !strings.EqualFold(parsed.Scheme, "https") {
-		return "", errors.New("bridges: webhook public_url must use HTTPS")
+		return errors.New("bridges: webhook public_url must use HTTPS")
 	}
 	if strings.TrimSpace(parsed.Host) == "" || strings.TrimSpace(parsed.Hostname()) == "" {
-		return "", errors.New("bridges: webhook public_url must include a host")
+		return errors.New("bridges: webhook public_url must include a host")
 	}
 	if parsed.User != nil || parsed.Fragment != "" {
-		return "", errors.New("bridges: webhook public_url must not contain userinfo or fragment")
+		return errors.New("bridges: webhook public_url must not contain userinfo or fragment")
 	}
 	host := strings.TrimSpace(strings.ToLower(parsed.Hostname()))
 	if host == "localhost" || strings.HasSuffix(host, ".localhost") {
-		return "", errors.New("bridges: webhook public_url host must be publicly routable")
+		return errors.New("bridges: webhook public_url host must be publicly routable")
 	}
 	if ip, parseErr := netip.ParseAddr(host); parseErr == nil {
 		if err := ValidateWebhookDestinationIP(ip); err != nil {
-			return "", err
+			return err
 		}
 	}
-	return parsed.String(), nil
+	return nil
 }
 
 // ValidateWebhookDestinationIP rejects non-public callback destinations.

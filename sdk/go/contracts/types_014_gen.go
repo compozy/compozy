@@ -7,6 +7,10 @@ import (
 	"time"
 )
 
+type NetworkObservationPatch struct {
+	Labels map[string]string `json:"labels,omitempty"`
+}
+
 type NetworkParticipationPreResolvePatch struct {
 	Deny       bool     `json:"deny,omitempty"`
 	DenyReason string   `json:"deny_reason,omitempty"`
@@ -293,14 +297,4 @@ type NetworkUsageResponse struct {
 	Total       NetworkUsageSummaryPayload  `json:"total"`
 	Budget      *NetworkBudgetUsagePayload  `json:"budget,omitempty"`
 	NextCursor  string                      `json:"next_cursor,omitempty"`
-}
-
-type NetworkUsageSummaryPayload struct {
-	WakeCount            int    `json:"wake_count"`
-	ReservedWakeCount    int    `json:"reserved_wake_count"`
-	ActualWakeCount      int    `json:"actual_wake_count"`
-	UnavailableWakeCount int    `json:"unavailable_wake_count"`
-	ChargedWallTime      string `json:"charged_wall_time"`
-	InputTokens          int64  `json:"input_tokens"`
-	OutputTokens         int64  `json:"output_tokens"`
 }

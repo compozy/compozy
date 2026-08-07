@@ -17,12 +17,34 @@ var (
 )
 
 func (h *BaseHandlers) GetGatewayStatus(c *gin.Context) {
-	payload, err := h.GatewayStatus(c.Request.Context())
+	ctx, err := h.gatewayStatusReadContext(c)
+	if err != nil {
+		h.respondGatewayError(c, errors.Join(gateway.ErrIngressForbidden, err))
+		return
+	}
+	payload, err := h.GatewayStatus(ctx)
 	if err != nil {
 		h.respondGatewayError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, payload)
+}
+
+func (h *BaseHandlers) gatewayStatusReadContext(c *gin.Context) (context.Context, error) {
+	return h.gatewayIngressReadContext(c, "gateway.status")
+}
+
+func (h *BaseHandlers) gatewayIngressReadContext(c *gin.Context, action string) (context.Context, error) {
+	ctx := c.Request.Context()
+	credentials := agentCallerCredentialsFromRequest(c)
+	if !hasAgentCallerIdentityCredentials(credentials) {
+		return ctx, nil
+	}
+	caller, err := h.resolveAgentCaller(ctx, credentials, action)
+	if err != nil {
+		return nil, err
+	}
+	return gateway.WithIngressReadWorkspace(ctx, caller.Session.WorkspaceID), nil
 }
 
 func (h *BaseHandlers) GatewayStatus(ctx context.Context) (contract.GatewayStatusPayload, error) {

@@ -487,6 +487,23 @@ type GatewayDeviceSession struct {
 	RevokedAt     sql.NullString `json:"revoked_at"`
 }
 
+type GatewayEndpointState struct {
+	Tier               string `json:"tier"`
+	EndpointUrl        string `json:"endpoint_url"`
+	EndpointGeneration int64  `json:"endpoint_generation"`
+	Reachable          bool   `json:"reachable"`
+	UpdatedAt          string `json:"updated_at"`
+}
+
+type GatewayIngressBinding struct {
+	SubjectKind        string         `json:"subject_kind"`
+	SubjectID          string         `json:"subject_id"`
+	ScopeKind          string         `json:"scope_kind"`
+	WorkspaceID        sql.NullString `json:"workspace_id"`
+	EndpointGeneration int64          `json:"endpoint_generation"`
+	ConfirmedAt        string         `json:"confirmed_at"`
+}
+
 type GatewayProvider struct {
 	Name            string         `json:"name"`
 	InstallSource   string         `json:"install_source"`

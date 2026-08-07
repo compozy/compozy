@@ -4,6 +4,10 @@ package contracts
 
 import "time"
 
+type ShutdownResponse struct {
+	Acknowledged bool `json:"acknowledged"`
+}
+
 type SkillActivationPayload struct {
 	Active  bool                           `json:"active"`
 	Reasons []SkillActivationReasonPayload `json:"reasons,omitempty"`
@@ -267,5 +271,3 @@ type StuckTaskRun struct {
 	SessionID  string        `json:"session_id,omitempty"`
 	AgeMillis  int64         `json:"age_ms"`
 }
-
-type TargetKind string

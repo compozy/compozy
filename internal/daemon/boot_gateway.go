@@ -14,13 +14,13 @@ func (d *Daemon) bootGateway(ctx context.Context, state *bootState, cleanup *boo
 	if state == nil {
 		return errors.New("daemon: boot gateway state is required")
 	}
-	store, ok := state.registry.(gateway.Store)
+	gatewayStore, ok := state.registry.(gateway.Store)
 	if !ok {
 		return errors.New("daemon: registry does not implement the gateway store")
 	}
 	deviceStore, deviceStoreAvailable := state.registry.(gateway.DeviceStore)
 	if !deviceStoreAvailable {
-		policy, err := gateway.NewPolicy(store, nil, state.cfg.Gateway.Enabled)
+		policy, err := gateway.NewPolicy(gatewayStore, nil, state.cfg.Gateway.Enabled)
 		if err != nil {
 			return fmt.Errorf("daemon: create fail-closed gateway policy: %w", err)
 		}
@@ -48,15 +48,15 @@ func (d *Daemon) bootGateway(ctx context.Context, state *bootState, cleanup *boo
 	state.deps.GatewayChallenges = challenges
 	providerEffects := d.gatewayProviderEffects
 	if providerEffects == nil {
-		providerEffects, err = d.newExtensionGatewayProvider(state, store, challenges)
+		providerEffects, err = d.newExtensionGatewayProvider(state, gatewayStore, challenges)
 		if err != nil {
 			state.logger.Warn("daemon: connectivity provider unavailable; continuing local-only", "error", err)
 		}
 	}
-	listeners := newGatewayTierListeners(store, &state.deps, d.gatewayTierFactory)
+	listeners := newGatewayTierListeners(gatewayStore, &state.deps, d.gatewayTierFactory)
 	effects := &daemonGatewayEffects{listeners: listeners, provider: providerEffects}
 	policy, err := gateway.NewPolicy(
-		store,
+		gatewayStore,
 		effects,
 		state.cfg.Gateway.Enabled,
 		gateway.WithAuthGate(devices),
@@ -64,7 +64,24 @@ func (d *Daemon) bootGateway(ctx context.Context, state *bootState, cleanup *boo
 	if err != nil {
 		return fmt.Errorf("daemon: create gateway policy: %w", err)
 	}
-	service, err := gateway.NewService(policy, devices)
+	ingressStore, ok := state.registry.(gateway.IngressStore)
+	if !ok {
+		return errors.New("daemon: registry does not implement the gateway ingress store")
+	}
+	eventWriter, ok := state.registry.(store.EventSummaryStore)
+	if !ok {
+		return errors.New("daemon: registry does not implement the gateway ingress event store")
+	}
+	service, err := gateway.NewService(
+		policy,
+		devices,
+		gateway.WithIngress(
+			ingressStore,
+			state.accessPolicy,
+			gatewayIngressAuditSink{writer: eventWriter, now: d.now},
+			d.now,
+		),
+	)
 	if err != nil {
 		return fmt.Errorf("daemon: create gateway service: %w", err)
 	}
