@@ -286,6 +286,31 @@ func TestProductionSourceLineLimit(t *testing.T) {
 	})
 }
 
+func TestGatewayBoundaryRules(t *testing.T) {
+	t.Parallel()
+
+	want := map[string]bool{
+		"internal/daemon":       false,
+		"internal/api/contract": false,
+		"internal/api/core":     false,
+		"internal/api/httpapi":  false,
+		"internal/api/udsapi":   false,
+		"internal/cli":          false,
+	}
+	for _, rule := range gatewayForbiddenDirectImports {
+		if rule.importer == "internal/gateway" {
+			if _, exists := want[rule.imported]; exists {
+				want[rule.imported] = true
+			}
+		}
+	}
+	for imported, present := range want {
+		if !present {
+			t.Fatalf("gateway boundary rule for %q is missing", imported)
+		}
+	}
+}
+
 func TestDependencyClosureBoundaries(t *testing.T) {
 	t.Parallel()
 

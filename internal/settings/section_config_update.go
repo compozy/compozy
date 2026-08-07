@@ -25,6 +25,8 @@ func (s *service) updateConfigBackedSection(
 		return s.updateAutomationSection(ctx, req)
 	case SectionNetwork:
 		return s.updateNetworkSection(ctx, req)
+	case SectionGateway:
+		return s.updateGatewaySection(ctx, req)
 	case SectionWindowManager:
 		return s.updateWindowManagerSection(ctx, req)
 	case SectionObservability:
@@ -136,6 +138,26 @@ func (s *service) updateNetworkSection(
 	changed := diffNetworkSettings(cfg.Network, *req.Network)
 	return s.updateConfigSection(req.Section, changed, target, func(editor *compozyconfig.OverlayEditor) error {
 		return applyNetworkSettings(editor, *req.Network)
+	})
+}
+
+func (s *service) updateGatewaySection(
+	ctx context.Context,
+	req SectionUpdateRequest,
+) (MutationResult, error) {
+	cfg, target, err := s.loadGlobalSectionUpdate(ctx, req.Section, req.Scope, req.WorkspaceID)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	if req.Gateway == nil {
+		return MutationResult{}, validationError(errors.New("settings: gateway section payload is required"))
+	}
+	if err := req.Gateway.Validate(); err != nil {
+		return MutationResult{}, validationError(err)
+	}
+	changed := diffGatewaySettings(cfg.Gateway, *req.Gateway)
+	return s.updateConfigSection(req.Section, changed, target, func(editor *compozyconfig.OverlayEditor) error {
+		return applyGatewaySettings(editor, *req.Gateway)
 	})
 }
 

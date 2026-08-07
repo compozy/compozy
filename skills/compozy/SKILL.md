@@ -50,7 +50,7 @@ Match the task to the row. Read the listed files in full before producing output
 - references/loops.md - Loop and Goal authoring/operation, `/goal` commands, native tools, terminal and context states, approval/recovery semantics, reference grammar, hooks, and watch behavior.
 - references/extensions.md - extension kits, install trust, the authoring and dev loop, instance scoping, dev overlays, logs, and hook management.
 - references/extension-authoring.md - code-first extension authoring: templates, SDK declaration shape, closed permissions and derived consent, provide surfaces, contributed commands, generated manifest, and structured workflows.
-- references/configuration.md - config.toml desired state, the settings apply lifecycle, and the key reference for scheduler, Loop, Goal, automation, compaction, role, and window-manager settings.
+- references/configuration.md - config.toml desired state, the settings apply lifecycle, and the key reference for gateway, scheduler, Loop, Goal, automation, compaction, role, and window-manager settings.
 
 ## Operating Loop
 

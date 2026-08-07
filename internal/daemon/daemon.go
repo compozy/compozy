@@ -18,6 +18,7 @@ import (
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/heartbeat"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	looppkg "github.com/compozy/compozy/internal/loop"
@@ -97,6 +98,7 @@ type Registry interface {
 	daemonObserveRegistry
 	daemonNetworkRegistry
 	daemonWorkspaceRegistry
+	gateway.Store
 	store.OnboardingStore
 }
 

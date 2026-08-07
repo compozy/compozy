@@ -75,6 +75,8 @@ const (
 	SectionAutomation SectionName = "automation"
 	// SectionNetwork exposes embedded network settings.
 	SectionNetwork SectionName = "network"
+	// SectionGateway exposes remote gateway configuration.
+	SectionGateway SectionName = "gateway"
 	// SectionWindowManager exposes daemon-owned window behavior defaults.
 	SectionWindowManager SectionName = "window-manager"
 	// SectionObservability exposes observe and transcript settings.
@@ -178,6 +180,7 @@ type SectionUpdateRequest struct {
 	Skills          *compozyconfig.SkillsConfig
 	Automation      *AutomationSettings
 	Network         *compozyconfig.NetworkConfig
+	Gateway         *compozyconfig.GatewayConfig
 	WindowManager   *compozyconfig.WindowManagerConfig
 	Observability   *compozyconfig.ObservabilityConfig
 	HooksExtensions *compozyconfig.ExtensionsConfig
@@ -226,6 +229,7 @@ type SectionEnvelope struct {
 	Skills          *SkillsSection
 	Automation      *AutomationSection
 	Network         *NetworkSection
+	Gateway         *GatewaySection
 	WindowManager   *WindowManagerSection
 	Observability   *ObservabilitySection
 	HooksExtensions *HooksExtensionsSection

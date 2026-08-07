@@ -1768,3 +1768,35 @@ func TestCompletionCommandEmitsShellCompletion(t *testing.T) {
 		}
 	}
 }
+
+func TestGatewayConfigSetPathsExcludeSurfaceAuthority(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should expose only gateway ceiling and operating bounds [UT-004]", func(t *testing.T) {
+		t.Parallel()
+
+		kinds := gatewayConfigSetPathKinds()
+		want := map[string]configSetValueKind{
+			"gateway.enabled":                   configSetBool,
+			"gateway.private_port":              configSetInt,
+			"gateway.public_port":               configSetInt,
+			"gateway.pairing.ttl":               configSetDuration,
+			"gateway.pairing.max_pending":       configSetInt,
+			"gateway.stream_ticket.ttl":         configSetDuration,
+			"gateway.auth.rate_limit.window":    configSetDuration,
+			"gateway.auth.rate_limit.max_fails": configSetInt,
+			"gateway.verify.timeout":            configSetDuration,
+		}
+		if len(kinds) != len(want) {
+			t.Fatalf("gateway config-set path count = %d, want %d", len(kinds), len(want))
+		}
+		for path, wantKind := range want {
+			if gotKind, ok := kinds[path]; !ok || gotKind != wantKind {
+				t.Fatalf("gateway config-set kind for %q = (%d, %t), want (%d, true)", path, gotKind, ok, wantKind)
+			}
+		}
+		if _, ok := kinds["gateway.public_ui.enabled"]; ok {
+			t.Fatal("gateway.public_ui.enabled is config-settable, want durable policy authority only")
+		}
+	})
+}

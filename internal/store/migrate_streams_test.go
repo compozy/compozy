@@ -154,6 +154,88 @@ func TestProductionMigrationStreams(t *testing.T) {
 	})
 }
 
+func TestProductionMigrationStreamsFreshReopenAndAhead(t *testing.T) {
+	for _, item := range productionMigrationStreams() {
+		name := "Should fresh-apply, reopen, and reject an ahead " + item.name + " stream"
+		if item.name == "global" {
+			name += " [UT-160]"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t)
+			stream := item.stream
+			stream.Bootstrap = nil
+			versions := embeddedMigrationVersions(t, stream)
+			head := int64(versions[len(versions)-1])
+			path := filepath.Join(t.TempDir(), item.name+"-reopen.db")
+			first, err := sql.Open("sqlite", path)
+			if err != nil {
+				t.Fatalf("open fresh %s stream: %v", item.name, err)
+			}
+			if err := store.Apply(ctx, first, stream); err != nil {
+				t.Fatalf("Apply(%s fresh) error = %v", item.name, err)
+			}
+			before, err := store.Status(ctx, first, stream)
+			if err != nil {
+				t.Fatalf("Status(%s fresh) error = %v", item.name, err)
+			}
+			if before.Version != head || before.AppliedCount != len(versions) {
+				t.Fatalf(
+					"Status(%s fresh) = %#v, want head %d with %d migrations",
+					item.name,
+					before,
+					head,
+					len(versions),
+				)
+			}
+			if err := first.Close(); err != nil {
+				t.Fatalf("close fresh %s stream: %v", item.name, err)
+			}
+
+			reopened, err := sql.Open("sqlite", path)
+			if err != nil {
+				t.Fatalf("reopen %s stream: %v", item.name, err)
+			}
+			t.Cleanup(func() {
+				if err := reopened.Close(); err != nil {
+					t.Errorf("close reopened %s stream: %v", item.name, err)
+				}
+			})
+			if err := store.Apply(ctx, reopened, stream); err != nil {
+				t.Fatalf("Apply(%s reopen) error = %v", item.name, err)
+			}
+			after, err := store.Status(ctx, reopened, stream)
+			if err != nil {
+				t.Fatalf("Status(%s reopen) error = %v", item.name, err)
+			}
+			if after != before {
+				t.Fatalf("Status(%s reopen) = %#v, want %#v", item.name, after, before)
+			}
+
+			aheadDB := openStreamTestDB(t, item.name+"-ahead.db")
+			if _, err := aheadDB.ExecContext(ctx, fmt.Sprintf(`CREATE TABLE %q (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				version_id INTEGER NOT NULL,
+				is_applied INTEGER NOT NULL,
+				tstamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+			)`, stream.VersionTable)); err != nil {
+				t.Fatalf("create %s version table: %v", item.name, err)
+			}
+			if _, err := aheadDB.ExecContext(
+				ctx,
+				fmt.Sprintf("INSERT INTO %q (version_id, is_applied) VALUES (?, 1)", stream.VersionTable),
+				head+1,
+			); err != nil {
+				t.Fatalf("seed ahead %s version: %v", item.name, err)
+			}
+			if err := store.Apply(ctx, aheadDB, stream); !errors.Is(err, store.ErrSchemaAhead) {
+				t.Fatalf("Apply(%s ahead) error = %v, want ErrSchemaAhead", item.name, err)
+			}
+		})
+	}
+}
+
 func TestGlobalExtensionManifestV2Migration(t *testing.T) {
 	t.Parallel()
 
@@ -302,7 +384,11 @@ func embeddedMigrationVersions(t *testing.T, stream store.MigrationStream) []int
 
 func TestMigrationSchemaEquivalence(t *testing.T) {
 	for _, item := range productionMigrationStreams() {
-		t.Run("Should match the declarative schema for the "+item.name+" stream", func(t *testing.T) {
+		name := "Should match the declarative schema for the " + item.name + " stream"
+		if item.name == "global" {
+			name += " [UT-160]"
+		}
+		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t)

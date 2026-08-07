@@ -475,6 +475,44 @@ type ExtensionEnvBinding struct {
 	UpdatedAt     string `json:"updated_at"`
 }
 
+type GatewayDeviceSession struct {
+	ID            string         `json:"id"`
+	Name          string         `json:"name"`
+	TokenHash     string         `json:"token_hash"`
+	ActorKind     string         `json:"actor_kind"`
+	PairingOrigin string         `json:"pairing_origin"`
+	RevokeEpoch   int64          `json:"revoke_epoch"`
+	CreatedAt     string         `json:"created_at"`
+	LastSeenAt    sql.NullString `json:"last_seen_at"`
+	RevokedAt     sql.NullString `json:"revoked_at"`
+}
+
+type GatewayProvider struct {
+	Name            string         `json:"name"`
+	InstallSource   string         `json:"install_source"`
+	DigestConfirmed sql.NullString `json:"digest_confirmed"`
+	ConfirmedAt     sql.NullString `json:"confirmed_at"`
+}
+
+type GatewayProviderActivation struct {
+	ProviderName  string         `json:"provider_name"`
+	Tier          string         `json:"tier"`
+	DesiredState  string         `json:"desired_state"`
+	ObservedState string         `json:"observed_state"`
+	Generation    int64          `json:"generation"`
+	LastHealthAt  sql.NullString `json:"last_health_at"`
+	LastError     sql.NullString `json:"last_error"`
+}
+
+type GatewaySurfaceExposure struct {
+	Surface       string         `json:"surface"`
+	Tier          string         `json:"tier"`
+	DesiredState  string         `json:"desired_state"`
+	ObservedState string         `json:"observed_state"`
+	Generation    int64          `json:"generation"`
+	ConsentedAt   sql.NullString `json:"consented_at"`
+}
+
 type LoopAdmissionClaim struct {
 	WorkspaceID      string       `json:"workspace_id"`
 	LoopName         string       `json:"loop_name"`

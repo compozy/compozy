@@ -189,6 +189,7 @@ func Boundaries() error {
 		{"internal/workspaceaccess", "internal/api/udsapi"},
 		{"internal/workspaceaccess", "internal/cli"},
 	}
+	forbidden = append(forbidden, gatewayForbiddenDirectImports...)
 
 	violations := 0
 	for _, rule := range forbidden {

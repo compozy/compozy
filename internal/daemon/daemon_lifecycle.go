@@ -150,6 +150,9 @@ func (d *Daemon) shutdownServersAndHooks(ctx context.Context, targets *shutdownT
 	if targets.udsServer != nil {
 		appendWrappedError(errs, "daemon: shutdown uds server", targets.udsServer.Shutdown(ctx))
 	}
+	if targets.gateway != nil {
+		appendWrappedError(errs, "daemon: shutdown gateway", targets.gateway.Close(ctx))
+	}
 	if targets.supportBundles != nil {
 		appendWrappedError(errs, "daemon: shutdown support bundles", targets.supportBundles.Shutdown(ctx))
 	}

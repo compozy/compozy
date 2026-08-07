@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"errors"
+	"net/netip"
 	"os/exec"
 	"path/filepath"
 	"testing"
@@ -10,6 +11,7 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	diagcontract "github.com/compozy/compozy/internal/diagnosticcontract"
+	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/marketplace"
 	"github.com/compozy/compozy/internal/providers"
 	"github.com/compozy/compozy/internal/store"
@@ -18,6 +20,49 @@ import (
 )
 
 func TestDaemonSettingsRuntimeApplier(t *testing.T) {
+	t.Run("Should apply the gateway ceiling before publishing active config", func(t *testing.T) {
+		t.Parallel()
+
+		previous := compozyconfig.Config{Gateway: compozyconfig.GatewayConfig{Enabled: true}}
+		next := previous
+		next.Gateway.Enabled = false
+		policy := &recordingGatewayPolicy{}
+		daemonInstance := &Daemon{config: previous}
+		failures := daemonSettingsRuntimeApplier{
+			daemon: daemonInstance,
+			state:  &bootState{cfg: previous, gateway: policy},
+		}.ApplyActiveConfig(t.Context(), &next)
+		if len(failures) != 0 {
+			t.Fatalf("ApplyActiveConfig() failures = %#v, want none", failures)
+		}
+		if len(policy.enabledCalls) != 1 || policy.enabledCalls[0] {
+			t.Fatalf("gateway SetEnabled calls = %#v, want [false]", policy.enabledCalls)
+		}
+		if daemonInstance.config.Gateway.Enabled {
+			t.Fatal("published gateway ceiling = true, want false")
+		}
+	})
+
+	t.Run("Should keep previous config when the gateway ceiling sync fails", func(t *testing.T) {
+		t.Parallel()
+
+		previous := compozyconfig.Config{Gateway: compozyconfig.GatewayConfig{Enabled: true}}
+		next := previous
+		next.Gateway.Enabled = false
+		policy := &recordingGatewayPolicy{setEnabledErr: errors.New("gateway sync boom")}
+		daemonInstance := &Daemon{config: previous}
+		failures := daemonSettingsRuntimeApplier{
+			daemon: daemonInstance,
+			state:  &bootState{cfg: previous, gateway: policy},
+		}.ApplyActiveConfig(t.Context(), &next)
+		if len(failures) != 1 || failures[0].Subsystem != "gateway_ceiling" {
+			t.Fatalf("ApplyActiveConfig() failures = %#v, want gateway ceiling failure", failures)
+		}
+		if !daemonInstance.config.Gateway.Enabled {
+			t.Fatal("published gateway ceiling = false, want previous true config")
+		}
+	})
+
 	t.Run("Should invalidate only the owning provider prestart cache after active config apply", func(t *testing.T) {
 		t.Parallel()
 
@@ -487,6 +532,45 @@ type recordingNetworkAvailabilityStore struct {
 	beforeWrite func(bool)
 	err         error
 }
+
+type recordingGatewayPolicy struct {
+	enabledCalls  []bool
+	setEnabledErr error
+}
+
+func (p *recordingGatewayPolicy) Plan(context.Context) (gateway.ExposurePlan, error) {
+	return gateway.ExposurePlan{}, nil
+}
+
+func (p *recordingGatewayPolicy) Transition(
+	context.Context,
+	gateway.TransitionRequest,
+) (gateway.Status, error) {
+	return gateway.Status{}, nil
+}
+
+func (p *recordingGatewayPolicy) Reconcile(context.Context) (gateway.Status, error) {
+	return gateway.Status{}, nil
+}
+
+func (p *recordingGatewayPolicy) PublishListener(context.Context, gateway.Tier, netip.AddrPort) error {
+	return nil
+}
+
+func (p *recordingGatewayPolicy) SetEnabled(_ context.Context, enabled bool) error {
+	p.enabledCalls = append(p.enabledCalls, enabled)
+	return p.setEnabledErr
+}
+
+func (p *recordingGatewayPolicy) Status(context.Context) (gateway.Status, error) {
+	return gateway.Status{}, nil
+}
+
+func (p *recordingGatewayPolicy) Acquire(gateway.Tier, gateway.Surface) (func(), error) {
+	return func() {}, nil
+}
+
+func (p *recordingGatewayPolicy) Close(context.Context) error { return nil }
 
 func (s *recordingNetworkAvailabilityStore) GetNetworkAvailability(
 	context.Context,

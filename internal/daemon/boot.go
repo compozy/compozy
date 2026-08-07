@@ -14,6 +14,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/deadentity"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/heartbeat"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	looppkg "github.com/compozy/compozy/internal/loop"
@@ -96,6 +97,7 @@ type bootState struct {
 	scheduler             *schedulerRuntime
 	coordinator           *coordinatorRuntime
 	network               networkRuntime
+	gateway               gateway.Policy
 	networkWakeRunner     *networkWakeRunner
 	participationResolver participation.Resolver
 	accessPolicy          workspaceaccess.Policy
@@ -204,6 +206,7 @@ func (d *Daemon) beginBoot() error {
 		d.modelCatalog != nil ||
 		d.marketplace != nil ||
 		d.network != nil ||
+		d.gateway != nil ||
 		d.toolRegistry != nil ||
 		d.observer != nil ||
 		d.resourceReconcile != nil ||

@@ -44,6 +44,9 @@ func (a daemonSettingsRuntimeApplier) ApplyActiveConfig(
 	if failures := a.applyNetworkAvailabilityChange(ctx, &previous, &next); len(failures) > 0 {
 		return a.rollbackRuntimeDependencies(ctx, &previous, failures)
 	}
+	if failures := a.applyGatewayCeilingChange(ctx, &previous, &next); len(failures) > 0 {
+		return a.rollbackRuntimeDependencies(ctx, &previous, failures)
+	}
 
 	a.daemon.mu.Lock()
 	if nextLoopTargetHealth != nil {
@@ -60,6 +63,25 @@ func (a daemonSettingsRuntimeApplier) ApplyActiveConfig(
 
 	if preStarter != nil {
 		preStarter.Clear()
+	}
+	return nil
+}
+
+func (a daemonSettingsRuntimeApplier) applyGatewayCeilingChange(
+	ctx context.Context,
+	previous *compozyconfig.Config,
+	next *compozyconfig.Config,
+) []settingspkg.ApplyFailure {
+	if a.state.gateway == nil || previous.Gateway.Enabled == next.Gateway.Enabled {
+		return nil
+	}
+	if err := a.state.gateway.SetEnabled(ctx, next.Gateway.Enabled); err != nil {
+		return []settingspkg.ApplyFailure{configApplyFailure(
+			"gateway_ceiling",
+			diagnosticcontract.CategoryConfig,
+			"Gateway ceiling sync failed",
+			err,
+		)}
 	}
 	return nil
 }

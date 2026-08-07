@@ -62,6 +62,9 @@ func (c *Config) validateCore() error {
 	if err := c.Roles.Validate("roles", c); err != nil {
 		return err
 	}
+	if err := c.Gateway.Validate(); err != nil {
+		return err
+	}
 	for i, server := range c.MCPServers {
 		if err := server.Validate(fmt.Sprintf("mcp_servers[%d]", i)); err != nil {
 			return err
