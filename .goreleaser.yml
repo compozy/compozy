@@ -19,6 +19,8 @@ env:
 
 git:
   tag_sort: -version:refname
+  ignore_tag_prefixes:
+    - sdk/go/
 
 before:
   hooks:
