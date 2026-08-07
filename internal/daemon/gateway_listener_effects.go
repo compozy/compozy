@@ -15,6 +15,7 @@ type gatewayTierListener struct {
 	server   Server
 	port     int
 	surfaces []gateway.Surface
+	stale    bool
 }
 
 type gatewayTierListeners struct {
@@ -48,7 +49,7 @@ func (l *gatewayTierListeners) Bind(ctx context.Context, tier gateway.Tier) (net
 
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if current, ok := l.active[tier]; ok && slices.Equal(current.surfaces, surfaces) {
+	if current, ok := l.active[tier]; ok && !current.stale && slices.Equal(current.surfaces, surfaces) {
 		return gatewayLoopbackAddr(current.port)
 	}
 	server, err := l.factory(ctx, l.deps, tier, surfaces)
@@ -61,7 +62,9 @@ func (l *gatewayTierListeners) Bind(ctx context.Context, tier gateway.Tier) (net
 	current, replacing := l.active[tier]
 	if replacing {
 		if err := shutdownGatewayTierServer(ctx, current.server); err != nil {
-			return netip.AddrPort{}, err
+			current.stale = true
+			l.active[tier] = current
+			return netip.AddrPort{}, errors.Join(err, shutdownGatewayTierServer(ctx, server))
 		}
 	}
 	if err := server.Start(ctx); err != nil {
@@ -100,6 +103,7 @@ func (l *gatewayTierListeners) restoreGatewayTierListener(
 		delete(l.active, tier)
 		return fmt.Errorf("daemon: restore previous %s gateway listener: %w", tier, err)
 	}
+	current.stale = false
 	l.active[tier] = current
 	return nil
 }
@@ -115,6 +119,8 @@ func (l *gatewayTierListeners) Unbind(ctx context.Context, tier gateway.Tier) er
 		return nil
 	}
 	if err := shutdownGatewayTierServer(ctx, current.server); err != nil {
+		current.stale = true
+		l.active[tier] = current
 		return err
 	}
 	delete(l.active, tier)
@@ -178,6 +184,23 @@ func (e *daemonGatewayEffects) Establish(
 	return e.provider.Establish(ctx, provider, bound)
 }
 
+func (e *daemonGatewayEffects) PreflightProvider(
+	ctx context.Context,
+	provider gateway.ProviderActivation,
+) error {
+	if e.provider == nil {
+		return fmt.Errorf(
+			"%w: connectivity provider effects are unavailable",
+			gateway.ErrExposureRefused,
+		)
+	}
+	preflight, ok := e.provider.(gateway.ProviderPreflight)
+	if !ok {
+		return nil
+	}
+	return preflight.PreflightProvider(ctx, provider)
+}
+
 func (e *daemonGatewayEffects) Teardown(ctx context.Context, provider gateway.ProviderActivation) error {
 	if e.provider == nil {
 		return nil
@@ -211,3 +234,32 @@ func (e *daemonGatewayEffects) Withdraw(ctx context.Context, tier gateway.Tier) 
 }
 
 var _ gateway.EffectDriver = (*daemonGatewayEffects)(nil)
+var _ gateway.ProviderPreflight = (*daemonGatewayEffects)(nil)
+
+func (e *daemonGatewayEffects) SetProviderDegradationHandler(handler gateway.ProviderDegradationHandler) {
+	if e == nil || e.provider == nil {
+		return
+	}
+	if source, ok := e.provider.(gateway.ProviderDegradationSource); ok {
+		source.SetProviderDegradationHandler(handler)
+	}
+}
+
+func (e *daemonGatewayEffects) RecordProviderStateChanged(
+	ctx context.Context,
+	activation gateway.ProviderActivation,
+	state gateway.ProviderObservedState,
+	cause string,
+) error {
+	if e == nil || e.provider == nil {
+		return nil
+	}
+	reporter, ok := e.provider.(gateway.ProviderStateReporter)
+	if !ok {
+		return nil
+	}
+	return reporter.RecordProviderStateChanged(ctx, activation, state, cause)
+}
+
+var _ gateway.ProviderDegradationSource = (*daemonGatewayEffects)(nil)
+var _ gateway.ProviderStateReporter = (*daemonGatewayEffects)(nil)

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	connectivitytailscale "github.com/compozy/compozy/extensions/connectivity-tailscale"
 	devcycle "github.com/compozy/compozy/extensions/dev-cycle"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/resources"
@@ -26,6 +27,9 @@ func (d *Daemon) bootExtensions(ctx context.Context, state *bootState, cleanup *
 	extRegistry := extensionpkg.NewRegistry(dbSource.DB())
 	if err := devcycle.EnsureManagedInstall(d.homePaths, extRegistry); err != nil {
 		return fmt.Errorf("daemon: enroll dev-cycle extension: %w", err)
+	}
+	if err := connectivitytailscale.EnsureManagedInstall(d.homePaths, extRegistry); err != nil {
+		return fmt.Errorf("daemon: enroll Tailscale connectivity extension: %w", err)
 	}
 	if err := d.configureExtensionResourcePublishers(state, extRegistry); err != nil {
 		return err

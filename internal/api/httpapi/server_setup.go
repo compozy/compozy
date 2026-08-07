@@ -86,6 +86,10 @@ func (s *Server) validateRequired() error {
 		return errors.New("httpapi: gateway service is required for operator tier listeners")
 	case s.surfaceSet != SurfaceSetLocal && s.gatewayAdmission == nil:
 		return errors.New("httpapi: gateway admission control is required for tier listeners")
+	case s.surfaceSet != SurfaceSetLocal && s.gatewayChallenges == nil:
+		return errors.New("httpapi: gateway challenge resolver is required for tier listeners")
+	case s.surfaceSet != SurfaceSetLocal && s.gatewayTier.Validate() != nil:
+		return errors.New("httpapi: gateway tier is required for tier listeners")
 	case len(s.resourceAuth) > 0 && s.resources == nil:
 		return errors.New("httpapi: resource service is required when resource operator auth is configured")
 	case s.sessions == nil:

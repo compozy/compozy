@@ -15,7 +15,6 @@ import type {
   ExtensionToolCallResponse,
   ExtensionCommandGroupSpec,
   ExtensionToolRuntimeDescriptor,
-  InitializeResponse,
   JSONRPCRequestEnvelope,
   JSONValue,
   ShutdownResponse,
@@ -26,7 +25,6 @@ import {
   TOOL_PROVIDER_CAPABILITY,
   TOOLS_CALL_METHOD,
   isToolProviderMethod,
-  validateProvidedMethodCoverage,
 } from "./capabilities.js";
 import {
   InvalidParamsError,
@@ -37,9 +35,7 @@ import {
 } from "./errors.js";
 
 import {
-  ensureSubset,
   implementedExtensionMethods,
-  normalizeHostMethodList,
   normalizeStringList,
   normalizeToolResult,
   parseShutdownRequest,
@@ -47,10 +43,10 @@ import {
   toolExecutionError,
   transportMethods,
 } from "./extension-runtime.js";
-import { SDK_NAME, SDK_VERSION } from "./extension-contract.js";
+import { SDK_VERSION } from "./extension-contract.js";
 import { makeExtensionContext, writeExtensionError } from "./extension-context.js";
 import { makeExtensionToolContext } from "./extension-tool-context.js";
-import { parseInitializeRequest, validateProtocolVersion } from "./extension-initialize.js";
+import { buildExtensionSession } from "./extension-session.js";
 import {
   buildExtensionDescribePayload,
   cloneExtensionToolDescriptors,
@@ -58,6 +54,11 @@ import {
   runExtensionDescribeMode,
 } from "./extension-describe.js";
 import { buildRegisteredTool } from "./extension-tool-registration.js";
+import {
+  ExtensionProvideSurfaces,
+  registerProvideSurface,
+  type ProvideSurfaceRegistration,
+} from "./extension-provide-surface.js";
 import type {
   ExtensionContext,
   ExtensionHandler,
@@ -84,6 +85,22 @@ export class Extension {
   });
   private readonly readyCallbacks = new Set<ReadyCallback>();
   private readonly transportBindings = new Set<string>();
+  private readonly provideSurfaces = new ExtensionProvideSurfaces({
+    handlers: this.handlers,
+    validateMethod: method => {
+      if (this.toolHandlers.size > 0 && isToolProviderMethod(method)) {
+        throw new Error(`${method} is reserved by extension.tool()`);
+      }
+      if (this.watchSources.hasHandlers() && isWatchSourceMethod(method)) {
+        throw new Error(`${method} is reserved by extension.watchSource()`);
+      }
+    },
+    bindMethod: method => this.bindMethod(method),
+    unbindMethod: method => {
+      this.transport.unhandle(method);
+      this.transportBindings.delete(method);
+    },
+  });
   private readonly host: HostAPI;
   private initialized = false;
   private shutdownStarted = false;
@@ -126,9 +143,17 @@ export class Extension {
     method: string,
     handler: ExtensionHandler<TParams, TResult>
   ): this {
+    this.ensureRegistrationOpen();
     const cleanMethod = method.trim();
+    if (!cleanMethod) {
+      throw new Error("method is required");
+    }
     if (cleanMethod === "initialize") {
       throw new Error("initialize is reserved by the SDK");
+    }
+    const provideOwner = this.provideSurfaces.owner(cleanMethod);
+    if (provideOwner) {
+      throw new Error(`${cleanMethod} is reserved by ${provideOwner}`);
     }
     if (this.toolHandlers.size > 0 && isToolProviderMethod(cleanMethod)) {
       throw new Error(`${cleanMethod} is reserved by extension.tool()`);
@@ -138,6 +163,15 @@ export class Extension {
     }
     this.handlers.set(cleanMethod, handler as ExtensionHandler);
     this.bindMethod(cleanMethod);
+    return this;
+  }
+
+  public [registerProvideSurface](
+    capability: string,
+    registrations: readonly ProvideSurfaceRegistration[]
+  ): this {
+    this.ensureRegistrationOpen();
+    this.provideSurfaces.register(this.definition, capability, registrations);
     return this;
   }
 
@@ -180,6 +214,12 @@ export class Extension {
     }
     this.commandGroups.push({ path: path.trim(), summary: summary.trim() });
     return this;
+  }
+
+  private ensureRegistrationOpen(): void {
+    if (this.initialized || this.startPromise || this.shutdownStarted) {
+      throw new Error("extension registration is closed after start");
+    }
   }
 
   public onReady(callback: ReadyCallback): this {
@@ -257,11 +297,11 @@ export class Extension {
       );
       return;
     }
-    this.transportBindings.add(method);
     this.transport.handle(
       method,
       async (params, request) => await this.dispatch(method, params, request)
     );
+    this.transportBindings.add(method);
   }
 
   private async dispatch(
@@ -297,50 +337,21 @@ export class Extension {
     }
   }
 
-  private async handleInitialize(params: unknown): Promise<InitializeResponse> {
+  private async handleInitialize(params: unknown) {
     if (this.initialized) {
       throw new InvalidParamsError("initialize may only be called once");
     }
 
-    const request = parseInitializeRequest(params);
-    validateProtocolVersion(request);
-
-    const requestedProvides = normalizeStringList(this.definition.capabilities?.provides);
-    const requestedPermissions = normalizeHostMethodList(this.definition.permissions?.requires);
-
-    ensureSubset("provides", requestedProvides, request.capabilities.provides);
-    ensureSubset("permissions", requestedPermissions, request.capabilities.granted_permissions);
-
-    const implementedMethods = this.getImplementedMethods();
-    validateProvidedMethodCoverage(requestedProvides, implementedMethods);
-
-    const response: InitializeResponse = {
-      protocol_version: "1",
-      extension_info: {
-        name: this.definition.name,
-        version: this.definition.version,
-        sdk_name: SDK_NAME,
-        sdk_version: this.sdkVersion,
-      },
-      accepted_capabilities: {
-        provides: requestedProvides,
-        permissions: requestedPermissions,
-      },
-      implemented_methods: implementedMethods,
-      supported_hook_events: this.getSupportedHookEvents(),
-      ...this.watchSources.initializeResponseFields(),
-      supports: {
-        health_check: true,
-      },
-    };
-
+    const { response, session } = buildExtensionSession({
+      definition: this.definition,
+      params,
+      implementedMethods: this.getImplementedMethods(),
+      supportedHookEvents: this.getSupportedHookEvents(),
+      watchSourceKinds: this.watchSources.kinds(),
+      sdkVersion: this.sdkVersion,
+    });
     this.initialized = true;
-    this.session = {
-      initializeRequest: request,
-      initializeResponse: response,
-      runtime: request.runtime,
-      acceptedCapabilities: response.accepted_capabilities,
-    };
+    this.session = session;
 
     setImmediate(() => {
       void this.finishInitialization();

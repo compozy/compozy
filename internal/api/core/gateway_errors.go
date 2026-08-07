@@ -29,6 +29,8 @@ var gatewayErrorCodes = [...]struct {
 	{gateway.ErrProviderTrustStale, "gateway_provider_trust_stale"},
 	{gateway.ErrProviderNotFound, "gateway_provider_not_found"},
 	{gateway.ErrDigestConfirmationRequired, "gateway_digest_confirmation_required"},
+	{gateway.ErrEndpointUnverified, "gateway_endpoint_unverified"},
+	{gateway.ErrProviderDegraded, "gateway_provider_degraded"},
 	{gateway.ErrIngressForbidden, "gateway_ingress_forbidden"},
 	{gateway.ErrIngressSubjectNotFound, "gateway_ingress_subject_not_found"},
 	{gateway.ErrLocalOnlyOperation, "gateway_local_only_operation"},
@@ -61,6 +63,7 @@ func StatusForGatewayError(err error) int {
 	case errors.Is(err, gateway.ErrPairingSpent),
 		errors.Is(err, gateway.ErrExposureRefused),
 		errors.Is(err, gateway.ErrProviderTrustStale),
+		errors.Is(err, gateway.ErrEndpointUnverified),
 		errors.Is(err, gateway.ErrGenerationConflict),
 		errors.Is(err, gateway.ErrTierProviderConflict):
 		return http.StatusConflict
@@ -70,6 +73,8 @@ func StatusForGatewayError(err error) int {
 	case errors.Is(err, gateway.ErrPairingLimit),
 		errors.Is(err, gateway.ErrAuthRateLimited):
 		return http.StatusTooManyRequests
+	case errors.Is(err, gateway.ErrProviderDegraded):
+		return http.StatusServiceUnavailable
 	default:
 		return http.StatusInternalServerError
 	}

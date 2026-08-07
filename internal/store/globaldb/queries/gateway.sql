@@ -8,6 +8,11 @@ ON CONFLICT(name) DO UPDATE SET
   digest_confirmed = excluded.digest_confirmed,
   confirmed_at = excluded.confirmed_at;
 
+-- name: GetGatewayProvider :one
+SELECT name, install_source, digest_confirmed, confirmed_at
+FROM gateway_providers
+WHERE name = sqlc.arg(name);
+
 -- name: TransitionGatewayProviderActivation :one
 INSERT INTO gateway_provider_activations (
   provider_name, tier, desired_state, observed_state, generation, last_health_at, last_error

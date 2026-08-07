@@ -31,11 +31,15 @@ const (
 	ScaffoldTemplateHookTS          ScaffoldTemplate = "hook-ts"
 	ScaffoldTemplateMemoryBackendTS ScaffoldTemplate = "memory-backend-ts"
 	// #nosec G101 -- this public scaffold identifier is not a credential.
-	ScaffoldTemplateLoopWatchSourceGo ScaffoldTemplate = "loop-watch-source-go"
+	ScaffoldTemplateLoopWatchSourceGo      ScaffoldTemplate = "loop-watch-source-go"
+	ScaffoldTemplateConnectivityProviderGo ScaffoldTemplate = "connectivity-provider-go"
+	ScaffoldTemplateConnectivityProviderTS ScaffoldTemplate = "connectivity-provider-ts"
 )
 
 var scaffoldTemplates = []ScaffoldTemplate{
 	ScaffoldTemplateHookTS,
+	ScaffoldTemplateConnectivityProviderGo,
+	ScaffoldTemplateConnectivityProviderTS,
 	ScaffoldTemplateLoopWatchSourceGo,
 	ScaffoldTemplateMemoryBackendTS,
 	ScaffoldTemplateToolProviderGo,

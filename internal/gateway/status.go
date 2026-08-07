@@ -1,6 +1,10 @@
 package gateway
 
-import "sort"
+import (
+	"sort"
+
+	"github.com/compozy/compozy/internal/diagnostics"
+)
 
 func projectStatus(
 	snapshot Snapshot,
@@ -22,9 +26,14 @@ func projectStatus(
 	for _, tierRuntime := range runtime {
 		runtimeByTier[tierRuntime.Tier] = tierRuntime
 		if tierRuntime.Advertised {
-			for _, address := range tierRuntime.Addresses {
+			for _, endpoint := range tierRuntime.Endpoints {
 				status.Addresses = append(status.Addresses, AddressStatus{
-					Tier: tierRuntime.Tier, Address: address, Live: true,
+					Tier: tierRuntime.Tier,
+					Address: diagnostics.RedactAndBound(
+						endpoint.URL,
+						maxPersistedGatewayDiagnosticBytes,
+					),
+					Live: true,
 				})
 			}
 		}
@@ -35,7 +44,10 @@ func projectStatus(
 			Desired: provider.Desired, Observed: provider.Observed,
 			Generation: provider.Generation,
 			Health:     providerHealth(provider),
-			Cause:      provider.LastError,
+			Cause: diagnostics.RedactAndBound(
+				provider.LastError,
+				maxPersistedGatewayDiagnosticBytes,
+			),
 		})
 	}
 	for _, surface := range snapshot.Surfaces {

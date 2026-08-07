@@ -7,14 +7,16 @@ import (
 )
 
 type httpExtendedServices struct {
-	resources        core.ResourceService
-	extensions       ExtensionService
-	windowManager    windowmanager.Service
-	gateway          core.GatewayService
-	gatewayAdmission gateway.AdmissionController
-	deviceAuth       gateway.DeviceAuthenticator
-	authLimiter      *gateway.AuthFailureLimiter
-	surfaceSet       SurfaceSet
+	resources         core.ResourceService
+	extensions        ExtensionService
+	windowManager     windowmanager.Service
+	gateway           core.GatewayService
+	gatewayAdmission  gateway.AdmissionController
+	gatewayChallenges gateway.ChallengeResolver
+	gatewayTier       gateway.Tier
+	deviceAuth        gateway.DeviceAuthenticator
+	authLimiter       *gateway.AuthFailureLimiter
+	surfaceSet        SurfaceSet
 }
 
 // WithWindowManagerService injects the daemon-authoritative window manager.

@@ -6,7 +6,7 @@ persona: Ada
 journey: J-extension-kit-lifecycle
 expected: Running `compozy extension init hello -t tool-provider-go`, then build and validate with declared agents, automation, and layouts, produces one immutable generation whose copied resources and generated manifest match the SDK definition and validate with no issues.
 entry_points: `compozy extension init`; `compozy extension build`; `compozy extension validate`
-qa_status: pass
+qa_status: untested
 bug_ids: BUG-20260802-scaffold-sdk-version;BUG-20260802-manifest-mcp-tool-handler
 fix_status: fixed
 retest_status: pass
@@ -16,7 +16,10 @@ last_report: docs/qa/reports/2026-08-02-bundles-removal.md
 overlaps: ET-compozy-extension-contract-identity
 ---
 
-Added by ext-improvs Task 03. Repeat the first-success path for all five embedded templates, confirm `build` never mutates an existing generation, and inspect structured output for the stamped SDK minimum version, positioned issues, and derived consent areas.
+Added by ext-improvs Task 03. Repeat the first-success path for all seven embedded templates, confirm `build` never mutates an existing generation, and inspect structured output for the stamped SDK minimum version, positioned issues, and derived consent areas.
 
 QA impact 2026-08-02: code-first `resources` now declares and copies agents, automation, and layouts
 into the generated manifest. Reset to verify the complete kit rather than the earlier tool-only build.
+
+QA impact 2026-08-06: Go and TypeScript connectivity-provider templates joined the embedded
+scaffold catalog. Flag only; Tasks 08–09 own the re-walk.

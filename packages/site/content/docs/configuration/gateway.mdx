@@ -25,15 +25,48 @@ Provider and surface intent lives in the Global DB, which means it is operator-g
 workspace-scoped. Manage that intent through the Gateway API. The [`[gateway]` reference](/docs/configuration/config-toml#gateway)
 owns the listener ports, expiry windows, rate limit, verification timeout, and their defaults.
 
+## Reachability is verified before publication
+
+Enabling a provider does not make its address live immediately. The daemon first binds the selected
+tier to loopback, then gives the provider that local target, an opaque challenge path, and a deadline.
+The provider returns candidate HTTPS endpoints. Compozy requests the challenge through each endpoint
+and publishes none of them unless every response echoes the nonce served by the assigned tier.
+
+The verification client validates TLS, follows no redirects, caps the response at 64 KiB, enforces
+`gateway.verify.timeout`, and rejects public endpoints that resolve to loopback, private,
+link-local, or other inward address ranges. A provider failure withdraws the address and leaves the
+local tier safe to inspect and repair.
+
+The bundled Tailscale provider runs inside the Compozy binary through `tsnet`. It uses the operator's
+Tailscale account and does not require a separately installed Tailscale client. Private reachability
+uses the tailnet; public reachability uses a Funnel listener. Account authorization remains with the
+operator. Create an auth key in that account, then bind it through hidden input before enabling the
+provider:
+
+```bash
+compozy extension secrets set connectivity-tailscale --env TS_AUTHKEY
+```
+
+The manifest declares only the environment variable name. Compozy stores the value through the
+extension secret-binding surface and never returns it in status or diagnostics.
+
+Third-party connectivity providers are global extensions. Before enable and again on boot, Compozy
+reads the provider's install source and current control digest from the live extension registry. A
+new or changed digest fails closed until the operator confirms that exact value. One provider can be
+selected for each tier, and the live manifest must declare the matching `gateway.private` or
+`gateway.public` channel scope. Replacing it is an explicit Gateway operation. See
+[Develop Extensions](/docs/extensions/develop#connectivity-providers) to implement the contract and
+the generated [Gateway API reference](/docs/api/gateway) for exact requests.
+
 ## Tiers have separate route inventories
 
 The private and public tiers are separate listeners. Tier identity comes from the listener that
 accepted the connection, not from a request header.
 
-| Tier | Reachable surfaces | Pairing |
-| --- | --- | --- |
-| Private | Authenticated operator routes and the operator UI | Mint is authenticated; redeem exists before device authentication |
-| Public | Webhook ingress, the consented operator UI, or both | Mint and redeem routes do not exist |
+| Tier    | Reachable surfaces                                  | Pairing                                                           |
+| ------- | --------------------------------------------------- | ----------------------------------------------------------------- |
+| Private | Authenticated operator routes and the operator UI   | Mint is authenticated; redeem exists before device authentication |
+| Public  | Webhook ingress, the consented operator UI, or both | Mint and redeem routes do not exist                               |
 
 Webhook routes keep their own request verification and stay ahead of the device-authentication gate.
 Agent-kernel, hosted MCP, MCP Host API, and resource-mutation routes remain local-only and are not

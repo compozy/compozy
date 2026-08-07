@@ -257,7 +257,8 @@ func TestPolicyGenerationFencingAndEffects(t *testing.T) {
 				Devices: []DeviceSession{{ID: "dev_test"}},
 			},
 		}
-		policy := newTestPolicy(t, store, newTestEffects(log), true)
+		effects := newTestEffects(log)
+		policy := newTestPolicy(t, store, effects, true)
 		_, err := policy.Transition(testContext(t), TransitionRequest{
 			Target: TargetSurface, Tier: TierPrivate, Surface: SurfaceOperatorUI,
 			Desired: DesiredEnabled,
@@ -268,6 +269,10 @@ func TestPolicyGenerationFencingAndEffects(t *testing.T) {
 		want := []string{"persist", "bind", "establish", "verify", "advertise"}
 		if got := log.snapshot(); len(got) < len(want) || !slices.Equal(got[:len(want)], want) {
 			t.Fatalf("effect prefix = %#v, want %#v", got, want)
+		}
+		wantStates := []ProviderObservedState{ProviderEstablishing, ProviderUp}
+		if got := effects.stateChanges(); !slices.Equal(got, wantStates) {
+			t.Fatalf("provider state events = %#v, want %#v", got, wantStates)
 		}
 	})
 
@@ -348,6 +353,29 @@ func TestPolicyGenerationFencingAndEffects(t *testing.T) {
 		}
 	})
 
+	t.Run("Should degrade observed state when the provider state event cannot be stored", func(t *testing.T) {
+		t.Parallel()
+		store := &testStore{snapshot: enabledPrivateSnapshot()}
+		effects := newTestEffects(nil)
+		effects.stateErrAt = ProviderUp
+		policy := newTestPolicy(t, store, effects, true)
+
+		if _, err := policy.Reconcile(testContext(t)); err == nil {
+			t.Fatal("Reconcile() error = nil, want provider state event failure")
+		}
+		snapshot, err := store.Snapshot(testContext(t))
+		if err != nil {
+			t.Fatalf("Snapshot() error = %v", err)
+		}
+		if snapshot.Providers[0].Observed != ProviderDegraded ||
+			snapshot.Surfaces[0].Observed != SurfaceOff {
+			t.Fatalf("observed state = %#v/%#v, want degraded/off", snapshot.Providers[0], snapshot.Surfaces[0])
+		}
+		if effects.isAdvertised(TierPrivate) {
+			t.Fatal("provider remained advertised after state event failure")
+		}
+	})
+
 	t.Run("Should restore the previous advertisement when listener replacement fails", func(t *testing.T) {
 		t.Parallel()
 		store := &testStore{snapshot: enabledPrivateSnapshot()}
@@ -369,10 +397,85 @@ func TestPolicyGenerationFencingAndEffects(t *testing.T) {
 			t.Fatalf("restored private tier = %#v, advertised=%t", status.Tiers[0], effects.isAdvertised(TierPrivate))
 		}
 	})
+
+	t.Run("Should keep prior reachability when provider preflight refuses replacement [UT-061]", func(t *testing.T) {
+		t.Parallel()
+		store := &testStore{snapshot: enabledPrivateSnapshot()}
+		effects := &preflightTestEffects{testEffects: newTestEffects(nil)}
+		reconciler := NewReconciler(store, effects)
+		if err := reconciler.Reconcile(testContext(t), planSnapshot(store.snapshot)); err != nil {
+			t.Fatalf("Reconcile(initial) error = %v", err)
+		}
+		effects.preflightErr = ErrDigestConfirmationRequired
+		err := reconciler.Reconcile(testContext(t), planSnapshot(store.snapshot))
+		if !errors.Is(err, ErrDigestConfirmationRequired) {
+			t.Fatalf("Reconcile(replacement) error = %v, want ErrDigestConfirmationRequired", err)
+		}
+		if !effects.isAdvertised(TierPrivate) {
+			t.Fatal("prior advertisement was withdrawn before failed authorization")
+		}
+		release, err := reconciler.Acquire(TierPrivate, SurfaceOperatorUI)
+		if err != nil {
+			t.Fatalf("Acquire() error = %v, want prior admission preserved", err)
+		}
+		release()
+	})
+
+	t.Run("Should withdraw, unbind, and automatically recover a degraded generation [UT-078]", func(t *testing.T) {
+		t.Parallel()
+		store := &testStore{snapshot: enabledPrivateSnapshot()}
+		effects := newTestEffects(nil)
+		reconciler := NewReconciler(store, effects, WithProviderRecoveryBackoff(time.Millisecond, 5*time.Millisecond))
+		t.Cleanup(func() {
+			if err := reconciler.Close(testContext(t)); err != nil {
+				t.Errorf("Close() error = %v", err)
+			}
+		})
+		plan := planSnapshot(store.snapshot)
+		if err := reconciler.Reconcile(testContext(t), plan); err != nil {
+			t.Fatalf("Reconcile(initial) error = %v", err)
+		}
+		activation := *plan.Tiers[0].Provider
+		if err := reconciler.handleProviderDegraded(
+			testContext(t), activation, errors.New("token=secret-outage"),
+		); err != nil {
+			t.Fatalf("handleProviderDegraded() error = %v", err)
+		}
+		if effects.isAdvertised(TierPrivate) {
+			t.Fatal("degraded provider remained advertised")
+		}
+		if _, err := reconciler.Acquire(TierPrivate, SurfaceOperatorUI); !errors.Is(err, ErrExposureRefused) {
+			t.Fatalf("Acquire(degraded) error = %v, want ErrExposureRefused", err)
+		}
+		waitForProviderObserved(t, store, ProviderUp)
+		if !effects.isAdvertised(TierPrivate) {
+			t.Fatal("provider recovery did not restore advertisement")
+		}
+	})
 }
 
 func TestPolicyDisableSemantics(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should emit the provider down state after an operator disables it", func(t *testing.T) {
+		t.Parallel()
+		store := &testStore{snapshot: enabledPrivateSnapshot()}
+		effects := newTestEffects(nil)
+		policy := newTestPolicy(t, store, effects, true)
+		if _, err := policy.Reconcile(testContext(t)); err != nil {
+			t.Fatalf("Reconcile() error = %v", err)
+		}
+		if _, err := policy.Transition(
+			testContext(t),
+			providerRequest(DesiredDisabled, 1),
+		); err != nil {
+			t.Fatalf("Transition(disable provider) error = %v", err)
+		}
+		want := []ProviderObservedState{ProviderEstablishing, ProviderUp, ProviderDown}
+		if got := effects.stateChanges(); !slices.Equal(got, want) {
+			t.Fatalf("provider state events = %#v, want %#v", got, want)
+		}
+	})
 
 	t.Run("Should mark desired disabled and observed off immediately [UT-019]", func(t *testing.T) {
 		t.Parallel()
@@ -577,4 +680,33 @@ func providerRequest(desired DesiredState, expected uint64) TransitionRequest {
 func testContext(t *testing.T) context.Context {
 	t.Helper()
 	return context.Background()
+}
+
+type preflightTestEffects struct {
+	*testEffects
+	preflightErr error
+}
+
+func (e *preflightTestEffects) PreflightProvider(context.Context, ProviderActivation) error {
+	return e.preflightErr
+}
+
+func waitForProviderObserved(t *testing.T, store *testStore, want ProviderObservedState) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		snapshot, err := store.Snapshot(testContext(t))
+		if err != nil {
+			t.Fatalf("Snapshot() error = %v", err)
+		}
+		if len(snapshot.Providers) == 1 && snapshot.Providers[0].Observed == want {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	snapshot, err := store.Snapshot(testContext(t))
+	if err != nil {
+		t.Fatalf("Snapshot(final) error = %v", err)
+	}
+	t.Fatalf("provider snapshot = %#v, want observed %q", snapshot.Providers, want)
 }

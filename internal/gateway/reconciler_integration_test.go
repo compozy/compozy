@@ -80,7 +80,8 @@ func TestGatewayFaultCompensationWithSQLite(t *testing.T) {
 			if effects.reachable() {
 				t.Fatalf("partial %s effect remained reachable: %#v", tt.failAt, effects.state())
 			}
-			if got := effects.calls(); len(got) < len(tt.wantCalls) || !slices.Equal(got[:len(tt.wantCalls)], tt.wantCalls) {
+			if got := effects.calls(); len(got) < len(tt.wantCalls) ||
+				!slices.Equal(got[:len(tt.wantCalls)], tt.wantCalls) {
 				t.Fatalf("effect call prefix = %#v, want %#v", got, tt.wantCalls)
 			}
 		})
@@ -141,7 +142,11 @@ func (e *faultGatewayEffects) Establish(
 	defer e.mu.Unlock()
 	e.established = true
 	return gateway.Reachability{
-		Tier: gateway.TierPrivate, Addresses: []string{"https://gateway.example.test"}, Health: gateway.HealthHealthy,
+		Tier: gateway.TierPrivate,
+		Endpoints: []gateway.AdvertisedEndpoint{{
+			URL: "https://gateway.example.test", Scheme: "https", Stability: gateway.EndpointStable,
+		}},
+		Health: gateway.HealthHealthy,
 	}, e.record("establish")
 }
 

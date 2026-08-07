@@ -7,7 +7,11 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/compozy/compozy/internal/diagnostics"
 )
+
+const maxHealthDiagnosticBytes = 1024
 
 // HealthCheckResponse is the structured result of the health_check RPC.
 type HealthCheckResponse struct {
@@ -167,8 +171,8 @@ func (p *Process) recordHealthy(response HealthCheckResponse) {
 	defer p.health.mu.Unlock()
 	p.health.state = HealthState{
 		Healthy:             true,
-		Message:             response.Message,
-		Details:             append(json.RawMessage(nil), response.Details...),
+		Message:             diagnostics.RedactAndBound(response.Message, maxHealthDiagnosticBytes),
+		Details:             redactHealthDetails(response.Details),
 		LastCheckedAt:       time.Now().UTC(),
 		ConsecutiveFailures: 0,
 	}
@@ -181,7 +185,7 @@ func (p *Process) recordHealthFailure(err error) {
 	state := p.health.state
 	state.LastCheckedAt = time.Now().UTC()
 	state.ConsecutiveFailures++
-	state.LastError = err.Error()
+	state.LastError = diagnostics.RedactAndBound(err.Error(), maxHealthDiagnosticBytes)
 	if state.ConsecutiveFailures >= p.healthThreshold {
 		state.Healthy = false
 	}
@@ -195,12 +199,24 @@ func (p *Process) markUnhealthy(message string, details json.RawMessage, lastErr
 	consecutiveFailures := p.health.state.ConsecutiveFailures + 1
 	p.health.state = HealthState{
 		Healthy:             false,
-		Message:             message,
-		Details:             append(json.RawMessage(nil), details...),
+		Message:             diagnostics.RedactAndBound(message, maxHealthDiagnosticBytes),
+		Details:             redactHealthDetails(details),
 		LastCheckedAt:       time.Now().UTC(),
 		ConsecutiveFailures: consecutiveFailures,
-		LastError:           lastError,
+		LastError:           diagnostics.RedactAndBound(lastError, maxHealthDiagnosticBytes),
 	}
+}
+
+func redactHealthDetails(details json.RawMessage) json.RawMessage {
+	if len(details) == 0 {
+		return nil
+	}
+	redacted, err := diagnostics.RedactJSON(details)
+	if err != nil {
+		// Provider health details are optional; malformed data must not cross the process boundary.
+		return nil
+	}
+	return redacted
 }
 
 func (p *Process) stopHealthMonitor() {

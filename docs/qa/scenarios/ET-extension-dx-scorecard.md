@@ -6,7 +6,7 @@ persona: Lea
 journey: J-extension-newcomer-first-success
 expected: A release-stamped newcomer path introduces at most ten concepts and reaches first success within four actions; own-source acquisition takes one command plus at most one consent; list, search, and Web reveal updates without a check command; the unchanged brief rubric re-grades SDK simplicity, completeness, and currency at A−/B/B or better.
 entry_points: https://compozy.com/runtime/guides/build-your-first-extension; https://compozy.com/runtime/core/extensions/develop; https://compozy.com/runtime/core/extensions/install; https://compozy.com/runtime/core/extensions/manifest; https://compozy.com/runtime/core/extensions/permissions; `compozy extension init|dev|install|list|search`; /marketplace/extensions; sdk/go; sdk/typescript; sdk/examples
-qa_status: blocked-verify
+qa_status: untested
 bug_ids: BUG-20260729-public-extension-sdks-unpublished
 fix_status: pending
 retest_status:
@@ -23,3 +23,6 @@ Task 11 measured nine introduced concepts and three documented extension command
 setup, within the binding targets. The grade cannot be awarded: the second extension command fails
 in a clean external workspace because neither public SDK coordinate is currently consumable. This
 is a release blocker, not an extra newcomer action or a locally repairable documentation defect.
+
+QA impact 2026-08-06: the public develop, manifest, and permissions references gained the
+connectivity-provider contract and two templates. Flag only; Tasks 08–09 own the re-walk.

@@ -211,15 +211,16 @@ type TierPlan struct {
 // Reachability is provider output that remains untrusted until verification.
 type Reachability struct {
 	Tier      Tier
-	Addresses []string
+	Endpoints []AdvertisedEndpoint
 	Health    ProviderHealth
+	Reason    string
 }
 
 // RuntimeTier is the in-memory listener and advertisement state.
 type RuntimeTier struct {
 	Tier       Tier
 	Bound      netip.AddrPort
-	Addresses  []string
+	Endpoints  []AdvertisedEndpoint
 	Surfaces   []Surface
 	Advertised bool
 }

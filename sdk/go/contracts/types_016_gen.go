@@ -7,6 +7,57 @@ import (
 	"time"
 )
 
+type PersistenceHealth struct {
+	Status             string `json:"status"`
+	GlobalDBSizeBytes  int64  `json:"global_db_size_bytes"`
+	SessionDBSizeBytes int64  `json:"session_db_size_bytes"`
+}
+
+type Priority string
+
+type ProbeResult struct {
+	AgentName  string    `json:"agent_name,omitempty"`
+	Provider   string    `json:"provider,omitempty"`
+	Command    string    `json:"command,omitempty"`
+	Executable string    `json:"executable,omitempty"`
+	Status     string    `json:"status"`
+	Error      string    `json:"error,omitempty"`
+	CheckedAt  time.Time `json:"checked_at"`
+	DurationMS int64     `json:"duration_ms"`
+}
+
+type PromptDelivery string
+
+type PromptMode string
+
+type PromptPatch struct {
+	Deny          bool           `json:"deny,omitempty"`
+	DenyReason    string         `json:"deny_reason,omitempty"`
+	Prompt        *string        `json:"prompt,omitempty"`
+	ContextBlocks []ContextBlock `json:"context_blocks,omitempty"`
+}
+
+type PromptPayload struct {
+	Event          HookEvent      `json:"event"`
+	Timestamp      time.Time      `json:"timestamp"`
+	SessionID      string         `json:"session_id,omitempty"`
+	SessionName    string         `json:"session_name,omitempty"`
+	SessionType    string         `json:"session_type,omitempty"`
+	AgentName      string         `json:"agent_name,omitempty"`
+	WorkspaceID    string         `json:"workspace_id,omitempty"`
+	Workspace      string         `json:"workspace,omitempty"`
+	ACPSessionID   string         `json:"acp_session_id,omitempty"`
+	State          string         `json:"state,omitempty"`
+	SoulSnapshotID string         `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string         `json:"soul_digest,omitempty"`
+	CreatedAt      time.Time      `json:"created_at"`
+	UpdatedAt      time.Time      `json:"updated_at"`
+	TurnID         string         `json:"turn_id,omitempty"`
+	InputClass     string         `json:"input_class,omitempty"`
+	Prompt         string         `json:"prompt,omitempty"`
+	ContextBlocks  []ContextBlock `json:"context_blocks,omitempty"`
+}
+
 type PromptRuntimeSelectionPayload struct {
 	Provider        string `json:"provider"`
 	Model           string `json:"model,omitempty"`
@@ -104,36 +155,4 @@ type ResourceRecord struct {
 	Spec      json.RawMessage `json:"spec"`
 	CreatedAt time.Time       `json:"created_at"`
 	UpdatedAt time.Time       `json:"updated_at"`
-}
-
-type ResourceScope struct {
-	Kind ResourceScopeKind `json:"kind"`
-	ID   string            `json:"id,omitempty"`
-}
-
-type ResourceScopeKind string
-
-type ResourceSnapshotRecord struct {
-	Kind  ResourceKind    `json:"kind"`
-	ID    string          `json:"id"`
-	Scope ResourceScope   `json:"scope"`
-	Spec  json.RawMessage `json:"spec"`
-}
-
-type ResourceSource struct {
-	Kind ResourceSourceKind `json:"kind"`
-	ID   string             `json:"id"`
-}
-
-type ResourceSourceKind string
-
-type ResourcesListParams struct {
-	Kind  ResourceKind   `json:"kind,omitempty"`
-	Scope *ResourceScope `json:"scope,omitempty"`
-	Limit int            `json:"limit,omitempty"`
-}
-
-type ResourcesSnapshotParams struct {
-	SourceVersion int64                    `json:"source_version"`
-	Records       []ResourceSnapshotRecord `json:"records"`
 }

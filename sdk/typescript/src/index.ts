@@ -24,6 +24,14 @@ export {
   isRPCError,
 } from "./errors.js";
 export type { ToolExecutionData } from "./errors.js";
+export {
+  CONNECTIVITY_ESTABLISH_METHOD,
+  CONNECTIVITY_PROVIDER_CAPABILITY,
+  CONNECTIVITY_STATUS_METHOD,
+  CONNECTIVITY_TEARDOWN_METHOD,
+  registerConnectivityProvider,
+} from "./connectivity-provider.js";
+export type { ConnectivityProviderHandlers } from "./connectivity-provider.js";
 export { canonicalJSON, schemaDigest } from "./schema-digest.js";
 export type {
   ExtensionContext,
@@ -98,6 +106,12 @@ export type {
   BridgeScope,
   BridgeStatus,
   CapabilitiesConfig,
+  ConnectivityAdvertisedEndpoint,
+  ConnectivityEstablishRequest,
+  ConnectivityReachability,
+  ConnectivityStatusRequest,
+  ConnectivityTeardownRequest,
+  ConnectivityTeardownResponse,
   ContextBlock,
   ContextCompactionPatch,
   ContextCompactPayload,

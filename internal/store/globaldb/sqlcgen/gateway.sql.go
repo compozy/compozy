@@ -45,6 +45,24 @@ func (q *Queries) DisableAllGatewaySurfaceExposure(ctx context.Context) (int64, 
 	return result.RowsAffected()
 }
 
+const getGatewayProvider = `-- name: GetGatewayProvider :one
+SELECT name, install_source, digest_confirmed, confirmed_at
+FROM gateway_providers
+WHERE name = ?1
+`
+
+func (q *Queries) GetGatewayProvider(ctx context.Context, name string) (GatewayProvider, error) {
+	row := q.db.QueryRowContext(ctx, getGatewayProvider, name)
+	var i GatewayProvider
+	err := row.Scan(
+		&i.Name,
+		&i.InstallSource,
+		&i.DigestConfirmed,
+		&i.ConfirmedAt,
+	)
+	return i, err
+}
+
 const getGatewayProviderActivation = `-- name: GetGatewayProviderActivation :one
 SELECT provider_name, tier, desired_state, observed_state, generation, last_health_at, last_error
 FROM gateway_provider_activations

@@ -57,7 +57,11 @@ func (gatewayEndToEndProviderEffects) Establish(
 	_ netip.AddrPort,
 ) (gateway.Reachability, error) {
 	return gateway.Reachability{
-		Tier: provider.Tier, Addresses: []string{"https://" + string(provider.Tier) + ".gateway.test"},
+		Tier: provider.Tier,
+		Endpoints: []gateway.AdvertisedEndpoint{{
+			URL:    "https://" + string(provider.Tier) + ".gateway.test",
+			Scheme: "https", Stability: gateway.EndpointStable,
+		}},
 		Health: gateway.HealthHealthy,
 	}, nil
 }
@@ -151,7 +155,10 @@ func exerciseGatewayDaemonRealListenersAndTransportParity(t *testing.T) {
 		if shutdownComplete {
 			return
 		}
-		shutdownCtx, cancelShutdown := context.WithTimeout(context.WithoutCancel(t.Context()), gatewayDaemonIntegrationTimeout)
+		shutdownCtx, cancelShutdown := context.WithTimeout(
+			context.WithoutCancel(t.Context()),
+			gatewayDaemonIntegrationTimeout,
+		)
 		defer cancelShutdown()
 		if err := daemonInstance.Shutdown(shutdownCtx); err != nil {
 			t.Errorf("Shutdown() error = %v", err)
@@ -219,13 +226,23 @@ func exerciseGatewayDaemonRealListenersAndTransportParity(t *testing.T) {
 	if webhook.StatusCode == http.StatusNotFound {
 		t.Fatalf("public webhook disappeared with operator UI: body=%s", webhookBody)
 	}
-	privateStatus := gatewayDaemonRequest(t, client, http.MethodGet, privateBaseURL+"/api/status", admin.Credential, nil)
+	privateStatus := gatewayDaemonRequest(
+		t,
+		client,
+		http.MethodGet,
+		privateBaseURL+"/api/status",
+		admin.Credential,
+		nil,
+	)
 	gatewayDaemonReadBody(t, privateStatus)
 	if privateStatus.StatusCode != http.StatusOK {
 		t.Fatalf("private status after public withdrawal = %d, want 200", privateStatus.StatusCode)
 	}
 
-	shutdownCtx, cancelShutdown := context.WithTimeout(context.WithoutCancel(t.Context()), gatewayDaemonIntegrationTimeout)
+	shutdownCtx, cancelShutdown := context.WithTimeout(
+		context.WithoutCancel(t.Context()),
+		gatewayDaemonIntegrationTimeout,
+	)
 	if err := daemonInstance.Shutdown(shutdownCtx); err != nil {
 		cancelShutdown()
 		t.Fatalf("Shutdown() error = %v", err)
@@ -522,7 +539,14 @@ func assertGatewayStatusTransportParity(
 	httpResponse := gatewayDaemonRequest(t, client, http.MethodGet, privateBaseURL+"/api/status", credential, nil)
 	var httpStatus contract.StatusPayload
 	gatewayDaemonDecodeBody(t, httpResponse, &httpStatus)
-	udsResponse := gatewayDaemonRequest(t, gatewayDaemonUDSClient(socketPath), http.MethodGet, "http://unix/api/status", "", nil)
+	udsResponse := gatewayDaemonRequest(
+		t,
+		gatewayDaemonUDSClient(socketPath),
+		http.MethodGet,
+		"http://unix/api/status",
+		"",
+		nil,
+	)
 	var udsStatus contract.StatusPayload
 	gatewayDaemonDecodeBody(t, udsResponse, &udsStatus)
 	if httpResponse.StatusCode != http.StatusOK || udsResponse.StatusCode != http.StatusOK ||
@@ -544,14 +568,27 @@ func assertGatewayDeviceTransportParity(
 ) {
 	t.Helper()
 	udsClient := gatewayDaemonUDSClient(socketPath)
-	httpList := gatewayDaemonRequest(t, client, http.MethodGet, privateBaseURL+"/api/gateway/devices", admin.Credential, nil)
+	httpList := gatewayDaemonRequest(
+		t,
+		client,
+		http.MethodGet,
+		privateBaseURL+"/api/gateway/devices",
+		admin.Credential,
+		nil,
+	)
 	udsList := gatewayDaemonRequest(t, udsClient, http.MethodGet, "http://unix/api/gateway/devices", "", nil)
 	var httpDevices, udsDevices contract.GatewayDevicesResponse
 	gatewayDaemonDecodeBody(t, httpList, &httpDevices)
 	gatewayDaemonDecodeBody(t, udsList, &udsDevices)
 	if httpList.StatusCode != http.StatusOK || udsList.StatusCode != http.StatusOK ||
 		!reflect.DeepEqual(httpDevices, udsDevices) {
-		t.Fatalf("device list parity = HTTP %d/%#v UDS %d/%#v", httpList.StatusCode, httpDevices, udsList.StatusCode, udsDevices)
+		t.Fatalf(
+			"device list parity = HTTP %d/%#v UDS %d/%#v",
+			httpList.StatusCode,
+			httpDevices,
+			udsList.StatusCode,
+			udsDevices,
+		)
 	}
 
 	target := issueGatewayDaemonCredential(t, udsClient, "Target")
@@ -583,7 +620,14 @@ func assertGatewayPublicPairingAbsent(
 ) {
 	t.Helper()
 	for _, path := range []string{"/api/gateway/pairings", "/api/gateway/pairings/redeem"} {
-		response := gatewayDaemonRequest(t, client, http.MethodPost, publicBaseURL+path, credential, bytes.NewBufferString(`{}`))
+		response := gatewayDaemonRequest(
+			t,
+			client,
+			http.MethodPost,
+			publicBaseURL+path,
+			credential,
+			bytes.NewBufferString(`{}`),
+		)
 		body := gatewayDaemonReadBody(t, response)
 		if response.StatusCode != http.StatusNotFound {
 			t.Fatalf("public pairing path %s = %d/%s, want 404", path, response.StatusCode, body)
@@ -617,7 +661,13 @@ func assertGatewayUniformProbing(
 				continue
 			}
 			if !bytes.Equal(body, canonical) {
-				t.Fatalf("unauthenticated probe %s%s enumerated route state: got %s, want %s", baseURL, path, body, canonical)
+				t.Fatalf(
+					"unauthenticated probe %s%s enumerated route state: got %s, want %s",
+					baseURL,
+					path,
+					body,
+					canonical,
+				)
 			}
 		}
 	}
@@ -878,7 +928,12 @@ func assertGatewayRevocationTerminatesRealStream(
 	select {
 	case <-streamDone:
 	case result := <-revokeDone:
-		t.Fatalf("revoke returned before the real SSE terminated: status=%d body=%s error=%v", result.status, result.body, result.err)
+		t.Fatalf(
+			"revoke returned before the real SSE terminated: status=%d body=%s error=%v",
+			result.status,
+			result.body,
+			result.err,
+		)
 	case <-time.After(gatewayDaemonIntegrationTimeout):
 		t.Fatal("timed out waiting for real SSE termination during revoke")
 	}

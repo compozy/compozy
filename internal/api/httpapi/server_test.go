@@ -19,6 +19,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/gateway"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/observe"
@@ -165,6 +166,7 @@ func TestGatewayTierServerConstruction(t *testing.T) {
 			WithHost("127.0.0.1"),
 			WithPort(0),
 			WithSurfaceSet(SurfaceSetPrivate),
+			WithGatewayChallenge(gateway.TierPrivate, gateway.NewChallengeRegistry()),
 			WithGatewayService(gatewayHTTPServiceStub{}),
 			WithDeviceAuth(gatewayHTTPAuthenticatorStub{}),
 			WithSessionManager(stubSessionManager{}),

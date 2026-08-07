@@ -556,6 +556,8 @@ func TestScaffoldExtension(t *testing.T) {
 
 	expectedTemplates := []ScaffoldTemplate{
 		ScaffoldTemplateHookTS,
+		ScaffoldTemplateConnectivityProviderGo,
+		ScaffoldTemplateConnectivityProviderTS,
 		ScaffoldTemplateLoopWatchSourceGo,
 		ScaffoldTemplateMemoryBackendTS,
 		ScaffoldTemplateToolProviderGo,

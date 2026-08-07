@@ -209,6 +209,8 @@ type testEffects struct {
 	failErr    error
 	onCall     func(string)
 	advertised map[Tier]bool
+	states     []ProviderObservedState
+	stateErrAt ProviderObservedState
 }
 
 func newTestEffects(log *testCallLog) *testEffects {
@@ -248,7 +250,11 @@ func (e *testEffects) Establish(_ context.Context, activation ProviderActivation
 		return Reachability{}, err
 	}
 	return Reachability{
-		Tier: activation.Tier, Addresses: []string{"https://gateway.example.test"}, Health: HealthHealthy,
+		Tier: activation.Tier,
+		Endpoints: []AdvertisedEndpoint{{
+			URL: "https://gateway.example.test", Scheme: "https", Stability: EndpointStable,
+		}},
+		Health: HealthHealthy,
 	}, nil
 }
 
@@ -276,6 +282,27 @@ func (e *testEffects) Withdraw(_ context.Context, tier Tier) error {
 	e.advertised[tier] = false
 	e.mu.Unlock()
 	return nil
+}
+
+func (e *testEffects) RecordProviderStateChanged(
+	_ context.Context,
+	_ ProviderActivation,
+	state ProviderObservedState,
+	_ string,
+) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.stateErrAt == state {
+		return errors.New("injected provider state event failure")
+	}
+	e.states = append(e.states, state)
+	return nil
+}
+
+func (e *testEffects) stateChanges() []ProviderObservedState {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return slices.Clone(e.states)
 }
 
 func (e *testEffects) isAdvertised(tier Tier) bool {

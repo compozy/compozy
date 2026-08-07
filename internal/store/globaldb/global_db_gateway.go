@@ -14,7 +14,32 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
-var _ gateway.Store = (*GatewayRepo)(nil)
+var (
+	_ gateway.Store                 = (*GatewayRepo)(nil)
+	_ gateway.ProviderIdentityStore = (*GatewayRepo)(nil)
+)
+
+// ProviderIdentity reads the operator-confirmed gateway provider tuple.
+func (g *GatewayRepo) ProviderIdentity(ctx context.Context, name string) (gateway.ProviderIdentity, error) {
+	if err := g.checkReady(ctx, "load gateway provider identity"); err != nil {
+		return gateway.ProviderIdentity{}, err
+	}
+	row, err := g.queries.GetGatewayProvider(ctx, strings.TrimSpace(name))
+	if errors.Is(err, sql.ErrNoRows) {
+		return gateway.ProviderIdentity{}, gateway.ErrProviderNotFound
+	}
+	if err != nil {
+		return gateway.ProviderIdentity{}, fmt.Errorf("store: load gateway provider identity: %w", err)
+	}
+	confirmedAt, err := parseNullableGatewayTime(row.ConfirmedAt)
+	if err != nil {
+		return gateway.ProviderIdentity{}, fmt.Errorf("store: parse gateway provider confirmation: %w", err)
+	}
+	return gateway.ProviderIdentity{
+		Name: row.Name, InstallSource: row.InstallSource,
+		DigestConfirmed: row.DigestConfirmed.String, ConfirmedAt: confirmedAt,
+	}, nil
+}
 
 // Snapshot loads the complete operator-global gateway state.
 func (g *GatewayRepo) Snapshot(ctx context.Context) (_ gateway.Snapshot, err error) {

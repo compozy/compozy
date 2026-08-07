@@ -31,6 +31,7 @@ func defaultGatewayTierServerFactory(
 		httpapi.WithPort(port),
 		httpapi.WithSurfaceSet(surfaceSet),
 		httpapi.WithGatewayService(deps.Gateway),
+		httpapi.WithGatewayChallenge(tier, deps.GatewayChallenges),
 		httpapi.WithDeviceAuth(deps.Gateway),
 		httpapi.WithGatewayAuthLimiter(gateway.NewAuthFailureLimiter(
 			deps.Config.Gateway.Auth.RateLimit.MaxFails,

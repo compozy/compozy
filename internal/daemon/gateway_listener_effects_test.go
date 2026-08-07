@@ -295,21 +295,27 @@ func TestGatewayTierListeners(t *testing.T) {
 		}
 	})
 
-	t.Run("Should retain a listener whose shutdown fails for a later retry", func(t *testing.T) {
+	t.Run("Should replace a stale listener when re-enabled after shutdown fails", func(t *testing.T) {
 		t.Parallel()
 
 		shutdownErr := errors.New("listener still running")
-		server := &gatewayListenerServerStub{port: 43135, shutdownErr: shutdownErr}
+		stale := &gatewayListenerServerStub{port: 43135, shutdownErr: shutdownErr}
+		replacement := &gatewayListenerServerStub{port: 43138}
 		store := &gatewayListenerStoreStub{snapshot: gateway.Snapshot{Surfaces: []gateway.SurfaceExposure{{
 			Surface: gateway.SurfaceOperatorUI, Tier: gateway.TierPrivate, Desired: gateway.DesiredEnabled,
 		}}}}
+		factoryCalls := 0
 		listeners := newGatewayTierListeners(store, &RuntimeDeps{}, func(
 			context.Context,
 			*RuntimeDeps,
 			gateway.Tier,
 			[]gateway.Surface,
 		) (Server, error) {
-			return server, nil
+			factoryCalls++
+			if factoryCalls == 1 {
+				return stale, nil
+			}
+			return replacement, nil
 		})
 
 		if _, err := listeners.Bind(t.Context(), gateway.TierPrivate); err != nil {
@@ -318,21 +324,25 @@ func TestGatewayTierListeners(t *testing.T) {
 		if err := listeners.Unbind(t.Context(), gateway.TierPrivate); !errors.Is(err, shutdownErr) {
 			t.Fatalf("Unbind(first) error = %v, want shutdown failure", err)
 		}
-		if active, ok := listeners.active[gateway.TierPrivate]; !ok || active.server != server {
-			t.Fatalf("active listener after failed shutdown = %#v, want retained server", active)
+		if active, ok := listeners.active[gateway.TierPrivate]; !ok || active.server != stale || !active.stale {
+			t.Fatalf("active listener after failed shutdown = %#v, want retained stale server", active)
 		}
-		server.mu.Lock()
-		server.shutdownErr = nil
-		server.mu.Unlock()
-		if err := listeners.Unbind(t.Context(), gateway.TierPrivate); err != nil {
-			t.Fatalf("Unbind(retry) error = %v", err)
+		stale.mu.Lock()
+		stale.shutdownErr = nil
+		stale.mu.Unlock()
+		bound, err := listeners.Bind(t.Context(), gateway.TierPrivate)
+		if err != nil {
+			t.Fatalf("Bind(recovery) error = %v", err)
 		}
-		if _, ok := listeners.active[gateway.TierPrivate]; ok {
-			t.Fatal("active listener remains after successful shutdown retry")
+		if want := netip.MustParseAddrPort("127.0.0.1:43138"); bound != want {
+			t.Fatalf("Bind(recovery) = %s, want %s", bound, want)
 		}
-		_, shutdownCalls := server.counts()
+		if active := listeners.active[gateway.TierPrivate]; active.server != replacement || active.stale {
+			t.Fatalf("active listener after recovery = %#v, want fresh replacement", active)
+		}
+		_, shutdownCalls := stale.counts()
 		if shutdownCalls != 2 {
-			t.Fatalf("Shutdown() calls = %d, want 2", shutdownCalls)
+			t.Fatalf("stale Shutdown() calls = %d, want 2", shutdownCalls)
 		}
 	})
 

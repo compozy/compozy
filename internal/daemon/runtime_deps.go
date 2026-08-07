@@ -80,5 +80,6 @@ type RuntimeDeps struct {
 	Resources           core.ResourceService
 	WindowManager       windowmanager.Service
 	Gateway             *gateway.Service
+	GatewayChallenges   *gateway.ChallengeRegistry
 	StartedAt           time.Time
 }

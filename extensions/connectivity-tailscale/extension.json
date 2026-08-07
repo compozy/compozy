@@ -1,0 +1,30 @@
+{
+    "extension": {
+        "name": "connectivity-tailscale",
+        "version": "0.1.0",
+        "description": "First-party private tailnet and public Funnel connectivity for Compozy gateways.",
+        "min_compozy_version": "0.3.0-beta.1"
+    },
+    "network_participation": {
+        "required": true,
+        "mode": "live",
+        "channel_scopes": ["gateway.private", "gateway.public"]
+    },
+    "capabilities": {
+        "provides": ["connectivity.provider"]
+    },
+    "requires_env": ["TS_AUTHKEY"],
+    "permissions": {
+        "requires": []
+    },
+    "resources": {},
+    "subprocess": {
+        "command": "{{compozy_executable}}",
+        "args": ["__internal", "extension-provider", "connectivity-tailscale"],
+        "env": {
+            "COMPOZY_HOME": "{{env:COMPOZY_HOME}}"
+        },
+        "health_check_interval": "30s",
+        "shutdown_timeout": "5s"
+    }
+}

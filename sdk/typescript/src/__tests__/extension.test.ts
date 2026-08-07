@@ -5,6 +5,12 @@ import { describe, expect, it, vi } from "vitest";
 
 import { Extension } from "../extension.js";
 import {
+  CONNECTIVITY_ESTABLISH_METHOD,
+  CONNECTIVITY_STATUS_METHOD,
+  CONNECTIVITY_TEARDOWN_METHOD,
+  registerConnectivityProvider,
+} from "../connectivity-provider.js";
+import {
   CapabilityDeniedError,
   InternalError,
   MethodNotFoundError,
@@ -14,7 +20,8 @@ import {
 } from "../errors.js";
 import { canonicalJSON, schemaDigest } from "../schema-digest.js";
 import { TestHarness } from "../testing/harness.js";
-import { createMockTransportPair } from "../testing/mock-transport.js";
+import { createMockTransportPair, MockTransport } from "../testing/mock-transport.js";
+import type { TransportHandler } from "../transport.js";
 import type { DescribePayload, InitializeRequest, JSONValue } from "../types.js";
 
 interface SchemaDigestFixture {
@@ -22,6 +29,26 @@ interface SchemaDigestFixture {
   schema: JSONValue;
   canonical: string;
   sha256: string;
+}
+
+class FailingProvideTransport extends MockTransport {
+  public readonly connectivityHandlers = new Set<string>();
+
+  public override handle(method: string, handler: TransportHandler): void {
+    super.handle(method, handler);
+    if (!method.startsWith("connectivity/")) {
+      return;
+    }
+    this.connectivityHandlers.add(method);
+    if (method === CONNECTIVITY_STATUS_METHOD) {
+      throw new Error("connectivity transport bind failed");
+    }
+  }
+
+  public override unhandle(method: string): void {
+    super.unhandle(method);
+    this.connectivityHandlers.delete(method);
+  }
 }
 
 function initializeFor(extension: Extension): InitializeRequest {
@@ -532,6 +559,108 @@ describe("Extension", () => {
     });
   });
 
+  it("registers and serves a connectivity provider", async () => {
+    const harness = new TestHarness();
+    const extension = new Extension({ name: "connectivity", version: "0.1.0" });
+    registerConnectivityProvider(extension, {
+      establish: (_context, request) => ({
+        tier: request.tier,
+        endpoints: [{ url: "https://gateway.example.test", scheme: "https", stability: "stable" }],
+        health: "healthy",
+      }),
+      status: (_context, request) => ({
+        tier: request.tier,
+        endpoints: [{ url: "https://gateway.example.test", scheme: "https", stability: "stable" }],
+        health: "healthy",
+      }),
+      teardown: () => ({ stopped: true }),
+    });
+    await harness.loadExtension(extension);
+    expect(extension.definition.capabilities?.provides).toContain("connectivity.provider");
+    expect(harness.getLastInitializeResponse()?.implemented_methods).toEqual(
+      expect.arrayContaining([
+        "connectivity/establish",
+        "connectivity/status",
+        "connectivity/teardown",
+      ])
+    );
+    await expect(
+      harness.call("connectivity/establish", {
+        tier: "private",
+        forward_target: "127.0.0.1:43210",
+        challenge_path: "/.well-known/compozy/gateway-challenge/typescript",
+        deadline: "2026-08-07T12:00:00Z",
+      })
+    ).resolves.toMatchObject({ tier: "private", health: "healthy" });
+    await expect(harness.call("connectivity/status", { tier: "private" })).resolves.toMatchObject({
+      tier: "private",
+      health: "healthy",
+    });
+    await expect(
+      harness.call("connectivity/teardown", {
+        tier: "private",
+        deadline: "2026-08-07T12:00:00Z",
+      })
+    ).resolves.toEqual({ stopped: true });
+  });
+
+  it("keeps connectivity provider registration atomic across collisions", () => {
+    const extension = new Extension({ name: "connectivity-collision", version: "0.1.0" });
+    extension.handle(CONNECTIVITY_STATUS_METHOD, () => ({ tier: "private", health: "down" }));
+
+    expect(() => registerConnectivityProvider(extension, connectivityHandlers())).toThrow(
+      "connectivity/status is already registered"
+    );
+    expect(extension.definition.capabilities?.provides ?? []).not.toContain(
+      "connectivity.provider"
+    );
+    expect(() => extension.handle(CONNECTIVITY_ESTABLISH_METHOD, () => ({}))).not.toThrow();
+    expect(() => extension.handle(CONNECTIVITY_TEARDOWN_METHOD, () => ({}))).not.toThrow();
+  });
+
+  it("rolls back transport handlers when connectivity registration fails", () => {
+    const transport = new FailingProvideTransport();
+    const extension = new Extension(
+      { name: "connectivity-bind-failure", version: "0.1.0" },
+      { transport }
+    );
+
+    expect(() => registerConnectivityProvider(extension, connectivityHandlers())).toThrow(
+      "connectivity transport bind failed"
+    );
+    expect(transport.connectivityHandlers.size).toBe(0);
+    expect(extension.definition.capabilities?.provides ?? []).not.toContain(
+      "connectivity.provider"
+    );
+    expect(extension.getImplementedMethods()).not.toEqual(
+      expect.arrayContaining([
+        CONNECTIVITY_ESTABLISH_METHOD,
+        CONNECTIVITY_STATUS_METHOD,
+        CONNECTIVITY_TEARDOWN_METHOD,
+      ])
+    );
+  });
+
+  it("rejects duplicate and post-start connectivity provider registration", async () => {
+    const duplicate = new Extension({ name: "connectivity-duplicate", version: "0.1.0" });
+    registerConnectivityProvider(duplicate, connectivityHandlers());
+    expect(() => registerConnectivityProvider(duplicate, connectivityHandlers())).toThrow(
+      "connectivity/establish is already registered"
+    );
+
+    const pair = createMockTransportPair();
+    const late = new Extension(
+      { name: "connectivity-late", version: "0.1.0" },
+      { transport: pair.extension }
+    );
+    const started = late.start();
+    expect(() => registerConnectivityProvider(late, connectivityHandlers())).toThrow(
+      "extension registration is closed after start"
+    );
+    await pair.host.call("initialize", initializeFor(late));
+    await expect(started).resolves.toBeDefined();
+  });
+
   it("redacts sensitive tool input from handler errors", async () => {
     const harness = new TestHarness();
     const extension = new Extension({
@@ -588,3 +717,19 @@ describe("Extension", () => {
     }
   });
 });
+
+function connectivityHandlers() {
+  return {
+    establish: (_context: unknown, request: { tier: string }) => ({
+      tier: request.tier,
+      endpoints: [{ url: "https://gateway.example.test", scheme: "https", stability: "stable" }],
+      health: "healthy",
+    }),
+    status: (_context: unknown, request: { tier: string }) => ({
+      tier: request.tier,
+      endpoints: [{ url: "https://gateway.example.test", scheme: "https", stability: "stable" }],
+      health: "healthy",
+    }),
+    teardown: () => ({ stopped: true }),
+  };
+}

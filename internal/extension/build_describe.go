@@ -67,6 +67,13 @@ func manifestFromDescribe(payload extensioncontract.DescribePayload) (*Manifest,
 			Env:     cloneStringMap(payload.Subprocess.Env),
 		},
 	}
+	if payload.NetworkParticipation != nil {
+		manifest.NetworkParticipation = (&NetworkParticipationRequirement{
+			Required:      payload.NetworkParticipation.Required,
+			Mode:          strings.TrimSpace(payload.NetworkParticipation.Mode),
+			ChannelScopes: slices.Clone(payload.NetworkParticipation.ChannelScopes),
+		}).Normalize()
+	}
 	if err := validateDescribeSDK(payload.SDK); err != nil {
 		return nil, err
 	}

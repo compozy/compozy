@@ -362,6 +362,22 @@ the public listener. Browser redemption installs a `Secure`, `HttpOnly`, `SameSi
 does not return the raw credential; UDS returns the raw credential only to its local caller, which
 must protect it as secret material.
 
+Select a connectivity provider with `POST /providers/{name}/enable`, naming the exact tier, live
+install source, current confirmed control digest, and expected generation. Read status first and do
+not reconstruct a digest. A third-party provider whose live registry digest changed fails closed
+until the extension requirement and Gateway provider selection both confirm the current value.
+Disable it with `POST /providers/{name}/disable?tier=<private|public>`. Only one provider may own a
+tier; replace that selection explicitly instead of racing two enables.
+
+Before enabling the bundled Tailscale provider, bind an auth key from the operator's Tailscale
+account through hidden input:
+
+    compozy extension secrets set connectivity-tailscale --env TS_AUTHKEY
+
+The provider embeds `tsnet`; do not install or supervise a separate Tailscale client. The live
+manifest must include the selected tier as `gateway.private` or `gateway.public` in
+`channel_scopes`; a mismatch fails before provider code starts.
+
 Authenticated streaming over a tier listener uses a short-lived, single-use ticket. Obtain one with
 `POST /api/gateway/stream-tickets`, then pass it as the `ticket` query parameter on the SSE or
 WebSocket request. A consumed, expired, malformed, or revoked-device ticket is rejected uniformly;

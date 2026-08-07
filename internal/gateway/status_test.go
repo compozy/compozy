@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/netip"
+	"strings"
 	"testing"
 )
 
@@ -16,8 +17,10 @@ func TestStatusProjection(t *testing.T) {
 		snapshot.Providers[0].Observed = ProviderUp
 		status := projectStatus(snapshot, []RuntimeTier{{
 			Tier: TierPrivate, Bound: netip.MustParseAddrPort("127.0.0.1:43210"),
-			Addresses: []string{"https://gateway.example.test"},
-			Surfaces:  []Surface{SurfaceOperatorUI}, Advertised: true,
+			Endpoints: []AdvertisedEndpoint{{
+				URL: "https://gateway.example.test", Scheme: "https", Stability: EndpointStable,
+			}},
+			Surfaces: []Surface{SurfaceOperatorUI}, Advertised: true,
 		}}, true, nil)
 		if len(status.Tiers) != 2 || len(status.Surfaces) != 1 || len(status.Providers) != 1 ||
 			len(status.Addresses) != 1 || len(status.Devices) != 1 {
@@ -72,13 +75,36 @@ func TestStatusProjection(t *testing.T) {
 		snapshot.Providers[0].Observed = ProviderDegraded
 		snapshot.Providers[0].LastError = "verification failed"
 		status := projectStatus(snapshot, []RuntimeTier{{
-			Tier: TierPrivate, Addresses: []string{"https://stale.example.test"}, Advertised: false,
+			Tier: TierPrivate,
+			Endpoints: []AdvertisedEndpoint{{
+				URL: "https://stale.example.test", Scheme: "https", Stability: EndpointStable,
+			}},
+			Advertised: false,
 		}}, true, nil)
 		if status.Providers[0].Health != HealthDegraded || status.Providers[0].Cause != "verification failed" {
 			t.Fatalf("provider = %#v, want degraded cause", status.Providers[0])
 		}
 		if len(status.Addresses) != 0 {
 			t.Fatalf("addresses = %#v, want no stale live address", status.Addresses)
+		}
+	})
+
+	t.Run("Should redact sensitive material at the status projection boundary", func(t *testing.T) {
+		t.Parallel()
+		const secret = "sk-gateway-status-secret"
+		snapshot := enabledPrivateSnapshot()
+		snapshot.Providers[0].LastError = "api_key=" + secret
+		status := projectStatus(snapshot, []RuntimeTier{{
+			Tier: TierPrivate,
+			Endpoints: []AdvertisedEndpoint{{
+				URL:    "https://gateway.example.test/api_key=" + secret,
+				Scheme: "https", Stability: EndpointStable,
+			}},
+			Advertised: true,
+		}}, true, nil)
+		if strings.Contains(status.Addresses[0].Address, secret) ||
+			strings.Contains(status.Providers[0].Cause, secret) {
+			t.Fatalf("status projection leaked provider credential: %#v", status)
 		}
 	})
 

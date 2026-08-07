@@ -38,13 +38,15 @@ extension cannot claim compatibility its SDK does not have.
 `compozy extension init <name> --template <template> [--dir <path>]` writes source plus
 `package.json` or `go.mod` and nothing else.
 
-| Template               | Use for                                       |
-| ---------------------- | --------------------------------------------- |
-| `tool-provider-ts`     | Agent-callable tools in TypeScript (default). |
-| `tool-provider-go`     | Agent-callable tools in Go.                   |
-| `hook-ts`              | A runtime hook that returns a payload patch.  |
-| `memory-backend-ts`    | The `memory.backend` provide surface.         |
-| `loop-watch-source-go` | The `loop.watch_source` provide surface.      |
+| Template                   | Use for                                        |
+| -------------------------- | ---------------------------------------------- |
+| `tool-provider-ts`         | Agent-callable tools in TypeScript (default).  |
+| `tool-provider-go`         | Agent-callable tools in Go.                    |
+| `hook-ts`                  | A runtime hook that returns a payload patch.   |
+| `memory-backend-ts`        | The `memory.backend` provide surface.          |
+| `loop-watch-source-go`     | The `loop.watch_source` provide surface.       |
+| `connectivity-provider-go` | A Gateway connectivity provider in Go.         |
+| `connectivity-provider-ts` | A Gateway connectivity provider in TypeScript. |
 
 ## Declaration Shape
 
@@ -142,13 +144,14 @@ available through direct read methods, but must be unarchived before a prompt or
 
 Closed set, validated at build, install, and load.
 
-| Provide             | Extension must implement                         | Public |
-| ------------------- | ------------------------------------------------ | ------ |
-| `tool.provider`     | `provide_tools`, `tools/call`                    | yes    |
-| `memory.backend`    | `memory/store`, `memory/recall`, `memory/forget` | yes    |
-| `model.source`      | `models/list`                                    | yes    |
-| `loop.watch_source` | `watch/poll`                                     | yes    |
-| `bridge.adapter`    | `bridges/deliver`, `bridges/targets/snapshot`    | no     |
+| Provide                 | Extension must implement                                                 | Public |
+| ----------------------- | ------------------------------------------------------------------------ | ------ |
+| `tool.provider`         | `provide_tools`, `tools/call`                                            | yes    |
+| `memory.backend`        | `memory/store`, `memory/recall`, `memory/forget`                         | yes    |
+| `model.source`          | `models/list`                                                            | yes    |
+| `loop.watch_source`     | `watch/poll`                                                             | yes    |
+| `connectivity.provider` | `connectivity/establish`, `connectivity/status`, `connectivity/teardown` | yes    |
+| `bridge.adapter`        | `bridges/deliver`, `bridges/targets/snapshot`                            | no     |
 
 Missing a required service method fails the build. `bridge.adapter` is excluded from the public
 surface: an installed third-party manifest declaring it is rejected deterministically, because
@@ -158,6 +161,20 @@ Every `watch/poll` response requires a stable `event_key`. The runtime trims it 
 Unicode to NFC, one canonical byte form. Invalid UTF-8 and values over 256 bytes are rejected before
 a Loop starts. Redelivery of the same source key and event key returns the existing Loop run as a
 structured suppression instead of starting duplicate work.
+
+A `connectivity.provider` is global-only and requires a confirmed Live Network participation
+digest. Its `channel_scopes` must include `gateway.private`, `gateway.public`, or both; the daemon
+refuses a tier outside that declared set before starting provider code. Register all three methods with `ConnectivityProvider` in Go or
+`registerConnectivityProvider` in TypeScript. `connectivity/establish` receives the tier, a loopback
+forward target, an opaque challenge path, and a deadline; return HTTPS endpoints only after the
+route forwards the challenge unchanged. `connectivity/status` reports the same tier's current
+health. `connectivity/teardown` must end forwarding within its deadline before returning
+`stopped: true`. Compozy verifies the challenge itself and advertises nothing on failure. A changed
+live registry digest requires fresh consent, and only one provider may be selected per tier.
+
+The bundled `connectivity-tailscale` provider requires the declared `TS_AUTHKEY` binding. Set it
+through hidden input with `compozy extension secrets set connectivity-tailscale --env TS_AUTHKEY`;
+never place the value in argv, a manifest, or a prompt.
 
 For a host bridge adapter, `delivery_id` is opaque: acknowledge the exact received value and sequence,
 without trimming or reformatting it. Cursor diagnostics identify ownership with a structured

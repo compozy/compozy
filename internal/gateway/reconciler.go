@@ -26,6 +26,11 @@ type EffectDriver interface {
 	Withdraw(context.Context, Tier) error
 }
 
+// ProviderPreflight validates live provider authority before existing reachability is disturbed.
+type ProviderPreflight interface {
+	PreflightProvider(context.Context, ProviderActivation) error
+}
+
 type refusingEffects struct{}
 
 func (refusingEffects) Bind(context.Context, Tier) (netip.AddrPort, error) {
@@ -57,22 +62,43 @@ type runtimeTierState struct {
 
 // Reconciler drives durable desired state through ordered external effects.
 type Reconciler struct {
-	store   Store
-	effects EffectDriver
-	mu      sync.Mutex
-	runtime map[Tier]*runtimeTierState
+	store          Store
+	effects        EffectDriver
+	mu             sync.Mutex
+	runtime        map[Tier]*runtimeTierState
+	recoveryCtx    context.Context
+	recoveryCancel context.CancelFunc
+	recoveries     map[Tier]*providerRecovery
+	recoveryMin    time.Duration
+	recoveryMax    time.Duration
+	providerStates ProviderStateReporter
+	closed         bool
 }
 
 // NewReconciler constructs a serialized, generation-fenced reconciler.
-func NewReconciler(store Store, effects EffectDriver) *Reconciler {
+func NewReconciler(store Store, effects EffectDriver, options ...ReconcilerOption) *Reconciler {
 	if effects == nil {
 		effects = refusingEffects{}
 	}
-	return &Reconciler{
-		store:   store,
-		effects: effects,
-		runtime: map[Tier]*runtimeTierState{},
+	recoveryCtx, recoveryCancel := context.WithCancel(context.Background())
+	reconciler := &Reconciler{
+		store: store, effects: effects, runtime: map[Tier]*runtimeTierState{},
+		recoveryCtx: recoveryCtx, recoveryCancel: recoveryCancel,
+		recoveries:  make(map[Tier]*providerRecovery),
+		recoveryMin: defaultProviderRecoveryMinimum, recoveryMax: defaultProviderRecoveryMaximum,
 	}
+	for _, option := range options {
+		if option != nil {
+			option(reconciler)
+		}
+	}
+	if source, ok := effects.(ProviderDegradationSource); ok {
+		source.SetProviderDegradationHandler(reconciler.handleProviderDegraded)
+	}
+	if reporter, ok := effects.(ProviderStateReporter); ok {
+		reconciler.providerStates = reporter
+	}
+	return reconciler
 }
 
 // Runtime returns a stable copy for status projection.
@@ -86,7 +112,7 @@ func (r *Reconciler) Runtime() []RuntimeTier {
 			continue
 		}
 		runtimeCopy := state.RuntimeTier
-		runtimeCopy.Addresses = append([]string(nil), state.Addresses...)
+		runtimeCopy.Endpoints = append([]AdvertisedEndpoint(nil), state.Endpoints...)
 		runtimeCopy.Surfaces = append([]Surface(nil), state.Surfaces...)
 		result = append(result, runtimeCopy)
 	}
@@ -124,6 +150,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, plan ExposurePlan) error {
 	}
 	var errs []error
 	for _, tier := range []Tier{TierPrivate, TierPublic} {
+		r.cancelRecoveryLocked(tier)
 		tierPlan := byTier[tier]
 		tierPlan.Tier = tier
 		var err error
@@ -148,10 +175,15 @@ func (r *Reconciler) enableTier(ctx context.Context, plan TierPlan) error {
 	}
 	provider := *plan.Provider
 	surfaces := surfaceNames(plan.Surfaces)
+	if preflight, ok := r.effects.(ProviderPreflight); ok {
+		if err := preflight.PreflightProvider(ctx, provider); err != nil {
+			return err
+		}
+	}
 	state := r.runtimeState(plan.Tier)
 	hadAdvertisement := state.Advertised
 	previousRuntime := state.RuntimeTier
-	previousRuntime.Addresses = append([]string(nil), state.Addresses...)
+	previousRuntime.Endpoints = append([]AdvertisedEndpoint(nil), state.Endpoints...)
 	previousRuntime.Surfaces = append([]Surface(nil), state.Surfaces...)
 	previousProvider := state.provider
 	previousAccepting := state.accepting
@@ -166,7 +198,7 @@ func (r *Reconciler) enableTier(ctx context.Context, plan TierPlan) error {
 	if err != nil {
 		if hadAdvertisement {
 			restoreErr := r.effects.Advertise(ctx, Reachability{
-				Tier: plan.Tier, Addresses: append([]string(nil), previousRuntime.Addresses...),
+				Tier: plan.Tier, Endpoints: append([]AdvertisedEndpoint(nil), previousRuntime.Endpoints...),
 				Health: HealthHealthy,
 			}, append([]Surface(nil), previousRuntime.Surfaces...))
 			state.RuntimeTier = previousRuntime
@@ -180,11 +212,17 @@ func (r *Reconciler) enableTier(ctx context.Context, plan TierPlan) error {
 	if err := r.assertCurrent(ctx, plan); err != nil {
 		return errors.Join(err, r.unbindTier(ctx, plan.Tier, state))
 	}
+	if err := r.markProviderEstablishing(ctx, plan, state, hadAdvertisement); err != nil {
+		return err
+	}
 	providerCopy := provider
 	state.provider = &providerCopy
 	reachability, err := r.effects.Establish(ctx, provider, bound)
 	if err != nil {
-		return errors.Join(err, r.compensateTier(ctx, plan.Tier, provider, state, false))
+		return errors.Join(
+			r.markDegraded(ctx, plan, err),
+			r.compensateTier(ctx, plan.Tier, provider, state, false),
+		)
 	}
 	if err := r.assertCurrent(ctx, plan); err != nil {
 		return errors.Join(err, r.compensateTier(ctx, plan.Tier, provider, state, false))
@@ -195,12 +233,12 @@ func (r *Reconciler) enableTier(ctx context.Context, plan TierPlan) error {
 	if err := r.assertCurrent(ctx, plan); err != nil {
 		return errors.Join(err, r.compensateTier(ctx, plan.Tier, provider, state, false))
 	}
-	state.Addresses = append([]string(nil), reachability.Addresses...)
-	state.Surfaces = append([]Surface(nil), surfaces...)
-	state.Advertised = true
 	if err := r.effects.Advertise(ctx, reachability, surfaces); err != nil {
 		return errors.Join(r.markDegraded(ctx, plan, err), r.compensateTier(ctx, plan.Tier, provider, state, true))
 	}
+	state.Endpoints = append([]AdvertisedEndpoint(nil), reachability.Endpoints...)
+	state.Surfaces = append([]Surface(nil), surfaces...)
+	state.Advertised = true
 	if err := r.assertCurrent(ctx, plan); err != nil {
 		return errors.Join(err, r.compensateTier(ctx, plan.Tier, provider, state, true))
 	}
@@ -228,7 +266,14 @@ func (r *Reconciler) disableTier(ctx context.Context, plan TierPlan) error {
 		return cleanupErr
 	}
 	if plan.Provider == nil {
-		return nil
+		if provider == nil || r.providerStates == nil {
+			return nil
+		}
+		current, err := r.currentProviderActivation(ctx, *provider)
+		if err != nil {
+			return err
+		}
+		return r.recordProviderState(ctx, current, ProviderDown, "")
 	}
 	return r.markObserved(ctx, plan, ProviderDown, SurfaceOff, "")
 }
@@ -254,7 +299,7 @@ func (r *Reconciler) withdrawTier(ctx context.Context, tier Tier, state *runtime
 		return err
 	}
 	state.Advertised = false
-	state.Addresses = nil
+	state.Endpoints = nil
 	state.Surfaces = nil
 	return nil
 }
@@ -295,28 +340,48 @@ func (r *Reconciler) assertCurrent(ctx context.Context, plan TierPlan) error {
 	return nil
 }
 
-func (r *Reconciler) markObserved(
+func (r *Reconciler) handleProviderDegraded(
 	ctx context.Context,
-	plan TierPlan,
-	providerState ProviderObservedState,
-	surfaceState SurfaceObservedState,
-	cause string,
+	activation ProviderActivation,
+	cause error,
 ) error {
-	now := time.Now().UTC()
-	updated, err := r.store.SetObserved(ctx, plan, providerState, surfaceState, now, cause)
-	if err != nil {
-		return err
-	}
-	if !updated {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	state := r.runtimeState(activation.Tier)
+	if state.provider == nil || state.provider.ProviderName != activation.ProviderName ||
+		state.provider.Generation != activation.Generation {
 		return ErrStaleGeneration
 	}
-	return nil
+	state.accepting = false
+	cleanupErr := errors.Join(
+		r.withdrawTier(ctx, activation.Tier, state),
+		r.unbindTier(ctx, activation.Tier, state),
+	)
+	state.provider = nil
+	snapshot, err := r.store.Snapshot(ctx)
+	if err != nil {
+		return errors.Join(cause, cleanupErr, err)
+	}
+	plan := planForTier(planSnapshot(snapshot), activation.Tier)
+	if plan.Provider == nil || plan.Provider.ProviderName != activation.ProviderName ||
+		plan.Provider.Generation != activation.Generation {
+		return errors.Join(cause, cleanupErr)
+	}
+	safeCause := diagnostics.RedactAndBound(cause.Error(), maxPersistedGatewayDiagnosticBytes)
+	if err := r.markObserved(ctx, plan, ProviderDegraded, SurfaceOff, safeCause); err != nil {
+		return errors.Join(cause, cleanupErr, err)
+	}
+	r.scheduleRecoveryLocked(activation)
+	return cleanupErr
 }
 
-func (r *Reconciler) markDegraded(ctx context.Context, plan TierPlan, cause error) error {
-	safeCause := diagnostics.RedactAndBound(cause.Error(), maxPersistedGatewayDiagnosticBytes)
-	markErr := r.markObserved(ctx, plan, ProviderDegraded, SurfaceOff, safeCause)
-	return errors.Join(cause, markErr)
+func planForTier(plan ExposurePlan, tier Tier) TierPlan {
+	for _, candidate := range plan.Tiers {
+		if candidate.Tier == tier {
+			return candidate
+		}
+	}
+	return TierPlan{Tier: tier}
 }
 
 func (r *Reconciler) runtimeState(tier Tier) *runtimeTierState {
@@ -330,8 +395,13 @@ func (r *Reconciler) runtimeState(tier Tier) *runtimeTierState {
 
 // Close removes reachability in reverse effect order for both tiers.
 func (r *Reconciler) Close(ctx context.Context) error {
+	r.recoveryCancel()
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	r.closed = true
+	for tier := range r.recoveries {
+		r.cancelRecoveryLocked(tier)
+	}
 	var errs []error
 	for _, tier := range []Tier{TierPublic, TierPrivate} {
 		state := r.runtimeState(tier)

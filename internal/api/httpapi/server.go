@@ -337,7 +337,15 @@ func New(opts ...Option) (*Server, error) {
 	server.ensureEngine()
 	server.staticSource = staticSource.source
 	server.handlers = newHandlers(server.handlerConfig(staticSource.fs))
-	ginutil.QuietDebug(func() { RegisterSurfaceRoutes(server.engine, server.handlers, server.surfaceSet) })
+	ginutil.QuietDebug(func() {
+		registerGatewayChallengeRoute(
+			server.engine,
+			server.surfaceSet,
+			server.gatewayTier,
+			server.gatewayChallenges,
+		)
+		RegisterSurfaceRoutes(server.engine, server.handlers, server.surfaceSet)
+	})
 
 	return server, nil
 }

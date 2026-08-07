@@ -143,6 +143,152 @@ display_name = "Fixture"
 	})
 }
 
+func TestConnectivityProviderRegistryPolicy(t *testing.T) {
+	withDaemonVersion(t, "0.6.0")
+
+	t.Run("Should require an explicit gateway tier scope", func(t *testing.T) {
+		for _, test := range []struct {
+			name   string
+			scopes []string
+			field  string
+		}{
+			{name: "missing network participation", field: "network_participation"},
+			{name: "unrelated live scope", scopes: []string{"builders"}, field: "network_participation.channel_scopes"},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				env := newRegistryTestEnv(t)
+				dir, manifest, checksum := createRegistryTestExtension(
+					t,
+					"invalid-connectivity-"+strings.ReplaceAll(test.name, " ", "-"),
+					registryManifestOptions{
+						capabilities:  []string{"connectivity.provider"},
+						networkScopes: test.scopes,
+					},
+				)
+				err := env.registry.Install(manifest, dir, checksum)
+				var validationErr *ManifestValidationError
+				if !errors.As(err, &validationErr) || validationErr.Field != test.field {
+					t.Fatalf("Install() error = %v, want validation field %q", err, test.field)
+				}
+			})
+		}
+	})
+
+	t.Run("Should refuse an extension acting outside its declared provider role [UT-076]", func(t *testing.T) {
+		env := newRegistryTestEnv(t)
+		dir, manifest, checksum := createRegistryTestExtension(t, "not-connectivity", registryManifestOptions{})
+		if err := env.registry.Install(manifest, dir, checksum); err != nil {
+			t.Fatalf("Install() error = %v", err)
+		}
+		resolver, err := NewConnectivityProviderTrustResolver(env.registry)
+		if err != nil {
+			t.Fatalf("NewConnectivityProviderTrustResolver() error = %v", err)
+		}
+		if _, err := resolver.ResolveProviderTrust(testutil.Context(t), manifest.Name); err == nil ||
+			!strings.Contains(err.Error(), "does not declare connectivity.provider") {
+			t.Fatalf("ResolveProviderTrust() error = %v, want declared-role refusal", err)
+		}
+	})
+
+	t.Run("Should reject a workspace-scoped connectivity provider [UT-077]", func(t *testing.T) {
+		env := newRegistryTestEnv(t)
+		dir, manifest, checksum := createRegistryTestExtension(t, "workspace-connectivity", registryManifestOptions{
+			capabilities:  []string{"connectivity.provider"},
+			networkScopes: []string{"gateway.private"},
+		})
+		err := env.registry.Install(manifest, dir, checksum, WithInstallSource(SourceWorkspace))
+		if err == nil {
+			t.Fatal("Install() error = nil, want workspace provider rejection")
+		}
+		var validationErr *ManifestValidationError
+		if !errors.As(err, &validationErr) || validationErr.Field != "capabilities.provides" {
+			t.Fatalf("Install() error = %v, want capabilities.provides validation", err)
+		}
+	})
+
+	t.Run("Should invalidate confirmed connectivity control after an extension update [IT-032]", func(t *testing.T) {
+		env := newRegistryTestEnv(t)
+		firstDir, firstManifest, firstChecksum := createRegistryTestExtension(
+			t,
+			"updated-connectivity",
+			registryManifestOptions{
+				capabilities:  []string{"connectivity.provider"},
+				networkScopes: []string{"gateway.private"},
+			},
+		)
+		if err := env.registry.Install(firstManifest, firstDir, firstChecksum); err != nil {
+			t.Fatalf("Install(first) error = %v", err)
+		}
+		firstDigest, err := NetworkParticipationRequirementDigest(firstManifest.NetworkParticipation)
+		if err != nil {
+			t.Fatalf("NetworkParticipationRequirementDigest(first) error = %v", err)
+		}
+		if err := env.registry.ConfirmNetworkRequirement(
+			GlobalInstanceKey(firstManifest.Name), firstDigest, "operator", env.installedAt,
+		); err != nil {
+			t.Fatalf("ConfirmNetworkRequirement(first) error = %v", err)
+		}
+		resolver, err := NewConnectivityProviderTrustResolver(env.registry)
+		if err != nil {
+			t.Fatalf("NewConnectivityProviderTrustResolver() error = %v", err)
+		}
+		confirmed, err := resolver.ResolveProviderTrust(testutil.Context(t), firstManifest.Name)
+		if err != nil {
+			t.Fatalf("ResolveProviderTrust(first) error = %v", err)
+		}
+		if confirmed.ControlDigest != firstDigest || confirmed.ConfirmedDigest != firstDigest {
+			t.Fatalf("confirmed trust = %#v, want exact first digest", confirmed)
+		}
+
+		secondDir, secondManifest, secondChecksum := createRegistryTestExtension(
+			t,
+			"updated-connectivity",
+			registryManifestOptions{
+				capabilities:  []string{"connectivity.provider"},
+				networkScopes: []string{"gateway.private", "gateway.public"},
+			},
+		)
+		if err := env.registry.Install(
+			secondManifest, secondDir, secondChecksum, WithInstallReplaceExisting(),
+		); err != nil {
+			t.Fatalf("Install(second) error = %v", err)
+		}
+		updated, err := resolver.ResolveProviderTrust(testutil.Context(t), secondManifest.Name)
+		if err != nil {
+			t.Fatalf("ResolveProviderTrust(second) error = %v", err)
+		}
+		if updated.ControlDigest == firstDigest || updated.ConfirmedDigest != "" {
+			t.Fatalf("updated trust = %#v, want changed unconfirmed digest", updated)
+		}
+	})
+
+	t.Run("Should fail closed when the installed provider artifact changes outside the registry", func(t *testing.T) {
+		env := newRegistryTestEnv(t)
+		dir, manifest, checksum := createRegistryTestExtension(t, "tampered-connectivity", registryManifestOptions{
+			capabilities:  []string{"connectivity.provider"},
+			networkScopes: []string{"gateway.private"},
+		})
+		if err := env.registry.Install(manifest, dir, checksum); err != nil {
+			t.Fatalf("Install() error = %v", err)
+		}
+		resolver, err := NewConnectivityProviderTrustResolver(env.registry)
+		if err != nil {
+			t.Fatalf("NewConnectivityProviderTrustResolver() error = %v", err)
+		}
+		manifestPath := filepath.Join(dir, manifestTOMLFileName)
+		content, err := os.ReadFile(manifestPath)
+		if err != nil {
+			t.Fatalf("ReadFile(manifest) error = %v", err)
+		}
+		if err := os.WriteFile(manifestPath, append(content, []byte("\n# tampered\n")...), 0o600); err != nil {
+			t.Fatalf("WriteFile(manifest) error = %v", err)
+		}
+		if _, err := resolver.ResolveProviderTrust(testutil.Context(t), manifest.Name); err == nil {
+			t.Fatal("ResolveProviderTrust() error = nil, want checksum refusal")
+		}
+	})
+}
+
 func TestRegistryInstallRejectsDuplicateName(t *testing.T) {
 	withDaemonVersion(t, "0.6.0")
 

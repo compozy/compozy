@@ -63,6 +63,14 @@ func WithGatewayAdmission(admission gateway.AdmissionController) Option {
 	}
 }
 
+// WithGatewayChallenge mounts the nonce-only verification route on one tier listener.
+func WithGatewayChallenge(tier gateway.Tier, resolver gateway.ChallengeResolver) Option {
+	return func(server *Server) {
+		server.gatewayTier = tier
+		server.gatewayChallenges = resolver
+	}
+}
+
 // WithGatewayAuthLimiter overrides failed-auth throttling, primarily for deterministic tests.
 func WithGatewayAuthLimiter(limiter *gateway.AuthFailureLimiter) Option {
 	return func(server *Server) {

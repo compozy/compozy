@@ -1217,6 +1217,39 @@ export interface CompactionMatcher {
   compaction_strategy?: string;
 }
 
+export interface ConnectivityAdvertisedEndpoint {
+  url: string;
+  scheme: string;
+  stability: string;
+}
+
+export interface ConnectivityEstablishRequest {
+  tier: string;
+  forward_target: string;
+  challenge_path: string;
+  deadline: ISODateTime;
+}
+
+export interface ConnectivityReachability {
+  tier: string;
+  endpoints: ConnectivityAdvertisedEndpoint[];
+  health: string;
+  reason?: string;
+}
+
+export interface ConnectivityStatusRequest {
+  tier: string;
+}
+
+export interface ConnectivityTeardownRequest {
+  tier: string;
+  deadline: ISODateTime;
+}
+
+export interface ConnectivityTeardownResponse {
+  stopped: boolean;
+}
+
 export interface ConsentArea {
   area: string;
   access: string;
@@ -1590,6 +1623,12 @@ export interface DeliveryRequest {
   snapshot?: DeliverySnapshot;
 }
 
+export interface DescribeNetworkParticipation {
+  required: boolean;
+  mode: string;
+  channel_scopes?: string[];
+}
+
 export interface DescribeResources {
   skills?: string[];
   loops?: string[];
@@ -1653,6 +1692,7 @@ export interface DescribePayload {
   requires_env?: string[];
   resources: DescribeResources;
   subprocess: DescribeSubprocess;
+  network_participation?: DescribeNetworkParticipation;
   tools?: ExtensionToolRuntimeDescriptor[];
   hook_events?: string[];
   watch_source_kinds?: string[];
@@ -7171,6 +7211,11 @@ export interface HostAPIMethodMap {
 
 export const REQUIRED_METHODS_BY_PROVIDE = {
   "bridge.adapter": ["bridges/deliver", "bridges/targets/snapshot"],
+  "connectivity.provider": [
+    "connectivity/establish",
+    "connectivity/status",
+    "connectivity/teardown",
+  ],
   "loop.watch_source": ["watch/poll"],
   "memory.backend": ["memory/forget", "memory/recall", "memory/store"],
   "model.source": ["models/list"],
@@ -7183,6 +7228,10 @@ export interface ProvideConformanceFixture {
 }
 
 export const PUBLIC_PROVIDE_CONFORMANCE_FIXTURES: readonly ProvideConformanceFixture[] = [
+  {
+    provide: "connectivity.provider",
+    required_methods: REQUIRED_METHODS_BY_PROVIDE["connectivity.provider"],
+  },
   {
     provide: "loop.watch_source",
     required_methods: REQUIRED_METHODS_BY_PROVIDE["loop.watch_source"],

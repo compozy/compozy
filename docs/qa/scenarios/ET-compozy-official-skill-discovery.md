@@ -6,7 +6,7 @@ persona: Ada
 journey: J-validate-compozy-hard-cut
 expected: A fresh runtime discovers the bundled skill only as `compozy`; every read plane agrees, the router teaches the extension-only kit lifecycle within budget, and no retired Bundle tool, capability, reference, alias, or duplicate catalog entry remains.
 entry_points: bundled skills/compozy/SKILL.md; GET /api/skills; compozy skill list|inspect|view -o json; compozy__skill_list|view; Web /skills
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status: pass
@@ -45,3 +45,6 @@ rejects `references/qa-and-verification.md` and `references/capabilities.md` wit
 `GET /api/skills` carries the new description (native-tool and Web planes read the same registry
 projection). Note: workspace-scoped `skill view` rejects `--file` by contract, so file reads were
 verified from a global (non-workspace) cwd. Daemon teardown clean on both runs.
+
+QA impact 2026-08-06: the official skill now routes connectivity-provider authoring and runtime
+operations. Flag only; Tasks 08–09 own the re-walk.

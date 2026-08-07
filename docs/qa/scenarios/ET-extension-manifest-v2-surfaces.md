@@ -6,7 +6,7 @@ persona: Ada
 journey: J-extension-policy-admin
 expected: Code-first registrations generate a byte-stable manifest v2 whose closed `capabilities.provides` and `permissions.requires`, extension hook source, command groups, tool command metadata, trusted_workspace, and invocation_id survive every owning projection; unknown values and malformed command metadata fail build and load before mutation.
 entry_points: `compozy extension build`; `compozy extension validate`; generated `extension.toml` `capabilities.provides`/`permissions.requires`/`resources.hooks`/`resources.command_groups`/`resources.tools.command`; `compozy hooks list`; `compozy extension commands`; `GET /api/extensions/commands` (HTTP+UDS); `compozy__extensions_build|validate`; Go `extensiontest`; TypeScript `@compozy/extension-sdk/testing`; https://compozy.com/runtime/core/extensions/manifest; https://compozy.com/runtime/core/extensions/permissions; https://compozy.com/runtime/core/extensions/commands
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -22,3 +22,6 @@ command scenarios.
 
 QA impact 2026-08-02: duplicate layout diagnostics now report both owning paths; re-walk build and
 validation failure output across CLI and native tools.
+
+QA impact 2026-08-06: the closed `capabilities.provides` set now includes the public
+`connectivity.provider` surface. Flag only; Tasks 08–09 own the re-walk.
