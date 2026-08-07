@@ -309,17 +309,17 @@ nothing.
 The CLI is the primary operator path because it validates inputs and renders the next action. HTTP
 and UDS expose the same control handlers for agents and automation:
 
-| Operation             | Route                                                     |
-| --------------------- | --------------------------------------------------------- |
-| Provider catalog      | `GET /api/bridges/providers`                              |
-| Bridge lifecycle      | `/api/bridges` and `/api/bridges/:id`                     |
-| Secret bindings       | `/api/bridges/:id/secret-bindings`                        |
-| Slack manifest        | `GET /api/bridges/providers/slack/manifest?instance=<id>` |
-| Verify                | `POST /api/bridges/:id/verify`                            |
-| Telegram registration | `POST /api/bridges/:id/webhook/register`                  |
-| Real test delivery    | `POST /api/bridges/:id/send-test`                         |
-| Gateway ingress bind  | `POST /api/gateway/ingress-bindings`                      |
-| Gateway ingress unbind | `DELETE /api/gateway/ingress-bindings/:kind/:id`         |
+| Operation              | Route                                                     |
+| ---------------------- | --------------------------------------------------------- |
+| Provider catalog       | `GET /api/bridges/providers`                              |
+| Bridge lifecycle       | `/api/bridges` and `/api/bridges/:id`                     |
+| Secret bindings        | `/api/bridges/:id/secret-bindings`                        |
+| Slack manifest         | `GET /api/bridges/providers/slack/manifest?instance=<id>` |
+| Verify                 | `POST /api/bridges/:id/verify`                            |
+| Telegram registration  | `POST /api/bridges/:id/webhook/register`                  |
+| Real test delivery     | `POST /api/bridges/:id/send-test`                         |
+| Gateway ingress bind   | `POST /api/gateway/ingress-bindings`                      |
+| Gateway ingress unbind | `DELETE /api/gateway/ingress-bindings/:kind/:id`          |
 
 The send-test request is `{ message, target }`; `target` accepts `peer_id`, `thread_id`, `group_id`,
 and `mode`. Use the generated [API reference](/docs/api/bridges) and

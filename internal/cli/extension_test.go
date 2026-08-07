@@ -566,7 +566,7 @@ func TestExtensionStatusOfflineReportsMissingEnvWithoutLeakingValues(t *testing.
 			return localExtensionRecord(*getInstalledExtension(t, homePaths, "env-ext"), deps.now, deps.getenv), nil
 		},
 	}
-	deps.newClient = func(string) (DaemonClient, error) {
+	deps.newClient = func(ClientTarget) (DaemonClient, error) {
 		return statusClient, nil
 	}
 

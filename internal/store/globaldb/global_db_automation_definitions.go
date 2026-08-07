@@ -12,7 +12,10 @@ import (
 )
 
 // CreateJob stores a new automation job definition.
-func (g *AutomationRepo) CreateJob(ctx context.Context, job automation.Job) (created automation.Job, err error) {
+func (g *AutomationRepo) CreateJob(
+	ctx context.Context,
+	job automation.Job,
+) (created automation.Job, err error) {
 	if err := g.checkReady(ctx, "create automation job"); err != nil {
 		return automation.Job{}, err
 	}
@@ -22,23 +25,38 @@ func (g *AutomationRepo) CreateJob(ctx context.Context, job automation.Job) (cre
 	}
 	tx, err := g.db.BeginTx(ctx, nil)
 	if err != nil {
-		return automation.Job{}, fmt.Errorf("store: begin create automation job %q: %w", normalized.ID, err)
+		return automation.Job{}, fmt.Errorf(
+			"store: begin create automation job %q: %w",
+			normalized.ID,
+			err,
+		)
 	}
 	defer rollbackAutomationDefinitionTx(&err, tx, "create automation job")
 	if err := g.insertJob(ctx, tx, normalized); err != nil {
-		return automation.Job{}, fmt.Errorf("store: create automation job %q: %w", normalized.ID, err)
+		return automation.Job{}, fmt.Errorf(
+			"store: create automation job %q: %w",
+			normalized.ID,
+			err,
+		)
 	}
 	if err := upsertAutomationJobCatalog(ctx, tx, normalized); err != nil {
 		return automation.Job{}, err
 	}
 	if err := tx.Commit(); err != nil {
-		return automation.Job{}, fmt.Errorf("store: commit create automation job %q: %w", normalized.ID, err)
+		return automation.Job{}, fmt.Errorf(
+			"store: commit create automation job %q: %w",
+			normalized.ID,
+			err,
+		)
 	}
 	return normalized, nil
 }
 
 // UpdateJob replaces the mutable fields of a persisted automation job definition.
-func (g *AutomationRepo) UpdateJob(ctx context.Context, job automation.Job) (updated automation.Job, err error) {
+func (g *AutomationRepo) UpdateJob(
+	ctx context.Context,
+	job automation.Job,
+) (updated automation.Job, err error) {
 	if err := g.checkReady(ctx, "update automation job"); err != nil {
 		return automation.Job{}, err
 	}
@@ -52,7 +70,11 @@ func (g *AutomationRepo) UpdateJob(ctx context.Context, job automation.Job) (upd
 	}
 	tx, err := g.db.BeginTx(ctx, nil)
 	if err != nil {
-		return automation.Job{}, fmt.Errorf("store: begin update automation job %q: %w", normalized.ID, err)
+		return automation.Job{}, fmt.Errorf(
+			"store: begin update automation job %q: %w",
+			normalized.ID,
+			err,
+		)
 	}
 	defer rollbackAutomationDefinitionTx(&err, tx, "update automation job")
 	affected, err := sqlcgen.New(tx).UpdateAutomationJob(ctx, params)
@@ -75,7 +97,11 @@ func (g *AutomationRepo) UpdateJob(ctx context.Context, job automation.Job) (upd
 		return automation.Job{}, err
 	}
 	if err := tx.Commit(); err != nil {
-		return automation.Job{}, fmt.Errorf("store: commit update automation job %q: %w", normalized.ID, err)
+		return automation.Job{}, fmt.Errorf(
+			"store: commit update automation job %q: %w",
+			normalized.ID,
+			err,
+		)
 	}
 	return g.GetJob(ctx, normalized.ID)
 }
@@ -91,9 +117,18 @@ func (g *AutomationRepo) DeleteJob(ctx context.Context, id string) error {
 	}
 	affected, err := g.queries.DeleteAutomationJob(ctx, trimmedID)
 	if err != nil {
-		return fmt.Errorf("store: delete automation job %q: %w", trimmedID, mapAutomationJobConstraintError(err))
+		return fmt.Errorf(
+			"store: delete automation job %q: %w",
+			trimmedID,
+			mapAutomationJobConstraintError(err),
+		)
 	}
-	return requireAutomationAffected(affected, automation.ErrJobNotFound, trimmedID, "automation job")
+	return requireAutomationAffected(
+		affected,
+		automation.ErrJobNotFound,
+		trimmedID,
+		"automation job",
+	)
 }
 
 // GetJob loads one persisted automation job definition by primary key.
@@ -137,7 +172,11 @@ func (g *AutomationRepo) CreateTrigger(
 	}
 	defer rollbackAutomationDefinitionTx(&err, tx, "create automation trigger")
 	if err := g.insertTrigger(ctx, tx, normalized); err != nil {
-		return automation.Trigger{}, fmt.Errorf("store: create automation trigger %q: %w", normalized.ID, err)
+		return automation.Trigger{}, fmt.Errorf(
+			"store: create automation trigger %q: %w",
+			normalized.ID,
+			err,
+		)
 	}
 	if err := upsertAutomationTriggerCatalog(ctx, tx, normalized); err != nil {
 		return automation.Trigger{}, err

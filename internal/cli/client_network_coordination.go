@@ -67,7 +67,7 @@ type PutNetworkCoordinationRequest = contract.PutNetworkCoordinationRequest
 // PutNetworkCoordinationInvitationRequest is the shared invitation mutation payload.
 type PutNetworkCoordinationInvitationRequest = contract.PutNetworkCoordinationInvitationRequest
 
-func (c *unixSocketClient) GetNetworkCoordination(
+func (c *daemonClient) GetNetworkCoordination(
 	ctx context.Context,
 	workspaceRef string,
 	ref NetworkCoordinationRef,
@@ -92,7 +92,7 @@ func (c *unixSocketClient) GetNetworkCoordination(
 	return response.Coordination, nil
 }
 
-func (c *unixSocketClient) PutNetworkCoordination(
+func (c *daemonClient) PutNetworkCoordination(
 	ctx context.Context,
 	workspaceRef string,
 	request PutNetworkCoordinationRequest,
@@ -109,7 +109,7 @@ func (c *unixSocketClient) PutNetworkCoordination(
 	return response.Coordination, nil
 }
 
-func (c *unixSocketClient) PutNetworkCoordinationInvitation(
+func (c *daemonClient) PutNetworkCoordinationInvitation(
 	ctx context.Context,
 	workspaceRef string,
 	request PutNetworkCoordinationInvitationRequest,
@@ -134,7 +134,7 @@ func (c *unixSocketClient) PutNetworkCoordinationInvitation(
 	return response.Coordination, nil
 }
 
-func (c *unixSocketClient) GetNetworkUsage(
+func (c *daemonClient) GetNetworkUsage(
 	ctx context.Context,
 	workspaceRef string,
 	query NetworkUsageQuery,

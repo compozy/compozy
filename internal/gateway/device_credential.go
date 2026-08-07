@@ -26,6 +26,11 @@ func generateDeviceCredential(entropy io.Reader) (string, error) {
 	return generateOpaqueSecret(entropy, deviceCredentialPrefix)
 }
 
+// GenerateDeviceCredential creates a client-owned gateway credential.
+func GenerateDeviceCredential() (string, error) {
+	return generateDeviceCredential(rand.Reader)
+}
+
 func generatePairingArtifact(entropy io.Reader) (string, error) {
 	return generateOpaqueSecret(entropy, pairingArtifactPrefix)
 }

@@ -204,7 +204,7 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 		t.Parallel()
 		database := openFreshTestGlobalDB(t)
 		ctx := testutil.Context(t)
-		insertGatewayTestWorkspace(t, ctx, database, "workspace-owner")
+		insertGatewayTestWorkspace(ctx, t, database, "workspace-owner")
 		trigger := automationWebhookTriggerForTest(
 			automation.AutomationScopeWorkspace,
 			"gateway-owned-webhook",
@@ -236,7 +236,7 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 		if err := database.DeleteTrigger(ctx, created.ID); err != nil {
 			t.Fatalf("DeleteTrigger() error = %v", err)
 		}
-		assertNoIngressBindingRow(t, ctx, database, ref)
+		assertNoIngressBindingRow(ctx, t, database, ref)
 		if _, err := database.GetIngressBinding(ctx, ref); !errors.Is(err, gateway.ErrIngressSubjectNotFound) {
 			t.Fatalf("GetIngressBinding(after delete) error = %v, want ErrIngressSubjectNotFound", err)
 		}
@@ -246,7 +246,7 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 		t.Parallel()
 		database := openFreshTestGlobalDB(t)
 		ctx := testutil.Context(t)
-		insertGatewayTestWorkspace(t, ctx, database, "workspace-resource-trigger")
+		insertGatewayTestWorkspace(ctx, t, database, "workspace-resource-trigger")
 		trigger := automationWebhookTriggerForTest(
 			automation.AutomationScopeWorkspace,
 			"gateway-resource-webhook",
@@ -257,8 +257,8 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 		trigger.WebhookID = "wbh_gateway_resource"
 		trigger.EndpointSlug = "gateway-resource"
 		insertGatewayResourceRecord(
-			t,
 			ctx,
+			t,
 			database,
 			"automation.trigger",
 			trigger.ID,
@@ -287,14 +287,14 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 		}
 
 		trigger.Name = "Renamed without ingress changes"
-		updateGatewayResourceRecord(t, ctx, database, "automation.trigger", trigger.ID, trigger)
+		updateGatewayResourceRecord(ctx, t, database, "automation.trigger", trigger.ID, trigger)
 		if _, err := database.GetIngressBinding(ctx, ref); err != nil {
 			t.Fatalf("GetIngressBinding(after display-only resource update) error = %v", err)
 		}
 
 		trigger.EndpointSlug = "gateway-resource-moved"
-		updateGatewayResourceRecord(t, ctx, database, "automation.trigger", trigger.ID, trigger)
-		assertNoIngressBindingRow(t, ctx, database, ref)
+		updateGatewayResourceRecord(ctx, t, database, "automation.trigger", trigger.ID, trigger)
+		assertNoIngressBindingRow(ctx, t, database, ref)
 
 		subject, err = database.ResolveIngressSubject(ctx, ref)
 		if err != nil {
@@ -308,8 +308,8 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 		); err != nil {
 			t.Fatalf("PutIngressBinding(updated resource trigger) error = %v", err)
 		}
-		deleteGatewayResourceRecord(t, ctx, database, "automation.trigger", trigger.ID)
-		assertNoIngressBindingRow(t, ctx, database, ref)
+		deleteGatewayResourceRecord(ctx, t, database, "automation.trigger", trigger.ID)
+		assertNoIngressBindingRow(ctx, t, database, ref)
 	})
 
 	t.Run("Should bind canonical bridge resources and clear confirmation on target changes", func(t *testing.T) {
@@ -329,7 +329,7 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 		}
 		const bridgeID = "bridge-gateway-resource"
 		insertGatewayResourceRecord(
-			t, ctx, database, "bridge.instance", bridgeID, "global", "", bridge,
+			ctx, t, database, "bridge.instance", bridgeID, "global", "", bridge,
 		)
 
 		ref := gateway.IngressSubjectRef{Kind: gateway.IngressSubjectBridgeInstance, ID: bridgeID}
@@ -347,7 +347,7 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 		}
 
 		bridge.DisplayName = "Renamed without target changes"
-		updateGatewayResourceRecord(t, ctx, database, "bridge.instance", bridgeID, bridge)
+		updateGatewayResourceRecord(ctx, t, database, "bridge.instance", bridgeID, bridge)
 		if _, err := database.GetIngressBinding(ctx, ref); err != nil {
 			t.Fatalf("GetIngressBinding(after display-only bridge update) error = %v", err)
 		}
@@ -355,13 +355,13 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 		bridge.ProviderConfig = json.RawMessage(
 			`{"webhook":{"public_url":"https://external.example.test/telegram"}}`,
 		)
-		updateGatewayResourceRecord(t, ctx, database, "bridge.instance", bridgeID, bridge)
-		assertNoIngressBindingRow(t, ctx, database, ref)
+		updateGatewayResourceRecord(ctx, t, database, "bridge.instance", bridgeID, bridge)
+		assertNoIngressBindingRow(ctx, t, database, ref)
 
 		bridge.ProviderConfig = json.RawMessage(
 			`{"webhook":{"listen_addr":"127.0.0.1:43128","path":"/telegram"}}`,
 		)
-		updateGatewayResourceRecord(t, ctx, database, "bridge.instance", bridgeID, bridge)
+		updateGatewayResourceRecord(ctx, t, database, "bridge.instance", bridgeID, bridge)
 		subject, err = database.ResolveIngressSubject(ctx, ref)
 		if err != nil {
 			t.Fatalf("ResolveIngressSubject(restored resource bridge) error = %v", err)
@@ -374,15 +374,15 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 		); err != nil {
 			t.Fatalf("PutIngressBinding(restored resource bridge) error = %v", err)
 		}
-		deleteGatewayResourceRecord(t, ctx, database, "bridge.instance", bridgeID)
-		assertNoIngressBindingRow(t, ctx, database, ref)
+		deleteGatewayResourceRecord(ctx, t, database, "bridge.instance", bridgeID)
+		assertNoIngressBindingRow(ctx, t, database, ref)
 	})
 
 	t.Run("Should delete and recreate a bridge without preserving its confirmation [IT-050]", func(t *testing.T) {
 		t.Parallel()
 		database := openFreshTestGlobalDB(t)
 		ctx := testutil.Context(t)
-		insertGatewayTestWorkspace(t, ctx, database, "workspace-owner")
+		insertGatewayTestWorkspace(ctx, t, database, "workspace-owner")
 		instance := bridges.BridgeInstance{
 			ID:            "bridge-gateway-owned",
 			Scope:         bridges.ScopeWorkspace,
@@ -413,7 +413,7 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 		if err := database.DeleteBridgeInstance(ctx, instance.ID); err != nil {
 			t.Fatalf("DeleteBridgeInstance() error = %v", err)
 		}
-		assertNoIngressBindingRow(t, ctx, database, ref)
+		assertNoIngressBindingRow(ctx, t, database, ref)
 
 		if err := database.InsertBridgeInstance(ctx, instance); err != nil {
 			t.Fatalf("InsertBridgeInstance(recreate) error = %v", err)
@@ -427,8 +427,8 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 		t.Parallel()
 		database := openFreshTestGlobalDB(t)
 		ctx := testutil.Context(t)
-		insertGatewayTestWorkspace(t, ctx, database, "workspace-before")
-		insertGatewayTestWorkspace(t, ctx, database, "workspace-after")
+		insertGatewayTestWorkspace(ctx, t, database, "workspace-before")
+		insertGatewayTestWorkspace(ctx, t, database, "workspace-after")
 		trigger := automationWebhookTriggerForTest(
 			automation.AutomationScopeWorkspace,
 			"gateway-reassigned-webhook",
@@ -461,15 +461,15 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 		if _, err := database.UpdateTrigger(ctx, created); err != nil {
 			t.Fatalf("UpdateTrigger(reassign) error = %v", err)
 		}
-		assertNoIngressBindingRow(t, ctx, database, ref)
+		assertNoIngressBindingRow(ctx, t, database, ref)
 	})
 
 	t.Run("Should invalidate a bridge binding when replacement changes its workspace owner", func(t *testing.T) {
 		t.Parallel()
 		database := openFreshTestGlobalDB(t)
 		ctx := testutil.Context(t)
-		insertGatewayTestWorkspace(t, ctx, database, "workspace-before")
-		insertGatewayTestWorkspace(t, ctx, database, "workspace-after")
+		insertGatewayTestWorkspace(ctx, t, database, "workspace-before")
+		insertGatewayTestWorkspace(ctx, t, database, "workspace-after")
 		instance := bridges.BridgeInstance{
 			ID:            "bridge-gateway-reassigned",
 			Scope:         bridges.ScopeWorkspace,
@@ -506,7 +506,7 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 		if err := database.ReplaceBridgeInstances(ctx, []bridges.BridgeInstance{instance}); err != nil {
 			t.Fatalf("ReplaceBridgeInstances(reassign) error = %v", err)
 		}
-		assertNoIngressBindingRow(t, ctx, database, ref)
+		assertNoIngressBindingRow(ctx, t, database, ref)
 	})
 
 	t.Run("Should keep an external-proxy-only bridge outside gateway ingress", func(t *testing.T) {
@@ -609,7 +609,7 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 		if err := database.UpdateBridgeInstance(ctx, instance); err != nil {
 			t.Fatalf("UpdateBridgeInstance(external) error = %v", err)
 		}
-		assertNoIngressBindingRow(t, ctx, database, ref)
+		assertNoIngressBindingRow(ctx, t, database, ref)
 
 		instance.ProviderConfig = json.RawMessage(
 			`{"webhook":{"listen_addr":"127.0.0.1:43125","path":"/telegram"}}`,
@@ -646,14 +646,14 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 		if err != nil || removed != 1 {
 			t.Fatalf("SweepOrphanedIngressBindings() = (%d, %v), want (1, nil)", removed, err)
 		}
-		assertNoIngressBindingRow(t, ctx, database, ref)
+		assertNoIngressBindingRow(ctx, t, database, ref)
 	})
 
 	t.Run("Should delete workspace-owned bindings before cascading their subjects", func(t *testing.T) {
 		t.Parallel()
 		database := openFreshTestGlobalDB(t)
 		ctx := testutil.Context(t)
-		insertGatewayTestWorkspace(t, ctx, database, "workspace-cascade")
+		insertGatewayTestWorkspace(ctx, t, database, "workspace-cascade")
 		trigger := automationWebhookTriggerForTest(
 			automation.AutomationScopeWorkspace,
 			"gateway-workspace-cascade",
@@ -683,11 +683,11 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 		if err := database.DeleteWorkspace(ctx, "workspace-cascade"); err != nil {
 			t.Fatalf("DeleteWorkspace() error = %v", err)
 		}
-		assertNoIngressBindingRow(t, ctx, database, ref)
+		assertNoIngressBindingRow(ctx, t, database, ref)
 	})
 }
 
-func insertGatewayTestWorkspace(t *testing.T, ctx context.Context, database *GlobalDB, id string) {
+func insertGatewayTestWorkspace(ctx context.Context, t *testing.T, database *GlobalDB, id string) {
 	t.Helper()
 	at := time.Date(2026, 8, 6, 11, 0, 0, 0, time.UTC)
 	if err := database.InsertWorkspace(ctx, compozyworkspace.Workspace{
@@ -698,8 +698,8 @@ func insertGatewayTestWorkspace(t *testing.T, ctx context.Context, database *Glo
 }
 
 func insertGatewayResourceRecord(
-	t *testing.T,
 	ctx context.Context,
+	t *testing.T,
 	database *GlobalDB,
 	kind string,
 	id string,
@@ -736,8 +736,8 @@ func insertGatewayResourceRecord(
 }
 
 func updateGatewayResourceRecord(
-	t *testing.T,
 	ctx context.Context,
+	t *testing.T,
 	database *GlobalDB,
 	kind string,
 	id string,
@@ -770,8 +770,8 @@ func updateGatewayResourceRecord(
 }
 
 func deleteGatewayResourceRecord(
-	t *testing.T,
 	ctx context.Context,
+	t *testing.T,
 	database *GlobalDB,
 	kind string,
 	id string,
@@ -796,8 +796,8 @@ func deleteGatewayResourceRecord(
 }
 
 func assertNoIngressBindingRow(
-	t *testing.T,
 	ctx context.Context,
+	t *testing.T,
 	database *GlobalDB,
 	ref gateway.IngressSubjectRef,
 ) {

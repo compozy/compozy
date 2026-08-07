@@ -307,7 +307,7 @@ func notificationPresetListBundle(result NotificationPresetListRecord) outputBun
 		result,
 		result.Presets,
 		"Notification Presets",
-		[]string{"NAME", "ENABLED", "BUILT IN", "EVENTS", "TARGETS", "MODIFIED"},
+		[]string{windowManagerNameHeader, "ENABLED", "BUILT IN", "EVENTS", "TARGETS", "MODIFIED"},
 		"notification_presets",
 		[]string{
 			automationNameKey,

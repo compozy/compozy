@@ -220,47 +220,50 @@ func TestIngressProjectionAndBindings(t *testing.T) {
 		}
 	})
 
-	t.Run("Should UT-094 require trigger and bridge reconfirmation after the public address changes [IT-048]", func(t *testing.T) {
-		t.Parallel()
-		store, manager := newIngressTestManager(t, true, nil)
-		refs := []IngressSubjectRef{
-			{Kind: IngressSubjectWebhookTrigger, ID: "trigger-generation"},
-			{Kind: IngressSubjectBridgeInstance, ID: "bridge-generation"},
-		}
-		paths := []string{
-			"/api/webhooks/global/deploy--wbh_generation",
-			"/api/bridge-callbacks/bridge-generation",
-		}
-		for index, ref := range refs {
-			store.subjects[ref] = IngressSubject{
-				IngressSubjectRef: ref,
-				Scope:             IngressScopeGlobal,
-				Path:              paths[index],
+	t.Run(
+		"Should UT-094 require trigger and bridge reconfirmation after the public address changes [IT-048]",
+		func(t *testing.T) {
+			t.Parallel()
+			store, manager := newIngressTestManager(t, true, nil)
+			refs := []IngressSubjectRef{
+				{Kind: IngressSubjectWebhookTrigger, ID: "trigger-generation"},
+				{Kind: IngressSubjectBridgeInstance, ID: "bridge-generation"},
 			}
-			if _, err := manager.bind(testContext(t), IngressBindRequest{
-				Subject: ref, Confirmed: true,
-			}); err != nil {
-				t.Fatalf("bind(%s) error = %v", ref.Kind, err)
+			paths := []string{
+				"/api/webhooks/global/deploy--wbh_generation",
+				"/api/bridge-callbacks/bridge-generation",
 			}
-		}
-		if _, changed, err := store.SyncIngressEndpoint(
-			testContext(t), TierPublic, "https://gateway-two.example.test", time.Now().UTC(),
-		); err != nil || !changed {
-			t.Fatalf("SyncIngressEndpoint() = changed:%t error:%v, want changed", changed, err)
-		}
+			for index, ref := range refs {
+				store.subjects[ref] = IngressSubject{
+					IngressSubjectRef: ref,
+					Scope:             IngressScopeGlobal,
+					Path:              paths[index],
+				}
+				if _, err := manager.bind(testContext(t), IngressBindRequest{
+					Subject: ref, Confirmed: true,
+				}); err != nil {
+					t.Fatalf("bind(%s) error = %v", ref.Kind, err)
+				}
+			}
+			if _, changed, err := store.SyncIngressEndpoint(
+				testContext(t), TierPublic, "https://gateway-two.example.test", time.Now().UTC(),
+			); err != nil || !changed {
+				t.Fatalf("SyncIngressEndpoint() = changed:%t error:%v, want changed", changed, err)
+			}
 
-		for _, ref := range refs {
-			projection, err := manager.project(testContext(t), ref)
-			if err != nil {
-				t.Fatalf("project(%s) error = %v", ref.Kind, err)
+			for _, ref := range refs {
+				projection, err := manager.project(testContext(t), ref)
+				if err != nil {
+					t.Fatalf("project(%s) error = %v", ref.Kind, err)
+				}
+				if projection.Reachability != IngressReachabilityReconfirmation ||
+					projection.EndpointGeneration != 2 || projection.ConfirmedEndpointGeneration != 1 ||
+					!strings.HasPrefix(projection.URL, "https://gateway-two.example.test/") {
+					t.Fatalf("projection(%s) = %#v, want generation 2 requiring reconfirmation", ref.Kind, projection)
+				}
 			}
-			if projection.Reachability != IngressReachabilityReconfirmation ||
-				projection.EndpointGeneration != 2 || projection.ConfirmedEndpointGeneration != 1 ||
-				!strings.HasPrefix(projection.URL, "https://gateway-two.example.test/") {
-				t.Fatalf("projection(%s) = %#v, want generation 2 requiring reconfirmation", ref.Kind, projection)
-			}
-		}
-	})
+		},
+	)
 
 	t.Run("Should UT-095 persist only the server-resolved owner", func(t *testing.T) {
 		t.Parallel()
@@ -301,7 +304,11 @@ func TestIngressProjectionAndBindings(t *testing.T) {
 			t.Fatalf("bind(cross-workspace) error = %v, want ErrIngressForbidden", err)
 		}
 		if access.calls != 1 || len(store.bindings) != 0 {
-			t.Fatalf("authorization calls = %d bindings = %#v, want one denial and no mutation", access.calls, store.bindings)
+			t.Fatalf(
+				"authorization calls = %d bindings = %#v, want one denial and no mutation",
+				access.calls,
+				store.bindings,
+			)
 		}
 	})
 
@@ -384,55 +391,66 @@ func TestIngressProjectionAndBindings(t *testing.T) {
 
 func TestIngressRateLimiterHighCardinalityCannotResetAnActiveBudget(t *testing.T) {
 	t.Parallel()
+	t.Run("Should preserve an active ingress budget during high-cardinality churn", func(t *testing.T) {
+		t.Parallel()
 
-	now := time.Date(2026, 8, 6, 15, 0, 0, 0, time.UTC)
-	limiter := NewIngressRateLimiter(1, time.Minute, func() time.Time { return now })
-	victimEndpoint := "/api/webhooks/global/valid--wbh_live"
-	victimSource := "203.0.113.11"
-	if allowed, _ := limiter.Allow(victimEndpoint, victimSource); !allowed {
-		t.Fatal("victim's first request was denied")
-	}
-	if allowed, _ := limiter.Allow(victimEndpoint, victimSource); allowed {
-		t.Fatal("victim's second request was admitted before churn")
-	}
-	for index := range maxTrackedIngressBudgets + 1 {
-		endpoint := fmt.Sprintf("/api/webhooks/global/probe-%d", index)
-		allowed, retryAfter := limiter.Allow(endpoint, "203.0.113.10")
-		if !allowed && retryAfter <= 0 {
-			t.Fatalf("probe %d denial has no retry guidance", index)
+		now := time.Date(2026, 8, 6, 15, 0, 0, 0, time.UTC)
+		limiter := NewIngressRateLimiter(1, time.Minute, func() time.Time { return now })
+		victimEndpoint := "/api/webhooks/global/valid--wbh_live"
+		victimSource := "203.0.113.11"
+		if allowed, _ := limiter.Allow(victimEndpoint, victimSource); !allowed {
+			t.Fatal("victim's first request was denied")
 		}
-	}
-	if allowed, retryAfter := limiter.Allow(victimEndpoint, victimSource); allowed || retryAfter <= 0 {
-		t.Fatalf("victim budget after churn = allowed:%t retry:%s, want denied with guidance", allowed, retryAfter)
-	}
+		if allowed, _ := limiter.Allow(victimEndpoint, victimSource); allowed {
+			t.Fatal("victim's second request was admitted before churn")
+		}
+		for index := range maxTrackedIngressBudgets + 1 {
+			endpoint := fmt.Sprintf("/api/webhooks/global/probe-%d", index)
+			allowed, retryAfter := limiter.Allow(endpoint, "203.0.113.10")
+			if !allowed && retryAfter <= 0 {
+				t.Fatalf("probe %d denial has no retry guidance", index)
+			}
+		}
+		if allowed, retryAfter := limiter.Allow(victimEndpoint, victimSource); allowed || retryAfter <= 0 {
+			t.Fatalf("victim budget after churn = allowed:%t retry:%s, want denied with guidance", allowed, retryAfter)
+		}
+	})
 }
 
 func TestIngressEndpointFailsClosedAcrossRestart(t *testing.T) {
 	t.Parallel()
+	t.Run("Should mark the endpoint unavailable when restart reconciliation fails", func(t *testing.T) {
+		t.Parallel()
 
-	store, _ := newIngressTestManager(t, true, nil)
-	if !store.endpoint.Reachable || store.endpoint.Generation != 1 {
-		t.Fatalf("initial endpoint = %#v, want reachable generation 1", store.endpoint)
-	}
-	reconciler := NewReconciler(store, newTestEffects(nil))
-	err := reconciler.Reconcile(testContext(t), ExposurePlan{Tiers: []TierPlan{{
-		Tier: TierPublic, Enabled: true,
-	}}})
-	if err == nil {
-		t.Fatal("Reconcile(missing provider) error = nil")
-	}
-	if store.endpoint.Reachable {
-		t.Fatalf("endpoint remained reachable after failed restart reconcile: %#v", store.endpoint)
-	}
-	restored, changed, err := store.SyncIngressEndpoint(
-		testContext(t),
-		TierPublic,
-		"https://gateway.example.test",
-		time.Date(2026, 8, 6, 15, 1, 0, 0, time.UTC),
-	)
-	if err != nil || changed || restored.Generation != 1 || !restored.Reachable {
-		t.Fatalf("stable endpoint restore = (%#v, %t, %v), want reachable generation 1 unchanged [IT-051]", restored, changed, err)
-	}
+		store, _ := newIngressTestManager(t, true, nil)
+		if !store.endpoint.Reachable || store.endpoint.Generation != 1 {
+			t.Fatalf("initial endpoint = %#v, want reachable generation 1", store.endpoint)
+		}
+		reconciler := NewReconciler(store, newTestEffects(nil))
+		err := reconciler.Reconcile(testContext(t), ExposurePlan{Tiers: []TierPlan{{
+			Tier: TierPublic, Enabled: true,
+		}}})
+		if err == nil {
+			t.Fatal("Reconcile(missing provider) error = nil")
+		}
+		if store.endpoint.Reachable {
+			t.Fatalf("endpoint remained reachable after failed restart reconcile: %#v", store.endpoint)
+		}
+		restored, changed, err := store.SyncIngressEndpoint(
+			testContext(t),
+			TierPublic,
+			"https://gateway.example.test",
+			time.Date(2026, 8, 6, 15, 1, 0, 0, time.UTC),
+		)
+		if err != nil || changed || restored.Generation != 1 || !restored.Reachable {
+			t.Fatalf(
+				"stable endpoint restore = (%#v, %t, %v), want reachable generation 1 unchanged [IT-051]",
+				restored,
+				changed,
+				err,
+			)
+		}
+	})
 }
 
 type ingressTestStore struct {

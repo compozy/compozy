@@ -47,9 +47,10 @@ func (osCredentialKeyring) Delete(service, user string) error {
 }
 
 type gatewayCredentialStore struct {
-	dir     string
-	keys    credentialKeyring
-	entropy io.Reader
+	dir        string
+	keys       credentialKeyring
+	entropy    io.Reader
+	removeFile func(string) error
 }
 
 // WriteGatewayCredential encrypts a remote profile credential and stores its file with mode 0600.
@@ -79,25 +80,34 @@ func (s gatewayCredentialStore) write(profile, credential string) (string, error
 	if !validGatewayDeviceCredential(credential) {
 		return "", errors.New("cli: gateway device credential is invalid")
 	}
-	key, err := s.loadOrCreateKey(profile)
+	key, keyCreated, err := s.loadOrCreateKey(profile)
 	if err != nil {
 		return "", err
 	}
 	ciphertext, err := encryptGatewayCredential(key, credential, profile, s.entropy)
 	if err != nil {
-		return "", err
+		return "", s.cleanupCreatedKey(profile, keyCreated, err)
 	}
 	if err := os.MkdirAll(s.dir, 0o700); err != nil {
-		return "", fmt.Errorf("cli: create gateway credential directory: %w", err)
+		return "", s.cleanupCreatedKey(
+			profile,
+			keyCreated,
+			fmt.Errorf("cli: create gateway credential directory: %w", err),
+		)
 	}
 	if err := os.Chmod(s.dir, 0o700); err != nil {
-		return "", fmt.Errorf("cli: secure gateway credential directory: %w", err)
+		return "", s.cleanupCreatedKey(
+			profile,
+			keyCreated,
+			fmt.Errorf("cli: secure gateway credential directory: %w", err),
+		)
 	}
 	if err := fileutil.AtomicWriteFile(path, []byte(ciphertext+"\n"), 0o600); err != nil {
-		return "", fmt.Errorf("cli: write gateway credential: %w", err)
-	}
-	if err := os.Chmod(path, 0o600); err != nil {
-		return "", fmt.Errorf("cli: secure gateway credential file: %w", err)
+		return "", s.cleanupCreatedKey(
+			profile,
+			keyCreated,
+			fmt.Errorf("cli: write gateway credential: %w", err),
+		)
 	}
 	return path, nil
 }
@@ -116,16 +126,12 @@ func (s gatewayCredentialStore) read(profile string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	info, err := os.Stat(path)
+	ciphertext, info, err := fileutil.ReadRegularFile(path)
 	if err != nil {
-		return "", fmt.Errorf("cli: stat gateway credential: %w", err)
+		return "", fmt.Errorf("cli: read gateway credential file: %w", err)
 	}
-	if info.Mode().Perm()&0o077 != 0 {
+	if info.Mode().Perm() != 0o600 {
 		return "", errors.New("cli: gateway credential file permissions must be 0600")
-	}
-	ciphertext, err := os.ReadFile(path)
-	if err != nil {
-		return "", fmt.Errorf("cli: read gateway credential: %w", err)
 	}
 	encodedKey, err := s.keys.Get(gatewayCredentialKeyringService, profile)
 	if err != nil {
@@ -143,21 +149,41 @@ func (s gatewayCredentialStore) remove(profile string) error {
 	if err != nil {
 		return err
 	}
-	fileErr := os.Remove(path)
-	if errors.Is(fileErr, os.ErrNotExist) {
-		fileErr = nil
+
+	_, _, fileReadErr := fileutil.ReadRegularFile(path)
+	fileExists := fileReadErr == nil
+	if fileReadErr != nil && !errors.Is(fileReadErr, os.ErrNotExist) {
+		return fmt.Errorf("cli: inspect gateway credential file: %w", fileReadErr)
 	}
-	keyErr := s.keys.Delete(gatewayCredentialKeyringService, profile)
-	if errors.Is(keyErr, keyring.ErrNotFound) {
-		keyErr = nil
+
+	encodedKey, keyReadErr := s.keys.Get(gatewayCredentialKeyringService, profile)
+	keyExists := keyReadErr == nil
+	if keyReadErr != nil && !errors.Is(keyReadErr, keyring.ErrNotFound) {
+		return fmt.Errorf("cli: read gateway credential key before removal: %w", keyReadErr)
 	}
-	if fileErr != nil {
-		fileErr = fmt.Errorf("cli: remove gateway credential file: %w", fileErr)
+	if keyExists {
+		if err := s.keys.Delete(gatewayCredentialKeyringService, profile); err != nil {
+			return fmt.Errorf("cli: remove gateway credential key: %w", err)
+		}
 	}
-	if keyErr != nil {
-		keyErr = fmt.Errorf("cli: remove gateway credential key: %w", keyErr)
+	if !fileExists {
+		return nil
 	}
-	return errors.Join(fileErr, keyErr)
+	removeFile := s.removeFile
+	if removeFile == nil {
+		removeFile = fileutil.AtomicRemoveFile
+	}
+	if err := removeFile(path); err != nil {
+		removeErr := fmt.Errorf("cli: remove gateway credential file: %w", err)
+		if !keyExists {
+			return removeErr
+		}
+		if restoreErr := s.keys.Set(gatewayCredentialKeyringService, profile, encodedKey); restoreErr != nil {
+			return errors.Join(removeErr, fmt.Errorf("cli: restore gateway credential key: %w", restoreErr))
+		}
+		return removeErr
+	}
+	return nil
 }
 
 func (s gatewayCredentialStore) path(profile string) (string, error) {
@@ -168,23 +194,35 @@ func (s gatewayCredentialStore) path(profile string) (string, error) {
 	return filepath.Join(s.dir, profile+".cred"), nil
 }
 
-func (s gatewayCredentialStore) loadOrCreateKey(profile string) ([]byte, error) {
+func (s gatewayCredentialStore) loadOrCreateKey(profile string) ([]byte, bool, error) {
 	encoded, err := s.keys.Get(gatewayCredentialKeyringService, profile)
 	if err == nil {
-		return decodeGatewayCredentialKey(encoded)
+		key, decodeErr := decodeGatewayCredentialKey(encoded)
+		return key, false, decodeErr
 	}
 	if !errors.Is(err, keyring.ErrNotFound) {
-		return nil, fmt.Errorf("cli: read gateway credential key: %w", err)
+		return nil, false, fmt.Errorf("cli: read gateway credential key: %w", err)
 	}
 	key := make([]byte, gatewayCredentialKeyBytes)
 	if _, err := io.ReadFull(s.entropy, key); err != nil {
-		return nil, fmt.Errorf("cli: generate gateway credential key: %w", err)
+		return nil, false, fmt.Errorf("cli: generate gateway credential key: %w", err)
 	}
 	encoded = base64.RawURLEncoding.EncodeToString(key)
 	if err := s.keys.Set(gatewayCredentialKeyringService, profile, encoded); err != nil {
-		return nil, fmt.Errorf("cli: store gateway credential key: %w", err)
+		return nil, false, fmt.Errorf("cli: store gateway credential key: %w", err)
 	}
-	return key, nil
+	return key, true, nil
+}
+
+func (s gatewayCredentialStore) cleanupCreatedKey(profile string, created bool, cause error) error {
+	if !created {
+		return cause
+	}
+	if err := s.keys.Delete(gatewayCredentialKeyringService, profile); err != nil &&
+		!errors.Is(err, keyring.ErrNotFound) {
+		return errors.Join(cause, fmt.Errorf("cli: remove unused gateway credential key: %w", err))
+	}
+	return cause
 }
 
 func encryptGatewayCredential(key []byte, plaintext, profile string, entropy io.Reader) (string, error) {

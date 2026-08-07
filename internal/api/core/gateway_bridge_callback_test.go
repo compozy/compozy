@@ -175,7 +175,11 @@ func TestProxyGatewayBridgeCallback(t *testing.T) {
 		providerResponse := httptest.NewRecorder()
 		router.ServeHTTP(providerResponse, providerRequest)
 		if providerResponse.Code != http.StatusNoContent {
-			t.Fatalf("provider authorization response status = %d, want %d", providerResponse.Code, http.StatusNoContent)
+			t.Fatalf(
+				"provider authorization response status = %d, want %d",
+				providerResponse.Code,
+				http.StatusNoContent,
+			)
 		}
 		if got := (<-received).Get("Authorization"); got != "Bearer provider-callback-token" {
 			t.Fatalf("provider callback Authorization = %q, want preserved", got)
@@ -185,7 +189,7 @@ func TestProxyGatewayBridgeCallback(t *testing.T) {
 	t.Run("Should reject an oversized callback before the adapter receives a partial body", func(t *testing.T) {
 		t.Parallel()
 		adapterCalls := 0
-		adapter := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		adapter := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 			adapterCalls++
 			writer.WriteHeader(http.StatusNoContent)
 		}))
@@ -203,7 +207,11 @@ func TestProxyGatewayBridgeCallback(t *testing.T) {
 		)
 		router.ServeHTTP(response, request)
 		if response.Code != http.StatusRequestEntityTooLarge || adapterCalls != 0 {
-			t.Fatalf("oversized callback = status:%d adapter_calls:%d, want 413 and zero calls", response.Code, adapterCalls)
+			t.Fatalf(
+				"oversized callback = status:%d adapter_calls:%d, want 413 and zero calls",
+				response.Code,
+				adapterCalls,
+			)
 		}
 	})
 }

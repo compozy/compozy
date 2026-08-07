@@ -103,24 +103,25 @@ type GatewayDevicesResponse struct {
 }
 
 type GatewaySurfaceRequest struct {
-	Surface            string `json:"surface" binding:"required"`
-	Tier               string `json:"tier" binding:"required"`
-	Desired            string `json:"desired" binding:"required"`
+	Surface            string `json:"surface"             binding:"required"`
+	Tier               string `json:"tier"                binding:"required"`
+	Desired            string `json:"desired"             binding:"required"`
 	ExpectedGeneration uint64 `json:"expected_generation"`
 	Consent            bool   `json:"consent"`
 }
 
 type GatewayProviderEnableRequest struct {
-	Tier               string `json:"tier" binding:"required"`
-	InstallSource      string `json:"install_source" binding:"required"`
+	Tier               string `json:"tier"                       binding:"required"`
+	InstallSource      string `json:"install_source"             binding:"required"`
 	DigestConfirmed    string `json:"digest_confirmed,omitempty"`
 	ExpectedGeneration uint64 `json:"expected_generation"`
 }
 
 type GatewayPairingRedeemRequest struct {
-	Artifact  string `json:"artifact" binding:"required"`
-	Name      string `json:"name" binding:"required"`
-	ActorKind string `json:"actor_kind" binding:"required"`
+	Artifact   string `json:"artifact"             binding:"required"`
+	Name       string `json:"name"                 binding:"required"`
+	ActorKind  string `json:"actor_kind"           binding:"required"`
+	Credential string `json:"credential,omitempty"`
 }
 
 type GatewayDeviceRenameRequest struct {
@@ -129,8 +130,8 @@ type GatewayDeviceRenameRequest struct {
 
 type GatewayIngressBindRequest struct {
 	SubjectKind string `json:"subject_kind" binding:"required"`
-	SubjectID   string `json:"subject_id" binding:"required"`
-	Confirmed   bool   `json:"confirmed" binding:"required"`
+	SubjectID   string `json:"subject_id"   binding:"required"`
+	Confirmed   bool   `json:"confirmed"    binding:"required"`
 }
 
 type GatewayIngressBindingResponse struct {

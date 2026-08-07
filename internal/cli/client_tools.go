@@ -171,7 +171,7 @@ func (e *toolAPIError) PartialToolResult() *toolspkg.ToolResult {
 	return &partial
 }
 
-func (c *unixSocketClient) ListTools(ctx context.Context, query ToolQuery) (ToolsResponseRecord, error) {
+func (c *daemonClient) ListTools(ctx context.Context, query ToolQuery) (ToolsResponseRecord, error) {
 	var response ToolsResponseRecord
 	if err := c.doJSON(ctx, http.MethodGet, "/api/tools", toolValues(query), nil, &response); err != nil {
 		return ToolsResponseRecord{}, err
@@ -179,7 +179,7 @@ func (c *unixSocketClient) ListTools(ctx context.Context, query ToolQuery) (Tool
 	return response, nil
 }
 
-func (c *unixSocketClient) SearchTools(
+func (c *daemonClient) SearchTools(
 	ctx context.Context,
 	request ToolSearchRequest,
 ) (ToolsResponseRecord, error) {
@@ -194,7 +194,7 @@ func (c *unixSocketClient) SearchTools(
 	return response, nil
 }
 
-func (c *unixSocketClient) GetTool(
+func (c *daemonClient) GetTool(
 	ctx context.Context,
 	id string,
 	query ToolQuery,
@@ -207,7 +207,7 @@ func (c *unixSocketClient) GetTool(
 	return response, nil
 }
 
-func (c *unixSocketClient) CreateToolApproval(
+func (c *daemonClient) CreateToolApproval(
 	ctx context.Context,
 	id string,
 	request ToolApprovalRequest,
@@ -224,7 +224,7 @@ func (c *unixSocketClient) CreateToolApproval(
 	return response.Approval, nil
 }
 
-func (c *unixSocketClient) InvokeTool(
+func (c *daemonClient) InvokeTool(
 	ctx context.Context,
 	id string,
 	request ToolInvokeRequest,
@@ -251,7 +251,7 @@ func (c *unixSocketClient) InvokeTool(
 	return sanitizeToolInvokeResponse(responseRecord), nil
 }
 
-func (c *unixSocketClient) ReadToolArtifact(
+func (c *daemonClient) ReadToolArtifact(
 	ctx context.Context,
 	workspaceID string,
 	artifactURI string,
@@ -278,7 +278,7 @@ func (c *unixSocketClient) ReadToolArtifact(
 	return response, nil
 }
 
-func (c *unixSocketClient) ListToolsets(ctx context.Context, query ToolQuery) (ToolsetsResponseRecord, error) {
+func (c *daemonClient) ListToolsets(ctx context.Context, query ToolQuery) (ToolsetsResponseRecord, error) {
 	var response ToolsetsResponseRecord
 	if err := c.doJSON(ctx, http.MethodGet, "/api/toolsets", toolValues(query), nil, &response); err != nil {
 		return ToolsetsResponseRecord{}, err
@@ -286,7 +286,7 @@ func (c *unixSocketClient) ListToolsets(ctx context.Context, query ToolQuery) (T
 	return response, nil
 }
 
-func (c *unixSocketClient) GetToolset(
+func (c *daemonClient) GetToolset(
 	ctx context.Context,
 	id string,
 	query ToolQuery,

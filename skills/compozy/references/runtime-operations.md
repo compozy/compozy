@@ -9,6 +9,7 @@
 - Background roles and usage cost
 - MCP serve and onboarding
 - Gateway exposure and device authentication
+- Remote CLI profiles and SSH forwards
 - Automation suggestions
 - Messaging bridge delivery, diagnostics, and runtime boundaries
 
@@ -355,12 +356,12 @@ refusal that prevented exposure. A configured port of `0` asks the daemon to sel
 use the resolved status address instead of assuming a default.
 
 Manage tier surfaces, providers, pairings, and devices through the private authenticated HTTP
-listener or UDS under `/api/gateway`. Mint pairing artifacts with `POST /pairings`, redeem them with
-`POST /pairings/redeem`, and list, rename, or revoke devices with `GET /devices`,
-`PATCH /devices/{id}`, and `DELETE /devices/{id}`. Pairing mint and redeem are physically absent from
+listener or UDS under `/api/gateway`. Mint pairing artifacts with `POST /api/gateway/pairings`, redeem them with
+`POST /api/gateway/pairings/redeem`, and list, rename, or revoke devices with `GET /api/gateway/devices`,
+`PATCH /api/gateway/devices/{id}`, and `DELETE /api/gateway/devices/{id}`. Pairing mint and redeem are physically absent from
 the public listener. Browser redemption installs a `Secure`, `HttpOnly`, `SameSite=Lax` cookie and
-does not return the raw credential; UDS returns the raw credential only to its local caller, which
-must protect it as secret material.
+does not return the raw credential. CLI redemption generates and durably stores the credential on
+the client before sending it over TLS; the daemon stores only its hash.
 
 Select a connectivity provider with `POST /providers/{name}/enable`, naming the exact tier, live
 install source, current confirmed control digest, and expected generation. Read status first and do
@@ -397,6 +398,39 @@ subject through the private listener or UDS with `POST /api/gateway/ingress-bind
 resolved by the daemon, not accepted from the caller. An endpoint-generation change produces
 `reconfirmation_required`. Public ingress has no store-and-forward queue: when the daemon or provider
 is offline, the sender must retry the failed delivery.
+
+### Remote CLI profiles and SSH forwards
+
+Pair a direct HTTPS client with `compozy pair mint`, then redeem the artifact on the client with
+`compozy pair redeem <artifact> --name <name> --address https://host[:port]`. Use `--use` to make
+the profile active immediately, or select it later with `compozy connect use <name>`. Inspect
+non-secret metadata with `compozy connect list -o json`; `compozy connect remove <name>` removes both
+the profile and its client-local credential. `compozy connect use local` returns the CLI to UDS.
+Move the same revocable identity to another client with `compozy connect export <name>
+--passphrase-file <private-file> --output-file <bundle>` and `compozy connect import <bundle>
+--passphrase-file <private-file>`. The bundle uses passphrase-derived authenticated encryption;
+protect it like a key. Copying `config.toml` alone never transfers an identity.
+When a remote profile is active, commands report the selected target on stderr while structured
+stdout remains parseable. `compozy open` uses the selected HTTPS origin.
+
+Direct profiles can operate sessions; read tasks; and use Loops, memory, settings, bridges,
+extensions, and private Gateway management. Task mutations, task-run queue and scheduler authority,
+agent-internal routes, run lifecycle mutations, and resource mutations are local-only and fail before network I/O. Use the
+local daemon or an SSH forward when that authority is required. Each remote SSE or WebSocket connect
+and reconnect mints a fresh single-use stream ticket. A dropped stream reports
+`gateway_stream_interrupted`; accepted work continues on the daemon and can be observed after
+reconnect.
+
+Use `compozy connect ssh <host>` when direct HTTPS is unavailable or local-equivalent authority is
+needed. The command uses the system OpenSSH client and its existing configuration and agent, checks
+that the remote `compozy` version exactly matches, starts the remote daemon only when necessary,
+requires its HTTP listener to be loopback-only, and creates a loopback-only local forward. Pass
+`--remote-home <path>` to run every remote probe and lifecycle command with that `COMPOZY_HOME`.
+An intentional close tears down only its tunnel and stops the remote daemon only if this invocation
+started the same process. Concurrent connects to an SSH-owned daemon return `gateway_ssh_busy`
+instead of racing its lifecycle. An unexpected tunnel loss leaves that daemon running so accepted work can
+be observed after reconnect. Changed host keys fail closed; install, version, reachability, and
+tunnel-loss failures use stable `gateway_ssh_*` codes.
 
 ## Automation Suggestions
 

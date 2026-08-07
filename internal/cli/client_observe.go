@@ -16,7 +16,7 @@ type ObserveOverviewQuery struct {
 	UsageWindowDays int
 }
 
-func (c *unixSocketClient) ObserveOverview(
+func (c *daemonClient) ObserveOverview(
 	ctx context.Context,
 	query ObserveOverviewQuery,
 ) (contract.ObserveOverviewResponse, error) {

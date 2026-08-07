@@ -41,7 +41,12 @@ func (refusingEffects) Bind(context.Context, Tier) (netip.AddrPort, error) {
 	)
 }
 func (refusingEffects) Unbind(context.Context, Tier) error { return nil }
-func (refusingEffects) Establish(context.Context, ProviderActivation, netip.AddrPort) (Reachability, error) {
+
+func (refusingEffects) Establish(
+	context.Context,
+	ProviderActivation,
+	netip.AddrPort,
+) (Reachability, error) {
 	return Reachability{}, refusalError(
 		"gateway provider effects are unavailable",
 		"install a connectivity provider before enabling reachability",
@@ -165,7 +170,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, plan ExposurePlan) error {
 		if tierPlan.Enabled {
 			if tier == TierPublic && !r.runtimeState(tier).Advertised {
 				if err := r.markIngressEndpointUnavailable(ctx, tier); err != nil {
-					errs = append(errs, fmt.Errorf("gateway: clear stale %s endpoint: %w", tier, err))
+					errs = append(
+						errs,
+						fmt.Errorf("gateway: clear stale %s endpoint: %w", tier, err),
+					)
 					continue
 				}
 			}
@@ -189,37 +197,21 @@ func (r *Reconciler) enableTier(ctx context.Context, plan TierPlan) error {
 	}
 	provider := *plan.Provider
 	surfaces := surfaceNames(plan.Surfaces)
-	if preflight, ok := r.effects.(ProviderPreflight); ok {
-		if err := preflight.PreflightProvider(ctx, provider); err != nil {
-			return err
-		}
+	if err := r.preflightProvider(ctx, provider); err != nil {
+		return err
 	}
 	state := r.runtimeState(plan.Tier)
-	hadAdvertisement := state.Advertised
-	previousRuntime := state.RuntimeTier
-	previousRuntime.Endpoints = append([]AdvertisedEndpoint(nil), state.Endpoints...)
-	previousRuntime.Surfaces = append([]Surface(nil), state.Surfaces...)
-	previousProvider := state.provider
-	previousAccepting := state.accepting
+	previous := snapshotRuntimeTier(state)
+	hadAdvertisement := previous.advertised
 	state.accepting = false
 	if hadAdvertisement {
 		if err := r.withdrawTier(ctx, plan.Tier, state); err != nil {
-			state.accepting = previousAccepting
+			state.accepting = previous.accepting
 			return err
 		}
 	}
-	bound, err := r.effects.Bind(ctx, plan.Tier)
+	bound, err := r.bindTierForEnable(ctx, plan.Tier, state, previous)
 	if err != nil {
-		if hadAdvertisement {
-			restoreErr := r.effects.Advertise(ctx, Reachability{
-				Tier: plan.Tier, Endpoints: append([]AdvertisedEndpoint(nil), previousRuntime.Endpoints...),
-				Health: HealthHealthy,
-			}, append([]Surface(nil), previousRuntime.Surfaces...))
-			state.RuntimeTier = previousRuntime
-			state.provider = previousProvider
-			state.accepting = restoreErr == nil && previousAccepting
-			return errors.Join(err, restoreErr)
-		}
 		return err
 	}
 	state.Bound = bound
@@ -242,13 +234,19 @@ func (r *Reconciler) enableTier(ctx context.Context, plan TierPlan) error {
 		return errors.Join(err, r.compensateTier(ctx, plan.Tier, provider, state, false))
 	}
 	if err := r.effects.Verify(ctx, reachability); err != nil {
-		return errors.Join(r.markDegraded(ctx, plan, err), r.compensateTier(ctx, plan.Tier, provider, state, false))
+		return errors.Join(
+			r.markDegraded(ctx, plan, err),
+			r.compensateTier(ctx, plan.Tier, provider, state, false),
+		)
 	}
 	if err := r.assertCurrent(ctx, plan); err != nil {
 		return errors.Join(err, r.compensateTier(ctx, plan.Tier, provider, state, false))
 	}
 	if err := r.effects.Advertise(ctx, reachability, surfaces); err != nil {
-		return errors.Join(r.markDegraded(ctx, plan, err), r.compensateTier(ctx, plan.Tier, provider, state, true))
+		return errors.Join(
+			r.markDegraded(ctx, plan, err),
+			r.compensateTier(ctx, plan.Tier, provider, state, true),
+		)
 	}
 	state.Endpoints = append([]AdvertisedEndpoint(nil), reachability.Endpoints...)
 	state.Surfaces = append([]Surface(nil), surfaces...)
@@ -332,7 +330,11 @@ func (r *Reconciler) markIngressEndpointUnavailable(ctx context.Context, tier Ti
 	return ingress.MarkIngressEndpointUnavailable(ctx, tier, r.now().UTC())
 }
 
-func (r *Reconciler) syncIngressEndpoint(ctx context.Context, tier Tier, reachability Reachability) error {
+func (r *Reconciler) syncIngressEndpoint(
+	ctx context.Context,
+	tier Tier,
+	reachability Reachability,
+) error {
 	if tier != TierPublic {
 		return nil
 	}
@@ -472,21 +474,4 @@ func providerGenerationCurrent(snapshot Snapshot, expected ProviderActivation) b
 		}
 	}
 	return false
-}
-
-func surfaceGenerationCurrent(snapshot Snapshot, expected SurfaceExposure) bool {
-	for _, surface := range snapshot.Surfaces {
-		if surface.Surface == expected.Surface && surface.Tier == expected.Tier {
-			return surface.Generation == expected.Generation && surface.Desired == DesiredEnabled
-		}
-	}
-	return false
-}
-
-func surfaceNames(exposures []SurfaceExposure) []Surface {
-	result := make([]Surface, 0, len(exposures))
-	for _, exposure := range exposures {
-		result = append(result, exposure.Surface)
-	}
-	return result
 }

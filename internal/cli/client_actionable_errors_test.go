@@ -30,7 +30,7 @@ func TestUnixSocketClientActionableDaemonErrors(t *testing.T) {
 			}
 		})
 		socketPath := filepath.Join(root, "compozy.sock")
-		client, err := NewClient(socketPath)
+		client, err := NewClient(LocalClientTarget(socketPath))
 		if err != nil {
 			t.Fatalf("NewClient() error = %v", err)
 		}
@@ -49,8 +49,8 @@ func TestUnixSocketClientActionableDaemonErrors(t *testing.T) {
 		t.Parallel()
 
 		socketPath := "/tmp/compozy-stale.sock"
-		client := &unixSocketClient{
-			socketPath: socketPath,
+		client := &daemonClient{
+			target: LocalClientTarget(socketPath),
 			httpClient: &http.Client{
 				Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
 					return nil, &url.Error{

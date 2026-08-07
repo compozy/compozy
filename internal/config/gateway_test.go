@@ -4,6 +4,8 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
@@ -83,7 +85,7 @@ func TestGatewayConfig(t *testing.T) {
 		cfg := defaultGatewayConfig(HomePaths{GatewayCredentialsDir: "/gateway/credentials"})
 		original := cfg
 		gatewayOverlay{}.Apply(&cfg)
-		if cfg != original {
+		if !reflect.DeepEqual(cfg, original) {
 			t.Fatalf("nil overlay changed config: got %#v want %#v", cfg, original)
 		}
 		enabled := true
@@ -98,6 +100,83 @@ func TestGatewayConfig(t *testing.T) {
 		}
 		if cfg.PublicPort != original.PublicPort || cfg.CredentialsDir != original.CredentialsDir {
 			t.Fatalf("set overlay changed omitted fields: %#v", cfg)
+		}
+	})
+
+	t.Run("Should validate active non-secret connection metadata", func(t *testing.T) {
+		t.Parallel()
+		cfg := defaultGatewayConfig(HomePaths{})
+		cfg.Connections = []GatewayConnectionConfig{{
+			Name: "laptop", Scheme: "https", Host: "gateway.example", Port: 443,
+			CredentialFile: "laptop.cred",
+		}}
+		cfg.ActiveConnection = "laptop"
+		if err := cfg.Validate(); err != nil {
+			t.Fatalf("Validate() error = %v", err)
+		}
+		cfg.Connections = append(cfg.Connections, cfg.Connections[0])
+		assertGatewayValidationPath(t, cfg.Validate(), "gateway.connections")
+	})
+
+	t.Run("Should reject an active profile that is absent", func(t *testing.T) {
+		t.Parallel()
+		cfg := defaultGatewayConfig(HomePaths{})
+		cfg.ActiveConnection = "missing"
+		assertGatewayValidationPath(t, cfg.Validate(), "gateway.active_connection")
+	})
+
+	t.Run("Should reject gateway settings in workspace overlays", func(t *testing.T) {
+		t.Parallel()
+		for _, content := range []string{
+			"[gateway]\nactive_connection = \"remote\"\n",
+			"[[gateway.connections]]\nname = \"remote\"\nscheme = \"https\"\nhost = \"shadow.example\"\nport = 443\ncredential_file = \"remote.cred\"\n",
+		} {
+			overlay, err := loadConfigOverlayBytes([]byte(content), "workspace.toml")
+			if err != nil {
+				t.Fatalf("loadConfigOverlayBytes() error = %v", err)
+			}
+			err = validateWorkspaceConfigOverlay("workspace.toml", &overlay)
+			if err == nil || !strings.Contains(err.Error(), "gateway settings are global-only") {
+				t.Fatalf("validateWorkspaceConfigOverlay() error = %v, want global-only rejection", err)
+			}
+		}
+	})
+
+	t.Run("Should require canonical schemes and scheme-specific profile fields", func(t *testing.T) {
+		t.Parallel()
+
+		testCases := []struct {
+			name       string
+			connection GatewayConnectionConfig
+		}{
+			{
+				name: "uppercase scheme",
+				connection: GatewayConnectionConfig{
+					Name: "remote", Scheme: "SSH", Host: "remote.example", Port: 22,
+				},
+			},
+			{
+				name: "HTTPS remote home",
+				connection: GatewayConnectionConfig{
+					Name: "remote", Scheme: "https", Host: "remote.example", Port: 443,
+					CredentialFile: "remote.cred", RemoteHome: "/srv/compozy",
+				},
+			},
+			{
+				name: "SSH default workspace",
+				connection: GatewayConnectionConfig{
+					Name: "remote", Scheme: "ssh", Host: "remote.example", Port: 22,
+					DefaultWorkspace: "workspace-1",
+				},
+			},
+		}
+		for _, testCase := range testCases {
+			t.Run("Should reject "+testCase.name, func(t *testing.T) {
+				t.Parallel()
+				if err := testCase.connection.Validate(); err == nil {
+					t.Fatal("Validate() error = nil, want incompatible profile rejection")
+				}
+			})
 		}
 	})
 }

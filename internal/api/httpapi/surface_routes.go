@@ -30,7 +30,8 @@ func registerPrivateTierRoutes(router gin.IRouter, handlers *Handlers) {
 	api.Use(handlers.gatewayAdmissionMiddleware(gateway.TierPrivate, gateway.SurfaceOperatorUI))
 	registerGatewayRedeemRoute(api, handlers)
 	api.Use(handlers.deviceAuthMiddleware())
-	registerOperatorRoutes(api, handlers)
+	registerOperatorRoutes(api, handlers, false)
+	registerRemoteResourceReadRoutes(api, handlers)
 	registerGatewayManagementRoutes(api, handlers, true)
 	registerStaticFallback(router, handlers)
 }
@@ -51,12 +52,13 @@ func registerPublicOperatorRoutes(router gin.IRouter, handlers *Handlers, includ
 	api.Use(browserRequestProtectionMiddlewareWithForwardedTarget(handlers.boundHost, true))
 	api.Use(handlers.gatewayAdmissionMiddleware(gateway.TierPublic, gateway.SurfaceOperatorUI))
 	api.Use(handlers.deviceAuthMiddleware())
-	registerOperatorRoutes(api, handlers)
+	registerOperatorRoutes(api, handlers, false)
+	registerRemoteResourceReadRoutes(api, handlers)
 	registerGatewayStreamTicketRoute(api, handlers)
 	registerStaticFallback(router, handlers)
 }
 
-func registerOperatorRoutes(api gin.IRouter, handlers *Handlers) {
+func registerOperatorRoutes(api gin.IRouter, handlers *Handlers, includeLocalOnlyTaskLifecycle bool) {
 	registerStatusRoutes(api, handlers)
 	registerOnboardingRoutes(api, handlers)
 	registerFilesystemRoutes(api, handlers)
@@ -74,7 +76,7 @@ func registerOperatorRoutes(api gin.IRouter, handlers *Handlers) {
 	registerToolRoutes(api, handlers)
 	registerAutomationRoutes(api, handlers)
 	registerLoopRoutes(api, handlers)
-	registerTaskRoutes(api, handlers)
+	registerTaskRoutes(api, handlers, includeLocalOnlyTaskLifecycle)
 	registerMarketplaceRoutes(api, handlers)
 	registerSkillRoutes(api, handlers)
 	registerMemoryRoutes(api, handlers)

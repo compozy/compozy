@@ -328,7 +328,7 @@ func resourceListBundle(items []ResourceRecord) outputBundle {
 		}{Records: items},
 		items,
 		"Resources",
-		[]string{"KIND", "ID", "VERSION", "SCOPE", "OWNER", automationSourceHeader},
+		[]string{cliKindHeader, "ID", "VERSION", "SCOPE", "OWNER", automationSourceHeader},
 		"resources",
 		[]string{resourceKindKey, "id", versionKey, automationScopeKey, taskOwnerKey, automationSourceKey},
 		resourceRow,

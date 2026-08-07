@@ -849,14 +849,19 @@ func TestConfigValidateReportsInvalidConfigAsJSON(t *testing.T) {
 		deps.resolveHomeForWorkspace = func(string) (compozyconfig.HomePaths, error) {
 			return homePaths, nil
 		}
-		stdout, _, err := executeRootCommand(t, deps, "config", "validate", "-o", "json")
-		if err == nil {
+		stdout, _, commandErr := executeRootCommand(t, deps, "config", "validate", "-o", "json")
+		if commandErr == nil {
 			t.Fatal("config validate error = nil, want invalid config failure")
 		}
 
 		var record configValidateRecord
-		if err := json.Unmarshal([]byte(stdout), &record); err != nil {
-			t.Fatalf("json.Unmarshal(config validate invalid) error = %v; stdout=%s", err, stdout)
+		if decodeErr := json.Unmarshal([]byte(stdout), &record); decodeErr != nil {
+			t.Fatalf(
+				"json.Unmarshal(config validate invalid) error = %v; command error=%v; stdout=%s",
+				decodeErr,
+				commandErr,
+				stdout,
+			)
 		}
 		if record.Status != "invalid" {
 			t.Fatalf("Status = %q, want invalid", record.Status)
@@ -898,14 +903,19 @@ func TestConfigValidateReportsInvalidConfigAsJSON(t *testing.T) {
 		deps.resolveHomeForWorkspace = func(string) (compozyconfig.HomePaths, error) {
 			return homePaths, nil
 		}
-		stdout, _, err := executeRootCommand(t, deps, "config", "validate", "-o", "json")
-		if err == nil {
+		stdout, _, commandErr := executeRootCommand(t, deps, "config", "validate", "-o", "json")
+		if commandErr == nil {
 			t.Fatal("config validate error = nil, want validation failure")
 		}
 
 		var record configValidateRecord
-		if err := json.Unmarshal([]byte(stdout), &record); err != nil {
-			t.Fatalf("json.Unmarshal(config validate validation) error = %v; stdout=%s", err, stdout)
+		if decodeErr := json.Unmarshal([]byte(stdout), &record); decodeErr != nil {
+			t.Fatalf(
+				"json.Unmarshal(config validate validation) error = %v; command error=%v; stdout=%s",
+				decodeErr,
+				commandErr,
+				stdout,
+			)
 		}
 		if record.Status != "invalid" {
 			t.Fatalf("Status = %q, want invalid", record.Status)

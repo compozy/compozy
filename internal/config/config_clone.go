@@ -26,6 +26,10 @@ func CloneConfig(source *Config) Config {
 	)
 	cloned.Tools.Policy.TrustedSources = cloneStrings(source.Tools.Policy.TrustedSources)
 	cloned.Automation = cloneAutomationConfig(source.Automation)
+	cloned.Gateway.Connections = append(
+		[]GatewayConnectionConfig(nil),
+		source.Gateway.Connections...,
+	)
 	cloned.Loops = cloneLoopsConfig(&source.Loops)
 	cloned.Hooks.Declarations = cloneHookDecls(source.Hooks.Declarations)
 	return cloned

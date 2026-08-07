@@ -20,18 +20,37 @@ func (d *Daemon) bootGateway(ctx context.Context, state *bootState, cleanup *boo
 	}
 	deviceStore, deviceStoreAvailable := state.registry.(gateway.DeviceStore)
 	if !deviceStoreAvailable {
-		policy, err := gateway.NewPolicy(gatewayStore, nil, state.cfg.Gateway.Enabled)
-		if err != nil {
-			return fmt.Errorf("daemon: create fail-closed gateway policy: %w", err)
-		}
-		cleanup.add(policy.Close)
-		state.gateway = policy
-		if _, err := policy.Reconcile(ctx); err != nil && !errors.Is(err, gateway.ErrExposureRefused) {
-			return fmt.Errorf("daemon: reconcile fail-closed gateway: %w", err)
-		}
-		state.logger.Warn("daemon: gateway device store unavailable; continuing local-only")
-		return nil
+		return d.bootFailClosedGateway(ctx, state, cleanup, gatewayStore)
 	}
+	return d.bootDeviceGateway(ctx, state, cleanup, gatewayStore, deviceStore)
+}
+
+func (d *Daemon) bootFailClosedGateway(
+	ctx context.Context,
+	state *bootState,
+	cleanup *bootCleanup,
+	gatewayStore gateway.Store,
+) error {
+	policy, err := gateway.NewPolicy(gatewayStore, nil, state.cfg.Gateway.Enabled)
+	if err != nil {
+		return fmt.Errorf("daemon: create fail-closed gateway policy: %w", err)
+	}
+	cleanup.add(policy.Close)
+	state.gateway = policy
+	if _, err := policy.Reconcile(ctx); err != nil && !errors.Is(err, gateway.ErrExposureRefused) {
+		return fmt.Errorf("daemon: reconcile fail-closed gateway: %w", err)
+	}
+	state.logger.Warn("daemon: gateway device store unavailable; continuing local-only")
+	return nil
+}
+
+func (d *Daemon) bootDeviceGateway(
+	ctx context.Context,
+	state *bootState,
+	cleanup *bootCleanup,
+	gatewayStore gateway.Store,
+	deviceStore gateway.DeviceStore,
+) error {
 	devices, err := gateway.NewDeviceService(
 		deviceStore,
 		gateway.WithDeviceClock(d.now),
@@ -50,7 +69,11 @@ func (d *Daemon) bootGateway(ctx context.Context, state *bootState, cleanup *boo
 	if providerEffects == nil {
 		providerEffects, err = d.newExtensionGatewayProvider(state, gatewayStore, challenges)
 		if err != nil {
-			state.logger.Warn("daemon: connectivity provider unavailable; continuing local-only", "error", err)
+			state.logger.Warn(
+				"daemon: connectivity provider unavailable; continuing local-only",
+				"error",
+				err,
+			)
 		}
 	}
 	listeners := newGatewayTierListeners(gatewayStore, &state.deps, d.gatewayTierFactory)
@@ -90,7 +113,11 @@ func (d *Daemon) bootGateway(ctx context.Context, state *bootState, cleanup *boo
 	state.deps.Gateway = service
 	if _, err := policy.Reconcile(ctx); err != nil {
 		if errors.Is(err, gateway.ErrExposureRefused) {
-			state.logger.Warn("daemon: gateway exposure refused; continuing local-only", "error", err)
+			state.logger.Warn(
+				"daemon: gateway exposure refused; continuing local-only",
+				"error",
+				err,
+			)
 			return nil
 		}
 		return fmt.Errorf("daemon: reconcile gateway before server advertisement: %w", err)
@@ -115,7 +142,9 @@ func (d *Daemon) newExtensionGatewayProvider(
 	if !ok {
 		return nil, errors.New("daemon: gateway store does not provide provider identities")
 	}
-	trust, err := extensionpkg.NewConnectivityProviderTrustResolver(extensionpkg.NewRegistry(dbSource.DB()))
+	trust, err := extensionpkg.NewConnectivityProviderTrustResolver(
+		extensionpkg.NewRegistry(dbSource.DB()),
+	)
 	if err != nil {
 		return nil, err
 	}

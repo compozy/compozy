@@ -18,8 +18,8 @@ func TestUnixSocketClientBridgeControl(t *testing.T) {
 	t.Run("Should call verify and validate structured checks", func(t *testing.T) {
 		t.Parallel()
 
-		client := &unixSocketClient{
-			socketPath: "/tmp/compozy.sock",
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
 			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				if req.Method != http.MethodPost || req.URL.EscapedPath() != "/api/bridges/%20brg-1%20/verify" {
 					t.Fatalf("request = %s %s, want POST verify route", req.Method, req.URL.Path)
@@ -43,8 +43,8 @@ func TestUnixSocketClientBridgeControl(t *testing.T) {
 	t.Run("Should post the typed real-send request and validate its target", func(t *testing.T) {
 		t.Parallel()
 
-		client := &unixSocketClient{
-			socketPath: "/tmp/compozy.sock",
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
 			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				if req.Method != http.MethodPost || req.URL.EscapedPath() != "/api/bridges/%20brg-1%20/send-test" {
 					t.Fatalf("request = %s %s, want POST send-test route", req.Method, req.URL.Path)
@@ -93,8 +93,8 @@ func TestUnixSocketClientBridgeControl(t *testing.T) {
 	t.Run("Should preserve opaque identifiers on the dry-run client route", func(t *testing.T) {
 		t.Parallel()
 
-		client := &unixSocketClient{
-			socketPath: "/tmp/compozy.sock",
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
 			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				if req.Method != http.MethodPost ||
 					req.URL.EscapedPath() != "/api/bridges/%20brg-dry%20/test-delivery" {
@@ -143,7 +143,7 @@ func TestUnixSocketClientBridgeControl(t *testing.T) {
 	t.Run("Should reject empty and invalid identifiers before transport", func(t *testing.T) {
 		t.Parallel()
 
-		client := &unixSocketClient{}
+		client := &daemonClient{}
 		_, err := client.VerifyBridge(context.Background(), "")
 		if err == nil || !strings.Contains(err.Error(), "bridge instance id is required") {
 			t.Fatalf("VerifyBridge(blank) error = %v", err)
@@ -182,8 +182,8 @@ func TestUnixSocketClientBridgeControl(t *testing.T) {
 	t.Run("Should reject an unknown send-test status", func(t *testing.T) {
 		t.Parallel()
 
-		client := &unixSocketClient{
-			socketPath: "/tmp/compozy.sock",
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
 			httpClient: &http.Client{Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
 				return newHTTPResponse(http.StatusOK, `{
   "status": "maybe_delivered",

@@ -19,28 +19,29 @@ import (
 
 const windowManagerClientHandshakeTimeout = 10 * time.Second
 
-func (c *unixSocketClient) WatchWindowManager(
+func (c *daemonClient) WatchWindowManager(
 	ctx context.Context,
 	workspace string,
 	clientID *windowmanager.ClientID,
 	afterRevision *contract.WindowManagerRevision,
 	handlers WindowManagerStreamHandlers,
 ) (returnErr error) {
-	if ctx == nil {
-		return errors.New("cli: window-manager watch context is required")
-	}
-	if handlers.Snapshot == nil || handlers.Event == nil {
-		return errors.New("cli: window-manager watch handlers are required")
-	}
-	if clientID != nil && handlers.Client == nil {
-		return errors.New("cli: window-manager client watch handler is required")
+	if err := validateWindowManagerWatch(ctx, clientID, handlers); err != nil {
+		return err
 	}
 	dialer := websocket.Dialer{
 		HandshakeTimeout: windowManagerClientHandshakeTimeout,
-		NetDialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
-			var dialer net.Dialer
-			return dialer.DialUnix(ctx, "unix", nil, &net.UnixAddr{Name: c.socketPath, Net: "unix"})
-		},
+	}
+	if c.target.kind == clientTargetLocal {
+		dialer.NetDialContext = func(ctx context.Context, _, _ string) (net.Conn, error) {
+			var networkDialer net.Dialer
+			return networkDialer.DialUnix(
+				ctx,
+				clientUnixNetwork,
+				nil,
+				&net.UnixAddr{Name: c.target.socketPath, Net: clientUnixNetwork},
+			)
+		}
 	}
 	query := url.Values{}
 	if afterRevision != nil {
@@ -49,7 +50,15 @@ func (c *unixSocketClient) WatchWindowManager(
 	if clientID != nil {
 		query.Set("client_id", strings.TrimSpace(string(*clientID)))
 	}
-	target := "ws://unix" + windowManagerClientPath(workspace) + "/stream"
+	query, err := c.withFreshStreamTicket(ctx, query)
+	if err != nil {
+		return err
+	}
+	websocketBase, err := c.target.websocketBaseURL()
+	if err != nil {
+		return err
+	}
+	target := websocketBase + windowManagerClientPath(workspace) + "/stream"
 	if len(query) > 0 {
 		target += "?" + query.Encode()
 	}
@@ -57,6 +66,9 @@ func (c *unixSocketClient) WatchWindowManager(
 	if err != nil {
 		if response != nil {
 			return readAndCloseWindowManagerHandshakeError(response)
+		}
+		if c.target.isRemoteGateway() {
+			return newGatewayReachabilityError(c.target, err)
 		}
 		return fmt.Errorf("cli: dial window-manager stream: %w", err)
 	}
@@ -80,7 +92,30 @@ func (c *unixSocketClient) WatchWindowManager(
 		returnErr = errors.Join(returnErr, closeErr)
 	}()
 
-	return readWindowManagerFrames(ctx, conn, handlers)
+	if err := readWindowManagerFrames(ctx, conn, handlers); err != nil {
+		if c.target.isRemoteGateway() && ctx.Err() == nil {
+			return newGatewayStreamInterruptedError(c.target, err)
+		}
+		return err
+	}
+	return nil
+}
+
+func validateWindowManagerWatch(
+	ctx context.Context,
+	clientID *windowmanager.ClientID,
+	handlers WindowManagerStreamHandlers,
+) error {
+	if ctx == nil {
+		return errors.New("cli: window-manager watch context is required")
+	}
+	if handlers.Snapshot == nil || handlers.Event == nil {
+		return errors.New("cli: window-manager watch handlers are required")
+	}
+	if clientID != nil && handlers.Client == nil {
+		return errors.New("cli: window-manager client watch handler is required")
+	}
+	return nil
 }
 
 func readAndCloseWindowManagerHandshakeError(response *http.Response) error {

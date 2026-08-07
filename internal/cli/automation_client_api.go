@@ -59,7 +59,7 @@ type AutomationSuggestionAcceptanceRecord = contract.AutomationSuggestionAccepta
 // SuggestionRecord is one shared automation suggestion payload.
 type SuggestionRecord = contract.AutomationSuggestionPayload
 
-func (c *unixSocketClient) ListAutomationSuggestions(
+func (c *daemonClient) ListAutomationSuggestions(
 	ctx context.Context,
 	workspaceID string,
 	status automationpkg.SuggestionStatus,
@@ -76,7 +76,7 @@ func (c *unixSocketClient) ListAutomationSuggestions(
 	return response, nil
 }
 
-func (c *unixSocketClient) AcceptAutomationSuggestion(
+func (c *daemonClient) AcceptAutomationSuggestion(
 	ctx context.Context,
 	workspaceID string,
 	suggestionID string,
@@ -89,7 +89,7 @@ func (c *unixSocketClient) AcceptAutomationSuggestion(
 	return response, nil
 }
 
-func (c *unixSocketClient) DismissAutomationSuggestion(
+func (c *daemonClient) DismissAutomationSuggestion(
 	ctx context.Context,
 	workspaceID string,
 	suggestionID string,

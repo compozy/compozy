@@ -217,6 +217,64 @@ func TestGatewayAuthenticatedProductAndStatusParityIntegration(t *testing.T) {
 	})
 }
 
+func TestGatewayPrivateTierExcludesLocalAuthorityRoutesIT063IT064(t *testing.T) {
+	t.Parallel()
+	t.Run("Should keep every queue scheduler and kernel authority off the private tier", func(t *testing.T) {
+		t.Parallel()
+		exerciseGatewayPrivateTierExcludesLocalAuthorityRoutes(t)
+	})
+}
+
+func exerciseGatewayPrivateTierExcludesLocalAuthorityRoutes(t *testing.T) {
+	t.Helper()
+	service := newGatewayIntegrationService(t)
+	issued := issueGatewayIntegrationCredential(t, service, gateway.ActorKindCLIProfile)
+	server := newGatewayIntegrationServer(t, service)
+
+	for _, test := range []struct {
+		method string
+		path   string
+	}{
+		{method: http.MethodPost, path: "/api/agent/tasks/claim-next"},
+		{method: http.MethodPost, path: "/api/agent/tasks/run-1/heartbeat"},
+		{method: http.MethodPost, path: "/api/agent/tasks/run-1/complete"},
+		{method: http.MethodPost, path: "/api/agent/tasks/run-1/fail"},
+		{method: http.MethodPost, path: "/api/agent/tasks/run-1/release"},
+		{method: http.MethodPost, path: "/api/task-runs/run-1/complete"},
+		{method: http.MethodPost, path: "/api/task-runs/run-1/fail"},
+		{method: http.MethodPost, path: "/api/tasks/task-1/runs"},
+		{method: http.MethodPost, path: "/api/tasks/task-1/runs/fan-out"},
+		{method: http.MethodPost, path: "/api/runs/run-1/release"},
+		{method: http.MethodPost, path: "/api/runs/run-1/fail"},
+		{method: http.MethodPost, path: "/api/runs/run-1/retry"},
+		{method: http.MethodPost, path: "/api/runs/bulk/release"},
+		{method: http.MethodGet, path: "/api/scheduler"},
+		{method: http.MethodGet, path: "/api/scheduler/backlog"},
+		{method: http.MethodPut, path: "/api/resources/skill/item-1"},
+		{method: http.MethodPost, path: "/api/internal/mcp/call"},
+	} {
+		t.Run(test.method+" "+test.path, func(t *testing.T) {
+			t.Parallel()
+			request, err := http.NewRequestWithContext(
+				t.Context(), test.method, server.URL+test.path, strings.NewReader(`{}`),
+			)
+			if err != nil {
+				t.Fatalf("http.NewRequestWithContext() error = %v", err)
+			}
+			request.Header.Set("Authorization", "Bearer "+issued.Credential)
+			request.Header.Set("Content-Type", "application/json")
+			response, err := gatewayIntegrationHTTPClient().Do(request)
+			if err != nil {
+				t.Fatalf("gateway request error = %v", err)
+			}
+			body := readAndCloseHTTPBody(t, response)
+			if response.StatusCode != http.StatusNotFound {
+				t.Fatalf("remote authority route status = %d, want 404; body=%s", response.StatusCode, body)
+			}
+		})
+	}
+}
+
 func TestGatewayPublicIngressWebhookIntegration(t *testing.T) {
 	runtime := newIntegrationRuntime(t)
 	publicServer := newGatewayPublicIngressIntegrationServer(t, runtime, 100)

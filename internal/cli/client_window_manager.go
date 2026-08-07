@@ -71,9 +71,9 @@ type WindowManagerClient interface {
 	) error
 }
 
-var _ WindowManagerClient = (*unixSocketClient)(nil)
+var _ WindowManagerClient = (*daemonClient)(nil)
 
-func (c *unixSocketClient) GetWindowManagerSnapshot(
+func (c *daemonClient) GetWindowManagerSnapshot(
 	ctx context.Context,
 	workspace string,
 ) (contract.WindowManagerSnapshot, error) {
@@ -84,7 +84,7 @@ func (c *unixSocketClient) GetWindowManagerSnapshot(
 	return response, nil
 }
 
-func (c *unixSocketClient) PreviewWindowManagerCommand(
+func (c *daemonClient) PreviewWindowManagerCommand(
 	ctx context.Context,
 	workspace string,
 	request contract.WindowManagerCommandRequest,
@@ -97,7 +97,7 @@ func (c *unixSocketClient) PreviewWindowManagerCommand(
 	return response, nil
 }
 
-func (c *unixSocketClient) ExecuteWindowManagerCommand(
+func (c *daemonClient) ExecuteWindowManagerCommand(
 	ctx context.Context,
 	workspace string,
 	request contract.WindowManagerCommandRequest,
@@ -110,7 +110,7 @@ func (c *unixSocketClient) ExecuteWindowManagerCommand(
 	return response, nil
 }
 
-func (c *unixSocketClient) ListWindowManagerClients(
+func (c *daemonClient) ListWindowManagerClients(
 	ctx context.Context,
 	workspace string,
 ) (contract.WindowManagerClientsResponse, error) {
@@ -122,7 +122,7 @@ func (c *unixSocketClient) ListWindowManagerClients(
 	return response, nil
 }
 
-func (c *unixSocketClient) RegisterWindowManagerClient(
+func (c *daemonClient) RegisterWindowManagerClient(
 	ctx context.Context,
 	workspace string,
 	request contract.WindowManagerClientRegistration,
@@ -135,7 +135,7 @@ func (c *unixSocketClient) RegisterWindowManagerClient(
 	return response, nil
 }
 
-func (c *unixSocketClient) UnregisterWindowManagerClient(
+func (c *daemonClient) UnregisterWindowManagerClient(
 	ctx context.Context,
 	workspace string,
 	clientID string,
@@ -144,7 +144,7 @@ func (c *unixSocketClient) UnregisterWindowManagerClient(
 	return c.doJSON(ctx, http.MethodDelete, path, nil, nil, nil)
 }
 
-func (c *unixSocketClient) ExportWindowManagerLayout(
+func (c *daemonClient) ExportWindowManagerLayout(
 	ctx context.Context,
 	workspace string,
 ) (contract.WindowManagerLayoutDocument, error) {
@@ -156,7 +156,7 @@ func (c *unixSocketClient) ExportWindowManagerLayout(
 	return response, nil
 }
 
-func (c *unixSocketClient) ValidateWindowManagerLayout(
+func (c *daemonClient) ValidateWindowManagerLayout(
 	ctx context.Context,
 	workspace string,
 	request contract.WindowManagerLayoutValidationRequest,
@@ -169,7 +169,7 @@ func (c *unixSocketClient) ValidateWindowManagerLayout(
 	return response, nil
 }
 
-func (c *unixSocketClient) ApplyWindowManagerLayout(
+func (c *daemonClient) ApplyWindowManagerLayout(
 	ctx context.Context,
 	workspace string,
 	request contract.WindowManagerLayoutReplaceRequest,
@@ -182,7 +182,7 @@ func (c *unixSocketClient) ApplyWindowManagerLayout(
 	return response, nil
 }
 
-func (c *unixSocketClient) ListWindowManagerLayoutProfiles(
+func (c *daemonClient) ListWindowManagerLayoutProfiles(
 	ctx context.Context,
 	workspace string,
 ) (contract.ResourcesResponse, error) {
@@ -194,7 +194,7 @@ func (c *unixSocketClient) ListWindowManagerLayoutProfiles(
 	return response, nil
 }
 
-func (c *unixSocketClient) PutWindowManagerLayoutProfile(
+func (c *daemonClient) PutWindowManagerLayoutProfile(
 	ctx context.Context,
 	workspace string,
 	profileID string,
@@ -208,7 +208,7 @@ func (c *unixSocketClient) PutWindowManagerLayoutProfile(
 	return response, nil
 }
 
-func (c *unixSocketClient) DeleteWindowManagerLayoutProfile(
+func (c *daemonClient) DeleteWindowManagerLayoutProfile(
 	ctx context.Context,
 	workspace string,
 	profileID string,

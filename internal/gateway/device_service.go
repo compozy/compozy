@@ -144,9 +144,15 @@ func (s *DeviceService) RedeemPairing(ctx context.Context, req RedeemRequest) (I
 
 	var issued IssuedCredential
 	err := s.pairings.Redeem(req.Artifact, func(pairingSource PairingSource) error {
-		credential, generateErr := generateDeviceCredential(s.entropy)
-		if generateErr != nil {
-			return generateErr
+		credential := strings.TrimSpace(req.Credential)
+		if credential == "" {
+			var generateErr error
+			credential, generateErr = generateDeviceCredential(s.entropy)
+			if generateErr != nil {
+				return generateErr
+			}
+		} else if !validOpaqueSecret(credential, deviceCredentialPrefix) {
+			return ErrPairingInvalid
 		}
 		deviceID, generateErr := generateDeviceID(s.entropy)
 		if generateErr != nil {

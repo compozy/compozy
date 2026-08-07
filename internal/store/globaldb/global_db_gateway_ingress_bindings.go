@@ -39,16 +39,16 @@ func (g *GatewayRepo) PutIngressBinding(
 	if err := g.checkReady(ctx, "put gateway ingress binding"); err != nil {
 		return gateway.IngressBinding{}, false, err
 	}
-	generation, err := gatewayGeneration(endpointGeneration)
-	if err != nil || generation <= 0 {
-		return gateway.IngressBinding{}, false, errors.Join(errors.New("store: invalid ingress endpoint generation"), err)
-	}
-	if confirmedAt.IsZero() {
-		return gateway.IngressBinding{}, false, errors.New("store: ingress confirmation timestamp is required")
+	generation, err := validateIngressBindingInput(endpointGeneration, confirmedAt)
+	if err != nil {
+		return gateway.IngressBinding{}, false, err
 	}
 	tx, err := g.db.BeginTx(ctx, nil)
 	if err != nil {
-		return gateway.IngressBinding{}, false, fmt.Errorf("store: begin ingress binding transaction: %w", err)
+		return gateway.IngressBinding{}, false, fmt.Errorf(
+			"store: begin ingress binding transaction: %w",
+			err,
+		)
 	}
 	committed := false
 	defer func() {
@@ -57,12 +57,9 @@ func (g *GatewayRepo) PutIngressBinding(
 		}
 	}()
 	queries := sqlcgen.New(tx)
-	actual, err := resolveGatewayIngressSubject(ctx, queries, expected.IngressSubjectRef)
+	actual, err := resolveExpectedIngressSubject(ctx, queries, expected)
 	if err != nil {
 		return gateway.IngressBinding{}, false, err
-	}
-	if actual.Scope != expected.Scope || actual.WorkspaceID != expected.WorkspaceID {
-		return gateway.IngressBinding{}, false, gateway.ErrIngressForbidden
 	}
 	key := ingressBindingKey(actual.IngressSubjectRef)
 	current, currentErr := queries.GetGatewayIngressBinding(ctx, key)
@@ -73,13 +70,19 @@ func (g *GatewayRepo) PutIngressBinding(
 			return gateway.IngressBinding{}, false, mapErr
 		}
 		if err := tx.Commit(); err != nil {
-			return gateway.IngressBinding{}, false, fmt.Errorf("store: commit unchanged ingress binding: %w", err)
+			return gateway.IngressBinding{}, false, fmt.Errorf(
+				"store: commit unchanged ingress binding: %w",
+				err,
+			)
 		}
 		committed = true
 		return binding, false, nil
 	}
 	if currentErr != nil && !errors.Is(currentErr, sql.ErrNoRows) {
-		return gateway.IngressBinding{}, false, fmt.Errorf("store: read prior ingress binding: %w", currentErr)
+		return gateway.IngressBinding{}, false, fmt.Errorf(
+			"store: read prior ingress binding: %w",
+			currentErr,
+		)
 	}
 	row, err := queries.UpsertGatewayIngressBinding(ctx, sqlcgen.UpsertGatewayIngressBindingParams{
 		SubjectKind: string(actual.Kind), SubjectID: actual.ID, ScopeKind: string(actual.Scope),
@@ -87,7 +90,10 @@ func (g *GatewayRepo) PutIngressBinding(
 		ConfirmedAt: store.FormatTimestamp(confirmedAt),
 	})
 	if err != nil {
-		return gateway.IngressBinding{}, false, fmt.Errorf("store: upsert gateway ingress binding: %w", err)
+		return gateway.IngressBinding{}, false, fmt.Errorf(
+			"store: upsert gateway ingress binding: %w",
+			err,
+		)
 	}
 	binding, err := gatewayIngressBindingFromGenerated(row)
 	if err != nil {
@@ -118,12 +124,9 @@ func (g *GatewayRepo) DeleteIngressBinding(
 		}
 	}()
 	queries := sqlcgen.New(tx)
-	actual, err := resolveGatewayIngressSubject(ctx, queries, expected.IngressSubjectRef)
+	actual, err := resolveExpectedIngressSubject(ctx, queries, expected)
 	if err != nil {
 		return false, err
-	}
-	if actual.Scope != expected.Scope || actual.WorkspaceID != expected.WorkspaceID {
-		return false, gateway.ErrIngressForbidden
 	}
 	rows, err := queries.DeleteGatewayIngressBinding(ctx, sqlcgen.DeleteGatewayIngressBindingParams{
 		SubjectKind: string(actual.Kind), SubjectID: strings.TrimSpace(actual.ID),
@@ -136,6 +139,35 @@ func (g *GatewayRepo) DeleteIngressBinding(
 	}
 	committed = true
 	return rows > 0, nil
+}
+
+func validateIngressBindingInput(endpointGeneration uint64, confirmedAt time.Time) (int64, error) {
+	generation, err := gatewayGeneration(endpointGeneration)
+	if err != nil {
+		return 0, errors.Join(errors.New("store: invalid ingress endpoint generation"), err)
+	}
+	if generation <= 0 {
+		return 0, errors.New("store: invalid ingress endpoint generation")
+	}
+	if confirmedAt.IsZero() {
+		return 0, errors.New("store: ingress confirmation timestamp is required")
+	}
+	return generation, nil
+}
+
+func resolveExpectedIngressSubject(
+	ctx context.Context,
+	queries *sqlcgen.Queries,
+	expected gateway.IngressSubject,
+) (gateway.IngressSubject, error) {
+	actual, err := resolveGatewayIngressSubject(ctx, queries, expected.IngressSubjectRef)
+	if err != nil {
+		return gateway.IngressSubject{}, err
+	}
+	if actual.Scope != expected.Scope || actual.WorkspaceID != expected.WorkspaceID {
+		return gateway.IngressSubject{}, gateway.ErrIngressForbidden
+	}
+	return actual, nil
 }
 
 func (g *GatewayRepo) ListIngressBindings(ctx context.Context) ([]gateway.IngressBinding, error) {
@@ -168,19 +200,26 @@ func (g *GatewayRepo) SweepOrphanedIngressBindings(ctx context.Context) (int64, 
 	return rows, nil
 }
 
-func gatewayIngressBindingFromGenerated(row sqlcgen.GatewayIngressBinding) (gateway.IngressBinding, error) {
+func gatewayIngressBindingFromGenerated(
+	row sqlcgen.GatewayIngressBinding,
+) (gateway.IngressBinding, error) {
 	if row.EndpointGeneration <= 0 {
 		return gateway.IngressBinding{}, errors.New("store: invalid ingress binding generation")
 	}
 	confirmedAt, err := store.ParseTimestamp(row.ConfirmedAt)
 	if err != nil {
-		return gateway.IngressBinding{}, fmt.Errorf("store: parse ingress binding confirmation: %w", err)
+		return gateway.IngressBinding{}, fmt.Errorf(
+			"store: parse ingress binding confirmation: %w",
+			err,
+		)
 	}
 	return gateway.IngressBinding{
 		Subject: gateway.IngressSubjectRef{
 			Kind: gateway.IngressSubjectKind(row.SubjectKind), ID: strings.TrimSpace(row.SubjectID),
 		},
-		Scope: gateway.IngressScopeKind(row.ScopeKind), WorkspaceID: strings.TrimSpace(row.WorkspaceID.String),
+		Scope: gateway.IngressScopeKind(
+			row.ScopeKind,
+		), WorkspaceID: strings.TrimSpace(row.WorkspaceID.String),
 		EndpointGeneration: uint64(row.EndpointGeneration), ConfirmedAt: confirmedAt,
 	}, nil
 }

@@ -132,7 +132,13 @@ func TestGatewayIngressAuditSink(t *testing.T) {
 		}
 		if bound.ActorKind != string(gateway.ActorKindOperatorDevice) || bound.ActorID != "device-1" ||
 			unbound.ActorKind != bound.ActorKind || unbound.ActorID != bound.ActorID {
-			t.Fatalf("ingress event actors = bound:%s/%s unbound:%s/%s", bound.ActorKind, bound.ActorID, unbound.ActorKind, unbound.ActorID)
+			t.Fatalf(
+				"ingress event actors = bound:%s/%s unbound:%s/%s",
+				bound.ActorKind,
+				bound.ActorID,
+				unbound.ActorKind,
+				unbound.ActorID,
+			)
 		}
 		for _, summary := range writer.summaries {
 			if strings.Contains(string(summary.Content), "sk-ingress-audit-secret") {

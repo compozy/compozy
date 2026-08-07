@@ -13,7 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 )
 
-func (c *unixSocketClient) CreateBridge(ctx context.Context, request CreateBridgeRequest) (BridgeRecord, error) {
+func (c *daemonClient) CreateBridge(ctx context.Context, request CreateBridgeRequest) (BridgeRecord, error) {
 	var response struct {
 		Bridge BridgeRecord `json:"bridge"`
 	}
@@ -23,7 +23,7 @@ func (c *unixSocketClient) CreateBridge(ctx context.Context, request CreateBridg
 	return response.Bridge, nil
 }
 
-func (c *unixSocketClient) GetBridge(ctx context.Context, id string) (BridgeRecord, error) {
+func (c *daemonClient) GetBridge(ctx context.Context, id string) (BridgeRecord, error) {
 	var response struct {
 		Bridge BridgeRecord `json:"bridge"`
 	}
@@ -34,7 +34,7 @@ func (c *unixSocketClient) GetBridge(ctx context.Context, id string) (BridgeReco
 	return response.Bridge, nil
 }
 
-func (c *unixSocketClient) UpdateBridge(
+func (c *daemonClient) UpdateBridge(
 	ctx context.Context,
 	id string,
 	request UpdateBridgeRequest,
@@ -49,19 +49,19 @@ func (c *unixSocketClient) UpdateBridge(
 	return response.Bridge, nil
 }
 
-func (c *unixSocketClient) EnableBridge(ctx context.Context, id string) (BridgeRecord, error) {
+func (c *daemonClient) EnableBridge(ctx context.Context, id string) (BridgeRecord, error) {
 	return c.bridgeAction(ctx, strings.TrimSpace(id), "enable")
 }
 
-func (c *unixSocketClient) DisableBridge(ctx context.Context, id string) (BridgeRecord, error) {
+func (c *daemonClient) DisableBridge(ctx context.Context, id string) (BridgeRecord, error) {
 	return c.bridgeAction(ctx, strings.TrimSpace(id), "disable")
 }
 
-func (c *unixSocketClient) RestartBridge(ctx context.Context, id string) (BridgeRecord, error) {
+func (c *daemonClient) RestartBridge(ctx context.Context, id string) (BridgeRecord, error) {
 	return c.bridgeAction(ctx, strings.TrimSpace(id), "restart")
 }
 
-func (c *unixSocketClient) BridgeRoutes(ctx context.Context, id string) ([]BridgeRouteRecord, error) {
+func (c *daemonClient) BridgeRoutes(ctx context.Context, id string) ([]BridgeRouteRecord, error) {
 	var response struct {
 		Routes []BridgeRouteRecord `json:"routes"`
 	}
@@ -72,7 +72,7 @@ func (c *unixSocketClient) BridgeRoutes(ctx context.Context, id string) ([]Bridg
 	return response.Routes, nil
 }
 
-func (c *unixSocketClient) BridgeTargets(
+func (c *daemonClient) BridgeTargets(
 	ctx context.Context,
 	id string,
 	query string,
@@ -93,7 +93,7 @@ func (c *unixSocketClient) BridgeTargets(
 	return response, nil
 }
 
-func (c *unixSocketClient) ListNotificationPresets(
+func (c *daemonClient) ListNotificationPresets(
 	ctx context.Context,
 	query NotificationPresetQuery,
 ) (NotificationPresetListRecord, error) {
@@ -111,7 +111,7 @@ func (c *unixSocketClient) ListNotificationPresets(
 	return response, nil
 }
 
-func (c *unixSocketClient) GetNotificationPreset(
+func (c *daemonClient) GetNotificationPreset(
 	ctx context.Context,
 	name string,
 ) (NotificationPresetRecord, error) {
@@ -123,7 +123,7 @@ func (c *unixSocketClient) GetNotificationPreset(
 	return response.Preset, nil
 }
 
-func (c *unixSocketClient) CreateNotificationPreset(
+func (c *daemonClient) CreateNotificationPreset(
 	ctx context.Context,
 	request CreateNotificationPresetRequest,
 ) (NotificationPresetRecord, error) {
@@ -134,7 +134,7 @@ func (c *unixSocketClient) CreateNotificationPreset(
 	return response.Preset, nil
 }
 
-func (c *unixSocketClient) UpdateNotificationPreset(
+func (c *daemonClient) UpdateNotificationPreset(
 	ctx context.Context,
 	name string,
 	request UpdateNotificationPresetRequest,
@@ -147,7 +147,7 @@ func (c *unixSocketClient) UpdateNotificationPreset(
 	return response.Preset, nil
 }
 
-func (c *unixSocketClient) DeleteNotificationPreset(ctx context.Context, name string) error {
+func (c *daemonClient) DeleteNotificationPreset(ctx context.Context, name string) error {
 	path := "/api/notifications/presets/" + url.PathEscape(strings.TrimSpace(name))
 	return c.doJSON(ctx, http.MethodDelete, path, nil, nil, nil)
 }
@@ -169,7 +169,7 @@ func notificationPresetValues(query NotificationPresetQuery) url.Values {
 	return values
 }
 
-func (c *unixSocketClient) ListBridgeSecretBindings(
+func (c *daemonClient) ListBridgeSecretBindings(
 	ctx context.Context,
 	id string,
 ) ([]BridgeSecretBindingRecord, error) {
@@ -183,7 +183,7 @@ func (c *unixSocketClient) ListBridgeSecretBindings(
 	return response.Bindings, nil
 }
 
-func (c *unixSocketClient) PutBridgeSecretBinding(
+func (c *daemonClient) PutBridgeSecretBinding(
 	ctx context.Context,
 	id string,
 	bindingName string,
@@ -200,13 +200,13 @@ func (c *unixSocketClient) PutBridgeSecretBinding(
 	return response.Binding, nil
 }
 
-func (c *unixSocketClient) DeleteBridgeSecretBinding(ctx context.Context, id string, bindingName string) error {
+func (c *daemonClient) DeleteBridgeSecretBinding(ctx context.Context, id string, bindingName string) error {
 	path := "/api/bridges/" + url.PathEscape(strings.TrimSpace(id)) +
 		"/secret-bindings/" + url.PathEscape(strings.TrimSpace(bindingName))
 	return c.doJSON(ctx, http.MethodDelete, path, nil, nil, nil)
 }
 
-func (c *unixSocketClient) TestBridgeDelivery(
+func (c *daemonClient) TestBridgeDelivery(
 	ctx context.Context,
 	id string,
 	request BridgeTestDeliveryRequest,

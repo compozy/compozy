@@ -45,6 +45,13 @@ func (d commandDeps) withRegistryDefaults() commandDeps {
 }
 
 func (d commandDeps) withRuntimeDefaults() commandDeps {
+	d = d.withGatewayRuntimeDefaults()
+	d = d.withMCPRuntimeDefaults()
+	d = d.withDaemonRuntimeDefaults()
+	return d
+}
+
+func (d commandDeps) withGatewayRuntimeDefaults() commandDeps {
 	if d.runInstallWizard == nil {
 		d.runInstallWizard = runInstallWizard
 	}
@@ -57,12 +64,37 @@ func (d commandDeps) withRuntimeDefaults() commandDeps {
 	if d.newClient == nil {
 		d.newClient = NewClient
 	}
+	if d.writeGatewayCredential == nil {
+		d.writeGatewayCredential = WriteGatewayCredential
+	}
+	if d.readGatewayCredential == nil {
+		d.readGatewayCredential = ReadGatewayCredential
+	}
+	if d.removeGatewayCredential == nil {
+		d.removeGatewayCredential = RemoveGatewayCredential
+	}
+	if d.setActiveGatewayProfile == nil {
+		d.setActiveGatewayProfile = setActiveGatewayProfile
+	}
+	if d.applyGatewayProfileState == nil {
+		d.applyGatewayProfileState = applyGatewayProfileConfigState
+	}
+	if d.newSSHExecutor == nil {
+		d.newSSHExecutor = func() sshExecutor { return systemSSHExecutor{} }
+	}
+	return d
+}
+
+func (d commandDeps) withMCPRuntimeDefaults() commandDeps {
 	if d.runMCPServe == nil {
 		d.runMCPServe = func(ctx context.Context, opts mcpServeOptions) error {
 			return runMCPServe(ctx, d, opts)
 		}
 	}
-	d = d.withProviderAuthDefaults()
+	return d.withProviderAuthDefaults()
+}
+
+func (d commandDeps) withDaemonRuntimeDefaults() commandDeps {
 	if d.newDaemon == nil {
 		d.newDaemon = func() (daemonRunner, error) {
 			return compozydaemon.New()
@@ -97,6 +129,9 @@ func (d commandDeps) withRuntimeDefaults() commandDeps {
 	}
 	if d.removeFile == nil {
 		d.removeFile = os.Remove
+	}
+	if d.openBrowser == nil {
+		d.openBrowser = openBrowser
 	}
 	if d.inputIsTerminal == nil {
 		d.inputIsTerminal = supportBundleInputIsTerminal

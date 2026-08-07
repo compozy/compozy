@@ -18,24 +18,43 @@ func newOpenCommand(deps commandDeps) *cobra.Command {
 		Short: "Open the Compozy web UI in the default browser",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx := cmd.Context()
-
-			client, err := clientFromDeps(deps)
+			runtimeContext, err := loadRuntimeContext(deps)
 			if err != nil {
 				return err
 			}
-
+			client, err := deps.newClient(runtimeContext.Target)
+			if err != nil {
+				return err
+			}
+			if deps.reportClientTarget != nil {
+				if err := deps.reportClientTarget(runtimeContext.Target); err != nil {
+					return err
+				}
+			}
 			status, err := client.DaemonStatus(ctx)
 			if err != nil {
+				if runtimeContext.Target.isRemoteGateway() {
+					return fmt.Errorf("open: remote daemon is not reachable: %w", err)
+				}
 				return fmt.Errorf("open: daemon is not running: %w", err)
 			}
-			if status.HTTPHost == "" || status.HTTPPort == 0 {
-				return errors.New("open: daemon did not report a valid HTTP address")
+			webURL, err := webUIURL(runtimeContext.Target, status)
+			if err != nil {
+				return err
 			}
-
-			url := fmt.Sprintf("http://%s:%d", status.HTTPHost, status.HTTPPort)
-			return openBrowser(ctx, url)
+			return deps.openBrowser(ctx, webURL)
 		},
 	}
+}
+
+func webUIURL(target ClientTarget, status DaemonStatus) (string, error) {
+	if target.isRemoteGateway() {
+		return target.requestBaseURL(), nil
+	}
+	if status.HTTPHost == "" || status.HTTPPort == 0 {
+		return "", errors.New("open: daemon did not report a valid HTTP address")
+	}
+	return fmt.Sprintf("http://%s:%d", status.HTTPHost, status.HTTPPort), nil
 }
 
 func openBrowser(ctx context.Context, url string) error {

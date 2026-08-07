@@ -35,12 +35,12 @@ Match the task to the row. Read the listed files in full before producing output
 | Install, enable, update, dev-link, build, publish, or remove an extension; manage extension kits, secrets, or hooks          | references/extensions.md + references/native-tools.md              |
 | Write or scaffold extension code: manifests, permissions, provide surfaces, contributed commands                             | references/extension-authoring.md + references/extensions.md       |
 | Create or manage automation jobs, triggers, schedules, or suggestions                                                        | references/native-tools.md + references/configuration.md           |
-| Inspect or manage Gateway posture, tier surfaces, device pairing, device sessions, or stream tickets                         | references/runtime-operations.md + references/configuration.md     |
+| Inspect or manage Gateway posture, tier surfaces, device pairing, connection profiles, SSH forwards, or stream tickets       | references/runtime-operations.md + references/configuration.md     |
 | Read or change Compozy configuration: config.toml keys, defaults, scopes, and the settings apply lifecycle                   | references/configuration.md                                        |
 
 ## Reference Index
 
-- references/runtime-operations.md - daemon, session, background-role, and messaging-bridge operations, lifecycle diagnostics, and runtime troubleshooting.
+- references/runtime-operations.md - daemon, session, Gateway profile/SSH, background-role, and messaging-bridge operations, lifecycle diagnostics, and runtime troubleshooting.
 - references/window-management.md - daemon-authoritative desktops, windows, layouts, revisions, clients, resources, hooks, recovery, and public surfaces.
 - references/agent-definitions.md - AGENT.md structure, reserved builtin role identities, provider defaults, permissions, category paths, MCP sidecars, and safe setup workflow.
 - references/tools-and-skills.md - Compozy-native tool discovery, skill view/search, bundled resources, marketplace and MCP install flows, and management-surface exceptions.

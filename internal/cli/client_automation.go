@@ -11,7 +11,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 )
 
-func (c *unixSocketClient) ListAutomationJobs(
+func (c *daemonClient) ListAutomationJobs(
 	ctx context.Context,
 	query AutomationJobQuery,
 ) (AutomationJobListRecord, error) {
@@ -29,7 +29,7 @@ func (c *unixSocketClient) ListAutomationJobs(
 	return response, nil
 }
 
-func (c *unixSocketClient) CreateAutomationJob(
+func (c *daemonClient) CreateAutomationJob(
 	ctx context.Context,
 	request AutomationJobCreateRequest,
 ) (JobRecord, error) {
@@ -40,7 +40,7 @@ func (c *unixSocketClient) CreateAutomationJob(
 	return response.Job, nil
 }
 
-func (c *unixSocketClient) GetAutomationJob(ctx context.Context, id string) (JobRecord, error) {
+func (c *daemonClient) GetAutomationJob(ctx context.Context, id string) (JobRecord, error) {
 	var response contract.JobResponse
 	path := "/api/automation/jobs/" + url.PathEscape(strings.TrimSpace(id))
 	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
@@ -49,7 +49,7 @@ func (c *unixSocketClient) GetAutomationJob(ctx context.Context, id string) (Job
 	return response.Job, nil
 }
 
-func (c *unixSocketClient) UpdateAutomationJob(
+func (c *daemonClient) UpdateAutomationJob(
 	ctx context.Context,
 	id string,
 	request AutomationJobUpdateRequest,
@@ -62,12 +62,12 @@ func (c *unixSocketClient) UpdateAutomationJob(
 	return response.Job, nil
 }
 
-func (c *unixSocketClient) DeleteAutomationJob(ctx context.Context, id string) error {
+func (c *daemonClient) DeleteAutomationJob(ctx context.Context, id string) error {
 	path := "/api/automation/jobs/" + url.PathEscape(strings.TrimSpace(id))
 	return c.doJSON(ctx, http.MethodDelete, path, nil, nil, nil)
 }
 
-func (c *unixSocketClient) TriggerAutomationJob(ctx context.Context, id string) (RunRecord, error) {
+func (c *daemonClient) TriggerAutomationJob(ctx context.Context, id string) (RunRecord, error) {
 	var response contract.RunResponse
 	path := "/api/automation/jobs/" + url.PathEscape(strings.TrimSpace(id)) + "/trigger"
 	if err := c.doJSON(ctx, http.MethodPost, path, nil, nil, &response); err != nil {
@@ -76,7 +76,7 @@ func (c *unixSocketClient) TriggerAutomationJob(ctx context.Context, id string) 
 	return response.Run, nil
 }
 
-func (c *unixSocketClient) AutomationJobRuns(
+func (c *daemonClient) AutomationJobRuns(
 	ctx context.Context,
 	id string,
 	query AutomationRunQuery,
@@ -89,7 +89,7 @@ func (c *unixSocketClient) AutomationJobRuns(
 	return response.Runs, nil
 }
 
-func (c *unixSocketClient) ListAutomationTriggers(
+func (c *daemonClient) ListAutomationTriggers(
 	ctx context.Context,
 	query AutomationTriggerQuery,
 ) (AutomationTriggerListRecord, error) {
@@ -107,7 +107,7 @@ func (c *unixSocketClient) ListAutomationTriggers(
 	return response, nil
 }
 
-func (c *unixSocketClient) CreateAutomationTrigger(
+func (c *daemonClient) CreateAutomationTrigger(
 	ctx context.Context,
 	request AutomationTriggerCreateRequest,
 ) (TriggerRecord, error) {
@@ -118,7 +118,7 @@ func (c *unixSocketClient) CreateAutomationTrigger(
 	return response.Trigger, nil
 }
 
-func (c *unixSocketClient) GetAutomationTrigger(ctx context.Context, id string) (TriggerRecord, error) {
+func (c *daemonClient) GetAutomationTrigger(ctx context.Context, id string) (TriggerRecord, error) {
 	var response contract.TriggerResponse
 	path := "/api/automation/triggers/" + url.PathEscape(strings.TrimSpace(id))
 	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
@@ -127,7 +127,7 @@ func (c *unixSocketClient) GetAutomationTrigger(ctx context.Context, id string) 
 	return response.Trigger, nil
 }
 
-func (c *unixSocketClient) UpdateAutomationTrigger(
+func (c *daemonClient) UpdateAutomationTrigger(
 	ctx context.Context,
 	id string,
 	request AutomationTriggerUpdateRequest,
@@ -140,12 +140,12 @@ func (c *unixSocketClient) UpdateAutomationTrigger(
 	return response.Trigger, nil
 }
 
-func (c *unixSocketClient) DeleteAutomationTrigger(ctx context.Context, id string) error {
+func (c *daemonClient) DeleteAutomationTrigger(ctx context.Context, id string) error {
 	path := "/api/automation/triggers/" + url.PathEscape(strings.TrimSpace(id))
 	return c.doJSON(ctx, http.MethodDelete, path, nil, nil, nil)
 }
 
-func (c *unixSocketClient) AutomationTriggerRuns(
+func (c *daemonClient) AutomationTriggerRuns(
 	ctx context.Context,
 	id string,
 	query AutomationRunQuery,
@@ -158,7 +158,7 @@ func (c *unixSocketClient) AutomationTriggerRuns(
 	return response.Runs, nil
 }
 
-func (c *unixSocketClient) ListAutomationRuns(ctx context.Context, query AutomationRunQuery) ([]RunRecord, error) {
+func (c *daemonClient) ListAutomationRuns(ctx context.Context, query AutomationRunQuery) ([]RunRecord, error) {
 	var response contract.RunsResponse
 	if err := c.doJSON(
 		ctx,
@@ -173,7 +173,7 @@ func (c *unixSocketClient) ListAutomationRuns(ctx context.Context, query Automat
 	return response.Runs, nil
 }
 
-func (c *unixSocketClient) GetAutomationRun(ctx context.Context, id string) (RunRecord, error) {
+func (c *daemonClient) GetAutomationRun(ctx context.Context, id string) (RunRecord, error) {
 	var response contract.RunResponse
 	path := "/api/automation/runs/" + url.PathEscape(strings.TrimSpace(id))
 	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {

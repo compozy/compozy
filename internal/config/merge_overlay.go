@@ -29,7 +29,7 @@ type configOverlay struct {
 	Task          taskOverlay                `toml:"task"`
 	Hooks         hooksOverlay               `toml:"hooks"`
 	Network       networkOverlay             `toml:"network"`
-	Gateway       gatewayOverlay             `toml:"gateway"`
+	Gateway       *gatewayOverlay            `toml:"gateway"`
 	Autonomy      autonomyOverlay            `toml:"autonomy"`
 }
 
@@ -67,7 +67,9 @@ func (o *configOverlay) Apply(dst *Config) error {
 	o.Goals.Apply(&dst.Goals)
 	o.Task.Apply(&dst.Task)
 	o.Network.Apply(&dst.Network)
-	o.Gateway.Apply(&dst.Gateway)
+	if o.Gateway != nil {
+		o.Gateway.Apply(&dst.Gateway)
+	}
 	o.Autonomy.Apply(&dst.Autonomy)
 	return o.Hooks.Apply(&dst.Hooks)
 }

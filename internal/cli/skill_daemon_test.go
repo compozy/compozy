@@ -447,7 +447,7 @@ func TestSkillCommandsRejectManagedSessionCLI(t *testing.T) {
 			workspace := t.TempDir()
 			deps := newWorkspaceTestDeps(t, &stubClient{})
 			deps.getwd = func() (string, error) { return workspace, nil }
-			deps.newClient = func(string) (DaemonClient, error) {
+			deps.newClient = func(ClientTarget) (DaemonClient, error) {
 				clientCalls++
 				return &stubClient{}, nil
 			}
@@ -508,7 +508,7 @@ func TestSkillCommandsRejectManagedSessionCLI(t *testing.T) {
 		deps := newWorkspaceTestDeps(t, client)
 		markExtensionDaemonRunning(&deps)
 		deps.getenv = func(string) string { return "" }
-		deps.newClient = func(string) (DaemonClient, error) {
+		deps.newClient = func(ClientTarget) (DaemonClient, error) {
 			clientCalls++
 			return client, nil
 		}

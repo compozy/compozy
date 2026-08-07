@@ -114,7 +114,7 @@ func (gatewayHTTPAuthenticatorStub) AcquireMutation(
 	return ctx, nil
 }
 
-func TestGatewayTierRouteMatrices(t *testing.T) {
+func TestGatewayTierRouteMatricesIT063IT064(t *testing.T) {
 	t.Parallel()
 
 	service := gatewayHTTPServiceStub{}
@@ -134,8 +134,15 @@ func TestGatewayTierRouteMatrices(t *testing.T) {
 				"GET /api/gateway/status",
 				"POST /api/gateway/pairings",
 				"GET /api/status",
+				"GET /api/tasks/:id",
+				"GET /api/resources/:kind/:id",
 			},
-			absent: []string{"POST /api/webhooks/global/:endpoint"},
+			absent: []string{
+				"POST /api/webhooks/global/:endpoint",
+				"POST /api/tasks/:id/runs",
+				"GET /api/scheduler",
+				"PUT /api/resources/:kind/:id",
+			},
 		},
 		{
 			name:       "Should expose only self-verifying webhooks on the public ingress tier",
@@ -158,12 +165,20 @@ func TestGatewayTierRouteMatrices(t *testing.T) {
 		{
 			name:       "Should expose authenticated operator routes without ingress on the public operator tier",
 			surfaceSet: SurfaceSetPublicOperator,
-			present:    []string{"GET /api/status", "POST /api/gateway/stream-tickets"},
+			present: []string{
+				"GET /api/status",
+				"GET /api/tasks/:id",
+				"GET /api/resources/:kind/:id",
+				"POST /api/gateway/stream-tickets",
+			},
 			absent: []string{
 				"POST /api/webhooks/global/:endpoint",
 				"POST /api/gateway/pairings",
 				"POST /api/gateway/pairings/redeem",
 				"GET /api/gateway/status",
+				"POST /api/tasks/:id/runs",
+				"GET /api/scheduler",
+				"PUT /api/resources/:kind/:id",
 			},
 		},
 		{
@@ -172,12 +187,17 @@ func TestGatewayTierRouteMatrices(t *testing.T) {
 			present: []string{
 				"POST /api/webhooks/global/:endpoint",
 				"GET /api/status",
+				"GET /api/tasks/:id",
+				"GET /api/resources/:kind/:id",
 				"POST /api/gateway/stream-tickets",
 			},
 			absent: []string{
 				"POST /api/gateway/pairings",
 				"POST /api/gateway/pairings/redeem",
 				"GET /api/gateway/status",
+				"POST /api/tasks/:id/runs",
+				"GET /api/scheduler",
+				"PUT /api/resources/:kind/:id",
 			},
 		},
 	}
@@ -201,10 +221,7 @@ func TestGatewayTierRouteMatrices(t *testing.T) {
 				t.Fatalf("route count = %d, want %d; routes = %#v", len(routes), test.wantRoutes, routes)
 			}
 			for route := range routes {
-				path := strings.SplitN(route, " ", 2)[1]
-				if path == "/api/agent" || strings.HasPrefix(path, "/api/agent/") ||
-					path == "/api/resources" || strings.HasPrefix(path, "/api/resources/") ||
-					path == "/api/internal" || strings.HasPrefix(path, "/api/internal/") {
+				if isForbiddenRemoteRoute(route) {
 					t.Fatalf("forbidden route %q is present on %s listener", route, test.surfaceSet)
 				}
 			}
@@ -231,62 +248,94 @@ func TestGatewayTierRouteMatrices(t *testing.T) {
 	})
 }
 
+func isForbiddenRemoteRoute(route string) bool {
+	parts := strings.SplitN(route, " ", 2)
+	if len(parts) != 2 {
+		return true
+	}
+	method, path := parts[0], parts[1]
+	if path == "/api/agent" || strings.HasPrefix(path, "/api/agent/") ||
+		path == "/api/internal" || strings.HasPrefix(path, "/api/internal/") ||
+		path == "/api/scheduler" || strings.HasPrefix(path, "/api/scheduler/") {
+		return true
+	}
+	if (path == "/api/resources" || strings.HasPrefix(path, "/api/resources/")) &&
+		method != http.MethodGet {
+		return true
+	}
+	if method == http.MethodGet || method == http.MethodHead || method == http.MethodOptions {
+		return false
+	}
+	return path == "/api/tasks" || strings.HasPrefix(path, "/api/tasks/") ||
+		strings.HasPrefix(path, "/api/task-runs/") ||
+		strings.HasPrefix(path, "/api/task-reviews/") ||
+		strings.HasPrefix(path, "/api/runs/")
+}
+
 func TestGatewayIngressRateLimit(t *testing.T) {
 	t.Parallel()
+	t.Run("Should rate limit public ingress by source and endpoint", func(t *testing.T) {
+		t.Parallel()
 
-	now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
-	limiter := gateway.NewIngressRateLimiter(1, time.Minute, func() time.Time { return now })
-	handlers := newHandlers(&handlerConfig{
-		gatewayAdmission: gatewayHTTPServiceStub{},
-		ingressLimiter:   limiter,
-		surfaceSet:       SurfaceSetPublicIngress,
-		boundHost:        "127.0.0.1:2123",
+		now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
+		limiter := gateway.NewIngressRateLimiter(1, time.Minute, func() time.Time { return now })
+		handlers := newHandlers(&handlerConfig{
+			gatewayAdmission: gatewayHTTPServiceStub{},
+			ingressLimiter:   limiter,
+			surfaceSet:       SurfaceSetPublicIngress,
+			boundHost:        "127.0.0.1:2123",
+		})
+		router := gin.New()
+		RegisterSurfaceRoutes(router, handlers, SurfaceSetPublicIngress)
+
+		request := func(endpoint string, remoteAddr string, forwardedFor string) *httptest.ResponseRecorder {
+			t.Helper()
+			req := httptest.NewRequestWithContext(
+				t.Context(),
+				http.MethodPost,
+				"http://127.0.0.1:2123/api/webhooks/global/"+endpoint,
+				bytes.NewBufferString(`{"payload":"deploy"}`),
+			)
+			req.RemoteAddr = remoteAddr
+			req.Header.Set("X-Forwarded-For", forwardedFor)
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, req)
+			return response
+		}
+
+		first := request("deploy--wbh_one", "203.0.113.8:43001", "198.51.100.10")
+		if first.Code == http.StatusTooManyRequests {
+			t.Fatalf("first delivery status = %d, want request admitted", first.Code)
+		}
+		limited := request("deploy--wbh_one", "203.0.113.8:43002", "198.51.100.11")
+		if limited.Code != http.StatusTooManyRequests {
+			t.Fatalf(
+				"second delivery status = %d, want %d; body=%s",
+				limited.Code,
+				http.StatusTooManyRequests,
+				limited.Body.String(),
+			)
+		}
+		if got := limited.Header().Get("Retry-After"); got != "60" {
+			t.Fatalf("Retry-After = %q, want %q", got, "60")
+		}
+		var payload contract.ErrorPayload
+		if err := json.Unmarshal(limited.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("Unmarshal(rate-limit response) error = %v", err)
+		}
+		if payload.Code != "gateway_ingress_rate_limited" {
+			t.Fatalf("rate-limit payload = %#v, want gateway_ingress_rate_limited", payload)
+		}
+
+		otherEndpoint := request("release--wbh_two", "203.0.113.8:43003", "198.51.100.12")
+		if otherEndpoint.Code == http.StatusTooManyRequests {
+			t.Fatalf("other endpoint status = %d, want independent endpoint budget", otherEndpoint.Code)
+		}
+		otherSource := request("deploy--wbh_one", "203.0.113.9:43004", "203.0.113.8")
+		if otherSource.Code == http.StatusTooManyRequests {
+			t.Fatalf("other source status = %d, want independent source budget", otherSource.Code)
+		}
 	})
-	router := gin.New()
-	RegisterSurfaceRoutes(router, handlers, SurfaceSetPublicIngress)
-
-	request := func(endpoint string, remoteAddr string, forwardedFor string) *httptest.ResponseRecorder {
-		t.Helper()
-		req := httptest.NewRequestWithContext(
-			t.Context(),
-			http.MethodPost,
-			"http://127.0.0.1:2123/api/webhooks/global/"+endpoint,
-			bytes.NewBufferString(`{"payload":"deploy"}`),
-		)
-		req.RemoteAddr = remoteAddr
-		req.Header.Set("X-Forwarded-For", forwardedFor)
-		response := httptest.NewRecorder()
-		router.ServeHTTP(response, req)
-		return response
-	}
-
-	first := request("deploy--wbh_one", "203.0.113.8:43001", "198.51.100.10")
-	if first.Code == http.StatusTooManyRequests {
-		t.Fatalf("first delivery status = %d, want request admitted", first.Code)
-	}
-	limited := request("deploy--wbh_one", "203.0.113.8:43002", "198.51.100.11")
-	if limited.Code != http.StatusTooManyRequests {
-		t.Fatalf("second delivery status = %d, want %d; body=%s", limited.Code, http.StatusTooManyRequests, limited.Body.String())
-	}
-	if got := limited.Header().Get("Retry-After"); got != "60" {
-		t.Fatalf("Retry-After = %q, want %q", got, "60")
-	}
-	var payload contract.ErrorPayload
-	if err := json.Unmarshal(limited.Body.Bytes(), &payload); err != nil {
-		t.Fatalf("Unmarshal(rate-limit response) error = %v", err)
-	}
-	if payload.Code != "gateway_ingress_rate_limited" {
-		t.Fatalf("rate-limit payload = %#v, want gateway_ingress_rate_limited", payload)
-	}
-
-	otherEndpoint := request("release--wbh_two", "203.0.113.8:43003", "198.51.100.12")
-	if otherEndpoint.Code == http.StatusTooManyRequests {
-		t.Fatalf("other endpoint status = %d, want independent endpoint budget", otherEndpoint.Code)
-	}
-	otherSource := request("deploy--wbh_one", "203.0.113.9:43004", "203.0.113.8")
-	if otherSource.Code == http.StatusTooManyRequests {
-		t.Fatalf("other source status = %d, want independent source budget", otherSource.Code)
-	}
 }
 
 func TestGatewayHTTPRouteUnionMatchesDocumentedOperations(t *testing.T) {
@@ -437,6 +486,52 @@ func TestGatewayTierAuthentication(t *testing.T) {
 		if cookie.Name != gatewayDeviceCookieName || cookie.Value != credential || !cookie.Secure ||
 			!cookie.HttpOnly || cookie.SameSite != http.SameSiteLaxMode || cookie.Path != "/" {
 			t.Fatalf("device credential cookie = %#v", cookie)
+		}
+	})
+
+	t.Run("Should redeem a CLI-provisioned credential only after it reaches the daemon", func(t *testing.T) {
+		t.Parallel()
+
+		credential := "cpz_gwd_" + strings.Repeat("c", 43)
+		service := gatewayHTTPServiceStub{redeem: func(
+			_ context.Context,
+			request gateway.RedeemRequest,
+		) (gateway.IssuedCredential, error) {
+			if request.Kind != gateway.ActorKindCLIProfile || request.Credential != credential {
+				t.Fatalf("RedeemPairing() request = %#v", request)
+			}
+			return gateway.IssuedCredential{
+				Device:     gateway.DeviceSession{ID: "device-cli", Name: request.Name, ActorKind: request.Kind},
+				Credential: request.Credential,
+			}, nil
+		}}
+		router := newGatewaySurfaceTestRouter(SurfaceSetPrivate, service, gatewayHTTPAuthenticatorStub{})
+		body := bytes.NewBufferString(
+			`{"artifact":"cpz_gwp_pairing","name":"CLI","actor_kind":"cli_profile","credential":"` +
+				credential + `"}`,
+		)
+		request := httptest.NewRequestWithContext(
+			t.Context(),
+			http.MethodPost,
+			"http://127.0.0.1:2123/api/gateway/pairings/redeem",
+			body,
+		)
+		request.Header.Set("Content-Type", "application/json")
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, request)
+
+		if response.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body = %s", response.Code, http.StatusOK, response.Body.String())
+		}
+		var payload contract.GatewayIssuedCredentialPayload
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("Unmarshal() error = %v", err)
+		}
+		if payload.Credential != credential || payload.Device.ID != "device-cli" {
+			t.Fatalf("CLI pairing response = %#v", payload)
+		}
+		if len(response.Result().Cookies()) != 0 {
+			t.Fatalf("CLI pairing response cookies = %#v, want none", response.Result().Cookies())
 		}
 	})
 

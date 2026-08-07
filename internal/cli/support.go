@@ -345,7 +345,7 @@ func supportBundleResultBundle(result supportBundleResult) outputBundle {
 			rows := []keyValue{
 				{Label: "Operation", Value: stringOrDash(operation.OperationID)},
 				{Label: supportStatusValue, Value: stringOrDash(operation.Status)},
-				{Label: "Path", Value: stringOrDash(result.Path)},
+				{Label: automationPathValue, Value: stringOrDash(result.Path)},
 				{Label: "Size", Value: fmt.Sprintf("%d", operation.SizeBytes)},
 				{Label: "Created", Value: stringOrDash(formatTime(operation.CreatedAt))},
 			}

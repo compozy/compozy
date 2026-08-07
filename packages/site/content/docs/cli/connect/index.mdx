@@ -1,0 +1,53 @@
+---
+title: "compozy connect"
+description: "Manage CLI connection profiles"
+---
+
+## compozy connect
+
+Manage CLI connection profiles
+
+### Synopsis
+
+Manage CLI connection profiles.
+
+Remote operation matrix:
+Remote-capable: sessions, task reads, loops, memory, settings, bridges, extensions, and gateway management.
+Local-only: task mutations, task-run queue and scheduler authority, agent kernel, hosted MCP and MCP Host API, and resource mutation.
+Use a local daemon or an SSH forward for local-only operations.
+
+### Options
+
+```
+  -h, --help   help for connect
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+This command displays human-readable help and its subcommand list. The inherited `-o, --output` and `--json` flags do not serialize help output.
+
+| Format  | Output                   |
+| ------- | ------------------------ |
+| `human` | Help and subcommand list |
+| `json`  | Not emitted for help     |
+| `jsonl` | Not emitted for help     |
+| `toon`  | Not emitted for help     |
+
+## Subcommands
+
+| Command                                            | Description                                               |
+| -------------------------------------------------- | --------------------------------------------------------- |
+| [compozy connect add](/docs/cli/connect/add)       | Add a paired HTTPS connection profile                     |
+| [compozy connect export](/docs/cli/connect/export) | Export a portable encrypted HTTPS profile                 |
+| [compozy connect import](/docs/cli/connect/import) | Import a portable encrypted HTTPS profile                 |
+| [compozy connect list](/docs/cli/connect/list)     | List connection profiles without reading credentials      |
+| [compozy connect remove](/docs/cli/connect/remove) | Remove profile metadata and its client-local credential   |
+| [compozy connect ssh](/docs/cli/connect/ssh)       | Reach a remote daemon through a loopback-only SSH forward |
+| [compozy connect use](/docs/cli/connect/use)       | Choose the default CLI target                             |

@@ -102,8 +102,9 @@ func TestBridgeControlHandlersPreserveStructuredProviderResults(t *testing.T) {
 			},
 		})
 		handlers.Gateway = bridgeCallbackGatewayStub{projection: gateway.IngressProjection{
-			Subject: gateway.IngressSubjectRef{Kind: gateway.IngressSubjectBridgeInstance, ID: "brg-tg"},
-			URL:     "https://gateway.example.test/api/bridge-callbacks/brg-tg", Reachability: gateway.IngressReachabilityLive,
+			Subject:      gateway.IngressSubjectRef{Kind: gateway.IngressSubjectBridgeInstance, ID: "brg-tg"},
+			URL:          "https://gateway.example.test/api/bridge-callbacks/brg-tg",
+			Reachability: gateway.IngressReachabilityLive,
 		}}
 
 		response := performRequest(t, engine, http.MethodPost, "/bridges/brg-tg/webhook/register", nil)

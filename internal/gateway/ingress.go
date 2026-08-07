@@ -49,7 +49,13 @@ func newIngressManager(
 	if policy == nil {
 		return nil, errors.New("gateway: ingress policy is required")
 	}
-	return &ingressManager{store: store, policy: policy, access: access, events: events, now: now}, nil
+	return &ingressManager{
+		store:  store,
+		policy: policy,
+		access: access,
+		events: events,
+		now:    now,
+	}, nil
 }
 
 func (m *ingressManager) bind(ctx context.Context, req IngressBindRequest) (IngressBinding, error) {
@@ -98,16 +104,29 @@ func (m *ingressManager) bind(ctx context.Context, req IngressBindRequest) (Ingr
 	if previousErr != nil && !errors.Is(previousErr, ErrIngressSubjectNotFound) {
 		return IngressBinding{}, previousErr
 	}
-	binding, changed, err := m.store.PutIngressBinding(ctx, subject, endpoint.Generation, m.now().UTC())
+	binding, changed, err := m.store.PutIngressBinding(
+		ctx,
+		subject,
+		endpoint.Generation,
+		m.now().UTC(),
+	)
 	if err != nil {
 		return IngressBinding{}, err
 	}
 	binding.Changed = changed
 	if changed && m.events != nil {
-		if eventErr := m.events.RecordIngressBound(ctx, ingressMutationEvent(ctx, req.Caller, binding)); eventErr != nil {
+		if eventErr := m.events.RecordIngressBound(
+			ctx,
+			ingressMutationEvent(ctx, req.Caller, binding),
+		); eventErr != nil {
 			compensationCtx, cancelCompensation := ingressCompensationContext(ctx)
 			defer cancelCompensation()
-			compensationErr := m.restoreBinding(compensationCtx, subject, previous, previousErr == nil)
+			compensationErr := m.restoreBinding(
+				compensationCtx,
+				subject,
+				previous,
+				previousErr == nil,
+			)
 			return IngressBinding{}, errors.Join(
 				fmt.Errorf("gateway: record ingress bound event: %w", eventErr),
 				compensationErr,
@@ -117,7 +136,10 @@ func (m *ingressManager) bind(ctx context.Context, req IngressBindRequest) (Ingr
 	return binding, nil
 }
 
-func (m *ingressManager) unbind(ctx context.Context, req IngressUnbindRequest) (UnbindResult, error) {
+func (m *ingressManager) unbind(
+	ctx context.Context,
+	req IngressUnbindRequest,
+) (UnbindResult, error) {
 	if ctx == nil {
 		return UnbindResult{}, errors.New("gateway: unbind ingress context is required")
 	}
@@ -142,7 +164,10 @@ func (m *ingressManager) unbind(ctx context.Context, req IngressUnbindRequest) (
 		return UnbindResult{}, err
 	}
 	if changed && m.events != nil {
-		if eventErr := m.events.RecordIngressUnbound(ctx, ingressMutationEvent(ctx, req.Caller, existing)); eventErr != nil {
+		if eventErr := m.events.RecordIngressUnbound(
+			ctx,
+			ingressMutationEvent(ctx, req.Caller, existing),
+		); eventErr != nil {
 			compensationCtx, cancelCompensation := ingressCompensationContext(ctx)
 			defer cancelCompensation()
 			_, _, compensationErr := m.store.PutIngressBinding(
@@ -164,7 +189,10 @@ func ingressCompensationContext(ctx context.Context) (context.Context, context.C
 	return context.WithTimeout(context.WithoutCancel(ctx), ingressCompensationTimeout)
 }
 
-func (m *ingressManager) project(ctx context.Context, ref IngressSubjectRef) (IngressProjection, error) {
+func (m *ingressManager) project(
+	ctx context.Context,
+	ref IngressSubjectRef,
+) (IngressProjection, error) {
 	subject, err := m.store.ResolveIngressSubject(ctx, ref)
 	if err != nil {
 		return IngressProjection{}, err
@@ -285,7 +313,8 @@ func (m *ingressManager) authorize(
 	if caller == nil {
 		return nil
 	}
-	if subject.Scope == IngressScopeGlobal || strings.TrimSpace(caller.WorkspaceID) == subject.WorkspaceID {
+	if subject.Scope == IngressScopeGlobal ||
+		strings.TrimSpace(caller.WorkspaceID) == subject.WorkspaceID {
 		return nil
 	}
 	if m.access == nil {

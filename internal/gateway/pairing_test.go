@@ -33,6 +33,37 @@ func TestDeviceCredentialsAndPairing(t *testing.T) {
 		}
 	})
 
+	t.Run("Should activate a CLI-provisioned credential without persisting its raw value", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
+		service, store := newDeviceServiceFixture(t, &now)
+		artifact, err := service.MintPairing(t.Context(), PairingRequest{Source: PairingSourceLocal})
+		if err != nil {
+			t.Fatalf("MintPairing() error = %v", err)
+		}
+		credential, err := GenerateDeviceCredential()
+		if err != nil {
+			t.Fatalf("GenerateDeviceCredential() error = %v", err)
+		}
+		issued, err := service.RedeemPairing(t.Context(), RedeemRequest{
+			Artifact: artifact.Artifact, Name: "CLI", Kind: ActorKindCLIProfile,
+			Source: PairingSourcePrivate, Credential: credential,
+		})
+		if err != nil {
+			t.Fatalf("RedeemPairing(client credential) error = %v", err)
+		}
+		if issued.Credential != credential {
+			t.Fatalf("issued credential differs from the client-provisioned credential")
+		}
+		record := store.byID[issued.Device.ID]
+		if record.TokenHash != hashCredential(credential) || record.TokenHash == credential {
+			t.Fatalf("stored credential = %#v, want only the client credential hash", record)
+		}
+		if _, err := service.Authenticate(t.Context(), credential); err != nil {
+			t.Fatalf("Authenticate(client credential) error = %v", err)
+		}
+	})
+
 	t.Run("Should authenticate through the same constant-time comparison path (UT-031)", func(t *testing.T) {
 		t.Parallel()
 		now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)

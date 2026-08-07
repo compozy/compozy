@@ -158,13 +158,13 @@ as `.Data.payload`.
 
 Compozy adds webhook metadata to every delivery:
 
-| Data key        | Meaning                                |
-| --------------- | -------------------------------------- |
-| `endpoint`      | Full endpoint segment.                 |
-| `endpoint_slug` | Human-readable slug from the endpoint. |
-| `webhook_id`    | Stable webhook ID.                     |
+| Data key        | Meaning                                              |
+| --------------- | ---------------------------------------------------- |
+| `endpoint`      | Full endpoint segment.                               |
+| `endpoint_slug` | Human-readable slug from the endpoint.               |
+| `webhook_id`    | Stable webhook ID.                                   |
 | `delivery_id`   | Sender delivery ID, also stored in the run metadata. |
-| `timestamp`     | Parsed delivery timestamp.             |
+| `timestamp`     | Parsed delivery timestamp.                           |
 
 If the body is empty or not a JSON object, Compozy exposes the raw body as `.Data.payload` alongside
 the metadata fields.

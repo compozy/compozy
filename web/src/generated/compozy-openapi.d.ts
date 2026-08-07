@@ -33951,6 +33951,7 @@ export interface operations {
         "application/json": {
           actor_kind: string;
           artifact: string;
+          credential?: string;
           name: string;
         };
       };

@@ -514,7 +514,7 @@ cost_reasoning_per_million = 30
 			if err != nil {
 				t.Fatalf("ActiveConfig(after live projection) error = %v", err)
 			}
-			if active.Gateway != runtimeGateway {
+			if !reflect.DeepEqual(active.Gateway, runtimeGateway) {
 				t.Fatalf("active gateway = %#v, want runtime projection %#v", active.Gateway, runtimeGateway)
 			}
 		},

@@ -38,6 +38,22 @@ Read and write scalar keys with `compozy config show|list|get|set|unset|diff|pat
 `public_port` require a daemon restart. Configuration can never enable a surface:
 `gateway.public_ui.enabled` is invalid, and durable provider/surface intent remains database-owned.
 
+Client-side remote profiles are global metadata under `gateway.active_connection` and
+`[[gateway.connections]]`. HTTPS entries require `name`, `scheme = "https"`, `host`, `port`, and
+`credential_file = "<name>.cred"`; `default_workspace` is optional. SSH entries use
+`scheme = "ssh"`, accept optional `remote_home`, and never reference a Gateway credential. Profile
+names contain only letters, digits, hyphens, or underscores and are unique. The active connection
+must name an existing profile. Manage these tables with `compozy connect add|list|use|remove|export|import|ssh`
+instead of editing them during an active connection lifecycle.
+
+The TOML stores no credential material. Direct HTTPS credentials are encrypted in
+`$COMPOZY_HOME/gateway/credentials/<name>.cred`, with the wrapping key held by the operating-system
+credential store. Transfer an identity with `compozy connect export <name> --passphrase-file <file>
+--output-file <bundle>` and `compozy connect import <bundle> --passphrase-file <file>`; both the
+passphrase file and encrypted bundle must be private files. Copying `config.toml` alone does not copy
+an identity, and removing a profile removes both its metadata and credential. SSH uses the operator's OpenSSH configuration and agent;
+its profile stores only connection metadata.
+
 ## Marketplace Catalog
 
 `[marketplace.catalog]` controls Compozy's curated MCP server, extension, and skill feed projection.

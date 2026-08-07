@@ -1,0 +1,49 @@
+---
+title: "compozy gateway"
+description: "Manage remote gateway exposure"
+---
+
+## compozy gateway
+
+Manage remote gateway exposure
+
+### Synopsis
+
+Manage remote gateway exposure.
+
+Remote operation matrix:
+Remote-capable: sessions, task reads, loops, memory, settings, bridges, extensions, and gateway management.
+Local-only: task mutations, task-run queue and scheduler authority, agent kernel, hosted MCP and MCP Host API, and resource mutation.
+Use a local daemon or an SSH forward for local-only operations.
+
+### Options
+
+```
+  -h, --help   help for gateway
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+This command displays human-readable help and its subcommand list. The inherited `-o, --output` and `--json` flags do not serialize help output.
+
+| Format  | Output                   |
+| ------- | ------------------------ |
+| `human` | Help and subcommand list |
+| `json`  | Not emitted for help     |
+| `jsonl` | Not emitted for help     |
+| `toon`  | Not emitted for help     |
+
+## Subcommands
+
+| Command                                                | Description                            |
+| ------------------------------------------------------ | -------------------------------------- |
+| [compozy gateway provider](/docs/cli/gateway/provider) | Manage connectivity providers          |
+| [compozy gateway status](/docs/cli/gateway/status)     | Show gateway exposure and device state |
+| [compozy gateway surface](/docs/cli/gateway/surface)   | Manage gateway surface exposure        |

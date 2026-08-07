@@ -1,0 +1,43 @@
+---
+title: "compozy gateway provider disable"
+description: "Disable a connectivity provider for one tier"
+---
+
+## compozy gateway provider disable
+
+Disable a connectivity provider for one tier
+
+```
+compozy gateway provider disable <name> [flags]
+```
+
+### Options
+
+```
+  -h, --help          help for disable
+      --tier string   Gateway tier: private or public (default "private")
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy gateway provider disable <name> -o json
+```

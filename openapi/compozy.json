@@ -79456,6 +79456,9 @@
                   "artifact": {
                     "type": "string"
                   },
+                  "credential": {
+                    "type": "string"
+                  },
                   "name": {
                     "type": "string"
                   }

@@ -31,7 +31,7 @@ type SessionListQuery struct {
 // SessionListPage is the shared bounded session catalog response.
 type SessionListPage = contract.SessionCatalogResponse
 
-func (c *unixSocketClient) ListSessions(ctx context.Context, query SessionListQuery) (SessionListPage, error) {
+func (c *daemonClient) ListSessions(ctx context.Context, query SessionListQuery) (SessionListPage, error) {
 	var response SessionListPage
 	if err := c.doJSON(ctx, http.MethodGet, "/api/sessions", sessionListValues(query), nil, &response); err != nil {
 		return SessionListPage{}, err
@@ -39,7 +39,7 @@ func (c *unixSocketClient) ListSessions(ctx context.Context, query SessionListQu
 	return response, nil
 }
 
-func (c *unixSocketClient) GetSession(ctx context.Context, id string) (SessionRecord, error) {
+func (c *daemonClient) GetSession(ctx context.Context, id string) (SessionRecord, error) {
 	target, err := requireNetworkPathValue("session_id", id)
 	if err != nil {
 		return SessionRecord{}, err
@@ -51,7 +51,7 @@ func (c *unixSocketClient) GetSession(ctx context.Context, id string) (SessionRe
 	return response.Session, nil
 }
 
-func (c *unixSocketClient) sessionScopedPath(ctx context.Context, id string, suffix string) (string, error) {
+func (c *daemonClient) sessionScopedPath(ctx context.Context, id string, suffix string) (string, error) {
 	sessionID, err := requireNetworkPathValue("session_id", id)
 	if err != nil {
 		return "", err
@@ -64,7 +64,7 @@ func (c *unixSocketClient) sessionScopedPath(ctx context.Context, id string, suf
 		url.PathEscape(sessionID) + suffix, nil
 }
 
-func (c *unixSocketClient) sessionWorkspaceRef(ctx context.Context, sessionID string) (string, error) {
+func (c *daemonClient) sessionWorkspaceRef(ctx context.Context, sessionID string) (string, error) {
 	record, err := c.GetSession(ctx, sessionID)
 	if err != nil {
 		return "", fmt.Errorf("cli: resolve session %q workspace: %w", sessionID, err)

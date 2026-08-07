@@ -39,6 +39,8 @@ type RedeemRequest struct {
 	Name     string
 	Kind     ActorKind
 	Source   PairingSource
+	// Credential is optional for browser redemption. CLI callers provision it locally first.
+	Credential string
 }
 
 // IssuedCredential contains the only server response that may carry a raw device credential.

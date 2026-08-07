@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-func (c *unixSocketClient) Status(ctx context.Context) (StatusRecord, error) {
+func (c *daemonClient) Status(ctx context.Context) (StatusRecord, error) {
 	var response StatusRecord
 	if err := c.doJSON(ctx, http.MethodGet, "/api/status", nil, nil, &response); err != nil {
 		return StatusRecord{}, err
@@ -15,7 +15,7 @@ func (c *unixSocketClient) Status(ctx context.Context) (StatusRecord, error) {
 	return response, nil
 }
 
-func (c *unixSocketClient) Doctor(ctx context.Context, query DoctorQuery) (DoctorRecord, error) {
+func (c *daemonClient) Doctor(ctx context.Context, query DoctorQuery) (DoctorRecord, error) {
 	var response DoctorRecord
 	if err := c.doJSON(ctx, http.MethodGet, "/api/doctor", doctorQueryValues(query), nil, &response); err != nil {
 		return DoctorRecord{}, err
@@ -41,7 +41,7 @@ func doctorQueryValues(query DoctorQuery) url.Values {
 	return values
 }
 
-func (c *unixSocketClient) DaemonStatus(ctx context.Context) (DaemonStatus, error) {
+func (c *daemonClient) DaemonStatus(ctx context.Context) (DaemonStatus, error) {
 	status, err := c.Status(ctx)
 	if err != nil {
 		return DaemonStatus{}, err
@@ -49,15 +49,15 @@ func (c *unixSocketClient) DaemonStatus(ctx context.Context) (DaemonStatus, erro
 	return status.Daemon, nil
 }
 
-func (c *unixSocketClient) Drain(ctx context.Context) (DrainStatusRecord, error) {
+func (c *daemonClient) Drain(ctx context.Context) (DrainStatusRecord, error) {
 	return c.updateDrainState(ctx, "/api/drain")
 }
 
-func (c *unixSocketClient) Undrain(ctx context.Context) (DrainStatusRecord, error) {
+func (c *daemonClient) Undrain(ctx context.Context) (DrainStatusRecord, error) {
 	return c.updateDrainState(ctx, "/api/undrain")
 }
 
-func (c *unixSocketClient) updateDrainState(ctx context.Context, path string) (DrainStatusRecord, error) {
+func (c *daemonClient) updateDrainState(ctx context.Context, path string) (DrainStatusRecord, error) {
 	var response DrainStatusRecord
 	if err := c.doJSON(ctx, http.MethodPost, path, nil, nil, &response); err != nil {
 		return DrainStatusRecord{}, err

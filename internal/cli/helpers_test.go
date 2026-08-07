@@ -3863,7 +3863,7 @@ func newTestDeps(t *testing.T, client DaemonClient) commandDeps {
 			return homePaths, nil
 		},
 		ensureHome: func(compozyconfig.HomePaths) error { return nil },
-		newClient: func(string) (DaemonClient, error) {
+		newClient: func(ClientTarget) (DaemonClient, error) {
 			return client, nil
 		},
 		processMatchesStartTime: func(int, time.Time) bool {
