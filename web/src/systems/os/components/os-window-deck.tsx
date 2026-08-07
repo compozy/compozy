@@ -61,7 +61,11 @@ function DeckTabMenu({
       <ContextMenuTrigger
         data-testid={`os-window-tab-menu-${win.id}`}
         render={
-          <div role="presentation" onKeyDown={openContextMenuFromKeyboard}>
+          <div
+            role="presentation"
+            className="flex min-w-0 grow"
+            onKeyDown={openContextMenuFromKeyboard}
+          >
             {children}
           </div>
         }
@@ -146,7 +150,8 @@ export function OsWindowDeck({
                 role="presentation"
                 ref={element => deck.registerTab(member, element)}
                 className={cn(
-                  "flex min-w-0 shrink-0",
+                  "flex",
+                  win.pinned ? "min-w-0 shrink-0" : "w-deck-tab-max min-w-deck-tab",
                   deck.tabDrag?.windowId === member && "opacity-60"
                 )}
               >

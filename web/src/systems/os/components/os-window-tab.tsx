@@ -47,7 +47,9 @@ export interface OsWindowTabProps {
 /**
  * One deck segment (reference §01): glyph or state dot + the live leaf label,
  * hover ×, attention badge, pinned glyph-only form. Selection stays neutral —
- * accent appears only for state or attention (BR-14).
+ * accent appears only for state or attention (BR-14). The deck's tab slot owns
+ * width — every unpinned tab shares one uniform slot and the label truncates;
+ * the tab only fills it.
  */
 export function OsWindowTab({
   win,
@@ -90,9 +92,7 @@ export function OsWindowTab({
             data-testid={`os-window-tab-${win.id}`}
             className={cn(
               "group/tab relative inline-flex h-deck-tab items-center rounded-t-deck-tab border border-b-0 border-transparent text-small-body font-medium text-subtle transition-colors duration-base select-none",
-              win.pinned
-                ? "min-w-0 shrink-0"
-                : "min-w-deck-tab-min max-w-deck-tab-max flex-[0_1_var(--width-deck-tab-max)]",
+              win.pinned ? "min-w-0 shrink-0" : "min-w-0 flex-1",
               active
                 ? "border-line bg-canvas font-semibold text-fg-strong shadow-[0_1px_0_var(--color-canvas)]"
                 : "hover:bg-canvas-soft hover:text-fg",

@@ -2,7 +2,7 @@
 set -eu
 
 RELEASE_REPO="compozy/compozy"
-COSIGN_VERSION="v2.2.4"
+COSIGN_VERSION="v3.1.3"
 COSIGN_BASE_URL="https://github.com/sigstore/cosign/releases/download/${COSIGN_VERSION}"
 COSIGN_CERT_IDENTITY_REGEXP='^https://github\.com/compozy/compozy/\.github/workflows/release\.yml@refs/heads/main$'
 COSIGN_CERT_OIDC_ISSUER="https://token.actions.githubusercontent.com"
@@ -40,7 +40,7 @@ Environment:
 
 Requires:
   curl, tar, and sha256sum or shasum.
-  Uses local cosign when available; otherwise downloads a pinned temporary cosign verifier.
+  Uses compatible local cosign v3 when available; otherwise downloads a pinned temporary cosign verifier.
 USAGE
 }
 
@@ -69,9 +69,17 @@ verify_file_sha256() {
 
 resolve_cosign() {
   if command -v cosign >/dev/null 2>&1; then
-    COSIGN_BIN="$(command -v cosign)"
-    log "using cosign at ${COSIGN_BIN}"
-    return
+    candidate_cosign="$(command -v cosign)"
+    if candidate_version="$("$candidate_cosign" version 2>/dev/null)"; then
+      case "$candidate_version" in
+        *"GitVersion:"*"v3."*)
+          COSIGN_BIN="$candidate_cosign"
+          log "using compatible local cosign v3 at ${COSIGN_BIN}"
+          return
+          ;;
+      esac
+    fi
+    log "local cosign at ${candidate_cosign} is not compatible with Sigstore bundle v0.3"
   fi
 
   COSIGN_PATH="${TMP_DIR}/${COSIGN_NAME}"
@@ -161,19 +169,19 @@ esac
 case "${OS}/${ARCH}" in
   darwin/x86_64)
     COSIGN_NAME="cosign-darwin-amd64"
-    COSIGN_SHA256="0e5a77a86115e4c00ba4243db01abceacb13cc06981c45e53ee71f2e1db8ce25"
+    COSIGN_SHA256="2347488e5d5b25336644024dfeca5601b190e91197a71a917bda44744aff106c"
     ;;
   darwin/arm64)
     COSIGN_NAME="cosign-darwin-arm64"
-    COSIGN_SHA256="fcd310e64ecddc1eaa13fe814ac1c9fc02f6f9eacd9a58480ab8160eb8ca381e"
+    COSIGN_SHA256="5cf948c2f4dfe59687bdd0b8523709067383e03982cc543475c8a7dc70e92a76"
     ;;
   linux/x86_64)
     COSIGN_NAME="cosign-linux-amd64"
-    COSIGN_SHA256="97a6a1e15668a75fc4ff7a4dc4cb2f098f929cbea2f12faa9de31db6b42b17d7"
+    COSIGN_SHA256="4629c757b7618056f8ddd7e2625ae9fdd94c0372a65049520bc7d9df9efc7f71"
     ;;
   linux/arm64)
     COSIGN_NAME="cosign-linux-arm64"
-    COSIGN_SHA256="658087351e1d4f9c396b5f59ee5437461c06128f4ce80ba899ccaa1c0b6a8a62"
+    COSIGN_SHA256="c5d324e091826b0d7a78eb16fef316450b4eb9aaec045611c08ba06f5e73220a"
     ;;
   *)
     fail "unsupported cosign verifier platform: ${OS}/${ARCH}"

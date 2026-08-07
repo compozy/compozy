@@ -18,7 +18,8 @@ const colorGroups = {
   "glaze-ladder":
     "row-hover row-selected surface-glaze bar-fill input-fill btn-default-fill btn-default-hover badge-fill",
 };
-const componentSizeTokenPattern = /^(container|height|size|space|spacing|width)-|^overlay-blur$/;
+const componentSizeTokenPattern =
+  /^(container|height|min-width|size|space|spacing|width)-|^overlay-blur$/;
 const runtimeTheme = parseTheme(runtimeCss, "packages/ui/src/tokens.css");
 const runtimeDecls = parseDecls(runtimeCss);
 const siteTheme = parseTheme(siteCss, "packages/site/app/global.css");

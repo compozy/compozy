@@ -4,15 +4,15 @@ area: REL
 title: Verify the hosted beta installer through Sigstore
 persona: Dora
 journey: J-evaluate-compozy-beta
-expected: `https://compozy.com/install.sh` serves a script pinned to the latest published release tag (rendered server-side; the client never resolves "latest" itself), downloads the `compozy` archive and checksum bundle from `compozy/compozy`, verifies the release workflow certificate identity and archive checksum, installs `compozy`, and never resolves or falls back to a legacy PEM/SIG contract. Each GitHub release also carries an `install.sh` asset pinned to its own tag.
+expected: `https://compozy.com/install.sh` serves a script pinned to the latest published release tag, downloads the `compozy` archive and checksum bundle from `compozy/compozy`, uses only compatible local Cosign v3 or the pinned Cosign v3.1.3 verifier, verifies the release workflow identity and archive checksum without provenance fallback, and installs the matching binary. Each GitHub release also carries an `install.sh` asset pinned to its own tag.
 entry_points: https://compozy.com/install.sh; latest GitHub release; checksums.txt; checksums.txt.sigstore.json
-qa_status: blocked-verify
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-gl-rel-wave1-20260730-045845-838751-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-07-28-untested-full.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-release-cosign-v3-20260807-170358-478309-lab/qa-artifacts/qa/evidence/installer-live-beta5.txt; /Users/pedronauck/dev/qa-labs/compozy-release-cosign-v3-20260807-170358-478309-lab/qa-artifacts/qa/evidence/cosign-real-bundles.txt
+last_report: docs/qa/reports/2026-08-07-release-cosign-v3.md
 overlaps: REL-beta-install-paths
 ---
 
@@ -32,3 +32,11 @@ attached `install.sh` asset. The Sigstore chain, pinned cosign verifier, and exp
 are unchanged and locked by `public-install-contract.test.ts` (template safety, TS/shell render
 parity, route headers/body) plus `make installer-check`. Live provenance evidence against a
 published release stays deferred to the post-publication acceptance pass.
+
+QA impact 2026-08-07: the installer verifier moved to Cosign v3.1.3. Compatible local v3 binaries
+remain usable; older or unreadable local versions trigger the pinned bootstrap, while a real
+signature or checksum rejection remains terminal. This scenario was reset for a live beta.5 walk.
+
+QA verdict 2026-08-07: the candidate installer downloaded the pinned Cosign v3.1.3 verifier,
+accepted the real beta.5 release identity and bundle, verified the archive checksum, installed the
+binary, and independently reported `compozy 0.3.0-beta.5`. Invalid version input left no binary.

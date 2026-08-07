@@ -285,10 +285,10 @@ tokens:
       size-menubar-logo: "17px"
       height-deck: "37px"
       height-deck-tab: "30px"
-      width-deck-tab-min: "96px"
+      min-width-deck-tab: "96px"
       width-deck-tab-max: "180px"
       size-deck-glyph: "13px"
-      size-deck-badge: "14px"
+      min-width-deck-badge: "14px"
       size-deck-add: "24px"
       size-deck-close: "16px"
       size-workspace-avatar: "18px"
@@ -836,8 +836,8 @@ widths come from `--site-*` tokens.
 | `--height-menubar`                      | `44px`                                                                                                                            | `--height-menubar-chip`                    | `26px`   | `--size-dock-item`                    | `46px`   |
 | `--size-dock-icon`                      | `21px`                                                                                                                            | `--size-dock-badge`                        | `15px`   | `--size-dock-indicator`               | `4px`    |
 | `--size-dock-indicator-min`             | `5px`                                                                                                                             | `--size-traffic-light`                     | `12px`   | `--size-menubar-logo`                 | `17px`   |
-| `--height-deck`                         | `37px`                                                                                                                            | `--height-deck-tab`                        | `30px`   | `--width-deck-tab-min`                | `96px`   |
-| `--width-deck-tab-max`                  | `180px`                                                                                                                           | `--size-deck-glyph`                        | `13px`   | `--size-deck-badge`                   | `14px`   |
+| `--height-deck`                         | `37px`                                                                                                                            | `--height-deck-tab`                        | `30px`   | `--min-width-deck-tab`                | `96px`   |
+| `--width-deck-tab-max`                  | `180px`                                                                                                                           | `--size-deck-glyph`                        | `13px`   | `--min-width-deck-badge`              | `14px`   |
 | `--size-deck-add`                       | `24px`                                                                                                                            | `--size-deck-close`                        | `16px`   | `--size-workspace-avatar`             | `18px`   |
 | `--size-dock-new-icon`                  | `18px`                                                                                                                            | `--size-dock-zone-offset`                  | `10px`   | `--size-dock-clearance`               | `10px`   |
 | `--size-dock-band`                      | `calc( var(--size-dock-item) + (2 * var(--spacing-dock-pad)) + 2px + var(--size-dock-zone-offset) + var(--size-dock-clearance) )` | `--spacing-dock-gap`                       | `4px`    | `--spacing-dock-pad`                  | `7px`    |

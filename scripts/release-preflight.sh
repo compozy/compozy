@@ -56,7 +56,7 @@ require_text \
   "install.sh must verify checksums.txt with checksums.txt.sigstore.json"
 require_text \
   "$installer_template_path" \
-  'COSIGN_VERSION="v2.2.4"' \
+  'COSIGN_VERSION="v3.1.3"' \
   "install.sh must bootstrap a pinned cosign verifier when cosign is absent"
 require_text \
   "$installer_template_path" \

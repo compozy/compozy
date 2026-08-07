@@ -159,16 +159,27 @@ describe("OsWindowDeck", () => {
     expect(within(deckRow).getByRole("button", { name: "New tab (⌘T)" })).toBeInTheDocument();
   });
 
-  it("Should render every tab in an overflow-capable tablist at volume (UT-077)", () => {
+  it("Should render every tab in an overflow-capable tablist with uniform unpinned slots at volume (UT-077)", () => {
     const members = Array.from({ length: 30 }, (_, index) => `window:task-${index}`);
     windows = Object.fromEntries(members.map(id => [id, windowFixture(id)]));
-    const frame = frameFixture({ members, activeWindowId: members[0] });
+    const pinnedId = members[0]!;
+    windows[pinnedId] = windowFixture(pinnedId, { pinned: true });
+    const frame = frameFixture({ members, activeWindowId: pinnedId });
 
     renderDeck(frame);
 
     const tablist = screen.getByRole("tablist", { name: "Open tabs" });
     expect(within(tablist).getAllByRole("tab")).toHaveLength(30);
     expect(tablist).toHaveClass("overflow-x-auto");
+    for (const member of members.slice(1)) {
+      expect(screen.getByTestId(`os-window-tab-menu-${member}`).parentElement).toHaveClass(
+        "w-deck-tab-max",
+        "min-w-deck-tab"
+      );
+    }
+    const pinnedSlot = screen.getByTestId(`os-window-tab-menu-${pinnedId}`).parentElement;
+    expect(pinnedSlot).not.toHaveClass("w-deck-tab-max");
+    expect(pinnedSlot).toHaveClass("shrink-0");
   });
 
   it("Should surface complete, distinct leaf paths through the tab tooltip (UT-078)", async () => {

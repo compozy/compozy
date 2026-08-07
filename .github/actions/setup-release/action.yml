@@ -16,8 +16,7 @@ inputs:
     default: "2.7.0"
   cosign-version:
     description: "Cosign version to install"
-    required: false
-    default: "v2.2.4"
+    required: true
   setup-docker:
     description: "Whether to setup Docker buildx"
     required: false
@@ -64,6 +63,12 @@ runs:
       with:
         version: ${{ inputs.git-cliff-version }}
 
+    - name: Setup Cosign for artifact signing
+      id: setup-cosign
+      uses: sigstore/cosign-installer@v4.1.2
+      with:
+        cosign-release: ${{ inputs.cosign-version }}
+
     - name: Setup GoReleaser
       id: setup-goreleaser
       uses: goreleaser/goreleaser-action@v7
@@ -75,12 +80,6 @@ runs:
     - name: Setup Syft for SBOM generation
       id: setup-syft
       uses: anchore/sbom-action/download-syft@v0
-
-    - name: Setup Cosign for artifact signing
-      id: setup-cosign
-      uses: sigstore/cosign-installer@v3
-      with:
-        cosign-release: ${{ inputs.cosign-version }}
 
     - name: Setup QEMU for cross-platform building
       if: inputs.setup-qemu == 'true'

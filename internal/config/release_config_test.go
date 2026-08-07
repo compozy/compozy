@@ -556,6 +556,71 @@ func TestReleaseWorkflowKeepsRepositoryCleanBeforeTagPublication(t *testing.T) {
 	})
 }
 
+func TestReleaseWorkflowVerifiesGoReleaserWithCompatibleCosign(t *testing.T) {
+	t.Parallel()
+
+	root := findRepoRootForReleaseConfigTest(t)
+	workflow := readTextFile(t, root, filepath.Join(".github", "workflows", "release.yml"))
+	setupAction := readTextFile(t, root, filepath.Join(".github", "actions", "setup-release", "action.yml"))
+
+	t.Run("Should pin Cosign v3 in dry-run and production", func(t *testing.T) {
+		t.Parallel()
+
+		assertContainsText(t, "release workflow", workflow, `COSIGN_VERSION: "v3.1.3"`)
+		if got := strings.Count(workflow, "cosign-version: ${{ env.COSIGN_VERSION }}"); got != 2 {
+			t.Fatalf("release workflow Cosign input count = %d, want 2", got)
+		}
+		assertNotContainsText(t, "release workflow", workflow, "COSIGN_EXPERIMENTAL")
+	})
+
+	t.Run("Should install Cosign before GoReleaser verification", func(t *testing.T) {
+		t.Parallel()
+
+		cosignInputStart := strings.Index(setupAction, "  cosign-version:\n")
+		cosignInputEnd := strings.Index(setupAction, "  setup-docker:\n")
+		if cosignInputStart == -1 || cosignInputEnd == -1 || cosignInputStart >= cosignInputEnd {
+			t.Fatal("setup release action missing Cosign input block")
+		}
+		cosignInput := setupAction[cosignInputStart:cosignInputEnd]
+		assertContainsText(t, "setup release Cosign input", cosignInput, "required: true")
+		assertNotContainsText(t, "setup release Cosign input", cosignInput, "default:")
+		assertContainsText(t, "setup release action", setupAction, "uses: sigstore/cosign-installer@v4.1.2")
+
+		cosignSetup := strings.Index(setupAction, "- name: Setup Cosign for artifact signing")
+		goReleaserSetup := strings.Index(setupAction, "- name: Setup GoReleaser")
+		if cosignSetup == -1 || goReleaserSetup == -1 {
+			t.Fatal("setup release action missing Cosign or GoReleaser setup step")
+		}
+		if cosignSetup > goReleaserSetup {
+			t.Fatal("setup release action must install Cosign before GoReleaser verification")
+		}
+		assertContainsText(t, "setup release action", setupAction, "uses: goreleaser/goreleaser-action@v7")
+	})
+
+	t.Run("Should expose the pinned verifier to the production release action", func(t *testing.T) {
+		t.Parallel()
+
+		productionSetup := strings.LastIndex(workflow, "- name: Setup Release Tools")
+		productionRelease := strings.LastIndex(workflow, "- uses: goreleaser/goreleaser-action@v7")
+		if productionSetup == -1 || productionRelease == -1 {
+			t.Fatal("release workflow missing production setup or GoReleaser action")
+		}
+		if productionSetup > productionRelease {
+			t.Fatal("release workflow must add Cosign to PATH before the production GoReleaser action")
+		}
+		productionPrerequisites := workflow[productionSetup:productionRelease]
+		assertContainsText(
+			t,
+			"production release prerequisites",
+			productionPrerequisites,
+			"cosign-version: ${{ env.COSIGN_VERSION }}",
+		)
+		if got := strings.Count(workflow, "- uses: goreleaser/goreleaser-action@v7"); got != 1 {
+			t.Fatalf("production GoReleaser action count = %d, want 1", got)
+		}
+	})
+}
+
 func TestExtensionSDKPublisherAcceptsStrictSemVer(t *testing.T) {
 	t.Parallel()
 
@@ -672,7 +737,7 @@ func newReleasePreflightFixture(t *testing.T) (string, string) {
 	root := findRepoRootForReleaseConfigTest(t)
 	installTemplate := "#!/bin/sh\n" +
 		"VERSION=\"${COMPOZY_VERSION:-__COMPOZY_PINNED_VERSION__}\"\n" +
-		"COSIGN_VERSION=\"v2.2.4\"\n" +
+		"COSIGN_VERSION=\"v3.1.3\"\n" +
 		"# checksums.txt.sigstore.json\n" +
 		"# refs/heads/main\n"
 	goreleaserConfig := "before:\n" +

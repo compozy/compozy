@@ -1,9 +1,10 @@
 /* Canonical Compozy Tailwind v4 tokens. DESIGN.md is the generated specification;
    this file owns utility-facing declarations while tokens-runtime.css owns
    global base styles, custom utilities, and reduced-motion behavior.
-   Naming rule: `--spacing-*` (in `@theme`) generates gap/padding utilities;
-   `--space-*` (in `:root`) are bespoke component-internal values kept out of
-   `@theme` so Tailwind emits no utility for them. */
+   Naming rule: property utilities use the matching Tailwind namespace
+   (`--min-width-*` generates `min-w-*`); `--spacing-*` (in `@theme`) generates
+   gap/padding utilities; `--space-*` (in `:root`) are bespoke component-internal
+   values kept out of `@theme` so Tailwind emits no utility for them. */
 
 @import "tw-animate-css";
 @import "./tokens-runtime.css";
@@ -296,10 +297,11 @@
   --z-sheet: 61;
 
   /* Component geometry — keyed into the @theme `--height-*` / `--width-*` /
-     `--size-*` namespaces so Tailwind generates bare utilities (`h-button-default`,
-     `size-button-icon-xs`, `w-modal-md`, etc.). Per L-023 these scale tokens stay
-     in `@theme`; only truly bespoke component-internal values (pill-group / modal
-     widths used pre-L-024) live in `:root` with explicit lint allowlist entries. */
+     `--min-width-*` / `--size-*` namespaces so Tailwind generates bare utilities
+     (`h-button-default`, `min-w-deck-tab`, `size-button-icon-xs`, `w-modal-md`,
+     etc.). Per L-023 these scale tokens stay in `@theme`; only truly bespoke
+     component-internal values (pill-group / modal widths used pre-L-024) live in
+     `:root` with explicit lint allowlist entries. */
 
   /* Button geometry — pair with text-button (12 px) / text-eyebrow (11 px).
      xs ≡ sm at 22px by design: the distinction is padding in the variant, not
@@ -458,10 +460,10 @@
   /* The deck — 37px tab row above the window head (window-tabs reference §01). */
   --height-deck: 37px;
   --height-deck-tab: 30px;
-  --width-deck-tab-min: 96px;
+  --min-width-deck-tab: 96px;
   --width-deck-tab-max: 180px;
   --size-deck-glyph: 13px;
-  --size-deck-badge: 14px;
+  --min-width-deck-badge: 14px;
   --size-deck-add: 24px;
   --size-deck-close: 16px;
   --size-workspace-avatar: 18px;

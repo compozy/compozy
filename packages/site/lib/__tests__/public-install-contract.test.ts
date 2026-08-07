@@ -1,5 +1,13 @@
 import { createHash } from "node:crypto";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -44,19 +52,19 @@ const historicalLaunchBeta = "v0.3.0-beta.1";
 const latestReleaseUrl = "https://github.com/compozy/compozy/releases/latest";
 const installOptions = ["--version", "--dir", "--skip-bootstrap", "--dry-run", "--help"];
 const installEnvVars = ["COMPOZY_VERSION", "COMPOZY_INSTALL_DIR", "COMPOZY_SKIP_BOOTSTRAP"];
-const cosignVersion = "v2.2.4";
+const cosignVersion = "v3.1.3";
 const cosignDigests = {
-  "darwin/x64": "0e5a77a86115e4c00ba4243db01abceacb13cc06981c45e53ee71f2e1db8ce25",
-  "darwin/arm64": "fcd310e64ecddc1eaa13fe814ac1c9fc02f6f9eacd9a58480ab8160eb8ca381e",
-  "linux/x64": "97a6a1e15668a75fc4ff7a4dc4cb2f098f929cbea2f12faa9de31db6b42b17d7",
-  "linux/arm64": "658087351e1d4f9c396b5f59ee5437461c06128f4ce80ba899ccaa1c0b6a8a62",
+  "darwin/x64": "2347488e5d5b25336644024dfeca5601b190e91197a71a917bda44744aff106c",
+  "darwin/arm64": "5cf948c2f4dfe59687bdd0b8523709067383e03982cc543475c8a7dc70e92a76",
+  "linux/x64": "4629c757b7618056f8ddd7e2625ae9fdd94c0372a65049520bc7d9df9efc7f71",
+  "linux/arm64": "c5d324e091826b0d7a78eb16fef316450b4eb9aaec045611c08ba06f5e73220a",
 } as const;
 const installerReleaseGuaranteeSnippets = [
   VERIFIED_INSTALLER_COMMAND,
   "Requires:",
   "curl, tar, and sha256sum or shasum.",
-  "Uses local cosign when available; otherwise downloads a pinned temporary cosign verifier.",
-  'COSIGN_VERSION="v2.2.4"',
+  "Uses compatible local cosign v3 when available; otherwise downloads a pinned temporary cosign verifier.",
+  'COSIGN_VERSION="v3.1.3"',
   'COSIGN_BASE_URL="https://github.com/sigstore/cosign/releases/download/${COSIGN_VERSION}"',
   "cosign-darwin-amd64",
   "cosign-darwin-arm64",
@@ -64,7 +72,10 @@ const installerReleaseGuaranteeSnippets = [
   "cosign-linux-arm64",
   ...Object.values(cosignDigests),
   "resolve_cosign()",
-  'COSIGN_BIN="$(command -v cosign)"',
+  'candidate_cosign="$(command -v cosign)"',
+  'candidate_version="$("$candidate_cosign" version 2>/dev/null)"',
+  '*"GitVersion:"*"v3."*)',
+  'COSIGN_BIN="$candidate_cosign"',
   'curl -fsSL "$COSIGN_URL" -o "$COSIGN_PATH"',
   'verify_file_sha256 "$COSIGN_PATH" "$COSIGN_SHA256" "cosign verifier"',
   'COSIGN_BIN="$COSIGN_PATH"',
@@ -253,6 +264,63 @@ async function withFixtureServer<T>(
   }
 }
 
+async function runFixtureInstallWithLocalCosign(root: string, localCosignBody: string) {
+  const platform = currentInstallPlatform();
+  const installDir = join(root, "bin");
+  const toolDir = join(root, "tools");
+  const downloadedArgsPath = join(root, "downloaded-cosign-args.txt");
+  mkdirSync(toolDir, { recursive: true });
+
+  const localCosignPath = join(toolDir, "cosign");
+  writeFileSync(localCosignPath, localCosignBody, "utf8");
+  chmodSync(localCosignPath, 0o755);
+
+  const archiveBody = createFixtureArchive(root);
+  const downloadedCosignBody =
+    '#!/bin/sh\nprintf \'%s\\n\' "$@" > "' + downloadedArgsPath + '"\nexit 0\n';
+  const routes = new Map<string, Buffer | string>([
+    [platform.archiveName, archiveBody],
+    ["checksums.txt", sha256(archiveBody) + "  " + platform.archiveName + "\n"],
+    [
+      "checksums.txt.sigstore.json",
+      '{"mediaType":"application/vnd.dev.sigstore.bundle.v0.3+json"}\n',
+    ],
+    [platform.cosignName, downloadedCosignBody],
+  ]);
+
+  const result = await withFixtureServer(routes, async baseURL => {
+    const script = renderInstallScript(readInstallTemplate(), renderedTestTag)
+      .replace(
+        'COSIGN_BASE_URL="https://github.com/sigstore/cosign/releases/download/${COSIGN_VERSION}"',
+        'COSIGN_BASE_URL="' + baseURL + "/cosign/" + cosignVersion + '"'
+      )
+      .replace(platform.cosignDigest, sha256(downloadedCosignBody))
+      .replace(
+        'BASE_URL="https://github.com/${RELEASE_REPO}/releases/download/${VERSION}"',
+        'BASE_URL="' + baseURL + '/releases/download/${VERSION}"'
+      );
+    const scriptPath = join(root, "install.sh");
+    writeFileSync(scriptPath, script, "utf8");
+    chmodSync(scriptPath, 0o755);
+
+    return runInstallScriptAsync(
+      scriptPath,
+      ["--version", "v9.9.9", "--skip-bootstrap", "--dir", installDir],
+      {
+        HOME: root,
+        PATH: toolDir + ":/usr/bin:/bin",
+        TZ: "UTC",
+        LANG: "C.UTF-8",
+        LC_ALL: "C.UTF-8",
+        LC_CTYPE: "C.UTF-8",
+        NODE_ENV: "test",
+      }
+    );
+  });
+
+  return { downloadedArgsPath, result };
+}
+
 function hermeticInstallEnv(source: InstallEnv = process.env): NodeJS.ProcessEnv {
   const env: InstallEnv = {};
   for (const [key, value] of Object.entries(source)) {
@@ -304,7 +372,7 @@ describe("public install contract", () => {
     expect(script).toContain('command -v curl >/dev/null 2>&1 || fail "curl is required"');
     expect(script).toContain('command -v tar >/dev/null 2>&1 || fail "tar is required"');
     expect(script).not.toContain('fail "cosign is required to verify release provenance"');
-    expect(script).toContain('COSIGN_VERSION="v2.2.4"');
+    expect(script).toContain('COSIGN_VERSION="v3.1.3"');
     expect(script).toContain("resolve_cosign()");
     expect(script).toContain("if command -v cosign >/dev/null 2>&1; then");
     expect(script).toContain('BUNDLE_URL="${BASE_URL}/checksums.txt.sigstore.json"');
@@ -494,6 +562,66 @@ describe("public install contract", () => {
         expect(readFileSync(cosignArgsPath, "utf8")).toContain("verify-blob");
         expect(readFileSync(join(installDir, "compozy"), "utf8")).toContain('"${1:-}" = "version"');
       });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it.each([
+    { label: "compatible v3", version: "v3.1.3", versionStatus: 0, bootstraps: false },
+    { label: "incompatible v2", version: "v2.6.2", versionStatus: 0, bootstraps: true },
+    { label: "unreadable version", version: "", versionStatus: 1, bootstraps: true },
+  ])("selects the trusted verifier for a $label local cosign", async testCase => {
+    const root = mkdtempSync(resolve(tmpdir(), "compozy-install-local-cosign-"));
+    try {
+      const localArgsPath = join(root, "local-cosign-args.txt");
+      const localCosignBody = `#!/bin/sh
+if [ "\${1:-}" = "version" ]; then
+  printf 'GitVersion: ${testCase.version}\\n'
+  exit ${testCase.versionStatus}
+fi
+printf '%s\\n' "$@" > "${localArgsPath}"
+exit 0
+`;
+      const { downloadedArgsPath, result } = await runFixtureInstallWithLocalCosign(
+        root,
+        localCosignBody
+      );
+
+      expect(result.status, result.stderr || result.stdout).toBe(0);
+      expect(existsSync(localArgsPath)).toBe(!testCase.bootstraps);
+      expect(existsSync(downloadedArgsPath)).toBe(testCase.bootstraps);
+      if (testCase.bootstraps) {
+        expect(result.stdout).toContain("downloading pinned cosign verifier " + cosignVersion);
+      } else {
+        expect(result.stdout).toContain("using compatible local cosign v3");
+      }
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("fails provenance verification without falling back from compatible local cosign v3", async () => {
+    const root = mkdtempSync(resolve(tmpdir(), "compozy-install-cosign-rejection-"));
+    try {
+      const localArgsPath = join(root, "local-cosign-args.txt");
+      const localCosignBody = `#!/bin/sh
+if [ "\${1:-}" = "version" ]; then
+  printf 'GitVersion: v3.1.3\\n'
+  exit 0
+fi
+printf '%s\\n' "$@" > "${localArgsPath}"
+exit 23
+`;
+      const { downloadedArgsPath, result } = await runFixtureInstallWithLocalCosign(
+        root,
+        localCosignBody
+      );
+
+      expect(result.status).toBe(23);
+      expect(existsSync(localArgsPath)).toBe(true);
+      expect(existsSync(downloadedArgsPath)).toBe(false);
+      expect(result.stdout).not.toContain("downloading pinned cosign verifier");
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

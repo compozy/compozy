@@ -43,6 +43,7 @@ env:
   CGO_ENABLED: 0
   GO_VERSION: "1.26.4"
   NODE_VERSION: "22"
+  COSIGN_VERSION: "v3.1.3"
   INITIAL_VERSION: "v0.0.2"
   PR_RELEASE_MODULE: github.com/compozy/releasepr@v0.0.25
   NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -187,6 +188,7 @@ jobs:
           setup-docker: false
           setup-docker-login: false
           setup-qemu: false
+          cosign-version: ${{ env.COSIGN_VERSION }}
 
       - &run-release-preflight
         name: Run release preflight
@@ -493,7 +495,7 @@ jobs:
           setup-docker: false
           setup-docker-login: false
           setup-qemu: false
-          cosign-version: "v2.2.4"
+          cosign-version: ${{ env.COSIGN_VERSION }}
 
       - *run-release-preflight
 
@@ -594,7 +596,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
           RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
-          COSIGN_EXPERIMENTAL: 1
           GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
           GOTMPDIR: ${{ runner.temp }}/go-tmp
           GORELEASER_CURRENT_TAG: ${{ needs.release-plan.outputs.release_tag }}
