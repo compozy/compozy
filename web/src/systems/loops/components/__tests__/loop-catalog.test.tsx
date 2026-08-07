@@ -18,7 +18,6 @@ vi.mock("@tanstack/react-router", async importOriginal => {
 });
 
 const { LoopCatalog } = await import("../catalog/loop-catalog");
-const { LoopCatalogFilters } = await import("../catalog/loop-catalog-filters");
 const { loopCatalogFixtures } = await import("../../mocks/fixtures");
 type LoopCatalogEntry = import("../../types").LoopCatalogEntry;
 type ListingViewMode = import("@compozy/ui").ListingViewMode;
@@ -156,31 +155,5 @@ describe("LoopCatalog", () => {
     rerender(<Harness hasNextPage isFetchingNextPage onLoadMore={onLoadMore} onRun={() => {}} />);
     expect(screen.getByTestId("loop-catalog-load-more")).toBeDisabled();
     expect(screen.getByTestId("loop-catalog-load-more")).toHaveAttribute("aria-busy", "true");
-  });
-});
-
-describe("LoopCatalogFilters", () => {
-  it("Should offer canceled even when the loaded roster has no canceled run", () => {
-    const hasCanceledRun = loopCatalogFixtures.some(entry => entry.last_run?.status === "canceled");
-    expect(hasCanceledRun).toBe(false);
-    render(<LoopCatalogFilters onStatusFilterChange={() => {}} statusFilter={null} />);
-    const select = screen.getByTestId("loop-catalog-status-filter");
-    const options = within(select)
-      .getAllByRole("option")
-      .map(option => option.textContent);
-    expect(options[0]).toBe("All statuses");
-    expect(options).toContain("Canceled");
-    expect(options).toContain("Running");
-    expect(options).not.toContain("Stop");
-  });
-
-  it("Should report the selected status and clear back to every status", () => {
-    const onStatusFilterChange = vi.fn();
-    render(<LoopCatalogFilters onStatusFilterChange={onStatusFilterChange} statusFilter={null} />);
-    const select = screen.getByTestId("loop-catalog-status-filter");
-    fireEvent.change(select, { target: { value: "canceled" } });
-    expect(onStatusFilterChange).toHaveBeenCalledWith("canceled");
-    fireEvent.change(select, { target: { value: "" } });
-    expect(onStatusFilterChange).toHaveBeenLastCalledWith(null);
   });
 });

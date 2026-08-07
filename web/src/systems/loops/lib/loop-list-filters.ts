@@ -1,12 +1,22 @@
+import type { Filter, FilterFieldsConfig } from "@compozy/ui";
+
 import { LOOP_RUN_STATUSES } from "@/generated/loop-enums";
 
 import type { LoopRunStatus } from "../types";
-import { type LoopKindFilter, loopKind } from "./loop-catalog";
+import { type LoopKindFilter, type LoopStatusFilter, loopKind } from "./loop-catalog";
 import { isLoopRunStatus, loopStatusLabel } from "./loop-formatters";
 
 export interface LoopStatusFilterOption {
   value: LoopRunStatus;
   label: string;
+}
+
+export interface LoopFilterState {
+  status: LoopStatusFilter | null;
+}
+
+export interface LoopFilterHandlers {
+  onStatusChange: (next: LoopStatusFilter | null) => void;
 }
 
 /**
@@ -19,6 +29,21 @@ export interface LoopStatusFilterOption {
  */
 export function loopStatusFilterOptions(): LoopStatusFilterOption[] {
   return LOOP_RUN_STATUSES.map(value => ({ value, label: loopStatusLabel(value) }));
+}
+
+/** Chip-bar field config: one select over the daemon's full latest-run status vocabulary. */
+export function buildLoopFilterFields(): FilterFieldsConfig<string> {
+  return [{ key: "status", label: "Status", type: "select", options: loopStatusFilterOptions() }];
+}
+
+export function loopFiltersToChips(state: LoopFilterState): Filter<string>[] {
+  if (!state.status) return [];
+  return [{ id: "loop-filter-status", field: "status", operator: "is", values: [state.status] }];
+}
+
+export function applyLoopFilterChips(chips: Filter<string>[], handlers: LoopFilterHandlers): void {
+  const status = chips.find(chip => chip.field === "status")?.values[0];
+  handlers.onStatusChange(isLoopRunStatus(status) ? status : null);
 }
 
 export function parseLoopKindFilter(value: unknown): Exclude<LoopKindFilter, "all"> | undefined {
