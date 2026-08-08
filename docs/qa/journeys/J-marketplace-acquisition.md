@@ -4,22 +4,23 @@ The program's money journey (PRD G4 "under-a-minute scene"): an agent needs a ca
 
 ```mermaid
 flowchart TD
-  A[Entry: Marketplace sidebar item mid-session] --> B[Default Skills kind: real cards at idle]
+  A[Entry: Marketplace sidebar item mid-session] --> B[Default Skills kind: Installed scope]
   A2[Entry: deep link /marketplace/$kind/$entryId] --> D
   A3[Entry: docs guide compozy.com/docs/marketplace/] --> B
-  B --> C[RouteNav selects one kind; search filters its active scope]
+  B --> B2[Choose Marketplace; URL records tab=market]
+  B2 --> C[RouteNav selects one kind and preserves Marketplace scope]
   C -->|the active source fails| C2[The kind owns a recoverable error state]
   C2 --> C
-  B --> D[Inspect stable entry detail by entry_id]
+  B2 --> D[Inspect stable entry detail by entry_id]
   C --> D
   D --> E{Entry kind}
   E -->|Skill| F[One-click Install or Update]
-  F --> F2[True end skill: card flips installed; Manage opens /marketplace/skills?tab=installed; timer < 60s]
+  F --> F2[True end skill: card flips installed; Manage opens /marketplace/skills; timer < 60s]
   E -->|Extension| G{Daemon trust decision}
   G -->|curated| G1[Install; digest verified before extraction]
   G -->|policy blocked| G2[Focusable-but-unavailable action explains block, links Settings › Extensions]
   G -->|allowed unverified| G3[Warning-confirm gate, explicit consent]
-  G1 --> G4[True end extension: installed with truthful provenance; Manage opens /marketplace/extensions?tab=installed; timer < 60s]
+  G1 --> G4[True end extension: installed with truthful provenance; Manage opens /marketplace/extensions; timer < 60s]
   G3 --> G4
   G2 -.->|operator is not the policy owner| X2[Abandon: nothing written; policy change is J-extension-policy-admin]
   E -->|MCP| I[Guided install: entry-locked template, required values typed or Vault-referenced]
@@ -28,7 +29,7 @@ flowchart TD
   I2 --> I
   I --> I3[Structurally born-valid server written; daemon next_step announced]
   I3 -->|next_step authorize| I4[Handoff to J-mcp-authorize-repair]
-  I3 --> I5[True end MCP: server on /marketplace/mcps?tab=installed with truthful readiness state, never false-ready; timer < 60s]
+  I3 --> I5[True end MCP: server on /marketplace/mcps with truthful readiness state, never false-ready; timer < 60s]
   B -.->|close tab mid-browse| X1[Abandon: no write; return later resumes at same stable entry]
   I -.->|close guided dialog before submit| X4[Abandon: no write occurred; reopen same entry detail and continue]
   F2 --> Z[Side effect check: fresh marketplace read and management surface agree on installed state, version, provenance]
@@ -52,7 +53,7 @@ journey:
   actions:
     - step: 1
       verb: Detour mid-session to Marketplace, select a kind, and browse or search its active scope
-      expected_observable: The index enters Skills by default; RouteNav changes kind without stale chrome; counts, errors, and empty states stay truthful
+      expected_observable: The index enters Skills in Installed scope; choosing Marketplace writes `tab=market`, and kind/detail/back navigation preserves that explicit scope without stale chrome
     - step: 2
       verb: Inspect one entry by its stable feed identity
       expected_observable: Kind-specific metadata, installed state, update state, and trust evidence match daemon output; no invented trust for skills
@@ -61,7 +62,7 @@ journey:
       expected_observable: Required values are validated up front, secrets are write-only, and policy blocks explain themselves; wall-clock from step 1 to acquired is under 60 seconds per kind
     - step: 4
       verb: Follow Manage after acquisition
-      expected_observable: The matching Marketplace kind opens in Installed scope
+      expected_observable: The matching Marketplace kind opens in Installed scope with `tab` omitted
     - step: 5
       verb: Re-read the marketplace after acquiring
       expected_observable: Cards, detail, and management surfaces agree on installed state and next action; update badges render only from real comparisons

@@ -169,11 +169,11 @@ func TestMarketplaceSearchPreservesKindIsolationAndInstalledTruth(t *testing.T) 
 				t.Fatalf("kinds[%d].total = %v, want exact curated total 1", index, payload.Kinds[index].Total)
 			}
 		}
-		if got := payload.Kinds[2].Items[0].ManagePath; got != "/marketplace/skills?tab=installed" {
-			t.Fatalf("skill manage path = %q, want %q", got, "/marketplace/skills?tab=installed")
+		if got := payload.Kinds[2].Items[0].ManagePath; got != "/marketplace/skills" {
+			t.Fatalf("skill manage path = %q, want %q", got, "/marketplace/skills")
 		}
-		if got := payload.Kinds[0].Items[0].ManagePath; got != "/marketplace/mcps?tab=installed" {
-			t.Fatalf("mcp manage path = %q, want %q", got, "/marketplace/mcps?tab=installed")
+		if got := payload.Kinds[0].Items[0].ManagePath; got != "/marketplace/mcps" {
+			t.Fatalf("mcp manage path = %q, want %q", got, "/marketplace/mcps")
 		}
 		for _, want := range []string{
 			`"installed_name":"github"`,
@@ -226,7 +226,7 @@ func TestMarketplaceSearchPreservesKindIsolationAndInstalledTruth(t *testing.T) 
 		if err != nil {
 			t.Fatalf("MarketplaceSearch(workspace) error = %v", err)
 		}
-		if got := response.Kinds[0].Items[0].ManagePath; got != "/marketplace/mcps?tab=installed" {
+		if got := response.Kinds[0].Items[0].ManagePath; got != "/marketplace/mcps" {
 			t.Fatalf("workspace MCP manage path = %q", got)
 		}
 	})
@@ -795,11 +795,11 @@ func TestMarketplaceWorkspaceScopeDoesNotLeakMCPInstallations(t *testing.T) {
 				payloadB.Kinds[0].Items[0].Installed,
 			)
 		}
-		if got := payloadA.Kinds[0].Items[0].ManagePath; got != "/marketplace/mcps?tab=installed" {
+		if got := payloadA.Kinds[0].Items[0].ManagePath; got != "/marketplace/mcps" {
 			t.Fatalf(
 				"workspace mcp manage path = %q, want %q",
 				got,
-				"/marketplace/mcps?tab=installed",
+				"/marketplace/mcps",
 			)
 		}
 		if len(settingsRequests) != 2 ||
@@ -957,17 +957,17 @@ func TestMarketplaceDetailAndRefreshValidateStableIdentityAndKind(t *testing.T) 
 			{
 				name: "skill", path: "/marketplace/skill/local-skill",
 				kind: contract.MarketplaceKindSkill, entryName: "local-skill",
-				managePath: "/marketplace/skills?tab=installed",
+				managePath: "/marketplace/skills",
 			},
 			{
 				name: "extension", path: "/marketplace/extension/local-extension",
 				kind: contract.MarketplaceKindExtension, entryName: "local-extension",
-				managePath: "/marketplace/extensions?tab=installed",
+				managePath: "/marketplace/extensions",
 			},
 			{
 				name: "mcp", path: "/marketplace/mcp/local-mcp",
 				kind: contract.MarketplaceKindMCP, entryName: "local-mcp",
-				managePath: "/marketplace/mcps?tab=installed",
+				managePath: "/marketplace/mcps",
 			},
 		}
 		for _, test := range tests {

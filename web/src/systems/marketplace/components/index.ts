@@ -23,8 +23,8 @@ export {
   MarketplaceDetailSkeleton,
 } from "./marketplace-detail";
 export type { MarketplaceDetailProps } from "./marketplace-detail";
-export { MarketplaceDetailMeta } from "./marketplace-detail-meta";
-export type { MarketplaceDetailMetaProps } from "./marketplace-detail-meta";
+export { MarketplaceMCPDetailTopbarActions } from "./marketplace-detail-mcp-topbar";
+export type { MarketplaceMCPDetailTopbarActionsProps } from "./marketplace-detail-mcp-topbar";
 export { MarketplaceGrid, MarketplaceGridSkeleton } from "./marketplace-grid";
 export type { MarketplaceGridProps } from "./marketplace-grid";
 export { MarketplaceInstalledCard } from "./marketplace-installed-card";

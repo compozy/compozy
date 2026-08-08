@@ -20,7 +20,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const MCPStdioTyped: Story = {
-  parameters: appRouteParameters("/marketplace/mcps"),
+  parameters: appRouteParameters("/marketplace/mcps?tab=market"),
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -31,7 +31,7 @@ export const MCPStdioTyped: Story = {
 
 export const MCPVaultSelector: Story = {
   parameters: {
-    ...appRouteParameters("/marketplace/mcps"),
+    ...appRouteParameters("/marketplace/mcps?tab=market"),
     ...storybookMswParameters({
       vault: [
         compozyApiMock.get("/api/vault/secrets", () =>
@@ -67,7 +67,7 @@ export const MCPVaultSelector: Story = {
 
 export const MCPVaultCreate: Story = {
   parameters: {
-    ...appRouteParameters("/marketplace/mcps"),
+    ...appRouteParameters("/marketplace/mcps?tab=market"),
     ...storybookMswParameters({
       vault: [compozyApiMock.get("/api/vault/secrets", () => HttpResponse.json({ secrets: [] }))],
     }),
@@ -84,7 +84,7 @@ export const MCPVaultCreate: Story = {
 };
 
 export const MCPRemote: Story = {
-  parameters: appRouteParameters("/marketplace/mcps"),
+  parameters: appRouteParameters("/marketplace/mcps?tab=market"),
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -97,7 +97,7 @@ export const MCPRemote: Story = {
 
 /** Source-union install entry point for extensions the curated catalog does not carry. */
 export const ExtensionUnionInstall: Story = {
-  parameters: appRouteParameters("/marketplace/extensions"),
+  parameters: appRouteParameters("/marketplace/extensions?tab=market"),
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -110,7 +110,7 @@ export const ExtensionUnionInstall: Story = {
 
 /** GitHub releases add the version and asset selectors the local-path branch has no use for. */
 export const ExtensionUnionInstallGitHub: Story = {
-  parameters: appRouteParameters("/marketplace/extensions"),
+  parameters: appRouteParameters("/marketplace/extensions?tab=market"),
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -122,7 +122,7 @@ export const ExtensionUnionInstallGitHub: Story = {
 };
 
 export const ExtensionWarning: Story = {
-  parameters: appRouteParameters("/marketplace/extensions"),
+  parameters: appRouteParameters("/marketplace/extensions?tab=market"),
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);

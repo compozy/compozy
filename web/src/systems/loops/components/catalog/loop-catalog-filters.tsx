@@ -1,10 +1,13 @@
-import { NativeSelect, NativeSelectOption } from "@compozy/ui";
+import { ListFilter } from "lucide-react";
+
+import { Button, FiltersWithSearch, type Filter } from "@compozy/ui";
 
 import type { LoopStatusFilter } from "../../lib/loop-catalog";
-import { loopStatusFilterOptions } from "../../lib/loop-list-filters";
-import { isLoopRunStatus } from "../../lib/loop-formatters";
-
-const ALL_STATUSES = "";
+import {
+  applyLoopFilterChips,
+  buildLoopFilterFields,
+  loopFiltersToChips,
+} from "../../lib/loop-list-filters";
 
 export interface LoopCatalogFiltersProps {
   statusFilter: LoopStatusFilter | null;
@@ -12,31 +15,41 @@ export interface LoopCatalogFiltersProps {
 }
 
 /**
- * Catalog filter control: one select over the latest-run status of each loop.
+ * Loop catalog filter chip bar for composition inside ListingToolbar.Filters.
+ * Drives the server-side `status` query param (one chip, AND-combined with the search).
  *
  * The option list is the daemon's full status vocabulary rather than the statuses
  * present on the loaded page, so `canceled` stays selectable on a roster that has
  * none — the answer is the truthful empty state, not a missing option.
  */
 function LoopCatalogFilters({ statusFilter, onStatusFilterChange }: LoopCatalogFiltersProps) {
+  const fields = buildLoopFilterFields();
+  const chips = loopFiltersToChips({ status: statusFilter });
+
+  const handleFiltersChange = (next: Filter<string>[]) => {
+    applyLoopFilterChips(next, { onStatusChange: onStatusFilterChange });
+  };
+
   return (
-    <NativeSelect
-      aria-label="Filter by latest run status"
-      data-testid="loop-catalog-status-filter"
-      onChange={event => {
-        const next = event.target.value;
-        onStatusFilterChange(isLoopRunStatus(next) ? next : null);
-      }}
+    <FiltersWithSearch<string>
+      allowMultiple={false}
+      fields={fields}
+      filters={chips}
+      onChange={handleFiltersChange}
       size="sm"
-      value={statusFilter ?? ALL_STATUSES}
-    >
-      <NativeSelectOption value={ALL_STATUSES}>All statuses</NativeSelectOption>
-      {loopStatusFilterOptions().map(option => (
-        <NativeSelectOption key={option.value} value={option.value}>
-          {option.label}
-        </NativeSelectOption>
-      ))}
-    </NativeSelect>
+      trigger={
+        <Button
+          aria-label="Add filter"
+          data-testid="loop-catalog-filters-add"
+          size="sm"
+          type="button"
+          variant="ghost"
+        >
+          <ListFilter aria-hidden="true" className="size-3" />
+          Filter
+        </Button>
+      }
+    />
   );
 }
 

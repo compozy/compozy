@@ -411,20 +411,21 @@ test("E2E-007: window.navigate preserves detail and search across peers, reload,
   }
 });
 
-test("E2E-006: two session windows stream independently through minimize and restore", async ({
+test("E2E-006: visible session windows stream without focus and catch up after restore", async ({
   appPage,
   runtime,
 }) => {
   const workspace = await prepareShell(appPage, runtime);
   const primary = await createNamedSession(runtime, workspace.id, "Primary observer");
   const secondary = await createNamedSession(runtime, workspace.id, "Secondary responder");
+  const sessionsDockButton = appPage.getByRole("button", { name: "Sessions", exact: true });
 
-  await appPage.getByRole("button", { name: "Sessions" }).click();
+  await sessionsDockButton.click();
   const sessionsModal = appPage.getByTestId("os-sessions-modal");
   await expect(sessionsModal).toBeVisible();
   await sessionsModal.getByTestId(`os-sessions-modal-session-${primary.id}`).first().click();
   await expect(sessionsModal).toHaveCount(0);
-  await appPage.getByRole("button", { name: "Sessions" }).click();
+  await sessionsDockButton.click();
   await expect(sessionsModal).toBeVisible();
   await sessionsModal.getByTestId(`os-sessions-modal-session-${secondary.id}`).first().click();
   await expect(sessionsModal).toHaveCount(0);
@@ -490,6 +491,9 @@ test("E2E-006: two session windows stream independently through minimize and res
   await expect(secondaryTranscript).toContainText("Secondary stream completed independently.");
   await expect(windowFrame(secondaryWindow)).toHaveAttribute("data-focused", "");
   await expect(windowFrame(primaryWindow)).not.toHaveAttribute("data-focused", "");
+  await expect(primaryTranscript).toContainText(
+    "Primary stream event arrived while the window was visible and unfocused."
+  );
   await expect
     .poll(() => primaryTranscript.evaluate(element => element.scrollTop))
     .toBe(parkedScrollTop);
@@ -504,7 +508,7 @@ test("E2E-006: two session windows stream independently through minimize and res
     .poll(() => sessionHistoryContains(runtime, workspace.id, primary.id, "arrived while"))
     .toBe(true);
 
-  await appPage.getByRole("button", { name: "Sessions" }).click();
+  await sessionsDockButton.click();
   const restoredModal = appPage.getByTestId("os-sessions-modal");
   await expect(restoredModal).toBeVisible();
   await restoredModal.getByTestId(`os-sessions-modal-session-${primary.id}`).first().click();

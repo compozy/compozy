@@ -20,9 +20,9 @@ That static site renders its build-time, checked-in snapshot. Before installing 
 
 ## Browse And Inspect
 
-Open `/marketplace` to enter the Skills catalog, or go directly to `/marketplace/skills`,
-`/marketplace/mcp` or `/marketplace/extensions`. Each kind page switches
-between Marketplace and Installed scopes; `/marketplace/<kind>/<entry-id>` opens one catalog record.
+Open `/marketplace` to enter installed Skills, or go directly to `/marketplace/skills`,
+`/marketplace/mcps`, or `/marketplace/extensions`. Each kind page opens in Installed; choose
+Marketplace or use `?tab=market` to browse its catalog. `/marketplace/<kind>/<entry-id>` opens one catalog record.
 An installed skill detail also shows declared capabilities, recent calls, resolver provenance, and
 shadow resolution. An installed extension detail keeps its runtime state, health, daemon process,
 kit inventory, capabilities, actions, environment requirements, diagnostics, provenance, and
@@ -194,7 +194,7 @@ set it explicitly when the daemon uses a non-default loopback port.
 
 ## Manage And Repair MCP Servers
 
-Open `/marketplace/mcp?tab=installed`. The page combines global definitions with definitions from
+Open `/marketplace/mcps`. The page combines global definitions with definitions from
 the active workspace and keeps four signals independent:
 
 | Signal  | Runtime source                         | What to verify                                                    |

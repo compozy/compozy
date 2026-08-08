@@ -5,6 +5,9 @@ Watch, steer, and trust a session while it streams (`_qa.md` §3 J-C). The opera
 ```mermaid
 flowchart TD
     E[Entry: open an active session] --> W[Working row: typing dots + Working-for-Xs timer]
+    E --> VW[Open a second session window beside it on the active desktop]
+    VW --> VF[Focus either window; both visible streams keep advancing]
+    VF -->|minimize, switch desktop, or cover in inactive stack| VD[Hidden window suspends live reads and catches up when visible]
     W --> TR[Tool rows appear grouped, active cap ~4, per-tool icons + verbs]
     TR --> EX[Expand a row inline: structured Input/Output, scroll anchor stable]
     TR --> SCRL[Scroll up mid-stream: position holds, follow pill appears]
@@ -42,8 +45,8 @@ journey:
       verb: "Watch a live turn stream"
       expected_observable: "A working row shows typing dots + a 'Working for Xs' timer; tool rows appear grouped (active cap ~4) with per-tool icons + verbs; reduced-motion degrades to static labels"
     - step: 2
-      verb: "Expand a tool row and scroll up mid-stream"
-      expected_observable: "The row expands inline to structured Input/Output with a stable anchor; scrolling up holds position (no viewport yank) and shows a return-to-live pill; the pill restores follow"
+      verb: "Open a second session beside the first, then expand a tool row and scroll up mid-stream"
+      expected_observable: "Changing focus does not pause either visible session; a hidden session suspends live reads and catches up when visible; expanded rows and scroll anchors remain stable"
     - step: 3
       verb: "Queue a prompt while the agent is busy"
       expected_observable: "Enter queues the draft with a visible hint and an editable queued row; the primary button is a Send↔Stop toggle; steer/interrupt controls remain"
@@ -56,7 +59,7 @@ journey:
   goal:
     observable: "The live turn is smooth to follow and steer; queued prompts dispatch in order after the turn ends; after Stop, a normal prompt continues the same durable history"
     side_effects: [queued-prompts-dispatched-in-order, tool-events-streamed, changed-files-rolled-up, stopped-session-auto-resumed]
-  true_end_state: "After Stop and a normal follow-up prompt, reload the same permalink: the earlier transcript and the new turn remain under one session id, the status matches reality, and clearing during a transient disconnect still leaves zero pre-clear rows after reconnect."
+  true_end_state: "After watching two side-by-side sessions, both visible transcripts are current without refocusing; after Stop and a normal follow-up prompt, reload the same permalink and confirm the durable history and status still match reality."
   exit:
     natural: "Operator has a settled, readable turn and either follows the next turn or reads the finished transcript (J-14)."
   abandonment:
@@ -69,7 +72,7 @@ journey:
     - at_step: 5
       how: "Stops the session, closes the app, and returns after a daemon restart."
       resume: "The same permalink remains promptable; the first normal prompt restarts the session with its prior history intact."
-  crosses: [SSE-broadcaster, incremental-frame-apply, scroll-anchoring, composer-queue, transcript-epoch-reset, changed-files-rollup]
+  crosses: [SSE-broadcaster, window-visibility, incremental-frame-apply, scroll-anchoring, composer-queue, transcript-epoch-reset, changed-files-rollup]
 
 design_reference:
   screens:

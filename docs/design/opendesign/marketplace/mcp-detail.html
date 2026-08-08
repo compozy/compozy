@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>github · MCP server · Marketplace</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="marketplace.css">
+<style>
+  /* page-local: scope chips + auth step rows */
+  .scopechips{display:flex;flex-wrap:wrap;gap:6px}
+  .usedrow{display:grid;grid-template-columns:24px minmax(0,1fr) auto;gap:11px;align-items:center;padding:9px 14px;transition:background var(--dur) var(--ease)}
+  a.usedrow:hover{background:var(--row-hover)}
+  .usedrow .iwell{width:24px;height:24px;border-radius:var(--radius);background:var(--btn-fill);border:1px solid var(--line-soft);display:grid;place-items:center;color:var(--subtle)}
+  .usedrow .iwell svg{width:13px;height:13px}
+  .usedrow .un{font-size:12.5px;font-weight:510;color:var(--fg-strong)}
+  .usedrow .ud{font-size:11px;color:var(--faint);margin-top:1px}
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="main">
+
+    <!-- head 44 · status + 1 primary + overflow -->
+    <header class="w2head" data-od-id="mcp-detail-head">
+      <a class="w2-back" href="index.html" aria-label="Back to Marketplace"><i data-lucide="chevron-left"></i></a>
+      <nav class="w2-crumbs" aria-label="Breadcrumb">
+        <a class="w2-crumb" href="index.html">Marketplace</a>
+        <span class="w2-sep">/</span>
+        <span class="w2-title">github</span>
+      </nav>
+      <span class="w2-flex"></span>
+      <div class="w2-actions">
+        <!-- gate: auth_status.status === "needs_login" → warning pill -->
+        <span class="pill" data-tone="warning">needs authorization</span>
+        <!-- gate: OAuth-capable remote needing repair → POST /api/settings/mcp-servers/github/auth/begin -->
+        <button class="btn btn--primary" data-od-id="mcp-authorize-cta"><i data-lucide="key-round"></i>Authorize</button>
+        <button class="btn btn--icon" id="moreBtn" aria-label="More actions" aria-haspopup="menu" aria-expanded="false"><i data-lucide="ellipsis"></i></button>
+        <div class="menu" id="moreMenu" role="menu">
+          <button class="menu__item" role="menuitem" type="button"><i data-lucide="copy"></i>Copy endpoint URL</button>
+          <div class="menu__sep"></div>
+          <!-- gate: DELETE /api/settings/mcp-servers/github -->
+          <button class="menu__item" role="menuitem" data-tone="danger" type="button"><i data-lucide="trash-2"></i>Remove server…</button>
+        </div>
+      </div>
+    </header>
+
+    <div class="scroll">
+      <div class="page">
+
+        <!-- lede -->
+        <div class="dh" data-od-id="mcp-detail-lede">
+          <div class="dh__icon"><i data-lucide="server"></i></div>
+          <div class="dh__main">
+            <div class="dh__namerow">
+              <h1 class="dh__name" tabindex="-1">github</h1>
+              <span class="tag">mcp server</span>
+              <span class="tag">remote</span>
+            </div>
+            <div class="dh__meta">
+              <span>curated feed</span><span class="dotsep"></span>
+              <span class="mono">api.githubcopilot.com/mcp</span><span class="dotsep"></span>
+              <span>workspace scope</span><span class="dotsep"></span>
+              <span>installed today, 18:42</span>
+            </div>
+            <p class="dh__lede">GitHub's official MCP server. Gives your agents issues, pull requests, code search and CI signals — hosted by GitHub, nothing to install or keep running locally.</p>
+          </div>
+        </div>
+
+        <div class="layout">
+
+          <!-- ============ main column: connection + authorization are the story ============ -->
+          <div data-od-id="mcp-detail-main">
+
+            <!-- authorization: the one thing standing between install and tools -->
+            <details class="sec" open data-od-id="mcp-authorization">
+              <summary>
+                <i class="si" data-lucide="key-round"></i>
+                <span class="st">Authorization</span>
+                <span class="ssum">action needed</span>
+                <span class="spacer"></span>
+                <i class="chev" data-lucide="chevron-down"></i>
+              </summary>
+              <!-- source: auth {method, registration, scopes}; auth_status {status, token_present} -->
+              <div class="panelbox">
+                <div style="padding:12px 14px 0">
+                  <div class="notice">
+                    <i data-lucide="triangle-alert"></i>
+                    <div>
+                      <b>This server can't serve tools yet</b>
+                      <p>It's installed and configured, but tools stay unavailable until you authorize with GitHub. Use the Authorize button above — you'll be sent to GitHub and back.</p>
+                    </div>
+                  </div>
+                </div>
+                <div class="kv__row">
+                  <div class="k">Method</div>
+                  <div class="v">OAuth 2.0 · automatic registration</div>
+                  <div class="sub">The daemon registers itself as a client on first authorize — no client ID or secret to paste.</div>
+                </div>
+                <div class="kv__row">
+                  <div class="k">Requested scopes</div>
+                  <div class="chips scopechips">
+                    <span class="chip">repo</span>
+                    <span class="chip">read:org</span>
+                    <span class="chip">read:user</span>
+                  </div>
+                </div>
+                <div class="kv__row">
+                  <div class="k">Token</div>
+                  <div class="v">not present</div>
+                </div>
+              </div>
+            </details>
+
+            <!-- connection -->
+            <details class="sec" open data-od-id="mcp-connection">
+              <summary>
+                <i class="si" data-lucide="cable"></i>
+                <span class="st">Connection</span>
+                <span class="ssum">hosted http · zero config</span>
+                <span class="spacer"></span>
+                <i class="chev" data-lucide="chevron-down"></i>
+              </summary>
+              <!-- source: mcp.launch {type:"remote", url}, default_scope, inputs[] -->
+              <div class="panelbox">
+                <div class="kv__row">
+                  <div class="k">Transport</div>
+                  <div class="v">Hosted HTTP</div>
+                  <div class="sub">Runs on GitHub's infrastructure. Nothing is installed or kept running on this machine.</div>
+                </div>
+                <div class="kv__row">
+                  <div class="k">Endpoint</div>
+                  <div class="v"><code>https://api.githubcopilot.com/mcp</code></div>
+                </div>
+                <div class="kv__row">
+                  <div class="k">Default scope</div>
+                  <div class="v">workspace</div>
+                  <div class="sub">Available to sessions in this workspace only. Reinstall at global scope to share it everywhere.</div>
+                </div>
+                <div class="kv__row">
+                  <div class="k">Required configuration</div>
+                  <div class="v">None — authorize and go.</div>
+                </div>
+              </div>
+            </details>
+
+            <!-- tools: honest pre-probe state -->
+            <details class="sec" open data-od-id="mcp-tools">
+              <summary>
+                <i class="si" data-lucide="wrench"></i>
+                <span class="st">Tools</span>
+                <span class="ssum">discovered after authorization</span>
+                <span class="spacer"></span>
+                <i class="chev" data-lucide="chevron-down"></i>
+              </summary>
+              <!-- source: runtime_status.tool_count — populated by the first successful probe -->
+              <div class="panelbox">
+                <div class="empty">
+                  <i data-lucide="wrench"></i>
+                  <b>No tools discovered yet</b>
+                  <p>The daemon probes the server after your first successful authorization and lists the tool count here. GitHub's server typically exposes issue, pull-request and code-search tools.</p>
+                </div>
+              </div>
+            </details>
+
+          </div>
+
+          <!-- ============ rail 320 ============ -->
+          <aside data-od-id="mcp-detail-rail">
+
+            <details class="rsec" open>
+              <summary>
+                <i class="si" data-lucide="activity"></i>
+                <span class="rt">Status</span>
+                <span class="rsum">waiting on authorization</span>
+                <i class="chev" data-lucide="chevron-down"></i>
+              </summary>
+              <!-- source: runtime_status {configured, initialized, state, probe, tool_count, protocol_version} + auth_status.status
+                   "no false green": each cell reports independently -->
+              <div class="rsec__body" style="padding:0">
+                <div class="stat4">
+                  <div class="stt"><span class="l">Config</span><span class="pill" data-tone="success">configured</span></div>
+                  <div class="stt"><span class="l">Auth</span><span class="pill" data-tone="warning">needs login</span></div>
+                  <div class="stt"><span class="l">Runtime</span><span class="pill" data-tone="warning">auth_required</span></div>
+                  <div class="stt"><span class="l">Probe</span><span class="pill">skipped</span></div>
+                </div>
+                <div style="border-top:1px solid var(--line-soft);padding:4px 0 8px">
+                  <div class="prow"><span class="prow__k">Tools</span><span class="prow__v mono">—</span></div>
+                  <div class="prow"><span class="prow__k">Protocol</span><span class="prow__v mono">—</span></div>
+                </div>
+              </div>
+            </details>
+
+            <details class="rsec" open>
+              <summary>
+                <i class="si" data-lucide="file-text"></i>
+                <span class="rt">Details</span>
+                <span class="rsum">curated · http</span>
+                <i class="chev" data-lucide="chevron-down"></i>
+              </summary>
+              <div class="rsec__body">
+                <div class="prow"><span class="prow__k">Entry ID</span><span class="prow__v mono">github</span></div>
+                <div class="prow"><span class="prow__k">Transport</span><span class="prow__v mono">http</span></div>
+                <div class="prow"><span class="prow__k">Source</span><span class="prow__v mono">compozy-catalog</span></div>
+                <div class="prow"><span class="prow__k">Scope</span><span class="prow__v">workspace · default</span></div>
+                <div class="prow"><span class="prow__k">Installed</span><span class="prow__v">today, 18:42</span></div>
+              </div>
+            </details>
+
+            <details class="rsec" open>
+              <summary>
+                <i class="si" data-lucide="sparkles"></i>
+                <span class="rt">Used by</span>
+                <span class="rsum">1 installed skill</span>
+                <i class="chev" data-lucide="chevron-down"></i>
+              </summary>
+              <!-- source: installed skills whose metadata.compozy.mcp_servers declares this server -->
+              <div class="rsec__body" style="padding:4px 0">
+                <a class="usedrow" href="skill-detail.html">
+                  <span class="iwell"><i data-lucide="sparkles"></i></span>
+                  <span><span class="un">pr-review</span><span class="ud" style="display:block">declares this server</span></span>
+                  <i data-lucide="chevron-right" style="width:13px;height:13px;color:var(--faint)"></i>
+                </a>
+              </div>
+            </details>
+
+            <details class="rsec">
+              <summary>
+                <i class="si" data-lucide="fingerprint"></i>
+                <span class="rt">Registration</span>
+                <span class="rsum">automatic</span>
+                <i class="chev" data-lucide="chevron-down"></i>
+              </summary>
+              <!-- source: auth_status {auth_type, client_id, issuer, refreshable} -->
+              <div class="rsec__body">
+                <div class="prow"><span class="prow__k">Strategy</span><span class="prow__v">automatic</span></div>
+                <div class="prow"><span class="prow__k">Issuer</span><span class="prow__v mono">github.com</span></div>
+                <div class="prow"><span class="prow__k">Client ID</span><span class="prow__v mono">issued at authorize</span></div>
+                <div class="prow"><span class="prow__k">Refreshable</span><span class="prow__v">—</span></div>
+              </div>
+            </details>
+
+          </aside>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/lucide@latest"></script>
+<script>
+  lucide.createIcons();
+  const moreBtn = document.getElementById('moreBtn');
+  const moreMenu = document.getElementById('moreMenu');
+  moreBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const open = moreMenu.classList.toggle('is-open');
+    moreBtn.setAttribute('aria-expanded', String(open));
+  });
+  document.addEventListener('click', () => {
+    moreMenu.classList.remove('is-open');
+    moreBtn.setAttribute('aria-expanded', 'false');
+  });
+</script>
+</body>
+</html>

@@ -43,7 +43,7 @@ journey:
       origin: direct
     - url: compozy__extensions_inventory|preview|enable|update|disable|remove
       origin: direct
-    - url: /marketplace/extension/$entryId?installed_name=$name and /marketplace/extensions?tab=installed
+    - url: /marketplace/extension/$entryId?installed_name=$name and /marketplace/extensions
       origin: in-app-nav
   actions:
     - step: 1

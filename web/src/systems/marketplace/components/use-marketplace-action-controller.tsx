@@ -153,7 +153,7 @@ function useMarketplaceActionController(
       return;
     }
     void navigate({
-      search: { tab: "installed" },
+      search: {},
       to: `/marketplace/${marketplaceRouteKindFor(kind)}`,
     });
   };

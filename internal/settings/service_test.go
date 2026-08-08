@@ -195,7 +195,7 @@ func TestGetSectionBuildsSupportedSections(t *testing.T) {
 				}
 				if got, want := envelope.Skills.Links, []OperationalLink{{
 					Label: "skills",
-					Path:  "/marketplace/skills?tab=installed",
+					Path:  "/marketplace/skills",
 				}}; !reflect.DeepEqual(got, want) {
 					t.Fatalf("Skills links = %#v, want %#v", got, want)
 				}

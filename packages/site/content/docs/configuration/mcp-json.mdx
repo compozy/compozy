@@ -258,7 +258,7 @@ cleanup is required.
 
 ## Inspect Runtime Status
 
-The MCP Installed scope at `/marketplace/mcp?tab=installed` and
+The MCP Installed scope at `/marketplace/mcps` and
 `GET /api/settings/mcp-servers` keep configuration, authorization, runtime, and probe state
 separate. A configured server is not automatically ready.
 
@@ -285,7 +285,7 @@ both `authenticated` and `token_present=true`; runtime and probe state remain in
 
 ## Edit A Configured Server
 
-Open `/marketplace/mcp?tab=installed` to inspect global definitions together with definitions from
+Open `/marketplace/mcps` to inspect global definitions together with definitions from
 the active workspace, then open the matching Marketplace detail. MCP configuration supports:
 
 - stdio `command`, `args`, literal `env`, and bound `secret_env` refs;

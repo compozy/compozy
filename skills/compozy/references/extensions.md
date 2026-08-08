@@ -57,7 +57,9 @@ matching bytes and `outcome=failure` for mismatches.
 
 Read the persisted decision with `compozy extension provenance <name> -o json`,
 `GET /api/extensions/{name}/provenance`, or `compozy__extensions_provenance`; `installed_from` is
-`marketplace_registry`, `github`, `git_url`, or `local_path`.
+`bundled` for an extension shipped with Compozy, or `marketplace_registry`, `github`, `git_url`, or
+`local_path` for a separately installed extension. Bundled extensions carry the `official` registry
+tier and verified checksum evidence without unverified-install consent.
 
 An extension update commits when the registry, managed directory, and runtime reload all succeed.
 Post-commit backup or staging cleanup failure does not roll back or relabel that active update:

@@ -4,15 +4,15 @@ area: ET
 title: Invoke native tools through the Compozy namespaces
 persona: Ada
 journey: J-validate-compozy-hard-cut
-expected: A managed session and operator CLI discover and invoke compozy__ native tools, hosted MCP advertises only compozy_host__ façade names from compozy-hosted-tools, and retired identifiers resolve as unknown without aliases.
+expected: A managed session, including Codex on a macOS CGO-disabled build, and the operator CLI discover and invoke compozy__ native tools; hosted MCP advertises only compozy_host__ façade names from compozy-hosted-tools, and retired identifiers resolve as unknown without aliases.
 entry_points: compozy tool list|search|info|invoke -o json; managed session tool call; compozy mcp serve; hosted MCP tools/list and tools/call
 qa_status: pass
 bug_ids: BUG-20260727-runtime-legacy-identity
 fix_status: fixed
 retest_status: pass
 fix_commits: e4df8634
-evidence: /Users/pedronauck/dev/qa-labs/compozy-mcp-2026-catalog-v2-final-rerun-20260730-204949-514647-lab/qa-artifacts/qa/notes/native-hosted-task-evidence.json; /var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/compozyqa-cd29600f38c8/runtime/sessions/sess-90553d81675e984c/events.db;/Users/pedronauck/dev/qa-labs/compozy-loop-agent-ownership-r2-20260806-040706-936266-lab/qa-artifacts/qa/operator-kickoff.jsonl;/Users/pedronauck/dev/qa-labs/compozy-loop-agent-ownership-r2-20260806-040706-936266-lab/qa-artifacts/qa/evidence/extension-enabled-final-tool.json
-last_report: docs/qa/reports/2026-08-06-loop-agent-ownership.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-critical-runtime-ui-fixes-20260807-225222-371495-lab/qa-artifacts/qa/codex-native-tools-evidence.md
+last_report: docs/qa/reports/2026-08-07-critical-runtime-ui-fixes.md
 overlaps: ET-native-tool-approval-grants;ET-workspace-host-api-mcp
 ---
 

@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "marketplace/index.html",
+  "entry": "marketplace/index.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-07T22:24:53.677Z",
+  "updatedAt": "2026-08-07T22:24:53.677Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

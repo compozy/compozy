@@ -4,15 +4,15 @@ area: ET
 title: Enter and browse the Web marketplace
 persona: Bruno
 journey: J-marketplace-acquisition
-expected: The Marketplace sidebar entry and `/marketplace` route land on the Skills kind page, where the shared kind template exposes truthful Marketplace and Installed scopes and remains keyboard operable at desktop and mobile widths.
+expected: The Marketplace sidebar entry and `/marketplace` route land on Skills in Installed scope; choosing Marketplace records `tab=market`, and the shared kind template remains truthful and keyboard operable at desktop and mobile widths.
 entry_points: /marketplace; /marketplace/skills; Marketplace sidebar item
 qa_status: pass
 bug_ids: BUG-20260714-keyboard-focus-invisible
 fix_status: fixed
 retest_status: pass
 fix_commits: 8eeb8a38
-evidence: /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/marketplace-under-minute.json;/Users/pedronauck/Dev/compozy/compozy/.tmp/bug-20260714-focus/focused.png;/Users/pedronauck/dev/qa-labs/compozy-ext-improvs-final-20260729-230047-267985-lab/qa-artifacts/qa/extension-charters.json;/Users/pedronauck/dev/qa-labs/compozy-devtool-oss-launch-20260802-195112-911343-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-08-02-bundles-removal.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-critical-runtime-ui-fixes-20260807-225222-371495-lab/qa-artifacts/qa/marketplace-installed-default.png
+last_report: docs/qa/reports/2026-08-07-critical-runtime-ui-fixes.md
 overlaps: ET-api-marketplace-namespace; ET-web-marketplace-search-fanout
 ---
 

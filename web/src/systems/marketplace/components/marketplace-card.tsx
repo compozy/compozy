@@ -45,6 +45,11 @@ function MarketplaceCard({
           if (pending) event.preventDefault();
         }}
         params={{ entryId: entry.entry_id, kind }}
+        search={prev => ({
+          scope: prev.scope === "global" || prev.scope === "workspace" ? prev.scope : undefined,
+          tab: "market" as const,
+          workspace_id: prev.workspace_id,
+        })}
         tabIndex={pending ? -1 : undefined}
         to="/marketplace/$kind/$entryId"
       >

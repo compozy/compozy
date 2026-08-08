@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "marketplace/mcp-detail.html",
+  "entry": "marketplace/mcp-detail.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-07T22:23:38.268Z",
+  "updatedAt": "2026-08-07T22:23:38.268Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

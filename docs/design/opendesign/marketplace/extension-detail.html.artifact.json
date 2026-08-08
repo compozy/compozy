@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "marketplace/extension-detail.html",
+  "entry": "marketplace/extension-detail.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-07T22:22:35.698Z",
+  "updatedAt": "2026-08-07T22:22:35.698Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

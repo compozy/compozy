@@ -11,11 +11,12 @@ import type { TopbarRouteContext } from "@/types/topbar";
 
 export const Route = createFileRoute("/_app/marketplace/$kind/$entryId")({
   validateSearch: validateMarketplaceDetailSearch,
-  beforeLoad: ({ params }): { topbar: TopbarRouteContext } => ({
+  beforeLoad: ({ params, search }): { topbar: TopbarRouteContext } => ({
     topbar: {
       parentCrumb: isMarketplaceKind(params.kind)
         ? {
             label: MARKETPLACE_KIND_LABEL[params.kind],
+            search: { scope: search.scope, tab: search.tab, workspace_id: search.workspace_id },
             to: `/marketplace/${marketplaceRouteKindFor(params.kind)}`,
           }
         : undefined,

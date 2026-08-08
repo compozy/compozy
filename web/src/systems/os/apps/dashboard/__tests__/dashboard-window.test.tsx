@@ -8,7 +8,7 @@ const desktop = {
   activeDesktopId: "desktop-1",
   focusedId: "win-1",
   windows: {
-    "win-1": { desktopId: "desktop-1", minimized: false },
+    "win-1": { desktopId: "desktop-1", minimized: false, stackActive: true },
   },
 };
 
@@ -54,7 +54,11 @@ describe("DashboardWindow", () => {
     homeDashboardSpy.mockClear();
     desktop.activeDesktopId = "desktop-1";
     desktop.focusedId = "win-1";
-    desktop.windows["win-1"] = { desktopId: "desktop-1", minimized: false };
+    desktop.windows["win-1"] = {
+      desktopId: "desktop-1",
+      minimized: false,
+      stackActive: true,
+    };
   });
 
   it("Should mount the home dashboard body while connected", () => {
@@ -64,13 +68,16 @@ describe("DashboardWindow", () => {
     expect(screen.queryByTestId("home-error")).toBeNull();
   });
 
+  it("Should keep Home live while it remains visible without focus", () => {
+    connection.status = "connected";
+    desktop.focusedId = "another-window";
+
+    renderWindow();
+
+    expect(homeDashboardSpy).toHaveBeenCalledWith({ liveEnabled: true });
+  });
+
   it.each([
-    {
-      name: "another window has focus",
-      arrange: () => {
-        desktop.focusedId = "another-window";
-      },
-    },
     {
       name: "Home is minimized",
       arrange: () => {
@@ -81,6 +88,12 @@ describe("DashboardWindow", () => {
       name: "another desktop is active",
       arrange: () => {
         desktop.activeDesktopId = "desktop-2";
+      },
+    },
+    {
+      name: "another window in the stack is active",
+      arrange: () => {
+        desktop.windows["win-1"].stackActive = false;
       },
     },
   ])("Should keep Home live reads dormant when $name", ({ arrange }) => {

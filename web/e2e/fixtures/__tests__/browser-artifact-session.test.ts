@@ -308,7 +308,7 @@ describe("captureRouteState", () => {
   });
 
   it("captures the installed Skills catalog and unified detail state", async () => {
-    window.history.replaceState({}, "", "/marketplace/skills?tab=installed");
+    window.history.replaceState({}, "", "/marketplace/skills");
     document.title = "Compozy";
     document.body.innerHTML = `
       <main data-testid="marketplace-kind-skill">

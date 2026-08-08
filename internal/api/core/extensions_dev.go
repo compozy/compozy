@@ -167,6 +167,12 @@ func (h *BaseHandlers) streamExtensionLogs(
 		h.respondExtensionError(c, http.StatusInternalServerError, err)
 		return
 	}
+	// An empty ring emits no events; the ready comment pushes body bytes through
+	// buffering proxies so EventSource clients leave the connecting state.
+	if err := WriteSSEComment(writer, "extension log stream ready"); err != nil {
+		h.logSSEWriteFailure(extensionLogSSEEventName, err)
+		return
+	}
 	cursor := emitExtensionLogs(writer, after, initial)
 	ticker := time.NewTicker(extensionLogPollInterval)
 	defer ticker.Stop()

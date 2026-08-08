@@ -1,3 +1,7 @@
 package core
 
-const marketplaceExtensionsInstalledPath = "/marketplace/extensions?tab=installed"
+const (
+	marketplaceExtensionsInstalledPath = "/marketplace/extensions"
+	marketplaceMCPsInstalledPath       = "/marketplace/mcps"
+	marketplaceSkillsInstalledPath     = "/marketplace/skills"
+)

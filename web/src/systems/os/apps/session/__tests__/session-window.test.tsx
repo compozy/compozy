@@ -1,5 +1,5 @@
 // Suite: OS session-window live ownership
-// Invariant: only the focused, non-minimized session window on the active desktop owns a live tail.
+// Invariant: every visible session window on the active desktop owns a live tail, regardless of focus.
 // Owning layer: the OS session-window controller.
 import { render, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -18,6 +18,7 @@ const desktop = {
     "session:sess-1": {
       desktopId: "desktop-1",
       minimized: false,
+      stackActive: true,
       route: { pathname: "/agents/qa-agent/sessions/sess-1", search: {} },
     },
   },
@@ -74,6 +75,7 @@ describe("SessionWindow", () => {
     desktop.focusedId = "session:sess-1";
     desktop.windows["session:sess-1"].desktopId = "desktop-1";
     desktop.windows["session:sess-1"].minimized = false;
+    desktop.windows["session:sess-1"].stackActive = true;
     queryState.data = session;
     queryState.error = null;
     queryState.isLoading = false;
@@ -84,12 +86,6 @@ describe("SessionWindow", () => {
 
   it.each([
     {
-      name: "another window gains focus",
-      arrange: () => {
-        desktop.focusedId = "app:marketplace";
-      },
-    },
-    {
       name: "the session is minimized",
       arrange: () => {
         desktop.windows["session:sess-1"].minimized = true;
@@ -99,6 +95,12 @@ describe("SessionWindow", () => {
       name: "another desktop becomes active",
       arrange: () => {
         desktop.activeDesktopId = "desktop-2";
+      },
+    },
+    {
+      name: "another window covers its stack position",
+      arrange: () => {
+        desktop.windows["session:sess-1"].stackActive = false;
       },
     },
   ])("Should release live-tail ownership when $name", ({ arrange }) => {
@@ -112,6 +114,17 @@ describe("SessionWindow", () => {
 
     expect(sessionWindowViewSpy).toHaveBeenLastCalledWith(
       expect.objectContaining({ liveTailEnabled: false })
+    );
+  });
+
+  it("Should retain live-tail ownership when another visible window gains focus", () => {
+    const view = render(<SessionWindow windowId="session:sess-1" />);
+
+    desktop.focusedId = "app:marketplace";
+    view.rerender(<SessionWindow windowId="session:sess-1" />);
+
+    expect(sessionWindowViewSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({ liveTailEnabled: true })
     );
   });
 

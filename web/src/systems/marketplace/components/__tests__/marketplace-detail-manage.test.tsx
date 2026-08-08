@@ -1,14 +1,17 @@
 // Suite: Marketplace installed-detail management
-// Invariant: Installed detail pages retain the owning kind's management controls after legacy shells are removed.
+// Invariant: Installed detail pages retain the owning kind's management controls and runtime
+// facts across the redesigned body/rail anatomy.
 // Boundary IN: Kind-specific query and mutation view-models.
 // Boundary OUT: Transport/cache behavior, owned by each system's hook suites.
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { MarketplaceDetailExtensionManage } from "../marketplace-detail-extension-manage";
-import { MarketplaceDetailMCPManage } from "../marketplace-detail-mcp-manage";
-import { MarketplaceDetailSkillManage } from "../marketplace-detail-skill-manage";
+import { MarketplaceDetailExtensionInstalled } from "../marketplace-detail-extension-installed";
+import { MarketplaceDetailMCPView } from "../marketplace-detail-mcp";
+import { MarketplaceMCPDetailTopbarActions } from "../marketplace-detail-mcp-topbar";
+import { MarketplaceDetailSkillInstalled } from "../marketplace-detail-skill-installed";
+import type { MarketplaceEntryResponse } from "../../types";
 import {
   SETTINGS_QUERY_INTERVALS,
   type SettingsMCPServerCollection,
@@ -62,13 +65,32 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("@/systems/settings", async importOriginal => {
-  const actual = await importOriginal<typeof import("@/systems/settings")>();
+// The settings barrel participates in cross-system module cycles, so barrel-level
+// overrides of these hooks are order-dependent; mocking their owning modules is not.
+vi.mock("@/systems/settings/components/mcp-authorize-dialog", () => ({
+  MCPAuthorizeDialog: ({ scope }: { scope: string }) => (
+    <output aria-label="Detail authorization scope">{scope}</output>
+  ),
+}));
+
+vi.mock("@/systems/settings/hooks/use-mcp-authorize", async importOriginal => {
+  const actual =
+    await importOriginal<typeof import("@/systems/settings/hooks/use-mcp-authorize")>();
   return {
     ...actual,
-    MCPAuthorizeDialog: ({ scope }: { scope: string }) => (
-      <output aria-label="Detail authorization scope">{scope}</output>
-    ),
+    useMCPAuthorize: () => ({
+      acknowledgeStatus: mocks.acknowledgeStatus,
+      requestAuthorize: mocks.requestAuthorize,
+      phase: mocks.authorizePhase,
+    }),
+  };
+});
+
+vi.mock("@/systems/settings/hooks/use-settings-collections", async importOriginal => {
+  const actual =
+    await importOriginal<typeof import("@/systems/settings/hooks/use-settings-collections")>();
+  return {
+    ...actual,
     useSettingsMCPServers: (
       filter: { scope?: string; workspace_id?: string },
       options?: { enabled?: boolean; refetchInterval?: number }
@@ -76,11 +98,6 @@ vi.mock("@/systems/settings", async importOriginal => {
       mocks.mcpQueryCalls.push({ filter, options });
       return filter.scope === "global" ? mocks.globalMCP : mocks.workspaceMCP;
     },
-    useMCPAuthorize: () => ({
-      acknowledgeStatus: mocks.acknowledgeStatus,
-      requestAuthorize: mocks.requestAuthorize,
-      phase: mocks.authorizePhase,
-    }),
   };
 });
 
@@ -294,6 +311,49 @@ function extensionDetailStateStub() {
   };
 }
 
+function skillDetailData(): MarketplaceEntryResponse {
+  return {
+    entry: {
+      description: "Bundled incident-review skill.",
+      entry_id: "bundled-skill",
+      installed: true,
+      installed_name: "bundled-skill",
+      kind: "skill",
+      name: "bundled-skill",
+      source: "registry",
+      update_available: false,
+      version: "1.2.0",
+    },
+    skill: {
+      install_slug: "compozy/bundled-skill",
+      readme: "Bundled incident-review skill readme.",
+      versions: ["1.2.0", "1.1.0"],
+    },
+  };
+}
+
+function extensionDetailData(
+  overrides: Partial<MarketplaceEntryResponse["entry"]> = {}
+): MarketplaceEntryResponse {
+  return {
+    entry: {
+      description: "Operational automation kit.",
+      entry_id: "ops-extension",
+      installed: true,
+      installed_name: "ops-extension",
+      kind: "extension",
+      name: "ops-extension",
+      source: "registry",
+      update_available: false,
+      ...overrides,
+    },
+  };
+}
+
+async function openRailCard(user: ReturnType<typeof userEvent.setup>, name: string) {
+  await user.click(screen.getByRole("button", { name: new RegExp(`^${name}`) }));
+}
+
 describe("Marketplace installed-detail management", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -325,7 +385,7 @@ describe("Marketplace installed-detail management", () => {
 
   it("Should preserve skill enablement, content, and shadow resolution", async () => {
     const user = userEvent.setup();
-    render(<MarketplaceDetailSkillManage name="bundled-skill" />);
+    render(<MarketplaceDetailSkillInstalled data={skillDetailData()} />);
 
     expect(screen.getByText("Enabled")).toBeInTheDocument();
     expect(screen.getByTestId("skill-detail-activation-status")).toHaveTextContent("Inactive");
@@ -335,8 +395,9 @@ describe("Marketplace installed-detail management", () => {
     expect(screen.getByTestId("skill-enabled-switch")).toHaveAttribute("aria-checked", "true");
     expect(screen.getByTestId("skill-capabilities-list")).toHaveTextContent("git.inspect");
     expect(screen.getByTestId("skill-recent-calls-table")).toHaveTextContent("Review pull request");
-    expect(screen.getByTestId("skill-provenance-table")).toHaveTextContent("ops-extension");
     expect(screen.getByTestId("skill-shadow-table")).toHaveTextContent("workspace");
+    await openRailCard(user, "Provenance");
+    expect(screen.getByTestId("skill-provenance-table")).toHaveTextContent("ops-extension");
     await user.click(screen.getByTestId("view-full-content-btn"));
     expect(screen.getByTestId("content-body")).toHaveTextContent("Follow the incident checklist");
     await user.click(screen.getByTestId("skill-enabled-switch"));
@@ -349,7 +410,7 @@ describe("Marketplace installed-detail management", () => {
   it("Should surface a rejected skill availability update", async () => {
     const user = userEvent.setup();
     mocks.disableSkillError = new Error("Skill policy rejected the update");
-    render(<MarketplaceDetailSkillManage name="bundled-skill" />);
+    render(<MarketplaceDetailSkillInstalled data={skillDetailData()} />);
 
     await user.click(screen.getByTestId("skill-enabled-switch"));
 
@@ -358,7 +419,7 @@ describe("Marketplace installed-detail management", () => {
 
   it("Should preserve extension enablement, environment, diagnostics, and provenance", async () => {
     const user = userEvent.setup();
-    render(<MarketplaceDetailExtensionManage name="ops-extension" />);
+    render(<MarketplaceDetailExtensionInstalled data={extensionDetailData()} />);
 
     expect(screen.getByText("PAGER_TOKEN")).toBeInTheDocument();
     expect(screen.getByText("missing")).toBeInTheDocument();
@@ -368,6 +429,7 @@ describe("Marketplace installed-detail management", () => {
     expect(screen.getByText("Runtime handshake is healthy.")).toBeInTheDocument();
     expect(screen.getByText("4242")).toBeInTheDocument();
     expect(screen.getByText("1h 1m")).toBeInTheDocument();
+    await openRailCard(user, "Provenance");
     expect(screen.getByText("official")).toBeInTheDocument();
     expect(screen.getByText("verified")).toBeInTheDocument();
     await user.click(screen.getByTestId("extension-enabled-switch"));
@@ -382,14 +444,14 @@ describe("Marketplace installed-detail management", () => {
       { id: "agent:dep-reviewer", kind: "agent", live: true, name: "dep-reviewer" },
     ];
 
-    render(<MarketplaceDetailExtensionManage name="ops-extension" />);
+    render(<MarketplaceDetailExtensionInstalled data={extensionDetailData()} />);
 
     expect(screen.queryByTestId("extension-kit-inventory")).not.toBeInTheDocument();
   });
 
   it("Should mark a declared environment name as bound when the daemon reports a binding", () => {
     mocks.extensionBoundEnvKeys = ["REGION", "LEGACY_TOKEN"];
-    render(<MarketplaceDetailExtensionManage name="ops-extension" />);
+    render(<MarketplaceDetailExtensionInstalled data={extensionDetailData()} />);
 
     const environment = screen.getByTestId("extension-environment-state");
     expect(within(environment).getByText("bound")).toBeInTheDocument();
@@ -401,7 +463,7 @@ describe("Marketplace installed-detail management", () => {
   it("Should surface the network digest and its consent state when participation is declared", () => {
     mocks.extensionNetworkDigest = "sha256:6f1c0a94d3b27e58";
     mocks.extensionNetworkConfirmationRequired = true;
-    render(<MarketplaceDetailExtensionManage name="ops-extension" />);
+    render(<MarketplaceDetailExtensionInstalled data={extensionDetailData()} />);
 
     expect(screen.getByTestId("extension-network-consent")).toHaveTextContent(
       "confirmation required"
@@ -411,30 +473,32 @@ describe("Marketplace installed-detail management", () => {
 
   it("Should mount the shared confirm dialog while a confirmation is pending", () => {
     mocks.extensionNetworkConfirm = { action: "enable", digest: "sha256:6f1c0a94d3b27e58" };
-    render(<MarketplaceDetailExtensionManage name="ops-extension" />);
+    render(<MarketplaceDetailExtensionInstalled data={extensionDetailData()} />);
 
     expect(screen.getByTestId("extension-network-confirm-dialog")).toBeInTheDocument();
   });
 
   it("Should enumerate the automation an enable actually started", () => {
     mocks.extensionEnableResult = { automation_started: ["weekly-audit", "dep-sweep"] };
-    render(<MarketplaceDetailExtensionManage name="ops-extension" />);
+    render(<MarketplaceDetailExtensionInstalled data={extensionDetailData()} />);
 
     const started = screen.getByTestId("extension-automation-started");
     expect(within(started).getByText("dep-sweep")).toBeInTheDocument();
     expect(within(started).getByText("weekly-audit")).toBeInTheDocument();
   });
 
-  it("Should report crash-loop counters, integrity evidence, and the log stream state", () => {
+  it("Should report crash-loop counters, integrity evidence, and the log stream state", async () => {
+    const user = userEvent.setup();
     mocks.extensionConsecutiveFailures = 3;
     mocks.extensionRestartBackoffMs = 4000;
     mocks.extensionLogs = [
       { message: "listening on :7788", sequence: 12, timestamp: "2026-07-20T10:00:00Z" },
     ];
-    render(<MarketplaceDetailExtensionManage name="ops-extension" />);
+    render(<MarketplaceDetailExtensionInstalled data={extensionDetailData()} />);
 
     expect(screen.getByTestId("extension-consecutive-failures")).toHaveTextContent("3");
     expect(screen.getByTestId("extension-restart-backoff")).toHaveTextContent("4000 ms");
+    await openRailCard(user, "Provenance");
     expect(screen.getByTestId("extension-provenance-digest")).toHaveTextContent(
       "no digest recorded"
     );
@@ -444,37 +508,33 @@ describe("Marketplace installed-detail management", () => {
     expect(screen.getByTestId("extension-logs-status")).toHaveTextContent("Following live");
   });
 
-  it("Should reserve verified treatment for a curated pinned checksum", () => {
+  it("Should reserve verified treatment for a curated pinned checksum", async () => {
+    const user = userEvent.setup();
     mocks.extensionInstalledFrom = "local_path";
 
-    render(<MarketplaceDetailExtensionManage name="ops-extension" />);
+    render(<MarketplaceDetailExtensionInstalled data={extensionDetailData()} />);
 
+    await openRailCard(user, "Provenance");
     expect(screen.queryByTestId("extension-checksum-verified-badge")).not.toBeInTheDocument();
     expect(screen.getByTestId("extension-provenance-checksum")).toHaveTextContent("not pinned");
     expect(screen.getByTestId("extension-source-badge")).toHaveTextContent("Local path");
   });
 
-  it("Should offer the update action only for a marketplace-managed published row", async () => {
-    const user = userEvent.setup();
+  it("Should keep update off the rail — the OS-head action owns it", () => {
     mocks.extensionUpdateAvailable = true;
     mocks.extensionRemoteVersion = "v0.5.2";
     render(
-      <MarketplaceDetailExtensionManage
-        catalogUpdateAvailable
-        catalogVersion="0.6.0"
-        name="ops-extension"
+      <MarketplaceDetailExtensionInstalled
+        data={extensionDetailData({ update_available: true, version: "0.6.0" })}
       />
     );
 
-    const updateAction = screen.getByTestId("extension-update-action");
-    expect(updateAction).toHaveTextContent("Update to v0.6.0");
+    expect(screen.queryByTestId("extension-update-action")).not.toBeInTheDocument();
+    expect(screen.getByTestId("extension-enabled-switch")).toBeInTheDocument();
     expect(mocks.extensionDetailOptions).toEqual({
       logEventSourceFactory: undefined,
       updateVersion: "0.6.0",
     });
-    await user.click(updateAction);
-
-    expect(mocks.extensionRequestUpdate).toHaveBeenCalled();
   });
 
   it("Should isolate published-row actions from a workspace dev overlay", async () => {
@@ -483,7 +543,7 @@ describe("Marketplace installed-detail management", () => {
     mocks.extensionUpdateAvailable = true;
     mocks.extensionOriginPath = "/Users/dev/src/ops-extension";
     mocks.extensionWorkspaceId = "ws_northstar";
-    render(<MarketplaceDetailExtensionManage name="ops-extension" />);
+    render(<MarketplaceDetailExtensionInstalled data={extensionDetailData()} />);
 
     expect(screen.getByTestId("extension-dev-badge")).toHaveTextContent("dev");
     expect(screen.getByTestId("extension-overrides-published-badge")).toHaveTextContent(
@@ -506,7 +566,7 @@ describe("Marketplace installed-detail management", () => {
   it("Should show a recoverable state when installed extension management fails", () => {
     mocks.extensionError = new Error("Extension detail failed");
 
-    render(<MarketplaceDetailExtensionManage name="ops-extension" />);
+    render(<MarketplaceDetailExtensionInstalled data={extensionDetailData()} />);
 
     expect(screen.getByTestId("marketplace-extension-manage-error")).toHaveTextContent(
       "Extension detail failed"
@@ -517,7 +577,7 @@ describe("Marketplace installed-detail management", () => {
   it("Should show a recoverable state when installed skill management fails", () => {
     mocks.skillError = new Error("Skill detail failed");
 
-    render(<MarketplaceDetailSkillManage name="bundled-skill" />);
+    render(<MarketplaceDetailSkillInstalled data={skillDetailData()} />);
 
     expect(screen.getByTestId("marketplace-skill-manage-error")).toHaveTextContent(
       "Skill detail failed"
@@ -583,24 +643,26 @@ describe("Marketplace installed-detail management", () => {
     };
 
     render(
-      <MarketplaceDetailMCPManage
-        entry={{
-          description: "Shared MCP server",
-          entry_id: "shared-server",
-          installed: true,
-          kind: "mcp",
-          name: "shared-server",
-          source: "installed",
-          update_available: false,
+      <MarketplaceDetailMCPView
+        data={{
+          entry: {
+            description: "Shared MCP server",
+            entry_id: "shared-server",
+            installed: true,
+            kind: "mcp",
+            name: "shared-server",
+            source: "installed",
+            update_available: false,
+          },
         }}
       />
     );
 
-    expect(screen.getByText("Unavailable")).toBeInTheDocument();
+    expect(screen.getAllByText("unavailable").length).toBeGreaterThan(0);
     expect(screen.getByTestId("marketplace-mcp-runtime-code")).toHaveTextContent(
       "process exited during initialize"
     );
-    expect(screen.queryByText("Ready")).not.toBeInTheDocument();
+    expect(screen.queryByText("ready")).not.toBeInTheDocument();
   });
 
   it("Should resolve MCP management by exact installed name before shared catalog identity", () => {
@@ -651,37 +713,41 @@ describe("Marketplace installed-detail management", () => {
     };
 
     render(
-      <MarketplaceDetailMCPManage
-        entry={{
-          description: "Exact installed identity",
-          entry_id: "shared-catalog-entry",
-          installed: true,
-          installed_name: "exact-install",
-          kind: "mcp",
-          name: "Shared catalog entry",
-          source: "installed",
-          update_available: false,
+      <MarketplaceDetailMCPView
+        data={{
+          entry: {
+            description: "Exact installed identity",
+            entry_id: "shared-catalog-entry",
+            installed: true,
+            installed_name: "exact-install",
+            kind: "mcp",
+            name: "Shared catalog entry",
+            source: "installed",
+            update_available: false,
+          },
         }}
       />
     );
 
-    expect(screen.getByText("Config error")).toBeInTheDocument();
-    expect(screen.queryByText("Ready")).not.toBeInTheDocument();
+    expect(screen.getAllByText("config error").length).toBeGreaterThan(0);
+    expect(screen.queryByText("ready")).not.toBeInTheDocument();
   });
 
   it("Should show a recoverable state when installed MCP management fails", () => {
     mocks.workspaceMCP.error = new Error("MCP inventory failed");
 
     render(
-      <MarketplaceDetailMCPManage
-        entry={{
-          description: "Shared MCP server",
-          entry_id: "shared-server",
-          installed: true,
-          kind: "mcp",
-          name: "shared-server",
-          source: "installed",
-          update_available: false,
+      <MarketplaceDetailMCPView
+        data={{
+          entry: {
+            description: "Shared MCP server",
+            entry_id: "shared-server",
+            installed: true,
+            kind: "mcp",
+            name: "shared-server",
+            source: "installed",
+            update_available: false,
+          },
         }}
       />
     );
@@ -692,7 +758,7 @@ describe("Marketplace installed-detail management", () => {
     expect(screen.getByRole("button", { name: "Retry management" })).toBeInTheDocument();
   });
 
-  it("Should begin authorization with prior state and acknowledge the polled completion", async () => {
+  it("Should begin authorization from the OS head and acknowledge the polled completion", async () => {
     const user = userEvent.setup();
     const server: SettingsMCPServerEntry = {
       auth: {
@@ -745,7 +811,10 @@ describe("Marketplace installed-detail management", () => {
       update_available: false,
     } as const;
 
-    const view = render(<MarketplaceDetailMCPManage entry={entry} />);
+    const view = render(
+      <MarketplaceMCPDetailTopbarActions entry={entry} onAction={vi.fn()} pending={false} />
+    );
+    expect(screen.getByText("needs authorization")).toBeInTheDocument();
     expect(mocks.mcpQueryCalls).toEqual(
       expect.arrayContaining([
         {
@@ -779,7 +848,9 @@ describe("Marketplace installed-detail management", () => {
       status: "authenticated",
       token_present: true,
     };
-    view.rerender(<MarketplaceDetailMCPManage entry={entry} />);
+    view.rerender(
+      <MarketplaceMCPDetailTopbarActions entry={entry} onAction={vi.fn()} pending={false} />
+    );
 
     expect(mocks.mcpQueryCalls).toContainEqual({
       filter: { scope: "workspace", workspace_id: "workspace-a" },

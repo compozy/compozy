@@ -89,3 +89,8 @@ export function sortMarketplaceEntries(
 export function marketplaceErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message.trim() !== "" ? error.message : fallback;
 }
+
+/** Endpoint/issuer hosts render without their scheme in metadata lines. */
+export function stripMarketplaceUrlScheme(url: string): string {
+  return url.replace(/^[a-z][a-z0-9+.-]*:\/\//i, "");
+}

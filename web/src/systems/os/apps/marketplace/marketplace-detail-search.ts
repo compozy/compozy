@@ -1,6 +1,7 @@
 export interface MarketplaceDetailSearch {
   installed_name?: string;
   scope?: "global" | "workspace";
+  tab?: "market";
   workspace_id?: string;
 }
 
@@ -17,5 +18,10 @@ export function validateMarketplaceDetailSearch(
     typeof search.installed_name === "string"
       ? search.installed_name.trim() || undefined
       : undefined;
-  return { installed_name: installedName, scope, workspace_id: workspaceId };
+  return {
+    installed_name: installedName,
+    scope,
+    tab: search.tab === "market" ? "market" : undefined,
+    workspace_id: workspaceId,
+  };
 }

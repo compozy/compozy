@@ -13,6 +13,7 @@ import (
 
 const (
 	ExtensionInstalledFromMarketplace = "marketplace_registry"
+	ExtensionInstalledFromBundled     = "bundled"
 	ExtensionInstalledFromGitHub      = "github"
 	ExtensionInstalledFromLocalPath   = "local_path"
 	ExtensionInstalledFromGitURL      = "git_url"
@@ -111,6 +112,32 @@ func LocalPathProvenance(
 		provenance.Warnings = []contract.DiagnosticItem{
 			extensionChecksumUnverifiedDiagnostic(manifest.Name, sourcePath, allowUnverified),
 		}
+	}
+	return provenance
+}
+
+func extensionInstallProvenance(
+	source ExtensionSource,
+	sourceURL string,
+	checksum string,
+	permissions []string,
+	installedAt time.Time,
+) ExtensionProvenance {
+	provenance := ExtensionProvenance{
+		InstalledFrom:  installedFromForSource(source),
+		SourceURL:      strings.TrimSpace(sourceURL),
+		ChecksumSHA256: strings.TrimSpace(checksum),
+		RegistryTier:   ExtensionRegistryTierUnverified,
+		Permissions:    append([]string(nil), permissions...),
+		InstalledAt:    installedAt.UTC(),
+		InstalledBy:    extensionTrustInstalledByOperator,
+	}
+	switch source {
+	case SourceBundled:
+		provenance.ChecksumVerified = true
+		provenance.RegistryTier = ExtensionRegistryTierOfficial
+	case SourceMarketplace, SourceUser, SourceWorkspace:
+		// Checksum evidence for these sources arrives only via explicit install provenance.
 	}
 	return provenance
 }
@@ -274,7 +301,9 @@ func installedFromForSource(source ExtensionSource) string {
 	switch source {
 	case SourceMarketplace:
 		return ExtensionInstalledFromMarketplace
-	case SourceUser, SourceWorkspace, SourceBundled:
+	case SourceBundled:
+		return ExtensionInstalledFromBundled
+	case SourceUser, SourceWorkspace:
 		return ExtensionInstalledFromLocalPath
 	default:
 		return ExtensionInstalledFromLocalPath

@@ -1,25 +1,21 @@
 import { useState } from "react";
 import { useSelector, useStore } from "@xstate/store-react";
 
-import {
-  SettingsApiError,
-  useDeleteSettingsProvider,
-  usePutSettingsProvider,
-  useSettingsProviders,
-  type ProviderDraft,
-  type SettingsProviderEntry,
-} from "@/systems/settings";
+import { SettingsApiError } from "../adapters/settings-api";
+import type { ProviderDraft, SettingsProviderEntry } from "../types";
 import {
   applyProviderFilters,
   DEFAULT_PROVIDER_FILTERS,
   type ProviderFilterState,
-} from "@/systems/settings/lib/providers-list-filters";
+} from "../lib/providers-list-filters";
 import {
   emptyProviderDraft,
   providerDraftFromEntry,
   providerDraftIsValid,
   providerDraftToRequest,
-} from "@/systems/settings/lib/provider-draft";
+} from "../lib/provider-draft";
+import { useSettingsProviders } from "./use-settings-collections";
+import { useDeleteSettingsProvider, usePutSettingsProvider } from "./use-settings-mutations";
 import {
   deriveProviderStateLabel,
   type ProviderStateLabel,

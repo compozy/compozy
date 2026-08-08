@@ -9,7 +9,7 @@ import { MarketplaceApiError } from "../../adapters/marketplace-api-error";
 import type { MarketplaceEntryResponse, MarketplaceListing, MCPInstallResponse } from "../../types";
 import { marketplaceDetails, marketplaceKindFixture, marketplaceListings } from "../../mocks";
 import { MarketplaceCard } from "../marketplace-card";
-import { MarketplaceDetailMeta } from "../marketplace-detail-meta";
+import { MarketplaceDetailLede } from "../marketplace-detail-lede";
 import { MarketplaceEntryAction, MarketplaceEntryStatus } from "../marketplace-entry-actions";
 import { MarketplaceGrid, MarketplaceGridSkeleton } from "../marketplace-grid";
 import { MarketplaceInstalledCard } from "../marketplace-installed-card";
@@ -66,7 +66,9 @@ vi.mock("@tanstack/react-router", async () => {
       children?: React.ReactNode;
       to?: string;
       params?: Record<string, string>;
-      search?: Record<string, unknown>;
+      search?:
+        | Record<string, unknown>
+        | ((prev: Record<string, unknown>) => Record<string, unknown>);
     } & React.AnchorHTMLAttributes<HTMLAnchorElement>) => {
       const path = params
         ? Object.entries(params).reduce(
@@ -74,12 +76,13 @@ vi.mock("@tanstack/react-router", async () => {
             to ?? ""
           )
         : (to ?? "");
+      const resolvedSearch = typeof search === "function" ? search({}) : search;
       return (
         <a
           href={`${path}${
-            search
+            resolvedSearch
               ? `?${new URLSearchParams(
-                  Object.entries(search).flatMap(([key, value]) =>
+                  Object.entries(resolvedSearch).flatMap(([key, value]) =>
                     value === undefined || value === null ? [] : [[key, String(value)]]
                   )
                 ).toString()}`
@@ -237,7 +240,7 @@ function renderKindPage(
   kind: "skill" | "mcp" | "extension" = "skill",
   search: {
     config_scope?: "global" | "workspace";
-    tab?: "installed";
+    tab?: "market";
     q?: string;
   } = {}
 ) {
@@ -277,8 +280,21 @@ describe("MarketplaceKindPage", () => {
     mocks.isInstalledItemPending.mockReturnValue(false);
   });
 
-  it("Should lead the strip with views and keep the head two-element [UT-130]", () => {
+  it("Should open Installed when the route omits the tab search parameter", () => {
     renderKindPage("skill");
+
+    expect(screen.getByTestId("marketplace-scope-installed-skill")).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    expect(screen.getByTestId("marketplace-scope-market-skill")).toHaveAttribute(
+      "aria-pressed",
+      "false"
+    );
+  });
+
+  it("Should lead the strip with views and keep the head two-element [UT-130]", () => {
+    renderKindPage("skill", { tab: "market" });
     expect(screen.getByRole("heading", { level: 1, name: "Skills" })).toBeInTheDocument();
     expect(screen.queryByTestId("marketplace-kind-head-skill")).toBeNull();
     const head = document.querySelector("[data-slot='topbar']");
@@ -301,7 +317,7 @@ describe("MarketplaceKindPage", () => {
 
   it("Should focus Marketplace search when slash is pressed outside an editable control", async () => {
     const user = userEvent.setup();
-    renderKindPage("skill");
+    renderKindPage("skill", { tab: "market" });
 
     await user.keyboard("/");
 
@@ -315,7 +331,7 @@ describe("MarketplaceKindPage", () => {
       total: 1,
     };
 
-    renderKindPage("skill", { q: "registry-ranking-signal" });
+    renderKindPage("skill", { q: "registry-ranking-signal", tab: "market" });
 
     expect(mocks.marketOptions).toHaveBeenLastCalledWith(
       expect.objectContaining({ kind: "skill", q: "registry-ranking-signal" })
@@ -326,7 +342,7 @@ describe("MarketplaceKindPage", () => {
   it("Should request the next server-owned marketplace page", async () => {
     const user = userEvent.setup();
     mocks.hasNextPage = true;
-    renderKindPage("skill");
+    renderKindPage("skill", { tab: "market" });
 
     await user.click(screen.getByRole("button", { name: "Load more" }));
 
@@ -347,7 +363,7 @@ describe("MarketplaceKindPage", () => {
     };
     mocks.marketPages = [firstPage, secondPage];
 
-    renderKindPage("skill");
+    renderKindPage("skill", { tab: "market" });
 
     expect(screen.getByTestId("marketplace-card-git-flow")).toBeInTheDocument();
     expect(screen.getByTestId("marketplace-card-spec-preflight")).toBeInTheDocument();
@@ -368,7 +384,7 @@ describe("MarketplaceKindPage", () => {
     mocks.isFetchNextPageError = true;
     mocks.marketError = new Error("page 2 failed");
 
-    renderKindPage("skill");
+    renderKindPage("skill", { tab: "market" });
 
     expect(screen.getByTestId("marketplace-card-git-flow")).toBeInTheDocument();
     expect(screen.getByText("More results could not be loaded.")).toBeInTheDocument();
@@ -399,7 +415,7 @@ describe("MarketplaceKindPage", () => {
     ];
     mocks.hasNextPage = true;
 
-    renderKindPage("skill", { tab: "installed" });
+    renderKindPage("skill");
 
     expect(screen.getByRole("status")).toBeInTheDocument();
     expect(screen.queryByTestId("marketplace-installed-card-qa-bootstrap")).not.toBeInTheDocument();
@@ -407,7 +423,7 @@ describe("MarketplaceKindPage", () => {
   });
 
   it("Should query Installed inventory without forwarding the local search to the catalog", () => {
-    renderKindPage("skill", { q: "local-filter", tab: "installed" });
+    renderKindPage("skill", { q: "local-filter" });
 
     expect(mocks.marketOptions).toHaveBeenLastCalledWith(
       expect.objectContaining({ kind: "skill", q: null })
@@ -440,7 +456,7 @@ describe("MarketplaceKindPage", () => {
     mocks.isFetchNextPageError = true;
     mocks.marketError = new Error("page 2 failed");
 
-    renderKindPage("skill", { tab: "installed" });
+    renderKindPage("skill");
 
     expect(screen.getByText("The marketplace catalog is incomplete")).toBeInTheDocument();
     expect(screen.queryByTestId("marketplace-installed-card-qa-bootstrap")).not.toBeInTheDocument();
@@ -479,7 +495,7 @@ describe("MarketplaceKindPage", () => {
         },
       },
     ];
-    renderKindPage("mcp", { tab: "installed" });
+    renderKindPage("mcp");
     const card = screen.getByTestId("marketplace-installed-card-linear");
     expect(card).toBeInTheDocument();
     expect(within(card).getByText("http")).toBeInTheDocument();
@@ -529,7 +545,7 @@ describe("MarketplaceKindPage", () => {
         },
       },
     ];
-    renderKindPage("mcp", { tab: "installed" });
+    renderKindPage("mcp");
 
     await user.click(screen.getByRole("button", { name: "Add MCP server" }));
     expect(screen.getByTestId("settings-mcp-servers-editor-title")).toHaveTextContent(
@@ -564,7 +580,7 @@ describe("MarketplaceKindPage", () => {
   it("Should close the MCP editor when the active workspace changes", async () => {
     const user = userEvent.setup();
     mocks.marketData = marketplaceKindFixture("mcp");
-    const view = renderKindPage("mcp", { tab: "installed" });
+    const view = renderKindPage("mcp");
 
     await user.click(screen.getByRole("button", { name: "Add MCP server" }));
     expect(screen.getByTestId("settings-mcp-servers-editor-title")).toBeInTheDocument();
@@ -635,7 +651,7 @@ describe("MarketplaceKindPage", () => {
           ...(testCase.workspace_id ? { workspace_id: testCase.workspace_id } : {}),
         },
       ];
-      const view = renderKindPage("mcp", { tab: "installed" });
+      const view = renderKindPage("mcp");
       const menu = screen.getByRole("button", { name: `More for ${testCase.name}` });
       fireEvent.pointerDown(menu, { button: 0, pointerType: "mouse" });
       await user.click(menu);
@@ -676,7 +692,7 @@ describe("MarketplaceKindPage", () => {
         workspace_id: "ws-a",
       },
     ];
-    renderKindPage("mcp", { q: "no-match", tab: "installed" });
+    renderKindPage("mcp", { q: "no-match" });
 
     await user.click(screen.getByRole("button", { name: "Add MCP server" }));
     await user.type(screen.getByTestId("settings-mcp-servers-editor-name-input"), "hidden-server");
@@ -704,7 +720,7 @@ describe("MarketplaceKindPage", () => {
         workspace_id: "ws-a",
       },
     ];
-    renderKindPage("mcp", { tab: "installed" });
+    renderKindPage("mcp");
 
     await user.click(screen.getByRole("button", { name: "Add MCP server" }));
     await user.type(
@@ -725,7 +741,7 @@ describe("MarketplaceKindPage", () => {
       section: "mcp-servers",
       write_target: "workspace-mcp-sidecar",
     });
-    renderKindPage("mcp", { tab: "installed" });
+    renderKindPage("mcp");
 
     await user.click(screen.getByRole("button", { name: "Add MCP server" }));
     await user.type(screen.getByTestId("settings-mcp-servers-editor-name-input"), "feedback");
@@ -772,7 +788,7 @@ describe("MarketplaceKindPage", () => {
       },
     ];
 
-    renderKindPage("mcp", { tab: "installed" });
+    renderKindPage("mcp");
 
     expect(screen.getByTestId("marketplace-installed-card-custom-local")).toBeInTheDocument();
     expect(screen.getByText("MCPs results may be out of date")).toBeInTheDocument();
@@ -801,7 +817,7 @@ describe("MarketplaceKindPage", () => {
       },
     ];
 
-    renderKindPage("mcp", { tab: "installed" });
+    renderKindPage("mcp");
 
     expect(screen.getByRole("link", { name: "View global-filesystem details" })).toHaveAttribute(
       "href",
@@ -816,7 +832,7 @@ describe("MarketplaceKindPage", () => {
 
   it("Should show teaching empty for Installed scope with browse CTA", async () => {
     const user = userEvent.setup();
-    renderKindPage("skill", { tab: "installed" });
+    renderKindPage("skill");
     expect(screen.getByTestId("marketplace-installed-empty-skill")).toBeInTheDocument();
     expect(screen.getByText(/compozy skill install/)).toBeInTheDocument();
     await user.click(screen.getByTestId("marketplace-browse-market-skill"));
@@ -846,7 +862,7 @@ describe("MarketplaceKindPage", () => {
       },
     ];
 
-    renderKindPage("skill", { tab: "installed" });
+    renderKindPage("skill");
 
     expect(mocks.skillsWorkspace).toHaveBeenLastCalledWith("");
     const card = screen.getByTestId("marketplace-installed-card-global-review");
@@ -881,7 +897,7 @@ describe("MarketplaceKindPage", () => {
       },
     ];
 
-    renderKindPage("skill", { tab: "installed" });
+    renderKindPage("skill");
 
     expect(screen.getByTestId("marketplace-installed-card-qa-bootstrap")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Update" })).toBeInTheDocument();
@@ -911,7 +927,7 @@ describe("MarketplaceKindPage", () => {
       entry => (entry as { entry_id: string }).entry_id === "qa-bootstrap"
     );
 
-    renderKindPage("skill", { tab: "installed" });
+    renderKindPage("skill");
 
     expect(screen.getByRole("button", { name: "Update" })).toBeDisabled();
   });
@@ -929,14 +945,14 @@ describe("MarketplaceKindPage", () => {
       },
     ];
 
-    renderKindPage("skill", { q: "security", tab: "installed" });
+    renderKindPage("skill", { q: "security" });
 
     expect(screen.getByTestId("marketplace-installed-card-reviewer")).toBeInTheDocument();
   });
 
   it("Should render query-empty with clear search", () => {
     mocks.marketData = { ...marketplaceKindFixture("skill"), items: [], total: 0 };
-    renderKindPage("skill", { q: "zzzz" });
+    renderKindPage("skill", { q: "zzzz", tab: "market" });
     expect(screen.getByTestId("marketplace-query-empty-skill")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Clear search" })).toBeInTheDocument();
   });
@@ -944,7 +960,7 @@ describe("MarketplaceKindPage", () => {
   it("Should cancel a pending search update when the query is cleared", () => {
     vi.useFakeTimers();
     mocks.marketData = { ...marketplaceKindFixture("skill"), items: [], total: 0 };
-    renderKindPage("skill", { q: "missing" });
+    renderKindPage("skill", { q: "missing", tab: "market" });
 
     fireEvent.change(screen.getByTestId("marketplace-kind-search-skill"), {
       target: { value: "stale query" },
@@ -962,14 +978,14 @@ describe("MarketplaceKindPage", () => {
 
   it("Should cancel a pending search update when browser navigation changes the route query", () => {
     vi.useFakeTimers();
-    const view = renderKindPage("skill", { q: "before" });
+    const view = renderKindPage("skill", { q: "before", tab: "market" });
 
     fireEvent.change(screen.getByTestId("marketplace-kind-search-skill"), {
       target: { value: "stale local query" },
     });
     view.rerender(
       <QueryClientProvider client={new QueryClient()}>
-        <MarketplaceKindPage kind="skill" search={{ q: "browser-back-query" }} />
+        <MarketplaceKindPage kind="skill" search={{ q: "browser-back-query", tab: "market" }} />
       </QueryClientProvider>
     );
     vi.runAllTimers();
@@ -1008,7 +1024,7 @@ describe("MarketplaceKindPage", () => {
       },
     ];
 
-    renderKindPage("extension");
+    renderKindPage("extension", { tab: "market" });
 
     expect(screen.getByTestId("marketplace-kind-updates-extension")).toHaveTextContent("1");
     expect(screen.getByTestId("marketplace-kind-meta-extension")).toHaveTextContent(
@@ -1046,7 +1062,7 @@ describe("MarketplaceKindPage", () => {
   it("Should install a local path through the source union and gate consent explicitly", async () => {
     const user = userEvent.setup();
     mocks.marketData = { ...marketplaceKindFixture("extension"), items: [], total: 0 };
-    renderKindPage("extension");
+    renderKindPage("extension", { tab: "market" });
 
     await user.click(screen.getByTestId("marketplace-extension-install"));
     await user.type(screen.getByTestId("extension-install-ref"), "relative/dist");
@@ -1079,7 +1095,7 @@ describe("MarketplaceKindPage", () => {
   it("Should reject a GitHub reference with an empty tag before the request", async () => {
     const user = userEvent.setup();
     mocks.marketData = { ...marketplaceKindFixture("extension"), items: [], total: 0 };
-    renderKindPage("extension");
+    renderKindPage("extension", { tab: "market" });
 
     await user.click(screen.getByTestId("marketplace-extension-install"));
     await user.click(screen.getByTestId("extension-install-source-github"));
@@ -1095,7 +1111,7 @@ describe("MarketplaceKindPage", () => {
   it("Should accept only credential-free HTTPS Git repository URLs", async () => {
     const user = userEvent.setup();
     mocks.marketData = { ...marketplaceKindFixture("extension"), items: [], total: 0 };
-    renderKindPage("extension");
+    renderKindPage("extension", { tab: "market" });
 
     await user.click(screen.getByTestId("marketplace-extension-install"));
     await user.click(screen.getByTestId("extension-install-source-git"));
@@ -1152,7 +1168,7 @@ describe("MarketplaceKindPage", () => {
         )
       )
       .mockResolvedValueOnce({});
-    renderKindPage("extension");
+    renderKindPage("extension", { tab: "market" });
 
     await user.click(screen.getByTestId("marketplace-extension-install"));
     await user.type(screen.getByTestId("extension-install-ref"), "/srv/hello/dist/gen-a1b2c3");
@@ -1184,7 +1200,7 @@ describe("MarketplaceKindPage", () => {
         "extension_unverified_policy_blocked"
       )
     );
-    renderKindPage("extension");
+    renderKindPage("extension", { tab: "market" });
 
     await user.click(screen.getByTestId("marketplace-extension-install"));
     await user.type(screen.getByTestId("extension-install-ref"), "/srv/hello/dist/gen-a1b2c3");
@@ -1516,7 +1532,7 @@ describe("Marketplace cards and actions", () => {
     render(<MarketplaceEntryAction entry={marketplaceListings.skill[0]!} onAction={vi.fn()} />);
     expect(screen.getByRole("link", { name: /Manage git-flow/i })).toHaveAttribute(
       "href",
-      "/marketplace/skills?tab=installed"
+      "/marketplace/skills"
     );
   });
 
@@ -1524,7 +1540,7 @@ describe("Marketplace cards and actions", () => {
     const entry = {
       ...marketplaceListings.extension[0]!,
       installed: true,
-      manage_path: "/marketplace/extensions?tab=installed",
+      manage_path: "/marketplace/extensions",
       update_available: false,
     };
     const view = render(<MarketplaceEntryAction entry={entry} onAction={vi.fn()} />);
@@ -1533,9 +1549,9 @@ describe("Marketplace cards and actions", () => {
       entry.manage_path
     );
 
-    view.rerender(<MarketplaceDetailMeta entry={entry} />);
-    expect(screen.getByTestId("marketplace-detail-meta")).toHaveTextContent("extension");
-    expect(screen.queryByRole("heading", { name: entry.name })).not.toBeInTheDocument();
+    view.rerender(<MarketplaceDetailLede data={{ entry }} />);
+    expect(screen.getByTestId("marketplace-detail-lede")).toHaveTextContent("extension");
+    expect(screen.getByRole("heading", { level: 1, name: entry.name })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: `Manage ${entry.name}` })).not.toBeInTheDocument();
   });
 
@@ -1557,7 +1573,9 @@ describe("Marketplace cards and actions", () => {
 
   it("Should render marketplace card linking to API-kind detail", () => {
     render(<MarketplaceCard entry={marketplaceListings.skill[1]!} onAction={vi.fn()} />);
-    expect(screen.getByTestId("marketplace-card-docs-sync")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: `View ${marketplaceListings.skill[1]!.name} details` })
+    ).toHaveAttribute("href", "/marketplace/skill/docs-sync?tab=market");
   });
 
   it("Should render curated, installed, and update versions with exactly one prefix", () => {
@@ -1579,8 +1597,8 @@ describe("Marketplace cards and actions", () => {
 
     expect(screen.getByTestId(`marketplace-card-${entry.entry_id}`)).toHaveTextContent("v1.8.0");
 
-    view.rerender(<MarketplaceDetailMeta entry={entry} />);
-    expect(screen.getByTestId("marketplace-detail-meta")).toHaveTextContent("v1.8.0");
+    view.rerender(<MarketplaceDetailLede data={{ entry }} />);
+    expect(screen.getByTestId("marketplace-detail-lede")).toHaveTextContent("v1.8.0");
 
     view.rerender(<MarketplaceEntryStatus entry={entry} />);
     expect(screen.getByText("v1.8.0 available")).toBeInTheDocument();

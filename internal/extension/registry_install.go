@@ -132,17 +132,14 @@ func registryInstallInfo(
 	}
 	capabilities := normalizeCapabilitiesConfig(resolvedManifest.Capabilities)
 	permissions := normalizePermissionsConfig(resolvedManifest.Permissions)
-	fallbackProvenance := ExtensionProvenance{
-		Slug:             dereferenceOptionalString(config.registrySlug),
-		InstalledFrom:    installedFromForSource(config.source),
-		SourceURL:        manifestPath,
-		ChecksumSHA256:   actualChecksum,
-		ChecksumVerified: config.source != SourceMarketplace,
-		RegistryTier:     ExtensionRegistryTierUnverified,
-		Permissions:      extensionPermissions(resolvedManifest),
-		InstalledAt:      installedAt,
-		InstalledBy:      extensionTrustInstalledByOperator,
-	}
+	fallbackProvenance := extensionInstallProvenance(
+		config.source,
+		manifestPath,
+		actualChecksum,
+		extensionPermissions(resolvedManifest),
+		installedAt,
+	)
+	fallbackProvenance.Slug = dereferenceOptionalString(config.registrySlug)
 	provenance := fallbackProvenance
 	if config.provenance != nil {
 		provenance = normalizeExtensionProvenance(*config.provenance, fallbackProvenance)
