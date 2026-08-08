@@ -182,6 +182,31 @@ export const RetiredKindNotFound: Story = {
   render: () => <StorybookWorkspaceSetup />,
 };
 
+/** Browse mode: readme as the hero, Install as the one head action, property cards in the rail. */
+export const DetailSkillBrowse: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters("/marketplace/skill/git-flow"),
+    ...storybookMswParameters({
+      marketplace: [
+        compozyApiMock.get("/api/marketplace/{kind}/{entry_id}", () =>
+          HttpResponse.json({
+            ...marketplaceDetails["skill:git-flow"],
+            entry: {
+              ...marketplaceDetails["skill:git-flow"]!.entry,
+              installed: false,
+              installed_name: undefined,
+              installed_version: undefined,
+              manage_path: undefined,
+            },
+          })
+        ),
+      ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
 export const DetailSkillInstalled: Story = {
   args: {},
   parameters: {
@@ -395,6 +420,57 @@ export const DetailExtensionKitInventory: Story = {
   parameters: {
     ...appRouteParameters("/marketplace/extension/dep-kit-ops"),
     ...kitDetailHandlers(),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+/** Enabled kit with a catalog update pending: body carries the kit, rail carries management. */
+export const DetailExtensionEnabledUpdate: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters("/marketplace/extension/dep-kit-ops"),
+    ...storybookMswParameters({
+      marketplace: [
+        compozyApiMock.get("/api/marketplace/{kind}/{entry_id}", () =>
+          HttpResponse.json({
+            entry: {
+              description: "Dependency review agents, a weekly sweep, and a review board layout.",
+              entry_id: "dep-kit-ops",
+              installed: true,
+              installed_name: "dep-kit-ops",
+              installed_version: "1.0.0",
+              kind: "extension",
+              name: "dep-kit-ops",
+              source: "registry",
+              update_available: true,
+              version: "1.1.0",
+            },
+          })
+        ),
+      ],
+      extensions: [
+        compozyApiMock.get("/api/extensions", () =>
+          HttpResponse.json({
+            extensions: [
+              {
+                ...kitExtensionFixture,
+                enabled: true,
+                network_confirmation_required: false,
+                remote_version: "1.1.0",
+                update_available: true,
+              },
+            ],
+          })
+        ),
+        compozyApiMock.get("/api/extensions/{name}/inventory", () =>
+          HttpResponse.json({
+            enabled: true,
+            extension: "dep-kit-ops",
+            items: kitInventoryItems.map(item => ({ ...item, live: true })),
+          })
+        ),
+      ],
+    }),
   },
   render: () => <StorybookWorkspaceSetup />,
 };

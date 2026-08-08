@@ -1,4 +1,4 @@
-import { Button, Eyebrow, Section, Spinner, Switch } from "@compozy/ui";
+import { Button, cn, Eyebrow, Section, Spinner, Switch } from "@compozy/ui";
 
 import type { ExtensionLogsModel, ExtensionLogStreamStatus } from "../hooks/use-extension-logs";
 
@@ -26,38 +26,48 @@ function formatLogClock(timestamp: string): string {
  * Mirrors the daemon's redacted per-instance ring. Follow is operator-controlled, retained lines
  * survive a reconnect, and only the connection status is announced — never individual lines.
  */
-export function ExtensionLogPanel({ logs, name }: { logs: ExtensionLogsModel; name: string }) {
+export function ExtensionLogPanel({
+  logs,
+  name,
+  bare = false,
+}: {
+  logs: ExtensionLogsModel;
+  name: string;
+  /** Drop the section chrome and card frame when nested in a framed surface. */
+  bare?: boolean;
+}) {
   const followLabelId = `extension-logs-follow-${name}`;
-  return (
-    <Section label="Logs">
-      <div className="overflow-hidden rounded-lg bg-canvas-soft" data-testid="extension-logs-panel">
-        <div className="flex items-center justify-between gap-3 border-b border-line-soft px-4 py-2.5">
-          <span
-            className="flex min-w-0 items-center gap-2"
-            data-testid="extension-logs-status"
-            role="status"
-          >
-            {logs.status === "connecting" ? (
-              <Spinner aria-hidden="true" className="size-3" />
-            ) : null}
-            <span className="truncate text-xs text-muted">{STATUS_TEXT[logs.status]}</span>
-          </span>
-          <span className="flex shrink-0 items-center gap-2">
-            <Eyebrow className="text-muted" id={followLabelId}>
-              Follow
-            </Eyebrow>
-            <Switch
-              aria-labelledby={followLabelId}
-              checked={logs.follow}
-              data-testid="extension-logs-follow"
-              onCheckedChange={logs.setFollow}
-            />
-          </span>
-        </div>
-        <ExtensionLogBody logs={logs} />
+  const body = (
+    <div
+      className={cn(!bare && "overflow-hidden rounded-lg bg-canvas-soft")}
+      data-testid="extension-logs-panel"
+    >
+      <div className="flex items-center justify-between gap-3 border-b border-line-soft px-4 py-2.5">
+        <span
+          className="flex min-w-0 items-center gap-2"
+          data-testid="extension-logs-status"
+          role="status"
+        >
+          {logs.status === "connecting" ? <Spinner aria-hidden="true" className="size-3" /> : null}
+          <span className="truncate text-xs text-muted">{STATUS_TEXT[logs.status]}</span>
+        </span>
+        <span className="flex shrink-0 items-center gap-2">
+          <Eyebrow className="text-muted" id={followLabelId}>
+            Follow
+          </Eyebrow>
+          <Switch
+            aria-labelledby={followLabelId}
+            checked={logs.follow}
+            data-testid="extension-logs-follow"
+            onCheckedChange={logs.setFollow}
+          />
+        </span>
       </div>
-    </Section>
+      <ExtensionLogBody logs={logs} />
+    </div>
   );
+  if (bare) return body;
+  return <Section label="Logs">{body}</Section>;
 }
 
 function ExtensionLogBody({ logs }: { logs: ExtensionLogsModel }) {

@@ -1,13 +1,10 @@
 import { useState, type SetStateAction } from "react";
 
+import { SettingsApiError } from "../adapters/settings-api";
+import type { SettingsNetworkSection, SettingsUpdateNetworkRequest } from "../types";
 import { useSettingsPage } from "./use-settings-page";
-import {
-  SettingsApiError,
-  useSettingsNetwork,
-  useUpdateSettingsNetwork,
-  type SettingsNetworkSection,
-  type SettingsUpdateNetworkRequest,
-} from "@/systems/settings";
+import { useSettingsNetwork } from "./use-settings-sections";
+import { useUpdateSettingsNetwork } from "./use-settings-mutations";
 
 type NetworkConfig = SettingsNetworkSection["config"];
 

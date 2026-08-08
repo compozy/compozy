@@ -9,6 +9,7 @@ import {
   MarketplaceEntryStatus,
   MarketplaceDetailNotFound,
   MarketplaceDetailSkeleton,
+  MarketplaceMCPDetailTopbarActions,
   marketplaceRouteKindFor,
   useMarketplaceActionController,
   useMarketplaceEntry,
@@ -56,18 +57,29 @@ function MarketplaceDetailRouteBody({
     void navigate({ search: search.tab === "market" ? { tab: "market" } : {}, to: catalogPath });
   };
 
+  const mcpInstalled = Boolean(entry && kind === "mcp" && entry.installed);
   useTopbarSlot({
     onBack: backToCatalog,
     crumbs: [{ id: "marketplace", label: "Marketplace", onSelect: backToCatalog }],
     crumb: entryName,
-    status: entry ? <MarketplaceEntryStatus entry={entry} /> : undefined,
+    status: entry && !mcpInstalled ? <MarketplaceEntryStatus entry={entry} /> : undefined,
     actions: entry ? (
-      <MarketplaceEntryAction
-        emphasis="primary"
-        entry={entry}
-        onAction={actions.handleAction}
-        pending={actions.isEntryPending(entry)}
-      />
+      mcpInstalled ? (
+        <MarketplaceMCPDetailTopbarActions
+          entry={entry}
+          onAction={actions.handleAction}
+          pending={actions.isEntryPending(entry)}
+          scope={managementScope}
+          workspaceId={workspaceId ?? undefined}
+        />
+      ) : (
+        <MarketplaceEntryAction
+          emphasis="primary"
+          entry={entry}
+          onAction={actions.handleAction}
+          pending={actions.isEntryPending(entry)}
+        />
+      )
     ) : undefined,
   });
 

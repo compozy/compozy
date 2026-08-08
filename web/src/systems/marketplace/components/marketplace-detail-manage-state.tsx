@@ -1,8 +1,10 @@
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, SlidersHorizontal } from "lucide-react";
 
-import { Button, Section, Spinner } from "@compozy/ui";
+import { Button, Spinner } from "@compozy/ui";
 
-interface MarketplaceDetailManageStateProps {
+import { MarketplaceDetailRailCard } from "./marketplace-detail-shell";
+
+interface MarketplaceDetailManageFallbackCardProps {
   error?: Error | null;
   isLoading?: boolean;
   label: string;
@@ -10,17 +12,18 @@ interface MarketplaceDetailManageStateProps {
   testId: string;
 }
 
-function MarketplaceDetailManageState({
+/** Rail Manage card body while the installed record is loading or failed to load. */
+function MarketplaceDetailManageFallbackCard({
   error,
   isLoading = false,
   label,
   onRetry,
   testId,
-}: MarketplaceDetailManageStateProps) {
+}: MarketplaceDetailManageFallbackCardProps) {
   return (
-    <Section label="Manage">
+    <MarketplaceDetailRailCard icon={SlidersHorizontal} title="Manage">
       <div
-        className="flex flex-col gap-2 rounded-lg border border-line bg-canvas-soft px-4 py-3"
+        className="flex flex-col gap-2 px-3.5 py-1.5"
         data-testid={testId}
         role={isLoading ? "status" : "alert"}
       >
@@ -33,19 +36,19 @@ function MarketplaceDetailManageState({
           {isLoading ? `Loading ${label} management…` : `${label} management could not be loaded.`}
         </div>
         {!isLoading && error?.message ? (
-          <p className="text-caption text-muted">{error.message}</p>
+          <p className="text-form-hint text-muted">{error.message}</p>
         ) : null}
         {!isLoading ? (
-          <div>
+          <div className="pb-1">
             <Button onClick={onRetry} size="sm" type="button" variant="outline">
               Retry management
             </Button>
           </div>
         ) : null}
       </div>
-    </Section>
+    </MarketplaceDetailRailCard>
   );
 }
 
-export { MarketplaceDetailManageState };
-export type { MarketplaceDetailManageStateProps };
+export { MarketplaceDetailManageFallbackCard };
+export type { MarketplaceDetailManageFallbackCardProps };

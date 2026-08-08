@@ -1,30 +1,4 @@
-import type { ReactNode } from "react";
-
-import { MonoId, Pill, Section } from "@compozy/ui";
-
-function ExtensionDetailBlock({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <Section label={label}>
-      <div className="rounded-lg bg-canvas-soft px-4 py-3">{children}</div>
-    </Section>
-  );
-}
-
-function ExtensionTokenBlock({ label, values }: { label: string; values: string[] }) {
-  return (
-    <ExtensionDetailBlock label={`${label} ${values.length}`}>
-      {values.length ? (
-        <div className="flex flex-wrap gap-2">
-          {values.map(value => (
-            <MonoId key={value} value={value} />
-          ))}
-        </div>
-      ) : (
-        <p className="text-small-body text-muted">None registered.</p>
-      )}
-    </ExtensionDetailBlock>
-  );
-}
+import { Pill } from "@compozy/ui";
 
 /**
  * Three distinct daemon facts, never collapsed: a name is `bound` when a stored binding satisfies
@@ -121,61 +95,4 @@ function ExtensionDiagnostics({
   );
 }
 
-/**
- * The enable action result, not a status projection: the daemon enumerates exactly the automation
- * definitions that became runnable in the committed operation, and nothing mirrors that list into
- * the extension row afterwards. Shown only while it is this session's own outcome.
- */
-function ExtensionAutomationStarted({ started }: { started: string[] }) {
-  if (!started.length) return null;
-  return (
-    <Section count={started.length} label="Automation started">
-      <div
-        className="divide-y divide-line-soft overflow-hidden rounded-lg bg-canvas-soft"
-        data-testid="extension-automation-started"
-      >
-        {[...started].sort().map(name => (
-          <div className="px-4 py-3" key={name}>
-            <MonoId value={name} />
-          </div>
-        ))}
-      </div>
-    </Section>
-  );
-}
-
-function ExtensionRailBlock({
-  label,
-  rows,
-}: {
-  label: string;
-  rows: Array<{ term: string; value: ReactNode }>;
-}) {
-  return (
-    <Section label={label}>
-      <dl className="divide-y divide-line-soft overflow-hidden rounded-lg bg-canvas-soft">
-        {rows.length ? (
-          rows.map(row => (
-            <div className="grid gap-1 px-4 py-3" key={row.term}>
-              <dt className="eyebrow text-muted">{row.term}</dt>
-              <dd className="flex min-w-0 flex-wrap items-center gap-1.5 text-xs text-fg">
-                {row.value}
-              </dd>
-            </div>
-          ))
-        ) : (
-          <div className="px-4 py-3 text-small-body text-muted">None.</div>
-        )}
-      </dl>
-    </Section>
-  );
-}
-
-export {
-  ExtensionAutomationStarted,
-  ExtensionDetailBlock,
-  ExtensionDiagnostics,
-  ExtensionEnvironmentState,
-  ExtensionRailBlock,
-  ExtensionTokenBlock,
-};
+export { ExtensionDiagnostics, ExtensionEnvironmentState };

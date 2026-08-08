@@ -9,7 +9,7 @@ import { MarketplaceApiError } from "../../adapters/marketplace-api-error";
 import type { MarketplaceEntryResponse, MarketplaceListing, MCPInstallResponse } from "../../types";
 import { marketplaceDetails, marketplaceKindFixture, marketplaceListings } from "../../mocks";
 import { MarketplaceCard } from "../marketplace-card";
-import { MarketplaceDetailMeta } from "../marketplace-detail-meta";
+import { MarketplaceDetailLede } from "../marketplace-detail-lede";
 import { MarketplaceEntryAction, MarketplaceEntryStatus } from "../marketplace-entry-actions";
 import { MarketplaceGrid, MarketplaceGridSkeleton } from "../marketplace-grid";
 import { MarketplaceInstalledCard } from "../marketplace-installed-card";
@@ -1546,9 +1546,9 @@ describe("Marketplace cards and actions", () => {
       entry.manage_path
     );
 
-    view.rerender(<MarketplaceDetailMeta entry={entry} />);
-    expect(screen.getByTestId("marketplace-detail-meta")).toHaveTextContent("extension");
-    expect(screen.queryByRole("heading", { name: entry.name })).not.toBeInTheDocument();
+    view.rerender(<MarketplaceDetailLede data={{ entry }} />);
+    expect(screen.getByTestId("marketplace-detail-lede")).toHaveTextContent("extension");
+    expect(screen.getByRole("heading", { level: 1, name: entry.name })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: `Manage ${entry.name}` })).not.toBeInTheDocument();
   });
 
@@ -1594,8 +1594,8 @@ describe("Marketplace cards and actions", () => {
 
     expect(screen.getByTestId(`marketplace-card-${entry.entry_id}`)).toHaveTextContent("v1.8.0");
 
-    view.rerender(<MarketplaceDetailMeta entry={entry} />);
-    expect(screen.getByTestId("marketplace-detail-meta")).toHaveTextContent("v1.8.0");
+    view.rerender(<MarketplaceDetailLede data={{ entry }} />);
+    expect(screen.getByTestId("marketplace-detail-lede")).toHaveTextContent("v1.8.0");
 
     view.rerender(<MarketplaceEntryStatus entry={entry} />);
     expect(screen.getByText("v1.8.0 available")).toBeInTheDocument();

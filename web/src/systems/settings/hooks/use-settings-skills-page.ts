@@ -5,14 +5,14 @@ import { useStoreBinding } from "@/hooks/use-store-binding";
 
 import { useSettingsPage } from "./use-settings-page";
 import { useAgents, type AgentPayload } from "@/systems/agent";
-import {
-  SettingsApiError,
-  useSettingsSkills,
-  useUpdateSettingsSkills,
-  type SettingsSkillsFilter,
-  type SettingsSkillsSection,
-  type SettingsUpdateSkillsRequest,
-} from "@/systems/settings";
+import { SettingsApiError } from "../adapters/settings-api";
+import type {
+  SettingsSkillsFilter,
+  SettingsSkillsSection,
+  SettingsUpdateSkillsRequest,
+} from "../types";
+import { useSettingsSkills } from "./use-settings-sections";
+import { useUpdateSettingsSkills } from "./use-settings-mutations";
 import { useWorkspaces, type WorkspacePayload } from "@/systems/workspace";
 import { settingsSkillsDraftLogic, shouldRebindSkillsDraft } from "./settings-skills-draft-logic";
 
