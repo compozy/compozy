@@ -21,7 +21,7 @@ type AgentQuery struct {
 	Workspace string
 }
 
-func (c *unixSocketClient) ListAgents(ctx context.Context, query AgentQuery) ([]AgentRecord, error) {
+func (c *daemonClient) ListAgents(ctx context.Context, query AgentQuery) ([]AgentRecord, error) {
 	var response contract.AgentsResponse
 	if err := c.doJSON(ctx, http.MethodGet, "/api/agents", agentValues(query), nil, &response); err != nil {
 		return nil, fmt.Errorf("cli: list agents: %w", err)
@@ -29,7 +29,7 @@ func (c *unixSocketClient) ListAgents(ctx context.Context, query AgentQuery) ([]
 	return response.Agents, nil
 }
 
-func (c *unixSocketClient) GetAgent(ctx context.Context, name string, query AgentQuery) (AgentRecord, error) {
+func (c *daemonClient) GetAgent(ctx context.Context, name string, query AgentQuery) (AgentRecord, error) {
 	var response contract.AgentResponse
 	if err := c.doJSON(
 		ctx,
@@ -44,7 +44,7 @@ func (c *unixSocketClient) GetAgent(ctx context.Context, name string, query Agen
 	return response.Agent, nil
 }
 
-func (c *unixSocketClient) CreateAgent(
+func (c *daemonClient) CreateAgent(
 	ctx context.Context,
 	request contract.CreateAgentRequest,
 ) (AgentRecord, error) {
@@ -55,7 +55,7 @@ func (c *unixSocketClient) CreateAgent(
 	return response.Agent, nil
 }
 
-func (c *unixSocketClient) UpdateAgent(
+func (c *daemonClient) UpdateAgent(
 	ctx context.Context,
 	name string,
 	request contract.UpdateAgentRequest,
@@ -67,7 +67,7 @@ func (c *unixSocketClient) UpdateAgent(
 	return response.Agent, nil
 }
 
-func (c *unixSocketClient) DeleteAgent(
+func (c *daemonClient) DeleteAgent(
 	ctx context.Context,
 	name string,
 	workspace string,
@@ -86,7 +86,7 @@ func (c *unixSocketClient) DeleteAgent(
 	return response, nil
 }
 
-func (c *unixSocketClient) DuplicateAgent(
+func (c *daemonClient) DuplicateAgent(
 	ctx context.Context,
 	name string,
 	request contract.DuplicateAgentRequest,

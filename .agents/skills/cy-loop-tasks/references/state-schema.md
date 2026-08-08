@@ -23,7 +23,7 @@ No other writer is permitted. Hand-editing voids resume guarantees.
 | `stacked` | bool | Stacked-PR checkpoints, opt-in via `init-state.py --stacked` (tasks mode only; default `false`). True makes `commit-checkpoint.py` publish each Phase B task as a `gh stack` layer (`references/stacked-prs.md`). Read-only after bootstrap. |
 | `tasks.total` | int | Total entries in `_tasks.md`. Populated only in `mode=tasks`. |
 | `tasks.completed` | list[string] | Stems (e.g., `task_01`) of completed entries, in completion order. |
-| `tasks.current` | string \| null | Stem of the task being worked on right now. Null between iterations. |
+| `tasks.current` | string \| null | Stem of the task being worked on right now. Set via `update-state.py --task-current` at Phase B pick time; cleared automatically by `--task-completed`. Null between iterations. |
 | `tasks.pending` | list[string] | Stems still to do, in execution order. |
 | `progress.deliverables_complete` | bool | Set true by the LLM when it judges every techspec acceptance criterion met. Used only in `mode=free`. Phase B exits when this flips to true. |
 | `progress.checklist[]` | list[obj] | Free-form checklist the LLM maintains in `mode=free`. Each entry: `text` (string), `status` (`pending`\|`in_progress`\|`completed`), `iteration` (int — the iteration that last touched it). Items only get added or status-flipped, never deleted. |

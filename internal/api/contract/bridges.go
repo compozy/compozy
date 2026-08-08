@@ -316,6 +316,7 @@ type BridgeHealthPayload struct {
 	LastErrorAt             *time.Time                   `json:"last_error_at,omitempty"`
 	Degradation             *bridgepkg.BridgeDegradation `json:"degradation,omitempty"`
 	Diagnostics             []bridgepkg.BridgeDiagnostic `json:"diagnostics,omitempty"`
+	Ingress                 *GatewayIngressPayload       `json:"ingress,omitempty"`
 }
 
 // BridgeAggregateHealthPayload captures the additive bridge summary nested
@@ -359,6 +360,7 @@ type BridgePayload struct {
 	RoutingPolicy        bridgepkg.RoutingPolicy        `json:"routing_policy"`
 	ProviderConfig       BridgeProviderConfigPayload    `json:"provider_config,omitempty"`
 	WebhookPublicURL     string                         `json:"webhook_public_url,omitempty"`
+	GatewayIngress       *GatewayIngressPayload         `json:"gateway_ingress,omitempty"`
 	DeliveryDefaults     BridgeDeliveryDefaultsPayload  `json:"delivery_defaults,omitempty"`
 	NotificationSuppress bool                           `json:"notification_suppress"`
 	Degradation          *bridgepkg.BridgeDegradation   `json:"degradation,omitempty"`

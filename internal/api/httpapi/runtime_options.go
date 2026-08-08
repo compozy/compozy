@@ -40,6 +40,7 @@ func WithHost(host string) Option {
 func WithPort(port int) Option {
 	return func(server *Server) {
 		server.port = port
+		server.portSet = true
 	}
 }
 

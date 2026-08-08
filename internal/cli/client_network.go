@@ -11,7 +11,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 )
 
-func (c *unixSocketClient) NetworkStatus(ctx context.Context) (NetworkStatusRecord, error) {
+func (c *daemonClient) NetworkStatus(ctx context.Context) (NetworkStatusRecord, error) {
 	var response struct {
 		Network NetworkStatusRecord `json:"network"`
 	}
@@ -21,7 +21,7 @@ func (c *unixSocketClient) NetworkStatus(ctx context.Context) (NetworkStatusReco
 	return response.Network, nil
 }
 
-func (c *unixSocketClient) NetworkPeers(ctx context.Context, query NetworkPeersQuery) ([]NetworkPeerRecord, error) {
+func (c *daemonClient) NetworkPeers(ctx context.Context, query NetworkPeersQuery) ([]NetworkPeerRecord, error) {
 	var response struct {
 		Peers []NetworkPeerRecord `json:"peers"`
 	}
@@ -42,7 +42,7 @@ func (c *unixSocketClient) NetworkPeers(ctx context.Context, query NetworkPeersQ
 	return response.Peers, nil
 }
 
-func (c *unixSocketClient) NetworkChannels(ctx context.Context, workspaceRef string) ([]NetworkChannelRecord, error) {
+func (c *daemonClient) NetworkChannels(ctx context.Context, workspaceRef string) ([]NetworkChannelRecord, error) {
 	var response struct {
 		Channels []NetworkChannelRecord `json:"channels"`
 	}
@@ -56,7 +56,7 @@ func (c *unixSocketClient) NetworkChannels(ctx context.Context, workspaceRef str
 	return response.Channels, nil
 }
 
-func (c *unixSocketClient) CreateNetworkChannel(
+func (c *daemonClient) CreateNetworkChannel(
 	ctx context.Context,
 	workspaceRef string,
 	request CreateNetworkChannelRequest,
@@ -85,7 +85,7 @@ func (c *unixSocketClient) CreateNetworkChannel(
 	return response.Channel, nil
 }
 
-func (c *unixSocketClient) UpdateNetworkChannel(
+func (c *daemonClient) UpdateNetworkChannel(
 	ctx context.Context,
 	workspaceRef string,
 	channel string,
@@ -106,7 +106,7 @@ func (c *unixSocketClient) UpdateNetworkChannel(
 	return response.Channel, nil
 }
 
-func (c *unixSocketClient) ListNetworkSubscriptions(
+func (c *daemonClient) ListNetworkSubscriptions(
 	ctx context.Context,
 	query NetworkSubscriptionsQuery,
 ) ([]NetworkSubscriptionRecord, error) {
@@ -133,7 +133,7 @@ func (c *unixSocketClient) ListNetworkSubscriptions(
 	return response.Subscriptions, nil
 }
 
-func (c *unixSocketClient) SetNetworkSubscription(
+func (c *daemonClient) SetNetworkSubscription(
 	ctx context.Context,
 	workspaceRef string,
 	channel string,
@@ -155,7 +155,7 @@ func (c *unixSocketClient) SetNetworkSubscription(
 	return response.Subscription, nil
 }
 
-func (c *unixSocketClient) DeleteNetworkSubscription(
+func (c *daemonClient) DeleteNetworkSubscription(
 	ctx context.Context,
 	workspaceRef string,
 	channel string,
@@ -182,7 +182,7 @@ func (c *unixSocketClient) DeleteNetworkSubscription(
 	return c.doNetworkJSON(ctx, http.MethodDelete, path, values, nil, nil)
 }
 
-func (c *unixSocketClient) NetworkThreads(
+func (c *daemonClient) NetworkThreads(
 	ctx context.Context,
 	query NetworkThreadsQuery,
 ) (contract.NetworkThreadsResponse, error) {
@@ -202,7 +202,7 @@ func (c *unixSocketClient) NetworkThreads(
 	return response, nil
 }
 
-func (c *unixSocketClient) NetworkThread(
+func (c *daemonClient) NetworkThread(
 	ctx context.Context,
 	workspaceRef string,
 	channel string,
@@ -221,7 +221,7 @@ func (c *unixSocketClient) NetworkThread(
 	return response.Thread, nil
 }
 
-func (c *unixSocketClient) NetworkThreadMessages(
+func (c *daemonClient) NetworkThreadMessages(
 	ctx context.Context,
 	query NetworkConversationMessagesQuery,
 ) (contract.NetworkThreadMessagesResponse, error) {
@@ -243,7 +243,7 @@ func (c *unixSocketClient) NetworkThreadMessages(
 	return response, nil
 }
 
-func (c *unixSocketClient) NetworkDirects(
+func (c *daemonClient) NetworkDirects(
 	ctx context.Context,
 	query NetworkDirectsQuery,
 ) (contract.NetworkDirectRoomsResponse, error) {
@@ -263,7 +263,7 @@ func (c *unixSocketClient) NetworkDirects(
 	return response, nil
 }
 
-func (c *unixSocketClient) NetworkDirectResolve(
+func (c *daemonClient) NetworkDirectResolve(
 	ctx context.Context,
 	workspaceRef string,
 	channel string,
@@ -287,7 +287,7 @@ func (c *unixSocketClient) NetworkDirectResolve(
 	return response.Direct, nil
 }
 
-func (c *unixSocketClient) NetworkDirect(
+func (c *daemonClient) NetworkDirect(
 	ctx context.Context,
 	workspaceRef string,
 	channel string,
@@ -306,7 +306,7 @@ func (c *unixSocketClient) NetworkDirect(
 	return response.Direct, nil
 }
 
-func (c *unixSocketClient) NetworkDirectMessages(
+func (c *daemonClient) NetworkDirectMessages(
 	ctx context.Context,
 	query NetworkConversationMessagesQuery,
 ) (contract.NetworkDirectRoomMessagesResponse, error) {
@@ -328,7 +328,7 @@ func (c *unixSocketClient) NetworkDirectMessages(
 	return response, nil
 }
 
-func (c *unixSocketClient) NetworkWork(
+func (c *daemonClient) NetworkWork(
 	ctx context.Context,
 	workspaceRef string,
 	workID string,
@@ -351,7 +351,7 @@ func (c *unixSocketClient) NetworkWork(
 	return response.Work, nil
 }
 
-func (c *unixSocketClient) NetworkSend(ctx context.Context, request NetworkSendRequest) (NetworkSendRecord, error) {
+func (c *daemonClient) NetworkSend(ctx context.Context, request NetworkSendRequest) (NetworkSendRecord, error) {
 	var response struct {
 		Message NetworkSendRecord `json:"message"`
 	}
@@ -367,7 +367,7 @@ func (c *unixSocketClient) NetworkSend(ctx context.Context, request NetworkSendR
 	return response.Message, nil
 }
 
-func (c *unixSocketClient) NetworkInbox(
+func (c *daemonClient) NetworkInbox(
 	ctx context.Context,
 	workspaceRef string,
 	sessionID string,
@@ -392,7 +392,7 @@ func (c *unixSocketClient) NetworkInbox(
 	return response.Messages, nil
 }
 
-func (c *unixSocketClient) PromoteNetworkThreadTask(
+func (c *daemonClient) PromoteNetworkThreadTask(
 	ctx context.Context,
 	workspaceRef string,
 	channel string,

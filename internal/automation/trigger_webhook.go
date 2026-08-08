@@ -11,6 +11,7 @@ import (
 
 	"time"
 
+	modelpkg "github.com/compozy/compozy/internal/automation/model"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/session"
 )
@@ -65,12 +66,7 @@ func ParseWebhookEndpoint(endpoint string) (ParsedWebhookEndpoint, error) {
 
 // FormatWebhookEndpoint returns the stable public endpoint segment for one webhook registration.
 func FormatWebhookEndpoint(endpointSlug string, webhookID string) (string, error) {
-	trimmedSlug := strings.TrimSpace(endpointSlug)
-	trimmedWebhookID := strings.TrimSpace(webhookID)
-	if trimmedSlug == "" || trimmedWebhookID == "" {
-		return "", ErrWebhookEndpointInvalid
-	}
-	return trimmedSlug + "--" + trimmedWebhookID, nil
+	return modelpkg.FormatWebhookEndpoint(endpointSlug, webhookID)
 }
 
 // SignWebhookPayload calculates the expected HMAC signature for a webhook request payload.

@@ -24,6 +24,7 @@ import (
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
+	"github.com/compozy/compozy/internal/gateway"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/memory/consolidation"
@@ -150,6 +151,142 @@ func TestBootSequenceReady(t *testing.T) {
 	}
 	if _, err := AcquireLock(homePaths.DaemonLock, os.Getpid()); !errors.Is(err, ErrAlreadyRunning) {
 		t.Fatalf("AcquireLock(second instance) error = %v, want ErrAlreadyRunning", err)
+	}
+}
+
+func TestBootGatewayRefusalContinuesLocalOnly(t *testing.T) {
+	t.Parallel()
+
+	homePaths := testHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	cfg.Network.Enabled = false
+	cfg.Gateway.Enabled = true
+	registry := &recordingRegistry{
+		path: homePaths.DatabaseFile,
+		gatewaySnapshot: gateway.Snapshot{
+			Providers: []gateway.ProviderActivation{{
+				ProviderName: "connectivity-test", Tier: gateway.TierPrivate,
+				Desired: gateway.DesiredEnabled, Observed: gateway.ProviderEstablishing, Generation: 1,
+			}},
+			Surfaces: []gateway.SurfaceExposure{{
+				Surface: gateway.SurfaceOperatorUI, Tier: gateway.TierPrivate,
+				Desired: gateway.DesiredEnabled, Observed: gateway.SurfaceOff, Generation: 1,
+			}},
+		},
+	}
+	d := newTestDaemon(t, homePaths, &cfg)
+	d.openRegistry = func(context.Context, string) (Registry, error) { return registry, nil }
+	d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+		return &fakeSessionManager{}, nil
+	}
+	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) { return &fakeObserver{}, nil }
+	d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "http"}, nil
+	}
+	d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "uds"}, nil
+	}
+	tierFactoryCalls := 0
+	d.gatewayTierFactory = func(
+		context.Context,
+		*RuntimeDeps,
+		gateway.Tier,
+		[]gateway.Surface,
+	) (Server, error) {
+		tierFactoryCalls++
+		return &fakeServer{name: "gateway-tier"}, nil
+	}
+
+	if err := d.boot(testutil.Context(t)); err != nil {
+		t.Fatalf("boot() error = %v, want local-only continuation [IT-002]", err)
+	}
+	t.Cleanup(func() {
+		if err := d.Shutdown(testutil.Context(t)); err != nil {
+			t.Errorf("Shutdown() error = %v", err)
+		}
+	})
+	status, err := d.gateway.Status(testutil.Context(t))
+	if err != nil {
+		t.Fatalf("gateway.Status() error = %v", err)
+	}
+	if status.Refusal == nil || !strings.Contains(status.Refusal.Cause, "authentication model is inactive") ||
+		!strings.Contains(status.Refusal.Fix, "pairing and device authentication") {
+		t.Fatalf("gateway refusal = %#v, want authentication cause and fix", status.Refusal)
+	}
+	if len(status.Addresses) != 0 || status.Tiers[0].Advertised || status.Providers[0].Observed != gateway.ProviderDown {
+		t.Fatalf("gateway status = %#v, want local-only and provider down", status)
+	}
+	if d.httpServer == nil || d.udsServer == nil {
+		t.Fatal("local daemon servers did not start after gateway refusal")
+	}
+	if tierFactoryCalls != 0 {
+		t.Fatalf("gateway tier factory calls = %d, want 0 while authentication is inactive [IT-001]", tierFactoryCalls)
+	}
+}
+
+func TestBootGatewayReconcilesDisabledSurfaceBeforeServers(t *testing.T) {
+	t.Parallel()
+
+	homePaths := testHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	cfg.Network.Enabled = false
+	cfg.Gateway.Enabled = true
+	registry := &recordingRegistry{
+		path: homePaths.DatabaseFile,
+		gatewaySnapshot: gateway.Snapshot{
+			Providers: []gateway.ProviderActivation{{
+				ProviderName: "connectivity-test", Tier: gateway.TierPrivate,
+				Desired: gateway.DesiredEnabled, Observed: gateway.ProviderEstablishing, Generation: 7,
+			}},
+			Surfaces: []gateway.SurfaceExposure{{
+				Surface: gateway.SurfaceOperatorUI, Tier: gateway.TierPrivate,
+				Desired: gateway.DesiredDisabled, Observed: gateway.SurfaceOff, Generation: 8,
+			}},
+		},
+	}
+	d := newTestDaemon(t, homePaths, &cfg)
+	d.openRegistry = func(context.Context, string) (Registry, error) { return registry, nil }
+	d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+		return &fakeSessionManager{}, nil
+	}
+	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) { return &fakeObserver{}, nil }
+	serverObservedReconciled := false
+	d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		snapshot, err := registry.Snapshot(testutil.Context(t))
+		if err != nil {
+			t.Fatalf("Snapshot(before HTTP server) error = %v", err)
+		}
+		serverObservedReconciled = len(snapshot.Providers) == 1 &&
+			snapshot.Providers[0].Observed == gateway.ProviderDown &&
+			len(snapshot.Surfaces) == 1 && snapshot.Surfaces[0].Desired == gateway.DesiredDisabled &&
+			snapshot.Surfaces[0].Observed == gateway.SurfaceOff
+		return &fakeServer{name: "http"}, nil
+	}
+	d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "uds"}, nil
+	}
+
+	if err := d.boot(testutil.Context(t)); err != nil {
+		t.Fatalf("boot() error = %v [IT-005]", err)
+	}
+	t.Cleanup(func() {
+		if err := d.Shutdown(testutil.Context(t)); err != nil {
+			t.Errorf("Shutdown() error = %v", err)
+		}
+	})
+	if !serverObservedReconciled {
+		t.Fatal("HTTP server construction preceded gateway reconciliation")
+	}
+	if _, err := d.gateway.Reconcile(testutil.Context(t)); err != nil {
+		t.Fatalf("gateway.Reconcile(restart replay) error = %v", err)
+	}
+	status, err := d.gateway.Status(testutil.Context(t))
+	if err != nil {
+		t.Fatalf("gateway.Status() error = %v", err)
+	}
+	if status.Surfaces[0].Desired != gateway.DesiredDisabled ||
+		status.Surfaces[0].Observed != gateway.SurfaceOff || status.Tiers[0].Advertised || len(status.Addresses) != 0 {
+		t.Fatalf("gateway status after replay = %#v, want disabled surface to remain unreachable", status)
 	}
 }
 

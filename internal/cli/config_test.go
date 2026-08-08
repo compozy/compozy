@@ -849,14 +849,19 @@ func TestConfigValidateReportsInvalidConfigAsJSON(t *testing.T) {
 		deps.resolveHomeForWorkspace = func(string) (compozyconfig.HomePaths, error) {
 			return homePaths, nil
 		}
-		stdout, _, err := executeRootCommand(t, deps, "config", "validate", "-o", "json")
-		if err == nil {
+		stdout, _, commandErr := executeRootCommand(t, deps, "config", "validate", "-o", "json")
+		if commandErr == nil {
 			t.Fatal("config validate error = nil, want invalid config failure")
 		}
 
 		var record configValidateRecord
-		if err := json.Unmarshal([]byte(stdout), &record); err != nil {
-			t.Fatalf("json.Unmarshal(config validate invalid) error = %v; stdout=%s", err, stdout)
+		if decodeErr := json.Unmarshal([]byte(stdout), &record); decodeErr != nil {
+			t.Fatalf(
+				"json.Unmarshal(config validate invalid) error = %v; command error=%v; stdout=%s",
+				decodeErr,
+				commandErr,
+				stdout,
+			)
 		}
 		if record.Status != "invalid" {
 			t.Fatalf("Status = %q, want invalid", record.Status)
@@ -898,14 +903,19 @@ func TestConfigValidateReportsInvalidConfigAsJSON(t *testing.T) {
 		deps.resolveHomeForWorkspace = func(string) (compozyconfig.HomePaths, error) {
 			return homePaths, nil
 		}
-		stdout, _, err := executeRootCommand(t, deps, "config", "validate", "-o", "json")
-		if err == nil {
+		stdout, _, commandErr := executeRootCommand(t, deps, "config", "validate", "-o", "json")
+		if commandErr == nil {
 			t.Fatal("config validate error = nil, want validation failure")
 		}
 
 		var record configValidateRecord
-		if err := json.Unmarshal([]byte(stdout), &record); err != nil {
-			t.Fatalf("json.Unmarshal(config validate validation) error = %v; stdout=%s", err, stdout)
+		if decodeErr := json.Unmarshal([]byte(stdout), &record); decodeErr != nil {
+			t.Fatalf(
+				"json.Unmarshal(config validate validation) error = %v; command error=%v; stdout=%s",
+				decodeErr,
+				commandErr,
+				stdout,
+			)
 		}
 		if record.Status != "invalid" {
 			t.Fatalf("Status = %q, want invalid", record.Status)
@@ -1767,4 +1777,36 @@ func TestCompletionCommandEmitsShellCompletion(t *testing.T) {
 			t.Fatalf("completion output missing %q\n%s", want, out[:min(len(out), 400)])
 		}
 	}
+}
+
+func TestGatewayConfigSetPathsExcludeSurfaceAuthority(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should expose only gateway ceiling and operating bounds [UT-004]", func(t *testing.T) {
+		t.Parallel()
+
+		kinds := gatewayConfigSetPathKinds()
+		want := map[string]configSetValueKind{
+			"gateway.enabled":                   configSetBool,
+			"gateway.private_port":              configSetInt,
+			"gateway.public_port":               configSetInt,
+			"gateway.pairing.ttl":               configSetDuration,
+			"gateway.pairing.max_pending":       configSetInt,
+			"gateway.stream_ticket.ttl":         configSetDuration,
+			"gateway.auth.rate_limit.window":    configSetDuration,
+			"gateway.auth.rate_limit.max_fails": configSetInt,
+			"gateway.verify.timeout":            configSetDuration,
+		}
+		if len(kinds) != len(want) {
+			t.Fatalf("gateway config-set path count = %d, want %d", len(kinds), len(want))
+		}
+		for path, wantKind := range want {
+			if gotKind, ok := kinds[path]; !ok || gotKind != wantKind {
+				t.Fatalf("gateway config-set kind for %q = (%d, %t), want (%d, true)", path, gotKind, ok, wantKind)
+			}
+		}
+		if _, ok := kinds["gateway.public_ui.enabled"]; ok {
+			t.Fatal("gateway.public_ui.enabled is config-settable, want durable policy authority only")
+		}
+	})
 }

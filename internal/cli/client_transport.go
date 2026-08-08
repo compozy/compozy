@@ -23,7 +23,9 @@ import (
 	"github.com/compozy/compozy/internal/sse"
 )
 
-func (c *unixSocketClient) doJSON(
+const clientTasksPath = "/api/tasks"
+
+func (c *daemonClient) doJSON(
 	ctx context.Context,
 	method string,
 	path string,
@@ -40,7 +42,7 @@ func (c *unixSocketClient) doJSON(
 	return c.decodeJSONResponse(ctx, method, path, response, responseBody)
 }
 
-func (c *unixSocketClient) doAgentJSON(
+func (c *daemonClient) doAgentJSON(
 	ctx context.Context,
 	method string,
 	path string,
@@ -58,7 +60,7 @@ func (c *unixSocketClient) doAgentJSON(
 	return c.decodeJSONResponse(ctx, method, path, response, responseBody)
 }
 
-func (c *unixSocketClient) decodeJSONResponse(
+func (c *daemonClient) decodeJSONResponse(
 	_ context.Context,
 	method string,
 	path string,
@@ -74,13 +76,20 @@ func (c *unixSocketClient) decodeJSONResponse(
 	return decodeJSONResponseBody(method, path, response.Body, responseBody)
 }
 
-func (c *unixSocketClient) doSSE(
+func (c *daemonClient) doSSE(
 	ctx context.Context,
 	path string,
 	query url.Values,
 	lastEventID string,
 	handler SSEHandler,
 ) (err error) {
+	if err := c.validateTargetOperation(http.MethodGet, path); err != nil {
+		return err
+	}
+	query, err = c.withFreshStreamTicket(ctx, query)
+	if err != nil {
+		return err
+	}
 	response, err := c.doRequestWithCredentialsAndClient(
 		ctx,
 		http.MethodGet,
@@ -103,7 +112,13 @@ func (c *unixSocketClient) doSSE(
 	if handler == nil {
 		return drainResponseBody(http.MethodGet, path, response.Body)
 	}
-	return decodeSSE(ctx, response.Body, handler)
+	if err := decodeSSE(ctx, response.Body, handler); err != nil {
+		if c.target.isRemoteGateway() && ctx.Err() == nil {
+			return newGatewayStreamInterruptedError(c.target, err)
+		}
+		return err
+	}
+	return nil
 }
 
 func mergeResponseBodyCloseError(
@@ -123,7 +138,7 @@ func mergeResponseBodyCloseError(
 	}
 }
 
-func (c *unixSocketClient) doRequest(
+func (c *daemonClient) doRequest(
 	ctx context.Context,
 	method string,
 	path string,
@@ -141,7 +156,7 @@ func (c *unixSocketClient) doRequest(
 	)
 }
 
-func (c *unixSocketClient) doRequestWithCredentials(
+func (c *daemonClient) doRequestWithCredentials(
 	ctx context.Context,
 	method string,
 	path string,
@@ -163,7 +178,7 @@ func (c *unixSocketClient) doRequestWithCredentials(
 }
 
 // doRequestWithCredentialsAndClient lets SSE streams opt out of the JSON request timeout.
-func (c *unixSocketClient) doRequestWithCredentialsAndClient(
+func (c *daemonClient) doRequestWithCredentialsAndClient(
 	ctx context.Context,
 	method string,
 	path string,
@@ -179,8 +194,11 @@ func (c *unixSocketClient) doRequestWithCredentialsAndClient(
 	if client == nil {
 		return nil, errors.New("cli: http client is required")
 	}
+	if err := c.validateTargetOperation(method, path); err != nil {
+		return nil, err
+	}
 
-	target := baseURL + path
+	target := c.target.requestBaseURL() + path
 	if len(query) > 0 {
 		target += "?" + query.Encode()
 	}
@@ -206,15 +224,89 @@ func (c *unixSocketClient) doRequestWithCredentialsAndClient(
 		req.Header.Set("Last-Event-ID", strings.TrimSpace(lastEventID))
 	}
 	setAgentIdentityHeaders(req, credentials)
+	if c.target.isRemoteGateway() && strings.TrimSpace(c.target.credential) != "" {
+		req.Header.Set("Authorization", "Bearer "+c.target.credential)
+	}
 
 	response, err := client.Do(req)
 	if err != nil {
-		if isDaemonUnavailableTransportError(err) {
-			return nil, newDaemonUnavailableError(c.socketPath, method, path, err)
+		if c.target.isRemoteGateway() {
+			return nil, newGatewayReachabilityError(c.target, err)
 		}
-		return nil, fmt.Errorf("cli: %s %s via %s: %w", method, path, c.socketPath, err)
+		if c.target.kind == clientTargetLocal && isDaemonUnavailableTransportError(err) {
+			return nil, newDaemonUnavailableError(c.target.socketPath, method, path, err)
+		}
+		return nil, fmt.Errorf("cli: %s %s via %s: %w", method, path, c.target.displayName(), err)
 	}
 	return response, nil
+}
+
+func (c *daemonClient) validateTargetOperation(method string, path string) error {
+	if c.target.isRemoteGateway() && isLocalOnlyClientOperation(method, path) {
+		return newGatewayLocalOnlyError(method, path)
+	}
+	return nil
+}
+
+func (c *daemonClient) withFreshStreamTicket(ctx context.Context, query url.Values) (url.Values, error) {
+	if c == nil || !c.target.isRemoteGateway() {
+		return query, nil
+	}
+	var ticket contract.GatewayStreamTicketPayload
+	if err := c.doJSON(
+		ctx,
+		http.MethodPost,
+		"/api/gateway/stream-tickets",
+		nil,
+		nil,
+		&ticket,
+	); err != nil {
+		return nil, fmt.Errorf("cli: acquire gateway stream ticket: %w", err)
+	}
+	if strings.TrimSpace(ticket.Ticket) == "" {
+		return nil, errors.New("cli: gateway returned an empty stream ticket")
+	}
+	values := url.Values{}
+	for key, entries := range query {
+		values[key] = append([]string(nil), entries...)
+	}
+	values.Set("ticket", strings.TrimSpace(ticket.Ticket))
+	return values, nil
+}
+
+func isLocalOnlyClientOperation(method string, path string) bool {
+	method = strings.ToUpper(strings.TrimSpace(method))
+	normalized := "/" + strings.TrimLeft(strings.TrimSpace(path), "/")
+	if hasAPIPathPrefix(normalized, "/api/agent") || hasAPIPathPrefix(normalized, "/api/internal") {
+		return true
+	}
+	if hasAPIPathPrefix(normalized, "/api/scheduler") {
+		return true
+	}
+	if hasAPIPathPrefix(normalized, "/api/resources") &&
+		(method == http.MethodPut || method == http.MethodPost ||
+			method == http.MethodPatch || method == http.MethodDelete) {
+		return true
+	}
+	if method == http.MethodGet || method == http.MethodHead || method == http.MethodOptions {
+		return false
+	}
+	return normalized == clientTasksPath || strings.HasPrefix(normalized, clientTasksPath+"/") ||
+		strings.HasPrefix(normalized, "/api/task-runs/") ||
+		strings.HasPrefix(normalized, "/api/task-reviews/") ||
+		strings.HasPrefix(normalized, "/api/runs/")
+}
+
+func hasAPIPathPrefix(path string, prefix string) bool {
+	return path == prefix || strings.HasPrefix(path, prefix+"/")
+}
+
+func newGatewayLocalOnlyError(method string, path string) error {
+	return &gatewayClientError{
+		code:       "gateway_local_only_operation",
+		statusCode: http.StatusForbidden,
+		message:    fmt.Sprintf("%s %s is available only through local UDS or an SSH forward", method, path),
+	}
 }
 
 func newDaemonUnavailableError(socketPath string, method string, path string, err error) error {
@@ -234,10 +326,10 @@ func newDaemonUnavailableError(socketPath string, method string, path string, er
 	},
 		diagnosticspkg.WithSuggestedCommand("compozy daemon start"),
 		diagnosticspkg.WithEvidence(map[string]any{
-			"socket_path": socketPath,
-			"method":      method,
-			"path":        path,
-			"cause":       err,
+			"socket_path":     socketPath,
+			"method":          method,
+			automationPathKey: path,
+			"cause":           err,
 		}),
 	)
 	return diagnosticspkg.NewStructuredError(item, err)
@@ -248,7 +340,7 @@ func isDaemonUnavailableTransportError(err error) bool {
 }
 
 // streamHTTPClient preserves long-lived streams when no dedicated client has been configured.
-func (c *unixSocketClient) streamHTTPClient() *http.Client {
+func (c *daemonClient) streamHTTPClient() *http.Client {
 	if c != nil && c.streamClient != nil {
 		return c.streamClient
 	}

@@ -1,6 +1,7 @@
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
+import { createStreamWebSocket } from "@/lib/ticketed-web-socket";
 import { workspaceKeys } from "@/systems/workspace";
 
 import {
@@ -28,8 +29,7 @@ export interface WindowManagerSocket {
 export type WindowManagerSocketFactory = (url: string) => WindowManagerSocket;
 
 function browserWindowManagerSocket(url: string): WindowManagerSocket {
-  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  return new WebSocket(`${protocol}//${window.location.host}${url}`);
+  return createStreamWebSocket(url);
 }
 
 export interface UseWindowManagerStreamOptions {

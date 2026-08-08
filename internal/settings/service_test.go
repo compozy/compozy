@@ -232,6 +232,25 @@ func TestGetSectionBuildsSupportedSections(t *testing.T) {
 			},
 		},
 		{
+			name:  SectionGateway,
+			label: "Should build the gateway section",
+			assert: func(t *testing.T, envelope SectionEnvelope) {
+				t.Helper()
+				if envelope.Gateway == nil {
+					t.Fatal("Gateway section = nil")
+				}
+				if envelope.Scope != ScopeGlobal {
+					t.Fatalf("Gateway scope = %q, want %q", envelope.Scope, ScopeGlobal)
+				}
+				if envelope.Gateway.Config.Enabled {
+					t.Fatal("Gateway enabled = true, want secure disabled default")
+				}
+				if envelope.Gateway.Config.Pairing.MaxPending != 8 {
+					t.Fatalf("Gateway max pending = %d, want 8", envelope.Gateway.Config.Pairing.MaxPending)
+				}
+			},
+		},
+		{
 			name:  SectionWindowManager,
 			label: "Should build the window-manager section",
 			assert: func(t *testing.T, envelope SectionEnvelope) {

@@ -115,6 +115,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/automation/triggers",
 		"GET /api/automation/triggers/:id",
 		"GET /api/automation/triggers/:id/runs",
+		"GET /api/bridge-callbacks/:id",
 		"GET /api/workspaces/:workspace_id/automation/suggestions",
 		"GET /api/bridges",
 		"GET /api/bridges/:id",
@@ -440,6 +441,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"POST /api/tools/:id/approvals",
 		"POST /api/tools/:id/invoke",
 		"POST /api/tools/search",
+		"POST /api/bridge-callbacks/:id",
 		"POST /api/webhooks/global/:endpoint",
 		"POST /api/webhooks/workspaces/:workspace_id/:endpoint",
 		"POST /api/workspaces",
@@ -469,6 +471,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"DELETE /api/workspaces/:workspace_id/loops/:name/input-defaults/:key",
 		"DELETE /api/agents/:name",
 		"DELETE /api/workspaces/:workspace_id/network/channels/:channel/subscriptions/:session_id",
+		"HEAD /api/bridge-callbacks/:id",
 	}
 	sort.Strings(want)
 

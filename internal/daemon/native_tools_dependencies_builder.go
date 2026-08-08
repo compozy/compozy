@@ -40,9 +40,16 @@ func (d *Daemon) nativeToolsDeps(
 		MemoryProviders:            state.deps.MemoryProviders,
 		MemorySessionLedger:        state.deps.MemorySessionLedger,
 		Bridges:                    state.deps.Bridges,
-		HomePaths:                  d.homePaths,
-		Observer:                   state.observer,
-		HookBindings:               state.hookBindings,
+		Gateway: func() core.GatewayService {
+			if state.deps.Gateway == nil {
+				return nil
+			}
+			return state.deps.Gateway
+		},
+		GatewayPermissionMode: nativeGatewayPermissionModeSource(state.sessions),
+		HomePaths:             d.homePaths,
+		Observer:              state.observer,
+		HookBindings:          state.hookBindings,
 		AgentCatalog: agentCatalogDependency(state.agentCatalog, agentSidecarCatalogs{
 			soul:      state.soulCatalog,
 			heartbeat: state.heartbeatCatalog,

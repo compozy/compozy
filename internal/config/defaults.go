@@ -12,11 +12,8 @@ const DefaultMCPClientMetadataURL = "https://compozy.com/.well-known/mcp-client.
 // DefaultWithHome returns the built-in default configuration for the supplied Compozy home.
 func DefaultWithHome(homePaths HomePaths) Config {
 	return Config{
-		Daemon: defaultDaemonConfig(homePaths),
-		HTTP: HTTPConfig{
-			Host: "localhost",
-			Port: 2123,
-		},
+		Daemon:        defaultDaemonConfig(homePaths),
+		HTTP:          HTTPConfig{Host: "localhost", Port: 2123},
 		WindowManager: DefaultWindowManagerConfig(),
 		Defaults: DefaultsConfig{
 			Agent: DefaultAgentName,
@@ -86,6 +83,7 @@ func DefaultWithHome(homePaths HomePaths) Config {
 		Goals:   DefaultGoalsConfig(),
 		Task:    DefaultTaskConfig(),
 		Network: DefaultNetworkConfig(),
+		Gateway: defaultGatewayConfig(homePaths),
 		Autonomy: AutonomyConfig{
 			BlockRecurrenceLimit: DefaultBlockRecurrenceLimit,
 			Scheduler:            DefaultSchedulerConfig(),

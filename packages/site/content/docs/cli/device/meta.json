@@ -1,0 +1,4 @@
+{
+    "title": "Device",
+    "pages": ["index", "list", "rename", "revoke"]
+}

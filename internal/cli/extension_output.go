@@ -238,7 +238,7 @@ func extensionRuntimeSummary(item ExtensionRecord) string {
 		)
 	}
 	if !item.Enabled {
-		return "disabled"
+		return daemonDisabledKey
 	}
 	if item.DaemonRunning && strings.EqualFold(strings.TrimSpace(item.Health), "healthy") {
 		return "running and healthy"

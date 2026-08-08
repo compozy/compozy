@@ -12,6 +12,7 @@ const (
 	descriptorKeywordStatus      = "status"
 	descriptorKeywordCreate      = "create"
 	descriptorKeywordDiagnostics = "diagnostics"
+	descriptorKeywordAudit       = "audit"
 	descriptorKeywordSearch      = "search"
 	descriptorKeywordSnapshot    = "snapshot"
 	descriptorKeywordUpdate      = "update"
@@ -40,6 +41,7 @@ func NativeDescriptors() []toolspkg.Descriptor {
 		memoryAdminDescriptors(),
 		observeDescriptors(),
 		bridgeDescriptors(),
+		gatewayDescriptors(),
 		taskDescriptors(),
 		autonomyDescriptors(),
 		configDescriptors(),

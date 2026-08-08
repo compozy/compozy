@@ -10,7 +10,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 )
 
-func (c *unixSocketClient) ListExtensions(ctx context.Context) ([]ExtensionRecord, error) {
+func (c *daemonClient) ListExtensions(ctx context.Context) ([]ExtensionRecord, error) {
 	var response struct {
 		Extensions []ExtensionRecord `json:"extensions"`
 	}
@@ -20,7 +20,7 @@ func (c *unixSocketClient) ListExtensions(ctx context.Context) ([]ExtensionRecor
 	return response.Extensions, nil
 }
 
-func (c *unixSocketClient) SearchExtensions(
+func (c *daemonClient) SearchExtensions(
 	ctx context.Context,
 	request ExtensionSearchRequest,
 ) (ExtensionSearchRecord, error) {
@@ -40,7 +40,7 @@ func (c *unixSocketClient) SearchExtensions(
 	return response, nil
 }
 
-func (c *unixSocketClient) InstallExtension(
+func (c *daemonClient) InstallExtension(
 	ctx context.Context,
 	request InstallExtensionRequest,
 ) (ExtensionRecord, error) {
@@ -53,7 +53,7 @@ func (c *unixSocketClient) InstallExtension(
 	return response.Extension, nil
 }
 
-func (c *unixSocketClient) UpdateExtension(
+func (c *daemonClient) UpdateExtension(
 	ctx context.Context,
 	name string,
 	request UpdateExtensionRequest,
@@ -74,7 +74,7 @@ func (c *unixSocketClient) UpdateExtension(
 	return response.Update, nil
 }
 
-func (c *unixSocketClient) UpdateExtensions(
+func (c *daemonClient) UpdateExtensions(
 	ctx context.Context,
 	request UpdateExtensionsRequest,
 ) ([]ExtensionUpdateRecord, error) {
@@ -85,7 +85,7 @@ func (c *unixSocketClient) UpdateExtensions(
 	return append([]ExtensionUpdateRecord(nil), response.Updates...), nil
 }
 
-func (c *unixSocketClient) RemoveExtension(ctx context.Context, name string) (ManagedExtensionRemoveRecord, error) {
+func (c *daemonClient) RemoveExtension(ctx context.Context, name string) (ManagedExtensionRemoveRecord, error) {
 	var response struct {
 		Extension ManagedExtensionRemoveRecord `json:"extension"`
 	}
@@ -102,7 +102,7 @@ func (c *unixSocketClient) RemoveExtension(ctx context.Context, name string) (Ma
 	return response.Extension, nil
 }
 
-func (c *unixSocketClient) EnableExtension(
+func (c *daemonClient) EnableExtension(
 	ctx context.Context,
 	name string,
 	request EnableExtensionRequest,
@@ -115,11 +115,11 @@ func (c *unixSocketClient) EnableExtension(
 	return response, nil
 }
 
-func (c *unixSocketClient) DisableExtension(ctx context.Context, name string) (ExtensionRecord, error) {
+func (c *daemonClient) DisableExtension(ctx context.Context, name string) (ExtensionRecord, error) {
 	return c.extensionAction(ctx, strings.TrimSpace(name), "disable")
 }
 
-func (c *unixSocketClient) ExtensionStatus(ctx context.Context, name string) (ExtensionRecord, error) {
+func (c *daemonClient) ExtensionStatus(ctx context.Context, name string) (ExtensionRecord, error) {
 	var response struct {
 		Extension ExtensionRecord `json:"extension"`
 	}
@@ -136,7 +136,7 @@ func (c *unixSocketClient) ExtensionStatus(ctx context.Context, name string) (Ex
 	return response.Extension, nil
 }
 
-func (c *unixSocketClient) ExtensionProvenance(ctx context.Context, name string) (ExtensionProvenanceRecord, error) {
+func (c *daemonClient) ExtensionProvenance(ctx context.Context, name string) (ExtensionProvenanceRecord, error) {
 	var response struct {
 		Provenance ExtensionProvenanceRecord `json:"provenance"`
 	}
@@ -153,7 +153,7 @@ func (c *unixSocketClient) ExtensionProvenance(ctx context.Context, name string)
 	return response.Provenance, nil
 }
 
-func (c *unixSocketClient) ExtensionInventory(ctx context.Context, name string) (ExtensionInventoryRecord, error) {
+func (c *daemonClient) ExtensionInventory(ctx context.Context, name string) (ExtensionInventoryRecord, error) {
 	var response ExtensionInventoryRecord
 	path := extensionPath(name, "inventory")
 	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
@@ -162,7 +162,7 @@ func (c *unixSocketClient) ExtensionInventory(ctx context.Context, name string) 
 	return response, nil
 }
 
-func (c *unixSocketClient) PreviewExtensionEnable(
+func (c *daemonClient) PreviewExtensionEnable(
 	ctx context.Context,
 	name string,
 ) (ExtensionEnablePreviewRecord, error) {

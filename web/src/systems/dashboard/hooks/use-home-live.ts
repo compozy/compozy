@@ -1,6 +1,7 @@
 import { useEffect, useEffectEvent, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
+import { createStreamEventSource } from "@/lib/ticketed-event-source";
 import { tasksKeys } from "@/systems/tasks";
 
 import { buildHomeLogsStreamUrl } from "../adapters/overview-api";
@@ -28,7 +29,7 @@ interface UseHomeLiveOptions {
 }
 
 function defaultEventSourceFactory(url: string): HomeLiveEventSource {
-  return new EventSource(url);
+  return createStreamEventSource(url);
 }
 
 type QueryClient = ReturnType<typeof useQueryClient>;

@@ -18,7 +18,7 @@ import (
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 )
 
-func (c *unixSocketClient) CreateSession(ctx context.Context, request CreateSessionRequest) (SessionRecord, error) {
+func (c *daemonClient) CreateSession(ctx context.Context, request CreateSessionRequest) (SessionRecord, error) {
 	var response struct {
 		Session SessionRecord `json:"session"`
 	}
@@ -28,7 +28,7 @@ func (c *unixSocketClient) CreateSession(ctx context.Context, request CreateSess
 	return response.Session, nil
 }
 
-func (c *unixSocketClient) GetSessionHealth(ctx context.Context, id string) (SessionHealthRecord, error) {
+func (c *daemonClient) GetSessionHealth(ctx context.Context, id string) (SessionHealthRecord, error) {
 	var response struct {
 		Health SessionHealthRecord `json:"health"`
 	}
@@ -42,7 +42,7 @@ func (c *unixSocketClient) GetSessionHealth(ctx context.Context, id string) (Ses
 	return response.Health, nil
 }
 
-func (c *unixSocketClient) GetSessionStatus(ctx context.Context, id string) (SessionStatusRecord, error) {
+func (c *daemonClient) GetSessionStatus(ctx context.Context, id string) (SessionStatusRecord, error) {
 	var response SessionStatusRecord
 	path, err := c.sessionScopedPath(ctx, id, "/status")
 	if err != nil {
@@ -54,7 +54,7 @@ func (c *unixSocketClient) GetSessionStatus(ctx context.Context, id string) (Ses
 	return response, nil
 }
 
-func (c *unixSocketClient) InspectSession(
+func (c *daemonClient) InspectSession(
 	ctx context.Context,
 	id string,
 	query SessionInspectQuery,
@@ -70,7 +70,7 @@ func (c *unixSocketClient) InspectSession(
 	return response, nil
 }
 
-func (c *unixSocketClient) RefreshSessionSoul(
+func (c *daemonClient) RefreshSessionSoul(
 	ctx context.Context,
 	id string,
 	request SessionSoulRefreshRequest,
@@ -86,7 +86,7 @@ func (c *unixSocketClient) RefreshSessionSoul(
 	return response, nil
 }
 
-func (c *unixSocketClient) StopSession(ctx context.Context, id string) error {
+func (c *daemonClient) StopSession(ctx context.Context, id string) error {
 	path, err := c.sessionScopedPath(ctx, id, "/stop")
 	if err != nil {
 		return err
@@ -101,15 +101,15 @@ func (c *unixSocketClient) StopSession(ctx context.Context, id string) error {
 	)
 }
 
-func (c *unixSocketClient) ArchiveSession(ctx context.Context, id string) (SessionRecord, error) {
+func (c *daemonClient) ArchiveSession(ctx context.Context, id string) (SessionRecord, error) {
 	return c.setSessionArchived(ctx, id, "/archive")
 }
 
-func (c *unixSocketClient) UnarchiveSession(ctx context.Context, id string) (SessionRecord, error) {
+func (c *daemonClient) UnarchiveSession(ctx context.Context, id string) (SessionRecord, error) {
 	return c.setSessionArchived(ctx, id, "/unarchive")
 }
 
-func (c *unixSocketClient) setSessionArchived(
+func (c *daemonClient) setSessionArchived(
 	ctx context.Context,
 	id string,
 	suffix string,
@@ -125,7 +125,7 @@ func (c *unixSocketClient) setSessionArchived(
 	return response.Session, nil
 }
 
-func (c *unixSocketClient) DeleteSession(ctx context.Context, id string) error {
+func (c *daemonClient) DeleteSession(ctx context.Context, id string) error {
 	path, err := c.sessionScopedPath(ctx, id, "")
 	if err != nil {
 		return err
@@ -140,7 +140,7 @@ func (c *unixSocketClient) DeleteSession(ctx context.Context, id string) error {
 	)
 }
 
-func (c *unixSocketClient) ResumeSession(ctx context.Context, id string) (SessionRecord, error) {
+func (c *daemonClient) ResumeSession(ctx context.Context, id string) (SessionRecord, error) {
 	var response struct {
 		Session SessionRecord `json:"session"`
 	}
@@ -161,7 +161,7 @@ func (c *unixSocketClient) ResumeSession(ctx context.Context, id string) (Sessio
 	return response.Session, nil
 }
 
-func (c *unixSocketClient) SetSessionRuntime(
+func (c *daemonClient) SetSessionRuntime(
 	ctx context.Context,
 	id string,
 	request SetSessionRuntimeRequest,
@@ -177,7 +177,7 @@ func (c *unixSocketClient) SetSessionRuntime(
 	return response.Session, nil
 }
 
-func (c *unixSocketClient) ClearSessionRuntime(
+func (c *daemonClient) ClearSessionRuntime(
 	ctx context.Context,
 	id string,
 	expectedRevision int64,
@@ -194,7 +194,7 @@ func (c *unixSocketClient) ClearSessionRuntime(
 	return response.Session, nil
 }
 
-func (c *unixSocketClient) SessionRecap(ctx context.Context, id string, limit int) (SessionRecapRecord, error) {
+func (c *daemonClient) SessionRecap(ctx context.Context, id string, limit int) (SessionRecapRecord, error) {
 	var response struct {
 		Recap SessionRecapRecord `json:"recap"`
 	}
@@ -212,7 +212,7 @@ func (c *unixSocketClient) SessionRecap(ctx context.Context, id string, limit in
 	return response.Recap, nil
 }
 
-func (c *unixSocketClient) RepairSession(
+func (c *daemonClient) RepairSession(
 	ctx context.Context,
 	id string,
 	query SessionRepairQuery,
@@ -237,7 +237,7 @@ func (c *unixSocketClient) RepairSession(
 	return response.Repair, nil
 }
 
-func (c *unixSocketClient) RewindSession(
+func (c *daemonClient) RewindSession(
 	ctx context.Context,
 	id string,
 	request SessionRewindRequest,
@@ -253,7 +253,7 @@ func (c *unixSocketClient) RewindSession(
 	return response, nil
 }
 
-func (c *unixSocketClient) GetSessionTranscript(
+func (c *daemonClient) GetSessionTranscript(
 	ctx context.Context,
 	id string,
 ) (SessionTranscriptRecord, error) {
@@ -270,7 +270,7 @@ func (c *unixSocketClient) GetSessionTranscript(
 	return response, nil
 }
 
-func (c *unixSocketClient) ApproveSession(
+func (c *daemonClient) ApproveSession(
 	ctx context.Context,
 	id string,
 	request SessionApprovalRequest,
@@ -286,7 +286,7 @@ func (c *unixSocketClient) ApproveSession(
 	return response, nil
 }
 
-func (c *unixSocketClient) PromptSession(ctx context.Context, id string, message string) ([]AgentEventRecord, error) {
+func (c *daemonClient) PromptSession(ctx context.Context, id string, message string) ([]AgentEventRecord, error) {
 	messageID, err := store.NewID("msg")
 	if err != nil {
 		return nil, fmt.Errorf("cli: generate prompt message id: %w", err)
@@ -307,7 +307,7 @@ func (c *unixSocketClient) PromptSession(ctx context.Context, id string, message
 	return record.Events, nil
 }
 
-func (c *unixSocketClient) SendSessionPrompt(
+func (c *daemonClient) SendSessionPrompt(
 	ctx context.Context,
 	id string,
 	request SessionPromptRequest,
@@ -321,7 +321,7 @@ func (c *unixSocketClient) SendSessionPrompt(
 	return c.doSessionPrompt(ctx, http.MethodPost, path, query, request)
 }
 
-func (c *unixSocketClient) SteerSessionPrompt(
+func (c *daemonClient) SteerSessionPrompt(
 	ctx context.Context,
 	id string,
 	request contract.SteerPromptRequest,
@@ -333,7 +333,7 @@ func (c *unixSocketClient) SteerSessionPrompt(
 	return c.doSessionPrompt(ctx, http.MethodPost, path, nil, request)
 }
 
-func (c *unixSocketClient) SessionEvents(
+func (c *daemonClient) SessionEvents(
 	ctx context.Context,
 	id string,
 	query SessionEventQuery,
@@ -358,7 +358,7 @@ func (c *unixSocketClient) SessionEvents(
 	return response.Events, nil
 }
 
-func (c *unixSocketClient) StreamSessionEvents(
+func (c *daemonClient) StreamSessionEvents(
 	ctx context.Context,
 	id string,
 	query SessionEventQuery,
@@ -380,7 +380,7 @@ func (c *unixSocketClient) StreamSessionEvents(
 	)
 }
 
-func (c *unixSocketClient) SessionHistory(
+func (c *daemonClient) SessionHistory(
 	ctx context.Context,
 	id string,
 	query SessionEventQuery,
@@ -405,7 +405,7 @@ func (c *unixSocketClient) SessionHistory(
 	return response.History, nil
 }
 
-func (c *unixSocketClient) BindHostedMCP(
+func (c *daemonClient) BindHostedMCP(
 	ctx context.Context,
 	request mcppkg.HostedBindRequest,
 ) (mcppkg.HostedBindResponse, error) {
@@ -416,7 +416,7 @@ func (c *unixSocketClient) BindHostedMCP(
 	return response, nil
 }
 
-func (c *unixSocketClient) HostedMCPProjection(
+func (c *daemonClient) HostedMCPProjection(
 	ctx context.Context,
 	bindID string,
 ) (mcppkg.HostedProjectionResponse, error) {
@@ -429,7 +429,7 @@ func (c *unixSocketClient) HostedMCPProjection(
 	return response, nil
 }
 
-func (c *unixSocketClient) StreamHostedMCPProjection(
+func (c *daemonClient) StreamHostedMCPProjection(
 	ctx context.Context,
 	bindID string,
 	lastDigest string,
@@ -464,7 +464,7 @@ func (c *unixSocketClient) StreamHostedMCPProjection(
 	)
 }
 
-func (c *unixSocketClient) CallHostedMCP(
+func (c *daemonClient) CallHostedMCP(
 	ctx context.Context,
 	request mcppkg.HostedCallRequest,
 ) (mcppkg.HostedCallResponse, error) {
@@ -482,7 +482,7 @@ func (c *unixSocketClient) CallHostedMCP(
 	return response, nil
 }
 
-func (c *unixSocketClient) ReleaseHostedMCP(
+func (c *daemonClient) ReleaseHostedMCP(
 	ctx context.Context,
 	request mcppkg.HostedReleaseRequest,
 ) error {

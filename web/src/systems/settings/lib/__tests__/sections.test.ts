@@ -19,6 +19,7 @@ describe("settings sections metadata", () => {
       "skills",
       "automation",
       "network",
+      "gateway",
       "observability",
       "hooks",
       "extensions",

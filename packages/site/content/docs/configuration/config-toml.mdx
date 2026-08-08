@@ -93,6 +93,7 @@ Unknown TOML keys are errors. Sandbox profiles are implemented under `[sandboxes
 | `[task.recovery]`                    | Gates agent access to task-run force recovery verbs.                                 | agents may force release, force fail, and retry                                                       |
 | `[[hooks.declarations]]`             | Config-defined runtime hooks.                                                        | empty list                                                                                            |
 | `[network]`                          | Network availability, protocol safety, and bounded Live defaults/limits.             | enabled; Local remains the execution default                                                          |
+| `[gateway]`                          | Remote gateway ceiling, listener ports, and bounded security tunables.               | disabled; both tier ports assigned by the operating system                                            |
 
 ## Load And Merge Order
 
@@ -825,6 +826,25 @@ max_output_tokens = 200000
 max_wake_depth = 5
 min_coalesce_window = "100ms"
 max_coalesce_window = "5s"
+
+[gateway]
+enabled = false
+private_port = 0
+public_port = 0
+
+[gateway.pairing]
+ttl = "5m"
+max_pending = 8
+
+[gateway.stream_ticket]
+ttl = "30s"
+
+[gateway.auth.rate_limit]
+window = "60s"
+max_fails = 10
+
+[gateway.verify]
+timeout = "10s"
 ```
 
 ## `[daemon]`
@@ -2254,6 +2274,57 @@ Removed keys are rejected as unknown: `network.default_channel`, `network.port`,
 
 Workspace coordination is not a TOML key. Manage its future-run default with
 `compozy network coordination status|enable|disable` or the equivalent HTTP/UDS surface.
+
+## `[gateway]`
+
+Gateway config sets a local safety ceiling and bounded runtime controls. Exposure intent is stored in
+the Global DB; no config key can enable a provider, tier, or surface. Setting `enabled = false`
+disables all gateway tiers during live reload.
+
+| Field          | Type    | Default | Validation                 | Lifecycle        |
+| -------------- | ------- | ------- | -------------------------- | ---------------- |
+| `enabled`      | boolean | `false` | `true` or `false`          | Live             |
+| `private_port` | integer | `0`     | `0` or `1` through `65535` | Restart required |
+| `public_port`  | integer | `0`     | `0` or `1` through `65535` | Restart required |
+
+Port `0` asks the operating system to assign an available loopback port. Gateway tier listeners do
+not bind non-loopback addresses.
+
+| Field                       | Type     | Default | Validation | Lifecycle |
+| --------------------------- | -------- | ------- | ---------- | --------- |
+| `pairing.ttl`               | duration | `5m`    | Positive   | Live      |
+| `pairing.max_pending`       | integer  | `8`     | Positive   | Live      |
+| `stream_ticket.ttl`         | duration | `30s`   | Positive   | Live      |
+| `auth.rate_limit.window`    | duration | `60s`   | Positive   | Live      |
+| `auth.rate_limit.max_fails` | integer  | `10`    | Positive   | Live      |
+| `verify.timeout`            | duration | `10s`   | Positive   | Live      |
+
+`gateway.public_ui.enabled` does not exist. Public operator UI reachability is an explicit,
+consented database transition, not a config value.
+
+### Client connection profiles
+
+`active_connection` and `[[gateway.connections]]` describe how _this_ machine reaches a remote
+daemon. They are written by `compozy connect` on the client side and are not read by a daemon that
+is serving a gateway.
+
+| Field                             | Type    | Default | Validation                                    | Lifecycle |
+| --------------------------------- | ------- | ------- | --------------------------------------------- | --------- |
+| `active_connection`               | string  | empty   | Name of a declared connection                 | Live      |
+| `connections[].name`              | string  | —       | Unique, non-empty                             | Live      |
+| `connections[].scheme`            | string  | —       | `https` or `ssh`                              | Live      |
+| `connections[].host`              | string  | —       | Non-empty host                                | Live      |
+| `connections[].port`              | integer | —       | `1` through `65535`                           | Live      |
+| `connections[].credential_file`   | string  | empty   | `<name>.cred` for an `https` connection       | Live      |
+| `connections[].default_workspace` | string  | empty   | Workspace id                                  | Live      |
+| `connections[].remote_home`       | string  | empty   | Remote `COMPOZY_HOME`; `ssh` connections only | Live      |
+
+A connection entry holds no secret: the device credential lives in the referenced file with
+owner-only permissions. Copying these entries to another machine does not transfer identity — use
+`compozy connect export` and `compozy connect import`.
+
+See the [Remote Gateway runbook](/docs/operations/remote-gateway) for the operator flows and the
+[Gateway Threat Model](/docs/operations/gateway-threat-model) for what each tier exposes.
 
 ## Related Pages
 

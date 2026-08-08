@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-func (c *unixSocketClient) ListExtensionCommands(
+func (c *daemonClient) ListExtensionCommands(
 	ctx context.Context,
 	extension string,
 	workspaceID string,

@@ -371,7 +371,7 @@ func newReferenceHarness(t *testing.T, repoRoot string) *referenceHarness {
 		harness.daemonErrCh <- daemon.Run(ctx)
 	}()
 
-	client, err := cli.NewClient(homePaths.DaemonSocket)
+	client, err := cli.NewClient(cli.LocalClientTarget(homePaths.DaemonSocket))
 	if err != nil {
 		t.Fatalf("cli.NewClient() error = %v", err)
 	}

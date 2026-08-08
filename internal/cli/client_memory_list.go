@@ -23,7 +23,7 @@ type MemoryListQuery struct {
 // MemoryListRecord wraps one Memory v2 header page.
 type MemoryListRecord = contract.MemoryListResponse
 
-func (c *unixSocketClient) ListMemory(
+func (c *daemonClient) ListMemory(
 	ctx context.Context,
 	query MemoryListQuery,
 ) (MemoryListRecord, error) {

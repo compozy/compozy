@@ -20,8 +20,8 @@ func TestUnixSocketClientNetworkMethods(t *testing.T) {
 		t.Parallel()
 
 		credentials := agentidentity.Credentials{SessionID: "sess-deny", AgentName: "qa-deny-all"}
-		client := &unixSocketClient{
-			socketPath: "/tmp/compozy.sock",
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
 			httpClient: &http.Client{
 				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 					assertAgentRequestHeaders(t, req, credentials)
@@ -70,8 +70,8 @@ func TestUnixSocketClientNetworkMethods(t *testing.T) {
 
 		directID := "direct_99401d24bee62651d189e5a561785466"
 		credentials := agentidentity.Credentials{SessionID: "sess-a", AgentName: "coder"}
-		client := &unixSocketClient{
-			socketPath: "/tmp/compozy.sock",
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
 			httpClient: &http.Client{
 				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 					if strings.HasPrefix(req.URL.Path, "/api/workspaces/") {

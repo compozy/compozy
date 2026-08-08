@@ -6,6 +6,7 @@ import {
   Palette,
   PanelTop,
   Puzzle,
+  Radio,
   Route,
   SlidersHorizontal,
   Webhook,
@@ -91,6 +92,13 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDescriptor[] = [
     icon: Network,
     group: "runtime",
     keywords: "peers channels listener delivery embedded port",
+  },
+  {
+    slug: "gateway",
+    label: "Gateway",
+    icon: Radio,
+    group: "system",
+    keywords: "remote reachability exposure overlay public pairing devices revoke audit ingress",
   },
   {
     slug: "observability",

@@ -177,6 +177,37 @@ func TestRegistryMetadata(t *testing.T) {
 		}
 	})
 
+	t.Run("Should UT-150 expose every canonical gateway lifecycle event", func(t *testing.T) {
+		t.Parallel()
+
+		for _, test := range []struct {
+			name    string
+			family  string
+			outcome Outcome
+		}{
+			{name: GatewayExposureChanged, family: "gateway.exposure", outcome: OutcomeInfo},
+			{name: GatewayConsentRecorded, family: "gateway.consent", outcome: OutcomeSuccess},
+			{name: GatewayDevicePaired, family: "gateway.device", outcome: OutcomeSuccess},
+			{name: GatewayDeviceRevoked, family: "gateway.device", outcome: OutcomeWarning},
+			{name: GatewayProviderStateChanged, family: "gateway.provider", outcome: OutcomeInfo},
+			{name: GatewayEndpointVerified, family: "gateway.endpoint", outcome: OutcomeSuccess},
+			{name: GatewayEndpointRejected, family: "gateway.endpoint", outcome: OutcomeFailure},
+			{name: GatewayIngressBound, family: "gateway.ingress", outcome: OutcomeSuccess},
+			{name: GatewayIngressUnbound, family: "gateway.ingress", outcome: OutcomeWarning},
+			{name: GatewayAuditRun, family: "gateway.audit", outcome: OutcomeInfo},
+		} {
+			metadata, ok := Lookup(test.name)
+			if !ok {
+				t.Fatalf("Lookup(%q) = false", test.name)
+			}
+			if metadata.Family != test.family || metadata.Component != ComponentGateway ||
+				metadata.Outcome != test.outcome || !metadata.GlobalScope || !metadata.EmitsToLogs ||
+				metadata.NotificationEligible {
+				t.Fatalf("gateway metadata for %q = %#v", test.name, metadata)
+			}
+		}
+	})
+
 	t.Run("Should keep memory operation projections out of direct global writes", func(t *testing.T) {
 		t.Parallel()
 

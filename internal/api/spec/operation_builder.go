@@ -12,6 +12,13 @@ func buildOperation(schemas openapi3.Schemas, spec OperationSpec) (*openapi3.Ope
 	operation.Summary = spec.Summary
 	operation.Tags = append([]string(nil), spec.Tags...)
 	operation.Extensions = map[string]any{"x-compozy-transports": spec.Transports}
+	if len(spec.Auth) > 0 {
+		auth := make(map[string]string, len(spec.Auth))
+		for transport, mode := range spec.Auth {
+			auth[string(transport)] = string(mode)
+		}
+		operation.Extensions["x-compozy-auth"] = auth
+	}
 
 	for _, param := range spec.Parameters {
 		operation.AddParameter(buildParameter(param))
@@ -32,6 +39,10 @@ func buildOperation(schemas openapi3.Schemas, spec OperationSpec) (*openapi3.Ope
 		built, err := buildResponse(schemas, response)
 		if err != nil {
 			return nil, err
+		}
+		if response.Default {
+			operation.Responses.Set("default", &openapi3.ResponseRef{Value: built})
+			continue
 		}
 		operation.AddResponse(response.Status, built)
 	}

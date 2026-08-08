@@ -200,6 +200,10 @@ func (s *service) populateSectionEnvelope(
 			return err
 		}
 		envelope.Network = &section
+	case SectionGateway:
+		envelope.Scope = ScopeGlobal
+		section := GatewaySection{Config: cfg.Gateway}
+		envelope.Gateway = &section
 	case SectionWindowManager:
 		envelope.Scope = ScopeGlobal
 		section := buildWindowManagerSection(cfg)

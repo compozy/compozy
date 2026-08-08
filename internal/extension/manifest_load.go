@@ -70,7 +70,7 @@ func (m *Manifest) Validate() error {
 	if err := validateEnvRequirements("requires_env", m.RequiresEnv); err != nil {
 		return err
 	}
-	if err := m.NetworkParticipation.Validate("network_participation"); err != nil {
+	if err := m.NetworkParticipation.Validate(manifestFieldNetworkParticipation); err != nil {
 		return err
 	}
 	if err := validateManifestEnvMaps(
@@ -90,7 +90,7 @@ func (m *Manifest) Validate() error {
 	if err := validateManifestCommandResources(m); err != nil {
 		return err
 	}
-	if err := validateDottedIdentifiers("capabilities.provides", m.Capabilities.Provides, false); err != nil {
+	if err := validateDottedIdentifiers(manifestFieldCapabilitiesProvides, m.Capabilities.Provides, false); err != nil {
 		return err
 	}
 	if err := validateProvideCapabilities(m.Capabilities.Provides); err != nil {

@@ -264,16 +264,24 @@ func (c FireLimitConfig) Validate(path string) error {
 }
 
 func validateWebhookTriggerFields(t Trigger, path string) error {
-	if strings.TrimSpace(t.EndpointSlug) == "" && strings.TrimSpace(t.WebhookID) == "" {
-		return errors.New(
-			nestedPath(path, "endpoint_slug") + " or " +
-				nestedPath(path, "webhook_id") +
-				" is required when event is \"webhook\"",
-		)
+	endpointSlug := strings.TrimSpace(t.EndpointSlug)
+	if endpointSlug == "" {
+		return errors.New(nestedPath(path, "endpoint_slug") + " is required when event is \"webhook\"")
+	}
+	if !isWebhookEndpointSlug(endpointSlug) {
+		return errors.New(nestedPath(path, "endpoint_slug") + " must be a URL-safe path segment")
 	}
 	webhookID := strings.TrimSpace(t.WebhookID)
-	if webhookID != "" && !strings.HasPrefix(webhookID, webhookIDPrefix) {
-		return fmt.Errorf("%s must start with %q: %q", nestedPath(path, "webhook_id"), webhookIDPrefix, webhookID)
+	if webhookID != "" && !isWebhookEndpointID(webhookID) {
+		if !strings.HasPrefix(webhookID, webhookIDPrefix) {
+			return fmt.Errorf(
+				"%s must start with %q: %q",
+				nestedPath(path, "webhook_id"),
+				webhookIDPrefix,
+				webhookID,
+			)
+		}
+		return errors.New(nestedPath(path, "webhook_id") + " must be a URL-safe path segment")
 	}
 	if strings.TrimSpace(t.WebhookSecretRef) == "" {
 		return errors.New(nestedPath(path, "webhook_secret_ref") + " is required when event is \"webhook\"")

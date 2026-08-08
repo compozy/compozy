@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { resetGatewayStreamAuth } from "@/lib/gateway-stream-auth";
 import { sessionStore } from "@/systems/session/stores/session-store";
 import type { SessionGoalCommandResult, SessionGoalSnapshot } from "@/systems/session/types";
 
@@ -175,12 +176,18 @@ describe("SessionGoalHeader", () => {
     goalReads = 0;
     commands = [];
     FakeEventSource.latest = null;
+    resetGatewayStreamAuth();
     sessionStore.trigger.sessionInteractionRemoved({ sessionId: SESSION_ID });
     vi.stubGlobal("EventSource", FakeEventSource);
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         const pathname = path(input);
+        // The shared stream transport asks whether this listener needs a
+        // ticket; a local listener does not register the minting route.
+        if (pathname.endsWith("/api/gateway/stream-tickets")) {
+          return Response.json({ error: "not found" }, { status: 404 });
+        }
         if (pathname.endsWith(`/sessions/${SESSION_ID}/goal`)) {
           goalReads += 1;
           return Response.json({ goal: visibleGoal });
@@ -231,13 +238,14 @@ describe("SessionGoalHeader", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    resetGatewayStreamAuth();
   });
 
   it("Should merge live turns, invalidate only on status, and pause from the window head", async () => {
     renderHeader();
     expect(await screen.findByTestId("session-goal-header")).toBeInTheDocument();
     expect(goalReads).toBe(1);
-    expect(FakeEventSource.latest?.url).toContain("/loop-runs/run_1/events");
+    await waitFor(() => expect(FakeEventSource.latest?.url).toContain("/loop-runs/run_1/events"));
     await waitFor(() =>
       expect(FakeEventSource.latest?.listeners.has("goal_turn_started")).toBe(true)
     );

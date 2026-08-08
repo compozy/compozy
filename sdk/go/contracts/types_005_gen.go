@@ -71,6 +71,7 @@ type BridgeTargetType string
 
 type BridgeWebhookRegistrationRequest struct {
 	BridgeInstanceID string `json:"bridge_instance_id"`
+	PublicURL        string `json:"public_url,omitempty"`
 }
 
 type BridgeWebhookRegistrationResponse struct {

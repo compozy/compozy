@@ -1,0 +1,47 @@
+---
+title: "compozy pair redeem"
+description: "Redeem a pairing artifact into a named remote profile"
+---
+
+## compozy pair redeem
+
+Redeem a pairing artifact into a named remote profile
+
+```
+compozy pair redeem <artifact> [flags]
+```
+
+### Options
+
+```
+      --address string             Gateway HTTPS address
+      --default-workspace string   Default remote workspace
+  -h, --help                       help for redeem
+      --name string                Connection profile name
+      --overwrite                  Replace an existing profile with this name
+      --use                        Make the new profile active
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy pair redeem <artifact> -o json
+```

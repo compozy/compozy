@@ -53,7 +53,9 @@ func (g *WorkspaceRepo) UpdateWorkspace(ctx context.Context, ws compozyworkspace
 
 	affected, err := g.queries.UpdateWorkspace(ctx, sqlcgen.UpdateWorkspaceParams{
 		RootDir: normalized.RootDir, AddDirs: addDirsJSON, Name: normalized.Name,
-		DefaultAgent: nullableWorkspaceString(normalized.DefaultAgent), SandboxRef: normalized.SandboxRef,
+		DefaultAgent: nullableWorkspaceString(
+			normalized.DefaultAgent,
+		), SandboxRef: normalized.SandboxRef,
 		UpdatedAt: store.FormatTimestamp(normalized.UpdatedAt), ID: normalized.ID,
 	})
 	if err != nil {
@@ -65,7 +67,11 @@ func (g *WorkspaceRepo) UpdateWorkspace(ctx context.Context, ws compozyworkspace
 	}
 
 	if affected == 0 {
-		return fmt.Errorf("store: workspace %q: %w", normalized.ID, compozyworkspace.ErrWorkspaceNotFound)
+		return fmt.Errorf(
+			"store: workspace %q: %w",
+			normalized.ID,
+			compozyworkspace.ErrWorkspaceNotFound,
+		)
 	}
 
 	return nil
@@ -90,44 +96,8 @@ func (g *WorkspaceRepo) DeleteWorkspace(ctx context.Context, id string) error {
 			return err
 		}
 
-		mcpAuthRefs, err := queries.ListMCPAuthTokenRefsByWorkspace(ctx, trimmedID)
-		if err != nil {
-			return fmt.Errorf("store: list MCP auth token refs for workspace %q: %w", trimmedID, err)
-		}
-		for _, refs := range mcpAuthRefs {
-			for _, ref := range []string{refs.AccessTokenRef, refs.RefreshTokenRef} {
-				if strings.TrimSpace(ref) == "" {
-					continue
-				}
-				if _, err := queries.DeleteVaultSecret(ctx, ref); err != nil {
-					return fmt.Errorf("store: delete MCP auth secret for workspace %q: %w", trimmedID, err)
-				}
-			}
-		}
-		if _, err := queries.DeleteMCPAuthTokensByWorkspace(ctx, trimmedID); err != nil {
-			return fmt.Errorf("store: delete MCP auth tokens for workspace %q: %w", trimmedID, err)
-		}
-
-		mcpRegistrationRefs, err := queries.ListMCPOAuthRegistrationRefsByWorkspace(ctx, trimmedID)
-		if err != nil {
-			return fmt.Errorf("store: list MCP OAuth registration refs for workspace %q: %w", trimmedID, err)
-		}
-		for _, refs := range mcpRegistrationRefs {
-			for _, ref := range []string{refs.ClientSecretRef, refs.RegistrationAccessTokenRef} {
-				if strings.TrimSpace(ref) == "" {
-					continue
-				}
-				if _, err := queries.DeleteVaultSecret(ctx, ref); err != nil {
-					return fmt.Errorf(
-						"store: delete MCP OAuth registration secret for workspace %q: %w",
-						trimmedID,
-						err,
-					)
-				}
-			}
-		}
-		if _, err := queries.DeleteMCPOAuthRegistrationsByWorkspace(ctx, trimmedID); err != nil {
-			return fmt.Errorf("store: delete MCP OAuth registrations for workspace %q: %w", trimmedID, err)
+		if err := deleteWorkspaceMCPState(ctx, queries, trimmedID); err != nil {
+			return err
 		}
 
 		if err := deleteWorkspaceExtensionEnv(ctx, queries, trimmedID); err != nil {
@@ -137,21 +107,40 @@ func (g *WorkspaceRepo) DeleteWorkspace(ctx context.Context, id string) error {
 		if err := queries.DeleteSessionsByWorkspace(ctx, trimmedID); err != nil {
 			return fmt.Errorf("store: delete stopped sessions for workspace %q: %w", trimmedID, err)
 		}
+		if _, err := queries.DeleteGatewayIngressBindingsByWorkspace(ctx, store.SQLNullString(trimmedID)); err != nil {
+			return fmt.Errorf(
+				"store: delete gateway ingress bindings for workspace %q: %w",
+				trimmedID,
+				err,
+			)
+		}
 
 		affected, err := queries.DeleteWorkspace(ctx, trimmedID)
 		if err != nil {
-			return fmt.Errorf("store: delete workspace %q: %w", trimmedID, mapWorkspaceDeleteConstraintError(err))
+			return fmt.Errorf(
+				"store: delete workspace %q: %w",
+				trimmedID,
+				mapWorkspaceDeleteConstraintError(err),
+			)
 		}
 
 		if affected == 0 {
-			return fmt.Errorf("store: workspace %q: %w", trimmedID, compozyworkspace.ErrWorkspaceNotFound)
+			return fmt.Errorf(
+				"store: workspace %q: %w",
+				trimmedID,
+				compozyworkspace.ErrWorkspaceNotFound,
+			)
 		}
 
 		return nil
 	})
 }
 
-func ensureWorkspaceDeletionAllowed(ctx context.Context, queries *sqlcgen.Queries, workspaceID string) error {
+func ensureWorkspaceDeletionAllowed(
+	ctx context.Context,
+	queries *sqlcgen.Queries,
+	workspaceID string,
+) error {
 	activeSessions, err := queries.ListActiveSessionIDsByWorkspace(ctx, workspaceID)
 	if err != nil {
 		return err
@@ -168,25 +157,44 @@ func ensureWorkspaceDeletionAllowed(ctx context.Context, queries *sqlcgen.Querie
 	return nil
 }
 
-func deleteWorkspaceExtensionEnv(ctx context.Context, queries *sqlcgen.Queries, workspaceID string) error {
+func deleteWorkspaceExtensionEnv(
+	ctx context.Context,
+	queries *sqlcgen.Queries,
+	workspaceID string,
+) error {
 	extensionSecretRefs, err := queries.ListExtensionEnvSecretRefsByWorkspace(ctx, workspaceID)
 	if err != nil {
-		return fmt.Errorf("store: list extension secret refs for workspace %q: %w", workspaceID, err)
+		return fmt.Errorf(
+			"store: list extension secret refs for workspace %q: %w",
+			workspaceID,
+			err,
+		)
 	}
 	for _, ref := range extensionSecretRefs {
 		if _, err := queries.DeleteVaultSecret(ctx, ref); err != nil {
-			return fmt.Errorf("store: delete extension secret for workspace %q: %w", workspaceID, err)
+			return fmt.Errorf(
+				"store: delete extension secret for workspace %q: %w",
+				workspaceID,
+				err,
+			)
 		}
 	}
 	if _, err := queries.DeleteExtensionEnvBindingsByWorkspace(ctx, workspaceID); err != nil {
-		return fmt.Errorf("store: delete extension env bindings for workspace %q: %w", workspaceID, err)
+		return fmt.Errorf(
+			"store: delete extension env bindings for workspace %q: %w",
+			workspaceID,
+			err,
+		)
 	}
 
 	return nil
 }
 
 // GetWorkspace loads a workspace registration by primary key.
-func (g *WorkspaceRepo) GetWorkspace(ctx context.Context, id string) (compozyworkspace.Workspace, error) {
+func (g *WorkspaceRepo) GetWorkspace(
+	ctx context.Context,
+	id string,
+) (compozyworkspace.Workspace, error) {
 	if err := g.checkReady(ctx, "get workspace"); err != nil {
 		return compozyworkspace.Workspace{}, err
 	}
@@ -201,14 +209,19 @@ func (g *WorkspaceRepo) GetWorkspace(ctx context.Context, id string) (compozywor
 }
 
 // GetWorkspaceByPath loads a workspace registration by canonical root directory.
-func (g *WorkspaceRepo) GetWorkspaceByPath(ctx context.Context, rootDir string) (compozyworkspace.Workspace, error) {
+func (g *WorkspaceRepo) GetWorkspaceByPath(
+	ctx context.Context,
+	rootDir string,
+) (compozyworkspace.Workspace, error) {
 	if err := g.checkReady(ctx, "get workspace by path"); err != nil {
 		return compozyworkspace.Workspace{}, err
 	}
 
 	trimmedRoot := strings.TrimSpace(rootDir)
 	if trimmedRoot == "" {
-		return compozyworkspace.Workspace{}, errors.New("store: workspace root directory is required")
+		return compozyworkspace.Workspace{}, errors.New(
+			"store: workspace root directory is required",
+		)
 	}
 
 	row, err := g.queries.GetWorkspaceByPath(ctx, trimmedRoot)
@@ -216,7 +229,10 @@ func (g *WorkspaceRepo) GetWorkspaceByPath(ctx context.Context, rootDir string) 
 }
 
 // GetWorkspaceByName loads a workspace registration by unique workspace name.
-func (g *WorkspaceRepo) GetWorkspaceByName(ctx context.Context, name string) (compozyworkspace.Workspace, error) {
+func (g *WorkspaceRepo) GetWorkspaceByName(
+	ctx context.Context,
+	name string,
+) (compozyworkspace.Workspace, error) {
 	if err := g.checkReady(ctx, "get workspace by name"); err != nil {
 		return compozyworkspace.Workspace{}, err
 	}
@@ -262,7 +278,10 @@ func (g *WorkspaceRepo) normalizeWorkspaceForInsert(
 	if strings.TrimSpace(normalized.ID) == "" {
 		generatedID, generateErr := g.generateID()
 		if generateErr != nil {
-			return compozyworkspace.Workspace{}, "", fmt.Errorf("store: generate workspace id: %w", generateErr)
+			return compozyworkspace.Workspace{}, "", fmt.Errorf(
+				"store: generate workspace id: %w",
+				generateErr,
+			)
 		}
 		normalized.ID = strings.TrimSpace(generatedID)
 		if !compozyworkspace.IsWorkspaceID(normalized.ID) {
@@ -300,7 +319,10 @@ func (g *WorkspaceRepo) normalizeWorkspaceForUpdate(
 	return normalized, addDirsJSON, nil
 }
 
-func workspaceFromGenerated(row sqlcgen.Workspace, queryErr error) (compozyworkspace.Workspace, error) {
+func workspaceFromGenerated(
+	row sqlcgen.Workspace,
+	queryErr error,
+) (compozyworkspace.Workspace, error) {
 	if queryErr != nil {
 		if errors.Is(queryErr, sql.ErrNoRows) {
 			return compozyworkspace.Workspace{}, compozyworkspace.ErrWorkspaceNotFound
@@ -321,7 +343,9 @@ func workspaceFromGenerated(row sqlcgen.Workspace, queryErr error) (compozyworks
 	}
 	return compozyworkspace.Workspace{
 		ID: row.ID, RootDir: row.RootDir, AdditionalDirs: addDirs, Name: row.Name,
-		DefaultAgent: strings.TrimSpace(row.DefaultAgent.String), SandboxRef: strings.TrimSpace(row.SandboxRef),
+		DefaultAgent: strings.TrimSpace(
+			row.DefaultAgent.String,
+		), SandboxRef: strings.TrimSpace(row.SandboxRef),
 		CreatedAt: createdAt, UpdatedAt: updatedAt,
 	}, nil
 }
@@ -330,7 +354,9 @@ func nullableWorkspaceString(value string) sql.NullString {
 	return store.SQLNullString(value)
 }
 
-func normalizeWorkspaceRecord(ws compozyworkspace.Workspace) (compozyworkspace.Workspace, string, error) {
+func normalizeWorkspaceRecord(
+	ws compozyworkspace.Workspace,
+) (compozyworkspace.Workspace, string, error) {
 	normalized := ws
 	normalized.ID = strings.TrimSpace(normalized.ID)
 	normalized.RootDir = strings.TrimSpace(normalized.RootDir)
@@ -341,7 +367,9 @@ func normalizeWorkspaceRecord(ws compozyworkspace.Workspace) (compozyworkspace.W
 
 	switch {
 	case normalized.RootDir == "":
-		return compozyworkspace.Workspace{}, "", errors.New("store: workspace root directory is required")
+		return compozyworkspace.Workspace{}, "", errors.New(
+			"store: workspace root directory is required",
+		)
 	case normalized.Name == "":
 		return compozyworkspace.Workspace{}, "", errors.New("store: workspace name is required")
 	}
@@ -415,7 +443,10 @@ func mapWorkspaceWriteConstraintError(
 	case pathErr == nil && byPath.ID != workspace.ID:
 		return compozyworkspace.ErrWorkspacePathTaken
 	case pathErr != nil && !errors.Is(pathErr, sql.ErrNoRows):
-		return errors.Join(err, fmt.Errorf("store: classify workspace path constraint: %w", pathErr))
+		return errors.Join(
+			err,
+			fmt.Errorf("store: classify workspace path constraint: %w", pathErr),
+		)
 	}
 
 	byName, nameErr := queries.GetWorkspaceByName(ctx, workspace.Name)
@@ -423,7 +454,10 @@ func mapWorkspaceWriteConstraintError(
 	case nameErr == nil && byName.ID != workspace.ID:
 		return compozyworkspace.ErrWorkspaceNameTaken
 	case nameErr != nil && !errors.Is(nameErr, sql.ErrNoRows):
-		return errors.Join(err, fmt.Errorf("store: classify workspace name constraint: %w", nameErr))
+		return errors.Join(
+			err,
+			fmt.Errorf("store: classify workspace name constraint: %w", nameErr),
+		)
 	default:
 		return err
 	}

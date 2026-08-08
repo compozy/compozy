@@ -15,8 +15,8 @@ func TestUnixSocketClientSlackBridgeManifest(t *testing.T) {
 	t.Run("Should request and decode the typed Slack manifest", func(t *testing.T) {
 		t.Parallel()
 
-		client := &unixSocketClient{
-			socketPath: "/tmp/compozy.sock",
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
 			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				if req.Method != http.MethodGet || req.URL.Path != "/api/bridges/providers/slack/manifest" {
 					t.Fatalf("request = %s %s, want GET manifest route", req.Method, req.URL.Path)
@@ -77,7 +77,7 @@ func TestUnixSocketClientSlackBridgeManifest(t *testing.T) {
 	t.Run("Should reject a blank instance before transport", func(t *testing.T) {
 		t.Parallel()
 
-		client := &unixSocketClient{}
+		client := &daemonClient{}
 		_, err := client.SlackBridgeManifest(context.Background(), "   ")
 		if err == nil || !strings.Contains(err.Error(), "bridge instance id is required") {
 			t.Fatalf("SlackBridgeManifest(blank) error = %v, want instance remediation", err)

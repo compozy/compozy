@@ -193,7 +193,8 @@ func parseExtensionOperationAPIError(statusCode int, status string, body []byte)
 
 func parseWindowManagerAPIError(statusCode int, status string, body []byte) (bool, error) {
 	var windowManagerPayload contract.WindowManagerErrorPayload
-	if json.Unmarshal(body, &windowManagerPayload) != nil || windowManagerPayload.Code == "" {
+	if json.Unmarshal(body, &windowManagerPayload) != nil ||
+		!strings.HasPrefix(string(windowManagerPayload.Code), "window_manager_") {
 		return false, nil
 	}
 	windowManagerPayload.Error = redactToolDiagnostic(windowManagerPayload.Error)

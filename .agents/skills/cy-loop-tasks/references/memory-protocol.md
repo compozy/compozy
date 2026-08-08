@@ -61,6 +61,12 @@ Phase-specific addenda (append after the canonical sections):
 - **Phase D**: each `## Round <N>` section records the verdict, the findings
   artifact path, and the remediated blockers/nits.
 
+## MEMORY.md loop-owned sections
+
+Beyond the shared sections from `cy-workflow-memory`, the loop maintains
+`## Open Risks` (external blockers + evidence) and `## Open Questions`
+(mid-loop defaulted decisions — pick, rationale, question for the user).
+
 ## Promotion rules (current → MEMORY.md)
 
 A finding gets promoted to `MEMORY.md` `## Shared Decisions` or

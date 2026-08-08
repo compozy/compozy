@@ -4,6 +4,7 @@ import "fmt"
 
 const (
 	lanesInternalDaemonPath         = "./internal/daemon"
+	lanesInternalCLIPath            = "./internal/cli"
 	lanesInternalSandboxDaytonaPath = "./internal/sandbox/daytona"
 	lanesInternalTestutilE2ePath    = "./internal/testutil/e2e"
 )
@@ -26,6 +27,7 @@ const (
 	HTTPTransportE2EPattern  = "^TestHTTPTransport"
 	UDSTransportE2EPattern   = "^TestUDSTransport"
 	HarnessRuntimeE2EPattern = "^TestStartRuntimeHarness"
+	RemoteGatewayE2EPattern  = "^TestRemoteGatewayE2E"
 	DaytonaNightlyE2EPattern = "^TestDaytona(" +
 		"ProviderIntegrationFullLifecycle|LauncherTransportValidation|SSHNonPTYValidation)$"
 )
@@ -114,6 +116,10 @@ var runtimeGoSuites = []GoSuite{
 	{
 		Packages: []string{lanesInternalTestutilE2ePath},
 		Run:      HarnessRuntimeE2EPattern,
+	},
+	{
+		Packages: []string{lanesInternalCLIPath},
+		Run:      RemoteGatewayE2EPattern,
 	},
 }
 

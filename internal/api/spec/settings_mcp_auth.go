@@ -9,7 +9,7 @@ func settingsMCPAuthOperations() []OperationSpec {
 	targetParameters := []ParameterSpec{
 		pathParam("name", "Configured MCP server name"),
 		{
-			Name: specScopeKey, In: "query", Description: "Exact MCP settings scope",
+			Name: specScopeKey, In: specParameterInQuery, Description: "Exact MCP settings scope",
 			Required: true, Kind: "string", Enum: []string{specGlobalKey, specWorkspaceKey},
 		},
 		queryParam("workspace_id", "Required when scope is workspace", false),

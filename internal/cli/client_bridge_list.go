@@ -25,7 +25,7 @@ type BridgeListQuery struct {
 // BridgeListRecord is one bounded bridge catalog response.
 type BridgeListRecord = contract.BridgesResponse
 
-func (c *unixSocketClient) ListBridges(
+func (c *daemonClient) ListBridges(
 	ctx context.Context,
 	query BridgeListQuery,
 ) (BridgeListRecord, error) {

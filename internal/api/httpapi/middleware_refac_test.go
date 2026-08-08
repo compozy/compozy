@@ -123,6 +123,53 @@ func TestCORSMiddlewareRejectsReboundRequestHost(t *testing.T) {
 	})
 }
 
+func TestGatewayForwardedOriginProtection(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should accept a same-origin gateway request forwarded to a loopback tier", func(t *testing.T) {
+		t.Parallel()
+
+		engine := gin.New()
+		engine.Use(corsMiddlewareWithForwardedTarget("127.0.0.1:43123", true))
+		engine.Use(browserRequestProtectionMiddlewareWithForwardedTarget("127.0.0.1:43123", true))
+		engine.POST("/api/action", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+		request := httptest.NewRequestWithContext(
+			context.Background(), http.MethodPost, "https://gateway.example.test/api/action", http.NoBody,
+		)
+		request.Host = "gateway.example.test"
+		request.Header.Set("Origin", "https://gateway.example.test")
+		request.Header.Set("Sec-Fetch-Site", "same-origin")
+		recorder := httptest.NewRecorder()
+		engine.ServeHTTP(recorder, request)
+		if recorder.Code != http.StatusNoContent {
+			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusNoContent, recorder.Body.String())
+		}
+		if got := recorder.Header().Get("Access-Control-Allow-Origin"); got != "https://gateway.example.test" {
+			t.Fatalf("Access-Control-Allow-Origin = %q", got)
+		}
+	})
+
+	t.Run("Should reject a cross-origin request even when its target was forwarded", func(t *testing.T) {
+		t.Parallel()
+
+		engine := gin.New()
+		engine.Use(corsMiddlewareWithForwardedTarget("127.0.0.1:43123", true))
+		engine.Use(browserRequestProtectionMiddlewareWithForwardedTarget("127.0.0.1:43123", true))
+		engine.POST("/api/action", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+		request := httptest.NewRequestWithContext(
+			context.Background(), http.MethodPost, "https://gateway.example.test/api/action", http.NoBody,
+		)
+		request.Host = "gateway.example.test"
+		request.Header.Set("Origin", "https://evil.example.test")
+		request.Header.Set("Sec-Fetch-Site", "cross-site")
+		recorder := httptest.NewRecorder()
+		engine.ServeHTTP(recorder, request)
+		if recorder.Code != http.StatusForbidden {
+			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusForbidden, recorder.Body.String())
+		}
+	})
+}
+
 func TestBrowserRequestProtectionRouteBoundary(t *testing.T) {
 	t.Parallel()
 

@@ -63,7 +63,7 @@ func validateOperationRegistryEntry(
 
 func supportedOperationMethod(method string) bool {
 	switch method {
-	case httpMethodDelete, httpMethodGet, httpMethodPatch, httpMethodPost, httpMethodPut:
+	case httpMethodDelete, httpMethodGet, httpMethodHead, httpMethodPatch, httpMethodPost, httpMethodPut:
 		return true
 	default:
 		return false
@@ -96,7 +96,7 @@ func validateOperationPathParameters(operation OperationSpec) error {
 	}
 	declared := make(map[string]int)
 	for _, parameter := range operation.Parameters {
-		if parameter.In != "path" {
+		if parameter.In != specParameterInPath {
 			continue
 		}
 		if !parameter.Required {

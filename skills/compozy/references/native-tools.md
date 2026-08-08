@@ -101,6 +101,16 @@ Workspace unregister is atomic with credential cleanup: it removes workspace-sco
 
 Provider model tools: `compozy__provider_models_list`, `compozy__provider_models_curate`, `compozy__provider_models_refresh`, `compozy__provider_models_status`.
 
+Gateway tool: `compozy__gateway`, in toolset `compozy__gateway`. Resolve its live descriptor before
+calling it. `status`, `audit`, and `device_list` are read actions and remain callable in every
+session permission mode while the Gateway service is available. Management actions are
+`surface_set`, `provider_enable`, `provider_disable`, `device_rename`, `device_revoke`,
+`ingress_bind`, and `ingress_unbind`. A local operator may call them directly; an agent session must
+have effective permission mode `approve-all`. Lower modes return `tool_denied` with
+`policy_denied`. The tool returns only redacted projections and intentionally has no pairing,
+credential, or stream-ticket issuance action. Use the local CLI or private management API when a
+one-time secret must be issued.
+
 `compozy__provider_models_list` accepts `view=curated|all` and defaults to curated; the CLI equivalents are `compozy provider models list` and `compozy provider models list --all`. `compozy__provider_models_curate` is mutating, requires `providers.models.write`, and accepts required `provider_id`/`model_id` plus optional `hidden`, `featured`, `deprecated`, and `default_effort`. Its CLI fallback is `compozy provider models set`. Treat `model_not_found` and `reasoning_effort_unsupported` as terminal input diagnostics; when the descriptor reports the settings backend unavailable, do not retry blindly.
 For providers with an explicit curated set, the default view contains visible explicit or featured rows; live-only rows appear there only through the no-explicit-set fallback.
 Cursor's first catalog list discovers the signed-in account through `cursor-agent models`, stores the exact IDs under `provider_live:cursor`, and leaves subsequent discovery to `compozy__provider_models_refresh` or `compozy provider models refresh cursor`.

@@ -68,6 +68,8 @@ func httpServerOptions(deps *RuntimeDeps) []httpapi.Option {
 		httpapi.WithRuntimeMemorySnapshotSource(deps.RuntimeMemory),
 		httpapi.WithDeadEntitySource(deps.DeadEntities),
 		httpapi.WithExtensionService(deps.Extensions),
+		httpapi.WithGatewayService(deps.Gateway),
+		httpapi.WithDeviceAuth(deps.Gateway),
 	}
 }
 
@@ -141,5 +143,6 @@ func udsServerOptions(deps *RuntimeDeps) []udsapi.Option {
 		udsapi.WithExtensionService(deps.Extensions),
 		udsapi.WithHostedMCP(deps.HostedMCP),
 		udsapi.WithMCPHostAPI(deps.MCPHostAPI),
+		udsapi.WithGatewayService(deps.Gateway),
 	}
 }

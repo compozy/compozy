@@ -124,6 +124,7 @@ export const API_TAG_ICONS: Record<string, string> = {
   diagnostics: "Gauge",
   extensions: "Puzzle",
   filesystem: "Folder",
+  gateway: "Route",
   hooks: "Waypoints",
   logs: "ScrollText",
   loops: "Repeat",

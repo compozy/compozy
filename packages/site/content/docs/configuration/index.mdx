@@ -19,22 +19,24 @@ for the change you actually want.
 | MCP server configuration            | `mcp.json`                                                         | MCP declarations are easier to manage as JSON sidecars than inline frontmatter.                                                                                |
 | Encrypted Compozy-managed secrets   | [Vault](/docs/configuration/vault)                                 | Store write-only `vault:<namespace>/...` values and inspect redacted metadata through CLI, HTTP, UDS, web, or session-scoped views.                            |
 | Provider authentication             | provider settings, native CLI login, `credential_slots`, or Vault  | Let native ACP providers use their own CLI login state, and bind API-key providers to `env:` or encrypted `vault:providers/<provider>/<slot>` refs.            |
+| Remote gateway access               | [Gateway access model](/docs/configuration/gateway)                | Expose selected private or public surfaces while the daemon keeps tier listeners on loopback.                                                                  |
 | Filesystem locations and precedence | file-locations reference                                           | You need to know where Compozy looks for agents, skills, sessions, memory, or overlays.                                                                        |
 
 ## Read in this order
 
 1. [config.toml](/docs/configuration/config-toml)
-2. [Config Lifecycle Matrix](/docs/configuration/lifecycle-matrix)
-3. [Vault](/docs/configuration/vault)
-4. [File Locations](/docs/configuration/file-locations)
-5. [AGENT.md](/docs/configuration/agent-md)
-6. [Agent Capabilities](/docs/agents/capabilities)
-7. [SKILL.md](/docs/configuration/skill-md)
-8. [mcp.json](/docs/configuration/mcp-json)
-9. [Environment Variables](/docs/configuration/env-vars)
+2. [Gateway access model](/docs/configuration/gateway)
+3. [Config Lifecycle Matrix](/docs/configuration/lifecycle-matrix)
+4. [Vault](/docs/configuration/vault)
+5. [File Locations](/docs/configuration/file-locations)
+6. [AGENT.md](/docs/configuration/agent-md)
+7. [Agent Capabilities](/docs/agents/capabilities)
+8. [SKILL.md](/docs/configuration/skill-md)
+9. [mcp.json](/docs/configuration/mcp-json)
+10. [Environment Variables](/docs/configuration/env-vars)
 
-That order mirrors how operators usually troubleshoot Compozy: global defaults first, path resolution
-second, then file-format specifics and agent sidecars.
+That order mirrors how operators usually troubleshoot Compozy: global defaults first, remote access
+second, then lifecycle, secret storage, path resolution, file formats, and agent sidecars.
 
 ## CLI Inspection and Mutation
 

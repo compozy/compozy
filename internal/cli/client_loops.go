@@ -44,7 +44,7 @@ type LoopListQuery struct {
 	Limit    int
 }
 
-func (c *unixSocketClient) ListLoops(
+func (c *daemonClient) ListLoops(
 	ctx context.Context,
 	workspaceID string,
 	query LoopListQuery,
@@ -77,7 +77,7 @@ func setLoopListQueryValue(values url.Values, key string, value string) {
 	}
 }
 
-func (c *unixSocketClient) CreateLoop(
+func (c *daemonClient) CreateLoop(
 	ctx context.Context,
 	workspaceID string,
 	request contract.CreateLoopRequest,
@@ -91,7 +91,7 @@ func (c *unixSocketClient) CreateLoop(
 	return response, nil
 }
 
-func (c *unixSocketClient) GetLoop(
+func (c *daemonClient) GetLoop(
 	ctx context.Context,
 	workspaceID string,
 	name string,
@@ -104,7 +104,7 @@ func (c *unixSocketClient) GetLoop(
 	return response, nil
 }
 
-func (c *unixSocketClient) PatchLoop(
+func (c *daemonClient) PatchLoop(
 	ctx context.Context,
 	workspaceID string,
 	name string,
@@ -126,7 +126,7 @@ func (c *unixSocketClient) PatchLoop(
 	return response, nil
 }
 
-func (c *unixSocketClient) ValidateLoop(
+func (c *daemonClient) ValidateLoop(
 	ctx context.Context,
 	workspaceID string,
 	name string,
@@ -154,7 +154,7 @@ func (c *unixSocketClient) ValidateLoop(
 	return payload, nil
 }
 
-func (c *unixSocketClient) DeleteLoop(
+func (c *daemonClient) DeleteLoop(
 	ctx context.Context,
 	workspaceID string,
 	name string,
@@ -163,7 +163,7 @@ func (c *unixSocketClient) DeleteLoop(
 	return c.doAgentJSON(ctx, http.MethodDelete, loopDefinitionPath(workspaceID, name), nil, nil, credentials, nil)
 }
 
-func (c *unixSocketClient) RunLoop(
+func (c *daemonClient) RunLoop(
 	ctx context.Context,
 	workspaceID string,
 	name string,
@@ -183,7 +183,7 @@ func (c *unixSocketClient) RunLoop(
 	return response, nil
 }
 
-func (c *unixSocketClient) GetLoopConfig(
+func (c *daemonClient) GetLoopConfig(
 	ctx context.Context,
 	workspaceID string,
 	name string,
@@ -196,7 +196,7 @@ func (c *unixSocketClient) GetLoopConfig(
 	return response, nil
 }
 
-func (c *unixSocketClient) PutLoopConfig(
+func (c *daemonClient) PutLoopConfig(
 	ctx context.Context,
 	workspaceID string,
 	name string,
@@ -211,7 +211,7 @@ func (c *unixSocketClient) PutLoopConfig(
 	return response, nil
 }
 
-func (c *unixSocketClient) ListLoopRuns(
+func (c *daemonClient) ListLoopRuns(
 	ctx context.Context,
 	workspaceID string,
 	query LoopRunListQuery,
@@ -224,7 +224,7 @@ func (c *unixSocketClient) ListLoopRuns(
 	return response, nil
 }
 
-func (c *unixSocketClient) ListGoalTurns(
+func (c *daemonClient) ListGoalTurns(
 	ctx context.Context,
 	workspaceID string,
 	runID string,
@@ -238,7 +238,7 @@ func (c *unixSocketClient) ListGoalTurns(
 	return response, nil
 }
 
-func (c *unixSocketClient) GetLoopRun(
+func (c *daemonClient) GetLoopRun(
 	ctx context.Context,
 	workspaceID string,
 	runID string,
@@ -251,7 +251,7 @@ func (c *unixSocketClient) GetLoopRun(
 	return response, nil
 }
 
-func (c *unixSocketClient) CancelLoopRun(
+func (c *daemonClient) CancelLoopRun(
 	ctx context.Context,
 	workspaceID string,
 	runID string,
@@ -260,7 +260,7 @@ func (c *unixSocketClient) CancelLoopRun(
 	return c.loopRunLifecycleAction(ctx, workspaceID, runID, "cancel", nil, credentials)
 }
 
-func (c *unixSocketClient) KillLoopRun(
+func (c *daemonClient) KillLoopRun(
 	ctx context.Context,
 	workspaceID string,
 	runID string,
@@ -269,7 +269,7 @@ func (c *unixSocketClient) KillLoopRun(
 	return c.loopRunLifecycleAction(ctx, workspaceID, runID, "kill", nil, credentials)
 }
 
-func (c *unixSocketClient) PauseLoopRun(
+func (c *daemonClient) PauseLoopRun(
 	ctx context.Context,
 	workspaceID string,
 	runID string,
@@ -278,7 +278,7 @@ func (c *unixSocketClient) PauseLoopRun(
 	return c.loopRunAction(ctx, workspaceID, runID, "pause", nil, credentials)
 }
 
-func (c *unixSocketClient) ResumeLoopRun(
+func (c *daemonClient) ResumeLoopRun(
 	ctx context.Context,
 	workspaceID string,
 	runID string,
@@ -287,7 +287,7 @@ func (c *unixSocketClient) ResumeLoopRun(
 	return c.loopRunAction(ctx, workspaceID, runID, "resume", nil, credentials)
 }
 
-func (c *unixSocketClient) ApproveLoopRun(
+func (c *daemonClient) ApproveLoopRun(
 	ctx context.Context,
 	workspaceID string,
 	runID string,
@@ -297,7 +297,7 @@ func (c *unixSocketClient) ApproveLoopRun(
 	return c.loopRunAction(ctx, workspaceID, runID, "approve", request, credentials)
 }
 
-func (c *unixSocketClient) loopRunAction(
+func (c *daemonClient) loopRunAction(
 	ctx context.Context,
 	workspaceID string,
 	runID string,
@@ -309,7 +309,7 @@ func (c *unixSocketClient) loopRunAction(
 	return err
 }
 
-func (c *unixSocketClient) loopRunLifecycleAction(
+func (c *daemonClient) loopRunLifecycleAction(
 	ctx context.Context,
 	workspaceID string,
 	runID string,
@@ -325,7 +325,7 @@ func (c *unixSocketClient) loopRunLifecycleAction(
 	return response, nil
 }
 
-func (c *unixSocketClient) ListLoopNodes(
+func (c *daemonClient) ListLoopNodes(
 	ctx context.Context,
 	workspaceID string,
 	query LoopNodeListQuery,
@@ -338,7 +338,7 @@ func (c *unixSocketClient) ListLoopNodes(
 	return response, nil
 }
 
-func (c *unixSocketClient) PauseLoopNode(
+func (c *daemonClient) PauseLoopNode(
 	ctx context.Context,
 	workspaceID string,
 	runID string,
@@ -349,7 +349,7 @@ func (c *unixSocketClient) PauseLoopNode(
 	return c.loopNodeAction(ctx, workspaceID, runID, nodeID, "pause", request, credentials)
 }
 
-func (c *unixSocketClient) ResumeLoopNode(
+func (c *daemonClient) ResumeLoopNode(
 	ctx context.Context,
 	workspaceID string,
 	runID string,
@@ -360,7 +360,7 @@ func (c *unixSocketClient) ResumeLoopNode(
 	return c.loopNodeAction(ctx, workspaceID, runID, nodeID, "resume", request, credentials)
 }
 
-func (c *unixSocketClient) CancelLoopNode(
+func (c *daemonClient) CancelLoopNode(
 	ctx context.Context,
 	workspaceID string,
 	runID string,
@@ -371,7 +371,7 @@ func (c *unixSocketClient) CancelLoopNode(
 	return c.loopNodeAction(ctx, workspaceID, runID, nodeID, "cancel", request, credentials)
 }
 
-func (c *unixSocketClient) KillLoopNode(
+func (c *daemonClient) KillLoopNode(
 	ctx context.Context,
 	workspaceID string,
 	runID string,
@@ -382,7 +382,7 @@ func (c *unixSocketClient) KillLoopNode(
 	return c.loopNodeAction(ctx, workspaceID, runID, nodeID, "kill", request, credentials)
 }
 
-func (c *unixSocketClient) RequeueLoopNode(
+func (c *daemonClient) RequeueLoopNode(
 	ctx context.Context,
 	workspaceID string,
 	runID string,
@@ -393,7 +393,7 @@ func (c *unixSocketClient) RequeueLoopNode(
 	return c.loopNodeAction(ctx, workspaceID, runID, nodeID, "requeue", request, credentials)
 }
 
-func (c *unixSocketClient) loopNodeAction(
+func (c *daemonClient) loopNodeAction(
 	ctx context.Context,
 	workspaceID string,
 	runID string,

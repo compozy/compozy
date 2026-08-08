@@ -40,6 +40,11 @@ func (s *service) classifySectionApplyRequest(
 			return lifecycle.RestartRequired
 		}
 		return s.classifyNetworkRequest(ctx, req)
+	case SectionGateway:
+		if req.Gateway == nil {
+			return lifecycle.RestartRequired
+		}
+		return s.classifyGatewayRequest(ctx, req)
 	case SectionWindowManager:
 		if req.WindowManager == nil {
 			return lifecycle.Live

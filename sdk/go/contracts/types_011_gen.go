@@ -7,6 +7,79 @@ import (
 	"time"
 )
 
+type InitializeExtensionInfo struct {
+	Name       string `json:"name"`
+	Version    string `json:"version"`
+	SDKName    string `json:"sdk_name,omitempty"`
+	SDKVersion string `json:"sdk_version,omitempty"`
+}
+
+type InitializeMethods struct {
+	DaemonRequests    []string `json:"daemon_requests"`
+	ExtensionServices []string `json:"extension_services"`
+}
+
+type InitializeRequest struct {
+	ProtocolVersion          string                 `json:"protocol_version"`
+	SupportedProtocolVersion []string               `json:"supported_protocol_versions"`
+	CompozyVersion           string                 `json:"compozy_version"`
+	SessionNonce             string                 `json:"session_nonce"`
+	Extension                InitializeExtension    `json:"extension"`
+	Capabilities             InitializeCapabilities `json:"capabilities"`
+	Methods                  InitializeMethods      `json:"methods"`
+	Runtime                  InitializeRuntime      `json:"runtime"`
+}
+
+type InitializeResponse struct {
+	ProtocolVersion      string                  `json:"protocol_version"`
+	ExtensionInfo        InitializeExtensionInfo `json:"extension_info"`
+	AcceptedCapabilities AcceptedCapabilities    `json:"accepted_capabilities"`
+	ImplementedMethods   []string                `json:"implemented_methods"`
+	SupportedHookEvents  []string                `json:"supported_hook_events"`
+	WatchSourceKinds     []string                `json:"watch_source_kinds,omitempty"`
+	Supports             InitializeSupports      `json:"supports"`
+}
+
+type InitializeRuntime struct {
+	HealthCheckIntervalMS int64                    `json:"health_check_interval_ms"`
+	HealthCheckTimeoutMS  int64                    `json:"health_check_timeout_ms"`
+	ShutdownTimeoutMS     int64                    `json:"shutdown_timeout_ms"`
+	DefaultHookTimeoutMS  int64                    `json:"default_hook_timeout_ms"`
+	Bridge                *InitializeBridgeRuntime `json:"bridge,omitempty"`
+}
+
+type InitializeSupports struct {
+	HealthCheck bool `json:"health_check"`
+}
+
+type InputPreSubmitPatch struct {
+	Deny          bool           `json:"deny,omitempty"`
+	DenyReason    string         `json:"deny_reason,omitempty"`
+	Message       *string        `json:"message,omitempty"`
+	ContextBlocks []ContextBlock `json:"context_blocks,omitempty"`
+}
+
+type InputPreSubmitPayload struct {
+	Event          HookEvent      `json:"event"`
+	Timestamp      time.Time      `json:"timestamp"`
+	SessionID      string         `json:"session_id,omitempty"`
+	SessionName    string         `json:"session_name,omitempty"`
+	SessionType    string         `json:"session_type,omitempty"`
+	AgentName      string         `json:"agent_name,omitempty"`
+	WorkspaceID    string         `json:"workspace_id,omitempty"`
+	Workspace      string         `json:"workspace,omitempty"`
+	ACPSessionID   string         `json:"acp_session_id,omitempty"`
+	State          string         `json:"state,omitempty"`
+	SoulSnapshotID string         `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string         `json:"soul_digest,omitempty"`
+	CreatedAt      time.Time      `json:"created_at"`
+	UpdatedAt      time.Time      `json:"updated_at"`
+	TurnID         string         `json:"turn_id,omitempty"`
+	InputClass     string         `json:"input_class,omitempty"`
+	Message        string         `json:"message,omitempty"`
+	ContextBlocks  []ContextBlock `json:"context_blocks,omitempty"`
+}
+
 type IssueSeverity string
 
 const (
@@ -293,88 +366,3 @@ type LoopNodeTerminalPayload struct {
 	Error                        string          `json:"error,omitempty"`
 	Details                      json.RawMessage `json:"details,omitempty"`
 }
-
-type LoopObservationPatch struct {
-	Labels map[string]string `json:"labels,omitempty"`
-}
-
-type LoopStartedPayload struct {
-	Event                        HookEvent       `json:"event"`
-	Timestamp                    time.Time       `json:"timestamp"`
-	LoopRunID                    string          `json:"loop_run_id,omitempty"`
-	ParentLoopRunID              string          `json:"parent_loop_run_id,omitempty"`
-	WorkspaceID                  string          `json:"workspace_id,omitempty"`
-	LoopName                     string          `json:"loop_name,omitempty"`
-	Generation                   int             `json:"generation,omitempty"`
-	TaskID                       string          `json:"task_id,omitempty"`
-	RunID                        string          `json:"run_id,omitempty"`
-	RunKind                      string          `json:"run_kind,omitempty"`
-	NodeID                       string          `json:"node_id,omitempty"`
-	WorkflowID                   string          `json:"workflow_id,omitempty"`
-	ResolvedNetworkParticipation *Spec           `json:"resolved_network_participation,omitempty"`
-	AgentName                    string          `json:"agent_name,omitempty"`
-	SessionID                    string          `json:"session_id,omitempty"`
-	ActorKind                    string          `json:"actor_kind,omitempty"`
-	ActorID                      string          `json:"actor_id,omitempty"`
-	OriginKind                   string          `json:"origin_kind,omitempty"`
-	OriginRef                    string          `json:"origin_ref,omitempty"`
-	Status                       string          `json:"status,omitempty"`
-	Cause                        string          `json:"cause,omitempty"`
-	ReasonCode                   string          `json:"reason_code,omitempty"`
-	Details                      json.RawMessage `json:"details,omitempty"`
-}
-
-type LoopTarget struct {
-	WorkspaceID          string            `json:"workspace_id"`
-	LoopName             string            `json:"loop_name"`
-	Inputs               map[string]any    `json:"inputs,omitempty"`
-	InputMapping         map[string]string `json:"input_mapping,omitempty"`
-	NetworkParticipation *Request          `json:"network_participation,omitempty"`
-}
-
-type LoopTerminalPayload struct {
-	Event                        HookEvent       `json:"event"`
-	Timestamp                    time.Time       `json:"timestamp"`
-	LoopRunID                    string          `json:"loop_run_id,omitempty"`
-	ParentLoopRunID              string          `json:"parent_loop_run_id,omitempty"`
-	WorkspaceID                  string          `json:"workspace_id,omitempty"`
-	LoopName                     string          `json:"loop_name,omitempty"`
-	Generation                   int             `json:"generation,omitempty"`
-	TaskID                       string          `json:"task_id,omitempty"`
-	RunID                        string          `json:"run_id,omitempty"`
-	RunKind                      string          `json:"run_kind,omitempty"`
-	NodeID                       string          `json:"node_id,omitempty"`
-	WorkflowID                   string          `json:"workflow_id,omitempty"`
-	ResolvedNetworkParticipation *Spec           `json:"resolved_network_participation,omitempty"`
-	AgentName                    string          `json:"agent_name,omitempty"`
-	SessionID                    string          `json:"session_id,omitempty"`
-	ActorKind                    string          `json:"actor_kind,omitempty"`
-	ActorID                      string          `json:"actor_id,omitempty"`
-	OriginKind                   string          `json:"origin_kind,omitempty"`
-	OriginRef                    string          `json:"origin_ref,omitempty"`
-	Status                       string          `json:"status,omitempty"`
-	Cause                        string          `json:"cause,omitempty"`
-	ReasonCode                   string          `json:"reason_code,omitempty"`
-	Details                      json.RawMessage `json:"details,omitempty"`
-}
-
-type MemoryForgetParams struct {
-	Key       string      `json:"key"`
-	Scope     MemoryScope `json:"scope,omitempty"`
-	Workspace string      `json:"workspace,omitempty"`
-}
-
-type MemoryRecallEntry struct {
-	Key     string  `json:"key"`
-	Content string  `json:"content"`
-	Score   float64 `json:"score"`
-}
-
-type MemoryRecallParams struct {
-	Query     string      `json:"query"`
-	Limit     int         `json:"limit,omitempty"`
-	Scope     MemoryScope `json:"scope,omitempty"`
-	Workspace string      `json:"workspace,omitempty"`
-}
-
-type MemoryScope string

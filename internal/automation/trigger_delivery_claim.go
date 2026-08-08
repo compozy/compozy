@@ -87,6 +87,9 @@ func (e *TriggerEngine) claimPersistentWebhookDelivery(
 		Attempt:              1,
 		StartedAt:            timePointer(now),
 		NetworkParticipation: (DispatchRequest{Trigger: &trigger}).networkParticipation(),
+		Metadata: map[string]any{
+			triggerDeliveryIDKey: strings.TrimSpace(deliveryID),
+		},
 	}
 	created, err := e.webhookDeliveries.CreateRun(ctx, run)
 	if err == nil {

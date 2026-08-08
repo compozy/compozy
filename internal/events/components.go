@@ -5,6 +5,7 @@ const (
 	ComponentBridge       = "bridge"
 	ComponentConfig       = "config"
 	ComponentExtension    = "extension"
+	ComponentGateway      = "gateway"
 	ComponentHarness      = "harness"
 	ComponentHook         = "hook"
 	ComponentMarketplace  = "marketplace"

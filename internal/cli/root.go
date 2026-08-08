@@ -52,6 +52,7 @@ type daemonRunner interface {
 type runtimeContext struct {
 	HomePaths compozyconfig.HomePaths
 	Config    compozyconfig.Config
+	Target    ClientTarget
 }
 
 type installWizardRunner func(context.Context, installWizardInput) (installWizardSelection, error)
@@ -59,6 +60,7 @@ type installWizardRunner func(context.Context, installWizardInput) (installWizar
 type mcpServeRunner func(context.Context, mcpServeOptions) error
 
 type commandDeps struct {
+	commandContext              func() context.Context
 	loadConfig                  func() (compozyconfig.Config, error)
 	loadSkillRegistrySources    skillRegistrySourceLoader
 	resolveHome                 func() (compozyconfig.HomePaths, error)
@@ -67,7 +69,14 @@ type commandDeps struct {
 	runInstallWizard            installWizardRunner
 	runBridgeSetupWizard        bridgeSetupWizardRunner
 	generateBridgeSetupSecret   bridgeSetupSecretGenerator
-	newClient                   func(socketPath string) (DaemonClient, error)
+	newClient                   func(target ClientTarget) (DaemonClient, error)
+	writeGatewayCredential      func(string, string, string) (string, error)
+	readGatewayCredential       func(string, string) (string, error)
+	removeGatewayCredential     func(string, string) error
+	setActiveGatewayProfile     func(compozyconfig.HomePaths, string) error
+	applyGatewayProfileState    func(compozyconfig.HomePaths, string, *compozyconfig.GatewayConnectionConfig, string) error
+	newSSHExecutor              func() sshExecutor
+	reportClientTarget          func(ClientTarget) error
 	newDaemon                   func() (daemonRunner, error)
 	runRelaunchHelper           func(context.Context, compozydaemon.RelaunchHelperConfig) error
 	readDaemonInfo              func(path string) (compozydaemon.Info, error)
@@ -79,6 +88,7 @@ type commandDeps struct {
 	getenv                      func(string) string
 	lookPath                    func(string) (string, error)
 	removeFile                  func(string) error
+	openBrowser                 func(context.Context, string) error
 	now                         func() time.Time
 	pollInterval                time.Duration
 	startTimeout                time.Duration
@@ -115,60 +125,63 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 			return cmd.Help()
 		},
 	}
+	if deps.commandContext == nil {
+		deps.commandContext = cmd.Context
+	}
+	configureRootClientTargetReporting(cmd, &deps)
+	configureRootFlags(cmd)
+	registerRootCommands(cmd, deps)
 
+	return cmd
+}
+
+func configureRootClientTargetReporting(cmd *cobra.Command, deps *commandDeps) {
+	if deps.reportClientTarget != nil {
+		return
+	}
+	var pendingTarget *ClientTarget
+	deps.reportClientTarget = func(target ClientTarget) error {
+		if !target.isRemoteGateway() || pendingTarget != nil {
+			return nil
+		}
+		resolved := target
+		pendingTarget = &resolved
+		return nil
+	}
+	cmd.PersistentPostRunE = func(command *cobra.Command, _ []string) error {
+		if pendingTarget == nil {
+			return nil
+		}
+		if _, err := fmt.Fprintf(command.ErrOrStderr(), "target: %s\n", pendingTarget.displayName()); err != nil {
+			return fmt.Errorf("cli: report remote target: %w", err)
+		}
+		pendingTarget = nil
+		return nil
+	}
+}
+
+func configureRootFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().
 		StringP(outputFlagName, "o", string(OutputHuman), "Output format: human, json, jsonl, or toon")
 	cmd.PersistentFlags().Bool(jsonFlagName, false, "Emit JSON output")
+}
 
-	cmd.AddCommand(newVersionCommand())
-	cmd.AddCommand(newInstallCommand(deps))
-	cmd.AddCommand(newConfigCommand(deps))
-	cmd.AddCommand(newSupportCommand(deps))
-	cmd.AddCommand(newUpdateCommand(deps))
-	cmd.AddCommand(newUninstallCommand(deps))
-	cmd.AddCommand(newStatusCommand(deps))
-	cmd.AddCommand(newObserveCommand(deps))
-	cmd.AddCommand(newDoctorCommand(deps))
-	cmd.AddCommand(newDrainCommand(deps))
-	cmd.AddCommand(newUndrainCommand(deps))
-	cmd.AddCommand(newOnboardingCommand(deps))
-	cmd.AddCommand(newDaemonCommand(deps))
-	cmd.AddCommand(newNetworkCommand(deps))
-	cmd.AddCommand(newMeCommand(deps))
-	cmd.AddCommand(newSpawnCommand(deps))
-	cmd.AddCommand(newChannelCommand(deps))
-	cmd.AddCommand(newSessionCommand(deps))
-	cmd.AddCommand(newProviderCommand(deps))
-	cmd.AddCommand(newBridgeCommand(deps))
-	cmd.AddCommand(newNotificationsCommand(deps))
-	cmd.AddCommand(newMarketplaceCommand(deps))
-	cmd.AddCommand(newWorkspaceCommand(deps))
-	cmd.AddCommand(newDesktopCommand(deps))
-	cmd.AddCommand(newWindowCommand(deps))
-	cmd.AddCommand(newLayoutCommand(deps))
-	cmd.AddCommand(newLayoutProfileCommand(deps))
-	cmd.AddCommand(newAgentCommand(deps))
-	cmd.AddCommand(newRolesCommand(deps))
-	cmd.AddCommand(newExtensionCommand(deps))
-	cmd.AddCommand(newHooksCommand(deps))
-	cmd.AddCommand(newAutomationCommand(deps))
-	cmd.AddCommand(newLoopCommand(deps))
-	cmd.AddCommand(newSchedulerCommand(deps))
-	cmd.AddCommand(newTaskCommand(deps))
-	cmd.AddCommand(newSkillCommand(deps))
-	cmd.AddCommand(newResourceCommand(deps))
-	cmd.AddCommand(newMemoryCommand(deps))
-	cmd.AddCommand(newVaultCommand(deps))
-	cmd.AddCommand(newToolCommand(deps))
-	cmd.AddCommand(newToolsetsCommand(deps))
-	cmd.AddCommand(newMCPCommand(deps))
-	cmd.AddCommand(newLogsCommand(deps))
-	cmd.AddCommand(newWhoamiCommand(deps))
-	cmd.AddCommand(newOpenCommand(deps))
-	cmd.AddCommand(newDocCommand())
-	cmd.AddCommand(newInternalCommand())
-
-	return cmd
+func registerRootCommands(cmd *cobra.Command, deps commandDeps) {
+	cmd.AddCommand(
+		newVersionCommand(), newInstallCommand(deps), newConfigCommand(deps), newSupportCommand(deps),
+		newUpdateCommand(deps), newUninstallCommand(deps), newStatusCommand(deps), newObserveCommand(deps),
+		newDoctorCommand(deps), newDrainCommand(deps), newUndrainCommand(deps), newOnboardingCommand(deps),
+		newDaemonCommand(deps), newNetworkCommand(deps), newMeCommand(deps), newSpawnCommand(deps),
+		newChannelCommand(deps), newSessionCommand(deps), newProviderCommand(deps), newBridgeCommand(deps),
+		newGatewayCommand(deps), newPairCommand(deps), newDeviceCommand(deps), newConnectCommand(deps),
+		newNotificationsCommand(deps), newMarketplaceCommand(deps), newWorkspaceCommand(deps), newDesktopCommand(deps),
+		newWindowCommand(deps), newLayoutCommand(deps), newLayoutProfileCommand(deps), newAgentCommand(deps),
+		newRolesCommand(deps), newExtensionCommand(deps), newHooksCommand(deps), newAutomationCommand(deps),
+		newLoopCommand(deps), newSchedulerCommand(deps), newTaskCommand(deps), newSkillCommand(deps),
+		newResourceCommand(deps), newMemoryCommand(deps), newVaultCommand(deps), newToolCommand(deps),
+		newToolsetsCommand(deps), newMCPCommand(deps), newLogsCommand(deps), newWhoamiCommand(deps),
+		newOpenCommand(deps), newDocCommand(), newInternalCommand(),
+	)
 }
 
 func newVersionCommand() *cobra.Command {

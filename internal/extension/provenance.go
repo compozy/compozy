@@ -216,7 +216,7 @@ func extensionPermissions(manifest *Manifest) []string {
 		return nil
 	}
 	items := permissionSet{}
-	items.addValues("capabilities.provides", manifest.Capabilities.Provides)
+	items.addValues(manifestFieldCapabilitiesProvides, manifest.Capabilities.Provides)
 	items.addValues("permissions.requires", manifest.Permissions.Requires)
 	items.addValues("requires_env", manifest.RequiresEnv)
 	if len(manifest.Resources.Publish.Families) > 0 {
@@ -258,7 +258,7 @@ func extensionPermissions(manifest *Manifest) []string {
 
 func extensionPermissionsFromParts(capabilities CapabilitiesConfig, permissions PermissionsConfig) []string {
 	items := permissionSet{}
-	items.addValues("capabilities.provides", capabilities.Provides)
+	items.addValues(manifestFieldCapabilitiesProvides, capabilities.Provides)
 	items.addValues("permissions.requires", permissions.Requires)
 	return items.sorted()
 }

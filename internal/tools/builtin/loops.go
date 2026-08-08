@@ -129,7 +129,7 @@ var loopTools = []toolspkg.Descriptor{
 		toolspkg.RiskRead,
 		true,
 		false,
-		[]string{loopKey, goalKey, "turns", "audit"},
+		[]string{loopKey, goalKey, "turns", descriptorKeywordAudit},
 		[]string{"goal turns", "loop turn audit", "goal history"},
 	),
 	nativeLoopDescriptor(

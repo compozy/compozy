@@ -200,6 +200,8 @@ const (
 	ToolIDBridgesList ToolID = "compozy__bridges_list"
 	// ToolIDBridgesStatus reads bridge status and health without credentials.
 	ToolIDBridgesStatus ToolID = "compozy__bridges_status"
+	// ToolIDGateway inspects gateway posture and performs permission-gated management actions.
+	ToolIDGateway ToolID = "compozy__gateway"
 	// ToolIDTaskList lists task summaries through the task service.
 	ToolIDTaskList ToolID = "compozy__task_list"
 	// ToolIDTaskRead reads one task view through the task service.
@@ -427,6 +429,8 @@ const (
 	ToolsetIDObserve ToolsetID = "compozy__observe"
 	// ToolsetIDBridges groups read-only bridge inspection tools.
 	ToolsetIDBridges ToolsetID = "compozy__bridges"
+	// ToolsetIDGateway groups gateway inspection and permission-gated management.
+	ToolsetIDGateway ToolsetID = "compozy__gateway"
 	// ToolsetIDConfig groups validated config tools.
 	ToolsetIDConfig ToolsetID = "compozy__config"
 	// ToolsetIDHooks groups hook introspection and mutable config-backed hook tools.

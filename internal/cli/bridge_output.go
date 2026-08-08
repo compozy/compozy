@@ -6,6 +6,8 @@ import (
 	"time"
 )
 
+const cliKindHeader = "KIND"
+
 func bridgeBundle(item BridgeRecord) outputBundle {
 	return outputBundle{
 		jsonValue: item,
@@ -228,7 +230,13 @@ func bridgeSecretBindingListBundle(items []BridgeSecretBindingRecord) outputBund
 		}{Bindings: items},
 		items,
 		"Bridge Secret Bindings",
-		[]string{"BRIDGE", "NAME", "SECRET REF", "KIND", "UPDATED"},
+		[]string{
+			"BRIDGE",
+			windowManagerNameHeader,
+			"SECRET REF",
+			cliKindHeader,
+			"UPDATED",
+		},
 		"bridge_secret_bindings",
 		[]string{
 			taskBridgeInstanceIDKey,

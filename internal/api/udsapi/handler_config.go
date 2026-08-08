@@ -72,6 +72,7 @@ type handlerConfig struct {
 	memoryLedger       core.MemorySessionLedgerService
 	runtimeMemory      doctor.RuntimeMemorySnapshotSource
 	deadEntities       doctor.DeadEntitySource
+	gateway            core.GatewayService
 	homePaths          compozyconfig.HomePaths
 	config             compozyconfig.Config
 	logger             *slog.Logger

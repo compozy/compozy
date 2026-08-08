@@ -33,6 +33,36 @@
             "sourceType": "github",
             "computedHash": "cfce3ce8c4c2da38f0fc8e881af677efa8166d379862541f79c54e66f1a599d5"
         },
+        "better-accessibility": {
+            "source": "jakubkrehel/skills",
+            "sourceType": "github",
+            "skillPath": "skills/better-accessibility/SKILL.md",
+            "computedHash": "828416336ea982ac71add19e0998ce1dc560d28a912718693a01de7276594ac2"
+        },
+        "better-colors": {
+            "source": "jakubkrehel/skills",
+            "sourceType": "github",
+            "skillPath": "skills/better-colors/SKILL.md",
+            "computedHash": "aee99741f731a9cbc0c2f3c782bdaaa39d4e4fedb657a7bdc80a6519f9a9a0da"
+        },
+        "better-layout": {
+            "source": "jakubkrehel/skills",
+            "sourceType": "github",
+            "skillPath": "skills/better-layout/SKILL.md",
+            "computedHash": "d166f32df548e6da2d45677d959d7020668316b036e8c495b76233b05f7a6c4e"
+        },
+        "better-typography": {
+            "source": "jakubkrehel/skills",
+            "sourceType": "github",
+            "skillPath": "skills/better-typography/SKILL.md",
+            "computedHash": "a43f293432e6df33b62553b67bc1c60e01f7ec66894da9d6bdb8fb95027f6d8d"
+        },
+        "better-ui": {
+            "source": "jakubkrehel/skills",
+            "sourceType": "github",
+            "skillPath": "skills/better-ui/SKILL.md",
+            "computedHash": "d9924d70217ff33a659bafcf78b68189156c406c633e4e958c7d764b3b528517"
+        },
         "bubbletea": {
             "source": "pedronauck/skills",
             "sourceType": "github",
@@ -94,6 +124,12 @@
             "sourceType": "github",
             "skillPath": "skills/mine/deep-review/SKILL.md",
             "computedHash": "ee44095807480208b5f86d669a49172238b3f038b7689bbd9c9c9067faf4e4f8"
+        },
+        "design-taste-frontend": {
+            "source": "Leonxlnx/taste-skill",
+            "sourceType": "github",
+            "skillPath": "skills/taste-skill/SKILL.md",
+            "computedHash": "6d838b246d0e35d0b53f4f23f98ba7a1dd561937e64f7d0c7553b0928e376c3e"
         },
         "deslop": {
             "source": "pedronauck/skills",

@@ -57,15 +57,21 @@ func requestLoggingMiddleware(logger *slog.Logger) gin.HandlerFunc {
 }
 
 func corsMiddleware(boundHost string) gin.HandlerFunc {
+	return corsMiddlewareWithForwardedTarget(boundHost, false)
+}
+
+func corsMiddlewareWithForwardedTarget(boundHost string, allowForwardedTarget bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		origin := strings.TrimSpace(c.GetHeader("Origin"))
 		headers := c.Writer.Header()
-		headers.Set("Access-Control-Allow-Headers", "Content-Type, Last-Event-ID, Accept")
+		headers.Set("Access-Control-Allow-Headers", "Content-Type, Last-Event-ID, Accept, Authorization")
 		headers.Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 		headers.Set("Access-Control-Expose-Headers", "Content-Type, Last-Event-ID, x-vercel-ai-ui-message-stream")
 		headers.Set("Vary", "Origin")
 		if origin != "" {
-			allowedOrigin, ok := resolveAllowedOrigin(origin, requestScheme(c.Request), c.Request.Host, boundHost)
+			allowedOrigin, ok := resolveAllowedOriginForTarget(
+				origin, requestScheme(c.Request), c.Request.Host, boundHost, allowForwardedTarget,
+			)
 			if !ok {
 				abortForbiddenRequest(c, errOriginNotAllowed)
 				return
@@ -82,6 +88,16 @@ func corsMiddleware(boundHost string) gin.HandlerFunc {
 }
 
 func resolveAllowedOrigin(origin string, requestScheme string, requestHost string, boundHost string) (string, bool) {
+	return resolveAllowedOriginForTarget(origin, requestScheme, requestHost, boundHost, false)
+}
+
+func resolveAllowedOriginForTarget(
+	origin string,
+	requestScheme string,
+	requestHost string,
+	boundHost string,
+	allowForwardedTarget bool,
+) (string, bool) {
 	parsed, err := url.Parse(strings.TrimSpace(origin))
 	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
 		return "", false
@@ -97,6 +113,9 @@ func resolveAllowedOrigin(origin string, requestScheme string, requestHost strin
 		return "", false
 	}
 
+	if originSpec.canonical == requestSpec.canonical && allowForwardedTarget {
+		return origin, true
+	}
 	boundSpec, ok := canonicalOriginFromHost(boundHost, requestSpec.scheme, requestSpec.port)
 	if !ok || !requestTargetCompatible(requestSpec, boundSpec) {
 		return "", false
@@ -112,9 +131,17 @@ func resolveAllowedOrigin(origin string, requestScheme string, requestHost strin
 }
 
 func browserRequestProtectionMiddleware(boundHost string) gin.HandlerFunc {
+	return browserRequestProtectionMiddlewareWithForwardedTarget(boundHost, false)
+}
+
+func browserRequestProtectionMiddlewareWithForwardedTarget(
+	boundHost string,
+	allowForwardedTarget bool,
+) gin.HandlerFunc {
 	protection := http.NewCrossOriginProtection()
 	return func(c *gin.Context) {
-		if hasBrowserRequestMetadata(c.Request) && !requestTargetAllowed(c.Request, boundHost) {
+		if hasBrowserRequestMetadata(c.Request) &&
+			!requestTargetAllowedForMode(c.Request, boundHost, allowForwardedTarget) {
 			abortForbiddenRequest(c, errRequestHostNotAllowed)
 			return
 		}
@@ -134,13 +161,16 @@ func hasBrowserRequestMetadata(request *http.Request) bool {
 		strings.TrimSpace(request.Header.Get("Sec-Fetch-Site")) != ""
 }
 
-func requestTargetAllowed(request *http.Request, boundHost string) bool {
+func requestTargetAllowedForMode(request *http.Request, boundHost string, allowForwardedTarget bool) bool {
 	if request == nil {
 		return false
 	}
 	requestSpec, ok := canonicalOriginFromHost(request.Host, requestScheme(request), "")
 	if !ok {
 		return false
+	}
+	if allowForwardedTarget {
+		return true
 	}
 	boundSpec, ok := canonicalOriginFromHost(boundHost, requestSpec.scheme, requestSpec.port)
 	return ok && requestTargetCompatible(requestSpec, boundSpec)

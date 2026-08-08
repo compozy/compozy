@@ -65,10 +65,18 @@ func (a MCPAuthConfig) Validate(path string) error {
 		}
 	case MCPAuthRegistrationPreRegistered:
 		if strings.TrimSpace(a.IssuerURL) == "" {
-			return fmt.Errorf("%s.issuer_url is required for registration = %q", path, MCPAuthRegistrationPreRegistered)
+			return fmt.Errorf(
+				"%s.issuer_url is required for registration = %q",
+				path,
+				MCPAuthRegistrationPreRegistered,
+			)
 		}
 		if strings.TrimSpace(a.ClientID) == "" {
-			return fmt.Errorf("%s.client_id is required for registration = %q", path, MCPAuthRegistrationPreRegistered)
+			return fmt.Errorf(
+				"%s.client_id is required for registration = %q",
+				path,
+				MCPAuthRegistrationPreRegistered,
+			)
 		}
 		if err := ValidateMCPOAuthURL(path+".issuer_url", a.IssuerURL); err != nil {
 			return err
@@ -189,7 +197,7 @@ func ValidateMCPOAuthURL(path string, raw string) error {
 		return fmt.Errorf("%s must be an absolute HTTP(S) URL without credentials", path)
 	}
 	switch parsed.Scheme {
-	case "https":
+	case urlSchemeHTTPS:
 		return nil
 	case "http":
 		if mcpLoopbackHost(parsed.Hostname()) {

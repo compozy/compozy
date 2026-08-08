@@ -208,6 +208,7 @@ export type SettingsSectionSlug =
   | "skills"
   | "automation"
   | "network"
+  | "gateway"
   | "observability"
   | "hooks"
   | "extensions";

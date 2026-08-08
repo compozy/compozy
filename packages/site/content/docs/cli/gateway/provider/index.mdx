@@ -1,0 +1,39 @@
+---
+title: "compozy gateway provider"
+description: "Manage connectivity providers"
+---
+
+## compozy gateway provider
+
+Manage connectivity providers
+
+### Options
+
+```
+  -h, --help   help for provider
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+This command displays human-readable help and its subcommand list. The inherited `-o, --output` and `--json` flags do not serialize help output.
+
+| Format  | Output                   |
+| ------- | ------------------------ |
+| `human` | Help and subcommand list |
+| `json`  | Not emitted for help     |
+| `jsonl` | Not emitted for help     |
+| `toon`  | Not emitted for help     |
+
+## Subcommands
+
+| Command                                                                | Description                                  |
+| ---------------------------------------------------------------------- | -------------------------------------------- |
+| [compozy gateway provider disable](/docs/cli/gateway/provider/disable) | Disable a connectivity provider for one tier |
+| [compozy gateway provider enable](/docs/cli/gateway/provider/enable)   | Enable a connectivity provider for one tier  |

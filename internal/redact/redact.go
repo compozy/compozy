@@ -21,6 +21,7 @@ func exactRedactString(value string) string {
 	redacted := authorizationHeaderPattern.ReplaceAllStringFunc(value, redactAuthorizationHeader)
 	redacted = bearerTokenPattern.ReplaceAllString(redacted, "Bearer "+Marker)
 	redacted = ClaimTokens(redacted)
+	redacted = gatewaySecretPattern.ReplaceAllString(redacted, "${1}"+Marker)
 	redacted = urlUserinfoPattern.ReplaceAllString(redacted, "${1}"+Marker+"@")
 	redacted = quotedAssignmentPattern.ReplaceAllStringFunc(redacted, redactQuotedAssignment)
 	redacted = assignmentPattern.ReplaceAllStringFunc(redacted, redactAssignment)

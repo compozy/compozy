@@ -132,6 +132,8 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 		alphaHeld := make(chan struct{})
 		releaseFirst := make(chan struct{})
 		releaseFirstCaller := newLifecycleRelease(t, releaseFirst)
+		releaseSecond := make(chan struct{})
+		releaseSecondCaller := newLifecycleRelease(t, releaseSecond)
 		firstEntered := make(chan struct{})
 		secondEntered := make(chan struct{})
 		results := make(chan error, 3)
@@ -165,20 +167,35 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 				calls["second"]++
 				mu.Unlock()
 				close(secondEntered)
+				<-releaseSecond
 				return nil
 			})
 		}()
 		waitForLifecycleRefs(t, coordinator, "alpha", 3)
 
 		releaseAlphaHolder()
-		requireLifecycleSignal(t, firstEntered, "first opposing caller")
 		select {
+		case <-firstEntered:
+			select {
+			case <-secondEntered:
+				t.Fatal("second opposing caller entered while first held both names")
+			default:
+			}
+			releaseFirstCaller()
+			requireLifecycleSignal(t, secondEntered, "second opposing caller after first released")
 		case <-secondEntered:
-			t.Fatal("second opposing caller entered before first released")
-		default:
+			select {
+			case <-firstEntered:
+				t.Fatal("first opposing caller entered while second held both names")
+			default:
+			}
+			releaseSecondCaller()
+			requireLifecycleSignal(t, firstEntered, "first opposing caller after second released")
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for an opposing name-set caller")
 		}
 		releaseFirstCaller()
-		requireLifecycleSignal(t, secondEntered, "second opposing caller")
+		releaseSecondCaller()
 		for range 3 {
 			if err := requireLifecycleResult(t, results, "opposing name-set caller"); err != nil {
 				t.Fatalf("withNames() error = %v", err)

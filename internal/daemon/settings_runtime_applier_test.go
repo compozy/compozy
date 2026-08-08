@@ -10,6 +10,7 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	diagcontract "github.com/compozy/compozy/internal/diagnosticcontract"
+	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/marketplace"
 	"github.com/compozy/compozy/internal/providers"
 	"github.com/compozy/compozy/internal/store"
@@ -18,6 +19,110 @@ import (
 )
 
 func TestDaemonSettingsRuntimeApplier(t *testing.T) {
+	t.Run("Should apply the gateway ceiling before publishing active config", func(t *testing.T) {
+		t.Parallel()
+
+		previous := compozyconfig.Config{Gateway: compozyconfig.GatewayConfig{Enabled: true}}
+		next := previous
+		next.Gateway.Enabled = false
+		policy := &recordingGatewayPolicy{}
+		daemonInstance := &Daemon{config: previous}
+		failures := daemonSettingsRuntimeApplier{
+			daemon: daemonInstance,
+			state:  &bootState{cfg: previous, gateway: policy},
+		}.ApplyActiveConfig(t.Context(), &next)
+		if len(failures) != 0 {
+			t.Fatalf("ApplyActiveConfig() failures = %#v, want none", failures)
+		}
+		if len(policy.enabledCalls) != 1 || policy.enabledCalls[0] {
+			t.Fatalf("gateway SetEnabled calls = %#v, want [false]", policy.enabledCalls)
+		}
+		if daemonInstance.config.Gateway.Enabled {
+			t.Fatal("published gateway ceiling = true, want false")
+		}
+	})
+
+	t.Run("Should keep previous config when the gateway ceiling sync fails", func(t *testing.T) {
+		t.Parallel()
+
+		previous := compozyconfig.Config{
+			Gateway: compozyconfig.GatewayConfig{Enabled: true},
+			Network: compozyconfig.NetworkConfig{Enabled: true},
+		}
+		next := previous
+		next.Gateway.Enabled = false
+		next.Network.Enabled = false
+		policy := &recordingGatewayPolicy{setEnabledErr: errors.New("gateway sync boom")}
+		availability := &recordingNetworkAvailabilityStore{}
+		daemonInstance := &Daemon{config: previous}
+		failures := daemonSettingsRuntimeApplier{
+			daemon:              daemonInstance,
+			state:               &bootState{cfg: previous, gateway: policy},
+			networkAvailability: availability,
+		}.ApplyActiveConfig(t.Context(), &next)
+		if len(failures) != 1 || failures[0].Subsystem != "gateway_ceiling" {
+			t.Fatalf("ApplyActiveConfig() failures = %#v, want gateway ceiling failure", failures)
+		}
+		if len(policy.enabledCalls) != 2 || policy.enabledCalls[0] || !policy.enabledCalls[1] {
+			t.Fatalf("gateway SetEnabled calls = %#v, want [false true]", policy.enabledCalls)
+		}
+		if len(availability.enabled) != 2 || availability.enabled[0] || !availability.enabled[1] {
+			t.Fatalf("availability writes = %#v, want [false true]", availability.enabled)
+		}
+		if len(availability.updatedBy) != 2 ||
+			availability.updatedBy[0] != "config.apply" ||
+			availability.updatedBy[1] != "config.rollback" {
+			t.Fatalf("availability actors = %#v, want [config.apply config.rollback]", availability.updatedBy)
+		}
+		if !daemonInstance.config.Gateway.Enabled {
+			t.Fatal("published gateway ceiling = false, want previous true config")
+		}
+		if !daemonInstance.config.Network.Enabled {
+			t.Fatal("published network availability = false, want previous true config")
+		}
+	})
+
+	t.Run("Should reconfigure active gateway dependencies before publishing config", func(t *testing.T) {
+		t.Parallel()
+
+		previous := compozyconfig.DefaultWithHome(compozyconfig.HomePaths{})
+		next := previous
+		next.Gateway.Auth.RateLimit.MaxFails = 1
+		next.Gateway.Auth.RateLimit.Window = 2 * time.Minute
+		next.Gateway.Verify.Timeout = 250 * time.Millisecond
+		limiter := gateway.NewAuthFailureLimiter(
+			previous.Gateway.Auth.RateLimit.MaxFails,
+			previous.Gateway.Auth.RateLimit.Window,
+			nil,
+		)
+		verifier, err := gateway.NewEndpointVerifier(previous.Gateway.Verify.Timeout)
+		if err != nil {
+			t.Fatalf("NewEndpointVerifier() error = %v", err)
+		}
+		state := &bootState{cfg: previous, gatewayVerifier: verifier}
+		state.deps.Config = previous
+		state.deps.GatewayAuthLimiter = limiter
+		failures := daemonSettingsRuntimeApplier{
+			daemon: &Daemon{config: previous},
+			state:  state,
+		}.ApplyActiveConfig(t.Context(), &next)
+		if len(failures) != 0 {
+			t.Fatalf("ApplyActiveConfig() failures = %#v, want none", failures)
+		}
+		if got := verifier.Timeout(); got != next.Gateway.Verify.Timeout {
+			t.Fatalf("gateway verifier timeout = %s, want %s", got, next.Gateway.Verify.Timeout)
+		}
+		if !limiter.Allow("198.51.100.12", false) {
+			t.Fatal("gateway limiter first attempt = false")
+		}
+		if limiter.Allow("198.51.100.12", false) {
+			t.Fatal("gateway limiter second attempt = true, want live limit")
+		}
+		if got := state.deps.Config.Gateway.Verify.Timeout; got != next.Gateway.Verify.Timeout {
+			t.Fatalf("runtime dependency config timeout = %s, want %s", got, next.Gateway.Verify.Timeout)
+		}
+	})
+
 	t.Run("Should invalidate only the owning provider prestart cache after active config apply", func(t *testing.T) {
 		t.Parallel()
 
@@ -487,6 +592,43 @@ type recordingNetworkAvailabilityStore struct {
 	beforeWrite func(bool)
 	err         error
 }
+
+type recordingGatewayPolicy struct {
+	enabledCalls  []bool
+	setEnabledErr error
+}
+
+func (p *recordingGatewayPolicy) Plan(context.Context) (gateway.ExposurePlan, error) {
+	return gateway.ExposurePlan{}, nil
+}
+
+func (p *recordingGatewayPolicy) Transition(
+	context.Context,
+	gateway.TransitionRequest,
+) (gateway.Status, error) {
+	return gateway.Status{}, nil
+}
+
+func (p *recordingGatewayPolicy) Reconcile(context.Context) (gateway.Status, error) {
+	return gateway.Status{}, nil
+}
+
+func (p *recordingGatewayPolicy) SetEnabled(_ context.Context, enabled bool) error {
+	p.enabledCalls = append(p.enabledCalls, enabled)
+	err := p.setEnabledErr
+	p.setEnabledErr = nil
+	return err
+}
+
+func (p *recordingGatewayPolicy) Status(context.Context) (gateway.Status, error) {
+	return gateway.Status{}, nil
+}
+
+func (p *recordingGatewayPolicy) Acquire(gateway.Tier, gateway.Surface) (func(), error) {
+	return func() {}, nil
+}
+
+func (p *recordingGatewayPolicy) Close(context.Context) error { return nil }
 
 func (s *recordingNetworkAvailabilityStore) GetNetworkAvailability(
 	context.Context,

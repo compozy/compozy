@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-func (c *unixSocketClient) ListResources(ctx context.Context, query ResourceListQuery) ([]ResourceRecord, error) {
+func (c *daemonClient) ListResources(ctx context.Context, query ResourceListQuery) ([]ResourceRecord, error) {
 	var response struct {
 		Records []ResourceRecord `json:"records"`
 	}
@@ -19,7 +19,7 @@ func (c *unixSocketClient) ListResources(ctx context.Context, query ResourceList
 	return response.Records, nil
 }
 
-func (c *unixSocketClient) GetResource(ctx context.Context, kind string, id string) (ResourceRecord, error) {
+func (c *daemonClient) GetResource(ctx context.Context, kind string, id string) (ResourceRecord, error) {
 	var response struct {
 		Record ResourceRecord `json:"record"`
 	}
@@ -30,7 +30,7 @@ func (c *unixSocketClient) GetResource(ctx context.Context, kind string, id stri
 	return response.Record, nil
 }
 
-func (c *unixSocketClient) PutResource(
+func (c *daemonClient) PutResource(
 	ctx context.Context,
 	kind string,
 	id string,
@@ -46,7 +46,7 @@ func (c *unixSocketClient) PutResource(
 	return response.Record, nil
 }
 
-func (c *unixSocketClient) DeleteResource(
+func (c *daemonClient) DeleteResource(
 	ctx context.Context,
 	kind string,
 	id string,
@@ -56,7 +56,7 @@ func (c *unixSocketClient) DeleteResource(
 	return c.doJSON(ctx, http.MethodDelete, path, nil, request, nil)
 }
 
-func (c *unixSocketClient) ListSkills(ctx context.Context, query SkillQuery) ([]SkillRecord, error) {
+func (c *daemonClient) ListSkills(ctx context.Context, query SkillQuery) ([]SkillRecord, error) {
 	var response struct {
 		Skills []SkillRecord `json:"skills"`
 	}
@@ -66,7 +66,7 @@ func (c *unixSocketClient) ListSkills(ctx context.Context, query SkillQuery) ([]
 	return response.Skills, nil
 }
 
-func (c *unixSocketClient) GetSkill(ctx context.Context, name string, query SkillQuery) (SkillRecord, error) {
+func (c *daemonClient) GetSkill(ctx context.Context, name string, query SkillQuery) (SkillRecord, error) {
 	var response struct {
 		Skill SkillRecord `json:"skill"`
 	}
@@ -83,7 +83,7 @@ func (c *unixSocketClient) GetSkill(ctx context.Context, name string, query Skil
 	return response.Skill, nil
 }
 
-func (c *unixSocketClient) GetSkillContent(ctx context.Context, name string, query SkillQuery) (string, error) {
+func (c *daemonClient) GetSkillContent(ctx context.Context, name string, query SkillQuery) (string, error) {
 	var response struct {
 		Content string `json:"content"`
 	}
@@ -100,7 +100,7 @@ func (c *unixSocketClient) GetSkillContent(ctx context.Context, name string, que
 	return response.Content, nil
 }
 
-func (c *unixSocketClient) GetSkillShadows(
+func (c *daemonClient) GetSkillShadows(
 	ctx context.Context,
 	name string,
 	query SkillQuery,
@@ -119,15 +119,15 @@ func (c *unixSocketClient) GetSkillShadows(
 	return response, nil
 }
 
-func (c *unixSocketClient) EnableSkill(ctx context.Context, name string, query SkillQuery) (SkillActionRecord, error) {
+func (c *daemonClient) EnableSkill(ctx context.Context, name string, query SkillQuery) (SkillActionRecord, error) {
 	return c.skillAction(ctx, strings.TrimSpace(name), "enable", query)
 }
 
-func (c *unixSocketClient) DisableSkill(ctx context.Context, name string, query SkillQuery) (SkillActionRecord, error) {
+func (c *daemonClient) DisableSkill(ctx context.Context, name string, query SkillQuery) (SkillActionRecord, error) {
 	return c.skillAction(ctx, strings.TrimSpace(name), "disable", query)
 }
 
-func (c *unixSocketClient) InstallSkillMarketplace(
+func (c *daemonClient) InstallSkillMarketplace(
 	ctx context.Context,
 	request SkillMarketplaceInstallRequest,
 ) (SkillMarketplaceInstallRecord, error) {
@@ -140,7 +140,7 @@ func (c *unixSocketClient) InstallSkillMarketplace(
 	return response.Skill, nil
 }
 
-func (c *unixSocketClient) UpdateSkillMarketplace(
+func (c *daemonClient) UpdateSkillMarketplace(
 	ctx context.Context,
 	request SkillMarketplaceUpdateRequest,
 ) ([]SkillMarketplaceUpdateRecord, error) {
@@ -153,7 +153,7 @@ func (c *unixSocketClient) UpdateSkillMarketplace(
 	return response.Skills, nil
 }
 
-func (c *unixSocketClient) RemoveSkillMarketplace(
+func (c *daemonClient) RemoveSkillMarketplace(
 	ctx context.Context,
 	name string,
 ) (SkillMarketplaceRemoveRecord, error) {
@@ -173,7 +173,7 @@ func (c *unixSocketClient) RemoveSkillMarketplace(
 	return response.Skill, nil
 }
 
-func (c *unixSocketClient) HookCatalog(ctx context.Context, query HookCatalogQuery) ([]HookCatalogRecord, error) {
+func (c *daemonClient) HookCatalog(ctx context.Context, query HookCatalogQuery) ([]HookCatalogRecord, error) {
 	var response struct {
 		Hooks []HookCatalogRecord `json:"hooks"`
 	}
@@ -190,7 +190,7 @@ func (c *unixSocketClient) HookCatalog(ctx context.Context, query HookCatalogQue
 	return response.Hooks, nil
 }
 
-func (c *unixSocketClient) HookRuns(
+func (c *daemonClient) HookRuns(
 	ctx context.Context,
 	workspaceRef string,
 	query HookRunsQuery,
@@ -208,7 +208,7 @@ func (c *unixSocketClient) HookRuns(
 	return response.Runs, nil
 }
 
-func (c *unixSocketClient) HookEvents(ctx context.Context, query HookEventsQuery) ([]HookEventRecord, error) {
+func (c *daemonClient) HookEvents(ctx context.Context, query HookEventsQuery) ([]HookEventRecord, error) {
 	var response struct {
 		Events []HookEventRecord `json:"events"`
 	}
@@ -218,7 +218,7 @@ func (c *unixSocketClient) HookEvents(ctx context.Context, query HookEventsQuery
 	return response.Events, nil
 }
 
-func (c *unixSocketClient) ListLogs(ctx context.Context, query LogsListQuery) ([]LogEventRecord, error) {
+func (c *daemonClient) ListLogs(ctx context.Context, query LogsListQuery) ([]LogEventRecord, error) {
 	var response struct {
 		Events []LogEventRecord `json:"events"`
 	}
@@ -235,7 +235,7 @@ func (c *unixSocketClient) ListLogs(ctx context.Context, query LogsListQuery) ([
 	return response.Events, nil
 }
 
-func (c *unixSocketClient) StreamLogs(
+func (c *daemonClient) StreamLogs(
 	ctx context.Context,
 	query LogsListQuery,
 	lastEventID string,

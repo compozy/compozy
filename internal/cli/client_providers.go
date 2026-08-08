@@ -10,7 +10,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 )
 
-func (c *unixSocketClient) ListProviders(ctx context.Context) (contract.ProviderListResponse, error) {
+func (c *daemonClient) ListProviders(ctx context.Context) (contract.ProviderListResponse, error) {
 	var response contract.ProviderListResponse
 	if err := c.doJSON(ctx, http.MethodGet, "/api/providers", nil, nil, &response); err != nil {
 		return contract.ProviderListResponse{}, err
@@ -18,7 +18,7 @@ func (c *unixSocketClient) ListProviders(ctx context.Context) (contract.Provider
 	return response, nil
 }
 
-func (c *unixSocketClient) ProbeProviderAuth(
+func (c *daemonClient) ProbeProviderAuth(
 	ctx context.Context,
 	providerID string,
 ) (contract.ProviderAuthProbeResponse, error) {

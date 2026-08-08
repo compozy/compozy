@@ -8,7 +8,7 @@ import (
 )
 
 // ListSessionCommands returns the unified command catalog for one session.
-func (c *unixSocketClient) ListSessionCommands(
+func (c *daemonClient) ListSessionCommands(
 	ctx context.Context,
 	id string,
 ) (SessionCommandsRecord, error) {

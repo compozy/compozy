@@ -27,6 +27,7 @@ const (
 	extensionMarketplaceCurrentVersionKey = "current_version"
 	extensionMarketplaceDescriptionKey    = "description"
 	extensionMarketplacePathKey           = "path"
+	extensionMarketplaceTierKey           = "tier"
 )
 
 const (
@@ -144,7 +145,7 @@ func extensionSearchBundle(response ExtensionSearchRecord) outputBundle {
 			"update_available",
 			"downloads",
 			automationSourceKey,
-			"tier",
+			extensionMarketplaceTierKey,
 			"integrity",
 		},
 		func(item extensionSearchItem) []string {

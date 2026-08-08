@@ -84,13 +84,14 @@ compatibility its SDK does not have.
 `provides` is a closed set. Registering a tool through the SDK adds `tool.provider` automatically, so
 most authors never write this block.
 
-| Provide             | Compozy calls the extension with                 | Public |
-| ------------------- | ------------------------------------------------ | ------ |
-| `tool.provider`     | `provide_tools`, `tools/call`                    | yes    |
-| `memory.backend`    | `memory/store`, `memory/recall`, `memory/forget` | yes    |
-| `model.source`      | `models/list`                                    | yes    |
-| `loop.watch_source` | `watch/poll`                                     | yes    |
-| `bridge.adapter`    | `bridges/deliver`, `bridges/targets/snapshot`    | no     |
+| Provide                 | Compozy calls the extension with                                         | Public |
+| ----------------------- | ------------------------------------------------------------------------ | ------ |
+| `tool.provider`         | `provide_tools`, `tools/call`                                            | yes    |
+| `memory.backend`        | `memory/store`, `memory/recall`, `memory/forget`                         | yes    |
+| `model.source`          | `models/list`                                                            | yes    |
+| `loop.watch_source`     | `watch/poll`                                                             | yes    |
+| `connectivity.provider` | `connectivity/establish`, `connectivity/status`, `connectivity/teardown` | yes    |
+| `bridge.adapter`        | `bridges/deliver`, `bridges/targets/snapshot`                            | no     |
 
 `bridge.adapter` is not yet a third-party surface. An installed manifest declaring it is rejected
 deterministically; see [Develop Extensions](/docs/extensions/develop#bridge-adapters) for the
@@ -99,6 +100,12 @@ current position.
 An unknown value fails manifest load with the valid set in the error. There is no shape-only
 validation and no silent no-op.
 
+A `connectivity.provider` must be installed globally and must declare required Live Network
+participation with `gateway.private`, `gateway.public`, or both in `channel_scopes`. The selected
+tier must match one of those scopes. Workspace-scoped installs are rejected. See
+[Develop Extensions](/docs/extensions/develop#connectivity-providers) for the request and trust
+contract.
+
 ## `[permissions]`
 
 ```toml
@@ -106,7 +113,7 @@ validation and no silent no-op.
   requires = ["memory/recall", "sessions/list"]
 ```
 
-The Host API methods the extension calls, validated against the closed 87-method set. Consent areas
+The Host API methods the extension calls, validated against the closed 95-method set. Consent areas
 are derived from it. Full catalog and source ceilings:
 [Extension Permissions](/docs/extensions/permissions).
 
@@ -228,6 +235,9 @@ Compozy hashes the normalized block into the extension's Network requirement dig
 explicit confirmation of that exact digest. Update compares the candidate digest before swapping any
 files and refuses a changed, unconfirmed requirement without changing installed state. Declared
 channels remain inventory — confirmation does not enroll an execution into Live.
+
+For `connectivity.provider`, `channel_scopes` is required and must include `gateway.private`,
+`gateway.public`, or both. Gateway rejects an enable when the selected tier is outside that set.
 
 ## Resource-only manifests
 

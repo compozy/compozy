@@ -17,6 +17,7 @@ import (
 	"github.com/compozy/compozy/internal/api/testutil"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/observe"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
@@ -190,6 +191,10 @@ func TestBridgeHandlersCreateListGetAndUpdate(t *testing.T) {
 		if got, want := getPayload.Bridge.WebhookPublicURL, "https://hooks.example.test/telegram"; got != want {
 			t.Fatalf("get bridge webhook_public_url = %q, want %q", got, want)
 		}
+		if getPayload.Bridge.GatewayIngress != nil || getPayload.Health.Ingress != nil {
+			t.Fatalf("external bridge unexpectedly gained gateway ingress: bridge=%#v health=%#v",
+				getPayload.Bridge.GatewayIngress, getPayload.Health.Ingress)
+		}
 
 		updateResp := performRequest(
 			t,
@@ -214,6 +219,80 @@ func TestBridgeHandlersCreateListGetAndUpdate(t *testing.T) {
 			t.Fatalf("update webhook_public_url = %q, want omitted for invalid callback", got)
 		}
 	})
+}
+
+func TestBridgeHandlersSurfaceConfirmedGatewayIngressHealth(t *testing.T) {
+	t.Parallel()
+
+	instance := bridgeHandlerCatalogInstance(
+		"brg-ingress-off",
+		bridgepkg.ScopeGlobal,
+		"",
+		"telegram",
+		"Telegram ingress",
+	)
+	instance.ProviderConfig = json.RawMessage(
+		`{"webhook":{"public_url":"https://external.example.test/telegram","listen_addr":"127.0.0.1:43123","path":"/telegram"}}`,
+	)
+	handlers, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
+		GetInstanceFn: func(context.Context, string) (*bridgepkg.BridgeInstance, error) {
+			return &instance, nil
+		},
+	})
+	handlers.Gateway = bridgeCallbackGatewayStub{projection: gateway.IngressProjection{
+		Subject: gateway.IngressSubjectRef{Kind: gateway.IngressSubjectBridgeInstance, ID: instance.ID},
+		URL:     "", Reachability: gateway.IngressReachabilityOff,
+		EndpointGeneration: 4, ConfirmedEndpointGeneration: 4,
+	}}
+
+	response := performRequest(t, engine, http.MethodGet, "/bridges/"+instance.ID, nil)
+	if response.Code != http.StatusOK {
+		t.Fatalf("get status = %d body=%s", response.Code, response.Body.String())
+	}
+	var payload contract.BridgeResponse
+	testutil.DecodeJSONResponse(t, response, &payload)
+	if got, want := payload.Bridge.WebhookPublicURL, "https://external.example.test/telegram"; got != want {
+		t.Fatalf("webhook_public_url = %q, want preserved external URL %q", got, want)
+	}
+	if payload.Bridge.GatewayIngress == nil || payload.Health.Ingress == nil ||
+		payload.Health.Ingress.Reachability != string(gateway.IngressReachabilityOff) ||
+		payload.Health.Ingress.ConfirmedEndpointGeneration != 4 {
+		t.Fatalf("gateway ingress projection = bridge:%#v health:%#v",
+			payload.Bridge.GatewayIngress, payload.Health.Ingress)
+	}
+}
+
+func TestBridgeHandlersSurfaceBrokenGatewayIngressHealth(t *testing.T) {
+	t.Parallel()
+
+	instance := bridgeHandlerCatalogInstance(
+		"brg-ingress-broken",
+		bridgepkg.ScopeGlobal,
+		"",
+		"telegram",
+		"Telegram ingress",
+	)
+	handlers, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
+		GetInstanceFn: func(context.Context, string) (*bridgepkg.BridgeInstance, error) {
+			return &instance, nil
+		},
+	})
+	handlers.Gateway = bridgeCallbackGatewayStub{projection: gateway.IngressProjection{
+		Subject:      gateway.IngressSubjectRef{Kind: gateway.IngressSubjectBridgeInstance, ID: instance.ID},
+		Reachability: gateway.IngressReachabilityBroken,
+	}}
+
+	response := performRequest(t, engine, http.MethodGet, "/bridges/"+instance.ID, nil)
+	if response.Code != http.StatusOK {
+		t.Fatalf("get status = %d body=%s", response.Code, response.Body.String())
+	}
+	var payload contract.BridgeResponse
+	testutil.DecodeJSONResponse(t, response, &payload)
+	if payload.Bridge.GatewayIngress == nil || payload.Health.Ingress == nil ||
+		payload.Health.Ingress.Reachability != string(gateway.IngressReachabilityBroken) {
+		t.Fatalf("broken gateway ingress projection = bridge:%#v health:%#v",
+			payload.Bridge.GatewayIngress, payload.Health.Ingress)
+	}
 }
 
 func TestBridgeHandlersValidateTypedProgressSettings(t *testing.T) {

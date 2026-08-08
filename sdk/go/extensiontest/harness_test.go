@@ -14,7 +14,7 @@ func TestPublicProvideConformance(t *testing.T) {
 	t.Run("Should expose every public provide fixture", func(t *testing.T) {
 		t.Parallel()
 
-		if got, want := len(fixtures), 4; got != want {
+		if got, want := len(fixtures), 5; got != want {
 			t.Fatalf("PublicProvideFixtures() count = %d, want %d", got, want)
 		}
 	})

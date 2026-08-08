@@ -11,7 +11,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 )
 
-func (c *unixSocketClient) PublishTask(
+func (c *daemonClient) PublishTask(
 	ctx context.Context,
 	id string,
 	request TaskExecutionRequest,
@@ -19,7 +19,7 @@ func (c *unixSocketClient) PublishTask(
 	return c.taskExecutionAction(ctx, strings.TrimSpace(id), "publish", request)
 }
 
-func (c *unixSocketClient) StartTask(
+func (c *daemonClient) StartTask(
 	ctx context.Context,
 	id string,
 	request TaskExecutionRequest,
@@ -27,7 +27,7 @@ func (c *unixSocketClient) StartTask(
 	return c.taskExecutionAction(ctx, strings.TrimSpace(id), "start", request)
 }
 
-func (c *unixSocketClient) ApproveTask(
+func (c *daemonClient) ApproveTask(
 	ctx context.Context,
 	id string,
 	request TaskExecutionRequest,
@@ -35,12 +35,12 @@ func (c *unixSocketClient) ApproveTask(
 	return c.taskExecutionAction(ctx, strings.TrimSpace(id), "approve", request)
 }
 
-func (c *unixSocketClient) DeleteTask(ctx context.Context, id string) error {
+func (c *daemonClient) DeleteTask(ctx context.Context, id string) error {
 	path := "/api/tasks/" + url.PathEscape(strings.TrimSpace(id))
 	return c.doJSON(ctx, http.MethodDelete, path, nil, nil, nil)
 }
 
-func (c *unixSocketClient) RejectTask(ctx context.Context, id string) (TaskRecord, error) {
+func (c *daemonClient) RejectTask(ctx context.Context, id string) (TaskRecord, error) {
 	var response contract.TaskResponse
 	path := "/api/tasks/" + url.PathEscape(strings.TrimSpace(id)) + "/reject"
 	if err := c.doJSON(ctx, http.MethodPost, path, nil, nil, &response); err != nil {
@@ -49,7 +49,7 @@ func (c *unixSocketClient) RejectTask(ctx context.Context, id string) (TaskRecor
 	return response.Task, nil
 }
 
-func (c *unixSocketClient) CancelTask(ctx context.Context, id string, request CancelTaskRequest) (TaskRecord, error) {
+func (c *daemonClient) CancelTask(ctx context.Context, id string, request CancelTaskRequest) (TaskRecord, error) {
 	var response contract.TaskResponse
 	path := "/api/tasks/" + url.PathEscape(strings.TrimSpace(id)) + "/cancel"
 	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
@@ -58,7 +58,7 @@ func (c *unixSocketClient) CancelTask(ctx context.Context, id string, request Ca
 	return response.Task, nil
 }
 
-func (c *unixSocketClient) PauseTask(ctx context.Context, id string, request PauseTaskRequest) (TaskRecord, error) {
+func (c *daemonClient) PauseTask(ctx context.Context, id string, request PauseTaskRequest) (TaskRecord, error) {
 	var response contract.TaskResponse
 	path := "/api/tasks/" + url.PathEscape(strings.TrimSpace(id)) + "/pause"
 	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
@@ -67,7 +67,7 @@ func (c *unixSocketClient) PauseTask(ctx context.Context, id string, request Pau
 	return response.Task, nil
 }
 
-func (c *unixSocketClient) ResumeTask(
+func (c *daemonClient) ResumeTask(
 	ctx context.Context,
 	id string,
 	request ResumeTaskRequest,
@@ -80,7 +80,7 @@ func (c *unixSocketClient) ResumeTask(
 	return response.Task, nil
 }
 
-func (c *unixSocketClient) CreateChildTask(
+func (c *daemonClient) CreateChildTask(
 	ctx context.Context,
 	id string,
 	request CreateTaskChildRequest,
@@ -93,7 +93,7 @@ func (c *unixSocketClient) CreateChildTask(
 	return response.Task, nil
 }
 
-func (c *unixSocketClient) AddTaskDependency(
+func (c *daemonClient) AddTaskDependency(
 	ctx context.Context,
 	id string,
 	request AddTaskDependencyRequest,
@@ -106,7 +106,7 @@ func (c *unixSocketClient) AddTaskDependency(
 	return response.Task, nil
 }
 
-func (c *unixSocketClient) RemoveTaskDependency(
+func (c *daemonClient) RemoveTaskDependency(
 	ctx context.Context,
 	id string,
 	dependsOnID string,
@@ -123,7 +123,7 @@ func (c *unixSocketClient) RemoveTaskDependency(
 	return response.Task, nil
 }
 
-func (c *unixSocketClient) EnqueueTaskRun(
+func (c *daemonClient) EnqueueTaskRun(
 	ctx context.Context,
 	id string,
 	request EnqueueTaskRunRequest,
@@ -136,7 +136,7 @@ func (c *unixSocketClient) EnqueueTaskRun(
 	return response.Run, nil
 }
 
-func (c *unixSocketClient) FanOutTaskRuns(
+func (c *daemonClient) FanOutTaskRuns(
 	ctx context.Context,
 	id string,
 	request FanOutTaskRunsRequest,
@@ -149,7 +149,7 @@ func (c *unixSocketClient) FanOutTaskRuns(
 	return response, nil
 }
 
-func (c *unixSocketClient) ListTaskRuns(
+func (c *daemonClient) ListTaskRuns(
 	ctx context.Context,
 	id string,
 	query TaskRunListQuery,
@@ -162,7 +162,7 @@ func (c *unixSocketClient) ListTaskRuns(
 	return response.Runs, nil
 }
 
-func (c *unixSocketClient) GetTaskRun(ctx context.Context, id string) (TaskRunDetailRecord, error) {
+func (c *daemonClient) GetTaskRun(ctx context.Context, id string) (TaskRunDetailRecord, error) {
 	var response contract.TaskRunDetailResponse
 	path := "/api/task-runs/" + url.PathEscape(strings.TrimSpace(id))
 	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
@@ -171,7 +171,7 @@ func (c *unixSocketClient) GetTaskRun(ctx context.Context, id string) (TaskRunDe
 	return response.Run, nil
 }
 
-func (c *unixSocketClient) StartTaskRun(
+func (c *daemonClient) StartTaskRun(
 	ctx context.Context,
 	id string,
 	request StartTaskRunRequest,
@@ -179,7 +179,7 @@ func (c *unixSocketClient) StartTaskRun(
 	return c.taskRunAction(ctx, strings.TrimSpace(id), "start", request)
 }
 
-func (c *unixSocketClient) AttachTaskRunSession(
+func (c *daemonClient) AttachTaskRunSession(
 	ctx context.Context,
 	id string,
 	request AttachTaskRunSessionRequest,
@@ -187,7 +187,7 @@ func (c *unixSocketClient) AttachTaskRunSession(
 	return c.taskRunAction(ctx, strings.TrimSpace(id), "attach-session", request)
 }
 
-func (c *unixSocketClient) CompleteTaskRun(
+func (c *daemonClient) CompleteTaskRun(
 	ctx context.Context,
 	id string,
 	request CompleteTaskRunRequest,
@@ -195,7 +195,7 @@ func (c *unixSocketClient) CompleteTaskRun(
 	return c.taskRunAction(ctx, strings.TrimSpace(id), "complete", request)
 }
 
-func (c *unixSocketClient) FailTaskRun(
+func (c *daemonClient) FailTaskRun(
 	ctx context.Context,
 	id string,
 	request FailTaskRunRequest,
@@ -203,7 +203,7 @@ func (c *unixSocketClient) FailTaskRun(
 	return c.taskRunAction(ctx, strings.TrimSpace(id), "fail", request)
 }
 
-func (c *unixSocketClient) CancelTaskRun(
+func (c *daemonClient) CancelTaskRun(
 	ctx context.Context,
 	id string,
 	request CancelTaskRunRequest,
@@ -211,7 +211,7 @@ func (c *unixSocketClient) CancelTaskRun(
 	return c.taskRunAction(ctx, strings.TrimSpace(id), "cancel", request)
 }
 
-func (c *unixSocketClient) ForceReleaseTaskRun(
+func (c *daemonClient) ForceReleaseTaskRun(
 	ctx context.Context,
 	id string,
 	request ForceReleaseTaskRunRequest,
@@ -219,7 +219,7 @@ func (c *unixSocketClient) ForceReleaseTaskRun(
 	return c.forceTaskRunAction(ctx, strings.TrimSpace(id), "release", request)
 }
 
-func (c *unixSocketClient) ForceFailTaskRun(
+func (c *daemonClient) ForceFailTaskRun(
 	ctx context.Context,
 	id string,
 	request ForceFailTaskRunRequest,
@@ -227,7 +227,7 @@ func (c *unixSocketClient) ForceFailTaskRun(
 	return c.forceTaskRunAction(ctx, strings.TrimSpace(id), "fail", request)
 }
 
-func (c *unixSocketClient) RetryTaskRun(
+func (c *daemonClient) RetryTaskRun(
 	ctx context.Context,
 	id string,
 	request RetryTaskRunRequest,
@@ -240,7 +240,7 @@ func (c *unixSocketClient) RetryTaskRun(
 	return response, nil
 }
 
-func (c *unixSocketClient) RecoverTaskRun(
+func (c *daemonClient) RecoverTaskRun(
 	ctx context.Context,
 	id string,
 	request RecoverTaskRunRequest,
@@ -253,21 +253,21 @@ func (c *unixSocketClient) RecoverTaskRun(
 	return response, nil
 }
 
-func (c *unixSocketClient) BulkForceReleaseTaskRuns(
+func (c *daemonClient) BulkForceReleaseTaskRuns(
 	ctx context.Context,
 	request BulkForceTaskRunRequest,
 ) (BulkForceTaskRunRecord, error) {
 	return c.bulkForceTaskRunAction(ctx, "release", request)
 }
 
-func (c *unixSocketClient) BulkForceFailTaskRuns(
+func (c *daemonClient) BulkForceFailTaskRuns(
 	ctx context.Context,
 	request BulkForceTaskRunRequest,
 ) (BulkForceTaskRunRecord, error) {
 	return c.bulkForceTaskRunAction(ctx, "fail", request)
 }
 
-func (c *unixSocketClient) SchedulerStatus(ctx context.Context) (SchedulerStatusRecord, error) {
+func (c *daemonClient) SchedulerStatus(ctx context.Context) (SchedulerStatusRecord, error) {
 	var response contract.SchedulerStatusResponse
 	if err := c.doJSON(ctx, http.MethodGet, "/api/scheduler", nil, nil, &response); err != nil {
 		return SchedulerStatusRecord{}, err
@@ -275,7 +275,7 @@ func (c *unixSocketClient) SchedulerStatus(ctx context.Context) (SchedulerStatus
 	return response.Scheduler, nil
 }
 
-func (c *unixSocketClient) PauseScheduler(
+func (c *daemonClient) PauseScheduler(
 	ctx context.Context,
 	request SchedulerPauseRequest,
 ) (SchedulerStatusRecord, error) {
@@ -286,7 +286,7 @@ func (c *unixSocketClient) PauseScheduler(
 	return response.Scheduler, nil
 }
 
-func (c *unixSocketClient) ResumeScheduler(
+func (c *daemonClient) ResumeScheduler(
 	ctx context.Context,
 	request SchedulerResumeRequest,
 ) (SchedulerStatusRecord, error) {
@@ -297,7 +297,7 @@ func (c *unixSocketClient) ResumeScheduler(
 	return response.Scheduler, nil
 }
 
-func (c *unixSocketClient) DrainScheduler(
+func (c *daemonClient) DrainScheduler(
 	ctx context.Context,
 	request SchedulerDrainRequest,
 ) (SchedulerDrainRecord, error) {
@@ -308,7 +308,7 @@ func (c *unixSocketClient) DrainScheduler(
 	return response, nil
 }
 
-func (c *unixSocketClient) SchedulerBacklog(
+func (c *daemonClient) SchedulerBacklog(
 	ctx context.Context,
 	query SchedulerBacklogQuery,
 ) (SchedulerBacklogRecord, error) {

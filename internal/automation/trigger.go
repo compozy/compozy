@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	modelpkg "github.com/compozy/compozy/internal/automation/model"
 	"github.com/compozy/compozy/internal/session"
 )
 
@@ -23,6 +24,7 @@ const (
 	triggerAgentNameKey     = "agent_name"
 	triggerCompletedAtKey   = "completed_at"
 	triggerCreatedAtKey     = "created_at"
+	triggerDeliveryIDKey    = "delivery_id"
 	triggerDispatchDepthKey = "dispatch_depth"
 	triggerErrorKey         = "error"
 	triggerHookEventKey     = "hook_event"
@@ -49,9 +51,11 @@ var (
 	// ErrTriggerEngineStopped reports that the trigger engine has already been stopped.
 	ErrTriggerEngineStopped = errors.New("automation: trigger engine stopped")
 	// ErrWebhookEndpointInvalid reports that a webhook endpoint value cannot be normalized.
-	ErrWebhookEndpointInvalid = errors.New("automation: invalid webhook endpoint")
+	ErrWebhookEndpointInvalid = modelpkg.ErrWebhookEndpointInvalid
 	// ErrWebhookTriggerNotRegistered reports that no runtime webhook registration matches the endpoint id.
 	ErrWebhookTriggerNotRegistered = errors.New("automation: webhook trigger not registered")
+	// ErrWebhookTriggerDisabled reports a known webhook whose owner disabled delivery.
+	ErrWebhookTriggerDisabled = errors.New("automation: webhook trigger disabled")
 	// ErrWebhookTimestampInvalid reports that a webhook timestamp is outside the accepted freshness window.
 	ErrWebhookTimestampInvalid = errors.New("automation: webhook timestamp outside freshness window")
 	// ErrWebhookSignatureInvalid reports that a webhook signature does not match the expected HMAC.

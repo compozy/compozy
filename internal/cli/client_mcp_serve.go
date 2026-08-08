@@ -8,9 +8,9 @@ import (
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 )
 
-var _ mcppkg.HostAPIInvoker = (*unixSocketClient)(nil)
+var _ mcppkg.HostAPIInvoker = (*daemonClient)(nil)
 
-func (c *unixSocketClient) InvokeHostAPI(
+func (c *daemonClient) InvokeHostAPI(
 	ctx context.Context,
 	serveSessionID string,
 	workspace string,
@@ -37,7 +37,7 @@ func (c *unixSocketClient) InvokeHostAPI(
 	return response.Result, nil
 }
 
-func (c *unixSocketClient) CloseHostAPISession(ctx context.Context, serveSessionID string) error {
+func (c *daemonClient) CloseHostAPISession(ctx context.Context, serveSessionID string) error {
 	return c.doJSON(
 		ctx,
 		http.MethodPost,

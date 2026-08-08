@@ -23,6 +23,7 @@ var sdkHostControlTypes = []NamedType{
 	{Name: "DescribePayload", Value: DescribePayload{}},
 	{Name: "DescribeResources", Value: DescribeResources{}},
 	{Name: "DescribeSubprocess", Value: DescribeSubprocess{}},
+	{Name: "DescribeNetworkParticipation", Value: DescribeNetworkParticipation{}},
 	{Name: "DescribeSDKInfo", Value: DescribeSDKInfo{}},
 	{Name: "ExtensionCommandSpec", Value: ExtensionCommandSpec{}},
 	{Name: "ExtensionCommandGroupSpec", Value: ExtensionCommandGroupSpec{}},

@@ -48,7 +48,7 @@ type bridgeClientAPI interface {
 // SlackManifestRecord is the generated Slack application artifact.
 type SlackManifestRecord = bridgepkg.SlackAppManifest
 
-func (c *unixSocketClient) SlackBridgeManifest(
+func (c *daemonClient) SlackBridgeManifest(
 	ctx context.Context,
 	instanceID string,
 ) (SlackManifestRecord, error) {

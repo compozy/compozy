@@ -421,4 +421,73 @@ describe("AutomationDetailPanel", () => {
     expect(screen.getByTestId("edit-automation-btn")).toBeInTheDocument();
     expect(screen.getByTestId("delete-automation-btn")).toBeInTheDocument();
   });
+
+  it("says public delivery is off instead of showing a URL that would not answer", () => {
+    renderPanel({ item: { ...triggerFixture }, kind: "triggers", runs: [] });
+
+    const ingress = screen.getByTestId("automation-trigger-ingress");
+    expect(ingress).toHaveTextContent("Public delivery ingress is off");
+    expect(ingress).toHaveTextContent("Open Gateway settings to publish one");
+  });
+
+  it("Should omit the public delivery section for non-webhook triggers", () => {
+    renderPanel({
+      item: { ...triggerFixture, event: "ext.github.push" },
+      kind: "triggers",
+      runs: [],
+    });
+
+    expect(screen.queryByTestId("automation-trigger-ingress")).not.toBeInTheDocument();
+    expect(screen.queryByText("Public delivery")).not.toBeInTheDocument();
+  });
+
+  it("publishes the delivery URL with its reachability and durability boundary once live", () => {
+    renderPanel({
+      item: {
+        ...triggerFixture,
+        ingress: {
+          confirmed_at: "2026-08-07T09:00:00Z",
+          confirmed_endpoint_generation: 4,
+          endpoint_generation: 4,
+          reachability: "live",
+          scope_kind: "workspace",
+          subject_id: "trg_push_review",
+          subject_kind: "webhook_trigger",
+          url: "https://public.gateway.test/api/webhooks/workspaces/ws_alpha/push-review--wbh_push_review",
+          workspace_id: "ws_alpha",
+        },
+      },
+      kind: "triggers",
+      runs: [],
+    });
+
+    const ingress = screen.getByTestId("automation-trigger-ingress");
+    expect(ingress).toHaveTextContent("Live");
+    expect(ingress).toHaveTextContent(
+      "https://public.gateway.test/api/webhooks/workspaces/ws_alpha/push-review--wbh_push_review"
+    );
+    expect(ingress).toHaveTextContent("There is no queue for messages sent while it is offline");
+  });
+
+  it("flags a delivery URL that needs reconfirmation after the public address changed", () => {
+    renderPanel({
+      item: {
+        ...triggerFixture,
+        ingress: {
+          confirmed_endpoint_generation: 3,
+          endpoint_generation: 4,
+          reachability: "reconfirmation_required",
+          scope_kind: "workspace",
+          subject_id: "trg_push_review",
+          subject_kind: "webhook_trigger",
+          url: "https://public.gateway.test/api/webhooks/workspaces/ws_alpha/push-review--wbh_push_review",
+          workspace_id: "ws_alpha",
+        },
+      },
+      kind: "triggers",
+      runs: [],
+    });
+
+    expect(screen.getByTestId("automation-trigger-ingress")).toHaveTextContent("Reconfirm");
+  });
 });

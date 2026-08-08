@@ -232,6 +232,9 @@ tokens:
       spacing-property-row-y: "3px"
       size-empty-icon: "38px"
       width-menu-sub-min: "96px"
+      size-qr-code-sm: "128px"
+      size-qr-code-default: "176px"
+      size-qr-code-lg: "224px"
       size-icon-well-row: "34px"
       size-topbar-glyph: "22px"
       size-status-dot: "7px"
@@ -819,6 +822,7 @@ widths come from `--site-*` tokens.
 | `--height-sidebar-row`                  | `28px`                                                                                                                            | `--height-tabs-list`                       | `40px`   | `--height-tab-underline`              | `1.5px`  |
 | `--spacing-count-chip`                  | `19px`                                                                                                                            | `--spacing-count-chip-sm`                  | `17px`   | `--height-property-row`               | `26px`   |
 | `--spacing-property-row-y`              | `3px`                                                                                                                             | `--size-empty-icon`                        | `38px`   | `--width-menu-sub-min`                | `96px`   |
+| `--size-qr-code-sm`                     | `128px`                                                                                                                           | `--size-qr-code-default`                   | `176px`  | `--size-qr-code-lg`                   | `224px`  |
 | `--size-icon-well-row`                  | `34px`                                                                                                                            | `--size-topbar-glyph`                      | `22px`   | `--size-status-dot`                   | `7px`    |
 | `--size-status-dot-sm`                  | `6px`                                                                                                                             | `--size-avatar-sm`                         | `20px`   | `--size-avatar-default`               | `24px`   |
 | `--size-avatar-lg`                      | `32px`                                                                                                                            | `--height-editor-footer`                   | `52px`   | `--width-detail-inspector-inline`     | `320px`  |
