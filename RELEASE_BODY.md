@@ -1,4 +1,4 @@
-## 0.3.0 - 2026-08-07
+## 0.3.0 - 2026-08-08
 
 ### ♻️ Refactoring
 
@@ -49,6 +49,7 @@
 - Keep managed skill loading on native seam (#323)
 - Loop run bugs (#324)
 - Enforce bundled agent and Loop ownership (#326)
+- Session native tools and extensions details (#330)
 
 ### 🧪 Testing
 
