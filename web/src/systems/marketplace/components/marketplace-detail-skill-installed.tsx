@@ -1,4 +1,4 @@
-import { AlertCircle, FileCode, GitFork, Layers, SlidersHorizontal, Zap } from "lucide-react";
+import { FileCode, GitFork, Layers, SlidersHorizontal, Zap } from "lucide-react";
 
 import {
   Button,
@@ -27,6 +27,7 @@ import {
 } from "@/systems/skill";
 
 import { useMarketplaceDetailSkillManage } from "../hooks/use-marketplace-detail-skill-manage";
+import { MarketplaceDetailManageFallbackBody } from "./marketplace-detail-manage-state";
 import {
   MarketplaceDetailColumns,
   MarketplaceDetailRailCard,
@@ -144,50 +145,20 @@ function MarketplaceSkillManageCard({
           </div>
         </div>
       ) : (
-        <MarketplaceSkillManageFallback state={state} />
+        <MarketplaceDetailManageFallbackBody
+          error={state.skillQuery.error}
+          errorMessage="Skill management could not be loaded."
+          isLoading={state.skillQuery.isLoading}
+          loadingMessage="Loading skill management…"
+          onRetry={() => void state.skillQuery.refetch()}
+          testId={
+            state.skillQuery.isLoading
+              ? "marketplace-skill-manage-loading"
+              : "marketplace-skill-manage-error"
+          }
+        />
       )}
     </MarketplaceDetailRailCard>
-  );
-}
-
-function MarketplaceSkillManageFallback({
-  state,
-}: {
-  state: ReturnType<typeof useMarketplaceDetailSkillManage>;
-}) {
-  const isLoading = state.skillQuery.isLoading;
-  return (
-    <div
-      className="flex flex-col gap-2 px-3.5 py-1.5"
-      data-testid={
-        isLoading ? "marketplace-skill-manage-loading" : "marketplace-skill-manage-error"
-      }
-      role={isLoading ? "status" : "alert"}
-    >
-      <div className="flex items-center gap-2 text-small-body font-medium text-fg">
-        {isLoading ? (
-          <Spinner aria-hidden="true" className="size-3.5 text-subtle" />
-        ) : (
-          <AlertCircle aria-hidden="true" className="size-3.5 text-danger" />
-        )}
-        {isLoading ? "Loading skill management…" : "Skill management could not be loaded."}
-      </div>
-      {!isLoading && state.skillQuery.error?.message ? (
-        <p className="text-form-hint text-muted">{state.skillQuery.error.message}</p>
-      ) : null}
-      {!isLoading ? (
-        <div className="pb-1">
-          <Button
-            onClick={() => void state.skillQuery.refetch()}
-            size="sm"
-            type="button"
-            variant="outline"
-          >
-            Retry management
-          </Button>
-        </div>
-      ) : null}
-    </div>
   );
 }
 
@@ -331,7 +302,7 @@ function MarketplaceSkillContentSection({
       ) : error ? (
         <div className="flex flex-col gap-2 px-4 py-3" data-testid="content-error">
           <p className="text-small-body text-danger">
-            {error.message ?? "Failed to load full content."}
+            {error.message.trim() || "Failed to load full content."}
           </p>
           <div>
             <Button
@@ -402,7 +373,7 @@ function MarketplaceSkillResolutionSection({
         </div>
       ) : error ? (
         <p className="px-4 py-3 text-small-body text-danger">
-          {error.message ?? "Failed to load skill resolution."}
+          {error.message.trim() || "Failed to load skill resolution."}
         </p>
       ) : shadows && shadows.shadows.length > 0 ? (
         <div data-testid="skill-shadow-table">

@@ -169,7 +169,7 @@ func TestDevCycleManagedInstallShouldPreserveManagedManifestTools(t *testing.T) 
 		if installed.Source != extensionpkg.SourceBundled || !installed.Enabled {
 			t.Fatalf("installed dev-cycle = %#v, want enabled bundled extension", installed)
 		}
-		if installed.Provenance.InstalledFrom != "bundled" ||
+		if installed.Provenance.InstalledFrom != extensionpkg.ExtensionInstalledFromBundled ||
 			installed.Provenance.RegistryTier != extensionpkg.ExtensionRegistryTierOfficial ||
 			!installed.Provenance.ChecksumVerified ||
 			installed.Provenance.AllowUnverified {
@@ -303,8 +303,8 @@ func TestDevCycleManagedInstallShouldReconcileBundledProvenance(t *testing.T) {
 		stale := before.Provenance
 		stale.InstalledFrom = extensionpkg.ExtensionInstalledFromLocalPath
 		stale.RegistryTier = extensionpkg.ExtensionRegistryTierUnverified
-		stale.ChecksumVerified = true
-		stale.AllowUnverified = false
+		stale.ChecksumVerified = false
+		stale.AllowUnverified = true
 		staleJSON, err := json.Marshal(stale)
 		if err != nil {
 			t.Fatalf("json.Marshal(stale provenance) error = %v", err)
@@ -331,7 +331,7 @@ func TestDevCycleManagedInstallShouldReconcileBundledProvenance(t *testing.T) {
 		if !after.InstalledAt.Equal(before.InstalledAt) {
 			t.Fatalf("reconciled installed_at = %s, want %s", after.InstalledAt, before.InstalledAt)
 		}
-		if after.Provenance.InstalledFrom != "bundled" ||
+		if after.Provenance.InstalledFrom != extensionpkg.ExtensionInstalledFromBundled ||
 			after.Provenance.RegistryTier != extensionpkg.ExtensionRegistryTierOfficial ||
 			!after.Provenance.ChecksumVerified ||
 			after.Provenance.AllowUnverified {

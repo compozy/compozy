@@ -44,6 +44,7 @@ function MarketplaceKindPage({ kind, search }: MarketplaceKindPageProps) {
   return (
     <MarketplaceKindPageBody
       key={page.workspaceId ?? "none"}
+      explicitConfigScope={search.config_scope}
       kind={kind}
       page={page}
       searchInputRef={searchInputRef}
@@ -52,12 +53,18 @@ function MarketplaceKindPage({ kind, search }: MarketplaceKindPageProps) {
 }
 
 interface MarketplaceKindPageBodyProps {
+  explicitConfigScope?: "global" | "workspace";
   kind: MarketplaceKind;
   page: ReturnType<typeof useMarketplaceKindPage>;
   searchInputRef: RefObject<HTMLInputElement | null>;
 }
 
-function MarketplaceKindPageBody({ kind, page, searchInputRef }: MarketplaceKindPageBodyProps) {
+function MarketplaceKindPageBody({
+  explicitConfigScope,
+  kind,
+  page,
+  searchInputRef,
+}: MarketplaceKindPageBodyProps) {
   const refresh = useRefreshMarketplaceCatalog();
   const mcpEditor = useMarketplaceMCPEditor({
     enabled: kind === "mcp",
@@ -113,7 +120,9 @@ function MarketplaceKindPageBody({ kind, page, searchInputRef }: MarketplaceKind
               render={
                 <Link
                   search={{
-                    config_scope: page.mcpConfigScope,
+                    // Only MCP consumes config_scope; other kinds carry it only
+                    // when the operator set it explicitly in the current URL.
+                    config_scope: item.kind === "mcp" ? page.mcpConfigScope : explicitConfigScope,
                     q: page.query || undefined,
                     tab: page.scope === "market" ? "market" : undefined,
                   }}

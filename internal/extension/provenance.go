@@ -124,17 +124,20 @@ func extensionInstallProvenance(
 	installedAt time.Time,
 ) ExtensionProvenance {
 	provenance := ExtensionProvenance{
-		InstalledFrom:    installedFromForSource(source),
-		SourceURL:        strings.TrimSpace(sourceURL),
-		ChecksumSHA256:   strings.TrimSpace(checksum),
-		ChecksumVerified: source != SourceMarketplace,
-		RegistryTier:     ExtensionRegistryTierUnverified,
-		Permissions:      append([]string(nil), permissions...),
-		InstalledAt:      installedAt.UTC(),
-		InstalledBy:      extensionTrustInstalledByOperator,
+		InstalledFrom:  installedFromForSource(source),
+		SourceURL:      strings.TrimSpace(sourceURL),
+		ChecksumSHA256: strings.TrimSpace(checksum),
+		RegistryTier:   ExtensionRegistryTierUnverified,
+		Permissions:    append([]string(nil), permissions...),
+		InstalledAt:    installedAt.UTC(),
+		InstalledBy:    extensionTrustInstalledByOperator,
 	}
-	if source == SourceBundled {
+	switch source {
+	case SourceBundled:
+		provenance.ChecksumVerified = true
 		provenance.RegistryTier = ExtensionRegistryTierOfficial
+	case SourceMarketplace, SourceUser, SourceWorkspace:
+		// Checksum evidence for these sources arrives only via explicit install provenance.
 	}
 	return provenance
 }

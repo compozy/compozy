@@ -66,7 +66,9 @@ vi.mock("@tanstack/react-router", async () => {
       children?: React.ReactNode;
       to?: string;
       params?: Record<string, string>;
-      search?: Record<string, unknown>;
+      search?:
+        | Record<string, unknown>
+        | ((prev: Record<string, unknown>) => Record<string, unknown>);
     } & React.AnchorHTMLAttributes<HTMLAnchorElement>) => {
       const path = params
         ? Object.entries(params).reduce(
@@ -74,12 +76,13 @@ vi.mock("@tanstack/react-router", async () => {
             to ?? ""
           )
         : (to ?? "");
+      const resolvedSearch = typeof search === "function" ? search({}) : search;
       return (
         <a
           href={`${path}${
-            search
+            resolvedSearch
               ? `?${new URLSearchParams(
-                  Object.entries(search).flatMap(([key, value]) =>
+                  Object.entries(resolvedSearch).flatMap(([key, value]) =>
                     value === undefined || value === null ? [] : [[key, String(value)]]
                   )
                 ).toString()}`

@@ -19,8 +19,10 @@ function findInstalledMCPServer(
   if (installedName) {
     return servers.find(server => server.name === installedName);
   }
+  // Installed-only entries expose the server name as entry_id; display names
+  // can collide with unrelated servers, so they never participate in matching.
   return servers.find(
-    server => server.catalog_entry === entry.entry_id || server.name === entry.name
+    server => server.catalog_entry === entry.entry_id || server.name === entry.entry_id
   );
 }
 

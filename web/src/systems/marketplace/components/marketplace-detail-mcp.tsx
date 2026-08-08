@@ -4,11 +4,12 @@ import {
   FileText,
   Fingerprint,
   KeyRound,
+  SlidersHorizontal,
   TriangleAlert,
   Wrench,
 } from "lucide-react";
 
-import { Empty, Eyebrow, Pill, PropertyRow } from "@compozy/ui";
+import { cn, Empty, Eyebrow, Pill, PropertyRow } from "@compozy/ui";
 
 import {
   composeMCPRowStatus,
@@ -26,7 +27,11 @@ import {
   MarketplaceDetailSection,
 } from "./marketplace-detail-shell";
 import { MarketplaceDetailWarnings } from "./marketplace-detail-warnings";
-import { formatMarketplaceMCPLaunch, formatMarketplaceVersion } from "./marketplace-ui";
+import {
+  formatMarketplaceMCPLaunch,
+  formatMarketplaceVersion,
+  stripMarketplaceUrlScheme,
+} from "./marketplace-ui";
 
 type MCPBlock = NonNullable<MarketplaceEntryResponse["mcp"]>;
 
@@ -41,7 +46,11 @@ interface MarketplaceDetailMCPViewProps {
  * section reports only what the daemon's probe actually discovered.
  */
 function MarketplaceDetailMCPView({ data, scope, workspaceId }: MarketplaceDetailMCPViewProps) {
-  const { query, server } = useMarketplaceDetailMCPServer(data.entry, scope, workspaceId);
+  const { query, queryEnabled, server } = useMarketplaceDetailMCPServer(
+    data.entry,
+    scope,
+    workspaceId
+  );
   const mcp = data.mcp;
   const installedUnresolved = data.entry.installed && !server;
   return (
@@ -57,15 +66,28 @@ function MarketplaceDetailMCPView({ data, scope, workspaceId }: MarketplaceDetai
       rail={
         <>
           {installedUnresolved ? (
-            <MarketplaceDetailManageFallbackCard
-              error={query.error ?? null}
-              isLoading={query.isLoading}
-              label="MCP"
-              onRetry={() => void query.refetch()}
-              testId={
-                query.isLoading ? "marketplace-mcp-manage-loading" : "marketplace-mcp-manage-error"
-              }
-            />
+            queryEnabled ? (
+              <MarketplaceDetailManageFallbackCard
+                error={query.error ?? null}
+                isLoading={query.isLoading}
+                label="MCP"
+                onRetry={() => void query.refetch()}
+                testId={
+                  query.isLoading
+                    ? "marketplace-mcp-manage-loading"
+                    : "marketplace-mcp-manage-error"
+                }
+              />
+            ) : (
+              <MarketplaceDetailRailCard icon={SlidersHorizontal} title="Manage">
+                <p
+                  className="px-3.5 py-1.5 text-small-body text-muted"
+                  data-testid="marketplace-mcp-manage-workspace-required"
+                >
+                  Select a workspace to manage this server.
+                </p>
+              </MarketplaceDetailRailCard>
+            )
           ) : null}
           {server ? <MarketplaceMCPStatusCard server={server} /> : null}
           <MarketplaceMCPDetailsCard data={data} server={server} />
@@ -92,6 +114,8 @@ function MarketplaceMCPAuthorizationSection({
   const serverAuth = server?.auth ?? null;
   if (!catalogAuth && !serverAuth) return null;
   const needsAuth = mcpNeedsAuthorization(server);
+  // The banner may only promise the Authorize button the topbar actually renders.
+  const authorizeOffered = server ? composeMCPRowStatus(server).authorizeLabel !== null : false;
   const registration = serverAuth?.registration ?? catalogAuth?.registration;
   const automatic = registration === "auto" || registration === "automatic";
   const scopes = serverAuth?.scopes?.length ? serverAuth.scopes : (catalogAuth?.scopes ?? []);
@@ -104,7 +128,7 @@ function MarketplaceMCPAuthorizationSection({
       summary={needsAuth ? "action needed" : "oauth"}
       title="Authorization"
     >
-      {needsAuth ? (
+      {needsAuth && authorizeOffered ? (
         <div className="px-3.5 pt-3">
           <div className="flex items-start gap-2.5 rounded-md bg-warning-tint px-3.5 py-3">
             <TriangleAlert aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-warning" />
@@ -291,7 +315,14 @@ function MarketplaceMCPStatusCard({ server }: { server: SettingsMCPServerEntry }
     >
       <div className="grid grid-cols-2">
         {cells.map(({ key, label, cell }, index) => (
-          <div className={cnStatusCell(index)} key={key}>
+          <div
+            className={cn(
+              "flex flex-col items-start gap-1.5 px-3.5 py-2.5",
+              index % 2 === 0 && "border-r border-line-soft",
+              index >= 2 && "border-t border-line-soft"
+            )}
+            key={key}
+          >
             <Eyebrow className="text-faint">{label}</Eyebrow>
             <Pill mono tone={cell.tone}>
               {cell.label.toLowerCase()}
@@ -317,13 +348,6 @@ function MarketplaceMCPStatusCard({ server }: { server: SettingsMCPServerEntry }
       </div>
     </MarketplaceDetailRailCard>
   );
-}
-
-function cnStatusCell(index: number): string {
-  const base = "flex flex-col items-start gap-1.5 px-3.5 py-2.5";
-  const divider = index % 2 === 0 ? " border-r border-line-soft" : "";
-  const top = index >= 2 ? " border-t border-line-soft" : "";
-  return `${base}${divider}${top}`;
 }
 
 function MarketplaceMCPDetailsCard({
@@ -386,7 +410,7 @@ function MarketplaceMCPRegistrationCard({ server }: { server: SettingsMCPServerE
         <PropertyRow label="Strategy">{automatic ? "automatic" : "manual"}</PropertyRow>
         {auth.issuer_url ? (
           <PropertyRow label="Issuer" mono valueTitle={auth.issuer_url}>
-            {stripScheme(auth.issuer_url)}
+            {stripMarketplaceUrlScheme(auth.issuer_url)}
           </PropertyRow>
         ) : null}
         <PropertyRow label="Client ID" mono>
@@ -398,10 +422,6 @@ function MarketplaceMCPRegistrationCard({ server }: { server: SettingsMCPServerE
       </div>
     </MarketplaceDetailRailCard>
   );
-}
-
-function stripScheme(url: string): string {
-  return url.replace(/^[a-z][a-z0-9+.-]*:\/\//i, "");
 }
 
 export { MarketplaceDetailMCPView };

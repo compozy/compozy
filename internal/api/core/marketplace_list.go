@@ -254,7 +254,7 @@ func (h *BaseHandlers) mcpInstallIndex(
 		}
 		index.byEntryID[entryID] = marketplaceInstall{
 			name:       strings.TrimSpace(item.Name),
-			managePath: "/marketplace/mcps",
+			managePath: marketplaceMCPsInstalledPath,
 		}
 	}
 	return index, nil
@@ -317,7 +317,7 @@ func (h *BaseHandlers) skillInstallIndex(ctx context.Context) (marketplaceInstal
 		index.bySlug[slug] = marketplaceInstall{
 			name:       strings.TrimSpace(item.Name),
 			version:    strings.TrimSpace(item.Provenance.Version),
-			managePath: "/marketplace/skills",
+			managePath: marketplaceSkillsInstalledPath,
 		}
 	}
 	return index, nil

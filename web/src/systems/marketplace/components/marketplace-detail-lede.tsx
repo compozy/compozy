@@ -9,6 +9,7 @@ import {
   formatMarketplaceVersion,
   marketplaceKindIcon,
   MARKETPLACE_KIND_SINGULAR,
+  stripMarketplaceUrlScheme,
 } from "./marketplace-ui";
 
 interface MarketplaceDetailLedeProps {
@@ -25,6 +26,7 @@ function MarketplaceDetailLede({ data }: MarketplaceDetailLedeProps) {
   const kind = entry.kind as MarketplaceKind;
   const Icon = marketplaceKindIcon(kind);
   const blocked = kind === "extension" && entry.trust?.decision === "blocked";
+  const description = entry.description?.trim();
   const meta = ledeMeta(data);
 
   return (
@@ -60,9 +62,11 @@ function MarketplaceDetailLede({ data }: MarketplaceDetailLedeProps) {
             ))}
           </div>
         ) : null}
-        <p className="mt-2.5 max-w-[70ch] text-small-body leading-relaxed text-muted">
-          {entry.description}
-        </p>
+        {description ? (
+          <p className="mt-2.5 max-w-[70ch] text-small-body leading-relaxed text-muted">
+            {description}
+          </p>
+        ) : null}
         {blocked ? (
           <p className="mt-2 text-form-hint text-danger">
             Blocked by extensions policy.
@@ -113,7 +117,9 @@ function ledeMeta(data: MarketplaceEntryResponse): LedeMetaItem[] {
     if (endpoint) {
       items.push({
         key: "endpoint",
-        node: <span className="font-mono text-form-hint">{stripUrlScheme(endpoint)}</span>,
+        node: (
+          <span className="font-mono text-form-hint">{stripMarketplaceUrlScheme(endpoint)}</span>
+        ),
       });
     }
     if (data.mcp?.default_scope) {
@@ -144,10 +150,6 @@ function ledeMeta(data: MarketplaceEntryResponse): LedeMetaItem[] {
     });
   }
   return items;
-}
-
-function stripUrlScheme(url: string): string {
-  return url.replace(/^[a-z][a-z0-9+.-]*:\/\//i, "");
 }
 
 export { MarketplaceDetailLede };

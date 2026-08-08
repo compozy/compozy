@@ -6,10 +6,10 @@ persona: Bruno
 journey: J-marketplace-acquisition
 expected: Each kind opens in Installed scope with `tab` omitted and exposes only daemon-backed controls: skill content, shadows, enable and update; extension kit inventory, lifecycle, environment, diagnostics and provenance; MCP creation and exact-scope configuration, status and authorization.
 entry_points: /marketplace/skills; /marketplace/mcps; /marketplace/extensions
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
-retest_status: pass
+retest_status:
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-critical-runtime-ui-fixes-20260807-225222-371495-lab/qa-artifacts/qa/marketplace-extension-evidence.md; /Users/pedronauck/dev/qa-labs/compozy-critical-runtime-ui-fixes-20260807-225222-371495-lab/qa-artifacts/qa/mcp-installed-default.png
 last_report: docs/qa/reports/2026-08-07-critical-runtime-ui-fixes.md
@@ -58,3 +58,10 @@ pending state, so the initiating card stays disabled until its mutation settles.
 
 QA impact 2026-08-02: the installed Marketplace has exactly three kinds and extension detail owns
 kit inventory. Reset for the next QA cycle.
+
+QA impact 2026-08-07: marketplace detail pages were rebuilt to the OpenDesign marketplace contract —
+kind-specific content is now the body (skill readme + calls/content/resolution; MCP
+authorization/connection/tools; extension kit/access/environment/diagnostics/logs) and the rail
+holds short collapsible property cards. Update and Authorize are OS-head primary actions only; the
+rail Manage card keeps the enable switch, overflow (Provenance/Remove), and trust badges. Reset to
+untested.

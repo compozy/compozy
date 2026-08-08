@@ -1,12 +1,14 @@
 import { PackageX } from "lucide-react";
+import type { ReactNode } from "react";
 
 import { Button, cn, Empty, PAGE_CONTENT_GUTTER, Skeleton } from "@compozy/ui";
 
-import type { MarketplaceEntryResponse } from "../types";
+import type { MarketplaceEntryResponse, MarketplaceKind } from "../types";
 import { MarketplaceDetailExtensionView } from "./marketplace-detail-extension";
 import { MarketplaceDetailLede } from "./marketplace-detail-lede";
 import { MarketplaceDetailMCPView } from "./marketplace-detail-mcp";
 import { MarketplaceDetailSkillView } from "./marketplace-detail-skill";
+import { isMarketplaceKind } from "./marketplace-ui";
 
 interface MarketplaceDetailProps {
   data: MarketplaceEntryResponse;
@@ -19,25 +21,38 @@ interface MarketplaceDetailProps {
  * readme, authorization, or kit — and keeps the rail to short property cards.
  * Window identity and the primary action live in the OS head.
  */
-function MarketplaceDetail({
-  data,
-  managementScope,
-  managementWorkspaceId,
-}: MarketplaceDetailProps) {
-  const kind = data.entry.kind;
+const MARKETPLACE_DETAIL_KIND_VIEWS: Record<
+  MarketplaceKind,
+  (props: MarketplaceDetailProps) => ReactNode
+> = {
+  extension: ({ data }) => <MarketplaceDetailExtensionView data={data} />,
+  mcp: ({ data, managementScope, managementWorkspaceId }) => (
+    <MarketplaceDetailMCPView
+      data={data}
+      scope={managementScope}
+      workspaceId={managementWorkspaceId}
+    />
+  ),
+  skill: ({ data }) => <MarketplaceDetailSkillView data={data} />,
+};
+
+function MarketplaceDetail(props: MarketplaceDetailProps) {
+  const kind = props.data.entry.kind;
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto" data-testid="marketplace-detail">
       <div className={cn(PAGE_CONTENT_GUTTER, "flex flex-col pt-6 pb-20")}>
-        <MarketplaceDetailLede data={data} />
-        {kind === "skill" ? <MarketplaceDetailSkillView data={data} /> : null}
-        {kind === "mcp" ? (
-          <MarketplaceDetailMCPView
-            data={data}
-            scope={managementScope}
-            workspaceId={managementWorkspaceId}
-          />
-        ) : null}
-        {kind === "extension" ? <MarketplaceDetailExtensionView data={data} /> : null}
+        <MarketplaceDetailLede data={props.data} />
+        {isMarketplaceKind(kind) ? (
+          MARKETPLACE_DETAIL_KIND_VIEWS[kind](props)
+        ) : (
+          <p
+            className="text-small-body text-danger"
+            data-testid="marketplace-detail-unknown-kind"
+            role="alert"
+          >
+            This daemon reported an entry kind this build can't render: {kind}.
+          </p>
+        )}
       </div>
     </div>
   );
@@ -54,7 +69,7 @@ function MarketplaceDetailSkeleton() {
           <Skeleton className="h-3 w-95 max-w-full" />
         </div>
       </div>
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_20rem]">
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_var(--width-detail-inspector-inline)]">
         <div className="flex flex-col gap-2.5 rounded-lg border border-line bg-canvas-soft p-5">
           {[78, 91, 66, 82, 94, 72].map(width => (
             <Skeleton className="h-2.5" key={width} style={{ width: `${width}%` }} />

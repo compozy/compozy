@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 )
 
 // ReconcileBundledProvenance persists the canonical first-party trust evidence
@@ -45,6 +46,12 @@ func (r *Registry) ReconcileBundledProvenance(manifest *Manifest) error {
 	if bytes.Equal(currentJSON, provenanceJSON) {
 		return nil
 	}
+	slog.Info(
+		"reconciling bundled extension provenance",
+		"extension", info.Name,
+		"previous_installed_from", info.Provenance.InstalledFrom,
+		"previous_registry_tier", info.Provenance.RegistryTier,
+	)
 	result, err := r.db.ExecContext(
 		registryContext(),
 		`UPDATE extensions SET provenance_json = ? WHERE name = ? AND source = ?`,
@@ -59,7 +66,7 @@ func (r *Registry) ReconcileBundledProvenance(manifest *Manifest) error {
 	if err != nil {
 		return fmt.Errorf("extension: inspect bundled provenance reconciliation for %q: %w", info.Name, err)
 	}
-	if affected != 1 {
+	if affected > 1 {
 		return fmt.Errorf("extension: reconcile bundled provenance for %q affected %d rows", info.Name, affected)
 	}
 	return nil

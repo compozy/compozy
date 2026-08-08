@@ -117,24 +117,31 @@ func testExtensionLogsRouteAndSSEFollow(t *testing.T) {
 	}
 
 	reader := bufio.NewReader(response.Body)
-	var frame strings.Builder
-	for {
-		line, readErr := reader.ReadString('\n')
-		if readErr != nil {
-			t.Fatalf("ReadString(SSE) error = %v", readErr)
-		}
-		frame.WriteString(line)
-		if line == "\n" {
-			break
+	readFrame := func() string {
+		var frame strings.Builder
+		for {
+			line, readErr := reader.ReadString('\n')
+			if readErr != nil {
+				t.Fatalf("ReadString(SSE) error = %v", readErr)
+			}
+			frame.WriteString(line)
+			if line == "\n" {
+				return frame.String()
+			}
 		}
 	}
+	ready := readFrame()
+	if !strings.HasPrefix(ready, ": extension log stream ready") {
+		t.Fatalf("SSE handshake frame = %q, want leading stream-ready comment", ready)
+	}
+	frame := readFrame()
 	cancel()
 	for _, want := range []string{"event: extension_log", "id: 1", "[REDACTED]", "safe=visible"} {
-		if !strings.Contains(frame.String(), want) {
-			t.Fatalf("SSE frame = %q, want %q", frame.String(), want)
+		if !strings.Contains(frame, want) {
+			t.Fatalf("SSE frame = %q, want %q", frame, want)
 		}
 	}
-	if strings.Contains(frame.String(), "provider-token") {
-		t.Fatalf("SSE frame leaked raw token: %s", frame.String())
+	if strings.Contains(frame, "provider-token") {
+		t.Fatalf("SSE frame leaked raw token: %s", frame)
 	}
 }

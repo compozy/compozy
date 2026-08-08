@@ -1,5 +1,5 @@
 import { ChevronDown, type LucideIcon } from "lucide-react";
-import { useId, type ReactNode } from "react";
+import type { ReactNode } from "react";
 
 import { cn, Collapsible, CollapsibleContent, CollapsibleTrigger, Eyebrow } from "@compozy/ui";
 
@@ -16,7 +16,7 @@ interface MarketplaceDetailColumnsProps {
 
 function MarketplaceDetailColumns({ main, rail }: MarketplaceDetailColumnsProps) {
   return (
-    <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-[minmax(0,1fr)_20rem]">
+    <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-[minmax(0,1fr)_var(--width-detail-inspector-inline)]">
       <main className="flex min-w-0 flex-col gap-5.5">{main}</main>
       <aside className="flex min-w-0 flex-col gap-3">{rail}</aside>
     </div>
@@ -41,7 +41,6 @@ function MarketplaceDetailSection({
   children,
   "data-testid": testId,
 }: MarketplaceDetailSectionProps) {
-  const panelId = `marketplace-detail-section-${useId().replace(/:/g, "")}`;
   return (
     <Collapsible
       className="flex min-w-0 flex-col"
@@ -50,7 +49,6 @@ function MarketplaceDetailSection({
       render={<section aria-label={title} />}
     >
       <CollapsibleTrigger
-        aria-controls={panelId}
         className={cn(
           "group/detail-section flex w-full items-center gap-2 pb-2.5 text-left",
           "rounded-sm focus-visible:shadow-focus-ring focus-visible:outline-none"
@@ -71,7 +69,7 @@ function MarketplaceDetailSection({
           )}
         />
       </CollapsibleTrigger>
-      <CollapsibleContent id={panelId}>
+      <CollapsibleContent>
         <MarketplaceDetailPanel>{children}</MarketplaceDetailPanel>
       </CollapsibleContent>
     </Collapsible>
@@ -142,7 +140,6 @@ function MarketplaceDetailRailCard({
   children,
   "data-testid": testId,
 }: MarketplaceDetailRailCardProps) {
-  const bodyId = `marketplace-detail-rail-${useId().replace(/:/g, "")}`;
   return (
     <Collapsible
       className="overflow-hidden rounded-lg border border-line bg-canvas-soft"
@@ -151,7 +148,6 @@ function MarketplaceDetailRailCard({
       render={<section aria-label={title} />}
     >
       <CollapsibleTrigger
-        aria-controls={bodyId}
         className={cn(
           "group/detail-rail flex w-full items-center gap-2 px-3.5 py-2.75 text-left",
           "transition-colors duration-base hover:bg-row-hover",
@@ -172,7 +168,7 @@ function MarketplaceDetailRailCard({
           )}
         />
       </CollapsibleTrigger>
-      <CollapsibleContent id={bodyId}>
+      <CollapsibleContent>
         <div className="border-t border-line-soft pt-1 pb-2">{children}</div>
       </CollapsibleContent>
     </Collapsible>

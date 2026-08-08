@@ -1,5 +1,5 @@
 import { KeyRound } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, type ReactNode } from "react";
 
 import { Button, Pill } from "@compozy/ui";
 
@@ -63,38 +63,24 @@ function MarketplaceMCPDetailTopbarActions({
 
   if (!polledServer) {
     return (
-      <>
-        <MarketplaceEntryStatus entry={entry} />
-        <MarketplaceEntryAction
-          emphasis="primary"
-          entry={entry}
-          onAction={onAction}
-          pending={pending}
-        />
-      </>
+      <MarketplaceMCPTopbarEntryControls entry={entry} onAction={onAction} pending={pending} />
     );
   }
 
   const status = composeMCPRowStatus(polledServer);
   const label = status.authorizeLabel;
   const authFilter = deriveMCPAuthFilter(polledServer);
+  const pollFailed = awaitingAuthorization && authPollQuery.isError;
 
   if (!label) {
     return (
-      <>
-        <MarketplaceEntryStatus entry={entry} />
-        <MarketplaceEntryAction
-          emphasis="primary"
-          entry={entry}
-          onAction={onAction}
-          pending={pending}
-        />
+      <MarketplaceMCPTopbarEntryControls entry={entry} onAction={onAction} pending={pending}>
         <MCPAuthorizeDialog
           authorize={authorize}
           scope={authFilter?.scope ?? "global"}
           server={polledServer}
         />
-      </>
+      </MarketplaceMCPTopbarEntryControls>
     );
   }
 
@@ -105,6 +91,16 @@ function MarketplaceMCPDetailTopbarActions({
           ? "needs authorization"
           : status.auth.label.toLowerCase()}
       </Pill>
+      {pollFailed ? (
+        <Pill
+          data-testid="marketplace-mcp-auth-poll-error"
+          mono
+          title={authPollQuery.error?.message}
+          tone="danger"
+        >
+          status check failed
+        </Pill>
+      ) : null}
       <Button
         data-testid="mcp-authorize-btn"
         disabled={!authFilter || awaitingAuthorization}
@@ -124,6 +120,34 @@ function MarketplaceMCPDetailTopbarActions({
         scope={authFilter?.scope ?? "global"}
         server={polledServer}
       />
+    </>
+  );
+}
+
+interface MarketplaceMCPTopbarEntryControlsProps {
+  entry: MarketplaceEntryResponse["entry"];
+  onAction: (entry: MarketplaceListing) => void;
+  pending: boolean;
+  children?: ReactNode;
+}
+
+/** Standard status + primary-action pair used when no authorize repair is offered. */
+function MarketplaceMCPTopbarEntryControls({
+  entry,
+  onAction,
+  pending,
+  children,
+}: MarketplaceMCPTopbarEntryControlsProps) {
+  return (
+    <>
+      <MarketplaceEntryStatus entry={entry} />
+      <MarketplaceEntryAction
+        emphasis="primary"
+        entry={entry}
+        onAction={onAction}
+        pending={pending}
+      />
+      {children}
     </>
   );
 }
