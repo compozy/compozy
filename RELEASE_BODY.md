@@ -50,6 +50,7 @@
 - Loop run bugs (#324)
 - Enforce bundled agent and Loop ownership (#326)
 - Session native tools and extensions details (#330)
+- Judge gate on goal loops
 
 ### 🧪 Testing
 
