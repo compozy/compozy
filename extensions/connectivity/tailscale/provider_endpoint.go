@@ -1,4 +1,4 @@
-package connectivitytailscale
+package tailscale
 
 import (
 	"context"
@@ -32,18 +32,18 @@ func validateEstablishRequest(
 	target, err := netip.ParseAddrPort(strings.TrimSpace(req.ForwardTarget))
 	if err != nil || !target.Addr().IsLoopback() || target.Port() == 0 {
 		return "", netip.AddrPort{}, time.Time{}, errors.New(
-			"connectivity-tailscale: loopback forward target is required",
+			"tailscale: loopback forward target is required",
 		)
 	}
 	path := strings.TrimSpace(req.ChallengePath)
 	if !strings.HasPrefix(path, challengePathPrefix) || len(path) == len(challengePathPrefix) {
 		return "", netip.AddrPort{}, time.Time{}, errors.New(
-			"connectivity-tailscale: valid challenge path is required",
+			"tailscale: valid challenge path is required",
 		)
 	}
 	if req.Deadline.IsZero() || !req.Deadline.After(time.Now()) {
 		return "", netip.AddrPort{}, time.Time{}, errors.New(
-			"connectivity-tailscale: future establish deadline is required",
+			"tailscale: future establish deadline is required",
 		)
 	}
 	return tier, target, req.Deadline, nil
@@ -52,7 +52,7 @@ func validateEstablishRequest(
 func validateTier(value string) (string, error) {
 	tier := strings.TrimSpace(value)
 	if tier != tierPrivate && tier != tierPublic {
-		return "", fmt.Errorf("connectivity-tailscale: unsupported gateway tier %q", value)
+		return "", fmt.Errorf("tailscale: unsupported gateway tier %q", value)
 	}
 	return tier, nil
 }
@@ -67,7 +67,7 @@ func selectCertificateDomain(domains []string) (string, error) {
 		clean = append(clean, domain)
 	}
 	if len(clean) == 0 {
-		return "", errors.New("connectivity-tailscale: tailnet HTTPS certificate domain is unavailable")
+		return "", errors.New("tailscale: tailnet HTTPS certificate domain is unavailable")
 	}
 	return clean[0], nil
 }
@@ -97,7 +97,7 @@ func listenForTier(
 		rawURL = (&url.URL{Scheme: providerSchemeHTTPS, Host: domain}).String()
 	default:
 		return nil, compozysdk.ConnectivityAdvertisedEndpoint{}, errors.New(
-			"connectivity-tailscale: valid tier is required",
+			"tailscale: valid tier is required",
 		)
 	}
 	if err != nil {
@@ -113,7 +113,7 @@ func closeListener(listener net.Listener) error {
 		return nil
 	}
 	if err := listener.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
-		return fmt.Errorf("connectivity-tailscale: close listener: %w", err)
+		return fmt.Errorf("tailscale: close listener: %w", err)
 	}
 	return nil
 }
@@ -121,7 +121,7 @@ func closeListener(listener net.Listener) error {
 func defaultStateDirectory() (string, error) {
 	homePaths, err := compozyconfig.ResolveHomePaths()
 	if err != nil {
-		return "", fmt.Errorf("connectivity-tailscale: resolve Compozy home: %w", err)
+		return "", fmt.Errorf("tailscale: resolve Compozy home: %w", err)
 	}
 	return filepath.Join(homePaths.GatewayDir, "tailscale"), nil
 }

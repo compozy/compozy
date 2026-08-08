@@ -172,8 +172,8 @@ health. `connectivity/teardown` must end forwarding within its deadline before r
 `stopped: true`. Compozy verifies the challenge itself and advertises nothing on failure. A changed
 live registry digest requires fresh consent, and only one provider may be selected per tier.
 
-The bundled `connectivity-tailscale` provider requires the declared `TS_AUTHKEY` binding. Set it
-through hidden input with `compozy extension secrets set connectivity-tailscale --env TS_AUTHKEY`;
+The bundled `tailscale` provider requires the declared `TS_AUTHKEY` binding. Set it
+through hidden input with `compozy extension secrets set tailscale --env TS_AUTHKEY`;
 never place the value in argv, a manifest, or a prompt.
 
 For a host bridge adapter, `delivery_id` is opaque: acknowledge the exact received value and sequence,

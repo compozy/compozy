@@ -1,11 +1,11 @@
-package connectivitytailscale
+package tailscale
 
 import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 )
 
-const Name = "connectivity-tailscale"
+const Name = "tailscale"
 
 // EnsureManagedInstall enrolls the first-party provider without replacing an operator install.
 func EnsureManagedInstall(homePaths compozyconfig.HomePaths, registry *extensionpkg.Registry) error {

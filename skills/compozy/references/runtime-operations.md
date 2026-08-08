@@ -380,7 +380,7 @@ tier; replace that selection explicitly instead of racing two enables.
 Before enabling the bundled Tailscale provider, bind an auth key from the operator's Tailscale
 account through hidden input:
 
-    compozy extension secrets set connectivity-tailscale --env TS_AUTHKEY
+    compozy extension secrets set tailscale --env TS_AUTHKEY
 
 The provider embeds `tsnet`; do not install or supervise a separate Tailscale client. The live
 manifest must include the selected tier as `gateway.private` or `gateway.public` in

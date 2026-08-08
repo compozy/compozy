@@ -26,3 +26,8 @@ QA impact 2026-08-06: added for remote-gateway Task 03. Flag only; Tasks 08–09
 QA walk 2026-08-07: missing authorization degraded safely, retained no address, exposed an
 actionable value-free cause, and boot recovered local-only after the fix. Real route establishment,
 challenge verification, and external teardown remain blocked without an authorized Tailscale account.
+
+QA impact 2026-08-08: bundled provider renamed to `tailscale` (extension ID and gateway provider
+name); `compozy gateway provider enable` and `/api/gateway/providers/{name}` take the new name.
+Walk attempt: rename covered mechanically by the Go suite in the full gate; real route establishment
+stays blocked on the same missing authorized Tailscale account, so the scenario remains blocked-verify.

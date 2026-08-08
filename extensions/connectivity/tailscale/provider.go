@@ -1,4 +1,4 @@
-package connectivitytailscale
+package tailscale
 
 import (
 	"context"
@@ -48,7 +48,7 @@ type Provider struct {
 // NewProvider constructs the bundled provider state machine.
 func NewProvider(stateDir string, logger *slog.Logger) (*Provider, error) {
 	if strings.TrimSpace(stateDir) == "" {
-		return nil, errors.New("connectivity-tailscale: state directory is required")
+		return nil, errors.New("tailscale: state directory is required")
 	}
 	if logger == nil {
 		logger = slog.Default()
@@ -71,7 +71,7 @@ func (p *Provider) Establish(
 	req compozysdk.ConnectivityEstablishRequest,
 ) (result compozysdk.ConnectivityReachability, resultErr error) {
 	if p == nil {
-		return result, errors.New("connectivity-tailscale: provider is required")
+		return result, errors.New("tailscale: provider is required")
 	}
 	tier, target, deadline, err := validateEstablishRequest(req)
 	if err != nil {
@@ -84,7 +84,7 @@ func (p *Provider) Establish(
 	}
 	defer p.operations.release()
 	if p.active(tier) != nil {
-		return result, fmt.Errorf("connectivity-tailscale: tier %q is already established", tier)
+		return result, fmt.Errorf("tailscale: tier %q is already established", tier)
 	}
 	node, created, err := p.ensureNode()
 	if err != nil {
@@ -105,7 +105,7 @@ func (p *Provider) Establish(
 	}
 	listener, endpoint, err := listenForTier(callCtx, node, tier, domain)
 	if err != nil {
-		return result, fmt.Errorf("connectivity-tailscale: listen for %s gateway: %w", tier, err)
+		return result, fmt.Errorf("tailscale: listen for %s gateway: %w", tier, err)
 	}
 	if err := callCtx.Err(); err != nil {
 		return result, errors.Join(err, closeListener(listener))
@@ -135,7 +135,7 @@ func (p *Provider) Status(
 	req compozysdk.ConnectivityStatusRequest,
 ) (compozysdk.ConnectivityReachability, error) {
 	if p == nil {
-		return compozysdk.ConnectivityReachability{}, errors.New("connectivity-tailscale: provider is required")
+		return compozysdk.ConnectivityReachability{}, errors.New("tailscale: provider is required")
 	}
 	tier, err := validateTier(req.Tier)
 	if err != nil {
@@ -172,7 +172,7 @@ func (p *Provider) Teardown(
 	req compozysdk.ConnectivityTeardownRequest,
 ) (compozysdk.ConnectivityTeardownResponse, error) {
 	if p == nil {
-		return compozysdk.ConnectivityTeardownResponse{}, errors.New("connectivity-tailscale: provider is required")
+		return compozysdk.ConnectivityTeardownResponse{}, errors.New("tailscale: provider is required")
 	}
 	tier, err := validateTier(req.Tier)
 	if err != nil {
@@ -180,7 +180,7 @@ func (p *Provider) Teardown(
 	}
 	if req.Deadline.IsZero() || !req.Deadline.After(time.Now()) {
 		return compozysdk.ConnectivityTeardownResponse{}, errors.New(
-			"connectivity-tailscale: future teardown deadline is required",
+			"tailscale: future teardown deadline is required",
 		)
 	}
 	stopCtx, cancel := context.WithDeadline(ctx, req.Deadline)
@@ -239,7 +239,7 @@ func (p *Provider) ensureNode() (tailscaleNode, bool, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.nodeErr != nil {
-		return nil, false, fmt.Errorf("connectivity-tailscale: embedded node cleanup is incomplete: %w", p.nodeErr)
+		return nil, false, fmt.Errorf("tailscale: embedded node cleanup is incomplete: %w", p.nodeErr)
 	}
 	if p.node != nil {
 		return p.node, false, nil
@@ -260,7 +260,7 @@ func (p *Provider) closeNode(ctx context.Context) error {
 		return nil
 	}
 	if err := node.Close(ctx); err != nil {
-		wrapped := fmt.Errorf("connectivity-tailscale: close embedded node: %w", err)
+		wrapped := fmt.Errorf("tailscale: close embedded node: %w", err)
 		p.mu.Lock()
 		if p.node == node {
 			p.nodeErr = wrapped

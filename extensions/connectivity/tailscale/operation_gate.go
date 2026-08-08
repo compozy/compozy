@@ -1,4 +1,4 @@
-package connectivitytailscale
+package tailscale
 
 import (
 	"context"
@@ -18,14 +18,14 @@ func newOperationGate() *operationGate {
 
 func (g *operationGate) acquire(ctx context.Context) error {
 	if g == nil {
-		return errors.New("connectivity-tailscale: operation gate is required")
+		return errors.New("tailscale: operation gate is required")
 	}
 	if ctx == nil {
-		return errors.New("connectivity-tailscale: operation context is required")
+		return errors.New("tailscale: operation context is required")
 	}
 	select {
 	case <-ctx.Done():
-		return fmt.Errorf("connectivity-tailscale: wait for provider operation: %w", ctx.Err())
+		return fmt.Errorf("tailscale: wait for provider operation: %w", ctx.Err())
 	case <-g.token:
 		return nil
 	}

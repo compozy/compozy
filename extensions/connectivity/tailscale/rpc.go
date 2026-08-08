@@ -1,4 +1,4 @@
-package connectivitytailscale
+package tailscale
 
 import (
 	"context"
@@ -15,25 +15,25 @@ const providerConfigurationRPCErrorCode = -32000
 // RunProvider serves the bundled provider over the public extension SDK protocol.
 func RunProvider(ctx context.Context, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 	if ctx == nil {
-		return errors.New("connectivity-tailscale: context is required")
+		return errors.New("tailscale: context is required")
 	}
 	if stdin == nil {
-		return errors.New("connectivity-tailscale: stdin is required")
+		return errors.New("tailscale: stdin is required")
 	}
 	if stdout == nil {
-		return errors.New("connectivity-tailscale: stdout is required")
+		return errors.New("tailscale: stdout is required")
 	}
 	if stderr == nil {
-		return errors.New("connectivity-tailscale: stderr is required")
+		return errors.New("tailscale: stderr is required")
 	}
 	stateDir, err := defaultStateDirectory()
 	if err != nil {
-		return fmt.Errorf("connectivity-tailscale: prepare provider state: %w", err)
+		return fmt.Errorf("tailscale: prepare provider state: %w", err)
 	}
 	logger := slog.New(slog.NewTextHandler(stderr, nil))
 	provider, err := NewProvider(stateDir, logger)
 	if err != nil {
-		return fmt.Errorf("connectivity-tailscale: create provider: %w", err)
+		return fmt.Errorf("tailscale: create provider: %w", err)
 	}
 	extension := compozysdk.NewExtension(
 		providerDefinition(),
@@ -52,17 +52,17 @@ func RunProvider(ctx context.Context, stdin io.Reader, stdout io.Writer, stderr 
 		Status:   provider.Status,
 		Teardown: provider.Teardown,
 	}); err != nil {
-		return fmt.Errorf("connectivity-tailscale: register provider services: %w", err)
+		return fmt.Errorf("tailscale: register provider services: %w", err)
 	}
 	runErr := extension.Run(ctx)
 	if runErr != nil {
-		runErr = fmt.Errorf("connectivity-tailscale: run extension protocol: %w", runErr)
+		runErr = fmt.Errorf("tailscale: run extension protocol: %w", runErr)
 	}
 	stopCtx, cancel := context.WithTimeout(context.Background(), providerShutdownTimeout)
 	defer cancel()
 	closeErr := provider.Close(stopCtx)
 	if closeErr != nil {
-		closeErr = fmt.Errorf("connectivity-tailscale: close provider: %w", closeErr)
+		closeErr = fmt.Errorf("tailscale: close provider: %w", closeErr)
 	}
 	return errors.Join(runErr, closeErr)
 }

@@ -1,4 +1,4 @@
-package connectivitytailscale
+package tailscale
 
 import (
 	"context"
@@ -40,10 +40,10 @@ type tierForwarder struct {
 
 func newTierForwarder(listener net.Listener, target string, logger *slog.Logger) (*tierForwarder, error) {
 	if listener == nil {
-		return nil, errors.New("connectivity-tailscale: listener is required")
+		return nil, errors.New("tailscale: listener is required")
 	}
 	if target == "" {
-		return nil, errors.New("connectivity-tailscale: forward target is required")
+		return nil, errors.New("tailscale: forward target is required")
 	}
 	if logger == nil {
 		logger = slog.Default()
@@ -106,7 +106,7 @@ func (f *tierForwarder) Close(ctx context.Context) error {
 		f.mu.Unlock()
 		return err
 	case <-ctx.Done():
-		return fmt.Errorf("connectivity-tailscale: wait for forwarder: %w", ctx.Err())
+		return fmt.Errorf("tailscale: wait for forwarder: %w", ctx.Err())
 	}
 }
 
@@ -212,11 +212,11 @@ func (f *tierForwarder) shutdown() {
 	f.mu.Unlock()
 	for _, connection := range connections {
 		if err := connection.Close(); err != nil && !onlyClosedNetworkError(err) {
-			errs = append(errs, fmt.Errorf("connectivity-tailscale: close forwarded connection: %w", err))
+			errs = append(errs, fmt.Errorf("tailscale: close forwarded connection: %w", err))
 		}
 	}
 	if err := f.listener.Close(); err != nil && !onlyClosedNetworkError(err) {
-		errs = append(errs, fmt.Errorf("connectivity-tailscale: close listener: %w", err))
+		errs = append(errs, fmt.Errorf("tailscale: close listener: %w", err))
 	}
 	<-f.done
 	f.mu.Lock()

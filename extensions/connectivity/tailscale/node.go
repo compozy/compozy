@@ -1,4 +1,4 @@
-package connectivitytailscale
+package tailscale
 
 import (
 	"context"
@@ -23,7 +23,7 @@ type tailscaleNode interface {
 
 type tailscaleNodeFactory func(string, *slog.Logger) (tailscaleNode, error)
 
-var errAuthKeyBindingRequired = errors.New("connectivity-tailscale: TS_AUTHKEY binding is required")
+var errAuthKeyBindingRequired = errors.New("tailscale: TS_AUTHKEY binding is required")
 
 type tsnetNode struct {
 	server *tsnet.Server
@@ -31,10 +31,10 @@ type tsnetNode struct {
 
 func newTSNetNode(stateDir string, logger *slog.Logger) (tailscaleNode, error) {
 	if strings.TrimSpace(stateDir) == "" {
-		return nil, errors.New("connectivity-tailscale: state directory is required")
+		return nil, errors.New("tailscale: state directory is required")
 	}
 	if err := os.MkdirAll(stateDir, 0o700); err != nil {
-		return nil, fmt.Errorf("connectivity-tailscale: create state directory: %w", err)
+		return nil, fmt.Errorf("tailscale: create state directory: %w", err)
 	}
 	if logger == nil {
 		logger = slog.Default()
@@ -59,10 +59,10 @@ func newTSNetNode(stateDir string, logger *slog.Logger) (tailscaleNode, error) {
 
 func (n *tsnetNode) Up(ctx context.Context) error {
 	if n == nil || n.server == nil {
-		return errors.New("connectivity-tailscale: node is required")
+		return errors.New("tailscale: node is required")
 	}
 	if _, err := n.server.Up(ctx); err != nil {
-		return fmt.Errorf("connectivity-tailscale: connect operator tailnet: %w", err)
+		return fmt.Errorf("tailscale: connect operator tailnet: %w", err)
 	}
 	return nil
 }
@@ -85,18 +85,18 @@ func (n *tsnetNode) CertificateDomains() []string {
 
 func (n *tsnetNode) Health(ctx context.Context) error {
 	if n == nil || n.server == nil {
-		return errors.New("connectivity-tailscale: node is required")
+		return errors.New("tailscale: node is required")
 	}
 	client, err := n.server.LocalClient()
 	if err != nil {
-		return fmt.Errorf("connectivity-tailscale: inspect node health: %w", err)
+		return fmt.Errorf("tailscale: inspect node health: %w", err)
 	}
 	status, err := client.StatusWithoutPeers(ctx)
 	if err != nil {
-		return fmt.Errorf("connectivity-tailscale: inspect node status: %w", err)
+		return fmt.Errorf("tailscale: inspect node status: %w", err)
 	}
 	if status.BackendState != "Running" || len(status.Health) > 0 {
-		return errors.New("connectivity-tailscale: node is not healthy")
+		return errors.New("tailscale: node is not healthy")
 	}
 	return nil
 }
@@ -106,7 +106,7 @@ func (n *tsnetNode) Close(ctx context.Context) error {
 		return nil
 	}
 	if err := runContextBoundOperation(ctx, n.server.Close); err != nil {
-		return fmt.Errorf("connectivity-tailscale: close node: %w", err)
+		return fmt.Errorf("tailscale: close node: %w", err)
 	}
 	return nil
 }
@@ -116,17 +116,17 @@ func listenWithContext(
 	listen func() (net.Listener, error),
 ) (net.Listener, error) {
 	if ctx == nil || listen == nil {
-		return nil, errors.New("connectivity-tailscale: listener dependencies are required")
+		return nil, errors.New("tailscale: listener dependencies are required")
 	}
 	if err := ctx.Err(); err != nil {
-		return nil, fmt.Errorf("connectivity-tailscale: wait for listener: %w", err)
+		return nil, fmt.Errorf("tailscale: wait for listener: %w", err)
 	}
 	listener, err := listen()
 	if err != nil {
 		return nil, err
 	}
 	if listener == nil {
-		return nil, errors.New("connectivity-tailscale: listener is required")
+		return nil, errors.New("tailscale: listener is required")
 	}
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		closeErr := listener.Close()
@@ -134,7 +134,7 @@ func listenWithContext(
 			closeErr = nil
 		}
 		return nil, errors.Join(
-			fmt.Errorf("connectivity-tailscale: wait for listener: %w", ctxErr),
+			fmt.Errorf("tailscale: wait for listener: %w", ctxErr),
 			closeErr,
 		)
 	}
@@ -143,7 +143,7 @@ func listenWithContext(
 
 func runContextBoundOperation(ctx context.Context, operation func() error) error {
 	if ctx == nil || operation == nil {
-		return errors.New("connectivity-tailscale: operation dependencies are required")
+		return errors.New("tailscale: operation dependencies are required")
 	}
 	operationErr := operation()
 	return errors.Join(operationErr, ctx.Err())

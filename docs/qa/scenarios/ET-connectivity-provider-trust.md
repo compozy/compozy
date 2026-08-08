@@ -5,7 +5,7 @@ title: Govern a connectivity provider under extension trust rules
 persona: Vera
 journey: J-extension-policy-admin
 expected: A connectivity.provider manifest builds only with its declared gateway tier scopes, global source, and required service methods; enable and boot re-derive live source and digest, exact confirmation gates provider code, and updates, workspace sources, out-of-role claims, or a second provider fail closed without exposure.
-entry_points: compozy extension init --template connectivity-provider-go|connectivity-provider-ts; compozy extension build|validate; extension manifest; POST /api/gateway/providers/{name}/enable; compozy extension secrets set connectivity-tailscale --env TS_AUTHKEY
+entry_points: compozy extension init --template connectivity-provider-go|connectivity-provider-ts; compozy extension build|validate; extension manifest; POST /api/gateway/providers/{name}/enable; compozy extension secrets set tailscale --env TS_AUTHKEY
 qa_status: blocked-verify
 bug_ids: BUG-20260807-gateway-provider-cause;BUG-20260807-gateway-provider-boot;BUG-20260729-public-extension-sdks-unpublished
 fix_status: partial
@@ -25,3 +25,9 @@ QA impact 2026-08-06: added for remote-gateway Task 03. Flag only; Tasks 08–09
 QA walk 2026-08-07: missing provider binding failed closed with an actionable redacted cause, and
 restart retained local-only readiness. Real digest consent and verified route establishment remain
 blocked without an authorized Tailscale account; the public SDK also lacks the new scaffold API.
+
+QA impact 2026-08-08: bundled provider renamed — extension ID `connectivity-tailscale` → `tailscale`,
+source moved to `extensions/connectivity/tailscale`. Secrets binding and provider selection use the
+new name. Walk attempt: enrollment, manifest name, and `__internal extension-provider tailscale`
+dispatch verified by the Go suite in the full gate; real digest consent and route establishment stay
+blocked on the same missing authorized Tailscale account, so the scenario remains blocked-verify.

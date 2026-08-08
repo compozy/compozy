@@ -1,4 +1,4 @@
-package connectivitytailscale
+package tailscale
 
 import (
 	"embed"

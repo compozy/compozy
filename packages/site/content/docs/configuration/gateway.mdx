@@ -44,7 +44,7 @@ operator. Create an auth key in that account, then bind it through hidden input 
 provider:
 
 ```bash
-compozy extension secrets set connectivity-tailscale --env TS_AUTHKEY
+compozy extension secrets set tailscale --env TS_AUTHKEY
 ```
 
 The manifest declares only the environment variable name. Compozy stores the value through the
