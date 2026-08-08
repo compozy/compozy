@@ -80,6 +80,18 @@ func GateFromContract(id string, contract dsl.Contract, maxRevisions int) Gate {
 	}
 }
 
+// GateFromGoalJudge adapts Goal judge criteria into the per-turn judge gate.
+// Deterministic-only judges (command/extension) evaluate under fixed_passes.
+//
+//revive:disable-next-line:exported // GateFromGoalJudge is the explicit adapter name for the gate package.
+func GateFromGoalJudge(nodeID string, criteria []dsl.GateCriterion) Gate {
+	return Gate{
+		ID:            strings.TrimSpace(nodeID) + ":goal-judge",
+		Criteria:      cloneCriteria(criteria),
+		VerdictPolicy: contractVerdictPolicy(criteria),
+	}
+}
+
 // GateInput carries runtime state required to evaluate and route a gate.
 //
 //revive:disable-next-line:exported // GateInput is the TechSpec contract name.

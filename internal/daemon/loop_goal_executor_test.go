@@ -508,6 +508,59 @@ func TestLoopGoalJudgeEvaluatorShouldReturnAggregateUsage(t *testing.T) {
 	})
 }
 
+func TestLoopGoalJudgeEvaluatorShouldEvaluateDeterministicJudges(t *testing.T) {
+	t.Run("Should approve a command-only Goal judge without an agent verdict source", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 8, 8, 3, 0, 0, 0, time.UTC)
+		run := looppkg.Run{
+			ID: "looprun-goal-judge-command", WorkspaceID: "workspace-goal-judge-command",
+			LoopName: "goal-judge-command", Status: looppkg.StatusRunning,
+			CreatedAt: now, StartedAt: now, Inputs: map[string]any{},
+		}
+		run.SetNetworkSpec(daemonTestLiveParticipation(string(run.WorkspaceID), "goal-judge"))
+		applyLoopRunPinningForTest(t, &run, now)
+		storeStub := goalJudgeLoopStore{
+			run: run,
+			snapshot: looppkg.DefinitionSnapshot{
+				WorkspaceID: run.WorkspaceID, Digest: run.DefinitionDigest,
+				Version: run.DefinitionVersion, Definition: run.DefinitionSnapshot,
+			},
+		}
+		var gotCommand gate.CommandRequest
+		evaluator := gate.NewEvaluator(gate.WithCommandRunner(goalCommandRunnerFunc(
+			func(_ context.Context, req gate.CommandRequest) (gate.CommandResult, error) {
+				gotCommand = req
+				return gate.CommandResult{ExitCode: 0}, nil
+			},
+		)))
+		adapter := &loopGoalJudgeEvaluator{
+			store: &storeStub, evaluator: evaluator, executions: newLoopJudgeExecutionRegistry(),
+		}
+		result, err := adapter.EvaluateGoal(testutil.Context(t), goalpkg.JudgeRequest{
+			AttemptID: "judge-attempt-command",
+			Key: goalpkg.TurnKey{
+				WorkspaceID: run.WorkspaceID, LoopRunID: run.ID,
+				Generation: 1, NodeID: "implementar", ItemIndex: 0,
+			},
+			Turn: 1,
+			Criteria: []dsl.GateCriterion{{
+				ID: "tasks_completed", Type: dsl.CriterionCommand, Check: "check-tasks-completed",
+			}},
+			Result: looppkg.ActionPromptResult{Text: "all tasks are completed"},
+		})
+		if err != nil {
+			t.Fatalf("EvaluateGoal(command-only judge) error = %v", err)
+		}
+		if result.Verdict.Outcome != gate.VerdictOutcomeApproved || result.Verdict.Broken {
+			t.Fatalf("command-only Goal judge verdict = %#v, want approved", result.Verdict)
+		}
+		if gotCommand.Command != "check-tasks-completed" || gotCommand.GateID != "implementar:goal-judge" {
+			t.Fatalf("command request = %#v, want the authored check on the goal-judge gate", gotCommand)
+		}
+	})
+}
+
 type goalJudgeLoopStore struct {
 	looppkg.Store
 	run      looppkg.Run
@@ -536,6 +589,15 @@ func (f goalJudgeRunnerFunc) Judge(
 	ctx context.Context,
 	req gate.JudgeRequest,
 ) (gate.JudgeResponse, error) {
+	return f(ctx, req)
+}
+
+type goalCommandRunnerFunc func(context.Context, gate.CommandRequest) (gate.CommandResult, error)
+
+func (f goalCommandRunnerFunc) RunCommand(
+	ctx context.Context,
+	req gate.CommandRequest,
+) (gate.CommandResult, error) {
 	return f(ctx, req)
 }
 

@@ -7,7 +7,6 @@ import (
 	"sync"
 
 	looppkg "github.com/compozy/compozy/internal/loop"
-	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/loop/gate"
 	goalpkg "github.com/compozy/compozy/internal/loop/goal"
 	"github.com/compozy/compozy/internal/session"
@@ -103,11 +102,8 @@ func (e *loopGoalJudgeEvaluator) EvaluateGoal(
 		return goalpkg.JudgeResult{}, fmt.Errorf("daemon: load Goal judge snapshot: %w", err)
 	}
 	usage := &loopGoalJudgeUsage{}
-	verdict, err := e.evaluator.Evaluate(ctx, gate.Gate{
-		ID:            string(req.Key.NodeID) + ":goal-judge",
-		Criteria:      append([]dsl.GateCriterion(nil), req.Criteria...),
-		VerdictPolicy: dsl.VerdictPolicyReviseUntilClean,
-	}, gate.GateInput{
+	judgeGate := gate.GateFromGoalJudge(string(req.Key.NodeID), req.Criteria)
+	verdict, err := e.evaluator.Evaluate(ctx, judgeGate, gate.GateInput{
 		LoopRunID:              string(run.ID),
 		Placement:              gate.PlacementInBody,
 		Contract:               new(resolved.Definition.Contract),
