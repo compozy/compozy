@@ -13,11 +13,10 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
-const maxGatewayAuditReasonBytes = 2048
-
 type gatewayProviderAuditSink struct {
-	writer store.EventSummaryStore
-	now    func() time.Time
+	writer  store.EventSummaryStore
+	now     func() time.Time
+	timeout time.Duration
 }
 
 func (s gatewayProviderAuditSink) RecordEndpointVerified(
@@ -25,16 +24,10 @@ func (s gatewayProviderAuditSink) RecordEndpointVerified(
 	activation gateway.ProviderActivation,
 	endpoint gateway.AdvertisedEndpoint,
 ) error {
-	if s.writer == nil {
-		return errors.New("daemon: gateway audit store is required")
-	}
-	if ctx == nil {
-		return errors.New("daemon: gateway audit context is required")
-	}
 	if err := endpoint.Validate(); err != nil {
 		return fmt.Errorf("daemon: validate verified gateway endpoint: %w", err)
 	}
-	safeProvider := diagnostics.RedactAndBound(activation.ProviderName, maxGatewayAuditReasonBytes)
+	safeProvider := diagnostics.RedactAndBound(activation.ProviderName, maxGatewayAuditFieldBytes)
 	payload, err := json.Marshal(struct {
 		Provider   string `json:"provider"`
 		Tier       string `json:"tier"`
@@ -45,24 +38,17 @@ func (s gatewayProviderAuditSink) RecordEndpointVerified(
 	}{
 		Provider: safeProvider, Tier: string(activation.Tier),
 		Generation: activation.Generation,
-		URL:        diagnostics.RedactAndBound(endpoint.URL, maxGatewayAuditReasonBytes),
+		URL:        diagnostics.RedactAndBound(endpoint.URL, maxGatewayAuditFieldBytes),
 		Scheme:     endpoint.Scheme, Stability: string(endpoint.Stability),
 	})
 	if err != nil {
 		return fmt.Errorf("daemon: encode verified gateway endpoint: %w", err)
 	}
-	now := time.Now
-	if s.now != nil {
-		now = s.now
-	}
-	if err := s.writer.WriteEventSummary(context.WithoutCancel(ctx), store.EventSummary{
+	return s.record(ctx, store.EventSummary{
 		Type: eventspkg.GatewayEndpointVerified, Outcome: string(eventspkg.OutcomeSuccess),
 		Provider: safeProvider, Content: payload,
-		Summary: "gateway provider endpoint verified", Timestamp: now().UTC(),
-	}); err != nil {
-		return fmt.Errorf("daemon: record verified gateway endpoint: %w", err)
-	}
-	return nil
+		Summary: "gateway provider endpoint verified",
+	}, "verified gateway endpoint")
 }
 
 func (s gatewayProviderAuditSink) RecordProviderStateChanged(
@@ -71,14 +57,8 @@ func (s gatewayProviderAuditSink) RecordProviderStateChanged(
 	state gateway.ProviderObservedState,
 	cause string,
 ) error {
-	if s.writer == nil {
-		return errors.New("daemon: gateway audit store is required")
-	}
-	if ctx == nil {
-		return errors.New("daemon: gateway audit context is required")
-	}
-	safeProvider := diagnostics.RedactAndBound(activation.ProviderName, maxGatewayAuditReasonBytes)
-	safeCause := diagnostics.RedactAndBound(cause, maxGatewayAuditReasonBytes)
+	safeProvider := diagnostics.RedactAndBound(activation.ProviderName, maxGatewayAuditFieldBytes)
+	safeCause := diagnostics.RedactAndBound(cause, maxGatewayAuditFieldBytes)
 	payload, err := json.Marshal(struct {
 		Provider   string `json:"provider"`
 		Tier       string `json:"tier"`
@@ -92,10 +72,6 @@ func (s gatewayProviderAuditSink) RecordProviderStateChanged(
 	if err != nil {
 		return fmt.Errorf("daemon: encode gateway provider state change: %w", err)
 	}
-	now := time.Now
-	if s.now != nil {
-		now = s.now
-	}
 	outcome := eventspkg.OutcomeInfo
 	switch state {
 	case gateway.ProviderUp, gateway.ProviderDown:
@@ -103,14 +79,11 @@ func (s gatewayProviderAuditSink) RecordProviderStateChanged(
 	case gateway.ProviderDegraded:
 		outcome = eventspkg.OutcomeFailure
 	}
-	if err := s.writer.WriteEventSummary(context.WithoutCancel(ctx), store.EventSummary{
+	return s.record(ctx, store.EventSummary{
 		Type: eventspkg.GatewayProviderStateChanged, Outcome: string(outcome),
 		Provider: safeProvider, Content: payload,
-		Summary: "gateway provider state changed", Timestamp: now().UTC(),
-	}); err != nil {
-		return fmt.Errorf("daemon: record gateway provider state change: %w", err)
-	}
-	return nil
+		Summary: "gateway provider state changed",
+	}, "gateway provider state change")
 }
 
 func (s gatewayProviderAuditSink) RecordProviderRefusal(
@@ -119,16 +92,10 @@ func (s gatewayProviderAuditSink) RecordProviderRefusal(
 	kind gateway.ProviderRefusalKind,
 	cause error,
 ) error {
-	if s.writer == nil {
-		return errors.New("daemon: gateway audit store is required")
-	}
-	if ctx == nil {
-		return errors.New("daemon: gateway audit context is required")
-	}
-	safeProvider := diagnostics.RedactAndBound(activation.ProviderName, maxGatewayAuditReasonBytes)
+	safeProvider := diagnostics.RedactAndBound(activation.ProviderName, maxGatewayAuditFieldBytes)
 	reason := "provider contract refused"
 	if cause != nil {
-		reason = diagnostics.RedactAndBound(cause.Error(), maxGatewayAuditReasonBytes)
+		reason = diagnostics.RedactAndBound(cause.Error(), maxGatewayAuditFieldBytes)
 	}
 	payload, err := json.Marshal(struct {
 		Provider   string `json:"provider"`
@@ -143,24 +110,49 @@ func (s gatewayProviderAuditSink) RecordProviderRefusal(
 	if err != nil {
 		return fmt.Errorf("daemon: encode gateway provider refusal: %w", err)
 	}
-	now := time.Now
-	if s.now != nil {
-		now = s.now
-	}
 	eventType := eventspkg.GatewayProviderStateChanged
 	summary := "gateway provider authority refused"
 	if kind == gateway.ProviderRefusalEndpoint {
 		eventType = eventspkg.GatewayEndpointRejected
 		summary = "gateway provider endpoint rejected"
 	}
-	if err := s.writer.WriteEventSummary(context.WithoutCancel(ctx), store.EventSummary{
+	return s.record(ctx, store.EventSummary{
 		Type: eventType, Outcome: string(eventspkg.OutcomeFailure),
 		Provider: safeProvider, Content: payload,
-		Summary: summary, Timestamp: now().UTC(),
-	}); err != nil {
-		return fmt.Errorf("daemon: record gateway provider refusal: %w", err)
+		Summary: summary,
+	}, "gateway provider refusal")
+}
+
+func (s gatewayProviderAuditSink) record(
+	ctx context.Context,
+	event store.EventSummary,
+	action string,
+) error {
+	if s.writer == nil {
+		return errors.New("daemon: gateway audit store is required")
+	}
+	if ctx == nil {
+		return errors.New("daemon: gateway audit context is required")
+	}
+	now := time.Now
+	if s.now != nil {
+		now = s.now
+	}
+	event.Timestamp = now().UTC()
+	writeCtx, cancel := s.writeContext(ctx)
+	defer cancel()
+	if err := s.writer.WriteEventSummary(writeCtx, event); err != nil {
+		return fmt.Errorf("daemon: record %s: %w", action, err)
 	}
 	return nil
+}
+
+func (s gatewayProviderAuditSink) writeContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	timeout := s.timeout
+	if timeout <= 0 {
+		timeout = gatewayAuditWriteTimeout
+	}
+	return context.WithTimeout(context.WithoutCancel(ctx), timeout)
 }
 
 var _ gateway.ProviderAuditSink = gatewayProviderAuditSink{}

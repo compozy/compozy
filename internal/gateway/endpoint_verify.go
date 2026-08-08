@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/compozy/compozy/internal/outboundpolicy"
@@ -26,6 +27,7 @@ type EndpointVerification interface {
 
 // EndpointVerifier proves that one provider endpoint reaches the assigned tier listener.
 type EndpointVerifier struct {
+	mu       sync.RWMutex
 	timeout  time.Duration
 	resolver outboundpolicy.Resolver
 	dialer   outboundpolicy.NetworkDialer
@@ -37,6 +39,8 @@ func (v *EndpointVerifier) Timeout() time.Duration {
 	if v == nil {
 		return 0
 	}
+	v.mu.RLock()
+	defer v.mu.RUnlock()
 	return v.timeout
 }
 
@@ -52,6 +56,25 @@ func NewEndpointVerifier(timeout time.Duration) (*EndpointVerifier, error) {
 	}, nil
 }
 
+// ReconfigureTimeout applies a live verification deadline to future probes.
+func (v *EndpointVerifier) ReconfigureTimeout(timeout time.Duration) error {
+	if v == nil {
+		return errors.New("gateway: endpoint verifier is required")
+	}
+	if timeout <= 0 {
+		return errors.New("gateway: endpoint verification timeout must be positive")
+	}
+	v.mu.Lock()
+	v.timeout = timeout
+	if current, ok := v.dialer.(*net.Dialer); ok {
+		updated := *current
+		updated.Timeout = timeout
+		v.dialer = &updated
+	}
+	v.mu.Unlock()
+	return nil
+}
+
 // Verify fetches the tier-scoped challenge and requires an exact nonce echo.
 func (v *EndpointVerifier) Verify(
 	ctx context.Context,
@@ -60,7 +83,8 @@ func (v *EndpointVerifier) Verify(
 	challengePath string,
 	nonce string,
 ) error {
-	if v == nil || v.resolver == nil || v.dialer == nil || v.timeout <= 0 {
+	timeout, resolver, dialer, rootCAs := v.configuration()
+	if timeout <= 0 || resolver == nil || dialer == nil {
 		return errors.New("gateway: endpoint verifier is not configured")
 	}
 	if err := tier.Validate(); err != nil {
@@ -69,21 +93,21 @@ func (v *EndpointVerifier) Verify(
 	if err := endpoint.Validate(); err != nil {
 		return fmt.Errorf("%w: invalid endpoint descriptor", ErrEndpointUnverified)
 	}
-	if !strings.EqualFold(endpoint.Scheme, endpointSchemeHTTPS) {
+	if tier == TierPublic && !strings.EqualFold(endpoint.Scheme, endpointSchemeHTTPS) {
 		return fmt.Errorf("%w: HTTPS is required", ErrEndpointUnverified)
 	}
 	if !strings.HasPrefix(challengePath, ChallengePathPrefix) || strings.TrimSpace(nonce) == "" {
 		return fmt.Errorf("%w: challenge is unavailable", ErrEndpointUnverified)
 	}
-	challengeURL, err := endpointChallengeURL(endpoint.URL, challengePath)
+	challengeURL, err := endpointChallengeURL(endpoint, challengePath)
 	if err != nil {
 		return fmt.Errorf("%w: invalid challenge URL", ErrEndpointUnverified)
 	}
-	client, err := v.clientFor(tier, endpoint.URL)
+	client, err := endpointVerificationClient(tier, challengeURL, timeout, resolver, dialer, rootCAs)
 	if err != nil {
 		return fmt.Errorf("%w: endpoint policy refused", ErrEndpointUnverified)
 	}
-	requestCtx, cancel := context.WithTimeout(ctx, v.timeout)
+	requestCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	request, err := http.NewRequestWithContext(requestCtx, http.MethodGet, challengeURL, http.NoBody)
 	if err != nil {
@@ -109,7 +133,28 @@ func (v *EndpointVerifier) Verify(
 	return nil
 }
 
-func (v *EndpointVerifier) clientFor(tier Tier, endpointURL string) (*http.Client, error) {
+func (v *EndpointVerifier) configuration() (
+	time.Duration,
+	outboundpolicy.Resolver,
+	outboundpolicy.NetworkDialer,
+	*x509.CertPool,
+) {
+	if v == nil {
+		return 0, nil, nil, nil
+	}
+	v.mu.RLock()
+	defer v.mu.RUnlock()
+	return v.timeout, v.resolver, v.dialer, v.rootCAs
+}
+
+func endpointVerificationClient(
+	tier Tier,
+	endpointURL string,
+	timeout time.Duration,
+	resolver outboundpolicy.Resolver,
+	dialer outboundpolicy.NetworkDialer,
+	rootCAs *x509.CertPool,
+) (*http.Client, error) {
 	policy := outboundpolicy.New(false)
 	if tier == TierPrivate {
 		var err error
@@ -118,29 +163,32 @@ func (v *EndpointVerifier) clientFor(tier Tier, endpointURL string) (*http.Clien
 			return nil, err
 		}
 	}
-	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12, RootCAs: v.rootCAs}
+	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12, RootCAs: rootCAs}
 	transport := &http.Transport{
 		Proxy:                 nil,
-		DialContext:           outboundpolicy.NewDialer(policy, v.resolver, v.dialer).DialContext,
+		DialContext:           outboundpolicy.NewDialer(policy, resolver, dialer).DialContext,
 		TLSClientConfig:       tlsConfig,
-		TLSHandshakeTimeout:   v.timeout,
-		ResponseHeaderTimeout: v.timeout,
-		IdleConnTimeout:       v.timeout,
+		TLSHandshakeTimeout:   timeout,
+		ResponseHeaderTimeout: timeout,
+		IdleConnTimeout:       timeout,
 		DisableKeepAlives:     true,
 	}
 	return &http.Client{
 		Transport: transport,
-		Timeout:   v.timeout,
+		Timeout:   timeout,
 		CheckRedirect: func(*http.Request, []*http.Request) error {
 			return errors.New("gateway: endpoint verification redirects are forbidden")
 		},
 	}, nil
 }
 
-func endpointChallengeURL(rawEndpoint string, challengePath string) (string, error) {
-	parsed, err := url.Parse(strings.TrimSpace(rawEndpoint))
+func endpointChallengeURL(endpoint AdvertisedEndpoint, challengePath string) (string, error) {
+	parsed, err := url.Parse(strings.TrimSpace(endpoint.URL))
 	if err != nil || parsed == nil {
 		return "", errors.New("gateway: parse endpoint URL")
+	}
+	if !strings.EqualFold(endpoint.Scheme, endpointSchemeHTTPS) {
+		parsed.Scheme = endpointSchemeHTTPS
 	}
 	parsed.Path = strings.TrimRight(parsed.Path, "/") + challengePath
 	parsed.RawPath = ""

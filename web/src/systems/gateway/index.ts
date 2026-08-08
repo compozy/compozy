@@ -32,6 +32,7 @@ export {
 } from "./hooks/use-gateway-settings-page";
 export {
   useGatewayAccessState,
+  useGatewayAccessTier,
   useRedeemGatewayPairing,
   type RedeemPairingInput,
 } from "./hooks/use-gateway-access";

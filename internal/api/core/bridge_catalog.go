@@ -297,17 +297,15 @@ func (h *BaseHandlers) bridgeCatalogResponse(
 	}
 	payloads := make([]contract.BridgePayload, 0, len(page.Items))
 	for _, item := range page.Items {
-		payload, err := h.bridgePayload(ctx, item.Instance)
+		ingress, err := h.bridgeIngressPayload(ctx, item.Instance.ID)
 		if err != nil {
 			return contract.BridgesResponse{}, err
 		}
+		payload := BridgePayloadFromBridgeInstance(item.Instance)
+		payload.GatewayIngress = ingress
 		payloads = append(payloads, payload)
 		if current, ok := health[item.Instance.ID]; ok {
-			enriched, err := h.enrichBridgeHealthIngress(ctx, current)
-			if err != nil {
-				return contract.BridgesResponse{}, err
-			}
-			health[item.Instance.ID] = enriched
+			health[item.Instance.ID] = bridgeHealthWithIngress(current, ingress)
 		}
 	}
 	return contract.BridgesResponse{

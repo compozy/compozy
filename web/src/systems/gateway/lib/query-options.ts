@@ -33,11 +33,11 @@ export function gatewayDevicesOptions() {
  * The audit is an explicit operator action, not ambient state: it is fetched
  * only when asked for and never polled, so "last run" stays meaningful.
  */
-export function gatewayAuditOptions(enabled: boolean) {
+export function gatewayAuditOptions() {
   return queryOptions({
     queryKey: gatewayKeys.audit(),
     queryFn: ({ signal }) => gatewayApi.audit(signal),
-    enabled,
+    enabled: false,
     staleTime: Number.POSITIVE_INFINITY,
     refetchOnWindowFocus: false,
   });

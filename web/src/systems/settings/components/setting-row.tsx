@@ -85,12 +85,12 @@ export function SettingRow({
           {label}
         </LabelTag>
         {description ? (
-          <p
+          <div
             className="mt-0.5 max-w-setting-description text-form-label leading-normal text-muted"
             id={descriptionId}
           >
             {description}
-          </p>
+          </div>
         ) : null}
         {error ? (
           <p className="mt-1 text-form-hint text-danger" id={errorId} role="alert">

@@ -180,6 +180,7 @@ export class Extension {
     options: ExtensionToolOptions,
     toolHandler: ExtensionToolHandler<TInput>
   ): this {
+    this.ensureRegistrationOpen();
     const cleanHandler = handler.trim();
     if (!cleanHandler) {
       throw new Error("tool handler is required");
@@ -204,14 +205,13 @@ export class Extension {
     options: ExtensionWatchSourceOptions,
     handler: ExtensionWatchSourceHandler<TSpec>
   ): this {
+    this.ensureRegistrationOpen();
     this.watchSources.register(this.definition, kind, options, handler);
     return this;
   }
 
   public commandGroup(path: string, summary: string): this {
-    if (this.initialized) {
-      throw new Error("extension registration is closed after initialize");
-    }
+    this.ensureRegistrationOpen();
     this.commandGroups.push({ path: path.trim(), summary: summary.trim() });
     return this;
   }

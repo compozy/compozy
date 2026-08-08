@@ -25,6 +25,14 @@ function renderDialog(overrides: Partial<React.ComponentProps<typeof GatewayPair
 }
 
 describe("GatewayPairingDialog", () => {
+  it("Should describe the code as single-use without claiming the visible value disappeared", () => {
+    renderDialog();
+
+    expect(screen.getByText(/works once/i)).toBeInTheDocument();
+    expect(screen.getByText(/expires or is used/i)).toBeInTheDocument();
+    expect(screen.queryByText(/cannot be shown again/i)).not.toBeInTheDocument();
+  });
+
   it("Should offer the artifact as copyable text beside the scannable code", () => {
     renderDialog();
 

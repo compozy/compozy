@@ -10,6 +10,9 @@ import (
 func classifyReloadLifecycle(current *compozyconfig.Config, desired *compozyconfig.Config) lifecycle.Lifecycle {
 	changed := reloadChangedPaths(current, desired)
 	if len(changed) == 0 {
+		if onlyGatewayClientProfileChanged(current, desired) {
+			return lifecycle.Live
+		}
 		return lifecycle.RestartRequired
 	}
 	configLifecycle, _, err := lifecycle.ClassifyPaths(changed)
@@ -17,6 +20,18 @@ func classifyReloadLifecycle(current *compozyconfig.Config, desired *compozyconf
 		return lifecycle.RestartRequired
 	}
 	return configLifecycle
+}
+
+func onlyGatewayClientProfileChanged(current *compozyconfig.Config, desired *compozyconfig.Config) bool {
+	profileChanged := current.Gateway.ActiveConnection != desired.Gateway.ActiveConnection ||
+		!reflect.DeepEqual(current.Gateway.Connections, desired.Gateway.Connections)
+	if !profileChanged {
+		return false
+	}
+	normalized := *current
+	normalized.Gateway.ActiveConnection = desired.Gateway.ActiveConnection
+	normalized.Gateway.Connections = desired.Gateway.Connections
+	return reflect.DeepEqual(&normalized, desired)
 }
 
 func reloadChangedPaths(current *compozyconfig.Config, desired *compozyconfig.Config) []string {

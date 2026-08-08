@@ -33,10 +33,7 @@ func newOpenCommand(deps commandDeps) *cobra.Command {
 			}
 			status, err := client.DaemonStatus(ctx)
 			if err != nil {
-				if runtimeContext.Target.isRemoteGateway() {
-					return fmt.Errorf("open: remote daemon is not reachable: %w", err)
-				}
-				return fmt.Errorf("open: daemon is not running: %w", err)
+				return openDaemonStatusError(runtimeContext.Target, err)
 			}
 			webURL, err := webUIURL(runtimeContext.Target, status)
 			if err != nil {
@@ -45,6 +42,13 @@ func newOpenCommand(deps commandDeps) *cobra.Command {
 			return deps.openBrowser(ctx, webURL)
 		},
 	}
+}
+
+func openDaemonStatusError(target ClientTarget, err error) error {
+	if target.isRemoteGateway() {
+		return err
+	}
+	return fmt.Errorf("open: daemon is not running: %w", err)
 }
 
 func webUIURL(target ClientTarget, status DaemonStatus) (string, error) {

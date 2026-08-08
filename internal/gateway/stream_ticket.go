@@ -41,6 +41,17 @@ func newStreamTicketStore(
 	}, nil
 }
 
+func (s *streamTicketStore) reconfigure(ttl time.Duration) error {
+	if ttl <= 0 {
+		return errors.New("gateway: stream ticket TTL must be positive")
+	}
+	s.mu.Lock()
+	s.sweepExpired(s.now())
+	s.ttl = ttl
+	s.mu.Unlock()
+	return nil
+}
+
 func (s *streamTicketStore) mint(device DeviceSession) (StreamTicket, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -48,7 +59,7 @@ func (s *streamTicketStore) mint(device DeviceSession) (StreamTicket, error) {
 	now := s.now()
 	s.sweepExpired(now)
 	if len(s.entries) >= s.max {
-		return StreamTicket{}, ErrStreamTicketInvalid
+		return StreamTicket{}, ErrStreamTicketLimit
 	}
 	ticket, err := generateStreamTicket(s.entropy)
 	if err != nil {

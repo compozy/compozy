@@ -14,10 +14,7 @@ func (d *Daemon) bootGateway(ctx context.Context, state *bootState, cleanup *boo
 	if state == nil {
 		return errors.New("daemon: boot gateway state is required")
 	}
-	gatewayStore, ok := state.registry.(gateway.Store)
-	if !ok {
-		return errors.New("daemon: registry does not implement the gateway store")
-	}
+	gatewayStore := state.registry
 	deviceStore, deviceStoreAvailable := state.registry.(gateway.DeviceStore)
 	if !deviceStoreAvailable {
 		return d.bootFailClosedGateway(ctx, state, cleanup, gatewayStore)
@@ -58,23 +55,21 @@ func (d *Daemon) bootDeviceGateway(
 			state.cfg.Gateway.Pairing.MaxPending,
 			state.cfg.Gateway.Pairing.TTL,
 		),
-		gateway.WithStreamTicketLimits(256, state.cfg.Gateway.StreamTicket.TTL),
+		gateway.WithStreamTicketLimits(gateway.DefaultStreamTicketLimit, state.cfg.Gateway.StreamTicket.TTL),
 	)
 	if err != nil {
 		return fmt.Errorf("daemon: create gateway device service: %w", err)
 	}
+	state.deps.GatewayAuthLimiter = gateway.NewAuthFailureLimiter(
+		state.cfg.Gateway.Auth.RateLimit.MaxFails,
+		state.cfg.Gateway.Auth.RateLimit.Window,
+		d.now,
+	)
 	challenges := gateway.NewChallengeRegistry()
 	state.deps.GatewayChallenges = challenges
-	providerEffects := d.gatewayProviderEffects
-	if providerEffects == nil {
-		providerEffects, err = d.newExtensionGatewayProvider(state, gatewayStore, challenges)
-		if err != nil {
-			state.logger.Warn(
-				"daemon: connectivity provider unavailable; continuing local-only",
-				"error",
-				err,
-			)
-		}
+	providerEffects, err := d.resolveGatewayProviderEffects(state, gatewayStore, challenges)
+	if err != nil {
+		return err
 	}
 	listeners := newGatewayTierListeners(gatewayStore, &state.deps, d.gatewayTierFactory)
 	effects := &daemonGatewayEffects{listeners: listeners, provider: providerEffects}
@@ -111,6 +106,10 @@ func (d *Daemon) bootDeviceGateway(
 	cleanup.add(policy.Close)
 	state.gateway = policy
 	state.deps.Gateway = service
+	return reconcileGatewayPolicy(ctx, state, policy)
+}
+
+func reconcileGatewayPolicy(ctx context.Context, state *bootState, policy gateway.Policy) error {
 	if _, err := policy.Reconcile(ctx); err != nil {
 		if errors.Is(err, gateway.ErrExposureRefused) {
 			state.logger.Warn(
@@ -133,10 +132,36 @@ func (d *Daemon) bootDeviceGateway(
 	return nil
 }
 
+func (d *Daemon) resolveGatewayProviderEffects(
+	state *bootState,
+	gatewayStore gateway.Store,
+	challenges *gateway.ChallengeRegistry,
+) (gateway.EffectDriver, error) {
+	if d.gatewayProviderEffects != nil {
+		return d.gatewayProviderEffects, nil
+	}
+	verifier, err := gateway.NewEndpointVerifier(state.cfg.Gateway.Verify.Timeout)
+	if err != nil {
+		return nil, fmt.Errorf("daemon: create gateway endpoint verifier: %w", err)
+	}
+	state.gatewayVerifier = verifier
+	providerEffects, err := d.newExtensionGatewayProvider(state, gatewayStore, challenges, verifier)
+	if err != nil {
+		state.logger.Warn(
+			"daemon: connectivity provider unavailable; continuing local-only",
+			"error",
+			err,
+		)
+		return nil, nil
+	}
+	return providerEffects, nil
+}
+
 func (d *Daemon) newExtensionGatewayProvider(
 	state *bootState,
 	gatewayStore gateway.Store,
 	challenges *gateway.ChallengeRegistry,
+	verifier gateway.EndpointVerification,
 ) (gateway.EffectDriver, error) {
 	dbSource, ok := state.registry.(extensionDBSource)
 	if !ok || dbSource.DB() == nil {
@@ -154,17 +179,13 @@ func (d *Daemon) newExtensionGatewayProvider(
 		extensionpkg.NewRegistry(dbSource.DB()),
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("daemon: create connectivity provider trust resolver: %w", err)
 	}
 	eventWriter, ok := state.registry.(store.EventSummaryStore)
 	if !ok {
 		return nil, errors.New("daemon: gateway event summary store is unavailable")
 	}
-	verifier, err := gateway.NewEndpointVerifier(state.cfg.Gateway.Verify.Timeout)
-	if err != nil {
-		return nil, err
-	}
-	return gateway.NewProviderSupervisor(
+	supervisor, err := gateway.NewProviderSupervisor(
 		runtime,
 		trust,
 		identities,
@@ -174,4 +195,8 @@ func (d *Daemon) newExtensionGatewayProvider(
 		gateway.WithProviderSupervisorLogger(state.logger),
 		gateway.WithProviderAuditSink(gatewayProviderAuditSink{writer: eventWriter, now: d.now}),
 	)
+	if err != nil {
+		return nil, fmt.Errorf("daemon: create connectivity provider supervisor: %w", err)
+	}
+	return supervisor, nil
 }

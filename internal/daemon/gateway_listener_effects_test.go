@@ -192,6 +192,9 @@ func TestGatewayTierListeners(t *testing.T) {
 				t.Fatalf("factory tier = %q, want public", tier)
 			}
 			plans = append(plans, slices.Clone(surfaces))
+			if len(plans) > len(servers) {
+				t.Fatalf("listener factory calls = %d, want at most %d", len(plans), len(servers))
+			}
 			return servers[len(plans)-1], nil
 		})
 

@@ -2050,7 +2050,8 @@ func (h *extensionHelperServer) handleRequest(req helperRequest) error {
 		}
 		if h.scenario == "record_initialize" || h.scenario == "auto_exit_record_initialize" ||
 			h.scenario == "connectivity_teardown_hang" || h.scenario == "connectivity_crash_after_establish" ||
-			h.scenario == "connectivity_teardown_refused" {
+			h.scenario == "connectivity_teardown_refused" || h.scenario == "connectivity_malformed" ||
+			h.scenario == "connectivity_crash" {
 			if err := h.recordInitialize(params, response); err != nil {
 				return err
 			}
@@ -2084,9 +2085,6 @@ func (h *extensionHelperServer) handleRequest(req helperRequest) error {
 				os.Exit(1)
 			}()
 		case "connectivity_malformed":
-			if err := h.recordInitialize(params, response); err != nil {
-				return err
-			}
 			go func() {
 				time.Sleep(15 * time.Millisecond)
 				if err := h.writeRaw("{malformed-json-rpc\n"); err != nil {
@@ -2094,9 +2092,6 @@ func (h *extensionHelperServer) handleRequest(req helperRequest) error {
 				}
 			}()
 		case "connectivity_crash":
-			if err := h.recordInitialize(params, response); err != nil {
-				return err
-			}
 			go func() {
 				time.Sleep(15 * time.Millisecond)
 				os.Exit(1)

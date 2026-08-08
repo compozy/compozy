@@ -1,3 +1,7 @@
+// Suite: QR code rendering contract
+// Invariant: QrCode preserves its accessible image semantics and canonical matrix geometry.
+// Boundary IN: the shared QrCode component and its rendered SVG.
+// Boundary OUT: pairing flows and scanner interoperability, owned by gateway integration QA.
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { encode } from "uqr";
@@ -45,6 +49,27 @@ describe("QrCode", () => {
   it("Should apply the requested rendered size", () => {
     const { container } = render(<QrCode value={PAYLOAD} label="Scan to pair" size="sm" />);
     const svg = container.querySelector<SVGSVGElement>('[data-slot="qr-code"]');
-    expect(svg?.dataset.size).toBe("sm");
+    expect(svg).toHaveClass("size-qr-code-sm");
+  });
+
+  it("Should keep accessibility and matrix geometry invariant when SVG props conflict", () => {
+    const { container, rerender } = render(
+      <QrCode
+        label="Scan to pair"
+        role="presentation"
+        shapeRendering="auto"
+        value={PAYLOAD}
+        viewBox="0 0 1 1"
+      />
+    );
+    const expected = encode(PAYLOAD, { border: 4, ecc: "M" });
+    const svg = container.querySelector<SVGSVGElement>('[data-slot="qr-code"]');
+
+    expect(svg).toHaveAttribute("role", "img");
+    expect(svg).toHaveAttribute("shape-rendering", "crispEdges");
+    expect(svg).toHaveAttribute("viewBox", `0 0 ${expected.size} ${expected.size}`);
+
+    rerender(<QrCode aria-label="Wrong label" label="Scan to pair" value={PAYLOAD} />);
+    expect(svg).toHaveAttribute("aria-label", "Scan to pair");
   });
 });

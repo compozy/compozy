@@ -156,7 +156,7 @@ func registerToolRoutes(api gin.IRouter, handlers *Handlers) {
 	approvalGrants.DELETE("/:id", handlers.privilegedMutationGuard(), handlers.RevokeToolApprovalGrant)
 }
 
-func registerTaskRoutes(api gin.IRouter, handlers *Handlers, includeLocalOnlyAuthority bool) {
+func registerTaskRoutes(api gin.IRouter, handlers *Handlers, includeTaskMutations bool) {
 	tasks := api.Group("/tasks")
 	tasks.GET("", handlers.ListTasks)
 	tasks.GET("/:id", handlers.GetTask)
@@ -170,7 +170,7 @@ func registerTaskRoutes(api gin.IRouter, handlers *Handlers, includeLocalOnlyAut
 	tasks.GET("/:id/stream", handlers.StreamTask)
 	tasks.GET("/:id/tree", handlers.TaskTree)
 	tasks.GET("/:id/runs", handlers.ListTaskRuns)
-	if includeLocalOnlyAuthority {
+	if includeTaskMutations {
 		registerTaskMutationRoutes(tasks, handlers)
 	}
 
@@ -178,7 +178,7 @@ func registerTaskRoutes(api gin.IRouter, handlers *Handlers, includeLocalOnlyAut
 	taskRuns.GET("/:id", handlers.GetTaskRun)
 	taskRuns.GET("/:id/conversation/stream", handlers.StreamTaskRunConversation)
 	taskRuns.GET("/:id/reviews", handlers.ListTaskRunReviews)
-	if includeLocalOnlyAuthority {
+	if includeTaskMutations {
 		taskRuns.POST("/:id/reviews", handlers.RequestTaskRunReview)
 		taskRuns.POST("/:id/start", handlers.StartTaskRun)
 		taskRuns.POST("/:id/attach-session", handlers.AttachTaskRunSession)
@@ -189,17 +189,17 @@ func registerTaskRoutes(api gin.IRouter, handlers *Handlers, includeLocalOnlyAut
 
 	runs := api.Group("/runs")
 	runs.GET("/:id/inspect", handlers.InspectRun)
-	if includeLocalOnlyAuthority {
+	if includeTaskMutations {
 		registerRunMutationRoutes(runs, handlers)
 	}
 
-	if includeLocalOnlyAuthority {
+	if includeTaskMutations {
 		registerSchedulerRoutes(api, handlers)
 	}
 
 	taskReviews := api.Group("/task-reviews")
 	taskReviews.GET("/:id", handlers.GetTaskRunReview)
-	if includeLocalOnlyAuthority {
+	if includeTaskMutations {
 		taskReviews.POST("/:id/verdict", handlers.SubmitTaskRunReviewVerdict)
 	}
 }

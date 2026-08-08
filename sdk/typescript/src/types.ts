@@ -113,6 +113,7 @@ export interface ExtensionManifest {
   capabilities?: CapabilitiesConfig;
   permissions?: PermissionsConfig;
   subprocess?: SubprocessConfig;
+  network_participation?: DescribeNetworkParticipation;
 }
 
 export interface ExtensionDefinition extends Pick<

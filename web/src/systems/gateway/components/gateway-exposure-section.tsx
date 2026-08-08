@@ -64,7 +64,7 @@ export function GatewayExposureSection({
           </Alert>
         </div>
       ) : null}
-      {error ? (
+      {error && !consentRow ? (
         <div className="border-t border-line-soft px-4 py-3 first:border-t-0">
           <Alert data-testid="gateway-exposure-error" variant="danger">
             <AlertTitle>That change was not applied</AlertTitle>
@@ -81,7 +81,7 @@ export function GatewayExposureSection({
         />
       ))}
       <GatewayPublicConsentDialog
-        error={error ?? null}
+        error={null}
         isSubmitting={isSubmitting}
         onConfirm={handleConsent}
         onOpenChange={open => setConsentRow(open ? consentRow : null)}

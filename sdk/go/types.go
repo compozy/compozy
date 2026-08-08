@@ -46,9 +46,12 @@ const ExtensionServiceMethodToolsCall = "tools/call"
 const ExtensionServiceMethodWatchPoll = "watch/poll"
 
 const (
+	// ExtensionServiceMethodConnectivityEstablish starts one connectivity tier.
 	ExtensionServiceMethodConnectivityEstablish = "connectivity/establish"
-	ExtensionServiceMethodConnectivityStatus    = "connectivity/status"
-	ExtensionServiceMethodConnectivityTeardown  = "connectivity/teardown"
+	// ExtensionServiceMethodConnectivityStatus reads one connectivity tier.
+	ExtensionServiceMethodConnectivityStatus = "connectivity/status"
+	// ExtensionServiceMethodConnectivityTeardown stops one connectivity tier.
+	ExtensionServiceMethodConnectivityTeardown = "connectivity/teardown"
 )
 
 const (

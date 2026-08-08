@@ -133,7 +133,6 @@ type TransitionRequest struct {
 	Provider           ProviderIdentity
 	Surface            Surface
 	Consent            bool
-	LegacyMode         string
 }
 
 // ProviderIdentity records live-registry provider identity at transition time.
@@ -153,6 +152,12 @@ func (p ProviderIdentity) Validate() error {
 		return errors.New("gateway: provider install source is required")
 	}
 	return nil
+}
+
+func (p ProviderIdentity) normalized() ProviderIdentity {
+	p.Name = strings.TrimSpace(p.Name)
+	p.InstallSource = strings.TrimSpace(p.InstallSource)
+	return p
 }
 
 // ProviderActivation is the durable desired/observed provider state for one tier.

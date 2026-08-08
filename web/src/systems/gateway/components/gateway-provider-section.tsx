@@ -7,6 +7,7 @@ import {
   ListingRow,
   Spinner,
 } from "@compozy/ui";
+import { Radio } from "lucide-react";
 
 import { SettingsGroup } from "@/systems/settings";
 
@@ -92,28 +93,32 @@ export function GatewayProviderSection({
 
       {model.orphanedActivations.map(activation => (
         <ListingRow
-          data-testid={`gateway-provider-orphan-${activation.name}-${activation.tier}`}
+          data-testid={`gateway-provider-orphan-${activation.name}-${activation.tier ?? "unknown"}`}
           interactive={false}
-          key={`${activation.name}:${activation.tier}`}
+          key={`${activation.name}:${activation.tier ?? "unknown"}`}
         >
-          <ListingRow.Icon />
+          <ListingRow.Icon>
+            <Radio aria-hidden="true" className="size-3.5" />
+          </ListingRow.Icon>
           <ListingRow.Main>
             <ListingRow.Title>
               <ListingRow.Name>{activation.name}</ListingRow.Name>
             </ListingRow.Title>
             <ListingRow.Meta>
               <span>
-                Still carrying the {TIER_LABEL[activation.tier as GatewayTier]} tier, but no longer
-                installed.
+                This provider is no longer installed but remains enabled for the{" "}
+                {activation.tier ? TIER_LABEL[activation.tier] : "unknown address"}.
               </span>
             </ListingRow.Meta>
           </ListingRow.Main>
           <ListingRow.Trail>
             <GatewayProviderHealthChip activation={activation} />
             <Button
-              data-testid={`gateway-provider-orphan-${activation.name}-${activation.tier}-disable`}
-              disabled={isSubmitting}
-              onClick={() => onDisable(activation.name, activation.tier as GatewayTier)}
+              data-testid={`gateway-provider-orphan-${activation.name}-${activation.tier ?? "unknown"}-disable`}
+              disabled={isSubmitting || activation.tier === null}
+              onClick={() => {
+                if (activation.tier) onDisable(activation.name, activation.tier);
+              }}
               size="sm"
               type="button"
               variant="ghost"

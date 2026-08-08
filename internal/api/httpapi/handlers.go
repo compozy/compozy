@@ -113,6 +113,19 @@ type Handlers struct {
 	ingressLimiter   *gateway.IngressRateLimiter
 }
 
+const (
+	defaultGatewayAuthFailureLimit  = 10
+	defaultGatewayAuthFailureWindow = time.Minute
+)
+
+func newDefaultGatewayAuthFailureLimiter() *gateway.AuthFailureLimiter {
+	return gateway.NewAuthFailureLimiter(
+		defaultGatewayAuthFailureLimit,
+		defaultGatewayAuthFailureWindow,
+		func() time.Time { return time.Now().UTC() },
+	)
+}
+
 func newHandlers(cfg *handlerConfig) *Handlers {
 	if cfg == nil {
 		cfg = &handlerConfig{}
@@ -127,7 +140,7 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 	boundHost := handlerBoundHost(cfg)
 	authLimiter := cfg.authLimiter
 	if authLimiter == nil {
-		authLimiter = gateway.NewAuthFailureLimiter(10, time.Minute, func() time.Time { return time.Now().UTC() })
+		authLimiter = newDefaultGatewayAuthFailureLimiter()
 	}
 	ingressLimiter := cfg.ingressLimiter
 	if ingressLimiter == nil {

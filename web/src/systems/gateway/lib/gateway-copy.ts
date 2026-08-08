@@ -4,13 +4,14 @@ import type {
   GatewaySurface,
   GatewayTier,
 } from "../types";
+import type { GatewayExposureRowId } from "./gateway-exposure-model";
 
 /**
  * Named exposure modes with the risk each one carries, in the operator's own
  * words. The ladder is never presented as a bare toggle: the person deciding
  * has to be able to read what becomes reachable and by whom.
  */
-export const EXPOSURE_ROW_COPY: Record<string, { title: string; risk: string }> = {
+export const EXPOSURE_ROW_COPY: Record<GatewayExposureRowId, { title: string; risk: string }> = {
   "private-operator-ui": {
     title: "Private overlay",
     risk: "Devices you have paired reach the full product over your own overlay network. Nothing is published to the internet.",
@@ -127,13 +128,18 @@ export function auditSeverityCopy(severity: string): { label: string; tone: Gate
 }
 
 export function ingressReachabilityCopy(reachability: string) {
-  return (
-    INGRESS_REACHABILITY_COPY[reachability as GatewayIngressReachability] ?? {
-      label: reachability,
-      tone: "neutral" as GatewaySignalTone,
-      detail: "",
-    }
-  );
+  if (isGatewayIngressReachability(reachability)) {
+    return INGRESS_REACHABILITY_COPY[reachability];
+  }
+  return {
+    label: "Unknown",
+    tone: "neutral" as GatewaySignalTone,
+    detail: "Delivery status is unavailable.",
+  };
+}
+
+function isGatewayIngressReachability(value: string): value is GatewayIngressReachability {
+  return Object.prototype.hasOwnProperty.call(INGRESS_REACHABILITY_COPY, value);
 }
 
 export const DEVICE_ORIGIN_LABEL: Record<string, string> = {

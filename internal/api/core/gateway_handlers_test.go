@@ -278,6 +278,97 @@ func TestGatewayPayloadMappings(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("Should remove raw claim tokens from every audit payload field [UT-120]", func(t *testing.T) {
+		t.Parallel()
+
+		const secret = "compozy_claim_gateway-output-secret"
+		data := marshalGatewayAuditPayload(t, gatewayAuditReportWithSecret(secret))
+		if strings.Contains(string(data), secret) {
+			t.Fatalf("gateway audit payload leaked claim token: %s", data)
+		}
+		if !strings.Contains(string(data), "[REDACTED]") {
+			t.Fatalf("gateway audit payload omitted redaction marker: %s", data)
+		}
+	})
+
+	t.Run("Should remove device credentials pairing artifacts and stream tickets [UT-121]", func(t *testing.T) {
+		t.Parallel()
+
+		for _, secret := range []string{
+			"cpz_gwd_device-credential-material-123456",
+			"cpz_gwp_pairing-artifact-material-123456",
+			"cpz_gwt_stream-ticket-material-123456",
+		} {
+			t.Run("Should redact "+secret[:7], func(t *testing.T) {
+				t.Parallel()
+				data := marshalGatewayAuditPayload(t, gatewayAuditReportWithSecret(secret))
+				if strings.Contains(string(data), secret) {
+					t.Fatalf("gateway audit payload leaked gateway secret: %s", data)
+				}
+			})
+		}
+	})
+
+	t.Run("Should redact secret-shaped values even when stored in the wrong field [UT-122]", func(t *testing.T) {
+		t.Parallel()
+
+		const secret = "sk-gateway-wrong-field-secret-value"
+		data := marshalGatewayAuditPayload(t, gatewayAuditReportWithSecret(secret))
+		if strings.Contains(string(data), secret) {
+			t.Fatalf("gateway audit payload leaked wrong-field secret: %s", data)
+		}
+		unbind, err := json.Marshal(GatewayIngressUnbindPayload(gateway.UnbindResult{
+			Subject: gateway.IngressSubjectRef{Kind: gateway.IngressSubjectWebhookTrigger, ID: secret},
+			Changed: true,
+		}))
+		if err != nil {
+			t.Fatalf("json.Marshal(GatewayIngressUnbindPayload()) error = %v", err)
+		}
+		if strings.Contains(string(unbind), secret) {
+			t.Fatalf("gateway ingress unbind payload leaked wrong-field secret: %s", unbind)
+		}
+	})
+}
+
+func gatewayAuditReportWithSecret(secret string) gateway.AuditReport {
+	status := gateway.Status{
+		Enabled: true,
+		Providers: []gateway.ProviderStatus{{
+			Name: secret, Tier: gateway.TierPrivate, Desired: gateway.DesiredEnabled,
+			Observed: gateway.ProviderDegraded, Health: gateway.HealthDegraded, Cause: secret,
+		}},
+		Addresses: []gateway.AddressStatus{{
+			Tier: gateway.TierPrivate, Address: "https://gateway.test/" + secret, Live: true,
+		}},
+		Devices: []gateway.DeviceSession{{
+			ID: "dev-safe", Name: secret, PairingOrigin: secret,
+		}},
+		Bindings: []gateway.IngressBindingStatus{{
+			Subject:     gateway.IngressSubjectRef{Kind: gateway.IngressSubjectWebhookTrigger, ID: secret},
+			WorkspaceID: secret, URL: "https://gateway.test/" + secret,
+			Reachability: gateway.IngressReachabilityReconfirmation,
+		}},
+		Refusal: &gateway.Refusal{Cause: secret, Fix: "remove " + secret},
+	}
+	return gateway.AuditReport{
+		Ran: true, Status: status,
+		Auth:             gateway.AuditAuthPosture{Mode: secret, RequiredRemotely: true},
+		DeviceHighlights: gateway.AuditDeviceHighlights{StaleDeviceIDs: []string{secret}},
+		Findings: []gateway.AuditFinding{{
+			ID: "gateway.test", Severity: gateway.AuditSeverityCritical,
+			Summary: secret, Remediation: "remove " + secret, Resource: secret,
+		}},
+	}
+}
+
+func marshalGatewayAuditPayload(t *testing.T, report gateway.AuditReport) []byte {
+	t.Helper()
+	data, err := json.Marshal(GatewayAuditPayload(report))
+	if err != nil {
+		t.Fatalf("json.Marshal(GatewayAuditPayload()) error = %v", err)
+	}
+	return data
 }
 
 func TestGatewayErrorMappings(t *testing.T) {
@@ -286,45 +377,14 @@ func TestGatewayErrorMappings(t *testing.T) {
 	t.Run("Should map documented sentinels to stable status and code pairs [UT-106]", func(t *testing.T) {
 		t.Parallel()
 
-		tests := []struct {
-			name       string
-			err        error
-			wantStatus int
-			wantCode   string
-		}{
-			{
-				name: "Should map expired pairing", err: gateway.ErrPairingExpired,
-				wantStatus: http.StatusGone, wantCode: "gateway_pairing_expired",
-			},
-			{
-				name: "Should map pairing capacity", err: gateway.ErrPairingLimit,
-				wantStatus: http.StatusTooManyRequests, wantCode: "gateway_pairing_limit",
-			},
-			{
-				name: "Should map digest confirmation", err: gateway.ErrDigestConfirmationRequired,
-				wantStatus: http.StatusPreconditionRequired, wantCode: "gateway_digest_confirmation_required",
-			},
-			{
-				name: "Should map stale provider trust", err: gateway.ErrProviderTrustStale,
-				wantStatus: http.StatusConflict, wantCode: "gateway_provider_trust_stale",
-			},
-			{
-				name: "Should map forbidden ingress", err: gateway.ErrIngressForbidden,
-				wantStatus: http.StatusForbidden, wantCode: "gateway_ingress_forbidden",
-			},
-			{
-				name: "Should map a revoked device", err: gateway.ErrDeviceRevoked,
-				wantStatus: http.StatusUnauthorized, wantCode: "gateway_device_revoked",
-			},
-		}
-		for _, test := range tests {
-			t.Run(test.name, func(t *testing.T) {
+		for _, mapping := range gatewayErrorMappings {
+			t.Run("Should map "+mapping.code, func(t *testing.T) {
 				t.Parallel()
-				if got := StatusForGatewayError(test.err); got != test.wantStatus {
-					t.Fatalf("StatusForGatewayError() = %d, want %d", got, test.wantStatus)
+				if got := StatusForGatewayError(mapping.target); got != mapping.status {
+					t.Fatalf("StatusForGatewayError() = %d, want %d", got, mapping.status)
 				}
-				if got := GatewayErrorCode(test.err); got != test.wantCode {
-					t.Fatalf("GatewayErrorCode() = %q, want %q", got, test.wantCode)
+				if got := GatewayErrorCode(mapping.target); got != mapping.code {
+					t.Fatalf("GatewayErrorCode() = %q, want %q", got, mapping.code)
 				}
 			})
 		}

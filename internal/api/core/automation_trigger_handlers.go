@@ -2,18 +2,14 @@ package core
 
 import (
 	"context"
-
 	"errors"
 	"fmt"
-
 	"net/http"
-
 	"strings"
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
-	"github.com/compozy/compozy/internal/gateway"
 	"github.com/gin-gonic/gin"
 )
 
@@ -23,9 +19,8 @@ func (h *BaseHandlers) ListAutomationTriggers(c *gin.Context) {
 	if !ok {
 		return
 	}
-	projectionCtx, err := h.gatewayIngressReadContext(c, "automation.triggers.list")
-	if err != nil {
-		h.respondGatewayError(c, errors.Join(gateway.ErrIngressForbidden, err))
+	projectionCtx, ok := h.requireGatewayIngressReadContext(c, "automation.triggers.list")
+	if !ok {
 		return
 	}
 
@@ -63,11 +58,6 @@ func (h *BaseHandlers) CreateAutomationTrigger(c *gin.Context) {
 	if !ok {
 		return
 	}
-	projectionCtx, err := h.gatewayIngressReadContext(c, "automation.triggers.create")
-	if err != nil {
-		h.respondGatewayError(c, errors.Join(gateway.ErrIngressForbidden, err))
-		return
-	}
 
 	var req contract.CreateTriggerRequest
 	if err := decodeStrictJSONBody(c, &req); err != nil {
@@ -91,17 +81,21 @@ func (h *BaseHandlers) CreateAutomationTrigger(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, NewAutomationValidationError(err))
 		return
 	}
+	projectionCtx, ok := h.requireGatewayIngressReadContextForWorkspace(
+		c,
+		"automation.triggers.create",
+		trigger.WorkspaceID,
+	)
+	if !ok {
+		return
+	}
 	created, err := manager.CreateTrigger(c.Request.Context(), trigger, webhookSecret)
 	if err != nil {
 		h.respondError(c, StatusForAutomationError(err), err)
 		return
 	}
 
-	payload, err := h.triggerPayload(projectionCtx, created)
-	if err != nil {
-		h.respondGatewayError(c, err)
-		return
-	}
+	payload := h.triggerPayloadBestEffort(projectionCtx, created, "automation.triggers.create")
 	c.JSON(http.StatusCreated, contract.TriggerResponse{Trigger: payload})
 }
 
@@ -111,9 +105,8 @@ func (h *BaseHandlers) GetAutomationTrigger(c *gin.Context) {
 	if !ok {
 		return
 	}
-	projectionCtx, err := h.gatewayIngressReadContext(c, "automation.triggers.get")
-	if err != nil {
-		h.respondGatewayError(c, errors.Join(gateway.ErrIngressForbidden, err))
+	projectionCtx, ok := h.requireGatewayIngressReadContext(c, "automation.triggers.get")
+	if !ok {
 		return
 	}
 
@@ -134,11 +127,6 @@ func (h *BaseHandlers) GetAutomationTrigger(c *gin.Context) {
 func (h *BaseHandlers) UpdateAutomationTrigger(c *gin.Context) {
 	manager, ok := h.requireAutomationManager(c)
 	if !ok {
-		return
-	}
-	projectionCtx, err := h.gatewayIngressReadContext(c, "automation.triggers.update")
-	if err != nil {
-		h.respondGatewayError(c, errors.Join(gateway.ErrIngressForbidden, err))
 		return
 	}
 
@@ -167,6 +155,14 @@ func (h *BaseHandlers) UpdateAutomationTrigger(c *gin.Context) {
 		h.respondError(c, StatusForAutomationError(err), err)
 		return
 	}
+	projectionCtx, ok := h.requireGatewayIngressReadContextForWorkspace(
+		c,
+		"automation.triggers.update",
+		current.WorkspaceID,
+	)
+	if !ok {
+		return
+	}
 
 	var updated automationpkg.Trigger
 	switch current.Source {
@@ -190,11 +186,7 @@ func (h *BaseHandlers) UpdateAutomationTrigger(c *gin.Context) {
 		return
 	}
 
-	payload, err := h.triggerPayload(projectionCtx, updated)
-	if err != nil {
-		h.respondGatewayError(c, err)
-		return
-	}
+	payload := h.triggerPayloadBestEffort(projectionCtx, updated, "automation.triggers.update")
 	c.JSON(http.StatusOK, contract.TriggerResponse{Trigger: payload})
 }
 
@@ -208,6 +200,13 @@ func (h *BaseHandlers) DeleteAutomationTrigger(c *gin.Context) {
 	current, err := manager.GetTrigger(c.Request.Context(), c.Param("id"))
 	if err != nil {
 		h.respondError(c, StatusForAutomationError(err), err)
+		return
+	}
+	if _, ok := h.requireGatewayIngressReadContextForWorkspace(
+		c,
+		"automation.triggers.delete",
+		current.WorkspaceID,
+	); !ok {
 		return
 	}
 	if current.Source != automationpkg.JobSourceDynamic {

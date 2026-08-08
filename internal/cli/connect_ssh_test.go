@@ -154,6 +154,7 @@ func TestConnectSSHFailureTaxonomy(t *testing.T) {
 		)
 		wantRun := []string{
 			"-o", "StrictHostKeyChecking=yes",
+			"-o", "ConnectTimeout=10",
 			"-o", "ControlMaster=auto",
 			"-o", "ControlPersist=60",
 			"-p", "2222",
@@ -175,6 +176,7 @@ func TestConnectSSHFailureTaxonomy(t *testing.T) {
 		leaseArgs := sshOwnershipLeaseArgs(target, "/srv/compozy operator", "owner-token")
 		wantLeasePrefix := []string{
 			"-o", "StrictHostKeyChecking=yes",
+			"-o", "ConnectTimeout=10",
 			"-o", "ControlMaster=no",
 			"-o", "ControlPath=none",
 			"-o", "ControlPersist=no",
@@ -184,6 +186,48 @@ func TestConnectSSHFailureTaxonomy(t *testing.T) {
 		if len(leaseArgs) != len(wantLeasePrefix)+1 ||
 			!slices.Equal(leaseArgs[:len(wantLeasePrefix)], wantLeasePrefix) {
 			t.Fatalf("sshOwnershipLeaseArgs() = %#v, want prefix %#v and one command", leaseArgs, wantLeasePrefix)
+		}
+	})
+
+	t.Run("Should reject an unsafe running listener without taking ownership", func(t *testing.T) {
+		t.Parallel()
+		status := DaemonStatus{
+			Status: "running", PID: 4100,
+			StartedAt: time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC),
+			HTTPHost:  "localhost", HTTPPort: 2123,
+		}
+		leaseCalls := 0
+		mutationCalls := 0
+		executor := sshExecutorStub{
+			startLease: func(
+				context.Context,
+				sshTarget,
+				string,
+				*sshDaemonOwnership,
+			) (sshOwnershipLease, error) {
+				leaseCalls++
+				return sshOwnershipLeaseStub{}, nil
+			},
+			run: func(_ context.Context, _ sshTarget, command []string) ([]byte, error) {
+				joined := strings.Join(command, " ")
+				if strings.HasSuffix(joined, "compozy status -o json") {
+					return jsonMarshalForTest(t, StatusRecord{Daemon: status}), nil
+				}
+				if strings.Contains(joined, "daemon start") || strings.Contains(joined, "daemon stop") {
+					mutationCalls++
+				}
+				return nil, errors.New("unexpected command")
+			},
+		}
+		resolution, err := resolveRemoteDaemon(
+			t.Context(), executor, sshTarget{host: "remote.example", port: 22},
+			connectSSHOptions{port: 22, remoteStart: true}, commandDeps{}.withDefaults(),
+		)
+		if err == nil {
+			t.Fatalf("resolveRemoteDaemon() = %#v, nil; want listener rejection", resolution)
+		}
+		if leaseCalls != 0 || mutationCalls != 0 {
+			t.Fatalf("ownership lease/start/stop calls = %d/%d, want zero", leaseCalls, mutationCalls)
 		}
 	})
 
@@ -232,7 +276,7 @@ func TestConnectSSHFailureTaxonomy(t *testing.T) {
 				case strings.HasSuffix(joined, "compozy status -o json"):
 					statusCalls++
 					if statusCalls == 1 {
-						return nil, errors.New("daemon unavailable")
+						return jsonMarshalForTest(t, StatusRecord{Daemon: DaemonStatus{Status: "stopped"}}), nil
 					}
 					return jsonMarshalForTest(t, StatusRecord{Daemon: status}), nil
 				case strings.Contains(joined, "daemon start"):
@@ -368,7 +412,7 @@ func TestConnectSSHFailureTaxonomy(t *testing.T) {
 				joined := strings.Join(command, " ")
 				switch {
 				case strings.HasSuffix(joined, "compozy status -o json"):
-					return nil, errors.New("daemon unavailable")
+					return jsonMarshalForTest(t, StatusRecord{Daemon: DaemonStatus{Status: "stopped"}}), nil
 				case strings.Contains(joined, "daemon start"):
 					startCalls.Add(1)
 					<-startRelease

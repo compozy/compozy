@@ -14,7 +14,13 @@ func loadRuntimeContext(deps commandDeps) (runtime *runtimeContext, returnErr er
 	if err != nil {
 		return nil, err
 	}
-	lock, err := acquireGatewayProfileRecoveryLock(context.Background(), homePaths, deps)
+	ctx := context.Background()
+	if deps.commandContext != nil {
+		if commandCtx := deps.commandContext(); commandCtx != nil {
+			ctx = commandCtx
+		}
+	}
+	lock, err := acquireGatewayProfileRecoveryLock(ctx, homePaths, deps)
 	if err != nil {
 		return nil, err
 	}
@@ -30,6 +36,11 @@ func loadRuntimeContext(deps commandDeps) (runtime *runtimeContext, returnErr er
 	}
 	if strings.TrimSpace(cfg.Daemon.Socket) == "" {
 		cfg.Daemon.Socket = homePaths.DaemonSocket
+	}
+	if active := strings.TrimSpace(cfg.Gateway.ActiveConnection); active != "" {
+		if err := ensureGatewayProfileTransactionReady(homePaths.GatewayCredentialsDir, active); err != nil {
+			return nil, err
+		}
 	}
 	target, err := resolveConfiguredClientTarget(homePaths, &cfg, deps.readGatewayCredential)
 	if err != nil {

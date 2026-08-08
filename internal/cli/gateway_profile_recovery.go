@@ -12,7 +12,10 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
-const gatewayPairingRecoveryWindow = 5 * time.Minute
+const (
+	gatewayPairingRecoveryWindow      = 5 * time.Minute
+	gatewayPairingRecoveryPendingCode = "gateway_pairing_recovery_pending"
+)
 
 func acquireRecoveredGatewayProfileState(
 	ctx context.Context,
@@ -43,7 +46,7 @@ func acquireGatewayProfileRecoveryLock(
 	if err != nil {
 		return nil, err
 	}
-	if err := recoverGatewayProfileStateWithLock(ctx, homePaths, deps, lock); err != nil {
+	if err := recoverAvailableGatewayProfileStateWithLock(ctx, homePaths, deps, lock); err != nil {
 		return nil, errors.Join(err, lock.Release())
 	}
 	return lock, nil
@@ -61,7 +64,7 @@ func tryAcquireRecoveredGatewayProfileState(
 	if err != nil {
 		return nil, compozyconfig.GatewayConfig{}, err
 	}
-	if err := recoverGatewayProfileStateWithLock(ctx, homePaths, deps, lock); err != nil {
+	if err := recoverAvailableGatewayProfileStateWithLock(ctx, homePaths, deps, lock); err != nil {
 		return nil, compozyconfig.GatewayConfig{}, errors.Join(err, lock.Release())
 	}
 	cfg, err := compozyconfig.LoadForHome(homePaths)
@@ -76,11 +79,16 @@ func recoverGatewayProfileState(
 	homePaths compozyconfig.HomePaths,
 	deps commandDeps,
 ) error {
-	lock, _, err := acquireRecoveredGatewayProfileState(ctx, homePaths, deps)
+	lock, err := acquireGatewayProfileTransactionLock(
+		ctx,
+		homePaths.GatewayCredentialsDir,
+		gatewayProfileTransactionStateLockName,
+	)
 	if err != nil {
 		return err
 	}
-	return lock.Release()
+	recoveryErr := recoverGatewayProfileStateWithLock(ctx, homePaths, deps, lock)
+	return errors.Join(recoveryErr, lock.Release())
 }
 
 func recoverGatewayProfileStateWithLock(
@@ -97,6 +105,34 @@ func recoverGatewayProfileStateWithLock(
 		},
 		lock,
 	)
+}
+
+func recoverAvailableGatewayProfileStateWithLock(
+	ctx context.Context,
+	homePaths compozyconfig.HomePaths,
+	deps commandDeps,
+	lock *gatewayProfileTransactionLock,
+) error {
+	return recoverAvailableGatewayProfileTransactionsWithLock(
+		ctx,
+		homePaths.GatewayCredentialsDir,
+		func(recoveryCtx context.Context, journal gatewayProfileTransactionJournal) error {
+			return recoverGatewayProfileJournal(recoveryCtx, homePaths, journal, deps)
+		},
+		lock,
+	)
+}
+
+func recoverAvailableGatewayProfileState(
+	ctx context.Context,
+	homePaths compozyconfig.HomePaths,
+	deps commandDeps,
+) error {
+	lock, err := acquireGatewayProfileRecoveryLock(ctx, homePaths, deps)
+	if err != nil {
+		return err
+	}
+	return lock.Release()
 }
 
 func recoverGatewayProfileJournal(
@@ -208,13 +244,23 @@ func recoverGatewayProfilePairing(
 	if !gatewayPairingCredentialRejected(probeErr) || gatewayProfileNow(deps).Before(
 		journal.PairingStartedAt.Add(gatewayPairingRecoveryWindow),
 	) {
-		return &gatewayClientError{
-			code: "gateway_pairing_recovery_pending", statusCode: http.StatusConflict,
-			message: "gateway pairing outcome is still uncertain; retry after the pairing window",
-			cause:   probeErr,
-		}
+		return newGatewayPairingRecoveryPendingError(probeErr)
 	}
 	return restoreGatewayProfilePairingPreviousState(homePaths, journal, deps)
+}
+
+func newGatewayPairingRecoveryPendingError(cause error) error {
+	return &gatewayClientError{
+		code:       gatewayPairingRecoveryPendingCode,
+		statusCode: http.StatusConflict,
+		message:    "gateway pairing outcome is still uncertain; retry after the pairing window",
+		cause:      cause,
+	}
+}
+
+func isGatewayPairingRecoveryPending(err error) bool {
+	var clientErr *gatewayClientError
+	return errors.As(err, &clientErr) && clientErr.code == gatewayPairingRecoveryPendingCode
 }
 
 func probePendingGatewayPairing(

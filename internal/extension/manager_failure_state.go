@@ -17,7 +17,7 @@ func (m *Manager) setFailure(ext *managedExtension, phase ExtensionPhase, err er
 		return
 	}
 
-	safeError := diagnostics.RedactAndBound(err.Error(), maxExtensionFailureBytes)
+	safeError := safeExtensionFailure(err)
 	m.mu.Lock()
 	ext.phase = phase
 	ext.lastError = safeError
@@ -93,7 +93,7 @@ func (m *Manager) recordOwnedInstanceFailure(
 		return 0, nil, false
 	}
 
-	safeReason := diagnostics.RedactAndBound(reason.Error(), maxExtensionFailureBytes)
+	safeReason := safeExtensionFailure(reason)
 	ext.process = nil
 	ext.active = false
 	ext.awaitingStability = false
@@ -219,7 +219,7 @@ func (m *Manager) disableOwnedInstance(identity managedInstanceIdentity, reason 
 		}
 	}
 
-	safeReason := diagnostics.RedactAndBound(reason.Error(), maxExtensionFailureBytes)
+	safeReason := safeExtensionFailure(reason)
 	m.mu.Lock()
 	if !m.matchesInstanceIdentityLocked(identity) {
 		m.mu.Unlock()
@@ -246,6 +246,13 @@ func (m *Manager) matchesInstanceIdentityLocked(identity managedInstanceIdentity
 	ext := m.instanceLocked(identity.key)
 	return ext == identity.owner && ext != nil && ext.generation == identity.generation &&
 		ext.sessionNonce == identity.sessionNonce
+}
+
+func safeExtensionFailure(err error) string {
+	if err == nil {
+		return ""
+	}
+	return diagnostics.RedactAndBound(err.Error(), maxExtensionFailureBytes)
 }
 
 func (m *Manager) unregisterResources(ctx context.Context, ext *managedExtension) error {

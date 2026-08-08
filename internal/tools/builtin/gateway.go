@@ -2,8 +2,6 @@ package builtin
 
 import toolspkg "github.com/compozy/compozy/internal/tools"
 
-const descriptorKeywordAudit = "audit"
-
 func gatewayDescriptors() []toolspkg.Descriptor {
 	descriptor := nativeDescriptor(
 		toolspkg.ToolIDGateway,
@@ -53,7 +51,10 @@ const gatewayOutputSchema = `{
 	"type":"object",
 	"required":["action","redacted"],
 	"properties":{
-		"action":{"type":"string"},
+		"action":{"type":"string","enum":[
+			"status","audit","device_list","surface_set","provider_enable","provider_disable",
+			"device_rename","device_revoke","ingress_bind","ingress_unbind"
+		]},
 		"redacted":{"type":"boolean"},
 		"status":{"type":"object"},
 		"audit":{"type":"object"},

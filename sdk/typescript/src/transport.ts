@@ -300,7 +300,7 @@ export class StdioTransport implements TransportLike {
 
 export class NotReadyTransport implements TransportLike {
   public handle(): void {}
-  public unhandle(): void {}
+  public unhandle(_method: string): void {}
   public onTransportError(): () => void {
     return () => {};
   }

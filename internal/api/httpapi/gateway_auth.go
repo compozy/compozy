@@ -5,9 +5,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
-	"time"
 
-	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/store"
@@ -26,16 +24,17 @@ type deviceConnectionRegistryProvider interface {
 func (h *Handlers) deviceAuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if h == nil || h.deviceAuth == nil {
-			abortGatewayAuth(c, gateway.ErrDeviceUnauthenticated)
+			abortGatewayError(c, gateway.ErrDeviceUnauthenticated)
 			return
 		}
 		source := gatewayAuthSource(c.Request)
 		limiter := h.authLimiter
 		if limiter == nil {
-			limiter = gateway.NewAuthFailureLimiter(10, time.Minute, func() time.Time { return time.Now().UTC() })
+			abortGatewayError(c, gateway.ErrDeviceUnauthenticated)
+			return
 		}
 		if !limiter.Allow(source, false) {
-			abortGatewayAuth(c, gateway.ErrAuthRateLimited)
+			abortGatewayError(c, gateway.ErrAuthRateLimited)
 			return
 		}
 
@@ -47,13 +46,13 @@ func (h *Handlers) deviceAuthMiddleware() gin.HandlerFunc {
 		device, err := h.deviceAuth.Authenticate(c.Request.Context(), credential)
 		if err != nil {
 			limiter.Failure(source, false)
-			abortGatewayAuth(c, err)
+			abortGatewayError(c, err)
 			return
 		}
 		limiter.Success(source)
 		requestCtx, err := h.authenticatedGatewayRequestContext(c.Request.Context(), c.Request, device)
 		if err != nil {
-			abortGatewayAuth(c, err)
+			abortGatewayError(c, err)
 			return
 		}
 		defer gateway.ReleaseMutation(requestCtx)
@@ -67,39 +66,39 @@ func (h *Handlers) authenticateGatewayStream(c *gin.Context, limiter *gateway.Au
 	device, err := h.deviceAuth.ConsumeStreamTicket(c.Request.Context(), ticket)
 	if err != nil {
 		limiter.Failure(source, false)
-		abortGatewayAuth(c, err)
+		abortGatewayError(c, err)
 		return
 	}
 	provider, ok := h.deviceAuth.(deviceConnectionRegistryProvider)
-	if !ok || provider.Connections() == nil {
-		abortGatewayAuth(c, gateway.ErrDeviceUnauthenticated)
+	if !ok {
+		abortGatewayError(c, gateway.ErrDeviceUnauthenticated)
+		return
+	}
+	registry := provider.Connections()
+	if registry == nil {
+		abortGatewayError(c, gateway.ErrDeviceUnauthenticated)
 		return
 	}
 
 	authenticatedCtx, err := h.authenticatedGatewayRequestContext(c.Request.Context(), c.Request, device)
 	if err != nil {
-		abortGatewayAuth(c, err)
+		abortGatewayError(c, err)
 		return
 	}
 	streamContext, cancel := context.WithCancel(authenticatedCtx)
 	done := make(chan struct{})
-	registry := provider.Connections()
 	handle := registry.RegisterWaitable(device.ID, cancel, done)
-	if err := h.deviceAuth.RevalidateForCommit(streamContext, device.ID, device.RevokeEpoch); err != nil {
-		cancel()
-		close(done)
-		registry.Deregister(device.ID, handle)
-		gateway.ReleaseMutation(authenticatedCtx)
-		abortGatewayAuth(c, gateway.ErrStreamTicketInvalid)
-		return
-	}
-	limiter.Success(source)
 	defer func() {
 		cancel()
 		close(done)
 		registry.Deregister(device.ID, handle)
 		gateway.ReleaseMutation(authenticatedCtx)
 	}()
+	if err := h.deviceAuth.RevalidateForCommit(streamContext, device.ID, device.RevokeEpoch); err != nil {
+		abortGatewayError(c, gateway.ErrStreamTicketInvalid)
+		return
+	}
+	limiter.Success(source)
 	c.Request = c.Request.WithContext(streamContext)
 	c.Next()
 }
@@ -195,8 +194,9 @@ func isSessionPromptStreamPath(path string) bool {
 		strings.TrimSpace(parts[4]) != "" && parts[5] == "prompt"
 }
 
-func abortGatewayAuth(c *gin.Context, err error) {
+func abortGatewayError(c *gin.Context, err error) {
 	status := core.StatusForGatewayError(err)
-	payload := contract.ErrorPayload{Error: http.StatusText(status), Code: core.GatewayErrorCode(err)}
+	payload := core.ErrorPayloadForStatus(status, err, true)
+	payload.Code = core.GatewayErrorCode(err)
 	c.AbortWithStatusJSON(status, payload)
 }

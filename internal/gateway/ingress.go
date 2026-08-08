@@ -14,7 +14,8 @@ import (
 )
 
 const (
-	ingressEnablePath          = "/api/gateway/surfaces"
+	// IngressEnablePath is the operator API path used to enable public ingress.
+	IngressEnablePath          = "/api/gateway/surfaces"
 	ingressCompensationTimeout = 5 * time.Second
 )
 
@@ -200,7 +201,7 @@ func (m *ingressManager) project(
 	projection := IngressProjection{
 		Subject: subject.IngressSubjectRef, Scope: subject.Scope,
 		WorkspaceID: subject.WorkspaceID, Reachability: IngressReachabilityOff,
-		EnablePath: ingressEnablePath,
+		EnablePath: IngressEnablePath,
 	}
 	if readWorkspaceID, scopedRead := ingressReadWorkspace(ctx); scopedRead &&
 		subject.Scope == IngressScopeWorkspace && subject.WorkspaceID != readWorkspaceID {
@@ -316,9 +317,8 @@ func (m *ingressManager) authorize(
 	if caller == nil {
 		return nil
 	}
-	if subject.Scope == IngressScopeGlobal ||
-		strings.TrimSpace(caller.WorkspaceID) == subject.WorkspaceID {
-		return nil
+	if subject.Scope == IngressScopeGlobal {
+		return ErrIngressForbidden
 	}
 	if m.access == nil {
 		return ErrIngressForbidden

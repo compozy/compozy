@@ -9,16 +9,17 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
+
+	"github.com/compozy/compozy/internal/version"
+	"golang.org/x/mod/semver"
 )
 
 //go:embed scaffold_templates/**
 var extensionScaffoldTemplates embed.FS
 
-const (
-	scaffoldTemplateRoot = "scaffold_templates"
-	scaffoldGoSDKVersion = "v0.3.0-beta.3"
-)
+const scaffoldTemplateRoot = "scaffold_templates"
 
 var extensionNamePattern = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
 
@@ -185,9 +186,13 @@ func replaceEmptyScaffoldTarget(target string) error {
 }
 
 func renderScaffoldTemplate(stage, name string, template ScaffoldTemplate) ([]string, error) {
+	references, err := resolveScaffoldSDKReferences(version.Current().Version, "")
+	if err != nil {
+		return nil, err
+	}
 	root := filepath.ToSlash(filepath.Join(scaffoldTemplateRoot, string(template)))
 	files := make([]string, 0)
-	err := fs.WalkDir(extensionScaffoldTemplates, root, func(path string, entry fs.DirEntry, walkErr error) error {
+	err = fs.WalkDir(extensionScaffoldTemplates, root, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
@@ -205,7 +210,9 @@ func renderScaffoldTemplate(stage, name string, template ScaffoldTemplate) ([]st
 		}
 		rendered := strings.NewReplacer(
 			"__EXTENSION_NAME__", name,
-			"__COMPOZY_GO_SDK_VERSION__", scaffoldGoSDKVersion,
+			"__COMPOZY_GO_SDK_VERSION__", references.goVersion,
+			"__COMPOZY_GO_SDK_REPLACE__", references.goReplace,
+			"__COMPOZY_TS_SDK_REFERENCE__", references.typescript,
 		).Replace(string(content))
 		destination := filepath.Join(stage, relative)
 		if err := os.MkdirAll(filepath.Dir(destination), 0o755); err != nil {
@@ -222,4 +229,67 @@ func renderScaffoldTemplate(stage, name string, template ScaffoldTemplate) ([]st
 	}
 	slices.Sort(files)
 	return files, nil
+}
+
+type scaffoldSDKReferences struct {
+	goVersion  string
+	goReplace  string
+	typescript string
+}
+
+func resolveScaffoldSDKReferences(buildVersion string, startDir string) (scaffoldSDKReferences, error) {
+	releaseVersion := strings.TrimPrefix(strings.TrimSpace(buildVersion), "v")
+	if semver.IsValid("v" + releaseVersion) {
+		return scaffoldSDKReferences{
+			goVersion:  "v" + releaseVersion,
+			typescript: releaseVersion,
+		}, nil
+	}
+	repoRoot, err := findScaffoldDevelopmentRepo(startDir)
+	if err != nil {
+		return scaffoldSDKReferences{}, fmt.Errorf(
+			"extension: resolve development SDKs for build version %q: %w",
+			buildVersion,
+			err,
+		)
+	}
+	goSDK := filepath.Join(repoRoot, "sdk", "go")
+	typescriptSDK := filepath.ToSlash(filepath.Join(repoRoot, "sdk", "typescript"))
+	return scaffoldSDKReferences{
+		goVersion:  "v0.0.0",
+		goReplace:  "replace github.com/compozy/compozy/sdk/go => " + strconv.Quote(goSDK),
+		typescript: "file:" + typescriptSDK,
+	}, nil
+}
+
+func findScaffoldDevelopmentRepo(startDir string) (string, error) {
+	dir := strings.TrimSpace(startDir)
+	if dir == "" {
+		var err error
+		dir, err = os.Getwd()
+		if err != nil {
+			return "", fmt.Errorf("get working directory: %w", err)
+		}
+	}
+	dir, err := filepath.Abs(dir)
+	if err != nil {
+		return "", fmt.Errorf("resolve working directory: %w", err)
+	}
+	for {
+		goModule := filepath.Join(dir, "sdk", "go", "go.mod")
+		typescriptPackage := filepath.Join(dir, "sdk", "typescript", "package.json")
+		if regularFile(goModule) && regularFile(typescriptPackage) {
+			return dir, nil
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return "", errors.New("compozy source checkout not found")
+		}
+		dir = parent
+	}
+}
+
+func regularFile(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.Mode().IsRegular()
 }

@@ -115,6 +115,20 @@ describe("gateway stream auth", () => {
     expect(signals).toEqual([]);
   });
 
+  it("Should reject a successful mint response whose ticket is not a string", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ ticket: 42, expires_at: "2026-08-07T00:00:00Z" }), {
+          status: 201,
+          headers: { "Content-Type": "application/json" },
+        })
+      )
+    );
+
+    await expect(acquireStreamTicket()).rejects.toBeInstanceOf(GatewayStreamAuthError);
+  });
+
   it("Should authorize a streaming prompt POST target on a remote session", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ticketResponse("tkt_prompt")));
 

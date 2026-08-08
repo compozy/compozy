@@ -110,6 +110,10 @@ func (n *daemonNativeTools) applySessionNativeToolAvailability(availability *nat
 	availability.agentCreate = n.dependencyAvailability(func() bool {
 		return n.deps.Workspaces != nil && strings.TrimSpace(n.deps.HomePaths.AgentsDir) != ""
 	})
+	n.applyTaskNativeToolAvailability(availability)
+}
+
+func (n *daemonNativeTools) applyTaskNativeToolAvailability(availability *nativeToolAvailabilitySet) {
 	availability.tasks = n.dependencyAvailability(func() bool { return n.deps.Tasks != nil })
 	availability.taskNotifications = n.dependencyAvailability(func() bool {
 		return n.deps.Tasks != nil && n.deps.Bridges != nil

@@ -11,7 +11,11 @@ const connectivityAbortStartTimeout = 100 * time.Millisecond
 
 // abortConnectivityProvider starts process-tree shutdown after an unsafe teardown response.
 // Process.Shutdown owns escalation beyond this caller bound, and normal supervision replaces it.
-func (m *Manager) abortConnectivityProvider(name string, expected processHandle) error {
+func (m *Manager) abortConnectivityProvider(
+	ctx context.Context,
+	name string,
+	expected processHandle,
+) error {
 	if m == nil {
 		return ErrManagerRequired
 	}
@@ -28,7 +32,7 @@ func (m *Manager) abortConnectivityProvider(name string, expected processHandle)
 	if process == nil || process != expected {
 		return nil
 	}
-	abortCtx, cancel := context.WithTimeout(context.Background(), connectivityAbortStartTimeout)
+	abortCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), connectivityAbortStartTimeout)
 	defer cancel()
 	err := process.Shutdown(abortCtx)
 	if err == nil || processTerminal(process) || errors.Is(err, context.DeadlineExceeded) {

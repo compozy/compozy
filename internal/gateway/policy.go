@@ -3,6 +3,7 @@ package gateway
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -87,7 +88,7 @@ func NewPolicy(store Store, effects EffectDriver, enabled bool, options ...Optio
 func (p *policy) Plan(ctx context.Context) (ExposurePlan, error) {
 	snapshot, err := p.store.Snapshot(ctx)
 	if err != nil {
-		return ExposurePlan{}, err
+		return ExposurePlan{}, fmt.Errorf("gateway: load exposure plan: %w", err)
 	}
 	return planSnapshot(snapshot), nil
 }
@@ -95,7 +96,7 @@ func (p *policy) Plan(ctx context.Context) (ExposurePlan, error) {
 func (p *policy) Status(ctx context.Context) (Status, error) {
 	snapshot, err := p.store.Snapshot(ctx)
 	if err != nil {
-		return Status{}, err
+		return Status{}, fmt.Errorf("gateway: load exposure status: %w", err)
 	}
 	return projectStatus(snapshot, p.reconciler.Runtime(), p.enabled.Load(), p.currentRefusal()), nil
 }
@@ -105,7 +106,10 @@ func (p *policy) Acquire(tier Tier, surface Surface) (func(), error) {
 }
 
 func (p *policy) Close(ctx context.Context) error {
-	return p.reconciler.Close(ctx)
+	if err := p.reconciler.Close(ctx); err != nil {
+		return fmt.Errorf("gateway: close exposure reconciler: %w", err)
+	}
+	return nil
 }
 
 func (p *policy) setRefusal(err error) {

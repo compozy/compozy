@@ -25,6 +25,13 @@ var _ mcppkg.HostedProxyClient = (*daemonClient)(nil)
 
 var errStopSSE = sse.ErrStop
 
+func defaultCLIRedirectPolicy(_ *http.Request, via []*http.Request) error {
+	if len(via) >= 10 {
+		return errors.New("stopped after 10 redirects")
+	}
+	return nil
+}
+
 // NewClient constructs a daemon client for one fully resolved connection target.
 func NewClient(target ClientTarget) (DaemonClient, error) {
 	if err := target.validate(); err != nil {
@@ -52,7 +59,7 @@ func NewClient(target ClientTarget) (DaemonClient, error) {
 	case clientTargetSSHForward:
 		transport.Proxy = nil
 	}
-	checkRedirect := http.DefaultClient.CheckRedirect
+	checkRedirect := defaultCLIRedirectPolicy
 	if target.isRemoteGateway() {
 		checkRedirect = func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse

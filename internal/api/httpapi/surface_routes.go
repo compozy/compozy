@@ -11,6 +11,8 @@ func RegisterSurfaceRoutes(router gin.IRouter, handlers *Handlers, surfaceSet Su
 		return
 	}
 	switch surfaceSet {
+	case SurfaceSetLocal:
+		registerLocalRoutes(router, handlers)
 	case SurfaceSetPrivate:
 		registerPrivateTierRoutes(router, handlers)
 	case SurfaceSetPublicIngress:
@@ -19,8 +21,6 @@ func RegisterSurfaceRoutes(router gin.IRouter, handlers *Handlers, surfaceSet Su
 		registerPublicOperatorRoutes(router, handlers, false)
 	case SurfaceSetPublicCombined:
 		registerPublicOperatorRoutes(router, handlers, true)
-	default:
-		registerLocalRoutes(router, handlers)
 	}
 }
 
@@ -54,7 +54,7 @@ func registerPublicOperatorRoutes(router gin.IRouter, handlers *Handlers, includ
 	api.Use(handlers.deviceAuthMiddleware())
 	registerOperatorRoutes(api, handlers, false)
 	registerRemoteResourceReadRoutes(api, handlers)
-	registerGatewayStreamTicketRoute(api, handlers)
+	registerPublicGatewayManagementRoutes(api, handlers)
 	registerStaticFallback(router, handlers)
 }
 

@@ -54,6 +54,18 @@ func NewService(policy Policy, devices *DeviceService, options ...ServiceOption)
 	return service, nil
 }
 
+// ReconfigureDeviceLimits applies live artifact limits to the active device service.
+func (s *Service) ReconfigureDeviceLimits(
+	pairingMaxPending int,
+	pairingTTL time.Duration,
+	streamTicketTTL time.Duration,
+) error {
+	if s == nil || s.devices == nil {
+		return errors.New("gateway: service is required")
+	}
+	return s.devices.ReconfigureLimits(pairingMaxPending, pairingTTL, streamTicketTTL)
+}
+
 func (s *Service) Status(ctx context.Context) (Status, error) {
 	status, err := s.policy.Status(ctx)
 	if err != nil || s.ingress == nil {

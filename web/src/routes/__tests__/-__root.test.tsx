@@ -1,7 +1,10 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { reportGatewayAccess } from "@/lib/gateway-access-signal";
+import { gatewayAccessStore } from "@/systems/gateway";
 
 const mockInvalidate = vi.fn();
 const mockReset = vi.fn();
@@ -62,6 +65,9 @@ function renderRoot(element: ReactElement) {
 }
 
 describe("RootComponent", () => {
+  beforeEach(() => gatewayAccessStore.trigger.accessRestored());
+  afterEach(() => act(() => gatewayAccessStore.trigger.accessRestored()));
+
   it("renders the Outlet inside the shell", () => {
     renderRoot(<RootComponent />);
     expect(within(screen.getByTestId("root-shell")).getByTestId("outlet")).toBeInTheDocument();
@@ -74,7 +80,7 @@ describe("RootComponent", () => {
   });
 
   it("renders a root-level not-found fallback with a clear path home", () => {
-    render(<RootNotFoundBoundary isNotFound routeId="__root__" />);
+    renderRoot(<RootNotFoundBoundary isNotFound routeId="__root__" />);
 
     expect(screen.getByTestId("root-route-not-found")).toBeInTheDocument();
     expect(screen.getByText("Route not found")).toBeInTheDocument();
@@ -82,12 +88,23 @@ describe("RootComponent", () => {
   });
 
   it("renders a root-level error fallback that resets and invalidates the router", () => {
-    render(<RootErrorBoundary error={new Error("route failed")} reset={mockReset} />);
+    renderRoot(<RootErrorBoundary error={new Error("route failed")} reset={mockReset} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
 
     expect(mockReset).toHaveBeenCalledTimes(1);
     expect(mockInvalidate).toHaveBeenCalledWith({ forcePending: true });
     expect(screen.getByText("route failed")).toBeInTheDocument();
+  });
+
+  it("Should keep revoked access ahead of root route fallbacks", async () => {
+    renderRoot(<RootNotFoundBoundary isNotFound routeId="__root__" />);
+    await act(async () => {
+      reportGatewayAccess(401, { code: "gateway_device_revoked" });
+      await Promise.resolve();
+    });
+
+    expect(await screen.findByTestId("gateway-access-ended")).toBeInTheDocument();
+    expect(screen.queryByTestId("root-route-not-found")).not.toBeInTheDocument();
   });
 });

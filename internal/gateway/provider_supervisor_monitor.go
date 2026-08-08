@@ -12,10 +12,10 @@ import (
 func (s *ProviderSupervisor) monitor(ctx context.Context, session *supervisedProvider) {
 	var notification *providerDegradationNotification
 	defer func() {
-		close(session.done)
 		if notification != nil {
 			s.notifyDegradation(*notification)
 		}
+		close(session.done)
 	}()
 	ticker := time.NewTicker(s.healthEvery)
 	defer ticker.Stop()

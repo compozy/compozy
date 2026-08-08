@@ -6,26 +6,39 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { apiClient } from "@/lib/api-client";
-import { observeGatewayAccess, type GatewayAccessSignal } from "@/lib/gateway-access-signal";
+import {
+  observeGatewayAccess,
+  observeGatewayListenerTier,
+  type GatewayAccessSignal,
+  type GatewayListenerTier,
+} from "@/lib/gateway-access-signal";
 
-function jsonResponse(status: number, payload: unknown): Response {
+function jsonResponse(status: number, payload: unknown, tier?: GatewayListenerTier): Response {
   return new Response(JSON.stringify(payload), {
     status,
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(tier ? { "X-Compozy-Gateway-Tier": tier } : {}),
+    },
   });
 }
 
 describe("gateway access signal ordering", () => {
   let signals: GatewayAccessSignal[];
+  let tiers: GatewayListenerTier[];
   let unobserve: () => void;
+  let unobserveTier: () => void;
 
   beforeEach(() => {
     signals = [];
+    tiers = [];
     unobserve = observeGatewayAccess(signal => signals.push(signal));
+    unobserveTier = observeGatewayListenerTier(tier => tiers.push(tier));
   });
 
   afterEach(() => {
     unobserve();
+    unobserveTier();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
@@ -54,13 +67,18 @@ describe("gateway access signal ordering", () => {
       vi
         .fn()
         .mockResolvedValue(
-          jsonResponse(401, { error: "Unauthorized", code: "gateway_device_unauthenticated" })
+          jsonResponse(
+            401,
+            { error: "Unauthorized", code: "gateway_device_unauthenticated" },
+            "public"
+          )
         )
     );
 
     await apiClient.GET("/api/gateway/status");
 
     expect(signals).toEqual(["unauthenticated"]);
+    expect(tiers).toEqual(["public"]);
   });
 
   it("Should leave the session untouched for a 401 that carries no gateway decision", async () => {

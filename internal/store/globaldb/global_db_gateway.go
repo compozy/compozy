@@ -14,6 +14,8 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
+var errGatewayObservedGeneration = errors.New("store: gateway observed generation changed")
+
 var (
 	_ gateway.Store                 = (*GatewayRepo)(nil)
 	_ gateway.ProviderIdentityStore = (*GatewayRepo)(nil)
@@ -65,9 +67,9 @@ func (g *GatewayRepo) Snapshot(ctx context.Context) (_ gateway.Snapshot, err err
 	if err != nil {
 		return gateway.Snapshot{}, fmt.Errorf("store: list gateway surface exposure: %w", err)
 	}
-	devices, err := queries.ListActiveGatewayDeviceSessions(ctx)
+	devices, err := queries.ListGatewayDevices(ctx)
 	if err != nil {
-		return gateway.Snapshot{}, fmt.Errorf("store: list active gateway devices: %w", err)
+		return gateway.Snapshot{}, fmt.Errorf("store: list gateway devices: %w", err)
 	}
 	snapshot := gateway.Snapshot{
 		Providers: make([]gateway.ProviderActivation, 0, len(providers)),
@@ -107,7 +109,7 @@ func (g *GatewayRepo) Transition(
 	ctx context.Context,
 	req gateway.TransitionRequest,
 	now time.Time,
-) (_ bool, err error) {
+) (bool, error) {
 	if err := g.checkReady(ctx, "transition gateway exposure"); err != nil {
 		return false, err
 	}
@@ -115,33 +117,22 @@ func (g *GatewayRepo) Transition(
 	if err != nil {
 		return false, err
 	}
-	tx, err := g.db.BeginTx(ctx, nil)
-	if err != nil {
-		return false, fmt.Errorf("store: begin gateway transition: %w", err)
-	}
-	committed := false
-	defer func() {
-		if !committed {
-			err = errors.Join(err, rollbackTx(tx, "gateway transition"))
-		}
-	}()
-	queries := sqlcgen.New(tx)
 	var changed bool
-	switch req.Target {
-	case gateway.TargetProvider:
-		changed, err = transitionGatewayProvider(ctx, queries, req, expected, now)
-	case gateway.TargetSurface:
-		changed, err = transitionGatewaySurface(ctx, queries, req, expected, now)
-	default:
-		err = fmt.Errorf("store: unsupported gateway transition target %q", req.Target)
+	if err := store.ExecuteWrite(ctx, g.db, func(writeCtx context.Context, tx *store.WriteTx) error {
+		queries := sqlcgen.New(tx)
+		var transitionErr error
+		switch req.Target {
+		case gateway.TargetProvider:
+			changed, transitionErr = transitionGatewayProvider(writeCtx, queries, req, expected, now)
+		case gateway.TargetSurface:
+			changed, transitionErr = transitionGatewaySurface(writeCtx, queries, req, expected, now)
+		default:
+			transitionErr = fmt.Errorf("store: unsupported gateway transition target %q", req.Target)
+		}
+		return transitionErr
+	}); err != nil {
+		return false, fmt.Errorf("store: transition gateway exposure: %w", err)
 	}
-	if err != nil {
-		return false, err
-	}
-	if err := tx.Commit(); err != nil {
-		return false, fmt.Errorf("store: commit gateway transition: %w", err)
-	}
-	committed = true
 	return changed, nil
 }
 
@@ -189,7 +180,7 @@ func transitionGatewayProvider(
 		if errors.Is(err, sql.ErrNoRows) {
 			return false, gateway.ErrGenerationConflict
 		}
-		if strings.Contains(err.Error(), "gateway_provider_activations.tier") {
+		if isSQLiteUniqueConstraint(err) {
 			return false, gateway.ErrTierProviderConflict
 		}
 		return false, fmt.Errorf("store: transition gateway provider activation: %w", err)
@@ -226,15 +217,15 @@ func transitionGatewaySurface(
 	default:
 		return false, fmt.Errorf("store: read gateway surface exposure: %w", err)
 	}
-	var consentedAt sql.NullString
+	var consentedAt time.Time
 	if req.Consent && req.Desired == gateway.DesiredEnabled {
-		consentedAt = sql.NullString{String: store.FormatTimestamp(now), Valid: true}
+		consentedAt = now
 	}
 	_, err = queries.TransitionGatewaySurfaceExposure(ctx, sqlcgen.TransitionGatewaySurfaceExposureParams{
 		Surface:            string(req.Surface),
 		Tier:               string(req.Tier),
 		DesiredState:       string(req.Desired),
-		ConsentedAt:        consentedAt,
+		ConsentedAt:        nullableGatewayTime(consentedAt),
 		ExpectedGeneration: expected,
 	})
 	if err != nil {
@@ -247,33 +238,26 @@ func transitionGatewaySurface(
 }
 
 // DisableAll atomically clears desired and observed exposure for every tier.
-func (g *GatewayRepo) DisableAll(ctx context.Context) (_ bool, err error) {
+func (g *GatewayRepo) DisableAll(ctx context.Context) (bool, error) {
 	if err := g.checkReady(ctx, "disable all gateway exposure"); err != nil {
 		return false, err
 	}
-	tx, err := g.db.BeginTx(ctx, nil)
-	if err != nil {
-		return false, fmt.Errorf("store: begin disable-all gateway transaction: %w", err)
-	}
-	committed := false
-	defer func() {
-		if !committed {
-			err = errors.Join(err, rollbackTx(tx, "disable-all gateway"))
+	var providers, surfaces int64
+	if err := store.ExecuteWrite(ctx, g.db, func(writeCtx context.Context, tx *store.WriteTx) error {
+		queries := sqlcgen.New(tx)
+		var writeErr error
+		providers, writeErr = queries.DisableAllGatewayProviderActivations(writeCtx)
+		if writeErr != nil {
+			return fmt.Errorf("store: disable gateway providers: %w", writeErr)
 		}
-	}()
-	queries := sqlcgen.New(tx)
-	providers, err := queries.DisableAllGatewayProviderActivations(ctx)
-	if err != nil {
-		return false, fmt.Errorf("store: disable gateway providers: %w", err)
+		surfaces, writeErr = queries.DisableAllGatewaySurfaceExposure(writeCtx)
+		if writeErr != nil {
+			return fmt.Errorf("store: disable gateway surfaces: %w", writeErr)
+		}
+		return nil
+	}); err != nil {
+		return false, fmt.Errorf("store: disable all gateway exposure: %w", err)
 	}
-	surfaces, err := queries.DisableAllGatewaySurfaceExposure(ctx)
-	if err != nil {
-		return false, fmt.Errorf("store: disable gateway surfaces: %w", err)
-	}
-	if err := tx.Commit(); err != nil {
-		return false, fmt.Errorf("store: commit disable-all gateway transaction: %w", err)
-	}
-	committed = true
 	return providers+surfaces > 0, nil
 }
 
@@ -285,8 +269,8 @@ func (g *GatewayRepo) SetObserved(
 	surfaceObserved gateway.SurfaceObservedState,
 	at time.Time,
 	cause string,
-) (_ bool, err error) {
-	if err := g.checkReady(ctx, "set gateway provider observed state"); err != nil {
+) (bool, error) {
+	if err := g.checkReady(ctx, "set gateway observed state"); err != nil {
 		return false, err
 	}
 	if plan.Provider == nil {
@@ -296,54 +280,58 @@ func (g *GatewayRepo) SetObserved(
 	if err != nil {
 		return false, err
 	}
-	tx, err := g.db.BeginTx(ctx, nil)
-	if err != nil {
-		return false, fmt.Errorf("store: begin gateway observed-state transaction: %w", err)
-	}
-	committed := false
-	defer func() {
-		if !committed {
-			err = errors.Join(err, rollbackTx(tx, "gateway observed-state"))
-		}
-	}()
-	queries := sqlcgen.New(tx)
-	rows, err := queries.UpdateGatewayProviderObserved(ctx, sqlcgen.UpdateGatewayProviderObservedParams{
-		ObservedState: string(providerObserved), LastHealthAt: nullableGatewayTime(at),
-		LastError: store.SQLNullString(cause), ProviderName: plan.Provider.ProviderName,
-		Tier: string(plan.Provider.Tier), ExpectedGeneration: generation,
-	})
-	if err != nil {
-		return false, fmt.Errorf("store: set gateway provider observed state: %w", err)
-	}
-	if rows != 1 {
-		return false, nil
-	}
-	for _, exposure := range plan.Surfaces {
-		surfaceGeneration, generationErr := gatewayGeneration(exposure.Generation)
-		if generationErr != nil {
-			return false, generationErr
-		}
-		rows, updateErr := queries.UpdateGatewaySurfaceObserved(ctx, sqlcgen.UpdateGatewaySurfaceObservedParams{
-			ObservedState: string(surfaceObserved), Surface: string(exposure.Surface),
-			Tier: string(exposure.Tier), ExpectedGeneration: surfaceGeneration,
+	updated := false
+	if err := store.ExecuteWrite(ctx, g.db, func(writeCtx context.Context, tx *store.WriteTx) error {
+		updated = false
+		queries := sqlcgen.New(tx)
+		rows, updateErr := queries.UpdateGatewayProviderObserved(writeCtx, sqlcgen.UpdateGatewayProviderObservedParams{
+			ObservedState: string(providerObserved), LastHealthAt: nullableGatewayTime(at),
+			LastError: store.SQLNullString(cause), ProviderName: plan.Provider.ProviderName,
+			Tier: string(plan.Provider.Tier), ExpectedGeneration: generation,
 		})
 		if updateErr != nil {
-			return false, fmt.Errorf("store: set gateway surface observed state: %w", updateErr)
+			return fmt.Errorf("store: set gateway provider observed state: %w", updateErr)
 		}
 		if rows != 1 {
+			return errGatewayObservedGeneration
+		}
+		for _, exposure := range plan.Surfaces {
+			surfaceGeneration, generationErr := gatewayGeneration(exposure.Generation)
+			if generationErr != nil {
+				return generationErr
+			}
+			rows, updateErr = queries.UpdateGatewaySurfaceObserved(
+				writeCtx,
+				sqlcgen.UpdateGatewaySurfaceObservedParams{
+					ObservedState: string(surfaceObserved), Surface: string(exposure.Surface),
+					Tier: string(exposure.Tier), ExpectedGeneration: surfaceGeneration,
+				},
+			)
+			if updateErr != nil {
+				return fmt.Errorf("store: set gateway surface observed state: %w", updateErr)
+			}
+			if rows != 1 {
+				return errGatewayObservedGeneration
+			}
+		}
+		updated = true
+		return nil
+	}); err != nil {
+		if errors.Is(err, errGatewayObservedGeneration) {
 			return false, nil
 		}
+		return false, fmt.Errorf("store: update gateway observed state: %w", err)
 	}
-	if err := tx.Commit(); err != nil {
-		return false, fmt.Errorf("store: commit gateway observed-state transaction: %w", err)
-	}
-	committed = true
-	return true, nil
+	return updated, nil
 }
 
 func gatewayGeneration(value uint64) (int64, error) {
+	return gatewaySQLiteInteger("generation", value)
+}
+
+func gatewaySQLiteInteger(name string, value uint64) (int64, error) {
 	if value > math.MaxInt64 {
-		return 0, fmt.Errorf("store: gateway generation exceeds SQLite integer range: %d", value)
+		return 0, fmt.Errorf("store: gateway %s exceeds SQLite integer range: %d", name, value)
 	}
 	return int64(value), nil
 }

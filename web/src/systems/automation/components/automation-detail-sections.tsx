@@ -76,9 +76,11 @@ export function TriggerHookSection({
           <WebhookEndpointCard curl={webhook.curl} url={webhook.url} />
         </div>
       ) : null}
-      <div className="mt-3">
-        <AutomationTriggerIngressCard trigger={trigger} />
-      </div>
+      {trigger.event === "webhook" ? (
+        <div className="mt-3">
+          <AutomationTriggerIngressCard trigger={trigger} />
+        </div>
+      ) : null}
     </Section>
   );
 }

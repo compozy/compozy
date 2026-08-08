@@ -56,7 +56,7 @@ func applyExtensionsSettings(editor *compozyconfig.OverlayEditor, settings compo
 			value: settings.Sources.GitHub.BaseURL,
 		},
 		{
-			path:  []string{sectionsExtensionsKey, sectionsSourcesKey, sectionsGitKey, "enabled"},
+			path:  []string{sectionsExtensionsKey, sectionsSourcesKey, sectionsGitKey, sectionsEnabledKey},
 			value: settings.Sources.Git.Enabled,
 		},
 		{

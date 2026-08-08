@@ -148,6 +148,20 @@ func TestClassifyPath(t *testing.T) {
 			wantPattern:   "gateway.*",
 		},
 		{
+			name:          "Should classify gateway auth failure limits as live [UT-006]",
+			path:          "gateway.auth.rate_limit.max_fails",
+			wantLifecycle: Live,
+			wantDiffClass: DiffClassLive,
+			wantPattern:   "gateway.*",
+		},
+		{
+			name:          "Should classify gateway auth windows as live [UT-006]",
+			path:          "gateway.auth.rate_limit.window",
+			wantLifecycle: Live,
+			wantDiffClass: DiffClassLive,
+			wantPattern:   "gateway.*",
+		},
+		{
 			name:          "Should classify the private gateway port as restart required [UT-006]",
 			path:          "gateway.private_port",
 			wantLifecycle: RestartRequired,

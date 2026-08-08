@@ -1,8 +1,6 @@
-import { useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 
 import { gatewayAuditOptions } from "../lib/query-options";
-import { gatewayKeys } from "../lib/query-keys";
 import type { GatewayAuditReport } from "../types";
 
 export interface GatewayAuditViewModel {
@@ -19,21 +17,13 @@ export interface GatewayAuditViewModel {
  * "cleared after remediation" is something the person caused and can see.
  */
 export function useGatewayAudit(): GatewayAuditViewModel {
-  const queryClient = useQueryClient();
-  const [requested, setRequested] = useState(false);
-  const query = useQuery(gatewayAuditOptions(requested));
+  const query = useQuery(gatewayAuditOptions());
 
   return {
-    hasRun: requested && query.data !== undefined,
+    hasRun: query.isFetchedAfterMount && !query.isFetching && query.data !== undefined,
     isRunning: query.isFetching,
     error: query.error,
     report: query.data ?? null,
-    run: () => {
-      if (!requested) {
-        setRequested(true);
-        return;
-      }
-      void queryClient.invalidateQueries({ queryKey: gatewayKeys.audit() });
-    },
+    run: () => void query.refetch(),
   };
 }

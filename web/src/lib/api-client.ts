@@ -1,7 +1,7 @@
 import createClient from "openapi-fetch";
 
 import type { paths as compozyPaths } from "@/generated/compozy-openapi";
-import { reportGatewayAccess } from "./gateway-access-signal";
+import { reportGatewayResponse } from "./gateway-access-signal";
 
 export const apiBaseUrl =
   typeof window === "undefined" ? "http://localhost" : window.location.origin;
@@ -29,12 +29,7 @@ export const apiClient = createClient<compozyPaths>({
  */
 apiClient.use({
   async onResponse({ response }) {
-    if (response.status !== 401) return undefined;
-    try {
-      reportGatewayAccess(response.status, await response.clone().json());
-    } catch {
-      // A 401 without a JSON envelope carries no access decision.
-    }
+    await reportGatewayResponse(response);
     return undefined;
   },
 });

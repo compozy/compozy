@@ -3,6 +3,7 @@ package gateway
 import (
 	"context"
 	"errors"
+	"math"
 	"slices"
 	"strings"
 	"sync"
@@ -129,18 +130,6 @@ func TestPolicyAuthorityAndRefusals(t *testing.T) {
 		}
 		if len(snapshot.Surfaces) != 0 {
 			t.Fatalf("snapshot surfaces = %#v, want invalid transition not persisted", snapshot.Surfaces)
-		}
-	})
-
-	t.Run("Should reject removed legacy exposure semantics without interpretation [UT-014]", func(t *testing.T) {
-		t.Parallel()
-		policy := newTestPolicy(t, &testStore{}, newTestEffects(nil), true)
-		_, err := policy.Transition(testContext(t), TransitionRequest{
-			Target: TargetProvider, Tier: TierPrivate, Desired: DesiredEnabled,
-			LegacyMode: "public-ui",
-		})
-		if !errors.Is(err, ErrExposureRefused) || !strings.Contains(err.Error(), "legacy exposure mode") {
-			t.Fatalf("Transition() error = %v, want legacy-semantics refusal", err)
 		}
 	})
 
@@ -353,7 +342,7 @@ func TestPolicyGenerationFencingAndEffects(t *testing.T) {
 		}
 	})
 
-	t.Run("Should degrade observed state when the provider state event cannot be stored", func(t *testing.T) {
+	t.Run("Should not commit observed state when the provider state event cannot be stored", func(t *testing.T) {
 		t.Parallel()
 		store := &testStore{snapshot: enabledPrivateSnapshot()}
 		effects := newTestEffects(nil)
@@ -367,13 +356,41 @@ func TestPolicyGenerationFencingAndEffects(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Snapshot() error = %v", err)
 		}
-		if snapshot.Providers[0].Observed != ProviderDegraded ||
+		if snapshot.Providers[0].Observed != ProviderEstablishing ||
 			snapshot.Surfaces[0].Observed != SurfaceOff {
-			t.Fatalf("observed state = %#v/%#v, want degraded/off", snapshot.Providers[0], snapshot.Surfaces[0])
+			t.Fatalf("observed state = %#v/%#v, want establishing/off", snapshot.Providers[0], snapshot.Surfaces[0])
 		}
 		if effects.isAdvertised(TierPrivate) {
 			t.Fatal("provider remained advertised after state event failure")
 		}
+	})
+
+	t.Run("Should schedule recovery when the degraded-state audit cannot be stored", func(t *testing.T) {
+		t.Parallel()
+		store := &testStore{snapshot: enabledPrivateSnapshot()}
+		effects := newTestEffects(nil)
+		reconciler := NewReconciler(store, effects, WithProviderRecoveryBackoff(time.Millisecond, 5*time.Millisecond))
+		t.Cleanup(func() {
+			if err := reconciler.Close(testContext(t)); err != nil {
+				t.Errorf("Close() error = %v", err)
+			}
+		})
+		plan := planSnapshot(store.snapshot)
+		if err := reconciler.Reconcile(testContext(t), plan); err != nil {
+			t.Fatalf("Reconcile(initial) error = %v", err)
+		}
+		effects.stateErrAt = ProviderDegraded
+		activation := *plan.Tiers[0].Provider
+		if err := reconciler.handleProviderDegraded(
+			testContext(t), activation, errors.New("provider crashed"),
+		); err == nil {
+			t.Fatal("handleProviderDegraded() error = nil, want audit failure")
+		}
+		effects.mu.Lock()
+		effects.stateErrAt = ""
+		effects.mu.Unlock()
+		waitForGatewayAdvertisement(t, effects, TierPrivate)
+		waitForProviderObserved(t, store, ProviderUp)
 	})
 
 	t.Run("Should restore the previous advertisement when listener replacement fails", func(t *testing.T) {
@@ -450,6 +467,18 @@ func TestPolicyGenerationFencingAndEffects(t *testing.T) {
 		waitForProviderObserved(t, store, ProviderUp)
 		if !effects.isAdvertised(TierPrivate) {
 			t.Fatal("provider recovery did not restore advertisement")
+		}
+	})
+}
+
+func TestProviderRecoveryBackoff(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should clamp before doubling a duration near overflow", func(t *testing.T) {
+		t.Parallel()
+		maximum := time.Duration(math.MaxInt64)
+		if got := nextProviderRecoveryDelay(maximum-1, maximum); got != maximum {
+			t.Fatalf("nextProviderRecoveryDelay() = %s, want %s", got, maximum)
 		}
 	})
 }
@@ -709,4 +738,16 @@ func waitForProviderObserved(t *testing.T, store *testStore, want ProviderObserv
 		t.Fatalf("Snapshot(final) error = %v", err)
 	}
 	t.Fatalf("provider snapshot = %#v, want observed %q", snapshot.Providers, want)
+}
+
+func waitForGatewayAdvertisement(t *testing.T, effects *testEffects, tier Tier) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		if effects.isAdvertised(tier) {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatal("provider recovery did not restore advertisement")
 }

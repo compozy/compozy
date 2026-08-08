@@ -48,6 +48,7 @@ func (r *Reconciler) scheduleRecoveryLocked(activation ProviderActivation) {
 	ctx, cancel := context.WithCancel(r.recoveryCtx)
 	recovery := &providerRecovery{activation: activation, ctx: ctx, cancel: cancel}
 	r.recoveries[activation.Tier] = recovery
+	r.recoveryWG.Add(1)
 	go r.runProviderRecovery(recovery)
 }
 
@@ -61,6 +62,7 @@ func (r *Reconciler) cancelRecoveryLocked(tier Tier) {
 }
 
 func (r *Reconciler) runProviderRecovery(recovery *providerRecovery) {
+	defer r.recoveryWG.Done()
 	delay := r.recoveryMin
 	for {
 		timer := time.NewTimer(delay)
@@ -73,10 +75,15 @@ func (r *Reconciler) runProviderRecovery(recovery *providerRecovery) {
 		if !r.tryProviderRecovery(recovery) {
 			return
 		}
-		if delay < r.recoveryMax {
-			delay = min(delay*2, r.recoveryMax)
-		}
+		delay = nextProviderRecoveryDelay(delay, r.recoveryMax)
 	}
+}
+
+func nextProviderRecoveryDelay(current time.Duration, maximum time.Duration) time.Duration {
+	if current >= maximum || current > maximum-current {
+		return maximum
+	}
+	return current * 2
 }
 
 func (r *Reconciler) tryProviderRecovery(recovery *providerRecovery) bool {

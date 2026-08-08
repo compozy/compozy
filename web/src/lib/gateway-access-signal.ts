@@ -13,13 +13,17 @@
  * fresh one, not by tearing the session down.
  */
 export type GatewayAccessSignal = "unauthenticated" | "revoked";
+export type GatewayListenerTier = "private" | "public";
 
 const UNAUTHENTICATED_CODE = "gateway_device_unauthenticated";
 const REVOKED_CODE = "gateway_device_revoked";
+const GATEWAY_TIER_HEADER = "X-Compozy-Gateway-Tier";
 
 type AccessSignalListener = (signal: GatewayAccessSignal) => void;
+type TierListener = (tier: GatewayListenerTier) => void;
 
 const listeners = new Set<AccessSignalListener>();
+const tierListeners = new Set<TierListener>();
 
 /** Reads the daemon's stable machine code out of an error envelope. */
 export function gatewayErrorCode(payload: unknown): string | undefined {
@@ -56,10 +60,33 @@ export function reportGatewayAccess(status: number, payload: unknown): void {
   for (const listener of listeners) listener(signal);
 }
 
+export function reportGatewayListenerTier(rawTier: string | null): void {
+  const tier = rawTier?.trim().toLowerCase();
+  if (tier !== "private" && tier !== "public") return;
+  for (const listener of tierListeners) listener(tier);
+}
+
+export async function reportGatewayResponse(response: Response): Promise<void> {
+  reportGatewayListenerTier(response.headers.get(GATEWAY_TIER_HEADER));
+  if (response.status !== 401) return;
+  try {
+    reportGatewayAccess(response.status, await response.clone().json());
+  } catch {
+    // A 401 without a JSON envelope carries no access decision.
+  }
+}
+
 /** Subscribes to access signals. Returns the unsubscribe function. */
 export function observeGatewayAccess(listener: AccessSignalListener): () => void {
   listeners.add(listener);
   return () => {
     listeners.delete(listener);
+  };
+}
+
+export function observeGatewayListenerTier(listener: TierListener): () => void {
+  tierListeners.add(listener);
+  return () => {
+    tierListeners.delete(listener);
   };
 }

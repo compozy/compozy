@@ -149,17 +149,24 @@ func TestConnectivityProviderRegistryPolicy(t *testing.T) {
 	t.Run("Should require an explicit gateway tier scope", func(t *testing.T) {
 		for _, test := range []struct {
 			name   string
+			slug   string
 			scopes []string
 			field  string
 		}{
-			{name: "missing network participation", field: "network_participation"},
-			{name: "unrelated live scope", scopes: []string{"builders"}, field: "network_participation.channel_scopes"},
+			{
+				name: "Should reject missing network participation", slug: "missing-network-participation",
+				field: "network_participation",
+			},
+			{
+				name: "Should reject an unrelated live scope", slug: "unrelated-live-scope",
+				scopes: []string{"builders"}, field: "network_participation.channel_scopes",
+			},
 		} {
 			t.Run(test.name, func(t *testing.T) {
 				env := newRegistryTestEnv(t)
 				dir, manifest, checksum := createRegistryTestExtension(
 					t,
-					"invalid-connectivity-"+strings.ReplaceAll(test.name, " ", "-"),
+					"invalid-connectivity-"+test.slug,
 					registryManifestOptions{
 						capabilities:  []string{"connectivity.provider"},
 						networkScopes: test.scopes,

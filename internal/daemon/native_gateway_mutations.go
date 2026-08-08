@@ -15,17 +15,17 @@ func (n *daemonNativeTools) gatewaySurfaceSet(
 	toolID toolspkg.ToolID,
 	input nativeGatewayInput,
 ) (gateway.Status, error) {
-	surface := gateway.Surface(strings.TrimSpace(input.Surface))
-	if err := surface.Validate(); err != nil {
-		return gateway.Status{}, nativeGatewayInputError(toolID, "surface", err.Error())
+	surface, err := parseNativeGatewaySurface(toolID, input.Surface)
+	if err != nil {
+		return gateway.Status{}, err
 	}
-	tier := gateway.Tier(strings.TrimSpace(input.Tier))
-	if err := tier.Validate(); err != nil {
-		return gateway.Status{}, nativeGatewayInputError(toolID, "tier", err.Error())
+	tier, err := parseNativeGatewayTier(toolID, input.Tier)
+	if err != nil {
+		return gateway.Status{}, err
 	}
-	desired := gateway.DesiredState(strings.TrimSpace(input.Desired))
-	if err := desired.Validate(); err != nil {
-		return gateway.Status{}, nativeGatewayInputError(toolID, "desired", err.Error())
+	desired, err := parseNativeGatewayDesired(toolID, input.Desired)
+	if err != nil {
+		return gateway.Status{}, err
 	}
 	return n.deps.gatewayService().SetSurfaceExposure(ctx, gateway.SurfaceExposureRequest{
 		Surface: surface, Tier: tier, Desired: desired,
@@ -46,9 +46,9 @@ func (n *daemonNativeTools) gatewayProviderEnable(
 	if err != nil {
 		return gateway.Status{}, err
 	}
-	tier := gateway.Tier(strings.TrimSpace(input.Tier))
-	if err := tier.Validate(); err != nil {
-		return gateway.Status{}, nativeGatewayInputError(toolID, "tier", err.Error())
+	tier, err := parseNativeGatewayTier(toolID, input.Tier)
+	if err != nil {
+		return gateway.Status{}, err
 	}
 	return n.deps.gatewayService().EnableProvider(ctx, gateway.ProviderEnableRequest{
 		Provider: gateway.ProviderIdentity{
@@ -67,11 +67,35 @@ func (n *daemonNativeTools) gatewayProviderDisable(
 	if err != nil {
 		return gateway.Status{}, err
 	}
-	tier := gateway.Tier(strings.TrimSpace(input.Tier))
-	if err := tier.Validate(); err != nil {
-		return gateway.Status{}, nativeGatewayInputError(toolID, "tier", err.Error())
+	tier, err := parseNativeGatewayTier(toolID, input.Tier)
+	if err != nil {
+		return gateway.Status{}, err
 	}
 	return n.deps.gatewayService().DisableProvider(ctx, tier, provider)
+}
+
+func parseNativeGatewayTier(toolID toolspkg.ToolID, value string) (gateway.Tier, error) {
+	tier := gateway.Tier(strings.TrimSpace(value))
+	if err := tier.Validate(); err != nil {
+		return "", nativeGatewayInputError(toolID, "tier", err.Error())
+	}
+	return tier, nil
+}
+
+func parseNativeGatewaySurface(toolID toolspkg.ToolID, value string) (gateway.Surface, error) {
+	surface := gateway.Surface(strings.TrimSpace(value))
+	if err := surface.Validate(); err != nil {
+		return "", nativeGatewayInputError(toolID, "surface", err.Error())
+	}
+	return surface, nil
+}
+
+func parseNativeGatewayDesired(toolID toolspkg.ToolID, value string) (gateway.DesiredState, error) {
+	desired := gateway.DesiredState(strings.TrimSpace(value))
+	if err := desired.Validate(); err != nil {
+		return "", nativeGatewayInputError(toolID, "desired", err.Error())
+	}
+	return desired, nil
 }
 
 func (n *daemonNativeTools) gatewayDeviceRename(

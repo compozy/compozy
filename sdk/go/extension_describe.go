@@ -75,7 +75,7 @@ func (e *Extension) Describe() (contracts.DescribePayload, error) {
 			Args:    slices.Clone(e.definition.Subprocess.Args),
 			Env:     cloneStringMap(e.definition.Subprocess.Env),
 		},
-		NetworkParticipation: cloneDescribeNetworkParticipation(e.definition.NetworkParticipation),
+		NetworkParticipation: normalizeDescribeNetworkParticipation(e.definition.NetworkParticipation),
 		Tools:                tools,
 		CommandGroups:        e.commandGroupsLocked(),
 		HookEvents:           normalizeStrings(e.definition.SupportedHookEvents),
@@ -89,7 +89,7 @@ func (e *Extension) Describe() (contracts.DescribePayload, error) {
 	}, nil
 }
 
-func cloneDescribeNetworkParticipation(
+func normalizeDescribeNetworkParticipation(
 	value *NetworkParticipationRequirement,
 ) *contracts.DescribeNetworkParticipation {
 	if value == nil {

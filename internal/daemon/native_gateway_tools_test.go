@@ -31,8 +31,11 @@ func TestDaemonNativeGatewayTool(t *testing.T) {
 		t.Parallel()
 
 		service := &nativeGatewayService{
-			status: gateway.Status{Enabled: true},
-			audit:  gateway.AuditReport{Ran: true, NoFindings: true, LocalOnly: true},
+			status: gateway.Status{
+				Enabled: true,
+				Devices: []gateway.DeviceSession{{ID: "device-1", Name: "Browser"}},
+			},
+			audit: gateway.AuditReport{Ran: true, NoFindings: true, LocalOnly: true},
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Gateway: func() core.GatewayService { return service },
@@ -59,6 +62,20 @@ func TestDaemonNativeGatewayTool(t *testing.T) {
 			}
 			if payload.Action != action || !payload.Redacted {
 				t.Fatalf("gateway payload = %#v, want action %q and redacted=true", payload, action)
+			}
+			switch action {
+			case gatewayActionStatus:
+				if payload.Status == nil || !payload.Status.Enabled {
+					t.Fatalf("gateway status payload = %#v, want enabled", payload.Status)
+				}
+			case gatewayActionAudit:
+				if payload.Audit == nil || !payload.Audit.Ran || !payload.Audit.NoFindings || !payload.Audit.LocalOnly {
+					t.Fatalf("gateway audit payload = %#v, want local-only no-findings report", payload.Audit)
+				}
+			case gatewayActionDeviceList:
+				if payload.Devices == nil || len(*payload.Devices) != 1 || (*payload.Devices)[0].ID != "device-1" {
+					t.Fatalf("gateway device payload = %#v, want device-1", payload.Devices)
+				}
 			}
 		}
 	})

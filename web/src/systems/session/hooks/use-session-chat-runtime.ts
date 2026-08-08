@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useChatRuntime } from "@assistant-ui/react-ai-sdk";
 
 import { authorizeStreamFetchInput } from "@/lib/gateway-stream-auth";
+import { reportGatewayResponse } from "@/lib/gateway-access-signal";
 import { loopsKeys } from "@/systems/loops";
 import type { SessionPromptDispatchStore } from "@/components/assistant-ui/session-prompt-dispatch-store";
 import { sessionKeys } from "../lib/query-keys";
@@ -64,7 +65,9 @@ function buildSessionRuntimeConfig(
       // The prompt POST streams its response, so a remote gateway session
       // authenticates it with a fresh single-use ticket like any other stream.
       const target = await authorizeStreamFetchInput(input, controller.signal);
-      return await goalAwareFetch(target, { ...init, signal: controller.signal });
+      const response = await goalAwareFetch(target, { ...init, signal: controller.signal });
+      await reportGatewayResponse(response);
+      return response;
     } finally {
       upstreamSignal?.removeEventListener("abort", abortFromUpstream);
       promptDispatch.trigger.requestCompleted({ controller });

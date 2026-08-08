@@ -98,6 +98,7 @@ type bootState struct {
 	coordinator           *coordinatorRuntime
 	network               networkRuntime
 	gateway               gateway.Policy
+	gatewayVerifier       *gateway.EndpointVerifier
 	networkWakeRunner     *networkWakeRunner
 	participationResolver participation.Resolver
 	accessPolicy          workspaceaccess.Policy

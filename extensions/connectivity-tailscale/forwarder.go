@@ -22,16 +22,15 @@ type tierForwarder struct {
 	target   string
 	logger   *slog.Logger
 
-	ctx    context.Context
-	cancel context.CancelFunc
-	done   chan struct{}
-	wg     sync.WaitGroup
-	start  sync.Once
-	stop   sync.Once
-	closed chan struct{}
-	slots  chan struct{}
+	stopLifecycle context.CancelFunc
+	done          chan struct{}
+	wg            sync.WaitGroup
+	start         sync.Once
+	stop          sync.Once
+	closed        chan struct{}
+	slots         chan struct{}
 
-	mu          sync.Mutex
+	mu          sync.RWMutex
 	connections map[net.Conn]struct{}
 	serveErr    error
 	forwardErr  error
@@ -49,13 +48,10 @@ func newTierForwarder(listener net.Listener, target string, logger *slog.Logger)
 	if logger == nil {
 		logger = slog.Default()
 	}
-	ctx, cancel := context.WithCancel(context.Background())
 	return &tierForwarder{
 		listener:    listener,
 		target:      target,
 		logger:      logger,
-		ctx:         ctx,
-		cancel:      cancel,
 		done:        make(chan struct{}),
 		closed:      make(chan struct{}),
 		slots:       make(chan struct{}, maxForwardConnections),
@@ -64,14 +60,27 @@ func newTierForwarder(listener net.Listener, target string, logger *slog.Logger)
 }
 
 func (f *tierForwarder) Start() {
-	f.start.Do(func() { go f.serve() })
+	f.start.Do(func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		f.mu.Lock()
+		f.stopLifecycle = cancel
+		closing := f.closing
+		f.mu.Unlock()
+		if closing {
+			cancel()
+		}
+		go f.serve(ctx)
+	})
 }
 
 func (f *tierForwarder) Health() (string, string) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if f.serveErr != nil || f.forwardErr != nil {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	if f.serveErr != nil {
 		return providerHealthDegraded, "listener stopped accepting connections"
+	}
+	if f.forwardErr != nil {
+		return providerHealthDegraded, "forward target is unavailable"
 	}
 	return providerHealthHealthy, ""
 }
@@ -80,11 +89,14 @@ func (f *tierForwarder) Close(ctx context.Context) error {
 	if f == nil {
 		return nil
 	}
+	f.Start()
 	f.stop.Do(func() {
 		f.mu.Lock()
 		f.closing = true
 		f.mu.Unlock()
-		f.cancel()
+		if f.stopLifecycle != nil {
+			f.stopLifecycle()
+		}
 		go f.shutdown()
 	})
 	select {
@@ -98,7 +110,7 @@ func (f *tierForwarder) Close(ctx context.Context) error {
 	}
 }
 
-func (f *tierForwarder) serve() {
+func (f *tierForwarder) serve(ctx context.Context) {
 	defer close(f.done)
 	defer f.wg.Wait()
 	for {
@@ -125,17 +137,17 @@ func (f *tierForwarder) serve() {
 		}
 		f.track(connection)
 		f.wg.Add(1)
-		go f.forward(connection)
+		go f.forward(ctx, connection)
 	}
 }
 
-func (f *tierForwarder) forward(inbound net.Conn) {
+func (f *tierForwarder) forward(ctx context.Context, inbound net.Conn) {
 	defer f.wg.Done()
 	defer func() { <-f.slots }()
 	defer f.closeTracked(inbound)
-	upstream, err := (&net.Dialer{Timeout: forwardDialTimeout}).DialContext(f.ctx, "tcp", f.target)
+	upstream, err := (&net.Dialer{Timeout: forwardDialTimeout}).DialContext(ctx, "tcp", f.target)
 	if err != nil {
-		if f.ctx.Err() == nil {
+		if ctx.Err() == nil {
 			f.recordForwardFailure()
 			f.logger.Warn("connectivity forward target unavailable")
 		}
@@ -157,7 +169,7 @@ func (f *tierForwarder) forward(inbound net.Conn) {
 	}
 	secondErr := <-results
 	for _, copyErr := range []error{firstErr, secondErr} {
-		if copyErr != nil && !errors.Is(copyErr, net.ErrClosed) && f.ctx.Err() == nil {
+		if copyErr != nil && !errors.Is(copyErr, net.ErrClosed) && ctx.Err() == nil {
 			f.logger.Debug("copy forwarded connection", "error", copyErr)
 		}
 	}

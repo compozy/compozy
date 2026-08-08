@@ -53,16 +53,44 @@ func (h *BaseHandlers) gatewayStatusReadContext(c *gin.Context) (context.Context
 }
 
 func (h *BaseHandlers) gatewayIngressReadContext(c *gin.Context, action string) (context.Context, error) {
+	return h.gatewayIngressReadContextForWorkspace(c, action, "")
+}
+
+func (h *BaseHandlers) gatewayIngressReadContextForWorkspace(
+	c *gin.Context,
+	action string,
+	workspaceRef string,
+) (context.Context, error) {
 	ctx := c.Request.Context()
 	credentials := agentCallerCredentialsFromRequest(c)
 	if !hasAgentCallerIdentityCredentials(credentials) {
 		return ctx, nil
 	}
-	caller, err := h.resolveAgentCaller(ctx, credentials, action)
+	caller, err := h.resolveAgentCallerForWorkspace(ctx, credentials, action, workspaceRef)
 	if err != nil {
 		return nil, err
 	}
 	return gateway.WithIngressReadWorkspace(ctx, caller.Session.WorkspaceID), nil
+}
+
+func (h *BaseHandlers) requireGatewayIngressReadContext(
+	c *gin.Context,
+	action string,
+) (context.Context, bool) {
+	return h.requireGatewayIngressReadContextForWorkspace(c, action, "")
+}
+
+func (h *BaseHandlers) requireGatewayIngressReadContextForWorkspace(
+	c *gin.Context,
+	action string,
+	workspaceRef string,
+) (context.Context, bool) {
+	ctx, err := h.gatewayIngressReadContextForWorkspace(c, action, workspaceRef)
+	if err != nil {
+		h.respondGatewayError(c, gatewayIngressForbidden(err))
+		return nil, false
+	}
+	return ctx, true
 }
 
 func (h *BaseHandlers) GatewayStatus(ctx context.Context) (contract.GatewayStatusPayload, error) {
@@ -176,10 +204,6 @@ func (h *BaseHandlers) GatewayRedeem(
 func (h *BaseHandlers) RedeemGatewayPairing(c *gin.Context) {
 	var request contract.GatewayPairingRedeemRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
-		h.respondGatewayRequestError(c)
-		return
-	}
-	if !validGatewayPairingRedeemRequest(request) {
 		h.respondGatewayRequestError(c)
 		return
 	}

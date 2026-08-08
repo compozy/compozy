@@ -416,9 +416,11 @@ failures use their matching `gateway_device_*`, `gateway_pairing_*`, `gateway_st
 
 ### Remote CLI profiles and SSH forwards
 
-Pair a direct HTTPS client with `compozy pair mint`, then redeem the artifact on the client with
-`compozy pair redeem <artifact> --name <name> --address https://host[:port]`. Use `--use` to make
-the profile active immediately, or select it later with `compozy connect use <name>`. Inspect
+Pair a direct HTTPS client with `compozy pair mint`. The command writes the raw artifact to the
+private `0600` file named by `artifact_ref`; transfer that file out of band, then redeem its contents
+on the client with `compozy pair redeem <artifact> --name <name> --address https://host[:port]`.
+CLI output never contains the raw artifact. Use `--use` to make the profile active immediately, or
+select it later with `compozy connect use <name>`. Inspect
 non-secret metadata with `compozy connect list -o json`; `compozy connect remove <name>` removes both
 the profile and its client-local credential. `compozy connect use local` returns the CLI to UDS.
 Move the same revocable identity to another client with `compozy connect export <name>

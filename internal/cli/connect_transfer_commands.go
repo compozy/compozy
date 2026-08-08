@@ -28,10 +28,9 @@ func newConnectExportCommand(deps commandDeps) *cobra.Command {
 			return exportGatewayProfile(cmd, deps, name, passphraseFile, outputPath, overwrite)
 		},
 	}
-	cmd.Flags().StringVar(&passphraseFile, "passphrase-file", "", "Read the bundle passphrase from a private file")
+	bindGatewayPassphraseFileFlag(cmd, &passphraseFile)
 	cmd.Flags().StringVar(&outputPath, "output-file", "", "Write the encrypted profile bundle to this file")
 	cmd.Flags().BoolVar(&overwrite, "overwrite", false, "Replace an existing output file")
-	mustMarkFlagRequired(cmd, "passphrase-file")
 	mustMarkFlagRequired(cmd, "output-file")
 	return cmd
 }
@@ -48,11 +47,15 @@ func newConnectImportCommand(deps commandDeps) *cobra.Command {
 			return importGatewayProfile(cmd, deps, strings.TrimSpace(args[0]), passphraseFile, overwrite, use)
 		},
 	}
-	cmd.Flags().StringVar(&passphraseFile, "passphrase-file", "", "Read the bundle passphrase from a private file")
+	bindGatewayPassphraseFileFlag(cmd, &passphraseFile)
 	cmd.Flags().BoolVar(&overwrite, "overwrite", false, "Replace an existing profile with the bundle profile")
 	cmd.Flags().BoolVar(&use, "use", false, "Make the imported profile active")
-	mustMarkFlagRequired(cmd, "passphrase-file")
 	return cmd
+}
+
+func bindGatewayPassphraseFileFlag(cmd *cobra.Command, target *string) {
+	cmd.Flags().StringVar(target, "passphrase-file", "", "Read the bundle passphrase from a private file")
+	mustMarkFlagRequired(cmd, "passphrase-file")
 }
 
 func exportGatewayProfile(
@@ -80,6 +83,9 @@ func exportGatewayProfile(
 	}
 	if profile.Scheme != gatewaySchemeHTTPS {
 		return errors.New("cli: only HTTPS gateway profiles can be exported")
+	}
+	if err := ensureGatewayProfileTransactionReady(homePaths.GatewayCredentialsDir, name); err != nil {
+		return err
 	}
 	credential, err := deps.readGatewayCredential(homePaths.GatewayCredentialsDir, name)
 	if err != nil {

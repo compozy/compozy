@@ -163,6 +163,10 @@ func completeGatewayPairingRedemption(
 }
 
 func gatewayPairingRequestNotSent(err error) bool {
+	var requestError *gatewayPairingRequestError
+	if errors.As(err, &requestError) {
+		return requestError.requestNotSent
+	}
 	var operationError *net.OpError
 	return errors.As(err, &operationError) && operationError.Op == "dial"
 }

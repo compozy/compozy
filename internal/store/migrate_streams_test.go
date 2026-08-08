@@ -173,6 +173,14 @@ func TestProductionMigrationStreamsFreshReopenAndAhead(t *testing.T) {
 			if err != nil {
 				t.Fatalf("open fresh %s stream: %v", item.name, err)
 			}
+			firstOpen := true
+			t.Cleanup(func() {
+				if firstOpen {
+					if err := first.Close(); err != nil {
+						t.Errorf("close fresh %s stream after failure: %v", item.name, err)
+					}
+				}
+			})
 			if err := store.Apply(ctx, first, stream); err != nil {
 				t.Fatalf("Apply(%s fresh) error = %v", item.name, err)
 			}
@@ -192,6 +200,7 @@ func TestProductionMigrationStreamsFreshReopenAndAhead(t *testing.T) {
 			if err := first.Close(); err != nil {
 				t.Fatalf("close fresh %s stream: %v", item.name, err)
 			}
+			firstOpen = false
 
 			reopened, err := sql.Open("sqlite", path)
 			if err != nil {

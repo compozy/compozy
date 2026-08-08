@@ -22,9 +22,9 @@ export interface QrCodeProps extends Omit<React.ComponentProps<"svg">, "children
 }
 
 const SIZE_CLASSNAME: Record<QrCodeSize, string> = {
-  sm: "size-32",
-  default: "size-44",
-  lg: "size-56",
+  sm: "size-qr-code-sm",
+  default: "size-qr-code-default",
+  lg: "size-qr-code-lg",
 };
 
 /**
@@ -52,6 +52,7 @@ function QrCode({
 
   return (
     <svg
+      {...props}
       data-slot="qr-code"
       data-size={size}
       role="img"
@@ -59,7 +60,6 @@ function QrCode({
       viewBox={`0 0 ${matrix.size} ${matrix.size}`}
       shapeRendering="crispEdges"
       className={cn("shrink-0 rounded-sm", SIZE_CLASSNAME[size], className)}
-      {...props}
     >
       <rect width={matrix.size} height={matrix.size} className="fill-viz-cell" />
       <path d={path} className="fill-accent-ink" />

@@ -46,6 +46,7 @@ describe("GatewayPublicConsentDialog", () => {
     fireEvent.click(screen.getByTestId("gateway-public-consent-confirm"));
 
     expect(onConfirm).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("gateway-public-consent-confirm")).toBeDisabled();
   });
 
   it("Should require the acknowledgement again on the next enable", () => {

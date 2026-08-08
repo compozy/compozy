@@ -30,9 +30,16 @@ func newPairCommand(deps commandDeps) *cobra.Command {
 func newPairMintCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "mint",
-		Short: "Mint a short-lived pairing artifact from a trusted connection",
+		Short: "Mint a short-lived pairing artifact into a private handoff file",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			homePaths, err := deps.resolveHome()
+			if err != nil {
+				return err
+			}
+			if err := deps.ensureHome(homePaths); err != nil {
+				return err
+			}
 			client, err := gatewayClientFromDeps(deps)
 			if err != nil {
 				return err
@@ -41,7 +48,11 @@ func newPairMintCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, pairingArtifactOutput(artifact))
+			reference, err := persistGatewayPairingArtifact(homePaths, artifact)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, pairingArtifactOutput(reference))
 		},
 	}
 }

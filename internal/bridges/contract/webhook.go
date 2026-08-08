@@ -20,6 +20,18 @@ type webhookProviderConfig struct {
 	} `json:"webhook"`
 }
 
+func decodeWebhookProviderConfig(instance BridgeInstance, missingMessage string) (webhookProviderConfig, error) {
+	raw := bytes.TrimSpace(instance.ProviderConfig)
+	if len(raw) == 0 {
+		return webhookProviderConfig{}, errors.New(missingMessage)
+	}
+	var config webhookProviderConfig
+	if err := json.Unmarshal(raw, &config); err != nil {
+		return webhookProviderConfig{}, fmt.Errorf("bridges: decode provider config: %w", err)
+	}
+	return config, nil
+}
+
 var nonPublicWebhookPrefixes = []netip.Prefix{
 	netip.MustParsePrefix("100.64.0.0/10"),
 	netip.MustParsePrefix("192.0.0.0/24"),
@@ -40,13 +52,9 @@ var nonPublicWebhookPrefixes = []netip.Prefix{
 
 // WebhookLocalTarget resolves the provider-owned loopback listener used by the gateway proxy.
 func WebhookLocalTarget(instance BridgeInstance) (*url.URL, error) {
-	config := webhookProviderConfig{}
-	raw := bytes.TrimSpace(instance.ProviderConfig)
-	if len(raw) == 0 {
-		return nil, errors.New("bridges: webhook local target is required")
-	}
-	if err := json.Unmarshal(raw, &config); err != nil {
-		return nil, fmt.Errorf("bridges: decode provider config: %w", err)
+	config, err := decodeWebhookProviderConfig(instance, "bridges: webhook local target is required")
+	if err != nil {
+		return nil, err
 	}
 	listenAddr := strings.TrimSpace(config.Webhook.ListenAddr)
 	host, port, err := net.SplitHostPort(listenAddr)
@@ -61,7 +69,7 @@ func WebhookLocalTarget(instance BridgeInstance) (*url.URL, error) {
 		return nil, errors.New("bridges: gateway ingress requires a fixed webhook listen port")
 	}
 	portNumber, err := strconv.Atoi(port)
-	if err != nil || portNumber < 1 || portNumber > 65535 {
+	if err != nil || portNumber < 1 || portNumber > 65535 || strconv.Itoa(portNumber) != port {
 		return nil, errors.New("bridges: valid webhook listen port between 1 and 65535 is required")
 	}
 	webhookPath := strings.TrimSpace(config.Webhook.Path)
@@ -71,18 +79,16 @@ func WebhookLocalTarget(instance BridgeInstance) (*url.URL, error) {
 	if !strings.HasPrefix(webhookPath, "/") {
 		webhookPath = "/" + webhookPath
 	}
-	return &url.URL{Scheme: "http", Host: net.JoinHostPort(address.String(), port), Path: webhookPath}, nil
+	return &url.URL{
+		Scheme: "http", Host: net.JoinHostPort(address.String(), strconv.Itoa(portNumber)), Path: webhookPath,
+	}, nil
 }
 
 // WebhookPublicURL returns the configured external callback URL.
 func WebhookPublicURL(instance BridgeInstance) (string, error) {
-	config := webhookProviderConfig{}
-	raw := bytes.TrimSpace(instance.ProviderConfig)
-	if len(raw) == 0 {
-		return "", errors.New("bridges: webhook public_url is required")
-	}
-	if err := json.Unmarshal(raw, &config); err != nil {
-		return "", fmt.Errorf("bridges: decode provider config: %w", err)
+	config, err := decodeWebhookProviderConfig(instance, "bridges: webhook public_url is required")
+	if err != nil {
+		return "", err
 	}
 	publicURL := strings.TrimSpace(config.Webhook.PublicURL)
 	if publicURL == "" {

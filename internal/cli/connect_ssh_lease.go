@@ -111,6 +111,7 @@ func startSystemSSHOwnershipLease(
 func sshOwnershipLeaseArgs(target sshTarget, remoteHome, token string) []string {
 	args := []string{
 		"-o", sshStrictHostKeyOption,
+		"-o", "ConnectTimeout=" + strconv.Itoa(sshConnectTimeoutSeconds),
 		"-o", "ControlMaster=no",
 		"-o", "ControlPath=none",
 		"-o", "ControlPersist=no",

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
@@ -10,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -117,7 +119,7 @@ func decryptGatewayProfileBundle(payload, passphrase []byte) (gatewayProfileBund
 		return gatewayProfileBundle{}, fmt.Errorf("cli: decode gateway profile bundle envelope: %w", err)
 	}
 	var envelope gatewayProfileBundleEnvelope
-	if err := json.Unmarshal(envelopeJSON, &envelope); err != nil {
+	if err := decodeStrictGatewayProfileJSON(envelopeJSON, &envelope); err != nil {
 		return gatewayProfileBundle{}, fmt.Errorf("cli: parse gateway profile bundle envelope: %w", err)
 	}
 	if envelope.Version != gatewayProfileBundleVersion || envelope.ScryptN != gatewayProfileBundleScryptN ||
@@ -157,7 +159,7 @@ func decryptGatewayProfileBundle(payload, passphrase []byte) (gatewayProfileBund
 		return gatewayProfileBundle{}, errors.New("cli: decrypt gateway profile bundle; check the passphrase")
 	}
 	var bundle gatewayProfileBundle
-	if err := json.Unmarshal(plaintext, &bundle); err != nil {
+	if err := decodeStrictGatewayProfileJSON(plaintext, &bundle); err != nil {
 		return gatewayProfileBundle{}, fmt.Errorf("cli: parse gateway profile bundle: %w", err)
 	}
 	if err := validateGatewayProfileBundle(bundle); err != nil {
@@ -218,6 +220,21 @@ func decodeGatewayProfileBundlePart(name, encoded string, exactBytes int) ([]byt
 	return decoded, nil
 }
 
+func decodeStrictGatewayProfileJSON(payload []byte, destination any) error {
+	decoder := json.NewDecoder(bytes.NewReader(payload))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(destination); err != nil {
+		return err
+	}
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return errors.New("unexpected trailing JSON value")
+		}
+		return err
+	}
+	return nil
+}
+
 func readPrivateBoundedFile(path string, maximum int64, label string) (payload []byte, err error) {
 	file, err := fileutil.OpenRegularFile(strings.TrimSpace(path))
 	if err != nil {
@@ -246,7 +263,7 @@ func readPrivateBoundedFile(path string, maximum int64, label string) (payload [
 	return payload, nil
 }
 
-func writePrivateNewFile(path string, payload []byte, overwrite bool) error {
+func writePrivateNewFile(path string, payload []byte, overwrite bool) (returnErr error) {
 	path = strings.TrimSpace(path)
 	if path == "" {
 		return errors.New("cli: gateway profile bundle output path is required")
@@ -261,7 +278,23 @@ func writePrivateNewFile(path string, payload []byte, overwrite bool) error {
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("cli: inspect gateway profile bundle output: %w", err)
 	}
-	if err := fileutil.AtomicWriteFile(path, payload, 0o600); err != nil {
+	if overwrite {
+		if err := fileutil.AtomicWriteFile(path, payload, 0o600); err != nil {
+			return fmt.Errorf("cli: write gateway profile bundle: %w", err)
+		}
+		return nil
+	}
+	directory, err := fileutil.OpenDirectoryForMutation(filepath.Dir(path))
+	if err != nil {
+		return fmt.Errorf("cli: open gateway profile bundle directory: %w", err)
+	}
+	defer func() {
+		returnErr = errors.Join(returnErr, directory.Close())
+	}()
+	if err := directory.AtomicWriteFile(filepath.Base(path), payload, 0o600, false); err != nil {
+		if errors.Is(err, os.ErrExist) {
+			return fmt.Errorf("cli: gateway profile bundle %q already exists; pass --overwrite to replace it", path)
+		}
 		return fmt.Errorf("cli: write gateway profile bundle: %w", err)
 	}
 	return nil

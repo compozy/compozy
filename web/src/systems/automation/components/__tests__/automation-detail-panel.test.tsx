@@ -427,7 +427,18 @@ describe("AutomationDetailPanel", () => {
 
     const ingress = screen.getByTestId("automation-trigger-ingress");
     expect(ingress).toHaveTextContent("Public delivery ingress is off");
-    expect(ingress).toHaveTextContent("Settings → Gateway");
+    expect(ingress).toHaveTextContent("Open Gateway settings to publish one");
+  });
+
+  it("Should omit the public delivery section for non-webhook triggers", () => {
+    renderPanel({
+      item: { ...triggerFixture, event: "ext.github.push" },
+      kind: "triggers",
+      runs: [],
+    });
+
+    expect(screen.queryByTestId("automation-trigger-ingress")).not.toBeInTheDocument();
+    expect(screen.queryByText("Public delivery")).not.toBeInTheDocument();
   });
 
   it("publishes the delivery URL with its reachability and durability boundary once live", () => {

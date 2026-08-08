@@ -54,7 +54,7 @@ func TestIngressProjectionAndBindings(t *testing.T) {
 			t.Fatalf("project() error = %v", err)
 		}
 		if projection.URL != "" || projection.Reachability != IngressReachabilityOff ||
-			projection.EnablePath != ingressEnablePath {
+			projection.EnablePath != IngressEnablePath {
 			t.Fatalf("projection = %#v, want off with enable path and no URL", projection)
 		}
 		bindings, err := store.ListIngressBindings(testContext(t))
@@ -326,6 +326,66 @@ func TestIngressProjectionAndBindings(t *testing.T) {
 		if access.calls != 1 || len(store.bindings) != 0 {
 			t.Fatalf(
 				"authorization calls = %d bindings = %#v, want one denial and no mutation",
+				access.calls,
+				store.bindings,
+			)
+		}
+	})
+
+	t.Run("Should authorize every workspace-scoped agent mutation through the canonical policy", func(t *testing.T) {
+		t.Parallel()
+		access := &ingressAccessPolicy{decision: workspaceaccess.Decision{
+			Allowed: true,
+			Source:  workspaceaccess.SourceSameWorkspace,
+		}}
+		store, manager := newIngressTestManager(t, true, access)
+		ref := IngressSubjectRef{Kind: IngressSubjectWebhookTrigger, ID: "trigger-same-workspace"}
+		store.subjects[ref] = IngressSubject{
+			IngressSubjectRef: ref,
+			Scope:             IngressScopeWorkspace,
+			WorkspaceID:       "workspace-owner",
+			Path:              "/api/webhooks/workspaces/workspace-owner/deploy--wbh_same",
+		}
+		caller := &IngressCaller{
+			SessionID: "session-agent", WorkspaceID: "workspace-owner", AgentName: "coder",
+		}
+
+		if _, err := manager.bind(testContext(t), IngressBindRequest{
+			Subject: ref, Confirmed: true, Caller: caller,
+		}); err != nil {
+			t.Fatalf("bind(same workspace) error = %v", err)
+		}
+		if access.calls != 1 {
+			t.Fatalf("authorization calls = %d, want one", access.calls)
+		}
+	})
+
+	t.Run("Should deny agent mutations of operator-global ingress subjects", func(t *testing.T) {
+		t.Parallel()
+		access := &ingressAccessPolicy{decision: workspaceaccess.Decision{
+			Allowed: true,
+			Source:  workspaceaccess.SourcePermissionMode,
+		}}
+		store, manager := newIngressTestManager(t, true, access)
+		ref := IngressSubjectRef{Kind: IngressSubjectWebhookTrigger, ID: "trigger-global-agent"}
+		store.subjects[ref] = IngressSubject{
+			IngressSubjectRef: ref,
+			Scope:             IngressScopeGlobal,
+			Path:              "/api/webhooks/global/deploy--wbh_global_agent",
+		}
+		caller := &IngressCaller{
+			SessionID: "session-agent", WorkspaceID: "workspace-owner", AgentName: "coder",
+		}
+
+		_, err := manager.bind(testContext(t), IngressBindRequest{
+			Subject: ref, Confirmed: true, Caller: caller,
+		})
+		if !errors.Is(err, ErrIngressForbidden) {
+			t.Fatalf("bind(global agent) error = %v, want ErrIngressForbidden", err)
+		}
+		if access.calls != 0 || len(store.bindings) != 0 {
+			t.Fatalf(
+				"authorization calls = %d bindings = %#v, want global denial before mutation",
 				access.calls,
 				store.bindings,
 			)
@@ -642,7 +702,9 @@ func (s *ingressTestStore) SweepOrphanedIngressBindings(context.Context) (int64,
 }
 
 type ingressAccessPolicy struct {
-	calls int
+	calls    int
+	decision workspaceaccess.Decision
+	err      error
 }
 
 type ingressEventSinkStub struct {
@@ -666,5 +728,9 @@ func (p *ingressAccessPolicy) Authorize(
 	workspaceaccess.Request,
 ) (workspaceaccess.Decision, error) {
 	p.calls++
-	return workspaceaccess.Decision{Allowed: false, Source: workspaceaccess.SourceDenied}, nil
+	decision := p.decision
+	if decision.Source == "" {
+		decision = workspaceaccess.Decision{Allowed: false, Source: workspaceaccess.SourceDenied}
+	}
+	return decision, p.err
 }

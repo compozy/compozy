@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"net"
 	"strconv"
 	"strings"
 
@@ -91,10 +92,7 @@ func gatewayProfileOutput(record gatewayProfileMutationRecord) outputBundle {
 	return simpleGatewayOutput(record, func() string {
 		return renderHumanSection("Connection", []keyValue{
 			{Label: cliNameValue, Value: record.Profile.Name},
-			{
-				Label: automationTargetValue,
-				Value: fmt.Sprintf("%s://%s:%d", record.Profile.Scheme, record.Profile.Host, record.Profile.Port),
-			},
+			{Label: automationTargetValue, Value: gatewayProfileTarget(record.Profile)},
 			{Label: automationStatusValue, Value: record.Status},
 		})
 	}, func() string {
@@ -124,6 +122,14 @@ func gatewayProfileOutput(record gatewayProfileMutationRecord) outputBundle {
 			deviceID,
 		})
 	})
+}
+
+func gatewayProfileTarget(profile gatewayProfileRecord) string {
+	if profile.Scheme == "unix" {
+		return clientTargetLocal
+	}
+	host := strings.Trim(strings.TrimSpace(profile.Host), "[]")
+	return fmt.Sprintf("%s://%s", profile.Scheme, net.JoinHostPort(host, strconv.Itoa(profile.Port)))
 }
 
 func gatewayProfilesOutput(records []gatewayProfileRecord) outputBundle {
@@ -160,14 +166,28 @@ func gatewayDevicesOutput(records []contract.GatewayDevicePayload) outputBundle 
 		contract.GatewayDevicesResponse{Devices: records},
 		records,
 		"Devices",
-		[]string{"ID", windowManagerNameHeader, cliKindHeader, "REVOKED"},
+		[]string{"ID", windowManagerNameHeader, cliKindHeader, "ORIGIN", "LAST SEEN", "REVOKED"},
 		"devices",
-		[]string{"id", automationNameKey, "actor_kind", "revoked"},
+		[]string{"id", automationNameKey, "actor_kind", "pairing_origin", "last_seen_at", "revoked"},
 		func(record contract.GatewayDevicePayload) []string {
-			return []string{record.ID, record.Name, record.ActorKind, strconv.FormatBool(record.RevokedAt != nil)}
+			return []string{
+				record.ID,
+				record.Name,
+				record.ActorKind,
+				record.PairingOrigin,
+				formatOptionalTime(record.LastSeenAt),
+				strconv.FormatBool(record.RevokedAt != nil),
+			}
 		},
 		func(record contract.GatewayDevicePayload) []string {
-			return []string{record.ID, record.Name, record.ActorKind, strconv.FormatBool(record.RevokedAt != nil)}
+			return []string{
+				record.ID,
+				record.Name,
+				record.ActorKind,
+				record.PairingOrigin,
+				formatOptionalTime(record.LastSeenAt),
+				strconv.FormatBool(record.RevokedAt != nil),
+			}
 		},
 	)
 }

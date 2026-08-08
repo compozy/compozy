@@ -8,6 +8,18 @@ export const CONNECTIVITY_PROVIDER_CAPABILITY = "connectivity.provider";
 /** Extension source the gateway refuses outright, per the live trust resolver. */
 const FORBIDDEN_SOURCE = "workspace";
 
+export type GatewayProviderHealth = "healthy" | "degraded" | "down";
+export type GatewayProviderObservedState = "down" | "establishing" | "up" | "degraded";
+
+export interface GatewayProviderActivation extends Omit<
+  GatewayProviderStatus,
+  "health" | "observed" | "tier"
+> {
+  health: GatewayProviderHealth | null;
+  observed: GatewayProviderObservedState | null;
+  tier: GatewayTier | null;
+}
+
 /**
  * Something that must be true before the daemon will authorize this provider,
  * with the action that satisfies it. Every blocker is read from the extension's
@@ -16,8 +28,6 @@ const FORBIDDEN_SOURCE = "workspace";
 export interface GatewayProviderBlocker {
   id: string;
   message: string;
-  /** Whether the operator can clear this at all, or the source is disqualified. */
-  terminal: boolean;
 }
 
 export interface GatewayProviderCandidate {
@@ -28,7 +38,7 @@ export interface GatewayProviderCandidate {
   digest?: string;
   blockers: readonly GatewayProviderBlocker[];
   /** Tiers this provider is currently activated on, from gateway status. */
-  activations: readonly GatewayProviderStatus[];
+  activations: readonly GatewayProviderActivation[];
 }
 
 export interface GatewayProviderModel {
@@ -37,7 +47,7 @@ export interface GatewayProviderModel {
    * Activations whose extension is no longer installed. The daemon still holds
    * durable intent for them, so they stay visible and disableable.
    */
-  orphanedActivations: readonly GatewayProviderStatus[];
+  orphanedActivations: readonly GatewayProviderActivation[];
   /** No installed connectivity provider and no durable activation. */
   isEmpty: boolean;
 }
@@ -63,6 +73,19 @@ export function buildGatewayProviderModel(
   extensions: readonly ExtensionEntry[]
 ): GatewayProviderModel {
   const installed = connectivityProviderExtensions(extensions);
+  const activationsByProvider = new Map<string, GatewayProviderActivation[]>();
+  const normalizedActivations: GatewayProviderActivation[] = [];
+  for (const provider of status.providers) {
+    const activation = normalizeProviderActivation(provider);
+    normalizedActivations.push(activation);
+    const activations = activationsByProvider.get(provider.name);
+    if (activations) {
+      activations.push(activation);
+    } else {
+      activationsByProvider.set(provider.name, [activation]);
+    }
+  }
+
   const candidates = installed.map(extension => {
     const digest = extension.network_requirement_digest?.trim();
     return {
@@ -70,11 +93,14 @@ export function buildGatewayProviderModel(
       installSource: extension.source,
       ...(digest ? { digest } : {}),
       blockers: providerBlockers(extension),
-      activations: status.providers.filter(provider => provider.name === extension.name),
+      activations: activationsByProvider.get(extension.name) ?? [],
     } satisfies GatewayProviderCandidate;
   });
   const known = new Set(installed.map(extension => extension.name));
-  const orphanedActivations = status.providers.filter(provider => !known.has(provider.name));
+  const orphanedActivations: GatewayProviderActivation[] = [];
+  for (const activation of normalizedActivations) {
+    if (!known.has(activation.name)) orphanedActivations.push(activation);
+  }
   return {
     candidates,
     orphanedActivations,
@@ -86,7 +112,7 @@ export function buildGatewayProviderModel(
 export function activationForTier(
   candidate: GatewayProviderCandidate,
   tier: GatewayTier
-): GatewayProviderStatus | undefined {
+): GatewayProviderActivation | undefined {
   return candidate.activations.find(activation => activation.tier === tier);
 }
 
@@ -102,7 +128,6 @@ function providerBlockers(extension: ExtensionEntry): readonly GatewayProviderBl
       id: "workspace-source",
       message:
         "This provider belongs to one workspace. Remote reachability applies to the whole daemon, so install it globally in Settings → Extensions.",
-      terminal: true,
     });
     return blockers;
   }
@@ -110,14 +135,12 @@ function providerBlockers(extension: ExtensionEntry): readonly GatewayProviderBl
     blockers.push({
       id: "extension-disabled",
       message: `Enable the ${extension.name} extension in Settings → Extensions first.`,
-      terminal: false,
     });
   }
   if (extension.network_confirmation_required) {
     blockers.push({
       id: "network-confirmation",
       message: `Confirm what ${extension.name} may reach, in Settings → Extensions.`,
-      terminal: false,
     });
   }
   const missing = extension.missing_env ?? [];
@@ -125,8 +148,30 @@ function providerBlockers(extension: ExtensionEntry): readonly GatewayProviderBl
     blockers.push({
       id: "missing-secrets",
       message: `Bind ${missing.join(", ")} for ${extension.name} in Settings → Extensions.`,
-      terminal: false,
     });
   }
   return blockers;
+}
+
+function normalizeProviderActivation(provider: GatewayProviderStatus): GatewayProviderActivation {
+  return {
+    ...provider,
+    health: parseProviderHealth(provider.health),
+    observed: parseProviderObservedState(provider.observed),
+    tier: parseGatewayTier(provider.tier),
+  };
+}
+
+function parseGatewayTier(value: string): GatewayTier | null {
+  return value === "private" || value === "public" ? value : null;
+}
+
+function parseProviderHealth(value: string): GatewayProviderHealth | null {
+  return value === "healthy" || value === "degraded" || value === "down" ? value : null;
+}
+
+function parseProviderObservedState(value: string): GatewayProviderObservedState | null {
+  return value === "down" || value === "establishing" || value === "up" || value === "degraded"
+    ? value
+    : null;
 }

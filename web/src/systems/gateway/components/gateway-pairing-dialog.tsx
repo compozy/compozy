@@ -57,7 +57,7 @@ export function GatewayPairingDialog({
         <DialogHeader>
           <DialogTitle>Pair a device</DialogTitle>
           <DialogDescription>
-            This code works once and cannot be shown again. Mint a new one if it expires.
+            This code works once. Mint a new one after it expires or is used.
           </DialogDescription>
         </DialogHeader>
 

@@ -824,7 +824,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "321047d0bcf821aff61f90103674205c14b699e40816758cd6ba1708aedc37de",
-    "output_schema_digest": "55ba044cc726dcde15f42a58f288f8a644ced9cb7617ae7ad9633c8951f0ddb5"
+    "output_schema_digest": "e7bf317b678be0f76eecb40fd80cf2a45f7ba8f0cd5b99201aa1af4c0662842b"
   },
   {
     "tool_id": "compozy__goal_get",

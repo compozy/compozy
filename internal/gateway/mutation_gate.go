@@ -114,7 +114,7 @@ func (g *mutationGate) finishRevocation(deviceID string, committed bool) {
 	if state.revocations > 0 {
 		state.revocations--
 	}
-	if !state.revoked && state.revocations == 0 && len(state.active) == 0 {
+	if state.revocations == 0 && len(state.active) == 0 {
 		delete(g.devices, deviceID)
 	}
 }
@@ -136,7 +136,7 @@ func (g *mutationGate) release(deviceID string, handle uint64) {
 		close(state.drained)
 		state.drained = nil
 	}
-	if !state.revoked && state.revocations == 0 && len(state.active) == 0 {
+	if state.revocations == 0 && len(state.active) == 0 {
 		delete(g.devices, deviceID)
 	}
 }

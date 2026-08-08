@@ -9,7 +9,7 @@ export interface GatewayDeviceListProps {
   devices: readonly GatewayDevice[];
   isBusy: boolean;
   error?: string | null;
-  onPair: () => void;
+  onPair?: () => void;
   onRename: (id: string, name: string) => void;
   onRevoke: (device: GatewayDevice) => void;
 }
@@ -30,9 +30,11 @@ export function GatewayDeviceList({
   return (
     <SettingsGroup
       action={
-        <Button data-testid="gateway-pair-device" onClick={onPair} size="sm" type="button">
-          Pair a device
-        </Button>
+        onPair ? (
+          <Button data-testid="gateway-pair-device" onClick={onPair} size="sm" type="button">
+            Pair a device
+          </Button>
+        ) : undefined
       }
       data-testid="gateway-device-list"
       title="Devices"
@@ -48,7 +50,11 @@ export function GatewayDeviceList({
       {devices.length === 0 ? (
         <Empty
           className="py-8"
-          description="Pair a device to reach Compozy from somewhere other than this machine."
+          description={
+            onPair
+              ? "Pair a device to reach Compozy from somewhere other than this machine."
+              : "Pair devices from this daemon's private address or from the daemon machine."
+          }
           title="No paired devices yet"
         />
       ) : (

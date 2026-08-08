@@ -211,9 +211,15 @@ func redactHealthDetails(details json.RawMessage) json.RawMessage {
 	if len(details) == 0 {
 		return nil
 	}
+	if len(details) > maxHealthDiagnosticBytes {
+		return nil
+	}
 	redacted, err := diagnostics.RedactJSON(details)
 	if err != nil {
 		// Provider health details are optional; malformed data must not cross the process boundary.
+		return nil
+	}
+	if len(redacted) > maxHealthDiagnosticBytes {
 		return nil
 	}
 	return redacted

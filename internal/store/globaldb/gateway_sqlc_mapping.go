@@ -117,3 +117,10 @@ func gatewayUnsignedValue(name string, value int64) (uint64, error) {
 	}
 	return uint64(value), nil
 }
+
+func positiveGatewayUnsignedValue(name string, value int64) (uint64, error) {
+	if value <= 0 {
+		return 0, fmt.Errorf("store: invalid gateway %s", name)
+	}
+	return uint64(value), nil
+}

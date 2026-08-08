@@ -33,8 +33,12 @@ describe("GatewayDeviceList", () => {
   });
 
   it("Should fall back to the pairing time when a device has never been seen", () => {
-    renderList({ devices: [gatewayDeviceFixture({ last_seen_at: null })] });
-    expect(screen.getByTestId("gateway-device-dev_phone")).toHaveTextContent("Last active");
+    const device = gatewayDeviceFixture({ last_seen_at: null });
+    renderList({ devices: [device] });
+    const row = screen.getByTestId("gateway-device-dev_phone");
+
+    expect(row).toHaveTextContent("Last active");
+    expect(row.querySelector("time")).toHaveAttribute("datetime", device.created_at);
   });
 
   it("Should rename a device from the inventory", () => {

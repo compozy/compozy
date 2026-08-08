@@ -18,7 +18,10 @@ import (
 	"github.com/compozy/compozy/internal/procutil"
 )
 
-const sshTunnelCloseTimeout = 5 * time.Second
+const (
+	sshTunnelCloseTimeout    = 5 * time.Second
+	sshConnectTimeoutSeconds = 10
+)
 
 type sshTarget struct {
 	host string
@@ -136,6 +139,7 @@ func sshTunnelArgs(target sshTarget, localPort int, remoteHost string, remotePor
 func sshBaseArgs(target sshTarget) []string {
 	args := []string{
 		"-o", sshStrictHostKeyOption,
+		"-o", "ConnectTimeout=" + strconv.Itoa(sshConnectTimeoutSeconds),
 		"-o", "ControlMaster=auto",
 		"-o", "ControlPersist=60",
 	}

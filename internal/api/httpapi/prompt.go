@@ -17,6 +17,8 @@ type uiMessageTextPart = contract.PromptUITextPart
 
 func (h *Handlers) promptSession(c *gin.Context) {
 	dispatch, ok := h.DispatchSessionPrompt(c)
+	// Dispatch commits the prompt before the SSE response begins, so the mutation
+	// lease must be released before the potentially long-lived stream is opened.
 	gateway.ReleaseMutation(c.Request.Context())
 	if !ok {
 		return

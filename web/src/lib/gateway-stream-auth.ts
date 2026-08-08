@@ -67,7 +67,14 @@ export async function acquireStreamTicket(signal?: AbortSignal): Promise<string 
     );
   }
 
-  const ticket = data?.ticket?.trim();
+  const rawTicket = data?.ticket;
+  if (typeof rawTicket !== "string") {
+    throw new GatewayStreamAuthError(
+      `Failed to authorize the live stream: invalid ticket (${response.status})`,
+      response.status
+    );
+  }
+  const ticket = rawTicket.trim();
   if (!ticket) {
     throw new GatewayStreamAuthError(
       `Failed to authorize the live stream: empty ticket (${response.status})`,

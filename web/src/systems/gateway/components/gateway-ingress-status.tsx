@@ -1,4 +1,5 @@
 import { MonoId } from "@compozy/ui";
+import { Link } from "@tanstack/react-router";
 
 import { DELIVERY_DURABILITY_NOTE, ingressReachabilityCopy } from "../lib/gateway-copy";
 import type { GatewayIngressBinding } from "../types";
@@ -27,8 +28,8 @@ export function GatewayIngressStatus({
   if (!ingress) {
     return (
       <p className="text-form-label text-muted" data-testid={testId}>
-        Public delivery ingress is off, so {subject} has no public delivery URL. Turn on public
-        delivery ingress in Settings → Gateway to publish one.
+        Public delivery ingress is off, so {subject} has no public delivery URL.{" "}
+        <GatewaySettingsLink />
       </p>
     );
   }
@@ -48,10 +49,21 @@ export function GatewayIngressStatus({
         <MonoId copy copyLabel="Copy delivery URL" preserveCase value={url} />
       ) : (
         <p className="text-form-label text-muted">
-          No verified public address is published yet, so there is no delivery URL to hand out.
+          {ingress.enable_path?.trim()
+            ? "No verified public address is published yet. "
+            : "No verified public address is published yet, so there is no delivery URL to hand out."}
+          {ingress.enable_path?.trim() ? <GatewaySettingsLink /> : null}
         </p>
       )}
       {url ? <p className="text-form-label text-muted">{DELIVERY_DURABILITY_NOTE}</p> : null}
     </div>
+  );
+}
+
+function GatewaySettingsLink() {
+  return (
+    <Link className="text-accent underline-offset-4 hover:underline" to="/settings/gateway">
+      Open Gateway settings to publish one.
+    </Link>
   );
 }

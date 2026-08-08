@@ -60,6 +60,7 @@ type installWizardRunner func(context.Context, installWizardInput) (installWizar
 type mcpServeRunner func(context.Context, mcpServeOptions) error
 
 type commandDeps struct {
+	commandContext              func() context.Context
 	loadConfig                  func() (compozyconfig.Config, error)
 	loadSkillRegistrySources    skillRegistrySourceLoader
 	resolveHome                 func() (compozyconfig.HomePaths, error)
@@ -123,6 +124,9 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return cmd.Help()
 		},
+	}
+	if deps.commandContext == nil {
+		deps.commandContext = cmd.Context
 	}
 	configureRootClientTargetReporting(cmd, &deps)
 	configureRootFlags(cmd)

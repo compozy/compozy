@@ -4,15 +4,18 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
-	"unicode"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/fileutil"
 	keyring "github.com/zalando/go-keyring"
 )
@@ -72,6 +75,10 @@ func RemoveGatewayCredential(credentialsDir, profile string) error {
 }
 
 func (s gatewayCredentialStore) write(profile, credential string) (string, error) {
+	profile, err := normalizedGatewayProfileName(profile)
+	if err != nil {
+		return "", err
+	}
 	path, err := s.path(profile)
 	if err != nil {
 		return "", err
@@ -80,31 +87,35 @@ func (s gatewayCredentialStore) write(profile, credential string) (string, error
 	if !validGatewayDeviceCredential(credential) {
 		return "", errors.New("cli: gateway device credential is invalid")
 	}
-	key, keyCreated, err := s.loadOrCreateKey(profile)
+	keyUser, err := s.keyringUser(profile)
 	if err != nil {
 		return "", err
 	}
-	ciphertext, err := encryptGatewayCredential(key, credential, profile, s.entropy)
+	key, keyCreated, err := s.loadOrCreateKey(keyUser)
 	if err != nil {
-		return "", s.cleanupCreatedKey(profile, keyCreated, err)
+		return "", err
+	}
+	ciphertext, err := encryptGatewayCredential(key, credential, keyUser, s.entropy)
+	if err != nil {
+		return "", s.cleanupCreatedKey(keyUser, keyCreated, err)
 	}
 	if err := os.MkdirAll(s.dir, 0o700); err != nil {
 		return "", s.cleanupCreatedKey(
-			profile,
+			keyUser,
 			keyCreated,
 			fmt.Errorf("cli: create gateway credential directory: %w", err),
 		)
 	}
 	if err := os.Chmod(s.dir, 0o700); err != nil {
 		return "", s.cleanupCreatedKey(
-			profile,
+			keyUser,
 			keyCreated,
 			fmt.Errorf("cli: secure gateway credential directory: %w", err),
 		)
 	}
 	if err := fileutil.AtomicWriteFile(path, []byte(ciphertext+"\n"), 0o600); err != nil {
 		return "", s.cleanupCreatedKey(
-			profile,
+			keyUser,
 			keyCreated,
 			fmt.Errorf("cli: write gateway credential: %w", err),
 		)
@@ -122,6 +133,10 @@ func validGatewayDeviceCredential(credential string) bool {
 }
 
 func (s gatewayCredentialStore) read(profile string) (string, error) {
+	profile, err := normalizedGatewayProfileName(profile)
+	if err != nil {
+		return "", err
+	}
 	path, err := s.path(profile)
 	if err != nil {
 		return "", err
@@ -133,7 +148,11 @@ func (s gatewayCredentialStore) read(profile string) (string, error) {
 	if info.Mode().Perm() != 0o600 {
 		return "", errors.New("cli: gateway credential file permissions must be 0600")
 	}
-	encodedKey, err := s.keys.Get(gatewayCredentialKeyringService, profile)
+	keyUser, err := s.keyringUser(profile)
+	if err != nil {
+		return "", err
+	}
+	encodedKey, err := s.keys.Get(gatewayCredentialKeyringService, keyUser)
 	if err != nil {
 		return "", fmt.Errorf("cli: read gateway credential key: %w", err)
 	}
@@ -141,11 +160,19 @@ func (s gatewayCredentialStore) read(profile string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return decryptGatewayCredential(key, strings.TrimSpace(string(ciphertext)), profile)
+	return decryptGatewayCredential(key, strings.TrimSpace(string(ciphertext)), keyUser)
 }
 
 func (s gatewayCredentialStore) remove(profile string) error {
+	profile, err := normalizedGatewayProfileName(profile)
+	if err != nil {
+		return err
+	}
 	path, err := s.path(profile)
+	if err != nil {
+		return err
+	}
+	keyUser, err := s.keyringUser(profile)
 	if err != nil {
 		return err
 	}
@@ -156,13 +183,13 @@ func (s gatewayCredentialStore) remove(profile string) error {
 		return fmt.Errorf("cli: inspect gateway credential file: %w", fileReadErr)
 	}
 
-	encodedKey, keyReadErr := s.keys.Get(gatewayCredentialKeyringService, profile)
+	encodedKey, keyReadErr := s.keys.Get(gatewayCredentialKeyringService, keyUser)
 	keyExists := keyReadErr == nil
 	if keyReadErr != nil && !errors.Is(keyReadErr, keyring.ErrNotFound) {
 		return fmt.Errorf("cli: read gateway credential key before removal: %w", keyReadErr)
 	}
 	if keyExists {
-		if err := s.keys.Delete(gatewayCredentialKeyringService, profile); err != nil {
+		if err := s.keys.Delete(gatewayCredentialKeyringService, keyUser); err != nil {
 			return fmt.Errorf("cli: remove gateway credential key: %w", err)
 		}
 	}
@@ -178,7 +205,7 @@ func (s gatewayCredentialStore) remove(profile string) error {
 		if !keyExists {
 			return removeErr
 		}
-		if restoreErr := s.keys.Set(gatewayCredentialKeyringService, profile, encodedKey); restoreErr != nil {
+		if restoreErr := s.keys.Set(gatewayCredentialKeyringService, keyUser, encodedKey); restoreErr != nil {
 			return errors.Join(removeErr, fmt.Errorf("cli: restore gateway credential key: %w", restoreErr))
 		}
 		return removeErr
@@ -194,8 +221,44 @@ func (s gatewayCredentialStore) path(profile string) (string, error) {
 	return filepath.Join(s.dir, profile+".cred"), nil
 }
 
-func (s gatewayCredentialStore) loadOrCreateKey(profile string) ([]byte, bool, error) {
-	encoded, err := s.keys.Get(gatewayCredentialKeyringService, profile)
+func (s gatewayCredentialStore) keyringUser(profile string) (string, error) {
+	canonicalDir, err := canonicalGatewayCredentialDirectory(s.dir)
+	if err != nil {
+		return "", err
+	}
+	scope := sha256.Sum256([]byte(canonicalDir))
+	return profile + "@" + hex.EncodeToString(scope[:16]), nil
+}
+
+func canonicalGatewayCredentialDirectory(directory string) (string, error) {
+	absoluteDir, err := filepath.Abs(directory)
+	if err != nil {
+		return "", fmt.Errorf("cli: resolve gateway credential directory identity: %w", err)
+	}
+	candidate := filepath.Clean(absoluteDir)
+	missing := make([]string, 0, 2)
+	for {
+		resolved, resolveErr := filepath.EvalSymlinks(candidate)
+		if resolveErr == nil {
+			for _, component := range slices.Backward(missing) {
+				resolved = filepath.Join(resolved, component)
+			}
+			return filepath.Clean(resolved), nil
+		}
+		if !errors.Is(resolveErr, os.ErrNotExist) {
+			return "", fmt.Errorf("cli: resolve gateway credential directory symlinks: %w", resolveErr)
+		}
+		parent := filepath.Dir(candidate)
+		if parent == candidate {
+			return "", fmt.Errorf("cli: resolve gateway credential directory symlinks: %w", resolveErr)
+		}
+		missing = append(missing, filepath.Base(candidate))
+		candidate = parent
+	}
+}
+
+func (s gatewayCredentialStore) loadOrCreateKey(keyUser string) ([]byte, bool, error) {
+	encoded, err := s.keys.Get(gatewayCredentialKeyringService, keyUser)
 	if err == nil {
 		key, decodeErr := decodeGatewayCredentialKey(encoded)
 		return key, false, decodeErr
@@ -208,17 +271,17 @@ func (s gatewayCredentialStore) loadOrCreateKey(profile string) ([]byte, bool, e
 		return nil, false, fmt.Errorf("cli: generate gateway credential key: %w", err)
 	}
 	encoded = base64.RawURLEncoding.EncodeToString(key)
-	if err := s.keys.Set(gatewayCredentialKeyringService, profile, encoded); err != nil {
+	if err := s.keys.Set(gatewayCredentialKeyringService, keyUser, encoded); err != nil {
 		return nil, false, fmt.Errorf("cli: store gateway credential key: %w", err)
 	}
 	return key, true, nil
 }
 
-func (s gatewayCredentialStore) cleanupCreatedKey(profile string, created bool, cause error) error {
+func (s gatewayCredentialStore) cleanupCreatedKey(keyUser string, created bool, cause error) error {
 	if !created {
 		return cause
 	}
-	if err := s.keys.Delete(gatewayCredentialKeyringService, profile); err != nil &&
+	if err := s.keys.Delete(gatewayCredentialKeyringService, keyUser); err != nil &&
 		!errors.Is(err, keyring.ErrNotFound) {
 		return errors.Join(cause, fmt.Errorf("cli: remove unused gateway credential key: %w", err))
 	}
@@ -281,14 +344,13 @@ func decodeGatewayCredentialKey(encoded string) ([]byte, error) {
 }
 
 func validGatewayProfileName(profile string) bool {
-	if profile == "" || profile == "." || profile == ".." {
-		return false
+	return compozyconfig.ValidGatewayConnectionName(profile)
+}
+
+func normalizedGatewayProfileName(profile string) (string, error) {
+	profile = strings.TrimSpace(profile)
+	if !validGatewayProfileName(profile) {
+		return "", errors.New("cli: gateway profile name is invalid")
 	}
-	for _, character := range profile {
-		if unicode.IsLetter(character) || unicode.IsDigit(character) || character == '-' || character == '_' {
-			continue
-		}
-		return false
-	}
-	return true
+	return profile, nil
 }

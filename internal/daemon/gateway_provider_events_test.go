@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -15,6 +16,20 @@ import (
 
 func TestGatewayProviderAuditSink(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should bound a provider audit write after caller cancellation", func(t *testing.T) {
+		t.Parallel()
+		writer := &blockingGatewayAuditWriter{}
+		sink := gatewayProviderAuditSink{writer: writer, timeout: 10 * time.Millisecond}
+		ctx, cancel := context.WithCancel(testutil.Context(t))
+		cancel()
+		err := sink.RecordProviderStateChanged(ctx, gateway.ProviderActivation{
+			ProviderName: "connectivity-test", Tier: gateway.TierPrivate, Generation: 1,
+		}, gateway.ProviderDegraded, "provider crashed")
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("RecordProviderStateChanged() error = %v, want deadline exceeded", err)
+		}
+	})
 
 	t.Run("Should durably record a redacted provider contract refusal [UT-076]", func(t *testing.T) {
 		t.Parallel()
@@ -42,7 +57,7 @@ func TestGatewayProviderAuditSink(t *testing.T) {
 		}
 	})
 
-	t.Run("Should UT-151 durably record a verified provider endpoint before publication", func(t *testing.T) {
+	t.Run("Should durably record a verified provider endpoint before publication [UT-151]", func(t *testing.T) {
 		t.Parallel()
 		writer := &gatewayAuditWriter{}
 		sink := gatewayProviderAuditSink{
@@ -60,10 +75,19 @@ func TestGatewayProviderAuditSink(t *testing.T) {
 			t.Fatalf("event count = %d, want 1", len(writer.summaries))
 		}
 		summary := writer.summaries[0]
+		var payload struct {
+			Provider string `json:"provider"`
+			Tier     string `json:"tier"`
+			URL      string `json:"url"`
+		}
+		if err := json.Unmarshal(summary.Content, &payload); err != nil {
+			t.Fatalf("Unmarshal(endpoint event) error = %v", err)
+		}
 		if summary.Type != eventspkg.GatewayEndpointVerified ||
 			summary.Outcome != string(eventspkg.OutcomeSuccess) ||
 			summary.Provider != "connectivity-test" ||
-			!strings.Contains(string(summary.Content), "https://public.example.test") {
+			payload.Provider != "connectivity-test" || payload.Tier != string(gateway.TierPublic) ||
+			payload.URL != "https://public.example.test" {
 			t.Fatalf("event summary = %#v", summary)
 		}
 	})
@@ -81,9 +105,19 @@ func TestGatewayProviderAuditSink(t *testing.T) {
 			t.Fatalf("event count = %d, want 1", len(writer.summaries))
 		}
 		summary := writer.summaries[0]
+		var payload struct {
+			Provider string `json:"provider"`
+			Tier     string `json:"tier"`
+			State    string `json:"state"`
+			Cause    string `json:"cause"`
+		}
+		if err := json.Unmarshal(summary.Content, &payload); err != nil {
+			t.Fatalf("Unmarshal(provider state event) error = %v", err)
+		}
 		if summary.Type != eventspkg.GatewayProviderStateChanged ||
 			summary.Outcome != string(eventspkg.OutcomeFailure) ||
-			!strings.Contains(string(summary.Content), `"state":"degraded"`) {
+			payload.Provider != "connectivity-test" || payload.Tier != string(gateway.TierPrivate) ||
+			payload.State != string(gateway.ProviderDegraded) {
 			t.Fatalf("event summary = %#v", summary)
 		}
 		if strings.Contains(string(summary.Content), "sk-gateway-state-secret") {
@@ -95,7 +129,7 @@ func TestGatewayProviderAuditSink(t *testing.T) {
 func TestGatewayIngressAuditSink(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should UT-151 record redacted bind and warning unbind lifecycle events", func(t *testing.T) {
+	t.Run("Should record redacted bind and warning unbind lifecycle events [UT-151]", func(t *testing.T) {
 		t.Parallel()
 		writer := &gatewayAuditWriter{}
 		sink := gatewayIngressAuditSink{
@@ -147,7 +181,7 @@ func TestGatewayIngressAuditSink(t *testing.T) {
 		}
 	})
 
-	t.Run("Should UT-122 redact a secret-shaped actor id before persistence", func(t *testing.T) {
+	t.Run("Should redact a secret-shaped actor id before persistence [UT-122]", func(t *testing.T) {
 		t.Parallel()
 		const rawActorID = "cpz_gwd_actor-secret-material-0123456789"
 		writer := &gatewayAuditWriter{}
@@ -173,6 +207,20 @@ func TestGatewayIngressAuditSink(t *testing.T) {
 
 type gatewayAuditWriter struct {
 	summaries []store.EventSummary
+}
+
+type blockingGatewayAuditWriter struct{}
+
+func (blockingGatewayAuditWriter) WriteEventSummary(ctx context.Context, _ store.EventSummary) error {
+	<-ctx.Done()
+	return ctx.Err()
+}
+
+func (blockingGatewayAuditWriter) ListEventSummaries(
+	context.Context,
+	store.EventSummaryQuery,
+) ([]store.EventSummary, error) {
+	return nil, nil
 }
 
 func (w *gatewayAuditWriter) WriteEventSummary(_ context.Context, summary store.EventSummary) error {

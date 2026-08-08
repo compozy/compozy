@@ -157,7 +157,10 @@ func (s *ProviderSupervisor) RecordProviderStateChanged(
 	state ProviderObservedState,
 	cause string,
 ) error {
-	return s.audit.RecordProviderStateChanged(ctx, activation, state, cause)
+	if err := s.audit.RecordProviderStateChanged(ctx, activation, state, cause); err != nil {
+		return fmt.Errorf("gateway: record provider state change: %w", err)
+	}
+	return nil
 }
 
 // Establish authorizes the exact live artifact before resolving or calling its process.
@@ -181,7 +184,7 @@ func (s *ProviderSupervisor) Establish(
 	}
 	path, nonce, cleanup, err := s.challenges.Begin(activation.Tier)
 	if err != nil {
-		return Reachability{}, err
+		return Reachability{}, fmt.Errorf("gateway: begin provider verification challenge: %w", err)
 	}
 	ownedChallenge := true
 	defer func() {
@@ -353,7 +356,7 @@ func (s *ProviderSupervisor) authorize(ctx context.Context, activation ProviderA
 	}
 	persisted, err := s.identities.ProviderIdentity(ctx, activation.ProviderName)
 	if err != nil {
-		return err
+		return fmt.Errorf("gateway: load confirmed provider identity: %w", err)
 	}
 	if strings.TrimSpace(persisted.InstallSource) != strings.TrimSpace(fresh.InstallSource) {
 		return ErrProviderTrustStale

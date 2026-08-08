@@ -12,6 +12,7 @@ const (
 	descriptorKeywordStatus      = "status"
 	descriptorKeywordCreate      = "create"
 	descriptorKeywordDiagnostics = "diagnostics"
+	descriptorKeywordAudit       = "audit"
 	descriptorKeywordSearch      = "search"
 	descriptorKeywordSnapshot    = "snapshot"
 	descriptorKeywordUpdate      = "update"

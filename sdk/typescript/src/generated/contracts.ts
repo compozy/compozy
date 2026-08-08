@@ -1235,6 +1235,7 @@ export interface CompactionMatcher {
 export interface ConnectivityAdvertisedEndpoint {
   url: string;
   scheme: string;
+  scheme_policy?: string;
   stability: string;
 }
 

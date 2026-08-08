@@ -1,7 +1,7 @@
 /**
  * Gateway posture is operator-global — there is no workspace scope to key on.
- * Devices are keyed separately from status so a rename or revoke can reconcile
- * the inventory without refetching provider and address state.
+ * Devices are keyed separately from status so mutations can invalidate the
+ * inventories they actually change; rename and revoke currently refresh both.
  */
 export const gatewayKeys = {
   all: ["gateway"] as const,

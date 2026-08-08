@@ -5,9 +5,10 @@ package contracts
 import "time"
 
 type ConnectivityAdvertisedEndpoint struct {
-	URL       string `json:"url"`
-	Scheme    string `json:"scheme"`
-	Stability string `json:"stability"`
+	URL          string `json:"url"`
+	Scheme       string `json:"scheme"`
+	SchemePolicy string `json:"scheme_policy,omitempty"`
+	Stability    string `json:"stability"`
 }
 
 type ConnectivityEstablishRequest struct {

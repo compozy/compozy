@@ -4,9 +4,13 @@ import (
 	"context"
 	"errors"
 	"io"
+	"io/fs"
 	"log/slog"
+	"maps"
 	"net"
+	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -32,6 +36,13 @@ func TestBundledProviderEstablishesBothTiers(t *testing.T) {
 		t.Fatalf("NewProvider() error = %v", err)
 	}
 	provider.newNode = func(string, *slog.Logger) (tailscaleNode, error) { return node, nil }
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		if err := provider.Close(ctx); err != nil {
+			t.Errorf("Provider.Close(cleanup) error = %v", err)
+		}
+	})
 
 	for _, tt := range []struct {
 		tier    string
@@ -70,6 +81,85 @@ func TestBundledProviderEstablishesBothTiers(t *testing.T) {
 	if node.closeCalls != 1 {
 		t.Fatalf("node close calls = %d, want 1 after final tier", node.closeCalls)
 	}
+}
+
+func TestTSNetNodeOperationOwnership(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should join a late listener before returning its context error", func(t *testing.T) {
+		t.Parallel()
+		listener := newTestListener(t)
+		started := make(chan struct{})
+		release := make(chan struct{})
+		ctx, cancel := context.WithCancel(testutil.Context(t))
+		result := make(chan error, 1)
+		go func() {
+			_, err := listenWithContext(ctx, func() (net.Listener, error) {
+				close(started)
+				<-release
+				return listener, nil
+			})
+			result <- err
+		}()
+		<-started
+		cancel()
+		select {
+		case err := <-result:
+			t.Fatalf("listenWithContext() returned before listener joined: %v", err)
+		default:
+		}
+		close(release)
+		if err := <-result; !errors.Is(err, context.Canceled) {
+			t.Fatalf("listenWithContext() error = %v, want context canceled", err)
+		}
+		if _, err := listener.Accept(); !errors.Is(err, net.ErrClosed) {
+			t.Fatalf("Accept() error = %v, want closed late listener", err)
+		}
+	})
+
+	t.Run("Should join node close before returning its context error", func(t *testing.T) {
+		t.Parallel()
+		started := make(chan struct{})
+		release := make(chan struct{})
+		ctx, cancel := context.WithCancel(testutil.Context(t))
+		result := make(chan error, 1)
+		go func() {
+			result <- runContextBoundOperation(ctx, func() error {
+				close(started)
+				<-release
+				return nil
+			})
+		}()
+		<-started
+		cancel()
+		select {
+		case err := <-result:
+			t.Fatalf("runContextBoundOperation() returned before close joined: %v", err)
+		default:
+		}
+		close(release)
+		if err := <-result; !errors.Is(err, context.Canceled) {
+			t.Fatalf("runContextBoundOperation() error = %v, want context canceled", err)
+		}
+	})
+
+	t.Run("Should still run cleanup when the caller context is already canceled", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithCancel(testutil.Context(t))
+		cancel()
+		called := false
+		err := runContextBoundOperation(ctx, func() error {
+			called = true
+			return nil
+		})
+		if !called || !errors.Is(err, context.Canceled) {
+			t.Fatalf(
+				"runContextBoundOperation() = (called:%t, error:%v), want cleanup and context canceled",
+				called,
+				err,
+			)
+		}
+	})
 }
 
 func TestTierForwarderBridgesToDaemonLoopback(t *testing.T) {
@@ -263,7 +353,7 @@ func TestTierForwarderFailureHealth(t *testing.T) {
 		if err := listener.Close(); err != nil {
 			t.Fatalf("Close(listener) error = %v", err)
 		}
-		waitForForwarderHealth(t, forwarder, "degraded")
+		waitForForwarderHealth(t, forwarder, "degraded", "listener stopped accepting connections")
 		if err := forwarder.Close(testutil.Context(t)); err != nil {
 			t.Fatalf("Close(forwarder) error = %v", err)
 		}
@@ -293,7 +383,7 @@ func TestTierForwarderFailureHealth(t *testing.T) {
 		if err := connection.Close(); err != nil {
 			t.Fatalf("Close(connection) error = %v", err)
 		}
-		waitForForwarderHealth(t, forwarder, "degraded")
+		waitForForwarderHealth(t, forwarder, "degraded", "forward target is unavailable")
 		if err := forwarder.Close(testutil.Context(t)); err != nil {
 			t.Fatalf("Close(forwarder) error = %v", err)
 		}
@@ -308,6 +398,60 @@ func TestBundledProviderDefinitionCarriesStateAndCredentialContract(t *testing.T
 	}
 	if definition.Subprocess.Env["COMPOZY_HOME"] != "{{env:COMPOZY_HOME}}" {
 		t.Fatalf("Subprocess.Env = %#v, want COMPOZY_HOME propagation", definition.Subprocess.Env)
+	}
+	if definition.Name != Name || definition.Version != "0.1.0" ||
+		definition.Subprocess.Command != "{{compozy_executable}}" ||
+		!slices.Equal(definition.Subprocess.Args, []string{"__internal", "extension-provider", Name}) {
+		t.Fatalf("provider definition identity/subprocess = %#v", definition)
+	}
+	if !slices.Equal(
+		definition.Capabilities.Provides,
+		[]string{compozysdk.CapabilityProvideConnectivityProvider},
+	) {
+		t.Fatalf("Capabilities.Provides = %#v, want connectivity provider", definition.Capabilities.Provides)
+	}
+	if definition.NetworkParticipation == nil || !definition.NetworkParticipation.Required ||
+		definition.NetworkParticipation.Mode != "live" ||
+		!slices.Equal(
+			definition.NetworkParticipation.ChannelScopes,
+			[]string{"gateway.private", "gateway.public"},
+		) {
+		t.Fatalf("NetworkParticipation = %#v, want live gateway scopes", definition.NetworkParticipation)
+	}
+
+	manifestData, err := fs.ReadFile(FS(), "extension.json")
+	if err != nil {
+		t.Fatalf("ReadFile(extension.json) error = %v", err)
+	}
+	manifestDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(manifestDir, "extension.json"), manifestData, 0o600); err != nil {
+		t.Fatalf("WriteFile(extension.json) error = %v", err)
+	}
+	manifest, err := extensionpkg.LoadManifest(manifestDir)
+	if err != nil {
+		t.Fatalf("LoadManifest(extension.json) error = %v", err)
+	}
+	if definition.Name != manifest.Name || definition.Version != manifest.Version ||
+		definition.Description != manifest.Description ||
+		!slices.Equal(definition.RequiresEnv, manifest.RequiresEnv) ||
+		!slices.Equal(definition.Capabilities.Provides, manifest.Capabilities.Provides) ||
+		definition.Subprocess.Command != manifest.Subprocess.Command ||
+		!slices.Equal(definition.Subprocess.Args, manifest.Subprocess.Args) ||
+		!maps.Equal(definition.Subprocess.Env, manifest.Subprocess.Env) {
+		t.Fatalf("providerDefinition() = %#v, want parity with extension.json %#v", definition, manifest)
+	}
+	if manifest.NetworkParticipation == nil || definition.NetworkParticipation == nil ||
+		definition.NetworkParticipation.Required != manifest.NetworkParticipation.Required ||
+		definition.NetworkParticipation.Mode != manifest.NetworkParticipation.Mode ||
+		!slices.Equal(
+			definition.NetworkParticipation.ChannelScopes,
+			manifest.NetworkParticipation.ChannelScopes,
+		) {
+		t.Fatalf(
+			"providerDefinition network participation = %#v, manifest = %#v",
+			definition.NetworkParticipation,
+			manifest.NetworkParticipation,
+		)
 	}
 }
 
@@ -420,6 +564,13 @@ func newProviderWithNode(t *testing.T, node tailscaleNode) *Provider {
 		t.Fatalf("NewProvider() error = %v", err)
 	}
 	provider.newNode = func(string, *slog.Logger) (tailscaleNode, error) { return node, nil }
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		if err := provider.Close(ctx); err != nil {
+			t.Errorf("Provider.Close(cleanup) error = %v", err)
+		}
+	})
 	return provider
 }
 
@@ -430,16 +581,16 @@ func establishRequest(tier string) compozysdk.ConnectivityEstablishRequest {
 	}
 }
 
-func waitForForwarderHealth(t *testing.T, forwarder *tierForwarder, want string) {
+func waitForForwarderHealth(t *testing.T, forwarder *tierForwarder, wantHealth string, wantReason string) {
 	t.Helper()
 	deadline := time.Now().Add(time.Second)
 	for time.Now().Before(deadline) {
-		health, _ := forwarder.Health()
-		if health == want {
+		health, reason := forwarder.Health()
+		if health == wantHealth && reason == wantReason {
 			return
 		}
 		time.Sleep(time.Millisecond)
 	}
 	health, reason := forwarder.Health()
-	t.Fatalf("Health() = (%q, %q), want %q", health, reason, want)
+	t.Fatalf("Health() = (%q, %q), want (%q, %q)", health, reason, wantHealth, wantReason)
 }

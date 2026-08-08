@@ -165,20 +165,26 @@ func TestGatewayTierRouteMatricesIT063IT064(t *testing.T) {
 			wantRoutes: 5,
 		},
 		{
-			name:       "Should expose authenticated operator routes without ingress on the public operator tier",
+			name:       "Should expose safe gateway management without pairing on the public operator tier",
 			surfaceSet: SurfaceSetPublicOperator,
 			present: []string{
 				"GET /api/status",
 				"GET /api/tasks/:id",
 				"GET /api/resources/:kind/:id",
+				"GET /api/gateway/audit",
+				"GET /api/gateway/status",
+				"POST /api/gateway/surfaces",
+				"POST /api/gateway/providers/:name/enable",
+				"POST /api/gateway/providers/:name/disable",
+				"GET /api/gateway/devices",
+				"PATCH /api/gateway/devices/:id",
+				"DELETE /api/gateway/devices/:id",
 				"POST /api/gateway/stream-tickets",
 			},
 			absent: []string{
 				"POST /api/webhooks/global/:endpoint",
 				"POST /api/gateway/pairings",
 				"POST /api/gateway/pairings/redeem",
-				"GET /api/gateway/audit",
-				"GET /api/gateway/status",
 				"POST /api/tasks/:id/runs",
 				"GET /api/scheduler",
 				"PUT /api/resources/:kind/:id",
@@ -192,12 +198,19 @@ func TestGatewayTierRouteMatricesIT063IT064(t *testing.T) {
 				"GET /api/status",
 				"GET /api/tasks/:id",
 				"GET /api/resources/:kind/:id",
+				"GET /api/gateway/audit",
+				"GET /api/gateway/status",
+				"POST /api/gateway/surfaces",
+				"POST /api/gateway/providers/:name/enable",
+				"POST /api/gateway/providers/:name/disable",
+				"GET /api/gateway/devices",
+				"PATCH /api/gateway/devices/:id",
+				"DELETE /api/gateway/devices/:id",
 				"POST /api/gateway/stream-tickets",
 			},
 			absent: []string{
 				"POST /api/gateway/pairings",
 				"POST /api/gateway/pairings/redeem",
-				"GET /api/gateway/status",
 				"POST /api/tasks/:id/runs",
 				"GET /api/scheduler",
 				"PUT /api/resources/:kind/:id",
@@ -421,6 +434,9 @@ func TestGatewayTierAuthentication(t *testing.T) {
 
 		if response.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want %d; body = %s", response.Code, http.StatusUnauthorized, response.Body.String())
+		}
+		if got := response.Header().Get(gatewayTierHeader); got != string(gateway.TierPrivate) {
+			t.Fatalf("%s = %q, want %q", gatewayTierHeader, got, gateway.TierPrivate)
 		}
 		var payload contract.ErrorPayload
 		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {

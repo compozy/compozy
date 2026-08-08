@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -125,6 +126,72 @@ func TestGlobalDBGatewayTierKeysSurviveReopen(t *testing.T) {
 		if !strings.Contains(strings.ToLower(indexSQL), "where desired_state = 'enabled'") {
 			t.Fatalf("gateway provider index = %q, want enabled-only partial predicate", indexSQL)
 		}
+	})
+}
+
+func TestGlobalDBGatewayMutationCommitFence(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should roll back surface and ingress writes rejected at commit", func(t *testing.T) {
+		t.Parallel()
+		database := openFreshTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		trigger := automationWebhookTriggerForTest(
+			automation.AutomationScopeGlobal,
+			"gateway-fenced-webhook",
+			"",
+			automation.JobSourceDynamic,
+		)
+		trigger.ID = "trigger-gateway-fenced"
+		trigger.WebhookID = "wbh_gateway_fenced"
+		trigger.EndpointSlug = "gateway-fenced"
+		insertGatewayResourceRecord(ctx, t, database, "automation.trigger", trigger.ID, "global", "", trigger)
+		ref := gateway.IngressSubjectRef{Kind: gateway.IngressSubjectWebhookTrigger, ID: trigger.ID}
+		subject, err := database.ResolveIngressSubject(ctx, ref)
+		if err != nil {
+			t.Fatalf("ResolveIngressSubject() error = %v", err)
+		}
+		fencedCtx := store.ContextWithMutationCommitFence(ctx, func(context.Context) error {
+			return gateway.ErrDeviceRevoked
+		})
+
+		if _, err := database.Transition(fencedCtx, gateway.TransitionRequest{
+			Target: gateway.TargetSurface, Tier: gateway.TierPublic,
+			Surface: gateway.SurfaceOperatorUI, Desired: gateway.DesiredEnabled, Consent: true,
+		}, time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)); !errors.Is(err, gateway.ErrDeviceRevoked) {
+			t.Fatalf("Transition(fenced) error = %v, want ErrDeviceRevoked", err)
+		}
+		if _, _, err := database.SyncIngressEndpoint(
+			fencedCtx,
+			gateway.TierPublic,
+			"https://gateway.example.test",
+			time.Date(2026, 8, 6, 12, 1, 0, 0, time.UTC),
+		); !errors.Is(err, gateway.ErrDeviceRevoked) {
+			t.Fatalf("SyncIngressEndpoint(fenced) error = %v, want ErrDeviceRevoked", err)
+		}
+		if _, _, err := database.PutIngressBinding(
+			fencedCtx,
+			subject,
+			1,
+			time.Date(2026, 8, 6, 12, 2, 0, 0, time.UTC),
+		); !errors.Is(err, gateway.ErrDeviceRevoked) {
+			t.Fatalf("PutIngressBinding(fenced) error = %v, want ErrDeviceRevoked", err)
+		}
+
+		snapshot, err := database.Snapshot(ctx)
+		if err != nil {
+			t.Fatalf("Snapshot() error = %v", err)
+		}
+		if len(snapshot.Surfaces) != 0 {
+			t.Fatalf("snapshot surfaces = %#v, want rollback", snapshot.Surfaces)
+		}
+		if _, err := database.GetIngressEndpoint(ctx, gateway.TierPublic); !errors.Is(
+			err,
+			gateway.ErrEndpointUnverified,
+		) {
+			t.Fatalf("GetIngressEndpoint() error = %v, want ErrEndpointUnverified", err)
+		}
+		assertNoIngressBindingRow(ctx, t, database, ref)
 	})
 }
 
@@ -423,6 +490,117 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 		}
 	})
 
+	t.Run("Should invalidate legacy webhook confirmation when delivery identity changes", func(t *testing.T) {
+		t.Parallel()
+		cases := []struct {
+			name   string
+			mutate func(*automation.Trigger)
+		}{
+			{
+				name: "Should invalidate an endpoint slug change",
+				mutate: func(trigger *automation.Trigger) {
+					trigger.EndpointSlug = "gateway-legacy-moved"
+				},
+			},
+			{
+				name: "Should invalidate a webhook id change",
+				mutate: func(trigger *automation.Trigger) {
+					trigger.WebhookID = "wbh_gateway_legacy_moved"
+				},
+			},
+		}
+		for index, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				database := openFreshTestGlobalDB(t)
+				ctx := testutil.Context(t)
+				trigger := automationWebhookTriggerForTest(
+					automation.AutomationScopeGlobal,
+					fmt.Sprintf("gateway-legacy-%d", index),
+					"",
+					automation.JobSourceDynamic,
+				)
+				trigger.ID = fmt.Sprintf("trigger-gateway-legacy-%d", index)
+				trigger.WebhookID = fmt.Sprintf("wbh_gateway_legacy_%d", index)
+				trigger.EndpointSlug = fmt.Sprintf("gateway-legacy-%d", index)
+				created, err := database.CreateTrigger(ctx, trigger)
+				if err != nil {
+					t.Fatalf("CreateTrigger() error = %v", err)
+				}
+				ref := gateway.IngressSubjectRef{Kind: gateway.IngressSubjectWebhookTrigger, ID: created.ID}
+				subject, err := database.ResolveIngressSubject(ctx, ref)
+				if err != nil {
+					t.Fatalf("ResolveIngressSubject() error = %v", err)
+				}
+				if _, _, err := database.PutIngressBinding(
+					ctx, subject, 1, time.Date(2026, 8, 6, 13, 30, 0, 0, time.UTC),
+				); err != nil {
+					t.Fatalf("PutIngressBinding() error = %v", err)
+				}
+				tc.mutate(&created)
+				created.UpdatedAt = created.UpdatedAt.Add(time.Minute)
+				if _, err := database.UpdateTrigger(ctx, created); err != nil {
+					t.Fatalf("UpdateTrigger() error = %v", err)
+				}
+				assertNoIngressBindingRow(ctx, t, database, ref)
+			})
+		}
+	})
+
+	t.Run("Should invalidate legacy bridge confirmation when the local target changes", func(t *testing.T) {
+		t.Parallel()
+		cases := []struct {
+			name           string
+			providerConfig json.RawMessage
+		}{
+			{
+				name:           "Should invalidate a listen address change",
+				providerConfig: json.RawMessage(`{"webhook":{"listen_addr":"127.0.0.1:43126","path":"/telegram"}}`),
+			},
+			{
+				name: "Should invalidate a callback path change",
+				providerConfig: json.RawMessage(
+					`{"webhook":{"listen_addr":"127.0.0.1:43125","path":"/telegram-moved"}}`,
+				),
+			},
+		}
+		for index, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				database := openFreshTestGlobalDB(t)
+				ctx := testutil.Context(t)
+				instance := bridges.BridgeInstance{
+					ID:    fmt.Sprintf("bridge-gateway-target-%d", index),
+					Scope: bridges.ScopeGlobal, Platform: "telegram", ExtensionName: "telegram-adapter",
+					DisplayName: "Gateway target bridge", Enabled: true, Status: bridges.BridgeStatusReady,
+					RoutingPolicy: bridges.RoutingPolicy{IncludePeer: true},
+					ProviderConfig: json.RawMessage(
+						`{"webhook":{"listen_addr":"127.0.0.1:43125","path":"/telegram"}}`,
+					),
+				}
+				if err := database.InsertBridgeInstance(ctx, instance); err != nil {
+					t.Fatalf("InsertBridgeInstance() error = %v", err)
+				}
+				ref := gateway.IngressSubjectRef{Kind: gateway.IngressSubjectBridgeInstance, ID: instance.ID}
+				subject, err := database.ResolveIngressSubject(ctx, ref)
+				if err != nil {
+					t.Fatalf("ResolveIngressSubject() error = %v", err)
+				}
+				if _, _, err := database.PutIngressBinding(
+					ctx, subject, 1, time.Date(2026, 8, 6, 13, 40, 0, 0, time.UTC),
+				); err != nil {
+					t.Fatalf("PutIngressBinding() error = %v", err)
+				}
+				instance.ProviderConfig = tc.providerConfig
+				instance.UpdatedAt = time.Date(2026, 8, 6, 13, 41, 0, 0, time.UTC)
+				if err := database.UpdateBridgeInstance(ctx, instance); err != nil {
+					t.Fatalf("UpdateBridgeInstance() error = %v", err)
+				}
+				assertNoIngressBindingRow(ctx, t, database, ref)
+			})
+		}
+	})
+
 	t.Run("Should invalidate a webhook binding when its workspace owner changes", func(t *testing.T) {
 		t.Parallel()
 		database := openFreshTestGlobalDB(t)
@@ -565,6 +743,46 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 		}
 		if !subject.TargetUnavailable {
 			t.Fatalf("ResolveIngressSubject(invalid local target) = %#v, want unavailable target", subject)
+		}
+	})
+
+	t.Run("Should treat a missing bridge provider config as an unavailable local target", func(t *testing.T) {
+		t.Parallel()
+		database := openFreshTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		instance := bridges.BridgeInstance{
+			ID:            "bridge-missing-provider-config",
+			Scope:         bridges.ScopeGlobal,
+			Platform:      "telegram",
+			ExtensionName: "telegram-adapter",
+			DisplayName:   "Missing provider config",
+			Status:        bridges.BridgeStatusDisabled,
+			RoutingPolicy: bridges.RoutingPolicy{IncludePeer: true},
+		}
+		if err := database.InsertBridgeInstance(ctx, instance); err != nil {
+			t.Fatalf("InsertBridgeInstance() error = %v", err)
+		}
+		resource := bridges.BridgeInstanceSpec{
+			Scope:         bridges.ScopeGlobal,
+			Platform:      "telegram",
+			ExtensionName: "telegram-adapter",
+			DisplayName:   "Missing resource provider config",
+			RoutingPolicy: bridges.RoutingPolicy{IncludePeer: true},
+		}
+		const resourceID = "bridge-resource-missing-provider-config"
+		insertGatewayResourceRecord(ctx, t, database, "bridge.instance", resourceID, "global", "", resource)
+
+		for _, bridgeID := range []string{instance.ID, resourceID} {
+			subject, err := database.ResolveIngressSubject(ctx, gateway.IngressSubjectRef{
+				Kind: gateway.IngressSubjectBridgeInstance,
+				ID:   bridgeID,
+			})
+			if err != nil {
+				t.Fatalf("ResolveIngressSubject(%q) error = %v", bridgeID, err)
+			}
+			if !subject.TargetUnavailable {
+				t.Fatalf("ResolveIngressSubject(%q) = %#v, want unavailable target", bridgeID, subject)
+			}
 		}
 	})
 
@@ -974,6 +1192,23 @@ func TestGlobalDBGatewayDeviceLifecycle(t *testing.T) {
 			actor.Session.RevokeEpoch,
 		); !errors.Is(err, gateway.ErrDeviceRevoked) {
 			t.Fatalf("RevalidateDeviceEpoch() error = %v, want ErrDeviceRevoked", err)
+		}
+		snapshot, err := database.Snapshot(ctx)
+		if err != nil {
+			t.Fatalf("Snapshot() error = %v", err)
+		}
+		if len(snapshot.Devices) != 2 {
+			t.Fatalf("Snapshot().Devices = %#v, want complete retained inventory", snapshot.Devices)
+		}
+		var retained gateway.DeviceSession
+		for _, device := range snapshot.Devices {
+			if device.ID == actor.Session.ID {
+				retained = device
+				break
+			}
+		}
+		if retained.ID == "" || retained.RevokedAt.IsZero() || retained.RevokeEpoch != 1 {
+			t.Fatalf("Snapshot().Devices = %#v, want retained revoked actor", snapshot.Devices)
 		}
 		_, err = database.RenameDeviceForActor(
 			ctx,

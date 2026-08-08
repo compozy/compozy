@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/http/httptrace"
 	"net/url"
 	"strings"
+	"sync/atomic"
 
 	"github.com/compozy/compozy/internal/api/contract"
 )
@@ -28,6 +30,25 @@ type gatewayClientAPI interface {
 	ListGatewayDevices(context.Context) ([]contract.GatewayDevicePayload, error)
 	RenameGatewayDevice(context.Context, string, string) (contract.GatewayDevicePayload, error)
 	RevokeGatewayDevice(context.Context, string) (contract.GatewayRevokePayload, error)
+}
+
+type gatewayPairingRequestError struct {
+	cause          error
+	requestNotSent bool
+}
+
+func (e *gatewayPairingRequestError) Error() string {
+	if e == nil || e.cause == nil {
+		return "gateway pairing request failed"
+	}
+	return e.cause.Error()
+}
+
+func (e *gatewayPairingRequestError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.cause
 }
 
 var _ gatewayClientAPI = (*daemonClient)(nil)
@@ -100,6 +121,13 @@ func (c *daemonClient) RedeemGatewayPairing(
 	ctx context.Context,
 	request contract.GatewayPairingRedeemRequest,
 ) (contract.GatewayIssuedCredentialPayload, error) {
+	var writeStarted atomic.Bool
+	trace := &httptrace.ClientTrace{
+		WroteHeaderField: func(string, []string) { writeStarted.Store(true) },
+		WroteHeaders:     func() { writeStarted.Store(true) },
+		WroteRequest:     func(httptrace.WroteRequestInfo) { writeStarted.Store(true) },
+	}
+	ctx = httptrace.WithClientTrace(ctx, trace)
 	var response contract.GatewayIssuedCredentialPayload
 	if err := c.doJSON(
 		ctx,
@@ -109,7 +137,10 @@ func (c *daemonClient) RedeemGatewayPairing(
 		request,
 		&response,
 	); err != nil {
-		return contract.GatewayIssuedCredentialPayload{}, err
+		return contract.GatewayIssuedCredentialPayload{}, &gatewayPairingRequestError{
+			cause:          err,
+			requestNotSent: !writeStarted.Load(),
+		}
 	}
 	return response, nil
 }

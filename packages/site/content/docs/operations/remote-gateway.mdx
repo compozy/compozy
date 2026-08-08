@@ -86,15 +86,21 @@ device session.
 compozy pair mint
 ```
 
-In the UI, **Settings → Gateway → Pair a device** does the same and shows the result two ways: a
-scannable code and the same artifact as copyable text. Use whichever fits — a phone camera, a screen
-reader, a remote terminal, or a machine with no camera all reach the same place.
+The CLI writes the artifact to a private `0600` handoff file under the Gateway credentials directory
+and prints only its `artifact_ref` and expiry. Move that file through a trusted private channel, read
+its contents only at the redeeming device, and delete it after use or expiry. The artifact itself does
+not enter terminal output, shell history, or structured logs on the machine that minted it.
+
+In the UI, **Settings → Gateway → Pair a device** shows the one-time result two ways: a scannable code
+and the same artifact as copyable text. Use whichever fits — a phone camera, a screen reader, a remote
+terminal, or a machine with no camera all reach the same place.
 
 <OperatorNote>
-  A pairing artifact is single-use and expires in five minutes by default. It is shown once and
-  cannot be read again — mint a new one instead of hunting for the old one. The scannable link
-  carries the artifact in the URL fragment, which browsers never send to a server, so scanning it
-  does not write the secret into a proxy or access log.
+  A pairing artifact is single-use and expires in five minutes by default. The daemon returns it
+  once; the CLI keeps that one response in the private handoff file, while the UI does not provide a
+  later read. Mint a new artifact after expiry. The scannable link carries the artifact in the URL
+  fragment, which browsers never send to a server, so scanning it does not write the secret into a
+  proxy or access log.
 </OperatorNote>
 
 Pairing artifacts are minted only from a trusted surface: this machine, or a device already paired

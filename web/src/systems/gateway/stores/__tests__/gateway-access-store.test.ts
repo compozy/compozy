@@ -5,7 +5,11 @@
 // Owning layer: the app-wide access state between the shared transport and the access boundary.
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { classifyGatewayAccess, reportGatewayAccess } from "@/lib/gateway-access-signal";
+import {
+  classifyGatewayAccess,
+  reportGatewayAccess,
+  reportGatewayListenerTier,
+} from "@/lib/gateway-access-signal";
 
 import { gatewayAccessStore, startGatewayAccessObserver } from "../gateway-access-store";
 
@@ -54,8 +58,12 @@ describe("gateway access store", () => {
   });
 
   it("Should show the pairing gate when the daemon says this device is unauthenticated", () => {
+    reportGatewayListenerTier("public");
     reportGatewayAccess(401, { code: "gateway_device_unauthenticated" });
-    expect(gatewayAccessStore.getSnapshot().context.state).toBe("unauthenticated");
+    expect(gatewayAccessStore.getSnapshot().context).toMatchObject({
+      state: "unauthenticated",
+      tier: "public",
+    });
   });
 
   it("Should keep a revocation terminal against a later generic unauthenticated response", () => {
@@ -74,7 +82,6 @@ describe("gateway access store", () => {
     const second = startGatewayAccessObserver();
     second();
     reportGatewayAccess(401, { code: "gateway_device_unauthenticated" });
-    // The first observer was released by the shared handle, so no signal lands.
-    expect(gatewayAccessStore.getSnapshot().context.state).toBe("ok");
+    expect(gatewayAccessStore.getSnapshot().context.state).toBe("unauthenticated");
   });
 });

@@ -60,4 +60,21 @@ func TestStreamTickets(t *testing.T) {
 			t.Fatalf("ConsumeStreamTicket(fresh) error = %v", err)
 		}
 	})
+
+	t.Run("Should report ticket capacity without masking it as invalid authentication", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
+		service := newDeviceServiceOnly(t, &now, WithStreamTicketLimits(1, 30*time.Second))
+		issued, err := issueTestDevice(t.Context(), service, "Browser", ActorKindOperatorDevice)
+		if err != nil {
+			t.Fatalf("issueTestDevice() error = %v", err)
+		}
+		ctx := ContextWithDevice(t.Context(), issued.Device)
+		if _, err := service.MintStreamTicket(ctx, issued.Device.ID); err != nil {
+			t.Fatalf("MintStreamTicket(first) error = %v", err)
+		}
+		if _, err := service.MintStreamTicket(ctx, issued.Device.ID); !errors.Is(err, ErrStreamTicketLimit) {
+			t.Fatalf("MintStreamTicket(over capacity) error = %v, want ErrStreamTicketLimit", err)
+		}
+	})
 }

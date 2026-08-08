@@ -32,8 +32,15 @@ func (r *Reconciler) bindTierForEnable(
 	previous tierRuntimeSnapshot,
 ) (netip.AddrPort, error) {
 	bound, err := r.effects.Bind(ctx, tier)
-	if err == nil || !previous.advertised {
-		return bound, err
+	if err == nil {
+		return bound, nil
+	}
+	var unbindErr error
+	if bound.IsValid() {
+		unbindErr = r.effects.Unbind(ctx, tier)
+	}
+	if !previous.advertised {
+		return netip.AddrPort{}, errors.Join(err, unbindErr)
 	}
 	restoreErr := r.effects.Advertise(ctx, Reachability{
 		Tier:      tier,
@@ -43,5 +50,5 @@ func (r *Reconciler) bindTierForEnable(
 	state.RuntimeTier = previous.runtime
 	state.provider = previous.provider
 	state.accepting = restoreErr == nil && previous.accepting
-	return netip.AddrPort{}, errors.Join(err, restoreErr)
+	return netip.AddrPort{}, errors.Join(err, unbindErr, restoreErr)
 }

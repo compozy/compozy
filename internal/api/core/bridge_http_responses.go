@@ -47,6 +47,10 @@ func (h *BaseHandlers) bridgeResponse(
 	ctx context.Context,
 	instance bridgepkg.BridgeInstance,
 ) (*contract.BridgeResponse, error) {
+	ingress, err := h.bridgeIngressPayload(ctx, instance.ID)
+	if err != nil {
+		return nil, err
+	}
 	health, err := h.bridgeHealthLookup(ctx, instance.ID)
 	if err != nil {
 		return nil, err
@@ -59,14 +63,9 @@ func (h *BaseHandlers) bridgeResponse(
 	if err != nil {
 		return nil, err
 	}
-	health, err = h.enrichBridgeHealthIngress(ctx, health)
-	if err != nil {
-		return nil, err
-	}
-	bridgePayload, err := h.bridgePayload(ctx, instance)
-	if err != nil {
-		return nil, err
-	}
+	health = bridgeHealthWithIngress(health, ingress)
+	bridgePayload := BridgePayloadFromBridgeInstance(instance)
+	bridgePayload.GatewayIngress = ingress
 	return &contract.BridgeResponse{
 		Bridge: bridgePayload,
 		Health: health,

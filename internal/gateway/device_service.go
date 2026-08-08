@@ -14,14 +14,16 @@ const (
 	defaultPairingTTL                   = 5 * time.Minute
 	defaultPairingLimit                 = 32
 	defaultStreamTicketTTL              = 30 * time.Second
-	defaultStreamTicketLimit            = 256
 	defaultConnectionTerminationTimeout = 5 * time.Second
 )
+
+// DefaultStreamTicketLimit bounds live single-use tickets held by one daemon process.
+const DefaultStreamTicketLimit = 256
 
 // DeviceService owns pairing, authentication, device inventory, tickets, and live revocation.
 type DeviceService struct {
 	store       DeviceStore
-	pairings    *PairingStore
+	pairings    *pairingStore
 	tickets     *streamTicketStore
 	connections ConnectionRegistry
 	mutations   *mutationGate
@@ -48,7 +50,7 @@ func NewDeviceService(store DeviceStore, opts ...DeviceServiceOption) (*DeviceSe
 	config := deviceServiceConfig{
 		now: func() time.Time { return time.Now().UTC() }, entropy: defaultEntropy(),
 		pairingTTL: defaultPairingTTL, pairingLimit: defaultPairingLimit,
-		streamTicketTTL: defaultStreamTicketTTL, streamTicketLimit: defaultStreamTicketLimit,
+		streamTicketTTL: defaultStreamTicketTTL, streamTicketLimit: DefaultStreamTicketLimit,
 		connections: NewConnectionRegistry(),
 	}
 	for _, option := range opts {
@@ -119,6 +121,27 @@ func WithConnectionRegistry(registry ConnectionRegistry) DeviceServiceOption {
 		config.connections = registry
 		return nil
 	}
+}
+
+// ReconfigureLimits applies live pairing and stream-ticket limits to new artifacts.
+func (s *DeviceService) ReconfigureLimits(
+	pairingMaxPending int,
+	pairingTTL time.Duration,
+	streamTicketTTL time.Duration,
+) error {
+	if s == nil || s.pairings == nil || s.tickets == nil {
+		return errors.New("gateway: device service is required")
+	}
+	if pairingMaxPending <= 0 || pairingTTL <= 0 || streamTicketTTL <= 0 {
+		return errors.New("gateway: positive device limits are required")
+	}
+	if err := s.pairings.reconfigure(pairingMaxPending, pairingTTL); err != nil {
+		return fmt.Errorf("gateway: reconfigure pairing limits: %w", err)
+	}
+	if err := s.tickets.reconfigure(streamTicketTTL); err != nil {
+		return fmt.Errorf("gateway: reconfigure stream ticket limits: %w", err)
+	}
+	return nil
 }
 
 func (s *DeviceService) MintPairing(_ context.Context, req PairingRequest) (PairingArtifact, error) {
@@ -325,7 +348,7 @@ func (s *DeviceService) AcquireMutation(
 	if err != nil {
 		return nil, err
 	}
-	if err := s.store.RevalidateDeviceEpoch(context.WithoutCancel(mutationCtx), deviceID, epoch); err != nil {
+	if err := s.store.RevalidateDeviceEpoch(mutationCtx, deviceID, epoch); err != nil {
 		ReleaseMutation(mutationCtx)
 		return nil, fmt.Errorf("gateway: acquire device mutation: %w", err)
 	}

@@ -92,7 +92,7 @@ export function buildExtensionDescribePayload(input: ExtensionDescribeInput): De
       : {
           network_participation: {
             required: input.definition.network_participation.required,
-            mode: input.definition.network_participation.mode.trim(),
+            mode: input.definition.network_participation.mode.trim().toLowerCase(),
             channel_scopes: normalizeStringList(
               input.definition.network_participation.channel_scopes
             ),

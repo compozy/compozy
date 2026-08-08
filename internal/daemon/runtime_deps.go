@@ -81,5 +81,6 @@ type RuntimeDeps struct {
 	WindowManager       windowmanager.Service
 	Gateway             *gateway.Service
 	GatewayChallenges   *gateway.ChallengeRegistry
+	GatewayAuthLimiter  *gateway.AuthFailureLimiter
 	StartedAt           time.Time
 }

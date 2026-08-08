@@ -3,7 +3,6 @@ package globaldb
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
@@ -17,18 +16,17 @@ func deleteWorkspaceMCPState(
 	if err != nil {
 		return fmt.Errorf("store: list MCP auth token refs for workspace %q: %w", workspaceID, err)
 	}
+	authSecretRefs := make([]string, 0, len(mcpAuthRefs)*2)
 	for _, refs := range mcpAuthRefs {
-		for _, ref := range []string{refs.AccessTokenRef, refs.RefreshTokenRef} {
-			if strings.TrimSpace(ref) == "" {
-				continue
-			}
-			if _, err := queries.DeleteVaultSecret(ctx, ref); err != nil {
-				return fmt.Errorf(
-					"store: delete MCP auth secret for workspace %q: %w",
-					workspaceID,
-					err,
-				)
-			}
+		authSecretRefs = append(authSecretRefs, refs.AccessTokenRef, refs.RefreshTokenRef)
+	}
+	for _, ref := range uniqueMCPAuthorizationRefs(authSecretRefs...) {
+		if _, err := queries.DeleteVaultSecret(ctx, ref); err != nil {
+			return fmt.Errorf(
+				"store: delete MCP auth secret for workspace %q: %w",
+				workspaceID,
+				err,
+			)
 		}
 	}
 	if _, err := queries.DeleteMCPAuthTokensByWorkspace(ctx, workspaceID); err != nil {
@@ -42,18 +40,21 @@ func deleteWorkspaceMCPState(
 			err,
 		)
 	}
+	registrationSecretRefs := make([]string, 0, len(mcpRegistrationRefs)*2)
 	for _, refs := range mcpRegistrationRefs {
-		for _, ref := range []string{refs.ClientSecretRef, refs.RegistrationAccessTokenRef} {
-			if strings.TrimSpace(ref) == "" {
-				continue
-			}
-			if _, err := queries.DeleteVaultSecret(ctx, ref); err != nil {
-				return fmt.Errorf(
-					"store: delete MCP OAuth registration secret for workspace %q: %w",
-					workspaceID,
-					err,
-				)
-			}
+		registrationSecretRefs = append(
+			registrationSecretRefs,
+			refs.ClientSecretRef,
+			refs.RegistrationAccessTokenRef,
+		)
+	}
+	for _, ref := range uniqueMCPAuthorizationRefs(registrationSecretRefs...) {
+		if _, err := queries.DeleteVaultSecret(ctx, ref); err != nil {
+			return fmt.Errorf(
+				"store: delete MCP OAuth registration secret for workspace %q: %w",
+				workspaceID,
+				err,
+			)
 		}
 	}
 	if _, err := queries.DeleteMCPOAuthRegistrationsByWorkspace(ctx, workspaceID); err != nil {

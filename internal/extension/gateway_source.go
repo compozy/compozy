@@ -80,26 +80,14 @@ func (s *connectivitySource) Establish(
 		Tier: string(req.Tier), ForwardTarget: req.ForwardTarget.String(),
 		ChallengePath: strings.TrimSpace(req.ChallengePath), Deadline: req.Deadline.UTC(),
 	}
-	var response extensioncontract.ConnectivityReachability
-	if err := process.Call(
+	return callConnectivityReachability(
 		ctx,
-		string(extensionprotocol.ExtensionServiceMethodConnectivityEstablish),
+		process,
+		name,
+		extensionprotocol.ExtensionServiceMethodConnectivityEstablish,
 		wireRequest,
-		&response,
-	); err != nil {
-		return gateway.Reachability{}, fmt.Errorf("extension: establish connectivity via %q: %w", name, err)
-	}
-	reachability, err := connectivityReachabilityFromWire(response)
-	if err != nil {
-		return gateway.Reachability{}, err
-	}
-	if reachability.Tier != req.Tier {
-		return gateway.Reachability{}, fmt.Errorf(
-			"%w: connectivity provider returned the wrong tier",
-			gateway.ErrEndpointUnverified,
-		)
-	}
-	return reachability, nil
+		req.Tier,
+	)
 }
 
 func (s *connectivitySource) Status(ctx context.Context, tier gateway.Tier) (gateway.Reachability, error) {
@@ -117,26 +105,14 @@ func (s *connectivitySource) Status(ctx context.Context, tier gateway.Tier) (gat
 	if err != nil {
 		return gateway.Reachability{}, err
 	}
-	var response extensioncontract.ConnectivityReachability
-	if err := process.Call(
+	return callConnectivityReachability(
 		ctx,
-		string(extensionprotocol.ExtensionServiceMethodConnectivityStatus),
+		process,
+		name,
+		extensionprotocol.ExtensionServiceMethodConnectivityStatus,
 		extensioncontract.ConnectivityStatusRequest{Tier: string(tier)},
-		&response,
-	); err != nil {
-		return gateway.Reachability{}, fmt.Errorf("extension: connectivity status via %q: %w", name, err)
-	}
-	reachability, err := connectivityReachabilityFromWire(response)
-	if err != nil {
-		return gateway.Reachability{}, err
-	}
-	if reachability.Tier != tier {
-		return gateway.Reachability{}, fmt.Errorf(
-			"%w: connectivity provider returned the wrong tier",
-			gateway.ErrEndpointUnverified,
-		)
-	}
-	return reachability, nil
+		tier,
+	)
 }
 
 func (s *connectivitySource) Teardown(ctx context.Context, tier gateway.Tier, deadline time.Time) error {
@@ -164,7 +140,7 @@ func (s *connectivitySource) Teardown(ctx context.Context, tier gateway.Tier, de
 		extensioncontract.ConnectivityTeardownRequest{Tier: string(tier), Deadline: deadline.UTC()},
 		&response,
 	); err != nil {
-		abortErr := s.manager.abortConnectivityProvider(name, process)
+		abortErr := s.manager.abortConnectivityProvider(ctx, name, process)
 		return errors.Join(
 			fmt.Errorf("extension: teardown connectivity via %q: %w", name, err),
 			abortErr,
@@ -172,9 +148,40 @@ func (s *connectivitySource) Teardown(ctx context.Context, tier gateway.Tier, de
 	}
 	if !response.Stopped {
 		refusal := fmt.Errorf("extension: connectivity provider %q did not acknowledge teardown", name)
-		return errors.Join(refusal, s.manager.abortConnectivityProvider(name, process))
+		return errors.Join(refusal, s.manager.abortConnectivityProvider(ctx, name, process))
 	}
 	return nil
+}
+
+func callConnectivityReachability(
+	ctx context.Context,
+	process processHandle,
+	name string,
+	method extensionprotocol.ExtensionServiceMethod,
+	request any,
+	expectedTier gateway.Tier,
+) (gateway.Reachability, error) {
+	var response extensioncontract.ConnectivityReachability
+	if err := process.Call(ctx, string(method), request, &response); err != nil {
+		operation := strings.TrimPrefix(string(method), "connectivity/")
+		return gateway.Reachability{}, fmt.Errorf(
+			"extension: %s connectivity via %q: %w",
+			operation,
+			name,
+			err,
+		)
+	}
+	reachability, err := connectivityReachabilityFromWire(response)
+	if err != nil {
+		return gateway.Reachability{}, err
+	}
+	if reachability.Tier != expectedTier {
+		return gateway.Reachability{}, fmt.Errorf(
+			"%w: connectivity provider returned the wrong tier",
+			gateway.ErrEndpointUnverified,
+		)
+	}
+	return reachability, nil
 }
 
 func connectivityReachabilityFromWire(value extensioncontract.ConnectivityReachability) (gateway.Reachability, error) {
@@ -199,7 +206,8 @@ func connectivityReachabilityFromWire(value extensioncontract.ConnectivityReacha
 	for index, endpoint := range value.Endpoints {
 		mapped := gateway.AdvertisedEndpoint{
 			URL: strings.TrimSpace(endpoint.URL), Scheme: strings.TrimSpace(endpoint.Scheme),
-			Stability: gateway.EndpointStability(strings.TrimSpace(endpoint.Stability)),
+			SchemePolicy: gateway.EndpointSchemePolicy(strings.TrimSpace(endpoint.SchemePolicy)),
+			Stability:    gateway.EndpointStability(strings.TrimSpace(endpoint.Stability)),
 		}
 		mapped, err := normalizeConnectivityEndpoint(mapped)
 		if err != nil {
@@ -248,5 +256,8 @@ func normalizeConnectivityEndpoint(endpoint gateway.AdvertisedEndpoint) (gateway
 	parsed.RawPath = ""
 	endpoint.URL = parsed.String()
 	endpoint.Scheme = parsed.Scheme
+	endpoint.SchemePolicy = gateway.EndpointSchemePolicy(
+		strings.ToLower(strings.TrimSpace(string(endpoint.SchemePolicy))),
+	)
 	return endpoint, nil
 }

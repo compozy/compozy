@@ -82,11 +82,12 @@ func SSHForwardClientTarget(host string, port int) (ClientTarget, error) {
 
 func clientNetworkBaseURL(scheme, host string, port int, requireLoopback bool) (string, error) {
 	host = strings.TrimSpace(host)
+	normalizedHost := strings.Trim(host, "[]")
 	if port <= 0 || port > 65535 {
 		return "", errors.New("cli: connection target port must be between 1 and 65535")
 	}
-	ip := net.ParseIP(strings.Trim(host, "[]"))
-	if host == "" || strings.ContainsAny(host, "/?#@\r\n\t") {
+	ip := net.ParseIP(normalizedHost)
+	if normalizedHost == "" || strings.ContainsAny(host, "/?#@\r\n\t") {
 		return "", errors.New("cli: connection target host is invalid")
 	}
 	if ip == nil && strings.Contains(host, ":") {
@@ -95,7 +96,14 @@ func clientNetworkBaseURL(scheme, host string, port int, requireLoopback bool) (
 	if requireLoopback && (ip == nil || !ip.IsLoopback()) {
 		return "", errors.New("cli: SSH forward must bind to a loopback address")
 	}
-	return (&url.URL{Scheme: scheme, Host: net.JoinHostPort(strings.Trim(host, "[]"), strconv.Itoa(port))}).String(), nil
+	return clientNetworkURL(scheme, normalizedHost, port), nil
+}
+
+func clientNetworkURL(scheme, host string, port int) string {
+	return (&url.URL{
+		Scheme: scheme,
+		Host:   net.JoinHostPort(strings.Trim(strings.TrimSpace(host), "[]"), strconv.Itoa(port)),
+	}).String()
 }
 
 func (t ClientTarget) validate() error {

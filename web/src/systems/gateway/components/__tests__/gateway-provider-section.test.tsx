@@ -149,4 +149,31 @@ describe("GatewayProviderSection", () => {
 
     expect(onDisable).toHaveBeenCalledWith("connectivity-fixture", "private");
   });
+
+  it("Should render unknown provider tokens with a neutral fallback", () => {
+    const status = gatewayStatusFixture({
+      providers: [
+        {
+          cause: "",
+          desired: "enabled",
+          generation: 1,
+          health: "future-health",
+          name: "removed-provider",
+          observed: "future-state",
+          tier: "future-tier",
+        },
+      ],
+    });
+    renderSection(buildGatewayProviderModel(status, []));
+
+    const row = screen.getByTestId("gateway-provider-orphan-removed-provider-unknown");
+    expect(row).toHaveTextContent("Unknown");
+    expect(row).toHaveTextContent("State unavailable");
+    expect(row).toHaveTextContent("unknown address");
+    expect(row).not.toHaveTextContent("future-health");
+    expect(row).not.toHaveTextContent("future-state");
+    expect(
+      screen.getByTestId("gateway-provider-orphan-removed-provider-unknown-disable")
+    ).toBeDisabled();
+  });
 });

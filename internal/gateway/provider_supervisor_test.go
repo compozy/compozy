@@ -261,6 +261,54 @@ func TestProviderSupervisorTrustFreshness(t *testing.T) {
 func TestProviderSupervisorFailureLifecycle(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should join degradation handling before signaling monitor shutdown", func(t *testing.T) {
+		t.Parallel()
+		source := healthySupervisorSource(nil)
+		source.statusErr = errors.New("provider crashed")
+		supervisor := newSupervisorForTest(t, bundledTrustResolver(nil), bundledIdentityStore(nil),
+			&supervisorSourceResolver{sources: map[string]ConnectivitySource{"provider-a": source}},
+			&supervisorVerifier{timeout: time.Second},
+			WithProviderSupervisorIntervals(5*time.Millisecond, 20*time.Millisecond, time.Second))
+		handlerStarted := make(chan struct{})
+		releaseHandler := make(chan struct{})
+		supervisor.SetProviderDegradationHandler(func(context.Context, ProviderActivation, error) error {
+			close(handlerStarted)
+			<-releaseHandler
+			return nil
+		})
+		reachability, err := supervisor.Establish(
+			testutil.Context(t), supervisorActivation("provider-a"), testProviderBound(),
+		)
+		if err != nil {
+			t.Fatalf("Establish() error = %v", err)
+		}
+		if err := supervisor.Verify(testutil.Context(t), reachability); err != nil {
+			t.Fatalf("Verify() error = %v", err)
+		}
+		if err := supervisor.Advertise(testutil.Context(t), reachability, nil); err != nil {
+			t.Fatalf("Advertise() error = %v", err)
+		}
+		supervisor.mu.Lock()
+		session := supervisor.sessions[TierPrivate]
+		supervisor.mu.Unlock()
+		select {
+		case <-handlerStarted:
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for degradation handler")
+		}
+		select {
+		case <-session.done:
+			t.Fatal("monitor signaled shutdown before degradation handling completed")
+		default:
+		}
+		close(releaseHandler)
+		select {
+		case <-session.done:
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for joined monitor shutdown")
+		}
+	})
+
 	t.Run("Should degrade and withdraw after a supervised outage [UT-078]", func(t *testing.T) {
 		t.Parallel()
 		source := healthySupervisorSource(nil)

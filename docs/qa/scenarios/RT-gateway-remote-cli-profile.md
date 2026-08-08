@@ -11,8 +11,8 @@ bug_ids: BUG-20260807-gateway-profile-recovery
 fix_status: fixed
 retest_status: pass
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-remote-gateway-20260807-202655-957508-lab/qa-artifacts/qa/test-cases/35-remote-cli-interruption.json
-last_report: docs/qa/reports/2026-08-07-remote-gateway.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-remote-gateway-review-remediation-20260808-035328-688540-lab/qa-artifacts/qa/test-cases/42-pairing-artifact-handoff.json
+last_report: docs/qa/reports/2026-08-08-remote-gateway-review-remediation.md
 overlaps: RT-gateway-paired-device; RT-connectivity-provider-route
 ---
 
@@ -27,3 +27,11 @@ QA impact 2026-08-06: added for remote-gateway Task 05. Flag only; Tasks 08–09
 QA walk 2026-08-07: a TCP dial refusal returned the stable reachability code and, after the fix,
 left no credential, journal, or profile while `connect list` remained usable. Real HTTPS pairing,
 remote work, reconnect, export/import, and local-only refusal remain blocked without a provider address.
+
+QA impact 2026-08-07: review remediation changed `compozy pair mint` to emit only a private
+`artifact_ref`; reset for a focused handoff-output walk before workstream close.
+
+QA walk 2026-08-08: the current CLI minted distinct private handoff files in human, JSON,
+JSONL, and TOON modes. Every file used mode `0600`, every structured payload exposed only
+`artifact_ref` plus `expires_at`, and no raw pairing bytes appeared in stdout or stderr. The
+full remote-profile journey remains blocked until an authorized remote provider is available.

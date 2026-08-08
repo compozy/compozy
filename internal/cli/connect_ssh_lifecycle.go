@@ -13,6 +13,8 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
+var errRemoteDaemonNotRunning = errors.New("cli: remote Compozy daemon is not running")
+
 type remoteDaemonResolution struct {
 	status    DaemonStatus
 	ownership *sshDaemonOwnership
@@ -39,8 +41,11 @@ func resolveRemoteDaemon(
 		}
 		return remoteDaemonResolution{status: status}, nil
 	}
-	if classified := classifySSHFailure(err); classified != err {
-		return remoteDaemonResolution{}, classified
+	if !errors.Is(err, errRemoteDaemonNotRunning) {
+		if classified := classifySSHFailure(err); classified != err {
+			return remoteDaemonResolution{}, classified
+		}
+		return remoteDaemonResolution{}, fmt.Errorf("cli: inspect remote daemon status: %w", err)
 	}
 	if !options.remoteStart {
 		return remoteDaemonResolution{}, &gatewayClientError{
@@ -49,15 +54,9 @@ func resolveRemoteDaemon(
 			cause:   err,
 		}
 	}
-	var ownership *sshDaemonOwnership
-	var ownershipErr error
-	if strings.TrimSpace(options.ownerToken) == "" {
-		ownership, ownershipErr = newSSHDaemonOwnership(nil)
-	} else {
-		ownership = &sshDaemonOwnership{token: strings.TrimSpace(options.ownerToken)}
-	}
-	if ownershipErr != nil {
-		return remoteDaemonResolution{}, ownershipErr
+	ownership, err := sshDaemonOwnershipForToken(options.ownerToken)
+	if err != nil {
+		return remoteDaemonResolution{}, err
 	}
 	lease, err := executor.StartOwnershipLease(ctx, target, options.remoteHome, ownership)
 	if err != nil {
@@ -104,6 +103,14 @@ func resolveRemoteDaemon(
 	return remoteDaemonResolution{status: status, ownership: ownership, lease: lease}, nil
 }
 
+func sshDaemonOwnershipForToken(ownerToken string) (*sshDaemonOwnership, error) {
+	token := strings.TrimSpace(ownerToken)
+	if token != "" {
+		return &sshDaemonOwnership{token: token}, nil
+	}
+	return newSSHDaemonOwnership(nil)
+}
+
 func waitForOwnedRemoteDaemon(
 	ctx context.Context,
 	executor sshExecutor,
@@ -143,6 +150,13 @@ func readRemoteDaemonStatus(
 ) (DaemonStatus, error) {
 	status, err := readRemoteDaemonStatusRaw(ctx, executor, target, remoteHome)
 	if err != nil {
+		return DaemonStatus{}, err
+	}
+	statusState := strings.TrimSpace(status.Status)
+	if statusState != "" && !strings.EqualFold(statusState, "running") {
+		return DaemonStatus{}, errRemoteDaemonNotRunning
+	}
+	if err := validateRemoteDaemonIdentity(status); err != nil {
 		return DaemonStatus{}, err
 	}
 	if err := validateRemoteDaemonListener(status); err != nil {
@@ -277,10 +291,8 @@ func cleanupOwnedRemoteDaemon(
 	stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), deps.stopTimeout)
 	defer cancel()
 	stopErr := stopSSHOwnedRemoteDaemon(stopCtx, executor, target, remoteHome, expected, ownership)
-	if stopErr != nil {
-		return errors.Join(cause, stopErr, closeSSHOwnershipLease(lease))
-	}
-	return errors.Join(cause, closeSSHOwnershipLease(lease))
+	closeErr := closeSSHOwnershipLease(lease)
+	return errors.Join(cause, stopErr, closeErr)
 }
 
 func stopSSHOwnedRemoteDaemon(

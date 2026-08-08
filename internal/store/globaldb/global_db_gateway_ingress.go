@@ -121,6 +121,9 @@ func (g *GatewayRepo) GetIngressEndpoint(
 	if err := g.checkReady(ctx, "load gateway ingress endpoint"); err != nil {
 		return gateway.IngressEndpointState{}, err
 	}
+	if err := tier.Validate(); err != nil {
+		return gateway.IngressEndpointState{}, err
+	}
 	row, err := g.queries.GetGatewayEndpointState(ctx, string(tier))
 	if errors.Is(err, sql.ErrNoRows) {
 		return gateway.IngressEndpointState{}, gateway.ErrEndpointUnverified
@@ -151,36 +154,31 @@ func (g *GatewayRepo) SyncIngressEndpoint(
 	if now.IsZero() {
 		return gateway.IngressEndpointState{}, false, errors.New("store: gateway endpoint timestamp is required")
 	}
-	tx, err := g.db.BeginTx(ctx, nil)
-	if err != nil {
-		return gateway.IngressEndpointState{}, false, fmt.Errorf("store: begin ingress endpoint sync: %w", err)
-	}
-	committed := false
-	defer func() {
-		if !committed {
-			err = errors.Join(err, rollbackTx(tx, "gateway ingress endpoint sync"))
+	var state gateway.IngressEndpointState
+	if err := store.ExecuteWrite(ctx, g.db, func(writeCtx context.Context, tx *store.WriteTx) error {
+		queries := sqlcgen.New(tx)
+		previous, previousErr := queries.GetGatewayEndpointState(writeCtx, string(tier))
+		if previousErr != nil && !errors.Is(previousErr, sql.ErrNoRows) {
+			return fmt.Errorf("store: read prior ingress endpoint: %w", previousErr)
 		}
-	}()
-	queries := sqlcgen.New(tx)
-	previous, previousErr := queries.GetGatewayEndpointState(ctx, string(tier))
-	if previousErr != nil && !errors.Is(previousErr, sql.ErrNoRows) {
-		return gateway.IngressEndpointState{}, false, fmt.Errorf("store: read prior ingress endpoint: %w", previousErr)
+		row, writeErr := queries.UpsertGatewayEndpointState(
+			writeCtx,
+			sqlcgen.UpsertGatewayEndpointStateParams{
+				Tier: string(tier), EndpointUrl: endpointURL, UpdatedAt: store.FormatTimestamp(now),
+			},
+		)
+		if writeErr != nil {
+			return fmt.Errorf("store: upsert gateway ingress endpoint: %w", writeErr)
+		}
+		state, writeErr = gatewayEndpointStateFromGenerated(row)
+		if writeErr != nil {
+			return writeErr
+		}
+		changed = errors.Is(previousErr, sql.ErrNoRows) || previous.EndpointUrl != row.EndpointUrl
+		return nil
+	}); err != nil {
+		return gateway.IngressEndpointState{}, false, fmt.Errorf("store: sync gateway ingress endpoint: %w", err)
 	}
-	row, err := queries.UpsertGatewayEndpointState(ctx, sqlcgen.UpsertGatewayEndpointStateParams{
-		Tier: string(tier), EndpointUrl: endpointURL, UpdatedAt: store.FormatTimestamp(now),
-	})
-	if err != nil {
-		return gateway.IngressEndpointState{}, false, fmt.Errorf("store: upsert gateway ingress endpoint: %w", err)
-	}
-	state, err := gatewayEndpointStateFromGenerated(row)
-	if err != nil {
-		return gateway.IngressEndpointState{}, false, err
-	}
-	changed = errors.Is(previousErr, sql.ErrNoRows) || previous.EndpointUrl != row.EndpointUrl
-	if err := tx.Commit(); err != nil {
-		return gateway.IngressEndpointState{}, false, fmt.Errorf("store: commit ingress endpoint sync: %w", err)
-	}
-	committed = true
 	return state, changed, nil
 }
 
@@ -194,17 +192,27 @@ func (g *GatewayRepo) MarkIngressEndpointUnavailable(ctx context.Context, tier g
 	if now.IsZero() {
 		return errors.New("store: gateway endpoint timestamp is required")
 	}
-	if _, err := g.queries.MarkGatewayEndpointUnavailable(ctx, sqlcgen.MarkGatewayEndpointUnavailableParams{
-		Tier: string(tier), UpdatedAt: store.FormatTimestamp(now),
+	if err := store.ExecuteWrite(ctx, g.db, func(writeCtx context.Context, tx *store.WriteTx) error {
+		queries := sqlcgen.New(tx)
+		if _, writeErr := queries.MarkGatewayEndpointUnavailable(
+			writeCtx,
+			sqlcgen.MarkGatewayEndpointUnavailableParams{
+				Tier: string(tier), UpdatedAt: store.FormatTimestamp(now),
+			},
+		); writeErr != nil {
+			return fmt.Errorf("store: mark gateway ingress endpoint unavailable: %w", writeErr)
+		}
+		return nil
 	}); err != nil {
-		return fmt.Errorf("store: mark gateway ingress endpoint unavailable: %w", err)
+		return fmt.Errorf("store: update gateway ingress endpoint availability: %w", err)
 	}
 	return nil
 }
 
 func gatewayEndpointStateFromGenerated(row sqlcgen.GatewayEndpointState) (gateway.IngressEndpointState, error) {
-	if row.EndpointGeneration <= 0 {
-		return gateway.IngressEndpointState{}, errors.New("store: invalid gateway endpoint generation")
+	generation, err := positiveGatewayUnsignedValue("endpoint generation", row.EndpointGeneration)
+	if err != nil {
+		return gateway.IngressEndpointState{}, err
 	}
 	updatedAt, err := store.ParseTimestamp(row.UpdatedAt)
 	if err != nil {
@@ -212,6 +220,6 @@ func gatewayEndpointStateFromGenerated(row sqlcgen.GatewayEndpointState) (gatewa
 	}
 	return gateway.IngressEndpointState{
 		Tier: gateway.Tier(row.Tier), URL: row.EndpointUrl,
-		Generation: uint64(row.EndpointGeneration), Reachable: row.Reachable, UpdatedAt: updatedAt,
+		Generation: generation, Reachable: row.Reachable, UpdatedAt: updatedAt,
 	}, nil
 }

@@ -3,6 +3,7 @@ package connectivitytailscale
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 
@@ -27,12 +28,12 @@ func RunProvider(ctx context.Context, stdin io.Reader, stdout io.Writer, stderr 
 	}
 	stateDir, err := defaultStateDirectory()
 	if err != nil {
-		return err
+		return fmt.Errorf("connectivity-tailscale: prepare provider state: %w", err)
 	}
 	logger := slog.New(slog.NewTextHandler(stderr, nil))
 	provider, err := NewProvider(stateDir, logger)
 	if err != nil {
-		return err
+		return fmt.Errorf("connectivity-tailscale: create provider: %w", err)
 	}
 	extension := compozysdk.NewExtension(
 		providerDefinition(),
@@ -51,12 +52,19 @@ func RunProvider(ctx context.Context, stdin io.Reader, stdout io.Writer, stderr 
 		Status:   provider.Status,
 		Teardown: provider.Teardown,
 	}); err != nil {
-		return err
+		return fmt.Errorf("connectivity-tailscale: register provider services: %w", err)
 	}
 	runErr := extension.Run(ctx)
+	if runErr != nil {
+		runErr = fmt.Errorf("connectivity-tailscale: run extension protocol: %w", runErr)
+	}
 	stopCtx, cancel := context.WithTimeout(context.Background(), providerShutdownTimeout)
 	defer cancel()
-	return errors.Join(runErr, provider.Close(stopCtx))
+	closeErr := provider.Close(stopCtx)
+	if closeErr != nil {
+		closeErr = fmt.Errorf("connectivity-tailscale: close provider: %w", closeErr)
+	}
+	return errors.Join(runErr, closeErr)
 }
 
 func providerRPCError(err error) error {
@@ -76,6 +84,9 @@ func providerDefinition() compozysdk.ExtensionDefinition {
 		Version:     "0.1.0",
 		Description: "First-party private tailnet and public Funnel connectivity for Compozy gateways.",
 		RequiresEnv: []string{"TS_AUTHKEY"},
+		Capabilities: compozysdk.CapabilitiesConfig{
+			Provides: []string{compozysdk.CapabilityProvideConnectivityProvider},
+		},
 		Subprocess: compozysdk.DescribeSubprocess{
 			Command: "{{compozy_executable}}",
 			Args:    []string{"__internal", "extension-provider", Name},

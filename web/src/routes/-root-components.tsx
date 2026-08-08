@@ -46,50 +46,54 @@ export function RootRouteErrorBoundary({ error, reset }: ErrorComponentProps) {
   };
 
   return (
-    <RootBoundaryFrame testId="root-route-error">
-      <Empty
-        className="max-w-xl"
-        description={describeRouteError(
-          error,
-          "The application shell failed before the route could render."
-        )}
-        icon={AlertTriangle}
-        title="Unable to render this route"
-        titleAs="h1"
-        action={
-          <>
-            <Button onClick={handleRetry} size="sm" type="button" variant="outline">
-              <RefreshCw className="size-3" />
-              Retry
-            </Button>
-            <Link className={buttonVariants({ variant: "outline", size: "sm" })} to="/">
-              <Compass className="size-3" />
-              Go home
-            </Link>
-          </>
-        }
-      />
-    </RootBoundaryFrame>
+    <GatewayAccessBoundary>
+      <RootBoundaryFrame testId="root-route-error">
+        <Empty
+          className="max-w-xl"
+          description={describeRouteError(
+            error,
+            "The application shell failed before the route could render."
+          )}
+          icon={AlertTriangle}
+          title="Unable to render this route"
+          titleAs="h1"
+          action={
+            <>
+              <Button onClick={handleRetry} size="sm" type="button" variant="outline">
+                <RefreshCw className="size-3" />
+                Retry
+              </Button>
+              <Link className={buttonVariants({ variant: "outline", size: "sm" })} to="/">
+                <Compass className="size-3" />
+                Go home
+              </Link>
+            </>
+          }
+        />
+      </RootBoundaryFrame>
+    </GatewayAccessBoundary>
   );
 }
 
 export function RootRouteNotFoundBoundary({ routeId }: NotFoundRouteProps) {
   return (
-    <RootBoundaryFrame routeId={routeId} testId="root-route-not-found">
-      <Empty
-        className="max-w-xl"
-        description="The requested route does not exist in this build."
-        icon={Compass}
-        title="Route not found"
-        titleAs="h1"
-        action={
-          <Link className={buttonVariants({ variant: "outline", size: "sm" })} to="/">
-            <Compass className="size-3" />
-            Go home
-          </Link>
-        }
-      />
-    </RootBoundaryFrame>
+    <GatewayAccessBoundary>
+      <RootBoundaryFrame routeId={routeId} testId="root-route-not-found">
+        <Empty
+          className="max-w-xl"
+          description="The requested route does not exist in this build."
+          icon={Compass}
+          title="Route not found"
+          titleAs="h1"
+          action={
+            <Link className={buttonVariants({ variant: "outline", size: "sm" })} to="/">
+              <Compass className="size-3" />
+              Go home
+            </Link>
+          }
+        />
+      </RootBoundaryFrame>
+    </GatewayAccessBoundary>
   );
 }
 

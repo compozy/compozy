@@ -9,10 +9,12 @@ import {
   CONNECTIVITY_STATUS_METHOD,
   CONNECTIVITY_TEARDOWN_METHOD,
   registerConnectivityProvider,
+  type ConnectivityProviderHandlers,
 } from "../connectivity-provider.js";
 import {
   CapabilityDeniedError,
   InternalError,
+  InvalidParamsError,
   MethodNotFoundError,
   NotInitializedError,
   ShutdownInProgressError,
@@ -604,6 +606,42 @@ describe("Extension", () => {
     ).resolves.toEqual({ stopped: true });
   });
 
+  it("rejects malformed connectivity requests before calling provider handlers", async () => {
+    const harness = new TestHarness();
+    const establish = vi.fn<ConnectivityProviderHandlers["establish"]>(() => ({
+      tier: "private",
+      endpoints: [],
+      health: "healthy",
+    }));
+    const status = vi.fn<ConnectivityProviderHandlers["status"]>(() => ({
+      tier: "private",
+      endpoints: [],
+      health: "healthy",
+    }));
+    const teardown = vi.fn<ConnectivityProviderHandlers["teardown"]>(() => ({ stopped: true }));
+    const extension = new Extension({ name: "connectivity-validation", version: "0.1.0" });
+    registerConnectivityProvider(extension, { establish, status, teardown });
+    await harness.loadExtension(extension);
+
+    await expect(
+      harness.call(CONNECTIVITY_ESTABLISH_METHOD, {
+        tier: "private",
+        forward_target: "127.0.0.1:43210",
+        challenge_path: "/challenge",
+      })
+    ).rejects.toBeInstanceOf(InvalidParamsError);
+    await expect(harness.call(CONNECTIVITY_STATUS_METHOD, { tier: 42 })).rejects.toBeInstanceOf(
+      InvalidParamsError
+    );
+    await expect(harness.call(CONNECTIVITY_TEARDOWN_METHOD, null)).rejects.toBeInstanceOf(
+      InvalidParamsError
+    );
+
+    expect(establish).not.toHaveBeenCalled();
+    expect(status).not.toHaveBeenCalled();
+    expect(teardown).not.toHaveBeenCalled();
+  });
+
   it("keeps connectivity provider registration atomic across collisions", () => {
     const extension = new Extension({ name: "connectivity-collision", version: "0.1.0" });
     extension.handle(CONNECTIVITY_STATUS_METHOD, () => ({ tier: "private", health: "down" }));
@@ -641,7 +679,7 @@ describe("Extension", () => {
     );
   });
 
-  it("rejects duplicate and post-start connectivity provider registration", async () => {
+  it("rejects duplicate and every post-start registration surface", async () => {
     const duplicate = new Extension({ name: "connectivity-duplicate", version: "0.1.0" });
     registerConnectivityProvider(duplicate, connectivityHandlers());
     expect(() => registerConnectivityProvider(duplicate, connectivityHandlers())).toThrow(
@@ -655,6 +693,23 @@ describe("Extension", () => {
     );
     const started = late.start();
     expect(() => registerConnectivityProvider(late, connectivityHandlers())).toThrow(
+      "extension registration is closed after start"
+    );
+    expect(() =>
+      late.tool("late-tool", { inputSchema: { type: "object" } }, async () => ({
+        content: [],
+        truncated: false,
+        bytes: 0,
+        duration_ms: 0,
+      }))
+    ).toThrow("extension registration is closed after start");
+    expect(() =>
+      late.watchSource("late-watch", {}, async () => ({
+        ready: false,
+        event_key: "late-watch",
+      }))
+    ).toThrow("extension registration is closed after start");
+    expect(() => late.commandGroup("late", "Late commands")).toThrow(
       "extension registration is closed after start"
     );
     await pair.host.call("initialize", initializeFor(late));
@@ -718,14 +773,14 @@ describe("Extension", () => {
   });
 });
 
-function connectivityHandlers() {
+function connectivityHandlers(): ConnectivityProviderHandlers {
   return {
-    establish: (_context: unknown, request: { tier: string }) => ({
+    establish: (_context, request) => ({
       tier: request.tier,
       endpoints: [{ url: "https://gateway.example.test", scheme: "https", stability: "stable" }],
       health: "healthy",
     }),
-    status: (_context: unknown, request: { tier: string }) => ({
+    status: (_context, request) => ({
       tier: request.tier,
       endpoints: [{ url: "https://gateway.example.test", scheme: "https", stability: "stable" }],
       health: "healthy",

@@ -69,7 +69,6 @@ describe("gateway provider model", () => {
     expect(blockers.find(blocker => blocker.id === "missing-secrets")?.message).toContain(
       "OVERLAY_AUTH_KEY"
     );
-    expect(blockers.every(blocker => !blocker.terminal)).toBe(true);
   });
 
   it("Should report a workspace-scoped provider as disqualified, not merely unready", () => {
@@ -79,7 +78,7 @@ describe("gateway provider model", () => {
     const blockers = model.candidates[0].blockers;
 
     expect(blockers).toHaveLength(1);
-    expect(blockers[0]).toMatchObject({ id: "workspace-source", terminal: true });
+    expect(blockers[0]).toMatchObject({ id: "workspace-source" });
   });
 
   it("Should attach the durable activation and its generation for the tier it serves", () => {

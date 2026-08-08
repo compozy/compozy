@@ -217,6 +217,21 @@ func (g *AutomationRepo) UpdateTrigger(
 	}
 	defer rollbackAutomationDefinitionTx(&err, tx, "update automation trigger")
 	queries := sqlcgen.New(tx)
+	previous, err := queries.GetAutomationTrigger(ctx, normalized.ID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return automation.Trigger{}, fmt.Errorf(
+			"store: automation trigger %q: %w",
+			normalized.ID,
+			automation.ErrTriggerNotFound,
+		)
+	}
+	if err != nil {
+		return automation.Trigger{}, fmt.Errorf(
+			"store: load prior automation trigger %q: %w",
+			normalized.ID,
+			err,
+		)
+	}
 	affected, err := queries.UpdateAutomationTrigger(ctx, params)
 	if err != nil {
 		return automation.Trigger{}, fmt.Errorf(
@@ -236,17 +251,11 @@ func (g *AutomationRepo) UpdateTrigger(
 	if err := upsertAutomationTriggerCatalog(ctx, tx, normalized); err != nil {
 		return automation.Trigger{}, err
 	}
-	if _, err := queries.DeleteMismatchedGatewayIngressBinding(
-		ctx,
-		sqlcgen.DeleteMismatchedGatewayIngressBindingParams{
-			SubjectKind: string(gateway.IngressSubjectWebhookTrigger),
-			SubjectID:   normalized.ID,
-			ScopeKind:   string(normalized.Scope),
-			WorkspaceID: nullableAutomationString(normalized.WorkspaceID),
-		},
-	); err != nil {
+	identityChanged := automationNullStringValue(previous.WebhookID) != normalized.WebhookID ||
+		automationNullStringValue(previous.EndpointSlug) != normalized.EndpointSlug
+	if err := reconcileAutomationIngressBinding(ctx, queries, normalized, identityChanged); err != nil {
 		return automation.Trigger{}, fmt.Errorf(
-			"store: invalidate reassigned webhook ingress binding %q: %w",
+			"store: invalidate changed webhook ingress binding %q: %w",
 			normalized.ID,
 			err,
 		)
@@ -259,6 +268,30 @@ func (g *AutomationRepo) UpdateTrigger(
 		)
 	}
 	return g.GetTrigger(ctx, normalized.ID)
+}
+
+func reconcileAutomationIngressBinding(
+	ctx context.Context,
+	queries *sqlcgen.Queries,
+	trigger automation.Trigger,
+	identityChanged bool,
+) error {
+	if identityChanged {
+		_, err := queries.DeleteGatewayIngressBinding(ctx, sqlcgen.DeleteGatewayIngressBindingParams{
+			SubjectKind: string(gateway.IngressSubjectWebhookTrigger), SubjectID: trigger.ID,
+		})
+		return err
+	}
+	_, err := queries.DeleteMismatchedGatewayIngressBinding(
+		ctx,
+		sqlcgen.DeleteMismatchedGatewayIngressBindingParams{
+			SubjectKind: string(gateway.IngressSubjectWebhookTrigger),
+			SubjectID:   trigger.ID,
+			ScopeKind:   string(trigger.Scope),
+			WorkspaceID: nullableAutomationString(trigger.WorkspaceID),
+		},
+	)
+	return err
 }
 
 // DeleteTrigger removes an automation trigger definition.

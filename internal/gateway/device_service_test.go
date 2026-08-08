@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -34,6 +35,41 @@ func (r *recordingConnectionRegistry) CancelDevice(_ context.Context, deviceID s
 
 func TestDeviceServiceLifecycle(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should apply live pairing and stream-ticket limits to new artifacts", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
+		service := newDeviceServiceOnly(t, &now)
+		if err := service.ReconfigureLimits(1, 10*time.Minute, 45*time.Second); err != nil {
+			t.Fatalf("ReconfigureLimits() error = %v", err)
+		}
+		pairing, err := service.MintPairing(t.Context(), PairingRequest{Source: PairingSourceLocal})
+		if err != nil {
+			t.Fatalf("MintPairing() error = %v", err)
+		}
+		if want := now.Add(10 * time.Minute); !pairing.ExpiresAt.Equal(want) {
+			t.Fatalf("pairing expiry = %s, want %s", pairing.ExpiresAt, want)
+		}
+		if _, err := service.MintPairing(
+			t.Context(), PairingRequest{Source: PairingSourceLocal},
+		); !errors.Is(err, ErrPairingLimit) {
+			t.Fatalf("MintPairing(over live limit) error = %v, want ErrPairingLimit", err)
+		}
+		issued, err := service.RedeemPairing(t.Context(), RedeemRequest{
+			Artifact: pairing.Artifact, Name: "Live limits", Kind: ActorKindOperatorDevice,
+			Source: PairingSourcePrivate,
+		})
+		if err != nil {
+			t.Fatalf("RedeemPairing() error = %v", err)
+		}
+		ticket, err := service.MintStreamTicket(t.Context(), issued.Device.ID)
+		if err != nil {
+			t.Fatalf("MintStreamTicket() error = %v", err)
+		}
+		if want := now.Add(45 * time.Second); !ticket.ExpiresAt.Equal(want) {
+			t.Fatalf("stream ticket expiry = %s, want %s", ticket.ExpiresAt, want)
+		}
+	})
 
 	t.Run("Should list full device metadata and persist rename (UT-037)", func(t *testing.T) {
 		t.Parallel()
@@ -106,6 +142,31 @@ func TestDeviceServiceLifecycle(t *testing.T) {
 		}
 		if !first.Changed || second.Changed || first.Device.RevokeEpoch != 1 || second.Device.RevokeEpoch != 1 {
 			t.Fatalf("revoke results = %#v / %#v", first, second)
+		}
+	})
+
+	t.Run("Should release idle mutation-gate state after repeated committed revocations", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
+		service := newDeviceServiceOnly(t, &now)
+
+		for index := range 8 {
+			issued, err := issueTestDevice(
+				t.Context(), service, fmt.Sprintf("Device %d", index), ActorKindOperatorDevice,
+			)
+			if err != nil {
+				t.Fatalf("issueTestDevice(%d) error = %v", index, err)
+			}
+			if _, err := service.RevokeDevice(t.Context(), issued.Device.ID); err != nil {
+				t.Fatalf("RevokeDevice(%d) error = %v", index, err)
+			}
+		}
+
+		service.mutations.mu.Lock()
+		tracked := len(service.mutations.devices)
+		service.mutations.mu.Unlock()
+		if tracked != 0 {
+			t.Fatalf("tracked mutation-gate devices = %d, want 0 after committed revocations", tracked)
 		}
 	})
 
@@ -204,6 +265,54 @@ func TestDeviceServiceLifecycle(t *testing.T) {
 		outcome := <-revoked
 		if outcome.err != nil || !outcome.result.Changed || outcome.result.Device.RevokeEpoch != 1 {
 			t.Fatalf("RevokeDevice() = (%#v, %v)", outcome.result, outcome.err)
+		}
+	})
+
+	t.Run("Should cancel epoch revalidation and release the mutation lease", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
+		store := &cancelAwareDeviceStore{
+			memoryDeviceStore: newMemoryDeviceStore(),
+			startCh:           make(chan struct{}),
+			release:           make(chan struct{}),
+		}
+		service, err := NewDeviceService(
+			store,
+			WithDeviceClock(func() time.Time { return now }),
+			WithDeviceEntropy(&incrementingReader{}),
+		)
+		if err != nil {
+			t.Fatalf("NewDeviceService() error = %v", err)
+		}
+		issued, err := issueTestDevice(t.Context(), service, "Device", ActorKindOperatorDevice)
+		if err != nil {
+			t.Fatalf("issueTestDevice() error = %v", err)
+		}
+		ctx, cancel := context.WithCancel(t.Context())
+		outcome := make(chan error, 1)
+		go func() {
+			_, acquireErr := service.AcquireMutation(ctx, issued.Device.ID, issued.Device.RevokeEpoch)
+			outcome <- acquireErr
+		}()
+		<-store.startCh
+		cancel()
+
+		select {
+		case acquireErr := <-outcome:
+			if !errors.Is(acquireErr, context.Canceled) {
+				t.Fatalf("AcquireMutation() error = %v, want context.Canceled", acquireErr)
+			}
+		case <-time.After(200 * time.Millisecond):
+			close(store.release)
+			acquireErr := <-outcome
+			t.Fatalf("AcquireMutation() ignored cancellation; eventual error = %v", acquireErr)
+		}
+
+		service.mutations.mu.Lock()
+		tracked := len(service.mutations.devices)
+		service.mutations.mu.Unlock()
+		if tracked != 0 {
+			t.Fatalf("tracked mutation-gate devices = %d, want canceled lease released", tracked)
 		}
 	})
 
@@ -327,4 +436,57 @@ func TestAuthFailureLimiter(t *testing.T) {
 			t.Fatal("Allow(new source after expiry pruning) = false")
 		}
 	})
+
+	t.Run("Should reserve the per-source budget across concurrent attempts", func(t *testing.T) {
+		t.Parallel()
+		const maximum = 2
+		limiter := NewAuthFailureLimiter(maximum, time.Minute, nil)
+		start := make(chan struct{})
+		var allowed atomic.Int64
+		var workers sync.WaitGroup
+		for range 32 {
+			workers.Go(func() {
+				<-start
+				if limiter.Allow("198.51.100.10", false) {
+					allowed.Add(1)
+				}
+			})
+		}
+		close(start)
+		workers.Wait()
+		if got := allowed.Load(); got != maximum {
+			t.Fatalf("concurrently allowed attempts = %d, want %d", got, maximum)
+		}
+	})
+
+	t.Run("Should apply live authentication limits without replacing the limiter", func(t *testing.T) {
+		t.Parallel()
+		limiter := NewAuthFailureLimiter(2, time.Minute, nil)
+		if err := limiter.Reconfigure(1, 2*time.Minute); err != nil {
+			t.Fatalf("Reconfigure() error = %v", err)
+		}
+		if !limiter.Allow("198.51.100.11", false) {
+			t.Fatal("Allow(first request after reconfigure) = false")
+		}
+		if limiter.Allow("198.51.100.11", false) {
+			t.Fatal("Allow(second request after reconfigure) = true, want live limit")
+		}
+	})
+}
+
+type cancelAwareDeviceStore struct {
+	*memoryDeviceStore
+	started sync.Once
+	startCh chan struct{}
+	release chan struct{}
+}
+
+func (s *cancelAwareDeviceStore) RevalidateDeviceEpoch(ctx context.Context, id string, epoch uint64) error {
+	s.started.Do(func() { close(s.startCh) })
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-s.release:
+		return s.memoryDeviceStore.RevalidateDeviceEpoch(ctx, id, epoch)
+	}
 }

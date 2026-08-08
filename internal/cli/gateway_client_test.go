@@ -10,7 +10,9 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptrace"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -21,6 +23,69 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 )
+
+// Invariant: pairing mint emits only a private handoff reference, never the raw artifact bytes.
+// Owning layer: CLI gateway output serialization and artifact handoff filesystem boundary.
+// Canonical suite: this pairing mint output contract suite.
+func TestGatewayPairingArtifactOutput(t *testing.T) {
+	t.Parallel()
+
+	rawArtifact := "cpz_gwp_pairing-artifact-material-that-must-not-be-emitted"
+	expiresAt := time.Date(2026, 8, 7, 18, 30, 0, 0, time.UTC)
+	for _, format := range []string{"human", "json", "jsonl", "toon"} {
+		t.Run("Should emit only a private artifact reference as "+format, func(t *testing.T) {
+			t.Parallel()
+			homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+			if err != nil {
+				t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+			}
+			if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
+				t.Fatalf("EnsureHomeLayout() error = %v", err)
+			}
+			gatewayAPI := &gatewayPairingAPIStub{minted: contract.GatewayPairingArtifactPayload{
+				Artifact: rawArtifact, ExpiresAt: expiresAt,
+			}}
+			deps := commandDeps{
+				resolveHome: func() (compozyconfig.HomePaths, error) { return homePaths, nil },
+				loadConfig: func() (compozyconfig.Config, error) {
+					return compozyconfig.LoadForHome(homePaths)
+				},
+				newClient: func(ClientTarget) (DaemonClient, error) {
+					return &gatewayPairingDaemonClient{
+						DaemonClient: &stubClient{}, gatewayClientAPI: gatewayAPI,
+					}, nil
+				},
+			}
+			stdout, stderr, err := executeRootCommand(t, deps, "pair", "mint", "-o", format)
+			if err != nil {
+				t.Fatalf("pair mint -o %s error = %v", format, err)
+			}
+			if strings.Contains(stdout, rawArtifact) || strings.Contains(stderr, rawArtifact) {
+				t.Fatalf("pair mint -o %s emitted raw artifact: stdout=%q stderr=%q", format, stdout, stderr)
+			}
+			matches, err := filepath.Glob(filepath.Join(
+				homePaths.GatewayCredentialsDir,
+				gatewayPairingArtifactFilePrefix+"*"+gatewayPairingArtifactFileSuffix,
+			))
+			if err != nil {
+				t.Fatalf("Glob(pairing artifacts) error = %v", err)
+			}
+			if len(matches) != 1 {
+				t.Fatalf("pairing artifact files = %v, want exactly one", matches)
+			}
+			artifactBytes, err := readPrivateBoundedFile(matches[0], 1024, "pairing artifact")
+			if err != nil {
+				t.Fatalf("readPrivateBoundedFile() error = %v", err)
+			}
+			if strings.TrimSpace(string(artifactBytes)) != rawArtifact {
+				t.Fatalf("pairing artifact file = %q, want raw minted artifact", artifactBytes)
+			}
+			if !strings.Contains(stdout, matches[0]) {
+				t.Fatalf("pair mint -o %s output = %q, want artifact reference %q", format, stdout, matches[0])
+			}
+		})
+	}
+}
 
 func TestGatewayClientTargetErrorsAndIsolation(t *testing.T) {
 	t.Parallel()
@@ -57,6 +122,52 @@ func TestGatewayClientTargetErrorsAndIsolation(t *testing.T) {
 		var apiErr *daemonAPIError
 		if !errors.As(authErr, &apiErr) || apiErr.payload.Code != "gateway_device_unauthenticated" {
 			t.Fatalf("GetGatewayStatus(auth) error = %T %v, want gateway_device_unauthenticated", authErr, authErr)
+		}
+	})
+
+	t.Run("Should distinguish pairing failures before and after request writing", func(t *testing.T) {
+		t.Parallel()
+		target, err := UnauthenticatedGatewayClientTarget("remote", "gateway.example", 443)
+		if err != nil {
+			t.Fatalf("UnauthenticatedGatewayClientTarget() error = %v", err)
+		}
+		request := contract.GatewayPairingRedeemRequest{
+			Artifact: "pairing", Name: "remote", ActorKind: "cli_profile",
+			Credential: testGatewayCredential('w'),
+		}
+		for _, testCase := range []struct {
+			name          string
+			writeStarted  bool
+			requestUnsent bool
+		}{
+			{name: "before write", requestUnsent: true},
+			{name: "after write", writeStarted: true, requestUnsent: false},
+		} {
+			t.Run("Should classify failure "+testCase.name, func(t *testing.T) {
+				t.Parallel()
+				client := &daemonClient{
+					target: target,
+					httpClient: &http.Client{
+						Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+							if testCase.writeStarted {
+								trace := httptrace.ContextClientTrace(req.Context())
+								if trace == nil || trace.WroteHeaders == nil {
+									t.Fatal("pairing request trace is missing")
+								}
+								trace.WroteHeaders()
+							}
+							return nil, context.Canceled
+						}),
+					},
+				}
+				_, redeemErr := client.RedeemGatewayPairing(t.Context(), request)
+				if !errors.Is(redeemErr, context.Canceled) {
+					t.Fatalf("RedeemGatewayPairing() error = %v, want context.Canceled", redeemErr)
+				}
+				if got := gatewayPairingRequestNotSent(redeemErr); got != testCase.requestUnsent {
+					t.Fatalf("gatewayPairingRequestNotSent() = %t, want %t", got, testCase.requestUnsent)
+				}
+			})
 		}
 	})
 
@@ -236,6 +347,31 @@ func TestGatewayClientTargetConstructionAndMatrix(t *testing.T) {
 		}
 		if _, err := SSHForwardClientTarget("localhost", 2123); err == nil {
 			t.Fatal("SSHForwardClientTarget() error = nil, want literal loopback IP requirement")
+		}
+		if _, err := GatewayClientTarget(
+			"remote", "[]", 443, testGatewayCredential('m'),
+		); err == nil {
+			t.Fatal("GatewayClientTarget(bracket-only) error = nil, want empty host rejection")
+		}
+		if got := clientNetworkURL("http", "::1", 2123); got != "http://[::1]:2123" {
+			t.Fatalf("clientNetworkURL(IPv6) = %q, want bracketed URL", got)
+		}
+	})
+
+	t.Run("Should preserve remote authentication errors for open", func(t *testing.T) {
+		t.Parallel()
+		target, err := GatewayClientTarget("remote", "gateway.example", 443, testGatewayCredential('u'))
+		if err != nil {
+			t.Fatalf("GatewayClientTarget() error = %v", err)
+		}
+		authErr := &daemonAPIError{
+			statusCode: http.StatusUnauthorized,
+			payload: contract.ErrorPayload{
+				Error: "device revoked", Code: gatewayDeviceUnauthenticatedCode,
+			},
+		}
+		if got := openDaemonStatusError(target, authErr); got != authErr {
+			t.Fatalf("openDaemonStatusError() = %v, want original authentication error", got)
 		}
 	})
 
@@ -565,9 +701,10 @@ func TestGatewayProfileTransactions(t *testing.T) {
 		gatewayAPI := &gatewayPairingAPIStub{beforeRedeem: func(
 			contract.GatewayPairingRedeemRequest,
 		) error {
-			return newGatewayReachabilityError(target, &net.OpError{
-				Op: "dial", Net: "tcp", Err: errors.New("connection refused"),
-			})
+			return &gatewayPairingRequestError{
+				cause:          newGatewayReachabilityError(target, context.Canceled),
+				requestNotSent: true,
+			}
 		}}
 		deps := commandDeps{
 			resolveHome: func() (compozyconfig.HomePaths, error) { return homePaths, nil },
@@ -1048,6 +1185,7 @@ func TestGatewayProfileTransactions(t *testing.T) {
 
 type gatewayPairingAPIStub struct {
 	gatewayClientAPI
+	minted          contract.GatewayPairingArtifactPayload
 	issued          contract.GatewayIssuedCredentialPayload
 	revocations     atomic.Int32
 	redeemCalls     atomic.Int32
@@ -1056,6 +1194,12 @@ type gatewayPairingAPIStub struct {
 	redeemStartOnce sync.Once
 	beforeRedeem    func(contract.GatewayPairingRedeemRequest) error
 	listDevicesErr  error
+}
+
+func (s *gatewayPairingAPIStub) MintGatewayPairing(
+	context.Context,
+) (contract.GatewayPairingArtifactPayload, error) {
+	return s.minted, nil
 }
 
 func (s *gatewayPairingAPIStub) ListGatewayDevices(context.Context) ([]contract.GatewayDevicePayload, error) {

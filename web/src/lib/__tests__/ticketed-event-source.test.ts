@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { resetGatewayStreamAuth } from "@/lib/gateway-stream-auth";
 import { createStreamEventSource } from "@/lib/ticketed-event-source";
+import { defaultEventSourceFactory } from "@/systems/session/hooks/session-stream-source";
 
 class FakeEventSource {
   static instances: FakeEventSource[] = [];
@@ -62,6 +63,7 @@ describe("ticketed event source", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
     resetGatewayStreamAuth();
@@ -90,6 +92,18 @@ describe("ticketed event source", () => {
     await settled();
 
     expect(FakeEventSource.instances[0].url).toBe("/api/tasks/t1/stream?ticket=tkt_1");
+    source.close();
+  });
+
+  it("Should authenticate the default session stream factory with a fresh ticket", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ticketResponse("session-ticket")));
+
+    const source = defaultEventSourceFactory("/api/sessions/session-1/stream");
+    await settled();
+
+    expect(FakeEventSource.instances[0].url).toBe(
+      "/api/sessions/session-1/stream?ticket=session-ticket"
+    );
     source.close();
   });
 

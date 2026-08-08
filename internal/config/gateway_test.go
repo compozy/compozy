@@ -169,6 +169,24 @@ func TestGatewayConfig(t *testing.T) {
 					DefaultWorkspace: "workspace-1",
 				},
 			},
+			{
+				name: "whitespace-padded profile name",
+				connection: GatewayConnectionConfig{
+					Name: " remote ", Scheme: "ssh", Host: "remote.example", Port: 22,
+				},
+			},
+			{
+				name: "whitespace-padded scheme",
+				connection: GatewayConnectionConfig{
+					Name: "remote", Scheme: " ssh ", Host: "remote.example", Port: 22,
+				},
+			},
+			{
+				name: "bracket-only host",
+				connection: GatewayConnectionConfig{
+					Name: "remote", Scheme: "ssh", Host: "[]", Port: 22,
+				},
+			},
 		}
 		for _, testCase := range testCases {
 			t.Run("Should reject "+testCase.name, func(t *testing.T) {

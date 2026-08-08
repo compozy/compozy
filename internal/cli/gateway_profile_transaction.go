@@ -77,6 +77,9 @@ func beginGatewayProfileTransactionWithLock(
 	if lock == nil || lock.lock == nil {
 		return nil, errors.New("cli: gateway profile transaction lock is required")
 	}
+	if err := ensureGatewayProfileTransactionReady(credentialsDir, plan.profile.Name); err != nil {
+		return nil, err
+	}
 	journal, err := newGatewayProfileTransactionJournal(plan)
 	if err != nil {
 		return nil, err
@@ -202,6 +205,37 @@ func recoverGatewayProfileTransactionsWithLock(
 	recoverJournal gatewayProfileTransactionRecovery,
 	lock *gatewayProfileTransactionLock,
 ) error {
+	return recoverGatewayProfileTransactionsWithPolicy(
+		ctx,
+		credentialsDir,
+		recoverJournal,
+		lock,
+		nil,
+	)
+}
+
+func recoverAvailableGatewayProfileTransactionsWithLock(
+	ctx context.Context,
+	credentialsDir string,
+	recoverJournal gatewayProfileTransactionRecovery,
+	lock *gatewayProfileTransactionLock,
+) error {
+	return recoverGatewayProfileTransactionsWithPolicy(
+		ctx,
+		credentialsDir,
+		recoverJournal,
+		lock,
+		isGatewayPairingRecoveryPending,
+	)
+}
+
+func recoverGatewayProfileTransactionsWithPolicy(
+	ctx context.Context,
+	credentialsDir string,
+	recoverJournal gatewayProfileTransactionRecovery,
+	lock *gatewayProfileTransactionLock,
+	shouldContinue func(error) bool,
+) error {
 	if lock == nil || lock.lock == nil {
 		return errors.New("cli: gateway profile transaction lock is required")
 	}
@@ -216,10 +250,27 @@ func recoverGatewayProfileTransactionsWithLock(
 			listed.Profile,
 			recoverJournal,
 		); err != nil {
+			if shouldContinue != nil && shouldContinue(err) {
+				continue
+			}
 			return err
 		}
 	}
 	return nil
+}
+
+func ensureGatewayProfileTransactionReady(credentialsDir, profile string) error {
+	journal, err := readGatewayProfileTransactionJournal(credentialsDir, strings.TrimSpace(profile))
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if journal.Operation == gatewayProfileTransactionPair {
+		return newGatewayPairingRecoveryPendingError(nil)
+	}
+	return fmt.Errorf("cli: gateway profile transaction %q is still pending", journal.Profile)
 }
 
 func recoverGatewayProfileTransactionJournal(

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/compozy/compozy/internal/diagnostics"
 )
@@ -31,38 +30,17 @@ func (r *Reconciler) markObserved(
 	surfaceState SurfaceObservedState,
 	cause string,
 ) error {
-	now := time.Now().UTC()
-	updated, err := r.store.SetObserved(ctx, plan, providerState, surfaceState, now, cause)
+	if plan.Provider != nil {
+		if err := r.recordProviderState(ctx, *plan.Provider, providerState, cause); err != nil {
+			return err
+		}
+	}
+	updated, err := r.store.SetObserved(ctx, plan, providerState, surfaceState, r.now().UTC(), cause)
 	if err != nil {
 		return err
 	}
 	if !updated {
 		return ErrStaleGeneration
-	}
-	if plan.Provider != nil {
-		eventErr := r.recordProviderState(ctx, *plan.Provider, providerState, cause)
-		if eventErr == nil {
-			return nil
-		}
-		if providerState != ProviderEstablishing && providerState != ProviderUp {
-			return eventErr
-		}
-		safeCause := diagnostics.RedactAndBound(eventErr.Error(), maxPersistedGatewayDiagnosticBytes)
-		rolledBack, rollbackErr := r.store.SetObserved(
-			ctx,
-			plan,
-			ProviderDegraded,
-			SurfaceOff,
-			time.Now().UTC(),
-			safeCause,
-		)
-		if rollbackErr != nil {
-			return errors.Join(eventErr, fmt.Errorf("gateway: compensate provider event failure: %w", rollbackErr))
-		}
-		if !rolledBack {
-			return errors.Join(eventErr, ErrStaleGeneration)
-		}
-		return eventErr
 	}
 	return nil
 }

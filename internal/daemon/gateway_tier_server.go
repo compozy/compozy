@@ -26,18 +26,20 @@ func defaultGatewayTierServerFactory(
 		port = deps.Config.Gateway.PublicPort
 	}
 	options := httpServerOptions(deps)
+	authLimiter := deps.GatewayAuthLimiter
+	if authLimiter == nil {
+		authLimiter = gateway.NewAuthFailureLimiter(
+			deps.Config.Gateway.Auth.RateLimit.MaxFails,
+			deps.Config.Gateway.Auth.RateLimit.Window,
+			func() time.Time { return time.Now().UTC() },
+		)
+	}
 	options = append(options,
 		httpapi.WithHost("127.0.0.1"),
 		httpapi.WithPort(port),
 		httpapi.WithSurfaceSet(surfaceSet),
-		httpapi.WithGatewayService(deps.Gateway),
 		httpapi.WithGatewayChallenge(tier, deps.GatewayChallenges),
-		httpapi.WithDeviceAuth(deps.Gateway),
-		httpapi.WithGatewayAuthLimiter(gateway.NewAuthFailureLimiter(
-			deps.Config.Gateway.Auth.RateLimit.MaxFails,
-			deps.Config.Gateway.Auth.RateLimit.Window,
-			func() time.Time { return time.Now().UTC() },
-		)),
+		httpapi.WithGatewayAuthLimiter(authLimiter),
 	)
 	return httpapi.New(options...)
 }

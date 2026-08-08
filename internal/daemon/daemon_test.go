@@ -3765,6 +3765,14 @@ func TestOptionsConfigureDaemon(t *testing.T) {
 	signalCh := make(chan os.Signal, 1)
 	httpFactory := func(context.Context, RuntimeDeps) (Server, error) { return &fakeServer{name: "http"}, nil }
 	udsFactory := func(context.Context, RuntimeDeps) (Server, error) { return &fakeServer{name: "uds"}, nil }
+	gatewayFactory := func(
+		context.Context,
+		*RuntimeDeps,
+		gateway.Tier,
+		[]gateway.Surface,
+	) (Server, error) {
+		return &fakeServer{name: "gateway"}, nil
+	}
 	now := time.Date(2026, 4, 3, 15, 0, 0, 0, time.UTC)
 
 	d, err := New(
@@ -3774,6 +3782,7 @@ func TestOptionsConfigureDaemon(t *testing.T) {
 		WithNow(func() time.Time { return now }),
 		WithHTTPServerFactory(httpFactory),
 		WithUDSServerFactory(udsFactory),
+		WithGatewayTierServerFactory(gatewayFactory),
 		WithSignalBridge(signalCh),
 		WithBoundaryVerification(true),
 	)
@@ -3794,6 +3803,18 @@ func TestOptionsConfigureDaemon(t *testing.T) {
 	}
 	if !d.verifyBoundaries {
 		t.Fatal("WithBoundaryVerification(true) did not apply")
+	}
+	gatewayServer, err := d.gatewayTierFactory(
+		testutil.Context(t),
+		&RuntimeDeps{},
+		gateway.TierPrivate,
+		[]gateway.Surface{gateway.SurfaceOperatorUI},
+	)
+	if err != nil {
+		t.Fatalf("gatewayTierFactory() error = %v", err)
+	}
+	if got, ok := gatewayServer.(*fakeServer); !ok || got.name != "gateway" {
+		t.Fatalf("gatewayTierFactory() = %#v, want gateway sentinel", gatewayServer)
 	}
 }
 

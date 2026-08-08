@@ -93,7 +93,8 @@ func WithGatewayTierServerFactory(factory GatewayTierServerFactory) Option {
 	}
 }
 
-// WithGatewayProviderEffects injects provider establish, verify, advertise, and teardown effects.
+// WithGatewayProviderEffects injects the provider preflight, establish, verify, advertise,
+// withdraw, teardown, and health-supervision lifecycle used by gateway reconciliation.
 func WithGatewayProviderEffects(effects gateway.EffectDriver) Option {
 	return func(d *Daemon) {
 		d.gatewayProviderEffects = effects

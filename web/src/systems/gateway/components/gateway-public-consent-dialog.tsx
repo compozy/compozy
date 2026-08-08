@@ -42,6 +42,11 @@ export function GatewayPublicConsentDialog({
     onOpenChange(next);
   };
 
+  const handleConfirm = () => {
+    setAcknowledged(false);
+    onConfirm();
+  };
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent data-testid="gateway-public-consent-dialog">
@@ -76,7 +81,7 @@ export function GatewayPublicConsentDialog({
           <Button
             data-testid="gateway-public-consent-confirm"
             disabled={!acknowledged || isSubmitting}
-            onClick={onConfirm}
+            onClick={handleConfirm}
             type="button"
           >
             Serve on the public address

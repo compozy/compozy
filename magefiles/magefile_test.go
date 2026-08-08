@@ -289,26 +289,47 @@ func TestProductionSourceLineLimit(t *testing.T) {
 func TestGatewayBoundaryRules(t *testing.T) {
 	t.Parallel()
 
-	want := map[string]bool{
-		"internal/daemon":       false,
-		"internal/api/contract": false,
-		"internal/api/core":     false,
-		"internal/api/httpapi":  false,
-		"internal/api/udsapi":   false,
-		"internal/cli":          false,
-	}
-	for _, rule := range gatewayForbiddenDirectImports {
-		if rule.importer == "internal/gateway" {
-			if _, exists := want[rule.imported]; exists {
-				want[rule.imported] = true
+	t.Run("Should enforce every forbidden gateway dependency in the active boundary set", func(t *testing.T) {
+		t.Parallel()
+
+		want := map[string]bool{
+			"internal/daemon":       false,
+			"internal/api/contract": false,
+			"internal/api/core":     false,
+			"internal/api/httpapi":  false,
+			"internal/api/udsapi":   false,
+			"internal/cli":          false,
+		}
+		for _, rule := range directImportBoundaries() {
+			if rule.importer == "internal/gateway" {
+				if _, exists := want[rule.imported]; exists {
+					want[rule.imported] = true
+				}
 			}
 		}
-	}
-	for imported, present := range want {
-		if !present {
-			t.Fatalf("gateway boundary rule for %q is missing", imported)
+		for imported, present := range want {
+			if !present {
+				t.Fatalf("active gateway boundary rule for %q is missing", imported)
+			}
 		}
-	}
+	})
+
+	t.Run("Should find a forbidden direct import in a Go fixture", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		fixture := filepath.Join(root, "fixture.go")
+		if err := os.WriteFile(fixture, []byte("package fixture\nimport _ \"github.com/compozy/compozy/internal/daemon\"\n"), 0o600); err != nil {
+			t.Fatalf("write boundary fixture: %v", err)
+		}
+		files, err := filesImporting(root, compozyModulePath+"internal/daemon")
+		if err != nil {
+			t.Fatalf("filesImporting() error = %v", err)
+		}
+		if !slices.Equal(files, []string{fixture}) {
+			t.Fatalf("filesImporting() = %v, want [%s]", files, fixture)
+		}
+	})
 }
 
 func TestDependencyClosureBoundaries(t *testing.T) {

@@ -9,84 +9,55 @@ import (
 
 const GatewayInvalidRequestCode = "gateway_invalid_request"
 
-var gatewayErrorCodes = [...]struct {
+var gatewayErrorMappings = [...]struct {
 	target error
+	status int
 	code   string
 }{
-	{errGatewayInvalidRequest, GatewayInvalidRequestCode},
-	{gateway.ErrDeviceUnauthenticated, "gateway_device_unauthenticated"},
-	{gateway.ErrDeviceNotFound, "gateway_device_not_found"},
-	{gateway.ErrDeviceRevoked, "gateway_device_revoked"},
-	{gateway.ErrPairingInvalid, "gateway_pairing_invalid"},
-	{gateway.ErrPairingExpired, "gateway_pairing_expired"},
-	{gateway.ErrPairingSpent, "gateway_pairing_spent"},
-	{gateway.ErrPairingLimit, "gateway_pairing_limit"},
-	{gateway.ErrPairingForbidden, "gateway_pairing_forbidden"},
-	{gateway.ErrStreamTicketInvalid, "gateway_stream_ticket_invalid"},
-	{gateway.ErrAuthRateLimited, "gateway_auth_rate_limited"},
-	{gateway.ErrConsentRequired, "gateway_consent_required"},
-	{gateway.ErrExposureRefused, "gateway_exposure_refused"},
-	{gateway.ErrProviderTrustStale, "gateway_provider_trust_stale"},
-	{gateway.ErrProviderNotFound, "gateway_provider_not_found"},
-	{gateway.ErrDigestConfirmationRequired, "gateway_digest_confirmation_required"},
-	{gateway.ErrEndpointUnverified, "gateway_endpoint_unverified"},
-	{gateway.ErrProviderDegraded, "gateway_provider_degraded"},
-	{gateway.ErrIngressForbidden, "gateway_ingress_forbidden"},
-	{gateway.ErrIngressSubjectNotFound, "gateway_ingress_subject_not_found"},
-	{gateway.ErrIngressTargetUnavailable, "gateway_ingress_target_unavailable"},
-	{gateway.ErrIngressRateLimited, "gateway_ingress_rate_limited"},
-	{gateway.ErrLocalOnlyOperation, "gateway_local_only_operation"},
-	{gateway.ErrGenerationConflict, "gateway_generation_conflict"},
-	{gateway.ErrTierProviderConflict, "gateway_tier_provider_conflict"},
+	{errGatewayInvalidRequest, http.StatusBadRequest, GatewayInvalidRequestCode},
+	{gateway.ErrDeviceUnauthenticated, http.StatusUnauthorized, "gateway_device_unauthenticated"},
+	{gateway.ErrDeviceNotFound, http.StatusNotFound, "gateway_device_not_found"},
+	{gateway.ErrDeviceRevoked, http.StatusUnauthorized, "gateway_device_revoked"},
+	{gateway.ErrPairingInvalid, http.StatusUnauthorized, "gateway_pairing_invalid"},
+	{gateway.ErrPairingExpired, http.StatusGone, "gateway_pairing_expired"},
+	{gateway.ErrPairingSpent, http.StatusConflict, "gateway_pairing_spent"},
+	{gateway.ErrPairingLimit, http.StatusTooManyRequests, "gateway_pairing_limit"},
+	{gateway.ErrPairingForbidden, http.StatusForbidden, "gateway_pairing_forbidden"},
+	{gateway.ErrStreamTicketInvalid, http.StatusUnauthorized, "gateway_stream_ticket_invalid"},
+	{gateway.ErrStreamTicketLimit, http.StatusTooManyRequests, "gateway_stream_ticket_limit"},
+	{gateway.ErrAuthRateLimited, http.StatusTooManyRequests, "gateway_auth_rate_limited"},
+	{gateway.ErrConsentRequired, http.StatusPreconditionRequired, "gateway_consent_required"},
+	{gateway.ErrExposureRefused, http.StatusConflict, "gateway_exposure_refused"},
+	{gateway.ErrProviderTrustStale, http.StatusConflict, "gateway_provider_trust_stale"},
+	{gateway.ErrProviderNotFound, http.StatusNotFound, "gateway_provider_not_found"},
+	{gateway.ErrDigestConfirmationRequired, http.StatusPreconditionRequired, "gateway_digest_confirmation_required"},
+	{gateway.ErrEndpointUnverified, http.StatusConflict, "gateway_endpoint_unverified"},
+	{gateway.ErrProviderDegraded, http.StatusServiceUnavailable, "gateway_provider_degraded"},
+	{gateway.ErrIngressForbidden, http.StatusForbidden, "gateway_ingress_forbidden"},
+	{gateway.ErrIngressSubjectNotFound, http.StatusNotFound, "gateway_ingress_subject_not_found"},
+	{gateway.ErrIngressTargetUnavailable, http.StatusConflict, "gateway_ingress_target_unavailable"},
+	{gateway.ErrIngressRateLimited, http.StatusTooManyRequests, "gateway_ingress_rate_limited"},
+	{gateway.ErrLocalOnlyOperation, http.StatusForbidden, "gateway_local_only_operation"},
+	{gateway.ErrGenerationConflict, http.StatusConflict, "gateway_generation_conflict"},
+	{gateway.ErrTierProviderConflict, http.StatusConflict, "gateway_tier_provider_conflict"},
 }
 
 // StatusForGatewayError maps gateway-domain failures to stable transport statuses.
 func StatusForGatewayError(err error) int {
-	switch {
-	case err == nil:
+	if err == nil {
 		return http.StatusOK
-	case errors.Is(err, errGatewayInvalidRequest):
-		return http.StatusBadRequest
-	case errors.Is(err, gateway.ErrDeviceUnauthenticated),
-		errors.Is(err, gateway.ErrDeviceRevoked),
-		errors.Is(err, gateway.ErrPairingInvalid),
-		errors.Is(err, gateway.ErrStreamTicketInvalid):
-		return http.StatusUnauthorized
-	case errors.Is(err, gateway.ErrPairingForbidden),
-		errors.Is(err, gateway.ErrIngressForbidden),
-		errors.Is(err, gateway.ErrLocalOnlyOperation):
-		return http.StatusForbidden
-	case errors.Is(err, gateway.ErrDeviceNotFound),
-		errors.Is(err, gateway.ErrProviderNotFound),
-		errors.Is(err, gateway.ErrIngressSubjectNotFound):
-		return http.StatusNotFound
-	case errors.Is(err, gateway.ErrPairingExpired):
-		return http.StatusGone
-	case errors.Is(err, gateway.ErrPairingSpent),
-		errors.Is(err, gateway.ErrExposureRefused),
-		errors.Is(err, gateway.ErrProviderTrustStale),
-		errors.Is(err, gateway.ErrEndpointUnverified),
-		errors.Is(err, gateway.ErrIngressTargetUnavailable),
-		errors.Is(err, gateway.ErrGenerationConflict),
-		errors.Is(err, gateway.ErrTierProviderConflict):
-		return http.StatusConflict
-	case errors.Is(err, gateway.ErrConsentRequired),
-		errors.Is(err, gateway.ErrDigestConfirmationRequired):
-		return http.StatusPreconditionRequired
-	case errors.Is(err, gateway.ErrPairingLimit),
-		errors.Is(err, gateway.ErrAuthRateLimited),
-		errors.Is(err, gateway.ErrIngressRateLimited):
-		return http.StatusTooManyRequests
-	case errors.Is(err, gateway.ErrProviderDegraded):
-		return http.StatusServiceUnavailable
-	default:
-		return http.StatusInternalServerError
 	}
+	for _, mapping := range &gatewayErrorMappings {
+		if errors.Is(err, mapping.target) {
+			return mapping.status
+		}
+	}
+	return http.StatusInternalServerError
 }
 
 // GatewayErrorCode returns the deterministic machine code for a known gateway error.
 func GatewayErrorCode(err error) string {
-	for _, candidate := range &gatewayErrorCodes {
+	for _, candidate := range &gatewayErrorMappings {
 		if errors.Is(err, candidate.target) {
 			return candidate.code
 		}

@@ -806,26 +806,33 @@ func TestTriggerEngineRegisterRejectsInvalidWebhookSecretConfiguration(t *testin
 func TestWebhookHelpersRejectInvalidInputs(t *testing.T) {
 	t.Parallel()
 
-	if _, err := ParseWebhookEndpoint("invalid-endpoint"); !errors.Is(err, ErrWebhookEndpointInvalid) {
-		t.Fatalf("ParseWebhookEndpoint(invalid) error = %v, want ErrWebhookEndpointInvalid", err)
-	}
-	if _, err := FormatWebhookEndpoint("", "wbh_123"); !errors.Is(err, ErrWebhookEndpointInvalid) {
-		t.Fatalf("FormatWebhookEndpoint(empty slug) error = %v, want ErrWebhookEndpointInvalid", err)
-	}
-	if err := ValidateWebhookSignature(
-		"secret",
-		time.Date(2026, 4, 11, 6, 0, 0, 0, time.UTC),
-		[]byte("body"),
-		"invalid",
-	); !errors.Is(
-		err,
-		ErrWebhookSignatureInvalid,
-	) {
-		t.Fatalf("ValidateWebhookSignature(invalid) error = %v, want ErrWebhookSignatureInvalid", err)
-	}
-	if err := ValidateWebhookTimestamp(time.Time{}, time.Now().UTC(), time.Minute); err == nil {
-		t.Fatal("ValidateWebhookTimestamp(zero timestamp) error = nil, want non-nil")
-	}
+	t.Run("Should reject malformed endpoint signature and timestamp inputs", func(t *testing.T) {
+		t.Parallel()
+
+		if _, err := ParseWebhookEndpoint("invalid-endpoint"); !errors.Is(err, ErrWebhookEndpointInvalid) {
+			t.Fatalf("ParseWebhookEndpoint(invalid) error = %v, want ErrWebhookEndpointInvalid", err)
+		}
+		if _, err := FormatWebhookEndpoint("", "wbh_123"); !errors.Is(err, ErrWebhookEndpointInvalid) {
+			t.Fatalf("FormatWebhookEndpoint(empty slug) error = %v, want ErrWebhookEndpointInvalid", err)
+		}
+		if _, err := FormatWebhookEndpoint("deploy", "wbh_bad/id"); !errors.Is(err, ErrWebhookEndpointInvalid) {
+			t.Fatalf("FormatWebhookEndpoint(path id) error = %v, want ErrWebhookEndpointInvalid", err)
+		}
+		if err := ValidateWebhookSignature(
+			"secret",
+			time.Date(2026, 4, 11, 6, 0, 0, 0, time.UTC),
+			[]byte("body"),
+			"invalid",
+		); !errors.Is(
+			err,
+			ErrWebhookSignatureInvalid,
+		) {
+			t.Fatalf("ValidateWebhookSignature(invalid) error = %v, want ErrWebhookSignatureInvalid", err)
+		}
+		if err := ValidateWebhookTimestamp(time.Time{}, time.Now().UTC(), time.Minute); err == nil {
+			t.Fatal("ValidateWebhookTimestamp(zero timestamp) error = nil, want non-nil")
+		}
+	})
 }
 
 func TestEnvelopeFilterValueHandlesNestedMapsAndScalarKinds(t *testing.T) {

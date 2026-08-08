@@ -159,36 +159,27 @@ func (c GatewayConfig) Validate() error {
 // Validate ensures a connection profile is safe to resolve from operator-global config.
 func (c GatewayConnectionConfig) Validate() error {
 	name := strings.TrimSpace(c.Name)
-	if !validGatewayConnectionName(name) {
+	if name != c.Name || !ValidGatewayConnectionName(name) {
 		return errors.New("name must contain only letters, digits, hyphens, or underscores")
 	}
 	scheme := strings.TrimSpace(c.Scheme)
-	if scheme != urlSchemeHTTPS && scheme != gatewayConnectionSchemeSSH {
+	if scheme != c.Scheme || scheme != urlSchemeHTTPS && scheme != gatewayConnectionSchemeSSH {
 		return errors.New("scheme must be https or ssh")
 	}
 	host := strings.TrimSpace(c.Host)
-	if host == "" || strings.ContainsAny(host, "/?#@\r\n\t") {
+	normalizedHost := strings.Trim(host, "[]")
+	if normalizedHost == "" || strings.ContainsAny(host, "/?#@\r\n\t") {
 		return errors.New("host must be a hostname or IP address")
 	}
-	if parsed := net.ParseIP(strings.Trim(host, "[]")); parsed == nil &&
+	if parsed := net.ParseIP(normalizedHost); parsed == nil &&
 		strings.Contains(host, ":") {
 		return errors.New("IPv6 hosts must be valid addresses")
 	}
 	if c.Port <= 0 || c.Port > maximumGatewayListenerPort {
 		return errors.New("port must be between 1 and 65535")
 	}
-	credentialFile := strings.TrimSpace(c.CredentialFile)
-	if scheme == urlSchemeHTTPS && credentialFile != name+".cred" {
-		return errors.New("HTTPS profile credential_file must match <name>.cred")
-	}
-	if scheme == urlSchemeHTTPS && strings.TrimSpace(c.RemoteHome) != "" {
-		return errors.New("HTTPS profiles cannot set remote_home")
-	}
-	if scheme == gatewayConnectionSchemeSSH && credentialFile != "" {
-		return errors.New("SSH profiles cannot reference a gateway credential")
-	}
-	if scheme == gatewayConnectionSchemeSSH && strings.TrimSpace(c.DefaultWorkspace) != "" {
-		return errors.New("SSH profiles cannot set default_workspace")
+	if err := validateGatewayConnectionSchemeFields(c, name, scheme); err != nil {
+		return err
 	}
 	if strings.ContainsAny(c.RemoteHome, "\x00\r\n") {
 		return errors.New("remote_home contains control characters")
@@ -196,7 +187,29 @@ func (c GatewayConnectionConfig) Validate() error {
 	return nil
 }
 
-func validGatewayConnectionName(name string) bool {
+func validateGatewayConnectionSchemeFields(
+	connection GatewayConnectionConfig,
+	name string,
+	scheme string,
+) error {
+	credentialFile := strings.TrimSpace(connection.CredentialFile)
+	if scheme == urlSchemeHTTPS && credentialFile != name+".cred" {
+		return errors.New("HTTPS profile credential_file must match <name>.cred")
+	}
+	if scheme == urlSchemeHTTPS && strings.TrimSpace(connection.RemoteHome) != "" {
+		return errors.New("HTTPS profiles cannot set remote_home")
+	}
+	if scheme == gatewayConnectionSchemeSSH && credentialFile != "" {
+		return errors.New("SSH profiles cannot reference a gateway credential")
+	}
+	if scheme == gatewayConnectionSchemeSSH && strings.TrimSpace(connection.DefaultWorkspace) != "" {
+		return errors.New("SSH profiles cannot set default_workspace")
+	}
+	return nil
+}
+
+// ValidGatewayConnectionName reports whether name is safe for config, paths, and keyring identities.
+func ValidGatewayConnectionName(name string) bool {
 	if name == "" || name == "." || name == ".." {
 		return false
 	}

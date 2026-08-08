@@ -144,6 +144,7 @@ func (d *Daemon) shutdownDetached(ctx context.Context, targets *shutdownTargets)
 }
 
 func (d *Daemon) shutdownServersAndHooks(ctx context.Context, targets *shutdownTargets, errs *[]error) {
+	// Withdraw gateway reachability before stopping the servers it advertises.
 	if targets.gateway != nil {
 		appendWrappedError(errs, "daemon: shutdown gateway", targets.gateway.Close(ctx))
 	}

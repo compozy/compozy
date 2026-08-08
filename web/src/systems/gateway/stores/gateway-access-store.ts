@@ -1,6 +1,11 @@
 import { createStore } from "@xstate/store";
 
-import { observeGatewayAccess, type GatewayAccessSignal } from "@/lib/gateway-access-signal";
+import {
+  observeGatewayAccess,
+  observeGatewayListenerTier,
+  type GatewayAccessSignal,
+  type GatewayListenerTier,
+} from "@/lib/gateway-access-signal";
 
 export type GatewayAccessState = "ok" | "unauthenticated" | "revoked";
 
@@ -17,7 +22,10 @@ export type GatewayAccessState = "ok" | "unauthenticated" | "revoked";
  * person is reading.
  */
 export const gatewayAccessStore = createStore({
-  context: { state: "ok" as GatewayAccessState },
+  context: {
+    state: "ok" as GatewayAccessState,
+    tier: undefined as GatewayListenerTier | undefined,
+  },
   on: {
     accessSignalled: (context, event: { signal: GatewayAccessSignal }) => {
       if (context.state === event.signal) return undefined;
@@ -25,23 +33,43 @@ export const gatewayAccessStore = createStore({
       return { ...context, state: event.signal };
     },
     accessRestored: context => {
-      if (context.state === "ok") return undefined;
-      return { ...context, state: "ok" as GatewayAccessState };
+      if (context.state === "ok" && context.tier === undefined) return undefined;
+      return { ...context, state: "ok" as GatewayAccessState, tier: undefined };
+    },
+    tierSignalled: (context, event: { tier: GatewayListenerTier }) => {
+      if (context.tier === event.tier) return undefined;
+      return { ...context, tier: event.tier };
     },
   },
 });
 
 let unobserve: (() => void) | null = null;
+let observerLeases = 0;
 
 /**
  * Binds the store to the shared transport. Idempotent so several mounts (or a
  * StrictMode double-invoke) keep exactly one subscription.
  */
 export function startGatewayAccessObserver(): () => void {
-  unobserve ??= observeGatewayAccess(signal =>
-    gatewayAccessStore.trigger.accessSignalled({ signal })
-  );
+  if (observerLeases === 0) {
+    const stopAccess = observeGatewayAccess(signal =>
+      gatewayAccessStore.trigger.accessSignalled({ signal })
+    );
+    const stopTier = observeGatewayListenerTier(tier =>
+      gatewayAccessStore.trigger.tierSignalled({ tier })
+    );
+    unobserve = () => {
+      stopAccess();
+      stopTier();
+    };
+  }
+  observerLeases += 1;
+  let released = false;
   return () => {
+    if (released) return;
+    released = true;
+    observerLeases -= 1;
+    if (observerLeases !== 0) return;
     unobserve?.();
     unobserve = null;
   };

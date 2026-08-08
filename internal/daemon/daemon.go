@@ -111,12 +111,12 @@ type Server interface {
 // ServerFactory constructs runtime components such as HTTP and UDS servers.
 type ServerFactory func(ctx context.Context, deps RuntimeDeps) (Server, error)
 
-// GatewayTierServerFactory constructs one daemon-owned loopback listener for a durable tier plan.
+// GatewayTierServerFactory constructs one daemon-owned loopback listener for a tier and its active surfaces.
 type GatewayTierServerFactory func(
-	context.Context,
-	*RuntimeDeps,
-	gateway.Tier,
-	[]gateway.Surface,
+	ctx context.Context,
+	deps *RuntimeDeps,
+	tier gateway.Tier,
+	surfaces []gateway.Surface,
 ) (Server, error)
 
 // DreamTrigger exposes consolidation controls and health state to transport layers.

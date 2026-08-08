@@ -27,7 +27,6 @@ var errAuthKeyBindingRequired = errors.New("connectivity-tailscale: TS_AUTHKEY b
 
 type tsnetNode struct {
 	server *tsnet.Server
-	logger *slog.Logger
 }
 
 func newTSNetNode(stateDir string, logger *slog.Logger) (tailscaleNode, error) {
@@ -55,7 +54,7 @@ func newTSNetNode(stateDir string, logger *slog.Logger) (tailscaleNode, error) {
 			logger.Debug("tailscale node diagnostic")
 		},
 	}
-	return &tsnetNode{server: server, logger: logger}, nil
+	return &tsnetNode{server: server}, nil
 }
 
 func (n *tsnetNode) Up(ctx context.Context) error {
@@ -69,14 +68,14 @@ func (n *tsnetNode) Up(ctx context.Context) error {
 }
 
 func (n *tsnetNode) ListenPrivate(ctx context.Context) (net.Listener, error) {
-	return listenWithContext(ctx, n.logger, func() (net.Listener, error) {
-		return n.server.ListenTLS("tcp", ":8443")
+	return listenWithContext(ctx, func() (net.Listener, error) {
+		return n.server.ListenTLS("tcp", ":"+privateListenerPort)
 	})
 }
 
 func (n *tsnetNode) ListenPublic(ctx context.Context) (net.Listener, error) {
-	return listenWithContext(ctx, n.logger, func() (net.Listener, error) {
-		return n.server.ListenFunnel("tcp", ":443", tsnet.FunnelOnly())
+	return listenWithContext(ctx, func() (net.Listener, error) {
+		return n.server.ListenFunnel("tcp", ":"+publicListenerPort, tsnet.FunnelOnly())
 	})
 }
 
@@ -106,47 +105,46 @@ func (n *tsnetNode) Close(ctx context.Context) error {
 	if n == nil || n.server == nil {
 		return nil
 	}
-	result := make(chan error, 1)
-	go func() {
-		result <- n.server.Close()
-	}()
-	select {
-	case err := <-result:
-		return err
-	case <-ctx.Done():
-		return fmt.Errorf("connectivity-tailscale: close node: %w", ctx.Err())
+	if err := runContextBoundOperation(ctx, n.server.Close); err != nil {
+		return fmt.Errorf("connectivity-tailscale: close node: %w", err)
 	}
-}
-
-type listenerResult struct {
-	listener net.Listener
-	err      error
+	return nil
 }
 
 func listenWithContext(
 	ctx context.Context,
-	logger *slog.Logger,
 	listen func() (net.Listener, error),
 ) (net.Listener, error) {
-	result := make(chan listenerResult, 1)
-	go func() {
-		listener, err := listen()
-		result <- listenerResult{listener: listener, err: err}
-	}()
-	select {
-	case outcome := <-result:
-		return outcome.listener, outcome.err
-	case <-ctx.Done():
-		go closeLateListener(result, logger)
-		return nil, fmt.Errorf("connectivity-tailscale: wait for listener: %w", ctx.Err())
+	if ctx == nil || listen == nil {
+		return nil, errors.New("connectivity-tailscale: listener dependencies are required")
 	}
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("connectivity-tailscale: wait for listener: %w", err)
+	}
+	listener, err := listen()
+	if err != nil {
+		return nil, err
+	}
+	if listener == nil {
+		return nil, errors.New("connectivity-tailscale: listener is required")
+	}
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		closeErr := listener.Close()
+		if errors.Is(closeErr, net.ErrClosed) {
+			closeErr = nil
+		}
+		return nil, errors.Join(
+			fmt.Errorf("connectivity-tailscale: wait for listener: %w", ctxErr),
+			closeErr,
+		)
+	}
+	return listener, nil
 }
 
-func closeLateListener(result <-chan listenerResult, logger *slog.Logger) {
-	outcome := <-result
-	if outcome.listener != nil {
-		if err := outcome.listener.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
-			logger.Error("close listener opened after deadline", "error", err)
-		}
+func runContextBoundOperation(ctx context.Context, operation func() error) error {
+	if ctx == nil || operation == nil {
+		return errors.New("connectivity-tailscale: operation dependencies are required")
 	}
+	operationErr := operation()
+	return errors.Join(operationErr, ctx.Err())
 }

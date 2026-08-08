@@ -139,15 +139,15 @@ func TestStringRedactsCanonicalSecretTaxonomy(t *testing.T) {
 
 			got := String(tc.input)
 			if tc.want != "" && got != tc.want {
-				t.Fatalf("String() = %q, want %q", got, tc.want)
+				t.Fatal("String() did not match the expected redacted output")
 			}
 			for _, leak := range tc.leaks {
 				if strings.Contains(got, leak) {
-					t.Fatalf("String() = %q leaked %q", got, leak)
+					t.Fatal("String() retained sensitive fixture material")
 				}
 			}
 			if !strings.Contains(got, Marker) {
-				t.Fatalf("String() = %q, want marker %q", got, Marker)
+				t.Fatal("String() omitted the redaction marker")
 			}
 		})
 	}

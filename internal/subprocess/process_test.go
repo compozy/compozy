@@ -608,6 +608,33 @@ func TestHealthCheckHealthyFalseMarksUnhealthyImmediately(t *testing.T) {
 	})
 }
 
+func TestHealthDetailsRetentionBound(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should retain redacted structured details within the diagnostic budget", func(t *testing.T) {
+		t.Parallel()
+
+		details := redactHealthDetails(json.RawMessage(`{"status":"sk-subprocess-health-secret"}`))
+		if len(details) == 0 || len(details) > maxHealthDiagnosticBytes {
+			t.Fatalf("redactHealthDetails() length = %d, want non-empty bounded details", len(details))
+		}
+		if strings.Contains(string(details), "sk-subprocess-health-secret") ||
+			!strings.Contains(string(details), redact.Marker) {
+			t.Fatalf("redactHealthDetails() retained sensitive material: %q", details)
+		}
+	})
+
+	t.Run("Should drop structured details that exceed the diagnostic budget", func(t *testing.T) {
+		t.Parallel()
+
+		details := redactHealthDetails(json.RawMessage(`{"value":"` +
+			strings.Repeat("x", maxHealthDiagnosticBytes) + `"}`))
+		if details != nil {
+			t.Fatalf("redactHealthDetails() length = %d, want dropped oversized details", len(details))
+		}
+	})
+}
+
 func TestStopHealthMonitorIsRaceFree(t *testing.T) {
 	t.Parallel()
 

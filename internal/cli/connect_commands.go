@@ -112,6 +112,9 @@ func newConnectUseCommand(deps commandDeps) *cobra.Command {
 			if profile.Scheme == gatewaySchemeSSH {
 				return errors.New("cli: SSH profiles are activated by `compozy connect ssh`")
 			}
+			if err := ensureGatewayProfileTransactionReady(homePaths.GatewayCredentialsDir, name); err != nil {
+				return err
+			}
 			if _, err := deps.readGatewayCredential(homePaths.GatewayCredentialsDir, name); err != nil {
 				return err
 			}

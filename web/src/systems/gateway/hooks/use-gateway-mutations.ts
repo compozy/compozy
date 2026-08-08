@@ -78,12 +78,8 @@ export function useDisableGatewayProvider() {
  * have marked spent or expired.
  */
 export function useMintGatewayPairing() {
-  const queryClient = useQueryClient();
   return useMutation<GatewayPairingArtifact, Error, void>({
     mutationFn: () => gatewayApi.mintPairing(),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: gatewayKeys.devices() });
-    },
   });
 }
 

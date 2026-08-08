@@ -12,7 +12,7 @@ import type {
  * accepts, so the UI offers exactly these and nothing more.
  */
 export interface GatewayExposureRow {
-  id: string;
+  id: GatewayExposureRowId;
   surface: GatewaySurface;
   tier: GatewayTier;
   desired: boolean;
@@ -30,6 +30,11 @@ export interface GatewayExposureRow {
   requiresConsent: boolean;
 }
 
+export type GatewayExposureRowId =
+  | "private-operator-ui"
+  | "public-webhook-ingress"
+  | "public-operator-ui";
+
 export interface GatewayExposureModel {
   /** `gateway.enabled` — the immutable configuration ceiling. */
   ceilingEnabled: boolean;
@@ -40,7 +45,7 @@ export interface GatewayExposureModel {
 }
 
 const LADDER: ReadonlyArray<{
-  id: string;
+  id: GatewayExposureRowId;
   surface: GatewaySurface;
   tier: GatewayTier;
   requiresConsent: boolean;

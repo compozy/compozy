@@ -1,7 +1,7 @@
 import { useLayoutEffect, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { useGatewayAccessState } from "../hooks/use-gateway-access";
+import { useGatewayAccessState, useGatewayAccessTier } from "../hooks/use-gateway-access";
 import { GatewayAccessEnded } from "./gateway-access-ended";
 import { GatewayPairingGate } from "./gateway-pairing-gate";
 
@@ -30,6 +30,7 @@ export interface GatewayAccessBoundaryProps {
  */
 export function GatewayAccessBoundary({ children, reload }: GatewayAccessBoundaryProps) {
   const access = useGatewayAccessState();
+  const tier = useGatewayAccessTier();
   const queryClient = useQueryClient();
   const blocked = access !== "ok";
 
@@ -39,6 +40,6 @@ export function GatewayAccessBoundary({ children, reload }: GatewayAccessBoundar
   }, [blocked, queryClient]);
 
   if (access === "revoked") return <GatewayAccessEnded />;
-  if (access === "unauthenticated") return <GatewayPairingGate reload={reload} />;
+  if (access === "unauthenticated") return <GatewayPairingGate reload={reload} tier={tier} />;
   return children;
 }

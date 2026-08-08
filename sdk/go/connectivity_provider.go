@@ -8,11 +8,22 @@ import (
 	"github.com/compozy/compozy/sdk/go/contracts"
 )
 
+// ConnectivityEstablishRequest is the daemon request to start one connectivity tier.
 type ConnectivityEstablishRequest = contracts.ConnectivityEstablishRequest
+
+// ConnectivityStatusRequest is the daemon request to inspect one connectivity tier.
 type ConnectivityStatusRequest = contracts.ConnectivityStatusRequest
+
+// ConnectivityTeardownRequest is the daemon request to stop one connectivity tier.
 type ConnectivityTeardownRequest = contracts.ConnectivityTeardownRequest
+
+// ConnectivityReachability reports the provider's current endpoints and health.
 type ConnectivityReachability = contracts.ConnectivityReachability
+
+// ConnectivityAdvertisedEndpoint is one endpoint claimed by a connectivity provider.
 type ConnectivityAdvertisedEndpoint = contracts.ConnectivityAdvertisedEndpoint
+
+// ConnectivityTeardownResponse reports whether a connectivity tier stopped.
 type ConnectivityTeardownResponse = contracts.ConnectivityTeardownResponse
 
 // ConnectivityProviderHandlers implements the three daemon-initiated provider services.
@@ -22,7 +33,8 @@ type ConnectivityProviderHandlers struct {
 	Teardown  func(context.Context, ExtensionContext, ConnectivityTeardownRequest) (ConnectivityTeardownResponse, error)
 }
 
-// ConnectivityProvider registers one public reachability provider on an extension runtime.
+// ConnectivityProvider registers one public reachability provider and advertises
+// CapabilityProvideConnectivityProvider on the extension runtime.
 func ConnectivityProvider(extension *Extension, handlers ConnectivityProviderHandlers) error {
 	if extension == nil {
 		return NewInternalError("extension is required")

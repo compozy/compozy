@@ -3,6 +3,7 @@ package gateway
 import (
 	"crypto/x509"
 	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -15,6 +16,25 @@ import (
 
 func TestEndpointVerifierChallengeProtocol(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should apply a live timeout to future endpoint probes", func(t *testing.T) {
+		t.Parallel()
+		verifier, err := NewEndpointVerifier(time.Second)
+		if err != nil {
+			t.Fatalf("NewEndpointVerifier() error = %v", err)
+		}
+		if err := verifier.ReconfigureTimeout(250 * time.Millisecond); err != nil {
+			t.Fatalf("ReconfigureTimeout() error = %v", err)
+		}
+		if got := verifier.Timeout(); got != 250*time.Millisecond {
+			t.Fatalf("Timeout() = %s, want 250ms", got)
+		}
+		_, _, dialer, _ := verifier.configuration()
+		networkDialer, ok := dialer.(*net.Dialer)
+		if !ok || networkDialer.Timeout != 250*time.Millisecond {
+			t.Fatalf("configured dialer = %#v, want 250ms timeout", dialer)
+		}
+	})
 
 	t.Run("Should verify the assigned tier challenge nonce [UT-063]", func(t *testing.T) {
 		t.Parallel()
@@ -90,6 +110,37 @@ func TestEndpointVerifierSafetyPolicy(t *testing.T) {
 		}, testChallengePath(), "nonce")
 		if !errors.Is(err, ErrEndpointUnverified) {
 			t.Fatalf("Verify() error = %v, want ErrEndpointUnverified", err)
+		}
+	})
+
+	t.Run("Should allow a declared tailnet scheme only on the private tier", func(t *testing.T) {
+		t.Parallel()
+		verifier, endpoint := newChallengeVerifier(t, func(w http.ResponseWriter, _ *http.Request) {
+			if _, err := w.Write([]byte("nonce")); err != nil {
+				return
+			}
+		})
+		endpoint.URL = strings.Replace(endpoint.URL, "https://", "tsnet://", 1)
+		endpoint.Scheme = "tsnet"
+		endpoint.SchemePolicy = EndpointSchemePolicyTailnetInternal
+
+		if err := verifier.Verify(
+			testutil.Context(t), TierPrivate, endpoint, testChallengePath(), "nonce",
+		); err != nil {
+			t.Fatalf("Verify(private tailnet endpoint) error = %v", err)
+		}
+		if err := verifier.Verify(
+			testutil.Context(t), TierPublic, endpoint, testChallengePath(), "nonce",
+		); !errors.Is(err, ErrEndpointUnverified) {
+			t.Fatalf("Verify(public tailnet endpoint) error = %v, want ErrEndpointUnverified", err)
+		}
+
+		undeclared := endpoint
+		undeclared.SchemePolicy = ""
+		if err := verifier.Verify(
+			testutil.Context(t), TierPrivate, undeclared, testChallengePath(), "nonce",
+		); !errors.Is(err, ErrEndpointUnverified) {
+			t.Fatalf("Verify(undeclared private scheme) error = %v, want ErrEndpointUnverified", err)
 		}
 	})
 

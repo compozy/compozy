@@ -66,6 +66,7 @@ type GatewayIngressPayload struct {
 	EnablePath                  string     `json:"enable_path,omitempty"`
 }
 
+// GatewayTierPayload reports desired and observed state for one gateway tier.
 type GatewayTierPayload struct {
 	Tier            string `json:"tier"`
 	Desired         string `json:"desired"`
@@ -74,6 +75,7 @@ type GatewayTierPayload struct {
 	Advertised      bool   `json:"advertised"`
 }
 
+// GatewaySurfacePayload reports exposure state for one gateway surface.
 type GatewaySurfacePayload struct {
 	Surface    string `json:"surface"`
 	Tier       string `json:"tier"`
@@ -82,6 +84,7 @@ type GatewaySurfacePayload struct {
 	Generation uint64 `json:"generation"`
 }
 
+// GatewayProviderPayload reports lifecycle and health for one connectivity provider.
 type GatewayProviderPayload struct {
 	Name       string `json:"name"`
 	Tier       string `json:"tier"`
@@ -92,17 +95,20 @@ type GatewayProviderPayload struct {
 	Cause      string `json:"cause,omitempty"`
 }
 
+// GatewayAddressPayload reports one listener address without credential material.
 type GatewayAddressPayload struct {
 	Tier    string `json:"tier"`
 	Address string `json:"address"`
 	Live    bool   `json:"live"`
 }
 
+// GatewayRefusalPayload explains why exposure was refused and how to resolve it.
 type GatewayRefusalPayload struct {
 	Cause string `json:"cause"`
 	Fix   string `json:"fix"`
 }
 
+// GatewayDevicePayload is the redacted representation of one paired device.
 type GatewayDevicePayload struct {
 	ID            string     `json:"id"`
 	Name          string     `json:"name"`
@@ -114,31 +120,37 @@ type GatewayDevicePayload struct {
 	RevokedAt     *time.Time `json:"revoked_at,omitempty"`
 }
 
+// GatewayPairingArtifactPayload carries one short-lived, single-use pairing artifact.
 type GatewayPairingArtifactPayload struct {
 	Artifact  string    `json:"artifact"`
 	ExpiresAt time.Time `json:"expires_at"`
 }
 
+// GatewayIssuedCredentialPayload carries a paired device and its one-time credential.
 type GatewayIssuedCredentialPayload struct {
 	Device     GatewayDevicePayload `json:"device"`
 	Credential string               `json:"credential,omitempty"`
 }
 
+// GatewayRevokePayload reports the result of revoking a paired device.
 type GatewayRevokePayload struct {
 	Device   GatewayDevicePayload `json:"device"`
 	Changed  bool                 `json:"changed"`
 	Canceled int                  `json:"canceled"`
 }
 
+// GatewayStreamTicketPayload carries one short-lived, single-use stream ticket.
 type GatewayStreamTicketPayload struct {
 	Ticket    string    `json:"ticket"`
 	ExpiresAt time.Time `json:"expires_at"`
 }
 
+// GatewayDevicesResponse wraps the redacted paired-device inventory.
 type GatewayDevicesResponse struct {
 	Devices []GatewayDevicePayload `json:"devices"`
 }
 
+// GatewaySurfaceRequest changes one gateway surface using optimistic concurrency.
 type GatewaySurfaceRequest struct {
 	Surface            string `json:"surface"             binding:"required"`
 	Tier               string `json:"tier"                binding:"required"`
@@ -147,6 +159,7 @@ type GatewaySurfaceRequest struct {
 	Consent            bool   `json:"consent"`
 }
 
+// GatewayProviderEnableRequest enables one provider from a confirmed install source.
 type GatewayProviderEnableRequest struct {
 	Tier               string `json:"tier"                       binding:"required"`
 	InstallSource      string `json:"install_source"             binding:"required"`
@@ -154,6 +167,7 @@ type GatewayProviderEnableRequest struct {
 	ExpectedGeneration uint64 `json:"expected_generation"`
 }
 
+// GatewayPairingRedeemRequest exchanges a pairing artifact for a device credential.
 type GatewayPairingRedeemRequest struct {
 	Artifact   string `json:"artifact"             binding:"required"`
 	Name       string `json:"name"                 binding:"required"`
@@ -161,21 +175,25 @@ type GatewayPairingRedeemRequest struct {
 	Credential string `json:"credential,omitempty"`
 }
 
+// GatewayDeviceRenameRequest changes a paired device's operator-visible name.
 type GatewayDeviceRenameRequest struct {
 	Name string `json:"name" binding:"required"`
 }
 
+// GatewayIngressBindRequest confirms public ingress for one supported subject.
 type GatewayIngressBindRequest struct {
 	SubjectKind string `json:"subject_kind" binding:"required"`
 	SubjectID   string `json:"subject_id"   binding:"required"`
 	Confirmed   bool   `json:"confirmed"    binding:"required"`
 }
 
+// GatewayIngressBindingResponse reports the projected binding and whether it changed.
 type GatewayIngressBindingResponse struct {
 	Binding GatewayIngressPayload `json:"binding"`
 	Changed bool                  `json:"changed"`
 }
 
+// GatewayIngressUnbindResponse reports the subject removed from public ingress.
 type GatewayIngressUnbindResponse struct {
 	SubjectKind string `json:"subject_kind"`
 	SubjectID   string `json:"subject_id"`

@@ -8,6 +8,7 @@ import {
   startGatewayAccessObserver,
   type GatewayAccessState,
 } from "../stores/gateway-access-store";
+import type { GatewayListenerTier } from "@/lib/gateway-access-signal";
 import type { GatewayRedeemResult } from "../types";
 
 /**
@@ -18,6 +19,11 @@ import type { GatewayRedeemResult } from "../types";
 export function useGatewayAccessState(): GatewayAccessState {
   useEffect(() => startGatewayAccessObserver(), []);
   return useSelector(gatewayAccessStore, snapshot => snapshot.context.state);
+}
+
+export function useGatewayAccessTier(): GatewayListenerTier | undefined {
+  useEffect(() => startGatewayAccessObserver(), []);
+  return useSelector(gatewayAccessStore, snapshot => snapshot.context.tier);
 }
 
 export interface RedeemPairingInput {

@@ -15,12 +15,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/session"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 	"github.com/gin-gonic/gin"
 )
 
@@ -264,6 +268,188 @@ func TestCreateAutomationTriggerRejectsInvalidWebhookID(t *testing.T) {
 	}
 	if body := response.Body.String(); !strings.Contains(body, "webhook_id") {
 		t.Fatalf("body = %q, want webhook_id validation detail", body)
+	}
+}
+
+func TestAutomationTriggerWritesAuthorizeBeforeMutation(t *testing.T) {
+	t.Parallel()
+
+	const (
+		callerWorkspace = "ws_aaaaaaaaaaaaaaaa"
+		targetWorkspace = "ws_bbbbbbbbbbbbbbbb"
+	)
+	current := automationpkg.Trigger{
+		ID: "trigger-foreign", Scope: automationpkg.AutomationScopeWorkspace,
+		WorkspaceID: targetWorkspace, Name: "deploy-review", AgentName: "coder",
+		Prompt: "review", Event: "webhook", Source: automationpkg.JobSourceDynamic,
+		WebhookID: "wbh_123", EndpointSlug: "deploy-review", Enabled: true,
+		Retry: automationpkg.DefaultRetryConfig(), FireLimit: automationpkg.DefaultFireLimitConfig(),
+	}
+
+	for _, testCase := range []struct {
+		name   string
+		method string
+		path   string
+		body   string
+	}{
+		{
+			name:   "Should deny creating a trigger in another workspace before persistence",
+			method: http.MethodPost, path: "/automation/triggers",
+			body: `{"scope":"workspace","workspace_id":"` + targetWorkspace +
+				`","name":"deploy-review","agent_name":"coder","prompt":"review","event":"webhook",` +
+				`"endpoint_slug":"deploy-review","webhook_id":"wbh_123","webhook_secret_value":"secret"}`,
+		},
+		{
+			name:   "Should deny updating a trigger in another workspace before persistence",
+			method: http.MethodPatch, path: "/automation/triggers/" + current.ID,
+			body: `{"prompt":"updated"}`,
+		},
+		{
+			name:   "Should deny deleting a trigger in another workspace before persistence",
+			method: http.MethodDelete, path: "/automation/triggers/" + current.ID,
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			manager := stubAutomationManager{
+				GetTriggerFn: func(context.Context, string) (automationpkg.Trigger, error) {
+					return current, nil
+				},
+				CreateTriggerFn: func(
+					context.Context,
+					automationpkg.Trigger,
+					automationpkg.WebhookSecretWrite,
+				) (automationpkg.Trigger, error) {
+					t.Fatal("CreateTrigger() called before workspace authorization")
+					return automationpkg.Trigger{}, nil
+				},
+				UpdateTriggerFn: func(
+					context.Context,
+					automationpkg.Trigger,
+					*automationpkg.WebhookSecretWrite,
+				) (automationpkg.Trigger, error) {
+					t.Fatal("UpdateTrigger() called before workspace authorization")
+					return automationpkg.Trigger{}, nil
+				},
+				DeleteTriggerFn: func(context.Context, string) error {
+					t.Fatal("DeleteTrigger() called before workspace authorization")
+					return nil
+				},
+			}
+			router := newAutomationCoreTestRouter(t, manager, func(config *BaseHandlerConfig) {
+				config.Sessions = sessionManagerStub{status: func(_ context.Context, id string) (*session.Info, error) {
+					return &session.Info{
+						ID: id, AgentName: "coder", WorkspaceID: callerWorkspace, State: session.StateActive,
+					}, nil
+				}}
+				config.Workspaces = workspaceServiceStub{
+					resolve: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+						return workspacepkg.ResolvedWorkspace{
+							Workspace: workspacepkg.Workspace{ID: ref}, WorkspaceID: ref,
+						}, nil
+					},
+				}
+				config.WorkspaceAccess = automationWorkspaceAccessPolicyFunc(
+					func(_ context.Context, req workspaceaccess.Request) (workspaceaccess.Decision, error) {
+						if req.Actor.WorkspaceID != callerWorkspace || req.TargetWorkspaceID != targetWorkspace {
+							t.Fatalf("Authorize() request = %#v", req)
+						}
+						return workspaceaccess.Decision{Source: workspaceaccess.SourceDenied}, nil
+					},
+				)
+			})
+			response := performAutomationCoreRequest(
+				t,
+				router,
+				testCase.method,
+				testCase.path,
+				[]byte(testCase.body),
+				map[string]string{
+					agentidentity.HeaderSessionID: "sess-agent",
+					agentidentity.HeaderAgent:     "coder",
+				},
+			)
+			if response.Code != http.StatusForbidden {
+				t.Fatalf("status = %d, want %d; body=%s", response.Code, http.StatusForbidden, response.Body.String())
+			}
+		})
+	}
+}
+
+func TestAutomationTriggerWritesKeepCommittedResultWhenIngressEnrichmentFails(t *testing.T) {
+	t.Parallel()
+
+	trigger := automationpkg.Trigger{
+		ID: "trigger-committed", Scope: automationpkg.AutomationScopeGlobal,
+		Name: "deploy-review", AgentName: "coder", Prompt: "review", Event: "webhook",
+		Source: automationpkg.JobSourceDynamic, WebhookID: "wbh_123", EndpointSlug: "deploy-review",
+		Enabled: true, Retry: automationpkg.DefaultRetryConfig(), FireLimit: automationpkg.DefaultFireLimitConfig(),
+	}
+	projectionErr := errors.New("projection unavailable")
+
+	for _, testCase := range []struct {
+		name    string
+		method  string
+		path    string
+		body    string
+		manager stubAutomationManager
+		want    int
+	}{
+		{
+			name:   "Should return the committed create result when ingress enrichment fails",
+			method: http.MethodPost, path: "/automation/triggers",
+			body: `{"scope":"global","name":"deploy-review","agent_name":"coder","prompt":"review",` +
+				`"event":"webhook","endpoint_slug":"deploy-review","webhook_id":"wbh_123",` +
+				`"webhook_secret_value":"secret"}`,
+			manager: stubAutomationManager{CreateTriggerFn: func(
+				context.Context,
+				automationpkg.Trigger,
+				automationpkg.WebhookSecretWrite,
+			) (automationpkg.Trigger, error) {
+				return trigger, nil
+			}},
+			want: http.StatusCreated,
+		},
+		{
+			name:   "Should return the committed update result when ingress enrichment fails",
+			method: http.MethodPatch, path: "/automation/triggers/" + trigger.ID,
+			body: `{"prompt":"updated"}`,
+			manager: stubAutomationManager{
+				GetTriggerFn: func(context.Context, string) (automationpkg.Trigger, error) {
+					return trigger, nil
+				},
+				UpdateTriggerFn: func(
+					_ context.Context,
+					updated automationpkg.Trigger,
+					_ *automationpkg.WebhookSecretWrite,
+				) (automationpkg.Trigger, error) {
+					return updated, nil
+				},
+			},
+			want: http.StatusOK,
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			router := newAutomationCoreTestRouter(t, testCase.manager, func(config *BaseHandlerConfig) {
+				config.Gateway = gatewayServiceStub{
+					project: func(context.Context, gateway.IngressSubjectRef) (gateway.IngressProjection, error) {
+						return gateway.IngressProjection{}, projectionErr
+					},
+				}
+			})
+			response := performAutomationCoreRequest(
+				t, router, testCase.method, testCase.path, []byte(testCase.body), nil,
+			)
+			if response.Code != testCase.want {
+				t.Fatalf("status = %d, want %d; body=%s", response.Code, testCase.want, response.Body.String())
+			}
+			var payload contract.TriggerResponse
+			decodeAutomationCoreJSON(t, response, &payload)
+			if payload.Trigger.ID != trigger.ID || payload.Trigger.Ingress != nil {
+				t.Fatalf("trigger payload = %#v, want committed trigger without ingress enrichment", payload.Trigger)
+			}
+		})
 	}
 }
 
@@ -1637,7 +1823,11 @@ func TestAutomationHandlersRequireConfiguredManager(t *testing.T) {
 	}
 }
 
-func newAutomationCoreTestRouter(t *testing.T, automation stubAutomationManager) *gin.Engine {
+func newAutomationCoreTestRouter(
+	t *testing.T,
+	automation stubAutomationManager,
+	configure ...func(*BaseHandlerConfig),
+) *gin.Engine {
 	t.Helper()
 
 	gin.SetMode(gin.TestMode)
@@ -1647,7 +1837,7 @@ func newAutomationCoreTestRouter(t *testing.T, automation stubAutomationManager)
 	}
 	cfg := compozyconfig.DefaultWithHome(homePaths)
 
-	handlers := NewBaseHandlers(&BaseHandlerConfig{
+	config := &BaseHandlerConfig{
 		TransportName: "core-automation-test",
 		Automation:    automation,
 		HomePaths:     homePaths,
@@ -1657,7 +1847,11 @@ func newAutomationCoreTestRouter(t *testing.T, automation stubAutomationManager)
 		Now: func() time.Time {
 			return time.Date(2026, 4, 11, 12, 0, 1, 0, time.UTC)
 		},
-	})
+	}
+	for _, apply := range configure {
+		apply(config)
+	}
+	handlers := NewBaseHandlers(config)
 
 	engine := gin.New()
 	engine.GET("/automation/jobs", handlers.ListAutomationJobs)
@@ -1756,6 +1950,18 @@ type stubAutomationManager struct {
 	SetJobEnabledFn     func(context.Context, string, bool) (automationpkg.Job, error)
 	SetTriggerEnabledFn func(context.Context, string, bool) (automationpkg.Trigger, error)
 	HandleWebhookFn     func(context.Context, automationpkg.WebhookRequest) (automationpkg.TriggerResult, error)
+}
+
+type automationWorkspaceAccessPolicyFunc func(
+	context.Context,
+	workspaceaccess.Request,
+) (workspaceaccess.Decision, error)
+
+func (f automationWorkspaceAccessPolicyFunc) Authorize(
+	ctx context.Context,
+	req workspaceaccess.Request,
+) (workspaceaccess.Decision, error) {
+	return f(ctx, req)
 }
 
 func (s stubAutomationManager) ListSuggestions(

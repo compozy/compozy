@@ -285,6 +285,11 @@ func TestWebhookLocalTargetContract(t *testing.T) {
 				wantErrSub: "valid webhook listen port",
 			},
 			{
+				name:       "Should reject a non-canonical signed port",
+				config:     `{"webhook":{"listen_addr":"127.0.0.1:+43123","path":"/callback"}}`,
+				wantErrSub: "valid webhook listen port",
+			},
+			{
 				name:       "Should reject a missing callback path",
 				config:     `{"webhook":{"listen_addr":"127.0.0.1:43123"}}`,
 				wantErrSub: "webhook path is required",

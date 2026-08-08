@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"math"
 	"time"
 
 	"github.com/compozy/compozy/internal/gateway"
@@ -242,8 +241,5 @@ func (g *GatewayRepo) classifyDeviceMutationMiss(
 }
 
 func gatewayDeviceEpoch(value uint64) (int64, error) {
-	if value > math.MaxInt64 {
-		return 0, fmt.Errorf("store: gateway device epoch exceeds SQLite integer range: %d", value)
-	}
-	return int64(value), nil
+	return gatewaySQLiteInteger("device epoch", value)
 }

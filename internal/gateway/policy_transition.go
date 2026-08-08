@@ -10,6 +10,7 @@ import (
 func (p *policy) Transition(ctx context.Context, req TransitionRequest) (Status, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	req.Provider = req.Provider.normalized()
 
 	if err := p.validateTransition(ctx, req); err != nil {
 		p.setRefusal(err)
@@ -139,12 +140,6 @@ func (p *policy) validateTransition(ctx context.Context, req TransitionRequest) 
 }
 
 func (p *policy) validateTransitionRequest(req TransitionRequest) error {
-	if strings.TrimSpace(req.LegacyMode) != "" {
-		return refusalError(
-			"legacy exposure mode "+fmt.Sprintf("%q", req.LegacyMode)+" is not supported",
-			"choose an explicit provider or surface transition for the private or public tier",
-		)
-	}
 	if err := req.Tier.Validate(); err != nil {
 		return refusalError(err.Error(), "choose private or public")
 	}

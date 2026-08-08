@@ -88,7 +88,8 @@ export function gatewayTierFixture(input: {
         cause: input.cause ?? "",
         desired: "enabled",
         generation: 1,
-        health: input.observed === "up" ? "healthy" : input.observed,
+        health:
+          input.observed === "up" ? "healthy" : input.observed === "degraded" ? "degraded" : "down",
         name: "connectivity-fixture",
         observed: input.observed,
         tier: input.tier,
@@ -124,12 +125,19 @@ export function gatewayTierFixture(input: {
 export function gatewayAuditFixture(
   overrides: Partial<GatewayAuditReport> = {}
 ): GatewayAuditReport {
+  const status = overrides.status ?? gatewayStatusFixture();
+  const activeDeviceCount = status.devices.filter(device => !device.revoked_at).length;
+  const revokedDeviceCount = status.devices.length - activeDeviceCount;
   return {
-    auth: { active_device_count: 1, mode: "device_session", required_remotely: true },
+    auth: {
+      active_device_count: activeDeviceCount,
+      mode: "device_session",
+      required_remotely: true,
+    },
     device_highlights: {
-      active: 1,
+      active: activeDeviceCount,
       recently_paired: 0,
-      revoked: 0,
+      revoked: revokedDeviceCount,
       stale: 0,
       stale_device_ids: [],
     },
@@ -137,7 +145,7 @@ export function gatewayAuditFixture(
     local_only: true,
     no_findings: true,
     ran: true,
-    status: gatewayStatusFixture(),
+    status,
     ...overrides,
   };
 }

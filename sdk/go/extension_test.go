@@ -564,105 +564,92 @@ func TestStdioRuntimeProvidesAndCallsWatchSource(t *testing.T) {
 
 func TestStdioRuntimeProvidesConnectivityProvider(t *testing.T) {
 	t.Parallel()
-	runtime := newRuntimeHarness(t)
-	extension := compozysdk.NewExtension(
-		compozysdk.ExtensionDefinition{Name: "Go Connectivity", Version: "0.1.0"},
-		compozysdk.WithStdio(runtime.extensionInput, runtime.extensionOutput),
-		compozysdk.WithStderr(io.Discard),
-	)
-	if err := compozysdk.ConnectivityProvider(extension, compozysdk.ConnectivityProviderHandlers{
-		Establish: func(
-			_ context.Context,
-			_ compozysdk.ExtensionContext,
-			req compozysdk.ConnectivityEstablishRequest,
-		) (compozysdk.ConnectivityReachability, error) {
-			return connectivitySDKReachability(req.Tier), nil
-		},
-		Status: func(
-			_ context.Context,
-			_ compozysdk.ExtensionContext,
-			req compozysdk.ConnectivityStatusRequest,
-		) (compozysdk.ConnectivityReachability, error) {
-			return connectivitySDKReachability(req.Tier), nil
-		},
-		Teardown: func(
-			context.Context,
-			compozysdk.ExtensionContext,
-			compozysdk.ConnectivityTeardownRequest,
-		) (compozysdk.ConnectivityTeardownResponse, error) {
-			return compozysdk.ConnectivityTeardownResponse{Stopped: true}, nil
-		},
-	}); err != nil {
-		t.Fatalf("ConnectivityProvider() error = %v", err)
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	done := make(chan error, 1)
-	go func() { done <- extension.Run(ctx) }()
-	t.Cleanup(func() {
-		cancel()
-		if err := runtime.closeInput(); err != nil && !errors.Is(err, io.ErrClosedPipe) {
-			t.Fatalf("close input error = %v", err)
+
+	t.Run("Should serve every connectivity provider method over stdio", func(t *testing.T) {
+		t.Parallel()
+		runtime := newRuntimeHarness(t)
+		extension := compozysdk.NewExtension(
+			compozysdk.ExtensionDefinition{Name: "Go Connectivity", Version: "0.1.0"},
+			compozysdk.WithStdio(runtime.extensionInput, runtime.extensionOutput),
+			compozysdk.WithStderr(io.Discard),
+		)
+		if err := compozysdk.ConnectivityProvider(extension, validConnectivityHandlers()); err != nil {
+			t.Fatalf("ConnectivityProvider() error = %v", err)
 		}
-		select {
-		case <-done:
-		case <-time.After(time.Second):
-			t.Fatal("extension runtime did not stop")
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		done := make(chan error, 1)
+		go func() { done <- extension.Run(ctx) }()
+		t.Cleanup(func() {
+			cancel()
+			if err := runtime.closeInput(); err != nil && !errors.Is(err, io.ErrClosedPipe) {
+				t.Fatalf("close input error = %v", err)
+			}
+			select {
+			case <-done:
+			case <-time.After(time.Second):
+				t.Fatal("extension runtime did not stop")
+			}
+		})
+		params := initializeParams("Go Connectivity")
+		params["capabilities"].(map[string]any)["provides"] = []string{"connectivity.provider"}
+		params["methods"].(map[string]any)["extension_services"] = []string{
+			"connectivity/establish", "connectivity/status", "connectivity/teardown",
+		}
+		initialize := runtime.call(t, 1, "initialize", params)
+		if initialize.Error != nil {
+			t.Fatalf("initialize error = %#v", initialize.Error)
+		}
+		var initResult compozysdk.InitializeResponse
+		decodeResult(t, initialize.Result, &initResult)
+		for _, method := range []string{"connectivity/establish", "connectivity/status", "connectivity/teardown"} {
+			if !contains(initResult.ImplementedMethods, method) {
+				t.Fatalf("implemented methods = %#v, want %s", initResult.ImplementedMethods, method)
+			}
+		}
+		deadline := time.Now().Add(time.Second).UTC()
+		establish := runtime.call(t, 2, "connectivity/establish", map[string]any{
+			"tier": "private", "forward_target": "127.0.0.1:43210",
+			"challenge_path": "/.well-known/compozy/gateway-challenge/sdk",
+			"deadline":       deadline.Format(time.RFC3339Nano),
+		})
+		if establish.Error != nil {
+			t.Fatalf("connectivity/establish error = %#v", establish.Error)
+		}
+		var reachability compozysdk.ConnectivityReachability
+		decodeResult(t, establish.Result, &reachability)
+		if reachability.Tier != "private" || reachability.Health != "healthy" || len(reachability.Endpoints) != 1 {
+			t.Fatalf("connectivity reachability = %#v", reachability)
+		}
+		status := runtime.call(t, 3, "connectivity/status", map[string]any{"tier": "private"})
+		if status.Error != nil {
+			t.Fatalf("connectivity/status error = %#v", status.Error)
+		}
+		var statusReachability compozysdk.ConnectivityReachability
+		decodeResult(t, status.Result, &statusReachability)
+		if statusReachability.Tier != "private" || statusReachability.Health != "healthy" || len(statusReachability.Endpoints) != 1 {
+			t.Fatalf("connectivity status = %#v", statusReachability)
+		}
+		teardown := runtime.call(t, 4, "connectivity/teardown", map[string]any{
+			"tier": "private", "deadline": deadline.Format(time.RFC3339Nano),
+		})
+		if teardown.Error != nil {
+			t.Fatalf("connectivity/teardown error = %#v", teardown.Error)
+		}
+		var stopped compozysdk.ConnectivityTeardownResponse
+		decodeResult(t, teardown.Result, &stopped)
+		if !stopped.Stopped {
+			t.Fatal("connectivity teardown stopped = false")
+		}
+		malformed := runtime.call(t, 5, "connectivity/status", map[string]any{"tier": 42})
+		if malformed.Error == nil {
+			t.Fatal("connectivity/status malformed error = nil")
+		}
+		unimplemented := runtime.call(t, 6, "connectivity/not-implemented", map[string]any{})
+		if unimplemented.Error == nil {
+			t.Fatal("unimplemented connectivity method error = nil")
 		}
 	})
-	params := initializeParams("Go Connectivity")
-	params["capabilities"].(map[string]any)["provides"] = []string{"connectivity.provider"}
-	params["methods"].(map[string]any)["extension_services"] = []string{
-		"connectivity/establish", "connectivity/status", "connectivity/teardown",
-	}
-	initialize := runtime.call(t, 1, "initialize", params)
-	if initialize.Error != nil {
-		t.Fatalf("initialize error = %#v", initialize.Error)
-	}
-	var initResult compozysdk.InitializeResponse
-	decodeResult(t, initialize.Result, &initResult)
-	for _, method := range []string{"connectivity/establish", "connectivity/status", "connectivity/teardown"} {
-		if !contains(initResult.ImplementedMethods, method) {
-			t.Fatalf("implemented methods = %#v, want %s", initResult.ImplementedMethods, method)
-		}
-	}
-	deadline := time.Now().Add(time.Second).UTC()
-	establish := runtime.call(t, 2, "connectivity/establish", map[string]any{
-		"tier": "private", "forward_target": "127.0.0.1:43210",
-		"challenge_path": "/.well-known/compozy/gateway-challenge/sdk",
-		"deadline":       deadline.Format(time.RFC3339Nano),
-	})
-	if establish.Error != nil {
-		t.Fatalf("connectivity/establish error = %#v", establish.Error)
-	}
-	var reachability compozysdk.ConnectivityReachability
-	decodeResult(t, establish.Result, &reachability)
-	if reachability.Tier != "private" || reachability.Health != "healthy" || len(reachability.Endpoints) != 1 {
-		t.Fatalf("connectivity reachability = %#v", reachability)
-	}
-	status := runtime.call(t, 3, "connectivity/status", map[string]any{"tier": "private"})
-	if status.Error != nil {
-		t.Fatalf("connectivity/status error = %#v", status.Error)
-	}
-	teardown := runtime.call(t, 4, "connectivity/teardown", map[string]any{
-		"tier": "private", "deadline": deadline.Format(time.RFC3339Nano),
-	})
-	if teardown.Error != nil {
-		t.Fatalf("connectivity/teardown error = %#v", teardown.Error)
-	}
-	var stopped compozysdk.ConnectivityTeardownResponse
-	decodeResult(t, teardown.Result, &stopped)
-	if !stopped.Stopped {
-		t.Fatal("connectivity teardown stopped = false")
-	}
-	malformed := runtime.call(t, 5, "connectivity/status", map[string]any{"tier": 42})
-	if malformed.Error == nil {
-		t.Fatal("connectivity/status malformed error = nil")
-	}
-	unimplemented := runtime.call(t, 6, "connectivity/not-implemented", map[string]any{})
-	if unimplemented.Error == nil {
-		t.Fatal("unimplemented connectivity method error = nil")
-	}
 }
 
 func TestConnectivityProviderRegistrationIsAtomic(t *testing.T) {

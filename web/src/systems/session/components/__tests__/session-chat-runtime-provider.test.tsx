@@ -5,6 +5,7 @@ import { useAui, useAuiState, type ThreadMessage } from "@assistant-ui/react";
 import { StrictMode, useEffect, useLayoutEffect, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { observeGatewayAccess, type GatewayAccessSignal } from "@/lib/gateway-access-signal";
 import { resetGatewayStreamAuth } from "@/lib/gateway-stream-auth";
 import { SessionThread } from "@/components/assistant-ui/session-thread";
 import { createSessionPromptDispatchStore } from "@/components/assistant-ui/session-prompt-dispatch-store";
@@ -688,6 +689,8 @@ describe("SessionChatRuntimeProvider", () => {
   let goalCommandFailureReason: "goal_objective_required" | "goal_objective_too_large" | null =
     null;
   let lastPromptMessageID = "";
+  let promptResponseSequence = 0;
+  let streamTickets: string[] = [];
   let fetchMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
@@ -708,6 +711,8 @@ describe("SessionChatRuntimeProvider", () => {
     olderTranscriptMessages = [];
     goalCommandFailureReason = null;
     lastPromptMessageID = "";
+    promptResponseSequence = 0;
+    streamTickets = [];
     fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const requestURL = getRequestURL(input);
       const pathname = requestURL.pathname;
@@ -716,6 +721,19 @@ describe("SessionChatRuntimeProvider", () => {
       // whether this listener authenticates streams with a ticket. A local
       // listener does not register the minting route.
       if (pathname === "/api/gateway/stream-tickets") {
+        const ticket = streamTickets.shift();
+        if (ticket) {
+          return jsonResponse(
+            { ticket, expires_at: "2026-08-07T00:00:00Z" },
+            {
+              status: 201,
+              headers: {
+                "Content-Type": "application/json",
+                "X-Compozy-Gateway-Tier": "private",
+              },
+            }
+          );
+        }
         return jsonResponse({ error: "not found" }, { status: 404 });
       }
 
@@ -807,11 +825,14 @@ describe("SessionChatRuntimeProvider", () => {
             { status: 422 }
           );
         }
+        promptResponseSequence += 1;
+        const runtimeMessageID = `turn-runtime-${String(promptResponseSequence).padStart(3, "0")}`;
+        const runtimeTextID = `${runtimeMessageID}-text-1`;
         return sseResponse([
-          'data: {"type":"start","messageId":"turn-runtime-001"}\n\n',
-          'data: {"type":"text-start","id":"turn-runtime-001-text-1"}\n\n',
-          'data: {"type":"text-delta","id":"turn-runtime-001-text-1","delta":"Live runtime answer before transcript reconciliation."}\n\n',
-          'data: {"type":"text-end","id":"turn-runtime-001-text-1"}\n\n',
+          `data: {"type":"start","messageId":"${runtimeMessageID}"}\n\n`,
+          `data: {"type":"text-start","id":"${runtimeTextID}"}\n\n`,
+          `data: {"type":"text-delta","id":"${runtimeTextID}","delta":"Live runtime answer before transcript reconciliation."}\n\n`,
+          `data: {"type":"text-end","id":"${runtimeTextID}"}\n\n`,
           'data: {"type":"finish","finishReason":"stop"}\n\n',
           "data: [DONE]\n\n",
         ]);
@@ -1044,6 +1065,58 @@ describe("SessionChatRuntimeProvider", () => {
         </QueryClientProvider>
       )
     ).toThrow("SessionChatRuntimeProvider requires a non-empty workspaceId");
+  });
+
+  it("Should mint a fresh gateway ticket for every remote prompt", async () => {
+    streamTickets = ["prompt-ticket-one", "prompt-ticket-two"];
+    const user = userEvent.setup();
+    renderSessionThread({ eventSourceFactory: url => new FakeSessionEventSource(url) });
+
+    await screen.findByTestId("composer-input");
+    await setComposerText("First remote prompt");
+    await user.click(screen.getByTestId("composer-send-button"));
+    await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(1));
+
+    await setComposerText("Second remote prompt");
+    await waitFor(() => expect(screen.getByTestId("composer-send-button")).toBeEnabled());
+    await user.click(screen.getByTestId("composer-send-button"));
+    await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(2));
+
+    const promptTickets = fetchMock.mock.calls
+      .map(([input]) => getRequestURL(input as RequestInfo | URL))
+      .filter(url => url.pathname.endsWith("/prompt"))
+      .map(url => url.searchParams.get("ticket"));
+    expect(promptTickets).toEqual(["prompt-ticket-one", "prompt-ticket-two"]);
+  });
+
+  it("Should report a revoked device response from the prompt transport", async () => {
+    streamTickets = ["prompt-ticket"];
+    promptResponsePromise = Promise.resolve(
+      jsonResponse(
+        { error: "Device revoked", code: "gateway_device_revoked" },
+        {
+          status: 401,
+          headers: {
+            "Content-Type": "application/json",
+            "X-Compozy-Gateway-Tier": "private",
+          },
+        }
+      )
+    );
+    const signals: GatewayAccessSignal[] = [];
+    const unsubscribe = observeGatewayAccess(signal => signals.push(signal));
+    const user = userEvent.setup();
+
+    try {
+      renderSessionThread({ eventSourceFactory: url => new FakeSessionEventSource(url) });
+      await screen.findByTestId("composer-input");
+      await setComposerText("Prompt from a revoked device");
+      await user.click(screen.getByTestId("composer-send-button"));
+
+      await waitFor(() => expect(signals).toEqual(["revoked"]));
+    } finally {
+      unsubscribe();
+    }
   });
 
   it("Should preserve the first Goal transport and local cancellation across StrictMode replay", async () => {

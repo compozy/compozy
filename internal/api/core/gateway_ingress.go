@@ -12,6 +12,10 @@ import (
 
 const gatewayIngressAction = "gateway.ingress"
 
+func gatewayIngressForbidden(err error) error {
+	return errors.Join(gateway.ErrIngressForbidden, err)
+}
+
 func (h *BaseHandlers) BindGatewayIngress(c *gin.Context) {
 	var request contract.GatewayIngressBindRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
@@ -27,7 +31,7 @@ func (h *BaseHandlers) BindGatewayIngress(c *gin.Context) {
 	}
 	caller, err := h.gatewayIngressCaller(c)
 	if err != nil {
-		h.respondGatewayError(c, errors.Join(gateway.ErrIngressForbidden, err))
+		h.respondGatewayError(c, gatewayIngressForbidden(err))
 		return
 	}
 	binding, err := h.Gateway.BindIngress(c.Request.Context(), gateway.IngressBindRequest{
@@ -62,7 +66,7 @@ func (h *BaseHandlers) UnbindGatewayIngress(c *gin.Context) {
 	}
 	caller, err := h.gatewayIngressCaller(c)
 	if err != nil {
-		h.respondGatewayError(c, errors.Join(gateway.ErrIngressForbidden, err))
+		h.respondGatewayError(c, gatewayIngressForbidden(err))
 		return
 	}
 	result, err := h.Gateway.UnbindIngress(c.Request.Context(), gateway.IngressUnbindRequest{

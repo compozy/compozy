@@ -705,6 +705,23 @@ func TestTriggerValidate(t *testing.T) {
 			wantErr: "webhook_id",
 		},
 		{
+			name: "Should reject a webhook id that is not one URL-safe path segment",
+			trigger: Trigger{
+				Scope:            AutomationScopeGlobal,
+				Name:             "deploy",
+				AgentName:        "reviewer",
+				Prompt:           `{{ .Kind }}`,
+				Event:            "webhook",
+				Retry:            DefaultRetryConfig(),
+				FireLimit:        DefaultFireLimitConfig(),
+				Source:           JobSourceConfig,
+				EndpointSlug:     "deploy-review",
+				WebhookID:        "wbh_bad/id",
+				WebhookSecretRef: "env:COMPOZY_TEST_WEBHOOK_SECRET",
+			},
+			wantErr: "URL-safe path segment",
+		},
+		{
 			name: "invalid prompt invalid",
 			trigger: Trigger{
 				Scope:     AutomationScopeGlobal,

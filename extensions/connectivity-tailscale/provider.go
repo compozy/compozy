@@ -5,15 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net"
-	"net/netip"
-	"net/url"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
-	compozyconfig "github.com/compozy/compozy/internal/config"
 	compozysdk "github.com/compozy/compozy/sdk/go"
 )
 
@@ -22,8 +17,8 @@ const (
 	tierPublic              = "public"
 	providerHealthHealthy   = "healthy"
 	providerHealthDegraded  = "degraded"
-	providerSchemeHTTPS     = "https"
-	challengePathPrefix     = "/.well-known/compozy/gateway-challenge/"
+	providerHealthDown      = "down"
+	providerEndpointStable  = "stable"
 	providerShutdownTimeout = 5 * time.Second
 )
 
@@ -31,6 +26,11 @@ type activeTier struct {
 	endpoint  compozysdk.ConnectivityAdvertisedEndpoint
 	domain    string
 	forwarder *tierForwarder
+}
+
+type activeTierEntry struct {
+	name   string
+	active *activeTier
 }
 
 // Provider owns one embedded Tailscale node and at most one listener per gateway tier.
@@ -143,7 +143,9 @@ func (p *Provider) Status(
 	}
 	active := p.active(tier)
 	if active == nil {
-		return compozysdk.ConnectivityReachability{Tier: tier, Health: "down", Reason: "tier is not established"}, nil
+		return compozysdk.ConnectivityReachability{
+			Tier: tier, Health: providerHealthDown, Reason: "tier is not established",
+		}, nil
 	}
 	health, reason := active.forwarder.Health()
 	if health == providerHealthHealthy {
@@ -214,20 +216,18 @@ func (p *Provider) Close(ctx context.Context) error {
 	}
 	defer p.operations.release()
 	p.mu.RLock()
-	tierNames := make([]string, 0, len(p.tiers))
-	tiers := make([]*activeTier, 0, len(p.tiers))
+	entries := make([]activeTierEntry, 0, len(p.tiers))
 	for tier, active := range p.tiers {
-		tierNames = append(tierNames, tier)
-		tiers = append(tiers, active)
+		entries = append(entries, activeTierEntry{name: tier, active: active})
 	}
 	p.mu.RUnlock()
 	var errs []error
-	for index, active := range tiers {
-		if err := active.forwarder.Close(ctx); err != nil {
+	for _, entry := range entries {
+		if err := entry.active.forwarder.Close(ctx); err != nil {
 			errs = append(errs, err)
 			continue
 		}
-		p.removeActiveIf(tierNames[index], active)
+		p.removeActiveIf(entry.name, entry.active)
 	}
 	if !p.hasActiveTiers() {
 		errs = append(errs, p.closeNode(ctx))
@@ -301,110 +301,4 @@ func (p *Provider) hasActiveTiers() bool {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	return len(p.tiers) > 0
-}
-
-func validateEstablishRequest(
-	req compozysdk.ConnectivityEstablishRequest,
-) (string, netip.AddrPort, time.Time, error) {
-	tier, err := validateTier(req.Tier)
-	if err != nil {
-		return "", netip.AddrPort{}, time.Time{}, err
-	}
-	target, err := netip.ParseAddrPort(strings.TrimSpace(req.ForwardTarget))
-	if err != nil || !target.Addr().IsLoopback() || target.Port() == 0 {
-		return "", netip.AddrPort{}, time.Time{}, errors.New(
-			"connectivity-tailscale: loopback forward target is required",
-		)
-	}
-	path := strings.TrimSpace(req.ChallengePath)
-	if !strings.HasPrefix(path, challengePathPrefix) || len(path) == len(challengePathPrefix) {
-		return "", netip.AddrPort{}, time.Time{}, errors.New(
-			"connectivity-tailscale: valid challenge path is required",
-		)
-	}
-	if req.Deadline.IsZero() || !req.Deadline.After(time.Now()) {
-		return "", netip.AddrPort{}, time.Time{}, errors.New(
-			"connectivity-tailscale: future establish deadline is required",
-		)
-	}
-	return tier, target, req.Deadline, nil
-}
-
-func validateTier(value string) (string, error) {
-	tier := strings.TrimSpace(value)
-	if tier != tierPrivate && tier != tierPublic {
-		return "", fmt.Errorf("connectivity-tailscale: unsupported gateway tier %q", value)
-	}
-	return tier, nil
-}
-
-func selectCertificateDomain(domains []string) (string, error) {
-	clean := make([]string, 0, len(domains))
-	for _, domain := range domains {
-		domain = strings.TrimSuffix(strings.TrimSpace(domain), ".")
-		if domain == "" || strings.ContainsAny(domain, "/:@") {
-			continue
-		}
-		clean = append(clean, domain)
-	}
-	if len(clean) == 0 {
-		return "", errors.New("connectivity-tailscale: tailnet HTTPS certificate domain is unavailable")
-	}
-	return clean[0], nil
-}
-
-func sameCertificateDomain(domains []string, expected string) bool {
-	selected, err := selectCertificateDomain(domains)
-	return err == nil && selected == expected
-}
-
-func listenForTier(
-	ctx context.Context,
-	node tailscaleNode,
-	tier string,
-	domain string,
-) (net.Listener, compozysdk.ConnectivityAdvertisedEndpoint, error) {
-	var (
-		listener net.Listener
-		rawURL   string
-		err      error
-	)
-	switch tier {
-	case tierPrivate:
-		listener, err = node.ListenPrivate(ctx)
-		rawURL = (&url.URL{Scheme: providerSchemeHTTPS, Host: net.JoinHostPort(domain, "8443")}).String()
-	case tierPublic:
-		listener, err = node.ListenPublic(ctx)
-		rawURL = (&url.URL{Scheme: providerSchemeHTTPS, Host: domain}).String()
-	default:
-		return nil, compozysdk.ConnectivityAdvertisedEndpoint{}, errors.New(
-			"connectivity-tailscale: valid tier is required",
-		)
-	}
-	if err != nil {
-		return nil, compozysdk.ConnectivityAdvertisedEndpoint{}, err
-	}
-	return listener, compozysdk.ConnectivityAdvertisedEndpoint{
-		URL:       rawURL,
-		Scheme:    providerSchemeHTTPS,
-		Stability: "stable",
-	}, nil
-}
-
-func closeListener(listener net.Listener) error {
-	if listener == nil {
-		return nil
-	}
-	if err := listener.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
-		return fmt.Errorf("connectivity-tailscale: close listener: %w", err)
-	}
-	return nil
-}
-
-func defaultStateDirectory() (string, error) {
-	homePaths, err := compozyconfig.ResolveHomePaths()
-	if err != nil {
-		return "", fmt.Errorf("connectivity-tailscale: resolve Compozy home: %w", err)
-	}
-	return filepath.Join(homePaths.GatewayDir, "tailscale"), nil
 }

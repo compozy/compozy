@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/bridges"
+	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
@@ -17,7 +18,7 @@ var (
 	_ bridges.TargetDirectoryStore        = (*BridgeRepo)(nil)
 )
 
-const bridgeIngressSubjectKind = "bridge_instance"
+const bridgeIngressSubjectKind = string(gateway.IngressSubjectBridgeInstance)
 
 // InsertBridgeInstance creates a new persisted bridge instance row.
 func (g *BridgeRepo) InsertBridgeInstance(
@@ -106,6 +107,17 @@ func (g *BridgeRepo) UpdateBridgeInstance(
 		}
 	}()
 	queries := sqlcgen.New(tx)
+	previous, err := loadPreviousBridgeInstance(ctx, queries, normalized.ID)
+	if err != nil {
+		return err
+	}
+	if previous == nil {
+		return fmt.Errorf(
+			"store: bridge instance %q: %w",
+			normalized.ID,
+			bridges.ErrBridgeInstanceNotFound,
+		)
+	}
 	affected, err := queries.UpdateBridgeInstance(ctx, params)
 	if err != nil {
 		return fmt.Errorf(
@@ -122,7 +134,7 @@ func (g *BridgeRepo) UpdateBridgeInstance(
 			bridges.ErrBridgeInstanceNotFound,
 		)
 	}
-	if err := reconcileBridgeIngressBinding(ctx, queries, normalized); err != nil {
+	if err := reconcileBridgeIngressBinding(ctx, queries, previous, normalized); err != nil {
 		return fmt.Errorf(
 			"store: invalidate reassigned bridge ingress binding %q: %w",
 			normalized.ID,
@@ -246,10 +258,14 @@ func (g *BridgeRepo) ReplaceBridgeInstances(
 
 	queries := sqlcgen.New(tx)
 	for _, record := range prepared {
+		previous, previousErr := loadPreviousBridgeInstance(ctx, queries, record.instance.ID)
+		if previousErr != nil {
+			return previousErr
+		}
 		if err := upsertPreparedBridgeInstance(ctx, tx, record, g.now); err != nil {
 			return err
 		}
-		if err := reconcileBridgeIngressBinding(ctx, queries, record.instance); err != nil {
+		if err := reconcileBridgeIngressBinding(ctx, queries, previous, record.instance); err != nil {
 			return fmt.Errorf(
 				"store: invalidate reassigned bridge ingress binding %q: %w",
 				record.instance.ID,
@@ -288,11 +304,33 @@ func (g *BridgeRepo) ReplaceBridgeInstances(
 	return nil
 }
 
+func loadPreviousBridgeInstance(
+	ctx context.Context,
+	queries *sqlcgen.Queries,
+	id string,
+) (*bridges.BridgeInstance, error) {
+	row, err := queries.GetBridgeInstance(ctx, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("store: load prior bridge instance %q: %w", id, err)
+	}
+	instance, err := bridgeInstanceFromGenerated(row)
+	if err != nil {
+		return nil, fmt.Errorf("store: decode prior bridge instance %q: %w", id, err)
+	}
+	return &instance, nil
+}
+
 func reconcileBridgeIngressBinding(
 	ctx context.Context,
 	queries *sqlcgen.Queries,
+	previous *bridges.BridgeInstance,
 	instance bridges.BridgeInstance,
 ) error {
+	// Any missing, changed, or unresolvable local target invalidates the public
+	// binding. Keeping it would route ingress to stale or unverified authority.
 	target, targetErr := bridges.WebhookLocalTarget(instance)
 	if targetErr != nil || target == nil {
 		_, err := queries.DeleteGatewayIngressBinding(
@@ -303,6 +341,19 @@ func reconcileBridgeIngressBinding(
 			},
 		)
 		return err
+	}
+	if previous != nil {
+		previousTarget, previousErr := bridges.WebhookLocalTarget(*previous)
+		if previousErr != nil || previousTarget == nil || previousTarget.String() != target.String() {
+			_, err := queries.DeleteGatewayIngressBinding(
+				ctx,
+				sqlcgen.DeleteGatewayIngressBindingParams{
+					SubjectKind: bridgeIngressSubjectKind,
+					SubjectID:   instance.ID,
+				},
+			)
+			return err
+		}
 	}
 	_, err := queries.DeleteMismatchedGatewayIngressBinding(
 		ctx,

@@ -17,6 +17,8 @@ import (
 )
 
 func TestOperationsReturnDefensiveCopies(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should isolate operation slices from registry mutations", func(t *testing.T) {
 		t.Parallel()
 
@@ -94,6 +96,24 @@ func TestOperationsReturnDefensiveCopies(t *testing.T) {
 
 		if got, want := original[0].Bodies.schemaTypes[0], reflect.TypeFor[contract.ErrorPayload](); got != want {
 			t.Fatalf("original response descriptor type = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("Should isolate transport authentication maps from registry mutations", func(t *testing.T) {
+		t.Parallel()
+
+		const (
+			path      = "/api/gateway/status"
+			method    = "GET"
+			transport = TransportHTTP
+		)
+		operation := operationSpecFor(t, Operations(), path, method)
+		wantAuth := operation.Auth[transport]
+		operation.Auth[transport] = OperationAuth("mutated-auth")
+
+		fresh := operationSpecFor(t, Operations(), path, method)
+		if got := fresh.Auth[transport]; got != wantAuth {
+			t.Fatalf("Auth[%q] = %q, want %q", transport, got, wantAuth)
 		}
 	})
 }

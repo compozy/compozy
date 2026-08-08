@@ -33,6 +33,13 @@ function renderBoundary(queryClient: QueryClient, reload = vi.fn()) {
   return reload;
 }
 
+async function reportAccess(status: number, payload: unknown): Promise<void> {
+  await act(async () => {
+    reportGatewayAccess(status, payload);
+    await Promise.resolve();
+  });
+}
+
 describe("GatewayAccessBoundary", () => {
   let queryClient: QueryClient;
 
@@ -45,7 +52,7 @@ describe("GatewayAccessBoundary", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
-    gatewayAccessStore.trigger.accessRestored();
+    act(() => gatewayAccessStore.trigger.accessRestored());
     window.history.replaceState(null, "", "/");
   });
 
@@ -56,24 +63,37 @@ describe("GatewayAccessBoundary", () => {
 
   it("Should keep the app rendered through transient failures", async () => {
     renderBoundary(queryClient);
-    act(() => reportGatewayAccess(503, { error: "temporarily unavailable" }));
-    act(() => reportGatewayAccess(500, { code: "gateway_device_revoked" }));
+    await reportAccess(503, { error: "temporarily unavailable" });
+    await reportAccess(500, { code: "gateway_device_revoked" });
 
     await waitFor(() => expect(screen.getByTestId("protected-app")).toBeInTheDocument());
   });
 
   it("Should show only the pairing gate when this device is unauthenticated", async () => {
     renderBoundary(queryClient);
-    act(() => reportGatewayAccess(401, { code: "gateway_device_unauthenticated" }));
+    await reportAccess(401, { code: "gateway_device_unauthenticated" });
 
     await screen.findByTestId("gateway-pairing-gate");
+    expect(screen.queryByTestId("protected-app")).not.toBeInTheDocument();
+  });
+
+  it("Should not offer pairing on the public operator address", async () => {
+    renderBoundary(queryClient);
+    await act(async () => {
+      reportGatewayAccess(401, { code: "gateway_device_unauthenticated" });
+      gatewayAccessStore.trigger.tierSignalled({ tier: "public" });
+      await Promise.resolve();
+    });
+
+    await screen.findByText("Pairing is unavailable here");
+    expect(screen.queryByTestId("gateway-pairing-gate-submit")).not.toBeInTheDocument();
     expect(screen.queryByTestId("protected-app")).not.toBeInTheDocument();
   });
 
   it("Should show the access-ended state with no residual data when the device is revoked", async () => {
     queryClient.setQueryData(["sessions", "list"], [{ id: "sess_1", title: "Deploy review" }]);
     renderBoundary(queryClient);
-    act(() => reportGatewayAccess(401, { code: "gateway_device_revoked" }));
+    await reportAccess(401, { code: "gateway_device_revoked" });
 
     await screen.findByTestId("gateway-access-ended");
     expect(screen.queryByTestId("protected-app")).not.toBeInTheDocument();
@@ -84,7 +104,7 @@ describe("GatewayAccessBoundary", () => {
     queryClient.setQueryData(["sessions", "list"], [{ id: "sess_1" }]);
     renderBoundary(queryClient);
 
-    act(() => reportGatewayAccess(401, { code: "gateway_device_revoked" }));
+    await reportAccess(401, { code: "gateway_device_revoked" });
     await screen.findByTestId("gateway-access-ended");
 
     await waitFor(() => expect(queryClient.getQueryData(["sessions", "list"])).toBeUndefined());
@@ -114,7 +134,7 @@ describe("GatewayAccessBoundary", () => {
     );
     await screen.findByTestId("protected-app");
 
-    act(() => reportGatewayAccess(401, { code: "gateway_device_revoked" }));
+    await reportAccess(401, { code: "gateway_device_revoked" });
     await screen.findByTestId("gateway-access-ended");
 
     await act(async () => {
@@ -140,7 +160,7 @@ describe("GatewayAccessBoundary", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const reload = renderBoundary(queryClient);
-    act(() => reportGatewayAccess(401, { code: "gateway_device_unauthenticated" }));
+    await reportAccess(401, { code: "gateway_device_unauthenticated" });
     await screen.findByTestId("gateway-pairing-gate");
 
     // The scanned secret is prefilled from the fragment and immediately erased
@@ -172,10 +192,10 @@ describe("GatewayAccessBoundary", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     renderBoundary(queryClient);
-    act(() => reportGatewayAccess(401, { code: "gateway_device_unauthenticated" }));
+    await reportAccess(401, { code: "gateway_device_unauthenticated" });
     await screen.findByTestId("gateway-pairing-gate");
 
-    await userEvent.click(screen.getByTestId("gateway-pairing-gate-submit"));
+    expect(screen.getByTestId("gateway-pairing-gate-submit")).toBeDisabled();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });

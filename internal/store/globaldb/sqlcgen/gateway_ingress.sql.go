@@ -72,7 +72,7 @@ func (q *Queries) DeleteMismatchedGatewayIngressBinding(ctx context.Context, arg
 }
 
 const getGatewayBridgeIngressSubject = `-- name: GetGatewayBridgeIngressSubject :one
-SELECT scope_kind, workspace_id, provider_config
+SELECT scope_kind, workspace_id, COALESCE(provider_config, '') AS provider_config
 FROM (
   SELECT
     resource.scope_kind,

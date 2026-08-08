@@ -74,6 +74,7 @@ type Reconciler struct {
 	runtime        map[Tier]*runtimeTierState
 	recoveryCtx    context.Context
 	recoveryCancel context.CancelFunc
+	recoveryWG     sync.WaitGroup
 	recoveries     map[Tier]*providerRecovery
 	recoveryMin    time.Duration
 	recoveryMax    time.Duration
@@ -420,10 +421,11 @@ func (r *Reconciler) handleProviderDegraded(
 		return errors.Join(cause, cleanupErr)
 	}
 	safeCause := diagnostics.RedactAndBound(cause.Error(), maxPersistedGatewayDiagnosticBytes)
-	if err := r.markObserved(ctx, plan, ProviderDegraded, SurfaceOff, safeCause); err != nil {
-		return errors.Join(cause, cleanupErr, err)
-	}
+	markErr := r.markObserved(ctx, plan, ProviderDegraded, SurfaceOff, safeCause)
 	r.scheduleRecoveryLocked(activation)
+	if markErr != nil {
+		return errors.Join(cause, cleanupErr, markErr)
+	}
 	return cleanupErr
 }
 
@@ -449,11 +451,15 @@ func (r *Reconciler) runtimeState(tier Tier) *runtimeTierState {
 func (r *Reconciler) Close(ctx context.Context) error {
 	r.recoveryCancel()
 	r.mu.Lock()
-	defer r.mu.Unlock()
 	r.closed = true
 	for tier := range r.recoveries {
 		r.cancelRecoveryLocked(tier)
 	}
+	r.mu.Unlock()
+	r.recoveryWG.Wait()
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	var errs []error
 	for _, tier := range []Tier{TierPublic, TierPrivate} {
 		state := r.runtimeState(tier)

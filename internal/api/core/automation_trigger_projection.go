@@ -3,12 +3,32 @@ package core
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	"github.com/compozy/compozy/internal/gateway"
 )
+
+func (h *BaseHandlers) triggerPayloadBestEffort(
+	ctx context.Context,
+	trigger automationpkg.Trigger,
+	operation string,
+) contract.TriggerPayload {
+	payload, err := h.triggerPayload(ctx, trigger)
+	if err == nil {
+		return payload
+	}
+	h.Logger.WarnContext(
+		ctx,
+		"api: automation trigger ingress enrichment failed",
+		slog.String("transport", h.transportName()),
+		slog.String(handlersOperationKey, strings.TrimSpace(operation)),
+		slog.Any("error", err),
+	)
+	return TriggerPayloadFromTrigger(trigger)
+}
 
 func (h *BaseHandlers) triggerPayload(
 	ctx context.Context,
@@ -24,7 +44,7 @@ func (h *BaseHandlers) triggerPayload(
 		payload.Ingress = &contract.GatewayIngressPayload{
 			SubjectKind: string(ref.Kind), SubjectID: ref.ID, ScopeKind: string(trigger.Scope),
 			WorkspaceID: trigger.WorkspaceID, Reachability: string(gateway.IngressReachabilityOff),
-			EnablePath: "/api/gateway/surfaces",
+			EnablePath: gateway.IngressEnablePath,
 		}
 		return payload, nil
 	}

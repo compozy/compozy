@@ -21,7 +21,6 @@ vi.mock("../use-messages", () => ({
 }));
 
 class FakeEventSource {
-  static instance: FakeEventSource | null = null;
   static instances: FakeEventSource[] = [];
   readonly url: string;
   readonly listeners = new Map<string, Set<EventListener>>();
@@ -29,7 +28,6 @@ class FakeEventSource {
 
   constructor(url: string | URL) {
     this.url = String(url);
-    FakeEventSource.instance = this;
     FakeEventSource.instances.push(this);
   }
 
@@ -100,7 +98,6 @@ async function openedSource(index = 0): Promise<FakeEventSource> {
 describe("useTaskRunConversation", () => {
   beforeEach(() => {
     resetGatewayStreamAuth();
-    FakeEventSource.instance = null;
     FakeEventSource.instances = [];
     vi.stubGlobal("EventSource", FakeEventSource);
     stubLocalListener();

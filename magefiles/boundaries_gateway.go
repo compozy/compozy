@@ -2,10 +2,7 @@
 
 package main
 
-var gatewayForbiddenDirectImports = []struct {
-	importer string
-	imported string
-}{
+var gatewayForbiddenDirectImports = []directImportBoundary{
 	{"internal/gateway", "internal/daemon"},
 	{"internal/gateway", "internal/api/contract"},
 	{"internal/gateway", "internal/api/core"},

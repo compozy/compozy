@@ -128,10 +128,14 @@ func webhookRunMetadata(req DispatchRequest) map[string]any {
 		return nil
 	}
 	deliveryID, ok := req.Envelope.Data[triggerDeliveryIDKey].(string)
-	if !ok || strings.TrimSpace(deliveryID) == "" {
+	if !ok {
 		return nil
 	}
-	return map[string]any{triggerDeliveryIDKey: strings.TrimSpace(deliveryID)}
+	deliveryID = strings.TrimSpace(deliveryID)
+	if deliveryID == "" {
+		return nil
+	}
+	return map[string]any{triggerDeliveryIDKey: deliveryID}
 }
 
 func (d *Dispatcher) reserveExistingRun(ctx context.Context, req DispatchRequest, attempt int) (*Run, error) {

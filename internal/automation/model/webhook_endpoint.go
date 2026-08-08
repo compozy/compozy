@@ -16,7 +16,7 @@ func FormatWebhookEndpoint(endpointSlug string, webhookID string) (string, error
 	if trimmedSlug == "" || trimmedWebhookID == "" {
 		return "", ErrWebhookEndpointInvalid
 	}
-	if !isWebhookEndpointSlug(trimmedSlug) {
+	if !isWebhookEndpointSlug(trimmedSlug) || !isWebhookEndpointID(trimmedWebhookID) {
 		return "", ErrWebhookEndpointInvalid
 	}
 	return trimmedSlug + "--" + trimmedWebhookID, nil
@@ -25,4 +25,9 @@ func FormatWebhookEndpoint(endpointSlug string, webhookID string) (string, error
 func isWebhookEndpointSlug(value string) bool {
 	trimmed := strings.TrimSpace(value)
 	return trimmed != "" && trimmed != "." && trimmed != ".." && url.PathEscape(trimmed) == trimmed
+}
+
+func isWebhookEndpointID(value string) bool {
+	trimmed := strings.TrimSpace(value)
+	return strings.HasPrefix(trimmed, webhookIDPrefix) && isWebhookEndpointSlug(trimmed)
 }

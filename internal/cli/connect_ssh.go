@@ -115,7 +115,7 @@ func runResolvedSSHConnection(
 	record := sshConnectionRecord{
 		Profile:    gatewayProfileFromConfig(profile, ""),
 		LocalURL:   localTarget.requestBaseURL(),
-		RemoteHTTP: fmt.Sprintf("http://%s:%d", status.HTTPHost, status.HTTPPort),
+		RemoteHTTP: clientNetworkURL(mcpServeTransportHTTP, status.HTTPHost, status.HTTPPort),
 		Daemon:     daemonState,
 	}
 	if err := writeCommandOutput(cmd, sshConnectionOutput(record)); err != nil {
@@ -161,10 +161,10 @@ func closeSSHTunnelAndOwnedDaemon(
 	var lifecycleErr error
 	if stopRemote != nil && *stopRemote {
 		stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), deps.stopTimeout)
+		defer cancel()
 		lifecycleErr = stopSSHOwnedRemoteDaemon(
 			stopCtx, executor, target, remoteHome, status, resolution.ownership,
 		)
-		cancel()
 	}
 	lifecycleErr = errors.Join(lifecycleErr, closeSSHOwnershipLease(resolution.lease))
 	if returnErr != nil {
@@ -242,7 +242,7 @@ func prepareSSHConnection(
 	if err != nil {
 		return sshTarget{}, compozyconfig.GatewayConnectionConfig{}, runtimeContext{}, err
 	}
-	if err := recoverGatewayProfileState(ctx, homePaths, deps); err != nil {
+	if err := recoverAvailableGatewayProfileState(ctx, homePaths, deps); err != nil {
 		return sshTarget{}, compozyconfig.GatewayConnectionConfig{}, runtimeContext{}, err
 	}
 	cfg, err := deps.loadConfig()

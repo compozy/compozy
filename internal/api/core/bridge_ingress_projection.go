@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	"github.com/compozy/compozy/internal/gateway"
 )
 
@@ -44,19 +43,6 @@ func (h *BaseHandlers) bridgeIngressPayload(
 	return &payload, nil
 }
 
-func (h *BaseHandlers) bridgePayload(
-	ctx context.Context,
-	instance bridgepkg.BridgeInstance,
-) (contract.BridgePayload, error) {
-	payload := BridgePayloadFromBridgeInstance(instance)
-	ingress, err := h.bridgeIngressPayload(ctx, instance.ID)
-	if err != nil {
-		return contract.BridgePayload{}, err
-	}
-	payload.GatewayIngress = ingress
-	return payload, nil
-}
-
 func (h *BaseHandlers) enrichBridgeHealthIngress(
 	ctx context.Context,
 	health contract.BridgeHealthPayload,
@@ -65,9 +51,16 @@ func (h *BaseHandlers) enrichBridgeHealthIngress(
 	if err != nil {
 		return contract.BridgeHealthPayload{}, err
 	}
+	return bridgeHealthWithIngress(health, ingress), nil
+}
+
+func bridgeHealthWithIngress(
+	health contract.BridgeHealthPayload,
+	ingress *contract.GatewayIngressPayload,
+) contract.BridgeHealthPayload {
 	if ingress != nil && (ingress.ConfirmedEndpointGeneration > 0 ||
 		ingress.Reachability == string(gateway.IngressReachabilityBroken)) {
 		health.Ingress = ingress
 	}
-	return health, nil
+	return health
 }

@@ -23,6 +23,13 @@ func TestSDKRootTypesIncludeBridgeControlContracts(t *testing.T) {
 			"BridgeCheckResponse",
 			"BridgeWebhookRegistrationRequest",
 			"BridgeWebhookRegistrationResponse",
+			"ConnectivityEstablishRequest",
+			"ConnectivityStatusRequest",
+			"ConnectivityTeardownRequest",
+			"ConnectivityReachability",
+			"ConnectivityAdvertisedEndpoint",
+			"ConnectivityTeardownResponse",
+			"DescribeNetworkParticipation",
 		} {
 			if got := counts[name]; got != 1 {
 				t.Fatalf("SDK root %q count = %d, want 1", name, got)

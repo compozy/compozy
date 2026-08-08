@@ -80,6 +80,36 @@ func TestGatewayProfileTransactionLock(t *testing.T) {
 			t.Fatalf("release second lock error = %v", err)
 		}
 	})
+
+	t.Run("Should cancel runtime recovery while another command owns the lock", func(t *testing.T) {
+		t.Parallel()
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		owner, err := acquireGatewayProfileTransactionLock(
+			t.Context(),
+			homePaths.GatewayCredentialsDir,
+			gatewayProfileTransactionStateLockName,
+		)
+		if err != nil {
+			t.Fatalf("acquire owner lock error = %v", err)
+		}
+		t.Cleanup(func() {
+			if releaseErr := owner.Release(); releaseErr != nil {
+				t.Errorf("release owner lock error = %v", releaseErr)
+			}
+		})
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		_, err = loadRuntimeContext(commandDeps{
+			commandContext: func() context.Context { return ctx },
+			resolveHome:    func() (compozyconfig.HomePaths, error) { return homePaths, nil },
+		})
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("loadRuntimeContext() error = %v, want context.Canceled", err)
+		}
+	})
 }
 
 // Invariant: journals expose only the credential digest and are private, atomic recovery records.
@@ -318,7 +348,7 @@ func TestGatewayProfileTransactionRecovery(t *testing.T) {
 			},
 		}
 		err = recoverGatewayProfileState(t.Context(), homePaths, deps)
-		assertGatewayClientErrorCode(t, err, "gateway_pairing_recovery_pending")
+		assertGatewayClientErrorCode(t, err, gatewayPairingRecoveryPendingCode)
 		if credentials[profile.Name] != credential {
 			t.Fatal("uncertain pairing credential was removed before the recovery window")
 		}
@@ -327,6 +357,79 @@ func TestGatewayProfileTransactionRecovery(t *testing.T) {
 			profile.Name,
 		); err != nil {
 			t.Fatalf("pending pairing journal disappeared: %v", err)
+		}
+
+		officeCredential := testGatewayCredential('v')
+		officeProfile := compozyconfig.GatewayConnectionConfig{
+			Name: "office", Scheme: "https", Host: "office.example", Port: 443,
+			CredentialFile: "office.cred",
+		}
+		officeJournal, err := newGatewayProfileTransactionJournal(gatewayProfileTransactionPlan{
+			operation:  gatewayProfileTransactionUpsert,
+			profile:    officeProfile,
+			credential: officeCredential,
+		})
+		if err != nil {
+			t.Fatalf("newGatewayProfileTransactionJournal(office) error = %v", err)
+		}
+		if err := writeGatewayProfileTransactionJournal(
+			homePaths.GatewayCredentialsDir,
+			officeJournal,
+		); err != nil {
+			t.Fatalf("writeGatewayProfileTransactionJournal(office) error = %v", err)
+		}
+		credentials[officeProfile.Name] = officeCredential
+		var recoveredOffice *compozyconfig.GatewayConnectionConfig
+		deps.applyGatewayProfileState = func(
+			_ compozyconfig.HomePaths,
+			name string,
+			got *compozyconfig.GatewayConnectionConfig,
+			_ string,
+		) error {
+			if name == officeProfile.Name {
+				recoveredOffice = got
+			}
+			return nil
+		}
+		lock, err := acquireGatewayProfileTransactionLock(
+			t.Context(),
+			homePaths.GatewayCredentialsDir,
+			gatewayProfileTransactionStateLockName,
+		)
+		if err != nil {
+			t.Fatalf("acquireGatewayProfileTransactionLock() error = %v", err)
+		}
+		if err := recoverAvailableGatewayProfileStateWithLock(
+			t.Context(),
+			homePaths,
+			deps,
+			lock,
+		); err != nil {
+			t.Fatalf("recoverAvailableGatewayProfileStateWithLock() error = %v", err)
+		}
+		if err := lock.Release(); err != nil {
+			t.Fatalf("Release() error = %v", err)
+		}
+		if recoveredOffice == nil || !reflect.DeepEqual(*recoveredOffice, officeProfile) {
+			t.Fatalf("recovered office profile = %#v, want %#v", recoveredOffice, officeProfile)
+		}
+		if _, err := readGatewayProfileTransactionJournal(
+			homePaths.GatewayCredentialsDir,
+			officeProfile.Name,
+		); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("office journal error = %v, want os.ErrNotExist", err)
+		}
+		if err := ensureGatewayProfileTransactionReady(
+			homePaths.GatewayCredentialsDir,
+			profile.Name,
+		); !isGatewayPairingRecoveryPending(err) {
+			t.Fatalf("pending profile readiness error = %v, want pairing pending", err)
+		}
+		if err := ensureGatewayProfileTransactionReady(
+			homePaths.GatewayCredentialsDir,
+			officeProfile.Name,
+		); err != nil {
+			t.Fatalf("recovered office readiness error = %v", err)
 		}
 
 		now = startedAt.Add(gatewayPairingRecoveryWindow + time.Second)

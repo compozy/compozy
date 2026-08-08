@@ -46,12 +46,11 @@ func TestGenerate(t *testing.T) {
 		for _, name := range result.FileNames() {
 			generated = append(generated, result.Files[name]...)
 		}
+		normalizedGenerated := bytes.Join(bytes.Fields(generated), []byte(" "))
 		for _, symbol := range [][]byte{
 			[]byte("type DescribePayload struct"),
 			[]byte("IssueSeverityError"),
 			[]byte("IssueSeverityWarning"),
-			[]byte("Tools            []ExtensionToolRuntimeDescriptor"),
-			[]byte("CommandGroups    []ExtensionCommandGroupSpec"),
 			[]byte("type ProvideConformanceFixture struct"),
 			[]byte("func PublicProvideConformanceFixtures()"),
 			[]byte("OriginKind identifies the actor or task source kind that started the loop."),
@@ -59,6 +58,14 @@ func TestGenerate(t *testing.T) {
 		} {
 			if !bytes.Contains(generated, symbol) {
 				t.Fatalf("Generate() output missing %q", symbol)
+			}
+		}
+		for _, field := range [][]byte{
+			[]byte("Tools []ExtensionToolRuntimeDescriptor"),
+			[]byte("CommandGroups []ExtensionCommandGroupSpec"),
+		} {
+			if !bytes.Contains(normalizedGenerated, field) {
+				t.Fatalf("Generate() output missing field signature %q", field)
 			}
 		}
 	})

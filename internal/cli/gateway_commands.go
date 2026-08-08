@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"errors"
 	"strconv"
 	"strings"
 	"time"
@@ -112,7 +111,7 @@ func newGatewaySurfaceMutationCommand(deps commandDeps, enable bool) *cobra.Comm
 			return writeCommandOutput(cmd, gatewayStatusOutput(status))
 		},
 	}
-	cmd.Flags().StringVar(&tier, gatewayTierKey, "private", "Gateway tier: private or public")
+	bindGatewayTierFlag(cmd, &tier)
 	cmd.Flags().Uint64Var(&generation, "generation", 0, "Expected state generation")
 	if enable {
 		cmd.Flags().BoolVar(&consent, "consent", false, "Confirm public operator UI exposure")
@@ -137,9 +136,6 @@ func newGatewayProviderEnableCommand(deps commandDeps) *cobra.Command {
 		Short: "Enable a connectivity provider for one tier",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if strings.TrimSpace(source) == "" {
-				return errors.New("cli: --source is required")
-			}
 			client, err := gatewayClientFromDeps(deps)
 			if err != nil {
 				return err
@@ -158,10 +154,11 @@ func newGatewayProviderEnableCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, gatewayStatusOutput(status))
 		},
 	}
-	cmd.Flags().StringVar(&tier, gatewayTierKey, "private", "Gateway tier: private or public")
+	bindGatewayTierFlag(cmd, &tier)
 	cmd.Flags().StringVar(&source, "source", "", "Installed extension source")
 	cmd.Flags().StringVar(&digest, "digest", "", "Confirmed extension control digest")
 	cmd.Flags().Uint64Var(&generation, "generation", 0, "Expected state generation")
+	mustMarkFlagRequired(cmd, "source")
 	return cmd
 }
 
@@ -176,48 +173,65 @@ func newGatewayProviderDisableCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			status, err := client.DisableGatewayProvider(cmd.Context(), strings.TrimSpace(args[0]), tier)
+			status, err := client.DisableGatewayProvider(
+				cmd.Context(),
+				strings.TrimSpace(args[0]),
+				strings.TrimSpace(tier),
+			)
 			if err != nil {
 				return err
 			}
 			return writeCommandOutput(cmd, gatewayStatusOutput(status))
 		},
 	}
-	cmd.Flags().StringVar(&tier, gatewayTierKey, "private", "Gateway tier: private or public")
+	bindGatewayTierFlag(cmd, &tier)
 	return cmd
 }
 
-func pairingArtifactOutput(record contract.GatewayPairingArtifactPayload) outputBundle {
+func bindGatewayTierFlag(cmd *cobra.Command, tier *string) {
+	cmd.Flags().StringVar(tier, gatewayTierKey, "private", "Gateway tier: private or public")
+}
+
+func pairingArtifactOutput(record gatewayPairingArtifactReference) outputBundle {
 	return simpleGatewayOutput(record, func() string {
 		return renderHumanSection("Pairing", []keyValue{
-			{Label: "Artifact", Value: record.Artifact},
+			{Label: "Artifact File", Value: record.ArtifactRef},
 			{Label: "Expires", Value: record.ExpiresAt.Format(time.RFC3339)},
 		})
 	}, func() string {
-		return renderToonObject("pairing", []string{"artifact", "expires_at"}, []string{
-			record.Artifact,
+		return renderToonObject("pairing", []string{"artifact_ref", "expires_at"}, []string{
+			record.ArtifactRef,
 			record.ExpiresAt.Format(time.RFC3339),
 		})
 	})
 }
 
 func gatewayDeviceMutationOutput(value any, id string, name string, status string) outputBundle {
+	canceled := ""
+	if revoke, ok := value.(contract.GatewayRevokePayload); ok {
+		canceled = strconv.Itoa(revoke.Canceled)
+	}
 	return simpleGatewayOutput(value, func() string {
-		return renderHumanSection("Device", []keyValue{
+		rows := []keyValue{
 			{Label: "ID", Value: id},
 			{Label: cliNameValue, Value: name},
 			{Label: automationStatusValue, Value: status},
 			{Label: "Changed", Value: strconv.FormatBool(status != gatewayDeviceStatusUnchanged)},
-		})
+		}
+		if canceled != "" {
+			rows = append(rows, keyValue{Label: "Canceled Streams", Value: canceled})
+		}
+		return renderHumanSection("Device", rows)
 	}, func() string {
 		return renderToonObject(
 			"device",
-			[]string{"id", automationNameKey, automationStatusKey, windowManagerChangedField},
+			[]string{"id", automationNameKey, automationStatusKey, windowManagerChangedField, cliCanceledKey},
 			[]string{
 				id,
 				name,
 				status,
 				strconv.FormatBool(status != gatewayDeviceStatusUnchanged),
+				canceled,
 			},
 		)
 	})

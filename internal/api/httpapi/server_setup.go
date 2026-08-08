@@ -75,9 +75,10 @@ func (s *Server) applyDefaults() {
 }
 
 func (s *Server) validateRequired() error {
+	if err := s.surfaceSet.validate(); err != nil {
+		return err
+	}
 	switch {
-	case s.surfaceSet.validate() != nil:
-		return s.surfaceSet.validate()
 	case s.surfaceSet != SurfaceSetLocal && !isLoopbackHost(canonicalHost(s.host)):
 		return errors.New("httpapi: tier listeners must bind a loopback host")
 	case s.surfaceSet.hasOperatorRoutes() && s.deviceAuth == nil:

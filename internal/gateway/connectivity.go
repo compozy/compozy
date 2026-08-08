@@ -22,10 +22,15 @@ var (
 // EndpointStability describes whether a provider endpoint is expected to survive restarts.
 type EndpointStability string
 
+// EndpointSchemePolicy declares a trusted transport policy for a provider-owned scheme.
+type EndpointSchemePolicy string
+
 const (
 	EndpointStable      EndpointStability = "stable"
 	EndpointEphemeral   EndpointStability = "ephemeral"
 	endpointSchemeHTTPS                   = "https"
+	// EndpointSchemePolicyTailnetInternal allows a private-tier URI scheme over verified TLS.
+	EndpointSchemePolicyTailnetInternal EndpointSchemePolicy = "tailnet_internal"
 )
 
 // Validate reports unsupported endpoint stability values.
@@ -40,9 +45,10 @@ func (s EndpointStability) Validate() error {
 
 // AdvertisedEndpoint is one untrusted provider endpoint pending core verification.
 type AdvertisedEndpoint struct {
-	URL       string
-	Scheme    string
-	Stability EndpointStability
+	URL          string
+	Scheme       string
+	SchemePolicy EndpointSchemePolicy
+	Stability    EndpointStability
 }
 
 // Validate checks the provider-owned descriptor without performing network I/O.
@@ -62,8 +68,12 @@ func (e AdvertisedEndpoint) Validate() error {
 	if scheme == "" || !strings.EqualFold(scheme, parsed.Scheme) {
 		return errors.New("gateway: endpoint scheme must match its URL")
 	}
-	if scheme != endpointSchemeHTTPS {
-		return errors.New("gateway: endpoint scheme must be HTTPS")
+	policy := EndpointSchemePolicy(strings.ToLower(strings.TrimSpace(string(e.SchemePolicy))))
+	switch {
+	case scheme == endpointSchemeHTTPS && policy == "":
+	case scheme != endpointSchemeHTTPS && scheme != "http" && policy == EndpointSchemePolicyTailnetInternal:
+	default:
+		return errors.New("gateway: endpoint scheme is not allowed by policy")
 	}
 	return e.Stability.Validate()
 }

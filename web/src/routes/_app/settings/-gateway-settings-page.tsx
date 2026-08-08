@@ -9,6 +9,7 @@ import {
   GatewayPairingDialog,
   GatewayProviderSection,
   useGatewaySettingsPage,
+  useGatewayAccessTier,
   type GatewaySettingsViewModel,
 } from "@/systems/gateway";
 import { SettingsPageFrame, useSettingsTopbar } from "@/systems/settings";
@@ -19,6 +20,7 @@ import { SettingsPageFrame, useSettingsTopbar } from "@/systems/settings";
  */
 export function GatewaySettingsPage() {
   const view = useGatewaySettingsPage();
+  const listenerTier = useGatewayAccessTier();
   useSettingsTopbar("gateway");
 
   if (view.page.isLoading) {
@@ -87,7 +89,7 @@ export function GatewaySettingsPage() {
         devices={view.page.devices}
         error={view.devices.error}
         isBusy={view.devices.isBusy}
-        onPair={view.pairing.start}
+        {...(listenerTier === "public" ? {} : { onPair: view.pairing.start })}
         onRename={view.devices.rename}
         onRevoke={view.devices.revoke}
       />
@@ -98,15 +100,17 @@ export function GatewaySettingsPage() {
         onRun={view.audit.run}
         report={view.audit.report}
       />
-      <GatewayPairingDialog
-        artifact={view.pairing.artifact}
-        error={view.pairing.error}
-        isMinting={view.pairing.isMinting}
-        onMint={view.pairing.mint}
-        onOpenChange={view.pairing.setOpen}
-        open={view.pairing.open}
-        {...(view.pairing.address ? { pairingAddress: view.pairing.address } : {})}
-      />
+      {listenerTier === "public" ? null : (
+        <GatewayPairingDialog
+          artifact={view.pairing.artifact}
+          error={view.pairing.error}
+          isMinting={view.pairing.isMinting}
+          onMint={view.pairing.mint}
+          onOpenChange={view.pairing.setOpen}
+          open={view.pairing.open}
+          {...(view.pairing.address ? { pairingAddress: view.pairing.address } : {})}
+        />
+      )}
     </SettingsPageFrame>
   );
 }

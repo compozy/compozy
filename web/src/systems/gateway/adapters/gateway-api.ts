@@ -1,4 +1,4 @@
-import { apiClient, apiRequestFailed, requireResponseData } from "@/lib/api-client";
+import { apiClient, apiRequestFailed } from "@/lib/api-client";
 
 import type {
   GatewayAuditReport,
@@ -12,14 +12,21 @@ import type {
   GatewaySurfaceRequest,
   GatewayTier,
 } from "../types";
-import { gatewayApiError } from "./gateway-api-error";
+import { GatewayApiError, gatewayApiError } from "./gateway-api-error";
+
+function requireGatewayData<T>(data: T | undefined, response: Response, fallback: string): T {
+  if (data === undefined) {
+    throw new GatewayApiError(`${fallback}: empty response (${response.status})`, response.status);
+  }
+  return data;
+}
 
 async function fetchGatewayStatus(signal?: AbortSignal): Promise<GatewayStatus> {
   const { data, error, response } = await apiClient.GET("/api/gateway/status", { signal });
   if (apiRequestFailed(response, error)) {
     throw gatewayApiError("Failed to read gateway status", response, error);
   }
-  return requireResponseData(data, response, "Failed to read gateway status");
+  return requireGatewayData(data, response, "Failed to read gateway status");
 }
 
 async function fetchGatewayAudit(signal?: AbortSignal): Promise<GatewayAuditReport> {
@@ -27,7 +34,7 @@ async function fetchGatewayAudit(signal?: AbortSignal): Promise<GatewayAuditRepo
   if (apiRequestFailed(response, error)) {
     throw gatewayApiError("Failed to run the gateway audit", response, error);
   }
-  return requireResponseData(data, response, "Failed to run the gateway audit");
+  return requireGatewayData(data, response, "Failed to run the gateway audit");
 }
 
 async function listGatewayDevices(signal?: AbortSignal): Promise<GatewayDevice[]> {
@@ -35,7 +42,7 @@ async function listGatewayDevices(signal?: AbortSignal): Promise<GatewayDevice[]
   if (apiRequestFailed(response, error)) {
     throw gatewayApiError("Failed to list paired devices", response, error);
   }
-  return requireResponseData(data, response, "Failed to list paired devices").devices;
+  return requireGatewayData(data, response, "Failed to list paired devices").devices;
 }
 
 async function renameGatewayDevice(
@@ -51,7 +58,7 @@ async function renameGatewayDevice(
   if (apiRequestFailed(response, error)) {
     throw gatewayApiError(`Failed to rename device "${id}"`, response, error);
   }
-  return requireResponseData(data, response, `Failed to rename device "${id}"`);
+  return requireGatewayData(data, response, `Failed to rename device "${id}"`);
 }
 
 async function revokeGatewayDevice(id: string, signal?: AbortSignal): Promise<GatewayRevokeResult> {
@@ -62,7 +69,7 @@ async function revokeGatewayDevice(id: string, signal?: AbortSignal): Promise<Ga
   if (apiRequestFailed(response, error)) {
     throw gatewayApiError(`Failed to revoke device "${id}"`, response, error);
   }
-  return requireResponseData(data, response, `Failed to revoke device "${id}"`);
+  return requireGatewayData(data, response, `Failed to revoke device "${id}"`);
 }
 
 /**
@@ -75,7 +82,7 @@ async function mintGatewayPairing(signal?: AbortSignal): Promise<GatewayPairingA
   if (apiRequestFailed(response, error)) {
     throw gatewayApiError("Failed to mint a pairing code", response, error);
   }
-  return requireResponseData(data, response, "Failed to mint a pairing code");
+  return requireGatewayData(data, response, "Failed to mint a pairing code");
 }
 
 async function redeemGatewayPairing(
@@ -89,7 +96,7 @@ async function redeemGatewayPairing(
   if (apiRequestFailed(response, error)) {
     throw gatewayApiError("Failed to redeem the pairing code", response, error);
   }
-  return requireResponseData(data, response, "Failed to redeem the pairing code");
+  return requireGatewayData(data, response, "Failed to redeem the pairing code");
 }
 
 /**
@@ -108,7 +115,7 @@ async function setGatewaySurface(
   if (apiRequestFailed(response, error)) {
     throw gatewayApiError("Failed to change gateway exposure", response, error);
   }
-  return requireResponseData(data, response, "Failed to change gateway exposure");
+  return requireGatewayData(data, response, "Failed to change gateway exposure");
 }
 
 async function enableGatewayProvider(
@@ -124,7 +131,7 @@ async function enableGatewayProvider(
   if (apiRequestFailed(response, error)) {
     throw gatewayApiError(`Failed to enable provider "${name}"`, response, error);
   }
-  return requireResponseData(data, response, `Failed to enable provider "${name}"`);
+  return requireGatewayData(data, response, `Failed to enable provider "${name}"`);
 }
 
 async function disableGatewayProvider(
@@ -139,7 +146,7 @@ async function disableGatewayProvider(
   if (apiRequestFailed(response, error)) {
     throw gatewayApiError(`Failed to disable provider "${name}"`, response, error);
   }
-  return requireResponseData(data, response, `Failed to disable provider "${name}"`);
+  return requireGatewayData(data, response, `Failed to disable provider "${name}"`);
 }
 
 export const gatewayApi = {

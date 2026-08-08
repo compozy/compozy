@@ -16,7 +16,7 @@ const devices = [
   }),
 ];
 
-/** Local-only posture with a small paired inventory — the shape a fresh install shows. */
+/** Local-only posture with a small paired inventory for deterministic settings stories. */
 export const handlers: HttpHandler[] = [
   compozyApiMock.get("/api/gateway/status", () =>
     HttpResponse.json(gatewayStatusFixture({ devices }))
@@ -31,7 +31,32 @@ export const handlers: HttpHandler[] = [
       { status: 201 }
     )
   ),
+  compozyApiMock.post("/api/gateway/pairings/redeem", () =>
+    HttpResponse.json({
+      device: gatewayDeviceFixture({ id: "dev_new", name: "New device" }),
+    })
+  ),
+  compozyApiMock.patch("/api/gateway/devices/{id}", ({ params }) =>
+    HttpResponse.json(gatewayDeviceFixture({ id: params.id, name: "Renamed device" }))
+  ),
+  compozyApiMock.delete("/api/gateway/devices/{id}", ({ params }) =>
+    HttpResponse.json({
+      canceled: 1,
+      changed: true,
+      device: gatewayDeviceFixture({
+        id: params.id,
+        revoked_at: "2026-08-07T12:00:00Z",
+        revoke_epoch: 1,
+      }),
+    })
+  ),
   compozyApiMock.post("/api/gateway/surfaces", () =>
+    HttpResponse.json(gatewayStatusFixture({ devices, changed: true }))
+  ),
+  compozyApiMock.post("/api/gateway/providers/{name}/enable", () =>
+    HttpResponse.json(gatewayStatusFixture({ devices, changed: true }))
+  ),
+  compozyApiMock.post("/api/gateway/providers/{name}/disable", () =>
     HttpResponse.json(gatewayStatusFixture({ devices, changed: true }))
   ),
 ];

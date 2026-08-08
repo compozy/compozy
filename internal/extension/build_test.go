@@ -391,6 +391,33 @@ func TestManifestFromDescribeResources(t *testing.T) {
 			t.Fatalf("manifest.Resources = %#v, want %#v", manifest.Resources, want)
 		}
 	})
+
+	t.Run("Should preserve normalized network participation", func(t *testing.T) {
+		t.Parallel()
+
+		payload := validDescribePayload()
+		payload.NetworkParticipation = &extensioncontract.DescribeNetworkParticipation{
+			Required: true,
+			Mode:     " LIVE ",
+			ChannelScopes: []string{
+				" gateway.public ",
+				"gateway.private",
+				"gateway.public",
+			},
+		}
+		manifest, err := manifestFromDescribe(payload)
+		if err != nil {
+			t.Fatalf("manifestFromDescribe() error = %v", err)
+		}
+		if manifest.NetworkParticipation == nil || !manifest.NetworkParticipation.Required ||
+			manifest.NetworkParticipation.Mode != "live" ||
+			!slices.Equal(
+				manifest.NetworkParticipation.ChannelScopes,
+				[]string{"gateway.private", "gateway.public"},
+			) {
+			t.Fatalf("NetworkParticipation = %#v, want normalized live gateway scopes", manifest.NetworkParticipation)
+		}
+	})
 }
 
 func TestValidateBundle(t *testing.T) {
@@ -566,6 +593,14 @@ func TestScaffoldExtension(t *testing.T) {
 	if templates := ScaffoldTemplates(); !slices.Equal(templates, expectedTemplates) {
 		t.Fatalf("ScaffoldTemplates() = %v, want %v", templates, expectedTemplates)
 	}
+	releaseReferences, err := resolveScaffoldSDKReferences("v0.3.0-beta.7", t.TempDir())
+	if err != nil {
+		t.Fatalf("resolveScaffoldSDKReferences(release) error = %v", err)
+	}
+	if releaseReferences.goVersion != "v0.3.0-beta.7" || releaseReferences.goReplace != "" ||
+		releaseReferences.typescript != "0.3.0-beta.7" {
+		t.Fatalf("release SDK references = %#v, want release-aligned versions", releaseReferences)
+	}
 
 	for _, template := range expectedTemplates {
 		t.Run("Should Render "+string(template)+" Without Dual Declaration", func(t *testing.T) {
@@ -595,6 +630,8 @@ func TestScaffoldExtension(t *testing.T) {
 				for _, forbidden := range []string{
 					"__EXTENSION_NAME__",
 					"__COMPOZY_GO_SDK_VERSION__",
+					"__COMPOZY_GO_SDK_REPLACE__",
+					"__COMPOZY_TS_SDK_REFERENCE__",
 					"min_compozy_version",
 					`"private": true`,
 				} {
@@ -615,12 +652,11 @@ func TestScaffoldExtension(t *testing.T) {
 							break
 						}
 					}
-					if sdkVersion != scaffoldGoSDKVersion {
+					if sdkVersion == "" {
 						t.Fatalf(
-							"template %q go.mod SDK version = %q, want %q",
+							"template %q go.mod SDK version = %q, want a resolved version",
 							template,
 							sdkVersion,
-							scaffoldGoSDKVersion,
 						)
 					}
 				}

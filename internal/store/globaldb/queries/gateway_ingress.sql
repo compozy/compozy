@@ -58,7 +58,7 @@ ORDER BY source_order
 LIMIT 1;
 
 -- name: GetGatewayBridgeIngressSubject :one
-SELECT scope_kind, workspace_id, provider_config
+SELECT scope_kind, workspace_id, COALESCE(provider_config, '') AS provider_config
 FROM (
   SELECT
     resource.scope_kind,

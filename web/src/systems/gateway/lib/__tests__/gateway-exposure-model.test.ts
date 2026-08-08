@@ -6,11 +6,34 @@
 import { describe, expect, it } from "vitest";
 
 import { gatewayStatusFixture, gatewayTierFixture } from "../../mocks/fixtures";
+import type { GatewayStatus } from "../../types";
 import {
   buildGatewayExposureModel,
   isLocalOnly,
   tierReachability,
 } from "../gateway-exposure-model";
+
+function reachablePublicStatus(surfaces: GatewayStatus["surfaces"]): GatewayStatus {
+  return gatewayStatusFixture({
+    addresses: [{ address: "https://public.gateway.test", live: true, tier: "public" }],
+    providers: [
+      {
+        cause: "",
+        desired: "enabled",
+        generation: 1,
+        health: "healthy",
+        name: "connectivity-fixture",
+        observed: "up",
+        tier: "public",
+      },
+    ],
+    surfaces,
+    tiers: [
+      { advertised: false, desired: "disabled", observed: "down", tier: "private" },
+      { advertised: true, desired: "enabled", observed: "up", tier: "public" },
+    ],
+  });
+}
 
 describe("gateway exposure model", () => {
   it("Should report local-only while nothing is advertised and no address is verified", () => {
@@ -112,40 +135,22 @@ describe("gateway exposure model", () => {
   it("Should not lend a served surface's reachability or address to the other surface on its tier", () => {
     // Public webhook ingress is verified and live; public operator access is
     // still off. The two share a tier but not a truth.
-    const status = gatewayStatusFixture({
-      addresses: [{ address: "https://public.gateway.test", live: true, tier: "public" }],
-      providers: [
-        {
-          cause: "",
-          desired: "enabled",
-          generation: 1,
-          health: "healthy",
-          name: "connectivity-fixture",
-          observed: "up",
-          tier: "public",
-        },
-      ],
-      surfaces: [
-        {
-          desired: "enabled",
-          generation: 2,
-          observed: "on",
-          surface: "webhook_ingress",
-          tier: "public",
-        },
-        {
-          desired: "disabled",
-          generation: 5,
-          observed: "off",
-          surface: "operator_ui",
-          tier: "public",
-        },
-      ],
-      tiers: [
-        { advertised: false, desired: "disabled", observed: "down", tier: "private" },
-        { advertised: true, desired: "enabled", observed: "up", tier: "public" },
-      ],
-    });
+    const status = reachablePublicStatus([
+      {
+        desired: "enabled",
+        generation: 2,
+        observed: "on",
+        surface: "webhook_ingress",
+        tier: "public",
+      },
+      {
+        desired: "disabled",
+        generation: 5,
+        observed: "off",
+        surface: "operator_ui",
+        tier: "public",
+      },
+    ]);
     const rows = buildGatewayExposureModel(status).rows;
     const ingress = rows.find(row => row.id === "public-webhook-ingress");
     const operator = rows.find(row => row.id === "public-operator-ui");
@@ -160,42 +165,24 @@ describe("gateway exposure model", () => {
   });
 
   it("Should hold a desired-but-unserved surface at pending even while its tier is reachable", () => {
-    const status = gatewayStatusFixture({
-      addresses: [{ address: "https://public.gateway.test", live: true, tier: "public" }],
-      providers: [
-        {
-          cause: "",
-          desired: "enabled",
-          generation: 1,
-          health: "healthy",
-          name: "connectivity-fixture",
-          observed: "up",
-          tier: "public",
-        },
-      ],
-      surfaces: [
-        {
-          desired: "enabled",
-          generation: 2,
-          observed: "on",
-          surface: "webhook_ingress",
-          tier: "public",
-        },
-        // The operator asked for public operator access; reconciliation has not
-        // served it yet.
-        {
-          desired: "enabled",
-          generation: 6,
-          observed: "off",
-          surface: "operator_ui",
-          tier: "public",
-        },
-      ],
-      tiers: [
-        { advertised: false, desired: "disabled", observed: "down", tier: "private" },
-        { advertised: true, desired: "enabled", observed: "up", tier: "public" },
-      ],
-    });
+    const status = reachablePublicStatus([
+      {
+        desired: "enabled",
+        generation: 2,
+        observed: "on",
+        surface: "webhook_ingress",
+        tier: "public",
+      },
+      // The operator asked for public operator access; reconciliation has not
+      // served it yet.
+      {
+        desired: "enabled",
+        generation: 6,
+        observed: "off",
+        surface: "operator_ui",
+        tier: "public",
+      },
+    ]);
     const operator = buildGatewayExposureModel(status).rows.find(
       row => row.id === "public-operator-ui"
     );

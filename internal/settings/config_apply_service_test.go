@@ -1302,6 +1302,22 @@ func TestReloadChangedPaths(t *testing.T) {
 		}
 	})
 
+	t.Run("Should classify client-only gateway profile changes as live", func(t *testing.T) {
+		t.Parallel()
+		current := compozyconfig.DefaultWithHome(compozyconfig.HomePaths{})
+		desired := current
+		desired.Gateway.Connections = []compozyconfig.GatewayConnectionConfig{{
+			Name: "remote", Scheme: "ssh", Host: "gateway.example.test", Port: 22,
+		}}
+		desired.Gateway.ActiveConnection = "remote"
+		if got := reloadChangedPaths(&current, &desired); len(got) != 0 {
+			t.Fatalf("reloadChangedPaths() = %#v, want no daemon runtime paths", got)
+		}
+		if got := classifyReloadLifecycle(&current, &desired); got != lifecycle.Live {
+			t.Fatalf("classifyReloadLifecycle() = %q, want %q", got, lifecycle.Live)
+		}
+	})
+
 	t.Run("Should emit the restart-required automation suggestion cap path", func(t *testing.T) {
 		t.Parallel()
 

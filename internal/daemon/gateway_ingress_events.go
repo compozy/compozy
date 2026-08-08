@@ -18,19 +18,30 @@ type gatewayIngressAuditSink struct {
 	now    func() time.Time
 }
 
-const gatewayIngressAuditWriteTimeout = 5 * time.Second
-
 func (s gatewayIngressAuditSink) RecordIngressBound(ctx context.Context, event gateway.IngressMutationEvent) error {
-	return s.record(ctx, eventspkg.GatewayIngressBound, "gateway ingress bound", event)
+	return s.record(
+		ctx,
+		eventspkg.GatewayIngressBound,
+		eventspkg.OutcomeSuccess,
+		"gateway ingress bound",
+		event,
+	)
 }
 
 func (s gatewayIngressAuditSink) RecordIngressUnbound(ctx context.Context, event gateway.IngressMutationEvent) error {
-	return s.record(ctx, eventspkg.GatewayIngressUnbound, "gateway ingress unbound", event)
+	return s.record(
+		ctx,
+		eventspkg.GatewayIngressUnbound,
+		eventspkg.OutcomeWarning,
+		"gateway ingress unbound",
+		event,
+	)
 }
 
 func (s gatewayIngressAuditSink) record(
 	ctx context.Context,
 	eventType string,
+	outcome eventspkg.Outcome,
 	summary string,
 	event gateway.IngressMutationEvent,
 ) error {
@@ -51,12 +62,12 @@ func (s gatewayIngressAuditSink) record(
 		SubjectKind: string(binding.Subject.Kind),
 		SubjectID: diagnostics.RedactAndBound(
 			binding.Subject.ID,
-			maxGatewayAuditReasonBytes,
+			maxGatewayAuditFieldBytes,
 		),
 		ScopeKind: string(binding.Scope),
 		WorkspaceID: diagnostics.RedactAndBound(
 			binding.WorkspaceID,
-			maxGatewayAuditReasonBytes,
+			maxGatewayAuditFieldBytes,
 		),
 		EndpointGeneration: binding.EndpointGeneration,
 	})
@@ -67,11 +78,7 @@ func (s gatewayIngressAuditSink) record(
 	if s.now != nil {
 		now = s.now
 	}
-	outcome := eventspkg.OutcomeSuccess
-	if eventType == eventspkg.GatewayIngressUnbound {
-		outcome = eventspkg.OutcomeWarning
-	}
-	writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), gatewayIngressAuditWriteTimeout)
+	writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), gatewayAuditWriteTimeout)
 	defer cancel()
 	if err := s.writer.WriteEventSummary(writeCtx, store.EventSummary{
 		WorkspaceID: binding.WorkspaceID,
@@ -81,7 +88,7 @@ func (s gatewayIngressAuditSink) record(
 			ActorKind: event.ActorKind,
 			ActorID: diagnostics.RedactAndBound(
 				event.ActorID,
-				maxGatewayAuditReasonBytes,
+				maxGatewayAuditFieldBytes,
 			),
 		},
 	}); err != nil {

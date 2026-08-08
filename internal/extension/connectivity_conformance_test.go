@@ -41,7 +41,9 @@ func TestConnectivityProviderSubprocessConformance(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Manager.Start() error = %v", err)
 		}
-		supervisor := newConnectivityConformanceSupervisor(t, manager, challenges, server.Client())
+		supervisor := newConnectivityConformanceSupervisor(
+			t, manager, "connectivity-negotiated", challenges, server.Client(),
+		)
 		activation := connectivityConformanceActivation("connectivity-negotiated")
 		reachability, err := supervisor.Establish(
 			testutil.Context(t), activation, netip.MustParseAddrPort("127.0.0.1:43210"),
@@ -109,6 +111,25 @@ func TestConnectivityProviderSubprocessConformance(t *testing.T) {
 		}
 	})
 
+	t.Run("Should carry an explicit private endpoint scheme policy across the provider boundary", func(t *testing.T) {
+		t.Parallel()
+
+		reachability, err := connectivityReachabilityFromWire(extensioncontract.ConnectivityReachability{
+			Tier: "private", Health: "healthy",
+			Endpoints: []extensioncontract.ConnectivityAdvertisedEndpoint{{
+				URL: "TSNET://Gateway.Example.Test/", Scheme: "TSNET", Stability: "stable",
+				SchemePolicy: "tailnet_internal",
+			}},
+		})
+		if err != nil {
+			t.Fatalf("connectivityReachabilityFromWire() error = %v", err)
+		}
+		if got := reachability.Endpoints[0]; got.URL != "tsnet://gateway.example.test" ||
+			got.Scheme != "tsnet" || got.SchemePolicy != gateway.EndpointSchemePolicyTailnetInternal {
+			t.Fatalf("endpoint = %#v, want canonical tailnet policy descriptor", got)
+		}
+	})
+
 	t.Run("Should reject a real provider response for the wrong tier [IT-031]", func(t *testing.T) {
 		manager, _, err := startConnectivityConformanceManager(
 			t, "connectivity-wrong-tier", "connectivity_wrong_tier", "",
@@ -118,7 +139,11 @@ func TestConnectivityProviderSubprocessConformance(t *testing.T) {
 		}
 		challenges := gateway.NewChallengeRegistry()
 		supervisor := newConnectivityConformanceSupervisor(
-			t, manager, challenges, &http.Client{Timeout: 50 * time.Millisecond},
+			t,
+			manager,
+			"connectivity-wrong-tier",
+			challenges,
+			&http.Client{Timeout: 50 * time.Millisecond},
 		)
 		activation := connectivityConformanceActivation("connectivity-wrong-tier")
 		_, err = supervisor.Establish(
@@ -139,18 +164,18 @@ func TestConnectivityProviderSubprocessConformance(t *testing.T) {
 	})
 
 	t.Run("Should reject malformed provider JSON without crashing the manager [UT-082]", func(t *testing.T) {
-		marker := filepath.Join(t.TempDir(), "malformed-restarts.jsonl")
+		restartLogPath := filepath.Join(t.TempDir(), "malformed-restarts.jsonl")
 		manager, _, err := startConnectivityConformanceManager(
 			t,
 			"connectivity-malformed",
 			"connectivity_malformed",
-			marker,
+			restartLogPath,
 		)
 		if err != nil {
 			t.Fatalf("Manager.Start() error = %v", err)
 		}
 		waitForManagerCondition(t, 2*time.Second, func() bool {
-			return markerLineCount(marker) >= 2
+			return markerLineCount(restartLogPath) >= 2
 		})
 		if _, err := manager.Get("connectivity-malformed"); err != nil {
 			t.Fatalf("Manager.Get() after malformed payload error = %v", err)
@@ -330,6 +355,7 @@ func (v connectivityConformanceVerifier) Verify(
 func newConnectivityConformanceSupervisor(
 	t *testing.T,
 	manager *Manager,
+	providerName string,
 	challenges *gateway.ChallengeRegistry,
 	client *http.Client,
 ) *gateway.ProviderSupervisor {
@@ -337,7 +363,7 @@ func newConnectivityConformanceSupervisor(
 	supervisor, err := gateway.NewProviderSupervisor(
 		manager,
 		connectivityConformanceTrust{},
-		connectivityConformanceIdentity{name: managerNameForConformance(t, manager)},
+		connectivityConformanceIdentity{name: providerName},
 		challenges,
 		connectivityConformanceVerifier{client: client, timeout: time.Second},
 		gateway.WithProviderSupervisorIntervals(time.Hour, 100*time.Millisecond, 100*time.Millisecond),
@@ -346,17 +372,6 @@ func newConnectivityConformanceSupervisor(
 		t.Fatalf("NewProviderSupervisor() error = %v", err)
 	}
 	return supervisor
-}
-
-func managerNameForConformance(t *testing.T, manager *Manager) string {
-	t.Helper()
-	for _, name := range []string{"connectivity-negotiated", "connectivity-wrong-tier"} {
-		if _, err := manager.Get(name); err == nil {
-			return name
-		}
-	}
-	t.Fatal("conformance manager has no expected provider")
-	return ""
 }
 
 func connectivityConformanceActivation(name string) gateway.ProviderActivation {
@@ -372,12 +387,16 @@ func startConnectivityConformanceManager(
 	t *testing.T,
 	name string,
 	scenario string,
-	marker string,
+	scenarioValue string,
 ) (*Manager, *bytes.Buffer, error) {
 	t.Helper()
 	withDaemonVersion(t, "0.6.0")
 	env := newRegistryTestEnv(t)
-	fixture := createManagerTestExtension(t, connectivityConformanceManifest(t, name, scenario, marker), nil)
+	fixture := createManagerTestExtension(
+		t,
+		connectivityConformanceManifest(t, name, scenario, scenarioValue),
+		nil,
+	)
 	installManagerFixture(t, env.registry, fixture, SourceBundled, true)
 	var logs bytes.Buffer
 	manager := NewManager(
@@ -410,7 +429,12 @@ func startConnectivityConformanceManager(
 	return manager, &logs, err
 }
 
-func connectivityConformanceManifest(t *testing.T, name string, scenario string, marker string) string {
+func connectivityConformanceManifest(
+	t *testing.T,
+	name string,
+	scenario string,
+	scenarioValue string,
+) string {
 	t.Helper()
 	return fmt.Sprintf(`[extension]
 name = %q
@@ -439,5 +463,5 @@ shutdown_timeout = "40ms"
 %s = "1"
 %s = %q
 %s = %q
-`, name, helperCommand(t), extensionHelperEnvKey, extensionHelperScenarioKey, scenario, extensionHelperMarkerKey, marker)
+	`, name, helperCommand(t), extensionHelperEnvKey, extensionHelperScenarioKey, scenario, extensionHelperMarkerKey, scenarioValue)
 }

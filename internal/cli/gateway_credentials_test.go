@@ -110,8 +110,50 @@ func TestGatewayCredentialStore(t *testing.T) {
 		if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("Stat(removed file) error = %v, want os.ErrNotExist", err)
 		}
-		if _, ok := keys.values[gatewayCredentialKeyringService+"\x00laptop"]; ok {
+		keyUser, err := store.keyringUser("laptop")
+		if err != nil {
+			t.Fatalf("keyringUser() error = %v", err)
+		}
+		if _, ok := keys.values[gatewayCredentialKeyringService+"\x00"+keyUser]; ok {
 			t.Fatal("remove() retained the OS-keyring encryption key")
+		}
+	})
+
+	t.Run("Should isolate keyring keys across Compozy homes", func(t *testing.T) {
+		t.Parallel()
+		keys := &memoryCredentialKeyring{values: make(map[string]string)}
+		first := gatewayCredentialStore{
+			dir: t.TempDir() + "/credentials", keys: keys,
+			entropy: bytes.NewReader(bytes.Repeat([]byte{0x31}, 64)),
+		}
+		second := gatewayCredentialStore{
+			dir: t.TempDir() + "/credentials", keys: keys,
+			entropy: bytes.NewReader(bytes.Repeat([]byte{0x32}, 64)),
+		}
+		credential := testGatewayCredential('k')
+		if _, err := first.write("default", credential); err != nil {
+			t.Fatalf("first.write() error = %v", err)
+		}
+		if _, err := second.write("default", credential); err != nil {
+			t.Fatalf("second.write() error = %v", err)
+		}
+		firstUser, err := first.keyringUser("default")
+		if err != nil {
+			t.Fatalf("first.keyringUser() error = %v", err)
+		}
+		secondUser, err := second.keyringUser("default")
+		if err != nil {
+			t.Fatalf("second.keyringUser() error = %v", err)
+		}
+		if firstUser == secondUser {
+			t.Fatalf("keyring users = %q, want independent home scopes", firstUser)
+		}
+		if err := first.remove("default"); err != nil {
+			t.Fatalf("first.remove() error = %v", err)
+		}
+		got, err := second.read("default")
+		if err != nil || got != credential {
+			t.Fatalf("second.read() = %q, %v; want unaffected credential", got, err)
 		}
 	})
 
