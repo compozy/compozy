@@ -29,6 +29,7 @@
 - Replace software-delivery with implement-tasks (#325)
 - **BREAKING:** remove software-delivery; use implement-tasks without gate inputs.
 - Parent and child sessions (#327)
+- Add secure remote gateway access (#331)
 
 ### 🐛 Bug Fixes
 
@@ -50,6 +51,7 @@
 - Loop run bugs (#324)
 - Enforce bundled agent and Loop ownership (#326)
 - Session native tools and extensions details (#330)
+- Judge gate on goal loops
 
 ### 🧪 Testing
 
