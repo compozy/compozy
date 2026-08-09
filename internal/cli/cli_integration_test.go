@@ -810,7 +810,16 @@ func (e *sshIntegrationExecutor) Run(
 		return nil, errors.New("unexpected gateway mutation")
 	case strings.HasSuffix(joined, "compozy status -o json"):
 		if !e.isRunning() {
-			return nil, &sshCommandError{cause: errors.New("exit status 1"), output: "daemon unavailable"}
+			output, err := json.Marshal(contract.ErrorPayload{
+				Error: "daemon unavailable",
+				Diagnostic: &contract.DiagnosticItem{
+					Code: contract.CodeDaemonUnavailable,
+				},
+			})
+			if err != nil {
+				return nil, fmt.Errorf("encode daemon-unavailable SSH fixture: %w", err)
+			}
+			return output, &sshCommandError{cause: errors.New("exit status 1"), output: string(output)}
 		}
 		return json.Marshal(StatusRecord{Daemon: DaemonStatus{
 			Status: "running", PID: 4101, StartedAt: e.startedAt,

@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/version"
 )
@@ -116,6 +117,90 @@ func TestConnectSSHFailureTaxonomy(t *testing.T) {
 		}}
 		err := verifyRemoteCompozy(t.Context(), executor, sshTarget{host: "remote", port: 22}, "")
 		assertGatewayClientErrorCode(t, err, sshHostKeyChangedCode)
+	})
+
+	t.Run("Should start after the remote status reports daemon unavailable", func(t *testing.T) {
+		startedAt := time.Date(2026, 8, 9, 20, 0, 0, 0, time.UTC)
+		status := DaemonStatus{
+			Status: "running", PID: 5101, StartedAt: startedAt,
+			HTTPHost: "127.0.0.1", HTTPPort: 2123,
+		}
+		startCalls := 0
+		executor := sshExecutorStub{
+			startLease: func(
+				context.Context,
+				sshTarget,
+				string,
+				*sshDaemonOwnership,
+			) (sshOwnershipLease, error) {
+				return sshOwnershipLeaseStub{}, nil
+			},
+			run: func(_ context.Context, _ sshTarget, command []string) ([]byte, error) {
+				joined := strings.Join(command, " ")
+				switch {
+				case strings.HasSuffix(joined, "compozy status -o json"):
+					output := jsonMarshalForTest(t, contract.ErrorPayload{
+						Error: "daemon unavailable",
+						Diagnostic: &contract.DiagnosticItem{
+							Code: contract.CodeDaemonUnavailable,
+						},
+					})
+					return output, &sshCommandError{cause: errors.New("exit status 1"), output: string(output)}
+				case strings.Contains(joined, "daemon start"):
+					startCalls++
+					return jsonMarshalForTest(t, status), nil
+				default:
+					return nil, errors.New("unexpected command")
+				}
+			},
+		}
+
+		resolution, err := resolveRemoteDaemon(
+			t.Context(), executor, sshTarget{host: "remote.example", port: 22},
+			connectSSHOptions{port: 22, remoteStart: true, ownerToken: "owner-token"},
+			commandDeps{}.withDefaults(),
+		)
+		if err != nil || !resolution.started() {
+			t.Fatalf("resolveRemoteDaemon() = %#v, %v; want owned running daemon", resolution, err)
+		}
+		if startCalls != 1 {
+			t.Fatalf("daemon start calls = %d, want 1", startCalls)
+		}
+	})
+
+	t.Run("Should keep other remote diagnostics fatal", func(t *testing.T) {
+		leaseCalls := 0
+		executor := sshExecutorStub{
+			startLease: func(
+				context.Context,
+				sshTarget,
+				string,
+				*sshDaemonOwnership,
+			) (sshOwnershipLease, error) {
+				leaseCalls++
+				return sshOwnershipLeaseStub{}, nil
+			},
+			run: func(context.Context, sshTarget, []string) ([]byte, error) {
+				output := jsonMarshalForTest(t, contract.ErrorPayload{
+					Error: "invalid configuration",
+					Diagnostic: &contract.DiagnosticItem{
+						Code: contract.CodeConfigInvalid,
+					},
+				})
+				return output, &sshCommandError{cause: errors.New("exit status 1"), output: string(output)}
+			},
+		}
+
+		resolution, err := resolveRemoteDaemon(
+			t.Context(), executor, sshTarget{host: "remote.example", port: 22},
+			connectSSHOptions{port: 22, remoteStart: true}, commandDeps{}.withDefaults(),
+		)
+		if err == nil || !strings.Contains(err.Error(), "inspect remote daemon status") {
+			t.Fatalf("resolveRemoteDaemon() = %#v, %v; want fatal remote status error", resolution, err)
+		}
+		if leaseCalls != 0 {
+			t.Fatalf("ownership lease calls = %d, want 0", leaseCalls)
+		}
 	})
 
 	t.Run("Should reject option-shaped SSH hosts and users", func(t *testing.T) {

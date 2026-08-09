@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
@@ -177,6 +178,9 @@ func readRemoteDaemonStatusRaw(
 		remoteCompozyCommand(remoteHome, "status", "-o", "json"),
 	)
 	if err != nil {
+		if isRemoteDaemonUnavailable(err) {
+			return DaemonStatus{}, errRemoteDaemonNotRunning
+		}
 		return DaemonStatus{}, err
 	}
 	var status StatusRecord
@@ -184,6 +188,21 @@ func readRemoteDaemonStatusRaw(
 		return DaemonStatus{}, fmt.Errorf("cli: decode remote runtime status: %w", err)
 	}
 	return status.Daemon, nil
+}
+
+func isRemoteDaemonUnavailable(err error) bool {
+	var commandErr *sshCommandError
+	if !errors.As(err, &commandErr) {
+		return false
+	}
+	var payload contract.ErrorPayload
+	if err := json.Unmarshal([]byte(commandErr.output), &payload); err != nil {
+		return false
+	}
+	if payload.Diagnostic == nil {
+		return false
+	}
+	return payload.Diagnostic.Code == contract.CodeDaemonUnavailable
 }
 
 func validateRemoteDaemonLoopback(status DaemonStatus) error {
