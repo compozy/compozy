@@ -138,16 +138,6 @@ func TestDaemonNightlyE2EAutomationTaskResumesIntoNetworkChannel(t *testing.T) {
 	taskID = run.TaskID
 	taskRunID = run.TaskRunID
 
-	worker := createFixtureBackedSession(
-		t,
-		ctx,
-		harness,
-		nightlyCombinedTaskAgentName,
-		"nightly-task-claim-worker",
-	)
-	if _, err := harness.ClaimExactTaskRunForSession(ctx, run.TaskRunID, worker); err != nil {
-		t.Fatalf("ClaimExactTaskRunForSession(%q) error = %v", run.TaskRunID, err)
-	}
 	startedRun, err := harness.StartTaskRun(ctx, run.TaskRunID, compozycontract.StartTaskRunRequest{})
 	if err != nil {
 		t.Fatalf("StartTaskRun(%q) error = %v", run.TaskRunID, err)
@@ -254,20 +244,15 @@ func TestDaemonNightlyE2EAutomationTaskResumesIntoNetworkChannel(t *testing.T) {
 		}},
 	}
 
-	taskSession, err := harness.GetSession(ctx, sessionID)
-	if err != nil {
-		t.Fatalf("GetSession(%q) before task completion error = %v", sessionID, err)
-	}
-	completedRun, err := harness.CompleteClaimedTaskRunForSession(
+	completedRun, err := harness.CompleteTaskRun(
 		ctx,
 		run.TaskRunID,
-		taskSession,
-		compozycontract.AgentTaskCompleteRequest{
+		compozycontract.CompleteTaskRunRequest{
 			Result: json.RawMessage(`{"network_reply":"` + nightlyTaskResumeMessageID + `"}`),
 		},
 	)
 	if err != nil {
-		t.Fatalf("CompleteClaimedTaskRunForSession(%q) error = %v", run.TaskRunID, err)
+		t.Fatalf("CompleteTaskRun(%q) error = %v", run.TaskRunID, err)
 	}
 	if got, want := completedRun.Status, taskpkg.TaskRunStatusCompleted; got != want {
 		t.Fatalf("completedRun.Status = %q, want %q", got, want)
@@ -317,8 +302,10 @@ func TestDaemonNightlyE2EBridgeIngressDeliversThenUserSandboxTool(t *testing.T) 
 		nightlyCombinedBridgeAgentName,
 		nightlyCombinedBridgeScenario,
 	)
-	configSeed.Mutate = allowUnverifiedBridgeExtensionInstalls
+	homePaths := e2etest.NewHomePaths(t)
+	seedDaemonBundledBridgeExtension(t, homePaths, extensionDir)
 	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+		HomePaths:  homePaths,
 		ConfigSeed: configSeed,
 		Env:        env,
 	})
@@ -342,14 +329,6 @@ func TestDaemonNightlyE2EBridgeIngressDeliversThenUserSandboxTool(t *testing.T) 
 		&diagnostics,
 		&combined,
 	)
-
-	if _, err := harness.InstallExtension(ctx, compozycontract.InstallExtensionRequest{
-		Source:          compozycontract.InstallExtensionSourceLocalPath,
-		Ref:             extensionDir,
-		AllowUnverified: true,
-	}); err != nil {
-		t.Fatalf("InstallExtension(%q) error = %v", extensionDir, err)
-	}
 
 	waitForRuntimeCondition(t, "nightly bridge extension registered", 10*time.Second, func() bool {
 		ext, err := harness.GetExtension(ctx, "telegram-reference")
